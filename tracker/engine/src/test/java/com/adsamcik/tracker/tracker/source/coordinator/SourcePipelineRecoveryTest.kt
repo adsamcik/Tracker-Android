@@ -59,6 +59,9 @@ import kotlinx.coroutines.sync.withLock
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
+// One pipeline recovery fixture keeps startup, callback drains and cancellation on the same coordinator
+// boundaries.
+@Suppress("LargeClass")
 class SourcePipelineRecoveryTest {
 	private val legacy = mockk<LegacyV27ProjectionRecovery>()
 	private val coordinator = mockk<TrackingCoordinator>()
@@ -149,7 +152,11 @@ class SourcePipelineRecoveryTest {
 		every { gate.currentGeneration } returns 3L
 		every { gate.isReadyGeneration(3L) } answers { opened }
 		every { gate.withRetainedDataGeneration<Boolean>(3L, any()) } answers {
-			if (opened) secondArg<() -> Boolean>().invoke() else null
+			if (opened) {
+				secondArg<() -> Boolean>().invoke()
+			} else {
+				null
+			}
 		}
 		coEvery { gate.awaitReady() } coAnswers {
 			ready.await()
@@ -341,8 +348,12 @@ class SourcePipelineRecoveryTest {
 		val seen = mutableListOf<Long?>()
 		coEvery { activityEffects.drainToQuiescence(any(), any(), any(), any()) } answers {
 			seen += arg<ActivityAutomationStartPermit.FreshTransitionCallback>(2).expectedCommandGeneration
-			if (seen.size == 1) ActivityAutomationDrainResult.Retryable(0, 0)
-			else ActivityAutomationDrainResult.Complete(0, 0)
+			if (seen.size == 1) {
+				ActivityAutomationDrainResult.Retryable(0, 0)
+			}
+			else {
+				ActivityAutomationDrainResult.Complete(0, 0)
+			}
 		}
 		val recovery = SourcePipelineRecovery(legacy, coordinator, activityLane, activityEffects,
 			applicationScope = backgroundScope, startupGateProvider = javax.inject.Provider { gate })
@@ -561,8 +572,12 @@ class SourcePipelineRecoveryTest {
 		val contexts = mutableListOf<ActivityAutomationStartContext>()
 		coEvery { consumer.deliver(any(), any(), any(), any(), any(), any()) } answers {
 			contexts += arg<ActivityAutomationStartContext>(4)
-			if (!authorityReady) ActivityAutomationDeliveryResult.RETRY
-			else ActivityAutomationDeliveryResult.ACCEPTED.also { serviceStarts++ }
+			if (!authorityReady) {
+				ActivityAutomationDeliveryResult.RETRY
+			}
+			else {
+				ActivityAutomationDeliveryResult.ACCEPTED.also { serviceStarts++ }
+			}
 		}
 
 		val result = composed.drainCommittedActivityCallbackWork(
@@ -789,7 +804,11 @@ class SourcePipelineRecoveryTest {
 			expectedGeneration: Long,
 			operation: suspend () -> T,
 		): T? = operationMutex.withLock {
-			if (isReadyGeneration(expectedGeneration)) operation() else null
+			if (isReadyGeneration(expectedGeneration)) {
+				operation()
+			} else {
+				null
+			}
 		}
 
 		override suspend fun <T> withReadyGenerationWork(
@@ -803,7 +822,9 @@ class SourcePipelineRecoveryTest {
 		): T? = coroutineScope {
 			val child = async(start = CoroutineStart.LAZY) { operation() }
 			val admitted = synchronized(transfers) {
-				if (!isReadyGeneration(expectedGeneration)) false else { transfers.add(child); true }
+				if (!isReadyGeneration(expectedGeneration)) {
+					false
+				} else { transfers.add(child); true }
 			}
 			if (!admitted) { child.cancel(); return@coroutineScope null }
 			child.invokeOnCompletion { synchronized(transfers) { transfers.remove(child) } }

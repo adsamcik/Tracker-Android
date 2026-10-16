@@ -114,6 +114,7 @@ class DashboardViewModel @Inject constructor(
 	val stepsToday: StateFlow<StepsDailyDisplay> = todayStepsDisplay.observe()
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(0L, 0L), StepsDailyDisplay.Materializing)
 
+	/** Refreshes the existing saved Steps display for the current local calendar day without starting a sensor. */
 	fun refreshStepsToday() = todayStepsDisplay.refresh()
 
 	private val dailyPointsProvider by lazy(LazyThreadSafetyMode.NONE) {
@@ -422,6 +423,8 @@ private fun SessionHistoryQuery.toLivePresentation(
 	}
 }
 
+// This closed presentation mapping keeps every source result and its unavailable state together.
+@Suppress("CyclomaticComplexMethod", "LongMethod")
 private fun com.adsamcik.tracker.stats.api.repository.SessionHistory.toLivePresentation(
 	requestedSegmentId: Long,
 	snapshot: LiveSessionHistorySnapshot,

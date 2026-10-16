@@ -70,6 +70,8 @@ import java.time.YearMonth
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+// This finite Compose declaration keeps screen state, navigation and action bindings together.
+@Suppress("CyclomaticComplexMethod", "LongMethod")
 fun HistoryRoute(
 	onBack: () -> Unit = {},
 	onNavigateToTripDetail: (Long) -> Unit,
@@ -91,8 +93,10 @@ fun HistoryRoute(
 	val undoLabel = stringResource(com.adsamcik.tracker.shared.base.R.string.generic_undo)
 	LaunchedEffect(viewModel, snackbarHostState, deletedMessage, undoLabel) {
 		viewModel.pendingDeleteEvents.collect { event ->
-			if (snackbarHostState.showSnackbar(deletedMessage, undoLabel, duration = SnackbarDuration.Long) == SnackbarResult.ActionPerformed)
+			if (snackbarHostState.showSnackbar(deletedMessage, undoLabel, duration =
+                SnackbarDuration.Long) == SnackbarResult.ActionPerformed) {
 				viewModel.undoDeleteTrip(event.tripId)
+			}
 		}
 	}
 	val sessions by organization.read.collectAsState()
@@ -137,7 +141,11 @@ fun HistoryRoute(
 				},
 				actions = {
 					TextButton(enabled = sessions is SessionOrganizationRead.Content && !busy, onClick = {
-						organization.add(if (selectedTab == HistoryTab.CALENDAR) calendarState.selectedDay else organizationDay)
+						organization.add(if (selectedTab == HistoryTab.CALENDAR) {
+							calendarState.selectedDay
+						} else {
+							organizationDay
+						})
 					}) { Text(stringResource(R.string.organization_add)) }
 				},
 				colors = TopAppBarDefaults.topAppBarColors(
@@ -157,8 +165,10 @@ fun HistoryRoute(
 				onTabSelected = viewModel::selectTab,
 			)
 
-			if (editor == null && problem != null) Text(stringResource(organizationProblemText(requireNotNull(problem))),
+			if (editor == null && problem != null) {
+				Text(stringResource(organizationProblemText(requireNotNull(problem))),
 				modifier = Modifier.padding(horizontal = 16.dp))
+			}
 			AnimatedContent(
 				targetState = selectedTab,
 				modifier = Modifier.weight(1f),
@@ -171,13 +181,21 @@ fun HistoryRoute(
 					)
 					HistoryTab.TRIPS -> Column {
 						TextButton(onClick = { showRecordings = !showRecordings }) {
-							Text(stringResource(if (showRecordings) R.string.organization_back_sessions else R.string.organization_browse_recordings))
+							Text(stringResource(if (showRecordings) {
+								R.string.organization_back_sessions
+							} else {
+								R.string.organization_browse_recordings
+							}))
 						}
-						if (showRecordings && sessions is SessionOrganizationRead.Content) TripsContent(recordingPages, onNavigateToTripDetail,
+						if (showRecordings && sessions is SessionOrganizationRead.Content) {
+							TripsContent(recordingPages, onNavigateToTripDetail,
 							onDeleteTrip = viewModel::requestDeleteTrip, pendingDeletes = pendingDeletes,
 							onViewTripOnMap = { onNavigateToMap(it.id, it.startTimeMs, it.endTimeMs) })
-						else OrganizedSessionsContent(sessions, organizationDay, organization::showContents,
+						}
+						else {
+							OrganizedSessionsContent(sessions, organizationDay, organization::showContents,
 							onShowAll = { organization.showDay(null) }, pages = sessionPages)
+						}
 					}
 					HistoryTab.CALENDAR -> CalendarContent(
 						state = calendarState,
@@ -190,7 +208,8 @@ fun HistoryRoute(
 						},
 						organizationDays = organizationDays,
 						organizationRead = monthSessions,
-						onViewSessionsForDay = { day -> showRecordings = false; organization.showDay(day); viewModel.selectTab(HistoryTab.TRIPS) },
+						onViewSessionsForDay = { day -> showRecordings =
+                            false; organization.showDay(day); viewModel.selectTab(HistoryTab.TRIPS) },
 						onMonthChange = viewModel::selectMonth,
                     onRetryMonth = viewModel::retryCalendarMonth,
 						onNavigateToTripDetail = onNavigateToTripDetail,
@@ -217,7 +236,9 @@ internal fun rememberMeasuredHistoryViewZone(): ZoneId {
     DisposableEffect(owner, configuration) {
         zone = ZoneId.systemDefault()
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) zone = ZoneId.systemDefault()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                zone = ZoneId.systemDefault()
+            }
         }
         owner.lifecycle.addObserver(observer)
         onDispose { owner.lifecycle.removeObserver(observer) }

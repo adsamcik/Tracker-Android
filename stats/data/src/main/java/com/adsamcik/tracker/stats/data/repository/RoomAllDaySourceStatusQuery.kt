@@ -50,8 +50,12 @@ internal class RoomAllDaySourceStatusQuery @Inject constructor(
 
 	override suspend fun read(request: AllDaySourceStatusRequest): AllDaySourceStatusRead = withContext(io) {
 		currentCoroutineContext().ensureActive()
-		if (request is AllDaySourceStatusRequest.Unsupported) return@withContext AllDaySourceStatusRead.Unsupported
-		if (!database.isOpen) return@withContext unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
+		if (request is AllDaySourceStatusRequest.Unsupported) {
+			return@withContext AllDaySourceStatusRead.Unsupported
+		}
+		if (!database.isOpen) {
+			return@withContext unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
+		}
 		try {
 			database.withTransaction {
 				if (database.activeRetentionFloorSettlement() != null) {
@@ -63,13 +67,7 @@ internal class RoomAllDaySourceStatusQuery @Inject constructor(
 					return@withTransaction unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
 				}
 				val snapshot = TrackingHistoryReadSnapshot(evidence.collectedDataEpoch, evidence.revision)
-				when (request) {
-					is AllDaySourceStatusRequest.Steps -> readSteps(request, evidence, snapshot)
-					is AllDaySourceStatusRequest.Wifi -> readWifi(request, snapshot)
-					is AllDaySourceStatusRequest.Cell -> readCell(request, snapshot)
-					is AllDaySourceStatusRequest.Location -> readLocation(request, snapshot)
-					is AllDaySourceStatusRequest.Unsupported -> AllDaySourceStatusRead.Unsupported
-				}
+				readSnapshot(request, evidence, snapshot)
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -78,6 +76,19 @@ internal class RoomAllDaySourceStatusQuery @Inject constructor(
 		} catch (_: RuntimeException) {
 			unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
 		}
+	}
+
+	/** Route one accepted snapshot to the existing source-owned reader. */
+	private suspend fun readSnapshot(
+		request: AllDaySourceStatusRequest,
+		evidence: SourceEvidenceState,
+		snapshot: TrackingHistoryReadSnapshot,
+	): AllDaySourceStatusRead = when (request) {
+		is AllDaySourceStatusRequest.Steps -> readSteps(request, evidence, snapshot)
+		is AllDaySourceStatusRequest.Wifi -> readWifi(request, snapshot)
+		is AllDaySourceStatusRequest.Cell -> readCell(request, snapshot)
+		is AllDaySourceStatusRequest.Location -> readLocation(request, snapshot)
+		is AllDaySourceStatusRequest.Unsupported -> AllDaySourceStatusRead.Unsupported
 	}
 
 	/** History keeps its requested local/imported membership and existing count-domain composer. */
@@ -92,7 +103,9 @@ internal class RoomAllDaySourceStatusQuery @Inject constructor(
 	internal suspend fun readCellHistoryInTransaction(request: AmbientCellReadRequest): AmbientCellReadResult =
 		cell.readObservationWindowInTransaction(request)
 
-	internal suspend fun qualifyLocationInTransaction(receipts: List<LocationAcceptedReceiptEntity>): RetainedLocationSavedSnapshot =
+	internal suspend fun qualifyLocationInTransaction(
+		receipts: List<LocationAcceptedReceiptEntity>,
+	): RetainedLocationSavedSnapshot =
 		location.qualifySavedInTransaction(receipts)
 
 	private suspend fun readSteps(request: AllDaySourceStatusRequest.Steps, evidence: SourceEvidenceState,
@@ -112,10 +125,12 @@ internal class RoomAllDaySourceStatusQuery @Inject constructor(
 			is NativeAmbientStepsRangeRead.Ready -> AllDaySourceStatusRead.Steps(snapshot,
 				read.factsByDay.values.flatten().map { fact ->
 					AllDayStepsWindowStatus(fact.logicalFactId, fact.correctionRevision,
-						AmbientStepsStructuralDay(fact.day.epochDay, fact.day.storedZoneId), fact.startTimeMs, fact.endTimeMs)
+						AmbientStepsStructuralDay(fact.day.epochDay, fact.day.storedZoneId), fact.startTimeMs,
+                            fact.endTimeMs)
 				},
 				read.gapsByDay.flatMap { (key, gaps) -> gaps.map { gap ->
-					AllDayStepsGapStatus(AmbientStepsStructuralDay(key.epochDay, key.storedZoneId), gap.startTimeMs, gap.endTimeMs)
+					AllDayStepsGapStatus(AmbientStepsStructuralDay(key.epochDay, key.storedZoneId), gap.startTimeMs,
+                        gap.endTimeMs)
 				} },
 				read.materializingDays.mapTo(linkedSetOf()) { AmbientStepsStructuralDay(it.epochDay, it.storedZoneId) },
 				read.unverifiableDays.mapTo(linkedSetOf()) { AmbientStepsStructuralDay(it.epochDay, it.storedZoneId) })
@@ -132,7 +147,8 @@ internal class RoomAllDaySourceStatusQuery @Inject constructor(
 			AmbientWifiReadResult.StorageUnavailable -> unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
 			is AmbientWifiReadResult.Snapshot -> AllDaySourceStatusRead.Wifi(snapshot, result.facts.map { fact ->
 				AllDayWifiFactStatus(fact.identity, fact.semanticRevision, fact.coverage, fact.coverageStartTimeMs,
-					fact.observedTimeMs, fact.latestPossibleTimeMs, fact.networks.filter { window.contains(it.observedTimeMs) }
+					fact.observedTimeMs, fact.latestPossibleTimeMs,
+                        fact.networks.filter { window.contains(it.observedTimeMs) }
 						.map { AllDayReadingTime(it.observedTimeMs, it.wallTimeUncertaintyMs) })
 			}, result.gaps, read.readGaps)
 		}
@@ -160,7 +176,9 @@ internal class RoomAllDaySourceStatusQuery @Inject constructor(
 		// An imported copy does not replace the independently retained native Ambient grant.
 		val receipts = database.locationPurposeDao().contextReceiptsOverWindow(request.window.fromInclusiveMs,
 			request.window.toExclusiveMs, request.limit + 1)
-		if (receipts.size > request.limit) return unavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
+		if (receipts.size > request.limit) {
+			return unavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
+		}
 		val read = qualifyLocationInTransaction(receipts)
 		return AllDaySourceStatusRead.Location(snapshot, read.samples.filter { it.scope is RadioContextScope.Ambient &&
 			it.sample.latE7?.let { value -> value in -900_000_000..900_000_000 } == true &&

@@ -1,11 +1,29 @@
 package com.adsamcik.tracker.tracker.source.ambient.steps
 
+import android.Manifest
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import org.junit.runner.RunWith
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class AndroidAmbientStepsProviderBackendsTest {
+	@Test
+	fun `denied local Steps remains lazy and refuses subscription before client creation`() = runTest {
+		val context = RuntimeEnvironment.getApplication()
+		Shadows.shadowOf(context).denyPermissions(Manifest.permission.ACTIVITY_RECOGNITION)
+		val subject = LocalRecordingAmbientStepsProviderBackend(context)
+
+		shouldThrow<SecurityException> { subject.ensureActive() }.message shouldBe
+			"Local Recording Steps permission is unavailable"
+	}
+
 	@Test
 	fun `health connect activation rechecks exact selected capability`() = runTest {
 		var resolves = 0

@@ -75,8 +75,16 @@ class UnifiedHistoryPagingMetadataRoomTest {
     @Test fun `append with changed saved data snapshot invalidates rather than combining epochs`() = runTest {
         val next = HistoryContinuation(range, position)
         val source = UnifiedHistoryPagingSource(database, range) { request ->
-            HistoryRangeRead.Page(listOf(row()), if (request.after == null) snapshot else snapshot.copy(collectedDataEpoch = 1),
-                if (request.after == null) next else null)
+            HistoryRangeRead.Page(listOf(row()), if (request.after == null) {
+                snapshot
+            } else {
+                snapshot.copy(collectedDataEpoch = 1)
+            },
+                if (request.after == null) {
+                    next
+                } else {
+                    null
+                })
         }
         source.load(PagingSource.LoadParams.Refresh<HistoryContinuation>(null, 50, false))
             .shouldBeInstanceOf<PagingSource.LoadResult.Page<HistoryContinuation, HistoryPagingItem>>()

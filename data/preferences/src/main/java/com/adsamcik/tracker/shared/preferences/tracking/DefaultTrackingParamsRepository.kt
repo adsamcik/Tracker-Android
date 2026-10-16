@@ -102,7 +102,10 @@ class DefaultTrackingParamsRepository(
 		copy(
 			locationEnabled = enabled,
 			sourceCollectionSettings = sourceCollectionSettings.copy(
-				location = sourceCollectionSettings.location.let { if (balanceProfileVersion != null) it else it.forEnabled(enabled) },
+				location =
+                    sourceCollectionSettings.location.let {
+                        if (balanceProfileVersion != null) it else it.forEnabled(enabled)
+                    },
 			),
 		)
 	}
@@ -110,7 +113,10 @@ class DefaultTrackingParamsRepository(
 		copy(
 			activityEnabled = enabled,
 			sourceCollectionSettings = sourceCollectionSettings.copy(
-				activity = sourceCollectionSettings.activity.let { if (balanceProfileVersion != null) it else it.forEnabled(enabled) },
+				activity =
+                    sourceCollectionSettings.activity.let {
+                        if (balanceProfileVersion != null) it else it.forEnabled(enabled)
+                    },
 			),
 		)
 	}
@@ -119,7 +125,10 @@ class DefaultTrackingParamsRepository(
 			stepsEnabled = enabled,
 			ambientStepsEnabled = enabled,
 			sourceCollectionSettings = sourceCollectionSettings.copy(
-				steps = sourceCollectionSettings.steps.let { if (balanceProfileVersion != null) it else it.forEnabled(enabled) },
+				steps =
+                    sourceCollectionSettings.steps.let {
+                        if (balanceProfileVersion != null) it else it.forEnabled(enabled)
+                    },
 			),
 		)
 	}
@@ -127,7 +136,10 @@ class DefaultTrackingParamsRepository(
 		copy(
 			wifiEnabled = enabled,
 			sourceCollectionSettings = sourceCollectionSettings.copy(
-				wifi = sourceCollectionSettings.wifi.let { if (balanceProfileVersion != null) it else it.forEnabled(enabled) },
+				wifi =
+                    sourceCollectionSettings.wifi.let {
+                        if (balanceProfileVersion != null) it else it.forEnabled(enabled)
+                    },
 			),
 		)
 	}
@@ -135,7 +147,10 @@ class DefaultTrackingParamsRepository(
 		copy(
 			cellEnabled = enabled,
 			sourceCollectionSettings = sourceCollectionSettings.copy(
-				cell = sourceCollectionSettings.cell.let { if (balanceProfileVersion != null) it else it.forEnabled(enabled) },
+				cell =
+                    sourceCollectionSettings.cell.let {
+                        if (balanceProfileVersion != null) it else it.forEnabled(enabled)
+                    },
 			),
 		)
 	}
@@ -143,15 +158,21 @@ class DefaultTrackingParamsRepository(
 		copy(
 			barometerEnabled = enabled,
 			sourceCollectionSettings = sourceCollectionSettings.copy(
-				pressure = sourceCollectionSettings.pressure.let { if (balanceProfileVersion != null) it else it.forEnabled(enabled) },
+				pressure =
+                    sourceCollectionSettings.pressure.let {
+                        if (balanceProfileVersion != null) it else it.forEnabled(enabled)
+                    },
 			),
 		)
 	}
-    override suspend fun setTransitionDetectionEnabled(enabled: Boolean) = updateField { setTransitionDetectionEnabled(enabled) }
+    override suspend fun setTransitionDetectionEnabled(enabled: Boolean) =
+        updateField { setTransitionDetectionEnabled(enabled) }
     override suspend fun setNotificationStyled(enabled: Boolean) = updateField { setNotificationStyled(enabled) }
-    override suspend fun setMinDistanceMeters(meters: Int) = updateField { setMinDistanceMeters(meters.coerceAtLeast(1)) }
+    override suspend fun setMinDistanceMeters(meters: Int) =
+        updateField { setMinDistanceMeters(meters.coerceAtLeast(1)) }
     override suspend fun setMinTimeSeconds(seconds: Int) = updateField { setMinTimeSeconds(seconds.coerceAtLeast(1)) }
-    override suspend fun setRequiredAccuracyMeters(meters: Int) = updateField { setRequiredAccuracyMeters(meters.coerceAtLeast(1)) }
+    override suspend fun setRequiredAccuracyMeters(meters: Int) =
+        updateField { setRequiredAccuracyMeters(meters.coerceAtLeast(1)) }
     override suspend fun setPreset(preset: TrackingPreset) = updateField { setPresetName(preset.name) }
 
 	override suspend fun setSourceFrequency(
@@ -168,13 +189,27 @@ class DefaultTrackingParamsRepository(
 			TrackingSourceComponent.CELL -> sourceCollectionSettings.copy(cell = frequency)
 		}
 		copy(
-			locationEnabled = if (component == TrackingSourceComponent.LOCATION) frequency != SourceCollectionFrequency.OFF else locationEnabled,
-			activityEnabled = if (component == TrackingSourceComponent.ACTIVITY) frequency != SourceCollectionFrequency.OFF else activityEnabled,
-			stepsEnabled = if (component == TrackingSourceComponent.STEPS) frequency != SourceCollectionFrequency.OFF else stepsEnabled,
-			ambientStepsEnabled = if (component == TrackingSourceComponent.STEPS) frequency != SourceCollectionFrequency.OFF else ambientStepsEnabled,
-			barometerEnabled = if (component == TrackingSourceComponent.PRESSURE) frequency != SourceCollectionFrequency.OFF else barometerEnabled,
-			wifiEnabled = if (component == TrackingSourceComponent.WIFI) frequency != SourceCollectionFrequency.OFF else wifiEnabled,
-			cellEnabled = if (component == TrackingSourceComponent.CELL) frequency != SourceCollectionFrequency.OFF else cellEnabled,
+			locationEnabled =
+                if (component == TrackingSourceComponent.LOCATION)
+                    frequency != SourceCollectionFrequency.OFF else locationEnabled,
+			activityEnabled =
+                if (component == TrackingSourceComponent.ACTIVITY)
+                    frequency != SourceCollectionFrequency.OFF else activityEnabled,
+			stepsEnabled =
+                if (component == TrackingSourceComponent.STEPS)
+                    frequency != SourceCollectionFrequency.OFF else stepsEnabled,
+			ambientStepsEnabled =
+                if (component == TrackingSourceComponent.STEPS)
+                    frequency != SourceCollectionFrequency.OFF else ambientStepsEnabled,
+			barometerEnabled =
+                if (component == TrackingSourceComponent.PRESSURE)
+                    frequency != SourceCollectionFrequency.OFF else barometerEnabled,
+			wifiEnabled =
+                if (component == TrackingSourceComponent.WIFI)
+                    frequency != SourceCollectionFrequency.OFF else wifiEnabled,
+			cellEnabled =
+                if (component == TrackingSourceComponent.CELL)
+                    frequency != SourceCollectionFrequency.OFF else cellEnabled,
 			sourceCollectionSettings = next,
 			sourceSettingsVersion = TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION,
 		)
@@ -312,7 +347,8 @@ class DefaultTrackingParamsRepository(
 	}
 }
 
-@Suppress("DEPRECATION")
+// Keep the complete stored-settings projection and its per-field legacy defaults together.
+@Suppress("DEPRECATION", "LongMethod", "CyclomaticComplexMethod")
 private fun TrackingParamsProto.toDomain(): TrackingParamsState {
 	if (!legacyMigrated) {
 		return TrackingParamsState(legacySettingsMigrationCompleted = false)
@@ -371,8 +407,10 @@ private fun TrackingParamsProto.toDomain(): TrackingParamsState {
 			location = frequencyOrLegacy(hasLocationFrequency(), locationFrequency, locationEnabled),
 			activity = frequencyOrLegacy(hasActivityFrequency(), activityFrequency, activityEnabled),
 			steps = frequencyOrLegacy(hasStepsFrequency(), stepsFrequency, stepsEnabled),
-			pressure = frequencyOrLegacy(hasPressureFrequency(), pressureFrequency, if (hasBarometerEnabled()) barometerEnabled else true),
-			wifi = frequencyOrLegacy(hasWifiFrequency(), wifiFrequency, wifiEnabled || wifiNetworkEnabled || wifiLocationCountEnabled),
+			pressure = frequencyOrLegacy(hasPressureFrequency(), pressureFrequency,
+                if (hasBarometerEnabled()) barometerEnabled else true),
+			wifi = frequencyOrLegacy(hasWifiFrequency(), wifiFrequency, wifiEnabled || wifiNetworkEnabled ||
+                wifiLocationCountEnabled),
 			cell = frequencyOrLegacy(hasCellFrequency(), cellFrequency, cellEnabled),
 		),
 		advancedSourceControlsEnabled = advancedSourceControlsEnabled,
@@ -382,6 +420,8 @@ private fun TrackingParamsProto.toDomain(): TrackingParamsState {
     )
 }
 
+// Fixed preferences-to-wire mapping; optional setters preserve field presence.
+@Suppress("CyclomaticComplexMethod")
 private fun TrackingParamsState.toProto(): TrackingParamsProto =
     TrackingParamsProto.newBuilder()
         .setLocationEnabled(locationEnabled)
@@ -440,7 +480,8 @@ private fun frequencyOrLegacy(
 	SourceCollectionFrequency.OFF
 }
 
-@Suppress("DEPRECATION")
+// Keep this one versioned settings migration and its complete per-field builder mapping together.
+@Suppress("DEPRECATION", "LongMethod", "CyclomaticComplexMethod")
 private fun TrackingParamsProto.withCurrentSourceSettings(): TrackingParamsProto {
 	if (sourceSettingsVersion >= TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION) return this
 
@@ -499,7 +540,7 @@ private fun TrackingParamsProto.withCurrentSourceSettings(): TrackingParamsProto
 		.setWifiFrequency(migratedFrequency(hasWifiFrequency(), wifiFrequency, effectiveWifiEnabled))
 		.setCellFrequency(migratedFrequency(hasCellFrequency(), cellFrequency, cellEnabled))
 		.setAmbientLocationEnabled(
-			if (sourceSettingsVersion >= 3) {
+			if (sourceSettingsVersion >= AMBIENT_SOURCE_SETTINGS_INTRODUCTION_VERSION) {
 				ambientLocationEnabled
 			} else {
 				PreferenceKeys.AMBIENT_LOCATION_ENABLED_DEFAULT
@@ -507,14 +548,14 @@ private fun TrackingParamsProto.withCurrentSourceSettings(): TrackingParamsProto
 		)
 		.setAmbientStepsEnabled(stepsEnabled)
 		.setAmbientWifiEnabled(
-			if (sourceSettingsVersion >= 3) {
+			if (sourceSettingsVersion >= AMBIENT_SOURCE_SETTINGS_INTRODUCTION_VERSION) {
 				ambientWifiEnabled
 			} else {
 				PreferenceKeys.AMBIENT_WIFI_ENABLED_DEFAULT
 			},
 		)
 		.setAmbientCellEnabled(
-			if (sourceSettingsVersion >= 3) {
+			if (sourceSettingsVersion >= AMBIENT_SOURCE_SETTINGS_INTRODUCTION_VERSION) {
 				ambientCellEnabled
 			} else {
 				PreferenceKeys.AMBIENT_CELL_ENABLED_DEFAULT
@@ -530,3 +571,5 @@ private fun SourceCollectionFrequency.forEnabled(enabled: Boolean): SourceCollec
 	this == SourceCollectionFrequency.OFF -> SourceCollectionFrequency.BALANCED
 	else -> this
 }
+
+private const val AMBIENT_SOURCE_SETTINGS_INTRODUCTION_VERSION = 3

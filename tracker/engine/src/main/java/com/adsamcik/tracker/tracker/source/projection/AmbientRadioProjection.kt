@@ -19,7 +19,9 @@ internal class AmbientWifiProjection @Inject constructor(
 	override val version: Int = AmbientWifiFactRevisionEntity.WRITER_VERSION
 
 	override suspend fun apply(event: AdmittedSourceEvent<out SourcePayload>, context: ProjectionContext) {
-		if (event.evidence.source != SourceKind.WIFI) return
+		if (event.evidence.source != SourceKind.WIFI) {
+			return
+		}
 		if (projector.project(event.admissionOrdinal).isRetryable()) {
 			throw AmbientRadioProjectionDeferredException()
 		}
@@ -33,7 +35,9 @@ internal class AmbientCellProjection @Inject constructor(
 	override val version: Int = AmbientCellFactRevisionEntity.WRITER_VERSION
 
 	override suspend fun apply(event: AdmittedSourceEvent<out SourcePayload>, context: ProjectionContext) {
-		if (event.evidence.source != SourceKind.CELL) return
+		if (event.evidence.source != SourceKind.CELL) {
+			return
+		}
 		if (projector.project(event.admissionOrdinal).isRetryable()) {
 			throw AmbientRadioProjectionDeferredException()
 		}

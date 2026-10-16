@@ -34,6 +34,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.yield
 
 @Singleton
+// One startup generation and recovery owner coordinates the existing durable source drains.
+@Suppress("TooManyFunctions")
 class SourcePipelineRecovery private constructor(
 	private val legacyRecovery: LegacyV27ProjectionRecovery,
 	private val coordinator: TrackingCoordinator,

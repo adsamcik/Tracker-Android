@@ -115,7 +115,15 @@ class OrganizationAnnotationLifecycleTest {
 			cutoffAtMs = to,
 			cutoffElapsedNanos = to?.times(1_000_000),
 			completedAtMs = to,
-			finalAdmissionOrdinal = if (to == null) null else 0,
-			failureCode = if (state == "FAILED") "TEST_FAILURE" else null,
+			finalAdmissionOrdinal = if (to == null) {
+				null
+			} else {
+				0
+			},
+			failureCode = if (state == "FAILED") {
+				"TEST_FAILURE"
+			} else {
+				null
+			},
 		)
 }

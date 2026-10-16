@@ -27,6 +27,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
+// One durable command-store fixture keeps Start, End, Off and recreation ordering checks comparable.
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SharedPreferencesTrackingLifecycleCommandAuthorityTest {
@@ -294,8 +296,7 @@ class SharedPreferencesTrackingLifecycleCommandAuthorityTest {
 	}
 
 	@Test
-	fun `automatic deadline rejection and cancellation reservations leave older stop actionable`() =
-		runBlocking {
+	fun `automatic deadline rejection and cancellation reservations leave older stop actionable`(): Unit = runBlocking {
 			listOf("deadline", "rejection", "cancellation").forEach { _ ->
 				clearStore()
 				val authority =
@@ -630,7 +631,9 @@ class SharedPreferencesTrackingLifecycleCommandAuthorityTest {
 							val committed = editor.commit()
 							if (failAcceptance) {
 								failAcceptance = false
-								if (throwing) throw IllegalStateException("publication failed after cache update")
+								if (throwing) {
+									throw IllegalStateException("publication failed after cache update")
+								}
 								return false
 							}
 							return committed
@@ -675,7 +678,9 @@ class SharedPreferencesTrackingLifecycleCommandAuthorityTest {
 							val committed = editor.commit()
 							if (failReservation) {
 								failReservation = false
-								if (throwing) throw IllegalStateException("pending reservation failed after cache update")
+								if (throwing) {
+									throw IllegalStateException("pending reservation failed after cache update")
+								}
 								return false
 							}
 							return committed

@@ -1,0 +1,253 @@
+{
+  "status": "HOST_VERIFIED_DEVICE_TESTING_DEFERRED",
+  "at": "2026-10-16T05:21:24.475Z",
+  "frozenSource": {
+    "path": "FINAL_SOURCE_INPUT.json",
+    "sha256": "a8267dc1ef3e482b504499b93aa7cd9f2a94744e61c6cfeed892c22861a121b7",
+    "candidateHead": "d570858cd645dbc7115c315dc02c872c00793812",
+    "sourceInputs": 1352,
+    "testSourcePaths": 373,
+    "assemblyPrerequisites": 25
+  },
+  "schema": {
+    "path": "core/base/schemas/com.adsamcik.tracker.shared.base.database.AppDatabase/30.json",
+    "sha256": "a004548068572261395804428754d17d202d92ffb18210dd9f2d63f9898fcb26",
+    "version": 30,
+    "entities": 215,
+    "identityHash": "30e1f892b8a1a3d7033955b14f090bf8"
+  },
+  "command": ":app:assembleDebug ciCheck --continue --max-workers=1 --no-configuration-cache --no-daemon --console=plain --offline",
+  "environment": {
+    "jdk": "21.0.9",
+    "gradle": "repository wrapper 9.6.1",
+    "tracebox": "actual pinned Alpha 7 local Maven publication; provenance hashes verified",
+    "testBackend": "native Robolectric SQLite; isolated short temporary paths",
+    "gatesExcluded": false,
+    "qualityConfigOrBaselineChanged": false,
+    "assertionsOrDeadlinesRelaxed": false
+  },
+  "finalGate": {
+    "batch": 61,
+    "exitCode": 0,
+    "summary": [
+      "BUILD SUCCESSFUL in 10m 34s",
+      "2104 actionable tasks: 40 executed, 2064 up-to-date"
+    ],
+    "stability": {
+      "headUnchanged": true,
+      "files": 1363
+    },
+    "gates": {
+      "unit": {
+        "reached": true,
+        "marker": "> Task :ciUnitTest",
+        "passed": true
+      },
+      "quality": {
+        "reached": true,
+        "marker": "> Task :ciCheck",
+        "passed": true
+      },
+      "schema": {
+        "reached": true,
+        "marker": "> Task :checkRoomSchemaDrift",
+        "passed": true
+      },
+      "lint": {
+        "reached": true,
+        "marker": "> Task :ciLint",
+        "passed": true
+      },
+      "sqlite": {
+        "reached": true,
+        "marker": "> Task :verifyReleaseSqliteRuntime",
+        "passed": true
+      },
+      "app": {
+        "reached": true,
+        "marker": "> Task :app:assembleDebug UP-TO-DATE",
+        "passed": true
+      }
+    },
+    "detektFindings": 0
+  },
+  "junit": {
+    "total": {
+      "tasks": 29,
+      "suites": 2135,
+      "tests": 15667,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 7
+    },
+    "fresh61": {
+      "tasks": 2,
+      "suites": 236,
+      "tests": 2423,
+      "skipped": 1,
+      "failures": 0,
+      "errors": 0
+    },
+    "allReportsHashMatched": true,
+    "unaccountedReports": 0,
+    "evidenceBatches": [
+      58,
+      59,
+      60,
+      61
+    ],
+    "freshLatestModules": [
+      "feature/import-export",
+      "stats/data"
+    ],
+    "engine": {
+      "batch": 60,
+      "tests": 4278,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "releasedUpgradeAndSchemaScenarios": [
+      {
+        "suite": "LegacyReleasedDatabaseUpgradeIntegrationTest",
+        "tests": 3,
+        "batch": 60
+      },
+      {
+        "suite": "FinalTrackingAssemblyMigrationTest",
+        "tests": 3,
+        "batch": 60
+      },
+      {
+        "suite": "RadioObservationChildMigrationTest",
+        "tests": 1,
+        "batch": 60
+      }
+    ],
+    "existingSkipped": [
+      {
+        "tests": 2,
+        "reason": "Windows host FileProvider canonical-root assumptions"
+      },
+      {
+        "tests": 1,
+        "reason": "Host symlink unavailable"
+      },
+      {
+        "tests": 2,
+        "reason": "Android map tests moved to androidTest"
+      },
+      {
+        "tests": 1,
+        "reason": "Android permission placeholder disabled"
+      },
+      {
+        "tests": 1,
+        "reason": "Optional private GPX dataset unavailable"
+      }
+    ]
+  },
+  "staleCompilerRepair": {
+    "sourceChanges": false,
+    "cacheDeletion": false,
+    "configurationChange": false,
+    "owningCompileTasksRerun": 2,
+    "normalAsmTasks": 2,
+    "verifiedCurrentRawAndAsmDelegates": 6,
+    "receipt": "build/verification-20261014/RECOMPILED_TEST_ABI_61.json",
+    "sha256": "8b973085c0916446f79b1b92bec08b16ff4ebfa95612bf5b42783c4f8829ef25",
+    "reason": "Incremental Kotlin test delegates retained the previous optional-DAO method ABI; full61 passes after rebuilding those exact outputs."
+  },
+  "device": {
+    "status": "EXPLICITLY_DEFERRED_BY_USER",
+    "userMessage": "We can test it later",
+    "connectedDevices": 0,
+    "configuredAvds": 0,
+    "providersActivated": false,
+    "runtimeAcceptanceClaimed": false,
+    "pending": [
+      "Real provider delivery through storage, UI and files",
+      "Permission, Stop, process/reboot and foreground-service behavior",
+      "Rendered UI/accessibility inspection",
+      "Battery and adaptive-quality behavior"
+    ]
+  },
+  "independentReview": {
+    "source": "FINAL_SOURCE_REVIEW.json",
+    "testStructure": "FINAL_TEST_STRUCTURE_REVIEW.json",
+    "testHelpers": "FINAL_TEST_HELPER_REVIEW.json",
+    "actualFinalGateReview": {
+      "path": "FINAL_HOST_ACCEPTANCE.json",
+      "sha256": "b5a951534a2237d66dc182def458138a9d2c9552d7201d696d601818985fd7f8",
+      "findings": 0,
+      "scope": "Source and actual host results; Android acceptance explicitly deferred"
+    }
+  },
+  "package": {
+    "path": "app/build/outputs/apk/debug/app-debug.apk",
+    "sha256": "7040a8fc09770f05865cce94778119a796fb44484bac67640ba794cf304c7900",
+    "bytes": 176682091,
+    "applicationId": "com.adsamcik.tracker.debug",
+    "metadata": {
+      "version": 3,
+      "artifactType": {
+        "type": "APK",
+        "kind": "Directory"
+      },
+      "applicationId": "com.adsamcik.tracker.debug",
+      "variantName": "debug",
+      "elements": [
+        {
+          "type": "SINGLE",
+          "filters": [],
+          "attributes": [],
+          "versionCode": 400,
+          "versionName": "10.0.0",
+          "outputFile": "app-debug.apk"
+        }
+      ],
+      "elementType": "File",
+      "minSdkVersionForDexing": 26
+    }
+  },
+  "receipts": [
+    {
+      "path": "build/verification-20261014/BATCH_61_INPUT.json",
+      "sha256": "6d8f22b788bccb0642505b2a962b1576328c70f465662303a7f41ece35203a54"
+    },
+    {
+      "path": "build/verification-20261014/BATCH_61_POST_INPUT.json",
+      "sha256": "69fcd50e0b4374027e8dbe183f506ce8e9306ed1889027f409b024a98a1cad12"
+    },
+    {
+      "path": "build/verification-20261014/BATCH_61_STABILITY.json",
+      "sha256": "6d0205d773b5ba0a5f9608cb4dc172aecfe82522e16566639c7d1bcca22b3a50"
+    },
+    {
+      "path": "build/verification-20261014/BATCH_61_VERDICT.json",
+      "sha256": "e82f152659ca49f69009c8dce19ebd5fe47df2a5f72e2d979721447dd28b805e"
+    },
+    {
+      "path": "build/verification-20261014/BATCH_61_ALL_MODULE_JUNIT_WITH_REUSE.json",
+      "sha256": "9bc731e70ca64886a21fc970491caae00f2df8a447a4fcbec1ed9de3fb14803f"
+    },
+    {
+      "path": "build/verification-20261014/FROZEN_INPUT_61_ASSEMBLY_LINK.json",
+      "sha256": "7ce5484daaa39d14fddcae6bc8689bb3ad5220a860f57e24d0ca584ea24bbf38"
+    },
+    {
+      "path": "build/verification-20261014/detekt-61.xml",
+      "sha256": "f491e274f0d208f81c3edbc7c1097c30db590a3822fcf579468ac814d9ccc62b"
+    },
+    {
+      "path": "build/verification-20261014/ANDROID_TARGET_61.json",
+      "sha256": "94ed2e0894ae49cf858f2a2584528f9a7eff056cca138c6dec250da70b6c1d86"
+    }
+  ],
+  "integration": {
+    "target": "local dev/v10",
+    "status": "REVIEWED_PENDING_AUTHORIZED_LOCAL_COMMIT_AND_INTEGRATION",
+    "remotePublication": false
+  },
+  "preservation": "Original refs, drafts, quarantine and ignored verification evidence retained."
+}

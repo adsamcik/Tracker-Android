@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.StepsFactCandidateIdentity
+import com.adsamcik.tracker.shared.base.database.dao.StepsCountDomainAppendResult
 import com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode
 import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
 import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
@@ -40,6 +41,9 @@ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
 import com.adsamcik.tracker.shared.base.database.data.StepsWalBoundaryKind
 import com.adsamcik.tracker.shared.base.database.data.StepsWalPayload
 import com.adsamcik.tracker.shared.base.database.data.StepsWalPayloadCodec
@@ -59,6 +63,8 @@ import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.onEach
@@ -1924,6 +1930,8 @@ class StepsSegmentHistorySelectorTest {
 		page.single() as StepsAwareHistoryPageEntry.StepsOnly
 	}
 
+	// Keep the multi-run logical row and competing physical row together to verify ordering before the final limit.
+	@Suppress("LongMethod")
 	@Test
 	fun stepsAwarePageOrdersLogicalRowByNewestPhysicalMemberBeforeFinalLimit() = runTest {
 		database.sourceProjectionStateDao().installProductLane(lane(cursor = 2L))
@@ -4008,6 +4016,33 @@ class StepsSegmentHistorySelectorTest {
         read.problems shouldBe setOf(HistoryProblem(HistorySource.STEPS, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
     }
 
+    @Test fun `measured Steps isolates exact terminal failures from sibling and unrelated failures`() = runTest {
+        val facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 4L),
+            fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 6L, cumulativeStart = 104L),
+            fact(3L, StepFactRevisionEntity.COVERAGE_COVERED, 7L, cumulativeStart = 110L))
+        insertCandidateRun(RUN_ONE, facts, targetOrdinal = 3L, laneCursor = 3L)
+        database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null))
+        val failure = SourceProjectionFailureEntity(WRITER_ID, WRITER_VERSION, 2L, 1, "terminal", true, 1_700L)
+        database.sourceProjectionStateDao().saveFailure(failure)
+        database.sourceProjectionStateDao().saveFailure(failure.copy(
+            projectionId = "another-writer", admissionOrdinal = 1L))
+        database.sourceProjectionStateDao().saveFailure(failure.copy(
+            projectionVersion = WRITER_VERSION + 1, admissionOrdinal = 3L))
+        database.sourceProjectionStateDao().saveFailure(failure.copy(admissionOrdinal = 1L, terminal = false))
+        val selected = database.withTransaction { selector.selectMeasuredFactsInTransaction(listOf(SEGMENT_ID),
+            facts.map(::measuredFactIdentity)) }
+        selected.getValue(measuredFactIdentity(facts[0])).steps.count shouldBe 4L
+        selected.getValue(measuredFactIdentity(facts[1])).steps.materialization shouldBe StepsHistoryMaterialization.FAILED
+        selected.getValue(measuredFactIdentity(facts[1])).steps.reasons.contains(
+            StepsHistoryReason.TERMINAL_PROJECTION_FAILURE) shouldBe true
+        selected.getValue(measuredFactIdentity(facts[2])).steps.count shouldBe 7L
+        val reader = MeasuredNativeStepsHistoryReader(database, selector)
+        val range = measuredStepsRange()
+        val read = database.withTransaction { reader.qualify(reader.candidates(range, null), range) }
+        read.rows.values.map { (it.measurement as HistoryMeasurement.Steps).history.count }.toSet() shouldBe setOf(4L, 7L)
+        read.problems shouldBe setOf(HistoryProblem(HistorySource.STEPS, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
+    }
+
     @Test fun `measured Steps baseline and reset keep original windows without a measured zero`() = runTest {
         insertCandidateRun(RUN_ONE, listOf(fact(1L, StepFactRevisionEntity.COVERAGE_BASELINE, 0L),
             fact(2L, StepFactRevisionEntity.COVERAGE_RESET_GAP, 0L)), targetOrdinal = 2L, laneCursor = 2L)
@@ -4079,34 +4114,80 @@ class StepsSegmentHistorySelectorTest {
         erased.problems shouldBe emptySet()
     }
 
+	@Test
+	fun `measured paging fixture count owners equal the real producer output`() = runTest {
+		val facts = listOf(
+			fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 1L, cumulativeStart = 100L),
+			fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 1L, cumulativeStart = 101L),
+		)
+		insertCandidateRun(RUN_ONE, facts, targetOrdinal = 2L, laneCursor = 2L)
+		val first = facts.first().withTestAttribution(LOGICAL_ID, RUN_ONE, 1L).withValidLiveWalEffectChecksum()
+		val second = facts.last().withTestAttribution(LOGICAL_ID, RUN_ONE, 1L).withValidLiveWalEffectChecksum()
+		val secondWal = stepsWal(second)
+		val walTemplate = loadPagingCountDomainMember(
+			StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+			pagingWalOwnerIdentity(stepsWal(first)),
+		)
+		val factTemplate = loadPagingCountDomainMember(
+			StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
+			pagingFactOwnerIdentity(first),
+		)
+		requirePagingDomainMetadata(walTemplate.first, secondWal, second)
+		pagingCountDomainMember(walTemplate, pagingWalOwnerIdentity(secondWal),
+			secondWal.integrityIdentity, secondWal.createdAtMs) shouldBe loadPagingCountDomainMember(
+			StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+			pagingWalOwnerIdentity(secondWal),
+		)
+		pagingCountDomainMember(factTemplate, pagingFactOwnerIdentity(second),
+			second.effectChecksum, second.appliedAtMs) shouldBe loadPagingCountDomainMember(
+			StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
+			pagingFactOwnerIdentity(second),
+		)
+	}
+
     @Test fun `measured Steps pages more than 4096 qualified fixture windows without losing equal timestamps`() = runTest {
-        val count = 4_201L
-        val facts = (1L..count).map { ordinal -> fact(ordinal, StepFactRevisionEntity.COVERAGE_COVERED,
-            1L, cumulativeStart = 100L + ordinal - 1L) }
-        insertCandidateRun(RUN_ONE, facts, targetOrdinal = count, laneCursor = count)
-        database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null))
-        val reader = MeasuredNativeStepsHistoryReader(database, selector)
-        val range = measuredStepsRange()
-        val seen = linkedSetOf<HistoryPosition>()
-        var after: HistoryPosition? = null
-        var pageCount = 0
-        do {
-            val candidates = database.withTransaction { reader.candidates(range, after) }
-            (candidates.size <= 101) shouldBe true
-            val selected = candidates.take(100)
-            val read = database.withTransaction { reader.qualify(selected, range) }
-            read.problems shouldBe emptySet()
-            read.rows.size shouldBe selected.size
-            read.rows.forEach { (position, row) ->
-                seen.add(position) shouldBe true
-                (row.measurement as HistoryMeasurement.Steps).history.count shouldBe 1L
-                position.startTimeMs shouldBe 1_500L
+        val startedAtNanos = System.nanoTime()
+        var phase = "constructing facts"
+        var completed = false
+        try {
+            val count = 4_201L
+            val facts = (1L..count).map { ordinal -> fact(ordinal, StepFactRevisionEntity.COVERAGE_COVERED,
+                1L, cumulativeStart = 100L + ordinal - 1L) }
+            phase = "seeding run"
+            insertMeasuredPagingFixture(facts, count) { written -> phase = "seeding fact $written/$count" }
+            phase = "saving display row"
+            database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null))
+            val reader = MeasuredNativeStepsHistoryReader(database, selector)
+            val range = measuredStepsRange()
+            val seen = linkedSetOf<HistoryPosition>()
+            var after: HistoryPosition? = null
+            var pageCount = 0
+            do {
+                phase = "reading candidates for page ${pageCount + 1}, saved=${seen.size}"
+                val candidates = database.withTransaction { reader.candidates(range, after) }
+                (candidates.size <= 101) shouldBe true
+                val selected = candidates.take(100)
+                phase = "qualifying page ${pageCount + 1}, selected=${selected.size}, saved=${seen.size}"
+                val read = database.withTransaction { reader.qualify(selected, range) }
+                read.problems shouldBe emptySet()
+                read.rows.size shouldBe selected.size
+                read.rows.forEach { (position, row) ->
+                    seen.add(position) shouldBe true
+                    (row.measurement as HistoryMeasurement.Steps).history.count shouldBe 1L
+                    position.startTimeMs shouldBe 1_500L
+                }
+                after = selected.lastOrNull()?.let(::measuredHistoryPosition)
+                pageCount++
+                (pageCount <= 43) shouldBe true
+            } while (candidates.size > 100)
+            seen.size shouldBe count.toInt()
+            completed = true
+        } finally {
+            if (!completed) {
+                val elapsedMs = (System.nanoTime() - startedAtNanos) / 1_000_000L
+                System.err.println("Steps paging failed during $phase after ${elapsedMs}ms")
             }
-            after = selected.lastOrNull()?.let(::measuredHistoryPosition)
-            pageCount++
-            (pageCount <= 43) shouldBe true
-        } while (candidates.size > 100)
-        seen.size shouldBe count.toInt()
+        }
     }
 
     @Test fun `measured Steps stops at retained floor and changed data epoch`() = runTest {
@@ -4186,6 +4267,118 @@ class StepsSegmentHistorySelectorTest {
     private fun measuredStepsRange() = HistoryRange(1_000L, 2_000L, "UTC", sources = setOf(HistorySource.STEPS),
         mode = HistoryBrowseMode.OBSERVATIONS)
 
+	/** Seed this reader dataset with canonical saved rows, retaining one real producer calibration. */
+	private suspend fun insertMeasuredPagingFixture(
+		facts: List<StepFactRevisionEntity>,
+		lastOrdinal: Long,
+		onFactWritten: (Int) -> Unit,
+	) {
+		require(facts.isNotEmpty() && facts.all { it.coverageKind == StepFactRevisionEntity.COVERAGE_COVERED })
+		insertCandidateRun(RUN_ONE, facts.take(1), targetOrdinal = lastOrdinal, laneCursor = lastOrdinal)
+		val first = facts.first().withTestAttribution(LOGICAL_ID, RUN_ONE, 1L).withValidLiveWalEffectChecksum()
+		val firstWal = stepsWal(first)
+		val walTemplate = loadPagingCountDomainMember(
+			StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL, pagingWalOwnerIdentity(firstWal),
+		)
+		val factTemplate = loadPagingCountDomainMember(
+			StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT, pagingFactOwnerIdentity(first),
+		)
+		pagingCountDomainMember(walTemplate, pagingWalOwnerIdentity(firstWal),
+			firstWal.integrityIdentity, firstWal.createdAtMs) shouldBe walTemplate
+		pagingCountDomainMember(factTemplate, pagingFactOwnerIdentity(first),
+			first.effectChecksum, first.appliedAtMs) shouldBe factTemplate
+		onFactWritten(1)
+		database.withTransaction {
+			for ((index, fact) in facts.drop(1).withIndex()) {
+				currentCoroutineContext().ensureActive()
+				val authentic = fact.withTestAttribution(LOGICAL_ID, RUN_ONE, 1L).withValidLiveWalEffectChecksum()
+				val wal = stepsWal(authentic)
+				requirePagingDomainMetadata(walTemplate.first, wal, authentic)
+				database.sourceEventWalDao().insertIgnoringDuplicate(wal)
+				val walMember = pagingCountDomainMember(walTemplate, pagingWalOwnerIdentity(wal),
+					wal.integrityIdentity, wal.createdAtMs)
+				val factMember = pagingCountDomainMember(factTemplate, pagingFactOwnerIdentity(authentic),
+					authentic.effectChecksum, authentic.appliedAtMs)
+				val dao = database.stepsCountDomainReceiptDao()
+				dao.append(walMember.first, walMember.second) shouldBe StepsCountDomainAppendResult.INSERTED
+				dao.append(factMember.first, factMember.second) shouldBe StepsCountDomainAppendResult.INSERTED
+				database.stepFactRevisionDao().insert(authentic)
+				onFactWritten(index + 2)
+			}
+		}
+	}
+
+	private suspend fun loadPagingCountDomainMember(
+		ownerKind: String,
+		ownerIdentity: String,
+	): Pair<StepsCountDomainReceiptEntity, StepsCountDomainOwnerRevisionEntity> {
+		val dao = database.stepsCountDomainReceiptDao()
+		val owner = requireNotNull(dao.latestOwner(ownerKind, ownerIdentity))
+		val receipt = requireNotNull(dao.receipt(requireNotNull(owner.receiptIdentity)))
+		return receipt to owner
+	}
+
+	private fun pagingWalOwnerIdentity(wal: SourceEventWalEntity): String =
+		StepsCountDomainReceiptIntegrity.sessionWalOwnerIdentity(wal.admissionOrdinal, wal.eventId)
+
+	private fun pagingFactOwnerIdentity(fact: StepFactRevisionEntity): String =
+		StepsCountDomainReceiptIntegrity.sessionFactOwnerIdentity(
+			fact.writerProjectionId, fact.writerProjectionVersion, fact.logicalFactId,
+		)
+
+	private fun requirePagingDomainMetadata(
+		template: StepsCountDomainReceiptEntity,
+		wal: SourceEventWalEntity,
+		fact: StepFactRevisionEntity,
+	) {
+		check(StepsCountDomainReceiptIntegrity.counterDomainIdentity(requireNotNull(walToken(fact))) ==
+			template.domainIdentity)
+		check(StepsCountDomainReceiptIntegrity.sessionRunScopeIdentity(
+			requireNotNull(wal.logicalTrackingId), requireNotNull(wal.serviceRunId),
+		) == template.scopeIdentity)
+		check(wal.registrationGeneration == template.registrationGeneration)
+		check(wal.capturedCollectedDataEpoch == template.collectedDataEpoch)
+		check(wal.authorizationRevision == template.authorityRevision)
+		check(wal.authorizationFingerprint == template.authorityFingerprint)
+		check(wal.payloadVersion == template.coverageVersion)
+		check(fact.semanticRevision == template.ownerRevision)
+	}
+
+	private fun pagingCountDomainMember(
+		template: Pair<StepsCountDomainReceiptEntity, StepsCountDomainOwnerRevisionEntity>,
+		ownerIdentity: String,
+		effectChecksum: String,
+		linkedAtMs: Long,
+	): Pair<StepsCountDomainReceiptEntity, StepsCountDomainOwnerRevisionEntity> {
+		val receipt = template.first
+		val receiptIdentity = StepsCountDomainReceiptIntegrity.receiptIdentity(
+			domainIdentity = receipt.domainIdentity,
+			ownerKind = receipt.ownerKind,
+			scopeIdentity = receipt.scopeIdentity,
+			ownerIdentity = ownerIdentity,
+			ownerRevision = receipt.ownerRevision,
+			registrationGeneration = receipt.registrationGeneration,
+			collectedDataEpoch = receipt.collectedDataEpoch,
+			authorityRevision = receipt.authorityRevision,
+			authorityFingerprint = receipt.authorityFingerprint,
+			coverageKind = receipt.coverageKind,
+			coverageVersion = receipt.coverageVersion,
+			countDomainVersion = receipt.countDomainVersion,
+			effectChecksum = effectChecksum,
+			completionEvidenceChecksum = receipt.completionEvidenceChecksum,
+		)
+		return receipt.copy(
+			receiptIdentity = receiptIdentity,
+			ownerIdentity = ownerIdentity,
+			effectChecksum = effectChecksum,
+		) to template.second.copy(
+			ownerIdentity = ownerIdentity,
+			receiptIdentity = receiptIdentity,
+			ownerEffectChecksum = effectChecksum,
+			linkedAtMs = linkedAtMs,
+		)
+	}
+
 	private suspend fun insertCandidateRun(
 		runId: String,
 		facts: List<StepFactRevisionEntity>,
@@ -4210,6 +4403,7 @@ class StepsSegmentHistorySelectorTest {
 			captureModeMask = captureModeMask,
 		),
 		factTransform: (StepFactRevisionEntity) -> StepFactRevisionEntity = { it },
+		onFactWritten: ((Int) -> Unit)? = null,
 	) {
 		insertRun(
 			runId = runId,
@@ -4240,15 +4434,16 @@ class StepsSegmentHistorySelectorTest {
 				providerCoverage = providerCoverage,
 			),
 		)
-		database.withTransaction {
-			facts.forEach { fact ->
+		StepsCountDomainStore(database).withValidatedWriteBatch { countDomainStore ->
+			facts.forEachIndexed { index, fact ->
 				val authentic = fact.withTestAttribution(
 					logicalId = logicalId,
 					runId = runId,
 					manifestRevision = manifestRevision,
 					writerBindingGeneration = writerBindingGeneration,
 				).withValidLiveWalEffectChecksum()
-				insertAuthenticatedFact(authentic, factTransform(authentic))
+				insertAuthenticatedFact(authentic, factTransform(authentic), countDomainStore = countDomainStore)
+				onFactWritten?.invoke(index + 1)
 			}
 		}
 	}
@@ -4257,12 +4452,13 @@ class StepsSegmentHistorySelectorTest {
 		authentic: StepFactRevisionEntity,
 		persisted: StepFactRevisionEntity = authentic,
 		registrationGeneration: Long = 1L,
+		countDomainStore: StepsCountDomainStore = StepsCountDomainStore(database),
 	) {
 		val wal = stepsWal(authentic, registrationGeneration)
 		database.sourceEventWalDao().insertIgnoringDuplicate(wal)
 		val token = walToken(authentic)
 		check(
-			StepsCountDomainStore(database).recordSessionWal(wal, token) in
+			countDomainStore.recordSessionWal(wal, token) in
 				setOf(
 					StepsCountDomainWriteResult.INSERTED,
 					StepsCountDomainWriteResult.EXACT_REPLAY,
@@ -4270,7 +4466,7 @@ class StepsSegmentHistorySelectorTest {
 				),
 		)
 		check(
-			StepsCountDomainStore(database).recordSessionFact(authentic) in
+			countDomainStore.recordSessionFact(authentic) in
 				setOf(
 					StepsCountDomainWriteResult.INSERTED,
 					StepsCountDomainWriteResult.EXACT_REPLAY,
@@ -4764,6 +4960,9 @@ class StepsSegmentHistorySelectorTest {
 	).withValidLiveWalEffectChecksum()
 	}
 
+	// Keep one historical Steps fact-to-WAL fixture with its exact payload and carrier identity/checksums
+	// together.
+	@Suppress("LongMethod")
 	private fun stepsWal(
 		fact: StepFactRevisionEntity,
 		registrationGeneration: Long = 1L,

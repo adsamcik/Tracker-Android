@@ -40,4 +40,23 @@
     <string name="format_database">डेटाबेस बैकअप (ZIP)</string>
     <string name="settings_import_summary">समर्थित प्रकारों (%1$s) और संग्रहों (%2$s) से डेटा आयात करें। डेटाबेस आयात संगत पंक्तियों को मिलाते हैं; वे मौजूदा डेटा को नहीं बदलते।</string>
     <string name="settings_import_title">आयात</string>
+    <string name="export_radio_sensitivity_title">नेटवर्क विवरण निर्यात करें?</string>
+    <string name="export_wifi_sensitivity_message">इस फ़ाइल में सहेजे गए Wi-Fi नाम और ऐक्सेस पॉइंट की आईडी शामिल हैं।</string>
+    <string name="export_cell_sensitivity_message">इस फ़ाइल में सहेजे गए टावर की आईडी और सिग्नल माप शामिल हैं।</string>
+    <string name="export_radio_no_data">इस स्रोत का कोई डेटा सहेजा नहीं गया है</string>
+    <string name="export_include_complete_sessions">पूरे सत्र शामिल करें</string>
+    <string name="import_location_conflict_title">सहेजे गए बिंदु बदलें?</string>
+    <string name="import_location_replace">फ़ाइल के बिंदु इस्तेमाल करें</string>
+    <string name="import_location_keep">सहेजे गए बिंदु रखें</string>
+    <string name="export_backup_review_title">तय किए गए बैकअप की समीक्षा करें</string>
+    <string name="export_backup_review_summary">अपडेट किए गए डेटा बैकअप की समीक्षा तक रुका हुआ है।</string>
+    <string name="export_backup_review_message">ये समय-सारिणियाँ अब सभी सहेजे गए ट्रैकिंग डेटा और उसे बहाल करने के लिए ज़रूरी फ़ाइलों का बैकअप बनाती हैं। सेटिंग शामिल नहीं हैं। इन समय-सारिणियों को फिर शुरू करें?\n\n%1$s</string>
+    <string name="export_backup_review_resume">बैकअप फिर शुरू करें</string>
+    <string name="import_backup_replace_title">डेटा बैकअप बहाल करें?</string>
+    <string name="import_backup_replace_message">सहेजे गए डेटा को इस बैकअप से बदलें? आपकी सेटिंग वैसी ही रहेंगी। ट्रैकिंग तब तक बंद रहेगी जब तक आप उसे फिर शुरू नहीं करते।</string>
+    <string name="import_backup_restore">डेटा बदलें</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">इस फ़ाइल का %d बिंदु अपनी सहेजी गई कॉपी से अलग है। चुनें कि कौन सा रखना है। बाकी बिंदु सामान्य रूप से आयात होंगे।</item>
+        <item quantity="other">इस फ़ाइल के %d बिंदु अपनी सहेजी गई कॉपियों से अलग हैं। चुनें कि कौन से रखने हैं। बाकी बिंदु सामान्य रूप से आयात होंगे।</item>
+    </plurals>
 </resources>

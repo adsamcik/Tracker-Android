@@ -22,11 +22,19 @@ import com.adsamcik.tracker.shared.base.database.data.WifiCaptureDeletionGenerat
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
 
+/**
+ * Payload-free Wi-Fi event identity and admission ordinal used for deterministic maintenance
+ * paging.
+ */
 data class WifiWalMaintenanceKey(
 	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
 	@ColumnInfo(name = "event_id") val eventId: String,
 )
 
+/**
+ * Wi-Fi event identity and encoded payload byte count, used to reject oversized reads before
+ * decoding.
+ */
 data class WifiWalPayloadSize(
 	@ColumnInfo(name = "event_id") val eventId: String,
 	@ColumnInfo(name = "payload_byte_count") val payloadByteCount: Long,
@@ -46,6 +54,8 @@ data class WifiPortableWalIdentityRow(
 )
 
 /** Bounded append-only storage boundary for dormant Wi-Fi captured facts. */
+// This interface contains Room declarations only; keep this source’s SQL together.
+@Suppress("LargeClass")
 @Dao
 interface WifiCapturedFactDao {
 
@@ -57,7 +67,8 @@ interface WifiCapturedFactDao {
 			"AND fact.logical_fact_id = child.logical_fact_id AND fact.semantic_revision = child.semantic_revision " +
 			"JOIN wifi_captured_fact_cursor cursor ON cursor.writer_projection_id = fact.writer_projection_id " +
 			"AND cursor.writer_projection_version = fact.writer_projection_version " +
-			"AND cursor.logical_fact_id = fact.logical_fact_id AND cursor.latest_semantic_revision = fact.semantic_revision " +
+			("AND cursor.logical_fact_id = fact.logical_fact_id AND cursor.latest_semantic_revision = " +
+                "fact.semantic_revision ") +
 			"WHERE fact.logical_tracking_id = :logicalId AND child.observed_wall_time_ms = :observedTimeMs " +
 			"AND child.item_index = :itemIndex ORDER BY fact.logical_fact_id LIMIT :limit",
 	)
@@ -159,8 +170,10 @@ interface WifiCapturedFactDao {
 
 	/** Discovery only. The paired reader qualifies complete source history in the same snapshot. */
 	@Query("SELECT fact.* FROM wifi_captured_fact_revision fact JOIN wifi_captured_fact_cursor cursor " +
-		"ON cursor.writer_projection_id = fact.writer_projection_id AND cursor.writer_projection_version = fact.writer_projection_version " +
-		"AND cursor.logical_fact_id = fact.logical_fact_id AND cursor.latest_semantic_revision = fact.semantic_revision " +
+		("ON cursor.writer_projection_id = fact.writer_projection_id AND cursor.writer_projection_version = " +
+            "fact.writer_projection_version ") +
+		("AND cursor.logical_fact_id = fact.logical_fact_id AND cursor.latest_semantic_revision = " +
+            "fact.semantic_revision ") +
 		"WHERE fact.fact_kind IN ('AGGREGATE', 'COVERAGE_ONLY') AND fact.observed_wall_time_ms >= :fromMs " +
 		"AND fact.observed_wall_time_ms < :toMs ORDER BY fact.observed_wall_time_ms, fact.logical_fact_id LIMIT :limit")
 	suspend fun contextCandidates(fromMs: Long, toMs: Long, limit: Int): List<WifiCapturedFactRevisionEntity>
@@ -180,12 +193,26 @@ interface WifiCapturedFactDao {
 	suspend fun selectedHistoryLineages(writerId: String, writerVersion: Int, factId: String,
 		limit: Int): List<WifiCapturedFactRevisionEntity>
 
+	/**
+	 * Inserts [WifiCapturedFactRevisionEntity] rows. Existing conflicting rows remain unchanged. An
+	 * ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertRevision(entity: WifiCapturedFactRevisionEntity): Long
 
+	/**
+	 * Inserts [WifiCapturedFactCursorEntity] rows. Existing conflicting rows remain unchanged. An
+	 * ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertCursor(entity: WifiCapturedFactCursorEntity): Long
 
+	/**
+	 * Reads `wifi_captured_fact_revision` rows. Query conditions include `writer_projection_id =
+	 * :writerProjectionId`, `writer_projection_version = :writerProjectionVersion`, `logical_fact_id
+	 * = :logicalFactId`, `semantic_revision = :semanticRevision`. Returns at most 1 row. Returns null
+	 * when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM wifi_captured_fact_revision WHERE writer_projection_id = :writerProjectionId " +
 			"AND writer_projection_version = :writerProjectionVersion AND logical_fact_id = :logicalFactId " +
@@ -198,6 +225,11 @@ interface WifiCapturedFactDao {
 		semanticRevision: Long,
 	): WifiCapturedFactRevisionEntity?
 
+	/**
+	 * Reads `wifi_captured_fact_revision` rows. Query conditions include `writer_projection_id =
+	 * :writerProjectionId`, `writer_projection_version = :writerProjectionVersion`, `logical_fact_id
+	 * = :logicalFactId`. Orders by `semantic_revision DESC`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM wifi_captured_fact_revision WHERE writer_projection_id = :writerProjectionId " +
 			"AND writer_projection_version = :writerProjectionVersion AND logical_fact_id = :logicalFactId " +
@@ -277,6 +309,11 @@ interface WifiCapturedFactDao {
 		captureConsentEpoch: Long? = null,
 	): List<WifiCapturedFactRevisionEntity>
 
+	/**
+	 * Reads `wifi_captured_fact_cursor` rows. Query conditions include `writer_projection_id =
+	 * :writerProjectionId`, `writer_projection_version = :writerProjectionVersion`, `logical_fact_id
+	 * = :logicalFactId`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM wifi_captured_fact_cursor WHERE writer_projection_id = :writerProjectionId " +
 			"AND writer_projection_version = :writerProjectionVersion AND logical_fact_id = :logicalFactId LIMIT 1",
@@ -290,7 +327,8 @@ interface WifiCapturedFactDao {
 	/** Latest effective predecessor, not the latest appended historical revision. */
 	@Query(
 		"SELECT fact.* FROM wifi_captured_fact_cursor AS cursor " +
-			"INNER JOIN wifi_captured_fact_revision AS fact ON fact.writer_projection_id = cursor.writer_projection_id " +
+			("INNER JOIN wifi_captured_fact_revision AS fact ON fact.writer_projection_id = " +
+                "cursor.writer_projection_id ") +
 			"AND fact.writer_projection_version = cursor.writer_projection_version " +
 			"AND fact.logical_fact_id = cursor.logical_fact_id " +
 			"AND fact.semantic_revision = cursor.latest_semantic_revision " +
@@ -314,6 +352,12 @@ interface WifiCapturedFactDao {
 		beforeSourceAdmissionOrdinal: Long,
 	): WifiCapturedFactRevisionEntity?
 
+	/**
+	 * Updates `wifi_captured_fact_cursor` rows matching the supplied scope. Query conditions include
+	 * `writer_projection_id = :writerProjectionId`, `writer_projection_version =
+	 * :writerProjectionVersion`, `logical_fact_id = :logicalFactId`, `logical_tracking_id =
+	 * :logicalTrackingId`. Returns the affected row count.
+	 */
 	@Query(
 		"UPDATE wifi_captured_fact_cursor SET latest_semantic_revision = :newSemanticRevision, " +
 			"latest_mutation_id = :newMutationId, latest_effect_checksum = :newEffectChecksum, " +
@@ -352,6 +396,11 @@ interface WifiCapturedFactDao {
 		updatedAtMs: Long,
 	): Int
 
+	/**
+	 * Counts rows in `wifi_captured_fact_revision`. Query conditions include
+	 * `aggregate_owner_logical_fact_id = :logicalFactId`, `aggregate_owner_semantic_revision =
+	 * :semanticRevision`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM wifi_captured_fact_revision WHERE aggregate_owner_logical_fact_id = :logicalFactId " +
 			"AND aggregate_owner_semantic_revision = :semanticRevision",
@@ -510,6 +559,11 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<WifiPortableWalIdentityRow>
 
+	/**
+	 * Reads `wifi_capture_deletion_generation` rows. Query conditions include `logical_tracking_id =
+	 * :logicalTrackingId`, `service_run_id = :serviceRunId`. Returns at most 1 row. Returns null when
+	 * no row matches.
+	 */
 	@Query(
 		"SELECT * FROM wifi_capture_deletion_generation WHERE logical_tracking_id = :logicalTrackingId " +
 			"AND service_run_id = :serviceRunId LIMIT 1",
@@ -519,9 +573,19 @@ interface WifiCapturedFactDao {
 		serviceRunId: String,
 	): WifiCaptureDeletionGenerationEntity?
 
+	/**
+	 * Records one initial run-deletion fence after requiring generation 1; higher generations must
+	 * use the dedicated revision operation.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertDeletionGeneration(entity: WifiCaptureDeletionGenerationEntity)
 
+	/**
+	 * Updates `wifi_capture_deletion_generation` rows matching the supplied scope. Query conditions
+	 * include `logical_tracking_id = :logicalTrackingId`, `service_run_id = :serviceRunId`,
+	 * `collected_data_epoch = :collectedDataEpoch`, `generation = :expectedGeneration`. Returns the
+	 * affected row count.
+	 */
 	@Query(
 		"UPDATE wifi_capture_deletion_generation SET generation = :newGeneration, " +
 			"updated_at_ms = :updatedAtMs WHERE logical_tracking_id = :logicalTrackingId " +
@@ -740,6 +804,12 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<SessionSegment>
 
+	/**
+	 * Reads `wifi_captured_fact_cursor` rows. Query conditions include `writer_projection_id =
+	 * :writerProjectionId`, `writer_projection_version = :writerProjectionVersion`, `service_run_id
+	 * IN (:serviceRunIds)`, `logical_tracking_id IN (:logicalTrackingIds)`. Orders by
+	 * `logical_fact_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM wifi_captured_fact_cursor WHERE writer_projection_id = :writerProjectionId " +
 			"AND writer_projection_version = :writerProjectionVersion AND " +
@@ -807,6 +877,11 @@ interface WifiCapturedFactDao {
 		afterSemanticRevision: Long?,
 	): List<WifiCapturedFactRevisionEntity>
 
+	/**
+	 * Reads `wifi_captured_fact_cursor` rows. Query conditions include `logical_fact_id IN
+	 * (:logicalFactIds)`. Orders by `writer_projection_id, writer_projection_version,
+	 * logical_fact_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM wifi_captured_fact_cursor WHERE logical_fact_id IN (:logicalFactIds) " +
 			"ORDER BY writer_projection_id, writer_projection_version, logical_fact_id LIMIT :limit",
@@ -816,6 +891,12 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<WifiCapturedFactCursorEntity>
 
+	/**
+	 * Reads `wifi_capture_deletion_generation` rows. Query conditions include
+	 * `generation.logical_tracking_id IN (:logicalTrackingIds)`, `generation.service_run_id IN
+	 * (:serviceRunIds)`. Orders by `generation.logical_tracking_id, generation.service_run_id`.
+	 * Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT generation.* FROM wifi_capture_deletion_generation AS generation " +
 			"JOIN source_service_run AS run ON run.logical_tracking_id = generation.logical_tracking_id " +
@@ -830,12 +911,20 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<WifiCaptureDeletionGenerationEntity>
 
+	/**
+	 * Reads `acquisition_plan_revision` rows. Query conditions include `revision IN (:revisions)`.
+	 * Orders by `revision`. Returns at most `limit` rows.
+	 */
 	@Query("SELECT * FROM acquisition_plan_revision WHERE revision IN (:revisions) ORDER BY revision LIMIT :limit")
 	suspend fun historyAcquisitionPlanRevisions(
 		revisions: List<Long>,
 		limit: Int,
 	): List<AcquisitionPlanRevisionEntity>
 
+	/**
+	 * Reads `source_desired_plan` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `revision IN (:revisions)`. Orders by `revision`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_desired_plan WHERE source_kind = :sourceKind " +
 			"AND revision IN (:revisions) ORDER BY revision LIMIT :limit",
@@ -846,6 +935,11 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<SourceDesiredPlanEntity>
 
+	/**
+	 * Reads `source_policy` rows. Query conditions include `policy.source_kind = :sourceKind`,
+	 * `manifest.service_run_id IN (:serviceRunIds)`. Orders by `policy.policy_revision`. Returns at
+	 * most `limit` rows.
+	 */
 	@Query(
 		"SELECT DISTINCT policy.* FROM source_policy AS policy " +
 			"JOIN session_manifest_version AS manifest " +
@@ -870,6 +964,10 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<SourcePolicyEntity>
 
+	/**
+	 * Reads `source_consent_epoch` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `purpose = :purpose`, `epoch IN (:epochs)`. Orders by `epoch`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_consent_epoch WHERE source_kind = :sourceKind AND purpose = :purpose " +
 			"AND epoch IN (:epochs) ORDER BY epoch LIMIT :limit",
@@ -893,6 +991,11 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<SourceConsentEpochEntity>
 
+	/**
+	 * Reads `provider_registration_generation` rows. Query conditions include `source_kind =
+	 * :sourceKind`, `registration_generation IN (:registrationGenerations)`. Orders by
+	 * `registration_generation`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
 			"AND registration_generation IN (:registrationGenerations) " +
@@ -904,6 +1007,12 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<ProviderRegistrationGenerationEntity>
 
+	/**
+	 * Reads `source_authorization` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `registration_generation IN (:registrationGenerations)`. Orders by `registration_generation,
+	 * effective_elapsed_realtime_nanos, authorization_revision, member_id`. Returns at most `limit`
+	 * rows.
+	 */
 	@Query(
 		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
 			"AND registration_generation IN (:registrationGenerations) " +
@@ -916,12 +1025,21 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<SourceAuthorizationEntity>
 
+	/**
+	 * Reads `source_demand` rows. Query conditions include `demand_id IN (:demandIds)`. Orders by
+	 * `demand_id`. Returns at most `limit` rows.
+	 */
 	@Query("SELECT * FROM source_demand WHERE demand_id IN (:demandIds) ORDER BY demand_id LIMIT :limit")
 	suspend fun historyDemands(
 		demandIds: List<String>,
 		limit: Int,
 	): List<SourceDemandEntity>
 
+	/**
+	 * Reads `lifecycle_desired_action` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `service_run_id IN (:serviceRunIds)`, `action_family = 'SOURCE_RUNTIME'`, `desired_state =
+	 * 'STARTED'`. Orders by `action_revision`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM lifecycle_desired_action WHERE source_kind = :sourceKind " +
 			"AND service_run_id IN (:serviceRunIds) AND action_family = 'SOURCE_RUNTIME' " +
@@ -933,6 +1051,11 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<LifecycleDesiredActionEntity>
 
+	/**
+	 * Reads `source_event_wal` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `service_run_id IN (:serviceRunIds)`, `fact.service_run_id IN (:serviceRunIds)`. Orders by
+	 * `service_run_id, admission_ordinal`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_event_wal WHERE source_kind = :sourceKind " +
 			"AND ((service_run_id IN (:serviceRunIds) AND session_manifest_revision IS NOT NULL " +
@@ -949,6 +1072,11 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<SourceEventWalEntity>
 
+	/**
+	 * Reads `source_deletion_fence` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `purpose = :purpose`, `scope_kind = :scopeKind`, `scope_identity_digest IN
+	 * (:scopeIdentityDigests)`. Orders by `scope_identity_digest`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_deletion_fence WHERE source_kind = :sourceKind " +
 			"AND purpose = :purpose AND scope_kind = :scopeKind " +
@@ -963,6 +1091,12 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<SourceDeletionFenceEntity>
 
+	/**
+	 * Reads `source_product_projection_lane` rows. Query conditions include `lane.source_kind =
+	 * :sourceKind`, `manifest.service_run_id IN (:serviceRunIds)`, `source.source_kind =
+	 * :sourceKind`, `source.purpose = :capturePurpose`. Orders by `lane.binding_generation,
+	 * lane.projection_id, lane.projection_version`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"""
 		SELECT lane.*
@@ -1038,6 +1172,10 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<WifiCaptureDeletionGenerationEntity>
 
+	/**
+	 * Counts rows in `wifi_captured_fact_revision`. Query conditions include `writer_projection_id !=
+	 * :writerProjectionId`, `writer_projection_version != :writerProjectionVersion`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM wifi_captured_fact_revision WHERE " +
 			"writer_projection_id != :writerProjectionId " +
@@ -1048,6 +1186,10 @@ interface WifiCapturedFactDao {
 		writerProjectionVersion: Int,
 	): Long
 
+	/**
+	 * Counts rows in `wifi_captured_fact_cursor`. Query conditions include `writer_projection_id !=
+	 * :writerProjectionId`, `writer_projection_version != :writerProjectionVersion`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM wifi_captured_fact_cursor WHERE " +
 			"writer_projection_id != :writerProjectionId " +
@@ -1080,6 +1222,11 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<SourceDemandEntity>
 
+	/**
+	 * Updates `source_demand` rows matching the supplied scope. Query conditions include `source_kind
+	 * = :sourceKind`, `purpose = :capturePurpose`, `status IN ('RETIRING', 'BLOCKED')`. Returns the
+	 * affected row count.
+	 */
 	@Query(
 		"UPDATE source_demand SET status = 'RETIRED', " +
 			"retire_boot_id = COALESCE(retire_boot_id, :bootId), " +
@@ -1108,6 +1255,11 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<ProviderRegistrationGenerationEntity>
 
+	/**
+	 * Reads `source_authorization` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `registration_generation = :registrationGeneration`, `authorization_revision =
+	 * :authorizationRevision`. Orders by `member_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
 			"AND registration_generation = :registrationGeneration " +
@@ -1120,6 +1272,11 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<SourceAuthorizationEntity>
 
+	/**
+	 * Returns the greatest `authorization_revision` in `source_authorization`. Query conditions
+	 * include `source_kind = :sourceKind`, `registration_generation = :registrationGeneration`.
+	 * Returns 0 when no saved value exists.
+	 */
 	@Query(
 		"SELECT COALESCE(MAX(authorization_revision), 0) FROM source_authorization " +
 			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration",
@@ -1129,6 +1286,11 @@ interface WifiCapturedFactDao {
 		registrationGeneration: Long,
 	): Long
 
+	/**
+	 * Reads `source_authorization` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `registration_generation = :registrationGeneration`, `effective_boot_id = :bootId`. Orders by
+	 * `member_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
 			"AND registration_generation = :registrationGeneration AND effective_boot_id = :bootId " +
@@ -1147,6 +1309,11 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<SourceAuthorizationEntity>
 
+	/**
+	 * Reads `source_authorization` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `registration_generation = :registrationGeneration`. Orders by `member_id`. Returns at most
+	 * `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
 			"AND registration_generation = :registrationGeneration " +
@@ -1163,9 +1330,17 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<SourceAuthorizationEntity>
 
+	/**
+	 * Counts rows in `source_event_wal`. Query conditions include `source_kind = :sourceKind`.
+	 */
 	@Query("SELECT COUNT(*) FROM source_event_wal WHERE source_kind = :sourceKind")
 	suspend fun maintenanceWalCount(sourceKind: Int): Long
 
+	/**
+	 * Reads `source_event_wal` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `admission_ordinal > :afterAdmissionOrdinal`. Orders by `admission_ordinal`. Returns at most
+	 * `limit` rows.
+	 */
 	@Query(
 		"SELECT admission_ordinal, event_id FROM source_event_wal WHERE source_kind = :sourceKind " +
 			"AND admission_ordinal > :afterAdmissionOrdinal " +
@@ -1181,6 +1356,12 @@ interface WifiCapturedFactDao {
 	@Query("SELECT length(payload) FROM source_event_wal WHERE event_id = :eventId LIMIT 1")
 	suspend fun maintenanceWalPayloadByteCount(eventId: String): Long?
 
+	/**
+	 * Deletes `wifi_captured_fact_cursor` rows matching the supplied scope. Query conditions include
+	 * `writer_projection_id = :writerProjectionId`, `writer_projection_version =
+	 * :writerProjectionVersion`, `logical_fact_id IN (:logicalFactIds)`. Returns the affected row
+	 * count.
+	 */
 	@Query(
 		"DELETE FROM wifi_captured_fact_cursor WHERE writer_projection_id = :writerProjectionId " +
 			"AND writer_projection_version = :writerProjectionVersion " +
@@ -1192,6 +1373,12 @@ interface WifiCapturedFactDao {
 		logicalFactIds: List<String>,
 	): Int
 
+	/**
+	 * Deletes `wifi_captured_fact_revision` rows matching the supplied scope. Query conditions
+	 * include `writer_projection_id = :writerProjectionId`, `writer_projection_version =
+	 * :writerProjectionVersion`, `logical_fact_id IN (:logicalFactIds)`. Returns the affected row
+	 * count.
+	 */
 	@Query(
 		"DELETE FROM wifi_captured_fact_revision WHERE writer_projection_id = :writerProjectionId " +
 			"AND writer_projection_version = :writerProjectionVersion " +
@@ -1203,37 +1390,65 @@ interface WifiCapturedFactDao {
 		logicalFactIds: List<String>,
 	): Int
 
+	/**
+	 * Counts rows in `wifi_captured_fact_revision`.
+	 */
 	@Query("SELECT COUNT(*) FROM wifi_captured_fact_revision")
 	suspend fun revisionCount(): Long
 
+	/**
+	 * Counts rows in `wifi_captured_fact_cursor`.
+	 */
 	@Query("SELECT COUNT(*) FROM wifi_captured_fact_cursor")
 	suspend fun cursorCount(): Long
 
+	/**
+	 * Counts rows in `wifi_capture_deletion_generation`.
+	 */
 	@Query("SELECT COUNT(*) FROM wifi_capture_deletion_generation")
 	suspend fun deletionGenerationCount(): Long
 
+	/**
+	 * Deletes `wifi_captured_fact_cursor` rows.
+	 */
 	@Query("DELETE FROM wifi_captured_fact_cursor")
 	fun deleteAllCursors()
 
+	/**
+	 * Deletes `wifi_captured_fact_revision` rows matching the supplied scope. Query conditions
+	 * include `fact_kind = 'COVERAGE_ONLY'`.
+	 */
 	@Query(
 		"DELETE FROM wifi_captured_fact_revision WHERE fact_kind = 'COVERAGE_ONLY' " +
 			"OR aggregate_owner_logical_fact_id IS NOT NULL",
 	)
 	fun deleteAllDependentRevisions()
 
+	/**
+	 * Deletes `wifi_captured_fact_revision` rows.
+	 */
 	@Query("DELETE FROM wifi_captured_fact_revision")
 	fun deleteAllRevisions()
 
+	/**
+	 * Deletes `wifi_capture_deletion_generation` rows.
+	 */
 	@Query("DELETE FROM wifi_capture_deletion_generation")
 	fun deleteAllDeletionGenerations()
 }
 
+/**
+ * Physical Wi-Fi segment paired with the stable recency tuple of its logical recording.
+ */
 data class WifiLogicalHistoryCandidate(
 	@Embedded val segment: SessionSegment,
 	@ColumnInfo(name = "logical_recency_start_ms") val logicalRecencyStartMs: Long,
 	@ColumnInfo(name = "logical_recency_segment_id") val logicalRecencySegmentId: Long,
 )
 
+/**
+ * Physical Wi-Fi segment with its logical UTC bounds and stable recency tuple for range history.
+ */
 data class WifiLogicalRangeCandidate(
 	@Embedded val segment: SessionSegment,
 	@ColumnInfo(name = "logical_start_time_ms") val logicalStartTimeMs: Long,

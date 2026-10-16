@@ -317,6 +317,8 @@ class RoomCellSelectedHistoryDeletionTest {
 		ImportedCellHistoryDigest("2".repeat(64)),
 	)
 
+	// Keep the Cell deletion selection with its linked session, run and signed source manifest together.
+	@Suppress("LongMethod")
 	private suspend fun seedLocalScope(
 		sessionState: String,
 		runState: String,
@@ -359,7 +361,11 @@ class RoomCellSelectedHistoryDeletionTest {
 				sessionMode = "MANUAL",
 				currentManifestRevision = 1L,
 				currentIntentRevision = 1L,
-				currentServiceRunId = if (completedAtMs == null) RUN_ID else null,
+				currentServiceRunId = if (completedAtMs == null) {
+					RUN_ID
+				} else {
+					null
+				},
 				lifecycleLeaseGeneration = 1L,
 				lifecycleBootId = "boot",
 				automationEpoch = null,
@@ -467,6 +473,8 @@ class RoomCellSelectedHistoryDeletionTest {
 		)
 	}
 
+	// Keep the factless Cell policy, plan, product lane and terminal completeness setup in one fixture.
+	@Suppress("LongMethod")
 	private suspend fun installFactlessCellAuthority() {
 		database.sourcePolicyDao().insertPolicies(listOf(
 			SourcePolicyEntity(

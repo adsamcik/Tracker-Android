@@ -14,6 +14,7 @@ import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwner
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwnerKind
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwnerState
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.deleteAllCollectedDataForTesting
 import com.adsamcik.tracker.shared.base.database.authenticateOrInstallGraphlessLegacyAmbientLineage
 import com.adsamcik.tracker.shared.base.database.deleteFullClearPayloadInCurrentTransaction
 import com.adsamcik.tracker.shared.base.database.insertAuthenticatedGraph
@@ -128,6 +129,9 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// One imported Steps Room fixture follows the same structural-day and count-domain graph through import,
+// history, correction and deletion.
+@Suppress("LargeClass")
 class RoomImportedAmbientStepsTransferTest {
 	private lateinit var database: AppDatabase
 
@@ -237,7 +241,9 @@ class RoomImportedAmbientStepsTransferTest {
 
 	@After
 	fun tearDown() {
-		if (::database.isInitialized && database.isOpen) database.close()
+		if (::database.isInitialized && database.isOpen) {
+			database.close()
+		}
 	}
 
 	@Test
@@ -303,6 +309,8 @@ class RoomImportedAmbientStepsTransferTest {
 		page.next shouldBe null
 	}
 
+	// Follow the same DST/zero/gap archive through public reads, re-export, and import into a second database.
+	@Suppress("LongMethod")
 	@Test
 	fun `two database import read and reexport roundtrip preserves DST gaps and covered zero`() = runTest {
 		val archive = archive(
@@ -1179,6 +1187,8 @@ class RoomImportedAmbientStepsTransferTest {
 	}
 
 	@Test
+	// Keep this complete retention scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `partial v2 graph corrections remain deletable and retention truncatable`() = runTest {
 		val deletedDay = twoFactDay(LocalDate.of(2026, 1, 11))
 		val deletedInitial = PortableAmbientStepsArchiveV2.create(
@@ -1264,7 +1274,11 @@ class RoomImportedAmbientStepsTransferTest {
 		val conflictingGraph = PortableCountDomainGraphV2.create(
 			receipts = validGraph.receipts,
 			ownerRevisions = validGraph.ownerRevisions.map { owner ->
-				if (owner == unchanged) owner.copy(linkedAtMs = owner.linkedAtMs + 1L) else owner
+				if (owner == unchanged) {
+					owner.copy(linkedAtMs = owner.linkedAtMs + 1L)
+				} else {
+					owner
+				}
 			},
 			completenessMarkers = validGraph.completenessMarkers,
 			roots = validGraph.roots,
@@ -1392,6 +1406,9 @@ class RoomImportedAmbientStepsTransferTest {
 		database.importedAmbientStepsDao().archiveCount() shouldBe 1L
 	}
 
+	// Keep both legacy revisions and the explicit truncated v2 binding together to verify the missing origin is
+	// rejected.
+	@Suppress("LongMethod")
 	@Test
 	fun `persisted v2 binding after legacy revisions must retain revision one lineage`() = runTest {
 		val date = LocalDate.of(2026, 1, 16)
@@ -2144,6 +2161,8 @@ class RoomImportedAmbientStepsTransferTest {
 	}
 
 	@Test
+	// Keep this complete contract scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `metadata mismatch and opaque collision fail closed without complete zero`() = runTest {
 		val archive = archive(completeDay(LocalDate.of(2026, 2, 2), 0L))
 		val badMetadata = metadata(archive).copy(factCount = 2)
@@ -2270,6 +2289,8 @@ class RoomImportedAmbientStepsTransferTest {
 		reexport(database, archive) shouldBe archive
 	}
 
+	// Keep the original, corrected, and deleted states in one observation sequence to verify numeric invalidation.
+	@Suppress("LongMethod")
 	@Test
 	fun `production numeric chain discovers imported DST zone before fallback and tracks mutations`() =
 		runTest {
@@ -2665,6 +2686,8 @@ class RoomImportedAmbientStepsTransferTest {
 		)
 	}
 
+	// Follow the same reset through revocation, bounded deletion, consent reopening, quality changes, and old replay.
+	@Suppress("LongMethod")
 	@Test
 	fun `consent reset primitive requires revoked authority and deletes one lineage`() = runTest {
 		val archive = archive(completeDay(LocalDate.of(2026, 6, 1), 8L))
@@ -2971,6 +2994,8 @@ class RoomImportedAmbientStepsTransferTest {
 		}
 	}
 
+	// Keep deleted and live identities through one epoch clear to verify old replay is fenced while new data imports.
+	@Suppress("LongMethod")
 	@Test
 	fun `full collected data clear preserves no resurrection authority across epoch`() = runTest {
 		val deletedArchive = archive(completeDay(LocalDate.of(2026, 9, 2), 8L))

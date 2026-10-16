@@ -34,14 +34,14 @@ import org.robolectric.annotation.Config
 class MeasuredCalendarRangeInvalidationRoomTest {
     private lateinit var database: AppDatabase
     private lateinit var application: Application
-    @Before fun setup() = runBlocking {
+    @Before fun setup(): Unit = runBlocking {
         application = ApplicationProvider.getApplicationContext()
         database = AppDatabase.testDatabase(application)
         database.sourceEvidenceStateDao().ensure()
     }
     @After fun close() = database.close()
 
-    @Test fun `an older measured mutation still invalidates the month when its first page is identical`() = runBlocking {
+    @Test fun `an older measured mutation still invalidates the month when its first page is identical`(): Unit = runBlocking {
         withTimeout(10_000L) {
             point(2_000)
             point(1_000)

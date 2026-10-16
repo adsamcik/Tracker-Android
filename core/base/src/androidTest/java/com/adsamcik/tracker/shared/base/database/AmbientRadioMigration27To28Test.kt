@@ -32,6 +32,8 @@ class AmbientRadioMigration27To28Test {
 	}
 
 	@Test
+	// One migrated snapshot proves empty radio tables and their exact structural and authority indexes.
+	@Suppress("LongMethod")
 	fun migrationCreatesEmptyAmbientRadioTablesAndStructuralIndexes() {
 		helper.createDatabase(DATABASE, 27).close()
 

@@ -23,7 +23,8 @@ data class ImportedRadioFileMembership(
 	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
 ) {
 	init {
-		require(sourceKind == SourceDestinationOwnerEntity.SOURCE_WIFI || sourceKind == SourceDestinationOwnerEntity.SOURCE_CELL)
+		require(sourceKind == SourceDestinationOwnerEntity.SOURCE_WIFI ||
+            sourceKind == SourceDestinationOwnerEntity.SOURCE_CELL)
 		require(importJobId.isNotBlank() && importEntryKey.isNotBlank() && entryIdentity.isNotBlank())
 		require(entryImportRevision > 0L && memberRevision > 0L && collectedDataEpoch >= 0L)
 		require(memberKind in setOf("ENTRY", "OBSERVATION", "GAP"))

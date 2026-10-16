@@ -59,7 +59,12 @@ data class SourceHistoryDetailSelection(
 		}
 	}
 
+	/** Builds detail selections only from entries that carry an actionable source-owned target. */
 	companion object {
+		/**
+		 * Returns an exact source detail handoff, or null for physical segments, Steps membership groups and
+		 * nonactionable rows.
+		 */
 		fun fromSourceEntry(
 			entry: SourceAwareHistoryPageEntry,
 			readSnapshot: TrackingHistoryReadSnapshot?,
@@ -98,6 +103,10 @@ object SourceHistoryDetailHandoff {
 	private val lock = Any()
 	private val selections = LinkedHashMap<String, PendingSelection>()
 
+	/**
+	 * Retains a selection for at most two minutes under a single-use navigation token; the clock uses elapsed
+	 * realtime nanoseconds.
+	 */
 	fun register(
 		selection: SourceHistoryDetailSelection,
 		nowElapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),
@@ -154,7 +163,11 @@ object SourceHistoryDetailHandoff {
 	}
 
 	private fun saturatedAdd(left: Long, right: Long): Long =
-		if (left <= Long.MAX_VALUE - right) left + right else Long.MAX_VALUE
+		if (left <= Long.MAX_VALUE - right) {
+			left + right
+		} else {
+			Long.MAX_VALUE
+		}
 
 	private data class PendingSelection(
 		val selection: SourceHistoryDetailSelection,

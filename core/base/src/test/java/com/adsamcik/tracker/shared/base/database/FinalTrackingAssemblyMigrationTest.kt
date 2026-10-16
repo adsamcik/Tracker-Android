@@ -116,9 +116,11 @@ class FinalTrackingAssemblyMigrationTest {
                         val table = tables.getJSONObject(index)
                         db.execSQL(table.getString("createSql").replace("${'$'}{TABLE_NAME}", table.getString("tableName")))
                         val indices = table.optJSONArray("indices")
-                        if (indices != null) for (item in 0 until indices.length()) {
+                        if (indices != null) {
+                            for (item in 0 until indices.length()) {
                             db.execSQL(indices.getJSONObject(item).getString("createSql")
                                 .replace("${'$'}{TABLE_NAME}", table.getString("tableName")))
+                        }
                         }
                     }
                     val setup = JSONObject(schema.readText()).getJSONObject("database").getJSONArray("setupQueries")

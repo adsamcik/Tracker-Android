@@ -707,7 +707,9 @@ class RoomImportPortablePressureTest {
 	fun `mid-write failure and cancellation roll back the complete hierarchy`() = runTest {
 		val request = request()
 		val failing = importer(testScheduler) { checkpoint ->
-			if (checkpoint == PressureImportWriteCheckpoint.RECEIPT_INSERTED) error("injected")
+			if (checkpoint == PressureImportWriteCheckpoint.RECEIPT_INSERTED) {
+				error("injected")
+			}
 		}
 		failing.importEntry(request) shouldBe ImportPortablePressureResult.RetryableFailure(
 			PortablePressureTransferRetryableReason.STORAGE_UNAVAILABLE,
@@ -892,6 +894,9 @@ class RoomImportPortablePressureTest {
 	private fun identity(kind: PortablePressureIdentityKind, local: String) =
 		PortablePressureOpaqueIdentity.derive(kind, local)
 
+	// Keep one imported Pressure deletion fixture with its matching entry/run/window fences and deletion
+	// receipt together.
+	@Suppress("LongMethod")
 	private suspend fun insertEntryDeletionAuthority(entryIdentity: String) {
 		val runIdentity = identity(
 			PortablePressureIdentityKind.PHYSICAL_RUN,

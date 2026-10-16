@@ -46,6 +46,10 @@ data class ImportedWifiEntryRevisionEntity(
 		requireWifiImportProvenance(importJobId, importEntryKey, importSourceName)
 	}
 
+	/**
+	 * Stable persisted codes, including `SOURCE_FORMAT`, `SOURCE_SCHEMA_VERSION`, and any
+	 * identity-bound record factories.
+	 */
 	companion object {
 		const val SOURCE_FORMAT = "tracker-portable-captured-wifi"
 		const val SOURCE_SCHEMA_VERSION = 1
@@ -329,7 +333,15 @@ data class ImportedWifiEntryDeletionEntity(
 		))
 	}
 
+	/**
+	 * Factories and canonical digests binding this record to its original identity, revision and
+	 * lifecycle fields.
+	 */
 	companion object {
+		/**
+		 * Builds the imported Wi-Fi entry-deletion witness with its original identity, deleted import
+		 * revision, data epoch and UTC erase time.
+		 */
 		fun create(
 			entryIdentity: String,
 			collectedDataEpoch: Long,
@@ -386,7 +398,15 @@ data class ImportedWifiDeletionGenerationEntity(
 		))
 	}
 
+	/**
+	 * Factories and canonical digests binding this record to its original identity, revision and
+	 * lifecycle fields.
+	 */
 	companion object {
+		/**
+		 * Builds the imported Wi-Fi run-deletion record with its original scope, data epoch, generation
+		 * and UTC erase time.
+		 */
 		fun create(
 			runIdentity: String,
 			entryIdentity: String,
@@ -476,11 +496,19 @@ data class WifiSelectedDeletionReceiptEntity(
 		require(effectChecksum == checksum(this))
 	}
 
+	/**
+	 * Stable persisted codes, including `ORIGIN_LOCAL`, `ORIGIN_IMPORTED`, and any identity-bound
+	 * record factories.
+	 */
 	companion object {
 		const val ORIGIN_LOCAL = "LOCAL"
 		const val ORIGIN_IMPORTED = "IMPORTED"
 		private val ORIGINS = setOf(ORIGIN_LOCAL, ORIGIN_IMPORTED)
 
+		/**
+		 * Validates the selected protected identities and binds their counts, run deletions and source
+		 * fences to one deletion receipt.
+		 */
 		@Suppress("LongParameterList")
 		fun create(
 			selectionIdentity: String,
@@ -510,31 +538,13 @@ data class WifiSelectedDeletionReceiptEntity(
 				it.identityKind == WifiSelectedDeletionProtectedIdentityEntity.KIND_OBSERVATION
 			}
 			val protectedChecksum = checksumProtectedIdentities(protectedIdentities)
-			val protectedRuns = protectedIdentities.filter {
-				it.identityKind == WifiSelectedDeletionProtectedIdentityEntity.KIND_RUN
-			}.mapTo(linkedSetOf(), WifiSelectedDeletionProtectedIdentityEntity::protectedIdentity)
-			val protectedScopes = protectedIdentities.filter {
-				it.identityKind == WifiSelectedDeletionProtectedIdentityEntity.KIND_DELETION_SCOPE
-			}.mapTo(linkedSetOf(), WifiSelectedDeletionProtectedIdentityEntity::protectedIdentity)
-			require(runDeletionRows.distinctBy(WifiSelectedDeletionRunMarker::runIdentity).size ==
-				runDeletionRows.size)
-			require(runDeletionRows.mapTo(linkedSetOf(), WifiSelectedDeletionRunMarker::runIdentity) ==
-				protectedRuns)
-			require(runDeletionRows.mapTo(linkedSetOf(), WifiSelectedDeletionRunMarker::deletionScopeDigest) ==
-				protectedScopes)
-			require(runDeletionRows.all {
-				it.entryIdentity == selectionIdentity && it.collectedDataEpoch == collectedDataEpoch &&
-					it.generation > 0L
-			})
-			require(sourceFences.all {
-				it.sourceKind == SourceDestinationOwnerEntity.SOURCE_WIFI &&
-					it.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
-					it.scopeKind == SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN &&
-					it.scopeIdentityDigest in protectedScopes &&
-					it.collectedDataEpoch == collectedDataEpoch && it.fenceGeneration > 0L
-			})
-			require(sourceFences.distinctBy(SourceDeletionFenceEntity::scopeIdentityDigest).size ==
-				sourceFences.size)
+			requireMatchingDeletionAuthority(
+				selectionIdentity,
+				collectedDataEpoch,
+				protectedIdentities,
+				runDeletionRows,
+				sourceFences,
+			)
 			val runChecksum = checksumRunDeletions(runDeletionRows)
 			val fenceChecksum = checksumSourceFences(sourceFences)
 			return WifiSelectedDeletionReceiptEntity(
@@ -573,6 +583,44 @@ data class WifiSelectedDeletionReceiptEntity(
 			)
 		}
 
+		private fun requireMatchingDeletionAuthority(
+			selectionIdentity: String,
+			collectedDataEpoch: Long,
+			protectedIdentities: List<WifiSelectedDeletionProtectedIdentityEntity>,
+			runDeletionRows: List<WifiSelectedDeletionRunMarker>,
+			sourceFences: List<SourceDeletionFenceEntity>,
+		) {
+			val protectedRuns = protectedIdentities.filter {
+				it.identityKind == WifiSelectedDeletionProtectedIdentityEntity.KIND_RUN
+			}.mapTo(linkedSetOf(), WifiSelectedDeletionProtectedIdentityEntity::protectedIdentity)
+			val protectedScopes = protectedIdentities.filter {
+				it.identityKind == WifiSelectedDeletionProtectedIdentityEntity.KIND_DELETION_SCOPE
+			}.mapTo(linkedSetOf(), WifiSelectedDeletionProtectedIdentityEntity::protectedIdentity)
+			require(runDeletionRows.distinctBy(WifiSelectedDeletionRunMarker::runIdentity).size ==
+				runDeletionRows.size)
+			require(runDeletionRows.mapTo(linkedSetOf(), WifiSelectedDeletionRunMarker::runIdentity) ==
+				protectedRuns)
+			require(runDeletionRows.mapTo(linkedSetOf(), WifiSelectedDeletionRunMarker::deletionScopeDigest) ==
+				protectedScopes)
+			require(runDeletionRows.all {
+				it.entryIdentity == selectionIdentity && it.collectedDataEpoch == collectedDataEpoch &&
+					it.generation > 0L
+			})
+			require(sourceFences.all {
+				it.sourceKind == SourceDestinationOwnerEntity.SOURCE_WIFI &&
+					it.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
+					it.scopeKind == SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN &&
+					it.scopeIdentityDigest in protectedScopes &&
+					it.collectedDataEpoch == collectedDataEpoch && it.fenceGeneration > 0L
+			})
+			require(sourceFences.distinctBy(SourceDeletionFenceEntity::scopeIdentityDigest).size ==
+				sourceFences.size)
+		}
+
+		/**
+		 * Hashes the canonically ordered protected identities, including their stored owner and deletion
+		 * metadata.
+		 */
 		fun checksumProtectedIdentities(
 			values: List<WifiSelectedDeletionProtectedIdentityEntity>,
 		): String = wifiAuthorityDigest(
@@ -598,6 +646,9 @@ data class WifiSelectedDeletionReceiptEntity(
 			}.toTypedArray(),
 		)
 
+		/**
+		 * Hashes canonically ordered run-deletion records with their original scopes and revisions.
+		 */
 		fun checksumRunDeletions(values: List<WifiSelectedDeletionRunMarker>): String =
 			wifiAuthorityDigest(
 				"tracker-wifi-selected-deletion-run-set-v1",
@@ -613,6 +664,10 @@ data class WifiSelectedDeletionReceiptEntity(
 				}.toTypedArray(),
 			)
 
+		/**
+		 * Hashes canonically ordered source-deletion fences with their original purposes and
+		 * generations.
+		 */
 		fun checksumSourceFences(values: List<SourceDeletionFenceEntity>): String =
 			wifiAuthorityDigest(
 				"tracker-wifi-selected-deletion-source-fence-set-v1",
@@ -761,6 +816,10 @@ data class WifiSelectedDeletionProtectedIdentityEntity(
 		require(effectChecksum == checksum(this))
 	}
 
+	/**
+	 * Stable persisted codes, including `KIND_ENTRY`, `KIND_RUN`, `KIND_OBSERVATION`, and any
+	 * identity-bound record factories.
+	 */
 	companion object {
 		const val KIND_ENTRY = "ENTRY"
 		const val KIND_RUN = "RUN"
@@ -768,6 +827,10 @@ data class WifiSelectedDeletionProtectedIdentityEntity(
 		const val KIND_DELETION_SCOPE = "DELETION_SCOPE"
 		private val KINDS = setOf(KIND_ENTRY, KIND_RUN, KIND_OBSERVATION, KIND_DELETION_SCOPE)
 
+		/**
+		 * Builds one original identity's selection/entry/run ownership witness, including optional
+		 * aggregate ownership and revision-set digest.
+		 */
 		@Suppress("LongParameterList")
 		fun create(
 			selectionIdentity: String,
@@ -861,6 +924,10 @@ data class WifiSelectedDeletionProtectedIdentityEntity(
 	}
 }
 
+/**
+ * Payload-free original Wi-Fi run deletion identity, scope, data epoch, generation and UTC erase
+ * time.
+ */
 data class WifiSelectedDeletionRunMarker(
 	val runIdentity: String,
 	val entryIdentity: String,

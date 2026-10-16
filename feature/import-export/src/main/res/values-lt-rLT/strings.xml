@@ -41,4 +41,25 @@
     <string name="format_database">Duomenų bazės atsarginė kopija (ZIP)</string>
     <string name="settings_import_summary">Importuokite duomenis iš palaikomų tipų (%1$s) ir archyvų (%2$s). Duomenų bazės importavimas sujungia suderinamas eilutes; esami duomenys nepakeičiami.</string>
     <string name="settings_import_title">Importavimas</string>
+    <string name="export_radio_sensitivity_title">Eksportuoti tinklų informaciją?</string>
+    <string name="export_wifi_sensitivity_message">Šiame faile yra išsaugoti Wi-Fi pavadinimai ir prieigos taškų ID.</string>
+    <string name="export_cell_sensitivity_message">Šiame faile yra išsaugoti bazinių stočių ID ir signalo matavimai.</string>
+    <string name="export_radio_no_data">Nėra išsaugotų šio šaltinio duomenų</string>
+    <string name="export_include_complete_sessions">Įtraukti visas sesijas</string>
+    <string name="import_location_conflict_title">Pakeisti išsaugotus taškus?</string>
+    <string name="import_location_replace">Naudoti failo taškus</string>
+    <string name="import_location_keep">Palikti išsaugotus taškus</string>
+    <string name="export_backup_review_title">Peržiūrėti suplanuotas atsargines kopijas</string>
+    <string name="export_backup_review_summary">Pristabdyta, kol peržiūrėsite atnaujintą duomenų atsarginę kopiją.</string>
+    <string name="export_backup_review_message">Šie tvarkaraščiai dabar kopijuoja visus išsaugotus sekimo duomenis ir jiems atkurti reikalingus failus. Nuostatos neįtraukiamos. Tęsti šiuos tvarkaraščius?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Tęsti atsarginių kopijų kūrimą</string>
+    <string name="import_backup_replace_title">Atkurti duomenų atsarginę kopiją?</string>
+    <string name="import_backup_replace_message">Pakeisti išsaugotus duomenis šia atsargine kopija? Jūsų nuostatos liks tokios pat. Sekimas bus išjungtas, kol jį vėl įjungsite.</string>
+    <string name="import_backup_restore">Pakeisti duomenis</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d taškas šiame faile skiriasi nuo išsaugotos kopijos. Pasirinkite, kurį palikti. Kiti taškai bus importuoti įprastai.</item>
+        <item quantity="few">%d taškai šiame faile skiriasi nuo išsaugotų kopijų. Pasirinkite, kuriuos palikti. Kiti taškai bus importuoti įprastai.</item>
+        <item quantity="many">%d taško šiame faile skiriasi nuo išsaugotų kopijų. Pasirinkite, kuriuos palikti. Kiti taškai bus importuoti įprastai.</item>
+        <item quantity="other">%d taškų šiame faile skiriasi nuo išsaugotų kopijų. Pasirinkite, kuriuos palikti. Kiti taškai bus importuoti įprastai.</item>
+    </plurals>
 </resources>

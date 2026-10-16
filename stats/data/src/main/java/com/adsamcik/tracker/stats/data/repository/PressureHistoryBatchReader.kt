@@ -42,8 +42,16 @@ internal suspend fun loadPressureHistoryBatchSnapshot(
 	val serviceRunIds = segments.mapNotNull(SessionSegment::serviceRunId)
 		.filter(String::isNotBlank)
 		.distinct()
-	val serviceRuns = if (serviceRunIds.isEmpty()) emptyList() else readDao.serviceRuns(serviceRunIds)
-	val manifests = if (serviceRunIds.isEmpty()) emptyList() else readDao.manifests(serviceRunIds)
+	val serviceRuns = if (serviceRunIds.isEmpty()) {
+		emptyList()
+	} else {
+		readDao.serviceRuns(serviceRunIds)
+	}
+	val manifests = if (serviceRunIds.isEmpty()) {
+		emptyList()
+	} else {
+		readDao.manifests(serviceRunIds)
+	}
 	val manifestSources = if (serviceRunIds.isEmpty()) {
 		emptyList()
 	} else {
@@ -70,7 +78,11 @@ internal suspend fun loadPressureHistoryBatchSnapshot(
 				epochs = epochs,
 			)
 		}
-	val completeness = if (serviceRunIds.isEmpty()) emptyList() else readDao.completeness(serviceRunIds)
+	val completeness = if (serviceRunIds.isEmpty()) {
+		emptyList()
+	} else {
+		readDao.completeness(serviceRunIds)
+	}
 	val logicalTrackingIds = segments.mapNotNull(SessionSegment::logicalTrackingId)
 		.filter(String::isNotBlank)
 		.distinct()
@@ -78,7 +90,8 @@ internal suspend fun loadPressureHistoryBatchSnapshot(
 		currentCoroutineContext().ensureActive()
 		database.sourceSessionDao().sessions(identities)
 	}
-	val pressureFactLoad = selectedFacts?.let { PressureFactLoad(it.take(factRevisionBudget), it.size > factRevisionBudget) }
+	val pressureFactLoad = selectedFacts?.let { PressureFactLoad(it.take(factRevisionBudget),
+        it.size > factRevisionBudget) }
 		?: loadPressureHistoryFactRevisions(
 		database = database,
 		serviceRunIds = serviceRunIds,
@@ -258,7 +271,9 @@ private suspend fun loadPressureWalCarriers(
 	facts: List<PressureFactRevisionEntity>,
 ): Map<String, SourceEventWalEntity> {
 	val eventIds = facts.map(PressureFactRevisionEntity::sourceEventId).distinct()
-	if (eventIds.isEmpty()) return emptyMap()
+	if (eventIds.isEmpty()) {
+		return emptyMap()
+	}
 	val rows = mutableListOf<SourceEventWalEntity>()
 	for (batch in eventIds.chunked(PRESSURE_QUERY_ID_BATCH_SIZE)) {
 		currentCoroutineContext().ensureActive()
@@ -278,7 +293,9 @@ private suspend fun loadPressureHistoryFactRevisions(
 	logicalTrackingIds: List<String>,
 	factRevisionBudget: Int,
 ): PressureFactLoad {
-	if (serviceRunIds.isEmpty() && logicalTrackingIds.isEmpty()) return PressureFactLoad.EMPTY
+	if (serviceRunIds.isEmpty() && logicalTrackingIds.isEmpty()) {
+		return PressureFactLoad.EMPTY
+	}
 	val facts = mutableListOf<PressureFactRevisionEntity>()
 	var cursor: PressureFactCursor? = null
 	while (true) {
@@ -295,13 +312,19 @@ private suspend fun loadPressureHistoryFactRevisions(
 			afterLogicalFactId = cursor?.logicalFactId,
 			afterSemanticRevision = cursor?.semanticRevision,
 		)
-		if (page.isEmpty()) break
-		if (page.size > remaining) return PressureFactLoad(facts, overflow = true)
+		if (page.isEmpty()) {
+			break
+		}
+		if (page.size > remaining) {
+			return PressureFactLoad(facts, overflow = true)
+		}
 		val nextCursor = PressureFactCursor(page.last())
 		check(cursor == null || nextCursor > cursor) { "Pressure history fact cursor did not advance" }
 		facts += page
 		cursor = nextCursor
-		if (page.size < pageLimit) break
+		if (page.size < pageLimit) {
+			break
+		}
 	}
 	return PressureFactLoad(facts, overflow = false)
 }
@@ -313,7 +336,11 @@ private fun invalidFactScopeLogicalIds(
 	val expectedLogicalByRun = segments.mapNotNull { segment ->
 		val logicalTrackingId = segment.logicalTrackingId?.takeIf(String::isNotBlank)
 		val serviceRunId = segment.serviceRunId?.takeIf(String::isNotBlank)
-		if (logicalTrackingId == null || serviceRunId == null) null else serviceRunId to logicalTrackingId
+		if (logicalTrackingId == null || serviceRunId == null) {
+			null
+		} else {
+			serviceRunId to logicalTrackingId
+		}
 	}.toMap()
 	val selectedLogicalIds = expectedLogicalByRun.values.toHashSet()
 	return buildSet {
@@ -351,39 +378,15 @@ internal suspend fun expandPressureLogicalMembership(
 	val logicalTrackingIds = seedSegments.mapNotNull(SessionSegment::logicalTrackingId)
 		.filter(String::isNotBlank)
 		.distinct()
-	if (logicalTrackingIds.isEmpty()) return PressureLogicalMembershipExpansion(seedSegments, emptyMap())
-
-	val runs = mutableListOf<SourceServiceRunEntity>()
-	var cursor: PressureServiceRunCursor? = null
-	while (true) {
-		currentCoroutineContext().ensureActive()
-		val remaining = memberBudget - runs.size
-		val pageLimit = minOf(PRESSURE_MEMBERSHIP_PAGE_SIZE, remaining + 1)
-		val page = database.trackingHistoryReadDao().logicalEntryServiceRunPage(
-			logicalTrackingIds = logicalTrackingIds,
-			limit = pageLimit,
-			afterLogicalTrackingId = cursor?.logicalTrackingId,
-			afterStartedAtMs = cursor?.startedAtMs,
-			afterServiceRunId = cursor?.serviceRunId,
-		)
-		if (page.isEmpty()) break
-		if (page.size > remaining) {
-			return PressureLogicalMembershipExpansion(
-				segments = seedSegments,
-				failures = logicalTrackingIds.associateWith {
-					PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW
-				},
-			)
-		}
-		val nextCursor = PressureServiceRunCursor(page.last())
-		check(cursor == null || nextCursor > cursor) {
-			"Pressure logical-membership cursor did not advance"
-		}
-		runs += page
-		cursor = nextCursor
-		if (page.size < pageLimit) break
+	if (logicalTrackingIds.isEmpty()) {
+		return PressureLogicalMembershipExpansion(seedSegments, emptyMap())
 	}
-	currentCoroutineContext().ensureActive()
+
+	val runs = loadPressureLogicalServiceRuns(database, logicalTrackingIds, memberBudget)
+		?: return PressureLogicalMembershipExpansion(
+			segments = seedSegments,
+			failures = logicalTrackingIds.associateWith { PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW },
+		)
 
 	val failures = linkedMapOf<String, PressureHistoryReason>()
 	val runsByLogicalId = runs.groupBy(SourceServiceRunEntity::logicalTrackingId)
@@ -398,27 +401,81 @@ internal suspend fun expandPressureLogicalMembership(
 	} else {
 		database.trackingHistoryReadDao().segments(segmentIds)
 	}
+	markUnboundPressureMembers(runs, loadedSegments, seedSegments, failures)
+	return PressureLogicalMembershipExpansion(
+		segments = (loadedSegments + seedSegments).distinctBy(SessionSegment::id),
+		failures = failures,
+	)
+}
+
+private suspend fun loadPressureLogicalServiceRuns(
+	database: AppDatabase,
+	logicalTrackingIds: List<String>,
+	memberBudget: Int,
+): List<SourceServiceRunEntity>? {
+	val runs = mutableListOf<SourceServiceRunEntity>()
+	var cursor: PressureServiceRunCursor? = null
+	while (true) {
+		currentCoroutineContext().ensureActive()
+		val remaining = memberBudget - runs.size
+		val pageLimit = minOf(PRESSURE_MEMBERSHIP_PAGE_SIZE, remaining + 1)
+		val page = database.trackingHistoryReadDao().logicalEntryServiceRunPage(
+			logicalTrackingIds = logicalTrackingIds,
+			limit = pageLimit,
+			afterLogicalTrackingId = cursor?.logicalTrackingId,
+			afterStartedAtMs = cursor?.startedAtMs,
+			afterServiceRunId = cursor?.serviceRunId,
+		)
+		if (page.isEmpty()) {
+			break
+		}
+		if (page.size > remaining) {
+			return null
+		}
+		val nextCursor = PressureServiceRunCursor(page.last())
+		check(cursor == null || nextCursor > cursor) {
+			"Pressure logical-membership cursor did not advance"
+		}
+		runs += page
+		cursor = nextCursor
+		if (page.size < pageLimit) {
+			break
+		}
+	}
+	currentCoroutineContext().ensureActive()
+
+	return runs
+}
+
+private fun markUnboundPressureMembers(
+	runs: List<SourceServiceRunEntity>,
+	loadedSegments: List<SessionSegment>,
+	seedSegments: List<SessionSegment>,
+	failures: MutableMap<String, PressureHistoryReason>,
+) {
 	val segmentsById = loadedSegments.associateBy(SessionSegment::id)
 	runs.forEach { run ->
 		val segmentId = run.sessionSegmentId
 		val segment = segmentId?.let(segmentsById::get)
-		if (segment == null || segment.logicalTrackingId != run.logicalTrackingId ||
-			segment.serviceRunId != run.serviceRunId
-		) {
+		if (!run.matchesPressureSegment(segment)) {
 			failures[run.logicalTrackingId] = PressureHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE
 		}
 	}
 	seedSegments.forEach { seed ->
 		val logicalTrackingId = seed.logicalTrackingId ?: return@forEach
 		val run = runs.firstOrNull { it.serviceRunId == seed.serviceRunId }
-		if (run == null || run.logicalTrackingId != logicalTrackingId || run.sessionSegmentId != seed.id) {
+		if (!run.matchesPressureSegment(seed)) {
 			failures[logicalTrackingId] = PressureHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE
 		}
 	}
-	return PressureLogicalMembershipExpansion(
-		segments = (loadedSegments + seedSegments).distinctBy(SessionSegment::id),
-		failures = failures,
-	)
+}
+
+private fun SourceServiceRunEntity?.matchesPressureSegment(segment: SessionSegment?): Boolean {
+	if (this == null || segment == null) {
+		return false
+	}
+	return logicalTrackingId == segment.logicalTrackingId && serviceRunId == segment.serviceRunId &&
+		sessionSegmentId == segment.id
 }
 
 private data class PressureFactCursor(

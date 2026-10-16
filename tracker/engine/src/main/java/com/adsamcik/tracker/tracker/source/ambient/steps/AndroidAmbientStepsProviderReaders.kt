@@ -98,7 +98,13 @@ internal class HealthConnectAmbientStepsProviderReader internal constructor(
 	constructor(
 		@ApplicationContext context: Context,
 	) : this(
-		aggregate = { window -> aggregateCurrentDeviceSteps(context, window) },
+		aggregate = { window ->
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+				aggregateCurrentDeviceSteps(context, window)
+			} else {
+				null
+			}
+		},
 	)
 
 	override val provider: AmbientStepsProvider =
@@ -144,13 +150,17 @@ internal class LocalRecordingAmbientStepsProviderReader internal constructor(
 	): AmbientStepsProviderAggregate? {
 		require(observedAtMs >= window.endTimeMs)
 		val buckets = aggregate(window)
-		if (buckets.isEmpty()) return null
+		if (buckets.isEmpty()) {
+			return null
+		}
 		check(buckets.size == 1) { "Local Recording returned overlapping aggregate buckets" }
 		val bucket = buckets.single()
 		check(bucket.startTimeMs == window.startTimeMs && bucket.endTimeMs == window.endTimeMs) {
 			"Local Recording returned a mismatched aggregate window"
 		}
-		if (bucket.stepValues.isEmpty()) return null
+		if (bucket.stepValues.isEmpty()) {
+			return null
+		}
 		val count = bucket.stepValues.fold(0L) { total, value ->
 			check(value >= 0L) { "Local Recording returned a negative Steps aggregate" }
 			Math.addExact(total, value)
@@ -166,9 +176,9 @@ private suspend fun aggregateCurrentDeviceSteps(
 	window: AmbientStepsProviderReadWindow,
 ): Long? {
 	check(
-		Build.VERSION.SDK_INT >= 37 ||
+		Build.VERSION.SDK_INT >= AndroidAmbientStepsCapabilityResolver.MOBILE_STEPS_MIN_API_LEVEL ||
 			SdkExtensions.getExtensionVersion(Build.VERSION_CODES.UPSIDE_DOWN_CAKE) >=
-			HEALTH_CONNECT_CURRENT_DEVICE_MIN_EXTENSION,
+			AndroidAmbientStepsCapabilityResolver.MOBILE_STEPS_MIN_EXTENSION,
 	) { "Health Connect current-device origin API is unavailable" }
 	val manager = requireNotNull(context.getSystemService(HealthConnectManager::class.java)) {
 		"Health Connect manager is unavailable"
@@ -184,7 +194,9 @@ private suspend fun aggregateCurrentDeviceSteps(
 				}
 
 				override fun onError(error: HealthConnectException) {
-					if (continuation.isActive) continuation.resumeWithException(error)
+					if (continuation.isActive) {
+						continuation.resumeWithException(error)
+					}
 				}
 			},
 		)
@@ -228,5 +240,4 @@ private suspend fun readLocalRecordingSteps(
 	}
 }
 
-private const val HEALTH_CONNECT_CURRENT_DEVICE_MIN_EXTENSION = 22
 private const val LEGACY_ANDROID_HEALTH_ORIGIN = "android"

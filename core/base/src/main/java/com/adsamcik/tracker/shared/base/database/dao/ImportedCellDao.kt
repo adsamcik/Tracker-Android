@@ -20,17 +20,31 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
  * Cell-local imported-product storage primitives. These methods grant no live provider or capture
  * authority; the importer authenticates every bounded relation in one transaction before insert.
  */
+// Keep the ImportedCellDao SQL contract together; query text accounts for this declaration's size.
+@Suppress("LargeClass")
 @Dao
 abstract class ImportedCellDao {
+	/**
+	 * Inserts [ImportedCellEntryRevisionEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertEntryRevision(entry: ImportedCellEntryRevisionEntity)
 
+	/**
+	 * Inserts [ImportedCellRunEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertRun(run: ImportedCellRunEntity)
 
+	/**
+	 * Inserts [ImportedCellObservationEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertObservation(observation: ImportedCellObservationEntity)
 
+	/**
+	 * Inserts [ImportedCellReceiptEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertReceipt(receipt: ImportedCellReceiptEntity)
 
@@ -39,24 +53,41 @@ abstract class ImportedCellDao {
 		generation: ImportedCellDeletionGenerationEntity,
 	)
 
+	/**
+	 * Records one initial run-deletion fence after requiring generation 1; higher generations must
+	 * use the dedicated revision operation.
+	 */
 	suspend fun insertDeletionGeneration(generation: ImportedCellDeletionGenerationEntity) {
 		require(generation.generation == 1L)
 		insertDeletionGenerationRow(generation)
 	}
 
+	/**
+	 * Inserts [ImportedCellEntryDeletionEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertEntryDeletion(deletion: ImportedCellEntryDeletionEntity)
 
+	/**
+	 * Inserts [ImportedCellEntryDeletionReceiptEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertEntryDeletionReceipt(
 		receipt: ImportedCellEntryDeletionReceiptEntity,
 	)
 
+	/**
+	 * Inserts [ImportedCellDeletedIdentityEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertDeletedIdentities(
 		identities: List<ImportedCellDeletedIdentityEntity>,
 	)
 
+	/**
+	 * Reads `imported_cell_receipt` rows. Query conditions include `import_job_id = :jobId`,
+	 * `import_entry_key = :entryKey`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM imported_cell_receipt WHERE import_job_id = :jobId " +
 			"AND import_entry_key = :entryKey LIMIT 1",
@@ -72,9 +103,17 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellEntryRevisionEntity>
 
+	/**
+	 * Reads one Cell entry in revision order with one overflow row beyond the maximum retained
+	 * correction lineage.
+	 */
 	suspend fun boundedEntryRevisions(identity: String): List<ImportedCellEntryRevisionEntity> =
 		loadEntryRevisions(identity, MAX_REVISIONS_PER_ENTRY + 1)
 
+	/**
+	 * Reads import receipts for one entry in revision/job/key order, including one overflow row to
+	 * detect excessive lineage.
+	 */
 	suspend fun receiptsForAdmission(identity: String): List<ImportedCellReceiptEntity> =
 		loadReceipts(identity, MAX_RECEIPTS_PER_ENTRY + 1)
 
@@ -87,6 +126,10 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellReceiptEntity>
 
+	/**
+	 * Reads saved runs across one Cell entry lineage in revision and measured-bound order, including
+	 * one overflow row beyond the lineage limit.
+	 */
 	suspend fun allRunsForAdmission(identity: String): List<ImportedCellRunEntity> =
 		loadAllRuns(identity, MAX_RUN_ROWS_PER_LINEAGE + 1)
 
@@ -99,6 +142,10 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellRunEntity>
 
+	/**
+	 * Reads saved Cell observations across one entry lineage in revision/run/coverage/measurement
+	 * order with one overflow row beyond the lineage limit.
+	 */
 	suspend fun allObservationsForAdmission(identity: String): List<ImportedCellObservationEntity> =
 		loadAllObservations(identity, MAX_OBSERVATION_ROWS_PER_LINEAGE + 1)
 
@@ -112,9 +159,17 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellObservationEntity>
 
+	/**
+	 * Reads `imported_cell_entry_deletion` rows. Query conditions include `entry_identity =
+	 * :identity`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query("SELECT * FROM imported_cell_entry_deletion WHERE entry_identity = :identity LIMIT 1")
 	abstract suspend fun entryDeletion(identity: String): ImportedCellEntryDeletionEntity?
 
+	/**
+	 * Reads `imported_cell_entry_deletion_receipt` rows. Query conditions include `entry_identity =
+	 * :identity`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM imported_cell_entry_deletion_receipt WHERE entry_identity = :identity LIMIT 1",
 	)
@@ -122,6 +177,10 @@ abstract class ImportedCellDao {
 		identity: String,
 	): ImportedCellEntryDeletionReceiptEntity?
 
+	/**
+	 * Reads `imported_cell_deleted_identity` rows. Query conditions include `entry_identity =
+	 * :identity`. Orders by `protected_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_cell_deleted_identity WHERE entry_identity = :identity " +
 			"ORDER BY protected_identity LIMIT :limit",
@@ -131,6 +190,10 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellDeletedIdentityEntity>
 
+	/**
+	 * Reads `imported_cell_entry_deletion_receipt` rows. Query conditions include `entry_identity IN
+	 * (:identities)`. Orders by `entry_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_cell_entry_deletion_receipt WHERE entry_identity IN (:identities) " +
 			"ORDER BY entry_identity LIMIT :limit",
@@ -140,6 +203,12 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellEntryDeletionReceiptEntity>
 
+	/**
+	 * Reads `imported_cell_deleted_identity` rows. Query conditions include `protected_identity IN
+	 * (:identities)`, `entry_identity IN (:identities)`, `run_identity IN (:identities)`,
+	 * `aggregate_owner_identity IN (:identities)`. Orders by `protected_identity`. Returns at most
+	 * `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_cell_deleted_identity WHERE protected_identity IN (:identities) " +
 			"OR entry_identity IN (:identities) OR run_identity IN (:identities) " +
@@ -151,6 +220,10 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellDeletedIdentityEntity>
 
+	/**
+	 * Reads `imported_cell_entry_revision` rows. Query conditions include `entry.identity =
+	 * :identity`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT entry.identity, entry.import_revision, entry.content_checksum, " +
 			"entry.start_time_ms, entry.end_time_ms, entry.received_at_ms " +
@@ -161,6 +234,12 @@ abstract class ImportedCellDao {
 	)
 	abstract suspend fun latestHistoryCandidate(identity: String): ImportedCellHistoryCandidate?
 
+	/**
+	 * Reads `imported_cell_entry_revision` rows. Query conditions include `entry.start_time_ms <
+	 * :beforeStartTimeMs`, `entry.start_time_ms = :beforeStartTimeMs`. Orders by `entry.start_time_ms
+	 * DESC, entry.identity DESC`. Returns at most `limit` rows. Timestamp bounds use UTC
+	 * milliseconds.
+	 */
 	@Query(
 		"SELECT entry.identity, entry.import_revision, entry.content_checksum, " +
 			"entry.start_time_ms, entry.end_time_ms, entry.received_at_ms " +
@@ -179,6 +258,10 @@ abstract class ImportedCellDao {
 		beforeIdentity: String?,
 	): List<ImportedCellHistoryCandidate>
 
+	/**
+	 * Reads row and storage-size counters for the selected dependencies before loading payloads.
+	 * Query conditions include `identity IN (:identities)`, `entry_identity IN (:identities)`.
+	 */
 	@Query(
 		"""
 		SELECT
@@ -271,6 +354,11 @@ abstract class ImportedCellDao {
 		identities: List<String>,
 	): ImportedCellHistoryPreflight
 
+	/**
+	 * Reports whether a row exists within the query scope. Query conditions include
+	 * `entry.start_time_ms < :beforeStartTimeMs`, `entry.start_time_ms = :beforeStartTimeMs`.
+	 * Timestamp bounds use UTC milliseconds.
+	 */
 	@Query(
 		"SELECT EXISTS(SELECT 1 FROM imported_cell_entry_revision AS entry " +
 			"WHERE entry.import_revision = (" +
@@ -285,6 +373,13 @@ abstract class ImportedCellDao {
 		beforeIdentity: String?,
 	): Boolean
 
+	/**
+	 * Reads `imported_cell_entry_revision` rows. Query conditions include `entry.start_time_ms <
+	 * :toExclusiveMs`, `entry.end_time_ms > :fromInclusiveMs`, `entry.start_time_ms <
+	 * :beforeStartTimeMs`, `entry.start_time_ms = :beforeStartTimeMs`. Orders by `entry.start_time_ms
+	 * DESC, entry.identity DESC`. Returns at most `limit` rows. Timestamp bounds use UTC
+	 * milliseconds.
+	 */
 	@Query(
 		"""
 		WITH latest_revision AS (
@@ -370,6 +465,14 @@ abstract class ImportedCellDao {
 		beforeStartTimeMs: Long?, beforeIdentity: String?,
 	): List<ImportedCellHistoryCandidate>
 
+	/**
+	 * Reads `imported_cell_entry_revision` rows. Query conditions include
+	 * `observation.latest_possible_time_ms >= :broadFromInclusiveMs`,
+	 * `observation.coverage_start_time_ms < :broadToExclusiveMs`, `entry.start_time_ms <
+	 * :beforeStartTimeMs`, `entry.start_time_ms = :beforeStartTimeMs`. Orders by `entry.start_time_ms
+	 * DESC, entry.identity DESC`. Returns at most `limit` rows. Timestamp bounds use UTC
+	 * milliseconds.
+	 */
 	@Query(
 		"""
 		WITH latest_revision AS (
@@ -415,6 +518,10 @@ abstract class ImportedCellDao {
 		beforeIdentity: String?,
 	): List<ImportedCellHistoryCandidate>
 
+	/**
+	 * Reads `imported_cell_entry_revision` rows. Query conditions include `identity IN
+	 * (:identities)`. Orders by `identity, import_revision`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_cell_entry_revision WHERE identity IN (:identities) " +
 			"ORDER BY identity, import_revision LIMIT :limit",
@@ -424,6 +531,11 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellEntryRevisionEntity>
 
+	/**
+	 * Reads `imported_cell_receipt` rows. Query conditions include `entry_identity IN (:identities)`.
+	 * Orders by `entry_identity, entry_import_revision, import_job_id, import_entry_key`. Returns at
+	 * most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_cell_receipt WHERE entry_identity IN (:identities) " +
 			"ORDER BY entry_identity, entry_import_revision, import_job_id, import_entry_key LIMIT :limit",
@@ -433,6 +545,11 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellReceiptEntity>
 
+	/**
+	 * Reads `imported_cell_run` rows. Query conditions include `entry_identity IN (:identities)`.
+	 * Orders by `entry_identity, entry_import_revision, start_time_ms, end_time_ms, identity`.
+	 * Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_cell_run WHERE entry_identity IN (:identities) " +
 			"ORDER BY entry_identity, entry_import_revision, start_time_ms, end_time_ms, identity LIMIT :limit",
@@ -442,6 +559,11 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellRunEntity>
 
+	/**
+	 * Reads `imported_cell_observation` rows. Query conditions include `entry_identity IN
+	 * (:identities)`. Orders by `entry_identity, entry_import_revision, run_identity,
+	 * coverage_start_time_ms, observed_time_ms, identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_cell_observation WHERE entry_identity IN (:identities) " +
 			"ORDER BY entry_identity, entry_import_revision, run_identity, coverage_start_time_ms, " +
@@ -452,6 +574,10 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellObservationEntity>
 
+	/**
+	 * Reads `imported_cell_entry_deletion` rows. Query conditions include `entry_identity IN
+	 * (:identities)`. Orders by `entry_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_cell_entry_deletion WHERE entry_identity IN (:identities) " +
 			"ORDER BY entry_identity LIMIT :limit",
@@ -461,6 +587,10 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellEntryDeletionEntity>
 
+	/**
+	 * Reads `imported_cell_deletion_generation` rows. Query conditions include `entry_identity IN
+	 * (:identities)`. Orders by `entry_identity, run_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_cell_deletion_generation WHERE entry_identity IN (:identities) " +
 			"ORDER BY entry_identity, run_identity LIMIT :limit",
@@ -470,6 +600,11 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellDeletionGenerationEntity>
 
+	/**
+	 * Reads `imported_cell_deletion_generation` rows. Query conditions include `run_identity IN
+	 * (:identities)`, `entry_identity IN (:identities)`, `deletion_scope_digest IN (:identities)`.
+	 * Orders by `run_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_cell_deletion_generation WHERE run_identity IN (:identities) " +
 			"OR entry_identity IN (:identities) OR deletion_scope_digest IN (:identities) " +
@@ -480,6 +615,10 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellDeletionGenerationEntity>
 
+	/**
+	 * Reads distinct `identity` values from `imported_cell_entry_revision`. Query conditions include
+	 * `identity IN (:identities)`. Orders by `identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT DISTINCT identity FROM imported_cell_entry_revision " +
 			"WHERE identity IN (:identities) ORDER BY identity LIMIT :limit",
@@ -489,6 +628,10 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<String>
 
+	/**
+	 * Reads `imported_cell_run` rows. Query conditions include `identity IN (:identities)`. Orders by
+	 * `identity, entry_identity, deletion_scope_digest`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT DISTINCT identity, entry_identity, deletion_scope_digest FROM imported_cell_run " +
 			"WHERE identity IN (:identities) ORDER BY identity, entry_identity, deletion_scope_digest " +
@@ -499,6 +642,10 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellRunIdentityOwner>
 
+	/**
+	 * Reads `imported_cell_run` rows. Query conditions include `deletion_scope_digest IN (:digests)`.
+	 * Orders by `deletion_scope_digest, identity, entry_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT DISTINCT deletion_scope_digest, identity, entry_identity FROM imported_cell_run " +
 			"WHERE deletion_scope_digest IN (:digests) ORDER BY deletion_scope_digest, identity, " +
@@ -509,6 +656,11 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellRunScopeOwner>
 
+	/**
+	 * Reads `imported_cell_observation` rows. Query conditions include `identity IN (:identities)`,
+	 * `aggregate_owner_identity IN (:identities)`. Orders by `identity, entry_identity, run_identity,
+	 * aggregate_owner_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT DISTINCT identity, entry_identity, run_identity, aggregate_owner_identity " +
 			"FROM imported_cell_observation " +
@@ -520,6 +672,10 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellObservationIdentityOwner>
 
+	/**
+	 * Reads `imported_cell_entry_deletion` rows. Query conditions include `entry_identity IN
+	 * (:identities)`. Orders by `entry_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_cell_entry_deletion WHERE entry_identity IN (:identities) " +
 			"ORDER BY entry_identity LIMIT :limit",
@@ -671,21 +827,41 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellOpaqueOwnerRow>
 
+	/**
+	 * Deletes `imported_cell_entry_revision` rows matching the supplied scope. Query conditions
+	 * include `identity = :identity`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM imported_cell_entry_revision WHERE identity = :identity")
 	abstract suspend fun deleteEntryRevisions(identity: String): Int
 
+	/**
+	 * Deletes `imported_cell_receipt` rows.
+	 */
 	@Query("DELETE FROM imported_cell_receipt")
 	abstract fun deleteAllReceipts()
 
+	/**
+	 * Deletes `imported_cell_entry_revision` rows.
+	 */
 	@Query("DELETE FROM imported_cell_entry_revision")
 	abstract fun deleteAllEntries()
 
+	/**
+	 * Deletes `imported_cell_entry_deletion` rows.
+	 */
 	@Query("DELETE FROM imported_cell_entry_deletion")
 	abstract fun deleteAllEntryDeletions()
 
+	/**
+	 * Deletes `imported_cell_deletion_generation` rows.
+	 */
 	@Query("DELETE FROM imported_cell_deletion_generation")
 	abstract fun deleteAllDeletionGenerations()
 
+	/**
+	 * Reads `imported_cell_entry_revision` rows. Query conditions include `identity = :identity`.
+	 * Orders by `import_revision`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_cell_entry_revision WHERE identity = :identity " +
 			"ORDER BY import_revision LIMIT :limit",
@@ -695,6 +871,11 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellEntryRevisionEntity>
 
+	/**
+	 * Reads `imported_cell_receipt` rows. Query conditions include `entry_identity = :identity`.
+	 * Orders by `entry_import_revision, import_job_id, import_entry_key`. Returns at most `limit`
+	 * rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_cell_receipt WHERE entry_identity = :identity " +
 			"ORDER BY entry_import_revision, import_job_id, import_entry_key LIMIT :limit",
@@ -704,6 +885,10 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellReceiptEntity>
 
+	/**
+	 * Reads `imported_cell_run` rows. Query conditions include `entry_identity = :identity`. Orders
+	 * by `entry_import_revision, start_time_ms, end_time_ms, identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_cell_run WHERE entry_identity = :identity " +
 			"ORDER BY entry_import_revision, start_time_ms, end_time_ms, identity LIMIT :limit",
@@ -713,6 +898,11 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellRunEntity>
 
+	/**
+	 * Reads `imported_cell_observation` rows. Query conditions include `entry_identity = :identity`.
+	 * Orders by `entry_import_revision, run_identity, coverage_start_time_ms, observed_time_ms,
+	 * identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_cell_observation WHERE entry_identity = :identity " +
 			"ORDER BY entry_import_revision, run_identity, coverage_start_time_ms, observed_time_ms, " +
@@ -723,16 +913,26 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellObservationEntity>
 
+	/**
+	 * Inserts [ImportedCellEntryDeletionReceiptEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract fun insertEntryDeletionReceiptForFullClear(
 		receipt: ImportedCellEntryDeletionReceiptEntity,
 	)
 
+	/**
+	 * Inserts [ImportedCellDeletedIdentityEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract fun insertDeletedIdentitiesForFullClear(
 		identities: List<ImportedCellDeletedIdentityEntity>,
 	)
 
+	/**
+	 * Limits for bounded Cell admission, lineage and maintenance reads; callers detect overflow
+	 * before loading more dependencies.
+	 */
 	companion object {
 		const val MAX_REVISIONS_PER_ENTRY = 16
 		const val MAX_RECEIPTS_PER_ENTRY = 256
@@ -748,6 +948,10 @@ abstract class ImportedCellDao {
 	}
 }
 
+/**
+ * Saved Cell import identity, revision, checksum and UTC bounds selected before retained payload
+ * qualification.
+ */
 data class ImportedCellHistoryCandidate(
 	val identity: String,
 	@ColumnInfo(name = "import_revision") val importRevision: Long,
@@ -757,6 +961,9 @@ data class ImportedCellHistoryCandidate(
 	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
 )
 
+/**
+ * Row and text-byte totals used to bound the complete retained Cell import lineage.
+ */
 data class ImportedCellHistoryPreflight(
 	@ColumnInfo(name = "revision_rows") val revisionRows: Long,
 	@ColumnInfo(name = "receipt_rows") val receiptRows: Long,
@@ -767,18 +974,28 @@ data class ImportedCellHistoryPreflight(
 	@ColumnInfo(name = "text_bytes") val textBytes: Long,
 )
 
+/**
+ * Associates an imported Cell run identity with its entry and deletion scope.
+ */
 data class ImportedCellRunIdentityOwner(
 	val identity: String,
 	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
 	@ColumnInfo(name = "deletion_scope_digest") val deletionScopeDigest: String,
 )
 
+/**
+ * Associates a Cell deletion-scope digest with its imported run and entry.
+ */
 data class ImportedCellRunScopeOwner(
 	@ColumnInfo(name = "deletion_scope_digest") val deletionScopeDigest: String,
 	val identity: String,
 	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
 )
 
+/**
+ * Associates an imported Cell observation identity with its entry, run and optional aggregate
+ * owner.
+ */
 data class ImportedCellObservationIdentityOwner(
 	val identity: String,
 	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
@@ -786,11 +1003,17 @@ data class ImportedCellObservationIdentityOwner(
 	@ColumnInfo(name = "aggregate_owner_identity") val aggregateOwnerIdentity: String?,
 )
 
+/**
+ * Original local Cell run and logical recording referenced by retained ownership rows.
+ */
 data class ImportedCellLiveRunOwner(
 	@ColumnInfo(name = "service_run_id") val serviceRunId: String,
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String,
 )
 
+/**
+ * Original local Cell fact with its recording and optional aggregate revision identity.
+ */
 data class ImportedCellLiveFactOwner(
 	@ColumnInfo(name = "logical_fact_id") val logicalFactId: String,
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String,
@@ -799,11 +1022,18 @@ data class ImportedCellLiveFactOwner(
 	@ColumnInfo(name = "aggregate_owner_semantic_revision") val aggregateOwnerSemanticRevision: Long?,
 )
 
+/**
+ * Original Cell recording/run pair used to locate its saved completeness ownership.
+ */
 data class ImportedCellLiveCompletenessOwner(
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String,
 	@ColumnInfo(name = "service_run_id") val serviceRunId: String,
 )
 
+/**
+ * Payload-free Cell reverse ownership result; optional fields depend on whether the owner is a
+ * run, observation or deletion fence.
+ */
 data class ImportedCellOpaqueOwnerRow(
 	@ColumnInfo(name = "owner_kind") val ownerKind: String,
 	@ColumnInfo(name = "protected_identity") val protectedIdentity: String,
@@ -817,6 +1047,9 @@ data class ImportedCellOpaqueOwnerRow(
 	@ColumnInfo(name = "scope_kind") val scopeKind: String?,
 	val generation: Long?,
 ) {
+	/**
+	 * Stored ownership-kind codes used to classify Cell identity and deletion references.
+	 */
 	companion object {
 		const val ENTRY = "ENTRY"
 		const val RUN = "RUN"

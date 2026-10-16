@@ -4,7 +4,14 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
 import com.adsamcik.tracker.shared.base.database.dao.LocationPurposeDao
-import com.adsamcik.tracker.stats.api.repository.*
+import com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+import com.adsamcik.tracker.stats.api.repository.RadioLocationContextGap
+import com.adsamcik.tracker.stats.api.repository.SavedLocationFix
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummarySelection
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -47,8 +54,12 @@ internal class SavedLocationLiveSummaryReader(
             // Finish each finite snapshot; cancelling it on every fix could starve a long recovery read.
             merge(room, hints).map { notice ->
                 // Fold before the lossy buffer: a later hint cannot discard a dependency/purpose notice.
-                if (notice.tables.any { it in POINT_TABLES }) pointVersion = Math.addExact(pointVersion, 1L)
-                if (notice.tables.any { it in REBUILD_TABLES }) rebuildVersion = Math.addExact(rebuildVersion, 1L)
+                if (notice.tables.any { it in POINT_TABLES }) {
+                    pointVersion = Math.addExact(pointVersion, 1L)
+                }
+                if (notice.tables.any { it in REBUILD_TABLES }) {
+                    rebuildVersion = Math.addExact(rebuildVersion, 1L)
+                }
                 Wakeup(pointVersion, rebuildVersion)
             }.conflate().collect { wakeup ->
                 currentCoroutineContext().ensureActive()
@@ -70,13 +81,11 @@ internal class SavedLocationLiveSummaryReader(
         }.distinctUntilChanged().flowOn(io)
     }
 
+    // Ordered missing-scope, rebuild and unchanged-prefix exits precede any saved-prefix mutation.
+    @Suppress("ReturnCount")
     private suspend fun refresh(segmentId: Long, old: Progress?, pointTablesChanged: Boolean, rebuild: Boolean): Next {
         val evidence = database.sourceEvidenceStateDao().get()
-            ?.takeIf {
-                val retainedFrom = it.retainedFromMs
-                it.revision >= 0L && it.collectedDataEpoch >= 0L &&
-                    it.deletedSourceEventHighWaterOrdinal >= 0L && (retainedFrom == null || retainedFrom >= 0L)
-            }
+            ?.takeIf { it.hasValidLiveSummaryShape() }
             ?: return Next(SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE), null)
         val snapshot = TrackingHistoryReadSnapshot(evidence.collectedDataEpoch, evidence.revision)
         val segment = database.trackingHistoryReadDao().segments(listOf(segmentId)).singleOrNull()
@@ -89,21 +98,53 @@ internal class SavedLocationLiveSummaryReader(
         val guard = Guard(evidence.collectedDataEpoch, evidence.retainedFromMs,
             evidence.deletedSourceEventHighWaterOrdinal, purpose.savedFileExportAuthorityStamp())
         val throughId = purpose.latestSavedReceiptSampleId()
-        if (throughId < 0L) throw InvalidContinuation()
-        if (old == null || old.scope != scope || old.guard != guard ||
-            throughId < old.throughId || rebuild) {
+        if (throughId < 0L) {
+            throw InvalidContinuation()
+        }
+        if (old == null || needsSeed(old, scope, guard, throughId, rebuild)) {
             return seed(scope, guard, throughId, snapshot)
         }
         if (throughId == old.throughId && !pointTablesChanged) {
             return Next(old.read.copy(readSnapshot = snapshot), old.copy(read = old.read.copy(readSnapshot = snapshot)))
         }
-        val candidateCount = purpose.savedSessionCandidateCount(logicalId, runId, segmentId)
-        if (candidateCount < old.candidateCount) return seed(scope, guard, throughId, snapshot)
+        return continueSavedPrefix(scope, guard, old, throughId, snapshot, pointTablesChanged)
+    }
+
+    private suspend fun continueSavedPrefix(
+        scope: Scope, guard: Guard, old: Progress, throughId: Long,
+        snapshot: TrackingHistoryReadSnapshot, pointTablesChanged: Boolean,
+    ): Next {
+        val candidateCount = purpose.savedSessionCandidateCount(scope.logicalId, scope.runId, scope.segmentId)
+        if (candidateCount < old.candidateCount) {
+            return seed(scope, guard, throughId, snapshot)
+        }
         if (throughId == old.throughId && pointTablesChanged && candidateCount == old.candidateCount &&
             snapshot.sourceEvidenceRevision == old.read.readSnapshot.sourceEvidenceRevision) {
             // The Room notice and post-commit hint can report the same committed snapshot twice.
             return Next(old.read, old)
         }
+        return appendSavedPrefix(old, throughId, snapshot, pointTablesChanged, candidateCount)
+    }
+
+    private fun SourceEvidenceState.hasValidLiveSummaryShape(): Boolean {
+        val retainedFrom = retainedFromMs
+        return revision >= 0L && collectedDataEpoch >= 0L &&
+            deletedSourceEventHighWaterOrdinal >= 0L && (retainedFrom == null || retainedFrom >= 0L)
+    }
+
+    private fun needsSeed(old: Progress, scope: Scope, guard: Guard, throughId: Long, rebuild: Boolean): Boolean =
+        old.scope != scope || old.guard != guard || throughId < old.throughId || rebuild
+
+    private suspend fun appendSavedPrefix(
+        old: Progress,
+        throughId: Long,
+        snapshot: TrackingHistoryReadSnapshot,
+        pointTablesChanged: Boolean,
+        candidateCount: Long,
+    ): Next {
+        // refresh established exact Scope/Guard equality before reaching this existing prefix.
+        val scope = old.scope
+        val guard = old.guard
         var afterId = old.throughId
         var addedCandidates = 0L
         var latestPosition = old.latestPosition
@@ -115,53 +156,109 @@ internal class SavedLocationLiveSummaryReader(
         var problem: HistoryProblemReason? = null
         while (afterId < throughId) {
             currentCoroutineContext().ensureActive()
-            val page = purpose.savedSessionReceiptPageAfterId(logicalId, runId, segmentId, afterId, throughId, PAGE_SIZE)
-            if (page.size > PAGE_SIZE || page.any { it.sampleId <= afterId || it.sampleId > throughId } ||
-                page.zipWithNext().any { (a, b) -> a.sampleId >= b.sampleId }) throw InvalidContinuation()
-            if (page.isEmpty()) break
+            val page = continuationReceiptPage(scope, afterId, throughId)
+            if (page.isEmpty()) {
+                break
+            }
             addedCandidates = Math.addExact(addedCandidates, page.size.toLong())
             val ordered = page.sortedWith(compareBy({ it.observedWallTimeMs }, { it.sampleId }))
-            if (latestPosition?.let { previous -> ordered.first().let {
-                    SavedLocationPosition(it.observedWallTimeMs, it.sampleId) <= previous } } == true) {
+            if (ordered.beginsBeforeSavedPosition(latestPosition)) {
                 return seed(scope, guard, throughId, snapshot)
             }
             val qualified = summaries.qualifyCandidatesInTransaction(ordered, scope::matches)
             gaps += qualified.gaps
-            for (receipt in ordered) {
-                currentCoroutineContext().ensureActive()
-                latestPosition = SavedLocationPosition(receipt.observedWallTimeMs, receipt.sampleId)
-                val row = qualified.samples[receipt.sampleId]
-                if (row == null) {
-                    distance.breakContinuity()
-                    partial = true
-                    continue
-                }
-                distance.add(LocationPathSampleRow(row.sample,
-                    row.receipt.sourceInstanceId + ":" + row.receipt.registrationGeneration,
-                    row.receipt.sourceSequence, false))
-                val fix = row.toSavedFix()
-                if (fix == null) partial = true else {
-                    count = Math.addExact(count, 1L)
-                    latestFix = fix
-                }
-            }
-            if (qualified.problem != null) problem = qualified.problem
+            val added = appendQualifiedPoints(ordered, qualified, distance, count, latestFix)
+            partial = partial || added.first - count != ordered.size.toLong()
+            count = added.first
+            latestFix = added.second
+            val last = ordered.last()
+            latestPosition = SavedLocationPosition(last.observedWallTimeMs, last.sampleId)
+            // A problem ends this loop below, so every entered page starts without one.
+            problem = qualified.problem
             afterId = page.last().sampleId
-            if (problem != null || page.size < PAGE_SIZE) break
+            if (problem != null || page.size < PAGE_SIZE) {
+                break
+            }
         }
         // Native originals are immutable in the actual writers. Counts detect erased membership or
         // an older receipt gaining this scope; explicit edits use the separate correction companion.
-        if (Math.addExact(old.candidateCount, addedCandidates) != candidateCount ||
-            (throughId == old.throughId && pointTablesChanged)) return seed(scope, guard, throughId, snapshot)
+        if (needsSeedAfterAppend(old, addedCandidates, candidateCount, throughId, pointTablesChanged)) {
+            return seed(scope, guard, throughId, snapshot)
+        }
+        return completeSavedPrefix(old, throughId, candidateCount, snapshot, distance,
+            count, latestFix, partial, gaps, problem, latestPosition)
+    }
+
+    // Carry the existing measured prefix into one summary/cache publication without another state model.
+    @Suppress("LongParameterList")
+    private fun completeSavedPrefix(
+        old: Progress,
+        throughId: Long,
+        candidateCount: Long,
+        snapshot: TrackingHistoryReadSnapshot,
+        distance: SavedTripDistanceAccumulator,
+        count: Long,
+        latestFix: SavedLocationFix?,
+        partial: Boolean,
+        gaps: Set<RadioLocationContextGap>,
+        problem: HistoryProblemReason?,
+        latestPosition: SavedLocationPosition?,
+    ): Next {
         val meters = distance.measuredMeters
-        if (meters?.isFinite() == false) throw InvalidContinuation()
-        val read = SavedLocationSummaryRead.Snapshot(SavedLocationSummarySelection.Session(segmentId), snapshot,
-            SavedLocationSummary(count, latestFix, meters,
-                partial || distance.hasDisconnectedSections || gaps.isNotEmpty() || problem != null, gaps,
-                distance.movingAverageSpeedMetersPerSecond), problem)
+        if (meters?.isFinite() == false) {
+            throw InvalidContinuation()
+        }
+        val read = savedLocationSummary(SavedLocationSummarySelection.Session(old.scope.segmentId), snapshot,
+            distance, count, latestFix, partial, gaps, problem)
         // An incomplete qualification must not advance an incremental prefix as if it were complete.
-        if (problem != null) return Next(read, null)
-        return Next(read, Progress(scope, guard, throughId, candidateCount, latestPosition, distance.snapshotState(), read))
+        if (problem != null) {
+            return Next(read, null)
+        }
+        return Next(read, Progress(old.scope, old.guard, throughId, candidateCount, latestPosition,
+            distance.snapshotState(), read))
+    }
+
+    private fun needsSeedAfterAppend(
+        old: Progress, addedCandidates: Long, candidateCount: Long, throughId: Long, pointTablesChanged: Boolean,
+    ): Boolean = Math.addExact(old.candidateCount, addedCandidates) != candidateCount ||
+        (throughId == old.throughId && pointTablesChanged)
+
+    private suspend fun appendQualifiedPoints(
+        ordered: List<LocationAcceptedReceiptEntity>, qualified: SavedLocationQualifiedPage,
+        distance: SavedTripDistanceAccumulator, initialCount: Long,
+        initialFix: SavedLocationFix?,
+    ): Pair<Long, SavedLocationFix?> {
+        var count = initialCount
+        var latestFix = initialFix
+        for (receipt in ordered) {
+            currentCoroutineContext().ensureActive()
+            val row = qualified.samples[receipt.sampleId]
+            if (row == null) {
+                distance.breakContinuity()
+                continue
+            }
+            distance.add(LocationPathSampleRow(row.sample,
+                row.receipt.sourceInstanceId + ":" + row.receipt.registrationGeneration,
+                row.receipt.sourceSequence, false))
+            val fix = row.toSavedFix()
+            if (fix != null) {
+                count = Math.addExact(count, 1L)
+                latestFix = fix
+            }
+        }
+        return count to latestFix
+    }
+
+    private suspend fun continuationReceiptPage(
+        scope: Scope, afterId: Long, throughId: Long,
+    ): List<LocationAcceptedReceiptEntity> {
+        val page = purpose.savedSessionReceiptPageAfterId(scope.logicalId, scope.runId, scope.segmentId, afterId,
+            throughId, PAGE_SIZE)
+        if (page.size > PAGE_SIZE || page.any { it.sampleId <= afterId || it.sampleId > throughId } ||
+            page.zipWithNext().any { (a, b) -> a.sampleId >= b.sampleId }) {
+            throw InvalidContinuation()
+        }
+        return page
     }
 
     private suspend fun seed(scope: Scope, guard: Guard, throughId: Long,
@@ -172,9 +269,13 @@ internal class SavedLocationLiveSummaryReader(
             distance = state
             position = last
         }
-        if (read !is SavedLocationSummaryRead.Snapshot || read.problem != null || distance == null) return Next(read, null)
+        if (read !is SavedLocationSummaryRead.Snapshot || read.problem != null || distance == null) {
+            return Next(read, null)
+        }
         val count = purpose.savedSessionCandidateCount(scope.logicalId, scope.runId, scope.segmentId)
-        if (count < 0L) throw InvalidContinuation()
+        if (count < 0L) {
+            throw InvalidContinuation()
+        }
         return Next(read, Progress(scope, guard, throughId, count, position, requireNotNull(distance), read))
     }
 
@@ -185,7 +286,8 @@ internal class SavedLocationLiveSummaryReader(
             it.sessionSegmentId == segmentId && it.logicalTrackingId == logicalId && it.serviceRunId == runId
         } == true
     }
-    private data class Guard(val epoch: Long, val retainedFromMs: Long?, val deletedHighWater: Long, val exportStamp: String)
+    private data class Guard(val epoch: Long, val retainedFromMs: Long?, val deletedHighWater: Long,
+        val exportStamp: String)
     private data class Progress(val scope: Scope, val guard: Guard, val throughId: Long,
         val candidateCount: Long, val latestPosition: SavedLocationPosition?, val distance: SavedTripDistanceState,
         val read: SavedLocationSummaryRead.Snapshot)
@@ -201,4 +303,12 @@ internal class SavedLocationLiveSummaryReader(
             "location_file_archive", "location_file_archive_point")
         val TABLES = (POINT_TABLES + REBUILD_TABLES + setOf("session_segment", "source_evidence_state")).toTypedArray()
     }
+}
+
+private fun List<LocationAcceptedReceiptEntity>.beginsBeforeSavedPosition(previous: SavedLocationPosition?): Boolean {
+    if (previous == null) {
+        return false
+    }
+    val first = first()
+    return SavedLocationPosition(first.observedWallTimeMs, first.sampleId) <= previous
 }

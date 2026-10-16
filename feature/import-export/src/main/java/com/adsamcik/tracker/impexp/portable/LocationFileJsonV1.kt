@@ -115,7 +115,9 @@ internal class LocationFileJsonV1 {
 
 		fun point(value: LocationFilePointV1) {
 			check(!finished)
-			if (pointCount >= MAX_POINTS) throw InvalidLocationFile("Too many Location points")
+			if (pointCount >= MAX_POINTS) {
+				throw InvalidLocationFile("Too many Location points")
+			}
 			val record = JSONObject()
 				.put("type", "point")
 				.put("id", value.pointId)
@@ -158,7 +160,9 @@ internal class LocationFileJsonV1 {
 
 		private fun writeLine(line: String) {
 			val size = line.toByteArray(Charsets.UTF_8).size
-			if (size > MAX_LINE_BYTES) throw InvalidLocationFile("Location file line is too long")
+			if (size > MAX_LINE_BYTES) {
+				throw InvalidLocationFile("Location file line is too long")
+			}
 			if (byteCount > MAX_FILE_BYTES - size - 1L) {
 				throw InvalidLocationFile("Location file is too large")
 			}
@@ -171,66 +175,84 @@ internal class LocationFileJsonV1 {
 	/** The caller must roll back [onPoint] if the footer or any later record is invalid. */
 	suspend fun read(input: InputStream, onPoint: suspend (LocationFilePointV1) -> Unit): Int {
 		val lines = BoundedLocationLines(input)
-		val header = lines.next() ?: throw InvalidLocationFile("Location file is empty")
-		val metadata = header.parseObject()
-		if (metadata.requireString("format") != FORMAT || metadata.requireInt("version") != VERSION) {
-			throw InvalidLocationFile("Unsupported Location file")
-		}
+		readHeader(lines)
 		var count = 0
 		var ended = false
 		while (true) {
 			val line = lines.next() ?: break
 			val record = line.parseObject()
 			if (record.requireString("type") == "end") {
-				if (record.requireInt("pointCount") != count || lines.next() != null) {
-					throw InvalidLocationFile("Location file ended unexpectedly")
-				}
+				record.requireFooter(lines, count)
 				ended = true
 				break
 			}
-			if (count >= MAX_POINTS) throw InvalidLocationFile("Too many Location points")
-			if (record.requireString("type") != "point") {
-				throw InvalidLocationFile("Unknown Location file record")
-			}
-			val point = try {
-				LocationFilePointV1(
-					pointId = record.requireString("id"),
-					origin = enumValue<LocationFileOrigin>(record.requireString("origin")),
-					measurement = LocationFileMeasurementV1(
-						timeMs = record.requireLong("timeMs"),
-						latE7 = record.optionalInt("latE7"),
-						lonE7 = record.optionalInt("lonE7"),
-						altitudeM = record.optionalFloat("altitudeM"),
-						rawGpsAltitudeM = record.optionalFloat("rawGpsAltitudeM"),
-						horizontalAccuracyM = record.optionalFloat("horizontalAccuracyM"),
-						verticalAccuracyM = record.optionalFloat("verticalAccuracyM"),
-						speedMps = record.optionalFloat("speedMps"),
-						speedAccuracyMps = record.optionalFloat("speedAccuracyMps"),
-						rawSpeedMps = record.optionalFloat("rawSpeedMps"),
-						rawSpeedAccuracyMps = record.optionalFloat("rawSpeedAccuracyMps"),
-						bearingDeg = record.optionalFloat("bearingDeg"),
-						bearingAccuracyDeg = record.optionalFloat("bearingAccuracyDeg"),
-						provider = record.requireString("provider"),
-						quality = enumValue<SampleQuality>(record.requireString("quality")),
-						motionState = record.optionalString("motionState")?.let { enumValue<MotionState>(it) },
-						permissionPrecision = record.requireString("permissionPrecision"),
-						isMock = record.requireBoolean("isMock"),
-						altitudeDatum = altitudeDatum(record.requireString("altitudeDatum")),
-						altitudeSource = altitudeSource(record.requireString("altitudeSource")),
-						altitudeConversionStatus = altitudeConversionStatus(
-							record.requireString("altitudeConversionStatus"),
-						),
-						rawGpsAltitudeDatum = altitudeDatum(record.requireString("rawGpsAltitudeDatum")),
-					),
-				)
-			} catch (failure: IllegalArgumentException) {
-				throw InvalidLocationFile("Invalid Location point", failure)
-			}
+			val point = record.readPoint(count)
 			onPoint(point)
 			count++
 		}
-		if (!ended) throw InvalidLocationFile("Location file is incomplete")
+		if (!ended) {
+			throw InvalidLocationFile("Location file is incomplete")
+		}
 		return count
+	}
+
+	private fun readHeader(lines: BoundedLocationLines) {
+		val header = lines.next() ?: throw InvalidLocationFile("Location file is empty")
+		val metadata = header.parseObject()
+		if (metadata.requireString("format") != FORMAT || metadata.requireInt("version") != VERSION) {
+			throw InvalidLocationFile("Unsupported Location file")
+		}
+	}
+
+	private fun JSONObject.requireFooter(lines: BoundedLocationLines, count: Int) {
+		if (requireInt("pointCount") != count || lines.next() != null) {
+			throw InvalidLocationFile("Location file ended unexpectedly")
+		}
+	}
+
+	private fun JSONObject.readPoint(count: Int): LocationFilePointV1 {
+		if (count >= MAX_POINTS) {
+			throw InvalidLocationFile("Too many Location points")
+		}
+		if (requireString("type") != "point") {
+			throw InvalidLocationFile("Unknown Location file record")
+		}
+		return decodePoint()
+	}
+
+	private fun JSONObject.decodePoint(): LocationFilePointV1 = try {
+		LocationFilePointV1(
+			pointId = requireString("id"),
+			origin = enumValue<LocationFileOrigin>(requireString("origin")),
+			measurement = LocationFileMeasurementV1(
+				timeMs = requireLong("timeMs"),
+				latE7 = optionalInt("latE7"),
+				lonE7 = optionalInt("lonE7"),
+				altitudeM = optionalFloat("altitudeM"),
+				rawGpsAltitudeM = optionalFloat("rawGpsAltitudeM"),
+				horizontalAccuracyM = optionalFloat("horizontalAccuracyM"),
+				verticalAccuracyM = optionalFloat("verticalAccuracyM"),
+				speedMps = optionalFloat("speedMps"),
+				speedAccuracyMps = optionalFloat("speedAccuracyMps"),
+				rawSpeedMps = optionalFloat("rawSpeedMps"),
+				rawSpeedAccuracyMps = optionalFloat("rawSpeedAccuracyMps"),
+				bearingDeg = optionalFloat("bearingDeg"),
+				bearingAccuracyDeg = optionalFloat("bearingAccuracyDeg"),
+				provider = requireString("provider"),
+				quality = enumValue<SampleQuality>(requireString("quality")),
+				motionState = optionalString("motionState")?.let { enumValue<MotionState>(it) },
+				permissionPrecision = requireString("permissionPrecision"),
+				isMock = requireBoolean("isMock"),
+				altitudeDatum = altitudeDatum(requireString("altitudeDatum")),
+				altitudeSource = altitudeSource(requireString("altitudeSource")),
+				altitudeConversionStatus = altitudeConversionStatus(
+					requireString("altitudeConversionStatus"),
+				),
+				rawGpsAltitudeDatum = altitudeDatum(requireString("rawGpsAltitudeDatum")),
+			),
+		)
+	} catch (failure: IllegalArgumentException) {
+		throw InvalidLocationFile("Invalid Location point", failure)
 	}
 
 	internal companion object {
@@ -298,7 +320,11 @@ private fun JSONObject.optionalFloat(name: String): Float? = valueOrNull(name)?.
 }
 
 private fun JSONObject.valueOrNull(name: String): Any? =
-	if (!has(name) || isNull(name)) null else get(name)
+	if (!has(name) || isNull(name)) {
+		null
+	} else {
+		get(name)
+	}
 
 private fun Number.exactLong(): Long {
 	return try {
@@ -339,21 +365,29 @@ private class BoundedLocationLines(input: InputStream) {
 				throw InvalidLocationFile("Location file is too large")
 			}
 			if (value == -1 || value == '\n'.code) {
-				if (value == -1 && bytes.size() == 0) return null
-				if (bytes.size() == 0) throw InvalidLocationFile("Empty Location file line")
-				return try {
-					Charsets.UTF_8.newDecoder()
-						.onMalformedInput(CodingErrorAction.REPORT)
-						.onUnmappableCharacter(CodingErrorAction.REPORT)
-						.decode(ByteBuffer.wrap(bytes.toByteArray())).toString()
-				} catch (failure: CharacterCodingException) {
-					throw InvalidLocationFile("Location file is not valid UTF-8", failure)
-				}
+				return decodeCompletedLine(value, bytes)
 			}
 			if (bytes.size() >= LocationFileJsonV1.MAX_LINE_BYTES) {
 				throw InvalidLocationFile("Location file line is too long")
 			}
 			bytes.write(value)
+		}
+	}
+
+	private fun decodeCompletedLine(value: Int, bytes: ByteArrayOutputStream): String? {
+		if (value == -1 && bytes.size() == 0) {
+			return null
+		}
+		if (bytes.size() == 0) {
+			throw InvalidLocationFile("Empty Location file line")
+		}
+		return try {
+			Charsets.UTF_8.newDecoder()
+				.onMalformedInput(CodingErrorAction.REPORT)
+				.onUnmappableCharacter(CodingErrorAction.REPORT)
+				.decode(ByteBuffer.wrap(bytes.toByteArray())).toString()
+		} catch (failure: CharacterCodingException) {
+			throw InvalidLocationFile("Location file is not valid UTF-8", failure)
 		}
 	}
 }

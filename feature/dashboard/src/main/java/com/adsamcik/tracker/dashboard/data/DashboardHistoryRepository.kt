@@ -50,14 +50,30 @@ sealed interface DashboardRecentHistoryEntry {
 	/** Existing physical session row with its established detail and map behavior. */
 	data class Physical(val trip: Trip) : DashboardRecentHistoryEntry
 
-	/** Opaque logical Steps-only row with no physical action identity. */
-	data class StepsOnly(val history: StepsOnlyHistoryEntry) : DashboardRecentHistoryEntry
+	/** Steps row retaining its exact source-issued detail selection when available. */
+	data class StepsOnly(
+		val history: StepsOnlyHistoryEntry,
+		val detailSelection: SourceHistoryDetailSelection? = null,
+	) : DashboardRecentHistoryEntry {
+		init {
+			require(detailSelection == null ||
+				(detailSelection.entry as? SourceAwareHistoryPageEntry.StepsOnly)?.history == history)
+		}
+	}
 
 	/** Retained imported Steps, with exact selectable physical members and no inferred route. */
 	data class ImportedSteps(val history: ImportedStepsHistoryEntry) : DashboardRecentHistoryEntry
 
-	/** Opaque logical Pressure-only row with direct Pressure facts and no physical action identity. */
-	data class PressureOnly(val history: PressureOnlyHistoryEntry) : DashboardRecentHistoryEntry
+	/** Pressure row retaining its exact native or imported detail selection when available. */
+	data class PressureOnly(
+		val history: PressureOnlyHistoryEntry,
+		val detailSelection: SourceHistoryDetailSelection? = null,
+	) : DashboardRecentHistoryEntry {
+		init {
+			require(detailSelection == null ||
+				(detailSelection.entry as? SourceAwareHistoryPageEntry.PressureOnly)?.history == history)
+		}
+	}
 
 	/** Activity row with an exact source-issued detail selection when one remains actionable. */
 	data class ActivityOnly(
@@ -329,46 +345,8 @@ private class DashboardPhysicalCandidateGeneration(
 				source = query.source,
 			)
 		}
-		val mapped = content.entries.map { entry ->
-			when (entry) {
-				is SourceAwareHistoryPageEntry.Physical -> DashboardRecentHistoryEntry.Physical(
-					checkNotNull(candidatesById[entry.segmentId]) {
-						"Stats returned a physical row outside this Dashboard candidate generation"
-					},
-				)
-				is SourceAwareHistoryPageEntry.StepsOnly ->
-					DashboardRecentHistoryEntry.StepsOnly(entry.history)
-				is SourceAwareHistoryPageEntry.ImportedSteps ->
-					DashboardRecentHistoryEntry.ImportedSteps(entry.history)
-				is SourceAwareHistoryPageEntry.PressureOnly ->
-					DashboardRecentHistoryEntry.PressureOnly(entry.history)
-				is SourceAwareHistoryPageEntry.ActivityOnly -> DashboardRecentHistoryEntry.ActivityOnly(
-					history = entry.history,
-					detailSelection = SourceHistoryDetailSelection.fromSourceEntry(
-						entry,
-						content.readSnapshot,
-					),
-				)
-				is SourceAwareHistoryPageEntry.WifiOnly -> DashboardRecentHistoryEntry.WifiOnly(
-					history = entry.history,
-					detailSelection = requireNotNull(
-						SourceHistoryDetailSelection.fromSourceEntry(
-							entry,
-							content.readSnapshot,
-						),
-					),
-				)
-				is SourceAwareHistoryPageEntry.CellOnly -> DashboardRecentHistoryEntry.CellOnly(
-					history = entry.history,
-					detailSelection = requireNotNull(
-						SourceHistoryDetailSelection.fromSourceEntry(
-							entry,
-							content.readSnapshot,
-						),
-					),
-				)
-			}
-		}
+		val mapped = content.entries.map { entry -> mapEntry(entry, content) }
+
 		if (candidateBudgetExceeded && mapped.size < RECENT_HISTORY_LIMIT) {
 			throw DashboardHistoryPageUnavailable(
 				reason = SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
@@ -377,6 +355,53 @@ private class DashboardPhysicalCandidateGeneration(
 		}
 		return mapped
 	}
+
+	private fun mapEntry(
+		entry: SourceAwareHistoryPageEntry,
+		content: SourceAwareHistoryPageQuery.Content,
+	): DashboardRecentHistoryEntry =
+		when (entry) {
+			is SourceAwareHistoryPageEntry.Physical -> DashboardRecentHistoryEntry.Physical(
+				checkNotNull(candidatesById[entry.segmentId]) {
+					"Stats returned a physical row outside this Dashboard candidate generation"
+				},
+			)
+			is SourceAwareHistoryPageEntry.StepsOnly -> DashboardRecentHistoryEntry.StepsOnly(
+				history = entry.history,
+				detailSelection = SourceHistoryDetailSelection.fromSourceEntry(entry, content.readSnapshot),
+			)
+			is SourceAwareHistoryPageEntry.ImportedSteps ->
+				DashboardRecentHistoryEntry.ImportedSteps(entry.history)
+			is SourceAwareHistoryPageEntry.PressureOnly -> DashboardRecentHistoryEntry.PressureOnly(
+				history = entry.history,
+				detailSelection = SourceHistoryDetailSelection.fromSourceEntry(entry, content.readSnapshot),
+			)
+			is SourceAwareHistoryPageEntry.ActivityOnly -> DashboardRecentHistoryEntry.ActivityOnly(
+				history = entry.history,
+				detailSelection = SourceHistoryDetailSelection.fromSourceEntry(
+					entry,
+					content.readSnapshot,
+				),
+			)
+			is SourceAwareHistoryPageEntry.WifiOnly -> DashboardRecentHistoryEntry.WifiOnly(
+				history = entry.history,
+				detailSelection = requireNotNull(
+					SourceHistoryDetailSelection.fromSourceEntry(
+						entry,
+						content.readSnapshot,
+					),
+				),
+			)
+			is SourceAwareHistoryPageEntry.CellOnly -> DashboardRecentHistoryEntry.CellOnly(
+				history = entry.history,
+				detailSelection = requireNotNull(
+					SourceHistoryDetailSelection.fromSourceEntry(
+						entry,
+						content.readSnapshot,
+					),
+				),
+			)
+		}
 
 	private companion object {
 		const val PHYSICAL_CANDIDATE_BUDGET = 64

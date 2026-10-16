@@ -6,19 +6,38 @@ import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableForm
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainFormatV2
 
+/**
+ * Receives one complete v2 all-day Steps archive containing its saved count-domain graph.
+ */
 fun interface PortableAmbientStepsArchiveV2Sink {
+	/**
+	 * Accepts one complete all-day Steps archive after its bounded database snapshot has closed.
+	 */
 	suspend fun emit(archive: PortableAmbientStepsArchiveV2)
 }
 
+/**
+ * Read-only all-day Steps export retaining v2 count-domain identities and owner revisions.
+ */
 interface ExportPortableAmbientStepsV2 {
+	/**
+	 * Prepares a bounded saved Steps archive, emits it only after the snapshot transaction closes,
+	 * and propagates cancellation.
+	 */
 	suspend fun export(
 		request: ExportPortableAmbientStepsRequest,
 		sink: PortableAmbientStepsArchiveV2Sink,
 	): ExportPortableAmbientStepsResult
 }
 
+/**
+ * Re-exports imported-origin all-day Steps in v2 without creating native recording authority.
+ */
 interface ReexportImportedAmbientStepsV2 : ExportPortableAmbientStepsV2
 
+/**
+ * Decoder-supplied byte, day, fact, gap and graph counts checked against finite v2 file limits.
+ */
 data class PortableAmbientStepsImportMetadataV2(
 	val encodedByteCount: Long,
 	val archiveContentChecksum: AmbientStepsPortableDigest,
@@ -40,6 +59,10 @@ data class PortableAmbientStepsImportMetadataV2(
 	}
 }
 
+/**
+ * Decoded v2 all-day Steps archive and matching checksum metadata, bound to its file receipt and
+ * original data epoch.
+ */
 data class ImportPortableAmbientStepsV2Request(
 	val archive: PortableAmbientStepsArchiveV2,
 	val receipt: PortableAmbientStepsImportReceipt,
@@ -52,7 +75,14 @@ data class ImportPortableAmbientStepsV2Request(
 	}
 }
 
+/**
+ * Admits a decoded v2 all-day Steps archive into imported storage without starting collection.
+ */
 interface ImportPortableAmbientStepsV2 {
+	/**
+	 * Admits the complete decoded Steps archive and file provenance under its original data epoch
+	 * without creating native recording permission.
+	 */
 	suspend fun importArchive(
 		request: ImportPortableAmbientStepsV2Request,
 	): ImportPortableAmbientStepsResult

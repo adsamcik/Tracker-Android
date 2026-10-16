@@ -40,4 +40,23 @@
     <string name="format_database">Tietokannan varmuuskopio (ZIP)</string>
     <string name="settings_import_summary">Tuo tietoja tuetuista tyypeistä (%1$s) ja arkistoista (%2$s). Tietokantatuonnit yhdistävät yhteensopivat rivit eivätkä korvaa olemassa olevia tietoja.</string>
     <string name="settings_import_title">Tuonti</string>
+    <string name="export_radio_sensitivity_title">Viedäänkö verkon tiedot?</string>
+    <string name="export_wifi_sensitivity_message">Tämä tiedosto sisältää tallennetut Wi-Fi-nimet ja tukiasemien tunnisteet.</string>
+    <string name="export_cell_sensitivity_message">Tämä tiedosto sisältää tallennetut matkapuhelintukiasemien tunnisteet ja signaalimittaukset.</string>
+    <string name="export_radio_no_data">Tästä lähteestä ei ole tallennettuja tietoja</string>
+    <string name="export_include_complete_sessions">Sisällytä kokonaiset istunnot</string>
+    <string name="import_location_conflict_title">Korvataanko tallennetut pisteet?</string>
+    <string name="import_location_replace">Käytä tiedoston pisteitä</string>
+    <string name="import_location_keep">Säilytä tallennetut pisteet</string>
+    <string name="export_backup_review_title">Tarkista ajastetut varmuuskopiot</string>
+    <string name="export_backup_review_summary">Keskeytetty, kunnes tarkistat päivitetyn tietojen varmuuskopion.</string>
+    <string name="export_backup_review_message">Nämä ajastukset varmuuskopioivat nyt kaikki tallennetut seurantatiedot ja niiden palauttamiseen tarvittavat tiedostot. Asetuksia ei sisällytetä. Jatketaanko näitä ajastuksia?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Jatka varmuuskopiointia</string>
+    <string name="import_backup_replace_title">Palautetaanko tietojen varmuuskopio?</string>
+    <string name="import_backup_replace_message">Korvataanko tallennetut tiedot tällä varmuuskopiolla? Asetuksesi säilyvät ennallaan. Seuranta on pois päältä, kunnes jatkat sitä.</string>
+    <string name="import_backup_restore">Korvaa tiedot</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d tämän tiedoston piste poikkeaa tallennetusta kopiosta. Valitse, kumman säilytät. Muut pisteet tuodaan normaalisti.</item>
+        <item quantity="other">%d tämän tiedoston pistettä poikkeaa tallennetuista kopioista. Valitse, mitkä säilytät. Muut pisteet tuodaan normaalisti.</item>
+    </plurals>
 </resources>

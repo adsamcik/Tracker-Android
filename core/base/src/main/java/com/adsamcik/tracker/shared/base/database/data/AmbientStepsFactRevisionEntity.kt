@@ -112,6 +112,8 @@ data class AmbientStepsFactRevisionEntity(
 		}
 	}
 
+	// Validates one immutable provider row, including its stored calendar bounds and derived identity.
+	@Suppress("CyclomaticComplexMethod")
 	private fun requireProviderAggregateShape() {
 		require(originKind == ORIGIN_PROVIDER_AGGREGATE)
 		require(scopeDeletionGeneration == 0L)
@@ -137,7 +139,7 @@ data class AmbientStepsFactRevisionEntity(
 		require(sourcePolicyRevision != null && sourcePolicyRevision > 0L)
 		require(ambientConsentEpoch != null && ambientConsentEpoch >= 0L)
 		require(retentionScope == AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT)
-		require(!retentionPolicyId.isNullOrBlank() && retentionPolicyId.length <= 256)
+		require(!retentionPolicyId.isNullOrBlank() && retentionPolicyId.length <= MAX_POLICY_ID_LENGTH)
 		require(retentionApprovalRevision != null && retentionApprovalRevision > 0L)
 		require(appliedAtMs >= observedAtMs)
 		require(
@@ -182,6 +184,10 @@ data class AmbientStepsFactRevisionEntity(
 		require(retentionApprovalRevision == null)
 	}
 
+	/**
+	 * Stable persisted codes, including `WRITER_ID`, `WRITER_VERSION`, `OPERATION_UPSERT`, and any
+	 * identity-bound record factories.
+	 */
 	companion object {
 		const val WRITER_ID = "ambient-steps-facts"
 		const val WRITER_VERSION = 1
@@ -200,6 +206,7 @@ data class AmbientStepsFactRevisionEntity(
 			PROVIDER_LOCAL_RECORDING_STEPS,
 		)
 		private val LOWERCASE_SHA256 = Regex("[0-9a-f]{64}")
+		private const val MAX_POLICY_ID_LENGTH = 256
 		private const val MAX_ZONE_ID_LENGTH = 128
 		private const val MILLIS_PER_SECOND = 1_000L
 		private const val MAX_PROVIDER_WINDOW_MILLIS = 25L * 60L * 60L * MILLIS_PER_SECOND

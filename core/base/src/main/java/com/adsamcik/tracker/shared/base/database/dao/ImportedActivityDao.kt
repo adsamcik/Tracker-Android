@@ -21,44 +21,86 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedActivityZoneEpochE
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 
 /** Activity-specific imported-origin primitives. Admission owns all transaction semantics. */
+// Keep the ImportedActivityDao SQL contract together; query text accounts for this declaration's size.
+@Suppress("LargeClass")
 @Dao
 abstract class ImportedActivityDao {
+	/**
+	 * Inserts [ImportedActivityEntryRevisionEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertEntryRevision(value: ImportedActivityEntryRevisionEntity)
 
+	/**
+	 * Inserts [ImportedActivityReceiptEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertReceipt(value: ImportedActivityReceiptEntity)
 
+	/**
+	 * Inserts [ImportedActivityRunEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertRun(value: ImportedActivityRunEntity)
 
+	/**
+	 * Inserts [ImportedActivityZoneEpochEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertZoneEpoch(value: ImportedActivityZoneEpochEntity)
 
+	/**
+	 * Inserts [ImportedActivityWindowEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertWindow(value: ImportedActivityWindowEntity)
 
+	/**
+	 * Inserts [ImportedActivityWindowEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertWindows(values: List<ImportedActivityWindowEntity>)
 
+	/**
+	 * Inserts [ImportedActivityFragmentEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertFragment(value: ImportedActivityFragmentEntity)
 
+	/**
+	 * Inserts [ImportedActivityFragmentEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertFragments(values: List<ImportedActivityFragmentEntity>)
 
+	/**
+	 * Inserts [ImportedActivityEntryDeletionEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertEntryDeletion(value: ImportedActivityEntryDeletionEntity)
 
+	/**
+	 * Inserts [ImportedActivityEntryDeletionReceiptEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertEntryDeletionReceipt(value: ImportedActivityEntryDeletionReceiptEntity)
 
+	/**
+	 * Inserts [ImportedActivityRetentionReceiptEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertRetentionReceipts(values: List<ImportedActivityRetentionReceiptEntity>)
 
+	/**
+	 * Updates existing [ImportedActivityRetentionReceiptEntity] rows by primary key. Returns the
+	 * affected row count.
+	 */
 	@Update(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun updateRetentionReceipt(value: ImportedActivityRetentionReceiptEntity): Int
 
+	/**
+	 * Inserts [ImportedActivityRetainedIdentityEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertRetainedIdentities(values: List<ImportedActivityRetainedIdentityEntity>)
 
@@ -67,10 +109,17 @@ abstract class ImportedActivityDao {
 		values: List<ImportedActivityDeletionGenerationEntity>,
 	)
 
+	/**
+	 * Records one initial run-deletion fence after requiring generation 1; higher generations must
+	 * use the dedicated revision operation.
+	 */
 	suspend fun insertDeletionGeneration(value: ImportedActivityDeletionGenerationEntity) {
 		insertDeletionGenerations(listOf(value))
 	}
 
+	/**
+	 * Adds a nonempty bounded set of distinct run fences, each at initial deletion generation 1.
+	 */
 	suspend fun insertDeletionGenerations(values: List<ImportedActivityDeletionGenerationEntity>) {
 		require(values.isNotEmpty())
 		require(values.size <= ActivityCapturedPortableFormatV1.MAX_RUNS_PER_ENTRY)
@@ -79,6 +128,10 @@ abstract class ImportedActivityDao {
 		insertDeletionGenerationRows(values)
 	}
 
+	/**
+	 * Reads `imported_activity_entry_revision` rows. Query conditions include `identity = :identity`,
+	 * `import_revision = :revision`. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM imported_activity_entry_revision " +
 			"WHERE identity = :identity AND import_revision = :revision",
@@ -86,12 +139,20 @@ abstract class ImportedActivityDao {
 	abstract suspend fun entryRevision(identity: String, revision: Long):
 		ImportedActivityEntryRevisionEntity?
 
+	/**
+	 * Reads `imported_activity_entry_revision` rows. Query conditions include `identity = :identity`.
+	 * Orders by `import_revision DESC`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM imported_activity_entry_revision WHERE identity = :identity " +
 			"ORDER BY import_revision DESC LIMIT 1",
 	)
 	abstract suspend fun latestEntryRevision(identity: String): ImportedActivityEntryRevisionEntity?
 
+	/**
+	 * Reads `imported_activity_entry_revision` rows. Query conditions include `identity = :identity`.
+	 * Orders by `import_revision DESC`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT identity, import_revision, content_checksum, start_time_ms, end_time_ms, " +
 			"received_at_ms, 'LIVE' AS candidate_state " +
@@ -100,6 +161,10 @@ abstract class ImportedActivityDao {
 	)
 	abstract suspend fun latestHistoryCandidate(identity: String): ImportedActivityHistoryCandidate?
 
+	/**
+	 * Reads `imported_activity_retention_receipt` rows. Query conditions include `entry_identity =
+	 * :identity`. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT entry_identity AS identity, latest_import_revision AS import_revision, " +
 			"latest_content_checksum AS content_checksum, start_time_ms, end_time_ms, received_at_ms, " +
@@ -484,6 +549,10 @@ abstract class ImportedActivityDao {
 	)
 	abstract suspend fun hasErasableProductCandidate(): Boolean
 
+	/**
+	 * Reads one imported Activity entry in revision order with one overflow row beyond the admission
+	 * limit.
+	 */
 	suspend fun entryRevisionsForAdmission(identity: String): List<ImportedActivityEntryRevisionEntity> =
 		loadEntryRevisions(identity, MAX_REVISIONS_PER_ENTRY + 1)
 
@@ -701,6 +770,10 @@ abstract class ImportedActivityDao {
 		logicalRunScopeKind: String,
 	): ImportedActivityProductBatchPreflight
 
+	/**
+	 * Reads revisions for validated, distinct Activity entry IDs, ordered by entry and revision with
+	 * an overflow row per batch.
+	 */
 	suspend fun entryRevisionsForHistory(
 		identities: List<String>,
 	): List<ImportedActivityEntryRevisionEntity> = loadHistoryEntryRevisions(
@@ -708,6 +781,10 @@ abstract class ImportedActivityDao {
 		historyLimit(identities.size, MAX_REVISIONS_PER_ENTRY),
 	)
 
+	/**
+	 * Reads Activity entry revisions after validating IDs; caps the result at the requested history
+	 * budget plus an overflow row.
+	 */
 	suspend fun entryRevisionsForBoundedHistory(
 		identities: List<String>,
 		maximumRows: Int,
@@ -725,12 +802,20 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityEntryRevisionEntity>
 
+	/**
+	 * Reads `imported_activity_receipt` rows. Query conditions include `import_job_id = :jobId`,
+	 * `import_entry_key = :entryKey`. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM imported_activity_receipt " +
 			"WHERE import_job_id = :jobId AND import_entry_key = :entryKey",
 	)
 	abstract suspend fun receipt(jobId: String, entryKey: String): ImportedActivityReceiptEntity?
 
+	/**
+	 * Reads import receipts for one entry in revision/job/key order, including one overflow row to
+	 * detect excessive lineage.
+	 */
 	suspend fun receiptsForAdmission(identity: String): List<ImportedActivityReceiptEntity> =
 		loadReceipts(identity, MAX_RECEIPTS_PER_ENTRY + 1)
 
@@ -743,12 +828,20 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityReceiptEntity>
 
+	/**
+	 * Reads receipts for validated distinct Activity entries in entry/revision/job/key order, with
+	 * one overflow row beyond the combined per-entry limits.
+	 */
 	suspend fun receiptsForHistory(identities: List<String>): List<ImportedActivityReceiptEntity> =
 		loadHistoryReceipts(
 			checkedHistoryIdentities(identities),
 			historyLimit(identities.size, MAX_RECEIPTS_PER_ENTRY),
 		)
 
+	/**
+	 * Reads receipts for validated Activity entry IDs in entry/revision/job/key order within the
+	 * requested history budget.
+	 */
 	suspend fun receiptsForBoundedHistory(
 		identities: List<String>,
 		maximumRows: Int,
@@ -766,6 +859,10 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityReceiptEntity>
 
+	/**
+	 * Reads all saved runs for one Activity entry across revisions, ordered by revision and measured
+	 * UTC bounds, with an overflow row beyond the lineage limit.
+	 */
 	suspend fun allRunsForAdmission(identity: String): List<ImportedActivityRunEntity> =
 		loadAllRuns(identity, MAX_TOTAL_RUNS_PER_LINEAGE + 1)
 
@@ -778,12 +875,20 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityRunEntity>
 
+	/**
+	 * Reads runs for validated distinct Activity entries in entry/revision/measured-bound order, with
+	 * one overflow row beyond the combined lineage limits.
+	 */
 	suspend fun runsForHistory(identities: List<String>): List<ImportedActivityRunEntity> =
 		loadHistoryRuns(
 			checkedHistoryIdentities(identities),
 			historyLimit(identities.size, MAX_TOTAL_RUNS_PER_LINEAGE),
 		)
 
+	/**
+	 * Reads saved Activity runs for validated entry IDs within the history budget, ordered by entry,
+	 * revision and measured bounds.
+	 */
 	suspend fun runsForBoundedHistory(
 		identities: List<String>,
 		maximumRows: Int,
@@ -801,6 +906,10 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityRunEntity>
 
+	/**
+	 * Reads every clock/zone epoch for one Activity entry in revision/run/ordinal order, including
+	 * one overflow row beyond the lineage limit.
+	 */
 	suspend fun allZoneEpochsForAdmission(identity: String): List<ImportedActivityZoneEpochEntity> =
 		loadAllZoneEpochs(identity, MAX_TOTAL_ZONE_EPOCHS_PER_LINEAGE + 1)
 
@@ -813,12 +922,20 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityZoneEpochEntity>
 
+	/**
+	 * Reads clock/zone epochs for validated distinct Activity entries in entry/revision/run/ordinal
+	 * order with an overflow row beyond the combined limits.
+	 */
 	suspend fun zoneEpochsForHistory(identities: List<String>): List<ImportedActivityZoneEpochEntity> =
 		loadHistoryZoneEpochs(
 			checkedHistoryIdentities(identities),
 			historyLimit(identities.size, MAX_TOTAL_ZONE_EPOCHS_PER_LINEAGE),
 		)
 
+	/**
+	 * Reads saved Activity clock/zone epochs for validated entry IDs, ordered by entry, revision, run
+	 * and ordinal within the history budget.
+	 */
 	suspend fun zoneEpochsForBoundedHistory(
 		identities: List<String>,
 		maximumRows: Int,
@@ -836,6 +953,10 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityZoneEpochEntity>
 
+	/**
+	 * Reads windows across one Activity entry lineage in revision/run/original-offset order with one
+	 * overflow row beyond the lineage limit.
+	 */
 	suspend fun allWindowsForAdmission(identity: String): List<ImportedActivityWindowEntity> =
 		loadAllWindows(identity, MAX_TOTAL_WINDOWS_PER_LINEAGE + 1)
 
@@ -849,12 +970,20 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityWindowEntity>
 
+	/**
+	 * Reads windows for validated distinct Activity entries in entry/revision/run/original-offset
+	 * order with one overflow row beyond the combined limits.
+	 */
 	suspend fun windowsForHistory(identities: List<String>): List<ImportedActivityWindowEntity> =
 		loadHistoryWindows(
 			checkedHistoryIdentities(identities),
 			historyLimit(identities.size, MAX_TOTAL_WINDOWS_PER_LINEAGE),
 		)
 
+	/**
+	 * Reads Activity windows for validated entry IDs within the history budget; preserves revision,
+	 * run and window ordering.
+	 */
 	suspend fun windowsForBoundedHistory(
 		identities: List<String>,
 		maximumRows: Int,
@@ -873,6 +1002,10 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityWindowEntity>
 
+	/**
+	 * Reads fragments across one Activity entry lineage in revision/run/window/ordinal order with one
+	 * overflow row beyond the lineage limit.
+	 */
 	suspend fun allFragmentsForAdmission(identity: String): List<ImportedActivityFragmentEntity> =
 		loadAllFragments(identity, MAX_TOTAL_FRAGMENTS_PER_LINEAGE + 1)
 
@@ -885,12 +1018,20 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityFragmentEntity>
 
+	/**
+	 * Reads fragments for validated distinct Activity entries in entry/revision/run/window/ordinal
+	 * order with one overflow row beyond the combined limits.
+	 */
 	suspend fun fragmentsForHistory(identities: List<String>): List<ImportedActivityFragmentEntity> =
 		loadHistoryFragments(
 			checkedHistoryIdentities(identities),
 			historyLimit(identities.size, MAX_TOTAL_FRAGMENTS_PER_LINEAGE),
 		)
 
+	/**
+	 * Reads Activity fragments for validated entry IDs within the history budget, retaining their
+	 * original run/window membership.
+	 */
 	suspend fun fragmentsForBoundedHistory(
 		identities: List<String>,
 		maximumRows: Int,
@@ -909,12 +1050,20 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityFragmentEntity>
 
+	/**
+	 * Reads distinct `identity` values from `imported_activity_entry_revision`. Query conditions
+	 * include `identity IN (:identities)`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT DISTINCT identity FROM imported_activity_entry_revision " +
 			"WHERE identity IN (:identities) LIMIT :limit",
 	)
 	abstract suspend fun existingEntryIdentities(identities: List<String>, limit: Int): List<String>
 
+	/**
+	 * Reads `imported_activity_run` rows. Query conditions include `identity IN (:identities)`.
+	 * Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT DISTINCT identity, entry_identity, deletion_scope_digest FROM imported_activity_run " +
 			"WHERE identity IN (:identities) LIMIT :limit",
@@ -924,6 +1073,10 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityRunIdentityOwner>
 
+	/**
+	 * Reads `imported_activity_run` rows. Query conditions include `deletion_scope_digest IN
+	 * (:digests)`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT DISTINCT deletion_scope_digest, identity, entry_identity FROM imported_activity_run " +
 			"WHERE deletion_scope_digest IN (:digests) LIMIT :limit",
@@ -933,6 +1086,10 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityRunScopeOwner>
 
+	/**
+	 * Reads `imported_activity_window` rows. Query conditions include `identity IN (:identities)`.
+	 * Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT DISTINCT identity, entry_identity, run_identity FROM imported_activity_window " +
 			"WHERE identity IN (:identities) LIMIT :limit",
@@ -1020,6 +1177,10 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityProtectedIdentityOwner>
 
+	/**
+	 * Reads identity-owner candidates after requiring a nonempty, distinct batch of at most 400
+	 * identities and a positive result limit no larger than the batch plus two.
+	 */
 	suspend fun protectedIdentityOwners(
 		identities: List<String>,
 		limit: Int,
@@ -1030,6 +1191,10 @@ abstract class ImportedActivityDao {
 		return loadProtectedIdentityOwners(identities, limit)
 	}
 
+	/**
+	 * Counts rows in `imported_activity_entry_revision`. Query conditions include `protected_identity
+	 * IN (:identities)`.
+	 */
 	@Query(
 		"""
 		SELECT COUNT(*) AS result_count,
@@ -1095,9 +1260,17 @@ abstract class ImportedActivityDao {
 		identities: List<String>,
 	): ImportedActivityOwnerAuditPreflight
 
+	/**
+	 * Reads `imported_activity_retention_receipt` rows. Query conditions include `entry_identity =
+	 * :identity`. Returns null when no row matches.
+	 */
 	@Query("SELECT * FROM imported_activity_retention_receipt WHERE entry_identity = :identity")
 	abstract suspend fun retentionReceipt(identity: String): ImportedActivityRetentionReceiptEntity?
 
+	/**
+	 * Reads `imported_activity_retention_receipt` rows. Query conditions include `entry_identity IN
+	 * (:identities)`.
+	 */
 	@Query("SELECT * FROM imported_activity_retention_receipt WHERE entry_identity IN (:identities)")
 	abstract suspend fun retentionReceipts(
 		identities: List<String>,
@@ -1112,6 +1285,10 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityRetentionReceiptEntity>
 
+	/**
+	 * Reads retention witnesses for validated Activity entries within the requested row budget plus
+	 * one overflow row.
+	 */
 	suspend fun retentionReceiptsForHistory(
 		identities: List<String>,
 		maximumRows: Int,
@@ -1120,6 +1297,10 @@ abstract class ImportedActivityDao {
 		boundedHistoryLimit(identities.size, 1, maximumRows),
 	)
 
+	/**
+	 * Reads `imported_activity_retention_receipt` rows. Query conditions include `entry_identity >
+	 * :afterIdentity`. Orders by `entry_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_activity_retention_receipt " +
 			"WHERE :afterIdentity IS NULL OR entry_identity > :afterIdentity " +
@@ -1130,6 +1311,11 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityRetentionReceiptEntity>
 
+	/**
+	 * Reads `imported_activity_retained_identity` rows. Query conditions include `entry_identity IN
+	 * (:entryIdentities)`. Orders by `entry_identity, identity_kind, protected_identity`. Returns at
+	 * most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_activity_retained_identity WHERE entry_identity IN (:entryIdentities) " +
 			"ORDER BY entry_identity, identity_kind, protected_identity LIMIT :limit",
@@ -1139,6 +1325,10 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityRetainedIdentityEntity>
 
+	/**
+	 * Reads `imported_activity_retained_identity` rows. Query conditions include `protected_identity
+	 * IN (:identities)`. Orders by `protected_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_activity_retained_identity WHERE protected_identity IN (:identities) " +
 			"ORDER BY protected_identity LIMIT :limit",
@@ -1148,12 +1338,21 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityRetainedIdentityEntity>
 
+	/**
+	 * Counts rows in `imported_activity_retention_receipt`.
+	 */
 	@Query("SELECT COUNT(*) FROM imported_activity_retention_receipt")
 	abstract suspend fun retentionReceiptCount(): Long
 
+	/**
+	 * Counts rows in `imported_activity_retained_identity`.
+	 */
 	@Query("SELECT COUNT(*) FROM imported_activity_retained_identity")
 	abstract suspend fun retainedIdentityCount(): Long
 
+	/**
+	 * Counts rows in `imported_activity_retained_identity`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM imported_activity_retained_identity AS marker " +
 			"LEFT JOIN imported_activity_retention_receipt AS receipt " +
@@ -1219,6 +1418,10 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityProtectedIdentityOwnerCount>
 
+	/**
+	 * Counts each stored identity ownership category after validating a nonempty, distinct batch of
+	 * at most 400 identities and a positive result limit.
+	 */
 	suspend fun protectedIdentityOwnerCounts(
 		identities: List<String>,
 		limit: Int,
@@ -1229,12 +1432,24 @@ abstract class ImportedActivityDao {
 		return loadProtectedIdentityOwnerCounts(identities, limit)
 	}
 
+	/**
+	 * Reads `imported_activity_entry_deletion` rows. Query conditions include `entry_identity =
+	 * :identity`. Returns null when no row matches.
+	 */
 	@Query("SELECT * FROM imported_activity_entry_deletion WHERE entry_identity = :identity")
 	abstract suspend fun entryDeletion(identity: String): ImportedActivityEntryDeletionEntity?
 
+	/**
+	 * Reads `imported_activity_entry_deletion_receipt` rows. Query conditions include `entry_identity
+	 * = :identity`. Returns null when no row matches.
+	 */
 	@Query("SELECT * FROM imported_activity_entry_deletion_receipt WHERE entry_identity = :identity")
 	abstract suspend fun entryDeletionReceipt(identity: String): ImportedActivityEntryDeletionReceiptEntity?
 
+	/**
+	 * Reads `imported_activity_entry_deletion` rows. Query conditions include `entry_identity IN
+	 * (:identities)`.
+	 */
 	@Query("SELECT * FROM imported_activity_entry_deletion WHERE entry_identity IN (:identities)")
 	abstract suspend fun entryDeletions(
 		identities: List<String>,
@@ -1249,6 +1464,10 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityEntryDeletionEntity>
 
+	/**
+	 * Reads deletion markers for validated Activity entries within the requested row budget plus one
+	 * overflow row.
+	 */
 	suspend fun entryDeletionsForBoundedHistory(
 		identities: List<String>,
 		maximumRows: Int,
@@ -1257,6 +1476,10 @@ abstract class ImportedActivityDao {
 		boundedHistoryLimit(identities.size, 1, maximumRows),
 	)
 
+	/**
+	 * Reads `imported_activity_entry_deletion_receipt` rows. Query conditions include `entry_identity
+	 * IN (:identities)`.
+	 */
 	@Query("SELECT * FROM imported_activity_entry_deletion_receipt WHERE entry_identity IN (:identities)")
 	abstract suspend fun entryDeletionReceipts(
 		identities: List<String>,
@@ -1271,6 +1494,10 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityEntryDeletionReceiptEntity>
 
+	/**
+	 * Reads deletion receipts for validated Activity entries within the requested row budget plus one
+	 * overflow row.
+	 */
 	suspend fun entryDeletionReceiptsForBoundedHistory(
 		identities: List<String>,
 		maximumRows: Int,
@@ -1279,17 +1506,28 @@ abstract class ImportedActivityDao {
 		boundedHistoryLimit(identities.size, 1, maximumRows),
 	)
 
+	/**
+	 * Reads deletion markers for validated Activity entry IDs in bounded parameter chunks.
+	 */
 	suspend fun entryDeletionsForHistory(
 		identities: List<String>,
 	): List<ImportedActivityEntryDeletionEntity> = checkedHistoryIdentities(identities)
 		.chunked(HISTORY_ID_QUERY_CHUNK_SIZE)
 		.flatMap { entryDeletions(it) }
 
+	/**
+	 * Reads `imported_activity_deletion_generation` rows. Query conditions include `run_identity IN
+	 * (:identities)`.
+	 */
 	@Query("SELECT * FROM imported_activity_deletion_generation WHERE run_identity IN (:identities)")
 	abstract suspend fun deletionGenerations(
 		identities: List<String>,
 	): List<ImportedActivityDeletionGenerationEntity>
 
+	/**
+	 * Reads `imported_activity_deletion_generation` rows. Query conditions include `run_identity IN
+	 * (:identities)`. Orders by `run_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_activity_deletion_generation WHERE run_identity IN (:identities) " +
 			"ORDER BY run_identity LIMIT :limit",
@@ -1299,6 +1537,12 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityDeletionGenerationEntity>
 
+	/**
+	 * Reads `source_deletion_fence` rows. Query conditions include `source_kind =
+	 * :activitySourceKind`, `purpose = :sessionCapturePurpose`, `scope_kind = :logicalRunScopeKind`,
+	 * `scope_identity_digest IN (:scopeDigests)`. Orders by `scope_identity_digest`. Returns at most
+	 * `limit` rows.
+	 */
 	@Query(
 		"""
 		SELECT * FROM source_deletion_fence
@@ -1318,6 +1562,10 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<SourceDeletionFenceEntity>
 
+	/**
+	 * Reads deletion generations for distinct Activity run IDs in bounded parameter chunks after
+	 * checking the overall history limit.
+	 */
 	suspend fun deletionGenerationsForHistory(
 		runIdentities: List<String>,
 	): List<ImportedActivityDeletionGenerationEntity> {
@@ -1326,12 +1574,21 @@ abstract class ImportedActivityDao {
 			.flatMap { deletionGenerations(it) }
 	}
 
+	/**
+	 * Reads `imported_activity_run` rows. Query conditions include `entry_identity = :identity`,
+	 * `entry_import_revision = :revision`. Orders by `start_time_ms, end_time_ms, identity`.
+	 */
 	@Query(
 		"SELECT * FROM imported_activity_run WHERE entry_identity = :identity " +
 			"AND entry_import_revision = :revision ORDER BY start_time_ms, end_time_ms, identity",
 	)
 	abstract suspend fun runs(identity: String, revision: Long): List<ImportedActivityRunEntity>
 
+	/**
+	 * Reads `imported_activity_zone_epoch` rows. Query conditions include `entry_identity =
+	 * :entryIdentity`, `entry_import_revision = :revision`, `run_identity = :runIdentity`. Orders by
+	 * `ordinal`.
+	 */
 	@Query(
 		"SELECT * FROM imported_activity_zone_epoch WHERE entry_identity = :entryIdentity " +
 			"AND entry_import_revision = :revision AND run_identity = :runIdentity ORDER BY ordinal",
@@ -1342,6 +1599,11 @@ abstract class ImportedActivityDao {
 		runIdentity: String,
 	): List<ImportedActivityZoneEpochEntity>
 
+	/**
+	 * Reads `imported_activity_window` rows. Query conditions include `entry_identity =
+	 * :entryIdentity`, `entry_import_revision = :revision`, `run_identity = :runIdentity`. Orders by
+	 * `start_offset_nanos, end_offset_nanos, identity`.
+	 */
 	@Query(
 		"SELECT * FROM imported_activity_window WHERE entry_identity = :entryIdentity " +
 			"AND entry_import_revision = :revision AND run_identity = :runIdentity " +
@@ -1353,6 +1615,11 @@ abstract class ImportedActivityDao {
 		runIdentity: String,
 	): List<ImportedActivityWindowEntity>
 
+	/**
+	 * Reads `imported_activity_fragment` rows. Query conditions include `entry_identity =
+	 * :entryIdentity`, `entry_import_revision = :revision`, `run_identity = :runIdentity`,
+	 * `window_identity = :windowIdentity`. Orders by `ordinal`.
+	 */
 	@Query(
 		"SELECT * FROM imported_activity_fragment WHERE entry_identity = :entryIdentity " +
 			"AND entry_import_revision = :revision AND run_identity = :runIdentity " +
@@ -1369,27 +1636,52 @@ abstract class ImportedActivityDao {
 	@Query("DELETE FROM imported_activity_entry_revision WHERE identity = :identity")
 	abstract suspend fun deleteEntryRevisions(identity: String): Int
 
+	/**
+	 * Deletes `imported_activity_entry_revision` rows matching the supplied scope. Query conditions
+	 * include `identity IN (:identities)`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM imported_activity_entry_revision WHERE identity IN (:identities)")
 	abstract suspend fun deleteEntryRevisionLineages(identities: List<String>): Int
 
+	/**
+	 * Deletes `imported_activity_entry_revision` rows.
+	 */
 	@Query("DELETE FROM imported_activity_entry_revision")
 	abstract fun deleteAllEntries()
 
+	/**
+	 * Deletes `imported_activity_receipt` rows.
+	 */
 	@Query("DELETE FROM imported_activity_receipt")
 	abstract fun deleteAllReceipts()
 
+	/**
+	 * Deletes `imported_activity_entry_deletion` rows.
+	 */
 	@Query("DELETE FROM imported_activity_entry_deletion")
 	abstract fun deleteAllEntryDeletions()
 
+	/**
+	 * Deletes `imported_activity_entry_deletion_receipt` rows.
+	 */
 	@Query("DELETE FROM imported_activity_entry_deletion_receipt")
 	abstract fun deleteAllEntryDeletionReceipts()
 
+	/**
+	 * Deletes `imported_activity_deletion_generation` rows.
+	 */
 	@Query("DELETE FROM imported_activity_deletion_generation")
 	abstract fun deleteAllDeletionGenerations()
 
+	/**
+	 * Deletes `imported_activity_retained_identity` rows.
+	 */
 	@Query("DELETE FROM imported_activity_retained_identity")
 	abstract fun deleteAllRetainedIdentities()
 
+	/**
+	 * Deletes `imported_activity_retention_receipt` rows.
+	 */
 	@Query("DELETE FROM imported_activity_retention_receipt")
 	abstract fun deleteAllRetentionReceipts()
 
@@ -1409,10 +1701,18 @@ abstract class ImportedActivityDao {
 		maximumRows: Int,
 	): Int {
 		require(maximumRows >= 0)
-		val overflowSentinel = if (maximumRows == Int.MAX_VALUE) Int.MAX_VALUE else maximumRows + 1
+		val overflowSentinel = if (maximumRows == Int.MAX_VALUE) {
+			Int.MAX_VALUE
+		} else {
+			maximumRows + 1
+		}
 		return minOf(historyLimit(identityCount, maximumPerIdentity), overflowSentinel)
 	}
 
+	/**
+	 * Limits for bounded Activity admission, lineage and maintenance reads; callers detect overflow
+	 * before loading more dependencies.
+	 */
 	companion object {
 		const val MAX_REVISIONS_PER_ENTRY = 16
 		const val MAX_RECEIPTS_PER_ENTRY = 256
@@ -1430,6 +1730,10 @@ abstract class ImportedActivityDao {
 	}
 }
 
+/**
+ * Saved import identity, revision, checksum and time bounds selected for Activity history;
+ * candidate discovery is not payload qualification.
+ */
 data class ImportedActivityHistoryCandidate(
 	val identity: String,
 	@ColumnInfo(name = "import_revision") val importRevision: Long,
@@ -1440,6 +1744,10 @@ data class ImportedActivityHistoryCandidate(
 	@ColumnInfo(name = "candidate_state") val candidateState: String = IMPORTED_ACTIVITY_CANDIDATE_LIVE,
 )
 
+/**
+ * Activity history candidate with optional recency and temporal-authority metadata for ordering
+ * retained entries.
+ */
 data class ImportedActivityOrderedHistoryCandidate(
 	val identity: String,
 	@ColumnInfo(name = "import_revision") val importRevision: Long,
@@ -1452,6 +1760,10 @@ data class ImportedActivityOrderedHistoryCandidate(
 	@ColumnInfo(name = "recency_member_identity") val recencyMemberIdentity: String?,
 	@ColumnInfo(name = "temporal_authority_state") val temporalAuthorityState: String?,
 ) {
+	/**
+	 * Drops ordering-only recency metadata while preserving the imported entry identity, revision,
+	 * original time bounds and candidate state.
+	 */
 	fun toHistoryCandidate() = ImportedActivityHistoryCandidate(
 		identity = identity,
 		importRevision = importRevision,
@@ -1463,6 +1775,10 @@ data class ImportedActivityOrderedHistoryCandidate(
 	)
 }
 
+/**
+ * Row and UTF-8 text-byte totals for the selected imported Activity dependency batch, before
+ * allocating payload records.
+ */
 data class ImportedActivityProductBatchPreflight(
 	@ColumnInfo(name = "entry_revision_count") val entryRevisionCount: Long,
 	@ColumnInfo(name = "import_receipt_count") val importReceiptCount: Long,
@@ -1511,6 +1827,9 @@ data class ImportedActivityProductBatchPreflight(
 	}
 }
 
+/**
+ * Counts of imported Activity rows used to detect changes to a retained product snapshot.
+ */
 data class ImportedActivityProductRevisionSnapshot(
 	@ColumnInfo(name = "entry_revision_count") val entryRevisionCount: Long,
 	@ColumnInfo(name = "receipt_count") val receiptCount: Long,
@@ -1546,24 +1865,38 @@ data class ImportedActivityProductRevisionSnapshot(
 const val IMPORTED_ACTIVITY_CANDIDATE_LIVE = "LIVE"
 const val IMPORTED_ACTIVITY_CANDIDATE_RETAINED = "RETAINED"
 
+/**
+ * Reverse association from an imported Activity run identity to its entry and deletion scope.
+ */
 data class ImportedActivityRunIdentityOwner(
 	val identity: String,
 	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
 	@ColumnInfo(name = "deletion_scope_digest") val deletionScopeDigest: String,
 )
 
+/**
+ * Reverse association from an Activity deletion-scope digest to the imported run and entry that
+ * own it.
+ */
 data class ImportedActivityRunScopeOwner(
 	@ColumnInfo(name = "deletion_scope_digest") val deletionScopeDigest: String,
 	val identity: String,
 	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
 )
 
+/**
+ * Reverse association from an imported Activity window identity to its run and entry.
+ */
 data class ImportedActivityWindowIdentityOwner(
 	val identity: String,
 	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
 	@ColumnInfo(name = "run_identity") val runIdentity: String,
 )
 
+/**
+ * Opaque protected identity with optional source/purpose/scope metadata for retained ownership
+ * audits.
+ */
 data class ImportedActivityProtectedIdentityOwner(
 	@ColumnInfo(name = "owner_kind") val ownerKind: String,
 	@ColumnInfo(name = "protected_identity") val protectedIdentity: String,
@@ -1571,6 +1904,9 @@ data class ImportedActivityProtectedIdentityOwner(
 	val purpose: String?,
 	@ColumnInfo(name = "scope_kind") val scopeKind: String?,
 ) {
+	/**
+	 * Stored ownership-kind codes used to classify Activity identity and deletion references.
+	 */
 	companion object {
 		const val ENTRY_DELETION = "ENTRY_DELETION"
 		const val ENTRY_DELETION_RECEIPT = "ENTRY_DELETION_RECEIPT"
@@ -1579,6 +1915,10 @@ data class ImportedActivityProtectedIdentityOwner(
 	}
 }
 
+/**
+ * Protected identity ownership tuple and its matching row count, used to detect ambiguous reverse
+ * ownership.
+ */
 data class ImportedActivityProtectedIdentityOwnerCount(
 	@ColumnInfo(name = "owner_kind") val ownerKind: String,
 	@ColumnInfo(name = "protected_identity") val protectedIdentity: String,
@@ -1588,6 +1928,9 @@ data class ImportedActivityProtectedIdentityOwnerCount(
 	@ColumnInfo(name = "owner_count") val ownerCount: Long,
 )
 
+/**
+ * Result cardinality and UTF-8 byte budget for the selected Activity ownership audit.
+ */
 data class ImportedActivityOwnerAuditPreflight(
 	@ColumnInfo(name = "result_count") val resultCount: Long,
 	@ColumnInfo(name = "result_text_bytes") val resultTextBytes: Long,

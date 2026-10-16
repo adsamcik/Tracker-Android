@@ -65,6 +65,8 @@ import org.robolectric.annotation.Config
 import kotlin.test.assertFailsWith
 
 /** Host Room product tests; fixture row mapping deliberately does not activate an importer. */
+// One real imported-Steps product fixture keeps saved membership, history and exact export consistent.
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ImportedStepsProductRoomTest {

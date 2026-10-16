@@ -288,7 +288,9 @@ data class SessionManifestSourceEntity(
 	fun locationCaptureBindingGenerationOrNull(): Long? {
 		if (sourceKind != SourceDestinationOwnerEntity.SOURCE_LOCATION ||
 			purpose != SourceBrokerPurpose.SESSION_CAPTURE || !persistenceEligible
-		) return null
+		) {
+			return null
+		}
 		return knownProtectedLocationBinding(outputDestination, writerOwner, writerOwnerGeneration,
 			writerProjectionId, writerProjectionVersion, writerBindingGeneration)
 	}
@@ -318,6 +320,10 @@ data class SessionManifestSourceEntity(
 		@ColumnInfo(name = "steps_recording_manifest_revision")
 		val stepsRecordingManifestRevision: Long? = null,
 	) {
+		/**
+		 * Builds the typed record only when raw SQL values have the expected types and satisfy its
+		 * constructor constraints; otherwise returns null.
+		 */
 		@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 		fun validatedOrNull(): SessionManifestSourceEntity? {
 			val storageClasses = storageClassSignature?.split(STORAGE_CLASS_SEPARATOR)
@@ -457,7 +463,8 @@ data class SessionManifestSourceEntity(
 			}.getOrNull()
 		}
 
-		@Suppress("ComplexCondition", "LongParameterList")
+		// The fixed source/owner compatibility matrix is easier to audit as one contract.
+		@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "LongParameterList")
 		private fun hasValidWriterContract(
 			sourceKind: Int,
 			purpose: String,
@@ -551,7 +558,11 @@ data class SessionManifestSourceEntity(
 			index: Int,
 			value: Any?,
 			presentClass: String,
-		): Boolean = getOrNull(index) == if (value == null) SQLITE_NULL else presentClass
+		): Boolean = getOrNull(index) == if (value == null) {
+			SQLITE_NULL
+		} else {
+			presentClass
+		}
 
 		private companion object {
 			const val STORAGE_CLASS_SEPARATOR = '|'
@@ -686,14 +697,17 @@ data class SessionManifestSourceEntity(
 	}
 }
 
-@Suppress("LongParameterList")
+// Compare the complete Location writer tuple together, including its legacy empty form.
+@Suppress("ComplexCondition", "LongParameterList")
 private fun knownProtectedLocationBinding(
 	destination: String?, owner: String?, ownerGeneration: Long?,
 	projectionId: String?, projectionVersion: Int?, bindingGeneration: Long?,
 ): Long? {
 	if (listOf(destination, owner, ownerGeneration, projectionId, projectionVersion,
 		bindingGeneration).all { it == null }
-	) return SourceWriterGenerationContract.ORIGINAL_CAPTURE_BINDING_GENERATION
+	) {
+		return SourceWriterGenerationContract.ORIGINAL_CAPTURE_BINDING_GENERATION
+	}
 	if (destination != SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION ||
 		owner != SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE ||
 		ownerGeneration != SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION ||
@@ -701,7 +715,9 @@ private fun knownProtectedLocationBinding(
 		projectionVersion != SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION ||
 		bindingGeneration == null ||
 		SourceWriterGenerationContract.captureModeMaskForKnownBinding(bindingGeneration) == null
-	) return null
+	) {
+		return null
+	}
 	return bindingGeneration
 }
 
@@ -823,7 +839,12 @@ data class LifecycleDesiredActionEntity(
 		@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String?,
 		@ColumnInfo(name = "registration_generation") val registrationGeneration: Long?,
 	) {
-		@Suppress("ComplexCondition", "ReturnCount")
+		/**
+		 * Builds the typed record only when raw SQL values have the expected types and satisfy its
+		 * constructor constraints; otherwise returns null.
+		 */
+		// Keep the 24-column SQL type checks and typed action mapping at one corruption boundary.
+		@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 		fun validatedOrNull(): LifecycleDesiredActionEntity? {
 			val storageClasses = storageClassSignature?.split(STORAGE_CLASS_SEPARATOR)
 				?.takeIf { it.size == STORAGE_CLASS_COUNT }
@@ -892,7 +913,9 @@ data class LifecycleDesiredActionEntity(
 				desiredPlanRevision?.takeIf { it > 0L } ?: return null
 			val validatedSourcePolicyRevision =
 				sourcePolicyRevision?.takeIf { it > 0L } ?: return null
-			if (consentEpoch?.let { it < 0L } == true) return null
+			if (consentEpoch?.let { it < 0L } == true) {
+				return null
+			}
 			val validatedStartOrigin = startOrigin
 				?.takeIf { it in START_ORIGINS }
 				?: return null
@@ -953,7 +976,11 @@ data class LifecycleDesiredActionEntity(
 			index: Int,
 			value: Any?,
 			presentClass: String,
-		): Boolean = getOrNull(index) == if (value == null) SQLITE_NULL else presentClass
+		): Boolean = getOrNull(index) == if (value == null) {
+			SQLITE_NULL
+		} else {
+			presentClass
+		}
 
 		private companion object {
 			const val STORAGE_CLASS_SEPARATOR = '|'

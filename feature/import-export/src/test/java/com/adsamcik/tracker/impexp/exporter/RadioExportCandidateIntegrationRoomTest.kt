@@ -97,7 +97,9 @@ class RadioExportCandidateIntegrationRoomTest {
 		coEvery { captured.export(any(), any()) } coAnswers {
 			val id = firstArg<com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiRequest>().logicalTrackingId
 			seen += id
-			if (id != "current") error("An unrelated unreadable source must not enter qualification")
+			if (id != "current") {
+				error("An unrelated unreadable source must not enter qualification")
+			}
 			ExportPortableCapturedWifiResult.Unavailable(PortableWifiUnavailableReason.PROVIDER_UNAVAILABLE)
 		}
 		(PortableWifiSourceExporter { wifiEntry(captured) }.exportWithSessionSelection(
@@ -113,7 +115,9 @@ class RadioExportCandidateIntegrationRoomTest {
 		coEvery { captured.export(any(), any()) } coAnswers {
 			val id = firstArg<com.adsamcik.tracker.shared.base.database.ExportPortableCapturedCellRequest>().logicalTrackingId
 			seen += id
-			if (id != "current") error("An unrelated unreadable source must not enter qualification")
+			if (id != "current") {
+				error("An unrelated unreadable source must not enter qualification")
+			}
 			ExportPortableCapturedCellResult.Unavailable(PortableCellUnavailableReason.PROVIDER_UNAVAILABLE)
 		}
 		(PortableCellSourceExporter { cellEntry(captured) }.exportWithSessionSelection(

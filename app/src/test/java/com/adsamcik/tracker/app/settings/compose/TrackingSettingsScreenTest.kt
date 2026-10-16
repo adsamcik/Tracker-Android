@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.test.core.app.ApplicationProvider
 import java.util.Locale
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsOff
@@ -72,6 +73,9 @@ import org.robolectric.annotation.Config
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// One real settings composable fixture keeps source choices, repair actions and screen semantics
+// comparable.
+@Suppress("LargeClass")
 class TrackingSettingsScreenTest {
 
     @get:Rule
@@ -103,6 +107,12 @@ class TrackingSettingsScreenTest {
     private fun scrollTo(text: String) {
         composeTestRule.onNodeWithTag("trackingSettingsList")
             .performScrollToNode(hasText(text, substring = true))
+    }
+
+    private fun scrollToTag(tag: String): SemanticsNodeInteraction {
+        composeTestRule.onNodeWithTag("trackingSettingsList")
+            .performScrollToNode(hasTestTag(tag))
+        return composeTestRule.onNodeWithTag(tag)
     }
 
 	private fun readyAutomaticControl() = AutomaticTrackingOperationalAvailability.Ready(
@@ -606,6 +616,8 @@ class TrackingSettingsScreenTest {
 				TrackingSettingsContent(
 					uiState = defaultUiState.copy(
 						stepsEnabled = true,
+						stepCounterAvailable = true,
+						activityPermissionGranted = false,
 						ambientSourceAvailability = availability,
 					),
 					onStepsProviderPermission = { repairRequested = true },
@@ -618,8 +630,12 @@ class TrackingSettingsScreenTest {
 			"to fill gaps when Tracker is closed",
 			substring = true,
 		).assertIsDisplayed()
-		composeTestRule.onNodeWithTag("stepsHealthConnectRepair").performScrollTo().performClick()
+		scrollToTag("stepsHealthConnectRepair").performClick()
 		repairRequested shouldBe true
+		composeTestRule.onNodeWithTag("stepsMotionRepair").assertDoesNotExist()
+		defaultUiState.copy(ambientSourceAvailability = availability).shouldRequestStepsMotionPermission(
+			34, Lifecycle.State.RESUMED, motionPermissionGranted = false,
+		) shouldBe false
 	}
 
 	@Test
@@ -667,7 +683,7 @@ class TrackingSettingsScreenTest {
 			}
 		}
 
-		composeTestRule.onNodeWithTag("stepsMotionRepair").performScrollTo()
+		scrollToTag("stepsMotionRepair")
 			.assertIsDisplayed()
 			.assertContentDescriptionEquals("Allow motion access for Steps")
 			.performClick()
@@ -693,7 +709,7 @@ class TrackingSettingsScreenTest {
 			}
 		}
 
-		composeTestRule.onNodeWithTag("stepsMotionRepair").performScrollTo()
+		scrollToTag("stepsMotionRepair")
 			.assertContentDescriptionEquals("Allow motion access for Steps")
 			.performClick()
 		repairs shouldBe 1
@@ -713,7 +729,7 @@ class TrackingSettingsScreenTest {
 				)
 			}
 		}
-		composeTestRule.onNodeWithTag("stepsMotionRepair").performScrollTo().assertIsDisplayed()
+		scrollToTag("stepsMotionRepair").assertIsDisplayed()
 		composeTestRule.runOnIdle {
 			current.value = current.value.copy(stepsEnabled = false, ambientStepsEnabled = false)
 		}
@@ -736,7 +752,7 @@ class TrackingSettingsScreenTest {
 				TrackingSettingsContent(current.value, onStepsProviderPermission = { repairs++ })
 			}
 		}
-		composeTestRule.onNodeWithTag("stepsMotionRepair").performScrollTo().assertIsDisplayed()
+		scrollToTag("stepsMotionRepair").assertIsDisplayed()
 		composeTestRule.runOnIdle {
 			current.value = current.value.copy(
 				ambientSourceAvailability = current.value.ambientSourceAvailability +
@@ -753,7 +769,7 @@ class TrackingSettingsScreenTest {
 		current.value.shouldRequestStepsMotionPermission(
 			34, Lifecycle.State.RESUMED, motionPermissionGranted = false,
 		) shouldBe false
-		composeTestRule.onNodeWithTag("stepsHealthConnectRepair").performScrollTo().performClick()
+		scrollToTag("stepsHealthConnectRepair").performClick()
 		repairs shouldBe 1
 	}
 
@@ -774,7 +790,7 @@ class TrackingSettingsScreenTest {
 				)
 			}
 		}
-		composeTestRule.onNodeWithTag("stepsMotionRepair").performScrollTo().performClick()
+		scrollToTag("stepsMotionRepair").performClick()
 
 		repairs shouldBe 1
 		settingChanges shouldBe 0
@@ -793,11 +809,11 @@ class TrackingSettingsScreenTest {
 				)
 			}
 		}
-		composeTestRule.onNodeWithTag("stepsMotionRepairError").performScrollTo().assertIsDisplayed()
+		scrollToTag("stepsMotionRepairError").assertIsDisplayed()
 		composeTestRule.onNodeWithText("Could not check the step provider. Try again later.")
 			.assertIsDisplayed()
 		composeTestRule.onNodeWithTag("stepsHealthConnectRepairError").assertDoesNotExist()
-		composeTestRule.onNodeWithTag("stepsMotionRepair").performScrollTo().performClick()
+		scrollToTag("stepsMotionRepair").performClick()
 		repairs shouldBe 1
 	}
 
@@ -906,6 +922,7 @@ class TrackingSettingsScreenTest {
 				TrackingSettingsContent(
 					uiState = defaultUiState.copy(
 						stepsEnabled = true,
+						activityPermissionGranted = true,
 						ambientSourceAvailability = availability,
 					),
 					onStepsProviderPermission = { repairRequested = true },
@@ -920,7 +937,7 @@ class TrackingSettingsScreenTest {
 			substring = true,
 		).assertIsDisplayed()
 		scrollTo("Allow background step updates")
-		composeTestRule.onNodeWithTag("stepsHealthConnectRepair").performScrollTo().performClick()
+		scrollToTag("stepsHealthConnectRepair").performClick()
 		repairRequested shouldBe true
 	}
 
@@ -1069,6 +1086,7 @@ class TrackingSettingsScreenTest {
         composeTestRule.onNodeWithTag("batteryEstimateCard").assertIsDisplayed()
         composeTestRule.onNodeWithText("Confidence: Low").assertDoesNotExist()
         composeTestRule.onNodeWithText("How this estimate works").performClick()
+        scrollTo("Confidence: Low")
         composeTestRule.onNodeWithText("Confidence: Low").assertIsDisplayed()
         scrollTo("No trustworthy percentage")
         composeTestRule.onNodeWithText("No trustworthy percentage", substring = true).assertIsDisplayed()
@@ -1254,7 +1272,7 @@ class TrackingSettingsScreenTest {
 					onAutoTrackingModeChanged = { changes++ })
 			}
 		}
-		composeTestRule.onNodeWithTag("automaticAllowAccess").performScrollTo().performClick()
+		scrollToTag("automaticAllowAccess").performClick()
 		repairs shouldBe 1
 		changes shouldBe 0
 	}
@@ -1269,7 +1287,7 @@ class TrackingSettingsScreenTest {
 					onStepsProviderPermission = { repairs++ })
 			}
 		}
-		composeTestRule.onNodeWithTag("stepsMotionRepair").performScrollTo().performClick()
+		scrollToTag("stepsMotionRepair").performClick()
 		repairs shouldBe 1
 	}
 
@@ -1285,7 +1303,7 @@ class TrackingSettingsScreenTest {
 			}
 		}
 		listOf("wifi", "cell").forEach { source ->
-			composeTestRule.onNodeWithTag("ambientSourcePermission-$source").performScrollTo().performClick()
+			scrollToTag("ambientSourcePermission-$source").performClick()
 		}
 		repairs shouldBe listOf(TrackingSourceComponent.WIFI, TrackingSourceComponent.CELL)
 	}

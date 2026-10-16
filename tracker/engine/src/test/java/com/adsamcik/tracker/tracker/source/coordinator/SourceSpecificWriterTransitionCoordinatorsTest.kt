@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.coordinator
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.deleteAllCollectedDataForTesting
 import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceCoordinatorLeaseEntity
@@ -49,6 +50,9 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// One Room transition fixture compares all source writers against the same owner, rollout and deletion
+// contracts.
+@Suppress("LargeClass")
 class SourceSpecificWriterTransitionCoordinatorsTest {
 	private lateinit var database: AppDatabase
 	private lateinit var catalog: ExecutableSourceLaneCatalog
@@ -650,7 +654,9 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 		seedContainedRollout()
 		val prepared = mutableSetOf<SourceKind>()
 		for (spec in SourceWriterTransitionSpec.entries) {
-			if (spec.initialOwner != null) seedInitialOwner(spec)
+			if (spec.initialOwner != null) {
+				seedInitialOwner(spec)
+			}
 			val engine = SourceWriterTransitionEngineFactory.forTest(database, catalog, dependencies()).create(spec)
 			val originalRevision = rollout().revision
 			engine.installInertCandidate(originalRevision, 10L, spec.finalBinding)
@@ -1039,6 +1045,8 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 				StepsWriterTransitionRuntimeHooks.forTest(StepsWriterTransitionTestDependencies(
 					startupGate = ReadyTrackingStartupGate,
 				))),
+			bootClockDomainProvider = dependencies().bootClockDomainProvider,
+			clock = dependencies().clock,
 		).rearmAfterFullDeletion(operationId, epoch, time)
 	}
 
@@ -1108,7 +1116,9 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 			operation: suspend () -> T,
 		): T? {
 			inputs += input
-			if (!accepted.remove(input.completedFullDeletion)) return null
+			if (!accepted.remove(input.completedFullDeletion)) {
+				return null
+			}
 			return operation()
 		}
 	}

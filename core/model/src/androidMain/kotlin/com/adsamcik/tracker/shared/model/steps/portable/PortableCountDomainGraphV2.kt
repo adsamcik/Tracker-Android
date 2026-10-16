@@ -11,6 +11,10 @@ object PortableCountDomainFormatV2 {
 	const val MAX_ROOTS: Int = 131_072
 }
 
+/**
+ * sha256-prefixed source identity retained verbatim across imports so overlapping count domains remain
+ * deduplicable.
+ */
 @JvmInline
 value class PortableCountDomainOpaqueIdentity(val value: String) {
 	init {
@@ -18,6 +22,7 @@ value class PortableCountDomainOpaqueIdentity(val value: String) {
 	}
 }
 
+/** Raw lowercase SHA-256 checksum for an owner effect or authority field; distinct from prefixed opaque identities. */
 @JvmInline
 value class PortableCountDomainDigest(val value: String) {
 	init {
@@ -25,18 +30,24 @@ value class PortableCountDomainDigest(val value: String) {
 	}
 }
 
+/** Identifies session facts, terminal session completeness or all-day facts within the shared count-domain graph. */
 enum class PortableCountDomainOwnerKind {
 	SESSION_FACT,
 	SESSION_COMPLETENESS,
 	AMBIENT_FACT,
 }
 
+/** BIND links an exact receipt; UNPROVEN withholds count authority and RETRACT removes the owner’s current effect. */
 enum class PortableCountDomainOperation {
 	BIND,
 	UNPROVEN,
 	RETRACT,
 }
 
+/**
+ * Exact count-evidence shape, distinguishing baseline, covered intervals, reset gaps, whole-run completeness
+ * and all-day aggregates.
+ */
 enum class PortableCountDomainCoverage {
 	BASELINE,
 	COVERED,
@@ -46,6 +57,7 @@ enum class PortableCountDomainCoverage {
 	AMBIENT_AGGREGATE,
 }
 
+/** Whether retirement has an exact durable count tail; UNPROVEN cannot claim a complete measured zero. */
 enum class PortableCountDomainCompletenessState {
 	COMPLETE,
 	UNPROVEN,
@@ -87,7 +99,12 @@ data class PortableCountDomainReceiptV2(
 		require(identity == PortableCountDomainIntegrity.receiptIdentity(this))
 	}
 
+	/** Constructs exact count receipts and retains source authority, epoch and coverage versions. */
 	companion object {
+		/**
+		 * Builds an immutable receipt and recomputes its identity from exact source authority, epoch and
+		 * coverage fields.
+		 */
 		@Suppress("LongParameterList")
 		fun create(
 			domainIdentity: PortableCountDomainOpaqueIdentity,
@@ -194,11 +211,16 @@ data class PortableCountDomainCompletenessMarkerV2(
 		)
 	}
 
+	/** Constructs terminal completeness markers, preserving an optional paired durable ordinal and sequence. */
 	companion object {
 		private val COMPLETE_FLUSH_OUTCOMES =
 			setOf("COMPLETE", "NOT_SUPPORTED", "NOT_REQUESTED")
 		private val COMPLETE_REMOVAL_OUTCOMES = setOf("REMOVED", "NOT_REGISTERED")
 
+		/**
+		 * Builds a terminal marker and checksum; COMPLETE requires a durable ordinal/sequence pair and
+		 * accepted teardown outcomes.
+		 */
 		@Suppress("LongParameterList")
 		fun create(
 			ownerIdentity: PortableCountDomainOpaqueIdentity,
@@ -289,12 +311,17 @@ data class PortableCountDomainGraphV2(
 		require(identity == PortableCountDomainIntegrity.graphIdentity(contentChecksum))
 	}
 
+	/** Canonically orders graph members and validates complete owner lineage before creating its identity. */
 	companion object {
 		private val FACT_OWNER_KINDS = setOf(
 			PortableCountDomainOwnerKind.SESSION_FACT,
 			PortableCountDomainOwnerKind.AMBIENT_FACT,
 		)
 
+		/**
+		 * Orders and validates the complete supplied graph; missing, duplicate or inconsistent ownership is
+		 * rejected.
+		 */
 		fun create(
 			receipts: List<PortableCountDomainReceiptV2>,
 			ownerRevisions: List<PortableCountDomainOwnerRevisionV2>,
@@ -332,7 +359,22 @@ data class PortableCountDomainGraphV2(
 		val receiptsByIdentity = receipts.associateBy { it.identity }
 		val ownersByLineage = ownerRevisions.groupBy { it.ownerKind to it.ownerIdentity }
 		require(ownersByLineage.size == roots.map { it.ownerKind to it.ownerIdentity }.distinct().size)
-		ownersByLineage.values.forEach { lineage ->
+		validateOwnerLineages(ownersByLineage.values)
+		validateReceiptBindings(receiptsByIdentity, ownersByLineage.values)
+		validateCompletenessMarkers(receiptsByIdentity)
+
+		val latestByLineage = ownersByLineage.mapValues { (_, lineage) -> lineage.last() }
+		roots.forEach { root ->
+			val latest = latestByLineage[root.ownerKind to root.ownerIdentity]
+				?: error("Portable root has no owner lineage")
+			require(root.ownerRevision == latest.ownerRevision)
+		}
+	}
+
+	private fun validateOwnerLineages(
+		lineages: Collection<List<PortableCountDomainOwnerRevisionV2>>,
+	) {
+		lineages.forEach { lineage ->
 			require(lineage.size <= PortableCountDomainFormatV2.MAX_OWNER_LINEAGE_REVISIONS)
 			require(lineage.map { it.scopeIdentity }.distinct().size == 1)
 			require(lineage.zipWithNext().all { (left, right) ->
@@ -358,6 +400,12 @@ data class PortableCountDomainGraphV2(
 					)
 			})
 		}
+	}
+
+	private fun validateReceiptBindings(
+		receiptsByIdentity: Map<PortableCountDomainOpaqueIdentity, PortableCountDomainReceiptV2>,
+		lineages: Collection<List<PortableCountDomainOwnerRevisionV2>>,
+	) {
 		val referencedReceipts = ownerRevisions.mapNotNull { owner ->
 			val receiptIdentity = owner.receiptIdentity ?: return@mapNotNull null
 			val receipt = receiptsByIdentity[receiptIdentity] ?: error("Missing portable receipt")
@@ -371,7 +419,7 @@ data class PortableCountDomainGraphV2(
 		}
 		require(referencedReceipts.distinct().size == referencedReceipts.size)
 		require(referencedReceipts.toSet() == receiptsByIdentity.keys)
-		ownersByLineage.values.forEach { lineage ->
+		lineages.forEach { lineage ->
 			if (lineage.first().ownerKind in FACT_OWNER_KINDS) {
 				val boundReceipts = lineage.mapNotNull { owner ->
 					owner.receiptIdentity?.let(receiptsByIdentity::get)
@@ -389,7 +437,11 @@ data class PortableCountDomainGraphV2(
 				}
 			}
 		}
+	}
 
+	private fun validateCompletenessMarkers(
+		receiptsByIdentity: Map<PortableCountDomainOpaqueIdentity, PortableCountDomainReceiptV2>,
+	) {
 		val markersByOwner = completenessMarkers.associateBy {
 			it.ownerIdentity to it.ownerRevision
 		}
@@ -420,13 +472,6 @@ data class PortableCountDomainGraphV2(
 				.filter { it.ownerKind == PortableCountDomainOwnerKind.SESSION_COMPLETENESS }
 				.mapTo(linkedSetOf()) { it.ownerIdentity to it.ownerRevision },
 		)
-
-		val latestByLineage = ownersByLineage.mapValues { (_, lineage) -> lineage.last() }
-		roots.forEach { root ->
-			val latest = latestByLineage[root.ownerKind to root.ownerIdentity]
-				?: error("Portable root has no owner lineage")
-			require(root.ownerRevision == latest.ownerRevision)
-		}
 	}
 
 }
@@ -481,8 +526,13 @@ val PORTABLE_COUNT_DOMAIN_ROOT_ORDER: Comparator<PortableCountDomainRootV2> =
 		.thenBy { it.ownerKind.ordinal }
 		.thenBy { it.ownerIdentity.value }
 
+/** Computes canonical graph and original receipt identities without replacing source identity on import. */
 @Suppress("TooManyFunctions")
 object PortableCountDomainIntegrity {
+	/**
+	 * Recomputes the original receipt identity from its exact stored fields, including epoch and optional
+	 * completeness checksum.
+	 */
 	fun receiptIdentity(receipt: PortableCountDomainReceiptV2): PortableCountDomainOpaqueIdentity =
 		receiptIdentity(
 			receipt.domainIdentity,
@@ -501,6 +551,10 @@ object PortableCountDomainIntegrity {
 			receipt.completenessEvidenceChecksum,
 		)
 
+	/**
+	 * Computes the original receipt identity from source authority, owner revision and coverage fields; no
+	 * import-job identity is added.
+	 */
 	@Suppress("LongParameterList")
 	fun receiptIdentity(
 		domainIdentity: PortableCountDomainOpaqueIdentity,
@@ -535,6 +589,7 @@ object PortableCountDomainIntegrity {
 		completenessEvidenceChecksum?.value,
 	)
 
+	/** Recomputes the terminal marker checksum while keeping unknown durable-tail values null. */
 	fun completenessMarkerChecksum(
 		marker: PortableCountDomainCompletenessMarkerV2,
 	): PortableCountDomainDigest = completenessMarkerChecksum(
@@ -548,6 +603,7 @@ object PortableCountDomainIntegrity {
 		marker.registrationTimelineChecksum,
 	)
 
+	/** Hashes exact terminal ownership, optional paired ordinal/sequence and provider/removal outcomes. */
 	@Suppress("LongParameterList")
 	fun completenessMarkerChecksum(
 		ownerIdentity: PortableCountDomainOpaqueIdentity,
@@ -571,6 +627,10 @@ object PortableCountDomainIntegrity {
 		registrationTimelineChecksum.value,
 	)
 
+	/**
+	 * Hashes the supplied canonical receipt, owner, marker and root lists, including original epochs and
+	 * linked UTC milliseconds.
+	 */
 	fun graphChecksum(
 		receipts: List<PortableCountDomainReceiptV2>,
 		owners: List<PortableCountDomainOwnerRevisionV2>,
@@ -635,6 +695,7 @@ object PortableCountDomainIntegrity {
 		),
 	)
 
+	/** Derives a graph identity from its content checksum under a separate graph namespace. */
 	fun graphIdentity(
 		contentChecksum: PortableCountDomainOpaqueIdentity,
 	): PortableCountDomainOpaqueIdentity = opaqueDigest(
@@ -642,6 +703,7 @@ object PortableCountDomainIntegrity {
 		contentChecksum.value,
 	)
 
+	/** Creates an identity for an unproven product owner without fabricating a bound count receipt. */
 	fun unprovenOwnerIdentity(
 		ownerKind: PortableCountDomainOwnerKind,
 		productIdentity: String,
@@ -650,6 +712,10 @@ object PortableCountDomainIntegrity {
 		listOf(ownerKind.name, productIdentity),
 	)
 
+	/**
+	 * Creates an unproven scope identity from the product container, preserving its separation from measured
+	 * receipt authority.
+	 */
 	fun unprovenScopeIdentity(
 		containerIdentity: String,
 	): PortableCountDomainOpaqueIdentity = opaqueDigest(
@@ -657,6 +723,7 @@ object PortableCountDomainIntegrity {
 		containerIdentity,
 	)
 
+	/** Binds an unproven owner to the exact product identity and checksum without claiming count-domain coverage. */
 	fun unprovenEffectChecksum(
 		ownerKind: PortableCountDomainOwnerKind,
 		productIdentity: String,
@@ -681,28 +748,40 @@ object PortableCountDomainIntegrity {
 	private fun nativeDigest(vararg values: Any?): String {
 		val canonical = values.joinToString(separator = "") { value ->
 			val text = value?.toString()
-			if (text == null) "-1:" else "${text.length}:$text"
+			if (text == null) {
+				"-1:"
+			} else {
+				"${text.length}:$text"
+			}
 		}
 		return MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray(Charsets.UTF_8))
-			.joinToString("") { byte ->
-				(byte.toInt() and 0xff).toString(16).padStart(2, '0')
-			}
+			.lowercaseHexDigest()
 	}
 
 	private fun digest(namespace: String, value: Any?): String {
 		val digest = MessageDigest.getInstance("SHA-256")
 		digest.appendCanonical(listOf(namespace, value))
-		return digest.digest().joinToString("") { byte ->
-			(byte.toInt() and 0xff).toString(16).padStart(2, '0')
-		}
+		return digest.digest().lowercaseHexDigest()
 	}
+
+	private fun ByteArray.lowercaseHexDigest(): String = joinToString("") { byte ->
+		(byte.toInt() and DIGEST_BYTE_MASK).toString(HEX_RADIX).padStart(HEX_BYTE_WIDTH, '0')
+	}
+
+	private const val DIGEST_BYTE_MASK = 0xff
+	private const val HEX_RADIX = 16
+	private const val HEX_BYTE_WIDTH = 2
 
 	private fun MessageDigest.appendCanonical(value: Any?) {
 		when (value) {
 			null -> update("N;".toByteArray(Charsets.UTF_8))
-			is Boolean -> update(if (value) byteArrayOf('B'.code.toByte(), '1'.code.toByte(), ';'.code.toByte())
-			else byteArrayOf('B'.code.toByte(), '0'.code.toByte(), ';'.code.toByte()))
+			is Boolean -> update(if (value) {
+				byteArrayOf('B'.code.toByte(), '1'.code.toByte(), ';'.code.toByte())
+			}
+			else {
+				byteArrayOf('B'.code.toByte(), '0'.code.toByte(), ';'.code.toByte())
+			})
 			is Int -> appendCanonical(value.toLong())
 			is Long -> update("I$value;".toByteArray(Charsets.UTF_8))
 			is String -> {

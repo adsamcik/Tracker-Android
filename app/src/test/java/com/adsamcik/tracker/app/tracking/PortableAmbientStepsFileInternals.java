@@ -90,7 +90,8 @@ final class PortableAmbientStepsFileInternals {
             String fileName,
             String entryKey,
             String jobId,
-            long receivedAtMs
+            long receivedAtMs,
+            long originalDataEpoch
     ) {
         FileImportStream stream = new FileImportStream(
                 fileName,
@@ -110,7 +111,14 @@ final class PortableAmbientStepsFileInternals {
                 throw new IllegalStateException("FileImportStream receipt binder is missing");
             }
             binder.setAccessible(true);
-            return (FileImportStream) binder.invoke(stream, jobId, receivedAtMs);
+            FileImportStream receiptBound = (FileImportStream) binder.invoke(stream, jobId, receivedAtMs);
+            for (Method method : FileImportStream.class.getDeclaredMethods()) {
+                if (method.getName().startsWith("withOriginalDataEpoch")) {
+                    method.setAccessible(true);
+                    return (FileImportStream) method.invoke(receiptBound, originalDataEpoch);
+                }
+            }
+            throw new IllegalStateException("FileImportStream original epoch binder is missing");
         } catch (ReflectiveOperationException failure) {
             throw new IllegalStateException("Could not bind the durable import receipt", failure);
         }

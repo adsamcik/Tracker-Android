@@ -22,17 +22,31 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedPressureWindowEnti
  * source-local writer validates the complete lineage, receipt, epoch, deletion generation, and
  * checksums in one transaction before using these inserts.
  */
+// Keep the ImportedPressureDao SQL contract together; query text accounts for this declaration's size.
+@Suppress("LargeClass")
 @Dao
 abstract class ImportedPressureDao {
+	/**
+	 * Inserts [ImportedPressureEntryRevisionEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertEntryRevision(entry: ImportedPressureEntryRevisionEntity)
 
+	/**
+	 * Inserts [ImportedPressureRunEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertRun(run: ImportedPressureRunEntity)
 
+	/**
+	 * Inserts [ImportedPressureWindowEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertWindow(window: ImportedPressureWindowEntity)
 
+	/**
+	 * Inserts [ImportedPressureReceiptEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertReceipt(receipt: ImportedPressureReceiptEntity)
 
@@ -47,28 +61,51 @@ abstract class ImportedPressureDao {
 		insertDeletionGenerationRow(generation)
 	}
 
+	/**
+	 * Inserts [ImportedPressureEntryDeletionEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertEntryDeletion(deletion: ImportedPressureEntryDeletionEntity)
 
+	/**
+	 * Inserts [ImportedPressureRetentionReceiptEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertRetentionReceipt(receipt: ImportedPressureRetentionReceiptEntity)
 
+	/**
+	 * Inserts [ImportedPressureRetainedIdentityEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertRetainedIdentities(values: List<ImportedPressureRetainedIdentityEntity>)
 
+	/**
+	 * Inserts [ImportedPressureSourceEraseEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertSourceErase(value: ImportedPressureSourceEraseEntity)
 
+	/**
+	 * Inserts [ImportedPressureIdentityFenceEntity] rows. Existing conflicting rows remain unchanged.
+	 * An ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	abstract suspend fun insertIdentityFences(
 		values: List<ImportedPressureIdentityFenceEntity>,
 	): List<Long>
 
+	/**
+	 * Inserts [ImportedPressureSourceEraseWitnessEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertSourceEraseWitnesses(
 		values: List<ImportedPressureSourceEraseWitnessEntity>,
 	)
 
+	/**
+	 * Reads `imported_pressure_entry_revision` rows. Query conditions include `identity = :identity`,
+	 * `import_revision = :revision`. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM imported_pressure_entry_revision " +
 			"WHERE identity = :identity AND import_revision = :revision",
@@ -78,6 +115,10 @@ abstract class ImportedPressureDao {
 		revision: Long,
 	): ImportedPressureEntryRevisionEntity?
 
+	/**
+	 * Reads `imported_pressure_entry_revision` rows. Query conditions include `identity = :identity`.
+	 * Orders by `import_revision DESC`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM imported_pressure_entry_revision WHERE identity = :identity " +
 			"ORDER BY import_revision DESC LIMIT 1",
@@ -504,6 +545,10 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<Long>
 
+	/**
+	 * Reads row and storage-size counters for the selected dependencies before loading payloads.
+	 * Query conditions include `rowid = :ownerRowId`.
+	 */
 	@Query(
 		"""
 		WITH owner(identity) AS (
@@ -578,6 +623,10 @@ abstract class ImportedPressureDao {
 		ownerRowId: Long,
 	): ImportedPressureLineageFootprint
 
+	/**
+	 * Reads `imported_pressure_entry_revision` rows. Query conditions include `rowid = :ownerRowId`.
+	 * Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"""
 		WITH owner(identity) AS (
@@ -610,6 +659,9 @@ abstract class ImportedPressureDao {
 		ownerRowId: Long,
 	): ImportedPressureHistoryCandidate?
 
+	/**
+	 * Reads `imported_pressure_entry_revision` rows. Query conditions include `rowid = :ownerRowId`.
+	 */
 	@Query(
 		"""
 		WITH owner(identity) AS (
@@ -621,6 +673,10 @@ abstract class ImportedPressureDao {
 	)
 	abstract suspend fun liveOwnerHeaderCount(ownerRowId: Long): Long
 
+	/**
+	 * Deletes `imported_pressure_entry_revision` rows matching the supplied scope. Query conditions
+	 * include `rowid = :ownerRowId`. Returns the affected row count.
+	 */
 	@Query(
 		"""
 		WITH owner(identity) AS (
@@ -803,6 +859,10 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<ImportedPressureEntryRevisionEntity>
 
+	/**
+	 * Reads `imported_pressure_receipt` rows. Query conditions include `import_job_id = :jobId`,
+	 * `import_entry_key = :entryKey`. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM imported_pressure_receipt " +
 			"WHERE import_job_id = :jobId AND import_entry_key = :entryKey",
@@ -845,6 +905,10 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<ImportedPressureReceiptEntity>
 
+	/**
+	 * Reads the selected Pressure entry revision's runs in start-time/identity order, capped at the
+	 * format's maximum runs per entry.
+	 */
 	suspend fun runs(identity: String, revision: Long): List<ImportedPressureRunEntity> =
 		loadRuns(identity, revision, MAX_RUNS_PER_ENTRY)
 
@@ -888,6 +952,10 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<ImportedPressureRunEntity>
 
+	/**
+	 * Reads one Pressure run's windows in measured UTC interval and identity order, capped at the
+	 * format's maximum windows per run.
+	 */
 	suspend fun windows(
 		entryIdentity: String,
 		entryRevision: Long,
@@ -941,6 +1009,10 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<ImportedPressureWindowEntity>
 
+	/**
+	 * Reads distinct `identity` values from `imported_pressure_entry_revision`. Query conditions
+	 * include `identity IN (:identities)`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT DISTINCT identity FROM imported_pressure_entry_revision " +
 			"WHERE identity IN (:identities) LIMIT :limit",
@@ -950,6 +1022,10 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<String>
 
+	/**
+	 * Reads `imported_pressure_run` rows. Query conditions include `identity IN (:identities)`.
+	 * Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT DISTINCT identity, entry_identity FROM imported_pressure_run " +
 			"WHERE identity IN (:identities) LIMIT :limit",
@@ -959,6 +1035,10 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<ImportedPressureRunIdentityOwner>
 
+	/**
+	 * Reads `imported_pressure_window` rows. Query conditions include `identity IN (:identities)`.
+	 * Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT DISTINCT identity, entry_identity, run_identity FROM imported_pressure_window " +
 			"WHERE identity IN (:identities) LIMIT :limit",
@@ -968,12 +1048,20 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<ImportedPressureWindowIdentityOwner>
 
+	/**
+	 * Counts rows in `imported_pressure_run`. Query conditions include `entry_identity = :identity`,
+	 * `entry_import_revision = :revision`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM imported_pressure_run " +
 			"WHERE entry_identity = :identity AND entry_import_revision = :revision",
 	)
 	abstract suspend fun runCount(identity: String, revision: Long): Int
 
+	/**
+	 * Counts rows in `imported_pressure_window`. Query conditions include `entry_identity =
+	 * :entryIdentity`, `entry_import_revision = :entryRevision`, `run_identity = :runIdentity`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM imported_pressure_window " +
 			"WHERE entry_identity = :entryIdentity AND entry_import_revision = :entryRevision " +
@@ -985,27 +1073,51 @@ abstract class ImportedPressureDao {
 		runIdentity: String,
 	): Int
 
+	/**
+	 * Reads `imported_pressure_deletion_generation` rows. Query conditions include `run_identity =
+	 * :runIdentity`. Returns null when no row matches.
+	 */
 	@Query("SELECT * FROM imported_pressure_deletion_generation WHERE run_identity = :runIdentity")
 	abstract suspend fun deletionGeneration(runIdentity: String): ImportedPressureDeletionGenerationEntity?
 
+	/**
+	 * Reads `imported_pressure_deletion_generation` rows. Query conditions include `run_identity IN
+	 * (:runIdentities)`.
+	 */
 	@Query("SELECT * FROM imported_pressure_deletion_generation WHERE run_identity IN (:runIdentities)")
 	abstract suspend fun deletionGenerations(
 		runIdentities: List<String>,
 	): List<ImportedPressureDeletionGenerationEntity>
 
+	/**
+	 * Reads `imported_pressure_entry_deletion` rows. Query conditions include `entry_identity =
+	 * :entryIdentity`. Returns null when no row matches.
+	 */
 	@Query("SELECT * FROM imported_pressure_entry_deletion WHERE entry_identity = :entryIdentity")
 	abstract suspend fun entryDeletion(entryIdentity: String): ImportedPressureEntryDeletionEntity?
 
+	/**
+	 * Reads `imported_pressure_entry_deletion` rows. Query conditions include `entry_identity IN
+	 * (:entryIdentities)`.
+	 */
 	@Query("SELECT * FROM imported_pressure_entry_deletion WHERE entry_identity IN (:entryIdentities)")
 	abstract suspend fun entryDeletions(
 		entryIdentities: List<String>,
 	): List<ImportedPressureEntryDeletionEntity>
 
+	/**
+	 * Reads `imported_pressure_retention_receipt` rows. Query conditions include `entry_identity =
+	 * :entryIdentity`. Returns null when no row matches.
+	 */
 	@Query("SELECT * FROM imported_pressure_retention_receipt WHERE entry_identity = :entryIdentity")
 	abstract suspend fun retentionReceipt(
 		entryIdentity: String,
 	): ImportedPressureRetentionReceiptEntity?
 
+	/**
+	 * Reads `imported_pressure_retention_receipt` rows. Query conditions include `entry_identity IN
+	 * (:entryIdentities)`.
+	 */
 	@Query(
 		"SELECT * FROM imported_pressure_retention_receipt " +
 			"WHERE entry_identity IN (:entryIdentities)",
@@ -1014,6 +1126,10 @@ abstract class ImportedPressureDao {
 		entryIdentities: List<String>,
 	): List<ImportedPressureRetentionReceiptEntity>
 
+	/**
+	 * Reads `imported_pressure_retention_receipt` rows. Query conditions include `entry_identity >
+	 * :afterIdentity`. Orders by `entry_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_pressure_retention_receipt " +
 			"WHERE :afterIdentity IS NULL OR entry_identity > :afterIdentity " +
@@ -1034,6 +1150,10 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<Long>
 
+	/**
+	 * Reads row and storage-size counters for the selected dependencies before loading payloads.
+	 * Query conditions include `rowid = :ownerRowId`, `identity_kind = 'RUN'`.
+	 */
 	@Query(
 		"""
 		WITH owner(entry_identity) AS (
@@ -1097,11 +1217,19 @@ abstract class ImportedPressureDao {
 		ownerRowId: Long,
 	): ImportedPressureRetainedFootprint
 
+	/**
+	 * Reads `imported_pressure_retention_receipt` rows. Query conditions include `rowid =
+	 * :ownerRowId`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query("SELECT * FROM imported_pressure_retention_receipt WHERE rowid = :ownerRowId LIMIT 1")
 	abstract suspend fun retentionReceiptByOwnerRowId(
 		ownerRowId: Long,
 	): ImportedPressureRetentionReceiptEntity?
 
+	/**
+	 * Deletes `imported_pressure_retention_receipt` rows matching the supplied scope. Query
+	 * conditions include `rowid = :ownerRowId`. Returns the affected row count.
+	 */
 	@Query(
 		"""
 		WITH owner(entry_identity) AS (
@@ -1113,9 +1241,18 @@ abstract class ImportedPressureDao {
 	)
 	abstract suspend fun deleteRetainedOwnerMarkersByRowId(ownerRowId: Long): Int
 
+	/**
+	 * Deletes `imported_pressure_retention_receipt` rows matching the supplied scope. Query
+	 * conditions include `rowid = :ownerRowId`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM imported_pressure_retention_receipt WHERE rowid = :ownerRowId")
 	abstract suspend fun deleteRetentionReceiptByOwnerRowId(ownerRowId: Long): Int
 
+	/**
+	 * Reads `imported_pressure_retained_identity` rows. Query conditions include `entry_identity IN
+	 * (:entryIdentities)`. Orders by `entry_identity, identity_kind, protected_identity`. Returns at
+	 * most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_pressure_retained_identity " +
 			"WHERE entry_identity IN (:entryIdentities) " +
@@ -1126,6 +1263,10 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<ImportedPressureRetainedIdentityEntity>
 
+	/**
+	 * Reads `imported_pressure_retained_identity` rows. Query conditions include `protected_identity
+	 * IN (:identities)`. Orders by `protected_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_pressure_retained_identity " +
 			"WHERE protected_identity IN (:identities) ORDER BY protected_identity LIMIT :limit",
@@ -1135,6 +1276,10 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<ImportedPressureRetainedIdentityEntity>
 
+	/**
+	 * Reads `imported_pressure_identity_fence` rows. Query conditions include `protected_identity IN
+	 * (:identities)`. Orders by `protected_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_pressure_identity_fence " +
 			"WHERE protected_identity IN (:identities) ORDER BY protected_identity LIMIT :limit",
@@ -1144,6 +1289,10 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<ImportedPressureIdentityFenceEntity>
 
+	/**
+	 * Reads `imported_pressure_identity_fence` rows. Query conditions include `entry_identity =
+	 * :entryIdentity`. Orders by `identity_kind, protected_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_pressure_identity_fence WHERE entry_identity = :entryIdentity " +
 			"ORDER BY identity_kind, protected_identity LIMIT :limit",
@@ -1185,6 +1334,11 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<Long>
 
+	/**
+	 * Reads row and storage-size counters for the selected dependencies before loading payloads.
+	 * Query conditions include `rowid = :ownerRowId`, `identity_kind = 'ENTRY'`, `identity_kind =
+	 * 'RUN'`.
+	 */
 	@Query(
 		"""
 		WITH owner(entry_identity) AS (
@@ -1236,11 +1390,20 @@ abstract class ImportedPressureDao {
 		ownerRowId: Long,
 	): ImportedPressurePermanentOwnerFootprint
 
+	/**
+	 * Reads `imported_pressure_entry_deletion` rows. Query conditions include `rowid = :ownerRowId`.
+	 * Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query("SELECT * FROM imported_pressure_entry_deletion WHERE rowid = :ownerRowId LIMIT 1")
 	abstract suspend fun entryDeletionByOwnerRowId(
 		ownerRowId: Long,
 	): ImportedPressureEntryDeletionEntity?
 
+	/**
+	 * Reads row and storage-size counters for the selected dependencies before loading payloads.
+	 * Query conditions include `rowid = :ownerRowId`, `identity_kind = 'ENTRY'`, `identity_kind =
+	 * 'RUN'`.
+	 */
 	@Query(
 		"""
 		WITH owner(entry_identity) AS (
@@ -1292,11 +1455,19 @@ abstract class ImportedPressureDao {
 		ownerRowId: Long,
 	): ImportedPressurePermanentOwnerFootprint
 
+	/**
+	 * Reads `imported_pressure_identity_fence` rows. Query conditions include `rowid = :ownerRowId`.
+	 * Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query("SELECT * FROM imported_pressure_identity_fence WHERE rowid = :ownerRowId LIMIT 1")
 	abstract suspend fun identityFenceByOwnerRowId(
 		ownerRowId: Long,
 	): ImportedPressureIdentityFenceEntity?
 
+	/**
+	 * Reads `imported_pressure_identity_fence` rows. Query conditions include `protected_identity >
+	 * :afterIdentity`. Orders by `protected_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_pressure_identity_fence " +
 			"WHERE :afterIdentity IS NULL OR protected_identity > :afterIdentity " +
@@ -1307,9 +1478,16 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<ImportedPressureIdentityFenceEntity>
 
+	/**
+	 * Counts rows in `imported_pressure_identity_fence`.
+	 */
 	@Query("SELECT COUNT(*) FROM imported_pressure_identity_fence")
 	abstract suspend fun identityFenceCount(): Long
 
+	/**
+	 * Reads row and storage-size counters for the selected dependencies before loading payloads.
+	 * Query conditions include `entry_identity = :entryIdentity`.
+	 */
 	@Query(
 		"""
 		SELECT
@@ -1372,6 +1550,9 @@ abstract class ImportedPressureDao {
 		entryIdentity: String,
 	): ImportedPressureRetainedFootprint
 
+	/**
+	 * Reads row and storage-size counters for the selected dependencies before loading payloads.
+	 */
 	@Query(
 		"""
 		SELECT
@@ -1402,6 +1583,9 @@ abstract class ImportedPressureDao {
 	)
 	abstract suspend fun retainedMaintenanceFootprint(): ImportedPressureRetainedFootprint
 
+	/**
+	 * Reads row and storage-size counters for the selected dependencies before loading payloads.
+	 */
 	@Query(
 		"""
 		SELECT
@@ -1491,12 +1675,21 @@ abstract class ImportedPressureDao {
 		identities: List<String>,
 	): ImportedPressureIdentityAuthorityFootprint
 
+	/**
+	 * Counts rows in `imported_pressure_retention_receipt`.
+	 */
 	@Query("SELECT COUNT(*) FROM imported_pressure_retention_receipt")
 	abstract suspend fun retentionReceiptCount(): Long
 
+	/**
+	 * Counts rows in `imported_pressure_retained_identity`.
+	 */
 	@Query("SELECT COUNT(*) FROM imported_pressure_retained_identity")
 	abstract suspend fun retainedIdentityCount(): Long
 
+	/**
+	 * Counts rows in `imported_pressure_retained_identity`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM imported_pressure_retained_identity AS marker " +
 			"LEFT JOIN imported_pressure_retention_receipt AS receipt " +
@@ -1505,9 +1698,18 @@ abstract class ImportedPressureDao {
 	)
 	abstract suspend fun orphanRetainedIdentityCount(): Long
 
+	/**
+	 * Reads `imported_pressure_source_erase` rows. Query conditions include `id = 1`. Returns null
+	 * when no row matches.
+	 */
 	@Query("SELECT * FROM imported_pressure_source_erase WHERE id = 1")
 	abstract suspend fun sourceErase(): ImportedPressureSourceEraseEntity?
 
+	/**
+	 * Reads `imported_pressure_source_erase_witness` rows. Query conditions include `witness_kind >
+	 * :afterKind`, `witness_kind = :afterKind`. Orders by `witness_kind, witness_identity`. Returns
+	 * at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_pressure_source_erase_witness " +
 			"WHERE :afterKind IS NULL OR witness_kind > :afterKind OR " +
@@ -1520,9 +1722,15 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<ImportedPressureSourceEraseWitnessEntity>
 
+	/**
+	 * Counts rows in `imported_pressure_source_erase_witness`.
+	 */
 	@Query("SELECT COUNT(*) FROM imported_pressure_source_erase_witness")
 	abstract suspend fun sourceEraseWitnessCount(): Long
 
+	/**
+	 * Deletes `imported_pressure_source_erase_witness` rows. Returns the affected row count.
+	 */
 	@Query("DELETE FROM imported_pressure_source_erase_witness")
 	abstract fun deleteSourceEraseWitnesses(): Int
 
@@ -1582,6 +1790,10 @@ abstract class ImportedPressureDao {
 		effectChecksum: String,
 	): Int
 
+	/**
+	 * Replaces the singleton Pressure erase witness only while its saved data epoch and
+	 * source-evidence revision match expected; returns the affected row count.
+	 */
 	suspend fun replaceSourceErase(
 		expected: ImportedPressureSourceEraseEntity,
 		replacement: ImportedPressureSourceEraseEntity,
@@ -1613,6 +1825,10 @@ abstract class ImportedPressureDao {
 		effectChecksum = replacement.effectChecksum,
 	)
 
+	/**
+	 * Reads `imported_pressure_entry_deletion` rows. Query conditions include `entry_identity >
+	 * :afterIdentity`. Orders by `entry_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_pressure_entry_deletion " +
 			"WHERE :afterIdentity IS NULL OR entry_identity > :afterIdentity " +
@@ -1623,6 +1839,10 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<ImportedPressureEntryDeletionEntity>
 
+	/**
+	 * Reads `imported_pressure_deletion_generation` rows. Query conditions include `run_identity >
+	 * :afterIdentity`. Orders by `run_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_pressure_deletion_generation " +
 			"WHERE :afterIdentity IS NULL OR run_identity > :afterIdentity " +
@@ -1633,9 +1853,15 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<ImportedPressureDeletionGenerationEntity>
 
+	/**
+	 * Counts rows in `imported_pressure_entry_deletion`.
+	 */
 	@Query("SELECT COUNT(*) FROM imported_pressure_entry_deletion")
 	abstract suspend fun entryDeletionCount(): Long
 
+	/**
+	 * Counts rows in `imported_pressure_deletion_generation`.
+	 */
 	@Query("SELECT COUNT(*) FROM imported_pressure_deletion_generation")
 	abstract suspend fun deletionGenerationCount(): Long
 
@@ -1698,12 +1924,24 @@ abstract class ImportedPressureDao {
 	)
 	abstract suspend fun deleteEntryRevision(identity: String, revision: Long): Int
 
+	/**
+	 * Deletes `imported_pressure_entry_revision` rows matching the supplied scope. Query conditions
+	 * include `identity = :identity`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM imported_pressure_entry_revision WHERE identity = :identity")
 	abstract suspend fun deleteEntryRevisionLineage(identity: String): Int
 
+	/**
+	 * Deletes `imported_pressure_retained_identity` rows matching the supplied scope. Query
+	 * conditions include `entry_identity = :identity`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM imported_pressure_retained_identity WHERE entry_identity = :identity")
 	abstract suspend fun deleteRetainedIdentities(identity: String): Int
 
+	/**
+	 * Deletes `imported_pressure_retention_receipt` rows matching the supplied scope. Query
+	 * conditions include `entry_identity = :identity`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM imported_pressure_retention_receipt WHERE entry_identity = :identity")
 	abstract suspend fun deleteRetentionReceipt(identity: String): Int
 
@@ -1711,6 +1949,9 @@ abstract class ImportedPressureDao {
 	@Query("DELETE FROM imported_pressure_entry_revision")
 	abstract fun deleteAllEntries()
 
+	/**
+	 * Deletes `imported_pressure_receipt` rows.
+	 */
 	@Query("DELETE FROM imported_pressure_receipt")
 	abstract fun deleteAllReceipts()
 
@@ -1722,9 +1963,15 @@ abstract class ImportedPressureDao {
 	@Query("DELETE FROM imported_pressure_entry_deletion")
 	abstract fun deleteAllEntryDeletions()
 
+	/**
+	 * Deletes `imported_pressure_retained_identity` rows.
+	 */
 	@Query("DELETE FROM imported_pressure_retained_identity")
 	abstract fun deleteAllRetainedIdentities()
 
+	/**
+	 * Deletes `imported_pressure_retention_receipt` rows.
+	 */
 	@Query("DELETE FROM imported_pressure_retention_receipt")
 	abstract fun deleteAllRetentionReceipts()
 
@@ -1742,6 +1989,10 @@ abstract class ImportedPressureDao {
 	private fun historyLimit(identityCount: Int, maximumPerIdentity: Int): Int =
 		Math.addExact(Math.multiplyExact(identityCount, maximumPerIdentity), 1)
 
+	/**
+	 * Limits for bounded Pressure admission, lineage and maintenance reads; callers detect overflow
+	 * before loading more dependencies.
+	 */
 	companion object {
 		const val MAX_RUNS_PER_ENTRY = 64
 		const val MAX_WINDOWS_PER_RUN = 2_048
@@ -1758,6 +2009,10 @@ abstract class ImportedPressureDao {
 	}
 }
 
+/**
+ * Row and UTF-8 text-byte totals for imported Pressure headers, receipts, runs, windows and
+ * privacy fences.
+ */
 data class ImportedPressureLineageFootprint(
 	@ColumnInfo(name = "header_count") val headerCount: Long,
 	@ColumnInfo(name = "header_text_bytes") val headerTextBytes: Long,
@@ -1787,6 +2042,10 @@ data class ImportedPressureLineageFootprint(
 		)
 }
 
+/**
+ * Row and UTF-8 text-byte totals for retained Pressure receipts, identity markers and deletion
+ * metadata.
+ */
 data class ImportedPressureRetainedFootprint(
 	@ColumnInfo(name = "receipt_count") val receiptCount: Long,
 	@ColumnInfo(name = "receipt_text_bytes") val receiptTextBytes: Long,
@@ -1809,6 +2068,10 @@ data class ImportedPressureRetainedFootprint(
 		)
 }
 
+/**
+ * Row and UTF-8 text-byte totals for Pressure deletion, identity-fence and source-erasure
+ * dependencies.
+ */
 data class ImportedPressurePrivacyFootprint(
 	@ColumnInfo(name = "identity_fence_count") val identityFenceCount: Long,
 	@ColumnInfo(name = "identity_fence_text_bytes") val identityFenceTextBytes: Long,
@@ -1831,6 +2094,9 @@ data class ImportedPressurePrivacyFootprint(
 		)
 }
 
+/**
+ * Row and text-byte totals for retained Pressure identity and deletion authority dependencies.
+ */
 data class ImportedPressureIdentityAuthorityFootprint(
 	@ColumnInfo(name = "retained_marker_count") val retainedMarkerCount: Long,
 	@ColumnInfo(name = "retained_marker_text_bytes") val retainedMarkerTextBytes: Long,
@@ -1848,6 +2114,9 @@ data class ImportedPressureIdentityAuthorityFootprint(
 		)
 }
 
+/**
+ * Row and text-byte totals for permanent imported Pressure ownership dependencies.
+ */
 data class ImportedPressurePermanentOwnerFootprint(
 	@ColumnInfo(name = "entry_deletion_count") val entryDeletionCount: Long,
 	@ColumnInfo(name = "entry_deletion_text_bytes") val entryDeletionTextBytes: Long,
@@ -1864,6 +2133,10 @@ data class ImportedPressurePermanentOwnerFootprint(
 		)
 }
 
+/**
+ * Saved Pressure import identity, revision and time metadata selected before complete
+ * retained-lineage qualification.
+ */
 data class ImportedPressureHistoryCandidate(
 	val identity: String,
 	@ColumnInfo(name = "import_revision") val importRevision: Long,
@@ -1876,16 +2149,25 @@ data class ImportedPressureHistoryCandidate(
 	@ColumnInfo(name = "candidate_state") val candidateState: String,
 )
 
+/**
+ * Dependency footprint used to bound the retained authority needed for Pressure history ordering.
+ */
 data class ImportedPressureHistoryRecencyAuthorityPreflight(
 	@ColumnInfo(name = "invalid_live_recency_count") val invalidLiveRecencyCount: Long,
 	@ColumnInfo(name = "duplicate_recency_tuple_count") val duplicateRecencyTupleCount: Long,
 )
 
+/**
+ * Associates an imported Pressure run identity with its owning entry and deletion scope.
+ */
 data class ImportedPressureRunIdentityOwner(
 	val identity: String,
 	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
 )
 
+/**
+ * Associates an imported Pressure measurement-window identity with its owning run and entry.
+ */
 data class ImportedPressureWindowIdentityOwner(
 	val identity: String,
 	@ColumnInfo(name = "entry_identity") val entryIdentity: String,

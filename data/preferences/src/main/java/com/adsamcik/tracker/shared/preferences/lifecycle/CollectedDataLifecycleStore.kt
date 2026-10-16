@@ -43,7 +43,8 @@ interface CollectedDataLifecycleStore {
 	suspend fun snapshot(): CollectedDataLifecycleSnapshot
 
 	/** A confirmed replacement imports a new dataset; previous deletion floors do not erase it. */
-	suspend fun beginDataRestore(operationId: String, targetEpoch: Long, retainedFromMs: Long?): CollectedDataLifecycleSnapshot =
+	suspend fun beginDataRestore(operationId: String, targetEpoch: Long,
+        retainedFromMs: Long?): CollectedDataLifecycleSnapshot =
 		throw UnsupportedOperationException("Data restore is unavailable")
 
 	/**
@@ -63,7 +64,9 @@ interface CollectedDataLifecycleStore {
 	): CollectedDataLifecycleSnapshot {
 		require(operationId.isNotBlank())
 		val current = snapshot()
-		if (current.epoch == targetEpoch) return current
+		if (current.epoch == targetEpoch) {
+			return current
+		}
 		check(Math.addExact(current.epoch, 1L) == targetEpoch) {
 			"Collected-data deletion target epoch is not the next lifecycle epoch"
 		}
@@ -94,6 +97,7 @@ interface CollectedDataLifecycleStore {
 		permit = permit,
 	)
 
+	/** Commits the named monotonic UTC millisecond floor under the caller’s active retention permit. */
 	suspend fun advanceRetainedFrom(
 		operationId: String,
 		retainedFromMs: Long,
@@ -103,6 +107,7 @@ interface CollectedDataLifecycleStore {
 	}
 }
 
+/** Reuses the exact permit and operation identity when advancing the UTC millisecond retention floor. */
 suspend fun CollectedDataLifecycleStore.advanceRetainedFromWithPermit(
 	retainedFromMs: Long,
 	permit: RetentionAuthorityOperationPermit,

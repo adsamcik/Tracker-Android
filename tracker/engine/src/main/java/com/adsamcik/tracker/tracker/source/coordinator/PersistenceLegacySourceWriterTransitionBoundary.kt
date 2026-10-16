@@ -15,7 +15,9 @@ internal class PersistenceLegacySourceWriterTransitionBoundary @Inject construct
 		source: SourceKind,
 		operation: suspend () -> T,
 	): T? {
-		if (source !in SUPPORTED_SOURCES) return null
+		if (source !in SUPPORTED_SOURCES) {
+			return null
+		}
 		return persistenceLifecycleLease.withLegacySourceWriterTransition {
 			if (persistenceProcessor.hasUnrecoverablePersistenceStateForLifecycleFence() ||
 				!persistenceProcessor.drainOrphanedSignals() ||

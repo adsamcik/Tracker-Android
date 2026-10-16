@@ -40,4 +40,22 @@
     <string name="format_database">資料庫備份 (ZIP)</string>
     <string name="settings_import_summary">從支援的類型 (%1$s) 與封存檔 (%2$s) 匯入資料。資料庫匯入會合併相容的資料列；不會取代現有資料。</string>
     <string name="settings_import_title">匯入</string>
+    <string name="export_radio_sensitivity_title">匯出網路詳細資料？</string>
+    <string name="export_wifi_sensitivity_message">此檔案包含已儲存的 Wi-Fi 名稱和存取點 ID。</string>
+    <string name="export_cell_sensitivity_message">此檔案包含已儲存的基地台 ID 和訊號測量資料。</string>
+    <string name="export_radio_no_data">此資料來源沒有已儲存的資料</string>
+    <string name="export_include_complete_sessions">包含完整工作階段</string>
+    <string name="import_location_conflict_title">取代已儲存的點？</string>
+    <string name="import_location_replace">使用檔案中的點</string>
+    <string name="import_location_keep">保留已儲存的點</string>
+    <string name="export_backup_review_title">檢查排程備份</string>
+    <string name="export_backup_review_summary">已暫停，請先檢查更新後的資料備份。</string>
+    <string name="export_backup_review_message">這些排程現在會備份所有已儲存的追蹤資料及還原所需的檔案，不包含設定。要繼續這些排程嗎？\n\n%1$s</string>
+    <string name="export_backup_review_resume">繼續備份</string>
+    <string name="import_backup_replace_title">還原資料備份？</string>
+    <string name="import_backup_replace_message">用此備份取代已儲存的資料？您的設定維持不變。追蹤將關閉，直到您重新啟用。</string>
+    <string name="import_backup_restore">取代資料</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="other">此檔案中有 %d 個點與已儲存的副本不同。請選擇要保留的版本。其他點將正常匯入。</item>
+    </plurals>
 </resources>

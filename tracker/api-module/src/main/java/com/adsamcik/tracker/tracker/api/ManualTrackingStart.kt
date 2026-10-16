@@ -56,6 +56,7 @@ sealed interface ManualTrackingStartReadiness {
 		val prerequisite: ManualTrackingStartPrerequisite,
 	) : ManualTrackingStartReadiness
 
+	/** Chosen source writers are still being prepared; the original Start may continue after setup. */
 	data object SetupPending : ManualTrackingStartReadiness
 	data object NoAvailableCaptureSource : ManualTrackingStartReadiness
 	data object TrackingUnavailable : ManualTrackingStartReadiness
@@ -82,32 +83,50 @@ data class ManualTrackingStartSelection(
 ) {
 	init { require(captureConsentEpochs.values.all { it >= 0L }) }
 
+	/** Encodes selected sources in stable enum order, retaining their exact consent epochs. */
 	fun encode(): String = TrackingCaptureSource.entries.mapNotNull { source ->
 		captureConsentEpochs[source]?.let { "${source.name}:$it" }
 	}.joinToString(",")
 
+	/** Decoder for the persisted source and consent selection used by permission continuation. */
 	companion object {
+		/**
+		 * Returns the stored selection only when every source, epoch and duplicate check succeeds;
+		 * malformed values return null.
+		 */
 		fun decode(value: String): ManualTrackingStartSelection? {
 			return try {
-				val rows = if (value.isEmpty()) emptyList() else value.split(',')
-				if (rows.size > TrackingCaptureSource.entries.size) return null
+				val rows = if (value.isEmpty()) {
+					emptyList()
+				} else {
+					value.split(',')
+				}
+				if (rows.size > TrackingCaptureSource.entries.size) {
+					return null
+				}
 				val pairs = rows.map { row ->
 					val parts = row.split(':')
 					require(parts.size == 2)
 					TrackingCaptureSource.valueOf(parts[0]) to parts[1].toLong()
 				}
-				if (pairs.map { it.first }.distinct().size != pairs.size) return null
+				if (pairs.map { it.first }.distinct().size != pairs.size) {
+					return null
+				}
 				ManualTrackingStartSelection(pairs.toMap())
 			} catch (_: IllegalArgumentException) { null }
 		}
 	}
 }
 
+/** Current Start readiness together with the exact source selection sampled for this attempt. */
 data class ManualTrackingStartPreflight(
 	val readiness: ManualTrackingStartReadiness,
 	val selection: ManualTrackingStartSelection?,
 )
 
+/**
+ * The original Start command and selected consent epochs retained while permissions or setup are repaired.
+ */
 data class ManualTrackingStartContinuation(
 	val command: TrackingStartCommand,
 	val selection: ManualTrackingStartSelection,
@@ -129,56 +148,87 @@ internal suspend fun executeManualTrackingStartContinuation(
 			?: return ManualTrackingStartResult.TRACKING_UNAVAILABLE
 	}
 	val preflight = readPreflight()
+	rejectManualPreflight(preflight, original, authority)?.let { return it }
+	val selection = requireNotNull(preflight.selection)
+	val request = original ?: authority.reserveManualStartIfGeneration(generationBeforeRead, selection)
+		?: return ManualTrackingStartResult.TRACKING_UNAVAILABLE
+	return continuePreparedManualStart(request, preflight.readiness, authority, enqueue)
+}
+
+private suspend fun rejectManualPreflight(
+	preflight: ManualTrackingStartPreflight,
+	original: ManualTrackingStartContinuation?,
+	authority: TrackingLifecycleCommandAuthority,
+): ManualTrackingStartResult? {
 	val selection = preflight.selection
 	if (selection == null || (original != null && original.selection != selection)) {
 		original?.let { authority.cancelManualStart(it.command.generation) }
 		return ManualTrackingStartResult.TRACKING_UNAVAILABLE
 	}
-	when (preflight.readiness) {
-		ManualTrackingStartReadiness.NoAvailableCaptureSource -> {
-			original?.let { authority.cancelManualStart(it.command.generation) }
-			return ManualTrackingStartResult.NO_AVAILABLE_CAPTURE_SOURCE
-		}
-		ManualTrackingStartReadiness.TrackingUnavailable -> {
-			original?.let { authority.cancelManualStart(it.command.generation) }
-			return ManualTrackingStartResult.TRACKING_UNAVAILABLE
-		}
-		else -> Unit
+	val rejection = when (preflight.readiness) {
+		ManualTrackingStartReadiness.NoAvailableCaptureSource ->
+			ManualTrackingStartResult.NO_AVAILABLE_CAPTURE_SOURCE
+		ManualTrackingStartReadiness.TrackingUnavailable -> ManualTrackingStartResult.TRACKING_UNAVAILABLE
+		else -> null
 	}
-	val request = original ?: authority.reserveManualStartIfGeneration(generationBeforeRead, selection)
-		?: return ManualTrackingStartResult.TRACKING_UNAVAILABLE
-	return when (val readiness = preflight.readiness) {
-		is ManualTrackingStartReadiness.RepairRequired -> {
-			if (authority.pendingManualStart != request ||
-				authority.latestCommandGeneration() != request.command.generation
-			) ManualTrackingStartResult.TRACKING_UNAVAILABLE else
-				ManualTrackingStartResult.RepairRequired(readiness.prerequisite, request.command.generation)
+	if (rejection != null) {
+		original?.let { authority.cancelManualStart(it.command.generation) }
+	}
+	return rejection
+}
+
+private suspend fun continuePreparedManualStart(
+	request: ManualTrackingStartContinuation,
+	readiness: ManualTrackingStartReadiness,
+	authority: TrackingLifecycleCommandAuthority,
+	enqueue: suspend (ManualTrackingStartContinuation) -> TrackingStartDispatchResult,
+): ManualTrackingStartResult = when (readiness) {
+	is ManualTrackingStartReadiness.RepairRequired -> {
+		if (authority.ownsManualStart(request)) {
+			ManualTrackingStartResult.RepairRequired(readiness.prerequisite, request.command.generation)
+		} else {
+			ManualTrackingStartResult.TRACKING_UNAVAILABLE
 		}
-		ManualTrackingStartReadiness.SetupPending -> {
-			if (authority.pendingManualStart == request && authority.latestCommandGeneration() == request.command.generation)
+	}
+	ManualTrackingStartReadiness.SetupPending -> {
+		if (authority.ownsManualStart(request)) {
+			ManualTrackingStartResult.SetupPending(request.command.generation)
+		} else {
+			ManualTrackingStartResult.TRACKING_UNAVAILABLE
+		}
+	}
+	is ManualTrackingStartReadiness.Ready -> enqueuePreparedManualStart(request, authority, enqueue)
+	else -> error("Unavailable preflight cannot reserve a Start")
+}
+
+private suspend fun enqueuePreparedManualStart(
+	request: ManualTrackingStartContinuation,
+	authority: TrackingLifecycleCommandAuthority,
+	enqueue: suspend (ManualTrackingStartContinuation) -> TrackingStartDispatchResult,
+): ManualTrackingStartResult {
+	if (!authority.ownsManualStart(request)) {
+		return ManualTrackingStartResult.TRACKING_UNAVAILABLE
+	}
+	return when (enqueue(request)) {
+		TrackingStartDispatchResult.Enqueued -> ManualTrackingStartResult.ENQUEUED
+		TrackingStartDispatchResult.SetupPending -> {
+			if (authority.ownsManualStart(request)) {
 				ManualTrackingStartResult.SetupPending(request.command.generation)
-			else ManualTrackingStartResult.TRACKING_UNAVAILABLE
-		}
-		is ManualTrackingStartReadiness.Ready -> {
-			if (authority.pendingManualStart != request || authority.latestCommandGeneration() != request.command.generation)
-				return ManualTrackingStartResult.TRACKING_UNAVAILABLE
-			when (val result = enqueue(request)) {
-				TrackingStartDispatchResult.Enqueued -> ManualTrackingStartResult.ENQUEUED
-				TrackingStartDispatchResult.SetupPending -> if (authority.pendingManualStart == request &&
-					authority.latestCommandGeneration() == request.command.generation)
-					ManualTrackingStartResult.SetupPending(request.command.generation)
-					else ManualTrackingStartResult.TRACKING_UNAVAILABLE
-				// Another prepare can see the first one's STARTING row. It must not revoke that same pending delivery.
-				TrackingStartDispatchResult.AlreadyActive -> ManualTrackingStartResult.TRACKING_UNAVAILABLE
-				is TrackingStartDispatchResult.Retryable, is TrackingStartDispatchResult.Terminal -> {
-					authority.cancelManualStart(request.command.generation)
-					ManualTrackingStartResult.TRACKING_UNAVAILABLE
-				}
+			} else {
+				ManualTrackingStartResult.TRACKING_UNAVAILABLE
 			}
 		}
-		else -> error("Unavailable preflight cannot reserve a Start")
+		// Another prepare can see the first one's STARTING row. It must not revoke that same pending delivery.
+		TrackingStartDispatchResult.AlreadyActive -> ManualTrackingStartResult.TRACKING_UNAVAILABLE
+		is TrackingStartDispatchResult.Retryable, is TrackingStartDispatchResult.Terminal -> {
+			authority.cancelManualStart(request.command.generation)
+			ManualTrackingStartResult.TRACKING_UNAVAILABLE
+		}
 	}
 }
+
+private fun TrackingLifecycleCommandAuthority.ownsManualStart(request: ManualTrackingStartContinuation): Boolean =
+	pendingManualStart == request && latestCommandGeneration() == request.command.generation
 
 /** Shared app-navigation contract for non-Activity surfaces that cannot repair start prerequisites. */
 object ManualTrackingStartRepairNavigation {
@@ -215,7 +265,9 @@ object ManualTrackingStartRepairNavigation {
 	/** Opens the platform repair surface without assuming the caller is an Activity or OEM support. */
 	fun openLocationServicesSettings(context: Context): Boolean {
 		val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS).apply {
-			if (context !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+			if (context !is Activity) {
+				addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+			}
 		}
 		return try {
 			context.startActivity(intent)

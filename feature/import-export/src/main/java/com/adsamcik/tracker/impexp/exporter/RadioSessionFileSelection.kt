@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.portable.RadioSourceFileFormatException
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.OrganizationSessionRow
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelectionCodec
@@ -26,23 +27,16 @@ internal suspend fun exportRadioSessionFile(context: Context, database: AppDatab
 	verifyAccess: () -> Unit, encode: suspend (RadioSessionFileSelection, OutputStream) -> Int): ExportResult = try {
 	val reader = SessionLocationFileReader(database)
 	val snapshot = database.withTransaction { reader.snapshot(request).copy(retentionStamp = "") }
-	val row = snapshot.organization
-	val imported = row.importedSourceSelection?.let(OrganizationSourceSelectionCodec::decode)
-	val dates = if (row.fromMs != null && row.toMs != null && row.toMs!! >= row.fromMs!! && row.fromMs!! < Long.MAX_VALUE)
-		SourceExportDates(row.fromMs!!, if (row.toMs == row.fromMs) row.toMs!! + 1L else row.toMs!!) else null
-	val selection = RadioSessionFileSelection(dates,
-		imported.orEmpty().filterIsInstance<OrganizationSourceSelector.CapturedEntry>().filter { it.source == source },
-		imported.orEmpty().filterIsInstance<OrganizationSourceSelector.BackgroundRadioArchive>()
-			.filter { it.source == source }.mapTo(linkedSetOf()) { it.archiveIdentity },
-		imported == null)
-	if (selection.retrospective && dates == null) throw RadioSourceFileFormatException("Session dates are unavailable")
+	val selection = radioFileSelection(snapshot.organization, source)
 	val hash = MessageDigest.getInstance("SHA-256")
 	FileBackedExportSpool(context, "session-${source.name.lowercase()}-", maximumBytes).use { spool ->
 		val staged = spool.stage { destination -> database.withTransaction {
 			verifyAccess(); currentCoroutineContext().ensureActive()
 			encode(selection, DigestOutputStream(destination, hash))
 		} }
-		if (staged !is FileBackedExportStage.Complete) throw RadioSourceFileFormatException("Radio file exceeds the size limit")
+		if (staged !is FileBackedExportStage.Complete) {
+			throw RadioSourceFileFormatException("Radio file exceeds the size limit")
+		}
 		val expected = hash.digest()
 		suspend fun verify() {
 			verifyAccess(); currentCoroutineContext().ensureActive()
@@ -50,10 +44,10 @@ internal suspend fun exportRadioSessionFile(context: Context, database: AppDatab
 			val discard = object : OutputStream() { override fun write(value: Int) = Unit
 				override fun write(bytes: ByteArray, offset: Int, length: Int) = Unit }
 			database.withTransaction {
-				if (reader.snapshot(request).copy(retentionStamp = "") != snapshot)
+				if (reader.snapshot(request).copy(retentionStamp = "") != snapshot) {
 					throw RadioSourceFileFormatException("The selected session changed")
-				if (encode(selection, DigestOutputStream(discard, actual)) != staged.value || !expected.contentEquals(actual.digest()))
-					throw RadioSourceFileFormatException("The selected radio data changed")
+				}
+				verifyEncodedRadioSelection(selection, encode, actual, expected, staged.value, discard)
 			}
 		}
 		verify(); spool.copyTo(output); verify()
@@ -61,5 +55,42 @@ internal suspend fun exportRadioSessionFile(context: Context, database: AppDatab
 	}
 } catch (cancelled: CancellationException) { throw cancelled
 } catch (_: RadioSourceNoDataException) { ExportResult.Error(LocalizedString(R.string.export_radio_no_data))
-} catch (failure: Exception) { ExportResult.Error(LocalizedString(R.string.export_error_with_reason,
-	failure.message ?: "Radio export is unavailable")) }
+} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+	// Report this source-file failure after cancellation and no-data were handled above.
+	ExportResult.Error(LocalizedString(R.string.export_error_with_reason,
+		failure.message ?: "Radio export is unavailable"))
+}
+
+private suspend fun verifyEncodedRadioSelection(
+	selection: RadioSessionFileSelection,
+	encode: suspend (RadioSessionFileSelection, OutputStream) -> Int,
+	actual: MessageDigest, expected: ByteArray, expectedCount: Int, discard: OutputStream,
+) {
+	if (encode(selection, DigestOutputStream(discard, actual)) != expectedCount ||
+                 !expected.contentEquals(actual.digest())) {
+		throw RadioSourceFileFormatException("The selected radio data changed")
+	}
+}
+
+private fun radioFileSelection(row: OrganizationSessionRow, source: HistorySource): RadioSessionFileSelection {
+	val imported = row.importedSourceSelection?.let(OrganizationSourceSelectionCodec::decode)
+	val dates = if (row.fromMs != null && row.toMs != null && row.toMs!! >= row.fromMs!! &&
+        row.fromMs!! < Long.MAX_VALUE) {
+		SourceExportDates(row.fromMs!!, if (row.toMs == row.fromMs) {
+			row.toMs!! + 1L
+		} else {
+			row.toMs!!
+		})
+	} else {
+		null
+	}
+	val selection = RadioSessionFileSelection(dates,
+		imported.orEmpty().filterIsInstance<OrganizationSourceSelector.CapturedEntry>().filter { it.source == source },
+		imported.orEmpty().filterIsInstance<OrganizationSourceSelector.BackgroundRadioArchive>()
+			.filter { it.source == source }.mapTo(linkedSetOf()) { it.archiveIdentity },
+		imported == null)
+	if (selection.retrospective && selection.dates == null) {
+		throw RadioSourceFileFormatException("Session dates are unavailable")
+	}
+	return selection
+}

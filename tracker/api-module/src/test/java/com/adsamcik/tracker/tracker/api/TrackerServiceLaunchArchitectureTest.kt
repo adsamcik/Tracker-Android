@@ -28,6 +28,8 @@ class TrackerServiceLaunchArchitectureTest {
 	}
 
 	@Test
+	// Keep this complete contract scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `all queued entry points reserve off caller thread and use private prepared delivery`() {
 		val api = projectRoot.resolve(
 			"tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackerServiceApi.kt",

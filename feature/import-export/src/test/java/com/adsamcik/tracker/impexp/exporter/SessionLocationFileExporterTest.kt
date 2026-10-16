@@ -184,7 +184,9 @@ class SessionLocationFileExporterTest {
 			val member = run("many", "run:$index", 1_000, 100_000)
 			if (index == LocationFileExporter.PAGE_SIZE) {
 				for (point in 0..LocationFileExporter.PAGE_SIZE) nativePoint(member, 2_000L + point)
-			} else nativePoint(member, 2_000)
+			} else {
+				nativePoint(member, 2_000)
+			}
 		}
 		val points = export(recording("logical:many"))
 		assertEquals(LocationFileExporter.PAGE_SIZE * 2 + 1, points.size)
@@ -341,7 +343,9 @@ class SessionLocationFileExporterTest {
 		val destination = onFirstWrite { copyingFinished = true }
 		assertFailsWith<CancellationException> {
 			exporter.exportSession(context, annotationRequest("retro"), destination, database) {
-				if (copyingFinished && ++checksAfterCopy == 3) throw CancellationException("cancel verification")
+				if (copyingFinished && ++checksAfterCopy == 3) {
+					throw CancellationException("cancel verification")
+				}
 			}
 		}
 		assertEquals(3, checksAfterCopy)
@@ -356,7 +360,9 @@ class SessionLocationFileExporterTest {
 		var checks = 0
 		assertFailsWith<CancellationException> {
 			exporter.exportSession(context, request, destination, database) {
-				if (++checks == 3) throw CancellationException("cancel staging")
+				if (++checks == 3) {
+					throw CancellationException("cancel staging")
+				}
 			}
 		}
 		assertEquals(0, destination.size())
@@ -377,7 +383,7 @@ class SessionLocationFileExporterTest {
 		return SessionLocationFileRequest(id, revision, state.collectedDataEpoch)
 	}
 	private suspend fun write(request: SessionLocationFileRequest, output: OutputStream) =
-		exporter.exportSession(context, request, output, database, {})
+		exporter.exportSession(context, request, output, database, verifyCollectedDataAccess = {})
 	private suspend fun export(request: SessionLocationFileRequest): List<LocationFilePointV1> {
 		val output = ByteArrayOutputStream()
 		assertIs<ExportResult.Success>(write(request, output))
@@ -394,10 +400,22 @@ class SessionLocationFileExporterTest {
 	private suspend fun run(logical: String, id: String, start: Long, end: Long, legacy: Boolean = false): SessionSegment {
 		val segment = segment(start, end, logical, id)
 		database.sourceSessionDao().insertServiceRun(SourceServiceRunEntity(id, logical, "FINALIZED", 1, 1, 0,
-			start, start * 1_000_000, end, "STOPPED", sessionSegmentId = if (legacy) null else segment.id,
-			presentationAcknowledgement = if (legacy) SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE
-				else SourceServiceRunEntity.PRESENTATION_QUIESCED,
-			presentationAcknowledgedAtMs = if (legacy) null else end))
+			start, start * 1_000_000, end, "STOPPED", sessionSegmentId = if (legacy) {
+				null
+			} else {
+				segment.id
+			},
+			presentationAcknowledgement = if (legacy) {
+				SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE
+			}
+				else {
+				SourceServiceRunEntity.PRESENTATION_QUIESCED
+			},
+			presentationAcknowledgedAtMs = if (legacy) {
+				null
+			} else {
+				end
+			}))
 		return segment
 	}
 	private suspend fun segment(start: Long, end: Long, logical: String? = null, run: String? = null): SessionSegment {

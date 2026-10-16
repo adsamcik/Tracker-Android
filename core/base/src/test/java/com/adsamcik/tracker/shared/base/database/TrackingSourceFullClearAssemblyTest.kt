@@ -54,8 +54,12 @@ class TrackingSourceFullClearAssemblyTest {
 
 	@After
 	fun tearDown() {
-		if (::database.isInitialized) database.close()
-		if (::context.isInitialized) context.deleteDatabase(DATABASE_NAME)
+		if (::database.isInitialized) {
+			database.close()
+		}
+		if (::context.isInitialized) {
+			context.deleteDatabase(DATABASE_NAME)
+		}
 	}
 
 	@Test
@@ -171,6 +175,9 @@ class TrackingSourceFullClearAssemblyTest {
 			rowCount("ambient_cell_deletion_marker") shouldBe 2L
 		}
 
+	// Keep the bound and terminal Steps count-domain evidence fixture with its exact receipt and owner rows
+	// together.
+	@Suppress("LongMethod")
 	private suspend fun seedStepsCountDomainEvidence(): StepsCountDomainFixture {
 		val boundScope = opaque('8')
 		val boundOwnerIdentity = opaque('9')
@@ -284,6 +291,9 @@ class TrackingSourceFullClearAssemblyTest {
 		}
 	}
 
+	// Keep one imported Wi-Fi deletion receipt and all matching run, entry, source-fence and
+	// protected-identity rows together.
+	@Suppress("LongMethod")
 	private suspend fun seedWifiDeletionAuthority(): WifiAuthorityFixture {
 		val entry = digest('1')
 		val run = digest('2')
@@ -372,6 +382,8 @@ class TrackingSourceFullClearAssemblyTest {
 		)
 	}
 
+	// Keep one local Wi-Fi deletion receipt and its matching source fence and protected identities together.
+	@Suppress("LongMethod")
 	private suspend fun seedLocalWifiDeletionAuthority(): WifiAuthorityFixture {
 		val entry = digest('a')
 		val run = digest('b')
@@ -469,6 +481,9 @@ class TrackingSourceFullClearAssemblyTest {
 		collectedDataEpoch = EPOCH,
 	)
 
+	// Keep one imported Cell deletion receipt and all matching run, entry, source-fence and protected-identity
+	// rows together.
+	@Suppress("LongMethod")
 	private suspend fun seedImportedCellDeletionAuthority(): ImportedCellAuthorityFixture {
 		val entry = digest('7')
 		val run = digest('8')

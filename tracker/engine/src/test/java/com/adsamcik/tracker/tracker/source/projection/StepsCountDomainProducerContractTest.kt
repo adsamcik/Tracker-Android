@@ -34,6 +34,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
+// One real count-domain store fixture keeps producer receipts and terminal-retirement evidence comparable.
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class StepsCountDomainProducerContractTest {
@@ -52,6 +54,8 @@ class StepsCountDomainProducerContractTest {
 	@After
 	fun tearDown() = database.close()
 
+	// Keep the shared provider token across reconfiguration, saved owners and reconstructed reads together.
+	@Suppress("LongMethod")
 	@Test
 	fun `same provider token survives independent registrations and QoS fingerprints`() =
 		runTest {
@@ -70,6 +74,7 @@ class StepsCountDomainProducerContractTest {
 				sourceInstance = "session-owner-instance",
 				registrationGeneration = 2L,
 				physicalConfigurationFingerprint = "qos-batched-high-latency",
+				sourceSequence = 2L,
 			)
 			store.recordSessionWal(reconfiguredWal, token) shouldBe
 				StepsCountDomainWriteResult.INSERTED
@@ -143,6 +148,8 @@ class StepsCountDomainProducerContractTest {
 		}
 
 	@Test
+	// Keep this complete correction scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `correction retains old receipt and terminal session retraction blocks resurrection`() =
 		runTest {
 			val store = StepsCountDomainStore(database)
@@ -452,6 +459,8 @@ class StepsCountDomainProducerContractTest {
 		) shouldBe StepsCountDomainWriteResult.INSERTED
 	}
 
+	// Keep one Steps payload and domain token beside its signed WAL record and assigned admission identity.
+	@Suppress("LongMethod")
 	private suspend fun insertWal(
 		token: StepsCounterDomainToken,
 		eventId: String = EVENT_ID,
@@ -723,6 +732,9 @@ class StepsCountDomainProducerContractTest {
 			stepCount = null,
 			sourcePolicyRevision = null,
 			ambientConsentEpoch = null,
+			retentionScope = null,
+			retentionPolicyId = null,
+			retentionApprovalRevision = null,
 			scopeDeletionGeneration = 1L,
 			effectChecksum = "0".repeat(64),
 			appliedAtMs = 3_000L,

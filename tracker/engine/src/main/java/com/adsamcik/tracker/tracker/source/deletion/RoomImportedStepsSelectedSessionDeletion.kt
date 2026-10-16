@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerLookupKey
 import com.adsamcik.tracker.shared.base.database.enqueueStepsGoalRepairDay
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryLockedDays
+import com.adsamcik.tracker.shared.base.database.data.ImportedStepsRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
@@ -19,6 +20,7 @@ import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRet
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedReader
 import com.adsamcik.tracker.shared.base.database.steps.imported.RetainedImportedStepsEntry
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsImportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.StepsSessionDeletionResult
 import com.adsamcik.tracker.stats.api.repository.StepsSessionDeletionRetryableReason
@@ -53,13 +55,15 @@ internal class RoomImportedStepsSelectedSessionDeletion(
 		} catch (cancellation: CancellationException) {
 			throw cancellation
 		} catch (_: SQLiteException) {
-			return retryable(StepsSessionDeletionRetryableReason.DATABASE_UNAVAILABLE)
+			return importedStepsDeletionRetryable(StepsSessionDeletionRetryableReason.DATABASE_UNAVAILABLE)
 		} catch (_: IllegalArgumentException) {
-			return unsupported(StepsSessionDeletionUnsupportedReason.IMPORTED_AUTHORITY_UNVERIFIABLE)
+			return importedStepsDeletionUnsupported(
+				StepsSessionDeletionUnsupportedReason.IMPORTED_AUTHORITY_UNVERIFIABLE,
+			)
 		}
 		val scope = when (expected) {
 			is ImportedScopePreflight.Ready -> expected.scope
-			is ImportedScopePreflight.Unsupported -> return unsupported(expected.reason)
+			is ImportedScopePreflight.Unsupported -> return importedStepsDeletionUnsupported(expected.reason)
 		}
 		val effectiveDeletedAtMs = maxOf(
 			requestedDeletedAtMs,
@@ -75,8 +79,13 @@ internal class RoomImportedStepsSelectedSessionDeletion(
 			lockCoordinator.withDayLocks(scope.prepared.lockDays) { lockedDays ->
 				afterDayLocksAcquired()
 				database.withTransaction {
-					if (expectedEpoch != null && database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch)
-						return@withTransaction unsupported(StepsSessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
+					if (expectedEpoch != null &&
+						database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch
+					) {
+						return@withTransaction importedStepsDeletionUnsupported(
+							StepsSessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH,
+						)
+					}
 					val actual = (selectedScope(selectedSegmentId) as? ImportedScopePreflight.Ready)?.scope
 						?: throw ImportedStepsConcurrentDeletionException()
 					if (actual != scope) {
@@ -96,25 +105,15 @@ internal class RoomImportedStepsSelectedSessionDeletion(
 		} catch (outcome: ImportedStepsDeletionOutcomeException) {
 			outcome.result
 		} catch (unverifiable: PortableStepsImportUnverifiableException) {
-			when (unverifiable.reason) {
-				PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW -> unsupported(
-					StepsSessionDeletionUnsupportedReason.AFFECTED_DAY_RANGE_TOO_LARGE,
-				)
-				PortableStepsImportUnverifiableReason.DAY_REPAIR_UNVERIFIABLE -> unsupported(
-					StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
-				)
-				PortableStepsImportUnverifiableReason.ATTRIBUTION_UNVERIFIABLE -> unsupported(
-					StepsSessionDeletionUnsupportedReason.IMPORTED_AUTHORITY_UNVERIFIABLE,
-				)
-			}
+			importedStepsDeletionUnsupported(unverifiable.reason.toImportedStepsDeletionUnsupportedReason())
 		} catch (_: PortableStepsSnapshotException) {
-			unsupported(StepsSessionDeletionUnsupportedReason.IMPORTED_AUTHORITY_UNVERIFIABLE)
+			importedStepsDeletionUnsupported(StepsSessionDeletionUnsupportedReason.IMPORTED_AUTHORITY_UNVERIFIABLE)
 		} catch (_: ImportedStepsConcurrentDeletionException) {
-			retryable(StepsSessionDeletionRetryableReason.CONCURRENT_STATE_CHANGE)
+			importedStepsDeletionRetryable(StepsSessionDeletionRetryableReason.CONCURRENT_STATE_CHANGE)
 		} catch (_: SQLiteException) {
-			retryable(StepsSessionDeletionRetryableReason.DATABASE_UNAVAILABLE)
+			importedStepsDeletionRetryable(StepsSessionDeletionRetryableReason.DATABASE_UNAVAILABLE)
 		} catch (_: IllegalArgumentException) {
-			unsupported(StepsSessionDeletionUnsupportedReason.IMPORTED_AUTHORITY_UNVERIFIABLE)
+			importedStepsDeletionUnsupported(StepsSessionDeletionUnsupportedReason.IMPORTED_AUTHORITY_UNVERIFIABLE)
 		}
 	}
 
@@ -134,7 +133,14 @@ internal class RoomImportedStepsSelectedSessionDeletion(
 				StepsSessionDeletionUnsupportedReason.IMPORTED_AUTHORITY_UNVERIFIABLE,
 			)
 		}
-		val selectedRun = selectedRuns.single()
+		return readSelectedRetainedScope(selectedSegmentId, segment, selectedRuns.single())
+	}
+
+	private suspend fun readSelectedRetainedScope(
+		selectedSegmentId: Long,
+		segment: SessionSegment,
+		selectedRun: ImportedStepsRunEntity,
+	): ImportedScopePreflight {
 		val retained = when (
 			val read = ImportedStepsRetainedReader(database)
 				.readEntriesInTransaction(listOf(selectedRun.entryIdentity))
@@ -154,6 +160,15 @@ internal class RoomImportedStepsSelectedSessionDeletion(
 				StepsSessionDeletionUnsupportedReason.RETENTION_TRUNCATED_HISTORY,
 			)
 		}
+		return validateSelectedRetainedScope(selectedSegmentId, segment, selectedRun, retained)
+	}
+
+	private suspend fun validateSelectedRetainedScope(
+		selectedSegmentId: Long,
+		segment: SessionSegment,
+		selectedRun: ImportedStepsRunEntity,
+		retained: RetainedImportedStepsEntry,
+	): ImportedScopePreflight {
 		val portable = retained.portable ?: return ImportedScopePreflight.Unsupported(
 			StepsSessionDeletionUnsupportedReason.IMPORTED_AUTHORITY_UNVERIFIABLE,
 		)
@@ -164,11 +179,20 @@ internal class RoomImportedStepsSelectedSessionDeletion(
 				StepsSessionDeletionUnsupportedReason.IMPORTED_AUTHORITY_UNVERIFIABLE,
 			)
 		}
-		for (run in retained.runs) {
+		if (retained.hasCurrentImportedRunFence()) {
+			return ImportedScopePreflight.Unsupported(
+				StepsSessionDeletionUnsupportedReason.IMPORTED_AUTHORITY_UNVERIFIABLE,
+			)
+		}
+		return prepareSelectedScope(selectedSegmentId, retained, portable)
+	}
+
+	private suspend fun RetainedImportedStepsEntry.hasCurrentImportedRunFence(): Boolean {
+		for (run in runs) {
 			val currentDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 				purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
-				logicalTrackingId = retained.metadata.identity,
+				logicalTrackingId = metadata.identity,
 				serviceRunId = run.identity,
 			)
 			if (database.sourceDeletionFenceDao().contains(
@@ -178,23 +202,22 @@ internal class RoomImportedStepsSelectedSessionDeletion(
 					currentDigest,
 				)
 			) {
-				return ImportedScopePreflight.Unsupported(
-					StepsSessionDeletionUnsupportedReason.IMPORTED_AUTHORITY_UNVERIFIABLE,
-				)
+				return true
 			}
 		}
+		return false
+	}
+
+	private fun prepareSelectedScope(
+		selectedSegmentId: Long,
+		retained: RetainedImportedStepsEntry,
+		portable: PortableStepsEntryV1,
+	): ImportedScopePreflight {
 		val prepared = try {
 			portable.prepareForImport()
 		} catch (unverifiable: PortableStepsImportUnverifiableException) {
 			return ImportedScopePreflight.Unsupported(
-				when (unverifiable.reason) {
-					PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW ->
-						StepsSessionDeletionUnsupportedReason.AFFECTED_DAY_RANGE_TOO_LARGE
-					PortableStepsImportUnverifiableReason.DAY_REPAIR_UNVERIFIABLE ->
-						StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE
-					PortableStepsImportUnverifiableReason.ATTRIBUTION_UNVERIFIABLE ->
-						StepsSessionDeletionUnsupportedReason.IMPORTED_AUTHORITY_UNVERIFIABLE
-				},
+				unverifiable.reason.toImportedStepsDeletionUnsupportedReason(),
 			)
 		} catch (_: PortableStepsSnapshotException) {
 			return ImportedScopePreflight.Unsupported(
@@ -210,7 +233,6 @@ internal class RoomImportedStepsSelectedSessionDeletion(
 		)
 	}
 
-	@Suppress("LongMethod")
 	private suspend fun deleteInTransaction(
 		scope: ImportedSelectedScope,
 		deletedAtMs: Long,
@@ -219,6 +241,16 @@ internal class RoomImportedStepsSelectedSessionDeletion(
 	): StepsSessionDeletionResult {
 		beforeMutation()
 		val entry = scope.entry
+		val localFences = installImportedRunDeletionFences(entry, deletedAtMs)
+		retractImportedRunFacts(entry, localFences)
+		removeImportedEntryPayload(entry)
+		return repairImportedDeletionDays(scope, deletedAtMs, repairZones, lockedDays)
+	}
+
+	private suspend fun installImportedRunDeletionFences(
+		entry: RetainedImportedStepsEntry,
+		deletedAtMs: Long,
+	): Map<String, SourceDeletionFenceEntity> {
 		val localFences = linkedMapOf<String, SourceDeletionFenceEntity>()
 		for (run in entry.runs) {
 			database.fenceImportedPortableSessionRun(
@@ -253,7 +285,13 @@ internal class RoomImportedStepsSelectedSessionDeletion(
 			}
 			localFences[run.identity] = localFence
 		}
+		return localFences
+	}
 
+	private suspend fun retractImportedRunFacts(
+		entry: RetainedImportedStepsEntry,
+		localFences: Map<String, SourceDeletionFenceEntity>,
+	) {
 		val countDomainOwners = mutableListOf<StepsCountDomainOwnerLookupKey>()
 		for (run in entry.runs) {
 			val facts = entry.factsByRun.getValue(run.identity)
@@ -270,32 +308,11 @@ internal class RoomImportedStepsSelectedSessionDeletion(
 			}
 		}
 		database.removeStepsDeletionCountDomainOwners(countDomainOwners)
+	}
+
+	private suspend fun removeImportedEntryPayload(entry: RetainedImportedStepsEntry) {
 		for (run in entry.runs) {
-			val facts = entry.factsByRun.getValue(run.identity)
-			if (database.stepFactRevisionDao().deleteUpsertsForServiceRun(
-					logicalTrackingId = entry.metadata.identity,
-					serviceRunId = run.identity,
-				) != facts.size
-			) {
-				throw ImportedStepsConcurrentDeletionException()
-			}
-			val segmentId = requireNotNull(run.sessionSegmentId)
-			database.skiRunSegmentDao().deleteBySession(segmentId)
-			if (database.importedStepsDao().deleteRunExact(
-					identity = run.identity,
-					entryIdentity = entry.metadata.identity,
-					sessionSegmentId = segmentId,
-					expectedChecksum = requireNotNull(run.retainedChecksum),
-				) != 1
-			) {
-				throw ImportedStepsConcurrentDeletionException()
-			}
-			if (database.sessionSegmentDao().deleteExact(
-					id = segmentId,
-					logicalTrackingId = entry.metadata.identity,
-					serviceRunId = run.identity,
-				) != 1
-			) {
+			if (!removeImportedRunPayload(entry, run)) {
 				throw ImportedStepsConcurrentDeletionException()
 			}
 		}
@@ -303,22 +320,65 @@ internal class RoomImportedStepsSelectedSessionDeletion(
 			throw ImportedStepsConcurrentDeletionException()
 		}
 		database.removeImportedPortableSessionGraph(entry.metadata.identity)
+	}
 
-		val plans = when (
+	private suspend fun removeImportedRunPayload(
+		entry: RetainedImportedStepsEntry,
+		run: ImportedStepsRunEntity,
+	): Boolean {
+		val facts = entry.factsByRun.getValue(run.identity)
+		if (database.stepFactRevisionDao().deleteUpsertsForServiceRun(
+				logicalTrackingId = entry.metadata.identity,
+				serviceRunId = run.identity,
+			) != facts.size
+		) {
+			return false
+		}
+		val segmentId = requireNotNull(run.sessionSegmentId)
+		database.skiRunSegmentDao().deleteBySession(segmentId)
+		if (database.importedStepsDao().deleteRunExact(
+				identity = run.identity,
+				entryIdentity = entry.metadata.identity,
+				sessionSegmentId = segmentId,
+				expectedChecksum = requireNotNull(run.retainedChecksum),
+			) != 1
+		) {
+			return false
+		}
+		return database.sessionSegmentDao().deleteExact(
+			id = segmentId,
+			logicalTrackingId = entry.metadata.identity,
+			serviceRunId = run.identity,
+		) == 1
+	}
+
+	private suspend fun readImportedDeletionRepairPlans(
+		repairZones: Map<Long, java.time.ZoneId>,
+	): List<StepsDayRepairPlan> {
+		return when (
 			val repair = StepsDailySummaryRepairComposer(database)
 				.composeForImportedDeletion(repairZones)
 		) {
 			is StepsDayRepairPreflight.Ready -> repair.plans
 			is StepsDayRepairPreflight.Unsupported -> throw ImportedStepsDeletionOutcomeException(
-				unsupported(repair.reason),
+				importedStepsDeletionUnsupported(repair.reason),
 			)
 			StepsDayRepairPreflight.Materializing -> throw ImportedStepsDeletionOutcomeException(
-				retryable(StepsSessionDeletionRetryableReason.DAY_REPAIR_MATERIALIZING),
+				importedStepsDeletionRetryable(StepsSessionDeletionRetryableReason.DAY_REPAIR_MATERIALIZING),
 			)
 		}
+	}
+
+	private suspend fun repairImportedDeletionDays(
+		scope: ImportedSelectedScope,
+		deletedAtMs: Long,
+		repairZones: Map<Long, java.time.ZoneId>,
+		lockedDays: DailySummaryLockedDays,
+	): StepsSessionDeletionResult {
+		val plans = readImportedDeletionRepairPlans(repairZones)
 		if (plans.associate { plan -> plan.epochDay to plan.zoneId } != repairZones) {
 			throw ImportedStepsDeletionOutcomeException(
-				unsupported(StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE),
+				importedStepsDeletionUnsupported(StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE),
 			)
 		}
 		val aggregator = DailySummaryAggregator(
@@ -353,14 +413,6 @@ internal class RoomImportedStepsSelectedSessionDeletion(
 			},
 		)
 
-	private fun unsupported(
-		reason: StepsSessionDeletionUnsupportedReason,
-	): StepsSessionDeletionResult = StepsSessionDeletionResult.UnsupportedScope(reason)
-
-	private fun retryable(
-		reason: StepsSessionDeletionRetryableReason,
-	): StepsSessionDeletionResult = StepsSessionDeletionResult.RetryableFailure(reason)
-
 	private sealed interface ImportedScopePreflight {
 		data class Ready(val scope: ImportedSelectedScope) : ImportedScopePreflight
 		data class Unsupported(
@@ -382,4 +434,22 @@ internal class RoomImportedStepsSelectedSessionDeletion(
 	private companion object {
 		const val INSERT_IGNORED = -1L
 	}
+}
+
+private fun importedStepsDeletionUnsupported(
+	reason: StepsSessionDeletionUnsupportedReason,
+): StepsSessionDeletionResult = StepsSessionDeletionResult.UnsupportedScope(reason)
+
+private fun importedStepsDeletionRetryable(
+	reason: StepsSessionDeletionRetryableReason,
+): StepsSessionDeletionResult = StepsSessionDeletionResult.RetryableFailure(reason)
+
+private fun PortableStepsImportUnverifiableReason.toImportedStepsDeletionUnsupportedReason():
+	StepsSessionDeletionUnsupportedReason = when (this) {
+	PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW ->
+		StepsSessionDeletionUnsupportedReason.AFFECTED_DAY_RANGE_TOO_LARGE
+	PortableStepsImportUnverifiableReason.DAY_REPAIR_UNVERIFIABLE ->
+		StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE
+	PortableStepsImportUnverifiableReason.ATTRIBUTION_UNVERIFIABLE ->
+		StepsSessionDeletionUnsupportedReason.IMPORTED_AUTHORITY_UNVERIFIABLE
 }

@@ -20,6 +20,10 @@ data class LocationFileArchiveEntity(
 		require(collectedDataEpoch >= 0L && pointCount in 0..MAX_POINTS)
 	}
 
+	/**
+	 * Stable persisted codes, including `FORMAT`, `VERSION`, `MAX_POINTS`, and any identity-bound
+	 * record factories.
+	 */
 	companion object {
 		const val FORMAT = "tracker-location"
 		const val VERSION = 1

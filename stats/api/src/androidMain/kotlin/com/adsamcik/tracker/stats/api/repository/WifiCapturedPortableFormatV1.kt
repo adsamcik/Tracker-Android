@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.stats.api.repository
 
+import kotlinx.serialization.Required
+import kotlinx.serialization.Serializable
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.security.MessageDigest
@@ -28,15 +30,30 @@ object WifiCapturedPortableFormatV1 {
 	const val MAX_LOCAL_IDENTITY_LENGTH = 4_096
 }
 
+/**
+ * Namespace separating logical-entry, physical-run and observation identities in portable Wi-Fi
+ * files.
+ */
 enum class PortableWifiIdentityKind { LOGICAL_ENTRY, PHYSICAL_RUN, OBSERVATION }
 
+/**
+ * Lowercase SHA-256 identity used for stable portable membership without exposing the local
+ * database key.
+ */
 @JvmInline
+@Serializable
 value class PortableWifiOpaqueIdentity(val value: String) {
 	init {
 		require(SHA_256_HEX.matches(value))
 	}
 
+	/**
+	 * Derives portable identities within the explicit entry, run or observation namespace.
+	 */
 	companion object {
+		/**
+		 * Hashes the bounded nonblank local identity with its explicit entry/run/observation namespace.
+		 */
 		fun derive(kind: PortableWifiIdentityKind, localIdentity: String): PortableWifiOpaqueIdentity {
 			require(localIdentity.isNotBlank())
 			require(localIdentity.length <= WifiCapturedPortableFormatV1.MAX_LOCAL_IDENTITY_LENGTH)
@@ -50,29 +67,64 @@ value class PortableWifiOpaqueIdentity(val value: String) {
 	}
 }
 
+/**
+ * Lowercase SHA-256 digest for canonical Wi-Fi file content; it is not recording permission.
+ */
 @JvmInline
+@Serializable
 value class PortableWifiDigest(val value: String) {
 	init {
 		require(SHA_256_HEX.matches(value))
 	}
 }
 
+/**
+ * Lowercase SHA-256 identifier for the original Wi-Fi run deletion scope.
+ */
 @JvmInline
+@Serializable
 value class PortableWifiDeletionScopeDigest(val value: String) {
 	init {
 		require(SHA_256_HEX.matches(value))
 	}
 }
 
+/**
+ * Original manual or automatic session mode retained by a portable Wi-Fi entry.
+ */
+@Serializable
 enum class PortableWifiSessionMode { MANUAL, AUTOMATIC }
+/**
+ * Whether the file represents all, part or none of the run's selected capture scope.
+ */
+@Serializable
 enum class PortableWifiCaptureCoverage { WHOLE_RUN, PARTIAL_RUN, NOT_CAPTURED }
+/**
+ * Whether a run has retained observations, an empty captured scope, or no captured Wi-Fi scope.
+ */
+@Serializable
 enum class PortableWifiRunAvailability { RETAINED, NO_RETAINED_OBSERVATION, NOT_CAPTURED }
+/**
+ * Provider acquisition coverage for the represented run, distinguishing complete, partial and
+ * unknown.
+ */
+@Serializable
 enum class PortableWifiAcquisitionCompleteness { COMPLETE, PARTIAL, UNKNOWN }
+/**
+ * Whether every submitted result was accepted or some were rejected as stale, malformed or
+ * clock-unverifiable.
+ */
+@Serializable
 enum class PortableWifiResultCompleteness { COMPLETE, PARTIAL }
+/**
+ * Availability discriminator of a retained portable Wi-Fi observation.
+ */
+@Serializable
 enum class PortableWifiAvailability { AVAILABLE }
 
 /** One qualified provider delivery without SSID, BSSID, provider, or local database identity. */
 @Suppress("LongParameterList")
+@Serializable
 data class PortableCapturedWifiObservationV1(
 	val identity: PortableWifiOpaqueIdentity,
 	val semanticRevision: Long,
@@ -127,6 +179,11 @@ data class PortableCapturedWifiObservationV1(
 	}
 }
 
+/**
+ * One original Wi-Fi run with UTC millisecond bounds, saved zones, coverage and ordered unique
+ * observations.
+ */
+@Serializable
 data class PortableCapturedWifiRunV1(
 	val identity: PortableWifiOpaqueIdentity,
 	val deletionScopeDigest: PortableWifiDeletionScopeDigest,
@@ -168,8 +225,15 @@ data class PortableCapturedWifiRunV1(
 	}
 }
 
+/**
+ * Bounded logical Wi-Fi entry retaining its original identity, session mode and ordered run
+ * hierarchy.
+ */
+@Serializable
 data class PortableCapturedWifiEntryV1(
+	@Required
 	val format: String = WifiCapturedPortableFormatV1.FORMAT,
+	@Required
 	val schemaVersion: Int = WifiCapturedPortableFormatV1.SCHEMA_VERSION,
 	val identity: PortableWifiOpaqueIdentity,
 	val contentChecksum: PortableWifiDigest,
@@ -211,13 +275,22 @@ class PortableWifiOpaqueOwnershipVerifier private constructor(
 			} || candidate.deletionScopeOwners.any { (scope, owner) ->
 				deletionScopeOwners[scope]?.let { it != owner } == true
 			}
-		) return false
+		) {
+			return false
+		}
 		identityOwners.putAll(candidate.identityOwners)
 		deletionScopeOwners.putAll(candidate.deletionScopeOwners)
 		return true
 	}
 
+	/**
+	 * Builds a compatible ownership verifier from complete portable Wi-Fi entries.
+	 */
 	companion object {
+		/**
+		 * Returns a verifier when every hierarchy has compatible identity/scope ownership, or null on
+		 * any collision.
+		 */
 		fun fromEntries(entries: Collection<PortableCapturedWifiEntryV1>):
 			PortableWifiOpaqueOwnershipVerifier? {
 			val verifier = PortableWifiOpaqueOwnershipVerifier(linkedMapOf(), linkedMapOf())
@@ -232,7 +305,9 @@ class PortableWifiOpaqueOwnershipVerifier private constructor(
 					entryIdentity,
 					PortableWifiOpaqueOwner(PortableWifiIdentityKind.LOGICAL_ENTRY, entryIdentity),
 				)
-			) return null
+			) {
+				return null
+			}
 			entry.runs.forEach { run ->
 				val runIdentity = run.identity.value
 				val runOwner = PortableWifiOpaqueOwner(
@@ -243,7 +318,9 @@ class PortableWifiOpaqueOwnershipVerifier private constructor(
 				)
 				if (!verifier.bindIdentity(runIdentity, runOwner) ||
 					!verifier.bindScope(run.deletionScopeDigest.value, runOwner)
-				) return null
+				) {
+					return null
+				}
 				run.observations.forEach { observation ->
 					if (!verifier.bindIdentity(
 							observation.identity.value,
@@ -253,23 +330,32 @@ class PortableWifiOpaqueOwnershipVerifier private constructor(
 								runIdentity,
 							),
 						)
-					) return null
+					) {
+						return null
+					}
 				}
 			}
-			if (verifier.identityOwners.keys.any { it in verifier.deletionScopeOwners }) return null
-			return verifier
+			return if (verifier.identityOwners.keys.any { it in verifier.deletionScopeOwners }) {
+				null
+			} else {
+				verifier
+			}
 		}
 	}
 
 	private fun bindIdentity(identity: String, owner: PortableWifiOpaqueOwner): Boolean {
 		val previous = identityOwners[identity]
-		if (previous == null) identityOwners[identity] = owner
+		if (previous == null) {
+			identityOwners[identity] = owner
+		}
 		return previous == null || previous == owner
 	}
 
 	private fun bindScope(scope: String, owner: PortableWifiOpaqueOwner): Boolean {
 		val previous = deletionScopeOwners[scope]
-		if (previous == null) deletionScopeOwners[scope] = owner
+		if (previous == null) {
+			deletionScopeOwners[scope] = owner
+		}
 		return previous == null || previous == owner
 	}
 }
@@ -302,9 +388,17 @@ object PortableWifiIntegrity {
 		parts.forEach { part -> writeNullableString(part?.toString()) }
 	}
 
+	/**
+	 * Recomputes the canonical digest of the Wi-Fi reading, including times, revision, counts and
+	 * signal summary.
+	 */
 	fun observationChecksum(value: PortableCapturedWifiObservationV1): PortableWifiDigest =
 		observationChecksum(value.toCanonical())
 
+	/**
+	 * Builds and validates a Wi-Fi reading with a freshly computed checksum; UTC millisecond bounds
+	 * and represented counts must be consistent.
+	 */
 	@Suppress("LongParameterList")
 	fun createObservation(
 		identity: PortableWifiOpaqueIdentity,
@@ -382,8 +476,16 @@ object PortableWifiIntegrity {
 			writeNullableFloat(value.sourceQualityConfidence)
 		})
 
+	/**
+	 * Recomputes canonical run content, including bounds, coverage and ordered child
+	 * identities/checksums.
+	 */
 	fun runChecksum(value: PortableCapturedWifiRunV1): PortableWifiDigest = runChecksum(value.toCanonical())
 
+	/**
+	 * Copies the supplied child/zone lists and constructs a checksummed run; ordering, coverage and
+	 * availability invariants must already hold.
+	 */
 	@Suppress("LongParameterList")
 	fun createRun(
 		identity: PortableWifiOpaqueIdentity,
@@ -430,9 +532,17 @@ object PortableWifiIntegrity {
 			}
 		})
 
+	/**
+	 * Recomputes canonical entry content, including session mode, envelope and ordered run
+	 * identities/checksums.
+	 */
 	fun entryChecksum(value: PortableCapturedWifiEntryV1): PortableWifiDigest =
 		entryChecksum(value.toCanonical())
 
+	/**
+	 * Copies the ordered runs and constructs a checksummed entry whose UTC millisecond envelope must
+	 * match its members.
+	 */
 	fun createEntry(
 		identity: PortableWifiOpaqueIdentity,
 		sessionMode: PortableWifiSessionMode,
@@ -552,23 +662,31 @@ private fun canonicalDigest(namespace: String, body: DataOutputStream.() -> Unit
 
 private fun DataOutputStream.writeNullableString(value: String?) {
 	writeBoolean(value != null)
-	if (value != null) writeUTF(value)
+	if (value != null) {
+		writeUTF(value)
+	}
 }
 
 private fun DataOutputStream.writeNullableLong(value: Long?) {
 	writeBoolean(value != null)
-	if (value != null) writeLong(value)
+	if (value != null) {
+		writeLong(value)
+	}
 }
 
 private fun DataOutputStream.writeNullableFloat(value: Float?) {
 	writeBoolean(value != null)
-	if (value != null) writeFloat(value)
+	if (value != null) {
+		writeFloat(value)
+	}
 }
 
 private fun sumExact(vararg values: Int): Int = values.fold(0, Math::addExact)
 
 private fun requireValidZone(zoneId: String) {
-	if (!hasValidZone(zoneId)) throw IllegalArgumentException("Invalid stored Wi-Fi zone")
+	if (!hasValidZone(zoneId)) {
+		throw IllegalArgumentException("Invalid stored Wi-Fi zone")
+	}
 }
 
 private fun hasValidZone(zoneId: String): Boolean = try {

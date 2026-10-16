@@ -46,7 +46,9 @@ class AmbientStepsForegroundImportTest {
 		var repairs = 0
 		registerTrackingForegroundWork(lifecycle, this, scheduler) {
 			repairs++
-			if (repairs == 1) error("Temporarily unavailable")
+			if (repairs == 1) {
+				error("Temporarily unavailable")
+			}
 		}
 		observer.captured.onStart(owner)
 		runCurrent()

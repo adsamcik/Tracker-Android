@@ -41,6 +41,8 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)
 class StepSourceRuntimeRefreshTest {
+	// Keep compatible authority refresh and the unchanged live Steps listener assertions together.
+	@Suppress("LongMethod")
 	@Test
 	fun `compatible authorization refresh keeps the existing step listener`() = runTest {
 		val initialPlan = plan(revision = 1L)
@@ -52,6 +54,9 @@ class StepSourceRuntimeRefreshTest {
 		val sensorManager = mockk<SensorManager>()
 		val sensor = mockk<Sensor>()
 		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
+		coEvery {
+			registrations.saveRuntimeState(any(), any(), any(), any(), any(), any(), any(), any(), any())
+		} returns SourceRuntimeStateSaveResult.Saved
 		every { context.getSystemService(Context.SENSOR_SERVICE) } returns sensorManager
 		every { context.packageManager } returns packageManager
 		every { packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER) } returns true
@@ -103,6 +108,8 @@ class StepSourceRuntimeRefreshTest {
 		runtime.close()
 	}
 
+	// Keep the failed compatible refresh and orderly single Steps listener replacement together.
+	@Suppress("LongMethod")
 	@Test
 	fun `incompatible authorization check reserves only one step replacement`() = runTest {
 		val initialPlan = plan(revision = 1L)
@@ -114,6 +121,9 @@ class StepSourceRuntimeRefreshTest {
 		val sensorManager = mockk<SensorManager>()
 		val sensor = mockk<Sensor>()
 		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
+		coEvery {
+			registrations.saveRuntimeState(any(), any(), any(), any(), any(), any(), any(), any(), any())
+		} returns SourceRuntimeStateSaveResult.Saved
 		every { context.getSystemService(Context.SENSOR_SERVICE) } returns sensorManager
 		every { context.packageManager } returns packageManager
 		every { packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER) } returns true
@@ -246,14 +256,25 @@ class StepSourceRuntimeRefreshTest {
 		val sensors = mockk<SensorManager>()
 		val sensor = mockk<Sensor>()
 		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
+		coEvery {
+			registrations.saveRuntimeState(any(), any(), any(), any(), any(), any(), any(), any(), any())
+		} returns SourceRuntimeStateSaveResult.Saved
 		val fixture = ContinuityFixture(sensors, registrations)
 		every { context.getSystemService(Context.SENSOR_SERVICE) } returns sensors
 		every { context.packageManager } returns packageManager
 		every { context.checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) } answers {
-			if (fixture.permission) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED
+			if (fixture.permission) {
+				PackageManager.PERMISSION_GRANTED
+			} else {
+				PackageManager.PERMISSION_DENIED
+			}
 		}
 		every { context.checkPermission(Manifest.permission.ACTIVITY_RECOGNITION, any(), any()) } answers {
-			if (fixture.permission) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED
+			if (fixture.permission) {
+				PackageManager.PERMISSION_GRANTED
+			} else {
+				PackageManager.PERMISSION_DENIED
+			}
 		}
 		every { packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER) } returns true
 		every { sensors.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) } returns sensor

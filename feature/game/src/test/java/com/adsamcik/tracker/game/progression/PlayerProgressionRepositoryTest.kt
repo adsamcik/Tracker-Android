@@ -226,10 +226,14 @@ class PlayerProgressionRepositoryTest {
 			io.mockk.coEvery { readSavedSessionReward(any()) } coAnswers {
 				val id = firstArg<Long>()
 				val segment = database.sessionSegmentDao().getById(id)
-				if (segment == null) com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Removed(0, 2)
-				else com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready(
+				if (segment == null) {
+					com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Removed(0, 2)
+				}
+				else {
+					com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready(
 					com.adsamcik.tracker.stats.api.repository.SavedSessionReward(id, 0, 1,
 						segment.endTimeMs, segment.endTimeMs - segment.startTimeMs, segment.distanceM.toDouble()))
+				}
 			}
 		},
 	)

@@ -11,11 +11,18 @@ import java.security.MessageDigest
 const val PRESSURE_WAL_PAYLOAD_VERSION = 4
 const val MAX_PRESSURE_WAL_PAYLOAD_BYTES = 256
 
+/**
+ * Original reason a Pressure sample window closed; it distinguishes normal windows from
+ * interruption.
+ */
 enum class PressureWalClosureKind {
 	TARGET_ELAPSED,
 	SOURCE_BOUNDARY,
 }
 
+/**
+ * Original platform pressure-sensor accuracy classification retained with the measured window.
+ */
 enum class PressureWalSensorAccuracy {
 	UNKNOWN,
 	UNRELIABLE,
@@ -24,6 +31,10 @@ enum class PressureWalSensorAccuracy {
 	HIGH,
 }
 
+/**
+ * Original Pressure window statistics in hectopascals with elapsed nanosecond bounds, sample
+ * coverage and sensor configuration.
+ */
 @Suppress("LongParameterList")
 data class PressureWalPayload(
 	val sampleCount: Int,
@@ -67,7 +78,14 @@ data class PressureWalPayload(
 		}
 }
 
+/**
+ * Bounded deterministic Pressure binary encoding shared by stored carriers and their readers.
+ */
 object PressureWalPayloadCodec {
+	/**
+	 * Serializes Pressure payload values into the supported deterministic binary layout; nullable
+	 * measurements keep their absence.
+	 */
 	fun encode(payload: PressureWalPayload): ByteArray {
 		requireValid(payload)
 		return ByteArrayOutputStream().use { buffer ->
@@ -98,6 +116,10 @@ object PressureWalPayloadCodec {
 		}
 	}
 
+	/**
+	 * Decodes a bounded supported Pressure payload and requires exact canonical bytes; malformed data
+	 * is rejected through the declared result type.
+	 */
 	fun decodeCanonical(payloadVersion: Int, bytes: ByteArray): PressureWalPayload? =
 		runCatching {
 			require(payloadVersion == PRESSURE_WAL_PAYLOAD_VERSION)
@@ -139,6 +161,12 @@ object PressureWalPayloadCodec {
 		}.getOrNull()
 
 	private fun requireValid(payload: PressureWalPayload) {
+		requireValidMeasurements(payload)
+		requireValidSampling(payload)
+		requireValidWindowStatistics(payload)
+	}
+
+	private fun requireValidMeasurements(payload: PressureWalPayload) {
 		require(payload.sampleCount > 0)
 		require(payload.meanHectopascals.isFinite() && payload.meanHectopascals > 0.0)
 		require(
@@ -167,6 +195,9 @@ object PressureWalPayloadCodec {
 				payload.lastHectopascals in
 				payload.minimumHectopascals..payload.maximumHectopascals,
 		)
+	}
+
+	private fun requireValidSampling(payload: PressureWalPayload) {
 		require(payload.windowStartElapsedRealtimeNanos >= 0L)
 		require(payload.windowEndElapsedRealtimeNanos >= payload.windowStartElapsedRealtimeNanos)
 		require(payload.firstProviderSequence > 0L)
@@ -186,6 +217,9 @@ object PressureWalPayloadCodec {
 				),
 		)
 		require(payload.maximumInterSampleGapNanos >= 0L)
+	}
+
+	private fun requireValidWindowStatistics(payload: PressureWalPayload) {
 		val observedSpan =
 			payload.windowEndElapsedRealtimeNanos - payload.windowStartElapsedRealtimeNanos
 		if (payload.sampleCount == 1) {
@@ -222,6 +256,10 @@ object PressureWalPayloadCodec {
 	}
 }
 
+/**
+ * Specific original Pressure envelope, payload, acquisition-floor and revision comparison
+ * failures.
+ */
 enum class PressureWalCarrierFailure {
 	WRONG_SOURCE,
 	UNSUPPORTED_PAYLOAD_VERSION,
@@ -236,76 +274,115 @@ enum class PressureWalCarrierFailure {
 	FACT_INTEGRITY_MISMATCH,
 }
 
+/**
+ * Decoded Pressure window after original envelope, recorded binding and payload checks pass.
+ */
 data class AuthenticatedPressureWalCarrier internal constructor(
 	val payload: PressureWalPayload,
 	val qualification: String,
 )
 
+/**
+ * Typed Pressure carrier comparison result with the exact rejection cause.
+ */
 sealed interface PressureWalCarrierAuthentication {
+	/**
+	 * Successful original-carrier comparison containing its checked, decoded measurement payload.
+	 */
 	data class Authenticated(
 		val carrier: AuthenticatedPressureWalCarrier,
 	) : PressureWalCarrierAuthentication
 
+	/**
+	 * Specific rejected decode, carrier or per-purpose qualification outcome; it carries no accepted
+	 * payload.
+	 */
 	data class Rejected(val reason: PressureWalCarrierFailure) : PressureWalCarrierAuthentication
 }
 
+/**
+ * Compares original Pressure carriers, measured window semantics and saved fact provenance.
+ */
 object PressureWalCarrierAuthenticator {
-	@Suppress("ComplexCondition", "ReturnCount")
+	/**
+	 * Checks the original Pressure WAL checksum, provider envelope, supported payload and recorded
+	 * capture binding; reports the exact rejection cause.
+	 */
 	fun authenticate(wal: SourceEventWalEntity): PressureWalCarrierAuthentication {
-		if (wal.sourceKind != SourceDestinationOwnerEntity.SOURCE_PRESSURE) {
-			return rejected(PressureWalCarrierFailure.WRONG_SOURCE)
-		}
-		if (wal.payloadVersion != PRESSURE_WAL_PAYLOAD_VERSION) {
-			return rejected(PressureWalCarrierFailure.UNSUPPORTED_PAYLOAD_VERSION)
-		}
-		if (!wal.hasExactQualifiedIntegrity(MAX_PRESSURE_WAL_PAYLOAD_BYTES)) {
-			return rejected(PressureWalCarrierFailure.INTEGRITY_MISMATCH)
-		}
-		if (!wal.hasCompleteSessionCaptureBinding()) {
-			return rejected(PressureWalCarrierFailure.INCOMPLETE_CAPTURE_AUTHORITY)
-		}
-		if (
-			wal.providerDedupKey != null ||
-			wal.activityAutomationEpoch != null ||
-			wal.deliveryIdentity?.let(SOURCE_WAL_SHA_256::matches) != true ||
-			wal.deliveryUnitIndex != 0 ||
-			wal.deliveryUnitCount != 1 ||
-			wal.sourceSequence < 0L ||
-			wal.observedIntervalStartNanos?.let { it >= 0L } != true ||
-			wal.observedElapsedNanos < requireNotNull(wal.observedIntervalStartNanos) ||
-			wal.receivedElapsedNanos < wal.observedElapsedNanos ||
-			wal.receivedWallTimeMs?.let { it < 0L } == true ||
-			wal.wallTimeMs?.let { it >= 0L } != true ||
-			wal.wallTimeUncertaintyMs?.let { it >= 0L } != true ||
-			wal.acquiredAtMs != wal.wallTimeMs ||
-			wal.createdAtMs < 0L ||
-			!wal.hasCanonicalQuality()
-		) {
-			return rejected(PressureWalCarrierFailure.MALFORMED_PROVIDER_ENVELOPE)
+		val envelopeFailure = originalEnvelopeFailure(wal)
+		if (envelopeFailure != null) {
+			return rejected(envelopeFailure)
 		}
 		val payload = PressureWalPayloadCodec.decodeCanonical(wal.payloadVersion, wal.payload)
 			?: return rejected(PressureWalCarrierFailure.PAYLOAD_INVALID)
-		if (
-			payload.windowStartElapsedRealtimeNanos != wal.observedIntervalStartNanos ||
-			payload.windowEndElapsedRealtimeNanos != wal.observedElapsedNanos
-		) {
-			return rejected(PressureWalCarrierFailure.MALFORMED_PROVIDER_ENVELOPE)
-		}
-		if (pressureDeliveryIdentity(wal.clockDomainId, payload) != wal.deliveryIdentity) {
-			return rejected(PressureWalCarrierFailure.DELIVERY_IDENTITY_MISMATCH)
-		}
-		val incomplete =
-			wal.qualityFlags and PRESSURE_INCOMPLETE_WINDOW_QUALITY_FLAG != 0L
-		if (incomplete !=
-			(payload.qualification == PressureFactRevisionEntity.QUALIFICATION_PARTIAL)
-		) {
-			return rejected(PressureWalCarrierFailure.QUALIFICATION_MISMATCH)
+		val bindingFailure = payloadBindingFailure(wal, payload)
+		if (bindingFailure != null) {
+			return rejected(bindingFailure)
 		}
 		return PressureWalCarrierAuthentication.Authenticated(
 			AuthenticatedPressureWalCarrier(payload, payload.qualification),
 		)
 	}
 
+	private fun originalEnvelopeFailure(wal: SourceEventWalEntity): PressureWalCarrierFailure? = when {
+		wal.sourceKind != SourceDestinationOwnerEntity.SOURCE_PRESSURE ->
+			PressureWalCarrierFailure.WRONG_SOURCE
+		wal.payloadVersion != PRESSURE_WAL_PAYLOAD_VERSION ->
+			PressureWalCarrierFailure.UNSUPPORTED_PAYLOAD_VERSION
+		!wal.hasExactQualifiedIntegrity(MAX_PRESSURE_WAL_PAYLOAD_BYTES) ->
+			PressureWalCarrierFailure.INTEGRITY_MISMATCH
+		!wal.hasCompleteSessionCaptureBinding() ->
+			PressureWalCarrierFailure.INCOMPLETE_CAPTURE_AUTHORITY
+		hasMalformedProviderEnvelope(wal) -> PressureWalCarrierFailure.MALFORMED_PROVIDER_ENVELOPE
+		else -> null
+	}
+
+	// Keep the original fixed provider-envelope tuple and its short-circuit order together.
+	@Suppress("CyclomaticComplexMethod")
+	private fun hasMalformedProviderEnvelope(wal: SourceEventWalEntity): Boolean =
+		wal.providerDedupKey != null ||
+		wal.activityAutomationEpoch != null ||
+		wal.deliveryIdentity?.let(SOURCE_WAL_SHA_256::matches) != true ||
+		wal.deliveryUnitIndex != 0 ||
+		wal.deliveryUnitCount != 1 ||
+		wal.sourceSequence < 0L ||
+		wal.observedIntervalStartNanos?.let { it >= 0L } != true ||
+		wal.observedElapsedNanos < requireNotNull(wal.observedIntervalStartNanos) ||
+		wal.receivedElapsedNanos < wal.observedElapsedNanos ||
+		wal.receivedWallTimeMs?.let { it < 0L } == true ||
+		wal.wallTimeMs?.let { it >= 0L } != true ||
+		wal.wallTimeUncertaintyMs?.let { it >= 0L } != true ||
+		wal.acquiredAtMs != wal.wallTimeMs ||
+		wal.createdAtMs < 0L ||
+		!wal.hasCanonicalQuality()
+
+	private fun payloadBindingFailure(
+		wal: SourceEventWalEntity,
+		payload: PressureWalPayload,
+	): PressureWalCarrierFailure? {
+		if (
+			payload.windowStartElapsedRealtimeNanos != wal.observedIntervalStartNanos ||
+			payload.windowEndElapsedRealtimeNanos != wal.observedElapsedNanos
+		) {
+			return PressureWalCarrierFailure.MALFORMED_PROVIDER_ENVELOPE
+		}
+		if (pressureDeliveryIdentity(wal.clockDomainId, payload) != wal.deliveryIdentity) {
+			return PressureWalCarrierFailure.DELIVERY_IDENTITY_MISMATCH
+		}
+		val incomplete =
+			wal.qualityFlags and PRESSURE_INCOMPLETE_WINDOW_QUALITY_FLAG != 0L
+		if (incomplete !=
+			(payload.qualification == PressureFactRevisionEntity.QUALIFICATION_PARTIAL)
+		) {
+			return PressureWalCarrierFailure.QUALIFICATION_MISMATCH
+		}
+		return null
+	}
+
+	/**
+	 * Checks the saved Pressure revision against its original WAL carrier, ownership, measured values
+	 * and supplied child/count-domain evidence.
+	 */
 	fun authenticate(
 		fact: PressureFactRevisionEntity,
 		wal: SourceEventWalEntity,
@@ -315,29 +392,21 @@ object PressureWalCarrierAuthenticator {
 		if (authentication !is PressureWalCarrierAuthentication.Authenticated) {
 			return authentication
 		}
-		if (
-			fact.sourceEventId != wal.eventId ||
-			fact.sourceAdmissionOrdinal != wal.admissionOrdinal ||
-			fact.payloadVersion != wal.payloadVersion ||
-			fact.logicalTrackingId != wal.logicalTrackingId ||
-			fact.serviceRunId != wal.serviceRunId ||
-			fact.sourcePolicyRevision != wal.sourcePolicyRevision ||
-			fact.captureConsentEpoch != wal.captureConsentEpoch ||
-			fact.manifestRevision != wal.sessionManifestRevision ||
-			fact.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
-			fact.clockDomainId != wal.clockDomainId
-		) {
-			return rejected(PressureWalCarrierFailure.FACT_LINKAGE_MISMATCH)
+		return when {
+			!fact.hasExactCarrierLinkage(wal) ->
+				rejected(PressureWalCarrierFailure.FACT_LINKAGE_MISMATCH)
+			!fact.matches(authentication.carrier, wal) ->
+				rejected(PressureWalCarrierFailure.FACT_SEMANTICS_MISMATCH)
+			!PressureFactRevisionIntegrity.hasValidEffectChecksum(fact, binding) ->
+				rejected(PressureWalCarrierFailure.FACT_INTEGRITY_MISMATCH)
+			else -> authentication
 		}
-		if (!fact.matches(authentication.carrier, wal)) {
-			return rejected(PressureWalCarrierFailure.FACT_SEMANTICS_MISMATCH)
-		}
-		if (!PressureFactRevisionIntegrity.hasValidEffectChecksum(fact, binding)) {
-			return rejected(PressureWalCarrierFailure.FACT_INTEGRITY_MISMATCH)
-		}
-		return authentication
 	}
 
+	/**
+	 * Returns whether the saved Pressure fact and supplied original carrier pass the complete carrier
+	 * comparison.
+	 */
 	fun authenticates(
 		fact: PressureFactRevisionEntity,
 		wal: SourceEventWalEntity,
@@ -345,7 +414,20 @@ object PressureWalCarrierAuthenticator {
 	): Boolean = authenticate(fact, wal, binding) is PressureWalCarrierAuthentication.Authenticated
 }
 
-@Suppress("ComplexCondition")
+private fun PressureFactRevisionEntity.hasExactCarrierLinkage(wal: SourceEventWalEntity): Boolean =
+	sourceEventId == wal.eventId &&
+	sourceAdmissionOrdinal == wal.admissionOrdinal &&
+	payloadVersion == wal.payloadVersion &&
+	logicalTrackingId == wal.logicalTrackingId &&
+	serviceRunId == wal.serviceRunId &&
+	sourcePolicyRevision == wal.sourcePolicyRevision &&
+	captureConsentEpoch == wal.captureConsentEpoch &&
+	manifestRevision == wal.sessionManifestRevision &&
+	collectedDataEpoch == wal.capturedCollectedDataEpoch &&
+	clockDomainId == wal.clockDomainId
+
+// One complete cross-type persisted fact mapping.
+@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 private fun PressureFactRevisionEntity.matches(
 	carrier: AuthenticatedPressureWalCarrier,
 	wal: SourceEventWalEntity,
@@ -356,7 +438,9 @@ private fun PressureFactRevisionEntity.matches(
 	val durationMs =
 		(payload.windowEndElapsedRealtimeNanos - payload.windowStartElapsedRealtimeNanos) /
 			NANOS_PER_MILLISECOND
-	if (durationMs > endTimeMs) return false
+	if (durationMs > endTimeMs) {
+		return false
+	}
 	val startTimeMs = endTimeMs - durationMs
 	val expectedLogicalFactId =
 		"${SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID}:${wal.eventId}"
@@ -424,11 +508,17 @@ private fun pressureDeliveryIdentity(
 
 private fun DataOutputStream.writeNullableDouble(value: Double?) {
 	writeBoolean(value != null)
-	if (value != null) writeDouble(value)
+	if (value != null) {
+		writeDouble(value)
+	}
 }
 
 private fun DataInputStream.readNullableDouble(): Double? =
-	if (readBoolean()) readDouble() else null
+	if (readBoolean()) {
+		readDouble()
+	} else {
+		null
+	}
 
 private val PressureWalSensorAccuracy.wireCode: Int
 	get() = ordinal + 1
@@ -439,12 +529,20 @@ private val PressureWalClosureKind.wireCode: Int
 private fun expectedSampleCount(targetNanos: Long, samplePeriodMicros: Int): Int {
 	val samplePeriodNanos = samplePeriodMicros.toLong() * NANOS_PER_MICROSECOND
 	val wholePeriods = targetNanos / samplePeriodNanos
-	val roundedUp = wholePeriods + if (targetNanos % samplePeriodNanos == 0L) 0L else 1L
+	val roundedUp = wholePeriods + if (targetNanos % samplePeriodNanos == 0L) {
+		0L
+	} else {
+		1L
+	}
 	return roundedUp.coerceAtLeast(1L).also { require(it <= Int.MAX_VALUE) }.toInt()
 }
 
 private fun saturatedMultiply(first: Long, second: Long): Long =
-	if (first == 0L || second <= Long.MAX_VALUE / first) first * second else Long.MAX_VALUE
+	if (first == 0L || second <= Long.MAX_VALUE / first) {
+		first * second
+	} else {
+		Long.MAX_VALUE
+	}
 
 private fun rejected(reason: PressureWalCarrierFailure) =
 	PressureWalCarrierAuthentication.Rejected(reason)

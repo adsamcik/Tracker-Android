@@ -1910,7 +1910,7 @@ class CellSourceRuntimeTest {
 
 		assertTrue(fixture.runtime.refreshShared(ambientPlan, sink, claim = null) is
 			SourceApplyResult.Applied)
-		fixture.emit(freshProviderDelivery())
+		fixture.emit(nextProviderDelivery())
 		runCurrent()
 		firstEntered.await()
 		val cutoff = cellCutoff()
@@ -1928,7 +1928,7 @@ class CellSourceRuntimeTest {
 		coVerify(exactly = 1) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(ambient) }
 		verify(exactly = 1) { fixture.backend.start(any(), any()) }
 		verify(exactly = 0) { fixture.backend.stop() }
-		fixture.emit(freshProviderDelivery())
+		fixture.emit(nextProviderDelivery())
 		runCurrent()
 		assertEquals(2, admitted)
 		fixture.runtime.close()
@@ -1961,7 +1961,7 @@ class CellSourceRuntimeTest {
 
 		assertTrue(fixture.runtime.refreshShared(ambientPlan, sink, claim = null) is
 			SourceApplyResult.Applied)
-		fixture.emit(freshProviderDelivery())
+		fixture.emit(nextProviderDelivery())
 		runCurrent()
 		firstEntered.await()
 		val cutoff = cellCutoff()
@@ -1979,7 +1979,7 @@ class CellSourceRuntimeTest {
 		coVerify(exactly = 1) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(ambient) }
 		verify(exactly = 1) { fixture.backend.start(any(), any()) }
 		verify(exactly = 0) { fixture.backend.stop() }
-		fixture.emit(freshProviderDelivery())
+		fixture.emit(nextProviderDelivery())
 		runCurrent()
 		assertEquals(2, admitted)
 		fixture.runtime.close()
@@ -2018,7 +2018,7 @@ class CellSourceRuntimeTest {
 
 		assertTrue(fixture.runtime.refreshShared(ambientPlan, sink, claim = null) is
 			SourceApplyResult.Applied)
-		fixture.emit(freshProviderDelivery())
+		fixture.emit(nextProviderDelivery())
 		runCurrent()
 		firstEntered.await()
 		val cutoff = cellCutoff()
@@ -2034,7 +2034,7 @@ class CellSourceRuntimeTest {
 		coVerify(exactly = 1) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(ambient) }
 		verify(exactly = 1) { fixture.backend.start(any(), any()) }
 		verify(exactly = 0) { fixture.backend.stop() }
-		fixture.emit(freshProviderDelivery())
+		fixture.emit(nextProviderDelivery())
 		runCurrent()
 		assertEquals(2, admitted)
 		fixture.runtime.close()
@@ -2057,7 +2057,7 @@ class CellSourceRuntimeTest {
 			SourceAdmissionHandoff.Durable(admitted.toLong())
 		})
 		try {
-			fixture.emit(freshProviderDelivery())
+			fixture.emit(nextProviderDelivery())
 			runCurrent()
 			assertTrue(entered.isCompleted)
 			val setup = async { fixture.runtime.prepareSessionCaptureBoundary(
@@ -2069,7 +2069,7 @@ class CellSourceRuntimeTest {
 			runCurrent()
 			assertTrue(setup.await())
 			coVerify(exactly = 1) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(resident) }
-			fixture.emit(freshProviderDelivery())
+			fixture.emit(nextProviderDelivery())
 			runCurrent()
 			assertEquals(2, admitted)
 			verify(exactly = 1) { fixture.backend.start(any(), any()) }
@@ -2111,7 +2111,7 @@ class CellSourceRuntimeTest {
 			SourceAdmissionHandoff.Durable(admitted.toLong())
 		})
 		try {
-			fixture.emit(freshProviderDelivery())
+			fixture.emit(nextProviderDelivery())
 			runCurrent()
 			val setup = async { fixture.runtime.prepareSessionCaptureBoundary(
 				android.os.SystemClock.elapsedRealtimeNanos() + 100_000_000L) }
@@ -2122,7 +2122,7 @@ class CellSourceRuntimeTest {
 			coVerify(exactly = 0) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(any()) }
 			release.complete(Unit)
 			runCurrent()
-			fixture.emit(freshProviderDelivery())
+			fixture.emit(nextProviderDelivery())
 			runCurrent()
 			assertEquals(2, admitted)
 			verify(exactly = 0) { fixture.backend.stop() }
@@ -2172,11 +2172,11 @@ class CellSourceRuntimeTest {
 			SourceAdmissionHandoff.Durable(admitted.toLong())
 		})
 		try {
-			fixture.emit(freshProviderDelivery())
+			fixture.emit(nextProviderDelivery())
 			runCurrent()
 			assertTrue(entered.isCompleted)
 			// Both actual source lanes have 64 slots; the actor is held at the first callback.
-			repeat(64) { fixture.emit(freshProviderDelivery()) }
+			repeat(64) { fixture.emit(nextProviderDelivery()) }
 			val setup = async { fixture.runtime.prepareSessionCaptureBoundary(
 				android.os.SystemClock.elapsedRealtimeNanos() + 100_000_000L) }
 			runCurrent()
@@ -2190,7 +2190,7 @@ class CellSourceRuntimeTest {
 			runCurrent()
 			val completedPrefix = admitted
 			assertTrue(completedPrefix > 1)
-			fixture.emit(freshProviderDelivery())
+			fixture.emit(nextProviderDelivery())
 			runCurrent()
 			assertEquals(completedPrefix + 1, admitted)
 			verify(exactly = 0) { fixture.backend.stop() }
@@ -2212,23 +2212,23 @@ class CellSourceRuntimeTest {
 			if (admitted == 1) { entered.complete(Unit); release.await() }
 			SourceAdmissionHandoff.Durable(admitted.toLong())
 		})
-		fun emitArrival(index: Int) { ShadowSystemClock.advanceBy(Duration.ofMillis(1)); fixture.emit(freshProviderDelivery()) }
+		fun emitArrival() { ShadowSystemClock.advanceBy(Duration.ofMillis(1)); fixture.emit(freshProviderDelivery()) }
 		try {
-			emitArrival(0)
+			emitArrival()
 			runCurrent()
 			assertTrue(entered.isCompleted)
-			repeat(64) { emitArrival(it + 1) }
+			repeat(64) { emitArrival() }
 			val boundary = async { fixture.runtime.prepareSessionCaptureBoundary(android.os.SystemClock.elapsedRealtimeNanos() + 1_000_000_000L) }
 			runCurrent()
 			assertFalse(boundary.isCompleted)
 			// Arrives after the captured sequence65 while the actual marker send is suspended.
-			emitArrival(65)
+			emitArrival()
 			release.complete(Unit)
 			runCurrent()
 			assertTrue(boundary.await())
 			coVerify(exactly = 1) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(resident) }
 			verify(exactly = 0) { fixture.backend.stop() }
-			emitArrival(66)
+			emitArrival()
 			runCurrent()
 			val ack = fixture.quiesce()
 			assertTrue(ack.appDrainComplete)
@@ -2254,17 +2254,17 @@ class CellSourceRuntimeTest {
 			if (admitted == 1) { entered.complete(Unit); release.await() }
 			SourceAdmissionHandoff.Durable(admitted.toLong())
 		})
-		fun emitArrival(index: Int) { ShadowSystemClock.advanceBy(Duration.ofMillis(1)); fixture.emit(freshProviderDelivery()) }
+		fun emitArrival() { ShadowSystemClock.advanceBy(Duration.ofMillis(1)); fixture.emit(freshProviderDelivery()) }
 		try {
-			emitArrival(0)
+			emitArrival()
 			runCurrent()
 			assertTrue(entered.isCompleted)
-			repeat(64) { emitArrival(it + 1) }
+			repeat(64) { emitArrival() }
 			val boundary = async { fixture.runtime.sharedSessionCutoff(cellCutoff()) }
 			runCurrent()
 			assertFalse(boundary.isCompleted)
 			// Arrives after the captured sequence65 while the actual marker send is suspended.
-			emitArrival(65)
+			emitArrival()
 			release.complete(Unit)
 			runCurrent()
 			val prefix = boundary.await()
@@ -2277,7 +2277,7 @@ class CellSourceRuntimeTest {
 			assertEquals(66L, prefix.unresolvedSequenceEndInclusive)
 			coVerify(exactly = 1) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(resident) }
 			verify(exactly = 0) { fixture.backend.stop() }
-			emitArrival(66)
+			emitArrival()
 			runCurrent()
 			val ack = fixture.quiesce()
 			assertTrue(ack.appDrainComplete)
@@ -2302,17 +2302,17 @@ class CellSourceRuntimeTest {
 			if (admitted == 1) { entered.complete(Unit); release.await() }
 			SourceAdmissionHandoff.Durable(admitted.toLong())
 		})
-		fun emitArrival(index: Int) { ShadowSystemClock.advanceBy(Duration.ofMillis(1)); fixture.emit(freshProviderDelivery()) }
+		fun emitArrival() { ShadowSystemClock.advanceBy(Duration.ofMillis(1)); fixture.emit(freshProviderDelivery()) }
 		try {
-			emitArrival(0)
+			emitArrival()
 			runCurrent()
 			assertTrue(entered.isCompleted)
-			repeat(64) { emitArrival(it + 1) }
+			repeat(64) { emitArrival() }
 			val boundary = async { fixture.runtime.sharedSessionCutoff(cellCutoff()) }
 			runCurrent()
 			assertFalse(boundary.isCompleted)
 			// Arrives after the captured sequence65 while the actual marker send is suspended.
-			emitArrival(65)
+			emitArrival()
 			release.complete(Unit)
 			runCurrent()
 			val prefix = boundary.await()
@@ -2322,7 +2322,7 @@ class CellSourceRuntimeTest {
 			assertEquals(0L, prefix.failedAdmissionCount)
 			coVerify(exactly = 0) { fixture.registrations.isCurrentRadioSessionCaptureCallbackOwner(any()) }
 			verify(exactly = 0) { fixture.backend.stop() }
-			emitArrival(66)
+			emitArrival()
 			runCurrent()
 			val ack = fixture.quiesce()
 			assertTrue(ack.appDrainComplete)
@@ -2346,17 +2346,17 @@ class CellSourceRuntimeTest {
 			if (admitted == 1) { entered.complete(Unit); release.await() }
 			SourceAdmissionHandoff.Durable(admitted.toLong())
 		})
-		fun emitArrival(index: Int) { ShadowSystemClock.advanceBy(Duration.ofMillis(1)); fixture.emit(freshProviderDelivery()) }
+		fun emitArrival() { ShadowSystemClock.advanceBy(Duration.ofMillis(1)); fixture.emit(freshProviderDelivery()) }
 		try {
-			emitArrival(0)
+			emitArrival()
 			runCurrent()
 			assertTrue(entered.isCompleted)
-			repeat(64) { emitArrival(it + 1) }
+			repeat(64) { emitArrival() }
 			val boundary = async { fixture.runtime.prepareSessionCaptureBoundary(android.os.SystemClock.elapsedRealtimeNanos() + 1_000_000_000L) }
 			runCurrent()
 			assertFalse(boundary.isCompleted)
 			// Arrives after the captured sequence65 while the actual marker send is suspended.
-			emitArrival(65)
+			emitArrival()
 			boundary.cancel()
 			boundary.join()
 			assertTrue(boundary.isCancelled)
@@ -2364,7 +2364,7 @@ class CellSourceRuntimeTest {
 			release.complete(Unit)
 			runCurrent()
 			verify(exactly = 0) { fixture.backend.stop() }
-			emitArrival(66)
+			emitArrival()
 			runCurrent()
 			val ack = fixture.quiesce()
 			assertTrue(ack.appDrainComplete)
@@ -2568,6 +2568,11 @@ class CellSourceRuntimeTest {
 		observations = emptyList(),
 		providerItemCount = 0,
 	)
+
+	private fun nextProviderDelivery(): CellBackendSnapshot {
+		ShadowSystemClock.advanceBy(Duration.ofMillis(1))
+		return freshProviderDelivery()
+	}
 
 	private fun freshProviderDelivery(): CellBackendSnapshot {
 		if (android.os.SystemClock.elapsedRealtimeNanos() <= 0L) {

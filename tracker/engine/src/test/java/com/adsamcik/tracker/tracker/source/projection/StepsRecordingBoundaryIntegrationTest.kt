@@ -580,7 +580,7 @@ class StepsRecordingBoundaryIntegrationTest {
 		const val REGISTRATION_GENERATION = 1L
 		const val CONFIGURATION_FINGERPRINT = "steps-config"
 		const val AUTHORIZATION_REVISION = 1L
-		const val AUTHORIZATION_FINGERPRINT = "steps-capture"
+		val AUTHORIZATION_FINGERPRINT = "b".repeat(64)
 		const val SOURCE_POLICY_REVISION = 3L
 		const val CAPTURE_CONSENT_EPOCH = 4L
 		const val MANIFEST_REVISION = 5L

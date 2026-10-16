@@ -22,71 +22,79 @@ internal object PortableCountDomainJsonV2 {
 		writer.name("identity").value(graph.identity.value)
 		writer.name("contentChecksum").value(graph.contentChecksum.value)
 		writer.name("receipts").beginArray()
-		graph.receipts.forEach { receipt ->
-			writer.beginObject()
-			writer.name("identity").value(receipt.identity.value)
-			writer.name("domainIdentity").value(receipt.domainIdentity.value)
-			writer.name("ownerKind").value(receipt.ownerKind.name)
-			writer.name("scopeIdentity").value(receipt.scopeIdentity.value)
-			writer.name("ownerIdentity").value(receipt.ownerIdentity.value)
-			writer.name("ownerRevision").value(receipt.ownerRevision)
-			writer.name("registrationGeneration").value(receipt.registrationGeneration)
-			writer.name("collectedDataEpoch").value(receipt.collectedDataEpoch)
-			writer.name("authorityRevision").value(receipt.authorityRevision)
-			writer.name("authorityFingerprint").value(receipt.authorityFingerprint.value)
-			writer.name("coverage").value(receipt.coverage.name)
-			writer.name("coverageVersion").value(receipt.coverageVersion.toLong())
-			writer.name("countDomainVersion").value(receipt.countDomainVersion.toLong())
-			writer.name("effectChecksum").value(receipt.effectChecksum.value)
-			writer.name("completenessEvidenceChecksum")
-			receipt.completenessEvidenceChecksum?.let { writer.value(it.value) } ?: writer.nullValue()
-			writer.endObject()
-		}
+		graph.receipts.forEach { writeReceipt(writer, it) }
 		writer.endArray()
 		writer.name("ownerRevisions").beginArray()
-		graph.ownerRevisions.forEach { owner ->
-			writer.beginObject()
-			writer.name("ownerKind").value(owner.ownerKind.name)
-			writer.name("scopeIdentity").value(owner.scopeIdentity.value)
-			writer.name("ownerIdentity").value(owner.ownerIdentity.value)
-			writer.name("ownerRevision").value(owner.ownerRevision)
-			writer.name("operation").value(owner.operation.name)
-			writer.name("receiptIdentity")
-			owner.receiptIdentity?.let { writer.value(it.value) } ?: writer.nullValue()
-			writer.name("ownerEffectChecksum").value(owner.ownerEffectChecksum.value)
-			writer.name("linkedAtMs").value(owner.linkedAtMs)
-			writer.endObject()
-		}
+		graph.ownerRevisions.forEach { writeOwnerRevision(writer, it) }
 		writer.endArray()
 		writer.name("completenessMarkers").beginArray()
-		graph.completenessMarkers.forEach { marker ->
-			writer.beginObject()
-			writer.name("ownerIdentity").value(marker.ownerIdentity.value)
-			writer.name("ownerRevision").value(marker.ownerRevision)
-			writer.name("terminalState").value(marker.terminalState.name)
-			writer.name("lastAdmissionOrdinal")
-			marker.lastAdmissionOrdinal?.let { writer.value(it) } ?: writer.nullValue()
-			writer.name("lastSourceSequence")
-			marker.lastSourceSequence?.let { writer.value(it) } ?: writer.nullValue()
-			writer.name("providerFlushOutcome").value(marker.providerFlushOutcome)
-			writer.name("registrationRemovalOutcome").value(marker.registrationRemovalOutcome)
-			writer.name("registrationTimelineChecksum")
-				.value(marker.registrationTimelineChecksum.value)
-			writer.name("evidenceChecksum").value(marker.evidenceChecksum.value)
-			writer.endObject()
-		}
+		graph.completenessMarkers.forEach { writeCompletenessMarker(writer, it) }
 		writer.endArray()
 		writer.name("roots").beginArray()
-		graph.roots.forEach { root ->
-			writer.beginObject()
-			writer.name("containerIdentity").value(root.containerIdentity.value)
-			writer.name("productIdentity").value(root.productIdentity.value)
-			writer.name("ownerKind").value(root.ownerKind.name)
-			writer.name("ownerIdentity").value(root.ownerIdentity.value)
-			writer.name("ownerRevision").value(root.ownerRevision)
-			writer.endObject()
-		}
+		graph.roots.forEach { writeRoot(writer, it) }
 		writer.endArray()
+		writer.endObject()
+	}
+
+	private fun writeReceipt(writer: JsonWriter, receipt: PortableCountDomainReceiptV2) {
+		writer.beginObject()
+		writer.name("identity").value(receipt.identity.value)
+		writer.name("domainIdentity").value(receipt.domainIdentity.value)
+		writer.name("ownerKind").value(receipt.ownerKind.name)
+		writer.name("scopeIdentity").value(receipt.scopeIdentity.value)
+		writer.name("ownerIdentity").value(receipt.ownerIdentity.value)
+		writer.name("ownerRevision").value(receipt.ownerRevision)
+		writer.name("registrationGeneration").value(receipt.registrationGeneration)
+		writer.name("collectedDataEpoch").value(receipt.collectedDataEpoch)
+		writer.name("authorityRevision").value(receipt.authorityRevision)
+		writer.name("authorityFingerprint").value(receipt.authorityFingerprint.value)
+		writer.name("coverage").value(receipt.coverage.name)
+		writer.name("coverageVersion").value(receipt.coverageVersion.toLong())
+		writer.name("countDomainVersion").value(receipt.countDomainVersion.toLong())
+		writer.name("effectChecksum").value(receipt.effectChecksum.value)
+		writer.name("completenessEvidenceChecksum")
+		receipt.completenessEvidenceChecksum?.let { writer.value(it.value) } ?: writer.nullValue()
+		writer.endObject()
+	}
+
+	private fun writeOwnerRevision(writer: JsonWriter, owner: PortableCountDomainOwnerRevisionV2) {
+		writer.beginObject()
+		writer.name("ownerKind").value(owner.ownerKind.name)
+		writer.name("scopeIdentity").value(owner.scopeIdentity.value)
+		writer.name("ownerIdentity").value(owner.ownerIdentity.value)
+		writer.name("ownerRevision").value(owner.ownerRevision)
+		writer.name("operation").value(owner.operation.name)
+		writer.name("receiptIdentity")
+		owner.receiptIdentity?.let { writer.value(it.value) } ?: writer.nullValue()
+		writer.name("ownerEffectChecksum").value(owner.ownerEffectChecksum.value)
+		writer.name("linkedAtMs").value(owner.linkedAtMs)
+		writer.endObject()
+	}
+
+	private fun writeCompletenessMarker(writer: JsonWriter, marker: PortableCountDomainCompletenessMarkerV2) {
+		writer.beginObject()
+		writer.name("ownerIdentity").value(marker.ownerIdentity.value)
+		writer.name("ownerRevision").value(marker.ownerRevision)
+		writer.name("terminalState").value(marker.terminalState.name)
+		writer.name("lastAdmissionOrdinal")
+		marker.lastAdmissionOrdinal?.let { writer.value(it) } ?: writer.nullValue()
+		writer.name("lastSourceSequence")
+		marker.lastSourceSequence?.let { writer.value(it) } ?: writer.nullValue()
+		writer.name("providerFlushOutcome").value(marker.providerFlushOutcome)
+		writer.name("registrationRemovalOutcome").value(marker.registrationRemovalOutcome)
+		writer.name("registrationTimelineChecksum")
+			.value(marker.registrationTimelineChecksum.value)
+		writer.name("evidenceChecksum").value(marker.evidenceChecksum.value)
+		writer.endObject()
+	}
+
+	private fun writeRoot(writer: JsonWriter, root: PortableCountDomainRootV2) {
+		writer.beginObject()
+		writer.name("containerIdentity").value(root.containerIdentity.value)
+		writer.name("productIdentity").value(root.productIdentity.value)
+		writer.name("ownerKind").value(root.ownerKind.name)
+		writer.name("ownerIdentity").value(root.ownerIdentity.value)
+		writer.name("ownerRevision").value(root.ownerRevision)
 		writer.endObject()
 	}
 
@@ -102,7 +110,9 @@ internal object PortableCountDomainJsonV2 {
 		val fields = hashSetOf<String>()
 		while (reader.hasNext()) {
 			val name = reader.nextName()
-			if (!fields.add(name)) fail("Duplicate count-domain field $name")
+			if (!fields.add(name)) {
+				fail("Duplicate count-domain field $name")
+			}
 			when (name) {
 				"identity" -> identity = reader.requiredString(name)
 				"contentChecksum" -> checksum = reader.requiredString(name)
@@ -126,6 +136,17 @@ internal object PortableCountDomainJsonV2 {
 			}
 		}
 		reader.endObject()
+		return assembleGraph(identity, checksum, receipts, owners, markers, roots)
+	}
+
+	private fun assembleGraph(
+		identity: String?,
+		checksum: String?,
+		receipts: List<PortableCountDomainReceiptV2>?,
+		owners: List<PortableCountDomainOwnerRevisionV2>?,
+		markers: List<PortableCountDomainCompletenessMarkerV2>?,
+		roots: List<PortableCountDomainRootV2>?,
+	): PortableCountDomainGraphV2 {
 		return checked {
 			PortableCountDomainGraphV2(
 				PortableCountDomainOpaqueIdentity(identity ?: fail("Missing graph identity")),
@@ -251,8 +272,12 @@ private fun JsonReader.readObject(allowed: Set<String>): Map<String, PortableJso
 	val values = linkedMapOf<String, PortableJsonValue>()
 	while (hasNext()) {
 		val name = nextName()
-		if (name !in allowed) fail("Unknown field $name")
-		if (values.containsKey(name)) fail("Duplicate field $name")
+		if (name !in allowed) {
+			fail("Unknown field $name")
+		}
+		if (values.containsKey(name)) {
+			fail("Duplicate field $name")
+		}
 		values[name] = when (peek()) {
 			JsonToken.STRING -> PortableJsonValue.Text(nextString())
 			JsonToken.NUMBER -> PortableJsonValue.Integer(exactLong(name))
@@ -264,7 +289,9 @@ private fun JsonReader.readObject(allowed: Set<String>): Map<String, PortableJso
 		}
 	}
 	endObject()
-	if (values.keys != allowed) fail("Missing object fields")
+	if (values.keys != allowed) {
+		fail("Missing object fields")
+	}
 	return values
 }
 
@@ -303,7 +330,9 @@ private inline fun <T> JsonReader.readBoundedArray(
 	beginArray()
 	val result = mutableListOf<T>()
 	while (hasNext()) {
-		if (result.size >= maximum) fail("Portable count-domain array exceeds its bound")
+		if (result.size >= maximum) {
+			fail("Portable count-domain array exceeds its bound")
+		}
 		result += readValue(this)
 	}
 	endArray()
@@ -318,12 +347,16 @@ private fun JsonReader.requiredString(name: String): String {
 private fun JsonReader.exactLong(name: String): Long {
 	requireToken(JsonToken.NUMBER, name)
 	val token = nextString()
-	if (!INTEGER_TOKEN.matches(token)) fail("Invalid integer $name")
+	if (!INTEGER_TOKEN.matches(token)) {
+		fail("Invalid integer $name")
+	}
 	return token.toLongOrNull() ?: fail("Integer $name is out of range")
 }
 
 private fun JsonReader.requireToken(expected: JsonToken, name: String) {
-	if (peek() != expected) fail("Invalid $name")
+	if (peek() != expected) {
+		fail("Invalid $name")
+	}
 }
 
 private inline fun <T> checked(block: () -> T): T = try {

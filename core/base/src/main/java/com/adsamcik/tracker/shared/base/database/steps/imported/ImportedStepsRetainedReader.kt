@@ -46,12 +46,19 @@ sealed interface ImportedStepsRetainedRead {
 
 /** Result of a keyset traversal that never retains more than one complete imported entry. */
 sealed interface ImportedStepsRetainedTraversal {
+	/**
+	 * The keyset traversal reached the end and reports its nonnegative consumed-entry count.
+	 */
 	data class Complete(val entryCount: Long) : ImportedStepsRetainedTraversal {
 		init {
 			require(entryCount >= 0L)
 		}
 	}
 
+	/**
+	 * The stored scope or original source lineage could not be verified; this is not an empty or
+	 * measured-zero result.
+	 */
 	data class Unverifiable(
 		val entryIdentity: String,
 		val reason: ImportedStepsReadFailure,
@@ -66,6 +73,10 @@ private sealed interface ImportedStepsRetainedTraversalStep {
 		val identity: String,
 	) : ImportedStepsRetainedTraversalStep
 
+	/**
+	 * The stored scope or original source lineage could not be verified; this is not an empty or
+	 * measured-zero result.
+	 */
 	data class Unverifiable(
 		val entryIdentity: String,
 		val reason: ImportedStepsReadFailure,
@@ -155,7 +166,9 @@ class ImportedStepsRetainedReader(private val database: AppDatabase) {
 				SINGLE_ENTRY_PAGE_SIZE,
 			)
 		}
-		if (page.isEmpty()) return ImportedStepsRetainedTraversalStep.End
+		if (page.isEmpty()) {
+			return ImportedStepsRetainedTraversalStep.End
+		}
 		check(page.size == SINGLE_ENTRY_PAGE_SIZE)
 		val metadata = page.single()
 		check(
@@ -172,6 +185,13 @@ class ImportedStepsRetainedReader(private val database: AppDatabase) {
 				reason = ImportedStepsReadFailure.DEPENDENCY_OVERFLOW,
 			)
 		}
+		return authenticateAndConsumeEntry(metadata, consume)
+	}
+
+	private suspend fun authenticateAndConsumeEntry(
+		metadata: ImportedStepsEntryEntity,
+		consume: suspend (RetainedImportedStepsEntry) -> Unit,
+	): ImportedStepsRetainedTraversalStep {
 		val retained = when (
 			val read = readWithoutAdaptiveSplit(
 				listOf(metadata.identity),
@@ -219,6 +239,13 @@ class ImportedStepsRetainedReader(private val database: AppDatabase) {
 			ImportedStepsReadFailure.MISSING,
 		)
 		if (!splittable || entryIds.size == 1) { return result }
+		return readSplitBatch(entryIds, enforceFloor)
+	}
+
+	private suspend fun readSplitBatch(
+		entryIds: List<String>,
+		enforceFloor: Boolean,
+	): ImportedStepsRetainedRead.Ready {
 		val entries = mutableListOf<RetainedImportedStepsEntry>()
 		val failures = linkedMapOf<String, ImportedStepsReadFailure>()
 		for (batch in entryIds.chunked((entryIds.size + 1) / 2)) {

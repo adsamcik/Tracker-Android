@@ -100,7 +100,9 @@ internal fun decideCapturedRadioEntry(
 	observations: List<RadioObservationTime>,
 	recordedGaps: List<Pair<Long, Long>>,
 ): CapturedRadioDateDecision {
-	if (dates == null) return CapturedRadioDateDecision(true, 0, false)
+	if (dates == null) {
+		return CapturedRadioDateDecision(true, 0, false)
+	}
 	require(entryStartMs >= 0L && entryEndMs >= entryStartMs)
 	val sourceTouchesDates = observations.any { observation ->
 		dates.touches(observation.firstPossibleMs, observation.lastPossibleMs)
@@ -108,24 +110,36 @@ internal fun decideCapturedRadioEntry(
 	val include = sourceTouchesDates
 	return CapturedRadioDateDecision(
 		include = include,
-		observationsOutsideDates = if (include) observations.count { !dates.contains(it.observedMs) &&
-			(includeSessionsAcrossDates || dates.touches(it.firstPossibleMs, it.lastPossibleMs)) } else 0,
+		observationsOutsideDates = if (include) {
+			observations.count { !dates.contains(it.observedMs) &&
+			(includeSessionsAcrossDates || dates.touches(it.firstPossibleMs, it.lastPossibleMs)) }
+		} else {
+			0
+		},
 		excludedAcrossDates = false,
 	)
 }
 
 internal fun selectedWifiReadings(entry: PortableCapturedWifiEntryV1, dates: SourceExportDates?,
 	includeCompleteSessions: Boolean): PortableCapturedWifiEntryV1? {
-	if (!selectCapturedWifiEntry(entry, dates, includeCompleteSessions).include) return null
-	if (dates == null || includeCompleteSessions) return entry
+	if (!selectCapturedWifiEntry(entry, dates, includeCompleteSessions).include) {
+		return null
+	}
+	if (dates == null || includeCompleteSessions) {
+		return entry
+	}
 	return entry.selectReadings({ dates.touches(it.coverageStartTimeMs, it.latestPossibleTimeMs) },
 		{ (it.retentionLoss || it.hasUnresolvedProviderRange) && dates.overlaps(it.startTimeMs, it.endTimeMs) })
 }
 
 internal fun selectedCellReadings(entry: PortableCapturedCellEntryV1, dates: SourceExportDates?,
 	includeCompleteSessions: Boolean): PortableCapturedCellEntryV1? {
-	if (!selectCapturedCellEntry(entry, dates, includeCompleteSessions).include) return null
-	if (dates == null || includeCompleteSessions) return entry
+	if (!selectCapturedCellEntry(entry, dates, includeCompleteSessions).include) {
+		return null
+	}
+	if (dates == null || includeCompleteSessions) {
+		return entry
+	}
 	return entry.selectReadings({ dates.touches(it.coverageStartTimeMs, it.latestPossibleTimeMs) },
 		{ it.retentionLoss && dates.overlaps(it.startTimeMs, it.endTimeMs) })
 }

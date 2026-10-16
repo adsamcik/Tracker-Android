@@ -1,5 +1,21 @@
 package com.adsamcik.tracker.tracker.di
 
+import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
+import com.adsamcik.tracker.tracker.source.catalog.SourceAvailabilityRequest
+import com.adsamcik.tracker.tracker.source.catalog.SourceAvailabilityTier
+import com.adsamcik.tracker.tracker.source.catalog.SourceCatalogAvailability
+import com.adsamcik.tracker.tracker.source.catalog.SourceImplementationCatalog
+import com.adsamcik.tracker.tracker.source.catalog.SourceProviderAvailability
+import com.adsamcik.tracker.tracker.source.model.RetryBackoff
+import com.adsamcik.tracker.tracker.source.model.SourcePlan
+import com.adsamcik.tracker.tracker.source.model.WifiMode
+import com.adsamcik.tracker.tracker.source.model.WifiPlan
+import com.adsamcik.tracker.tracker.source.runtime.ActivitySourceRuntime
+import com.adsamcik.tracker.tracker.source.runtime.ClaimedSourceRuntime
+import com.adsamcik.tracker.tracker.source.runtime.PressureSourceRuntime
+import com.adsamcik.tracker.tracker.source.runtime.SharedLocationSourceController
+import com.adsamcik.tracker.tracker.source.runtime.SharedStepSourceController
+import io.mockk.coEvery
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReporter
 import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellDemandReconciler
@@ -28,83 +44,18 @@ import io.mockk.confirmVerified
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import java.io.File
 import javax.inject.Provider
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertSame
-import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 
 class SourcePipelineModuleTest {
-	private val projectRoot: File by lazy {
-		generateSequence(File(System.getProperty("user.dir") ?: ".").absoluteFile) { it.parentFile }
-			.first { it.resolve("settings.gradle.kts").isFile }
-	}
-
+	// Keep one six-source graph assembly and its shared-owner/dormancy assertions together.
+	@Suppress("LongMethod")
 	@Test
-	fun `runtime map uniquely binds shared radio owners and keeps raw deletion barriers`() {
-		val mainRoot = projectRoot.resolve("tracker/engine/src/main")
-		val runtimeBindings = mainRoot.walkTopDown()
-			.filter { it.isFile && it.extension == "kt" }
-			.flatMap { source ->
-				RUNTIME_BINDING.findAll(source.readText()).map { match ->
-					"${match.groupValues[1]}:${match.groupValues[2]}:${match.groupValues[3]}"
-				}
-			}
-			.sorted()
-			.toList()
-
-		assertEquals(
-			listOf(
-				"ACTIVITY:provideActivitySourceRuntime:ActivitySourceRuntime",
-				"CELL:provideCellSourceRuntime:SharedCellSourceController",
-				"LOCATION:provideLocationSourceRuntime:SharedLocationSourceController",
-				"PRESSURE:providePressureSourceRuntime:PressureSourceRuntime",
-				"STEPS:provideStepSourceRuntime:SharedStepSourceController",
-				"WIFI:provideWifiSourceRuntime:SharedWifiSourceController",
-			),
-			runtimeBindings,
-		)
-
-		val wifiDeletion = source(
-			"source/wifi/WifiCaptureConsentRevocationDeletionCommand.kt",
-		)
-		val cellDeletion = source(
-			"source/cell/CellCaptureConsentRevocationDeletionCommand.kt",
-		)
-		assertTrue("private val runtime: WifiSourceRuntime" in wifiDeletion)
-		assertTrue("private val runtime: CellSourceRuntime" in cellDeletion)
-		assertTrue(
-			Regex("""@Singleton\s+class WifiSourceRuntime @Inject internal constructor\(""")
-				.containsMatchIn(source("source/runtime/WifiSourceRuntime.kt")),
-		)
-		assertTrue(
-			Regex("""@Singleton\s+class CellSourceRuntime @Inject internal constructor\(""")
-				.containsMatchIn(source("source/runtime/CellSourceRuntime.kt")),
-		)
-		assertTrue(
-			Regex("""@Singleton\s+class SharedWifiSourceController @Inject constructor\(""")
-				.containsMatchIn(source("source/runtime/SharedWifiSourceController.kt")),
-		)
-		assertTrue(
-			Regex("""@Singleton\s+class SharedCellSourceController @Inject constructor\(""")
-				.containsMatchIn(source("source/runtime/SharedCellSourceController.kt")),
-		)
-
-		val purposeRuntime = source("source/runtime/TrackingPurposePublicationRuntime.kt")
-		assertTrue(
-			Regex(
-				"""@Inject\s+constructor\([\s\S]*?""" +
-					"""ambientWifiDemandReconcilerProvider: Provider<AmbientWifiDemandReconciler>,""" +
-					"""\s+ambientCellDemandReconcilerProvider: Provider<AmbientCellDemandReconciler>,""",
-			).containsMatchIn(purposeRuntime),
-		)
-	}
-
-	@Test
-	fun `constructing and resolving radio entries performs no provider backend or demand work`() =
+	fun `six provider bindings preserve shared owners without radio backend or demand work`() =
 		runTest {
 			val registrations = mockk<SourceRegistrationRepository>()
 			val wifiBackend = mockk<AndroidWifiSourceBackend>()
@@ -146,6 +97,14 @@ class SourcePipelineModuleTest {
 			every { sinkFactory.unbound } returns unboundSink
 			val wifiController = SharedWifiSourceController(wifiRuntime, broker, sinkFactory)
 			val cellController = SharedCellSourceController(cellRuntime, broker, sinkFactory)
+			val activity = mockk<ActivitySourceRuntime>()
+			val steps = mockk<SharedStepSourceController>()
+			val pressure = mockk<PressureSourceRuntime>()
+			val location = mockk<SharedLocationSourceController>()
+			every { activity.source } returns SourceKind.ACTIVITY
+			every { steps.source } returns SourceKind.STEPS
+			every { pressure.source } returns SourceKind.PRESSURE
+			every { location.source } returns SourceKind.LOCATION
 
 			var wifiReconcilerRequested = false
 			var cellReconcilerRequested = false
@@ -166,15 +125,25 @@ class SourcePipelineModuleTest {
 			)
 
 			val runtimeSet = setOf(
+				SourcePipelineModule.provideActivitySourceRuntime(activity),
+				SourcePipelineModule.provideStepSourceRuntime(steps),
+				SourcePipelineModule.providePressureSourceRuntime(pressure),
+				SourcePipelineModule.provideLocationSourceRuntime(location),
 				SourcePipelineModule.provideWifiSourceRuntime(wifiController),
 				SourcePipelineModule.provideCellSourceRuntime(cellController),
 			)
 			val registry = SourceRuntimeRegistry(runtimeSet)
 
-			assertEquals(1, runtimeSet.count { it.source == SourceKind.WIFI })
-			assertEquals(1, runtimeSet.count { it.source == SourceKind.CELL })
-			assertSame(wifiController, registry.runtime(SourceKind.WIFI))
-			assertSame(cellController, registry.runtime(SourceKind.CELL))
+			assertEquals(SourceKind.entries.toSet(), registry.registeredSources())
+			val expectedOwners = mapOf(
+				SourceKind.ACTIVITY to activity, SourceKind.STEPS to steps,
+				SourceKind.PRESSURE to pressure, SourceKind.LOCATION to location,
+				SourceKind.WIFI to wifiController, SourceKind.CELL to cellController,
+			)
+			expectedOwners.forEach { (source, owner) ->
+				assertEquals(1, runtimeSet.count { it.source == source })
+				assertSame(owner, registry.runtime(source))
+			}
 			assertFalse(wifiReconcilerRequested)
 			assertFalse(cellReconcilerRequested)
 			coVerify(exactly = 0) { broker.authorizationDemands(any()) }
@@ -193,39 +162,29 @@ class SourcePipelineModuleTest {
 		}
 
 	@Test
-	fun `catalog planning and readiness are isolated from lazy runtime ownership`() {
-		val catalog = source("source/catalog/DefaultSourceImplementationCatalog.kt")
-		val registry = source("source/runtime/SourceRuntimeRegistry.kt")
-		val coordinator = source("source/coordinator/AuthoritativeSessionCoordinator.kt")
-		val serviceSession = source("source/coordinator/TrackerServiceSourceSession.kt")
-		val settingsStatus = source("source/coordinator/TrackingSettingsStatusProvider.kt")
-		val module = source("di/SourcePipelineModule.kt")
-		val activityRuntime = source("source/runtime/ActivitySourceRuntime.kt")
+	fun `catalog readiness uses no lazy physical owner`() = runTest {
+		val catalog = mockk<SourceImplementationCatalog>()
+		val plan = WifiPlan(1L, WifiMode.CACHED_ONLY, 60_000L, 60_000L, 60_000L, RetryBackoff(0L, 0L))
+		val request = SourceAvailabilityRequest(SourceKind.WIFI, TrackingPurpose.SESSION_CAPTURE,
+			plan, SourceAvailabilityTier.MANUAL_FOREGROUND_START)
+		val availability = SourceCatalogAvailability.Executable(SourceProviderAvailability.Available())
+		coEvery { catalog.availability(request) } returns availability
+		val owners = SourceKind.entries.associateWith { kind ->
+			mockk<ClaimedSourceRuntime<out SourcePlan>>().also { owner -> every { owner.source } returns kind }
+		}
+		val resolved = mutableListOf<SourceKind>()
+		val providers = owners.mapValues { (kind, owner) ->
+			Provider<ClaimedSourceRuntime<out SourcePlan>> { resolved += kind; owner }
+		}
+		val registry = SourceRuntimeRegistry(providers, catalog, requireAllSources = true)
 
-		assertFalse("ClaimedSourceRuntime" in catalog)
-		assertFalse("ActivitySourceRuntime" in catalog)
-		assertTrue("private val arbiter: ActivityRegistrationArbiter" in activityRuntime)
-		assertFalse("SourceRuntimeRegistry" in catalog)
-		assertTrue("Provider<ClaimedSourceRuntime<out SourcePlan>>" in registry)
-		assertTrue("runtimeProviders[source]?.get()" in registry)
-		assertTrue("availabilityCatalog.availability(request)" in registry)
-		assertTrue("runtimes.catalogPlanDecisions(" in coordinator)
-		assertTrue("request.origin.toSourceAvailabilityTier()" in coordinator)
-		assertTrue("private val planFactory: SourceAcquisitionPlanFactory" in serviceSession)
-		assertTrue("private val planFactory: SourceAcquisitionPlanFactory" in settingsStatus)
-		assertTrue("fun provideSourceAcquisitionPlanFactory(" in module)
-		assertTrue("): SourceAcquisitionPlanFactory = catalog" in module)
-	}
+		assertSame(catalog, SourcePipelineModule.provideSourceAcquisitionPlanFactory(catalog))
+		assertEquals(SourceKind.entries.toSet(), registry.registeredSources())
+		assertSame(availability, registry.availability(request))
+		assertEquals(emptyList(), resolved)
+		coVerify(exactly = 1) { catalog.availability(request) }
 
-	private fun source(relativePath: String): String = projectRoot.resolve(
-		"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/$relativePath",
-	).readText()
-
-	private companion object {
-		val RUNTIME_BINDING = Regex(
-			"""@Provides\s+@IntoMap\s+@SourceRuntimeKey\(SourceKind\.([A-Z]+)\)\s+""" +
-				"""fun (provide[A-Za-z0-9]+SourceRuntime)\(\s*""" +
-				"""runtime: ([A-Za-z0-9]+),?\s*\): ClaimedSourceRuntime<out SourcePlan> = runtime""",
-		)
+		assertSame(owners.getValue(SourceKind.LOCATION), registry.runtime(SourceKind.LOCATION))
+		assertEquals(listOf(SourceKind.LOCATION), resolved)
 	}
 }

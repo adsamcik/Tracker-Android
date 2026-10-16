@@ -126,7 +126,9 @@ internal data class FileImportReceiptContext(
 	val receivedAtMs: Long,
 ) {
 	init {
-		require(listOf(jobId, entryKey, sourceName).all { it.isNotBlank() && it.length <= 4_096 })
+		require(listOf(jobId, entryKey, sourceName).all { it.isNotBlank() && it.length <= MAX_RECEIPT_CONTEXT_FIELD_LENGTH })
 		require(receivedAtMs >= 0L)
 	}
 }
+
+private const val MAX_RECEIPT_CONTEXT_FIELD_LENGTH = 4_096

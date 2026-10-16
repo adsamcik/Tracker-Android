@@ -35,6 +35,10 @@ class WifiCapturedRetentionService private constructor(
 		operation: suspend (AppDatabase, Long, Long, Long, Long) -> WifiCapturedRetentionResult,
 	) : this(WifiCapturedRetentionOperation(operation))
 
+	/**
+	 * Prunes Wi-Fi facts before the UTC millisecond cutoff under current data authority; markedAtMs
+	 * timestamps the cleanup.
+	 */
 	suspend fun prune(
 		database: AppDatabase,
 		beforeMs: Long,

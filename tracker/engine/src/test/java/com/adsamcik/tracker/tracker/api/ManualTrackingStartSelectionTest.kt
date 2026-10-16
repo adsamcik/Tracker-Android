@@ -13,8 +13,16 @@ class ManualTrackingStartSelectionTest {
 	fun `quality and unrelated ambient changes preserve original selected capture choices`() {
 		val selected = snapshot(1L, setOf(TrackingSourceComponent.WIFI, TrackingSourceComponent.CELL))
 		val qualityChanged = selected.copy(revision = 2L, policies = selected.policies.mapValues { (_, row) ->
-			row.copy(policyRevision = 2L, qos = if (row.enabled) SourceQos.RESPONSIVE else SourceQos.OFF,
-				ambientConsentEpoch = if (row.source == TrackingSourceComponent.STEPS) 9L else null,
+			row.copy(policyRevision = 2L, qos = if (row.enabled) {
+				SourceQos.RESPONSIVE
+			} else {
+				SourceQos.OFF
+			},
+				ambientConsentEpoch = if (row.source == TrackingSourceComponent.STEPS) {
+					9L
+				} else {
+					null
+				},
 				ambientPersistenceEligible = row.source == TrackingSourceComponent.STEPS)
 		})
 		qualityChanged.manualStartSelection() shouldBe selected.manualStartSelection()
@@ -35,7 +43,11 @@ class ManualTrackingStartSelectionTest {
 	private fun snapshot(revision: Long, enabled: Set<TrackingSourceComponent>, captureEpoch: Long = 1L) =
 		SourcePolicySnapshot(revision, TrackingSourceComponent.entries.associateWith { source ->
 			val chosen = source in enabled
-			SourcePolicy(source, chosen, if (chosen) SourceQos.BALANCED else SourceQos.OFF,
+			SourcePolicy(source, chosen, if (chosen) {
+				SourceQos.BALANCED
+			} else {
+				SourceQos.OFF
+			},
 				locationMinTimeSeconds = 2.takeIf { source == TrackingSourceComponent.LOCATION },
 				locationMinDistanceMeters = 10.takeIf { source == TrackingSourceComponent.LOCATION },
 				locationRequiredAccuracyMeters = 50.takeIf { source == TrackingSourceComponent.LOCATION },

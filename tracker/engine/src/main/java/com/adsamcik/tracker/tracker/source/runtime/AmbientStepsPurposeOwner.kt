@@ -120,11 +120,13 @@ private fun AmbientStepsProviderRegistrationResult.toPurposeAvailability(
 			reason = AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL,
 			operationalIdentity = lease.purposeLeaseIdentity,
 		)
-	} else AmbientSourceOperationalAvailability.ready(
+	} else {
+		AmbientSourceOperationalAvailability.ready(
 			AmbientTrackingSource.STEPS,
 			provider.toPurposeMechanism(),
 			lease.purposeLeaseIdentity,
 		)
+	}
 	is AmbientStepsProviderRegistrationResult.Inactive ->
 		demandState.toPurposeAvailability(lease)
 	is AmbientStepsProviderRegistrationResult.Degraded,
@@ -132,6 +134,8 @@ private fun AmbientStepsProviderRegistrationResult.toPurposeAvailability(
 	-> error("Ambient Steps provider reconciliation remains incomplete")
 }
 
+// Map completed demand outcomes to availability; preserve the explicit incomplete-retirement errors.
+@Suppress("CyclomaticComplexMethod")
 private fun AmbientStepsDemandReconciliation.toPurposeAvailability(
 	lease: AmbientReconciliationLease,
 ): AmbientSourceOperationalAvailability = when (this) {
@@ -140,17 +144,20 @@ private fun AmbientStepsDemandReconciliation.toPurposeAvailability(
 	is AmbientStepsDemandReconciliation.PermissionRequired ->
 		if (!retirementComplete) {
 			error("Exact Ambient Steps demand retirement was rejected")
-		} else AmbientSourceOperationalAvailability(
+		} else {
+			AmbientSourceOperationalAvailability(
 			source = AmbientTrackingSource.STEPS,
 			state = AmbientSourceOperationalState.PERMISSION_REQUIRED,
 			mechanism = provider.toPurposeMechanism(),
 			reason = provider.permissionReason(),
 			lastIdentity = lease.purposeLeaseIdentity,
 		)
+		}
 	is AmbientStepsDemandReconciliation.PolicyBlocked ->
 		if (!retirementComplete) {
 			error("Exact Ambient Steps demand retirement was rejected")
-		} else AmbientSourceOperationalAvailability.unavailable(
+		} else {
+			AmbientSourceOperationalAvailability.unavailable(
 			AmbientTrackingSource.STEPS,
 			when (reason) {
 				AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE ->
@@ -161,14 +168,17 @@ private fun AmbientStepsDemandReconciliation.toPurposeAvailability(
 			},
 			lease.purposeLeaseIdentity,
 		)
+		}
 	is AmbientStepsDemandReconciliation.Unavailable ->
 		if (!retirementComplete) {
 			error("Exact Ambient Steps demand retirement was rejected")
-		} else AmbientSourceOperationalAvailability.unavailable(
+		} else {
+			AmbientSourceOperationalAvailability.unavailable(
 			AmbientTrackingSource.STEPS,
 			AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
 			lease.purposeLeaseIdentity,
 		)
+		}
 }
 
 private fun AmbientStepsProvider.toPurposeMechanism(): AmbientAcquisitionMechanism = when (this) {

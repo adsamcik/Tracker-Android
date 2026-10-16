@@ -1,8 +1,10 @@
 package com.adsamcik.tracker.shared.base.database
 
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import android.database.sqlite.SQLiteConstraintException
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetainedIdentityEntity
@@ -26,6 +28,7 @@ import kotlinx.coroutines.withContext
  * selected deletion, while a payload-free retained lineage is converted to redacted deletion
  * authority without losing its typed entry/run/window/scope collision protection.
  */
+// One source erase transaction owns live/retained selection, marker writes and read-back verification.
 @Singleton
 class RoomEraseNextImportedActivity internal constructor(
 	private val database: AppDatabase,
@@ -45,6 +48,10 @@ class RoomEraseNextImportedActivity internal constructor(
 		{ currentCoroutineContext().ensureActive() },
 	)
 
+	/**
+	 * Erases one verified live or retained imported Activity lineage, preserving exact epoch checks
+	 * and replay fences.
+	 */
 	suspend fun eraseNext(
 		expectedCollectedDataEpoch: Long,
 		deletedAtMs: Long,
@@ -87,27 +94,7 @@ class RoomEraseNextImportedActivity internal constructor(
 		require(expectedCollectedDataEpoch >= 0L)
 		try {
 			database.withTransaction {
-				val state = database.sourceEvidenceStateDao().get()
-					?: return@withTransaction ImportedActivityEraseRemainingResult.Unverifiable(
-						ImportedActivityProductFailure.SOURCE_EVIDENCE_STATE_MISSING,
-					)
-				if (state.collectedDataEpoch != expectedCollectedDataEpoch) {
-					return@withTransaction ImportedActivityEraseRemainingResult.Blocked(
-						SelectedImportedActivityDeletionBlockedReason.COLLECTED_DATA_EPOCH_CHANGED,
-					)
-				}
-				if (state.revision < 0L || state.updatedAtMs < 0L ||
-					state.retainedFromMs?.let { it < 0L } == true
-				) {
-					return@withTransaction ImportedActivityEraseRemainingResult.Unverifiable(
-						ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
-					)
-				}
-				if (database.importedActivityDao().hasErasableProductCandidate()) {
-					ImportedActivityEraseRemainingResult.Remaining
-				} else {
-					ImportedActivityEraseRemainingResult.Complete
-				}
+				probeRemainingInTransaction(expectedCollectedDataEpoch)
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -126,6 +113,35 @@ class RoomEraseNextImportedActivity internal constructor(
 		}
 	}
 
+	private suspend fun probeRemainingInTransaction(
+		expectedCollectedDataEpoch: Long,
+	): ImportedActivityEraseRemainingResult {
+		val state = database.sourceEvidenceStateDao().get()
+			?: return ImportedActivityEraseRemainingResult.Unverifiable(
+				ImportedActivityProductFailure.SOURCE_EVIDENCE_STATE_MISSING,
+			)
+		if (state.collectedDataEpoch != expectedCollectedDataEpoch) {
+			return ImportedActivityEraseRemainingResult.Blocked(
+				SelectedImportedActivityDeletionBlockedReason.COLLECTED_DATA_EPOCH_CHANGED,
+			)
+		}
+		if (state.hasInvalidActivityEraseShape()) {
+			return ImportedActivityEraseRemainingResult.Unverifiable(
+				ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+		return if (database.importedActivityDao().hasErasableProductCandidate()) {
+			ImportedActivityEraseRemainingResult.Remaining
+		} else {
+			ImportedActivityEraseRemainingResult.Complete
+		}
+	}
+
+	private fun SourceEvidenceState.hasInvalidActivityEraseShape(): Boolean =
+		revision < 0L || updatedAtMs < 0L || retainedFromMs?.let { it < 0L } == true
+
+	// Missing state, changed epoch, malformed authority and empty history are distinct ordered exits.
+	@Suppress("ReturnCount")
 	private suspend fun eraseNextInTransaction(
 		expectedCollectedDataEpoch: Long,
 		deletedAtMs: Long,
@@ -140,9 +156,7 @@ class RoomEraseNextImportedActivity internal constructor(
 				SelectedImportedActivityDeletionBlockedReason.COLLECTED_DATA_EPOCH_CHANGED,
 			)
 		}
-		if (state.revision < 0L || state.updatedAtMs < 0L ||
-			state.retainedFromMs?.let { it < 0L } == true
-		) {
+		if (state.hasInvalidActivityEraseShape()) {
 			return EraseNextImportedActivityResult.Unverifiable(
 				ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
 			)
@@ -220,39 +234,44 @@ class RoomEraseNextImportedActivity internal constructor(
 					expected.scopeKind,
 					expected.scopeIdentityDigest,
 				) ?: abortCorrupt()
-				if (retained.sourceKind != expected.sourceKind ||
-					retained.purpose != expected.purpose ||
-					retained.scopeKind != expected.scopeKind ||
-					retained.scopeIdentityDigest != expected.scopeIdentityDigest ||
-					retained.collectedDataEpoch != expectedCollectedDataEpoch ||
-					retained.fenceGeneration != FIRST_DELETION_GENERATION
-				) {
-					abortCorrupt()
-				}
-				if (retained.deletedAtMs > deletedAtMs) {
-					abortBlocked(SelectedImportedActivityDeletionBlockedReason.STALE_REQUEST)
-				}
+				requireExactLiveScopeFence(retained, expected, expectedCollectedDataEpoch, deletedAtMs)
 			}
 		}
 		writeCheckpoint(ImportedActivitySourceEraseCheckpoint.LIVE_SCOPE_FENCES_RECORDED)
 	}
 
-	@Suppress("LongMethod", "ComplexCondition")
+	private fun requireExactLiveScopeFence(
+		retained: SourceDeletionFenceEntity,
+		expected: SourceDeletionFenceEntity,
+		expectedCollectedDataEpoch: Long,
+		deletedAtMs: Long,
+	) {
+		// The retained fence must match all fields of the expected immutable scope identity.
+		@Suppress("ComplexCondition")
+		if (retained.sourceKind != expected.sourceKind ||
+			retained.purpose != expected.purpose ||
+			retained.scopeKind != expected.scopeKind ||
+			retained.scopeIdentityDigest != expected.scopeIdentityDigest ||
+			retained.collectedDataEpoch != expectedCollectedDataEpoch ||
+			retained.fenceGeneration != FIRST_DELETION_GENERATION
+		) {
+			abortCorrupt()
+		}
+		if (retained.deletedAtMs > deletedAtMs) {
+			abortBlocked(SelectedImportedActivityDeletionBlockedReason.STALE_REQUEST)
+		}
+	}
+
+	// Each pre-mutation witness failure returns its existing corrupt result before any writes.
+	@Suppress("ReturnCount")
 	private suspend fun eraseRetained(
 		evaluation: ImportedActivityProductEvaluation.Retained,
 		expectedCollectedDataEpoch: Long,
 		deletedAtMs: Long,
 	): EraseNextImportedActivityResult {
 		val dao = database.importedActivityDao()
-		val receipt = dao.retentionReceipt(evaluation.candidate.identity)
+		val (receipt, markers) = dao.authenticatedRetainedActivityEraseMarkers(evaluation.candidate.identity)
 			?: return corrupt()
-		val markers = dao.retainedIdentitiesForEntries(
-			listOf(evaluation.candidate.identity),
-			receipt.protectedIdentityCount + 1,
-		)
-		if (markers.size != receipt.protectedIdentityCount || !receipt.authenticates(markers)) {
-			return corrupt()
-		}
 		val runIdentities = markers.filter {
 			it.identityKind == ImportedActivityRetainedIdentityEntity.RUN
 		}.map(ImportedActivityRetainedIdentityEntity::protectedIdentity)
@@ -262,14 +281,43 @@ class RoomEraseNextImportedActivity internal constructor(
 		val windowCount = markers.count {
 			it.identityKind == ImportedActivityRetainedIdentityEntity.WINDOW
 		}
-		if (runIdentities.isEmpty() || runIdentities.size != scopeDigests.size ||
-			runIdentities.distinct().size != runIdentities.size ||
-			scopeDigests.distinct().size != scopeDigests.size
-		) return corrupt()
+		if (!hasCompleteRetainedActivityEraseScopes(runIdentities, scopeDigests)) {
+			return corrupt()
+		}
 		if (dao.entryDeletion(receipt.entryIdentity) != null ||
 			dao.entryDeletionReceipt(receipt.entryIdentity) != null
-		) return corrupt()
+		) {
+			return corrupt()
+		}
 
+		val existingRunDeletions = loadRetainedActivityRunDeletions(
+			dao, runIdentities, expectedCollectedDataEpoch,
+		) ?: return corrupt()
+		val existingSourceFences = loadRetainedActivitySourceFences(scopeDigests, expectedCollectedDataEpoch)
+			?: return corrupt()
+		val latestDurableTimeMs = database.retainedActivityEraseLatestTime(
+			receipt, existingRunDeletions, existingSourceFences,
+		) ?: return corrupt()
+		if (deletedAtMs < latestDurableTimeMs) {
+			return EraseNextImportedActivityResult.Blocked(
+				SelectedImportedActivityDeletionBlockedReason.STALE_REQUEST,
+			)
+		}
+
+		recordRetainedActivityEraseMarkers(
+			dao, receipt, runIdentities, scopeDigests, existingRunDeletions, existingSourceFences,
+			expectedCollectedDataEpoch, deletedAtMs,
+		)
+		return redactRetainedActivityEraseReceipt(
+			dao, receipt, runIdentities, scopeDigests, markers, windowCount, deletedAtMs,
+		)
+	}
+
+	private suspend fun loadRetainedActivityRunDeletions(
+		dao: ImportedActivityDao,
+		runIdentities: List<String>,
+		expectedCollectedDataEpoch: Long,
+	): List<ImportedActivityDeletionGenerationEntity>? {
 		val existingRunDeletions = dao.deletionGenerations(runIdentities)
 		if (existingRunDeletions.distinctBy { it.runIdentity }.size != existingRunDeletions.size ||
 			existingRunDeletions.any {
@@ -277,7 +325,16 @@ class RoomEraseNextImportedActivity internal constructor(
 					it.collectedDataEpoch != expectedCollectedDataEpoch ||
 					it.generation != FIRST_DELETION_GENERATION
 			}
-		) return corrupt()
+		) {
+			return null
+		}
+		return existingRunDeletions
+	}
+
+	private suspend fun loadRetainedActivitySourceFences(
+		scopeDigests: List<String>,
+		expectedCollectedDataEpoch: Long,
+	): List<SourceDeletionFenceEntity>? {
 		val existingSourceFences = database.trackingHistoryReadDao().deletionFences(
 			sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
 			purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
@@ -291,19 +348,24 @@ class RoomEraseNextImportedActivity internal constructor(
 					it.collectedDataEpoch != expectedCollectedDataEpoch ||
 					it.fenceGeneration != FIRST_DELETION_GENERATION
 			}
-		) return corrupt()
-		val latestDurableTimeMs = maxOf(
-			database.sourceEvidenceStateDao().get()?.updatedAtMs ?: return corrupt(),
-			receipt.retainedAtMs,
-			existingRunDeletions.maxOfOrNull { it.deletedAtMs } ?: 0L,
-			existingSourceFences.maxOfOrNull { it.deletedAtMs } ?: 0L,
-		)
-		if (deletedAtMs < latestDurableTimeMs) {
-			return EraseNextImportedActivityResult.Blocked(
-				SelectedImportedActivityDeletionBlockedReason.STALE_REQUEST,
-			)
+		) {
+			return null
 		}
+		return existingSourceFences
+	}
 
+	// One marker-write phase uses the existing authenticated rows and original epoch/time explicitly.
+	@Suppress("LongParameterList")
+	private suspend fun recordRetainedActivityEraseMarkers(
+		dao: ImportedActivityDao,
+		receipt: ImportedActivityRetentionReceiptEntity,
+		runIdentities: List<String>,
+		scopeDigests: List<String>,
+		existingRunDeletions: List<ImportedActivityDeletionGenerationEntity>,
+		existingSourceFences: List<SourceDeletionFenceEntity>,
+		expectedCollectedDataEpoch: Long,
+		deletedAtMs: Long,
+	) {
 		val existingRuns = existingRunDeletions.associateBy { it.runIdentity }
 		runIdentities.filterNot(existingRuns::containsKey).forEach { runIdentity ->
 			dao.insertDeletionGeneration(
@@ -332,7 +394,9 @@ class RoomEraseNextImportedActivity internal constructor(
 					fence.scopeKind,
 					fence.scopeIdentityDigest,
 				) != fence
-			) abortCorrupt()
+			) {
+				abortCorrupt()
+			}
 		}
 		val entryDeletion = ImportedActivityEntryDeletionEntity.create(
 			entryIdentity = receipt.entryIdentity,
@@ -342,7 +406,19 @@ class RoomEraseNextImportedActivity internal constructor(
 		)
 		dao.insertEntryDeletion(entryDeletion)
 		writeCheckpoint(ImportedActivitySourceEraseCheckpoint.SOURCE_MARKERS_RECORDED)
+	}
 
+	// Keep final receipt construction, writes and read-back under the same caller-owned transaction.
+	@Suppress("LongParameterList")
+	private suspend fun redactRetainedActivityEraseReceipt(
+		dao: ImportedActivityDao,
+		receipt: ImportedActivityRetentionReceiptEntity,
+		runIdentities: List<String>,
+		scopeDigests: List<String>,
+		markers: List<ImportedActivityRetainedIdentityEntity>,
+		windowCount: Int,
+		deletedAtMs: Long,
+	): EraseNextImportedActivityResult {
 		val finalRunDeletions = dao.deletionGenerations(runIdentities)
 		val finalSourceFences = database.trackingHistoryReadDao().deletionFences(
 			sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
@@ -352,7 +428,9 @@ class RoomEraseNextImportedActivity internal constructor(
 		)
 		if (finalRunDeletions.size != runIdentities.size ||
 			finalSourceFences.size != scopeDigests.size
-		) abortCorrupt()
+		) {
+			abortCorrupt()
+		}
 		val nextRevision = Math.addExact(
 			database.sourceEvidenceStateDao().get()?.revision ?: abortCorrupt(),
 			1L,
@@ -367,7 +445,9 @@ class RoomEraseNextImportedActivity internal constructor(
 		)
 		if (dao.updateRetentionReceipt(redactedReceipt) != 1 ||
 			database.sourceEvidenceStateDao().incrementRevision(deletedAtMs) != 1
-		) abortCorrupt()
+		) {
+			abortCorrupt()
+		}
 		writeCheckpoint(ImportedActivitySourceEraseCheckpoint.RETAINED_RECEIPT_REDACTED)
 		val currentState = database.sourceEvidenceStateDao().get() ?: abortCorrupt()
 		if (currentState.revision != nextRevision ||
@@ -376,7 +456,9 @@ class RoomEraseNextImportedActivity internal constructor(
 				listOf(redactedReceipt),
 			) != null ||
 			dao.retainedHistoryCandidate(receipt.entryIdentity) != null
-		) abortCorrupt()
+		) {
+			abortCorrupt()
+		}
 		return EraseNextImportedActivityResult.ErasedRetained(
 			physicalRunCount = runIdentities.size,
 			windowCount = windowCount,
@@ -410,48 +492,131 @@ internal enum class ImportedActivitySourceEraseCheckpoint {
 	RETAINED_RECEIPT_REDACTED,
 }
 
+/**
+ * One bounded imported Activity erase result with live/retained progress or explicit
+ * complete/failure states.
+ */
 sealed interface EraseNextImportedActivityResult {
+	/**
+	 * No further affected imported payload remains for this bounded source erase.
+	 */
 	data object Complete : EraseNextImportedActivityResult
 
+	/**
+	 * One live imported Activity correction lineage was fenced and removed; reports revisions and
+	 * physical runs.
+	 */
 	data class ErasedLive(
 		val importRevisionCount: Int,
 		val physicalRunCount: Int,
 	) : EraseNextImportedActivityResult
 
+	/**
+	 * One retained imported Activity witness lineage was erased; reports its physical runs and
+	 * windows.
+	 */
 	data class ErasedRetained(
 		val physicalRunCount: Int,
 		val windowCount: Int,
 	) : EraseNextImportedActivityResult
 
+	/**
+	 * Changed or invalid scope/authority prevents the requested operation; the exact reason remains
+	 * explicit.
+	 */
 	data class Blocked(
 		val reason: SelectedImportedActivityDeletionBlockedReason,
 	) : EraseNextImportedActivityResult
 
+	/**
+	 * The stored scope or original source lineage could not be verified; this is not an empty or
+	 * measured-zero result.
+	 */
 	data class Unverifiable(
 		val reason: ImportedActivityProductFailure,
 	) : EraseNextImportedActivityResult
 
+	/**
+	 * A transient concurrent-state, ownership or storage problem prevents completion and permits
+	 * retry.
+	 */
 	data class RetryableFailure(
 		val reason: PortableActivityTransferRetryableReason,
 	) : EraseNextImportedActivityResult
 }
 
+/**
+ * Whether imported Activity erase has completed or additional live/retained payload remains.
+ */
 sealed interface ImportedActivityEraseRemainingResult {
+	/**
+	 * No further affected imported payload remains for this bounded source erase.
+	 */
 	data object Complete : ImportedActivityEraseRemainingResult
 
+	/**
+	 * Additional imported live or retained Activity payload remains for a later bounded erase call.
+	 */
 	data object Remaining : ImportedActivityEraseRemainingResult
 
+	/**
+	 * Changed or invalid scope/authority prevents the requested operation; the exact reason remains
+	 * explicit.
+	 */
 	data class Blocked(
 		val reason: SelectedImportedActivityDeletionBlockedReason,
 	) : ImportedActivityEraseRemainingResult
 
+	/**
+	 * The stored scope or original source lineage could not be verified; this is not an empty or
+	 * measured-zero result.
+	 */
 	data class Unverifiable(
 		val reason: ImportedActivityProductFailure,
 	) : ImportedActivityEraseRemainingResult
 
+	/**
+	 * A transient concurrent-state, ownership or storage problem prevents completion and permits
+	 * retry.
+	 */
 	data class RetryableFailure(
 		val reason: PortableActivityTransferRetryableReason,
 	) : ImportedActivityEraseRemainingResult
+}
+
+private suspend fun ImportedActivityDao.authenticatedRetainedActivityEraseMarkers(
+	identity: String,
+): Pair<ImportedActivityRetentionReceiptEntity, List<ImportedActivityRetainedIdentityEntity>>? {
+	val receipt = retentionReceipt(identity)
+		?: return null
+	val markers = retainedIdentitiesForEntries(
+		listOf(identity),
+		receipt.protectedIdentityCount + 1,
+	)
+	if (markers.size != receipt.protectedIdentityCount || !receipt.authenticates(markers)) {
+		return null
+	}
+	return receipt to markers
+}
+
+private fun hasCompleteRetainedActivityEraseScopes(
+	runIdentities: List<String>,
+	scopeDigests: List<String>,
+): Boolean = runIdentities.isNotEmpty() && runIdentities.size == scopeDigests.size &&
+	runIdentities.distinct().size == runIdentities.size && scopeDigests.distinct().size == scopeDigests.size
+
+private suspend fun AppDatabase.retainedActivityEraseLatestTime(
+	receipt: ImportedActivityRetentionReceiptEntity,
+	existingRunDeletions: List<ImportedActivityDeletionGenerationEntity>,
+	existingSourceFences: List<SourceDeletionFenceEntity>,
+): Long? {
+	val evidenceUpdatedAtMs = sourceEvidenceStateDao().get()?.updatedAtMs ?: return null
+	return maxOf(
+		evidenceUpdatedAtMs,
+		receipt.retainedAtMs,
+		existingRunDeletions.maxOfOrNull { it.deletedAtMs } ?: 0L,
+		existingSourceFences.maxOfOrNull { it.deletedAtMs } ?: 0L,
+	)
 }
 
 private fun DeleteSelectedImportedActivityResult.toSourceEraseResult():

@@ -366,6 +366,8 @@ class TrackingDiagnosticContractTest {
 	}
 
 	@Test
+	// Keep this complete contract scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `scope lifetime and store failures close without throwing into tracking`() = runTest {
 		var nowNanos = 0L
 		val expiringRecorder = TrackingDiagnosticRecorder.droppingForTest(

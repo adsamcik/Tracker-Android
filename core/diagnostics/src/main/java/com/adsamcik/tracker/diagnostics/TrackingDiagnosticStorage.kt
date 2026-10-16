@@ -47,6 +47,7 @@ class TrackingDiagnosticPageCursor internal constructor(
 	override fun toString(): String = "TrackingDiagnosticPageCursor(opaque)"
 }
 
+/** Optional coarse operation metrics; null means the metric was not recorded. */
 data class TrackingDiagnosticStoredMetrics(
 	val encodedEnvelopeSizeBucket: TrackingDiagnosticSizeBucket?,
 	val queueBacklogBucket: TrackingDiagnosticBacklogBucket?,
@@ -74,22 +75,29 @@ data class TrackingDiagnosticStoredEvent(
 	val metrics: TrackingDiagnosticStoredMetrics,
 )
 
+/** One bounded page of local diagnostic events; a null cursor means no further page is available. */
 data class TrackingDiagnosticPage(
 	val events: List<TrackingDiagnosticStoredEvent>,
 	val nextCursor: TrackingDiagnosticPageCursor?,
 )
 
+/** Distinguishes a readable page from a retryable storage failure or rejected query. */
 sealed interface TrackingDiagnosticReadResult {
+	/** The query produced a bounded page and its optional continuation cursor. */
 	data class Page(val value: TrackingDiagnosticPage) : TrackingDiagnosticReadResult
+	/** The local store could not complete the query; the caller may retry. */
 	data object StorageRetryable : TrackingDiagnosticReadResult
+	/** The query or stored event contract is unsupported and cannot be returned as a valid page. */
 	data object PermanentRejected : TrackingDiagnosticReadResult
 }
 
+/** Whether local diagnostic deletion completed or needs a storage retry. */
 enum class TrackingDiagnosticClearResult {
 	CLEARED,
 	STORAGE_RETRYABLE,
 }
 
+/** Whether retention and overflow pruning completed or needs a storage retry. */
 enum class TrackingDiagnosticMaintenanceResult {
 	PRUNED,
 	STORAGE_RETRYABLE,
@@ -101,12 +109,14 @@ enum class TrackingDiagnosticMaintenanceResult {
  * There is deliberately no Flow, callback, listener, export, or upload surface.
  */
 interface TrackingDiagnosticHistory {
+	/** Reads a bounded source page, optionally continuing before a cursor from the same query. */
 	suspend fun querySource(
 		source: TrackingDiagnosticSource,
 		pageSize: Int = TrackingDiagnosticStorageLimits.DEFAULT_PAGE_SIZE,
 		before: TrackingDiagnosticPageCursor? = null,
 	): TrackingDiagnosticReadResult
 
+	/** Reads a bounded page for one source and purpose using its opaque continuation cursor. */
 	suspend fun querySourcePurpose(
 		source: TrackingDiagnosticSource,
 		purpose: TrackingDiagnosticPurpose,
@@ -117,6 +127,7 @@ interface TrackingDiagnosticHistory {
 
 /** Local deletion boundary used by diagnostics UI and app-wide collected-data deletion. */
 interface TrackingDiagnosticDataControl {
+	/** Removes locally stored diagnostic events and reports whether storage requires a retry. */
 	suspend fun clearAll(): TrackingDiagnosticClearResult
 }
 
@@ -124,6 +135,7 @@ interface TrackingDiagnosticDataControl {
  * Local maintenance seam. No worker is scheduled by this module; append also enforces all limits.
  */
 interface TrackingDiagnosticMaintenance {
+	/** Applies fixed retention and size/count limits without scheduling background work. */
 	suspend fun pruneExpiredAndOverflow(): TrackingDiagnosticMaintenanceResult
 }
 

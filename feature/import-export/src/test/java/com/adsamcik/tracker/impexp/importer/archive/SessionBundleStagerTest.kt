@@ -150,7 +150,9 @@ class SessionBundleStagerTest {
 					val first = "sources/0/steps.trackersteps"
 					FileImportStream(ByteArrayInputStream("saved child".toByteArray()), first,
 						onClose = { inputsClosed++ }).use { stream ->
-						if (shouldExtract(ArchiveEntryMetadata(first, first))) consume(stream)
+						if (shouldExtract(ArchiveEntryMetadata(first, first))) {
+							consume(stream)
+						}
 					}
 					firstWasStaged = File(cache, SessionBundleStager.CACHE_DIRECTORY).listFiles()
 						.orEmpty().single().length() > 0L
@@ -159,7 +161,9 @@ class SessionBundleStagerTest {
 							super.read(buffer, offset, length).also { copyJob.cancel() }
 					}
 					FileImportStream(input, name, onClose = { inputsClosed++ }).use { stream ->
-						if (shouldExtract(ArchiveEntryMetadata(name, name))) consume(stream)
+						if (shouldExtract(ArchiveEntryMetadata(name, name))) {
+							consume(stream)
+						}
 					}
 					error("Cancelled copy must not finish staging")
 				}

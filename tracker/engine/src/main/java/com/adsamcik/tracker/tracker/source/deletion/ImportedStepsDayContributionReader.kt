@@ -40,7 +40,9 @@ internal class ImportedStepsDayContributionReader(private val database: AppDatab
 	): ImportedStepsRetainedAuthorityDiscovery? {
 		val dao = database.importedStepsDao()
 		val entries = dao.entriesOverlapping(fromMs, toMs, StepsPortableFormatV1.MAX_ENTRIES + 1)
-		if (entries.size > StepsPortableFormatV1.MAX_ENTRIES) return null
+		if (entries.size > StepsPortableFormatV1.MAX_ENTRIES) {
+			return null
+		}
 		val importedSegments = presentationSegments.filter { it.source == SegmentSource.PORTABLE_STEPS_IMPORT }
 		val candidateRuns = (
 			factRunIds.chunked(ID_BATCH).flatMap { ids -> dao.runsForIdentities(ids, ids.size + 1) } +
@@ -49,8 +51,23 @@ internal class ImportedStepsDayContributionReader(private val database: AppDatab
 				}
 		).distinctBy(ImportedStepsRunEntity::identity)
 		val entryIds = (entries.map { it.identity } + candidateRuns.map { it.entryIdentity }).distinct()
-		if (entryIds.size > StepsPortableFormatV1.MAX_ENTRIES) return null
+		if (entryIds.size > StepsPortableFormatV1.MAX_ENTRIES) {
+			return null
+		}
 
+		return readRetainedAuthorityGroups(
+			entryIds, candidateRuns, importedSegments, firstEpochDay, lastEpochDayInclusive, retainedFromMs,
+		)
+	}
+
+	private suspend fun readRetainedAuthorityGroups(
+		entryIds: List<String>,
+		candidateRuns: List<ImportedStepsRunEntity>,
+		importedSegments: List<SessionSegment>,
+		firstEpochDay: Long,
+		lastEpochDayInclusive: Long,
+		retainedFromMs: Long?,
+	): ImportedStepsRetainedAuthorityDiscovery? {
 		val zoneByDay = sortedMapOf<Long, ZoneId>()
 		val retainedRunIds = hashSetOf<String>()
 		val retainedSegments = linkedMapOf<Long, SessionSegment>()
@@ -60,45 +77,66 @@ internal class ImportedStepsDayContributionReader(private val database: AppDatab
 				return null
 			}
 			for (entry in result.entries) {
-				for (run in entry.portableRunsById.values) {
-					if (retainedRunIds.size == MAX_RUN_METADATA ||
-						!retainedRunIds.add(run.identity.value)
-					) return null
-					val zoneId = try {
-						ZoneId.of(run.storedZoneId)
-					} catch (_: DateTimeException) {
-						return null
-					}
-					if (!addRetainedAuthorityInterval(
-						startMs = run.startTimeMs,
-						endMs = run.endTimeMs,
-						zoneId = zoneId,
-						firstEpochDay = firstEpochDay,
-						lastEpochDayInclusive = lastEpochDayInclusive,
-						retainedFromMs = retainedFromMs,
-						zoneByDay = zoneByDay,
-					)) return null
-					for (fact in run.facts) {
-						if (!addRetainedAuthorityInterval(
-							startMs = fact.intervalStartTimeMs,
-							endMs = fact.intervalEndTimeMs,
-							zoneId = zoneId,
-							firstEpochDay = firstEpochDay,
-							lastEpochDayInclusive = lastEpochDayInclusive,
-							retainedFromMs = retainedFromMs,
-							zoneByDay = zoneByDay,
-						)) return null
-					}
+				if (!entry.portableRunsById.values.all { run ->
+						run.includeRetainedCalendarAuthorities(
+							firstEpochDay, lastEpochDayInclusive, retainedFromMs, zoneByDay, retainedRunIds,
+						)
+					}) {
+					return null
 				}
 				for (segment in entry.segmentsByRun.values) {
-					if (retainedSegments.put(segment.id, segment) != null) return null
+					if (retainedSegments.put(segment.id, segment) != null) {
+						return null
+					}
 				}
 			}
 		}
-		if (candidateRuns.any { it.identity !in retainedRunIds } ||
+		return if (candidateRuns.any { it.identity !in retainedRunIds } ||
 			importedSegments.any { retainedSegments[it.id] != it }
-		) return null
-		return ImportedStepsRetainedAuthorityDiscovery(zoneByDay, retainedRunIds)
+		) {
+			null
+		} else {
+			ImportedStepsRetainedAuthorityDiscovery(zoneByDay, retainedRunIds)
+		}
+	}
+
+	private fun PortableStepsRunV1.includeRetainedCalendarAuthorities(
+		firstEpochDay: Long,
+		lastEpochDayInclusive: Long,
+		retainedFromMs: Long?,
+		zoneByDay: MutableMap<Long, ZoneId>,
+		retainedRunIds: MutableSet<String>,
+	): Boolean {
+		if (retainedRunIds.size == MAX_RUN_METADATA || !retainedRunIds.add(identity.value)) {
+			return false
+		}
+		val zoneId = try {
+			ZoneId.of(storedZoneId)
+		} catch (_: DateTimeException) {
+			return false
+		}
+		if (!addRetainedAuthorityInterval(
+			startMs = startTimeMs,
+			endMs = endTimeMs,
+			zoneId = zoneId,
+			firstEpochDay = firstEpochDay,
+			lastEpochDayInclusive = lastEpochDayInclusive,
+			retainedFromMs = retainedFromMs,
+			zoneByDay = zoneByDay,
+		)) {
+			return false
+		}
+		return facts.all { fact ->
+			addRetainedAuthorityInterval(
+				startMs = fact.intervalStartTimeMs,
+				endMs = fact.intervalEndTimeMs,
+				zoneId = zoneId,
+				firstEpochDay = firstEpochDay,
+				lastEpochDayInclusive = lastEpochDayInclusive,
+				retainedFromMs = retainedFromMs,
+				zoneByDay = zoneByDay,
+			)
+		}
 	}
 
 	/** Envelope discovery is supplemented by fact identities after wall-clock jumps. */
@@ -122,7 +160,8 @@ internal class ImportedStepsDayContributionReader(private val database: AppDatab
 		val entryIds = (entries.map { it.identity } + candidateRuns.map { it.entryIdentity }).distinct()
 		val retained = authenticate(entryIds, accumulator, excludedSegmentIds) ?: return null
 		val segments = retained.segments.associateBy(SessionSegment::id)
-		return if (importedSegments.any { segments[it.id] != it } || candidateRuns.any { it.identity !in retained.runIds }) {
+		return if (importedSegments.any { segments[it.id] != it } ||
+            candidateRuns.any { it.identity !in retained.runIds }) {
 			null
 		} else {
 			retained
@@ -165,7 +204,6 @@ internal data class ImportedStepsRetainedAuthorityDiscovery(
 	val runIds: Set<String>,
 )
 
-@Suppress("ReturnCount")
 internal fun addRetainedAuthorityInterval(
 	startMs: Long,
 	endMs: Long,
@@ -175,9 +213,23 @@ internal fun addRetainedAuthorityInterval(
 	retainedFromMs: Long?,
 	zoneByDay: MutableMap<Long, ZoneId>,
 ): Boolean {
-	if (startMs < 0L || endMs < startMs || retainedFromMs?.let { it < 0L } == true) return false
+	if (startMs < 0L || endMs < startMs || retainedFromMs?.let { it < 0L } == true) {
+		return false
+	}
 	val retainedStartMs = retainedFromMs?.let { maxOf(startMs, it) } ?: startMs
-	if (endMs <= retainedStartMs) return true
+	return endMs <= retainedStartMs || zoneByDay.addRetainedCalendarInterval(
+		retainedStartMs, endMs, zoneId, firstEpochDay, lastEpochDayInclusive, retainedFromMs,
+	)
+}
+
+private fun MutableMap<Long, ZoneId>.addRetainedCalendarInterval(
+	retainedStartMs: Long,
+	endMs: Long,
+	zoneId: ZoneId,
+	firstEpochDay: Long,
+	lastEpochDayInclusive: Long,
+	retainedFromMs: Long?,
+): Boolean {
 	val firstDay = try {
 		Instant.ofEpochMilli(retainedStartMs).atZone(zoneId).toLocalDate().toEpochDay()
 	} catch (_: DateTimeException) {
@@ -190,7 +242,17 @@ internal fun addRetainedAuthorityInterval(
 	}
 	val clippedFirst = maxOf(firstDay, firstEpochDay)
 	val clippedLast = minOf(lastDay, lastEpochDayInclusive)
-	if (clippedLast < clippedFirst) return true
+	return clippedLast < clippedFirst || addRetainedCalendarDays(
+		clippedFirst, clippedLast, zoneId, retainedFromMs,
+	)
+}
+
+private fun MutableMap<Long, ZoneId>.addRetainedCalendarDays(
+	clippedFirst: Long,
+	clippedLast: Long,
+	zoneId: ZoneId,
+	retainedFromMs: Long?,
+): Boolean {
 	for (epochDay in clippedFirst..clippedLast) {
 		if (retainedFromMs != null) {
 			val dayStartMs = try {
@@ -200,10 +262,14 @@ internal fun addRetainedAuthorityInterval(
 			} catch (_: ArithmeticException) {
 				return false
 			}
-			if (dayStartMs < retainedFromMs) continue
+			if (dayStartMs < retainedFromMs) {
+				continue
+			}
 		}
-		val existing = zoneByDay.putIfAbsent(epochDay, zoneId)
-		if (existing != null && existing != zoneId) return false
+		val existing = putIfAbsent(epochDay, zoneId)
+		if (existing != null && existing != zoneId) {
+			return false
+		}
 	}
 	return true
 }
@@ -273,7 +339,8 @@ private fun PortableStepsRunV1.toContribution(entry: RetainedImportedStepsEntry)
 		completeness.captureCoverage != PortableStepsCaptureCoverage.WHOLE_RUN ||
 		completeness.providerCoverage != PortableStepsProviderCoverage.COMPLETE ||
 		!completeness.appDrainComplete || !completeness.stopComplete || completeness.hasUnresolvedProviderRange ||
-		facts.any { it.coverage == PortableStepsFactCoverage.RESET_GAP || it.coverage == PortableStepsFactCoverage.PARTIAL } ||
+		facts.any { it.coverage == PortableStepsFactCoverage.RESET_GAP ||
+            it.coverage == PortableStepsFactCoverage.PARTIAL } ||
 		hasMissingInternalBoundary(),
 )
 

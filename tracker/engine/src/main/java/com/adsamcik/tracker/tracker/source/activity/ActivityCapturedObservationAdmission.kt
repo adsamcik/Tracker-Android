@@ -6,6 +6,7 @@ import com.adsamcik.tracker.tracker.source.model.ActivityMode
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
 import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
+import com.adsamcik.tracker.tracker.source.model.ADAPTIVE_PROVIDER_ITEM_MAXIMUM_AGE_MS
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -56,7 +57,8 @@ internal class ActivityHistoricalAcquisitionConfiguration private constructor(
 		activityPlan.capturedSampledClassificationPolicy()
 
 	init {
-		require(desiredPlanPayloadVersion in setOf(SOURCE_PLAN_PAYLOAD_VERSION, 3))
+		require(desiredPlanPayloadVersion in setOf(
+			SOURCE_PLAN_PAYLOAD_VERSION, SourcePlanCodec.ADAPTIVE_ACTIVITY_FORMAT_VERSION))
 		require(desiredPlanPayloadChecksum.isNotBlank())
 		require(activityPlan.revision == identity.configurationRevision)
 		require(activityPlan.enabled)
@@ -76,7 +78,8 @@ internal class ActivityHistoricalAcquisitionConfiguration private constructor(
 			desiredPlanPayload: ByteArray,
 			planCodec: SourcePlanCodec = SourcePlanCodec(),
 		): ActivityHistoricalAcquisitionConfiguration {
-			require(desiredPlanPayloadVersion in setOf(SOURCE_PLAN_PAYLOAD_VERSION, 3))
+			require(desiredPlanPayloadVersion in setOf(
+				SOURCE_PLAN_PAYLOAD_VERSION, SourcePlanCodec.ADAPTIVE_ACTIVITY_FORMAT_VERSION))
 			val decoded = runCatching { planCodec.decode(desiredPlanPayload) }.getOrNull()
 			val activityPlan = decoded as? ActivityPlan
 				?: throw IllegalArgumentException("Historical Activity plan payload is unsupported")
@@ -104,7 +107,11 @@ internal class ActivityHistoricalAcquisitionConfiguration private constructor(
 }
 
 internal fun ActivityPlan.capturedObservationMaximumAgeNanosOrNull(): Long? =
-	(if (adaptiveProfileVersion == 1) 120_000L else desiredDetectionLatencyMs).takeIf { latencyMs ->
+	(if (adaptiveProfileVersion == 1) {
+		ADAPTIVE_PROVIDER_ITEM_MAXIMUM_AGE_MS
+	} else {
+		desiredDetectionLatencyMs
+	}).takeIf { latencyMs ->
 		latencyMs > 0L && latencyMs <= Long.MAX_VALUE / NANOS_PER_MILLISECOND
 	}?.times(NANOS_PER_MILLISECOND)
 
@@ -203,11 +210,70 @@ internal object ActivityCapturedObservationAdmission {
 		acquisitionAuthority: ActivityCaptureAcquisitionAuthority,
 	): ActivityCaptureAdmissionResult {
 		val evidence = event.evidence
-		if (evidence.source != SourceKind.ACTIVITY) return rejected(ActivityCaptureAdmissionRejection.NOT_ACTIVITY)
-		if (evidence.registrationPurposeEligibilityMask and
-			SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
-		) return rejected(ActivityCaptureAdmissionRejection.CONTROL_ONLY)
+		val captureRejection = when {
+			evidence.source != SourceKind.ACTIVITY -> ActivityCaptureAdmissionRejection.NOT_ACTIVITY
+			evidence.registrationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ->
+				ActivityCaptureAdmissionRejection.CONTROL_ONLY
+			else -> null
+		}
+		if (captureRejection != null) {
+			return rejected(captureRejection)
+		}
 
+		val candidateAuthority = event.captureAuthorityOrNull(acquisitionAuthority.captureAuthority.temporalAuthority)
+			?: return rejected(ActivityCaptureAdmissionRejection.INCOMPLETE_CAPTURE_AUTHORITY)
+		if (candidateAuthority != acquisitionAuthority.captureAuthority) {
+			return rejected(ActivityCaptureAdmissionRejection.ACQUISITION_AUTHORITY_MISMATCH)
+		}
+
+		return admitTimedObservation(event, candidateAuthority, acquisitionAuthority.historicalConfiguration)
+	}
+
+	private fun admitTimedObservation(
+		event: AdmittedSourceEvent<out SourcePayload>,
+		candidateAuthority: ActivityCaptureAuthority,
+		historicalConfiguration: ActivityHistoricalAcquisitionConfiguration,
+	): ActivityCaptureAdmissionResult {
+		val evidence = event.evidence
+		val providerTime = event.providerTimeOrNull()
+		if (providerTime == null || providerTime != evidence.observedElapsedRealtimeNanos ||
+			providerTime > evidence.receivedElapsedRealtimeNanos
+		) {
+			return rejected(ActivityCaptureAdmissionRejection.MALFORMED_PROVIDER_TIME)
+		}
+		historicalConfiguration.temporalRejection(providerTime, evidence.receivedElapsedRealtimeNanos)
+			?.let { return rejected(it) }
+		val wallTimeMs = evidence.wallTimeMs
+		val wallTimeUncertaintyMs = evidence.wallTimeUncertaintyMs
+		if (wallTimeMs == null || wallTimeMs < 0L || wallTimeUncertaintyMs == null) {
+			return rejected(ActivityCaptureAdmissionRejection.WALL_TIME_UNVERIFIABLE)
+		}
+		return captureActivityPayload(event, candidateAuthority, historicalConfiguration, providerTime)
+	}
+
+	private fun captureActivityPayload(
+		event: AdmittedSourceEvent<out SourcePayload>,
+		candidateAuthority: ActivityCaptureAuthority,
+		historicalConfiguration: ActivityHistoricalAcquisitionConfiguration,
+		providerTime: Long,
+	): ActivityCaptureAdmissionResult {
+		val evidence = event.evidence
+		val activity = event.activityTypeOrNull()
+			?: return rejected(ActivityCaptureAdmissionRejection.UNSUPPORTED_ACTIVITY)
+		return when (val payload = evidence.payload) {
+			is ActivityTransitionPayload -> captureTransition(event, candidateAuthority, activity, providerTime, payload)
+			is ActivityRecognitionPayload -> captureSampledClassification(
+				event, candidateAuthority, activity, providerTime, payload, historicalConfiguration,
+			)
+			else -> rejected(ActivityCaptureAdmissionRejection.NOT_ACTIVITY)
+		}
+	}
+
+	// Project only the complete run binding, provider identity and admitted envelope.
+	private fun AdmittedSourceEvent<out SourcePayload>.captureAuthorityOrNull(
+		temporalAuthority: ActivityCaptureTemporalAuthority,
+	): ActivityCaptureAuthority? {
+		val evidence = evidence
 		val logicalTrackingId = evidence.logicalTrackingId
 		val serviceRunId = evidence.serviceRunId
 		val physicalFingerprint = evidence.physicalConfigurationFingerprint
@@ -218,171 +284,192 @@ internal object ActivityCapturedObservationAdmission {
 		val captureConsentEpoch = evidence.captureConsentEpoch
 		val manifestRevision = evidence.sessionManifestRevision
 		val leaseGeneration = evidence.lifecycleLeaseGeneration
-		if (logicalTrackingId == null || serviceRunId == null || physicalFingerprint == null ||
-			authorizationRevision == null || authorizationFingerprint == null ||
-			configurationRevision == null || sourcePolicyRevision == null || captureConsentEpoch == null ||
-			manifestRevision == null || leaseGeneration == null ||
-			evidence.planAttribution != PlanAttribution.CAPTURED_REGISTRATION ||
+		if (hasIncompleteCaptureRunIdentity() || hasIncompleteCaptureProviderIdentity()) {
+			return null
+		}
+		if (evidence.planAttribution != PlanAttribution.CAPTURED_REGISTRATION ||
 			evidence.registrationGeneration <= 0L || evidence.sourceSequence < 0L ||
 			evidence.registrationPurposeEligibilityMask and
 				SourceBrokerPurpose.ALL_MASK != evidence.registrationPurposeEligibilityMask
-		) return rejected(ActivityCaptureAdmissionRejection.INCOMPLETE_CAPTURE_AUTHORITY)
+		) {
+			return null
+		}
 
-		val candidateAuthority = ActivityCaptureAuthority(
-			logicalTrackingId = logicalTrackingId,
-			serviceRunId = serviceRunId,
+		return ActivityCaptureAuthority(
+			logicalTrackingId = requireNotNull(logicalTrackingId),
+			serviceRunId = requireNotNull(serviceRunId),
 			sourceInstanceId = evidence.sourceInstanceId,
 			registrationGeneration = evidence.registrationGeneration,
-			configurationRevision = configurationRevision,
-			physicalConfigurationFingerprint = physicalFingerprint,
-			authorizationRevision = authorizationRevision,
-			authorizationFingerprint = authorizationFingerprint,
+			configurationRevision = requireNotNull(configurationRevision),
+			physicalConfigurationFingerprint = requireNotNull(physicalFingerprint),
+			authorizationRevision = requireNotNull(authorizationRevision),
+			authorizationFingerprint = requireNotNull(authorizationFingerprint),
 			purposeEligibilityMask = evidence.registrationPurposeEligibilityMask,
-			sourcePolicyRevision = sourcePolicyRevision,
-			captureConsentEpoch = captureConsentEpoch,
-			sessionManifestRevision = manifestRevision,
-			lifecycleLeaseGeneration = leaseGeneration,
+			sourcePolicyRevision = requireNotNull(sourcePolicyRevision),
+			captureConsentEpoch = requireNotNull(captureConsentEpoch),
+			sessionManifestRevision = requireNotNull(manifestRevision),
+			lifecycleLeaseGeneration = requireNotNull(leaseGeneration),
 			collectedDataEpoch = evidence.capturedCollectedDataEpoch,
 			clockDomainId = evidence.clockDomainId,
-			temporalAuthority = acquisitionAuthority.captureAuthority.temporalAuthority,
+			temporalAuthority = temporalAuthority,
 		)
-		if (candidateAuthority != acquisitionAuthority.captureAuthority) {
-			return rejected(ActivityCaptureAdmissionRejection.ACQUISITION_AUTHORITY_MISMATCH)
-		}
+	}
 
-		val providerTime = event.providerTimeOrNull()
-		if (providerTime == null || providerTime != evidence.observedElapsedRealtimeNanos ||
-			providerTime > evidence.receivedElapsedRealtimeNanos
-		) return rejected(ActivityCaptureAdmissionRejection.MALFORMED_PROVIDER_TIME)
-		val historicalConfiguration = acquisitionAuthority.historicalConfiguration
-		if (providerTime !in historicalConfiguration.providerAcceptance) {
-			return rejected(ActivityCaptureAdmissionRejection.OUTSIDE_PROVIDER_ACCEPTANCE)
-		}
-		if (providerTime !in historicalConfiguration.authorizationEffect) {
-			return rejected(ActivityCaptureAdmissionRejection.OUTSIDE_AUTHORIZATION_EFFECT)
-		}
-		if (providerTime !in historicalConfiguration.sessionRunEffect) {
-			return rejected(ActivityCaptureAdmissionRejection.OUTSIDE_SESSION_RUN_EFFECT)
-		}
-		if (evidence.receivedElapsedRealtimeNanos - providerTime >
-			historicalConfiguration.maximumObservationAgeNanos
-		) return rejected(ActivityCaptureAdmissionRejection.STALE_PROVIDER_TIME)
+	private fun AdmittedSourceEvent<out SourcePayload>.hasIncompleteCaptureRunIdentity(): Boolean =
+		evidence.logicalTrackingId == null || evidence.serviceRunId == null ||
+			evidence.sessionManifestRevision == null || evidence.lifecycleLeaseGeneration == null
 
-		val wallTimeMs = evidence.wallTimeMs
-		val wallTimeUncertaintyMs = evidence.wallTimeUncertaintyMs
-		if (wallTimeMs == null || wallTimeMs < 0L || wallTimeUncertaintyMs == null) {
-			return rejected(ActivityCaptureAdmissionRejection.WALL_TIME_UNVERIFIABLE)
+	private fun AdmittedSourceEvent<out SourcePayload>.hasIncompleteCaptureProviderIdentity(): Boolean =
+		evidence.physicalConfigurationFingerprint == null || evidence.authorizationRevision == null ||
+			evidence.registrationEligibilityFingerprint == null || evidence.configRevision == null ||
+			evidence.sourcePolicyRevision == null || evidence.captureConsentEpoch == null
+
+	private fun ActivityHistoricalAcquisitionConfiguration.temporalRejection(
+		providerTime: Long,
+		receivedElapsedRealtimeNanos: Long,
+	): ActivityCaptureAdmissionRejection? = when {
+		providerTime !in providerAcceptance -> ActivityCaptureAdmissionRejection.OUTSIDE_PROVIDER_ACCEPTANCE
+		providerTime !in authorizationEffect -> ActivityCaptureAdmissionRejection.OUTSIDE_AUTHORIZATION_EFFECT
+		providerTime !in sessionRunEffect -> ActivityCaptureAdmissionRejection.OUTSIDE_SESSION_RUN_EFFECT
+		receivedElapsedRealtimeNanos - providerTime > maximumObservationAgeNanos ->
+			ActivityCaptureAdmissionRejection.STALE_PROVIDER_TIME
+		else -> null
+	}
+
+	private fun captureTransition(
+		event: AdmittedSourceEvent<out SourcePayload>,
+		candidateAuthority: ActivityCaptureAuthority,
+		activity: CapturedActivityType,
+		providerTime: Long,
+		payload: ActivityTransitionPayload,
+	): ActivityCaptureAdmissionResult {
+		val evidence = event.evidence
+		val wallTimeMs = requireNotNull(evidence.wallTimeMs)
+		val wallTimeUncertaintyMs = requireNotNull(evidence.wallTimeUncertaintyMs)
+		val change = when (payload.transitionType) {
+			TRANSITION_ENTER -> ActivityTransitionChange.ENTER
+			TRANSITION_EXIT -> ActivityTransitionChange.EXIT
+			else -> return rejected(ActivityCaptureAdmissionRejection.UNSUPPORTED_TRANSITION)
 		}
-		val activity = event.activityTypeOrNull()
-			?: return rejected(ActivityCaptureAdmissionRejection.UNSUPPORTED_ACTIVITY)
-		val observation = when (val payload = evidence.payload) {
-			is ActivityTransitionPayload -> {
-				val change = when (payload.transitionType) {
-					TRANSITION_ENTER -> ActivityTransitionChange.ENTER
-					TRANSITION_EXIT -> ActivityTransitionChange.EXIT
-					else -> return rejected(ActivityCaptureAdmissionRejection.UNSUPPORTED_TRANSITION)
-				}
-				ActivityCapturedObservation.Transition(
-					reference = ActivityCapturedObservationReference(
-						sourceEventId = event.eventId,
-						admissionOrdinal = event.admissionOrdinal,
-						sourceSequence = evidence.sourceSequence,
-						providerElapsedRealtimeNanos = providerTime,
-						receivedElapsedRealtimeNanos = evidence.receivedElapsedRealtimeNanos,
-						observationKind = ActivityCapturedObservationKind.TRANSITION,
-						observedActivity = activity,
-						transitionChange = change,
-						confidencePercent = null,
-						coverageEndExclusiveElapsedRealtimeNanos = null,
-					),
-					authority = candidateAuthority,
-					activity = activity,
-					observedWallTimeMs = wallTimeMs,
-					wallTimeUncertaintyMs = wallTimeUncertaintyMs,
-					change = change,
-				)
-			}
-			is ActivityRecognitionPayload -> {
-				val policy = historicalConfiguration.sampledClassificationPolicy
-				if (policy !is ActivitySampledClassificationPolicy.DirectCaptureDetail) {
-					return rejected(
-						ActivityCaptureAdmissionRejection.SAMPLED_CLASSIFICATION_NOT_DIRECTLY_REQUESTED,
-					)
-				}
-				if (payload.confidencePercent !in 0..100) {
-					return rejected(ActivityCaptureAdmissionRejection.MALFORMED_SAMPLED_CONFIDENCE)
-				}
-				if (payload.confidencePercent < policy.minimumConfidencePercent) {
-					return rejected(ActivityCaptureAdmissionRejection.SAMPLED_CLASSIFICATION_BELOW_THRESHOLD)
-				}
-				val configuredCoverageEnd = providerTime.checkedAdd(
-					policy.maximumCoverageAfterObservationNanos,
-				) ?: return rejected(ActivityCaptureAdmissionRejection.SAMPLED_COVERAGE_OVERFLOW)
-				val coverageEnd = minOf(
-					configuredCoverageEnd,
-					historicalConfiguration.providerAcceptance.endExclusiveNanos,
-					historicalConfiguration.authorizationEffect.endExclusiveNanos,
-					historicalConfiguration.sessionRunEffect.endExclusiveNanos,
-				)
-				ActivityCapturedObservation.SampledClassification(
-					reference = ActivityCapturedObservationReference(
-						sourceEventId = event.eventId,
-						admissionOrdinal = event.admissionOrdinal,
-						sourceSequence = evidence.sourceSequence,
-						providerElapsedRealtimeNanos = providerTime,
-						receivedElapsedRealtimeNanos = evidence.receivedElapsedRealtimeNanos,
-						observationKind =
-							ActivityCapturedObservationKind.SAMPLED_CLASSIFICATION,
-						observedActivity = activity,
-						transitionChange = null,
-						confidencePercent = payload.confidencePercent,
-						coverageEndExclusiveElapsedRealtimeNanos = coverageEnd,
-					),
-					authority = candidateAuthority,
-					activity = activity,
-					observedWallTimeMs = wallTimeMs,
-					wallTimeUncertaintyMs = wallTimeUncertaintyMs,
-					confidencePercent = payload.confidencePercent,
-					coverageEndExclusiveElapsedRealtimeNanos = coverageEnd,
-				)
-			}
-			else -> return rejected(ActivityCaptureAdmissionRejection.NOT_ACTIVITY)
+		val observation = ActivityCapturedObservation.Transition(
+			reference = ActivityCapturedObservationReference(
+				sourceEventId = event.eventId,
+				admissionOrdinal = event.admissionOrdinal,
+				sourceSequence = evidence.sourceSequence,
+				providerElapsedRealtimeNanos = providerTime,
+				receivedElapsedRealtimeNanos = evidence.receivedElapsedRealtimeNanos,
+				observationKind = ActivityCapturedObservationKind.TRANSITION,
+				observedActivity = activity,
+				transitionChange = change,
+				confidencePercent = null,
+				coverageEndExclusiveElapsedRealtimeNanos = null,
+			),
+			authority = candidateAuthority,
+			activity = activity,
+			observedWallTimeMs = wallTimeMs,
+			wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+			change = change,
+		)
+		return ActivityCaptureAdmissionResult.Captured(observation)
+	}
+
+	private fun captureSampledClassification(
+		event: AdmittedSourceEvent<out SourcePayload>,
+		candidateAuthority: ActivityCaptureAuthority,
+		activity: CapturedActivityType,
+		providerTime: Long,
+		payload: ActivityRecognitionPayload,
+		historicalConfiguration: ActivityHistoricalAcquisitionConfiguration,
+	): ActivityCaptureAdmissionResult {
+		val evidence = event.evidence
+		val wallTimeMs = requireNotNull(evidence.wallTimeMs)
+		val wallTimeUncertaintyMs = requireNotNull(evidence.wallTimeUncertaintyMs)
+		val policy = historicalConfiguration.sampledClassificationPolicy
+		if (policy !is ActivitySampledClassificationPolicy.DirectCaptureDetail) {
+			return rejected(
+				ActivityCaptureAdmissionRejection.SAMPLED_CLASSIFICATION_NOT_DIRECTLY_REQUESTED,
+			)
 		}
+		val confidenceRejection = when {
+			payload.confidencePercent !in 0..100 ->
+				ActivityCaptureAdmissionRejection.MALFORMED_SAMPLED_CONFIDENCE
+			payload.confidencePercent < policy.minimumConfidencePercent ->
+				ActivityCaptureAdmissionRejection.SAMPLED_CLASSIFICATION_BELOW_THRESHOLD
+			else -> null
+		}
+		if (confidenceRejection != null) {
+			return rejected(confidenceRejection)
+		}
+		val configuredCoverageEnd = providerTime.checkedAdd(
+			policy.maximumCoverageAfterObservationNanos,
+		) ?: return rejected(ActivityCaptureAdmissionRejection.SAMPLED_COVERAGE_OVERFLOW)
+		val coverageEnd = minOf(
+			configuredCoverageEnd,
+			historicalConfiguration.providerAcceptance.endExclusiveNanos,
+			historicalConfiguration.authorizationEffect.endExclusiveNanos,
+			historicalConfiguration.sessionRunEffect.endExclusiveNanos,
+		)
+		val observation = ActivityCapturedObservation.SampledClassification(
+			reference = ActivityCapturedObservationReference(
+				sourceEventId = event.eventId,
+				admissionOrdinal = event.admissionOrdinal,
+				sourceSequence = evidence.sourceSequence,
+				providerElapsedRealtimeNanos = providerTime,
+				receivedElapsedRealtimeNanos = evidence.receivedElapsedRealtimeNanos,
+				observationKind =
+					ActivityCapturedObservationKind.SAMPLED_CLASSIFICATION,
+				observedActivity = activity,
+				transitionChange = null,
+				confidencePercent = payload.confidencePercent,
+				coverageEndExclusiveElapsedRealtimeNanos = coverageEnd,
+			),
+			authority = candidateAuthority,
+			activity = activity,
+			observedWallTimeMs = wallTimeMs,
+			wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+			confidencePercent = payload.confidencePercent,
+			coverageEndExclusiveElapsedRealtimeNanos = coverageEnd,
+		)
 		return ActivityCaptureAdmissionResult.Captured(observation)
 	}
 
 	private fun rejected(reason: ActivityCaptureAdmissionRejection) =
 		ActivityCaptureAdmissionResult.Rejected(reason)
 
-	private fun AdmittedSourceEvent<out SourcePayload>.providerTimeOrNull(): Long? =
-		when (val payload = evidence.payload) {
-			is ActivityTransitionPayload -> payload.providerElapsedRealtimeNanos
-			is ActivityRecognitionPayload -> payload.providerElapsedRealtimeNanos
-			else -> null
-		}
-
-	private fun AdmittedSourceEvent<out SourcePayload>.activityTypeOrNull(): CapturedActivityType? {
-		val code = when (val payload = evidence.payload) {
-			is ActivityTransitionPayload -> payload.activityType
-			is ActivityRecognitionPayload -> payload.activityType
-			else -> return null
-		}
-		return when (code) {
-			StableActivityTypeCode.STILL -> CapturedActivityType.STILL
-			StableActivityTypeCode.WALKING -> CapturedActivityType.WALKING
-			StableActivityTypeCode.RUNNING -> CapturedActivityType.RUNNING
-			StableActivityTypeCode.ON_BICYCLE -> CapturedActivityType.ON_BICYCLE
-			StableActivityTypeCode.IN_VEHICLE -> CapturedActivityType.IN_VEHICLE
-			StableActivityTypeCode.ON_FOOT -> CapturedActivityType.ON_FOOT
-			StableActivityTypeCode.TILTING -> CapturedActivityType.TILTING
-			StableActivityTypeCode.UNKNOWN -> CapturedActivityType.UNKNOWN
-			else -> null
-		}
-	}
-
-	private fun Long.checkedAdd(other: Long): Long? =
-		if (this <= Long.MAX_VALUE - other) this + other else null
-
 	private const val TRANSITION_ENTER = 0
 	private const val TRANSITION_EXIT = 1
 }
+
+private fun AdmittedSourceEvent<out SourcePayload>.providerTimeOrNull(): Long? =
+	when (val payload = evidence.payload) {
+		is ActivityTransitionPayload -> payload.providerElapsedRealtimeNanos
+		is ActivityRecognitionPayload -> payload.providerElapsedRealtimeNanos
+		else -> null
+	}
+
+@Suppress("CyclomaticComplexMethod") // Keep this fixed field or enum projection together.
+private fun AdmittedSourceEvent<out SourcePayload>.activityTypeOrNull(): CapturedActivityType? {
+	val code = when (val payload = evidence.payload) {
+		is ActivityTransitionPayload -> payload.activityType
+		is ActivityRecognitionPayload -> payload.activityType
+		else -> return null
+	}
+	return when (code) {
+		StableActivityTypeCode.STILL -> CapturedActivityType.STILL
+		StableActivityTypeCode.WALKING -> CapturedActivityType.WALKING
+		StableActivityTypeCode.RUNNING -> CapturedActivityType.RUNNING
+		StableActivityTypeCode.ON_BICYCLE -> CapturedActivityType.ON_BICYCLE
+		StableActivityTypeCode.IN_VEHICLE -> CapturedActivityType.IN_VEHICLE
+		StableActivityTypeCode.ON_FOOT -> CapturedActivityType.ON_FOOT
+		StableActivityTypeCode.TILTING -> CapturedActivityType.TILTING
+		StableActivityTypeCode.UNKNOWN -> CapturedActivityType.UNKNOWN
+		else -> null
+	}
+}
+
+private fun Long.checkedAdd(other: Long): Long? =
+	if (this <= Long.MAX_VALUE - other) {
+		this + other
+	} else {
+		null
+	}

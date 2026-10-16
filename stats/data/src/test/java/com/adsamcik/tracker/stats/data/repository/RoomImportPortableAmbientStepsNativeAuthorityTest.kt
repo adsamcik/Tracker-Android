@@ -64,7 +64,9 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 
 	@After
 	fun tearDown() {
-		if (::database.isInitialized && database.isOpen) database.close()
+		if (::database.isInitialized && database.isOpen) {
+			database.close()
+		}
 	}
 
 	@Test
@@ -289,6 +291,9 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 		database.importedAmbientStepsDao().archiveCount() shouldBe 0L
 	}
 
+	// Keep one native Steps provider fixture and its matching local/portable day identities together for
+	// import-overlap checks.
+	@Suppress("LongMethod")
 	private suspend fun seedNative(revoked: Boolean): NativeFixture {
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState())
 		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, null, 0L) shouldBe 1
@@ -321,7 +326,11 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
 				currentPolicyRevision = currentPolicy.policyRevision,
 				legacySettingsFingerprint = null,
-				updatedAtMs = if (revoked) 2_000L else 0L,
+				updatedAtMs = if (revoked) {
+					2_000L
+				} else {
+					0L
+				},
 			),
 		)
 		database.ambientStepsFactRevisionDao().insertRetentionAuthority(
@@ -525,8 +534,16 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 		controlConsentEpoch = null,
 		ambientConsentEpoch = consentEpoch,
 		effectiveBootId = BOOT_ID,
-		effectiveElapsedRealtimeNanos = if (eligible) 0L else 2_000L,
-		effectiveWallTimeMs = if (eligible) 0L else 2_000L,
+		effectiveElapsedRealtimeNanos = if (eligible) {
+			0L
+		} else {
+			2_000L
+		},
+		effectiveWallTimeMs = if (eligible) {
+			0L
+		} else {
+			2_000L
+		},
 		changeReason = "test",
 	)
 
@@ -539,8 +556,16 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 			persistenceEligible = eligible,
 			policyRevision = policyRevision,
 			effectiveBootId = BOOT_ID,
-			effectiveElapsedRealtimeNanos = if (eligible) 0L else 2_000L,
-			effectiveWallTimeMs = if (eligible) 0L else 2_000L,
+			effectiveElapsedRealtimeNanos = if (eligible) {
+				0L
+			} else {
+				2_000L
+			},
+			effectiveWallTimeMs = if (eligible) {
+				0L
+			} else {
+				2_000L
+			},
 			changeReason = "test",
 		)
 

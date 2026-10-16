@@ -210,7 +210,11 @@ class PortablePressureExporterTest {
 		val output = ByteArrayOutputStream()
 		val exporter = exactExporter { _, sink ->
 			calls++
-			sink.emit(pressureEntry(meanHectopascals = if (calls == 1) 1_000.25 else 1_000.5))
+			sink.emit(pressureEntry(meanHectopascals = if (calls == 1) {
+				1_000.25
+			} else {
+				1_000.5
+			}))
 			ExportPortablePressureResult.Exported(1)
 		}
 

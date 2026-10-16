@@ -223,8 +223,10 @@ fun interface SourceEventSink {
 
 sealed interface SourceDeliveryAdmissionHandoff {
 	/** [lastSourceSequence] belongs to the greatest returned admission ordinal, including replay. */
-	data class Durable(val admissionOrdinals: List<Long>, val lastSourceSequence: Long? = null) : SourceDeliveryAdmissionHandoff
-	data class Duplicate(val existingAdmissionOrdinals: List<Long>, val lastSourceSequence: Long? = null) : SourceDeliveryAdmissionHandoff
+	data class Durable(val admissionOrdinals: List<Long>, val lastSourceSequence: Long? =
+        null) : SourceDeliveryAdmissionHandoff
+	data class Duplicate(val existingAdmissionOrdinals: List<Long>, val lastSourceSequence: Long? =
+        null) : SourceDeliveryAdmissionHandoff
 	/** No WAL mutation occurred; rebuild this delivery against the exact durable session cutoff. */
 	data class SessionCutoff(val cutoffElapsedRealtimeNanos: Long) : SourceDeliveryAdmissionHandoff {
 		init {
@@ -333,4 +335,12 @@ enum class SourceStopStatus {
 	PERMISSION_LOST,
 	PROVIDER_FAILED,
 	PROCESS_RESTARTED,
+}
+
+/** Preserves the completed predecessor acknowledgement when a source start becomes a reconfiguration result. */
+internal fun SourceStartResult.toApplyResult(stopAck: SourceStopAck?): SourceApplyResult = when (this) {
+	is SourceStartResult.Started -> SourceApplyResult.Applied(applied, stopAck)
+	is SourceStartResult.Degraded -> SourceApplyResult.Degraded(applied, stopAck)
+	is SourceStartResult.Blocked -> SourceApplyResult.Failed(applied, retryable = false, stopAck = stopAck)
+	is SourceStartResult.Failed -> SourceApplyResult.Failed(applied, retryable, stopAck)
 }

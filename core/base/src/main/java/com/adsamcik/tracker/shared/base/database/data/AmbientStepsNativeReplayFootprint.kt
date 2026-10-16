@@ -33,6 +33,10 @@ data class AmbientStepsNativeReplayFootprintEntity(
 		require(effectChecksum == AmbientStepsNativeReplayFootprintIntegrity.checksum(this))
 	}
 
+	/**
+	 * Stable persisted codes, including `KIND_DAY`, `KIND_FACT`, `KIND_GAP`, and any identity-bound
+	 * record factories.
+	 */
 	companion object {
 		const val KIND_DAY = "DAY"
 		const val KIND_FACT = "FACT"
@@ -42,7 +46,14 @@ data class AmbientStepsNativeReplayFootprintEntity(
 	}
 }
 
+/**
+ * Deterministic digests binding protected native Steps identities to their original stored day and
+ * data epoch.
+ */
 object AmbientStepsNativeReplayFootprintIntegrity {
+	/**
+	 * Builds a payload-free protected identity/day/epoch footprint and its deterministic digest.
+	 */
 	fun create(
 		protectedIdentity: String,
 		identityKind: String,
@@ -64,6 +75,9 @@ object AmbientStepsNativeReplayFootprintIntegrity {
 		),
 	)
 
+	/**
+	 * Computes the deterministic stored digest from the supplied identity, revision and value fields.
+	 */
 	fun checksum(value: AmbientStepsNativeReplayFootprintEntity): String = checksum(
 		value.protectedIdentity,
 		value.identityKind,
@@ -72,13 +86,20 @@ object AmbientStepsNativeReplayFootprintIntegrity {
 		value.protectedAtMs,
 	)
 
+	/**
+	 * Checks the supplied record's stored checksum against its canonical fields.
+	 */
 	fun isAuthentic(value: AmbientStepsNativeReplayFootprintEntity): Boolean =
 		value.effectChecksum == checksum(value)
 
 	private fun checksum(vararg values: Any?): String {
 		val canonical = values.joinToString(separator = "") { value ->
 			val text = value?.toString()
-			if (text == null) "-1:" else "${text.length}:$text"
+			if (text == null) {
+				"-1:"
+			} else {
+				"${text.length}:$text"
+			}
 		}
 		return MessageDigest.getInstance("SHA-256")
 			.digest(

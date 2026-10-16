@@ -230,7 +230,9 @@ class LegacyV26Importer(
 		}
 		for (spec in importedTables) {
 			val actualColumns = sourceColumns(source, spec.name)
-			if (spec.optional && actualColumns.isEmpty()) continue
+			if (spec.optional && actualColumns.isEmpty()) {
+				continue
+			}
 			val missingColumns = (spec.columns.toSet() - spec.optionalColumns) - actualColumns
 			if (missingColumns.isNotEmpty()) {
 				throw LegacyDatabaseException(
@@ -246,13 +248,19 @@ class LegacyV26Importer(
 		spec: TableCopySpec,
 	): Long {
 		val sourceColumns = sourceColumns(source, spec.name)
-		if (spec.optional && sourceColumns.isEmpty()) return 0L
+		if (spec.optional && sourceColumns.isEmpty()) {
+			return 0L
+		}
 		val quotedColumns = spec.columns.joinToString(",") { "`$it`" }
 		val selectedColumns = spec.columns.joinToString(",") { column ->
 			spec.sourceExpressions[column]?.let { expression ->
 				"${expression(sourceColumns)} AS `$column`"
 			}
-				?: if (column in sourceColumns) "`$column`" else "NULL AS `$column`"
+				?: if (column in sourceColumns) {
+					"`$column`"
+				} else {
+					"NULL AS `$column`"
+				}
 		}
 		val placeholders = List(spec.columns.size) { "?" }.joinToString(",")
 		val statement = target.compileStatement(
@@ -302,14 +310,18 @@ class LegacyV26Importer(
 		"SELECT COUNT(*) FROM `$table`",
 		null,
 	).use { cursor ->
-		if (!cursor.moveToFirst()) throw LegacyDatabaseException("Could not count legacy table $table")
+		if (!cursor.moveToFirst()) {
+			throw LegacyDatabaseException("Could not count legacy table $table")
+		}
 		cursor.getLong(0)
 	}
 
 	private fun countRows(target: SupportSQLiteDatabase, table: String): Long = target.query(
 		"SELECT COUNT(*) FROM `$table`",
 	).use { cursor ->
-		if (!cursor.moveToFirst()) throw LegacyDatabaseException("Could not count target table $table")
+		if (!cursor.moveToFirst()) {
+			throw LegacyDatabaseException("Could not count target table $table")
+		}
 		cursor.getLong(0)
 	}
 
@@ -415,7 +427,8 @@ class LegacyV26Importer(
 						"CAST(ROUND(`legacy_lon` * 10000000) AS INTEGER)",
 					)
 				},
-			), optionalColumns = setOf("legacy_source_id", "legacy_mcc", "legacy_mnc", "legacy_alt_m", "legacy_lat", "legacy_lon")),
+			), optionalColumns = setOf("legacy_source_id", "legacy_mcc", "legacy_mnc", "legacy_alt_m", "legacy_lat",
+                "legacy_lon")),
 			TableCopySpec("wifi_observation", listOf(
 				"id", "time_ms", "bssid", "ssid", "capabilities", "frequency", "level",
 				"lat_e7", "lon_e7", "provenance", "created_at",
@@ -442,8 +455,10 @@ class LegacyV26Importer(
 				"id", "start_time_ms", "end_time_ms", "distance_m", "steps", "primary_activity",
 				"activity_confidence", "sample_count", "source", "inference_version", "created_at",
 				"has_distance_anomaly",
-				"legacy_user_initiated", "legacy_distance_on_foot_m", "legacy_distance_in_vehicle_m", "legacy_activity_id",
-			), optionalColumns = setOf("legacy_user_initiated", "legacy_distance_on_foot_m", "legacy_distance_in_vehicle_m", "legacy_activity_id")),
+				"legacy_user_initiated", "legacy_distance_on_foot_m", "legacy_distance_in_vehicle_m",
+                    "legacy_activity_id",
+			), optionalColumns = setOf("legacy_user_initiated", "legacy_distance_on_foot_m",
+                "legacy_distance_in_vehicle_m", "legacy_activity_id")),
 			TableCopySpec("daily_summary", listOf(
 				"date_epoch_day", "total_distance_m", "total_steps", "total_duration_ms",
 				"trip_count", "active_tracking_ms", "last_updated_ms", "created_at",
@@ -481,7 +496,8 @@ class LegacyV26Importer(
 			"pending_signal",
 		)
 
-		val releasedTables = (importedTables.filterNot(TableCopySpec::optional).map(TableCopySpec::name) + skippedTables).toSet()
+		val releasedTables =
+            (importedTables.filterNot(TableCopySpec::optional).map(TableCopySpec::name) + skippedTables).toSet()
 	}
 }
 

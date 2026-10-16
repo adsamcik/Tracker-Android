@@ -34,7 +34,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,8 +50,15 @@ import com.adsamcik.tracker.statistics.presenter.SourceHistoryActionResult
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 
+/**
+ * Displays saved source details and actions; leaving the route releases selection ownership and cancels
+ * outstanding work.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+// Keep this cohesive Compose declaration together; its operation and condition checks remain active.
+@Suppress("LongMethod", "CyclomaticComplexMethod")
+// Keep the finite saved-source detail states and existing export/delete action bindings together.
 fun SourceHistoryDetailRoute(
 	onBack: () -> Unit,
 	viewModel: SourceHistoryDetailViewModel = hiltViewModel(),
@@ -66,16 +72,23 @@ fun SourceHistoryDetailRoute(
 	val busy by viewModel.actionBusy.collectAsStateWithLifecycle()
 	val result by viewModel.actionResult.collectAsStateWithLifecycle()
 	val snackbar = remember { SnackbarHostState() }
-	val context = LocalContext.current
-	val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream"), viewModel::exportTo)
-	LaunchedEffect(result) {
-		if (result == SourceHistoryActionResult.DELETED) leaveDetail()
-		else result?.let { snackbar.showSnackbar(context.getString(when (it) {
+	val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream"),
+        viewModel::exportTo)
+	val actionMessage = result?.let {
+		stringResource(when (it) {
 			SourceHistoryActionResult.EXPORTED -> R.string.organization_export_saved
 			SourceHistoryActionResult.CHANGED -> R.string.organization_stale
 			SourceHistoryActionResult.UNAVAILABLE -> R.string.history_value_unavailable
 			else -> R.string.source_history_action_failed
-		})) }
+		})
+	}
+	LaunchedEffect(result, actionMessage) {
+		if (result == SourceHistoryActionResult.DELETED) {
+			leaveDetail()
+		}
+		else {
+			actionMessage?.let { snackbar.showSnackbar(it) }
+		}
 	}
 	var showMenu by remember { mutableStateOf(false) }
 	var confirmDelete by remember { mutableStateOf(false) }
@@ -107,14 +120,20 @@ fun SourceHistoryDetailRoute(
 								expanded = showMenu,
 								onDismissRequest = { showMenu = false },
 							) {
-								DropdownMenuItem(text = { Text(stringResource(R.string.organization_export)) }, enabled = !busy,
+								DropdownMenuItem(text = { Text(stringResource(R.string.organization_export)) },
+                                    enabled =
+                                    !busy,
 									onClick = { showMenu = false
 										if (viewModel.prepareExport()) {
-											val source = (state as? SourceHistoryDetailState.Loaded)?.selection?.entry?.source
-											if (source != null) save.launch(sourceHistoryFileName(source))
+											val source =
+                                                (state as? SourceHistoryDetailState.Loaded)?.selection?.entry?.source
+											if (source != null) {
+												save.launch(sourceHistoryFileName(source))
+											}
 										}
 									})
-								DropdownMenuItem(text = { Text(stringResource(R.string.trip_detail_delete)) }, enabled = !busy,
+								DropdownMenuItem(text = { Text(stringResource(R.string.trip_detail_delete)) }, enabled =
+                                    !busy,
 									onClick = { showMenu = false; confirmDelete = true })
 							}
 						}
@@ -167,7 +186,10 @@ fun SourceHistoryDetailRoute(
 			}
 		}
 	}
-	if (confirmDelete) AlertDialog(onDismissRequest = { if (!busy) confirmDelete = false },
+	if (confirmDelete) {
+		AlertDialog(onDismissRequest = { if (!busy) {
+			confirmDelete = false
+		} },
 		title = { Text(stringResource(R.string.source_history_delete_title)) },
 		text = { Text(stringResource(R.string.source_history_delete_message)) },
 		confirmButton = { TextButton(enabled = !busy, onClick = { confirmDelete = false; viewModel.delete() }) {
@@ -175,6 +197,7 @@ fun SourceHistoryDetailRoute(
 		} }, dismissButton = { TextButton(enabled = !busy, onClick = { confirmDelete = false }) {
 			Text(stringResource(R.string.organization_cancel))
 		} })
+	}
 }
 
 private fun sourceHistoryFileName(source: HistorySource): String = when (source) {
@@ -216,6 +239,7 @@ private fun SourceHistoryUnavailable(
 }
 
 @Composable
+@Suppress("CyclomaticComplexMethod") // Keep this fixed field or enum projection together.
 private fun sourceHistoryUnavailableMessage(
 	reason: SourceHistoryDetailUnavailableReason,
 	source: HistorySource?,

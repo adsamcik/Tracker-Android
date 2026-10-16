@@ -96,16 +96,26 @@ private fun ImportedPressureHistoryEvaluation.Readable.toPublicReadableEntry():
 		retentionLimited = outsideRetainedFloor || retentionCrossesEntry,
 	)
 	val causes = linkedSetOf<PressureHistoryCause>()
-	if (hasDeletion) causes += PressureHistoryCause.DELETED_FACTS
-	if (outsideRetainedFloor) causes += PressureHistoryCause.OUTSIDE_RETAINED_FLOOR
-	if (retentionCrossesEntry) causes += PressureHistoryCause.RETENTION_CROSSES_SEGMENT
-	if (hasRetentionLoss) causes += PressureHistoryCause.RETENTION_TRUNCATED
+	if (hasDeletion) {
+		causes += PressureHistoryCause.DELETED_FACTS
+	}
+	if (outsideRetainedFloor) {
+		causes += PressureHistoryCause.OUTSIDE_RETAINED_FLOOR
+	}
+	if (retentionCrossesEntry) {
+		causes += PressureHistoryCause.RETENTION_CROSSES_SEGMENT
+	}
+	if (hasRetentionLoss) {
+		causes += PressureHistoryCause.RETENTION_TRUNCATED
+	}
 	if (windows.isNotEmpty() && visibleRuns.any {
 		it.availability == PortablePressureAvailability.RETAINED &&
 			(it.coverage != PortablePressureCoverage.COMPLETE || it.windows.any { window ->
 				window.qualification == PortablePressureWindowQualification.PARTIAL
 			})
-	}) causes += PressureHistoryCause.PARTIAL_FACT
+	}) {
+		causes += PressureHistoryCause.PARTIAL_FACT
+	}
 	if (windows.isEmpty() && causes.isEmpty()) {
 		causes += if (visibleRuns.all {
 			it.availability == PortablePressureAvailability.DISABLED
@@ -139,7 +149,11 @@ private fun ImportedPressureHistoryEvaluation.Readable.toPublicReadableEntry():
 				} -> HistoryAvailability.DISABLED
 				else -> HistoryAvailability.UNAVAILABLE
 			},
-			evidence = if (windows.isEmpty()) HistoryEvidence.NONE else HistoryEvidence.RECORDED,
+			evidence = if (windows.isEmpty()) {
+				HistoryEvidence.NONE
+			} else {
+				HistoryEvidence.RECORDED
+			},
 			productState = productState,
 			coverage = coverage,
 			windows = windows,
@@ -153,14 +167,20 @@ private fun List<PortablePressureRunV1>.toPublicCoverage(
 	hasDeletion: Boolean,
 	retentionLimited: Boolean,
 ): PressureHistoryCoverage = when {
-	hasWindows && !hasDeletion && !retentionLimited && isNotEmpty() && all {
-		it.coverage == PortablePressureCoverage.COMPLETE
-	} -> PressureHistoryCoverage.COMPLETE
+	hasCompletePublicCoverage(hasWindows, hasDeletion, retentionLimited) -> PressureHistoryCoverage.COMPLETE
 	hasWindows || retentionLimited ||
 		any { it.retentionLoss || it.coverage == PortablePressureCoverage.PARTIAL } ->
 		PressureHistoryCoverage.PARTIAL
 	any { it.coverage == PortablePressureCoverage.UNKNOWN } -> PressureHistoryCoverage.UNKNOWN
 	else -> PressureHistoryCoverage.NONE
+}
+
+private fun List<PortablePressureRunV1>.hasCompletePublicCoverage(
+	hasWindows: Boolean,
+	hasDeletion: Boolean,
+	retentionLimited: Boolean,
+): Boolean = hasWindows && !hasDeletion && !retentionLimited && isNotEmpty() && all {
+	it.coverage == PortablePressureCoverage.COMPLETE
 }
 
 @Suppress("LongMethod")

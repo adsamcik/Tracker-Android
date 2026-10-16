@@ -51,6 +51,8 @@ import java.util.TimeZone
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -60,6 +62,9 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// One real provider-import Room/broker fixture follows the same retained cursor through availability,
+// authorization and recovery changes.
+@Suppress("LargeClass")
 class AmbientStepsFactImporterTest {
 	private lateinit var database: AppDatabase
 	private lateinit var broker: SourceBroker
@@ -70,6 +75,9 @@ class AmbientStepsFactImporterTest {
 	private var policyElapsedRealtimeNanos = 1L
 
 	@Before
+	// Keep the real Room/broker provider-import fixture in its rollout, policy, retention, demand and
+	// registration acceptance order.
+	@Suppress("LongMethod")
 	fun setUp() = runTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
@@ -111,8 +119,7 @@ class AmbientStepsFactImporterTest {
 			)
 		}.bootstrapFromLegacy(
 			TrackingParamsState(
-				stepsEnabled = false,
-				ambientStepsEnabled = true,
+				stepsEnabled = true,
 				legacySettingsMigrationCompleted = true,
 			),
 		)
@@ -146,6 +153,9 @@ class AmbientStepsFactImporterTest {
 	@After
 	fun tearDown() = database.close()
 
+	// Follow one bounded provider window through its fact, count-domain receipt, and import cursor in one
+	// transaction.
+	@Suppress("LongMethod")
 	@Test
 	fun `applies one bounded structural window from rounded privacy floor atomically`() = runTest {
 		check(
@@ -483,7 +493,11 @@ class AmbientStepsFactImporterTest {
 				com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState.ValidV2,
 		)
 		val reader = RecordingAmbientReader { window, observedAtMs ->
-			val count = if (window.endTimeMs == 5_000L) 10L else 15L
+			val count = if (window.endTimeMs == 5_000L) {
+				10L
+			} else {
+				15L
+			}
 			AmbientStepsProviderAggregate(PROVIDER, window, count, observedAtMs)
 		}
 		val importer = subject(reader)
@@ -585,7 +599,11 @@ class AmbientStepsFactImporterTest {
 	fun `provider no evidence does not lose an exact authorization transition`() = runTest {
 		var returnEvidence = true
 		val reader = RecordingAmbientReader { window, observedAtMs ->
-			if (returnEvidence) AmbientStepsProviderAggregate(PROVIDER, window, 10L, observedAtMs) else null
+			if (returnEvidence) {
+				AmbientStepsProviderAggregate(PROVIDER, window, 10L, observedAtMs)
+			} else {
+				null
+			}
 		}
 		val importer = subject(reader)
 		primeZone(importer)
@@ -849,7 +867,11 @@ class AmbientStepsFactImporterTest {
 	fun `bounded all day runner passes a missing day and stores only real current day counts without a session`() = runTest {
 		var reads = 0
 		val reader = RecordingAmbientReader { window, observedAtMs ->
-			if (reads++ == 0) null else AmbientStepsProviderAggregate(PROVIDER, window, 17L, observedAtMs)
+			if (reads++ == 0) {
+				null
+			} else {
+				AmbientStepsProviderAggregate(PROVIDER, window, 17L, observedAtMs)
+			}
 		}
 		val importer = subject(reader)
 		primeZone(importer)
@@ -860,7 +882,7 @@ class AmbientStepsFactImporterTest {
 			importNext = importer::importNext,
 		)
 
-		runner.run() shouldBe AmbientStepsImportAttemptResult.COMPLETE
+		withContext(Dispatchers.IO) { runner.run() } shouldBe AmbientStepsImportAttemptResult.COMPLETE
 		reader.windows shouldBe listOf(
 			AmbientStepsProviderReadWindow(2_000L, 86_400_000L),
 			AmbientStepsProviderReadWindow(86_400_000L, 86_404_000L),
@@ -874,7 +896,7 @@ class AmbientStepsFactImporterTest {
 		gap.gapEndTimeMs shouldBe 86_400_000L
 
 		// The next open/hourly copy replays the same provider window; it is not a second step total.
-		runner.run() shouldBe AmbientStepsImportAttemptResult.COMPLETE
+		withContext(Dispatchers.IO) { runner.run() } shouldBe AmbientStepsImportAttemptResult.COMPLETE
 		database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
 	}
 
@@ -891,14 +913,18 @@ class AmbientStepsFactImporterTest {
 			primeZone(importer)
 
 			// A fresh Worker and Runner reuse durable Room progress; no Activity/session exists.
-			productionWorker(gate, reconciler, capability, importer).doWork() shouldBe ListenableWorker.Result.success()
+			withContext(Dispatchers.IO) {
+				productionWorker(gate, reconciler, capability, importer).doWork()
+			} shouldBe ListenableWorker.Result.success()
 			reader.windows shouldBe listOf(AmbientStepsProviderReadWindow(2_000L, OBSERVED_AT_MS))
 			val firstCursor = requireNotNull(database.ambientStepsImportStateDao()
 				.cursor(registration.state.registrationGeneration))
 			firstCursor.importedThroughTimeMs shouldBe OBSERVED_AT_MS
 			database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
 
-			productionWorker(gate, reconciler, capability, importer).doWork() shouldBe ListenableWorker.Result.success()
+			withContext(Dispatchers.IO) {
+				productionWorker(gate, reconciler, capability, importer).doWork()
+			} shouldBe ListenableWorker.Result.success()
 			database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
 			coVerify(exactly = 2) { gate.reconcile() }
 			coVerify(exactly = 2) { reconciler.reconcileCurrentSettings() }
@@ -941,8 +967,9 @@ class AmbientStepsFactImporterTest {
 				.cursor(registration.state.registrationGeneration)
 			val evidenceBefore = database.sourceEvidenceStateDao().get()
 
-			productionWorker(gate, importReconciler(), readyImportCapability(), importer)
-				.doWork() shouldBe ListenableWorker.Result.success()
+			withContext(Dispatchers.IO) {
+				productionWorker(gate, importReconciler(), readyImportCapability(), importer).doWork()
+			} shouldBe ListenableWorker.Result.success()
 
 			reader.windows shouldBe listOf(AmbientStepsProviderReadWindow(2_000L, OBSERVED_AT_MS))
 			database.ambientStepsFactRevisionDao().countAll() shouldBe 0L

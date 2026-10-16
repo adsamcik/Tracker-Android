@@ -160,4 +160,5 @@
     <string name="history_button_label">Historique</string>
     <string name="history_view_trip_on_map">Afficher le trajet sur la carte</string>
     <string name="stats_heatmap_title">Activité</string>
+    <string name="stats_recorded_partial_value">%1$s · partiel</string>
 </resources>

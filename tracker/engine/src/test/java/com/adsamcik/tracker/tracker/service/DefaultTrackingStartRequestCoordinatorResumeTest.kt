@@ -43,7 +43,7 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
     }
 
     @Test
-    fun `actual failed PREPARE retains Off and revokes only the pending delivery`() = runBlocking {
+    fun `actual failed PREPARE retains Off and revokes only the pending delivery`(): Unit = runBlocking {
         authority.recordUserRequestedExit("exit-1") shouldBe true
         val request = TrackingStartRequest(requireNotNull(authority.reserveStart()), true, false)
         withTimeout(2_000L) {
@@ -60,7 +60,7 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
     }
 
     @Test
-    fun `new exit between acknowledgment and startup lease prevents descriptor or provider work`() = runBlocking {
+    fun `new exit between acknowledgment and startup lease prevents descriptor or provider work`(): Unit = runBlocking {
         authority.recordUserRequestedExit("exit-1") shouldBe true
         val request = TrackingStartRequest(requireNotNull(authority.reserveStart()), true, false)
         beforeLease = { authority.recordUserRequestedExit("exit-2") shouldBe true }
@@ -72,7 +72,7 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
     }
 
     @Test
-    fun `ambient and recovery requests never acknowledge the pending tracker exit`() = runBlocking {
+    fun `ambient and recovery requests never acknowledge the pending tracker exit`(): Unit = runBlocking {
         authority.recordUserRequestedExit("exit-1") shouldBe true
         val coordinator = coordinator()
         val ambient = TrackingStartRequest(requireNotNull(authority.reserveStart()), true, true)
@@ -88,7 +88,7 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
     }
 
     @Test
-    fun `cancelled descriptor PREPARE keeps original cancellation and durable Off`() = runBlocking {
+    fun `cancelled descriptor PREPARE keeps original cancellation and durable Off`(): Unit = runBlocking {
         authority.recordUserRequestedExit("exit-1") shouldBe true
         val request = TrackingStartRequest(requireNotNull(authority.reserveStart()), true, false)
         val cancelled = kotlinx.coroutines.CancellationException("descriptor read cancelled")

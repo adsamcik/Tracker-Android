@@ -33,6 +33,8 @@ class ImportedPortableStepsStagingMigration27To28Test {
 	}
 
 	@Test
+	// One migrated staging lifecycle proves disk-backed structure, operation isolation and rollback behavior.
+	@Suppress("LongMethod")
 	fun migrationCreatesDiskBackedOperationScopedStagingAndExactTraversalIndex() {
 		helper.createDatabase(DATABASE, 27).close()
 

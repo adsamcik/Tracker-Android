@@ -38,6 +38,7 @@ import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
 import com.adsamcik.tracker.tracker.api.TrackingPurposeReconciliationRetryScheduler
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationDebt
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailureReason
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
@@ -51,6 +52,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.async
@@ -59,6 +61,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
+import kotlin.test.assertFailsWith
 import javax.inject.Provider
 
 @Suppress("LargeClass", "LongMethod")
@@ -226,7 +229,7 @@ class TrackingPurposePublicationRuntimeTest {
 				source = TrackingSource.STEPS,
 				purpose = TrackingPurpose.AMBIENT_PRODUCT,
 				executionRevision = 7L,
-			)
+			).copy(retentionPolicyId = "test-policy", retentionApprovalRevision = 1L)
 			reader.read(
 				TrackingSource.ACTIVITY.forPurpose(TrackingPurpose.CONTROL),
 				registeredExecutionRevision = 8L,
@@ -342,6 +345,7 @@ class TrackingPurposePublicationRuntimeTest {
 			store,
 			TrackingPurposeExecutionRevisionRegistry(),
 			UnavailableRetentionAuthorityProducerForTest,
+			ownerCallbackScope = backgroundScope,
 		)
 		var callbackCount = 0
 
@@ -391,6 +395,7 @@ class TrackingPurposePublicationRuntimeTest {
 			store,
 			executionRegistry,
 			UnavailableRetentionAuthorityProducerForTest,
+			ownerCallbackScope = backgroundScope,
 		)
 		val secondLease = CompletableDeferred<TrackingPurposeLeaseIdentity>()
 		val releaseSecond = CompletableDeferred<Unit>()
@@ -462,6 +467,7 @@ class TrackingPurposePublicationRuntimeTest {
 			store,
 			TrackingPurposeExecutionRevisionRegistry(),
 			AlwaysApprovedRetentionAuthorityProducer,
+			ownerCallbackScope = backgroundScope,
 		)
 		val identities = mutableListOf<TrackingPurposeLeaseIdentity>()
 		runtime.registerAmbientSourceOwner(
@@ -599,6 +605,7 @@ class TrackingPurposePublicationRuntimeTest {
 				store,
 				TrackingPurposeExecutionRevisionRegistry(),
 				AlwaysApprovedRetentionAuthorityProducer,
+				ownerCallbackScope = backgroundScope,
 			)
 			val leases = mutableListOf<com.adsamcik.tracker.tracker.api.AmbientReconciliationLease>()
 			runtime.registerAmbientSourceOwner(
@@ -691,6 +698,7 @@ class TrackingPurposePublicationRuntimeTest {
 			trackingStartupGateProvider = null,
 			ambientWifiDemandReconcilerProvider = Provider { wifi },
 			ambientCellDemandReconcilerProvider = null,
+			ownerCallbackScope = backgroundScope,
 		)
 
 		runtime.reconcile(0L, 200L, emptySet())
@@ -735,6 +743,7 @@ class TrackingPurposePublicationRuntimeTest {
 			reporter = store, executionRevisionRegistry = TrackingPurposeExecutionRevisionRegistry(),
 			retentionAuthorityProducer = AlwaysApprovedRetentionAuthorityProducer,
 			ambientLocationPurposeOwnerProvider = Provider { owner },
+			ownerCallbackScope = backgroundScope,
 		)
 		coVerify(exactly = 0) { owner.reconcile(any()) }
 		runtime.reconcile(0L, 200L, setOf(AmbientTrackingSource.LOCATION)) shouldBe
@@ -820,6 +829,7 @@ class TrackingPurposePublicationRuntimeTest {
 			executionRevisionRegistry = TrackingPurposeExecutionRevisionRegistry(),
 			retentionAuthorityProducer = AlwaysApprovedRetentionAuthorityProducer,
 			ambientStepsPurposeOwnerProvider = Provider { owner },
+			ownerCallbackScope = backgroundScope,
 		)
 
 		runtime.reconcile(
@@ -887,6 +897,7 @@ class TrackingPurposePublicationRuntimeTest {
 			executionRevisionRegistry = TrackingPurposeExecutionRevisionRegistry(),
 			retentionAuthorityProducer = AlwaysApprovedRetentionAuthorityProducer,
 			ambientStepsPurposeOwnerProvider = Provider { owner },
+			ownerCallbackScope = backgroundScope,
 		)
 
 		val result = fixtureResult(
@@ -1087,6 +1098,7 @@ class TrackingPurposePublicationRuntimeTest {
 			TrackingPurposeExecutionRevisionRegistry(),
 			AlwaysApprovedRetentionAuthorityProducer,
 			trackingStartupGateProvider = Provider { gate },
+			ownerCallbackScope = backgroundScope,
 		)
 		var compensated = false
 		runtime.registerAmbientSourceOwner(
@@ -1140,6 +1152,7 @@ class TrackingPurposePublicationRuntimeTest {
 			executionRevision = 7L,
 			retainedFromMs = 200L,
 		)
+		var issuedToken = 0
 		val runtime = DefaultTrackingPurposePublicationRuntime(
 			leaseIssuer = SerializedTrackingPurposeLeaseIssuer(
 				authorityReader = TrackingPurposeAuthorityReader { sourcePurpose, execution ->
@@ -1147,12 +1160,13 @@ class TrackingPurposePublicationRuntimeTest {
 						?.copy(executionRevision = execution)
 				},
 				reporter = store,
-				tokenFactory = TrackingPurposeOwnerCasTokenFactory { "accepted-before-close" },
+				tokenFactory = TrackingPurposeOwnerCasTokenFactory { "accepted-before-close-${++issuedToken}" },
 			),
 			reporter = store,
 			executionRevisionRegistry = TrackingPurposeExecutionRevisionRegistry(),
 			retentionAuthorityProducer = AlwaysApprovedRetentionAuthorityProducer,
 			trackingStartupGateProvider = Provider { gate },
+			ownerCallbackScope = backgroundScope,
 		)
 		var retired = false
 		runtime.registerAmbientSourceOwner(
@@ -1286,7 +1300,9 @@ class TrackingPurposePublicationRuntimeTest {
 			executionRevision = 7L,
 		) { lease ->
 			calls += 1
-			if (calls == 2) release.await()
+			if (calls == 2) {
+				release.await()
+			}
 			AmbientSourceOperationalAvailability.ready(
 				AmbientTrackingSource.STEPS,
 				AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS,
@@ -1360,7 +1376,9 @@ class TrackingPurposePublicationRuntimeTest {
 			executionRevision = 4L,
 		) {
 			attempts++
-			if (attempts == 1) error("status unavailable")
+			if (attempts == 1) {
+				error("status unavailable")
+			}
 			AmbientSourceOperationalAvailability.unavailable(
 				AmbientTrackingSource.STEPS,
 				AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
@@ -1396,6 +1414,70 @@ class TrackingPurposePublicationRuntimeTest {
 			availability.reason shouldBe AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE
 			availability.isOperational shouldBe false
 		}
+	}
+
+	@Test
+	fun `exceptional automatic authority preserves ambient reconciliation and existing retry debt`() = runTest {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val control = authority(TrackingSource.ACTIVITY, TrackingPurpose.CONTROL, 1L)
+		val authorities = AmbientTrackingSource.entries.map { source ->
+			authority(source.canonicalSource, TrackingPurpose.AMBIENT_PRODUCT, 1L)
+		}.associateBy(TrackingPurposeAuthoritySnapshot::sourcePurpose)
+		var controlReady = true
+		var cancellation: CancellationException? = null
+		var tokens = 0
+		val issuer = SerializedTrackingPurposeLeaseIssuer(
+			TrackingPurposeAuthorityReader { sourcePurpose, execution ->
+				if (sourcePurpose == control.sourcePurpose) {
+					cancellation?.let { throw it }
+					control.copy(executionRevision = if (controlReady) {
+						execution
+					} else {
+						0L
+					})
+				} else {
+					authorities[sourcePurpose]?.copy(executionRevision = execution)
+				}
+			}, store, TrackingPurposeOwnerCasTokenFactory { "control-retry-${++tokens}" },
+		)
+		val scheduled = mutableListOf<TrackingPurposeSettingsReconciliationDebt>()
+		val runtime = DefaultTrackingPurposePublicationRuntime(issuer, store,
+			TrackingPurposeExecutionRevisionRegistry(), AlwaysApprovedRetentionAuthorityProducer,
+			ownerCallbackScope = backgroundScope,
+			retryScheduler = TrackingPurposeReconciliationRetryScheduler { scheduled += it; true })
+		var automaticCalls = 0
+		runtime.registerAutomaticControlOwner(1L) { lease ->
+			automaticCalls++
+			AutomaticTrackingOperationalAvailability.Ready(lease.identity)
+		}
+		val reconciled = mutableSetOf<AmbientTrackingSource>()
+		AmbientTrackingSource.entries.forEach { source ->
+			runtime.registerAmbientSourceOwner(source, 1L) { lease ->
+				reconciled += source
+				if (source == AmbientTrackingSource.STEPS) {
+					AmbientSourceOperationalAvailability.ready(source, AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+						lease.purposeLeaseIdentity)
+				} else {
+					AmbientSourceOperationalAvailability.unavailable(source, AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
+						lease.purposeLeaseIdentity)
+				}
+			}
+		}
+		reconciled.clear()
+		controlReady = false
+		val debt = runtime.reconcileCurrentSettings().shouldBeInstanceOf<TrackingPurposeSettingsReconciliationResult.Debt>()
+		debt.debt.failures.single().reason shouldBe
+			TrackingPurposeSettingsReconciliationFailureReason.AUTOMATIC_CONTROL_RECONCILIATION_FAILED
+		reconciled shouldBe AmbientTrackingSource.entries.toSet()
+		store.availability.value.ambientSources.getValue(AmbientTrackingSource.STEPS).isOperational shouldBe true
+		automaticCalls shouldBe 1
+		scheduled shouldBe listOf(debt.debt)
+		controlReady = true
+		runtime.reconcileCurrentSettings() shouldBe TrackingPurposeSettingsReconciliationResult.Complete(AmbientTrackingSource.entries.toSet())
+		automaticCalls shouldBe 2
+		cancellation = CancellationException("automatic authority cancellation fixture")
+		assertFailsWith<CancellationException> { runtime.reconcileCurrentSettings() }
+		scheduled shouldBe listOf(debt.debt)
 	}
 
 	@Test
@@ -1511,7 +1593,7 @@ class TrackingPurposePublicationRuntimeTest {
 		cleaned shouldBe listOf(original.identity, original.identity)
 	}
 
-	private fun fixture(
+	private fun kotlinx.coroutines.test.TestScope.fixture(
 		vararg authorities: TrackingPurposeAuthoritySnapshot,
 	): Fixture {
 		val store = AtomicTrackingPurposeAvailabilityStore()
@@ -1534,11 +1616,12 @@ class TrackingPurposePublicationRuntimeTest {
 				store,
 				executions,
 				AlwaysApprovedRetentionAuthorityProducer,
+				ownerCallbackScope = backgroundScope,
 			),
 		)
 	}
 
-	private fun fixtureWithScheduler(
+	private fun kotlinx.coroutines.test.TestScope.fixtureWithScheduler(
 		scheduler: TrackingPurposeReconciliationRetryScheduler,
 		vararg authorities: TrackingPurposeAuthoritySnapshot,
 	): Fixture {
@@ -1560,6 +1643,7 @@ class TrackingPurposePublicationRuntimeTest {
 				executionRevisionRegistry = TrackingPurposeExecutionRevisionRegistry(),
 				retentionAuthorityProducer = AlwaysApprovedRetentionAuthorityProducer,
 				retryScheduler = scheduler,
+				ownerCallbackScope = backgroundScope,
 			),
 		)
 	}
@@ -1771,7 +1855,9 @@ private class CloseAfterPublicationGate(
 			expectedGeneration: Long,
 			operation: () -> T,
 		): T? {
-			if (!isReadyGeneration(expectedGeneration)) return null
+			if (!isReadyGeneration(expectedGeneration)) {
+				return null
+			}
 			return operation().also {
 				if (closeAfterNextPublication) {
 					closeAfterNextPublication = false
@@ -1804,7 +1890,9 @@ private class RejectNextPublicationGate(
 				expectedGeneration: Long,
 				operation: () -> T,
 			): T? {
-				if (!isReadyGeneration(expectedGeneration)) return null
+				if (!isReadyGeneration(expectedGeneration)) {
+				return null
+			}
 				if (rejectNextPublication) {
 					rejectNextPublication = false
 					ready = false
@@ -1860,7 +1948,7 @@ private class MutableRolloutStateStore(
 
 private object AlwaysApprovedRetentionAuthorityProducer : RetentionAuthorityProducer {
 	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> =
-		listOf(TrackingSource.STEPS, TrackingSource.WIFI, TrackingSource.CELL).map { source ->
+		AmbientTrackingSource.entries.map(AmbientTrackingSource::canonicalSource).map { source ->
 			activeResult(source, RetentionAuthorityScope.LIVE_AMBIENT)
 		}
 
@@ -1909,7 +1997,7 @@ private object AlwaysApprovedRetentionAuthorityProducer : RetentionAuthorityProd
 
 private object UnavailableRetentionAuthorityProducerForTest : RetentionAuthorityProducer {
 	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> =
-		listOf(TrackingSource.STEPS, TrackingSource.WIFI, TrackingSource.CELL).map(::unavailableResult)
+		AmbientTrackingSource.entries.map(AmbientTrackingSource::canonicalSource).map(::unavailableResult)
 
 	override suspend fun preparePendingConfiguration(
 		expectedConfigurationGeneration: Long,

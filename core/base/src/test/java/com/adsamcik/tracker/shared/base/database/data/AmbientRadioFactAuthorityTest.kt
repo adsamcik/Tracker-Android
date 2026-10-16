@@ -82,6 +82,8 @@ class AmbientRadioFactAuthorityTest {
 	}
 
 	@Test
+	// Keep both imported radio records beside their shared structural-day and stored-field assertions.
+	@Suppress("LongMethod")
 	fun `imported ambient radio facts preserve structural DST day and contain no radio identity`() {
 		val zone = ZoneId.of("Europe/Prague")
 		val date = LocalDate.of(2026, 3, 29)

@@ -1,3 +1,6 @@
+// One Cell maintenance owner keeps retention, consent reset and full clear on the same replay-fencing helpers.
+@file:Suppress("TooManyFunctions")
+
 package com.adsamcik.tracker.shared.base.database
 
 import androidx.room.withTransaction
@@ -19,6 +22,10 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntit
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
+/**
+ * Original UTC millisecond retention cutoff and maintenance time bound to the expected
+ * collected-data epoch.
+ */
 data class AmbientCellRetentionCommand(
 	val beforeMs: Long,
 	val expectedCollectedDataEpoch: Long,
@@ -30,19 +37,40 @@ data class AmbientCellRetentionCommand(
 	}
 }
 
+/**
+ * Independent all-day local-lineage/imported-archive/gap pruning counts or a named unavailable
+ * authority.
+ */
 sealed interface AmbientCellRetentionResult {
+	/**
+	 * Reports logical local/imported scope and revision/gap counts removed by the verified retention
+	 * cutoff.
+	 */
 	data class Pruned(
 		val localLineages: Int,
 		val importedArchives: Int,
 		val gaps: Int,
 	) : AmbientCellRetentionResult
 
+	/**
+	 * No saved payload in this source scope required removal for the requested cutoff.
+	 */
 	data object NoChange : AmbientCellRetentionResult
+	/**
+	 * The requested original scope or retention authority is unavailable for the stated reason.
+	 */
 	data class Unavailable(val reason: AmbientCellMaintenanceUnavailableReason) :
 		AmbientCellRetentionResult
 }
 
+/**
+ * All-day native/imported payload removal with its replay-fence generation, prior deletion or
+ * unavailable authority.
+ */
 sealed interface AmbientCellDeletionResult {
+	/**
+	 * The exact selected payload was fenced and removed; reports original removed scope counts.
+	 */
 	data class Deleted(
 		val localRevisionCount: Long,
 		val importedFactCount: Long,
@@ -50,11 +78,22 @@ sealed interface AmbientCellDeletionResult {
 		val deletionGeneration: Long,
 	) : AmbientCellDeletionResult
 
+	/**
+	 * The exact selected source scope was already deleted and remains represented by its original
+	 * deletion authority.
+	 */
 	data object AlreadyDeleted : AmbientCellDeletionResult
+	/**
+	 * The requested original scope or retention authority is unavailable for the stated reason.
+	 */
 	data class Unavailable(val reason: AmbientCellMaintenanceUnavailableReason) :
 		AmbientCellDeletionResult
 }
 
+/**
+ * Changed epoch/floor/approval, active consent/provider/demand or exceeded dependencies preventing
+ * all-day maintenance.
+ */
 enum class AmbientCellMaintenanceUnavailableReason {
 	SOURCE_AUTHORITY_UNAVAILABLE,
 	RETENTION_APPROVAL_MISMATCH,
@@ -86,6 +125,12 @@ suspend fun AppDatabase.pruneAmbientCell(
 			AmbientCellMaintenanceUnavailableReason.RETENTION_BOUNDARY_MISMATCH,
 		)
 	}
+	pruneCellAtApprovedBoundary(command)
+}
+
+private suspend fun AppDatabase.pruneCellAtApprovedBoundary(
+	command: AmbientCellRetentionCommand,
+): AmbientCellRetentionResult {
 	val dao = ambientCellFactDao()
 	currentCoroutineContext().ensureActive()
 	val localIds = dao.localFactIdsBefore(command.beforeMs, LIMIT + 1)
@@ -93,7 +138,7 @@ suspend fun AppDatabase.pruneAmbientCell(
 	val importedIds = dao.importedFactIdsBefore(command.beforeMs, LIMIT + 1)
 	val importedGapIds = dao.importedGapIdsBefore(command.beforeMs, LIMIT + 1)
 	if (listOf(localIds, localGaps, importedIds, importedGapIds).any { it.size > LIMIT }) {
-		return@withTransaction cellRetentionUnavailable(
+		return cellRetentionUnavailable(
 			AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
 		)
 	}
@@ -115,22 +160,27 @@ suspend fun AppDatabase.pruneAmbientCell(
 	} else {
 		emptyList()
 	}
-	if (liveAuthorities.size > LIMIT || importAuthorities.size > LIMIT) {
-		return@withTransaction cellRetentionUnavailable(
-			AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
-		)
-	}
-	if (
-		(hasLocalCandidates && !liveAuthorities.hasCurrentCellSettlementAuthority(command)) ||
-		(hasImportedCandidates && !importAuthorities.hasCurrentCellSettlementAuthority(command))
-	) {
-		return@withTransaction cellRetentionUnavailable(
-			AmbientCellMaintenanceUnavailableReason.RETENTION_AUTHORITY_UNAVAILABLE,
-		)
-	}
+	cellRetentionAuthorityFailure(command, hasLocalCandidates, hasImportedCandidates,
+		liveAuthorities, importAuthorities)?.let { return it }
 	if (!hasLocalCandidates && !hasImportedCandidates) {
-		return@withTransaction AmbientCellRetentionResult.NoChange
+		return AmbientCellRetentionResult.NoChange
 	}
+	return pruneSelectedCellLineages(dao, command, localIds, localGaps, importedIds, importedGapIds,
+		liveAuthorities, importAuthorities)
+}
+
+// Keep the selected native/imported rows and their two saved authority sets explicit; no extra snapshot carrier.
+@Suppress("LongParameterList")
+private suspend fun AppDatabase.pruneSelectedCellLineages(
+	dao: AmbientCellFactDao,
+	command: AmbientCellRetentionCommand,
+	localIds: List<String>,
+	localGaps: List<AmbientCellGapEntity>,
+	importedIds: List<String>,
+	importedGapIds: List<String>,
+	liveAuthorities: List<AmbientCellRetentionAuthorityEntity>,
+	importAuthorities: List<AmbientCellRetentionAuthorityEntity>,
+): AmbientCellRetentionResult {
 	val localLineages = localIds.takeIf { it.isNotEmpty() }?.let {
 		dao.localFactLineages(it, LIMIT + 1)
 	}.orEmpty()
@@ -140,58 +190,44 @@ suspend fun AppDatabase.pruneAmbientCell(
 	val importedGaps = importedGapIds.takeIf { it.isNotEmpty() }?.let {
 		dao.importedGapRows(it, LIMIT + 1)
 	}.orEmpty()
-	if (localLineages.size > LIMIT || importedLineages.size > LIMIT ||
-		importedGaps.size > LIMIT ||
-		localLineages.any { AmbientCellFactIntegrity.effectChecksum(it) != it.effectChecksum } ||
-		localGaps.any { AmbientCellFactIntegrity.gapChecksum(it) != it.effectChecksum } ||
-		importedLineages.any { !AmbientCellFactIntegrity.isAuthentic(it) } ||
-		importedGaps.any { !AmbientCellFactIntegrity.isAuthentic(it) } ||
-		localLineages.any { !liveAuthorities.authenticatesCellLocal(it) } ||
-		localGaps.any { !liveAuthorities.authenticatesCellLocal(it) } ||
-		importedLineages.any { !importAuthorities.authenticatesCellImported(it) } ||
-		importedGaps.any { !importAuthorities.authenticatesCellImported(it) } ||
-		!localLineages.completeLocalCellLineages() ||
-		!importedLineages.completeImportedCellLineages()
+	if (!hasAuthenticCellRetentionRows(localLineages, localGaps, importedLineages, importedGaps) ||
+		!hasAuthorizedCellRetentionRows(localLineages, localGaps, importedLineages, importedGaps,
+			liveAuthorities, importAuthorities) ||
+		!localLineages.completeLocalCellLineages() || !importedLineages.completeImportedCellLineages()
 	) {
-		return@withTransaction cellRetentionUnavailable(
+		return cellRetentionUnavailable(
 			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
 		)
 	}
+	return pruneVerifiedCellLineages(dao, command, localIds, localGaps, importedIds, importedGapIds,
+		localLineages, importedLineages, importedGaps)
+}
 
+// Keep qualified rows explicit and ordered marker/archive/footprint rejection before any payload deletion.
+@Suppress("LongParameterList", "ReturnCount")
+private suspend fun AppDatabase.pruneVerifiedCellLineages(
+	dao: AmbientCellFactDao,
+	command: AmbientCellRetentionCommand,
+	localIds: List<String>,
+	localGaps: List<AmbientCellGapEntity>,
+	importedIds: List<String>,
+	importedGapIds: List<String>,
+	localLineages: List<AmbientCellFactRevisionEntity>,
+	importedLineages: List<ImportedAmbientCellFactEntity>,
+	importedGaps: List<ImportedAmbientCellGapEntity>,
+): AmbientCellRetentionResult {
 	val marker = dao.latestDeletionMarker(command.expectedCollectedDataEpoch)
 	if (marker != null && !AmbientCellFactIntegrity.isAuthentic(marker)) {
-		return@withTransaction cellRetentionUnavailable(
+		return cellRetentionUnavailable(
 			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
 		)
 	}
 	val generation = maxOf(1L, marker?.deletionGeneration ?: 0L)
-	val selectedFactIds = importedIds.toSet()
-	val selectedGapIds = importedGapIds.toSet()
-	val allImportedFacts = if (selectedFactIds.isEmpty() && selectedGapIds.isEmpty()) {
-		emptyList()
-	} else {
-		dao.allImportedFacts(LIMIT + 1)
-	}
-	val allImportedGaps = if (selectedFactIds.isEmpty() && selectedGapIds.isEmpty()) {
-		emptyList()
-	} else {
-		dao.allImportedGaps(LIMIT + 1)
-	}
-	if (allImportedFacts.size > LIMIT || allImportedGaps.size > LIMIT) {
-		return@withTransaction cellRetentionUnavailable(
-			AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
-		)
-	}
-	val candidateArchives = (
-		importedLineages.map(ImportedAmbientCellFactEntity::archiveId) +
-			importedGaps.map(ImportedAmbientCellGapEntity::archiveId)
-	).distinct()
-	val emptiedArchives = candidateArchives.filter { archiveId ->
-		allImportedFacts.filter { it.archiveId == archiveId }
-			.all { it.factId in selectedFactIds } &&
-			allImportedGaps.filter { it.archiveId == archiveId }
-				.all { it.gapId in selectedGapIds }
-	}
+	val emptiedArchives = dao.emptiedCellArchives(
+		importedIds, importedGapIds, importedLineages, importedGaps,
+	) ?: return cellRetentionUnavailable(
+		AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
+	)
 	val footprints = cellReplayFootprints(
 		localLineages,
 		localGaps,
@@ -203,15 +239,116 @@ suspend fun AppDatabase.pruneAmbientCell(
 		command.appliedAtMs,
 	)
 	if (footprints.size > LIMIT) {
-		return@withTransaction cellRetentionUnavailable(
+		return cellRetentionUnavailable(
 			AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
 		)
 	}
 	if (!dao.installVerifiedCellFootprints(footprints)) {
-		return@withTransaction cellRetentionUnavailable(
+		return cellRetentionUnavailable(
 			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
 		)
 	}
+	deleteSelectedCellLocalPayload(dao, localIds, localGaps)
+	dao.deleteSelectedCellImportedPayload(
+		importedIds, importedGapIds, emptiedArchives, command, generation,
+	)
+	check(sourceEvidenceStateDao().incrementRevision(command.appliedAtMs) == 1)
+	return AmbientCellRetentionResult.Pruned(
+		localIds.size,
+		emptiedArchives.size,
+		localGaps.size + importedGaps.size,
+	)
+}
+
+private fun cellRetentionAuthorityFailure(
+	command: AmbientCellRetentionCommand,
+	hasLocalCandidates: Boolean,
+	hasImportedCandidates: Boolean,
+	liveAuthorities: List<AmbientCellRetentionAuthorityEntity>,
+	importAuthorities: List<AmbientCellRetentionAuthorityEntity>,
+): AmbientCellRetentionResult.Unavailable? {
+	if (liveAuthorities.size > LIMIT || importAuthorities.size > LIMIT) {
+		return cellRetentionUnavailable(
+			AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
+		)
+	}
+	if (
+		(hasLocalCandidates && !liveAuthorities.hasCurrentCellSettlementAuthority(command)) ||
+		(hasImportedCandidates && !importAuthorities.hasCurrentCellSettlementAuthority(command))
+	) {
+		return cellRetentionUnavailable(
+			AmbientCellMaintenanceUnavailableReason.RETENTION_AUTHORITY_UNAVAILABLE,
+		)
+	}
+	return null
+}
+
+private fun hasAuthenticCellRetentionRows(
+	localLineages: List<AmbientCellFactRevisionEntity>,
+	localGaps: List<AmbientCellGapEntity>,
+	importedLineages: List<ImportedAmbientCellFactEntity>,
+	importedGaps: List<ImportedAmbientCellGapEntity>,
+): Boolean {
+	if (localLineages.size > LIMIT || importedLineages.size > LIMIT || importedGaps.size > LIMIT) {
+		return false
+	}
+	return localLineages.none { AmbientCellFactIntegrity.effectChecksum(it) != it.effectChecksum } &&
+		localGaps.none { AmbientCellFactIntegrity.gapChecksum(it) != it.effectChecksum } &&
+		importedLineages.none { !AmbientCellFactIntegrity.isAuthentic(it) } &&
+		importedGaps.none { !AmbientCellFactIntegrity.isAuthentic(it) }
+}
+
+private fun hasAuthorizedCellRetentionRows(
+	localLineages: List<AmbientCellFactRevisionEntity>,
+	localGaps: List<AmbientCellGapEntity>,
+	importedLineages: List<ImportedAmbientCellFactEntity>,
+	importedGaps: List<ImportedAmbientCellGapEntity>,
+	liveAuthorities: List<AmbientCellRetentionAuthorityEntity>,
+	importAuthorities: List<AmbientCellRetentionAuthorityEntity>,
+): Boolean = localLineages.none { !liveAuthorities.authenticatesCellLocal(it) } &&
+	localGaps.none { !liveAuthorities.authenticatesCellLocal(it) } &&
+	importedLineages.none { !importAuthorities.authenticatesCellImported(it) } &&
+	importedGaps.none { !importAuthorities.authenticatesCellImported(it) }
+
+// An archive receipt can be retired only when every retained fact and gap is selected.
+private suspend fun AmbientCellFactDao.emptiedCellArchives(
+	importedIds: List<String>,
+	importedGapIds: List<String>,
+	importedLineages: List<ImportedAmbientCellFactEntity>,
+	importedGaps: List<ImportedAmbientCellGapEntity>,
+): List<String>? {
+	val selectedFactIds = importedIds.toSet()
+	val selectedGapIds = importedGapIds.toSet()
+	val allImportedFacts = if (selectedFactIds.isEmpty() && selectedGapIds.isEmpty()) {
+		emptyList()
+	} else {
+		allImportedFacts(LIMIT + 1)
+	}
+	val allImportedGaps = if (selectedFactIds.isEmpty() && selectedGapIds.isEmpty()) {
+		emptyList()
+	} else {
+		allImportedGaps(LIMIT + 1)
+	}
+	if (allImportedFacts.size > LIMIT || allImportedGaps.size > LIMIT) {
+		return null
+	}
+	val candidateArchives = (
+		importedLineages.map(ImportedAmbientCellFactEntity::archiveId) +
+			importedGaps.map(ImportedAmbientCellGapEntity::archiveId)
+	).distinct()
+	return candidateArchives.filter { archiveId ->
+		allImportedFacts.filter { it.archiveId == archiveId }
+			.all { it.factId in selectedFactIds } &&
+			allImportedGaps.filter { it.archiveId == archiveId }
+				.all { it.gapId in selectedGapIds }
+	}
+}
+
+private suspend fun AppDatabase.deleteSelectedCellLocalPayload(
+	dao: AmbientCellFactDao,
+	localIds: List<String>,
+	localGaps: List<AmbientCellGapEntity>,
+) {
 	localIds.chunked(SQLITE_ID_CHUNK_SIZE).forEach { ids ->
 		ids.forEach { id -> radioObservationChildDao().deleteCellBackgroundFact(
 			AmbientCellFactRevisionEntity.WRITER_ID,
@@ -223,15 +360,24 @@ suspend fun AppDatabase.pruneAmbientCell(
 	localGaps.map(AmbientCellGapEntity::gapId).chunked(SQLITE_ID_CHUNK_SIZE).forEach {
 		dao.deleteLocalGapsByIdentity(it)
 	}
+}
+
+private suspend fun AmbientCellFactDao.deleteSelectedCellImportedPayload(
+	importedIds: List<String>,
+	importedGapIds: List<String>,
+	emptiedArchives: List<String>,
+	command: AmbientCellRetentionCommand,
+	generation: Long,
+) {
 	importedIds.chunked(SQLITE_ID_CHUNK_SIZE).forEach {
-		dao.deleteImportedFactsByIdentity(it)
+		deleteImportedFactsByIdentity(it)
 	}
 	importedGapIds.chunked(SQLITE_ID_CHUNK_SIZE).forEach {
-		dao.deleteImportedGapsByIdentity(it)
+		deleteImportedGapsByIdentity(it)
 	}
 	if (emptiedArchives.isNotEmpty()) {
 		emptiedArchives.chunked(SQLITE_ID_CHUNK_SIZE).forEach { archiveIds ->
-			dao.insertImportTombstones(archiveIds.map { archiveId ->
+			insertImportTombstones(archiveIds.map { archiveId ->
 				AmbientCellFactIntegrity.createImportTombstone(
 					archiveId,
 					command.expectedCollectedDataEpoch,
@@ -239,15 +385,43 @@ suspend fun AppDatabase.pruneAmbientCell(
 					command.appliedAtMs,
 				)
 			})
-			dao.deleteImportReceipts(archiveIds)
+			deleteImportReceipts(archiveIds)
 		}
 	}
-	check(sourceEvidenceStateDao().incrementRevision(command.appliedAtMs) == 1)
-	AmbientCellRetentionResult.Pruned(
-		localIds.size,
-		emptiedArchives.size,
-		localGaps.size + importedGaps.size,
+}
+
+// Both source clear and consent reset must preserve replay authority before removing payload.
+private suspend fun AmbientCellFactDao.installCellDeletionFootprints(
+	scope: CellStoredScope,
+	expectedCollectedDataEpoch: Long,
+	generation: Long,
+	deletedAtMs: Long,
+): AmbientCellDeletionResult.Unavailable? {
+	val footprints = scope.footprints(expectedCollectedDataEpoch, generation, deletedAtMs)
+	if (footprints.size > LIMIT) {
+		return cellDeletionUnavailable(
+			AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
+		)
+	}
+	if (!installVerifiedCellFootprints(footprints)) {
+		return cellDeletionUnavailable(
+			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+		)
+	}
+	return null
+}
+
+private suspend fun AppDatabase.deleteFencedCellScope(
+	dao: AmbientCellFactDao,
+	scope: CellStoredScope,
+	marker: AmbientCellDeletionMarkerEntity,
+) {
+	dao.insertDeletionMarker(marker)
+	dao.installCellArchiveTombstones(
+		scope.archiveIds, marker.collectedDataEpoch, marker.deletionGeneration, marker.deletedAtMs,
 	)
+	radioObservationChildDao().deleteAllCellBackground()
+	dao.deleteWholeCellPayload(scope.archiveIds)
 }
 
 private fun List<AmbientCellRetentionAuthorityEntity>.hasCurrentCellSettlementAuthority(
@@ -312,24 +486,88 @@ suspend fun AppDatabase.deleteAmbientCellAfterConsentReset(
 	require(expectedCollectedDataEpoch >= 0L)
 	require(expectedRevokedConsentEpoch >= 0L)
 	require(deletedAtMs >= 0L)
-	val state = sourceEvidenceStateDao().get()
-		?: return@withTransaction cellDeletionUnavailable(
-			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
-		)
-	if (state.collectedDataEpoch != expectedCollectedDataEpoch) {
-		return@withTransaction cellDeletionUnavailable(
-			AmbientCellMaintenanceUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED,
-		)
+	cellConsentResetFailure(expectedCollectedDataEpoch, expectedRevokedConsentEpoch)?.let { reason ->
+		return@withTransaction cellDeletionUnavailable(reason)
 	}
 	val dao = ambientCellFactDao()
-	val authority = dao.latestAuthority()
-	if (authority == null || !AmbientCellAuthorityIntegrity.isAuthentic(authority) ||
+	val scope = dao.loadWholeCellScope()
+		?: return@withTransaction cellDeletionUnavailable(
+			AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
+		)
+	if (!scope.isAuthentic) {
+		return@withTransaction cellDeletionUnavailable(
+		AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+	)
+	}
+	deleteVerifiedRevokedCellScope(dao, scope, expectedCollectedDataEpoch, expectedRevokedConsentEpoch, deletedAtMs)
+}
+
+// Marker, repeat-deletion, generation and replay-footprint exits must precede payload mutation.
+@Suppress("ReturnCount")
+private suspend fun AppDatabase.deleteVerifiedRevokedCellScope(
+	dao: AmbientCellFactDao,
+	scope: CellStoredScope,
+	expectedCollectedDataEpoch: Long,
+	expectedRevokedConsentEpoch: Long,
+	deletedAtMs: Long,
+): AmbientCellDeletionResult {
+	val previous = dao.latestDeletionMarker(expectedCollectedDataEpoch)
+	if (previous != null && !AmbientCellFactIntegrity.isAuthentic(previous)) {
+		return cellDeletionUnavailable(
+			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+		)
+	}
+	if (scope.isEmpty &&
+		previous?.throughConsentEpoch?.let { it >= expectedRevokedConsentEpoch } == true
+	) {
+		return AmbientCellDeletionResult.AlreadyDeleted
+	}
+	val generation = previous.nextCellDeletionGeneration()
+		?: return cellDeletionUnavailable(
+			AmbientCellMaintenanceUnavailableReason.DELETION_GENERATION_EXHAUSTED,
+		)
+	dao.installCellDeletionFootprints(scope, expectedCollectedDataEpoch, generation, deletedAtMs)?.let {
+		return it
+	}
+	deleteFencedCellScope(dao, scope, AmbientCellFactIntegrity.createDeletionMarker(
+		expectedCollectedDataEpoch,
+		generation,
+		expectedRevokedConsentEpoch,
+		"AMBIENT_CELL_CONSENT_RESET",
+		deletedAtMs,
+	))
+	check(sourceEvidenceStateDao().incrementRevision(deletedAtMs) == 1)
+	return AmbientCellDeletionResult.Deleted(
+		scope.localFacts.size.toLong(),
+		scope.importedFacts.size.toLong(),
+		scope.importedGaps.size.toLong(),
+		generation,
+	)
+}
+
+private suspend fun AppDatabase.cellConsentResetFailure(
+	expectedCollectedDataEpoch: Long,
+	expectedRevokedConsentEpoch: Long,
+): AmbientCellMaintenanceUnavailableReason? {
+	val state = sourceEvidenceStateDao().get()
+		?: return AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE
+	if (state.collectedDataEpoch != expectedCollectedDataEpoch) {
+		return AmbientCellMaintenanceUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED
+	}
+	val authority = ambientCellFactDao().latestAuthority()
+		?: return AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE
+	return if (!AmbientCellAuthorityIntegrity.isAuthentic(authority) ||
 		authority.state != AmbientCellAuthorityEntity.STATE_REVOKED ||
 		authority.collectedDataEpoch != expectedCollectedDataEpoch ||
 		authority.ambientConsentEpoch != expectedRevokedConsentEpoch
-	) return@withTransaction cellDeletionUnavailable(
-		AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
-	)
+	) {
+		AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE
+	} else {
+		cellConsentPolicyFailure() ?: cellAmbientProviderFailure()
+	}
+}
+
+private suspend fun AppDatabase.cellConsentPolicyFailure(): AmbientCellMaintenanceUnavailableReason? {
 	val policyAuthority = sourcePolicyDao().authority()
 	val policy = policyAuthority?.takeIf {
 		it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE
@@ -339,89 +577,43 @@ suspend fun AppDatabase.deleteAmbientCellAfterConsentReset(
 			SourceDestinationOwnerEntity.SOURCE_CELL,
 		)
 	}
-	if (policy == null || policy.ambientPersistenceEligible || policy.ambientConsentEpoch != null) {
-		return@withTransaction cellDeletionUnavailable(
-			AmbientCellMaintenanceUnavailableReason.CONSENT_STILL_ACTIVE,
-		)
+	return if (policy == null || policy.ambientPersistenceEligible || policy.ambientConsentEpoch != null) {
+		AmbientCellMaintenanceUnavailableReason.CONSENT_STILL_ACTIVE
+	} else {
+		null
 	}
+}
+
+private suspend fun AppDatabase.cellAmbientProviderFailure(): AmbientCellMaintenanceUnavailableReason? {
 	val activeDemands = sourceBrokerDao().activeDemandsBounded(
 		SourceDestinationOwnerEntity.SOURCE_CELL,
 		LIMIT + 1,
 	)
-	if (activeDemands.size > LIMIT) return@withTransaction cellDeletionUnavailable(
-		AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
-	)
+	if (activeDemands.size > LIMIT) {
+		return AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW
+	}
 	if (activeDemands.any { it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT }) {
-		return@withTransaction cellDeletionUnavailable(
-			AmbientCellMaintenanceUnavailableReason.AMBIENT_DEMAND_ACTIVE,
-		)
+		return AmbientCellMaintenanceUnavailableReason.AMBIENT_DEMAND_ACTIVE
 	}
 	val registrations = sourceBrokerDao().currentPhysicalRegistrationsBounded(
 		SourceDestinationOwnerEntity.SOURCE_CELL,
 		MAX_REGISTRATIONS + 1,
 	)
 	if (registrations.size > MAX_REGISTRATIONS) {
-		return@withTransaction cellDeletionUnavailable(
-			AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
-		)
+		return AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW
 	}
-	for (registration in registrations) {
-		if (sourceBrokerDao().latestAuthorization(
-				SourceDestinationOwnerEntity.SOURCE_CELL,
-				registration.registrationGeneration,
-			).any {
-				it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && it.persistenceEligible
-			}
-		) return@withTransaction cellDeletionUnavailable(
-			AmbientCellMaintenanceUnavailableReason.AMBIENT_PROVIDER_ACTIVE,
-		)
+	return if (registrations.any { registration ->
+		sourceBrokerDao().latestAuthorization(
+			SourceDestinationOwnerEntity.SOURCE_CELL,
+			registration.registrationGeneration,
+		).any {
+			it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && it.persistenceEligible
+		}
+	}) {
+		AmbientCellMaintenanceUnavailableReason.AMBIENT_PROVIDER_ACTIVE
+	} else {
+		null
 	}
-	val scope = dao.loadWholeCellScope()
-		?: return@withTransaction cellDeletionUnavailable(
-			AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
-		)
-	if (!scope.isAuthentic) return@withTransaction cellDeletionUnavailable(
-		AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
-	)
-	val previous = dao.latestDeletionMarker(expectedCollectedDataEpoch)
-	if (previous != null && !AmbientCellFactIntegrity.isAuthentic(previous)) {
-		return@withTransaction cellDeletionUnavailable(
-			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
-		)
-	}
-	if (scope.isEmpty &&
-		previous?.throughConsentEpoch?.let { it >= expectedRevokedConsentEpoch } == true
-	) return@withTransaction AmbientCellDeletionResult.AlreadyDeleted
-	val generation = previous.nextCellDeletionGeneration()
-		?: return@withTransaction cellDeletionUnavailable(
-			AmbientCellMaintenanceUnavailableReason.DELETION_GENERATION_EXHAUSTED,
-		)
-	val footprints = scope.footprints(expectedCollectedDataEpoch, generation, deletedAtMs)
-	if (footprints.size > LIMIT) return@withTransaction cellDeletionUnavailable(
-		AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
-	)
-	if (!dao.installVerifiedCellFootprints(footprints)) {
-		return@withTransaction cellDeletionUnavailable(
-			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
-		)
-	}
-	dao.insertDeletionMarker(AmbientCellFactIntegrity.createDeletionMarker(
-		expectedCollectedDataEpoch,
-		generation,
-		expectedRevokedConsentEpoch,
-		"AMBIENT_CELL_CONSENT_RESET",
-		deletedAtMs,
-	))
-	dao.installCellArchiveTombstones(scope.archiveIds, expectedCollectedDataEpoch, generation, deletedAtMs)
-	radioObservationChildDao().deleteAllCellBackground()
-	dao.deleteWholeCellPayload(scope.archiveIds)
-	check(sourceEvidenceStateDao().incrementRevision(deletedAtMs) == 1)
-	AmbientCellDeletionResult.Deleted(
-		scope.localFacts.size.toLong(),
-		scope.importedFacts.size.toLong(),
-		scope.importedGaps.size.toLong(),
-		generation,
-	)
 }
 
 /**
@@ -447,48 +639,52 @@ suspend fun AppDatabase.clearAmbientCellProductPreservingReplayFootprints(
 		?: return@withTransaction cellDeletionUnavailable(
 			AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
 		)
-	if (!scope.isAuthentic) return@withTransaction cellDeletionUnavailable(
+	if (!scope.isAuthentic) {
+		return@withTransaction cellDeletionUnavailable(
 		AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
 	)
+	}
+	clearVerifiedCellScope(dao, scope, expectedCollectedDataEpoch, clearedAtMs)
+}
+
+// Reject missing or conflicting saved authority before replay fencing and payload deletion.
+@Suppress("ReturnCount")
+private suspend fun AppDatabase.clearVerifiedCellScope(
+	dao: AmbientCellFactDao,
+	scope: CellStoredScope,
+	expectedCollectedDataEpoch: Long,
+	clearedAtMs: Long,
+): AmbientCellDeletionResult {
 	val previous = dao.latestDeletionMarker(expectedCollectedDataEpoch)
 	if (previous != null && !AmbientCellFactIntegrity.isAuthentic(previous)) {
-		return@withTransaction cellDeletionUnavailable(
+		return cellDeletionUnavailable(
 			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
 		)
 	}
 	val authority = dao.latestAuthority()
 	if (authority != null && !AmbientCellAuthorityIntegrity.isAuthentic(authority)) {
-		return@withTransaction cellDeletionUnavailable(
+		return cellDeletionUnavailable(
 			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
 		)
 	}
 	val generation = previous.nextCellDeletionGeneration()
-		?: return@withTransaction cellDeletionUnavailable(
+		?: return cellDeletionUnavailable(
 			AmbientCellMaintenanceUnavailableReason.DELETION_GENERATION_EXHAUSTED,
 		)
-	val footprints = scope.footprints(expectedCollectedDataEpoch, generation, clearedAtMs)
-	if (footprints.size > LIMIT) return@withTransaction cellDeletionUnavailable(
-		AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
-	)
-	if (!dao.installVerifiedCellFootprints(footprints)) {
-		return@withTransaction cellDeletionUnavailable(
-			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
-		)
+	dao.installCellDeletionFootprints(scope, expectedCollectedDataEpoch, generation, clearedAtMs)?.let {
+		return it
 	}
-	dao.insertDeletionMarker(AmbientCellFactIntegrity.createDeletionMarker(
+	deleteFencedCellScope(dao, scope, AmbientCellFactIntegrity.createDeletionMarker(
 		expectedCollectedDataEpoch,
 		generation,
 		authority?.ambientConsentEpoch ?: 0L,
 		"AMBIENT_CELL_FULL_CLEAR",
 		clearedAtMs,
 	))
-	dao.installCellArchiveTombstones(scope.archiveIds, expectedCollectedDataEpoch, generation, clearedAtMs)
-	radioObservationChildDao().deleteAllCellBackground()
-	dao.deleteWholeCellPayload(scope.archiveIds)
 	dao.deleteAllAuthorities()
 	dao.deleteAllRetentionAuthorities()
 	check(sourceEvidenceStateDao().incrementRevision(clearedAtMs) == 1)
-	AmbientCellDeletionResult.Deleted(
+	return AmbientCellDeletionResult.Deleted(
 		scope.localFacts.size.toLong(),
 		scope.importedFacts.size.toLong(),
 		scope.importedGaps.size.toLong(),
@@ -517,16 +713,28 @@ internal fun AppDatabase.clearAmbientCellProductInCurrentFullClearTransaction(
 		?: return cellDeletionUnavailable(
 			AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
 		)
-	if (!scope.isAuthentic) return cellDeletionUnavailable(
+	if (!scope.isAuthentic) {
+		return cellDeletionUnavailable(
 		AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
 	)
-	val previous = dao.latestDeletionMarkerForFullClear(expectedCollectedDataEpoch)
+	}
+	return dao.clearVerifiedCellScopeForFullClear(scope, expectedCollectedDataEpoch, clearedAtMs)
+}
+
+// Ordered authority failures precede any full-clear marker or payload mutation.
+@Suppress("ReturnCount")
+private fun AmbientCellFactDao.clearVerifiedCellScopeForFullClear(
+	scope: CellStoredScope,
+	expectedCollectedDataEpoch: Long,
+	clearedAtMs: Long,
+): AmbientCellDeletionResult {
+	val previous = latestDeletionMarkerForFullClear(expectedCollectedDataEpoch)
 	if (previous != null && !AmbientCellFactIntegrity.isAuthentic(previous)) {
 		return cellDeletionUnavailable(
 			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
 		)
 	}
-	val authority = dao.latestAuthorityForFullClear()
+	val authority = latestAuthorityForFullClear()
 	if (authority != null && !AmbientCellAuthorityIntegrity.isAuthentic(authority)) {
 		return cellDeletionUnavailable(
 			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
@@ -536,37 +744,51 @@ internal fun AppDatabase.clearAmbientCellProductInCurrentFullClearTransaction(
 		?: return cellDeletionUnavailable(
 			AmbientCellMaintenanceUnavailableReason.DELETION_GENERATION_EXHAUSTED,
 		)
-	val footprints = scope.footprints(expectedCollectedDataEpoch, generation, clearedAtMs)
-	if (footprints.size > LIMIT) return cellDeletionUnavailable(
-		AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
-	)
-	if (!dao.installVerifiedCellFootprintsForFullClear(footprints)) {
-		return cellDeletionUnavailable(
-			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
-		)
+	installCellDeletionFootprintsForFullClear(scope, expectedCollectedDataEpoch, generation, clearedAtMs)?.let {
+		return it
 	}
-	dao.insertDeletionMarkerForFullClear(AmbientCellFactIntegrity.createDeletionMarker(
+	insertDeletionMarkerForFullClear(AmbientCellFactIntegrity.createDeletionMarker(
 		expectedCollectedDataEpoch,
 		generation,
 		authority?.ambientConsentEpoch ?: 0L,
 		"AMBIENT_CELL_FULL_CLEAR",
 		clearedAtMs,
 	))
-	dao.installCellArchiveTombstonesForFullClear(
+	installCellArchiveTombstonesForFullClear(
 		scope.archiveIds,
 		expectedCollectedDataEpoch,
 		generation,
 		clearedAtMs,
 	)
-	dao.deleteWholeCellPayloadForFullClear(scope.archiveIds)
-	dao.deleteAllAuthoritiesForFullClear()
-	dao.deleteAllRetentionAuthoritiesForFullClear()
+	deleteWholeCellPayloadForFullClear(scope.archiveIds)
+	deleteAllAuthoritiesForFullClear()
+	deleteAllRetentionAuthoritiesForFullClear()
 	return AmbientCellDeletionResult.Deleted(
 		scope.localFacts.size.toLong(),
 		scope.importedFacts.size.toLong(),
 		scope.importedGaps.size.toLong(),
 		generation,
 	)
+}
+
+private fun AmbientCellFactDao.installCellDeletionFootprintsForFullClear(
+	scope: CellStoredScope,
+	expectedCollectedDataEpoch: Long,
+	generation: Long,
+	clearedAtMs: Long,
+): AmbientCellDeletionResult.Unavailable? {
+	val footprints = scope.footprints(expectedCollectedDataEpoch, generation, clearedAtMs)
+	if (footprints.size > LIMIT) {
+		return cellDeletionUnavailable(
+		AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
+	)
+	}
+	if (!installVerifiedCellFootprintsForFullClear(footprints)) {
+		return cellDeletionUnavailable(
+			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+		)
+	}
+	return null
 }
 
 private data class CellStoredScope(
@@ -616,7 +838,9 @@ private suspend fun AmbientCellFactDao.loadWholeCellScope(): CellStoredScope? {
 			importedGaps,
 			archiveIds,
 		).any { it.size > LIMIT }
-	) return null
+	) {
+		return null
+	}
 	return CellStoredScope(
 		localCursorCount,
 		localFacts,
@@ -644,7 +868,9 @@ private fun AmbientCellFactDao.loadWholeCellScopeForFullClear(): CellStoredScope
 			importedGaps,
 			archiveIds,
 		).any { it.size > LIMIT }
-	) return null
+	) {
+		return null
+	}
 	return CellStoredScope(
 		localCursorCount,
 		localFacts,
@@ -664,73 +890,35 @@ private fun cellReplayFootprints(
 	epoch: Long,
 	generation: Long,
 	recordedAtMs: Long,
-): List<AmbientCellReplayFootprintEntity> =
-	localFacts.map { fact ->
+): List<AmbientCellReplayFootprintEntity> {
+	fun footprint(kind: String, identity: String, revision: Long) =
 		AmbientCellFactIntegrity.createReplayFootprint(
-			AmbientCellReplayFootprintEntity.KIND_LOCAL_FACT,
-			fact.logicalFactId,
-			fact.semanticRevision,
+			kind,
+			identity,
+			revision,
 			epoch,
 			generation,
 			recordedAtMs,
 		)
+
+	return localFacts.map { fact ->
+		footprint(AmbientCellReplayFootprintEntity.KIND_LOCAL_FACT, fact.logicalFactId, fact.semanticRevision)
 	} + localGaps.map { gap ->
-		AmbientCellFactIntegrity.createReplayFootprint(
-			AmbientCellReplayFootprintEntity.KIND_LOCAL_GAP,
-			gap.gapId,
-			0L,
-			epoch,
-			generation,
-			recordedAtMs,
-		)
+		footprint(AmbientCellReplayFootprintEntity.KIND_LOCAL_GAP, gap.gapId, 0L)
 	} + importedFacts.flatMap { fact ->
 		listOf(
-			AmbientCellFactIntegrity.createReplayFootprint(
-				AmbientCellReplayFootprintEntity.KIND_FACT_IDENTITY,
-				fact.factId,
-				fact.semanticRevision,
-				epoch,
-				generation,
-				recordedAtMs,
-			),
-			AmbientCellFactIntegrity.createReplayFootprint(
-				AmbientCellReplayFootprintEntity.KIND_FACT_EFFECT,
-				fact.portableEffectChecksum,
-				0L,
-				epoch,
-				generation,
-				recordedAtMs,
-			),
+			footprint(AmbientCellReplayFootprintEntity.KIND_FACT_IDENTITY, fact.factId, fact.semanticRevision),
+			footprint(AmbientCellReplayFootprintEntity.KIND_FACT_EFFECT, fact.portableEffectChecksum, 0L),
 		)
 	} + importedGaps.flatMap { gap ->
 		listOf(
-			AmbientCellFactIntegrity.createReplayFootprint(
-				AmbientCellReplayFootprintEntity.KIND_GAP_IDENTITY,
-				gap.gapId,
-				0L,
-				epoch,
-				generation,
-				recordedAtMs,
-			),
-			AmbientCellFactIntegrity.createReplayFootprint(
-				AmbientCellReplayFootprintEntity.KIND_GAP_EFFECT,
-				gap.portableEffectChecksum,
-				0L,
-				epoch,
-				generation,
-				recordedAtMs,
-			),
+			footprint(AmbientCellReplayFootprintEntity.KIND_GAP_IDENTITY, gap.gapId, 0L),
+			footprint(AmbientCellReplayFootprintEntity.KIND_GAP_EFFECT, gap.portableEffectChecksum, 0L),
 		)
 	} + archiveIds.map { archiveId ->
-		AmbientCellFactIntegrity.createReplayFootprint(
-			AmbientCellReplayFootprintEntity.KIND_ARCHIVE_SCOPE,
-			archiveId,
-			0L,
-			epoch,
-			generation,
-			recordedAtMs,
-		)
+		footprint(AmbientCellReplayFootprintEntity.KIND_ARCHIVE_SCOPE, archiveId, 0L)
 	}
+}
 
 private suspend fun AmbientCellFactDao.installCellArchiveTombstones(
 	archiveIds: List<String>,
@@ -793,14 +981,11 @@ private fun AmbientCellFactDao.deleteWholeCellPayloadForFullClear(archiveIds: Li
 private suspend fun AmbientCellFactDao.installVerifiedCellFootprints(
 	values: List<AmbientCellReplayFootprintEntity>,
 ): Boolean {
-	if (values.isEmpty()) return true
-	val identities = values.map(AmbientCellReplayFootprintEntity::identityDigest).distinct()
-	val existing = buildList {
-		identities.chunked(SQLITE_ID_CHUNK_SIZE).forEach { chunk ->
-			addAll(replayFootprintsByIdentityDigests(chunk, LIMIT + 1 - size))
-			if (size > LIMIT) return@buildList
-		}
+	if (values.isEmpty()) {
+		return true
 	}
+	val identities = values.map(AmbientCellReplayFootprintEntity::identityDigest).distinct()
+	val existing = loadCellReplayFootprints(identities)
 	if (existing.size > LIMIT || existing.any { !AmbientCellFactIntegrity.isAuthentic(it) }) {
 		return false
 	}
@@ -809,35 +994,34 @@ private suspend fun AmbientCellFactDao.installVerifiedCellFootprints(
 	if (expectedByKey.any { (key, expected) ->
 			existingByKey[key]?.let { it != expected } == true
 		}
-	) return false
-	val missing = expectedByKey.filterKeys { it !in existingByKey }.values.toList()
-	if (missing.isNotEmpty()) insertReplayFootprints(missing)
-	val storedRows = buildList {
-		identities.chunked(SQLITE_ID_CHUNK_SIZE).forEach { chunk ->
-			addAll(replayFootprintsByIdentityDigests(chunk, LIMIT + 1 - size))
-			if (size > LIMIT) return@buildList
-		}
+	) {
+		return false
 	}
-	if (storedRows.size > LIMIT ||
+	val missing = expectedByKey.filterKeys { it !in existingByKey }.values.toList()
+	if (missing.isNotEmpty()) {
+		insertReplayFootprints(missing)
+	}
+	val storedRows = loadCellReplayFootprints(identities)
+	return if (storedRows.size > LIMIT ||
 		storedRows.any { !AmbientCellFactIntegrity.isAuthentic(it) }
-	) return false
-	val stored = storedRows.associateBy(AmbientCellReplayFootprintEntity::storageKey)
-	return expectedByKey.all { (key, expected) ->
-		stored[key] == expected
+	) {
+		false
+	} else {
+		val stored = storedRows.associateBy(AmbientCellReplayFootprintEntity::storageKey)
+		expectedByKey.all { (key, expected) ->
+			stored[key] == expected
+		}
 	}
 }
 
 private fun AmbientCellFactDao.installVerifiedCellFootprintsForFullClear(
 	values: List<AmbientCellReplayFootprintEntity>,
 ): Boolean {
-	if (values.isEmpty()) return true
-	val identities = values.map(AmbientCellReplayFootprintEntity::identityDigest).distinct()
-	val existing = buildList {
-		identities.chunked(SQLITE_ID_CHUNK_SIZE).forEach { chunk ->
-			addAll(replayFootprintsByIdentityDigestsForFullClear(chunk, LIMIT + 1 - size))
-			if (size > LIMIT) return@buildList
-		}
+	if (values.isEmpty()) {
+		return true
 	}
+	val identities = values.map(AmbientCellReplayFootprintEntity::identityDigest).distinct()
+	val existing = loadCellReplayFootprintsForFullClear(identities)
 	if (existing.size > LIMIT || existing.any { !AmbientCellFactIntegrity.isAuthentic(it) }) {
 		return false
 	}
@@ -846,20 +1030,44 @@ private fun AmbientCellFactDao.installVerifiedCellFootprintsForFullClear(
 	if (expectedByKey.any { (key, expected) ->
 			existingByKey[key]?.let { it != expected } == true
 		}
-	) return false
+	) {
+		return false
+	}
 	val missing = expectedByKey.filterKeys { it !in existingByKey }.values.toList()
-	if (missing.isNotEmpty()) insertReplayFootprintsForFullClear(missing)
-	val storedRows = buildList {
-		identities.chunked(SQLITE_ID_CHUNK_SIZE).forEach { chunk ->
-			addAll(replayFootprintsByIdentityDigestsForFullClear(chunk, LIMIT + 1 - size))
-			if (size > LIMIT) return@buildList
+	if (missing.isNotEmpty()) {
+		insertReplayFootprintsForFullClear(missing)
+	}
+	val storedRows = loadCellReplayFootprintsForFullClear(identities)
+	return if (storedRows.size > LIMIT ||
+		storedRows.any { !AmbientCellFactIntegrity.isAuthentic(it) }
+	) {
+		false
+	} else {
+		val stored = storedRows.associateBy(AmbientCellReplayFootprintEntity::storageKey)
+		expectedByKey.all { (key, expected) -> stored[key] == expected }
+	}
+}
+
+private suspend fun AmbientCellFactDao.loadCellReplayFootprints(
+	identities: List<String>,
+): List<AmbientCellReplayFootprintEntity> = buildList {
+	identities.chunked(SQLITE_ID_CHUNK_SIZE).forEach { chunk ->
+		addAll(replayFootprintsByIdentityDigests(chunk, LIMIT + 1 - size))
+		if (size > LIMIT) {
+			return@buildList
 		}
 	}
-	if (storedRows.size > LIMIT ||
-		storedRows.any { !AmbientCellFactIntegrity.isAuthentic(it) }
-	) return false
-	val stored = storedRows.associateBy(AmbientCellReplayFootprintEntity::storageKey)
-	return expectedByKey.all { (key, expected) -> stored[key] == expected }
+}
+
+private fun AmbientCellFactDao.loadCellReplayFootprintsForFullClear(
+	identities: List<String>,
+): List<AmbientCellReplayFootprintEntity> = buildList {
+	identities.chunked(SQLITE_ID_CHUNK_SIZE).forEach { chunk ->
+		addAll(replayFootprintsByIdentityDigestsForFullClear(chunk, LIMIT + 1 - size))
+		if (size > LIMIT) {
+			return@buildList
+		}
+	}
 }
 
 private fun AmbientCellReplayFootprintEntity.storageKey(): Triple<String, String, Long> =

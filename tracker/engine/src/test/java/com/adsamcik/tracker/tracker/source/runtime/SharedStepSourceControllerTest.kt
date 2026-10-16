@@ -39,6 +39,8 @@ class SharedStepSourceControllerTest {
 			SourceApplyResult.Applied(applied(firstArg()))
 		}
 		coEvery { physical.close() } returns Unit
+		coEvery { broker.requiresContinuingStepsRecording(any()) } returns false
+		coEvery { broker.continuingStepsDemand(any(), any(), any(), any()) } returns null
 		subject = SharedStepSourceController(
 			physical,
 			broker,
@@ -67,12 +69,7 @@ class SharedStepSourceControllerTest {
 		val control = demand(SourceBrokerPurpose.CONTROL_AUTOSTART, "app:automatic-start:steps")
 		val capture = demand(SourceBrokerPurpose.SESSION_CAPTURE, "session:logical-1")
 		coEvery { broker.replaceAutomaticControlDemand(any(), any(), false, any(), any(), any(), any(), any()) } returns null
-		coEvery { broker.authorizationDemands(SourceKind.STEPS) } returnsMany listOf(
-			listOf(control),
-			listOf(control, capture),
-			listOf(control),
-			listOf(control),
-		)
+		coEvery { broker.authorizationDemands(SourceKind.STEPS) } returns listOf(control, capture)
 		val sessionPlan = StepsPlan(9L, true, 5_000L, 15_000L, false)
 		coEvery { physical.refreshCompatible(any(), unboundSink) } returns null
 		val cutoff = SessionCutoff("logical-1", 900L, 10L, Long.MAX_VALUE)

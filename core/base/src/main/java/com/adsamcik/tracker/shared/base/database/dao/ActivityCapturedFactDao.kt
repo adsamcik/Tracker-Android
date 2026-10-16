@@ -24,11 +24,22 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 
 /** Narrow append-only storage boundary for the dormant captured Activity writer. */
+// Keep the ActivityCapturedFactDao SQL contract together; query text accounts for this declaration's size.
+@Suppress("LargeClass")
 @Dao
 interface ActivityCapturedFactDao {
+	/**
+	 * Inserts [ActivityCapturedRegistrationPlanEntity] rows. Existing conflicting rows remain
+	 * unchanged. An ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertRegistrationPlanBinding(entity: ActivityCapturedRegistrationPlanEntity): Long
 
+	/**
+	 * Reads `activity_captured_registration_plan` rows. Query conditions include `source_instance_id
+	 * = :sourceInstanceId`, `registration_generation = :registrationGeneration`. Returns at most 1
+	 * row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM activity_captured_registration_plan " +
 			"WHERE source_instance_id = :sourceInstanceId " +
@@ -57,28 +68,57 @@ interface ActivityCapturedFactDao {
 		authorizationRevision: Long,
 	): Long?
 
+	/**
+	 * Inserts [ActivityCapturedWindowRevisionEntity] rows. Existing conflicting rows remain
+	 * unchanged. An ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertRevisionRow(entity: ActivityCapturedWindowRevisionEntity): Long
 
+	/**
+	 * Inserts [NativePortableOwnershipEntity] rows. Existing conflicting rows remain unchanged.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertPortableOwners(owners: List<NativePortableOwnershipEntity>)
 
+	/**
+	 * Inserts one Activity revision and its portable ownership rows atomically; returns -1 when the
+	 * revision already exists.
+	 */
 	@Transaction
 	suspend fun insertRevision(entity: ActivityCapturedWindowRevisionEntity): Long {
 		val inserted = insertRevisionRow(entity)
-		if (inserted != -1L) insertPortableOwners(NativePortableOwnership.activity(entity))
+		if (inserted != -1L) {
+			insertPortableOwners(NativePortableOwnership.activity(entity))
+		}
 		return inserted
 	}
 
+	/**
+	 * Inserts [ActivityCapturedFragmentEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertFragments(entities: List<ActivityCapturedFragmentEntity>)
 
+	/**
+	 * Inserts [ActivityCapturedEvidenceEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertEvidence(entities: List<ActivityCapturedEvidenceEntity>)
 
+	/**
+	 * Inserts [ActivityCapturedWindowCursorEntity] rows. Existing conflicting rows remain unchanged.
+	 * An ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertCursor(entity: ActivityCapturedWindowCursorEntity): Long
 
+	/**
+	 * Reads `activity_captured_window_revision` rows. Query conditions include `writer_projection_id
+	 * = :writerProjectionId`, `writer_projection_version = :writerProjectionVersion`,
+	 * `logical_window_id = :logicalWindowId`, `semantic_revision = :semanticRevision`. Returns at
+	 * most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM activity_captured_window_revision " +
 			"WHERE writer_projection_id = :writerProjectionId " +
@@ -93,6 +133,12 @@ interface ActivityCapturedFactDao {
 		semanticRevision: Long,
 	): ActivityCapturedWindowRevisionEntity?
 
+	/**
+	 * Reads `activity_captured_fragment` rows. Query conditions include `writer_projection_id =
+	 * :writerProjectionId`, `writer_projection_version = :writerProjectionVersion`,
+	 * `logical_window_id = :logicalWindowId`, `semantic_revision = :semanticRevision`. Orders by
+	 * `fragment_ordinal`.
+	 */
 	@Query(
 		"SELECT * FROM activity_captured_fragment " +
 			"WHERE writer_projection_id = :writerProjectionId " +
@@ -107,6 +153,12 @@ interface ActivityCapturedFactDao {
 		semanticRevision: Long,
 	): List<ActivityCapturedFragmentEntity>
 
+	/**
+	 * Reads `activity_captured_evidence` rows. Query conditions include `writer_projection_id =
+	 * :writerProjectionId`, `writer_projection_version = :writerProjectionVersion`,
+	 * `logical_window_id = :logicalWindowId`, `semantic_revision = :semanticRevision`. Orders by
+	 * `fragment_ordinal, evidence_ordinal`.
+	 */
 	@Query(
 		"SELECT * FROM activity_captured_evidence " +
 			"WHERE writer_projection_id = :writerProjectionId " +
@@ -153,6 +205,12 @@ interface ActivityCapturedFactDao {
 		limit: Int,
 	): List<ActivityCapturedWindowRevisionEntity>
 
+	/**
+	 * Reads `activity_captured_window_revision` rows. Query conditions include `writer_projection_id
+	 * = :writerProjectionId`, `writer_projection_version = :writerProjectionVersion`,
+	 * `logical_window_id = :logicalWindowId`. Orders by `semantic_revision`. Returns at most `limit`
+	 * rows.
+	 */
 	@Query(
 		"SELECT * FROM activity_captured_window_revision " +
 			"WHERE writer_projection_id = :writerProjectionId " +
@@ -167,6 +225,12 @@ interface ActivityCapturedFactDao {
 		limit: Int,
 	): List<ActivityCapturedWindowRevisionEntity>
 
+	/**
+	 * Reads `activity_captured_window_cursor` rows. Query conditions include `writer_projection_id =
+	 * :writerProjectionId`, `writer_projection_version = :writerProjectionVersion`,
+	 * `logical_window_id = :logicalWindowId`. Returns at most 1 row. Returns null when no row
+	 * matches.
+	 */
 	@Query(
 		"SELECT * FROM activity_captured_window_cursor " +
 			"WHERE writer_projection_id = :writerProjectionId " +
@@ -234,6 +298,12 @@ interface ActivityCapturedFactDao {
 		limit: Int,
 	): List<ActivityCapturedWindowCursorEntity>
 
+	/**
+	 * Reads `activity_captured_window_cursor` rows. Query conditions include `logical_tracking_id =
+	 * :logicalTrackingId`, `service_run_id IN (:serviceRunIds)`, `session_segment_id IN
+	 * (:sessionSegmentIds)`, `logical_window_id > :afterLogicalWindowId`. Orders by
+	 * `logical_window_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM activity_captured_window_cursor WHERE " +
 			"(logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds) " +
@@ -249,6 +319,11 @@ interface ActivityCapturedFactDao {
 		limit: Int,
 	): List<ActivityCapturedWindowCursorEntity>
 
+	/**
+	 * Counts rows in `activity_captured_window_revision`. Query conditions include
+	 * `logical_tracking_id = :logicalTrackingId`, `service_run_id IN (:serviceRunIds)`,
+	 * `session_segment_id IN (:sessionSegmentIds)`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM activity_captured_window_revision WHERE " +
 			"logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds) " +
@@ -260,6 +335,11 @@ interface ActivityCapturedFactDao {
 		sessionSegmentIds: List<Long>,
 	): Long
 
+	/**
+	 * Counts rows in `activity_captured_window_cursor`. Query conditions include `logical_tracking_id
+	 * = :logicalTrackingId`, `service_run_id IN (:serviceRunIds)`, `session_segment_id IN
+	 * (:sessionSegmentIds)`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM activity_captured_window_cursor WHERE " +
 			"logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds) " +
@@ -271,6 +351,11 @@ interface ActivityCapturedFactDao {
 		sessionSegmentIds: List<Long>,
 	): Long
 
+	/**
+	 * Counts rows in `activity_captured_fragment`. Query conditions include
+	 * `revision.logical_tracking_id = :logicalTrackingId`, `revision.service_run_id IN
+	 * (:serviceRunIds)`, `revision.session_segment_id IN (:sessionSegmentIds)`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM activity_captured_fragment AS fragment " +
 			"INNER JOIN activity_captured_window_revision AS revision " +
@@ -288,6 +373,11 @@ interface ActivityCapturedFactDao {
 		sessionSegmentIds: List<Long>,
 	): Long
 
+	/**
+	 * Counts rows in `activity_captured_evidence`. Query conditions include
+	 * `revision.logical_tracking_id = :logicalTrackingId`, `revision.service_run_id IN
+	 * (:serviceRunIds)`, `revision.session_segment_id IN (:sessionSegmentIds)`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM activity_captured_evidence AS evidence " +
 			"INNER JOIN activity_captured_window_revision AS revision " +
@@ -704,6 +794,11 @@ interface ActivityCapturedFactDao {
 		afterSemanticRevision: Long?,
 	): List<ActivityCapturedWindowRevisionEntity>
 
+	/**
+	 * Reads `activity_captured_window_cursor` rows. Query conditions include `logical_window_id IN
+	 * (:logicalWindowIds)`. Orders by `writer_projection_id, writer_projection_version,
+	 * logical_window_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM activity_captured_window_cursor " +
 			"WHERE logical_window_id IN (:logicalWindowIds) " +
@@ -714,6 +809,11 @@ interface ActivityCapturedFactDao {
 		limit: Int,
 	): List<ActivityCapturedWindowCursorEntity>
 
+	/**
+	 * Reads `activity_captured_fragment` rows. Query conditions include `logical_window_id IN
+	 * (:logicalWindowIds)`. Orders by `writer_projection_id, writer_projection_version,
+	 * logical_window_id, semantic_revision, fragment_ordinal`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM activity_captured_fragment " +
 			"WHERE logical_window_id IN (:logicalWindowIds) " +
@@ -725,6 +825,12 @@ interface ActivityCapturedFactDao {
 		limit: Int,
 	): List<ActivityCapturedFragmentEntity>
 
+	/**
+	 * Reads `activity_captured_evidence` rows. Query conditions include `logical_window_id IN
+	 * (:logicalWindowIds)`. Orders by `writer_projection_id, writer_projection_version,
+	 * logical_window_id, semantic_revision, fragment_ordinal, evidence_ordinal`. Returns at most
+	 * `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM activity_captured_evidence " +
 			"WHERE logical_window_id IN (:logicalWindowIds) " +
@@ -736,6 +842,11 @@ interface ActivityCapturedFactDao {
 		limit: Int,
 	): List<ActivityCapturedEvidenceEntity>
 
+	/**
+	 * Reads `activity_captured_registration_plan` rows. Query conditions include `source_instance_id
+	 * IN (:sourceInstanceIds)`, `registration_generation IN (:registrationGenerations)`. Orders by
+	 * `source_instance_id, registration_generation`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM activity_captured_registration_plan " +
 			"WHERE source_instance_id IN (:sourceInstanceIds) " +
@@ -896,6 +1007,11 @@ interface ActivityCapturedFactDao {
 		limit: Int,
 	): List<SourceDemandEntity>
 
+	/**
+	 * Reads `source_demand` rows. Query conditions include `source_kind = :sourceKind`, `purpose =
+	 * :purpose`, `status IN ('ACTIVE', 'RETIRING', 'BLOCKED')`, `logical_tracking_id =
+	 * :logicalTrackingId`. Orders by `demand_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_demand WHERE source_kind = :sourceKind AND purpose = :purpose " +
 			"AND status IN ('ACTIVE', 'RETIRING', 'BLOCKED') " +
@@ -922,6 +1038,11 @@ interface ActivityCapturedFactDao {
 		limit: Int,
 	): List<ProviderRegistrationGenerationEntity>
 
+	/**
+	 * Reads `source_authorization` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `registration_generation = :registrationGeneration`, `authorization_revision =
+	 * :authorizationRevision`. Orders by `member_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
 			"AND registration_generation = :registrationGeneration " +
@@ -934,6 +1055,11 @@ interface ActivityCapturedFactDao {
 		limit: Int,
 	): List<SourceAuthorizationEntity>
 
+	/**
+	 * Returns the greatest `authorization_revision` in `source_authorization`. Query conditions
+	 * include `source_kind = :sourceKind`, `registration_generation = :registrationGeneration`.
+	 * Returns null when the aggregate has no saved value.
+	 */
 	@Query(
 		"SELECT MAX(authorization_revision) FROM source_authorization " +
 			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration",
@@ -943,6 +1069,10 @@ interface ActivityCapturedFactDao {
 		registrationGeneration: Long,
 	): Long?
 
+	/**
+	 * Reads `source_desired_plan` rows. Query conditions include `revision = :revision`. Orders by
+	 * `source_kind`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_desired_plan WHERE revision = :revision " +
 			"ORDER BY source_kind LIMIT :limit",
@@ -952,6 +1082,11 @@ interface ActivityCapturedFactDao {
 		limit: Int,
 	): List<SourceDesiredPlanEntity>
 
+	/**
+	 * Counts rows in `activity_captured_window_revision`. Query conditions include
+	 * `writer_projection_id != :writerProjectionId`, `writer_projection_version !=
+	 * :writerProjectionVersion`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM activity_captured_window_revision WHERE " +
 			"writer_projection_id != :writerProjectionId " +
@@ -962,6 +1097,10 @@ interface ActivityCapturedFactDao {
 		writerProjectionVersion: Int,
 	): Long
 
+	/**
+	 * Counts rows in `activity_captured_fragment`. Query conditions include `writer_projection_id !=
+	 * :writerProjectionId`, `writer_projection_version != :writerProjectionVersion`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM activity_captured_fragment WHERE " +
 			"writer_projection_id != :writerProjectionId " +
@@ -972,6 +1111,10 @@ interface ActivityCapturedFactDao {
 		writerProjectionVersion: Int,
 	): Long
 
+	/**
+	 * Counts rows in `activity_captured_evidence`. Query conditions include `writer_projection_id !=
+	 * :writerProjectionId`, `writer_projection_version != :writerProjectionVersion`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM activity_captured_evidence WHERE " +
 			"writer_projection_id != :writerProjectionId " +
@@ -982,6 +1125,11 @@ interface ActivityCapturedFactDao {
 		writerProjectionVersion: Int,
 	): Long
 
+	/**
+	 * Counts rows in `activity_captured_window_cursor`. Query conditions include
+	 * `writer_projection_id != :writerProjectionId`, `writer_projection_version !=
+	 * :writerProjectionVersion`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM activity_captured_window_cursor WHERE " +
 			"writer_projection_id != :writerProjectionId " +
@@ -1012,6 +1160,12 @@ interface ActivityCapturedFactDao {
 		logicalWindowId: String,
 	): Long?
 
+	/**
+	 * Updates `activity_captured_window_cursor` rows matching the supplied scope. Query conditions
+	 * include `writer_projection_id = :writerProjectionId`, `writer_projection_version =
+	 * :writerProjectionVersion`, `logical_window_id = :logicalWindowId`, `writer_owner_generation =
+	 * :writerOwnerGeneration`. Returns the affected row count.
+	 */
 	@Query(
 		"UPDATE activity_captured_window_cursor SET " +
 			"latest_semantic_revision = :newSemanticRevision, " +
@@ -1048,21 +1202,42 @@ interface ActivityCapturedFactDao {
 		updatedAtMs: Long,
 	): Int
 
+	/**
+	 * Counts rows in `activity_captured_window_revision`.
+	 */
 	@Query("SELECT COUNT(*) FROM activity_captured_window_revision")
 	suspend fun revisionCount(): Long
 
+	/**
+	 * Counts rows in `activity_captured_fragment`.
+	 */
 	@Query("SELECT COUNT(*) FROM activity_captured_fragment")
 	suspend fun fragmentCount(): Long
 
+	/**
+	 * Counts rows in `activity_captured_evidence`.
+	 */
 	@Query("SELECT COUNT(*) FROM activity_captured_evidence")
 	suspend fun evidenceCount(): Long
 
+	/**
+	 * Counts rows in `activity_captured_window_cursor`.
+	 */
 	@Query("SELECT COUNT(*) FROM activity_captured_window_cursor")
 	suspend fun cursorCount(): Long
 
+	/**
+	 * Counts rows in `activity_captured_registration_plan`.
+	 */
 	@Query("SELECT COUNT(*) FROM activity_captured_registration_plan")
 	suspend fun registrationPlanBindingCount(): Long
 
+	/**
+	 * Deletes `activity_captured_window_cursor` rows matching the supplied scope. Query conditions
+	 * include `writer_projection_id = :writerProjectionId`, `writer_projection_version =
+	 * :writerProjectionVersion`, `logical_window_id IN (:logicalWindowIds)`. Returns the affected row
+	 * count.
+	 */
 	@Query(
 		"DELETE FROM activity_captured_window_cursor " +
 			"WHERE writer_projection_id = :writerProjectionId " +
@@ -1075,6 +1250,12 @@ interface ActivityCapturedFactDao {
 		logicalWindowIds: List<String>,
 	): Int
 
+	/**
+	 * Deletes `activity_captured_window_revision` rows matching the supplied scope. Query conditions
+	 * include `writer_projection_id = :writerProjectionId`, `writer_projection_version =
+	 * :writerProjectionVersion`, `logical_window_id IN (:logicalWindowIds)`. Returns the affected row
+	 * count.
+	 */
 	@Query(
 		"DELETE FROM activity_captured_window_revision " +
 			"WHERE writer_projection_id = :writerProjectionId " +
@@ -1087,18 +1268,33 @@ interface ActivityCapturedFactDao {
 		logicalWindowIds: List<String>,
 	): Int
 
+	/**
+	 * Deletes `activity_captured_evidence` rows.
+	 */
 	@Query("DELETE FROM activity_captured_evidence")
 	fun deleteAllEvidence()
 
+	/**
+	 * Deletes `activity_captured_fragment` rows.
+	 */
 	@Query("DELETE FROM activity_captured_fragment")
 	fun deleteAllFragments()
 
+	/**
+	 * Deletes `activity_captured_window_cursor` rows.
+	 */
 	@Query("DELETE FROM activity_captured_window_cursor")
 	fun deleteAllCursors()
 
+	/**
+	 * Deletes `activity_captured_window_revision` rows.
+	 */
 	@Query("DELETE FROM activity_captured_window_revision")
 	fun deleteAllRevisions()
 
+	/**
+	 * Deletes `activity_captured_registration_plan` rows.
+	 */
 	@Query("DELETE FROM activity_captured_registration_plan")
 	fun deleteAllRegistrationPlanBindings()
 }
@@ -1155,6 +1351,10 @@ data class ActivityLogicalHistoryCandidate(
 	@ColumnInfo(name = "logical_recency_segment_id") val logicalRecencySegmentId: Long,
 )
 
+/**
+ * Physical Activity segment with its original logical interval and stable recency keys; all time
+ * fields are UTC milliseconds.
+ */
 data class ActivityLogicalRangeCandidate(
 	@Embedded val segment: SessionSegment,
 	@ColumnInfo(name = "logical_start_time_ms") val logicalStartTimeMs: Long,
@@ -1163,6 +1363,10 @@ data class ActivityLogicalRangeCandidate(
 	@ColumnInfo(name = "logical_recency_segment_id") val logicalRecencySegmentId: Long,
 )
 
+/**
+ * Cardinalities of the Activity product dependencies, used to detect a changed retained read
+ * snapshot.
+ */
 data class ActivityProductRevisionSnapshot(
 	@ColumnInfo(name = "logical_session_count") val logicalSessionCount: Long,
 	@ColumnInfo(name = "service_run_count") val serviceRunCount: Long,

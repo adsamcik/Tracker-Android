@@ -16,12 +16,20 @@ interface LocationObservationDao : BaseDao<LocationObservation> {
 	@Query("SELECT COUNT(*) FROM location_observation")
 	suspend fun countAll(): Long
 
+	/**
+	 * Reads `location_observation` rows. Query conditions include `id > :afterId`. Orders by `id`.
+	 * Returns at most `limit` rows.
+	 */
 	@Query("SELECT * FROM location_observation WHERE id > :afterId ORDER BY id LIMIT :limit")
 	suspend fun retentionPage(afterId: Long, limit: Int): List<LocationObservation>
 
 	@Query("SELECT EXISTS(SELECT 1 FROM location_observation WHERE source_event_id = :sourceEventId)")
 	suspend fun existsBySourceEventId(sourceEventId: String): Boolean
 
+	/**
+	 * Reads `location_observation` rows. Query conditions include `source_event_id = :sourceEventId`.
+	 * Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"""
 		SELECT * FROM location_observation
@@ -118,9 +126,17 @@ interface LocationObservationDao : BaseDao<LocationObservation> {
 	@Query("DELETE FROM location_observation WHERE fix_time_ms < :beforeMs")
 	suspend fun deleteOlderThan(beforeMs: Long): Int
 
+	/**
+	 * Deletes `location_observation` rows matching the supplied scope. Query conditions include
+	 * `source_event_id IN (:sourceEventIds)`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM location_observation WHERE source_event_id IN (:sourceEventIds)")
 	suspend fun deleteBySourceEventIds(sourceEventIds: List<String>): Int
 
+	/**
+	 * Deletes `location_observation` rows matching the supplied scope. Query conditions include `id
+	 * IN (:ids)`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM location_observation WHERE id IN (:ids)")
 	suspend fun deleteExactIds(ids: List<Long>): Int
 

@@ -12,6 +12,10 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEn
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 
+/**
+ * Original provider gap and its remaining effective interval after real backfill; declared bounds
+ * and clock/zone lineage remain available for qualification.
+ */
 data class AmbientStepsEffectiveGapInterval(
 	@ColumnInfo(name = "gap_id") val gapId: String,
 	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long,
@@ -37,15 +41,28 @@ data class AmbientStepsEffectiveGapInterval(
 /** Source-local persistence primitives for a future Ambient Steps importer transaction. */
 @Dao
 interface AmbientStepsImportStateDao {
+	/**
+	 * Inserts [AmbientStepsImportCursorEntity] rows. Existing conflicting rows remain unchanged. An
+	 * ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertCursor(cursor: AmbientStepsImportCursorEntity): Long
 
+	/**
+	 * Reads `ambient_steps_import_cursor` rows. Query conditions include `registration_generation =
+	 * :registrationGeneration`. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM ambient_steps_import_cursor " +
 			"WHERE registration_generation = :registrationGeneration",
 	)
 	suspend fun cursor(registrationGeneration: Long): AmbientStepsImportCursorEntity?
 
+	/**
+	 * Reads `ambient_steps_import_cursor` rows. Query conditions include `provider = :provider`,
+	 * `status = '${AmbientStepsImportCursorEntity.STATUS_ACTIVE}'`. Orders by
+	 * `registration_generation DESC`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM ambient_steps_import_cursor WHERE provider = :provider " +
 			"AND status = '${AmbientStepsImportCursorEntity.STATUS_ACTIVE}' " +
@@ -136,9 +153,17 @@ interface AmbientStepsImportStateDao {
 		updatedAtMs: Long,
 	): Int
 
+	/**
+	 * Inserts [AmbientStepsImportGapEntity] rows. Existing conflicting rows remain unchanged. An
+	 * ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertGap(gap: AmbientStepsImportGapEntity): Long
 
+	/**
+	 * Reads `ambient_steps_import_gap` rows. Query conditions include `registration_generation =
+	 * :registrationGeneration`, `gap_sequence = :gapSequence`. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM ambient_steps_import_gap WHERE registration_generation = :registrationGeneration " +
 			"AND gap_sequence = :gapSequence",
@@ -148,6 +173,10 @@ interface AmbientStepsImportStateDao {
 		gapSequence: Long,
 	): AmbientStepsImportGapEntity?
 
+	/**
+	 * Reads `ambient_steps_import_gap` rows. Query conditions include `registration_generation =
+	 * :registrationGeneration`. Orders by `gap_sequence ASC`.
+	 */
 	@Query(
 		"SELECT * FROM ambient_steps_import_gap WHERE registration_generation = :registrationGeneration " +
 			"ORDER BY gap_sequence ASC",
@@ -286,11 +315,19 @@ interface AmbientStepsImportStateDao {
     """)
     suspend fun gapsForRegistrations(registrationGenerations: List<Long>, limit: Int): List<AmbientStepsImportGapEntity>
 
+	/**
+	 * Inserts [AmbientStepsImportAuthorityTransitionEntity] rows. Existing conflicting rows remain
+	 * unchanged. An ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertAuthorityTransition(
 		transition: AmbientStepsImportAuthorityTransitionEntity,
 	): Long
 
+	/**
+	 * Reads `ambient_steps_import_authority_transition` rows. Query conditions include
+	 * `registration_generation = :registrationGeneration`. Orders by `transition_sequence ASC`.
+	 */
 	@Query(
 		"SELECT * FROM ambient_steps_import_authority_transition " +
 			"WHERE registration_generation = :registrationGeneration " +
@@ -529,6 +566,13 @@ interface AmbientStepsImportStateDao {
 		updatedAtMs: Long,
 	): Int
 
+	/**
+	 * Updates `ambient_steps_import_cursor` rows matching the supplied scope. Query conditions
+	 * include `registration_generation = :registrationGeneration`, `status =
+	 * '${AmbientStepsImportCursorEntity.STATUS_ACTIVE}'`, `cursor_revision =
+	 * :expectedCursorRevision`, `imported_through_time_ms = :expectedImportedThroughTimeMs`. Returns
+	 * the affected row count.
+	 */
 	@Query(
 		"UPDATE ambient_steps_import_cursor SET " +
 			"status = '${AmbientStepsImportCursorEntity.STATUS_RETIRED}', " +
@@ -551,21 +595,39 @@ interface AmbientStepsImportStateDao {
 		updatedAtMs: Long,
 	): Int
 
+	/**
+	 * Counts rows in `ambient_steps_import_cursor`.
+	 */
 	@Query("SELECT COUNT(*) FROM ambient_steps_import_cursor")
 	suspend fun countCursors(): Long
 
+	/**
+	 * Counts rows in `ambient_steps_import_gap`.
+	 */
 	@Query("SELECT COUNT(*) FROM ambient_steps_import_gap")
 	suspend fun countGaps(): Long
 
+	/**
+	 * Counts rows in `ambient_steps_import_authority_transition`.
+	 */
 	@Query("SELECT COUNT(*) FROM ambient_steps_import_authority_transition")
 	suspend fun countAuthorityTransitions(): Long
 
+	/**
+	 * Deletes `ambient_steps_import_authority_transition` rows.
+	 */
 	@Query("DELETE FROM ambient_steps_import_authority_transition")
 	fun deleteAllAuthorityTransitions()
 
+	/**
+	 * Deletes `ambient_steps_import_gap` rows.
+	 */
 	@Query("DELETE FROM ambient_steps_import_gap")
 	fun deleteAllGaps()
 
+	/**
+	 * Deletes `ambient_steps_import_cursor` rows.
+	 */
 	@Query("DELETE FROM ambient_steps_import_cursor")
 	fun deleteAllCursors()
 }

@@ -123,6 +123,9 @@ class AppDatabaseMigration27To28Test {
 	}
 
 	@Test
+	// Keep the populated migration, production reads and both reopen/deletion checks in their real lifecycle
+	// order.
+	@Suppress("LongMethod")
 	fun populatedV27MigrationIsInertQueryableAndDeletionSafeAcrossReopen() {
 		helper.createDatabase(TEST_DATABASE, 27).use { database ->
 			PopulatedV27Fixture.seed(database)
@@ -201,6 +204,8 @@ class AppDatabaseMigration27To28Test {
 	}
 
 	@Test
+	// Keep the migrated legacy Steps WAL and all zero-mask/no-invented-authority assertions together.
+	@Suppress("LongMethod")
 	fun migratedV27StepsWalRetainsZeroMaskWithoutFabricatedV28Authority() {
 		helper.createDatabase(TEST_DATABASE, 27).use { database ->
 			PopulatedV27Fixture.seed(database)
@@ -426,6 +431,9 @@ class AppDatabaseMigration27To28Test {
 	}
 
 	@Test
+	// Keep imported Pressure data and deletion lineage through migration, reopen and full-clear reopen
+	// assertions together.
+	@Suppress("LongMethod")
 	fun portablePressureOriginSurvivesMigratedReopenWithoutInventingLiveAuthority() {
 		helper.createDatabase(TEST_DATABASE, 27).use { database ->
 			PopulatedV27Fixture.seed(database)
@@ -2166,6 +2174,8 @@ class AppDatabaseMigration27To28Test {
 		assertTrue(database.ambientStepsFactRevisionDao().insert(fact) != -1L)
 	}
 
+	// Keep the migrated Steps cursor, original process gap and matching authority-transition fixture together.
+	@Suppress("LongMethod")
 	private suspend fun seedMigratedAmbientStepsImportState(database: AppDatabase) {
 		val provider = AmbientStepsImportCursorEntity.PROVIDER_HEALTH_CONNECT_MOBILE_STEPS
 		val cursor = AmbientStepsImportCursorEntity(

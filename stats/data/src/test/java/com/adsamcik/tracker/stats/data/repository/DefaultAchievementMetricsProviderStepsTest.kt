@@ -38,7 +38,12 @@ class DefaultAchievementMetricsProviderStepsTest {
 
 	@Test
 	fun `Steps-derived achievements are absent until retained evidence can qualify them`() = runTest {
-		coEvery { dailySummaryDao.sumTotalDistance() } returns 321L
+		coEvery { savedLocationMetrics.read(any(), any()) } returns SavedLocationMetrics(
+			distanceMeters = 321.0, pointCount = 2L, onFootDistanceMeters = 0.0,
+			cyclingDistanceMeters = 0.0, vehicleDistanceMeters = 0.0, maxSessionDistanceMeters = null,
+			maxCyclingSessionDistanceMeters = null, maxMovingAverageSpeedMetersPerSecond = null,
+			bestDayDistanceMeters = null, hasActivityDistances = false,
+		)
 		coEvery { dailySummaryDao.sumTotalSteps() } returns 999_999L
 		coEvery { dailySummaryDao.maxDailySteps() } returns 888_888L
 

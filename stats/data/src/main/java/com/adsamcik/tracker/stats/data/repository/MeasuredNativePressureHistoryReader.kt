@@ -21,11 +21,19 @@ internal class MeasuredNativePressureHistoryReader(
 ) {
     suspend fun candidates(range: HistoryRange, after: HistoryPosition?): List<MeasuredHistoryCandidate> {
         if (HistorySource.PRESSURE !in range.sources || HistoryOrigin.LOCAL !in range.origins ||
-            HistoryPurpose.CAPTURE !in range.purposes) return emptyList()
-        val seek = if (after == null) "" else """AND (startTimeMs < ? OR (startTimeMs = ? AND
+            HistoryPurpose.CAPTURE !in range.purposes) {
+            return emptyList()
+        }
+        val seek = if (after == null) {
+            ""
+        } else {
+            """AND (startTimeMs < ? OR (startTimeMs = ? AND
             ('local:pressure' > ? OR ('local:pressure' = ? AND identity > ?))))"""
+        }
         val args = mutableListOf<Any?>(range.toExclusiveMs, range.fromInclusiveMs)
-        if (after != null) args.addAll(listOf(after.startTimeMs, after.startTimeMs, after.originTag, after.originTag, after.stableId))
+        if (after != null) {
+            args.addAll(listOf(after.startTimeMs, after.startTimeMs, after.originTag, after.originTag, after.stableId))
+        }
         return database.trackingHistoryReadDao().measuredHistoryCandidates(SimpleSQLiteQuery("""
             SELECT kind, origin, purpose, identity, startTimeMs, endTimeMs, rowId,
                 writerId, writerVersion, factId, factRevision, itemIndex, NULL AS physicalEventId, NULL AS physicalIdentity FROM (
@@ -48,58 +56,118 @@ internal class MeasuredNativePressureHistoryReader(
     }
 
     suspend fun qualify(keys: List<MeasuredHistoryCandidate>, range: HistoryRange): MeasuredNativePressureHistoryRead {
-        require(keys.size <= 100 && keys.all { it.kind == "pressure" && it.origin == "LOCAL" && it.purpose == "CAPTURE" })
+        requireNativeCapturedCandidates(keys, "pressure", MAX_MEASURED_CANDIDATES)
         if (keys.isEmpty() || HistorySource.PRESSURE !in range.sources || HistoryOrigin.LOCAL !in range.origins ||
-            HistoryPurpose.CAPTURE !in range.purposes) return MeasuredNativePressureHistoryRead()
-        val selected = keys.groupBy { PressureMeasuredFactKey(requireNotNull(it.writerId), requireNotNull(it.writerVersion),
+            HistoryPurpose.CAPTURE !in range.purposes) {
+            return MeasuredNativePressureHistoryRead()
+        }
+        val selected = keys.groupBy { PressureMeasuredFactKey(requireNotNull(it.writerId),
+            requireNotNull(it.writerVersion),
             requireNotNull(it.factId), requireNotNull(it.factRevision)) }
         val read = readIndependent(selected.keys.toList())
         val names = MeasuredNativeSessionNames.load(database,
             read.histories.mapNotNull { it.segment.logicalTrackingId })
+        return qualifySelectedRows(selected, read, range, names)
+    }
+
+    private fun qualifySelectedRows(
+        selected: Map<PressureMeasuredFactKey, List<MeasuredHistoryCandidate>>,
+        read: PressureMeasuredRead,
+        range: HistoryRange,
+        names: MeasuredNativeSessionNames,
+    ): MeasuredNativePressureHistoryRead {
         val rows = linkedMapOf<HistoryPosition, UnifiedHistoryRow>()
         val problems = read.problems.toMutableSet()
         for ((identity, candidates) in selected) {
             val owned = read.histories.flatMap { history -> history.windows.map { history to it } }
-                .singleOrNull { (_, window) -> window.writerProjectionId == identity.writerId &&
-                    window.writerProjectionVersion == identity.writerVersion && window.logicalFactId == identity.factId }
-            if (owned == null) continue
+                .singleOrNull { (_, window) -> window.matchesKey(identity) }
+            if (owned == null) {
+                continue
+            }
             val (history, window) = owned
             if (!history.hasQualifiedRetainedProof || window.semanticRevision != identity.revision) {
                 problems += HistoryProblem(HistorySource.PRESSURE, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
                 continue
             }
-            for (key in candidates) {
-                if (key.rowId != history.segment.id || key.startTimeMs != window.intervalStartTimeMs ||
-                    key.endTimeMs != window.intervalEndTimeMs || window.intervalStartTimeMs >= range.toExclusiveMs ||
-                    window.intervalEndTimeMs < range.fromInclusiveMs) {
-                    problems += HistoryProblem(HistorySource.PRESSURE, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
-                    continue
-                }
-                val position = measuredHistoryPosition(key)
-                rows[position] = UnifiedHistoryRow(position, window.intervalEndTimeMs, setOf(HistoryOrigin.LOCAL),
-                    HistoryPurpose.CAPTURE, name = names.window(window.logicalTrackingId, window.intervalStartTimeMs,
-                        window.intervalEndTimeMs), sections = emptyList(),
-                    measurement = HistoryMeasurement.Pressure(window.toPublicWindow()))
-            }
+            rows.putAll(measuredWindowRows(history, window, candidates, range, names, problems))
         }
         return MeasuredNativePressureHistoryRead(rows, problems)
     }
 
+    private fun PressureHistoryWindow.matchesKey(key: PressureMeasuredFactKey): Boolean =
+        writerProjectionId == key.writerId && writerProjectionVersion == key.writerVersion &&
+            logicalFactId == key.factId
+
+    private fun measuredWindowRows(
+        history: PressurePhysicalHistory,
+        window: PressureHistoryWindow,
+        candidates: List<MeasuredHistoryCandidate>,
+        range: HistoryRange,
+        names: MeasuredNativeSessionNames,
+        problems: MutableSet<HistoryProblem>,
+    ): Map<HistoryPosition, UnifiedHistoryRow> {
+        val rows = linkedMapOf<HistoryPosition, UnifiedHistoryRow>()
+        for (key in candidates) {
+            if (hasInvalidWindowPosition(key, history.segment.id, window, range)) {
+                problems += HistoryProblem(HistorySource.PRESSURE, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+                continue
+            }
+            val position = measuredHistoryPosition(key)
+            rows[position] = UnifiedHistoryRow(position, window.intervalEndTimeMs, setOf(HistoryOrigin.LOCAL),
+                HistoryPurpose.CAPTURE, name = names.window(window.logicalTrackingId, window.intervalStartTimeMs,
+                    window.intervalEndTimeMs), sections = emptyList(),
+                measurement = HistoryMeasurement.Pressure(window.toPublicWindow()))
+        }
+        return rows
+    }
+
+    private fun hasInvalidWindowPosition(
+        key: MeasuredHistoryCandidate,
+        segmentId: Long,
+        window: PressureHistoryWindow,
+        range: HistoryRange,
+    ): Boolean = key.rowId != segmentId || key.startTimeMs != window.intervalStartTimeMs ||
+        key.endTimeMs != window.intervalEndTimeMs || window.intervalStartTimeMs >= range.toExclusiveMs ||
+        window.intervalEndTimeMs < range.fromInclusiveMs
+
     private suspend fun readIndependent(keys: List<PressureMeasuredFactKey>): PressureMeasuredRead {
-        if (keys.isEmpty()) return PressureMeasuredRead()
-        val result = try {
+        if (keys.isEmpty()) {
+            return PressureMeasuredRead()
+        }
+        val result = readSelected(keys)
+        val qualified = result.histories.filter { it.hasQualifiedRetainedProof }.flatMap { it.windows }
+        if (keys.size == 1 || keys.all { key -> qualified.any { it.matchesKey(key) } }) {
+            return result
+        }
+        val middle = keys.size / 2
+        val left = readIndependent(keys.take(middle))
+        val right = readIndependent(keys.drop(middle))
+        return PressureMeasuredRead(left.histories + right.histories, left.problems + right.problems)
+    }
+
+    private suspend fun readSelected(keys: List<PressureMeasuredFactKey>): PressureMeasuredRead =
+        try {
             val histories = pressure.selectMeasuredWindowsInTransaction(keys)
-            val qualifiedIds = histories.filter { it.hasQualifiedRetainedProof }.flatMap { it.windows }.map { it.logicalFactId }.toSet()
+            val qualifiedIds =
+                histories.filter { it.hasQualifiedRetainedProof }.flatMap { it.windows }
+                    .map { it.logicalFactId }.toSet()
             val problems = histories.filter { !it.hasQualifiedRetainedProof }.flatMap { it.reasons }
-                .filter { it !in setOf(PressureHistoryReason.OUTSIDE_RETAINED_FLOOR, PressureHistoryReason.DELETED_FACTS,
+                .filter { it !in setOf(PressureHistoryReason.OUTSIDE_RETAINED_FLOOR,
+                    PressureHistoryReason.DELETED_FACTS,
                     PressureHistoryReason.SOURCE_NOT_CAPTURED, PressureHistoryReason.STALE_COLLECTED_DATA_EPOCH) }
                 .mapTo(linkedSetOf()) { HistoryProblem(HistorySource.PRESSURE,
-                    if (it == PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW) HistoryProblemReason.DEPENDENCY_OVERFLOW
-                    else HistoryProblemReason.INTEGRITY_UNAVAILABLE) }
+                    if (it == PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW) {
+                        HistoryProblemReason.DEPENDENCY_OVERFLOW
+                    }
+                    else {
+                        HistoryProblemReason.INTEGRITY_UNAVAILABLE
+                    }) }
             if (histories.isEmpty() || keys.any { it.factId !in qualifiedIds } && problems.isEmpty() &&
                 histories.none { it.reasons.any { cause -> cause in setOf(PressureHistoryReason.OUTSIDE_RETAINED_FLOOR,
                     PressureHistoryReason.DELETED_FACTS, PressureHistoryReason.STALE_COLLECTED_DATA_EPOCH) } })
+                {
                 problems += HistoryProblem(HistorySource.PRESSURE, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+            }
             PressureMeasuredRead(histories, problems)
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: PressureHistoryPageDependencyOverflow) { PressureMeasuredRead(problems = setOf(
@@ -108,14 +176,6 @@ internal class MeasuredNativePressureHistoryReader(
             HistoryProblem(HistorySource.PRESSURE, HistoryProblemReason.STORAGE_UNAVAILABLE))) }
         catch (_: Exception) { PressureMeasuredRead(problems = setOf(
             HistoryProblem(HistorySource.PRESSURE, HistoryProblemReason.INTEGRITY_UNAVAILABLE))) }
-        val qualified = result.histories.filter { it.hasQualifiedRetainedProof }.flatMap { it.windows }
-        if (keys.size == 1 || keys.all { key -> qualified.any { it.logicalFactId == key.factId &&
-            it.writerProjectionId == key.writerId && it.writerProjectionVersion == key.writerVersion } }) return result
-        val middle = keys.size / 2
-        val left = readIndependent(keys.take(middle))
-        val right = readIndependent(keys.drop(middle))
-        return PressureMeasuredRead(left.histories + right.histories, left.problems + right.problems)
-    }
 }
 
 private data class PressureMeasuredRead(
@@ -126,3 +186,5 @@ internal data class MeasuredNativePressureHistoryRead(
     val rows: Map<HistoryPosition, UnifiedHistoryRow> = emptyMap(),
     val problems: Set<HistoryProblem> = emptySet(),
 )
+
+private const val MAX_MEASURED_CANDIDATES = 100

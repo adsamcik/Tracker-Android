@@ -325,7 +325,7 @@ class AchievementEvaluatorContractTest {
 		val capturedUpserts = mutableListOf<AchievementProgressEntity>()
 		val mutableWorkerDao = mockk<AchievementProgressDao>(relaxed = true)
 		coEvery { mutableWorkerDao.getAll() } returns priorProgress
-		coEvery { mutableWorkerDao.upsertAll(any()) } answers {
+		coEvery { mutableWorkerDao.replaceEvaluatedAll(any()) } answers {
 			capturedUpserts.addAll(firstArg<List<AchievementProgressEntity>>())
 		}
 

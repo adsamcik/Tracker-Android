@@ -13,6 +13,9 @@ const val STEPS_WAL_PAYLOAD_VERSION = 7
 const val MINIMUM_STEPS_WAL_PAYLOAD_VERSION = 1
 const val MAX_STEPS_WAL_PAYLOAD_BYTES = 4_096
 
+/**
+ * Original counter-window boundary: baseline, measured coverage, reset gap or legacy ambiguity.
+ */
 enum class StepsWalBoundaryKind {
 	BASELINE,
 	COVERED,
@@ -20,6 +23,10 @@ enum class StepsWalBoundaryKind {
 	LEGACY_AMBIGUOUS,
 }
 
+/**
+ * Original cumulative counter window with elapsed nanosecond bounds, provider sequence and
+ * optional count-domain token/epoch metadata.
+ */
 @Suppress("LongParameterList")
 data class StepsWalPayload(
 	val bootClockDomainId: String,
@@ -35,7 +42,15 @@ data class StepsWalPayload(
 	val counterDomainToken: StepsCounterDomainToken?,
 )
 
+/**
+ * Versioned bounded Steps binary encoding preserving older counter layouts and current
+ * count-domain metadata.
+ */
 object StepsWalPayloadCodec {
+	/**
+	 * Serializes Steps payload values into the supported deterministic binary layout; nullable
+	 * measurements keep their absence.
+	 */
 	fun encode(
 		payload: StepsWalPayload,
 		payloadVersion: Int = STEPS_WAL_PAYLOAD_VERSION,
@@ -71,6 +86,10 @@ object StepsWalPayloadCodec {
 		}
 	}
 
+	/**
+	 * Decodes a bounded supported Steps payload and requires exact canonical bytes; malformed data is
+	 * rejected through the declared result type.
+	 */
 	fun decodeCanonical(payloadVersion: Int, bytes: ByteArray): StepsWalPayload? =
 		runCatching {
 			require(payloadVersion in MINIMUM_STEPS_WAL_PAYLOAD_VERSION..STEPS_WAL_PAYLOAD_VERSION)
@@ -86,18 +105,7 @@ object StepsWalPayloadCodec {
 					windowEndElapsedRealtimeNanos = input.readLong(),
 					firstProviderSequence = input.readLong(),
 					lastProviderSequence = input.readLong(),
-					boundaryKind = if (payloadVersion >= STEP_BOUNDARY_KIND_PAYLOAD_VERSION) {
-						when (input.readInt()) {
-							1 -> StepsWalBoundaryKind.BASELINE
-							2 -> StepsWalBoundaryKind.COVERED
-							3 -> StepsWalBoundaryKind.COUNTER_RESET
-							else -> error("Unsupported Steps boundary code")
-						}
-					} else if (input.readBoolean()) {
-						StepsWalBoundaryKind.LEGACY_AMBIGUOUS
-					} else {
-						StepsWalBoundaryKind.COVERED
-					},
+					boundaryKind = input.readBoundaryKind(payloadVersion),
 					counterEpochGeneration =
 						if (payloadVersion >= STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION) {
 							input.readLong()
@@ -124,6 +132,21 @@ object StepsWalPayloadCodec {
 			decoded
 		}.getOrNull()
 
+	// The boundary field uses a legacy reset flag before version 3 and stable integer tags thereafter.
+	private fun DataInputStream.readBoundaryKind(payloadVersion: Int): StepsWalBoundaryKind =
+		if (payloadVersion >= STEP_BOUNDARY_KIND_PAYLOAD_VERSION) {
+			when (readInt()) {
+				1 -> StepsWalBoundaryKind.BASELINE
+				2 -> StepsWalBoundaryKind.COVERED
+				STEP_COUNTER_RESET_WIRE_CODE -> StepsWalBoundaryKind.COUNTER_RESET
+				else -> error("Unsupported Steps boundary code")
+			}
+		} else if (readBoolean()) {
+			StepsWalBoundaryKind.LEGACY_AMBIGUOUS
+		} else {
+			StepsWalBoundaryKind.COVERED
+		}
+
 	private fun requireValid(payload: StepsWalPayload, payloadVersion: Int) {
 		require(payloadVersion in MINIMUM_STEPS_WAL_PAYLOAD_VERSION..STEPS_WAL_PAYLOAD_VERSION)
 		require(
@@ -144,6 +167,9 @@ object StepsWalPayloadCodec {
 	}
 }
 
+/**
+ * Specific Steps envelope, payload, ownership and count-domain comparison failures.
+ */
 enum class StepsWalCarrierFailure {
 	WRONG_SOURCE,
 	UNSUPPORTED_PAYLOAD_VERSION,
@@ -159,6 +185,10 @@ enum class StepsWalCarrierFailure {
 	FACT_INTEGRITY_MISMATCH,
 }
 
+/**
+ * Decoded original counter window; countDomainProven separately records whether its supplied owner
+ * was verified.
+ */
 data class AuthenticatedStepsWalCarrier internal constructor(
 	val payload: StepsWalPayload,
 	val countDomainProven: Boolean,
@@ -168,17 +198,61 @@ data class AuthenticatedStepsWalCarrier internal constructor(
 			payload.deltaCount > 0L
 }
 
+/**
+ * Typed Steps carrier comparison result with the exact rejection cause.
+ */
 sealed interface StepsWalCarrierAuthentication {
+	/**
+	 * Successful original-carrier comparison containing its checked, decoded measurement payload.
+	 */
 	data class Authenticated(
 		val carrier: AuthenticatedStepsWalCarrier,
 	) : StepsWalCarrierAuthentication
 
+	/**
+	 * Specific rejected decode, carrier or per-purpose qualification outcome; it carries no accepted
+	 * payload.
+	 */
 	data class Rejected(val reason: StepsWalCarrierFailure) : StepsWalCarrierAuthentication
 }
 
+/**
+ * Compares original Steps carriers, recorded counter semantics and supplied WAL/fact count-domain
+ * owners.
+ */
 object StepsWalCarrierAuthenticator {
+	/**
+	 * Checks the original Steps WAL checksum, provider envelope, supported payload and recorded
+	 * capture binding; reports the exact rejection cause.
+	 */
 	@Suppress("ComplexCondition", "ReturnCount")
 	fun authenticate(wal: SourceEventWalEntity): StepsWalCarrierAuthentication {
+		val envelopeRejection = rejectInvalidEnvelope(wal)
+		if (envelopeRejection != null) {
+			return envelopeRejection
+		}
+		val payload = StepsWalPayloadCodec.decodeCanonical(wal.payloadVersion, wal.payload)
+			?: return rejected(StepsWalCarrierFailure.PAYLOAD_INVALID)
+		if (!payload.hasValidSourceSemantics(wal.payloadVersion)) {
+			return rejected(StepsWalCarrierFailure.PAYLOAD_INVALID)
+		}
+		if (
+			payload.bootClockDomainId != wal.clockDomainId ||
+			payload.windowStartElapsedRealtimeNanos != wal.observedIntervalStartNanos ||
+			payload.windowEndElapsedRealtimeNanos != wal.observedElapsedNanos
+		) {
+			return rejected(StepsWalCarrierFailure.MALFORMED_PROVIDER_ENVELOPE)
+		}
+		return StepsWalCarrierAuthentication.Authenticated(
+			AuthenticatedStepsWalCarrier(payload, countDomainProven = false),
+		)
+	}
+
+	// Preserve the original envelope failure precedence before attempting payload decoding.
+	@Suppress("ReturnCount")
+	private fun rejectInvalidEnvelope(
+		wal: SourceEventWalEntity,
+	): StepsWalCarrierAuthentication.Rejected? {
 		if (wal.sourceKind != SourceDestinationOwnerEntity.SOURCE_STEPS) {
 			return rejected(StepsWalCarrierFailure.WRONG_SOURCE)
 		}
@@ -198,42 +272,16 @@ object StepsWalCarrierAuthenticator {
 		if (!wal.hasCompleteSessionCaptureBinding()) {
 			return rejected(StepsWalCarrierFailure.INCOMPLETE_CAPTURE_AUTHORITY)
 		}
-		if (
-			wal.providerDedupKey.isNullOrBlank() ||
-			wal.deliveryIdentity != null ||
-			wal.deliveryUnitIndex != null ||
-			wal.deliveryUnitCount != null ||
-			wal.activityAutomationEpoch != null ||
-			wal.sourceSequence < 0L ||
-			wal.observedIntervalStartNanos?.let { it >= 0L } != true ||
-			wal.observedElapsedNanos < requireNotNull(wal.observedIntervalStartNanos) ||
-			wal.receivedElapsedNanos < wal.observedElapsedNanos ||
-			wal.receivedWallTimeMs?.let { it < 0L } == true ||
-			wal.wallTimeMs?.let { it >= 0L } != true ||
-			wal.wallTimeUncertaintyMs?.let { it >= 0L } != true ||
-			wal.acquiredAtMs != wal.wallTimeMs ||
-			wal.createdAtMs < 0L ||
-			!wal.hasCanonicalQuality()
-		) {
+		if (hasMalformedProviderEnvelope(wal)) {
 			return rejected(StepsWalCarrierFailure.MALFORMED_PROVIDER_ENVELOPE)
 		}
-		val payload = StepsWalPayloadCodec.decodeCanonical(wal.payloadVersion, wal.payload)
-			?: return rejected(StepsWalCarrierFailure.PAYLOAD_INVALID)
-		if (!payload.hasValidSourceSemantics(wal.payloadVersion)) {
-			return rejected(StepsWalCarrierFailure.PAYLOAD_INVALID)
-		}
-		if (
-			payload.bootClockDomainId != wal.clockDomainId ||
-			payload.windowStartElapsedRealtimeNanos != wal.observedIntervalStartNanos ||
-			payload.windowEndElapsedRealtimeNanos != wal.observedElapsedNanos
-		) {
-			return rejected(StepsWalCarrierFailure.MALFORMED_PROVIDER_ENVELOPE)
-		}
-		return StepsWalCarrierAuthentication.Authenticated(
-			AuthenticatedStepsWalCarrier(payload, countDomainProven = false),
-		)
+		return null
 	}
 
+	/**
+	 * Checks the Steps WAL envelope, then requires its current-format provider token to match the
+	 * supplied original count-domain owner.
+	 */
 	fun authenticate(
 		wal: SourceEventWalEntity,
 		walOwner: StepsCountDomainStoredOwner?,
@@ -242,6 +290,14 @@ object StepsWalCarrierAuthenticator {
 		if (authentication !is StepsWalCarrierAuthentication.Authenticated) {
 			return authentication
 		}
+		return authenticateCountDomain(wal, walOwner, authentication)
+	}
+
+	private fun authenticateCountDomain(
+		wal: SourceEventWalEntity,
+		walOwner: StepsCountDomainStoredOwner?,
+		authentication: StepsWalCarrierAuthentication.Authenticated,
+	): StepsWalCarrierAuthentication {
 		if (wal.payloadVersion < STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION) {
 			return rejected(StepsWalCarrierFailure.COUNT_DOMAIN_UNPROVEN)
 		}
@@ -255,6 +311,12 @@ object StepsWalCarrierAuthenticator {
 		)
 	}
 
+	/**
+	 * Checks the saved Steps revision against its original WAL carrier, ownership, measured values
+	 * and supplied child/count-domain evidence.
+	 */
+	// Keep carrier, count-domain and saved-fact rejection precedence visible.
+	@Suppress("ReturnCount")
 	fun authenticate(
 		fact: StepFactRevisionEntity,
 		wal: SourceEventWalEntity,
@@ -262,41 +324,14 @@ object StepsWalCarrierAuthenticator {
 		factOwner: StepsCountDomainStoredOwner?,
 	): StepsWalCarrierAuthentication {
 		val rawAuthentication = authenticate(wal)
-		if (rawAuthentication !is StepsWalCarrierAuthentication.Authenticated) return rawAuthentication
-		val token = rawAuthentication.carrier.payload.counterDomainToken
-		val authentication = if (
-			wal.payloadVersion < STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION ||
-			token == null
-		) {
-			if (
-				(
-					wal.payloadVersion >= STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION &&
-						rawAuthentication.carrier.payload.boundaryKind !=
-						StepsWalBoundaryKind.COUNTER_RESET
-					) ||
-				!walOwner.authenticatesUnprovenWal(wal)
-			) {
-				return rejected(StepsWalCarrierFailure.COUNT_DOMAIN_UNPROVEN)
-			}
-			rawAuthentication
-		} else {
-			when (val proven = authenticate(wal, walOwner)) {
-				is StepsWalCarrierAuthentication.Authenticated -> proven
-				is StepsWalCarrierAuthentication.Rejected -> return proven
-			}
+		if (rawAuthentication !is StepsWalCarrierAuthentication.Authenticated) {
+			return rawAuthentication
 		}
-		if (
-			fact.sourceEventId != wal.eventId ||
-			fact.sourceAdmissionOrdinal != wal.admissionOrdinal ||
-			fact.logicalTrackingId != wal.logicalTrackingId ||
-			fact.serviceRunId != wal.serviceRunId ||
-			fact.sourcePolicyRevision != wal.sourcePolicyRevision ||
-			fact.captureConsentEpoch != wal.captureConsentEpoch ||
-			fact.manifestRevision != wal.sessionManifestRevision ||
-			fact.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
-			fact.clockDomainId != wal.clockDomainId ||
-			fact.bootClockDomainId != authentication.carrier.payload.bootClockDomainId
-		) {
+		val authentication = authenticateFactCountDomain(wal, walOwner, rawAuthentication)
+		if (authentication !is StepsWalCarrierAuthentication.Authenticated) {
+			return authentication
+		}
+		if (hasMismatchedFactLink(fact, wal, authentication.carrier.payload)) {
 			return rejected(StepsWalCarrierFailure.FACT_LINKAGE_MISMATCH)
 		}
 		if (!fact.matches(authentication.carrier.payload, wal)) {
@@ -316,6 +351,39 @@ object StepsWalCarrierAuthenticator {
 		return authentication
 	}
 
+	private fun authenticateFactCountDomain(
+		wal: SourceEventWalEntity,
+		walOwner: StepsCountDomainStoredOwner?,
+		rawAuthentication: StepsWalCarrierAuthentication.Authenticated,
+	): StepsWalCarrierAuthentication {
+		val token = rawAuthentication.carrier.payload.counterDomainToken
+		return if (
+			wal.payloadVersion < STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION ||
+			token == null
+		) {
+			if (
+				(
+					wal.payloadVersion >= STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION &&
+						rawAuthentication.carrier.payload.boundaryKind !=
+						StepsWalBoundaryKind.COUNTER_RESET
+					) ||
+				!walOwner.authenticatesUnprovenWal(wal)
+			) {
+				return rejected(StepsWalCarrierFailure.COUNT_DOMAIN_UNPROVEN)
+			}
+			rawAuthentication
+		} else {
+			when (val proven = authenticateCountDomain(wal, walOwner, rawAuthentication)) {
+				is StepsWalCarrierAuthentication.Authenticated -> proven
+				is StepsWalCarrierAuthentication.Rejected -> return proven
+			}
+		}
+	}
+
+	/**
+	 * Returns whether the saved Steps fact and supplied original carrier pass the complete carrier
+	 * comparison.
+	 */
 	fun authenticates(
 		fact: StepFactRevisionEntity,
 		wal: SourceEventWalEntity,
@@ -325,6 +393,43 @@ object StepsWalCarrierAuthenticator {
 		authenticate(fact, wal, walOwner, factOwner) is StepsWalCarrierAuthentication.Authenticated
 }
 
+// One saved provider envelope: each field and its null guard remain in original short-circuit order.
+@Suppress("CyclomaticComplexMethod")
+private fun hasMalformedProviderEnvelope(wal: SourceEventWalEntity): Boolean =
+	wal.providerDedupKey.isNullOrBlank() ||
+		wal.deliveryIdentity != null ||
+		wal.deliveryUnitIndex != null ||
+		wal.deliveryUnitCount != null ||
+		wal.activityAutomationEpoch != null ||
+		wal.sourceSequence < 0L ||
+		wal.observedIntervalStartNanos?.let { it >= 0L } != true ||
+		wal.observedElapsedNanos < requireNotNull(wal.observedIntervalStartNanos) ||
+		wal.receivedElapsedNanos < wal.observedElapsedNanos ||
+		wal.receivedWallTimeMs?.let { it < 0L } == true ||
+		wal.wallTimeMs?.let { it >= 0L } != true ||
+		wal.wallTimeUncertaintyMs?.let { it >= 0L } != true ||
+		wal.acquiredAtMs != wal.wallTimeMs ||
+		wal.createdAtMs < 0L ||
+		!wal.hasCanonicalQuality()
+
+private fun hasMismatchedFactLink(
+	fact: StepFactRevisionEntity,
+	wal: SourceEventWalEntity,
+	payload: StepsWalPayload,
+): Boolean =
+	fact.sourceEventId != wal.eventId ||
+		fact.sourceAdmissionOrdinal != wal.admissionOrdinal ||
+		fact.logicalTrackingId != wal.logicalTrackingId ||
+		fact.serviceRunId != wal.serviceRunId ||
+		fact.sourcePolicyRevision != wal.sourcePolicyRevision ||
+		fact.captureConsentEpoch != wal.captureConsentEpoch ||
+		fact.manifestRevision != wal.sessionManifestRevision ||
+		fact.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
+		fact.clockDomainId != wal.clockDomainId ||
+		fact.bootClockDomainId != payload.bootClockDomainId
+
+// Validates one immutable counter payload against its existing version and boundary shape.
+@Suppress("CyclomaticComplexMethod")
 private fun StepsWalPayload.hasValidSourceSemantics(payloadVersion: Int): Boolean {
 	if (
 		bootClockDomainId.isBlank() ||
@@ -353,7 +458,8 @@ private fun StepsWalPayload.hasValidSourceSemantics(payloadVersion: Int): Boolea
 	}
 }
 
-@Suppress("ComplexCondition")
+// One serialized source-window-to-fact correspondence.
+@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 private fun StepFactRevisionEntity.matches(
 	payload: StepsWalPayload,
 	wal: SourceEventWalEntity,
@@ -362,7 +468,11 @@ private fun StepFactRevisionEntity.matches(
 	val durationMs =
 		(payload.windowEndElapsedRealtimeNanos - payload.windowStartElapsedRealtimeNanos) /
 			NANOS_PER_MILLISECOND
-	val startTimeMs = if (durationMs > endTimeMs) 0L else endTimeMs - durationMs
+	val startTimeMs = if (durationMs > endTimeMs) {
+		0L
+	} else {
+		endTimeMs - durationMs
+	}
 	val expectedCoverage = when (payload.boundaryKind) {
 		StepsWalBoundaryKind.BASELINE -> StepFactRevisionEntity.COVERAGE_BASELINE
 		StepsWalBoundaryKind.COVERED -> StepFactRevisionEntity.COVERAGE_COVERED
@@ -386,6 +496,9 @@ private fun StepFactRevisionEntity.matches(
 		appliedAtMs == endTimeMs
 }
 
+// A complete three-object join predicate belongs together so the count-domain receipt cannot be accidentally
+// borrowed from another WAL.
+@Suppress("CyclomaticComplexMethod")
 private fun StepsCountDomainStoredOwner?.authenticatesWal(
 	wal: SourceEventWalEntity,
 	token: StepsCounterDomainToken,
@@ -418,6 +531,8 @@ private fun StepsCountDomainStoredOwner?.authenticatesWal(
 		receipt.effectChecksum == wal.integrityIdentity
 }
 
+// One exact fact-to-WAL count-domain linkage, including absent receipts and unsupported coverage.
+@Suppress("CyclomaticComplexMethod", "ReturnCount")
 private fun StepsCountDomainStoredOwner?.authenticatesFact(
 	fact: StepFactRevisionEntity,
 	walOwner: StepsCountDomainStoredOwner,
@@ -506,6 +621,8 @@ private fun StepsCountDomainStoredOwner?.authenticatesUnprovenFact(
 		stored.completenessMarker == null
 }
 
+// Compares the immutable owner/receipt tuple and its existing deterministic receipt integrity.
+@Suppress("CyclomaticComplexMethod")
 private fun StepsCountDomainStoredOwner.isAuthenticBinding(): Boolean {
 	val receipt = receipt ?: return false
 	return owner.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_BIND &&
@@ -524,7 +641,7 @@ private val StepsWalBoundaryKind.wireCode: Int
 	get() = when (this) {
 		StepsWalBoundaryKind.BASELINE -> 1
 		StepsWalBoundaryKind.COVERED -> 2
-		StepsWalBoundaryKind.COUNTER_RESET -> 3
+		StepsWalBoundaryKind.COUNTER_RESET -> STEP_COUNTER_RESET_WIRE_CODE
 		StepsWalBoundaryKind.LEGACY_AMBIGUOUS ->
 			throw IllegalArgumentException("Legacy ambiguous Steps has no stable boundary wire code")
 	}
@@ -537,3 +654,5 @@ private const val NANOS_PER_MILLISECOND = 1_000_000L
 private const val STEP_BOUNDARY_KIND_PAYLOAD_VERSION = 3
 private const val STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION = 6
 private const val STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION = 7
+
+private const val STEP_COUNTER_RESET_WIRE_CODE = 3

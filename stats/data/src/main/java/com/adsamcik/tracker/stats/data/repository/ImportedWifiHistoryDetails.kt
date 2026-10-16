@@ -18,7 +18,9 @@ internal suspend fun AppDatabase.withImportedWifiDetails(
 	publicEntry: WifiHistoryEntry,
 ): WifiHistoryEntry {
 	val readable = evaluation as? ImportedWifiProductEvaluation.Readable ?: return publicEntry
-	if (publicEntry.observations.isEmpty()) return publicEntry
+	if (publicEntry.observations.isEmpty()) {
+		return publicEntry
+	}
 	val retained = readable.retainedObservationIdentities
 	val visible = readable.entry.runs.filterNot { it.identity in readable.deletedRunIdentities }
 		.flatMap { run -> run.observations.filter { it.identity in retained }.map { run to it } }
@@ -33,9 +35,11 @@ internal suspend fun AppDatabase.withImportedWifiDetails(
 			currentCoroutineContext().ensureActive()
 			rows += importedRadioChildDao().wifiSessionChildrenForObservations(readable.entry.identity.value,
 				readable.candidate.importRevision, runIdentity, ids, MAX_IMPORTED_WIFI_DETAILS - rows.size + 1)
-			if (rows.size > MAX_IMPORTED_WIFI_DETAILS) return publicEntry.copy(
+			if (rows.size > MAX_IMPORTED_WIFI_DETAILS) {
+				return publicEntry.copy(
 				state = WifiHistoryProductState.FAILED, coverage = WifiHistoryCoverage.NONE,
 				observations = emptyList(), causes = setOf(WifiHistoryCause.READ_BUDGET_EXCEEDED))
+			}
 		}
 	}
 	// An imported correction can retain children for a run or observation that was later erased.
@@ -70,7 +74,8 @@ internal suspend fun AppDatabase.measuredImportedWifiChildren(
 	val owner = evaluation.entry.runs.singleOrNull { it.identity.value == runIdentity }
 	check(owner != null && owner.observations.singleOrNull { it.identity == parent.identity } == parent)
 	val rows = importedRadioChildDao().wifiSessionChildrenForObservations(evaluation.entry.identity.value,
-		evaluation.candidate.importRevision, runIdentity, listOf(parent.identity.value), Math.addExact(parent.observationCount, 1))
+		evaluation.candidate.importRevision, runIdentity, listOf(parent.identity.value),
+            Math.addExact(parent.observationCount, 1))
 	check(rows.size <= parent.observationCount && (rows.isEmpty() || rows.size == parent.observationCount))
 	check(rows.map { it.itemIndex }.distinct().size == rows.size)
 	rows.forEach { row -> validateImportedWifiChild(row, evaluation.entry.identity.value,
@@ -84,7 +89,8 @@ private fun validateImportedWifiChild(row: ImportedWifiChildEntity, entryIdentit
 	check(row.entryIdentity == entryIdentity && row.entryImportRevision == importRevision &&
 		row.runIdentity == runIdentity && row.observationIdentity == parent.identity.value)
 	check(row.itemIndex >= 0 && row.providerTimestampNanos > 0L && row.wallTimeUncertaintyMs >= 0L &&
-		row.observedWallTimeMs >= row.wallTimeUncertaintyMs && row.observedWallTimeMs - row.wallTimeUncertaintyMs >= parent.coverageStartTimeMs &&
+		row.observedWallTimeMs >= row.wallTimeUncertaintyMs &&
+            row.observedWallTimeMs - row.wallTimeUncertaintyMs >= parent.coverageStartTimeMs &&
 		row.observedWallTimeMs <= Long.MAX_VALUE - row.wallTimeUncertaintyMs &&
 		row.observedWallTimeMs + row.wallTimeUncertaintyMs <= parent.latestPossibleTimeMs)
 	check(row.contentChecksum == PortableRadioChildIntegrity.digest("wifi",

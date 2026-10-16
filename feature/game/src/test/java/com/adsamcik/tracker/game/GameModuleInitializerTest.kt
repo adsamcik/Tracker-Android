@@ -34,6 +34,7 @@ class GameModuleInitializerTest {
 		var drains = 0
 		every { repository.observeEvents(EpochMs(0L)) } returns events
 		every { gate.currentGeneration } returns 1L
+		every { gate.runtimeReadyChanges } returns kotlinx.coroutines.flow.flowOf(Unit)
 		coEvery { gate.reconcile(any()) } returns TrackingStartupResult.Blocked(
 			TrackingStartupStage.STORAGE,
 			"TEST_GATE_CLOSED",

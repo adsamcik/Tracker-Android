@@ -121,6 +121,11 @@ class PersistenceProcessorTest {
 		pendingSignalDao = mockk(relaxed = true)
 		pendingSignalClaimDao = mockk(relaxed = true)
 		sourceDestinationOwnerDao = mockk(relaxed = true)
+		// These parity cases exercise the unclaimed legacy radio destinations.
+		coEvery { sourceDestinationOwnerDao.get(SourceDestinationOwnerEntity.SOURCE_WIFI,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI) } returns null
+		coEvery { sourceDestinationOwnerDao.get(SourceDestinationOwnerEntity.SOURCE_CELL,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL) } returns null
 		durableBuffer = mockk(relaxed = true)
 
 		coEvery { locationDao.insert(any<Collection<LocationSample>>()) } returns emptyList()

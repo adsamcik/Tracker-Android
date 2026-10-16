@@ -160,4 +160,5 @@
     <string name="history_button_label">履歴</string>
     <string name="history_view_trip_on_map">移動を地図で表示</string>
     <string name="stats_heatmap_title">アクティビティ</string>
+    <string name="stats_recorded_partial_value">%1$s · 一部</string>
 </resources>

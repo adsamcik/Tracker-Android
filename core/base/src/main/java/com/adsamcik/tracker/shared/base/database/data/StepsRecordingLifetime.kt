@@ -3,7 +3,8 @@ package com.adsamcik.tracker.shared.base.database.data
 /** Source-local recording boundaries over an already authenticated complete native run timeline. */
 object StepsRecordingLifetime {
 	/** Quality may change, but the recording's source, permission, writer, run and clock may not. */
-	@Suppress("ComplexCondition")
+	// Keep this immutable pairwise field correspondence together; reference traversal remains separate.
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 	fun isContinuation(
 		origin: SessionManifestVersionEntity,
 		originBinding: SessionManifestSourceEntity,
@@ -35,20 +36,43 @@ object StepsRecordingLifetime {
 			!ordered.zipWithNext().all { (left, right) ->
 				left.manifestRevision != Long.MAX_VALUE && right.manifestRevision == left.manifestRevision + 1L
 			}
-		) return false
+		) {
+			return false
+		}
 		val byRevision = ordered.associateBy(SessionManifestVersionEntity::manifestRevision)
 		for ((index, manifest) in ordered.withIndex()) {
-			val binding = bindings[manifest.manifestRevision] ?: continue
-			if (!eligible(manifest, binding)) return false
-			val originRevision = binding.stepsRecordingManifestRevision ?: continue
-			if (originRevision == manifest.manifestRevision) continue
-			val previous = ordered.getOrNull(index - 1) ?: return false
-			if (bindings[previous.manifestRevision]?.stepsRecordingManifestRevision != originRevision) return false
-			val origin = byRevision[originRevision] ?: return false
-			val originBinding = bindings[originRevision] ?: return false
-			if (!isContinuation(origin, originBinding, manifest, binding)) return false
+			if (!hasValidRecordingReference(manifest, index, ordered, byRevision, bindings)) {
+				return false
+			}
 		}
 		return true
+	}
+
+	/** Resolves one manifest's origin against its immediate predecessor and retained run. */
+	// Ordered rejection guards keep each missing reference visible without nested branches.
+	@Suppress("ReturnCount")
+	private fun hasValidRecordingReference(
+		manifest: SessionManifestVersionEntity,
+		index: Int,
+		ordered: List<SessionManifestVersionEntity>,
+		byRevision: Map<Long, SessionManifestVersionEntity>,
+		bindings: Map<Long, SessionManifestSourceEntity>,
+	): Boolean {
+		val binding = bindings[manifest.manifestRevision] ?: return true
+		if (!eligible(manifest, binding)) {
+			return false
+		}
+		val originRevision = binding.stepsRecordingManifestRevision ?: return true
+		if (originRevision == manifest.manifestRevision) {
+			return true
+		}
+		val previous = ordered.getOrNull(index - 1) ?: return false
+		if (bindings[previous.manifestRevision]?.stepsRecordingManifestRevision != originRevision) {
+			return false
+		}
+		val origin = byRevision[originRevision] ?: return false
+		val originBinding = bindings[originRevision] ?: return false
+		return isContinuation(origin, originBinding, manifest, binding)
 	}
 
 	/** Prepares source-local bounds once for a retained run; invalid references have no authority. */
@@ -56,7 +80,9 @@ object StepsRecordingLifetime {
 		manifests: List<SessionManifestVersionEntity>,
 		bindings: Map<Long, SessionManifestSourceEntity>,
 	): Map<Long, LongRange>? {
-		if (!hasValidReferences(manifests, bindings)) return null
+		if (!hasValidReferences(manifests, bindings)) {
+			return null
+		}
 		val intervals = linkedMapOf<Long, LongRange>()
 		var nextManifest: SessionManifestVersionEntity? = null
 		var nextOrigin: Long? = null
@@ -71,7 +97,9 @@ object StepsRecordingLifetime {
 			if (binding != null && (origin == null || origin == manifest.manifestRevision)) {
 				val boundary = if (origin == null) {
 					nextManifest?.effectiveElapsedRealtimeNanos
-				} else nextRecordingBoundary
+				} else {
+					nextRecordingBoundary
+				}
 				intervals[manifest.manifestRevision] = manifest.effectiveElapsedRealtimeNanos..
 					(boundary?.minus(1L) ?: Long.MAX_VALUE)
 			}
@@ -89,7 +117,9 @@ object StepsRecordingLifetime {
 		manifests: List<SessionManifestVersionEntity>,
 		bindings: Map<Long, SessionManifestSourceEntity>,
 	): Boolean {
-		if (startElapsedNanos < 0L || endElapsedNanos < startElapsedNanos) return false
+		if (startElapsedNanos < 0L || endElapsedNanos < startElapsedNanos) {
+			return false
+		}
 		val bounds = validatedIntervals(manifests, bindings)?.get(originRevision) ?: return false
 		return startElapsedNanos in bounds && endElapsedNanos in bounds
 	}

@@ -36,7 +36,9 @@ class WifiCapturedFullClearTest {
 
 	@After
 	fun tearDown() {
-		if (::database.isInitialized) database.close()
+		if (::database.isInitialized) {
+			database.close()
+		}
 		context.deleteDatabase(DATABASE_NAME)
 	}
 
@@ -299,6 +301,8 @@ class WifiCapturedFullClearTest {
 		}
 	}
 
+	// Keep the complete immutable Wi-Fi aggregate/coverage revision fixture and its checksum together.
+	@Suppress("LongMethod")
 	private fun revision(
 		wal: SourceEventWalEntity,
 		aggregateOwner: WifiCapturedFactRevisionEntity? = null,
@@ -323,8 +327,12 @@ class WifiCapturedFullClearTest {
 			semanticRevision = 1L,
 			supersedesSemanticRevision = null,
 			mutationId = WifiCapturedFactRevisionIntegrity.mutationId(logicalFactId, 1L),
-			factKind = if (isAggregate) WifiCapturedFactRevisionEntity.FACT_KIND_AGGREGATE else
-				WifiCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY,
+			factKind = if (isAggregate) {
+				WifiCapturedFactRevisionEntity.FACT_KIND_AGGREGATE
+			} else
+				{
+				WifiCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY
+			},
 			aggregateOwnerLogicalFactId = aggregateOwner?.logicalFactId,
 			aggregateOwnerSemanticRevision = aggregateOwner?.semanticRevision,
 			aggregateOwnerCursorRevision = aggregateOwner?.semanticRevision,

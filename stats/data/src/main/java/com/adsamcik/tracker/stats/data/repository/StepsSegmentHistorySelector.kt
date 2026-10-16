@@ -15,6 +15,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
@@ -50,7 +51,9 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		segmentIds: List<Long>,
 	): Map<Long, HistoricalSegmentEvidence> = database.withTransaction {
 		val distinctIds = segmentIds.distinct()
-		if (distinctIds.isEmpty()) return@withTransaction emptyMap()
+		if (distinctIds.isEmpty()) {
+			return@withTransaction emptyMap()
+		}
 		require(distinctIds.size <= HISTORY_SEGMENT_BATCH_CAP) {
 			"At most $HISTORY_SEGMENT_BATCH_CAP distinct history rows may be selected per batch"
 		}
@@ -70,7 +73,9 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 	internal suspend fun selectManyInTransaction(
 		segments: List<SessionSegment>,
 	): List<HistoricalSegmentEvidence> {
-		if (segments.isEmpty()) return emptyList()
+		if (segments.isEmpty()) {
+			return emptyList()
+		}
 		val snapshot = loadStepsHistoryBatchSnapshot(database, segments)
 		return selectManyWithSnapshot(segments, snapshot)
 	}
@@ -80,35 +85,72 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 	internal suspend fun selectMeasuredFactsInTransaction(
 		segmentIds: List<Long>, identities: List<StepsFactCandidateIdentity>,
 	): Map<StepsFactCandidateIdentity, StepsMeasuredFactRead> {
-		require(segmentIds.size <= 100 && segmentIds.distinct().size == segmentIds.size)
-		require(identities.size <= 100 && identities.distinct().size == identities.size)
-		if (segmentIds.isEmpty() || identities.isEmpty()) return emptyMap()
+		require(segmentIds.isBoundedUniqueMeasuredStepsSelection())
+		require(identities.isBoundedUniqueMeasuredStepsSelection())
+		if (segmentIds.isEmpty() || identities.isEmpty()) {
+			return emptyMap()
+		}
 		val segments = database.trackingHistoryReadDao().segments(segmentIds)
-		if (segments.isEmpty()) return emptyMap()
+		if (segments.isEmpty()) {
+			return emptyMap()
+		}
 		val snapshot = loadStepsHistoryBatchSnapshot(database, segments, selectedFactStatesByRun = emptyMap())
 		val states = database.trackingHistoryReadDao().loadSelectedStepsFactCandidateStatesByRun(
 			snapshot.serviceRuns.values.toList(), identities)
+		// Healthy pages share one bounded carrier read. A damaged batch keeps the existing
+		// per-fact reads so unrelated measurements remain independently usable.
+		val batchCarrier = loadStepsCarrierAuthority(database, states.mapValues { it.value.values.toList() })
+			.takeIf { it.state == StepsCarrierAuthorityState.READY }
+		val failures = loadMeasuredTerminalFailures(states)
 		val results = linkedMapOf<StepsFactCandidateIdentity, StepsMeasuredFactRead>()
 		for ((runId, selected) in states) {
 			val segment = segments.singleOrNull { it.serviceRunId == runId } ?: continue
 			for ((identity, state) in selected) {
-				val byRun = mapOf(runId to listOf(state))
-				val carrier = loadStepsCarrierAuthority(database, byRun)
-				val originalOrdinal = state.scopeCarrier?.sourceAdmissionOrdinal
-				val terminalFailures = originalOrdinal?.let { ordinal ->
-					database.sourceProjectionStateDao().failure(identity.writerProjectionId,
-						identity.writerProjectionVersion.toInt(), ordinal)?.takeIf { it.terminal }
-				}?.let(::listOf).orEmpty()
-				val leaf = snapshot.copy(factStatesByRun = byRun, walByEventId = carrier.walByEventId,
-					countDomainOwners = carrier.countDomainOwners, carrierAuthorityState = carrier.state,
-					terminalFailures = terminalFailures)
-				val evidence = selectWithSnapshot(segment, leaf, measuredOnly = true)
+				val evidence = snapshot.selectMeasuredFact(segment, runId, identity, state, batchCarrier, failures)
 				val prior = results.put(identity, StepsMeasuredFactRead(segment, state.scopeCarrier, evidence.steps))
-				if (prior != null) results[identity] = StepsMeasuredFactRead(segment, null,
+				if (prior != null) {
+					results[identity] = StepsMeasuredFactRead(segment, null,
 					failed(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED))
+				}
 			}
 		}
 		return results
+	}
+
+	/** Qualify one original fact without making a damaged neighbour hide the rest of the page. */
+	private suspend fun StepsHistoryBatchSnapshot.selectMeasuredFact(
+		segment: SessionSegment,
+		runId: String,
+		identity: StepsFactCandidateIdentity,
+		state: StepsFactCandidateState,
+		batchCarrier: StepsCarrierAuthorityLoad?,
+		failures: Map<Triple<String, Int, Long>, SourceProjectionFailureEntity>,
+	): HistoricalSegmentEvidence {
+		val byRun = mapOf(runId to listOf(state))
+		val carrier = batchCarrier ?: loadStepsCarrierAuthority(database, byRun)
+		val originalOrdinal = state.scopeCarrier?.sourceAdmissionOrdinal
+		val terminalFailures = originalOrdinal?.let { ordinal ->
+			failures[Triple(identity.writerProjectionId, identity.writerProjectionVersion.toInt(), ordinal)]
+		}?.let(::listOf).orEmpty()
+		val leaf = copy(factStatesByRun = byRun, walByEventId = carrier.walByEventId,
+			countDomainOwners = carrier.countDomainOwners, carrierAuthorityState = carrier.state,
+			terminalFailures = terminalFailures)
+		return selectWithSnapshot(segment, leaf, measuredOnly = true)
+	}
+
+	private suspend fun loadMeasuredTerminalFailures(
+		states: Map<String, Map<StepsFactCandidateIdentity, StepsFactCandidateState>>,
+	): Map<Triple<String, Int, Long>, SourceProjectionFailureEntity> {
+		val failureKeys = states.values.flatMap { selected ->
+			selected.mapNotNull { (identity, state) ->
+				state.scopeCarrier?.sourceAdmissionOrdinal?.let { ordinal ->
+					Triple(identity.writerProjectionId, identity.writerProjectionVersion.toInt(), ordinal)
+				}
+			}
+		}.distinct()
+		return failureKeys.groupBy { it.first to it.second }.flatMap { (writer, keys) ->
+			database.sourceProjectionStateDao().terminalFailuresAt(writer.first, writer.second, keys.map { it.third })
+		}.associateBy { Triple(it.projectionId, it.projectionVersion, it.admissionOrdinal) }
 	}
 
 	/** Pure reuse seam for readers that already assembled one bounded Room snapshot. */
@@ -263,11 +305,13 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 					failed(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED),
 				)
 			}
-			if (!measuredOnly) return HistoricalSegmentEvidence(
+			if (!measuredOnly) {
+				return HistoricalSegmentEvidence(
 				segment,
 				captureAuthority,
 				unavailable(StepsHistoryReason.RETENTION_TRUNCATED_RUN),
 			)
+			}
 		}
 
 		val stepsBindings = sourcesByRevision.mapValues { (_, sources) ->
@@ -465,7 +509,9 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 				endElapsed !in recordingInterval ||
 				lane.activatedRolloutRevision > manifest.rolloutRevision ||
 				!snapshot.authenticatesExactCarrier(scope)
-		}) return failed(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED)
+		}) {
+			return failed(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED)
+		}
 		val canonicalRunFacts = rawFactStates.map { scoped -> requireNotNull(scoped.scopeCarrier) }
 		if (!measuredOnly && !StepFactRevisionIntegrity.hasValidCanonicalLiveWalRunTimeline(
 				canonicalRunFacts,
@@ -490,11 +536,21 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		}
 
 		val reasons = linkedSetOf<StepsHistoryReason>()
-		if (!captureCoveredWholeRun) reasons += StepsHistoryReason.CAPTURE_NOT_ENABLED_FOR_WHOLE_RUN
-		if (!serviceRunCompleted) reasons += StepsHistoryReason.SERVICE_RUN_ACTIVE
-		if (retentionCrossesSegment) reasons += StepsHistoryReason.RETENTION_CROSSES_SEGMENT
-		if (completeness.isEmpty()) reasons += StepsHistoryReason.COMPLETENESS_MISSING
-		if (completeness.any { !it.appDrainComplete }) reasons += StepsHistoryReason.APP_DRAIN_INCOMPLETE
+		if (!captureCoveredWholeRun) {
+			reasons += StepsHistoryReason.CAPTURE_NOT_ENABLED_FOR_WHOLE_RUN
+		}
+		if (!serviceRunCompleted) {
+			reasons += StepsHistoryReason.SERVICE_RUN_ACTIVE
+		}
+		if (retentionCrossesSegment) {
+			reasons += StepsHistoryReason.RETENTION_CROSSES_SEGMENT
+		}
+		if (completeness.isEmpty()) {
+			reasons += StepsHistoryReason.COMPLETENESS_MISSING
+		}
+		if (completeness.any { !it.appDrainComplete }) {
+			reasons += StepsHistoryReason.APP_DRAIN_INCOMPLETE
+		}
 		if (completeness.any { it.stopStatus != COMPLETE_STOP_STATUS }) {
 			reasons += StepsHistoryReason.STOP_INCOMPLETE
 		}
@@ -502,7 +558,9 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 				(it.unresolvedSequenceStart == null) != (it.unresolvedSequenceEnd == null) ||
 					it.unresolvedSequenceStart != null
 			}
-		) reasons += StepsHistoryReason.UNRESOLVED_PROVIDER_SEQUENCE
+		) {
+			reasons += StepsHistoryReason.UNRESOLVED_PROVIDER_SEQUENCE
+		}
 		if (completeness.any { it.providerCoverage != COMPLETE_PROVIDER_COVERAGE }) {
 			reasons += StepsHistoryReason.PROVIDER_COMPLETENESS_UNOBSERVABLE
 		}
@@ -516,8 +574,12 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 			reasons += StepsHistoryReason.FACTS_MISSING_FOR_ADMITTED_RUN
 		}
 		val laneCutoffOrdinal = lane.captureAdmissionCutoffOrdinal
-		val productTargetOrdinal = if (measuredOnly) facts.mapNotNull(StepFactRevisionEntity::sourceAdmissionOrdinal)
-			.maxOrNull() else targetOrdinal
+		val productTargetOrdinal = if (measuredOnly) {
+			facts.mapNotNull(StepFactRevisionEntity::sourceAdmissionOrdinal)
+			.maxOrNull()
+		} else {
+			targetOrdinal
+		}
 
 		val materialization = when {
 			productTargetOrdinal != null && productTargetOrdinal < lane.activationOrdinal -> {
@@ -676,23 +738,33 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 			) ||
 			lane.activatedRolloutRevision <= 0L || lane.activationOrdinal <= 0L ||
 			lane.installedAtMs < 0L || lane.updatedAtMs < lane.installedAtMs
-		) return false
+		) {
+			return false
+		}
 
 		val minimumCursor = lane.activationOrdinal - 1L
 		val cutoff = lane.captureAdmissionCutoffOrdinal
 		if (lane.contiguousAdmissionOrdinal < minimumCursor ||
 			(cutoff != null && (cutoff < minimumCursor || lane.contiguousAdmissionOrdinal > cutoff))
-		) return false
+		) {
+			return false
+		}
 		val terminalDisposition = lane.terminalDisposition
 		val terminalAtMs = lane.terminalAtMs
-		if ((terminalDisposition == null) != (terminalAtMs == null)) return false
+		if ((terminalDisposition == null) != (terminalAtMs == null)) {
+			return false
+		}
 
 		return when (lane.status) {
 			SourceProductProjectionLaneEntity.STATUS_ACTIVE ->
 				lane.retentionRequired && terminalDisposition == null
 			SourceProductProjectionLaneEntity.STATUS_RETIRED -> {
-				if (lane.retentionRequired) return false
-				if (terminalDisposition == null) return cutoff == null
+				if (lane.retentionRequired) {
+					return false
+				}
+				if (terminalDisposition == null) {
+					return cutoff == null
+				}
 				val terminalAt = terminalAtMs ?: return false
 				terminalDisposition ==
 					SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN &&
@@ -709,8 +781,12 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 	): StepsSegmentHistoryResult {
 		val positive = steps?.takeIf { it > 0 }?.toLong()
 		val reasons = linkedSetOf(StepsHistoryReason.LEGACY_REPLAY_UNVERIFIED)
-		if (positive == null) reasons += StepsHistoryReason.LEGACY_ZERO_UNVERIFIED
-		if (!captureCoveredWholeRun) reasons += StepsHistoryReason.CAPTURE_NOT_ENABLED_FOR_WHOLE_RUN
+		if (positive == null) {
+			reasons += StepsHistoryReason.LEGACY_ZERO_UNVERIFIED
+		}
+		if (!captureCoveredWholeRun) {
+			reasons += StepsHistoryReason.CAPTURE_NOT_ENABLED_FOR_WHOLE_RUN
+		}
 		return StepsSegmentHistoryResult(
 			count = positive,
 			availability = StepsHistoryAvailability.AVAILABLE,
@@ -787,7 +863,9 @@ internal data class StepsSegmentHistoryResult(
 ) {
 	init {
 		require(count == null || count >= 0L)
-		if (availability == StepsHistoryAvailability.DELETED) require(count == null)
+		if (availability == StepsHistoryAvailability.DELETED) {
+			require(count == null)
+		}
 		when (evidence) {
 			StepsHistoryEvidence.COVERED_ZERO -> require(count == 0L)
 			StepsHistoryEvidence.RECORDED,
@@ -859,3 +937,8 @@ internal data class StepsMeasuredFactRead(
     val fact: StepFactRevisionEntity?,
     val steps: StepsSegmentHistoryResult,
 )
+
+private fun List<*>.isBoundedUniqueMeasuredStepsSelection(): Boolean =
+	size <= MAX_MEASURED_STEPS_SELECTION && distinct().size == size
+
+private const val MAX_MEASURED_STEPS_SELECTION = 100

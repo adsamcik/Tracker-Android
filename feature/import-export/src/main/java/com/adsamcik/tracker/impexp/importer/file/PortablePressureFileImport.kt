@@ -69,9 +69,11 @@ internal class PortablePressureFileImport(
 			?: throw PortablePressureImportReceiptContextException()
 		val epoch = stream.requireOriginalDataEpoch()
 		val dependencies = dependenciesProvider(context)
-		if (dependencies.lifecycleStore.snapshot().epoch != epoch) return ImportResult(
+		if (dependencies.lifecycleStore.snapshot().epoch != epoch) {
+			return ImportResult(
 			failedCount = 1, errors = listOf("Import stopped because recorded data was cleared"),
 		)
+		}
 		var aggregate = ImportResult.EMPTY
 		try {
 			codec.decode(stream) { entry ->
@@ -170,7 +172,10 @@ internal object PortablePressureFileReceipt {
 			digest.update(value.toByteArray(Charsets.UTF_8))
 		}
 		return HASH_PREFIX + digest.digest().joinToString("") { byte ->
-			(byte.toInt() and 0xff).toString(16).padStart(2, '0')
+			(byte.toInt() and UNSIGNED_BYTE_MASK).toString(HEXADECIMAL_RADIX).padStart(2, '0')
 		}
 	}
 }
+
+private const val UNSIGNED_BYTE_MASK = 0xff
+private const val HEXADECIMAL_RADIX = 16

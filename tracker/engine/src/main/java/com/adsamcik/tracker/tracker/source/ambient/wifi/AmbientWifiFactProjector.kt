@@ -72,7 +72,8 @@ internal class AmbientWifiFactProjector @Inject constructor(
 		) {
 			return AmbientWifiProjectionResult.RetryableFailure
 		}
-		val wal = database.sourceEventWalDao().boundedPayloadByAdmissionOrdinal(admissionOrdinal, MAX_WIFI_WAL_PAYLOAD_BYTES)
+		val wal = database.sourceEventWalDao().boundedPayloadByAdmissionOrdinal(admissionOrdinal,
+            MAX_WIFI_WAL_PAYLOAD_BYTES)
 			?: return unverifiable(AmbientWifiProjectionUnverifiableReason.WAL_MISSING)
 		if (wal.sourceKind != SourceKind.WIFI.stableCode) {
 			return unverifiable(AmbientWifiProjectionUnverifiableReason.WRONG_SOURCE)
@@ -80,7 +81,8 @@ internal class AmbientWifiFactProjector @Inject constructor(
 		if (!wal.hasQualifiedIntegrity()) {
 			return unverifiable(AmbientWifiProjectionUnverifiableReason.WAL_INTEGRITY)
 		}
-		val sequence = database.sourceEventWalDao().identityBySourceSequence(wal.sourceKind, wal.sourceInstanceId, wal.sourceSequence)
+		val sequence = database.sourceEventWalDao().identityBySourceSequence(wal.sourceKind, wal.sourceInstanceId,
+            wal.sourceSequence)
 		if (wal.sourceSequence < 0L || sequence?.eventId != wal.eventId ||
 			sequence.admissionOrdinal != wal.admissionOrdinal || sequence.integrityIdentity != wal.integrityIdentity) {
 			return unverifiable(AmbientWifiProjectionUnverifiableReason.WAL_SHAPE)
@@ -88,11 +90,10 @@ internal class AmbientWifiFactProjector @Inject constructor(
 		val deliveryIdentity = wal.deliveryIdentity
 			?.takeIf(DIGEST::matches)
 			?: return unverifiable(AmbientWifiProjectionUnverifiableReason.DELIVERY_IDENTITY)
-		if (wal.deliveryUnitIndex != 0 || wal.deliveryUnitCount != 1 ||
-			wal.authorizationRevision == null ||
-			wal.authorizationFingerprint == null ||
-			wal.physicalConfigurationFingerprint == null
-		) {
+		if (wal.deliveryUnitIndex != 0 || wal.deliveryUnitCount != 1 || wal.authorizationRevision == null) {
+			return unverifiable(AmbientWifiProjectionUnverifiableReason.WAL_SHAPE)
+		}
+		if (wal.authorizationFingerprint == null || wal.physicalConfigurationFingerprint == null) {
 			return unverifiable(AmbientWifiProjectionUnverifiableReason.WAL_SHAPE)
 		}
 		val observedWallTimeMs = wal.wallTimeMs
@@ -128,7 +129,9 @@ internal class AmbientWifiFactProjector @Inject constructor(
 				.filter { it >= start && it < end && it <= wal.receivedElapsedNanos }
 				.takeIf { it.isNotEmpty() }
 				?: return unverifiable(AmbientWifiProjectionUnverifiableReason.REGISTRATION_MISMATCH)
-		} else null
+		} else {
+			null
+		}
 		val providerObservedStart = providerTimes?.minOrNull() ?: wal.observedElapsedNanos
 		val providerObservedEnd = providerTimes?.maxOrNull() ?: wal.observedElapsedNanos
 		val providerObservedWall = runCatching { Math.subtractExact(observedWallTimeMs,
@@ -154,20 +157,32 @@ internal class AmbientWifiFactProjector @Inject constructor(
 			wal, decodedWal, registrationAuthentication.interval.startInclusiveNanos,
 			registrationAuthentication.interval.endExclusiveNanos,
 		) ?: return unverifiable(AmbientWifiProjectionUnverifiableReason.AUTHORIZATION_MISMATCH)
-		val candidates = if (perReading) purposeItems.historicalMembers()
-			else purposeItems.callbackAuthorization.authorizedMembers
+		val candidates = if (perReading) {
+			purposeItems.historicalMembers()
+		}
+			else {
+			purposeItems.callbackAuthorization.authorizedMembers
+		}
 		val members = candidates.filter { member ->
 			member.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && member.persistenceEligible &&
 				member.logicalTrackingId == null && member.serviceRunId == null &&
 				(!perReading || purposeItems.forDemand(requireNotNull(member.demandId)).isNotEmpty())
 		}
-		if (members.isEmpty()) return AmbientWifiProjectionResult.NotAmbientEligible
-		if (!perReading && members.size != 1) return unverifiable(
+		if (members.isEmpty()) {
+			return AmbientWifiProjectionResult.NotAmbientEligible
+		}
+		if (!perReading && members.size != 1) {
+			return unverifiable(
 			AmbientWifiProjectionUnverifiableReason.AUTHORIZATION_MISMATCH)
+		}
 		val results = members.map { member ->
 			projectGroup(wal, decodedWal, lifecycle, member,
-				if (perReading) purposeItems.forDemand(requireNotNull(member.demandId))
-				else decodedWal.observations.indices.toList(), observedWallTimeMs)
+				if (perReading) {
+					purposeItems.forDemand(requireNotNull(member.demandId))
+				}
+				else {
+					decodedWal.observations.indices.toList()
+				}, observedWallTimeMs)
 		}
 		return results.singleOrNull() ?: AmbientWifiProjectionResult.Groups(results)
 	}
@@ -189,7 +204,11 @@ internal class AmbientWifiFactProjector @Inject constructor(
 		}
 		val purposeStart = requireNotNull(purposeTimes.minOrNull())
 		val purposeEnd = requireNotNull(purposeTimes.maxOrNull())
-		val policyTime = if (purposeDemandId != null) purposeStart else purposeEnd
+		val policyTime = if (purposeDemandId != null) {
+			purposeStart
+		} else {
+			purposeEnd
+		}
 		val purposeAgeNanos = wal.observedElapsedNanos - purposeEnd
 		if (purposeAgeNanos < 0L) {
 			return unverifiable(AmbientWifiProjectionUnverifiableReason.CLOCK_UNVERIFIABLE)
@@ -212,37 +231,30 @@ internal class AmbientWifiFactProjector @Inject constructor(
 		)
 		if (policyAuthority == null ||
 			policyAuthority.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE ||
-			policy == null ||
-			consent == null ||
-			!policy.hasExactEligibleAmbientConsentReference(consent) ||
-			!policy.isEffectiveAtOrBefore(
-				wal.clockDomainId,
-				policyTime,
-				purposeWallTimeMs,
-			) ||
-			!consent.isEffectiveAtOrBefore(
-				wal.clockDomainId,
-				policyTime,
-				purposeWallTimeMs,
-			)
-		) {
+			policy == null || consent == null) {
+			return unverifiable(AmbientWifiProjectionUnverifiableReason.POLICY_MISMATCH)
+		}
+		if (!policy.hasExactEligibleAmbientConsentReference(consent) ||
+			!policy.isEffectiveAtOrBefore(wal.clockDomainId, policyTime, purposeWallTimeMs) ||
+			!consent.isEffectiveAtOrBefore(wal.clockDomainId, policyTime, purposeWallTimeMs)) {
 			return unverifiable(AmbientWifiProjectionUnverifiableReason.POLICY_MISMATCH)
 		}
 		val authority = database.ambientWifiFactDao().authorityAt(
 			wal.clockDomainId,
 			purposeEnd,
 		)
-		if (authority == null ||
-			!AmbientWifiAuthorityIntegrity.isAuthentic(authority) ||
+		if (authority == null || !AmbientWifiAuthorityIntegrity.isAuthentic(authority) ||
 			authority.state != AmbientWifiAuthorityEntity.STATE_ACTIVE ||
-			authority.writerId != AmbientWifiFactRevisionEntity.WRITER_ID ||
-			authority.writerVersion != AmbientWifiFactRevisionEntity.WRITER_VERSION ||
+			authority.writerId != AmbientWifiFactRevisionEntity.WRITER_ID) {
+			return unverifiable(AmbientWifiProjectionUnverifiableReason.AMBIENT_AUTHORITY_MISMATCH)
+		}
+		if (authority.writerVersion != AmbientWifiFactRevisionEntity.WRITER_VERSION ||
 			authority.writerOwnerGeneration != FIRST_WRITER_OWNER_GENERATION ||
 			authority.sourcePolicyRevision != sourcePolicyRevision ||
-			authority.ambientConsentEpoch != ambientConsentEpoch ||
-			authority.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
-			authority.demandId != ambientMember.demandId
-		) {
+			authority.ambientConsentEpoch != ambientConsentEpoch) {
+			return unverifiable(AmbientWifiProjectionUnverifiableReason.AMBIENT_AUTHORITY_MISMATCH)
+		}
+		if (authority.collectedDataEpoch != wal.capturedCollectedDataEpoch || authority.demandId != ambientMember.demandId) {
 			return unverifiable(AmbientWifiProjectionUnverifiableReason.AMBIENT_AUTHORITY_MISMATCH)
 		}
 		val currentAuthority = database.ambientWifiFactDao().latestAuthority()
@@ -257,16 +269,17 @@ internal class AmbientWifiFactProjector @Inject constructor(
 			wal.clockDomainId,
 			purposeEnd,
 		)
-		if (retention == null ||
-			!AmbientWifiRetentionAuthorityIntegrity.isAuthentic(retention) ||
-			!retention.isActive ||
-			retention.approvalRevision != authority.retentionApprovalRevision ||
-			retention.opaquePolicyId != authority.retentionPolicyId ||
+		if (retention == null || !AmbientWifiRetentionAuthorityIntegrity.isAuthentic(retention) ||
+			!retention.isActive || retention.approvalRevision != authority.retentionApprovalRevision) {
+			return unverifiable(AmbientWifiProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH)
+		}
+		if (retention.opaquePolicyId != authority.retentionPolicyId ||
 			retention.sourcePolicyRevision != sourcePolicyRevision ||
 			retention.ambientConsentEpoch != ambientConsentEpoch ||
-			retention.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
-			retention.retainedFromMs != lifecycle.retainedFromMs
-		) {
+			retention.collectedDataEpoch != wal.capturedCollectedDataEpoch) {
+			return unverifiable(AmbientWifiProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH)
+		}
+		if (retention.retainedFromMs != lifecycle.retainedFromMs) {
 			return unverifiable(AmbientWifiProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH)
 		}
 		val currentRetention = database.ambientWifiFactDao().latestRetentionAuthority(
@@ -291,7 +304,10 @@ internal class AmbientWifiFactProjector @Inject constructor(
 		if (currentAuthority.scopeDeletionGeneration != currentDeletionGeneration) {
 			return unverifiable(AmbientWifiProjectionUnverifiableReason.DELETED_SCOPE)
 		}
-		val acceptedIndexes = if (purposeDemandId == null) purposeIndexes else purposeIndexes.filter { index ->
+		val acceptedIndexes = if (purposeDemandId == null) {
+			purposeIndexes
+		} else {
+			purposeIndexes.filter { index ->
 			val time = decodedWal.observations[index].providerTimestampNanos ?: return@filter false
 			val age = wal.observedElapsedNanos - time
 			val wallTime = runCatching {
@@ -303,7 +319,10 @@ internal class AmbientWifiFactProjector @Inject constructor(
 				retention.retainedFromMs?.let { wallTime >= it } != false &&
 				lifecycle.retainedFromMs?.let { wallTime >= it } != false
 		}
-		if (acceptedIndexes.isEmpty()) return AmbientWifiProjectionResult.NotAmbientEligible
+		}
+		if (acceptedIndexes.isEmpty()) {
+			return AmbientWifiProjectionResult.NotAmbientEligible
+		}
 		val acceptedTimes = acceptedIndexes.map { index ->
 			decodedWal.observations[index].providerTimestampNanos
 				?: return unverifiable(AmbientWifiProjectionUnverifiableReason.PAYLOAD_UNVERIFIABLE)
@@ -321,8 +340,16 @@ internal class AmbientWifiFactProjector @Inject constructor(
 		val acceptedWallUncertaintyMs = runCatching {
 			Math.addExact(wal.wallTimeUncertaintyMs ?: 0L,
 				if (wal.payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
-					if (acceptedTimes.any { (wal.observedElapsedNanos - it) % NANOS_PER_MILLISECOND != 0L }) 1L else 0L
-				} else if (acceptedAgeNanos % NANOS_PER_MILLISECOND == 0L) 0L else 1L)
+					if (acceptedTimes.any { (wal.observedElapsedNanos - it) % NANOS_PER_MILLISECOND != 0L }) {
+						1L
+					} else {
+						0L
+					}
+				} else if (acceptedAgeNanos % NANOS_PER_MILLISECOND == 0L) {
+					0L
+				} else {
+					1L
+				})
 		}.getOrNull()
 			?: return unverifiable(AmbientWifiProjectionUnverifiableReason.CLOCK_UNVERIFIABLE)
 		val payload = runCatching {
@@ -464,12 +491,16 @@ internal class AmbientWifiFactProjector @Inject constructor(
 		val children = if (wal.payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
 			WifiPurposeChildren.background(fact, wal, acceptedIndexes)
 				?: return unverifiable(AmbientWifiProjectionUnverifiableReason.PAYLOAD_UNVERIFIABLE)
-		} else emptyList()
+		} else {
+			emptyList()
+		}
 		if (wal.payloadVersion == WIFI_WAL_PAYLOAD_VERSION && children.size != aggregate.observationCount) {
 			return unverifiable(AmbientWifiProjectionUnverifiableReason.PAYLOAD_UNVERIFIABLE)
 		}
 		check(dao.insertRevision(fact) != -1L)
-		if (children.isNotEmpty()) database.radioObservationChildDao().insertWifiBackground(children)
+		if (children.isNotEmpty()) {
+			database.radioObservationChildDao().insertWifiBackground(children)
+		}
 		val cursor = AmbientWifiFactCursorEntity(
 			fact.writerId,
 			fact.writerVersion,
@@ -553,7 +584,9 @@ internal class AmbientWifiFactProjector @Inject constructor(
 				val points = indexes.map { index -> payload.accessPoints.getOrNull(index) ?: return null }
 				if (points.isEmpty() || points.any {
 						it.providerTimestampNanos == null || it.providerTimestampNanos <= 0L
-					}) return null
+					}) {
+					return null
+				}
 				val frequencies = points.map { it.frequencyMhz }
 				val signals = points.map { it.signalLevelDbm }
 				return AmbientWifiAggregate(
@@ -573,7 +606,9 @@ internal class AmbientWifiFactProjector @Inject constructor(
 	}
 
 	private fun AmbientWifiFactRevisionEntity.toAggregate(): AmbientWifiAggregate? {
-		if (factKind != AmbientWifiFactRevisionEntity.FACT_KIND_AGGREGATE) return null
+		if (factKind != AmbientWifiFactRevisionEntity.FACT_KIND_AGGREGATE) {
+			return null
+		}
 		return AmbientWifiAggregate(
 			requireNotNull(observationCount),
 			requireNotNull(twoPointFourGhzCount),

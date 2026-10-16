@@ -7,6 +7,9 @@ import androidx.room.Upsert
 import com.adsamcik.tracker.shared.base.database.data.LocationProjectionObservationEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationProjectionPointEntity
 
+/**
+ * Location projection event identity used to page retention cleanup without reading coordinates.
+ */
 data class LocationProjectionRetentionRef(
 	@ColumnInfo(name = "event_id") val eventId: String,
 )
@@ -34,6 +37,10 @@ interface LocationProjectionDao {
 	@Query("SELECT * FROM location_projection_point WHERE event_id = :eventId")
 	suspend fun point(eventId: String): LocationProjectionPointEntity?
 
+	/**
+	 * Reads `location_projection_observation` rows. Query conditions include `event_id >
+	 * :afterEventId`. Orders by `event_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"""
 		SELECT event_id FROM location_projection_observation
@@ -85,6 +92,10 @@ interface LocationProjectionDao {
 	@Query("DELETE FROM location_projection_observation WHERE wall_time_ms < :beforeMs")
 	suspend fun deleteObservationsOlderThan(beforeMs: Long): Int
 
+	/**
+	 * Deletes `location_projection_observation` rows matching the supplied scope. Query conditions
+	 * include `event_id IN (:eventIds)`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM location_projection_observation WHERE event_id IN (:eventIds)")
 	suspend fun deleteObservationsByEventIds(eventIds: List<String>): Int
 

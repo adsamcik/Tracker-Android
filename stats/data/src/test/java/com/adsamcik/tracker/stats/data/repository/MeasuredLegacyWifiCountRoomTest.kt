@@ -67,14 +67,18 @@ class MeasuredLegacyWifiCountRoomTest {
             val keys = database.withTransaction { reader.candidates(HistorySource.WIFI, selected, after) }
             assertTrue(keys.size <= 101)
             val consumed = keys.take(100)
-            if (consumed.isEmpty()) break
+            if (consumed.isEmpty()) {
+                break
+            }
             assertTrue(++pages <= 43)
             assertTrue(consumed.zipWithNext().all { (a, b) -> measuredHistoryPosition(a) < measuredHistoryPosition(b) })
             val read = database.withTransaction { reader.qualifyBackgroundAndLegacy(HistorySource.WIFI, consumed, selected) }
             assertEquals(consumed.size, read.rows.size); assertTrue(read.problems.isEmpty())
             ids += read.rows.keys.map { it.stableId }
             after = measuredHistoryPosition(consumed.last())
-            if (keys.size <= 100) break
+            if (keys.size <= 100) {
+                break
+            }
         }
         assertEquals(4_201, ids.size); assertEquals(4_201, ids.distinct().size)
     }

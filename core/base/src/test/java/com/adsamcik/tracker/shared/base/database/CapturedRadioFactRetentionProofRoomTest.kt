@@ -175,6 +175,8 @@ class CapturedRadioFactRetentionProofRoomTest {
 		currentRetainedFromMs = proof.retainedFromMs,
 	)
 
+	// Keep the complete retained radio row and its checksum together as one fixture value.
+	@Suppress("LongMethod")
 	private fun proof(
 		sourceKind: Int,
 		eventId: String,
@@ -212,7 +214,11 @@ class CapturedRadioFactRetentionProofRoomTest {
 			mutationId = mutationId,
 			factEffectChecksum = "3".repeat(64),
 			sourceEventId = eventId,
-			sourceAdmissionOrdinal = if (sourceKind == SourceDestinationOwnerEntity.SOURCE_CELL) 1L else 2L,
+			sourceAdmissionOrdinal = if (sourceKind == SourceDestinationOwnerEntity.SOURCE_CELL) {
+				1L
+			} else {
+				2L
+			},
 			walIntegrityIdentity = "4".repeat(64),
 			sourcePolicyRevision = 1L,
 			captureConsentEpoch = 1L,
@@ -230,7 +236,11 @@ class CapturedRadioFactRetentionProofRoomTest {
 			cursorMutationId = mutationId,
 			cursorEffectChecksum = "3".repeat(64),
 			cursorSourceAdmissionOrdinal =
-				if (sourceKind == SourceDestinationOwnerEntity.SOURCE_CELL) 1L else 2L,
+				if (sourceKind == SourceDestinationOwnerEntity.SOURCE_CELL) {
+					1L
+				} else {
+					2L
+				},
 			cursorUpdatedAtMs = 10L,
 			aggregateOwnerLogicalFactId = null,
 			aggregateOwnerSemanticRevision = null,

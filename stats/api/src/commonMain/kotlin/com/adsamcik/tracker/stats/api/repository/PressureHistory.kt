@@ -4,8 +4,15 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
 
 /** Result of resolving Pressure history for one exact local session-segment row. */
 sealed interface PressureSessionHistoryQuery {
+	/**
+	 * No matching saved source entry or selection remains.
+	 */
 	data object NotFound : PressureSessionHistoryQuery
 
+	/**
+	 * Contains the selected saved source product; its payload preserves current qualification and
+	 * coverage.
+	 */
 	data class Found(
 		val history: PressureSessionHistory,
 	) : PressureSessionHistoryQuery
@@ -153,8 +160,19 @@ enum class PressureHistoryCause {
 	IMPORTED_DEPENDENCY_OVERFLOW,
 }
 
+/**
+ * Sensor-reported Pressure accuracy class with explicit unknown and unreliable states.
+ */
 enum class PressureSensorAccuracy { UNKNOWN, UNRELIABLE, LOW, MEDIUM, HIGH }
+/**
+ * Whether the saved Pressure aggregation ended at its target duration or a source lifecycle
+ * boundary.
+ */
 enum class PressureWindowClosure { TARGET_ELAPSED, SOURCE_BOUNDARY }
+/**
+ * Complete target-window coverage or a partial Pressure aggregation; no missing samples are
+ * invented.
+ */
 enum class PressureWindowQualification { COMPLETE, PARTIAL }
 
 /**
@@ -218,7 +236,11 @@ data class PressureHistoryWindow(
 		get() = sampleCount.toDouble() / expectedSampleCount.toDouble()
 
 	val sampleVarianceHectopascalsSquared: Double?
-		get() = if (sampleCount > 1) sumSquaredDeviations / (sampleCount - 1).toDouble() else null
+		get() = if (sampleCount > 1) {
+			sumSquaredDeviations / (sampleCount - 1).toDouble()
+		} else {
+			null
+		}
 }
 
 /** A contained summary that exists only when at least one real Pressure window exists. */

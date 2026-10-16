@@ -65,12 +65,12 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -100,11 +100,13 @@ class AdmittedMotionAdaptiveReplanCompositionTest {
 	private var reconfigurationCount = 0
 	private var ordinal = 0L
 	private val outcomes = mutableListOf<SourceSessionReconfigureOutcome>()
+	private val observedProfile = MutableStateFlow<CollectionAcquisitionProfile?>(null)
 
 	@Before
 	fun setUp() {
 		val application: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(application)
+		observedProfile.value = null
 		motion = CollectionMotionController().also { it.configureScope("collection", BOOT, 0L) }
 		ingress = mockk()
 		coEvery { ingress.admit(any()) } answers {
@@ -123,7 +125,9 @@ class AdmittedMotionAdaptiveReplanCompositionTest {
 		)
 		coEvery { store.read() } answers { ActiveTrackingSessionStoreResult.Success(descriptor) }
 		coEvery { store.replaceExact(any(), any()) } answers {
-			if (firstArg<ActiveTrackingSessionDescriptor>() == descriptor) descriptor = secondArg()
+			if (firstArg<ActiveTrackingSessionDescriptor>() == descriptor) {
+				descriptor = secondArg()
+			}
 			ActiveTrackingSessionStoreResult.Success(descriptor)
 		}
 		coEvery { lifecycle.start(any()) } coAnswers {
@@ -159,12 +163,12 @@ class AdmittedMotionAdaptiveReplanCompositionTest {
 	fun `admitted sessionless Steps restore owner plans from stationary without changing Steps request`() = runTest {
 		startAndObserve(settings())
 		makeStationary()
-		runCurrent()
+		awaitCurrentProfile()
 		assertStationaryOwners()
 		val cheapSteps = latestSteps().copy(revision = 0L)
 
 		sink.admit(candidate(steps(), seconds(101), 3L))
-		runCurrent()
+		awaitCurrentProfile()
 
 		motion.policy.value.motionState shouldBe CollectionMotionState.PEDESTRIAN
 		assertMovingOwners()
@@ -177,12 +181,12 @@ class AdmittedMotionAdaptiveReplanCompositionTest {
 	fun `admitted Location speed restores live radio plans while unchosen Activity stays off`() = runTest {
 		startAndObserve(settings())
 		makeStationary()
-		runCurrent()
+		awaitCurrentProfile()
 
 		sink.admit(candidate(
 			LocationFixPayload(50.0, 14.0, 5f, null, null, 8f, null, "gps"), seconds(101), 3L,
 		).copy(locationSpeedAccuracyMetersPerSecond = 0.5f))
-		runCurrent()
+		awaitCurrentProfile()
 
 		motion.policy.value.motionState shouldBe CollectionMotionState.VEHICLE
 		assertMovingOwners()
@@ -193,11 +197,11 @@ class AdmittedMotionAdaptiveReplanCompositionTest {
 	fun `admitted Activity transition restores live plans without enabling Activity capture`() = runTest {
 		startAndObserve(settings())
 		makeStationary()
-		runCurrent()
+		awaitCurrentProfile()
 
 		sink.admit(candidate(ActivityTransitionPayload(StableActivityTypeCode.WALKING, 0, seconds(101)),
 			seconds(101), 3L))
-		runCurrent()
+		awaitCurrentProfile()
 
 		motion.policy.value.motionState shouldBe CollectionMotionState.PEDESTRIAN
 		assertMovingOwners()
@@ -208,13 +212,13 @@ class AdmittedMotionAdaptiveReplanCompositionTest {
 	fun `rejected revoked source and stale replay cannot alter stationary plans`() = runTest {
 		startAndObserve(settings())
 		makeStationary()
-		runCurrent()
+		awaitCurrentProfile()
 		val previousPlans = owners.mapValues { it.value.plans.size }
 		val previousReconfigurations = reconfigurationCount
 		coEvery { ingress.admit(any()) } returns AdmissionResult.PermanentFailure(
 			AdmissionFailureCode.COLLECTION_SUPPRESSED)
 		sink.admit(candidate(steps(), seconds(101), 3L))
-		runCurrent()
+		awaitCurrentProfile()
 		coEvery { ingress.admit(any()) } returns AdmissionResult.Duplicate(SourceEventId("old-event"), 1L)
 		sink.admit(candidate(ActivityTransitionPayload(StableActivityTypeCode.IN_VEHICLE, 0, seconds(20)),
 			seconds(20), 1L))
@@ -224,7 +228,7 @@ class AdmittedMotionAdaptiveReplanCompositionTest {
 		sink.admit(candidate(LocationFixPayload(50.0, 14.0, 5f, null, null, 8f, null, "gps"),
 			seconds(10), 1L).copy(receivedElapsedRealtimeNanos = seconds(101),
 			locationSpeedAccuracyMetersPerSecond = 0.5f))
-		runCurrent()
+		awaitCurrentProfile()
 
 		assertStationaryOwners()
 		owners.mapValues { it.value.plans.size } shouldBe previousPlans
@@ -235,13 +239,13 @@ class AdmittedMotionAdaptiveReplanCompositionTest {
 	fun `provenance-only motion change and repeated policy tick do not reconfigure owners`() = runTest {
 		startAndObserve(settings())
 		sink.admit(candidate(steps(atSeconds = 1), seconds(1), 1L))
-		runCurrent()
+		awaitCurrentProfile()
 		val previousReconfigurations = reconfigurationCount
 		val previousPlans = owners.mapValues { it.value.plans.size }
 		sink.admit(candidate(ActivityTransitionPayload(StableActivityTypeCode.IN_VEHICLE, 0, seconds(2)),
 			seconds(2), 2L))
 		motion.tick(seconds(3))
-		runCurrent()
+		awaitCurrentProfile()
 		subject.reconfigure(inputs(settings(), motion.policy.value.acquisitionProfile)) shouldBe
 			SourceSessionReconfigureOutcome.Unchanged
 
@@ -254,9 +258,9 @@ class AdmittedMotionAdaptiveReplanCompositionTest {
 	fun `disabled Location and radio participation stay off while independent Steps hints remain useful`() = runTest {
 		startAndObserve(settings(location = false, radios = false))
 		makeStationary()
-		runCurrent()
+		awaitCurrentProfile()
 		sink.admit(candidate(steps(), seconds(101), 3L))
-		runCurrent()
+		awaitCurrentProfile()
 
 		latestSteps().enabled shouldBe true
 		listOf(SourceKind.LOCATION, SourceKind.WIFI, SourceKind.CELL, SourceKind.ACTIVITY,
@@ -269,10 +273,10 @@ class AdmittedMotionAdaptiveReplanCompositionTest {
 	fun `Location permission loss disables its request while admitted Steps restore radio siblings`() = runTest {
 		startAndObserve(settings())
 		makeStationary()
-		runCurrent()
+		awaitCurrentProfile()
 		constraints = constraints + (SourceKind.LOCATION to SourceConstraint(permissionGranted = false))
 		sink.admit(candidate(steps(), seconds(101), 3L))
-		runCurrent()
+		awaitCurrentProfile()
 
 		(owners.getValue(SourceKind.LOCATION).plans.last() as LocationPlan).mode shouldBe LocationMode.DISABLED
 		latestSteps().enabled shouldBe true
@@ -291,11 +295,18 @@ class AdmittedMotionAdaptiveReplanCompositionTest {
 			planInputs = inputs(settings, motion.policy.value.acquisitionProfile), ownerToken = "owner",
 		)).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
 		// Same profile selection used by TrackerService; the Android service lifecycle is not mocked as proven.
-		return backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+		val observer = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
 			motion.policy.map { it.acquisitionProfile }.distinctUntilChanged().collect { profile ->
 				outcomes += subject.reconfigure(inputs(settings, profile))
+				observedProfile.value = profile
 			}
 		}
+		awaitCurrentProfile()
+		return observer
+	}
+
+	private suspend fun awaitCurrentProfile() {
+		observedProfile.first { it == motion.policy.value.acquisitionProfile }
 	}
 
 	private suspend fun makeStationary() {
@@ -333,7 +344,9 @@ class AdmittedMotionAdaptiveReplanCompositionTest {
 			val claim = SourceRuntimeClaim(sourcePlan.source, "fixture-${plan.revision}", 1, plan.revision, LOGICAL, RUN)
 			val state = if (starting) {
 				registry.start(claim, sourcePlan, sink).shouldBeInstanceOf<SourceStartResult.Started>().applied
-			} else registry.reconfigure(claim, sourcePlan, sink).shouldBeInstanceOf<SourceApplyResult.Applied>().state
+			} else {
+				registry.reconfigure(claim, sourcePlan, sink).shouldBeInstanceOf<SourceApplyResult.Applied>().state
+			}
 			store.saveApplied(state, sourcePlan, plan.createdAtMs)
 			state
 		}

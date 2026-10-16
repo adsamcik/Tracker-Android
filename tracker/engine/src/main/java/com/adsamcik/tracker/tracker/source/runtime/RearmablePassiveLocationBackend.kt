@@ -1,8 +1,11 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
+import android.Manifest
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import android.location.Location
 import android.location.LocationManager
 import android.net.Uri
@@ -43,12 +46,17 @@ internal data class PassiveLocationIdentity(
 		private const val SCHEME = "tracker"
 		private const val AUTHORITY = "passive-location"
 		private const val VERSION = "v1"
+		private const val PATH_SEGMENT_COUNT = 7
 
+		// The fixed URI envelope is checked before any positional field is decoded.
+		@Suppress("ComplexCondition")
 		fun fromUri(uri: Uri?): PassiveLocationIdentity? = runCatching {
 			val candidate = uri ?: return null
 			if (candidate.scheme != SCHEME || candidate.authority != AUTHORITY ||
-				candidate.pathSegments.size != 7 || candidate.pathSegments[0] != VERSION ||
-				candidate.query != null || candidate.fragment != null) return null
+				candidate.pathSegments.size != PATH_SEGMENT_COUNT || candidate.pathSegments[0] != VERSION ||
+				candidate.query != null || candidate.fragment != null) {
+				return null
+			}
 			PassiveLocationIdentity(
 				backend = LocationBackend.valueOf(candidate.pathSegments[1]),
 				sourceInstanceId = candidate.pathSegments[2],
@@ -98,7 +106,9 @@ internal class RearmablePassiveLocationBackend internal constructor(
 	override suspend fun start(plan: LocationPlan, onLocations: (List<Location>) -> Unit): LocationBackendStartOutcome {
 		@Suppress("UNUSED_VARIABLE") val providerResultsArriveAtReceiver = onLocations
 		val identity = prepared ?: return LocationBackendStartOutcome.CLEANUP_REQUIRED
-		if (retained != null) return LocationBackendStartOutcome.BLOCKED_BY_RETAINED_REGISTRATION
+		if (retained != null) {
+			return LocationBackendStartOutcome.BLOCKED_BY_RETAINED_REGISTRATION
+		}
 		check(plan.physicalConfigurationFingerprint() == identity.fingerprint && plan.backend == identity.backend)
 		val pendingIntent = runCatching { pendingIntent(identity, create = true) }.getOrNull()
 			?: return LocationBackendStartOutcome.CLEANUP_REQUIRED
@@ -112,6 +122,8 @@ internal class RearmablePassiveLocationBackend internal constructor(
 			LocationBackendStartOutcome.STARTED
 		} catch (cancelled: CancellationException) {
 			throw cancelled
+		} catch (_: SecurityException) {
+			LocationBackendStartOutcome.CLEANUP_REQUIRED
 		} catch (_: Exception) {
 			LocationBackendStartOutcome.CLEANUP_REQUIRED
 		}
@@ -154,7 +166,11 @@ internal class RearmablePassiveLocationBackend internal constructor(
 		val intent = Intent(PassiveLocationIdentity.ACTION).setClass(context, PassiveLocationReceiver::class.java)
 			.setData(identity.uri())
 		val flags = PendingIntent.FLAG_MUTABLE or
-			(if (create) PendingIntent.FLAG_UPDATE_CURRENT else PendingIntent.FLAG_NO_CREATE)
+			(if (create) {
+				PendingIntent.FLAG_UPDATE_CURRENT
+			} else {
+				PendingIntent.FLAG_NO_CREATE
+			})
 		return PendingIntent.getBroadcast(context, 0, intent, flags)
 	}
 }
@@ -164,6 +180,13 @@ private fun androidOperations(context: Context): PassiveLocationOperations {
 	val framework = context.getSystemService(LocationManager::class.java)
 	return PassiveLocationOperations(
 		requestFused = { plan, pending ->
+			if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) !=
+				PackageManager.PERMISSION_GRANTED &&
+				ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) !=
+				PackageManager.PERMISSION_GRANTED
+			) {
+				throw SecurityException("Location permission is unavailable")
+			}
 			val request = LocationRequest.Builder(plan.requestedIntervalMs.coerceAtLeast(1L))
 				.setPriority(Priority.PRIORITY_PASSIVE)
 				.setMinUpdateIntervalMillis(plan.minimumUpdateIntervalMs.coerceAtLeast(0L))
@@ -173,6 +196,13 @@ private fun androidOperations(context: Context): PassiveLocationOperations {
 		},
 		removeFused = { pending -> fused.removeLocationUpdates(pending).await() },
 		requestFramework = { plan, pending ->
+			if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) !=
+				PackageManager.PERMISSION_GRANTED &&
+				ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) !=
+				PackageManager.PERMISSION_GRANTED
+			) {
+				throw SecurityException("Location permission is unavailable")
+			}
 			@Suppress("DEPRECATION")
 			framework.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER,
 				plan.requestedIntervalMs.coerceAtLeast(0L), plan.minimumDisplacementMeters.coerceAtLeast(0f),

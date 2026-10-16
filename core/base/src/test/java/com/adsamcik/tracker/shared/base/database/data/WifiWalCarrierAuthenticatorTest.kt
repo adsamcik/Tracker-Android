@@ -17,7 +17,11 @@ class WifiWalCarrierAuthenticatorTest {
 			val unsigned = original.copy(writerBindingGeneration = 2L, writerOwnerGeneration = 4L)
 			val final = unsigned.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(unsigned))
 			assertIs<WifiWalCarrierAuthentication.Authenticated>(WifiWalCarrierAuthenticator.authenticate(final, wal,
-				if (version == WIFI_WAL_PAYLOAD_VERSION) validChildren(final, wal) else null))
+				if (version == WIFI_WAL_PAYLOAD_VERSION) {
+					validChildren(final, wal)
+				} else {
+					null
+				}))
 			assertEquals(original.sourceEventId, final.sourceEventId)
 			assertEquals(original.payloadChecksum, final.payloadChecksum)
 			assertFailsWith<IllegalArgumentException> { original.copy(writerBindingGeneration = 2L, writerOwnerGeneration = 2L) }
@@ -45,7 +49,11 @@ class WifiWalCarrierAuthenticatorTest {
 				strongestSignalDbm = -40, weakestSignalDbm = -40, signalSumDbm = -40L,
 				coverageIntervalStartNanos = 1_600_000_000L)
 			val fact = unsignedFact.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(unsignedFact))
-			val children = if (version == WIFI_WAL_PAYLOAD_VERSION) validChildren(fact, wal).drop(1) else null
+			val children = if (version == WIFI_WAL_PAYLOAD_VERSION) {
+				validChildren(fact, wal).drop(1)
+			} else {
+				null
+			}
 			val authenticated = assertIs<WifiWalCarrierAuthentication.Authenticated>(
 				WifiWalCarrierAuthenticator.authenticate(fact, wal, children))
 			assertEquals(1, authenticated.carrier.coverage?.acceptedResultCount)
@@ -105,7 +113,11 @@ class WifiWalCarrierAuthenticatorTest {
 			canonicalWifiProviderDeliveryIdentity(
 				BOOT_ID,
 				authenticated.payload.observations.mapIndexed { index, observation ->
-					if (index == 0) observation.copy(networkName = "Another network") else observation
+					if (index == 0) {
+						observation.copy(networkName = "Another network")
+					} else {
+						observation
+					}
 				},
 			),
 		)
@@ -277,10 +289,16 @@ class WifiWalCarrierAuthenticatorTest {
 			assertEquals(true, WifiCapturedFactRevisionIntegrity.hasValidRetainedLineage(
 				listOf(first, correction(version))))
 			assertEquals(false, WifiCapturedFactRevisionIntegrity.hasValidRetainedLineage(
-				listOf(first, correction(if (version == null) WIFI_WAL_PAYLOAD_VERSION else null))))
+				listOf(first, correction(if (version == null) {
+					WIFI_WAL_PAYLOAD_VERSION
+				} else {
+					null
+				}))))
 		}
 	}
 
+	// Keep the Wi-Fi payload, delivery identity and complete signed WAL record together as one fixture.
+	@Suppress("LongMethod")
 	private fun validWal(
 		payloadVersion: Int = WIFI_WAL_PAYLOAD_VERSION,
 		withNetworkIdentity: Boolean = false,
@@ -288,10 +306,14 @@ class WifiWalCarrierAuthenticatorTest {
 		val payload = payload(
 			listOf(
 				observation(2_412, -60, 1_500_000_000L).let { observation ->
-					if (withNetworkIdentity) observation.copy(
+					if (withNetworkIdentity) {
+						observation.copy(
 						identifierToken = "aa:bb:cc:dd:ee:ff",
 						networkName = "Home Wi-Fi",
-					) else observation
+					)
+					} else {
+						observation
+					}
 				},
 				observation(5_180, -40, 1_600_000_000L),
 			),
@@ -454,7 +476,11 @@ class WifiWalCarrierAuthenticatorTest {
 			val age = wal.observedElapsedNanos - providerNanos
 			val wall = requireNotNull(wal.wallTimeMs) - age / 1_000_000L
 			val uncertainty = requireNotNull(wal.wallTimeUncertaintyMs) +
-				if (age % 1_000_000L == 0L) 0L else 1L
+				if (age % 1_000_000L == 0L) {
+					0L
+				} else {
+					1L
+				}
 			val bssid = observation.identifierToken.takeIf(String::isNotEmpty)
 			val owner = RadioChildOwner(RadioChildPurpose.SESSION, fact.writerProjectionId,
 				fact.writerProjectionVersion, fact.logicalFactId, fact.semanticRevision, index)

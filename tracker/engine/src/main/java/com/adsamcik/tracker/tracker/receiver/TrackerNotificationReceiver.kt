@@ -59,7 +59,9 @@ internal class TrackerNotificationReceiver : BroadcastReceiver() {
 		val finished = AtomicBoolean(false)
 		val timeout = applicationScope.launch {
 			delay(timeoutMs)
-			if (finished.compareAndSet(false, true)) pendingResult.finish()
+			if (finished.compareAndSet(false, true)) {
+				pendingResult.finish()
+			}
 		}
 		applicationScope.launch {
 			try {
@@ -70,7 +72,9 @@ internal class TrackerNotificationReceiver : BroadcastReceiver() {
 				// The original durable command remains available for recovery or user retry.
 			} finally {
 				timeout.cancel()
-				if (finished.compareAndSet(false, true)) pendingResult.finish()
+				if (finished.compareAndSet(false, true)) {
+					pendingResult.finish()
+				}
 			}
 		}
 	}

@@ -19,20 +19,32 @@ class SessionStatsUiFormatter @Inject constructor(
 	fun formatSummary(snapshot: SessionStatsSnapshot): List<Stat> {
 		return buildList {
 			addAll(sessionSummaryStats(snapshot))
-			add(countStat(R.string.stats_location_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_location_on_24px, snapshot.locationCount))
-			add(countStat(R.string.stats_wifi_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_wifi_24px, snapshot.wifiCount, snapshot.wifiCountIsPartial))
-			add(countStat(R.string.stats_cell_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_cell_24px, snapshot.cellCount, snapshot.cellCountIsPartial))
-			add(countStat(R.string.stats_session_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_map_24dp, snapshot.tripCount))
+			add(countStat(R.string.stats_location_count,
+                com.adsamcik.tracker.shared.base.R.drawable.ic_outline_location_on_24px, snapshot.locationCount))
+			add(countStat(R.string.stats_wifi_count,
+                com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_wifi_24px,
+                    snapshot.wifiCount, snapshot.wifiCountIsPartial))
+			add(countStat(R.string.stats_cell_count,
+                com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_cell_24px,
+                    snapshot.cellCount, snapshot.cellCountIsPartial))
+			add(countStat(R.string.stats_session_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_map_24dp,
+                snapshot.tripCount))
 		}
 	}
 
 	fun formatWeekly(snapshot: SessionStatsSnapshot): List<Stat> {
 		return buildList {
 			addAll(sessionSummaryStats(snapshot))
-			add(countStat(R.string.stats_session_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_map_24dp, snapshot.tripCount))
-			add(countStat(R.string.stats_location_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_location_on_24px, snapshot.locationCount))
-			add(countStat(R.string.stats_wifi_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_wifi_24px, snapshot.wifiCount, snapshot.wifiCountIsPartial))
-			add(countStat(R.string.stats_cell_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_cell_24px, snapshot.cellCount, snapshot.cellCountIsPartial))
+			add(countStat(R.string.stats_session_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_map_24dp,
+                snapshot.tripCount))
+			add(countStat(R.string.stats_location_count,
+                com.adsamcik.tracker.shared.base.R.drawable.ic_outline_location_on_24px, snapshot.locationCount))
+			add(countStat(R.string.stats_wifi_count,
+                com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_wifi_24px,
+                    snapshot.wifiCount, snapshot.wifiCountIsPartial))
+			add(countStat(R.string.stats_cell_count,
+                com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_cell_24px,
+                    snapshot.cellCount, snapshot.cellCountIsPartial))
 		}
 	}
 
@@ -79,13 +91,19 @@ class SessionStatsUiFormatter @Inject constructor(
 			if (snapshot.distanceIsPartial && stat.nameRes in setOf(R.string.stats_distance_total,
 				R.string.stats_distance_on_foot, R.string.stats_distance_in_vehicle)) {
 				stat.copy(data = resources.getString(R.string.stats_recorded_partial_value, stat.data.toString()))
-			} else stat
+			} else {
+				stat
+			}
 		}
 	}
 
 	private fun countStat(nameRes: Int, iconRes: Int, value: Long?, partial: Boolean = false): Stat {
 		val text = value?.formatReadable()?.let {
-			if (partial) context.getString(R.string.stats_recorded_partial_value, it) else it
+			if (partial) {
+				context.getString(R.string.stats_recorded_partial_value, it)
+			} else {
+				it
+			}
 		} ?: context.getString(R.string.history_value_unavailable)
 		return Stat(
 			nameRes = nameRes,

@@ -152,6 +152,9 @@ interface PendingSignalDao {
 	)
 	suspend fun hasStepsWriterCommand(): Boolean
 
+	/**
+	 * Reports whether a row exists within the query scope.
+	 */
 	@Query(
 		"SELECT EXISTS(SELECT 1 FROM pending_signal " +
 			"WHERE pressure_writer_owner IS NOT NULL " +

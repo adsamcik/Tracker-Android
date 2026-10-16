@@ -32,6 +32,7 @@ class CellCapturedRetentionService private constructor(
 		operation: suspend (AppDatabase, Long, Long, Long, Long) -> CellCapturedRetentionResult,
 	) : this(CellCapturedRetentionOperation(operation))
 
+	/** Prunes eligible Cell facts before the UTC millisecond cutoff after rechecking current deletion authority. */
 	suspend fun prune(
 		database: AppDatabase,
 		beforeMs: Long,

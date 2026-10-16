@@ -25,7 +25,9 @@ class ImportedRadioChildBatchTest {
 		try {
 			forEachRadioChildBatch((0 until 600).toList()) { batch ->
 				seen += batch.size
-				if (seen > RADIO_CHILD_IMPORT_BATCH_SIZE) throw IOException("storage unavailable")
+				if (seen > RADIO_CHILD_IMPORT_BATCH_SIZE) {
+					throw IOException("storage unavailable")
+				}
 			}
 			fail("Second batch should fail")
 		} catch (_: IOException) {

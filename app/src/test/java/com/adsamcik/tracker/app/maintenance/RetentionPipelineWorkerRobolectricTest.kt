@@ -75,6 +75,7 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.projection.ActivityControlRetentionMaintenance
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import io.mockk.coEvery
@@ -142,7 +143,7 @@ class RetentionPipelineWorkerRobolectricTest {
 	}
 
 	@Test
-	fun `retryable startup persists execution generation before preflight`() = runTest {
+	fun `retryable startup touches neither Room nor execution receipts`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		var resolutions = 0
 		val events = mutableListOf<String>()
@@ -174,8 +175,167 @@ class RetentionPipelineWorkerRobolectricTest {
 		).doWork()
 
 		assertEquals(ListenableWorker.Result.retry(), result)
-		assertEquals(1, resolutions)
-		events shouldBe listOf("execution-receipt", "startup-preflight")
+		assertEquals(0, resolutions)
+		events shouldBe listOf("startup-preflight")
+	}
+
+	@Test
+	fun `periodic blocked startup does not open Room or run CONTROL cleanup`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val gate = object : TrackingStartupGate {
+			override val isReady = false
+			override suspend fun reconcile(retryFailedStorage: Boolean) =
+				TrackingStartupResult.Blocked(TrackingStartupStage.STORAGE, "CONTAINED")
+		}
+		val coordinator = mockk<RetentionWorkExecutionCoordinator>()
+		val maintenance = mockk<ActivityControlRetentionMaintenance>()
+		var resolutions = 0
+
+		worker(
+			context = context,
+			store = retentionStore(RetentionConfigState()),
+			db = mockk(relaxed = true),
+			databaseProvider = Provider {
+				resolutions += 1
+				error("Room must stay closed")
+			},
+			trackingStartupGate = gate,
+			activityControlRetentionMaintenance = maintenance,
+			workExecutionCoordinator = coordinator,
+		).doWork() shouldBe ListenableWorker.Result.success()
+
+		resolutions shouldBe 0
+		coVerify(exactly = 0) { maintenance.pruneDue() }
+		coVerify(exactly = 0) { coordinator.begin(any(), any(), any(), any(), any()) }
+	}
+
+	@Test
+	fun `generation change during startup prevents pipeline handoff`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		var generation = 7L
+		val gate = object : TrackingStartupGate {
+			override val isReady = true
+			override val currentGeneration get() = generation
+			override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult {
+				generation += 1L
+				return TrackingStartupResult.Ready(false, 0L)
+			}
+		}
+		val coordinator = mockk<RetentionWorkExecutionCoordinator>()
+		val maintenance = mockk<ActivityControlRetentionMaintenance>()
+		var resolutions = 0
+
+		worker(
+			context = context,
+			store = retentionStore(RetentionConfigState()),
+			db = mockk(relaxed = true),
+			databaseProvider = Provider {
+				resolutions += 1
+				error("Stale work must not open Room")
+			},
+			trackingStartupGate = gate,
+			activityControlRetentionMaintenance = maintenance,
+			workExecutionCoordinator = coordinator,
+		).doWork() shouldBe ListenableWorker.Result.retry()
+
+		resolutions shouldBe 0
+		coVerify(exactly = 0) { maintenance.pruneDue() }
+		coVerify(exactly = 0) { coordinator.begin(any(), any(), any(), any(), any()) }
+	}
+
+	@Test
+	fun `startup precedes the guarded receipt handoff and long retention work releases the guard`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val events = mutableListOf<String>()
+		var guardHeld = false
+		val gate = object : TrackingStartupGate {
+			override val isReady = true
+			override val currentGeneration = 7L
+			override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult {
+				guardHeld shouldBe false
+				events += "startup"
+				return TrackingStartupResult.Ready(false, 0L)
+			}
+			override suspend fun <T> withReadyGenerationOperation(
+				expectedGeneration: Long,
+				operation: suspend () -> T,
+			): T? {
+				expectedGeneration shouldBe 7L
+				guardHeld = true
+				return try {
+					operation()
+				} finally {
+					guardHeld = false
+				}
+			}
+		}
+		val database = mockk<AppDatabase>(relaxed = true)
+		val maintenance = mockk<ActivityControlRetentionMaintenance> {
+			coEvery { pruneDue() } coAnswers {
+				guardHeld shouldBe true
+				events += "control"
+				false
+			}
+		}
+		val coordinator = workExecutionCoordinator {
+			guardHeld shouldBe true
+			events += "receipt"
+		}
+		coEvery { coordinator.continuation(any(), any()) } coAnswers {
+			guardHeld shouldBe false
+			RetentionWorkExecutionContinuationResult.Continue
+		}
+
+		worker(
+			context = context,
+			store = retentionStore(RetentionConfigState()),
+			db = database,
+			databaseProvider = Provider {
+				guardHeld shouldBe true
+				events += "database"
+				database
+			},
+			trackingStartupGate = gate,
+			activityControlRetentionMaintenance = maintenance,
+			workExecutionCoordinator = coordinator,
+		).doWork() shouldBe ListenableWorker.Result.success()
+
+		events shouldBe listOf("startup", "database", "control", "receipt")
+		guardHeld shouldBe false
+		coVerify(exactly = 1) { coordinator.complete(any(), any(), any()) }
+	}
+
+	@Test
+	fun `invalid settlement input fails before startup or Room`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val inputs = listOf(
+			workDataOf(RetentionPipelineWorker.SETTLEMENT_OPERATION_ID_KEY to " "),
+			workDataOf(RetentionPipelineWorker.SETTLEMENT_OPERATION_ID_KEY to "missing-epoch"),
+			workDataOf(
+				RetentionPipelineWorker.SETTLEMENT_OPERATION_ID_KEY to "negative-epoch",
+				RetentionPipelineWorker.SETTLEMENT_COLLECTED_DATA_EPOCH_KEY to -1L,
+			),
+		)
+		inputs.forEach { input ->
+			val gate = mockk<TrackingStartupGate> { every { currentGeneration } returns 7L }
+			val coordinator = mockk<RetentionWorkExecutionCoordinator>()
+			var resolutions = 0
+			worker(
+				context = context,
+				store = retentionStore(RetentionConfigState()),
+				db = mockk(relaxed = true),
+				databaseProvider = Provider {
+					resolutions += 1
+					error("Room must stay closed")
+				},
+				trackingStartupGate = gate,
+				workExecutionCoordinator = coordinator,
+				inputData = input,
+			).doWork() shouldBe ListenableWorker.Result.failure()
+			resolutions shouldBe 0
+			coVerify(exactly = 0) { gate.reconcile(any()) }
+			coVerify(exactly = 0) { coordinator.begin(any(), any(), any(), any(), any()) }
+		}
 	}
 
 	@Test
@@ -203,7 +363,7 @@ class RetentionPipelineWorkerRobolectricTest {
 	@Test
 	fun `completed execution retries CONTROL debt but canceled execution does not`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
-		val maintenance = mockk<com.adsamcik.tracker.tracker.source.projection.ActivityControlRetentionMaintenance> {
+		val maintenance = mockk<ActivityControlRetentionMaintenance> {
 			coEvery { pruneDue() } returns true
 		}
 		val coordinator = mockk<RetentionWorkExecutionCoordinator> {
@@ -351,10 +511,17 @@ class RetentionPipelineWorkerRobolectricTest {
 				)
 			}
 
+			var resolutions = 0
+			val maintenance = mockk<ActivityControlRetentionMaintenance>()
 			worker(
 				context = context,
 				store = retentionStore(RetentionConfigState()),
 				db = mockk(relaxed = true),
+				databaseProvider = Provider {
+					resolutions += 1
+					error("Room must stay closed")
+				},
+				activityControlRetentionMaintenance = maintenance,
 				trackingStartupGate = blockedGate,
 				retentionFloorSettlement = settlement,
 				workExecutionCoordinator = coordinator,
@@ -365,7 +532,10 @@ class RetentionPipelineWorkerRobolectricTest {
 				),
 			).doWork() shouldBe ListenableWorker.Result.retry()
 
-			coVerify(exactly = 1) {
+			resolutions shouldBe 0
+			coVerify(exactly = 0) { coordinator.begin(any(), any(), any(), any(), any()) }
+			coVerify(exactly = 0) { maintenance.pruneDue() }
+			coVerify(exactly = 0) {
 				settlement.disposition(any(), "blocked-active-settlement", 4L)
 			}
 			coVerify(exactly = 0) { settlement.pendingOperation(any(), any(), any()) }
@@ -373,7 +543,10 @@ class RetentionPipelineWorkerRobolectricTest {
 		}
 
 	@Test
-	fun `blocked startup exits only for the exact completed or superseded settlement`() = runTest {
+	// Keep the blocked finisher, startup repair and exact terminal receipt assertions together for both
+	// terminal outcomes.
+	@Suppress("LongMethod")
+	fun `blocked terminal finisher waits for startup repair before resolving its exact settlement`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		val terminalCases: List<
 			Pair<RetentionFloorSettlementDisposition, RetentionWorkExecutionCompletionResult>
@@ -397,40 +570,69 @@ class RetentionPipelineWorkerRobolectricTest {
 			val coordinator = mockk<RetentionWorkExecutionCoordinator> {
 				coEvery { begin(any(), any(), any(), any(), any()) } returns
 					RetentionWorkExecutionStartResult.Open(receipt)
+				coEvery { continuation(any(), receipt) } returns
+					RetentionWorkExecutionContinuationResult.Continue
 				coEvery { complete(any(), receipt, any()) } returns completion
 			}
 			val operationId = "terminal-settlement-$index"
 			val settlement = mockk<RetentionFloorSettlement> {
+				coEvery { pendingOperation(any(), receipt, operationId) } returns
+					RetentionFloorOperationLookupResult.Available(null)
 				coEvery { disposition(any(), operationId, 4L) } returns disposition
 			}
-			val blockedGate = mockk<TrackingStartupGate> {
-				every { isReady } returns false
-				every { currentGeneration } returns 7L
-				coEvery { reconcile(any()) } returns TrackingStartupResult.Blocked(
-					TrackingStartupStage.STORAGE,
-					"CONTAINED",
-				)
+			var startupRepaired = false
+			val gate = object : TrackingStartupGate {
+				override val isReady get() = startupRepaired
+				override val currentGeneration = 7L
+				override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+					if (startupRepaired) {
+						TrackingStartupResult.Ready(false, 0L)
+					} else {
+						TrackingStartupResult.Blocked(TrackingStartupStage.STORAGE, "CONTAINED")
+					}
 			}
-
-			worker(
+			val maintenance = mockk<ActivityControlRetentionMaintenance> {
+				coEvery { pruneDue() } returns false
+			}
+			val database = mockk<AppDatabase>(relaxed = true)
+			var resolutions = 0
+			val finisher = worker(
 				context = context,
 				store = retentionStore(RetentionConfigState()),
-				db = mockk(relaxed = true),
-				trackingStartupGate = blockedGate,
+				db = database,
+				databaseProvider = Provider {
+					resolutions += 1
+					database
+				},
+				trackingStartupGate = gate,
+				activityControlRetentionMaintenance = maintenance,
 				retentionFloorSettlement = settlement,
 				workExecutionCoordinator = coordinator,
 				inputData = workDataOf(
 					RetentionPipelineWorker.SETTLEMENT_OPERATION_ID_KEY to operationId,
 					RetentionPipelineWorker.SETTLEMENT_COLLECTED_DATA_EPOCH_KEY to 4L,
 				),
-			).doWork() shouldBe ListenableWorker.Result.success()
+			)
 
+			finisher.doWork() shouldBe ListenableWorker.Result.retry()
+			resolutions shouldBe 0
+			coVerify(exactly = 0) { maintenance.pruneDue() }
+			coVerify(exactly = 0) { coordinator.begin(any(), any(), any(), any(), any()) }
+			coVerify(exactly = 0) { settlement.disposition(any(), operationId, 4L) }
+			coVerify(exactly = 0) { coordinator.complete(any(), any(), any()) }
+
+			startupRepaired = true
+			finisher.doWork() shouldBe ListenableWorker.Result.success()
+			resolutions shouldBe 1
 			coVerify(exactly = 1) { settlement.disposition(any(), operationId, 4L) }
 			coVerify(exactly = 1) { coordinator.complete(any(), receipt, any()) }
 		}
 	}
 
 	@Test
+	// Keep one disabled-retention settlement and all exact maintenance/completion acknowledgements visible
+	// together.
+	@Suppress("LongMethod")
 	fun `disabled retention finisher completes its exact active settlement`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		val plan = RetentionFloorDestructivePlan(
@@ -1549,7 +1751,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		stepsProjectionLaneProvider: Provider<StepsSessionFactProjectionLane> =
 			Provider { mockk(relaxed = true) },
 		activityControlRetentionMaintenance:
-			com.adsamcik.tracker.tracker.source.projection.ActivityControlRetentionMaintenance = mockk {
+			ActivityControlRetentionMaintenance = mockk {
 				coEvery { pruneDue() } returns false
 			},
 		importedActivityRetentionProvider: Provider<RoomTruncateImportedActivityRetention> = Provider {
@@ -1840,7 +2042,9 @@ class RetentionPipelineWorkerRobolectricTest {
 				if (current.revision != expectedRevision ||
 					current.collectedDataEpoch != expectedCollectedDataEpoch ||
 					current.retainedFromMs != expectedRetainedFromMs
-				) return 0
+				) {
+					return 0
+				}
 				storedState = current.copy(revision = current.revision + 1L, updatedAtMs = updatedAtMs)
 				return 1
 			}
@@ -1857,7 +2061,9 @@ class RetentionPipelineWorkerRobolectricTest {
 				if (current.revision != expectedRevision ||
 					current.collectedDataEpoch != expectedEpoch ||
 					current.retainedFromMs != expectedRetainedFromMs
-				) return 0
+				) {
+					return 0
+				}
 				storedState = current.copy(
 					revision = current.revision + 1L,
 					collectedDataEpoch = epoch,

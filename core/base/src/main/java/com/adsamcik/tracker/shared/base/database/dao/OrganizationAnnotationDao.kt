@@ -10,23 +10,53 @@ import com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEnti
 /** Overrides suppress virtual adapters before range selection and limiting in the composed query. */
 @Dao
 interface OrganizationAnnotationDao {
+	/**
+	 * Inserts [OrganizationAnnotationEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insert(row: OrganizationAnnotationEntity)
+	/**
+	 * Updates existing [OrganizationAnnotationEntity] rows by primary key.
+	 */
 	@Update
 	suspend fun update(row: OrganizationAnnotationEntity): Int
+	/**
+	 * Reads `organization_annotation` rows. Query conditions include `local_id = :id`.
+	 */
 	@Query("SELECT * FROM organization_annotation WHERE local_id = :id")
 	suspend fun byId(id: String): OrganizationAnnotationEntity?
+	/**
+	 * Reads `organization_annotation` rows. Query conditions include `recording_adapter_key = :key`.
+	 * Returns null when no row matches.
+	 */
 	@Query("SELECT * FROM organization_annotation WHERE recording_adapter_key = :key")
 	suspend fun byAdapter(key: String): OrganizationAnnotationEntity?
 
+	/**
+	 * Reads `organization_annotation` rows. Query conditions include `recording_adapter_key IN
+	 * (:keys)`.
+	 */
 	@Query("SELECT * FROM organization_annotation WHERE recording_adapter_key IN (:keys)")
 	suspend fun byAdapters(keys: List<String>): List<OrganizationAnnotationEntity>
 
+	/**
+	 * Reads `organization_annotation` rows. Query conditions include `local_id IN (:ids)`.
+	 */
 	@Query("SELECT * FROM organization_annotation WHERE local_id IN (:ids)")
 	suspend fun byIds(ids: List<String>): List<OrganizationAnnotationEntity>
+	/**
+	 * Deletes `organization_annotation` rows matching the supplied scope. Query conditions include
+	 * `local_id = :id`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM organization_annotation WHERE local_id = :id")
 	suspend fun delete(id: String): Int
 
+	/**
+	 * Reads visible user annotations, logical sessions and older segments as one session list.
+	 * Optional time bounds use overlapping UTC millisecond intervals; filters can require a name or
+	 * select one session identity. Results order by descending start time then stable identity, with
+	 * the requested page limit and offset.
+	 */
 	@Query("""
 		SELECT * FROM (
 			SELECT a.local_id AS localId, a.recording_adapter_key AS adapterKey,
@@ -74,9 +104,15 @@ interface OrganizationAnnotationDao {
 		AND ((:selectedLocalId IS NULL AND :selectedAdapterKey IS NULL) OR (adapterKey IS NULL AND localId = :selectedLocalId) OR adapterKey = :selectedAdapterKey)
 		ORDER BY fromMs DESC, adapterKey, localId LIMIT :limit OFFSET :offset
 	""")
-	suspend fun visible(fromMs: Long?, toMs: Long?, limit: Int, offset: Int = 0, selectedLocalId: String? = null, selectedAdapterKey: String? = null, namedOnly: Boolean = false): List<OrganizationSessionRow>
+	suspend fun visible(fromMs: Long?, toMs: Long?, limit: Int, offset: Int = 0, selectedLocalId: String? = null,
+        selectedAdapterKey: String? = null, namedOnly: Boolean = false): List<OrganizationSessionRow>
 
-	@Query("SELECT zone_id FROM session_manifest_version WHERE 'logical:' || logical_tracking_id = :key ORDER BY manifest_revision LIMIT 1")
+	/**
+	 * Reads `session_manifest_version` rows. Query conditions include `logical_tracking_id = :key`.
+	 * Orders by `manifest_revision`. Returns at most 1 row.
+	 */
+	@Query(("SELECT zone_id FROM session_manifest_version WHERE 'logical:' || logical_tracking_id = :key " +
+        "ORDER BY manifest_revision LIMIT 1"))
 	suspend fun recordingZone(key: String): String?
 
 	/** Called only inside the existing approved trip-retention transaction. */
@@ -93,6 +129,10 @@ interface OrganizationAnnotationDao {
 			(SELECT end_time_ms FROM session_segment WHERE 'segment:' || id = recording_adapter_key)) < :cutoff
 	""")
 	suspend fun suppressExpiredOverrides(cutoff: Long, now: Long)
+	/**
+	 * Deletes `organization_annotation` rows matching the supplied scope. Query conditions include
+	 * `hidden = 1`.
+	 */
 	@Query("""
 		DELETE FROM organization_annotation WHERE hidden = 1
 		AND NOT EXISTS (SELECT 1 FROM logical_tracking_session WHERE 'logical:' || logical_tracking_id = recording_adapter_key)
@@ -101,6 +141,10 @@ interface OrganizationAnnotationDao {
 	suspend fun pruneUnusedSuppression()
 }
 
+/**
+ * User session metadata and optional measured recording references selected for
+ * organization/history views.
+ */
 data class OrganizationSessionRow(
 	val localId: String?, val adapterKey: String?, val revision: Long,
 	val name: String?, val activityLabelId: Long?, val displayZoneId: String?,

@@ -1,8 +1,12 @@
 package com.adsamcik.tracker.notification
 
 import android.Manifest
+import android.app.Application
+import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import androidx.test.core.app.ApplicationProvider
 import androidx.work.ListenableWorker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
@@ -14,16 +18,18 @@ import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import com.adsamcik.tracker.shared.preferences.Preferences
 import io.kotest.matchers.shouldBe
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
+import org.junit.Test as PlatformTest
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
-@Config(sdk = [34])
 class GoalNotificationWorkerTest {
 
 	@Test
@@ -114,28 +120,6 @@ class GoalNotificationWorkerTest {
 	}
 
 	@Test
-	fun `denied notification permission does not consume the threshold claim`() {
-		val context = mockk<Context>(relaxed = true)
-		every { context.applicationContext } returns context
-		every {
-			context.checkPermission(
-				Manifest.permission.POST_NOTIFICATIONS,
-				any(),
-				any(),
-			)
-		} returns PackageManager.PERMISSION_DENIED
-		val preferences = mockk<Preferences>(relaxed = true)
-		val worker = worker(
-			steps = QualifiedStepCount.Ready(8_000),
-			preferences = preferences,
-			context = context,
-		)
-
-		runBlocking { worker.doWork() } shouldBe ListenableWorker.Result.success()
-		coVerify(exactly = 0) { preferences.editSuspend(any()) }
-	}
-
-	@Test
 	fun `missing replay sentinel times out and worker finishes without notification`() = runTest {
 		val preferences = mockk<Preferences>(relaxed = true)
 		val worker = GoalNotificationWorker(
@@ -176,6 +160,37 @@ class GoalNotificationWorkerTest {
 		preferences = preferences,
 		goalsSettingsRepository = FakeWorkerGoalsSettingsRepository(notificationsEnabled = true),
 	)
+}
+
+@RunWith(RobolectricTestRunner::class)
+@Config(application = Application::class, sdk = [34])
+class GoalNotificationPermissionTest {
+	@PlatformTest
+	fun `denied notification permission does not consume the threshold claim`() {
+		val context = ApplicationProvider.getApplicationContext<Application>()
+		shadowOf(context).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+		ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) shouldBe
+			PackageManager.PERMISSION_DENIED
+		val preferences = mockk<Preferences>(relaxed = true)
+		val worker = GoalNotificationWorker(
+			appContext = context,
+			workerParams = mockk<WorkerParameters>(relaxed = true),
+			goalProgressProvider = FakeGoalProgressProvider(
+				GoalProgress(
+					stepsToday = QualifiedStepCount.Ready(8_000),
+					goalSteps = 10_000,
+					gamificationEnabled = true,
+				),
+			),
+			preferences = preferences,
+			goalsSettingsRepository = FakeWorkerGoalsSettingsRepository(notificationsEnabled = true),
+		)
+
+		runBlocking { worker.doWork() } shouldBe ListenableWorker.Result.success()
+		coVerify(exactly = 0) { preferences.editSuspend(any()) }
+		val manager = context.getSystemService(NotificationManager::class.java)
+		shadowOf(manager).allNotifications.size shouldBe 0
+	}
 }
 
 private class FakeGoalProgressProvider(

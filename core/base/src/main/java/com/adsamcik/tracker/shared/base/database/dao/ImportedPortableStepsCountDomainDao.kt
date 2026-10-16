@@ -13,41 +13,91 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCount
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainRootEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFileReceiptEntity
 
+/**
+ * Reads and persists portable Steps counter-domain graph lineage and its product/deletion
+ * bindings.
+ */
 @Dao
 interface ImportedPortableStepsCountDomainDao {
+	/**
+	 * Inserts [ImportedPortableStepsCountDomainGraphEntity] rows. A conflicting key aborts the
+	 * insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertGraph(value: ImportedPortableStepsCountDomainGraphEntity)
 
+	/**
+	 * Inserts [ImportedPortableStepsCountDomainReceiptEntity] rows. A conflicting key aborts the
+	 * insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertReceipts(values: List<ImportedPortableStepsCountDomainReceiptEntity>)
 
+	/**
+	 * Inserts [ImportedPortableStepsCountDomainOwnerRevisionEntity] rows. A conflicting key aborts
+	 * the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertOwners(values: List<ImportedPortableStepsCountDomainOwnerRevisionEntity>)
 
+	/**
+	 * Inserts [ImportedPortableStepsCountDomainCompletenessEntity] rows. A conflicting key aborts the
+	 * insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertMarkers(values: List<ImportedPortableStepsCountDomainCompletenessEntity>)
 
+	/**
+	 * Inserts [ImportedPortableStepsCountDomainRootEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertRoots(values: List<ImportedPortableStepsCountDomainRootEntity>)
 
+	/**
+	 * Inserts [ImportedPortableStepsCountDomainBindingEntity] rows. A conflicting key aborts the
+	 * insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertBinding(value: ImportedPortableStepsCountDomainBindingEntity)
 
+	/**
+	 * Inserts [ImportedPortableStepsFileReceiptEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertFileReceipt(value: ImportedPortableStepsFileReceiptEntity)
 
+	/**
+	 * Inserts [ImportedPortableStepsFileReceiptEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertFileReceipts(values: List<ImportedPortableStepsFileReceiptEntity>)
 
+	/**
+	 * Inserts [ImportedPortableStepsCountDomainOwnerFenceEntity] rows. A conflicting key aborts the
+	 * insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertOwnerFences(values: List<ImportedPortableStepsCountDomainOwnerFenceEntity>)
 
+	/**
+	 * Inserts [ImportedPortableStepsCountDomainOwnerFenceEntity] rows. A conflicting key aborts the
+	 * insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	fun insertOwnerFenceForFullClear(value: ImportedPortableStepsCountDomainOwnerFenceEntity)
 
+	/**
+	 * Reads `imported_steps_count_domain_graph` rows. Query conditions include `graph_identity =
+	 * :identity`. Returns null when no row matches.
+	 */
 	@Query("SELECT * FROM imported_steps_count_domain_graph WHERE graph_identity = :identity")
 	suspend fun graph(identity: String): ImportedPortableStepsCountDomainGraphEntity?
 
+	/**
+	 * Reads `imported_steps_count_domain_binding` rows. Query conditions include `product_kind =
+	 * :productKind`, `product_identity = :productIdentity`, `product_revision = :productRevision`.
+	 * Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_count_domain_binding WHERE product_kind = :productKind " +
 			"AND product_identity = :productIdentity AND product_revision = :productRevision",
@@ -58,6 +108,11 @@ interface ImportedPortableStepsCountDomainDao {
 		productRevision: Long,
 	): ImportedPortableStepsCountDomainBindingEntity?
 
+	/**
+	 * Reads `imported_steps_count_domain_binding` rows. Query conditions include `product_kind =
+	 * :productKind`, `product_identity IN (:productIdentities)`. Orders by `product_identity,
+	 * product_revision`.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_count_domain_binding WHERE product_kind = :productKind " +
 			"AND product_identity IN (:productIdentities) ORDER BY product_identity, product_revision",
@@ -67,6 +122,11 @@ interface ImportedPortableStepsCountDomainDao {
 		productIdentities: List<String>,
 	): List<ImportedPortableStepsCountDomainBindingEntity>
 
+	/**
+	 * Reads `imported_steps_count_domain_binding` rows. Query conditions include `product_kind =
+	 * :productKind`, `product_identity = :productIdentity`. Orders by `product_revision`. Returns at
+	 * most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_count_domain_binding WHERE product_kind = :productKind " +
 			"AND product_identity = :productIdentity ORDER BY product_revision LIMIT :limit",
@@ -77,6 +137,10 @@ interface ImportedPortableStepsCountDomainDao {
 		limit: Int,
 	): List<ImportedPortableStepsCountDomainBindingEntity>
 
+	/**
+	 * Counts rows in `imported_steps_count_domain_binding`. Query conditions include `product_kind =
+	 * :productKind`, `product_identity = :productIdentity`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM imported_steps_count_domain_binding " +
 			"WHERE product_kind = :productKind AND product_identity = :productIdentity",
@@ -86,6 +150,11 @@ interface ImportedPortableStepsCountDomainDao {
 		productIdentity: String,
 	): Int
 
+	/**
+	 * Reads `imported_steps_count_domain_binding` rows. Query conditions include `graph_identity IN
+	 * (:graphIdentities)`. Orders by `product_kind, product_identity, product_revision`. Returns at
+	 * most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_count_domain_binding " +
 			"WHERE graph_identity IN (:graphIdentities) " +
@@ -96,6 +165,11 @@ interface ImportedPortableStepsCountDomainDao {
 		limit: Int,
 	): List<ImportedPortableStepsCountDomainBindingEntity>
 
+	/**
+	 * Reads `imported_steps_count_domain_receipt` rows. Query conditions include `graph_identity =
+	 * :graphIdentity`. Orders by `owner_kind, owner_identity, owner_revision`. Returns at most
+	 * `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_count_domain_receipt WHERE graph_identity = :graphIdentity " +
 			"ORDER BY owner_kind, owner_identity, owner_revision LIMIT :limit",
@@ -105,6 +179,11 @@ interface ImportedPortableStepsCountDomainDao {
 		limit: Int,
 	): List<ImportedPortableStepsCountDomainReceiptEntity>
 
+	/**
+	 * Reads `imported_steps_count_domain_owner_revision` rows. Query conditions include
+	 * `graph_identity = :graphIdentity`. Orders by `owner_kind, owner_identity, owner_revision`.
+	 * Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_count_domain_owner_revision " +
 			"WHERE graph_identity = :graphIdentity " +
@@ -115,6 +194,10 @@ interface ImportedPortableStepsCountDomainDao {
 		limit: Int,
 	): List<ImportedPortableStepsCountDomainOwnerRevisionEntity>
 
+	/**
+	 * Reads `imported_steps_count_domain_completeness` rows. Query conditions include `graph_identity
+	 * = :graphIdentity`. Orders by `owner_identity, owner_revision`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_count_domain_completeness " +
 			"WHERE graph_identity = :graphIdentity " +
@@ -125,6 +208,11 @@ interface ImportedPortableStepsCountDomainDao {
 		limit: Int,
 	): List<ImportedPortableStepsCountDomainCompletenessEntity>
 
+	/**
+	 * Reads `imported_steps_count_domain_root` rows. Query conditions include `graph_identity =
+	 * :graphIdentity`. Orders by `container_identity, product_identity, owner_kind, owner_identity`.
+	 * Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_count_domain_root WHERE graph_identity = :graphIdentity " +
 			"ORDER BY container_identity, product_identity, owner_kind, owner_identity LIMIT :limit",
@@ -134,6 +222,11 @@ interface ImportedPortableStepsCountDomainDao {
 		limit: Int,
 	): List<ImportedPortableStepsCountDomainRootEntity>
 
+	/**
+	 * Reads `imported_steps_count_domain_root` rows. Query conditions include `owner_identity IN
+	 * (:ownerIdentities)`. Orders by `owner_kind, owner_identity, owner_revision`. Returns at most
+	 * `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_count_domain_root " +
 			"WHERE owner_identity IN (:ownerIdentities) " +
@@ -144,6 +237,10 @@ interface ImportedPortableStepsCountDomainDao {
 		limit: Int,
 	): List<ImportedPortableStepsCountDomainRootEntity>
 
+	/**
+	 * Reads `imported_steps_count_domain_owner_fence` rows. Query conditions include `owner_identity
+	 * IN (:ownerIdentities)`. Orders by `owner_kind, owner_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_count_domain_owner_fence " +
 			"WHERE owner_identity IN (:ownerIdentities) ORDER BY owner_kind, owner_identity LIMIT :limit",
@@ -153,6 +250,10 @@ interface ImportedPortableStepsCountDomainDao {
 		limit: Int,
 	): List<ImportedPortableStepsCountDomainOwnerFenceEntity>
 
+	/**
+	 * Reads `imported_steps_file_receipt` rows. Query conditions include `import_job_id = :jobId`,
+	 * `entry_key = :entryKey`. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_file_receipt WHERE import_job_id = :jobId " +
 			"AND entry_key = :entryKey",
@@ -162,6 +263,10 @@ interface ImportedPortableStepsCountDomainDao {
 		entryKey: String,
 	): ImportedPortableStepsFileReceiptEntity?
 
+	/**
+	 * Reads `imported_steps_file_receipt` rows. Query conditions include `receipt_identity =
+	 * :receiptIdentity`. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_file_receipt WHERE receipt_identity = :receiptIdentity",
 	)
@@ -169,6 +274,11 @@ interface ImportedPortableStepsCountDomainDao {
 		receiptIdentity: String,
 	): ImportedPortableStepsFileReceiptEntity?
 
+	/**
+	 * Reads `imported_steps_file_receipt` rows. Query conditions include `entry_identity =
+	 * :entryIdentity`, `import_job_id > :afterJobId`, `import_job_id = :afterJobId`, `entry_key >
+	 * :afterEntryKey`. Orders by `import_job_id, entry_key`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_file_receipt WHERE entry_identity = :entryIdentity " +
 			"AND (:afterJobId IS NULL OR import_job_id > :afterJobId OR " +
@@ -182,6 +292,11 @@ interface ImportedPortableStepsCountDomainDao {
 		limit: Int,
 	): List<ImportedPortableStepsFileReceiptEntity>
 
+	/**
+	 * Updates `imported_steps_file_receipt` rows matching the supplied scope. Query conditions
+	 * include `entry_identity = :entryIdentity`, `graph_identity = :expectedGraphIdentity`. Returns
+	 * the affected row count.
+	 */
 	@Query(
 		"UPDATE imported_steps_file_receipt SET graph_identity = :newGraphIdentity " +
 			"WHERE entry_identity = :entryIdentity AND graph_identity = :expectedGraphIdentity",
@@ -192,64 +307,110 @@ interface ImportedPortableStepsCountDomainDao {
 		newGraphIdentity: String,
 	): Int
 
+	/**
+	 * Counts rows in `imported_steps_file_receipt`. Query conditions include `entry_identity =
+	 * :entryIdentity`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM imported_steps_file_receipt WHERE entry_identity = :entryIdentity",
 	)
 	suspend fun fileReceiptCountForEntry(entryIdentity: String): Int
 
+	/**
+	 * Counts rows in `imported_steps_count_domain_graph`. Query conditions include `graph_identity IN
+	 * (:graphIdentities)`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM imported_steps_count_domain_graph WHERE graph_identity IN (:graphIdentities)",
 	)
 	suspend fun graphEvidenceCount(graphIdentities: List<String>): Int
 
+	/**
+	 * Counts rows in `imported_steps_count_domain_binding`. Query conditions include `graph_identity
+	 * IN (:graphIdentities)`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM imported_steps_count_domain_binding " +
 			"WHERE graph_identity IN (:graphIdentities)",
 	)
 	suspend fun bindingEvidenceCountForGraphs(graphIdentities: List<String>): Int
 
+	/**
+	 * Counts rows in `imported_steps_count_domain_receipt`. Query conditions include `owner_identity
+	 * IN (:ownerIdentities)`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM imported_steps_count_domain_receipt " +
 			"WHERE owner_identity IN (:ownerIdentities)",
 	)
 	suspend fun receiptEvidenceCountForOwners(ownerIdentities: List<String>): Int
 
+	/**
+	 * Counts rows in `imported_steps_count_domain_owner_revision`. Query conditions include
+	 * `owner_identity IN (:ownerIdentities)`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM imported_steps_count_domain_owner_revision " +
 			"WHERE owner_identity IN (:ownerIdentities)",
 	)
 	suspend fun ownerEvidenceCount(ownerIdentities: List<String>): Int
 
+	/**
+	 * Counts rows in `imported_steps_count_domain_completeness`. Query conditions include
+	 * `owner_identity IN (:ownerIdentities)`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM imported_steps_count_domain_completeness " +
 			"WHERE owner_identity IN (:ownerIdentities)",
 	)
 	suspend fun completenessEvidenceCount(ownerIdentities: List<String>): Int
 
+	/**
+	 * Counts rows in `imported_steps_count_domain_root`. Query conditions include `container_identity
+	 * IN (:containerIdentities)`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM imported_steps_count_domain_root " +
 			"WHERE container_identity IN (:containerIdentities)",
 	)
 	suspend fun rootEvidenceCountForContainers(containerIdentities: List<String>): Int
 
+	/**
+	 * Counts rows in `imported_steps_count_domain_root`. Query conditions include `product_identity
+	 * IN (:productIdentities)`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM imported_steps_count_domain_root " +
 			"WHERE product_identity IN (:productIdentities)",
 	)
 	suspend fun rootEvidenceCountForProducts(productIdentities: List<String>): Int
 
+	/**
+	 * Counts rows in `imported_steps_count_domain_root`. Query conditions include `owner_identity IN
+	 * (:ownerIdentities)`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM imported_steps_count_domain_root " +
 			"WHERE owner_identity IN (:ownerIdentities)",
 	)
 	suspend fun rootEvidenceCountForOwners(ownerIdentities: List<String>): Int
 
+	/**
+	 * Counts rows in `imported_steps_count_domain_owner_fence`. Query conditions include
+	 * `owner_identity IN (:ownerIdentities)`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM imported_steps_count_domain_owner_fence " +
 			"WHERE owner_identity IN (:ownerIdentities)",
 	)
 	suspend fun ownerFenceEvidenceCount(ownerIdentities: List<String>): Int
 
+	/**
+	 * Deletes `imported_steps_count_domain_binding` rows matching the supplied scope. Query
+	 * conditions include `product_kind = :productKind`, `product_identity = :productIdentity`,
+	 * `product_revision = :productRevision`, `graph_identity = :graphIdentity`. Returns the affected
+	 * row count.
+	 */
 	@Query(
 		"DELETE FROM imported_steps_count_domain_binding WHERE product_kind = :productKind " +
 			"AND product_identity = :productIdentity AND product_revision = :productRevision " +
@@ -262,6 +423,10 @@ interface ImportedPortableStepsCountDomainDao {
 		graphIdentity: String,
 	): Int
 
+	/**
+	 * Deletes `imported_steps_count_domain_graph` rows matching the supplied scope. Query conditions
+	 * include `graph_identity = :graphIdentity`. Returns the affected row count.
+	 */
 	@Query(
 		"DELETE FROM imported_steps_count_domain_graph WHERE graph_identity = :graphIdentity " +
 			"AND NOT EXISTS (SELECT 1 FROM imported_steps_count_domain_binding " +
@@ -269,6 +434,12 @@ interface ImportedPortableStepsCountDomainDao {
 	)
 	suspend fun deleteGraphIfUnbound(graphIdentity: String): Int
 
+	/**
+	 * Reads `imported_steps_count_domain_binding` rows. Query conditions include `product_kind >
+	 * :afterProductKind`, `product_kind = :afterProductKind`, `product_identity >
+	 * :afterProductIdentity`, `product_identity = :afterProductIdentity`. Orders by `product_kind,
+	 * product_identity, product_revision`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_count_domain_binding WHERE " +
 			":afterProductKind IS NULL OR product_kind > :afterProductKind OR " +
@@ -284,6 +455,10 @@ interface ImportedPortableStepsCountDomainDao {
 		limit: Int,
 	): List<ImportedPortableStepsCountDomainBindingEntity>
 
+	/**
+	 * Reads `imported_steps_count_domain_graph` rows. Query conditions include `graph_identity >
+	 * :afterGraphIdentity`. Orders by `graph_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_count_domain_graph " +
 			"WHERE (:afterGraphIdentity IS NULL OR graph_identity > :afterGraphIdentity) " +
@@ -294,6 +469,11 @@ interface ImportedPortableStepsCountDomainDao {
 		limit: Int,
 	): List<ImportedPortableStepsCountDomainGraphEntity>
 
+	/**
+	 * Reads `imported_steps_count_domain_binding` rows. Query conditions include `product_kind =
+	 * :productKind`, `product_identity = :productIdentity`. Orders by `product_revision`. Returns at
+	 * most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_count_domain_binding WHERE product_kind = :productKind " +
 			"AND product_identity = :productIdentity ORDER BY product_revision LIMIT :limit",
@@ -304,9 +484,18 @@ interface ImportedPortableStepsCountDomainDao {
 		limit: Int,
 	): List<ImportedPortableStepsCountDomainBindingEntity>
 
+	/**
+	 * Reads `imported_steps_count_domain_graph` rows. Query conditions include `graph_identity =
+	 * :identity`. Returns null when no row matches.
+	 */
 	@Query("SELECT * FROM imported_steps_count_domain_graph WHERE graph_identity = :identity")
 	fun graphForFullClear(identity: String): ImportedPortableStepsCountDomainGraphEntity?
 
+	/**
+	 * Reads `imported_steps_count_domain_receipt` rows. Query conditions include `graph_identity =
+	 * :graphIdentity`. Orders by `owner_kind, owner_identity, owner_revision`. Returns at most
+	 * `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_count_domain_receipt WHERE graph_identity = :graphIdentity " +
 			"ORDER BY owner_kind, owner_identity, owner_revision LIMIT :limit",
@@ -316,6 +505,11 @@ interface ImportedPortableStepsCountDomainDao {
 		limit: Int,
 	): List<ImportedPortableStepsCountDomainReceiptEntity>
 
+	/**
+	 * Reads `imported_steps_count_domain_owner_revision` rows. Query conditions include
+	 * `graph_identity = :graphIdentity`. Orders by `owner_kind, owner_identity, owner_revision`.
+	 * Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_count_domain_owner_revision " +
 			"WHERE graph_identity = :graphIdentity " +
@@ -326,6 +520,10 @@ interface ImportedPortableStepsCountDomainDao {
 		limit: Int,
 	): List<ImportedPortableStepsCountDomainOwnerRevisionEntity>
 
+	/**
+	 * Reads `imported_steps_count_domain_completeness` rows. Query conditions include `graph_identity
+	 * = :graphIdentity`. Orders by `owner_identity, owner_revision`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_count_domain_completeness " +
 			"WHERE graph_identity = :graphIdentity " +
@@ -336,6 +534,11 @@ interface ImportedPortableStepsCountDomainDao {
 		limit: Int,
 	): List<ImportedPortableStepsCountDomainCompletenessEntity>
 
+	/**
+	 * Reads `imported_steps_count_domain_root` rows. Query conditions include `root.graph_identity =
+	 * :graphIdentity`. Orders by `root.container_identity, product_identity, owner_kind,
+	 * owner_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT root.* FROM imported_steps_count_domain_root AS root " +
 			"WHERE root.graph_identity = :graphIdentity " +
@@ -346,6 +549,10 @@ interface ImportedPortableStepsCountDomainDao {
 		limit: Int,
 	): List<ImportedPortableStepsCountDomainRootEntity>
 
+	/**
+	 * Reads `imported_steps_file_receipt` rows. Query conditions include `receipt_identity =
+	 * :receiptIdentity`. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_file_receipt WHERE receipt_identity = :receiptIdentity",
 	)
@@ -353,6 +560,11 @@ interface ImportedPortableStepsCountDomainDao {
 		receiptIdentity: String,
 	): ImportedPortableStepsFileReceiptEntity?
 
+	/**
+	 * Reads `imported_steps_file_receipt` rows. Query conditions include `import_job_id >
+	 * :afterJobId`, `import_job_id = :afterJobId`, `entry_key > :afterEntryKey`. Orders by
+	 * `import_job_id, entry_key`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_file_receipt " +
 			"WHERE (:afterJobId IS NULL OR import_job_id > :afterJobId OR " +
@@ -365,11 +577,20 @@ interface ImportedPortableStepsCountDomainDao {
 		limit: Int,
 	): List<ImportedPortableStepsFileReceiptEntity>
 
+	/**
+	 * Counts rows in `imported_steps_file_receipt`. Query conditions include `entry_identity =
+	 * :entryIdentity`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM imported_steps_file_receipt WHERE entry_identity = :entryIdentity",
 	)
 	fun fileReceiptCountForEntryForFullClear(entryIdentity: String): Int
 
+	/**
+	 * Reads `imported_steps_count_domain_owner_revision` rows. Query conditions include
+	 * `root.graph_identity = :graphIdentity`. Orders by `owner.owner_kind, owner.owner_identity`.
+	 * Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT owner.* FROM imported_steps_count_domain_owner_revision AS owner " +
 			"INNER JOIN imported_steps_count_domain_root AS root " +
@@ -385,6 +606,10 @@ interface ImportedPortableStepsCountDomainDao {
 		limit: Int,
 	): List<ImportedPortableStepsCountDomainOwnerRevisionEntity>
 
+	/**
+	 * Reads `imported_steps_count_domain_owner_fence` rows. Query conditions include `owner_identity
+	 * IN (:ownerIdentities)`. Orders by `owner_kind, owner_identity`.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_count_domain_owner_fence " +
 			"WHERE owner_identity IN (:ownerIdentities) ORDER BY owner_kind, owner_identity",
@@ -393,6 +618,10 @@ interface ImportedPortableStepsCountDomainDao {
 		ownerIdentities: List<String>,
 	): List<ImportedPortableStepsCountDomainOwnerFenceEntity>
 
+	/**
+	 * Reads `imported_steps_count_domain_owner_fence` rows. Query conditions include `owner_kind =
+	 * :ownerKind`, `owner_identity = :ownerIdentity`. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM imported_steps_count_domain_owner_fence " +
 			"WHERE owner_kind = :ownerKind AND owner_identity = :ownerIdentity",
@@ -402,15 +631,28 @@ interface ImportedPortableStepsCountDomainDao {
 		ownerIdentity: String,
 	): ImportedPortableStepsCountDomainOwnerFenceEntity?
 
+	/**
+	 * Deletes `imported_steps_count_domain_binding` rows.
+	 */
 	@Query("DELETE FROM imported_steps_count_domain_binding")
 	fun deleteAllBindingsForFullClear()
 
+	/**
+	 * Deletes `imported_steps_count_domain_graph` rows.
+	 */
 	@Query("DELETE FROM imported_steps_count_domain_graph")
 	fun deleteAllGraphsForFullClear()
 
+	/**
+	 * Deletes `imported_steps_file_receipt` rows.
+	 */
 	@Query("DELETE FROM imported_steps_file_receipt")
 	fun deleteAllFileReceiptsForFullClear()
 
+	/**
+	 * Limits for bounded portable Steps admission, lineage and maintenance reads; callers detect
+	 * overflow before loading more dependencies.
+	 */
 	companion object {
 		const val MAX_FILE_RECEIPTS_PER_ENTRY = 4_096
 		const val FILE_RECEIPT_PAGE_SIZE = 128

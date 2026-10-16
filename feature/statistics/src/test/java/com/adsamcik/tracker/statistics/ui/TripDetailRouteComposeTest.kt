@@ -302,7 +302,11 @@ class TripDetailRouteComposeTest {
 		causes: Set<PressureHistoryCause>,
 	) = PressureHistory(
 		availability = availability,
-		evidence = if (windows.isEmpty()) HistoryEvidence.NONE else HistoryEvidence.RECORDED,
+		evidence = if (windows.isEmpty()) {
+			HistoryEvidence.NONE
+		} else {
+			HistoryEvidence.RECORDED
+		},
 		productState = productState,
 		coverage = coverage,
 		windows = windows,

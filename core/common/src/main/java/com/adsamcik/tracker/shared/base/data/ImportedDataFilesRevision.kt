@@ -9,5 +9,6 @@ import kotlinx.coroutines.flow.update
 object ImportedDataFilesRevision {
     private val mutableRevision = MutableStateFlow(0L)
     val revisions: StateFlow<Long> = mutableRevision.asStateFlow()
+    /** Signals a retained file change so readers refresh without starting acquisition. */
     fun changed() { mutableRevision.update { Math.addExact(it, 1L) } }
 }

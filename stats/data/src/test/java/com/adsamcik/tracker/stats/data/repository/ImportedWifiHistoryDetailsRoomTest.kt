@@ -193,7 +193,11 @@ class ImportedWifiHistoryDetailsRoomTest {
 	fun `Wi-Fi child checksum must use its exact parent semantic revision`() = runTest {
 		val value = seedParent()
 		database.importedRadioChildDao().insertWifiSession(children(value).mapIndexed { index, row ->
-			if (index == 0) row.copy(contentChecksum = checksum(row, 2L)) else row
+			if (index == 0) {
+				row.copy(contentChecksum = checksum(row, 2L))
+			} else {
+				row
+			}
 		})
 		shouldThrow<IllegalStateException> { read(value) }
 	}
@@ -205,8 +209,12 @@ class ImportedWifiHistoryDetailsRoomTest {
 			Long.MAX_VALUE to 1L).forEach { (time, uncertainty) ->
 			database.importedRadioChildDao().deleteWifiSession(value.identity.value, 1L)
 			database.importedRadioChildDao().insertWifiSession(children(value).mapIndexed { index, row ->
-				if (index == 0) row.copy(observedWallTimeMs = time, wallTimeUncertaintyMs = uncertainty)
-					.let { it.copy(contentChecksum = checksum(it)) } else row
+				if (index == 0) {
+					row.copy(observedWallTimeMs = time, wallTimeUncertaintyMs = uncertainty)
+					.let { it.copy(contentChecksum = checksum(it)) }
+				} else {
+					row
+				}
 			})
 			shouldThrow<IllegalStateException> { read(value) }
 		}
@@ -395,8 +403,16 @@ class ImportedWifiHistoryDetailsRoomTest {
 		listOf(100L, 112L).mapIndexed { index, time ->
 			ImportedWifiChildEntity(value.identity.value, 1L, run.identity.value,
 				observation.identity.value, index, 1_000L + index, time, 0L,
-				"00:00:00:00:00:0$index", "Network $index", if (index == 0) 2_412 else 5_180,
-				if (index == 0) -50 else -70, "").let { it.copy(contentChecksum = checksum(it)) }
+				"00:00:00:00:00:0$index", "Network $index", if (index == 0) {
+					2_412
+				} else {
+					5_180
+				},
+				if (index == 0) {
+					-50
+				} else {
+					-70
+				}, "").let { it.copy(contentChecksum = checksum(it)) }
 		}
 
 	private fun checksum(row: ImportedWifiChildEntity, revision: Long = 1L) =

@@ -41,4 +41,24 @@
     <string name="format_database">Copie de siguranță a bazei de date (ZIP)</string>
     <string name="settings_import_summary">Importă date din tipurile acceptate (%1$s) și arhive (%2$s). Importurile bazei de date combină rândurile compatibile; nu înlocuiesc datele existente.</string>
     <string name="settings_import_title">Importă</string>
+    <string name="export_radio_sensitivity_title">Exportați detaliile rețelelor?</string>
+    <string name="export_wifi_sensitivity_message">Acest fișier include nume Wi-Fi și ID-uri ale punctelor de acces salvate.</string>
+    <string name="export_cell_sensitivity_message">Acest fișier include ID-uri ale stațiilor de bază și măsurători ale semnalului salvate.</string>
+    <string name="export_radio_no_data">Nu există date salvate pentru această sursă</string>
+    <string name="export_include_complete_sessions">Include sesiunile complete</string>
+    <string name="import_location_conflict_title">Înlocuiți punctele salvate?</string>
+    <string name="import_location_replace">Folosește punctele din fișier</string>
+    <string name="import_location_keep">Păstrează punctele salvate</string>
+    <string name="export_backup_review_title">Verifică copiile programate</string>
+    <string name="export_backup_review_summary">În pauză până verificați copia de date actualizată.</string>
+    <string name="export_backup_review_message">Aceste programări copiază acum toate datele de urmărire salvate și fișierele necesare restaurării lor. Setările sunt excluse. Reluați aceste programări?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Reia copiile de siguranță</string>
+    <string name="import_backup_replace_title">Restaurați copia de date?</string>
+    <string name="import_backup_replace_message">Înlocuiți datele salvate cu această copie de siguranță? Setările rămân neschimbate. Urmărirea va fi oprită până o reluați.</string>
+    <string name="import_backup_restore">Înlocuiește datele</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d punct din acest fișier diferă de copia salvată. Alegeți pe care să îl păstrați. Celelalte puncte vor fi importate normal.</item>
+        <item quantity="few">%d puncte din acest fișier diferă de copiile salvate. Alegeți pe care să le păstrați. Celelalte puncte vor fi importate normal.</item>
+        <item quantity="other">%d de puncte din acest fișier diferă de copiile salvate. Alegeți pe care să le păstrați. Celelalte puncte vor fi importate normal.</item>
+    </plurals>
 </resources>

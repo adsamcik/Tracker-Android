@@ -27,7 +27,14 @@ value class SourceFactIdentity(val value: String) {
 
 private const val MAX_IDENTITY_LENGTH = 512
 
+/**
+ * Exact native session or all-day scope within which one source's saved lifecycle evidence is
+ * evaluated.
+ */
 sealed interface SourceProofScope {
+	/**
+	 * Exact logical tracking and service-run identity for a source lifecycle proof.
+	 */
 	data class Run(
 		val logicalTrackingId: String,
 		val serviceRunId: String,
@@ -38,6 +45,9 @@ sealed interface SourceProofScope {
 		}
 	}
 
+	/**
+	 * Exact nonblank all-day source scope identity, independent of sessions.
+	 */
 	data class Ambient(
 		val scopeIdentity: String,
 	) : SourceProofScope {
@@ -69,6 +79,10 @@ data class SourceProofKey(
 	}
 }
 
+/**
+ * Separate recording, materialization and query milestones; success in one stage does not imply
+ * the others.
+ */
 enum class SourceProofStage {
 	RECORDING,
 	MATERIALIZED,
@@ -82,6 +96,9 @@ enum class SourceProofStage {
  * materialized lineage identifies the current product head.
  */
 sealed interface SourceProofCoverage {
+	/**
+	 * Nonempty half-open elapsed-realtime interval in nanoseconds under the provider's clock domain.
+	 */
 	data class ProviderInterval(
 		val startInclusiveNanos: Long,
 		val endExclusiveNanos: Long,
@@ -92,6 +109,9 @@ sealed interface SourceProofCoverage {
 		}
 	}
 
+	/**
+	 * One provider observation time in elapsed-realtime nanoseconds.
+	 */
 	data class ProviderPoint(
 		val observedAtNanos: Long,
 	) : SourceProofCoverage {
@@ -100,6 +120,9 @@ sealed interface SourceProofCoverage {
 		}
 	}
 
+	/**
+	 * Nonempty half-open observed UTC wall-time interval in milliseconds.
+	 */
 	data class WallInterval(
 		val startInclusiveMs: Long,
 		val endExclusiveMs: Long,
@@ -110,9 +133,15 @@ sealed interface SourceProofCoverage {
 		}
 	}
 
+	/**
+	 * This evidence does not declare a measurable coverage interval.
+	 */
 	data object Unspecified : SourceProofCoverage
 }
 
+/**
+ * Recorded coverage classification, distinguishing complete, partial, confirmed empty and unknown.
+ */
 enum class SourceProofCompleteness {
 	COMPLETE,
 	PARTIAL,
@@ -120,6 +149,10 @@ enum class SourceProofCompleteness {
 	UNKNOWN,
 }
 
+/**
+ * Exact projection identifier/version and binding/owner generations for the writer of saved source
+ * facts.
+ */
 data class SourceProofWriterIdentity(
 	val projectionId: String,
 	val projectionVersion: Int,
@@ -195,12 +228,18 @@ data class SourceProofLineage(
 	}
 }
 
+/**
+ * Source lineage and coverage attached to one lifecycle milestone.
+ */
 sealed interface SourceProofStageState {
 	val lineage: SourceProofLineage
 	val coverage: SourceProofCoverage
 	val completeness: SourceProofCompleteness
 }
 
+/**
+ * Verified admission-stage lineage, coverage and completeness for the selected source scope.
+ */
 data class RecordingProofState(
 	override val lineage: SourceProofLineage,
 	override val coverage: SourceProofCoverage,
@@ -211,6 +250,9 @@ data class RecordingProofState(
 	}
 }
 
+/**
+ * Verified canonical-writer lineage, coverage and completeness for saved facts.
+ */
 data class MaterializedProofState(
 	override val lineage: SourceProofLineage,
 	override val coverage: SourceProofCoverage,
@@ -221,6 +263,9 @@ data class MaterializedProofState(
 	}
 }
 
+/**
+ * Verified reader-visible lineage and coverage bound to the exact History read snapshot.
+ */
 data class QueryableProofState(
 	override val lineage: SourceProofLineage,
 	override val coverage: SourceProofCoverage,
@@ -234,6 +279,10 @@ data class QueryableProofState(
 	}
 }
 
+/**
+ * Named provider, policy, permission, writer, query, deletion and retention causes for an unproven
+ * source stage.
+ */
 enum class SourceProofReason {
 	EVIDENCE_NOT_FOUND,
 	FACT_NOT_FOUND,
@@ -276,27 +325,48 @@ enum class SourceProofReason {
 	RETENTION_EXPIRED,
 }
 
+/**
+ * One stage's qualified state or a named incomplete, unavailable or failure boundary.
+ */
 sealed interface SourceProofResult<out S : SourceProofStageState> {
+	/**
+	 * Qualified state for this specific lifecycle stage, not an assertion that later stages have
+	 * completed.
+	 */
 	data class Proven<S : SourceProofStageState>(val state: S) : SourceProofResult<S>
 
+	/**
+	 * The named lifecycle stage is still settling; any known lineage remains attached.
+	 */
 	data class Pending(
 		val stage: SourceProofStage,
 		val reason: SourceProofReason,
 		val lineage: SourceProofLineage? = null,
 	) : SourceProofResult<Nothing>
 
+	/**
+	 * The requested data or authority is unavailable; any named reason preserves the original failure
+	 * cause.
+	 */
 	data class Unavailable(
 		val stage: SourceProofStage,
 		val reason: SourceProofReason,
 		val lineage: SourceProofLineage? = null,
 	) : SourceProofResult<Nothing>
 
+	/**
+	 * The stored source or scope failed integrity qualification; this outcome does not expose a
+	 * measured count.
+	 */
 	data class Failed(
 		val stage: SourceProofStage,
 		val reason: SourceProofReason,
 		val lineage: SourceProofLineage? = null,
 	) : SourceProofResult<Nothing>
 
+	/**
+	 * The stage's saved evidence was explicitly deleted or expired by retention.
+	 */
 	data class Deleted(
 		val stage: SourceProofStage,
 		val reason: SourceProofReason,
@@ -309,6 +379,9 @@ sealed interface SourceProofResult<out S : SourceProofStageState> {
 	}
 }
 
+/**
+ * Independent recording, materialization and query results for the same source proof key.
+ */
 data class SourceLifecycleProof(
 	val key: SourceProofKey,
 	val recording: SourceProofResult<RecordingProofState>,
@@ -316,6 +389,10 @@ data class SourceLifecycleProof(
 	val queryable: SourceProofResult<QueryableProofState>,
 )
 
+/**
+ * Exact proof key and compatible materialized state supplied to the source-owned saved-fact
+ * lookup.
+ */
 data class SourceFactLookupRequest(
 	val key: SourceProofKey,
 	val materialized: MaterializedProofState,
@@ -325,17 +402,37 @@ data class SourceFactLookupRequest(
 	}
 }
 
+/**
+ * Queryable state or the named scope/read failure; a lookup does not create recording authority.
+ */
 sealed interface SourceFactLookupResult {
+	/**
+	 * Contains qualified reader-visible lineage and the exact saved-data snapshot.
+	 */
 	data class Found(val state: QueryableProofState) : SourceFactLookupResult
+	/**
+	 * No matching saved source entry or selection remains.
+	 */
 	data class NotFound(val reason: SourceProofReason = SourceProofReason.QUERY_MISS) :
 		SourceFactLookupResult
+	/**
+	 * The selected fact was deleted or expired by retention.
+	 */
 	data class Deleted(val reason: SourceProofReason) : SourceFactLookupResult {
 		init {
 			require(reason == SourceProofReason.DELETED ||
 				reason == SourceProofReason.RETENTION_EXPIRED)
 		}
 	}
+	/**
+	 * The requested data or authority is unavailable; any named reason preserves the original failure
+	 * cause.
+	 */
 	data class Unavailable(val reason: SourceProofReason) : SourceFactLookupResult
+	/**
+	 * The stored source or scope failed integrity qualification; this outcome does not expose a
+	 * measured count.
+	 */
 	data class Failed(val reason: SourceProofReason) : SourceFactLookupResult
 }
 
@@ -346,5 +443,9 @@ sealed interface SourceFactLookupResult {
  * callers cannot bypass source-union membership, collision, and presentation qualification.
  */
 fun interface SourceFactQueryRepository {
+	/**
+	 * Delegates the exact materialized lineage to the source-qualified History lookup without
+	 * activation or mutation.
+	 */
 	suspend fun lookup(request: SourceFactLookupRequest): SourceFactLookupResult
 }

@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteConstraintException
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.deleteAllCollectedData
 import com.adsamcik.tracker.shared.base.database.liveSourceProjectionActivationOrdinal
 import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
 import com.adsamcik.tracker.shared.base.database.data.LocationProjectionObservationEntity
@@ -65,6 +66,8 @@ class SourceEventWalDaoTest {
 	}
 
 	@Test
+	// Keep this complete contract scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `every scalar WAL uniqueness conflict preserves the allocator and existing row`() = runTest {
 		val dao = database.sourceEventWalDao()
 		val fixtures = listOf(
@@ -581,6 +584,8 @@ class SourceEventWalDaoTest {
 		database.liveSourceProjectionActivationOrdinal() shouldBe 4L
 	}
 
+	// Keep the interleaved WAL, stalled Activity prune and later completed drain in one scenario.
+	@Suppress("LongMethod")
 	@Test
 	fun `stalled activity lane retains only activity wal and receipts across interleaved sources`() = runTest {
 		val projection = database.sourceProjectionStateDao()

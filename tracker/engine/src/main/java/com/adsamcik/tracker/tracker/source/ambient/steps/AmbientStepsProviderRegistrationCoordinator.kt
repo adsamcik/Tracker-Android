@@ -181,25 +181,29 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 			}
 			for (provider in pending) {
 				if (!callRemoveProvider(provider)) {
-					return@withLock cleanupResult(
+					return@withLock cleanupStore.cleanupResult(
 						AmbientStepsProviderRegistrationFailure.PROVIDER_REMOVAL_FAILED,
 					)
 				}
 				try {
 					cleanupStore.removePending(provider)
 				} catch (error: AmbientStepsProviderCleanupStoreException) {
-					return@withLock cleanupResult(error.toRegistrationFailure(), !error.corrupt)
+					return@withLock cleanupStore.cleanupResult(error.toRegistrationFailure(), !error.corrupt)
 				}
 			}
 			AmbientStepsProviderCleanupResult(complete = true, pendingProviders = emptySet())
 		}
 
+	// Keep reservation, activation, acceptance, predecessor and remaining cleanup failure exits ordered.
+	@Suppress("ReturnCount")
 	private suspend fun reconcileReady(
 		demand: AmbientStepsDemandReconciliation.DemandReady,
 		boundary: AmbientStepsDemandBoundary,
 	): AmbientStepsProviderRegistrationResult {
 		val pendingCleanup = cleanupMismatchedReservations(demand.provider, boundary)
-		if (pendingCleanup != null) return pendingCleanup
+		if (pendingCleanup != null) {
+			return pendingCleanup
+		}
 
 		val reservation = try {
 			registrations.reserve(demand.provider, demand.demandId, boundary)
@@ -214,40 +218,13 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 		val identityKey = reservation.identityKey()
 		val requiresRearm = reservation.requiresProviderAcceptance || identityKey !in rearmedIdentities
 		if (requiresRearm) {
-			try {
-				cleanupStore.addPending(demand.provider)
-			} catch (error: AmbientStepsProviderCleanupStoreException) {
-				return failureWithCurrent(demand.provider, error.toRegistrationFailure(), !error.corrupt)
-			}
-			try {
-				check(withTimeoutOrNull(AmbientStepsImportRunner.ATTEMPT_TIMEOUT_MILLIS) {
-					backend(demand.provider).ensureActive()
-					true
-				} == true) { "Ambient Steps provider activation timed out" }
-			} catch (cancellation: CancellationException) {
-				throw cancellation
-			} catch (_: Exception) {
-				return activationFailed(reservation, boundary)
-			}
+			rearmProvider(demand.provider, reservation, boundary)?.let { return it }
 		}
-		if (reservation.requiresProviderAcceptance) {
-			val predecessor = try {
-				registrations.accept(reservation)
-			} catch (cancellation: CancellationException) {
-				throw cancellation
-			} catch (_: Exception) {
-				return acceptanceFailed(reservation, boundary)
-			}
-			rearmedIdentities += identityKey
-			if (predecessor != null) {
-				val cleanup = cleanupRetirement(predecessor, registrations.currentActive())
-				if (cleanup != null) return cleanup
-			}
-		} else if (requiresRearm) {
-			rearmedIdentities += identityKey
-		}
+		acceptAndRetirePredecessor(reservation, identityKey, boundary, requiresRearm)?.let { return it }
 		val remainingCleanup = cleanupRetirements(registrations.currentActive())
-		if (remainingCleanup != null) return remainingCleanup
+		if (remainingCleanup != null) {
+			return remainingCleanup
+		}
 
 		return AmbientStepsProviderRegistrationResult.Active(
 			provider = demand.provider,
@@ -258,6 +235,68 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 		)
 	}
 
+	private suspend fun acceptAndRetirePredecessor(
+		reservation: AmbientStepsProviderRegistration,
+		identityKey: String,
+		boundary: AmbientStepsDemandBoundary,
+		requiresRearm: Boolean,
+	): AmbientStepsProviderRegistrationResult? {
+		if (!reservation.requiresProviderAcceptance) {
+			if (requiresRearm) {
+				rearmedIdentities += identityKey
+			}
+			return null
+		}
+		val predecessor = try {
+			registrations.accept(reservation)
+		} catch (cancellation: CancellationException) {
+			throw cancellation
+		} catch (_: Exception) {
+			return cleanupRejectedReservation(reservation, boundary,
+				AmbientStepsProviderRegistrationFailure.AUTHORITY_CHANGED_DURING_ACTIVATION,
+				"Ambient Steps provider reservation changed before rejection")
+		}
+		rearmedIdentities += identityKey
+		if (predecessor != null) {
+			val cleanup = cleanupRetirement(predecessor, registrations.currentActive())
+			if (cleanup != null) {
+				return cleanup
+			}
+		}
+		return null
+	}
+
+	private suspend fun rearmProvider(
+		provider: AmbientStepsProvider,
+		reservation: AmbientStepsProviderRegistration,
+		boundary: AmbientStepsDemandBoundary,
+	): AmbientStepsProviderRegistrationResult? {
+		try {
+			cleanupStore.addPending(provider)
+		} catch (error: AmbientStepsProviderCleanupStoreException) {
+			return failureWithCurrent(provider, error.toRegistrationFailure(), !error.corrupt)
+		}
+		try {
+			check(withTimeoutOrNull(AmbientStepsImportRunner.ATTEMPT_TIMEOUT_MILLIS) {
+				requireNotNull(backends[provider]).ensureActive()
+				true
+			} == true) { "Ambient Steps provider activation timed out" }
+		} catch (cancellation: CancellationException) {
+			throw cancellation
+		} catch (_: Exception) {
+			if (!reservation.requiresProviderAcceptance) {
+				return failureWithCurrent(reservation.provider,
+					AmbientStepsProviderRegistrationFailure.PROVIDER_ACTIVATION_FAILED)
+			}
+			return cleanupRejectedReservation(reservation, boundary,
+				AmbientStepsProviderRegistrationFailure.PROVIDER_ACTIVATION_FAILED,
+				"Ambient Steps provider reservation changed before failure")
+		}
+		return null
+	}
+
+	// Keep ordered durable-read, physical cleanup and retryable failure exits explicit.
+	@Suppress("ReturnCount")
 	private suspend fun cleanupOrphanedJournalProviders():
 		AmbientStepsProviderRegistrationResult? {
 		val pending = try {
@@ -280,7 +319,9 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 					failure = AmbientStepsProviderRegistrationFailure.DURABLE_AUTHORITY_REJECTED,
 				)
 			}
-			if (owned) continue
+			if (owned) {
+				continue
+			}
 			if (!callRemoveProvider(provider)) {
 				return failureWithCurrent(
 					selectedProvider = null,
@@ -300,12 +341,16 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 		return null
 	}
 
+	// Keep ordered durable-read, physical cleanup and retryable failure exits explicit.
+	@Suppress("ReturnCount")
 	private suspend fun reconcileInactive(
 		demandState: AmbientStepsDemandReconciliation,
 		boundary: AmbientStepsDemandBoundary,
 	): AmbientStepsProviderRegistrationResult {
 		val reservationCleanup = cleanupMismatchedReservations(null, boundary)
-		if (reservationCleanup != null) return reservationCleanup
+		if (reservationCleanup != null) {
+			return reservationCleanup
+		}
 
 		val active = registrations.currentActive()
 		if (active != null) {
@@ -327,66 +372,17 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 			}
 		}
 		val cleanup = cleanupRetirements(current = null)
-		if (cleanup != null) return cleanup
+		if (cleanup != null) {
+			return cleanup
+		}
 		return AmbientStepsProviderRegistrationResult.Inactive(demandState)
 	}
 
-	private suspend fun activationFailed(
+	private suspend fun cleanupRejectedReservation(
 		reservation: AmbientStepsProviderRegistration,
 		boundary: AmbientStepsDemandBoundary,
-	): AmbientStepsProviderRegistrationResult {
-		if (!reservation.requiresProviderAcceptance) {
-			return failureWithCurrent(
-				selectedProvider = reservation.provider,
-				failure = AmbientStepsProviderRegistrationFailure.PROVIDER_ACTIVATION_FAILED,
-			)
-		}
-		val predecessorProvider = reservation.predecessorState?.let { predecessor ->
-			registrations.currentActive()
-				?.takeIf { current ->
-					current.registrationGeneration == predecessor.registrationGeneration &&
-						current.sourceInstanceId == predecessor.sourceInstanceId
-				}
-				?.ambientStepsProviderOrNull()
-		}
-		val cleanupComplete = if (predecessorProvider == reservation.provider) {
-			true
-		} else {
-			callRemoveProvider(reservation.provider)
-		}
-		if (cleanupComplete) {
-			try {
-				check(registrations.failUnaccepted(
-					reservation,
-					"PROVIDER_ACTIVATION_FAILED",
-					boundary,
-				)) { "Ambient Steps provider reservation changed before failure" }
-				clearJournalIfUnowned(reservation.provider)?.let { return it }
-			} catch (cancellation: CancellationException) {
-				throw cancellation
-			} catch (_: Exception) {
-				return failureWithCurrent(
-					selectedProvider = reservation.provider,
-					failure = AmbientStepsProviderRegistrationFailure.DURABLE_AUTHORITY_REJECTED,
-				)
-			}
-		}
-		return if (cleanupComplete) {
-			failureWithCurrent(
-				selectedProvider = reservation.provider,
-				failure = AmbientStepsProviderRegistrationFailure.PROVIDER_ACTIVATION_FAILED,
-			)
-		} else {
-			failureWithCurrent(
-				selectedProvider = reservation.provider,
-				failure = AmbientStepsProviderRegistrationFailure.PROVIDER_REMOVAL_FAILED,
-			)
-		}
-	}
-
-	private suspend fun acceptanceFailed(
-		reservation: AmbientStepsProviderRegistration,
-		boundary: AmbientStepsDemandBoundary,
+		failure: AmbientStepsProviderRegistrationFailure,
+		failureMessage: String,
 	): AmbientStepsProviderRegistrationResult {
 		val predecessorProvider = reservation.predecessorState?.let { predecessor ->
 			registrations.currentActive()
@@ -406,9 +402,9 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 			try {
 				check(registrations.failUnaccepted(
 					reservation,
-					"AUTHORITY_CHANGED_DURING_ACTIVATION",
+					failure.name,
 					boundary,
-				)) { "Ambient Steps provider reservation changed before rejection" }
+				)) { failureMessage }
 				clearJournalIfUnowned(reservation.provider)?.let { return it }
 			} catch (cancellation: CancellationException) {
 				throw cancellation
@@ -422,7 +418,7 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 		return failureWithCurrent(
 			selectedProvider = reservation.provider,
 			failure = if (cleanupComplete) {
-				AmbientStepsProviderRegistrationFailure.AUTHORITY_CHANGED_DURING_ACTIVATION
+				failure
 			} else {
 				AmbientStepsProviderRegistrationFailure.PROVIDER_REMOVAL_FAILED
 			},
@@ -444,32 +440,45 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 			)
 		}
 		for (registration in pending) {
-			val provider = registration.ambientStepsProviderOrNull() ?: return failureWithCurrent(
+			cleanupMismatchedReservation(registration, desiredProvider, boundary)?.let { return it }
+		}
+		return null
+	}
+
+	// Keep identity, same-provider skip, physical removal and exact reservation cleanup exits ordered.
+	@Suppress("ReturnCount")
+	private suspend fun cleanupMismatchedReservation(
+		registration: ProviderRegistrationGenerationEntity,
+		desiredProvider: AmbientStepsProvider?,
+		boundary: AmbientStepsDemandBoundary,
+	): AmbientStepsProviderRegistrationResult? {
+		val provider = registration.ambientStepsProviderOrNull() ?: return failureWithCurrent(
+			desiredProvider,
+			AmbientStepsProviderRegistrationFailure.PROVIDER_IDENTITY_INVALID,
+		)
+		if (provider == desiredProvider) {
+			return null
+		}
+		if (!callRemoveProvider(provider)) {
+			return failureWithCurrent(
 				desiredProvider,
-				AmbientStepsProviderRegistrationFailure.PROVIDER_IDENTITY_INVALID,
+				AmbientStepsProviderRegistrationFailure.PROVIDER_REMOVAL_FAILED,
 			)
-			if (provider == desiredProvider) continue
-			if (!callRemoveProvider(provider)) {
-				return failureWithCurrent(
-					desiredProvider,
-					AmbientStepsProviderRegistrationFailure.PROVIDER_REMOVAL_FAILED,
-				)
-			}
-			try {
-				check(registrations.failUnaccepted(
-					registration,
-					"SUPERSEDED_UNACCEPTED_PROVIDER",
-					boundary,
-				)) { "Ambient Steps provider reservation changed during cleanup" }
-				clearJournalIfUnowned(provider)?.let { return it }
-			} catch (cancellation: CancellationException) {
-				throw cancellation
-			} catch (_: Exception) {
-				return failureWithCurrent(
-					desiredProvider,
-					AmbientStepsProviderRegistrationFailure.DURABLE_AUTHORITY_REJECTED,
-				)
-			}
+		}
+		try {
+			check(registrations.failUnaccepted(
+				registration,
+				"SUPERSEDED_UNACCEPTED_PROVIDER",
+				boundary,
+			)) { "Ambient Steps provider reservation changed during cleanup" }
+			clearJournalIfUnowned(provider)?.let { return it }
+		} catch (cancellation: CancellationException) {
+			throw cancellation
+		} catch (_: Exception) {
+			return failureWithCurrent(
+				desiredProvider,
+				AmbientStepsProviderRegistrationFailure.DURABLE_AUTHORITY_REJECTED,
+			)
 		}
 		return null
 	}
@@ -489,7 +498,9 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 		}
 		for (registration in pending) {
 			val failure = cleanupRetirement(registration, current)
-			if (failure != null) return failure
+			if (failure != null) {
+				return failure
+			}
 		}
 		return null
 	}
@@ -503,21 +514,7 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 			AmbientStepsProviderRegistrationFailure.PROVIDER_IDENTITY_INVALID,
 		)
 		val currentProvider = current?.ambientStepsProviderOrNull()
-		if (current != null && currentProvider != provider &&
-			current.clockDomainId == registration.clockDomainId &&
-			current.collectedDataEpoch == registration.collectedDataEpoch
-		) {
-			val drained = try {
-				drainPredecessor(registration, current)
-			} catch (cancelled: CancellationException) {
-				throw cancelled
-			} catch (_: Exception) {
-				false
-			}
-			if (!drained) return failureWithCurrent(
-				currentProvider, AmbientStepsProviderRegistrationFailure.DURABLE_AUTHORITY_REJECTED,
-			)
-		}
+		drainRetiringPredecessor(registration, current, currentProvider, provider)?.let { return it }
 		val sharesGlobalProvider = current != null &&
 			current.registrationGeneration != registration.registrationGeneration &&
 			currentProvider == provider
@@ -547,9 +544,35 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 		}
 	}
 
+	private suspend fun drainRetiringPredecessor(
+		registration: ProviderRegistrationGenerationEntity,
+		current: ProviderRegistrationGenerationEntity?,
+		currentProvider: AmbientStepsProvider?,
+		provider: AmbientStepsProvider,
+	): AmbientStepsProviderRegistrationResult? {
+		if (current != null && currentProvider != provider &&
+			current.clockDomainId == registration.clockDomainId &&
+			current.collectedDataEpoch == registration.collectedDataEpoch
+		) {
+			val drained = try {
+				drainPredecessor(registration, current)
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				false
+			}
+			if (!drained) {
+				return failureWithCurrent(
+				currentProvider, AmbientStepsProviderRegistrationFailure.DURABLE_AUTHORITY_REJECTED,
+			)
+			}
+		}
+		return null
+	}
+
 	private suspend fun callRemoveProvider(provider: AmbientStepsProvider): Boolean = try {
 		withTimeoutOrNull(AmbientStepsImportRunner.ATTEMPT_TIMEOUT_MILLIS) {
-			backend(provider).remove()
+			requireNotNull(backends[provider]).remove()
 			true
 		} == true
 	} catch (cancellation: CancellationException) {
@@ -571,7 +594,9 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 				AmbientStepsProviderRegistrationFailure.DURABLE_AUTHORITY_REJECTED,
 			)
 		}
-		if (owned) return null
+		if (owned) {
+			return null
+		}
 		return try {
 			cleanupStore.removePending(provider)
 			null
@@ -582,23 +607,6 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 				retryable = !error.corrupt,
 			)
 		}
-	}
-
-	private fun cleanupResult(
-		failure: AmbientStepsProviderRegistrationFailure,
-		retryable: Boolean = true,
-	): AmbientStepsProviderCleanupResult {
-		val pending = try {
-			cleanupStore.read().pending
-		} catch (_: AmbientStepsProviderCleanupStoreException) {
-			AmbientStepsProvider.entries.toSet()
-		}
-		return AmbientStepsProviderCleanupResult(
-			complete = false,
-			pendingProviders = pending,
-			failure = failure,
-			retryable = retryable,
-		)
 	}
 
 	private suspend fun failureWithCurrent(
@@ -637,8 +645,23 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 		}
 	}
 
-	private fun backend(provider: AmbientStepsProvider): AmbientStepsProviderBackend =
-		requireNotNull(backends[provider])
+}
+
+private fun AmbientStepsProviderCleanupStore.cleanupResult(
+	failure: AmbientStepsProviderRegistrationFailure,
+	retryable: Boolean = true,
+): AmbientStepsProviderCleanupResult {
+	val pending = try {
+		read().pending
+	} catch (_: AmbientStepsProviderCleanupStoreException) {
+		AmbientStepsProvider.entries.toSet()
+	}
+	return AmbientStepsProviderCleanupResult(
+		complete = false,
+		pendingProviders = pending,
+		failure = failure,
+		retryable = retryable,
+	)
 }
 
 private val AmbientStepsDemandReconciliation.retirementComplete: Boolean

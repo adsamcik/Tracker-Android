@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/** Owns one consumed source-detail handoff, cancellable reads and serialized actions for that exact selection. */
 @HiltViewModel
 class SourceHistoryDetailViewModel @Inject constructor(
 	private val presenter: SourceHistoryDetailPresenter,
@@ -41,19 +42,28 @@ class SourceHistoryDetailViewModel @Inject constructor(
 	private var actionJob: Job? = null
 	private var pendingExport: SourceHistoryDetailSelection? = null
 
+	/**
+	 * Captures the readable selection before opening the destination picker; returns false when no idle
+	 * selection is available.
+	 */
 	fun prepareExport(): Boolean {
 		val loaded = _state.value as? SourceHistoryDetailState.Loaded ?: return false
-		if (_actionBusy.value) return false
+		if (_actionBusy.value) {
+			return false
+		}
 		pendingExport = loaded.selection
 		_actionResult.value = null
 		return true
 	}
+	/** Consumes the prepared selection once; a null destination or changed selection cancels the export. */
 	fun exportTo(destination: Uri?) {
 		val selected = pendingExport ?: return
 		pendingExport = null
-		if (destination == null || _actionBusy.value || ownedSelection != selected) return
+		if (destination == null || _actionBusy.value || ownedSelection != selected) {
+			return
+		}
 		performAction(selected) {
-			when (exporter.export(destination, selected)) {
+			when (exporter.export(destination.toString(), selected)) {
 				SourceHistoryFileExportResult.SAVED -> SourceHistoryActionResult.EXPORTED
 				SourceHistoryFileExportResult.STALE -> SourceHistoryActionResult.CHANGED
 				SourceHistoryFileExportResult.UNAVAILABLE -> SourceHistoryActionResult.UNAVAILABLE
@@ -61,9 +71,12 @@ class SourceHistoryDetailViewModel @Inject constructor(
 			}
 		}
 	}
+	/** Starts deletion for the currently loaded exact selection when no other action is running. */
 	fun delete() {
 		val loaded = _state.value as? SourceHistoryDetailState.Loaded ?: return
-		if (_actionBusy.value) return
+		if (_actionBusy.value) {
+			return
+		}
 		performAction(loaded.selection) { actions.delete(loaded.selection) }
 	}
 	private fun performAction(selected: SourceHistoryDetailSelection, action: suspend () -> SourceHistoryActionResult) {
@@ -74,11 +87,15 @@ class SourceHistoryDetailViewModel @Inject constructor(
 				if (ownedSelection == selected) {
 					_actionResult.value = result
 					if (result == SourceHistoryActionResult.DELETED) {
-						_state.value = SourceHistoryDetailState.Unavailable(SourceHistoryDetailUnavailableReason.NOT_FOUND, selected.entry.source)
+						_state.value =
+                            SourceHistoryDetailState.Unavailable(SourceHistoryDetailUnavailableReason.NOT_FOUND,
+                            selected.entry.source)
 					}
 				}
 			} catch (cancelled: CancellationException) { throw cancelled }
-			catch (_: Exception) { if (ownedSelection == selected) _actionResult.value = SourceHistoryActionResult.FAILED }
+			catch (_: Exception) { if (ownedSelection == selected) {
+				_actionResult.value = SourceHistoryActionResult.FAILED
+			} }
 			finally { _actionBusy.value = false }
 		}
 	}
@@ -87,6 +104,7 @@ class SourceHistoryDetailViewModel @Inject constructor(
 		retry()
 	}
 
+	/** Retries the owned selection only when permitted; expired or changed selections are not reconstructed. */
 	fun retry() {
 		val current = _state.value
 		if (current is SourceHistoryDetailState.Unavailable && !current.canRetry) {
@@ -115,21 +133,29 @@ class SourceHistoryDetailViewModel @Inject constructor(
 					canRetry = true,
 				)
 			}
-			if (generation == loadGeneration && ownedSelection == selection) {
-				_state.value = when (result) {
-					is SourceHistoryDetailState.Loaded -> {
-						ownedSelection = result.selection
-						result
-					}
-					is SourceHistoryDetailState.Unavailable -> {
-						val canRetry = result.canRetry && ownedSelection == selection
-						if (!canRetry) {
-							relinquishOwnership(selection)
-						}
-						result.copy(canRetry = canRetry)
-					}
-					SourceHistoryDetailState.Loading -> result
+			publishReadResult(generation, selection, result)
+		}
+	}
+
+	private fun publishReadResult(
+		generation: Long,
+		selection: SourceHistoryDetailSelection,
+		result: SourceHistoryDetailState,
+	) {
+		if (generation == loadGeneration && ownedSelection == selection) {
+			_state.value = when (result) {
+				is SourceHistoryDetailState.Loaded -> {
+					ownedSelection = result.selection
+					result
 				}
+				is SourceHistoryDetailState.Unavailable -> {
+					val canRetry = result.canRetry && ownedSelection == selection
+					if (!canRetry) {
+						relinquishOwnership(selection)
+					}
+					result.copy(canRetry = canRetry)
+				}
+				SourceHistoryDetailState.Loading -> result
 			}
 		}
 	}
@@ -157,14 +183,18 @@ class SourceHistoryDetailViewModel @Inject constructor(
 	}
 
 	private fun consumeInitialSelection(): SourceHistoryDetailSelection? {
-		if (tokenConsumed) return null
+		if (tokenConsumed) {
+			return null
+		}
 		tokenConsumed = true
 		return selectionToken?.let(SourceHistoryDetailHandoff::consume)
 	}
 
 
 	private fun relinquishOwnership(selection: SourceHistoryDetailSelection) {
-		if (ownedSelection != selection) return
+		if (ownedSelection != selection) {
+			return
+		}
 		ownedSelection = null
 	}
 

@@ -11,6 +11,8 @@ import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOpera
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOwnerKind
 import java.security.MessageDigest
 
+private const val MAX_IMPORTED_STEPS_FILE_PROVENANCE_TEXT_LENGTH = 4_096
+
 /**
  * Imported-only container for an authenticated portable graph.
  *
@@ -38,6 +40,10 @@ data class ImportedPortableStepsCountDomainGraphEntity(
 		require(rootCount in 1..PortableCountDomainFormatV2.MAX_ROOTS)
 	}
 
+	/**
+	 * Stable persisted codes, including `SOURCE_SESSION_STEPS`, `SOURCE_AMBIENT_STEPS`, and any
+	 * identity-bound record factories.
+	 */
 	companion object {
 		const val SOURCE_SESSION_STEPS = "tracker-portable-steps"
 		const val SOURCE_AMBIENT_STEPS = "tracker-portable-ambient-steps"
@@ -45,6 +51,10 @@ data class ImportedPortableStepsCountDomainGraphEntity(
 	}
 }
 
+/**
+ * Original imported count-domain receipt with provider/owner revisions, source data epoch and
+ * optional terminal evidence digest.
+ */
 @Entity(
 	tableName = "imported_steps_count_domain_receipt",
 	primaryKeys = ["graph_identity", "receipt_identity"],
@@ -99,6 +109,9 @@ data class ImportedPortableStepsCountDomainReceiptEntity(
 	}
 }
 
+/**
+ * One original imported owner operation; only a binding operation carries a receipt reference.
+ */
 @Entity(
 	tableName = "imported_steps_count_domain_owner_revision",
 	primaryKeys = ["graph_identity", "owner_kind", "owner_identity", "owner_revision"],
@@ -153,6 +166,10 @@ data class ImportedPortableStepsCountDomainOwnerRevisionEntity(
 	}
 }
 
+/**
+ * Original imported terminal owner state with paired nullable admission/sequence bounds and
+ * provider/timeline digests.
+ */
 @Entity(
 	tableName = "imported_steps_count_domain_completeness",
 	primaryKeys = ["graph_identity", "owner_identity", "owner_revision"],
@@ -197,6 +214,9 @@ data class ImportedPortableStepsCountDomainCompletenessEntity(
 	}
 }
 
+/**
+ * Links one original imported container/product to its count-domain graph owner revision.
+ */
 @Entity(
 	tableName = "imported_steps_count_domain_root",
 	primaryKeys = [
@@ -299,6 +319,10 @@ data class ImportedPortableStepsCountDomainBindingEntity(
 		}
 	}
 
+	/**
+	 * Stable persisted codes, including `PRODUCT_SESSION_ENTRY`, `PRODUCT_AMBIENT_DAY`, and any
+	 * identity-bound record factories.
+	 */
 	companion object {
 		const val PRODUCT_SESSION_ENTRY = "SESSION_ENTRY"
 		const val PRODUCT_AMBIENT_DAY = "AMBIENT_DAY"
@@ -336,7 +360,7 @@ data class ImportedPortableStepsFileReceiptEntity(
 ) {
 	init {
 		listOf(importJobId, entryKey, sourceName).forEach {
-			require(it.isNotBlank() && it.length <= 4_096)
+			require(it.isNotBlank() && it.length <= MAX_IMPORTED_STEPS_FILE_PROVENANCE_TEXT_LENGTH)
 		}
 		require(receiptIdentity == ImportedPortableCountDomainIdentity.fileReceipt(
 			importJobId,
@@ -391,6 +415,10 @@ data class ImportedPortableStepsCountDomainOwnerFenceEntity(
 		require(effectChecksum == ImportedPortableCountDomainIdentity.ownerFenceChecksum(this))
 	}
 
+	/**
+	 * Stable persisted codes, including `FENCE_SELECTED_DELETE`, `FENCE_RETENTION`,
+	 * `FENCE_SOURCE_ERASE`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val FENCE_SELECTED_DELETE = "SELECTED_DELETE"
 		const val FENCE_RETENTION = "RETENTION"
@@ -403,6 +431,10 @@ data class ImportedPortableStepsCountDomainOwnerFenceEntity(
 			FENCE_FULL_CLEAR,
 		)
 
+		/**
+		 * Builds a payload-free owner fence retaining the original count-domain graph/product ownership
+		 * and latest source revision.
+		 */
 		fun create(
 			ownerKind: String,
 			ownerIdentity: String,
@@ -447,13 +479,30 @@ data class ImportedPortableStepsCountDomainOwnerFenceEntity(
 	}
 }
 
+/**
+ * Opaque count-domain and digest encodings used by stored graph and replay-fence records.
+ */
 object ImportedPortableCountDomainIdentity {
+	/**
+	 * Tests the supported opaque identity spelling without interpreting its value as a provider
+	 * permission.
+	 */
 	fun isOpaque(value: String?): Boolean = value != null && OPAQUE.matches(value)
+	/**
+	 * Tests for a lowercase 64-character SHA-256 digest.
+	 */
 	fun isDigest(value: String?): Boolean = value != null && DIGEST.matches(value)
 
+	/**
+	 * Derives one file-membership receipt identity from the original file/import ownership keys.
+	 */
 	fun fileReceipt(jobId: String, entryKey: String): String =
 		"sha256:${digest("tracker-imported-steps-file-receipt-v2", listOf(jobId, entryKey))}"
 
+	/**
+	 * Hashes an imported count-domain owner fence's original identity, epochs and deletion
+	 * generation.
+	 */
 	fun ownerFenceChecksum(value: ImportedPortableStepsCountDomainOwnerFenceEntity): String =
 		ownerFenceChecksum(
 			value.ownerKind,
@@ -469,6 +518,10 @@ object ImportedPortableCountDomainIdentity {
 			value.fencedAtMs,
 		)
 
+	/**
+	 * Hashes an imported count-domain owner fence's original identity, epochs and deletion
+	 * generation.
+	 */
 	@Suppress("LongParameterList")
 	fun ownerFenceChecksum(
 		ownerKind: String,
@@ -504,10 +557,12 @@ object ImportedPortableCountDomainIdentity {
 		return MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray(Charsets.UTF_8))
 			.joinToString("") { byte ->
-				(byte.toInt() and 0xff).toString(16).padStart(2, '0')
+				(byte.toInt() and UNSIGNED_BYTE_MASK).toString(HEXADECIMAL_RADIX).padStart(2, '0')
 			}
 	}
 
+	private const val UNSIGNED_BYTE_MASK = 0xff
+	private const val HEXADECIMAL_RADIX = 16
 	private val OPAQUE = Regex("sha256:[0-9a-f]{64}")
 	private val DIGEST = Regex("[0-9a-f]{64}")
 }

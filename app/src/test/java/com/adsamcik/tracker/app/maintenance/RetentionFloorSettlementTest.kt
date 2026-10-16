@@ -60,6 +60,9 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// One real Room settlement fixture follows the same retention-floor operation through commit, retry,
+// cancellation and process recovery.
+@Suppress("LargeClass")
 class RetentionFloorSettlementTest {
 	private lateinit var database: AppDatabase
 
@@ -237,6 +240,9 @@ class RetentionFloorSettlementTest {
 	}
 
 	@Test
+	// Keep the admitted work receipt, cancellation publication and no-settlement assertions in their causal
+	// order.
+	@Suppress("LongMethod")
 	fun `confirmed cancellation between authority check and prepare cannot create settlement`() =
 		runTest {
 			val plan = RetentionFloorDestructivePlan(
@@ -364,6 +370,9 @@ class RetentionFloorSettlementTest {
 	}
 
 	@Test
+	// Keep the delayed non-cancellable DataStore commit and exact Room/authority retry assertions in one
+	// recovery scenario.
+	@Suppress("LongMethod")
 	fun `late DataStore floor commit remains typed debt until Room guard and authority recovery`(): Unit =
 		runBlocking {
 			val completionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -462,7 +471,9 @@ class RetentionFloorSettlementTest {
 		var authorityAvailable = false
 		val producer = mockk<RetentionAuthorityProducer> {
 			coEvery { reconcileCurrentSettings() } coAnswers {
-				if (!authorityAvailable) error("authority storage unavailable")
+				if (!authorityAvailable) {
+					error("authority storage unavailable")
+				}
 				retentionResults(active = setOf(TrackingSourceComponent.STEPS))
 			}
 		}
@@ -501,6 +512,9 @@ class RetentionFloorSettlementTest {
 	}
 
 	@Test
+	// Keep the same restart-and-resume journey for every durable settlement phase together with its original
+	// operation identity.
+	@Suppress("LongMethod")
 	fun `a new process resumes every durable settlement phase with the original identity`(): Unit =
 		runBlocking {
 			val resumablePhases = listOf(

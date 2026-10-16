@@ -103,7 +103,7 @@ class UnifiedHistoryRangeReaderRoomTest {
     @Test fun `missing optional Location qualification never hides ordinary saved points`() = runTest {
         legacyLocation(1, 100, 200)
         val proof = mockk<RetainedLocationContextReader>()
-        coEvery { proof.qualifyInTransaction(any()) } throws android.database.sqlite.SQLiteException("Unavailable proof fixture")
+        coEvery { proof.qualifySavedInTransaction(any()) } throws android.database.sqlite.SQLiteException("Unavailable proof fixture")
         reader = rangeReaderForRoomTest(database, context, wifi, proof)
         val row = reader.read(HistoryRangeRequest(range(0, 300))).shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
         row.sections.single().shouldBeInstanceOf<HistorySection.Location>().points.single().timeMs shouldBe 101L
@@ -116,9 +116,7 @@ class UnifiedHistoryRangeReaderRoomTest {
         val proof = mockk<RetainedLocationContextReader>()
         reader = rangeReaderForRoomTest(database, context, wifi, proof)
         for (reason in listOf(HistoryProblemReason.STORAGE_UNAVAILABLE, HistoryProblemReason.INTEGRITY_UNAVAILABLE)) {
-            coEvery { proof.qualifyInTransaction(any()) } returns RetainedLocationContextSnapshot(
-                emptyList(), setOf(com.adsamcik.tracker.stats.api.repository.RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE),
-                historyProblem = reason)
+            coEvery { proof.qualifySavedInTransaction(any()) } returns RetainedLocationSavedSnapshot(emptyList(), historyProblem = reason)
             val row = reader.read(HistoryRangeRequest(range(0, 300))).shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
             row.sections.single().shouldBeInstanceOf<HistorySection.Location>().points.single().timeMs shouldBe 101L
             row.sections.single().shouldBeInstanceOf<HistorySection.Location>().coverage shouldBe HistoryLocationCoverage.LEGACY_UNVERIFIABLE
@@ -134,13 +132,13 @@ class UnifiedHistoryRangeReaderRoomTest {
         archive(archive, listOf(first, second))
         annotation("group", 500, 1_500, listOf(OrganizationSourceSelector.LocationFile(archive)))
         val page = reader.read(HistoryRangeRequest(organizationRange())).shouldBeInstanceOf<HistoryRangeRead.Page>()
-        val row = page.rows.single()
+        val row = page.rows.single { it.purpose == HistoryPurpose.ORGANIZATION }
         row.sections.filterIsInstance<HistorySection.Location>().single().points.size shouldBe 2
         row.problems shouldBe emptySet()
         row.sections.filterIsInstance<HistorySection.Organization>().single().session.name shouldBe "group"
         database.locationSampleDao().deleteExactIds(listOf(first.second))
         point("replacement", 1_000)
-        val after = reader.read(HistoryRangeRequest(organizationRange())).shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
+        val after = reader.read(HistoryRangeRequest(organizationRange())).shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single { it.purpose == HistoryPurpose.ORGANIZATION }
         after.sections.filterIsInstance<HistorySection.Location>().single().points.size shouldBe 1
         after.problems shouldBe setOf(HistoryProblem(HistorySource.LOCATION, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
     }
@@ -150,11 +148,11 @@ class UnifiedHistoryRangeReaderRoomTest {
         archive(archive, listOf(point("old", 1_000), point("kept", 2_000)))
         annotation("group", 500, 2_500, listOf(OrganizationSourceSelector.LocationFile(archive)))
         database.sourceEvidenceStateDao().updateLifecycle(0, 1_500, 3_000)
-        val retained = reader.read(HistoryRangeRequest(organizationRange())).shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
+        val retained = reader.read(HistoryRangeRequest(organizationRange())).shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single { it.purpose == HistoryPurpose.ORGANIZATION }
         retained.sections.filterIsInstance<HistorySection.Location>().single().points.map { it.timeMs } shouldBe listOf(2_000L)
         retained.problems shouldBe setOf(HistoryProblem(HistorySource.LOCATION, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
         database.sourceEvidenceStateDao().updateLifecycle(1, 1_500, 4_000)
-        val changed = reader.read(HistoryRangeRequest(organizationRange())).shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
+        val changed = reader.read(HistoryRangeRequest(organizationRange())).shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single { it.purpose == HistoryPurpose.ORGANIZATION }
         changed.sections.filterIsInstance<HistorySection.Location>() shouldBe emptyList()
         changed.sections.filterIsInstance<HistorySection.Organization>().size shouldBe 1
         changed.problems shouldBe setOf(HistoryProblem(HistorySource.LOCATION, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
@@ -169,7 +167,7 @@ class UnifiedHistoryRangeReaderRoomTest {
         annotation("mixed", 500, 1_500, listOf(OrganizationSourceSelector.LocationFile(archive)))
         suspend fun read(purposes: Set<HistoryPurpose>) = reader.read(HistoryRangeRequest(
             organizationRange().copy(purposes = purposes + HistoryPurpose.ORGANIZATION)))
-            .shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
+            .shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single { it.purpose == HistoryPurpose.ORGANIZATION }
         val all = read(setOf(HistoryPurpose.CAPTURE, HistoryPurpose.BACKGROUND))
         all.sections.filterIsInstance<HistorySection.Location>().single().points.map { it.timeMs } shouldBe
             listOf(1_001L, 1_002L, 1_003L, 1_004L)

@@ -65,6 +65,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)
+@Suppress("LargeClass") // One erase contract covers native/imported rollback and replay rejection.
 class RoomErasePressureSourceTest {
 	private lateinit var database: AppDatabase
 	private lateinit var barrier: RecordingBarrier
@@ -262,6 +263,9 @@ class RoomErasePressureSourceTest {
 		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
 	}
 
+	// Follow one imported Pressure lineage through erase and epoch clear to verify replay fences and unrelated
+	// imports.
+	@Suppress("LongMethod")
 	@Test
 	fun `import-only erase needs no provider authority and permanently fences replay`() = runTest {
 		val imported = importRequest()
@@ -431,6 +435,8 @@ class RoomErasePressureSourceTest {
 			?.importRevision shouldBe 1L
 	}
 
+	// Follow one erase from active-provider rejection through retirement, preserving the sibling Location altitude.
+	@Suppress("LongMethod")
 	@Test
 	fun `zero-row active provider blocks legacy hPa erase until quiescent then preserves location altitude`() =
 		runTest {

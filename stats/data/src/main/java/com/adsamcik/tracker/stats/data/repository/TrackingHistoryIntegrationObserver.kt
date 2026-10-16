@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.update
 public class TrackingHistoryIntegrationObserver @Inject constructor() {
 	private val active = AtomicReference<MutableStateFlow<TrackingHistoryIntegrationSnapshot>?>(null)
 
+	/** Starts the sole explicit in-memory read observation; close its handle to stop retaining integration counters. */
 	public fun startObservation(): TrackingHistoryIntegrationObservation {
 		val state = MutableStateFlow(TrackingHistoryIntegrationSnapshot(emptyMap()))
 		check(active.compareAndSet(null, state)) {
@@ -35,6 +36,7 @@ public class TrackingHistoryIntegrationObserver @Inject constructor() {
 	}
 }
 
+/** Closeable ownership of one integration observation; closing is idempotent and stops further counters. */
 public class TrackingHistoryIntegrationObservation internal constructor(
 	private val owner: TrackingHistoryIntegrationObserver,
 	private val state: MutableStateFlow<TrackingHistoryIntegrationSnapshot>,
@@ -50,9 +52,11 @@ public class TrackingHistoryIntegrationObservation internal constructor(
 	}
 }
 
+/** Immutable checkpoint counts for an active explicit observation; absent checkpoints count as zero. */
 public class TrackingHistoryIntegrationSnapshot internal constructor(
 	private val counts: Map<TrackingHistoryIntegrationCheckpoint, Long>,
 ) {
+	/** Returns the number of observed occurrences of this checkpoint, or zero when it has not occurred. */
 	public fun count(checkpoint: TrackingHistoryIntegrationCheckpoint): Long =
 		counts[checkpoint] ?: 0L
 
@@ -63,6 +67,7 @@ public class TrackingHistoryIntegrationSnapshot internal constructor(
 	)
 }
 
+/** Fixed causal read boundaries recorded only while an explicit integration observation is active. */
 public enum class TrackingHistoryIntegrationCheckpoint {
 	SOURCE_AWARE_READ_STARTED,
 	SOURCE_AWARE_READ_FINISHED,

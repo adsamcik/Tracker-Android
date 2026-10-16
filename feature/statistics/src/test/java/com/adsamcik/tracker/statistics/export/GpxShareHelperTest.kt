@@ -143,7 +143,9 @@ class GpxShareHelperTest {
 				val request = nextRequest++
 				outputStream.write(request + 7)
 				entered[request].complete(Unit)
-				if (request == 0) awaitCancellation()
+				if (request == 0) {
+					awaitCancellation()
+				}
 				releaseSecond.await()
 				outputStream.write(9)
 				return TripGpxExportResult.Failure

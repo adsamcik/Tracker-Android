@@ -113,7 +113,9 @@ data class DataSettingsUiState(
     val legacyDatabase: LegacyDatabaseUiInfo? = null,
 )
 
+/** The selected Location file and inspected conflicts waiting for the user’s single import choice. */
 data class LocationImportChoice(val uri: Uri, val preview: LocationFileImportPreview)
+/** Import progress, pending user choices and retryable failure shown by the data settings screen. */
 data class FileImportUiState(
     val checking: Boolean = false,
     val locationChoice: LocationImportChoice? = null,
@@ -122,6 +124,8 @@ data class FileImportUiState(
 )
 
 @HiltViewModel
+// One data-settings state owns import choices, restore and erase recovery.
+@Suppress("TooManyFunctions")
 class DataSettingsViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val retentionConfigStore: RetentionConfigStore,
@@ -143,22 +147,30 @@ class DataSettingsViewModel @Inject constructor(
     private val _fileImportState = MutableStateFlow(FileImportUiState())
     val fileImportState: StateFlow<FileImportUiState> = _fileImportState.asStateFlow()
 
+    private suspend fun handleBackupImportPreview(uri: Uri): Boolean =
+        when (val inspection = dataBackupRestore.inspect(uri)) {
+            is DataBackupInspection.Ready -> {
+                _fileImportState.value = FileImportUiState(backupChoice = inspection.preview)
+                true
+            }
+            DataBackupInspection.Invalid -> {
+                _fileImportState.value = FileImportUiState(error = true)
+                true
+            }
+            DataBackupInspection.NotBackup -> false
+        }
+
+    /** Inspects a selected file before restore confirmation or Location conflict choice, then uses the existing importer. */
     fun requestFileImport(uri: Uri) {
         if (_fileImportState.value.checking || _fileImportState.value.locationChoice != null ||
-            _fileImportState.value.backupChoice != null) return
+            _fileImportState.value.backupChoice != null) {
+            return
+        }
         _fileImportState.value = FileImportUiState(checking = true)
         viewModelScope.launch {
             try {
-                when (val inspection = dataBackupRestore.inspect(uri)) {
-                    is DataBackupInspection.Ready -> {
-                        _fileImportState.value = FileImportUiState(backupChoice = inspection.preview)
-                        return@launch
-                    }
-                    DataBackupInspection.Invalid -> {
-                        _fileImportState.value = FileImportUiState(error = true)
-                        return@launch
-                    }
-                    DataBackupInspection.NotBackup -> Unit
+                if (handleBackupImportPreview(uri)) {
+                    return@launch
                 }
                 val isLocation = withContext(dispatchers.io) {
                     DocumentFile.fromSingleUri(appContext, uri)?.name
@@ -168,8 +180,13 @@ class DataSettingsViewModel @Inject constructor(
                     val preview = LocationFileImportPreviewer.inspect(appContext, uri)
                     if (preview.conflictCount > 0) {
                         _fileImportState.value = FileImportUiState(locationChoice = LocationImportChoice(uri, preview))
-                    } else enqueueFileImport(uri, LocationFileImportReview(preview, LocationFileConflictChoice.KEEP_EXISTING))
-                } else enqueueFileImport(uri, null)
+                    } else {
+                        enqueueFileImport(uri, LocationFileImportReview(preview,
+                            LocationFileConflictChoice.KEEP_EXISTING))
+                    }
+                } else {
+                    enqueueFileImport(uri, null)
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -178,15 +195,18 @@ class DataSettingsViewModel @Inject constructor(
         }
     }
 
+    /** Applies one Keep or Replace choice to all inspected conflicts in the pending Location file. */
     fun chooseLocationImport(choice: LocationFileConflictChoice) {
         val pending = _fileImportState.value.locationChoice ?: return
         enqueueFileImport(pending.uri, LocationFileImportReview(pending.preview, choice))
     }
 
+    /** Dismisses the pending choice and releases an owned backup preview without deleting the external file. */
     fun dismissFileImport() {
         val token = _fileImportState.value.backupChoice?.token
         _fileImportState.value = FileImportUiState()
-        if (token != null) viewModelScope.launch {
+        if (token != null) {
+            viewModelScope.launch {
             try {
                 withContext(NonCancellable + dispatchers.io) { dataBackupRestore.discardPreview(token) }
             } catch (cancelled: CancellationException) {
@@ -196,8 +216,10 @@ class DataSettingsViewModel @Inject constructor(
                 _fileImportState.value = _fileImportState.value.copy(error = true)
             }
         }
+        }
     }
 
+    /** Restores the inspected data-only backup after user confirmation through the shared restore service. */
     fun restoreConfirmedBackup() {
         val preview = _fileImportState.value.backupChoice ?: return
         _fileImportState.value = FileImportUiState(checking = true)
@@ -324,6 +346,7 @@ class DataSettingsViewModel @Inject constructor(
         }
     }
 
+    /** Enables only database export plans whose new scope the user has reviewed. */
     fun resumeReviewedDatabasePlans(ids: Set<ExportPlanId>) {
         viewModelScope.launch {
             try {
@@ -337,9 +360,15 @@ class DataSettingsViewModel @Inject constructor(
     }
 
     fun setDataRetentionYears(years: Int) {
-        if (years < 0) return
+        if (years < 0) {
+            return
+        }
         viewModelScope.launch {
-            val retentionDays = if (years == 0) 0 else years * DAYS_PER_YEAR
+            val retentionDays = if (years == 0) {
+                0
+            } else {
+                years * DAYS_PER_YEAR
+            }
             updateRetentionConfiguration {
                 copy(
                     dataRetentionYears = years,
@@ -397,6 +426,7 @@ class DataSettingsViewModel @Inject constructor(
         }
     }
 
+    /** Retries current retention and source ownership without changing saved choices. */
     fun retryPurposeSettingsReconciliation() {
         viewModelScope.launch {
             publishPurposeSettingsResult(purposeSettingsReconciler.reconcileCurrentSettings())
@@ -465,6 +495,36 @@ class DataSettingsViewModel @Inject constructor(
         }
     }
 
+    private fun preservedExportOutput(
+        output: OutputStream,
+        operationContext: kotlin.coroutines.CoroutineContext,
+        onClosed: () -> Unit,
+    ): OutputStream = object : FilterOutputStream(output) {
+        private var destinationClosed = false
+        override fun write(value: Int) {
+            operationContext.ensureActive()
+            out.write(value)
+        }
+
+        override fun write(bytes: ByteArray, offset: Int, length: Int) {
+            operationContext.ensureActive()
+            out.write(bytes, offset, length)
+        }
+
+        override fun close() {
+            if (destinationClosed) {
+                return
+            }
+            try {
+                operationContext.ensureActive()
+            } finally {
+                super.close()
+                destinationClosed = true
+                onClosed()
+            }
+        }
+    }
+
     private suspend fun exportPreservedData(
         destination: Uri,
         write: (OutputStream) -> Unit,
@@ -484,26 +544,8 @@ class DataSettingsViewModel @Inject constructor(
                         ?: return@withContext MigrationBackupExportResult.Failure
                     opened = true
                     var destinationClosed = false
-                    val cancellableOutput = object : FilterOutputStream(output) {
-                        override fun write(value: Int) {
-                            operationContext.ensureActive()
-                            out.write(value)
-                        }
-
-                        override fun write(bytes: ByteArray, offset: Int, length: Int) {
-                            operationContext.ensureActive()
-                            out.write(bytes, offset, length)
-                        }
-
-                        override fun close() {
-                            if (destinationClosed) return
-                            try {
-                                operationContext.ensureActive()
-                            } finally {
-                                super.close()
-                                destinationClosed = true
-                            }
-                        }
+                    val cancellableOutput = preservedExportOutput(output, operationContext) {
+                        destinationClosed = true
                     }
                     cancellableOutput.use {
                         write(it)
@@ -516,19 +558,35 @@ class DataSettingsViewModel @Inject constructor(
                     MigrationBackupExportResult.Success
                 } catch (cancelled: CancellationException) {
                     if (opened && !completed) {
-                        try {
-                            withContext(NonCancellable) { cleanupFailedExport(destination) }
-                        } catch (cleanupFailure: Exception) {
-                            if (cleanupFailure !== cancelled) cancelled.addSuppressed(cleanupFailure)
-                        }
+                        cleanupCancelledPreservedExport(destination, cancelled)
                     }
                     throw cancelled
                 } catch (_: Exception) {
-                    if (opened && !completed) withContext(NonCancellable) { cleanupFailedExport(destination) }
-                    else MigrationBackupExportResult.Failure
+                    cleanupFailedPreservedExport(destination, opened, completed)
                 }
             }
         } ?: MigrationBackupExportResult.Failure
+    }
+
+    private suspend fun cleanupFailedPreservedExport(
+        destination: Uri,
+        opened: Boolean,
+        completed: Boolean,
+    ): MigrationBackupExportResult = if (opened && !completed) {
+        withContext(NonCancellable) { cleanupFailedExport(destination) }
+    } else {
+        MigrationBackupExportResult.Failure
+    }
+
+    private suspend fun cleanupCancelledPreservedExport(destination: Uri, cancelled: CancellationException) {
+        try {
+            withContext(NonCancellable) { cleanupFailedExport(destination) }
+        } catch (@Suppress("TooGenericExceptionCaught") cleanupFailure: Exception) {
+        	// Cleanup storage or URI failures stay attached to the original cancellation.
+            if (cleanupFailure !== cancelled) {
+                cancelled.addSuppressed(cleanupFailure)
+            }
+        }
     }
 
     fun deleteLegacyDatabase(onResult: (LegacyDatabaseDeleteResult) -> Unit) {
@@ -576,7 +634,9 @@ class DataSettingsViewModel @Inject constructor(
         } catch (_: Exception) {
             false
         }
-        if (deleted) return MigrationBackupExportResult.Failure
+        if (deleted) {
+            return MigrationBackupExportResult.Failure
+        }
 
         return try {
             val output = appContext.contentResolver.openOutputStream(destination, "rwt")

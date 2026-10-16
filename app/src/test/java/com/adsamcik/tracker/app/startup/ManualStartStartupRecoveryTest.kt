@@ -78,13 +78,18 @@ class ManualStartStartupRecoveryTest {
     private lateinit var gate: DefaultTrackingStartupGate
     private lateinit var reader: DefaultManualTrackingStartReadinessReader
 
+    // Keep one manual-start fixture with its real startup gate, chosen Steps policy and Android capability
+    // overrides together.
+    @Suppress("LongMethod")
     @Before fun installFixture() {
         every { commands.pendingCollectionResumeExitId } answers { savedOff }
         every { commands.collectionResumeBoundary } returns null
         every { commands.latestUnhandledStop() } answers { unhandledStop }
         every { commands.latestStopGeneration() } answers { stopGeneration }
         coEvery { commands.runWithHandledStopGeneration(any(), any()) } coAnswers {
-            if (firstArg<Long>() != stopGeneration || unhandledStop != null) false else {
+            if (firstArg<Long>() != stopGeneration || unhandledStop != null) {
+                false
+            } else {
                 secondArg<suspend () -> Unit>().invoke()
                 true
             }
@@ -94,17 +99,37 @@ class ManualStartStartupRecoveryTest {
         coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
         coEvery { deletion.reconcilePendingDeletion() } returns CollectedDataDeletionCompletion.Complete
         coEvery { recovery.recoverStartupAuthority() } returns LegacyV27ProjectionRecoveryResult.NotRequired
-        gate = DefaultTrackingStartupGate(storage, deletion, resolver, commands, inactiveStop,
+        gate = DefaultTrackingStartupGate(storage, Provider { deletion }, resolver, commands, Provider { inactiveStop },
             Provider { recovery }, deletionBarrier)
 
         val policy = SourcePolicySnapshot(1L, TrackingSourceComponent.entries.associateWith { source ->
             val enabled = source == TrackingSourceComponent.STEPS
             SourcePolicy(source = source, enabled = enabled,
-                qos = if (enabled) SourceQos.BALANCED else SourceQos.OFF,
-                locationMinTimeSeconds = if (source == TrackingSourceComponent.LOCATION) 10 else null,
-                locationMinDistanceMeters = if (source == TrackingSourceComponent.LOCATION) 5 else null,
-                locationRequiredAccuracyMeters = if (source == TrackingSourceComponent.LOCATION) 50 else null,
-                captureConsentEpoch = if (enabled) 7L else null, controlConsentEpoch = null,
+                qos = if (enabled) {
+                    SourceQos.BALANCED
+                } else {
+                    SourceQos.OFF
+                },
+                locationMinTimeSeconds = if (source == TrackingSourceComponent.LOCATION) {
+                    10
+                } else {
+                    null
+                },
+                locationMinDistanceMeters = if (source == TrackingSourceComponent.LOCATION) {
+                    5
+                } else {
+                    null
+                },
+                locationRequiredAccuracyMeters = if (source == TrackingSourceComponent.LOCATION) {
+                    50
+                } else {
+                    null
+                },
+                captureConsentEpoch = if (enabled) {
+                    7L
+                } else {
+                    null
+                }, controlConsentEpoch = null,
                 ambientConsentEpoch = null, capturePersistenceEligible = enabled,
                 controlPersistenceEligible = false, ambientPersistenceEligible = false,
                 effectiveTime = SourcePolicyEffectiveTime("fixture-boot", 10L, 1_000L), policyRevision = 1L)
@@ -129,10 +154,18 @@ class ManualStartStartupRecoveryTest {
         val context = object : ContextWrapper(application) {
             override fun getPackageManager(): PackageManager = packageManager
             override fun getSystemService(name: String): Any? =
-                if (name == Context.SENSOR_SERVICE) sensors else super.getSystemService(name)
+                if (name == Context.SENSOR_SERVICE) {
+                    sensors
+                } else {
+                    super.getSystemService(name)
+                }
             override fun checkPermission(permission: String, pid: Int, uid: Int): Int =
-                if (permission == Manifest.permission.ACTIVITY_RECOGNITION) PackageManager.PERMISSION_GRANTED
-                else PackageManager.PERMISSION_DENIED
+                if (permission == Manifest.permission.ACTIVITY_RECOGNITION) {
+                    PackageManager.PERMISSION_GRANTED
+                }
+                else {
+                    PackageManager.PERMISSION_DENIED
+                }
             override fun checkSelfPermission(permission: String): Int = checkPermission(permission, 0, 0)
         }
         mockkObject(Assist)

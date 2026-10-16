@@ -109,6 +109,8 @@ import org.robolectric.annotation.Config
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// All cases exercise liveSessionPresentation and its observation lifecycle with the same repository fixture.
+@Suppress("LargeClass")
 class DashboardViewModelLiveStepsTest {
 	@Test
 	fun `exact Steps and Wi-Fi capture without Location selects source set presentation`() = runTest {
@@ -667,11 +669,19 @@ class DashboardViewModelLiveStepsTest {
 		val trackerStateReader = mockk<TrackerStateReader>()
 		every { trackerStateReader.isServiceRunningFlow } returns running
 		val sessionInfo = MutableStateFlow<TrackerSessionInfo?>(
-			if (running.value) TrackerSessionInfo(true) else null,
+			if (running.value) {
+				TrackerSessionInfo(true)
+			} else {
+				null
+			},
 		)
 		backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
 			running.collect { active ->
-				sessionInfo.value = if (active) TrackerSessionInfo(true) else null
+				sessionInfo.value = if (active) {
+					TrackerSessionInfo(true)
+				} else {
+					null
+				}
 			}
 		}
 		every { trackerStateReader.sessionInfoFlow } returns sessionInfo
@@ -979,15 +989,31 @@ class DashboardViewModelLiveStepsTest {
 		retentionMarker: Boolean = false,
 		capturedSources: Set<HistorySource> = setOf(HistorySource.PRESSURE),
 	): PressureSessionHistory {
-		val windows = if (retained) listOf(pressureWindow()) else emptyList()
+		val windows = if (retained) {
+			listOf(pressureWindow())
+		} else {
+			emptyList()
+		}
 		return PressureSessionHistory(
 			segmentId = segmentId,
 			capture = capture(capturedSources),
-			qualifiedSources = if (retained) setOf(HistorySource.PRESSURE) else emptySet(),
+			qualifiedSources = if (retained) {
+				setOf(HistorySource.PRESSURE)
+			} else {
+				emptySet()
+			},
 			pressure = PressureHistory(
 				availability = HistoryAvailability.AVAILABLE,
-				evidence = if (retained) HistoryEvidence.RECORDED else HistoryEvidence.NONE,
-				productState = if (retained) HistoryProductState.READY else HistoryProductState.PARTIAL,
+				evidence = if (retained) {
+					HistoryEvidence.RECORDED
+				} else {
+					HistoryEvidence.NONE
+				},
+				productState = if (retained) {
+					HistoryProductState.READY
+				} else {
+					HistoryProductState.PARTIAL
+				},
 				coverage = if (retained) {
 					PressureHistoryCoverage.COMPLETE
 				} else {

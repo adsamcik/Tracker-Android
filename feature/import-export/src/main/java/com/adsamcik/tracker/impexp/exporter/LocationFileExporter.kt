@@ -12,6 +12,8 @@ import com.adsamcik.tracker.impexp.portable.LocationFilePointV1
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.LocationPurposeDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationFileIdentityDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
 import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
@@ -84,7 +86,8 @@ internal class LocationFileExporter @JvmOverloads @Inject constructor(
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (failure: Exception) {
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+			// Retention/access rejection and storage failures share the recoverable export result.
 			ExportResult.Error(LocalizedString(
 				R.string.export_error_with_reason,
 				failure.message ?: "Location file could not be saved",
@@ -98,8 +101,8 @@ internal class LocationFileExporter @JvmOverloads @Inject constructor(
 		request: SessionLocationFileRequest,
 		outputStream: OutputStream,
 		database: AppDatabase,
-		verifyCollectedDataAccess: () -> Unit,
 		maximumBytes: Long = LocationFileJsonV1.MAX_FILE_BYTES,
+		verifyCollectedDataAccess: () -> Unit,
 	): ExportResult = try {
 		withContext(dispatchers.io) {
 			val reader = SessionLocationFileReader(database)
@@ -124,7 +127,8 @@ internal class LocationFileExporter @JvmOverloads @Inject constructor(
 		}
 	} catch (cancelled: CancellationException) {
 		throw cancelled
-	} catch (failure: Exception) {
+	} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+		// Session edits/erase and storage failures must return a failed export, never false success.
 		ExportResult.Error(LocalizedString(R.string.export_error_with_reason,
 			failure.message ?: "Location file could not be saved"))
 	}
@@ -171,12 +175,20 @@ internal class LocationFileExporter @JvmOverloads @Inject constructor(
 		var maxTime = Long.MIN_VALUE
 		var maxId = 0L
 		reader.read(selection, verifyCollectedDataAccess) { row ->
-			val identity = if (assignIdentities) identities.localIdentityFor(row.sample.id)
-				else identities.bySampleId(row.sample.id)
+			val identity = if (assignIdentities) {
+				identities.localIdentityFor(row.sample.id)
+			}
+				else {
+				identities.bySampleId(row.sample.id)
 					?: throw InvalidLocationFile("Selected Location identity changed during export")
-			val origin = if (identity.imported) LocationFileOrigin.entries.firstOrNull {
+			}
+			val origin = if (identity.imported) {
+				LocationFileOrigin.entries.firstOrNull {
 				it.name.equals(identity.reportedOrigin, ignoreCase = true)
-			} ?: LocationFileOrigin.UNKNOWN else row.fileOrigin()
+			} ?: LocationFileOrigin.UNKNOWN
+			} else {
+				row.fileOrigin()
+			}
 			writer.point(LocationFilePointV1(identity.portableId, origin,
 				LocationFileMeasurementV1.from(row.sample.toModel())))
 			count++
@@ -184,7 +196,9 @@ internal class LocationFileExporter @JvmOverloads @Inject constructor(
 				maxTime = row.sample.timeMs; maxId = row.sample.id
 			}
 		}
-		if (count == 0) throw InvalidLocationFile("No saved Location points in this session")
+		if (count == 0) {
+			throw InvalidLocationFile("No saved Location points in this session")
+		}
 		check(writer.finish() == count)
 		return SessionContents(ExportResult.Success(count, maxTime, maxId), digest.digest())
 	}
@@ -216,34 +230,15 @@ internal class LocationFileExporter @JvmOverloads @Inject constructor(
 		while (true) {
 			currentCoroutineContext().ensureActive()
 			verifyCollectedDataAccess()
-			val before = purposeDao.savedFileExportAuthorityStamp()
-			if (authorityStamp != null && before != authorityStamp) {
-				throw InvalidLocationFile("Location permissions or retention changed during export")
+			val (before, page) = readStableFilePage(purposeDao, fromMs, toMs, afterTimeMs, afterId, authorityStamp)
+			if (page.isEmpty()) {
+				break
 			}
-			val page = purposeDao.savedFileChunk(
-				fromMs, toMs, afterTimeMs, afterId, PAGE_SIZE,
-			)
-			if (purposeDao.savedFileExportAuthorityStamp() != before) {
-				throw InvalidLocationFile("Location permissions or retention changed during export")
-			}
-			if (page.isEmpty()) break
 			authorityStamp = before
 			for (row in page) {
 				currentCoroutineContext().ensureActive()
 				verifyCollectedDataAccess()
-				val identity = identityDao.localIdentityFor(row.sample.id)
-				val origin = if (identity.imported) {
-					LocationFileOrigin.entries.firstOrNull {
-						it.name.equals(identity.reportedOrigin, ignoreCase = true)
-					} ?: LocationFileOrigin.UNKNOWN
-				} else {
-					row.fileOrigin()
-				}
-				writer.point(LocationFilePointV1(
-					pointId = identity.portableId,
-					origin = origin,
-					measurement = LocationFileMeasurementV1.from(row.sample.toModel()),
-				))
+				writeFilePoint(row, identityDao, writer)
 				count++
 				maxTimeMs = row.sample.timeMs
 				maxId = row.sample.id
@@ -251,17 +246,58 @@ internal class LocationFileExporter @JvmOverloads @Inject constructor(
 			val last = page.last().sample
 			afterTimeMs = last.timeMs
 			afterId = last.id
-			if (purposeDao.savedFileExportAuthorityStamp() != before) {
-				throw InvalidLocationFile("Location permissions or retention changed during export")
-			}
+			requireStableFileAuthority(purposeDao, before)
 		}
 		verifyCollectedDataAccess()
-		if (authorityStamp != null && purposeDao.savedFileExportAuthorityStamp() != authorityStamp) {
-			throw InvalidLocationFile("Location permissions or retention changed during export")
+		requireStableFileAuthority(purposeDao, authorityStamp)
+		if (count == 0) {
+			throw InvalidLocationFile("No Location points in these dates")
 		}
-		if (count == 0) throw InvalidLocationFile("No Location points in these dates")
 		check(writer.finish() == count)
 		return ExportResult.Success(recordCount = count, maxTimeMs = maxTimeMs, maxId = maxId)
+	}
+
+	private suspend fun readStableFilePage(
+		dao: LocationPurposeDao,
+		fromMs: Long,
+		toMs: Long,
+		afterTimeMs: Long?,
+		afterId: Long?,
+		expectedStamp: String?,
+	): Pair<String, List<LocationPathSampleRow>> {
+		val before = dao.savedFileExportAuthorityStamp()
+		if (expectedStamp != null && before != expectedStamp) {
+			throw InvalidLocationFile("Location permissions or retention changed during export")
+		}
+		val page = dao.savedFileChunk(fromMs, toMs, afterTimeMs, afterId, PAGE_SIZE)
+		requireStableFileAuthority(dao, before)
+		return before to page
+	}
+
+	private suspend fun requireStableFileAuthority(dao: LocationPurposeDao, expectedStamp: String?) {
+		if (expectedStamp != null && dao.savedFileExportAuthorityStamp() != expectedStamp) {
+			throw InvalidLocationFile("Location permissions or retention changed during export")
+		}
+	}
+
+	private suspend fun writeFilePoint(
+		row: LocationPathSampleRow,
+		dao: LocationFileIdentityDao,
+		writer: LocationFileJsonV1.Writer,
+	) {
+		val identity = dao.localIdentityFor(row.sample.id)
+		val origin = if (identity.imported) {
+			LocationFileOrigin.entries.firstOrNull {
+				it.name.equals(identity.reportedOrigin, ignoreCase = true)
+			} ?: LocationFileOrigin.UNKNOWN
+		} else {
+			row.fileOrigin()
+		}
+		writer.point(LocationFilePointV1(
+			pointId = identity.portableId,
+			origin = origin,
+			measurement = LocationFileMeasurementV1.from(row.sample.toModel()),
+		))
 	}
 
 	internal companion object { const val PAGE_SIZE = 256 }

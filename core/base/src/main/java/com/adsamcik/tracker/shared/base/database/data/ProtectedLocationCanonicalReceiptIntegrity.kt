@@ -6,6 +6,10 @@ import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.security.MessageDigest
 
+/**
+ * Saved original Location observation, decision, optional accepted sample and curation bytes with
+ * their exact event and policy versions.
+ */
 class ProtectedLocationCanonicalReceiptPayload(
 	val sourceEventId: String,
 	val sourceAdmissionOrdinal: Long,
@@ -25,11 +29,19 @@ class ProtectedLocationCanonicalReceiptPayload(
 	val curationState: ByteArray,
 )
 
+/**
+ * Versioned binary receipt encoding with an integrity trailer for exact Location replay
+ * comparisons.
+ */
 object ProtectedLocationCanonicalReceiptCodec {
 	const val VERSION = 4
 	private const val MAGIC = 0x504c4352
 	private const val MAX_RECEIPT_PART_BYTES = 256 * 1024
 
+	/**
+	 * Serializes Location payload values into the supported deterministic binary layout; nullable
+	 * measurements keep their absence.
+	 */
 	fun encode(value: ProtectedLocationCanonicalReceiptPayload): ByteArray =
 		ByteArrayOutputStream().use { bytes ->
 			DataOutputStream(bytes).use { output ->
@@ -55,6 +67,10 @@ object ProtectedLocationCanonicalReceiptCodec {
 			bytes.toByteArray().withSha256Trailer()
 		}
 
+	/**
+	 * Decodes the versioned Location payload after checking its format and integrity fields;
+	 * malformed data is rejected.
+	 */
 	fun decode(payload: ByteArray): ProtectedLocationCanonicalReceiptPayload =
 		DataInputStream(ByteArrayInputStream(payload.verifiedSha256Body())).use { input ->
 			require(input.readInt() == MAGIC)
@@ -88,7 +104,9 @@ object ProtectedLocationCanonicalReceiptCodec {
 
 	private fun DataOutputStream.writeNullableByteArray(value: ByteArray?) {
 		writeBoolean(value != null)
-		if (value != null) writeByteArray(value)
+		if (value != null) {
+			writeByteArray(value)
+		}
 	}
 
 	private fun DataInputStream.readByteArray(): ByteArray {
@@ -98,23 +116,44 @@ object ProtectedLocationCanonicalReceiptCodec {
 	}
 
 	private fun DataInputStream.readNullableByteArray(): ByteArray? =
-		if (readBoolean()) readByteArray() else null
+		if (readBoolean()) {
+			readByteArray()
+		} else {
+			null
+		}
 }
 
+/**
+ * Builds the Location product key for the original admitted source event.
+ */
 fun protectedLocationCanonicalProductIdentity(sourceEventId: String): String =
 	"protected-location-canonical:$sourceEventId"
 
+/**
+ * Builds the join-state key holding one original event's committed Location receipt.
+ */
 fun protectedLocationCanonicalReceiptStateKey(sourceEventId: String): String =
 	"canonical-receipt:$sourceEventId"
 
+/**
+ * Builds the join-state key for one original event's prepared Location curation.
+ */
 fun protectedLocationPreparedCurationStateKey(sourceEventId: String): String =
 	"prepared-curation:$sourceEventId"
 
+/**
+ * Builds the running Location curation-state key scoped to the original logical session and
+ * service run.
+ */
 fun protectedLocationRunCurationStateKey(
 	logicalTrackingId: String,
 	serviceRunId: String,
 ): String = "curation-state:$logicalTrackingId:$serviceRunId"
 
+/**
+ * Returns saved curation bytes only when the receipt version, event, ordinal, WAL digest and
+ * observation/decision/sample bytes all match; otherwise returns null.
+ */
 fun SourceProjectionJoinStateEntity.authenticatedProtectedLocationCanonicalCurationState(
 	sourceEventId: String,
 	sourceAdmissionOrdinal: Long,
@@ -125,7 +164,9 @@ fun SourceProjectionJoinStateEntity.authenticatedProtectedLocationCanonicalCurat
 ): ByteArray? = runCatching {
 	if (payloadVersion != ProtectedLocationCanonicalReceiptCodec.VERSION ||
 		minimumRequiredOrdinal !in setOf(sourceAdmissionOrdinal, Long.MAX_VALUE)
-	) return@runCatching null
+	) {
+		return@runCatching null
+	}
 	val decoded = ProtectedLocationCanonicalReceiptCodec.decode(payload)
 	decoded.curationState.takeIf {
 		decoded.sourceEventId == sourceEventId &&
@@ -143,6 +184,10 @@ fun SourceProjectionJoinStateEntity.authenticatedProtectedLocationCanonicalCurat
 	}
 }.getOrNull()
 
+/**
+ * Serializes the exact persisted Location values, including nullable measurements and original
+ * source identity, for receipt comparison.
+ */
 fun LocationObservation.protectedLocationCanonicalReceiptBytes(): ByteArray =
 	canonicalLocationReceiptBytes {
 		writeLong(id)
@@ -179,6 +224,10 @@ fun LocationObservation.protectedLocationCanonicalReceiptBytes(): ByteArray =
 		writeNullableString(bootClockDomainId)
 	}
 
+/**
+ * Serializes the exact persisted Location values, including nullable measurements and original
+ * source identity, for receipt comparison.
+ */
 fun LocationObservationDecision.protectedLocationCanonicalReceiptBytes(): ByteArray =
 	canonicalLocationReceiptBytes {
 		writeLong(id)
@@ -197,6 +246,10 @@ fun LocationObservationDecision.protectedLocationCanonicalReceiptBytes(): ByteAr
 		writeLong(sourceRevision)
 	}
 
+/**
+ * Serializes the exact persisted Location values, including nullable measurements and original
+ * source identity, for receipt comparison.
+ */
 fun LocationSample.protectedLocationCanonicalReceiptBytes(): ByteArray =
 	canonicalLocationReceiptBytes {
 		writeLong(id)
@@ -251,22 +304,30 @@ private inline fun canonicalLocationReceiptBytes(
 
 private fun DataOutputStream.writeNullableString(value: String?) {
 	writeBoolean(value != null)
-	if (value != null) writeUTF(value)
+	if (value != null) {
+		writeUTF(value)
+	}
 }
 
 private fun DataOutputStream.writeNullableLong(value: Long?) {
 	writeBoolean(value != null)
-	if (value != null) writeLong(value)
+	if (value != null) {
+		writeLong(value)
+	}
 }
 
 private fun DataOutputStream.writeNullableInt(value: Int?) {
 	writeBoolean(value != null)
-	if (value != null) writeInt(value)
+	if (value != null) {
+		writeInt(value)
+	}
 }
 
 private fun DataOutputStream.writeNullableFloat(value: Float?) {
 	writeBoolean(value != null)
-	if (value != null) writeInt(java.lang.Float.floatToRawIntBits(value))
+	if (value != null) {
+		writeInt(java.lang.Float.floatToRawIntBits(value))
+	}
 }
 
 private fun ByteArray?.contentEqualsNullable(other: ByteArray?): Boolean = when {

@@ -10,6 +10,9 @@ import kotlin.test.assertTrue
 
 class TrackingProductQueryContractTest {
 	@Test
+	// Keep one reconstructed capability graph with its matching issuer, equality and action-authority
+	// assertions together.
+	@Suppress("LongMethod")
 	fun `trusted capability reconstruction has stable equality and rejects foreign issuer`() {
 		val firstIssuer = TrackingProductTrustedCapabilities.issuer("wifi-producer")
 		val reconstructedIssuer = TrackingProductTrustedCapabilities.issuer("wifi-producer")
@@ -304,6 +307,8 @@ class TrackingProductQueryContractTest {
 	}
 
 	@Test
+	// Keep this complete immutable-record contract and its paired assertions together.
+	@Suppress("LongMethod")
 	fun `collection inputs and exposed views cannot mutate snapshots`() {
 		val dayInput = mutableListOf(
 			TrackingProductStructuralDay(10L, "UTC"),

@@ -178,14 +178,22 @@ class AmbientRadioProjectionRecoveryTest {
 	}
 
 	private class RecordingProjection(source: SourceKind) : Projection {
-		override val id = if (source == SourceKind.WIFI) AmbientWifiFactRevisionEntity.WRITER_ID else AmbientCellFactRevisionEntity.WRITER_ID
+		override val id = if (source == SourceKind.WIFI) {
+			AmbientWifiFactRevisionEntity.WRITER_ID
+		} else {
+			AmbientCellFactRevisionEntity.WRITER_ID
+		}
 		override val version = 1
 		val applied = mutableListOf<Long>()
 		var fail = false
 		var cancel = false
 		override suspend fun apply(event: AdmittedSourceEvent<out SourcePayload>, context: ProjectionContext) {
-			if (cancel) throw CancellationException("cancelled")
-			if (fail) throw AmbientRadioProjectionDeferredException()
+			if (cancel) {
+				throw CancellationException("cancelled")
+			}
+			if (fail) {
+				throw AmbientRadioProjectionDeferredException()
+			}
 			applied += event.admissionOrdinal
 		}
 	}
@@ -212,8 +220,12 @@ class AmbientRadioProjectionRecoveryTest {
 			clockDomainId = "boot-1", observedElapsedRealtimeNanos = ordinal, receivedElapsedRealtimeNanos = ordinal,
 			wallTimeMs = ordinal, wallTimeUncertaintyMs = 0L, capturedCollectedDataEpoch = 2L, acquiredAtMs = ordinal,
 			quality = SourceQuality(), payloadVersion = 1,
-			payload = if (source == SourceKind.WIFI) WifiResultSnapshotPayload(emptyList(), null, null)
-				else CellSnapshotPayload(null, emptyList(), CellRefreshOutcome.CALLBACK),
+			payload = if (source == SourceKind.WIFI) {
+				WifiResultSnapshotPayload(emptyList(), null, null)
+			}
+				else {
+				CellSnapshotPayload(null, emptyList(), CellRefreshOutcome.CALLBACK)
+			},
 		),
 	)
 }

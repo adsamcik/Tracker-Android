@@ -60,7 +60,9 @@ class RoomImportedWifiProductRecentScanTest {
 			ApplicationProvider.getApplicationContext<Application>(),
 		).allowMainThreadQueries().setQueryCallback({ sql, _ ->
 			executedQueries += sql
-			if ("FROM logical_tracking_session" in sql) ownerQueries += sql
+			if ("FROM logical_tracking_session" in sql) {
+				ownerQueries += sql
+			}
 		}, Executor(Runnable::run)).build()
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
 	}
@@ -287,6 +289,8 @@ class RoomImportedWifiProductRecentScanTest {
 		EPOCH,
 	)
 
+	// Keep the imported-history local session, its runs and matching current radio cursors together.
+	@Suppress("LongMethod")
 	private suspend fun insertLocalOwners(
 		logicalId: String,
 		runCount: Int,
@@ -375,6 +379,8 @@ class RoomImportedWifiProductRecentScanTest {
 		}
 	}
 
+	// Keep each portable Wi-Fi run and its observation beside the complete enclosing entry fixture.
+	@Suppress("LongMethod")
 	private fun entry(owner: String, vararg startTimes: Long, endOffset: Long = 100L,
 		unresolvedGap: Boolean = false): PortableCapturedWifiEntryV1 {
 		val runs = startTimes.mapIndexed { index, startTimeMs ->
@@ -421,13 +427,25 @@ class RoomImportedWifiProductRecentScanTest {
 				endTimeMs = startTimeMs + endOffset,
 				storedZoneIds = listOf("Europe/Prague"),
 				captureCoverage = PortableWifiCaptureCoverage.WHOLE_RUN,
-				availability = if (unresolvedGap) PortableWifiRunAvailability.NO_RETAINED_OBSERVATION
-					else PortableWifiRunAvailability.RETAINED,
-				acquisitionCompleteness = if (unresolvedGap) PortableWifiAcquisitionCompleteness.PARTIAL
-					else PortableWifiAcquisitionCompleteness.COMPLETE,
+				availability = if (unresolvedGap) {
+					PortableWifiRunAvailability.NO_RETAINED_OBSERVATION
+				}
+					else {
+					PortableWifiRunAvailability.RETAINED
+				},
+				acquisitionCompleteness = if (unresolvedGap) {
+					PortableWifiAcquisitionCompleteness.PARTIAL
+				}
+					else {
+					PortableWifiAcquisitionCompleteness.COMPLETE
+				},
 				hasUnresolvedProviderRange = unresolvedGap,
 				retentionLoss = false,
-				observations = if (unresolvedGap) emptyList() else listOf(observation),
+				observations = if (unresolvedGap) {
+					emptyList()
+				} else {
+					listOf(observation)
+				},
 			)
 		}.sortedWith(com.adsamcik.tracker.stats.api.repository.PORTABLE_WIFI_RUN_ORDER)
 		return PortableWifiIntegrity.createEntry(

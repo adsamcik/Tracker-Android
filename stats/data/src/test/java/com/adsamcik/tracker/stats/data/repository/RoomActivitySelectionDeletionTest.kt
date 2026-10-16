@@ -481,6 +481,9 @@ class RoomActivitySelectionDeletionTest {
 		dao.entryDeletionReceipt(entry.identity.value) shouldBe null
 	}
 
+	// Keep one portable Activity deletion fixture with its matching gap, window, run and entry checksums
+	// together.
+	@Suppress("LongMethod")
 	private fun entry(
 		gapReason: String = "NO_QUALIFIED_EVIDENCE",
 	): PortableActivityEntryV1 {

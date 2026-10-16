@@ -5,6 +5,10 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
+/**
+ * Durable retention-worker execution state and optional prepared destructive plan, with UTC
+ * start/update boundaries for recovery.
+ */
 @Entity(
 	tableName = "retention_work_execution_receipt",
 	indices = [
@@ -47,6 +51,10 @@ data class RetentionWorkExecutionReceiptEntity(
 		require(updatedAtMs >= startedAtMs)
 	}
 
+	/**
+	 * Stable persisted codes, including `STATE_OPEN`, `STATE_CANCELLATION_REQUESTED`, `STATE_FINAL`,
+	 * and any identity-bound record factories.
+	 */
 	companion object {
 		const val STATE_OPEN = "OPEN"
 		const val STATE_CANCELLATION_REQUESTED = "CANCELLATION_REQUESTED"

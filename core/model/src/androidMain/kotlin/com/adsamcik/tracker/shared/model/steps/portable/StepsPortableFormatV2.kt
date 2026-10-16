@@ -10,6 +10,10 @@ object StepsPortableFormatV2 {
 	const val MAX_ENTRIES: Int = StepsPortableFormatV1.MAX_ENTRIES
 }
 
+/**
+ * Pairs session Steps products with exact fact and completeness roots; no retracted owner can serve as a
+ * current product root.
+ */
 data class PortableStepsEntryV2(
 	val product: PortableStepsEntryV1,
 	val countDomainGraph: PortableCountDomainGraphV2,
@@ -45,6 +49,7 @@ data class PortableStepsEntryV2(
 	}
 }
 
+/** Ordered session Steps archive preserving unique runs, deletion scopes, facts and count-domain owner lineages. */
 data class PortableStepsArchiveV2(
 	val format: String = StepsPortableFormatV2.FORMAT,
 	val schemaVersion: Int = StepsPortableFormatV2.SCHEMA_VERSION,
@@ -72,7 +77,9 @@ data class PortableStepsArchiveV2(
 		require(contentChecksum == PortableStepsV2Integrity.archiveChecksum(entries))
 	}
 
+	/** Orders session entries before computing the v2 archive membership checksum. */
 	companion object {
+		/** Sorts session entries canonically and validates unique source ownership before returning the archive. */
 		fun create(entries: List<PortableStepsEntryV2>): PortableStepsArchiveV2 {
 			val ordered = entries.sortedWith(PORTABLE_STEPS_ENTRY_V2_ORDER)
 			return PortableStepsArchiveV2(
@@ -87,7 +94,12 @@ val PORTABLE_STEPS_ENTRY_V2_ORDER: Comparator<PortableStepsEntryV2> =
 	compareBy<PortableStepsEntryV2> { it.product.startTimeMs }
 		.thenBy { it.product.identity.value }
 
+/** Hashes session products with their exact count-domain graph identities and checksums. */
 object PortableStepsV2Integrity {
+	/**
+	 * Hashes ordered session product and count-domain graph checksums, independent of export time or
+	 * destination receipts.
+	 */
 	fun archiveChecksum(entries: List<PortableStepsEntryV2>): PortableStepsDigest =
 		PortableStepsIntegrity.digest(
 			"tracker-portable-steps-archive-v2",

@@ -582,7 +582,9 @@ internal fun mergeAmbientNumericDays(
 	base: StepsDayRepairPreflight,
 	ambientDays: List<AmbientStepsNumericHistoryDay>,
 ): StepsNumericSummary {
-	if (ambientDays.isEmpty()) return ambientSourceUnavailable()
+	if (ambientDays.isEmpty()) {
+		return ambientSourceUnavailable()
+	}
 	val baseByDay = (base as? StepsDayRepairPreflight.Ready)
 		?.plans
 		.orEmpty()
@@ -600,26 +602,47 @@ internal fun mergeAmbientNumericDays(
 				if (AmbientStepsHistoryCause.MATERIALIZING in total.causes) {
 					return StepsNumericSummary.Materializing
 				}
-				if (total.causes == setOf(AmbientStepsHistoryCause.NO_EVIDENCE)) {
-					val baseValue = baseByDay[ambientDay.day.epochDay]?.numericSteps
-						?: return when (base) {
-							StepsDayRepairPreflight.Materializing -> StepsNumericSummary.Materializing
-							is StepsDayRepairPreflight.Unsupported -> ambientSourceUnavailable()
-							is StepsDayRepairPreflight.Ready -> ambientSourceUnavailable()
-						}
-					values += ambientDay.day.epochDay to baseValue
-				} else if (
-					AmbientStepsHistoryCause.EXPLICIT_GAP in total.causes ||
-					AmbientStepsHistoryCause.PARTIAL_COVERAGE in total.causes
-				) {
-					values += ambientDay.day.epochDay to StepsDayNumericComposition.PartialCapture
-				} else {
-					return ambientSourceUnavailable()
-				}
+				val composition = unavailableAmbientDayComposition(total, ambientDay.day.epochDay, baseByDay)
+					?: return if (total.causes == setOf(AmbientStepsHistoryCause.NO_EVIDENCE) &&
+						base == StepsDayRepairPreflight.Materializing
+					) {
+						StepsNumericSummary.Materializing
+					} else {
+						ambientSourceUnavailable()
+					}
+				values += ambientDay.day.epochDay to composition
 			}
 		}
 	}
-	if (values.size != ambientDays.size) return ambientSourceUnavailable()
+	return summarizeAmbientNumericDays(values, ambientDays.size)
+}
+
+private fun unavailableAmbientDayComposition(
+	total: AmbientStepsHistoryValue.Unavailable,
+	epochDay: Long,
+	baseByDay: Map<Long, StepsDayRepairPlan>,
+): StepsDayNumericComposition? {
+	if (total.causes == setOf(AmbientStepsHistoryCause.NO_EVIDENCE)) {
+		return baseByDay[epochDay]?.numericSteps
+	}
+	return if (AmbientStepsHistoryCause.EXPLICIT_GAP in total.causes ||
+		AmbientStepsHistoryCause.PARTIAL_COVERAGE in total.causes
+	) {
+		StepsDayNumericComposition.PartialCapture
+	} else {
+		null
+	}
+}
+
+// Keep complete day qualification, checked total and final ordered projection together.
+@Suppress("ReturnCount")
+private fun summarizeAmbientNumericDays(
+	values: List<Pair<Long, StepsDayNumericComposition>>,
+	expectedDayCount: Int,
+): StepsNumericSummary {
+	if (values.size != expectedDayCount) {
+		return ambientSourceUnavailable()
+	}
 	if (values.any { it.second == StepsDayNumericComposition.PartialCapture }) {
 		return StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE)
 	}

@@ -21,8 +21,13 @@ data class ActivityMotionAssistanceAuthority(
 	}
 }
 
+/** Identifies the independently allowed Location purpose whose host lease requests transient motion hints. */
 enum class LocationMotionPurpose { CAPTURE, BACKGROUND }
 
+/**
+ * Transient Activity transition bound to the acknowledged registration and Location lease; observation and
+ * receipt clocks are elapsed nanoseconds.
+ */
 data class ActivityMotionHint(
 	val authority: ActivityMotionAssistanceAuthority,
 	val registrationIdentity: ActivityRegistrationIdentity,

@@ -58,7 +58,11 @@ class SharedWifiPhysicalAgeTest {
 		mockk<SourceDemandEntity>().also { demand ->
 			every { demand.purpose } returns purpose
 			every { demand.consumerId } returns if (purpose == SourceBrokerPurpose.AMBIENT_PRODUCT)
-				"app:ambient:wifi" else "session:session-a"
+				{
+				"app:ambient:wifi"
+			} else {
+				"session:session-a"
+			}
 			every { demand.logicalTrackingId } returns
 				"session-a".takeIf { purpose == SourceBrokerPurpose.SESSION_CAPTURE }
 			every { demand.serviceRunId } returns

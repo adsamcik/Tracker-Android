@@ -902,7 +902,6 @@ class DefaultActivityRegistrationArbiterTest {
 		finalizeActivityCallbackAuthority(
 			terminallyOwnedOrRejected = false,
 			durablyRetryOwned = false,
-			gapCode = ActivityCallbackGapCode.RETRY_STORAGE_UNAVAILABLE,
 			recordGap = { false },
 			completePermit = callback::complete,
 		) shouldBe ActivityCallbackFinalizationDisposition.TERMINAL_TELEMETRY_ONLY
@@ -933,7 +932,6 @@ class DefaultActivityRegistrationArbiterTest {
 		finalizeActivityCallbackAuthority(
 			terminallyOwnedOrRejected = false,
 			durablyRetryOwned = false,
-			gapCode = ActivityCallbackGapCode.RETRY_BYTE_BUDGET_EXHAUSTED,
 			recordGap = { false },
 			completePermit = callback::complete,
 		)

@@ -13,11 +13,17 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionRegistrationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 
+/**
+ * Persisted projection-state key and optional logical recording ID, used to inspect joins without
+ * decoding state payloads.
+ */
 data class SourceProjectionJoinStateMetadata(
 	@ColumnInfo(name = "state_key") val stateKey: String,
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
 )
 
+// This interface contains Room declarations only; keep this source’s SQL together.
+@Suppress("LargeClass")
 @Dao
 interface SourceProjectionStateDao {
 	@Insert(onConflict = OnConflictStrategy.ABORT)
@@ -313,6 +319,18 @@ interface SourceProjectionStateDao {
 		admissionOrdinal: Long,
 	): SourceProjectionFailureEntity?
 
+	/** Exact terminal failures for one bounded measured page, with no per-reading query cascade. */
+	@Query(
+		"SELECT * FROM source_projection_failure WHERE projection_id = :projectionId " +
+			"AND projection_version = :projectionVersion AND terminal = 1 " +
+			"AND admission_ordinal IN (:admissionOrdinals) ORDER BY admission_ordinal",
+	)
+	suspend fun terminalFailuresAt(
+		projectionId: String,
+		projectionVersion: Int,
+		admissionOrdinals: List<Long>,
+	): List<SourceProjectionFailureEntity>
+
 	@Query(
 		"SELECT * FROM source_projection_failure WHERE projection_id = :projectionId " +
 			"AND projection_version = :projectionVersion AND terminal = 1 " +
@@ -338,6 +356,11 @@ interface SourceProjectionStateDao {
 	)
 	suspend fun joinStates(projectionId: String, projectionVersion: Int): List<SourceProjectionJoinStateEntity>
 
+	/**
+	 * Reads `source_projection_join_state` rows. Query conditions include `projection_id =
+	 * :projectionId`, `projection_version = :projectionVersion`, `state_key >= :stateKeyPrefix`,
+	 * `state_key < :stateKeyUpperBound`. Orders by `state_key`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT state_key, logical_tracking_id FROM source_projection_join_state " +
 			"WHERE projection_id = :projectionId AND projection_version = :projectionVersion " +
@@ -370,6 +393,11 @@ interface SourceProjectionStateDao {
 	)
 	suspend fun deleteJoinState(projectionId: String, projectionVersion: Int, stateKey: String)
 
+	/**
+	 * Deletes `source_projection_join_state` rows matching the supplied scope. Query conditions
+	 * include `projection_id = :projectionId`, `projection_version = :projectionVersion`, `state_key
+	 * IN (:stateKeys)`. Returns the affected row count.
+	 */
 	@Query(
 		"DELETE FROM source_projection_join_state " +
 			"WHERE projection_id = :projectionId AND projection_version = :projectionVersion " +
@@ -413,6 +441,11 @@ interface SourceProjectionStateDao {
 		cellProjectionVersion: Int,
 	): Long?
 
+	/**
+	 * Reads `source_projection_registration` rows. Query conditions include
+	 * `registration.projection_id = :projectionId`, `registration.projection_version =
+	 * :projectionVersion`, `registration.retention_required = 1`, `registration.status = 'ACTIVE'`.
+	 */
 	@Query(
 		"SELECT COALESCE(checkpoint.contiguous_admission_ordinal, registration.activation_ordinal - 1) " +
 			"FROM source_projection_registration registration " +
@@ -492,6 +525,11 @@ interface SourceProjectionStateDao {
 		expiresElapsedNanos: Long,
 	): Int
 
+	/**
+	 * Updates `source_coordinator_lease` rows matching the supplied scope. Query conditions include
+	 * `lease_name = :leaseName`, `owner_token = :ownerToken`, `boot_id = :bootId`, `generation =
+	 * :generation`. Returns the affected row count.
+	 */
 	@Query(
 		"UPDATE source_coordinator_lease SET " +
 			"acquired_at_ms = :nowMs, expires_at_ms = :expiresAtMs, " +
@@ -559,6 +597,11 @@ interface SourceProjectionStateDao {
 	@Query("SELECT * FROM source_projection_outbox WHERE stable_id = :stableId")
 	suspend fun outbox(stableId: String): SourceProjectionOutboxEntity?
 
+	/**
+	 * Reads `source_projection_outbox` rows. Query conditions include `projection_id =
+	 * 'activity-automation'`, `projection_version = 4`, `effect_kind = 'activity-automation-v1'`,
+	 * `payload_version = 4`. Orders by `admission_ordinal ASC`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_projection_outbox WHERE projection_id = 'activity-automation' " +
 			"AND projection_version = 4 AND effect_kind = 'activity-automation-v1' " +
@@ -570,6 +613,11 @@ interface SourceProjectionStateDao {
 		limit: Int,
 	): List<SourceProjectionOutboxEntity>
 
+	/**
+	 * Deletes `source_projection_outbox` rows matching the supplied scope. Query conditions include
+	 * `stable_id = :stableId`, `projection_id = 'activity-automation'`, `projection_version = 4`,
+	 * `effect_kind = 'activity-automation-v1'`. Returns the affected row count.
+	 */
 	@Query(
 		"DELETE FROM source_projection_outbox WHERE stable_id = :stableId " +
 			"AND projection_id = 'activity-automation' AND projection_version = 4 " +
@@ -595,6 +643,11 @@ interface SourceProjectionStateDao {
 		terminalAtMs: Long,
 	): Int
 
+	/**
+	 * Updates `source_projection_outbox` rows matching the supplied scope. Query conditions include
+	 * `projection_id = 'activity-automation'`, `projection_version = 4`, `effect_kind =
+	 * 'activity-automation-v1'`, `payload_version = 4`. Returns the affected row count.
+	 */
 	@Query(
 		"UPDATE source_projection_outbox SET terminal_disposition = :disposition, " +
 			"terminal_at_ms = :terminalAtMs WHERE projection_id = 'activity-automation' " +
@@ -609,6 +662,11 @@ interface SourceProjectionStateDao {
 		terminalAtMs: Long,
 	): Int
 
+	/**
+	 * Deletes `source_projection_outbox` rows matching the supplied scope. Query conditions include
+	 * `projection_id = 'activity-automation'`, `projection_version = 4`, `effect_kind =
+	 * 'activity-automation-v1'`, `payload_version = 4`. Returns the affected row count.
+	 */
 	@Query(
 		"DELETE FROM source_projection_outbox WHERE projection_id = 'activity-automation' " +
 			"AND projection_version = 4 AND effect_kind = 'activity-automation-v1' " +

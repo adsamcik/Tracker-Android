@@ -66,6 +66,8 @@ internal sealed interface WifiCapturedWriteResult {
  * one Room transaction. Its only production caller is the exact source-local Wi-Fi lane;
  * executable code alone neither installs that lane nor authorizes canonical rollout.
  */
+// One source writer owns the Room transaction, exact replay/correction checks and publication rollback.
+@Suppress("TooManyFunctions")
 internal class WifiCapturedFactWriter @Inject constructor(
 	private val database: AppDatabase,
 	private val adapter: WifiWalQualificationAdapter,
@@ -95,7 +97,8 @@ internal class WifiCapturedFactWriter @Inject constructor(
 	): WifiCapturedWriteResult {
 		currentCoroutineContext().ensureActive()
 		return when (result) {
-			is WifiWalAdapterResult.Groups -> WifiCapturedWriteResult.Groups(result.results.map { writeQualified(it, checkpoint) })
+			is WifiWalAdapterResult.Groups -> WifiCapturedWriteResult.Groups(result.results.map { writeQualified(it,
+                checkpoint) })
 			is WifiWalAdapterResult.Rejected -> WifiCapturedWriteResult.AdapterRejected(result.reason)
 			is WifiWalAdapterResult.Evaluated -> {
 				checkpoint(WifiCapturedWriteCheckpoint.QUALIFIED)
@@ -131,23 +134,7 @@ internal class WifiCapturedFactWriter @Inject constructor(
 				logicalFactId,
 				exactCursor.latestSemanticRevision,
 			) ?: reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-			val base = loadReusableFact(current, exactCursor, authority)
-			if (exactCursor.latestSemanticRevision == Long.MAX_VALUE) {
-				reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-			}
-			val classified = WifiCapturedFactClassifier.classify(
-				input = input,
-				expectedAuthority = authority,
-				currentDeletionAuthority = deletion,
-				semanticRevision = exactCursor.latestSemanticRevision + 1L,
-				supersedesSemanticRevision = exactCursor.latestSemanticRevision,
-				priorFact = base,
-				correctionBase = base,
-			)
-			if (classified !is WifiCapturedFactClassification.Replay &&
-				exactCursor.latestSemanticRevision >= MAX_FACT_REVISIONS
-			) reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-			return classified
+			return classifyStoredRevision(input, authority, deletion, current, exactCursor)
 		}
 
 		val priorRow = dao.latestEffectiveBefore(
@@ -163,14 +150,7 @@ internal class WifiCapturedFactWriter @Inject constructor(
 		val priorOwner = priorRow?.let { row ->
 			val cursor = dao.cursor(WRITER_ID, WRITER_VERSION, row.logicalFactId)
 				?: reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-			try {
-				when (val reusable = loadReusableFact(row, cursor, authority)) {
-					is WifiReusableFact.DirectAggregateOwner -> reusable
-					is WifiReusableFact.CoverageOnly -> reusable.directAggregateOwner
-				}
-			} catch (rejected: WifiCapturedWriteRejectedException) {
-				if (rejected.reason == WifiCapturedWriteRejection.RETAINED_DATA) null else throw rejected
-			}
+			loadPriorAggregateOwner(row, cursor, authority)
 		}
 		return WifiCapturedFactClassifier.classify(
 			input,
@@ -178,6 +158,51 @@ internal class WifiCapturedFactWriter @Inject constructor(
 			deletion,
 			priorFact = priorOwner,
 		)
+	}
+
+	private suspend fun loadPriorAggregateOwner(
+		row: WifiCapturedFactRevisionEntity,
+		cursor: WifiCapturedFactCursorEntity,
+		authority: WifiCaptureAuthority,
+	): WifiReusableFact.DirectAggregateOwner? = try {
+		when (val reusable = loadReusableFact(row, cursor, authority)) {
+			is WifiReusableFact.DirectAggregateOwner -> reusable
+			is WifiReusableFact.CoverageOnly -> reusable.directAggregateOwner
+		}
+	} catch (rejected: WifiCapturedWriteRejectedException) {
+		if (rejected.reason == WifiCapturedWriteRejection.RETAINED_DATA) {
+			null
+		} else {
+			throw rejected
+		}
+	}
+
+	private suspend fun classifyStoredRevision(
+		input: WifiObservationInput,
+		authority: WifiCaptureAuthority,
+		deletion: WifiDeletionAuthority,
+		current: WifiCapturedFactRevisionEntity,
+		exactCursor: WifiCapturedFactCursorEntity,
+	): WifiCapturedFactClassification {
+		val base = loadReusableFact(current, exactCursor, authority)
+		if (exactCursor.latestSemanticRevision == Long.MAX_VALUE) {
+			reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
+		val classified = WifiCapturedFactClassifier.classify(
+			input = input,
+			expectedAuthority = authority,
+			currentDeletionAuthority = deletion,
+			semanticRevision = exactCursor.latestSemanticRevision + 1L,
+			supersedesSemanticRevision = exactCursor.latestSemanticRevision,
+			priorFact = base,
+			correctionBase = base,
+		)
+		if (classified !is WifiCapturedFactClassification.Replay &&
+			exactCursor.latestSemanticRevision >= MAX_FACT_REVISIONS
+		) {
+			reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
+		return classified
 	}
 
 	private suspend fun writeClassification(
@@ -202,7 +227,8 @@ internal class WifiCapturedFactWriter @Inject constructor(
 	): WifiCapturedWriteResult {
 		val authority = fact.authority
 		val owner = database.sourceDestinationOwnerDao().get(SOURCE_KIND, DESTINATION)
-		if (owner?.owner != OWNER || SourceWriterGenerationContract.bindingGenerationForCanonicalOwner(owner.ownerGeneration)
+		if (owner?.owner != OWNER ||
+            SourceWriterGenerationContract.bindingGenerationForCanonicalOwner(owner.ownerGeneration)
 				?.let(SourceWriterGenerationContract::captureModeMaskForKnownBinding) == null) {
 			reject(WifiCapturedWriteRejection.DESTINATION_OWNER_CHANGED)
 		}
@@ -215,6 +241,8 @@ internal class WifiCapturedFactWriter @Inject constructor(
 			SOURCE_KIND,
 			PURPOSE,
 		)
+		// Match the complete acknowledged manifest/physical-writer tuple before writing this fact.
+		@Suppress("ComplexCondition")
 		if (binding == null || manifest == null || session == null ||
 			manifest.sessionMode != session.sessionMode ||
 			!binding.isExactWifiWriter(authority.captureConsentEpoch, manifest.sessionMode) ||
@@ -225,7 +253,9 @@ internal class WifiCapturedFactWriter @Inject constructor(
 			?: reject(WifiCapturedWriteRejection.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
 		if (state.collectedDataEpoch != authority.collectedDataEpoch ||
 			fact.evidenceBinding.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal
-		) reject(WifiCapturedWriteRejection.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		) {
+			reject(WifiCapturedWriteRejection.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		}
 		requireUndeletedScope(authority)
 		val ownerCursorRevision = (fact as? WifiCapturedFact.CoverageOnly)?.let { coverage ->
 			val ownerId = coverage.reusesAggregate.reference.logicalFactId()
@@ -234,7 +264,9 @@ internal class WifiCapturedFactWriter @Inject constructor(
 			cursor.cursorRevision
 		}
 		val previousRevision = fact.mutation.supersedesSemanticRevision
-		val payloadVersion = if (previousRevision == null) wal.payloadVersion else {
+		val payloadVersion = if (previousRevision == null) {
+			wal.payloadVersion
+		} else {
 			val previous = database.wifiCapturedFactDao().revision(
 				WRITER_ID, WRITER_VERSION, fact.mutation.reference.logicalFactId(), previousRevision,
 			) ?: reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
@@ -245,14 +277,20 @@ internal class WifiCapturedFactWriter @Inject constructor(
 		val children = if (wal.payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
 			WifiPurposeChildren.session(mapped, wal, acceptedIndexes)
 				?: reject(WifiCapturedWriteRejection.CHILD_EVIDENCE_MISMATCH)
-		} else emptyList()
+		} else {
+			emptyList()
+		}
 		if (wal.payloadVersion == WIFI_WAL_PAYLOAD_VERSION &&
 			children.size != mapped.acceptedResultCount
-		) reject(WifiCapturedWriteRejection.CHILD_EVIDENCE_MISMATCH)
+		) {
+			reject(WifiCapturedWriteRejection.CHILD_EVIDENCE_MISMATCH)
+		}
 		requireNoRetainedFactProof(mapped, state.retainedFromMs)
-		if (mapped.earliestCoveredWallTimeMs()?.let { earliest ->
+		if (mapped.earliestWriterCoveredWallTimeMs()?.let { earliest ->
 			state.retainedFromMs?.let { earliest < it }
-		} == true) reject(WifiCapturedWriteRejection.RETAINED_DATA)
+		} == true) {
+			reject(WifiCapturedWriteRejection.RETAINED_DATA)
+		}
 
 		val dao = database.wifiCapturedFactDao()
 		val existing = dao.revision(WRITER_ID, WRITER_VERSION, mapped.logicalFactId, mapped.semanticRevision)
@@ -270,7 +308,9 @@ internal class WifiCapturedFactWriter @Inject constructor(
 					WRITER_ID, WRITER_VERSION, mapped.logicalFactId, mapped.semanticRevision,
 					MAX_CHILDREN + 1,
 				) != children
-			) reject(WifiCapturedWriteRejection.CHILD_EVIDENCE_MISMATCH)
+			) {
+				reject(WifiCapturedWriteRejection.CHILD_EVIDENCE_MISMATCH)
+			}
 			return WifiCapturedWriteResult.Unchanged(
 				mapped.logicalFactId,
 				mapped.semanticRevision,
@@ -285,12 +325,16 @@ internal class WifiCapturedFactWriter @Inject constructor(
 				reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 			}
 		} else {
+			// Match the complete expected predecessor tuple before querying its immutable revision.
+			@Suppress("ComplexCondition")
 			if (!current.matchesScope(mapped) ||
 				current.latestSemanticRevision != mapped.supersedesSemanticRevision ||
 				current.latestSemanticRevision == Long.MAX_VALUE ||
 				current.latestSemanticRevision + 1L != mapped.semanticRevision ||
 				mapped.sourceAdmissionOrdinal != current.latestSourceAdmissionOrdinal
-			) reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			) {
+				reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			}
 			val previous = dao.revision(
 				WRITER_ID,
 				WRITER_VERSION,
@@ -302,13 +346,17 @@ internal class WifiCapturedFactWriter @Inject constructor(
 			}
 			if (previous.factKind == WifiCapturedFactRevisionEntity.FACT_KIND_AGGREGATE &&
 				dao.dependentCount(previous.logicalFactId, previous.semanticRevision) > 0L
-			) reject(WifiCapturedWriteRejection.AGGREGATE_OWNER_HAS_DEPENDENTS)
+			) {
+				reject(WifiCapturedWriteRejection.AGGREGATE_OWNER_HAS_DEPENDENTS)
+			}
 		}
 
 		if (dao.insertRevision(mapped) == INSERT_IGNORED) {
 			reject(WifiCapturedWriteRejection.IDENTITY_COLLISION)
 		}
-		if (children.isNotEmpty()) database.radioObservationChildDao().insertWifiSession(children)
+		if (children.isNotEmpty()) {
+			database.radioObservationChildDao().insertWifiSession(children)
+		}
 		checkpoint(WifiCapturedWriteCheckpoint.REVISION_INSERTED)
 		currentCoroutineContext().ensureActive()
 		val nextCursorRevision = Math.addExact(current?.cursorRevision ?: 0L, 1L)
@@ -345,12 +393,16 @@ internal class WifiCapturedFactWriter @Inject constructor(
 			?: reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 		val cursor = dao.cursor(WRITER_ID, WRITER_VERSION, logicalFactId)
 			?: reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-		if (!cursor.matchesCurrentRevision(row)) reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		if (!cursor.matchesCurrentRevision(row)) {
+			reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
 		val children = if (wal.payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
 			database.radioObservationChildDao().wifiSessionChildren(
 				WRITER_ID, WRITER_VERSION, logicalFactId, row.semanticRevision, MAX_CHILDREN + 1,
 			)
-		} else emptyList()
+		} else {
+			emptyList()
+		}
 		if (!WifiWalCarrierAuthenticator.authenticates(row, wal, children)) {
 			reject(WifiCapturedWriteRejection.CHILD_EVIDENCE_MISMATCH)
 		}
@@ -415,7 +467,9 @@ internal class WifiCapturedFactWriter @Inject constructor(
 			?: reject(WifiCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
 		if (row.factKind != WifiCapturedFactRevisionEntity.FACT_KIND_AGGREGATE ||
 			cursor.cursorRevision != cursorRevision || !cursor.matchesCurrentRevision(row)
-		) reject(WifiCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
+		) {
+			reject(WifiCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
+		}
 		requireExactRevisionLineage(row, cursor)
 		requireCurrentWriteAuthority(row)
 		return try {
@@ -450,22 +504,30 @@ internal class WifiCapturedFactWriter @Inject constructor(
 			currentCoroutineContext().ensureActive()
 			val expected = current.semanticRevision - index
 			val older = revisions.getOrNull(index + 1)
+			// One saved revision matches its exact expected predecessor, integrity and stable lineage.
+			@Suppress("ComplexCondition")
 			if (revision.semanticRevision != expected ||
 				revision.supersedesSemanticRevision != (expected - 1L).takeIf { it > 0L } ||
 				!WifiCapturedFactRevisionIntegrity.hasValidEffectChecksum(revision) ||
 				(older != null && !revision.isAuthenticatedSuccessorOf(older))
-			) reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-			val wal = database.sourceEventWalDao().boundedPayloadByEventId(
-				revision.sourceEventId, MAX_WIFI_WAL_PAYLOAD_BYTES,
-			) ?: reject(WifiCapturedWriteRejection.CHILD_EVIDENCE_MISMATCH)
-			if (wal.payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
-				val children = database.radioObservationChildDao().wifiSessionChildren(
-					WRITER_ID, WRITER_VERSION, revision.logicalFactId,
-					revision.semanticRevision, MAX_CHILDREN + 1,
-				)
-				if (!WifiWalCarrierAuthenticator.authenticates(revision, wal, children)) {
-					reject(WifiCapturedWriteRejection.CHILD_EVIDENCE_MISMATCH)
-				}
+			) {
+				reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			}
+			requireRevisionChildEvidence(revision)
+		}
+	}
+
+	private suspend fun requireRevisionChildEvidence(revision: WifiCapturedFactRevisionEntity) {
+		val wal = database.sourceEventWalDao().boundedPayloadByEventId(
+			revision.sourceEventId, MAX_WIFI_WAL_PAYLOAD_BYTES,
+		) ?: reject(WifiCapturedWriteRejection.CHILD_EVIDENCE_MISMATCH)
+		if (wal.payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
+			val children = database.radioObservationChildDao().wifiSessionChildren(
+				WRITER_ID, WRITER_VERSION, revision.logicalFactId,
+				revision.semanticRevision, MAX_CHILDREN + 1,
+			)
+			if (!WifiWalCarrierAuthenticator.authenticates(revision, wal, children)) {
+				reject(WifiCapturedWriteRejection.CHILD_EVIDENCE_MISMATCH)
 			}
 		}
 	}
@@ -474,19 +536,25 @@ internal class WifiCapturedFactWriter @Inject constructor(
 		fact: WifiCapturedFactRevisionEntity,
 		currentAuthority: WifiCaptureAuthority,
 	) {
-		if (fact.factKind != WifiCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY) return
+		if (fact.factKind != WifiCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY) {
+			return
+		}
 		val owner = loadDirectAggregateOwner(
 			requireNotNull(fact.aggregateOwnerLogicalFactId),
 			requireNotNull(fact.aggregateOwnerSemanticRevision),
 			requireNotNull(fact.aggregateOwnerCursorRevision),
 			currentAuthority,
 		)
+		// The aggregate owner must match the entire requesting fact scope and original value count.
+		@Suppress("ComplexCondition")
 		if (owner.reference.identity.logicalTrackingId.value != fact.logicalTrackingId ||
 			owner.reference.identity.serviceRunId.value != fact.serviceRunId ||
 			owner.reference.identity.sessionSegmentId != fact.sessionSegmentId ||
 			owner.authority != currentAuthority ||
 			owner.productEffect.aggregate?.observationCount != fact.acceptedResultCount
-		) reject(WifiCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
+		) {
+			reject(WifiCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
+		}
 	}
 
 	private suspend fun requireNoRetainedFactProof(
@@ -504,7 +572,9 @@ internal class WifiCapturedFactWriter @Inject constructor(
 			fact.writerProjectionVersion,
 			fact.logicalFactId,
 		)
-		if (!conflictingEvent && byFact == null) return
+		if (!conflictingEvent && byFact == null) {
+			return
+		}
 		if (conflictingEvent || byFact == null ||
 			!byFact.authenticatesRequest(
 				expectedSourceKind = SOURCE_KIND,
@@ -530,11 +600,13 @@ internal class WifiCapturedFactWriter @Inject constructor(
 					),
 				currentRetainedFromMs = currentRetainedFromMs,
 			)
-		) reject(WifiCapturedWriteRejection.IDENTITY_COLLISION)
+		) {
+			reject(WifiCapturedWriteRejection.IDENTITY_COLLISION)
+		}
 		reject(WifiCapturedWriteRejection.RETAINED_DATA)
 	}
 
-	private suspend fun requireCurrentWriteAuthority(row: WifiCapturedFactRevisionEntity) {
+	private suspend fun requireCurrentManifestWriter(row: WifiCapturedFactRevisionEntity) {
 		val owner = database.sourceDestinationOwnerDao().get(SOURCE_KIND, DESTINATION)
 		if (owner?.owner != OWNER || owner.ownerGeneration != row.writerOwnerGeneration) {
 			reject(WifiCapturedWriteRejection.DESTINATION_OWNER_CHANGED)
@@ -548,6 +620,8 @@ internal class WifiCapturedFactWriter @Inject constructor(
 			SOURCE_KIND,
 			PURPOSE,
 		)
+		// The saved manifest and binding must match the complete current physical writer tuple.
+		@Suppress("ComplexCondition")
 		if (binding == null || manifest == null || session == null ||
 			manifest.sessionMode != session.sessionMode ||
 			!binding.isExactWifiWriter(row.captureConsentEpoch, manifest.sessionMode) ||
@@ -555,14 +629,22 @@ internal class WifiCapturedFactWriter @Inject constructor(
 			binding.writerOwnerGeneration != row.writerOwnerGeneration) {
 			reject(WifiCapturedWriteRejection.MANIFEST_WRITER_AUTHORITY_MISMATCH)
 		}
+	}
+
+	private suspend fun requireCurrentWriteAuthority(row: WifiCapturedFactRevisionEntity) {
+		requireCurrentManifestWriter(row)
 		val state = database.sourceEvidenceStateDao().get()
 			?: reject(WifiCapturedWriteRejection.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
 		if (state.collectedDataEpoch != row.collectedDataEpoch ||
 			row.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal
-		) reject(WifiCapturedWriteRejection.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
-		if (row.earliestCoveredWallTimeMs()?.let { earliest ->
+		) {
+			reject(WifiCapturedWriteRejection.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		}
+		if (row.earliestWriterCoveredWallTimeMs()?.let { earliest ->
 			state.retainedFromMs?.let { earliest < it }
-		} == true) reject(WifiCapturedWriteRejection.RETAINED_DATA)
+		} == true) {
+			reject(WifiCapturedWriteRejection.RETAINED_DATA)
+		}
 		requireUndeletedScope(row.logicalTrackingId, row.serviceRunId, row.scopeDeletionGeneration)
 	}
 
@@ -588,7 +670,9 @@ internal class WifiCapturedFactWriter @Inject constructor(
 			PURPOSE,
 			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
 			digest,
-		)) reject(WifiCapturedWriteRejection.DELETED_SCOPE)
+		)) {
+			reject(WifiCapturedWriteRejection.DELETED_SCOPE)
+		}
 		val sourceFence = database.wifiCapturedFactDao().deletionGeneration(logicalTrackingId, serviceRunId)
 		val actual = sourceFence?.let { state ->
 			if (state.collectedDataEpoch != database.sourceEvidenceStateDao().get()?.collectedDataEpoch) {
@@ -617,6 +701,7 @@ internal class WifiCapturedFactWriter @Inject constructor(
 	}
 }
 
+@Suppress("CyclomaticComplexMethod") // Keep this fixed field or enum projection together.
 private fun SessionManifestSourceEntity.isExactWifiWriter(consentEpoch: Long, sessionMode: String?): Boolean =
 	sourceKind == SourceDestinationOwnerEntity.SOURCE_WIFI &&
 		purpose == SourceBrokerPurpose.SESSION_CAPTURE && persistenceEligible &&
@@ -665,7 +750,17 @@ private fun WifiCapturedFactRevisionEntity.isAuthenticatedSuccessorOf(
 ): Boolean = fixedCorrectionLineage() == previous.fixedCorrectionLineage() &&
 	providerAcceptanceEndNanos.isExactSettlementOf(previous.providerAcceptanceEndNanos) &&
 	authorizationEffectEndNanos.isExactSettlementOf(previous.authorizationEffectEndNanos) &&
-	sessionRunEffectEndNanos.isExactSettlementOf(previous.sessionRunEffectEndNanos)
+	sessionRunEffectEndNanos.isExactSettlementOf(previous.sessionRunEffectEndNanos) &&
+	hasCoveredMeasurements() && previous.hasCoveredMeasurements()
+
+private fun WifiCapturedFactRevisionEntity.hasCoveredMeasurements(): Boolean =
+	providerAcceptanceStartNanos >= 0L && authorizationEffectStartNanos >= 0L &&
+		sessionRunEffectStartNanos >= 0L && coverageIntervalStartNanos >= maxOf(
+			providerAcceptanceStartNanos, authorizationEffectStartNanos, sessionRunEffectStartNanos,
+		) && coverageIntervalEndNanos >= coverageIntervalStartNanos &&
+		coverageIntervalEndNanos < minOf(
+			providerAcceptanceEndNanos, authorizationEffectEndNanos, sessionRunEffectEndNanos,
+		)
 
 private fun WifiCapturedFactRevisionEntity.fixedCorrectionLineage(): List<Any?> = listOf(
 	writerProjectionId, writerProjectionVersion, writerBindingGeneration, writerOwnerGeneration,
@@ -688,7 +783,7 @@ private fun WifiCapturedFactRevisionEntity.fixedCorrectionLineage(): List<Any?> 
 )
 
 private fun Long.isExactSettlementOf(previous: Long): Boolean =
-	this == previous || (previous == Long.MAX_VALUE && this < Long.MAX_VALUE)
+	this <= previous
 
 private fun WifiCapturedFactRevisionEntity.persistedMutation() = WifiCapturedFactMutation(
 	identity = WifiCapturedFactIdentity(
@@ -747,6 +842,9 @@ private fun WifiCapturedFactRevisionEntity.persistedAuthority(
 	require(expectedStatic.serializedAcquisitionPlan.payloadChecksum == planPayloadChecksum)
 	require(expectedStatic.appliedRegistration.appliedAtElapsedRealtimeNanos == registrationAppliedAtNanos)
 	require(current.temporalAuthority.isExactSettlementOf(expectedStatic.temporalAuthority))
+	require(hasCoveredMeasurements())
+	require(current.temporalAuthority.contains(coverageIntervalStartNanos) &&
+		current.temporalAuthority.contains(coverageIntervalEndNanos))
 	return expectedStatic
 }
 
@@ -759,10 +857,14 @@ private fun WifiCaptureTemporalAuthority.isExactSettlementOf(
 	sessionRunEffect.startInclusiveNanos == previous.sessionRunEffect.startInclusiveNanos &&
 	sessionRunEffect.endExclusiveNanos.isExactSettlementOf(previous.sessionRunEffect.endExclusiveNanos)
 
-private fun String.toSourceKinds(): Set<SourceKind> = if (isEmpty()) emptySet() else
+private fun String.toSourceKinds(): Set<SourceKind> = if (isEmpty()) {
+	emptySet()
+} else
+	{
 	split(',').map { code ->
 		SourceKind.entries.single { it.stableCode == code.toInt() }
 	}.toSet()
+}
 
 private fun WifiCapturedFactRevisionEntity.persistedEvidence() = WifiCapturedEvidenceBinding(
 	SourceEventId(sourceEventId), sourceAdmissionOrdinal, walIntegrityIdentity, payloadChecksum,
@@ -788,7 +890,7 @@ private fun WifiCapturedFactRevisionEntity.persistedAggregate() = WifiIdentityFr
 		requireNotNull(weakestSignalDbm), requireNotNull(signalSumDbm)),
 )
 
-private fun WifiCapturedFactRevisionEntity.earliestCoveredWallTimeMs(): Long? = runCatching {
+private fun WifiCapturedFactRevisionEntity.earliestWriterCoveredWallTimeMs(): Long? = runCatching {
 	CanonicalRetentionBounds.wifiCoverage(
 		coverageEndWallTimeMs = observedWallTimeMs,
 		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
@@ -827,8 +929,12 @@ private object WifiCapturedPersistence {
 			mutation.semanticRevision,
 			mutation.supersedesSemanticRevision,
 			WifiCapturedFactRevisionIntegrity.mutationId(logicalId, mutation.semanticRevision),
-			if (aggregate == null) WifiCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY
-			else WifiCapturedFactRevisionEntity.FACT_KIND_AGGREGATE,
+			if (aggregate == null) {
+				WifiCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY
+			}
+			else {
+				WifiCapturedFactRevisionEntity.FACT_KIND_AGGREGATE
+			},
 			aggregateOwner?.logicalFactId(),
 			aggregateOwner?.semanticRevision,
 			aggregateOwnerCursorRevision,

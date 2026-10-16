@@ -160,7 +160,7 @@ class TrackerServiceSourceSessionTest {
 
 		captured.captured.origin shouldBe SessionStartOrigin.MANUAL_FOREGROUND_START
 		captured.captured.automaticTrigger shouldBe null
-		captured.captured.plan.plans.keys shouldBe setOf(SourceKind.STEPS)
+		captured.captured.plan.plans.filterValues { it.enabled }.keys shouldBe setOf(SourceKind.STEPS)
 		captured.captured.plan.plans.getValue(SourceKind.STEPS).enabled shouldBe true
 		captured.captured.controlDependencies shouldBe emptySet()
 	}
@@ -267,7 +267,9 @@ class TrackerServiceSourceSessionTest {
 		coEvery { activeSessionStore.replaceExact(any(), any()) } answers {
 			val expected = firstArg<ActiveTrackingSessionDescriptor>()
 			val replacement = secondArg<ActiveTrackingSessionDescriptor>()
-			if (expected == descriptor) descriptor = replacement
+			if (expected == descriptor) {
+				descriptor = replacement
+			}
 			ActiveTrackingSessionStoreResult.Success(descriptor)
 		}
 		coEvery { lifecycle.start(capture(captured)) } coAnswers {
@@ -368,7 +370,7 @@ class TrackerServiceSourceSessionTest {
 					sessionMode = SessionMode.MANUAL,
 					acceptedSources = setOf(SourceKind.STEPS),
 					desiredForegroundCapabilityFlags = 1L,
-					intent = mockk(),
+					intent = mockk { every { sourceCallerAuthorityReference } returns "prepared-authority" },
 					automaticTrigger = null,
 					isUserInitiated = true,
 					isAmbient = false,
@@ -387,6 +389,9 @@ class TrackerServiceSourceSessionTest {
 		coVerify(exactly = 0) { lifecycle.suspendForRestart(any()) }
 	}
 
+	// Keep restarted descriptor adoption and graceful Stop together to prove predecessor retirement still blocks
+	// cleanup.
+	@Suppress("LongMethod")
 	@Test
 	fun `restarted prepared session reloads predecessor retirement debt before graceful stop`() =
 		runTest {
@@ -493,6 +498,8 @@ class TrackerServiceSourceSessionTest {
 			coVerify(exactly = 0) { lifecycle.stop(any()) }
 		}
 
+	// Keep the saved applied identity beside restarted adoption to prove unchanged inputs avoid reconfiguration.
+	@Suppress("LongMethod")
 	@Test
 	fun `restarted prepared exact applied identity remains unchanged without reconfiguration`() =
 		runTest {
@@ -540,7 +547,9 @@ class TrackerServiceSourceSessionTest {
 		coEvery { store.replaceExact(any(), any()) } answers {
 			val expected = firstArg<ActiveTrackingSessionDescriptor>()
 			val replacement = secondArg<ActiveTrackingSessionDescriptor>()
-			if (expected == descriptor) descriptor = replacement
+			if (expected == descriptor) {
+				descriptor = replacement
+			}
 			ActiveTrackingSessionStoreResult.Success(descriptor)
 		}
 		val localLifecycle = mockk<AuthoritativeSessionCoordinator>()
@@ -577,6 +586,8 @@ class TrackerServiceSourceSessionTest {
 	}
 
 	@Test
+	// Keep this complete contract scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `prepared input changes immediately retain debt until the new desired plan applies`() =
 		runTest {
 			installCanonicalProductLanesForTest(
@@ -653,7 +664,9 @@ class TrackerServiceSourceSessionTest {
 				coEvery { store.replaceExact(any(), any()) } answers {
 					val expected = firstArg<ActiveTrackingSessionDescriptor>()
 					val replacement = secondArg<ActiveTrackingSessionDescriptor>()
-					if (expected == descriptor) descriptor = replacement
+					if (expected == descriptor) {
+						descriptor = replacement
+					}
 					ActiveTrackingSessionStoreResult.Success(descriptor)
 				}
 				val localLifecycle = mockk<AuthoritativeSessionCoordinator>()
@@ -707,9 +720,23 @@ class TrackerServiceSourceSessionTest {
 			}
 		}
 
+	// Follow restarted adoption with corrupt predecessor authority into full session cleanup rather than a stuck
+	// retry.
+	@Suppress("LongMethod")
 	@Test
 	fun `terminal predecessor retirement falls through to full session cleanup`() = runTest {
-		val rollout = allEventCanonical(revision = 5)
+		installCanonicalProductLanesForTest(
+			database = database,
+			bindings = listOf(TEST_STEPS_BINDING),
+			rolloutRevision = 5L,
+			updatedAtMs = 1L,
+		)
+		val rollout = rolloutStore.load()
+		database.sourceSessionDao().insertServiceRun(SourceServiceRunEntity(
+			serviceRunId = "run", logicalTrackingId = "logical", state = SessionLifecycleState.STARTING.name,
+			desiredPlanRevision = 1L, rolloutRevision = rollout.revision, foregroundCapabilityFlags = 1L,
+			startedAtMs = 1L, startedElapsedNanos = 1L, completedAtMs = null, completionReason = null,
+		))
 		val current = SourceCallerReplayReference("terminal-current")
 		val predecessor = SourceCallerReplayReference("terminal-predecessor")
 		val descriptor = ActiveTrackingSessionDescriptor(
@@ -898,7 +925,7 @@ class TrackerServiceSourceSessionTest {
 				sessionMode = SessionMode.MANUAL,
 				acceptedSources = setOf(SourceKind.STEPS),
 				desiredForegroundCapabilityFlags = 1L,
-				intent = mockk(),
+				intent = mockk { every { sourceCallerAuthorityReference } returns "prepared-authority" },
 				automaticTrigger = null,
 				isUserInitiated = true,
 				isAmbient = false,
@@ -1000,6 +1027,9 @@ class TrackerServiceSourceSessionTest {
 		assertLiveThermalReconfiguration(retryBeforeApply = true)
 	}
 
+	// Keep live thermal reduction, optional retry and cooling back to the original plan in one causal
+	// scenario.
+	@Suppress("LongMethod")
 	private suspend fun assertLiveThermalReconfiguration(retryBeforeApply: Boolean) {
 		val rollout = allEventCanonical(revision = 5)
 		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 7).copy(
@@ -1032,7 +1062,9 @@ class TrackerServiceSourceSessionTest {
 		coEvery { activeSessionStore.replaceExact(any(), any()) } answers {
 			val expected = firstArg<ActiveTrackingSessionDescriptor>()
 			val replacement = secondArg<ActiveTrackingSessionDescriptor>()
-			if (expected == descriptor) descriptor = replacement
+			if (expected == descriptor) {
+				descriptor = replacement
+			}
 			ActiveTrackingSessionStoreResult.Success(descriptor)
 		}
 		val starts = mutableListOf<SessionStartRequest>()
@@ -1072,7 +1104,9 @@ class TrackerServiceSourceSessionTest {
 			firstThermal.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Retryable>()
 			descriptor.catalogReconfigurationDebt?.desiredPlanFingerprint shouldBe requests.last().desiredPlanFingerprint
 			subject.reconfigure(thermal).shouldBeInstanceOf<SourceSessionReconfigureOutcome.Applied>()
-		} else firstThermal.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Applied>()
+		} else {
+			firstThermal.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Applied>()
+		}
 		val hot = requests.last().plan
 		hot.plans.filterValues { it.enabled }.keys shouldBe setOf(SourceKind.STEPS, SourceKind.PRESSURE)
 		(hot.plans.getValue(SourceKind.PRESSURE) as PressurePlan).let {
@@ -1092,7 +1126,11 @@ class TrackerServiceSourceSessionTest {
 			(initial.plans.getValue(SourceKind.PRESSURE) as PressurePlan).copy(revision = 0)
 		cooled.plans.filterValues { it.enabled }.keys shouldBe setOf(SourceKind.STEPS, SourceKind.PRESSURE)
 		subject.reconfigure(baseline) shouldBe SourceSessionReconfigureOutcome.Unchanged
-		requests.size shouldBe if (retryBeforeApply) 4 else 2
+		requests.size shouldBe if (retryBeforeApply) {
+			4
+		} else {
+			2
+		}
 	}
 
 	@Test
@@ -1293,6 +1331,8 @@ class TrackerServiceSourceSessionTest {
 		coVerify(exactly = 0) { lifecycle.reconfigure(any()) }
 	}
 
+	// Follow the active session through retryable and deferred reconfiguration while retaining the same saved retry.
+	@Suppress("LongMethod")
 	@Test
 	fun `retryable reconfiguration remains pending without rejecting the active service session`() =
 		runTest {
@@ -1313,7 +1353,9 @@ class TrackerServiceSourceSessionTest {
 			coEvery { activeSessionStore.replaceExact(any(), any()) } answers {
 				val expected = firstArg<ActiveTrackingSessionDescriptor>()
 				val replacement = secondArg<ActiveTrackingSessionDescriptor>()
-				if (expected == storedDescriptor) storedDescriptor = replacement
+				if (expected == storedDescriptor) {
+					storedDescriptor = replacement
+				}
 				ActiveTrackingSessionStoreResult.Success(storedDescriptor)
 			}
 			coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
@@ -1360,7 +1402,7 @@ class TrackerServiceSourceSessionTest {
 				debt.logicalTrackingId shouldBe "logical"
 				debt.serviceRunId shouldBe "run"
 				debt.sourcePolicyRevision shouldBe 2L
-				debt.deferredSourceMask shouldBe 1L shl (SourceKind.STEPS.stableCode - 1)
+				debt.deferredSourceMask shouldBe (1L shl (SourceKind.STEPS.stableCode - 1))
 			} ?: error("Expected durable catalog debt")
 			subject.retryPendingReconfiguration()
 				.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Deferred>()
@@ -1368,6 +1410,8 @@ class TrackerServiceSourceSessionTest {
 			coVerify(exactly = 3) { lifecycle.reconfigure(any()) }
 		}
 
+	// Follow one saved reconfiguration through retry and application to preserve exact source quality and focus.
+	@Suppress("LongMethod")
 	@Test
 	fun `adopted catalog debt retry retains exact levels focus and applied input identity`() = runTest {
 		val rollout = allEventCanonical(revision = 5)
@@ -1390,7 +1434,9 @@ class TrackerServiceSourceSessionTest {
 		coEvery { activeSessionStore.replaceExact(any(), any()) } answers {
 			val expected = firstArg<ActiveTrackingSessionDescriptor>()
 			val replacement = secondArg<ActiveTrackingSessionDescriptor>()
-			if (expected == storedDescriptor) storedDescriptor = replacement
+			if (expected == storedDescriptor) {
+				storedDescriptor = replacement
+			}
 			ActiveTrackingSessionStoreResult.Success(storedDescriptor)
 		}
 		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
@@ -1455,6 +1501,8 @@ class TrackerServiceSourceSessionTest {
 	}
 
 	@Test
+	// Keep this complete recovery scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `recovery supersedes same policy debt when environment zone demand or motion changed`() =
 		runTest {
 			val rollout = allEventCanonical(revision = 5)
@@ -1480,7 +1528,11 @@ class TrackerServiceSourceSessionTest {
 					),
 				),
 				baseline.copy(
-					zoneId = if (baseline.zoneId == "UTC") "Europe/Prague" else "UTC",
+					zoneId = if (baseline.zoneId == "UTC") {
+						"Europe/Prague"
+					} else {
+						"UTC"
+					},
 				),
 				baseline.copy(
 					demands = listOf(
@@ -1533,7 +1585,9 @@ class TrackerServiceSourceSessionTest {
 				coEvery { store.replaceExact(any(), any()) } answers {
 					val expected = firstArg<ActiveTrackingSessionDescriptor>()
 					val replacement = secondArg<ActiveTrackingSessionDescriptor>()
-					if (expected == descriptor) descriptor = replacement
+					if (expected == descriptor) {
+						descriptor = replacement
+					}
 					ActiveTrackingSessionStoreResult.Success(descriptor)
 				}
 				val localLifecycle = mockk<AuthoritativeSessionCoordinator>()
@@ -1587,6 +1641,8 @@ class TrackerServiceSourceSessionTest {
 			}
 		}
 
+	// Keep recovered Start and its inherited retry state together to prove successfully applied work is not replayed.
+	@Suppress("LongMethod")
 	@Test
 	fun `successful recovery start clears inherited catalog debt before retry`() = runTest {
 		val rollout = allEventCanonical(revision = 5)
@@ -1606,7 +1662,9 @@ class TrackerServiceSourceSessionTest {
 		coEvery { activeSessionStore.replaceExact(any(), any()) } answers {
 			val expected = firstArg<ActiveTrackingSessionDescriptor>()
 			val replacement = secondArg<ActiveTrackingSessionDescriptor>()
-			if (expected == storedDescriptor) storedDescriptor = replacement
+			if (expected == storedDescriptor) {
+				storedDescriptor = replacement
+			}
 			ActiveTrackingSessionStoreResult.Success(storedDescriptor)
 		}
 		coEvery { lifecycle.start(any()) } answers {
@@ -1676,7 +1734,9 @@ class TrackerServiceSourceSessionTest {
 		coEvery { activeSessionStore.replaceExact(any(), any()) } answers {
 			val expected = firstArg<ActiveTrackingSessionDescriptor>()
 			val replacement = secondArg<ActiveTrackingSessionDescriptor>()
-			if (expected == storedDescriptor) storedDescriptor = replacement
+			if (expected == storedDescriptor) {
+				storedDescriptor = replacement
+			}
 			ActiveTrackingSessionStoreResult.Success(storedDescriptor)
 		}
 		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
@@ -1724,7 +1784,9 @@ class TrackerServiceSourceSessionTest {
 		coEvery { activeSessionStore.replaceExact(any(), any()) } answers {
 			val expected = firstArg<ActiveTrackingSessionDescriptor>()
 			val replacement = secondArg<ActiveTrackingSessionDescriptor>()
-			if (expected == storedDescriptor) storedDescriptor = replacement
+			if (expected == storedDescriptor) {
+				storedDescriptor = replacement
+			}
 			ActiveTrackingSessionStoreResult.Success(storedDescriptor)
 		}
 		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
@@ -1779,7 +1841,9 @@ class TrackerServiceSourceSessionTest {
 		coEvery { activeSessionStore.replaceExact(any(), any()) } answers {
 			val expected = firstArg<ActiveTrackingSessionDescriptor>()
 			val replacement = secondArg<ActiveTrackingSessionDescriptor>()
-			if (expected == storedDescriptor) storedDescriptor = replacement
+			if (expected == storedDescriptor) {
+				storedDescriptor = replacement
+			}
 			ActiveTrackingSessionStoreResult.Success(storedDescriptor)
 		}
 		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
@@ -1863,6 +1927,9 @@ class TrackerServiceSourceSessionTest {
 		coVerify(exactly = 0) { activeSessionStore.replaceExact(any(), any()) }
 	}
 
+	// Keep reconfiguration and ordered persistence/retirement assertions together to verify successor ownership
+	// first.
+	@Suppress("LongMethod")
 	@Test
 	fun `reconfiguration persists new caller reference before retiring predecessor`() = runTest {
 		val rollout = allEventCanonical(revision = 5)
@@ -1878,13 +1945,7 @@ class TrackerServiceSourceSessionTest {
 			serviceRunId = "run",
 			sourceCallerAuthorityReference = oldReference,
 		)
-		val recordedDebt = descriptor.copy(
-			sourceCallerAuthorityReference = newReference,
-			pendingRetirementSourceCallerAuthorityReference = oldReference,
-		)
-		val replacement = recordedDebt.copy(
-			pendingRetirementSourceCallerAuthorityReference = null,
-		)
+		var storedDescriptor = descriptor
 		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
 			"logical",
 			"run",
@@ -1898,12 +1959,14 @@ class TrackerServiceSourceSessionTest {
 			status = DesiredPlanStatus.EFFECTIVE,
 			sourceCallerAuthorityReference = newReference,
 		)
-		coEvery { activeSessionStore.read() } returns
-			ActiveTrackingSessionStoreResult.Success(descriptor)
-		coEvery { activeSessionStore.replaceExact(descriptor, recordedDebt) } returns
-			ActiveTrackingSessionStoreResult.Success(recordedDebt)
-		coEvery { activeSessionStore.replaceExact(recordedDebt, replacement) } returns
-			ActiveTrackingSessionStoreResult.Success(replacement)
+		coEvery { activeSessionStore.read() } answers {
+			ActiveTrackingSessionStoreResult.Success(storedDescriptor)
+		}
+		coEvery { activeSessionStore.replaceExact(any(), any()) } answers {
+			firstArg<ActiveTrackingSessionDescriptor>() shouldBe storedDescriptor
+			storedDescriptor = secondArg()
+			ActiveTrackingSessionStoreResult.Success(storedDescriptor)
+		}
 		coEvery {
 			lifecycle.retireSupersededSourceCallerAuthority(
 				"logical",
@@ -1911,7 +1974,11 @@ class TrackerServiceSourceSessionTest {
 				oldReference,
 				any(),
 			)
-		} returns SourceCallerAuthorityRetirementOutcome.Completed
+		} answers {
+			storedDescriptor.sourceCallerAuthorityReference shouldBe newReference
+			storedDescriptor.pendingRetirementSourceCallerAuthorityReference shouldBe oldReference
+			SourceCallerAuthorityRetirementOutcome.Completed
+		}
 		subject.start(
 			SourceSessionStartRequest(
 				rollout = rollout,
@@ -1929,17 +1996,33 @@ class TrackerServiceSourceSessionTest {
 			.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Applied>()
 
 		coVerifyOrder {
-			activeSessionStore.replaceExact(descriptor, recordedDebt)
+			activeSessionStore.replaceExact(
+				match { it.sourceCallerAuthorityReference == oldReference },
+				match { it.sourceCallerAuthorityReference == newReference &&
+					it.pendingRetirementSourceCallerAuthorityReference == oldReference },
+			)
 			lifecycle.retireSupersededSourceCallerAuthority(
 				"logical",
 				newReference,
 				oldReference,
 				any(),
 			)
-			activeSessionStore.replaceExact(recordedDebt, replacement)
+			activeSessionStore.replaceExact(
+				match { it.sourceCallerAuthorityReference == newReference &&
+					it.pendingRetirementSourceCallerAuthorityReference == oldReference },
+				match { it.sourceCallerAuthorityReference == newReference &&
+					it.pendingRetirementSourceCallerAuthorityReference == null },
+			)
 		}
+		storedDescriptor.sourceCallerAuthorityReference shouldBe newReference
+		storedDescriptor.pendingRetirementSourceCallerAuthorityReference shouldBe null
+		storedDescriptor.appliedSourcePlanIdentity shouldNotBe null
+		storedDescriptor.appliedSourcePlanIdentity shouldBe storedDescriptor.desiredSourcePlanIdentity
 	}
 
+	// Follow failed predecessor retirement through saved replacement and Stop retry without restoring the old
+	// authority.
+	@Suppress("LongMethod")
 	@Test
 	fun `failed predecessor retirement persists exact cleanup debt with the replacement`() = runTest {
 		val rollout = allEventCanonical(revision = 5)
@@ -1955,20 +2038,21 @@ class TrackerServiceSourceSessionTest {
 			serviceRunId = "run",
 			sourceCallerAuthorityReference = oldReference,
 		)
-		val recordedDebt = descriptor.copy(
-			sourceCallerAuthorityReference = newReference,
-			pendingRetirementSourceCallerAuthorityReference = oldReference,
-		)
+		var storedDescriptor = descriptor
 		coEvery { lifecycle.start(any()) } returns SessionStartResult.Started(
 			"logical", "run", emptyList(), DesiredPlanStatus.EFFECTIVE, oldReference,
 		)
 		coEvery { lifecycle.reconfigure(any()) } returns SessionReconfigureResult.Applied(
 			2L, emptyList(), DesiredPlanStatus.EFFECTIVE, newReference,
 		)
-		coEvery { activeSessionStore.read() } returns
-			ActiveTrackingSessionStoreResult.Success(descriptor)
-		coEvery { activeSessionStore.replaceExact(descriptor, recordedDebt) } returns
-			ActiveTrackingSessionStoreResult.Success(recordedDebt)
+		coEvery { activeSessionStore.read() } answers {
+			ActiveTrackingSessionStoreResult.Success(storedDescriptor)
+		}
+		coEvery { activeSessionStore.replaceExact(any(), any()) } answers {
+			firstArg<ActiveTrackingSessionDescriptor>() shouldBe storedDescriptor
+			storedDescriptor = secondArg()
+			ActiveTrackingSessionStoreResult.Success(storedDescriptor)
+		}
 		coEvery {
 			lifecycle.retireSupersededSourceCallerAuthority(
 				"logical", newReference, oldReference, any(),
@@ -1993,14 +2077,41 @@ class TrackerServiceSourceSessionTest {
 			.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Rejected>()
 
 		coVerifyOrder {
-			activeSessionStore.replaceExact(descriptor, recordedDebt)
+			activeSessionStore.replaceExact(
+				match { it.sourceCallerAuthorityReference == oldReference },
+				match { it.sourceCallerAuthorityReference == newReference &&
+					it.pendingRetirementSourceCallerAuthorityReference == oldReference },
+			)
 			lifecycle.retireSupersededSourceCallerAuthority(
 				"logical", newReference, oldReference, any(),
 			)
 		}
 		coVerify(exactly = 0) {
-			activeSessionStore.replaceExact(recordedDebt, descriptor)
+			activeSessionStore.replaceExact(
+				match { it.sourceCallerAuthorityReference == newReference },
+				match { it.sourceCallerAuthorityReference == oldReference },
+			)
 		}
+		storedDescriptor.sourceCallerAuthorityReference shouldBe newReference
+		storedDescriptor.pendingRetirementSourceCallerAuthorityReference shouldBe oldReference
+		storedDescriptor.appliedSourcePlanIdentity shouldNotBe null
+		storedDescriptor.appliedSourcePlanIdentity shouldBe storedDescriptor.desiredSourcePlanIdentity
+		val appliedIdentity = storedDescriptor.appliedSourcePlanIdentity
+
+		coEvery {
+			lifecycle.retireSupersededSourceCallerAuthority("logical", newReference, oldReference, any())
+		} returns SourceCallerAuthorityRetirementOutcome.Completed
+		coEvery { lifecycle.stop(any()) } returns SessionStopResult.NoActiveSession
+		subject.stop("RETRY_PREDECESSOR_CLEANUP", preserveLogicalSession = false) shouldBe
+			SourceSessionStopOutcome.Stopped
+
+		storedDescriptor.sourceCallerAuthorityReference shouldBe newReference
+		storedDescriptor.pendingRetirementSourceCallerAuthorityReference shouldBe null
+		storedDescriptor.appliedSourcePlanIdentity shouldBe appliedIdentity
+		coVerify(exactly = 2) {
+			lifecycle.retireSupersededSourceCallerAuthority("logical", newReference, oldReference, any())
+		}
+		coVerify(exactly = 1) { lifecycle.reconfigure(any()) }
 	}
 
 	@Test
@@ -2118,6 +2229,8 @@ class TrackerServiceSourceSessionTest {
 		startupGate.reconcileCalls shouldBe 1
 	}
 
+	// Follow restart suspension through descriptor replacement, predecessor retirement, and retirement-debt removal.
+	@Suppress("LongMethod")
 	@Test
 	fun `restart suspension persists fresh lease authority before retiring predecessor`() = runTest {
 		val rollout = allEventCanonical(revision = 5)
@@ -2195,6 +2308,9 @@ class TrackerServiceSourceSessionTest {
 		}
 	}
 
+	// Follow one completed suspension across storage failure and retry to prove the lifecycle operation is not
+	// repeated.
+	@Suppress("LongMethod")
 	@Test
 	fun `completed suspension retries only descriptor propagation after storage recovers`() = runTest {
 		val rollout = allEventCanonical(revision = 5)
@@ -2653,7 +2769,9 @@ class TrackerServiceSourceSessionTest {
 		captureModes = SourceKind.entries.associateWith {
 			buildSet {
 				add(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)
-				if (automaticCapture) add(CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE)
+				if (automaticCapture) {
+					add(CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE)
+				}
 			}
 		},
 	)

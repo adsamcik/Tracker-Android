@@ -65,12 +65,15 @@ data class AmbientWifiAuthorityEntity(
 
 	val isActive: Boolean get() = state == STATE_ACTIVE
 
+	/**
+	 * Stable persisted codes, including `STATE_ACTIVE`, `STATE_REVOKED`,
+	 * `FIRST_WRITER_OWNER_GENERATION`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val STATE_ACTIVE = "ACTIVE"
 		const val STATE_REVOKED = "REVOKED"
 		const val FIRST_WRITER_OWNER_GENERATION = 1L
 		private val STATES = setOf(STATE_ACTIVE, STATE_REVOKED)
-		private const val MAX_POLICY_ID_LENGTH = 256
 	}
 }
 
@@ -108,7 +111,7 @@ data class AmbientWifiRetentionAuthorityEntity(
 		require(scope in SCOPES)
 		require(approvalRevision > 0L)
 		require(state in STATES)
-		require(opaquePolicyId.isNotBlank() && opaquePolicyId.length <= 256)
+		require(opaquePolicyId.isNotBlank() && opaquePolicyId.length <= MAX_POLICY_ID_LENGTH)
 		require(collectedDataEpoch >= 0L)
 		require(retainedFromMs == null || retainedFromMs >= 0L)
 		require(effectiveBootId.isNotBlank())
@@ -124,6 +127,10 @@ data class AmbientWifiRetentionAuthorityEntity(
 
 	val isActive: Boolean get() = state == STATE_ACTIVE
 
+	/**
+	 * Stable persisted codes, including `SCOPE_LIVE_AMBIENT`, `SCOPE_PORTABLE_IMPORT`,
+	 * `STATE_ACTIVE`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val SCOPE_LIVE_AMBIENT = "LIVE_AMBIENT"
 		const val SCOPE_PORTABLE_IMPORT = "PORTABLE_IMPORT"
@@ -134,7 +141,14 @@ data class AmbientWifiRetentionAuthorityEntity(
 	}
 }
 
+/**
+ * Deterministic saved Wi-Fi retention-policy digests and stored-value checks.
+ */
 object AmbientWifiRetentionAuthorityIntegrity {
+	/**
+	 * Builds the Wi-Fi retention-policy record and digest from its approval, optional consent
+	 * binding, data epoch and effective boot/UTC boundary.
+	 */
 	fun create(
 		scope: String,
 		approvalRevision: Long,
@@ -174,6 +188,9 @@ object AmbientWifiRetentionAuthorityIntegrity {
 		),
 	)
 
+	/**
+	 * Computes the deterministic stored digest from the supplied identity, revision and value fields.
+	 */
 	fun checksum(value: AmbientWifiRetentionAuthorityEntity): String = checksum(
 		value.scope,
 		value.approvalRevision,
@@ -188,6 +205,9 @@ object AmbientWifiRetentionAuthorityIntegrity {
 		value.effectiveWallTimeMs,
 	)
 
+	/**
+	 * Checks the supplied record's stored checksum against its canonical fields.
+	 */
 	fun isAuthentic(value: AmbientWifiRetentionAuthorityEntity): Boolean =
 		value.effectChecksum == checksum(value)
 
@@ -219,7 +239,14 @@ object AmbientWifiRetentionAuthorityIntegrity {
 	)
 }
 
+/**
+ * Deterministic identity and effect checks for the recorded all-day Wi-Fi writer authority.
+ */
 object AmbientWifiAuthorityIntegrity {
+	/**
+	 * Builds the accepted Wi-Fi writer authority record with its original policy, consent, retention
+	 * and data epochs plus reconciliation metadata.
+	 */
 	fun create(
 		authorityRevision: Long,
 		state: String,
@@ -274,6 +301,9 @@ object AmbientWifiAuthorityIntegrity {
 			),
 		)
 
+	/**
+	 * Computes the deterministic stored digest from the supplied identity, revision and value fields.
+	 */
 	fun checksum(value: AmbientWifiAuthorityEntity): String = checksum(
 		value.authorityRevision,
 		value.state,
@@ -292,6 +322,9 @@ object AmbientWifiAuthorityIntegrity {
 		value.demandId,
 	)
 
+	/**
+	 * Checks the supplied record's stored checksum against its canonical fields.
+	 */
 	fun isAuthentic(value: AmbientWifiAuthorityEntity): Boolean =
 		value.effectChecksum == checksum(value)
 
@@ -333,10 +366,18 @@ object AmbientWifiAuthorityIntegrity {
 		demandId,
 	)
 
+	/**
+	 * Hashes the namespaced, ordered canonical values with explicit null encoding for deterministic
+	 * stored identities.
+	 */
 	fun digest(namespace: String, vararg values: Any?): String {
 		val canonical = values.joinToString(separator = "") { value ->
 			val text = value?.toString()
-			if (text == null) "-1:" else "${text.length}:$text"
+			if (text == null) {
+				"-1:"
+			} else {
+				"${text.length}:$text"
+			}
 		}
 		return MessageDigest.getInstance("SHA-256")
 			.digest("$namespace\u001f$canonical".toByteArray())
@@ -347,3 +388,5 @@ object AmbientWifiAuthorityIntegrity {
 
 	private val DIGEST = Regex("[0-9a-f]{64}")
 }
+
+private const val MAX_POLICY_ID_LENGTH = 256

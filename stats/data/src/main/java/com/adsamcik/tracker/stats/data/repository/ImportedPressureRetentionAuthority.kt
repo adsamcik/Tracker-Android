@@ -20,8 +20,27 @@ internal enum class ImportedPressureRetentionAuthorityFailure {
 }
 
 /** Authenticates one payload-free imported Pressure lineage without materializing another lineage. */
-@Suppress("LongMethod", "ComplexCondition")
 internal suspend fun AppDatabase.authenticateImportedPressureRetention(
+	state: SourceEvidenceState,
+	receipt: ImportedPressureRetentionReceiptEntity,
+): ImportedPressureRetentionAuthorityFailure? {
+	validateRetainedReceiptState(state, receipt)?.let { return it }
+	val dao = importedPressureDao()
+	dao.authenticateRetainedPayloadAbsence(receipt)?.let { return it }
+	val markers = dao.retainedIdentitiesForEntries(
+		listOf(receipt.entryIdentity),
+		receipt.protectedIdentityCount + 1,
+	)
+	if (!receipt.authenticates(markers)) {
+		return ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
+	}
+	return dao.authenticateRetainedIdentityFences(receipt, markers)
+		?: dao.authenticateRetainedRunAuthority(state, receipt, markers)
+}
+
+// One saved receipt must agree with the supplied immutable epoch, revision, floor and cleanup timestamps.
+@Suppress("CyclomaticComplexMethod", "ComplexCondition")
+private fun validateRetainedReceiptState(
 	state: SourceEvidenceState,
 	receipt: ImportedPressureRetentionReceiptEntity,
 ): ImportedPressureRetentionAuthorityFailure? {
@@ -37,38 +56,47 @@ internal suspend fun AppDatabase.authenticateImportedPressureRetention(
 		(receipt.sourceEvidenceRevision == state.revision && (
 			receipt.retainedFromMs != retainedFloor || receipt.retainedAtMs != state.updatedAtMs
 		))
-	) return ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
+	) {
+		return ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
+	}
 
-	val dao = importedPressureDao()
+	return null
+}
+
+private suspend fun ImportedPressureDao.authenticateRetainedPayloadAbsence(
+	receipt: ImportedPressureRetentionReceiptEntity,
+): ImportedPressureRetentionAuthorityFailure? {
 	val footprint = try {
-		dao.retainedFootprint(receipt.entryIdentity)
+		retainedFootprint(receipt.entryIdentity)
 	} catch (_: ArithmeticException) {
 		return ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW
 	}
-	when (footprint.validate(receipt.protectedIdentityCount)) {
-		ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
-			return ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW
-		ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
-			return ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW
-		ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE ->
-			return ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
+	when (val failure = footprint.validate(receipt.protectedIdentityCount)) {
+		ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW,
+		ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW,
+		ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
+		-> return failure
 		else -> Unit
 	}
-	if (dao.entryDeletion(receipt.entryIdentity) != null ||
-		dao.entryRevisionsForAdmission(receipt.entryIdentity).isNotEmpty() ||
-		dao.receiptsForAdmission(receipt.entryIdentity).isNotEmpty() ||
-		dao.allRunsForAdmission(receipt.entryIdentity).isNotEmpty() ||
-		dao.allWindowsForAdmission(receipt.entryIdentity).isNotEmpty()
-	) return ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
-
-	val markers = dao.retainedIdentitiesForEntries(
-		listOf(receipt.entryIdentity),
-		receipt.protectedIdentityCount + 1,
-	)
-	if (!receipt.authenticates(markers)) {
+	// All five bounded saved payload tables must be empty for this retained-only receipt.
+	@Suppress("ComplexCondition")
+	if (entryDeletion(receipt.entryIdentity) != null ||
+		entryRevisionsForAdmission(receipt.entryIdentity).isNotEmpty() ||
+		receiptsForAdmission(receipt.entryIdentity).isNotEmpty() ||
+		allRunsForAdmission(receipt.entryIdentity).isNotEmpty() ||
+		allWindowsForAdmission(receipt.entryIdentity).isNotEmpty()
+	) {
 		return ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
 	}
-	val identityFences = dao.identityFences(
+
+	return null
+}
+
+private suspend fun ImportedPressureDao.authenticateRetainedIdentityFences(
+	receipt: ImportedPressureRetentionReceiptEntity,
+	markers: List<ImportedPressureRetainedIdentityEntity>,
+): ImportedPressureRetentionAuthorityFailure? {
+	val identityFences = identityFences(
 		markers.map { it.protectedIdentity },
 		markers.size + 1,
 	)
@@ -77,32 +105,52 @@ internal suspend fun AppDatabase.authenticateImportedPressureRetention(
 		markers.map { it.protectedIdentity }.toSet() ||
 		ImportedPressureIdentityFenceEntity.checksumSet(identityFences) !=
 		receipt.identityFenceSetChecksum
-	) return ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
+	) {
+		return ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
+	}
 	val markerByIdentity = markers.associateBy { it.protectedIdentity }
 	if (markerByIdentity[receipt.recencyTieIdentity]?.identityKind !=
 		ImportedPressureRetainedIdentityEntity.RUN_SCOPE
-	) return ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
+	) {
+		return ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
+	}
 	if (identityFences.any { fence ->
 		val marker = markerByIdentity[fence.protectedIdentity] ?: return@any true
-		fence.entryIdentity != receipt.entryIdentity || when (marker.identityKind) {
-			ImportedPressureRetainedIdentityEntity.ENTRY ->
-				fence.identityKind != ImportedPressureIdentityFenceEntity.ENTRY ||
-					fence.runIdentity != null
-			ImportedPressureRetainedIdentityEntity.RUN_SCOPE ->
-				fence.identityKind != ImportedPressureIdentityFenceEntity.RUN ||
-					fence.runIdentity != fence.protectedIdentity
-			ImportedPressureRetainedIdentityEntity.WINDOW ->
-				fence.identityKind != ImportedPressureIdentityFenceEntity.WINDOW ||
-					fence.runIdentity == null
-			else -> true
-		}
-	}) return ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT
+		fence.hasConflictingRetainedOwner(marker, receipt.entryIdentity)
+	}) {
+		return ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT
+	}
+	return null
+}
+
+// One immutable retained identity kind maps to its complete saved fence owner shape.
+@Suppress("CyclomaticComplexMethod")
+private fun ImportedPressureIdentityFenceEntity.hasConflictingRetainedOwner(
+	marker: ImportedPressureRetainedIdentityEntity,
+	entryIdentity: String,
+): Boolean = this.entryIdentity != entryIdentity || when (marker.identityKind) {
+	ImportedPressureRetainedIdentityEntity.ENTRY ->
+		identityKind != ImportedPressureIdentityFenceEntity.ENTRY || runIdentity != null
+	ImportedPressureRetainedIdentityEntity.RUN_SCOPE ->
+		identityKind != ImportedPressureIdentityFenceEntity.RUN || runIdentity != protectedIdentity
+	ImportedPressureRetainedIdentityEntity.WINDOW ->
+		identityKind != ImportedPressureIdentityFenceEntity.WINDOW || runIdentity == null
+	else -> true
+}
+
+private suspend fun ImportedPressureDao.authenticateRetainedRunAuthority(
+	state: SourceEvidenceState,
+	receipt: ImportedPressureRetentionReceiptEntity,
+	markers: List<ImportedPressureRetainedIdentityEntity>,
+): ImportedPressureRetentionAuthorityFailure? {
 	val runMarkers = markers.filter {
 		it.identityKind == ImportedPressureRetainedIdentityEntity.RUN_SCOPE
 	}
 	val runDeletions = runMarkers.map { it.protectedIdentity }.chunked(SQLITE_BIND_BATCH).flatMap {
-		dao.deletionGenerations(it)
+		deletionGenerations(it)
 	}
+	// Keep the retained deletion set count, epoch, generation, scope and checksum envelope together.
+	@Suppress("ComplexCondition")
 	if (runDeletions.distinctBy { it.runIdentity }.size != runDeletions.size ||
 		runDeletions.any {
 			!state.acceptsRetainedEpoch(it.collectedDataEpoch) || it.generation != 1L ||
@@ -110,23 +158,38 @@ internal suspend fun AppDatabase.authenticateImportedPressureRetention(
 		} || runDeletions.size != receipt.runDeletionCount ||
 		ImportedPressureRetentionReceiptEntity.checksumRunDeletions(runDeletions) !=
 		receipt.runDeletionSetChecksum
-	) return ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
+	) {
+		return ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
+	}
 
+	return authenticateRetainedIdentityOwnership(markers, runMarkers)
+}
+
+private suspend fun ImportedPressureDao.authenticateRetainedIdentityOwnership(
+	markers: List<ImportedPressureRetainedIdentityEntity>,
+	runMarkers: List<ImportedPressureRetainedIdentityEntity>,
+): ImportedPressureRetentionAuthorityFailure? {
 	for (batch in markers.map { it.protectedIdentity }.chunked(SQLITE_BIND_BATCH)) {
 		val limit = batch.size + 1
-		val liveEntries = dao.existingEntryIdentities(batch, limit)
-		val liveRuns = dao.existingRunIdentityOwners(batch, limit)
-		val liveWindows = dao.existingWindowIdentityOwners(batch, limit)
-		val retained = dao.retainedIdentityOwners(batch, limit)
-		val entryDeletions = dao.entryDeletions(batch)
-		val deletionGenerations = dao.deletionGenerations(batch)
+		val liveEntries = existingEntryIdentities(batch, limit)
+		val liveRuns = existingRunIdentityOwners(batch, limit)
+		val liveWindows = existingWindowIdentityOwners(batch, limit)
+		val retained = retainedIdentityOwners(batch, limit)
+		val entryDeletions = entryDeletions(batch)
+		val deletionGenerations = deletionGenerations(batch)
+		// One retained identity batch must have exactly its saved owners and no live or deleted competing payload.
+		@Suppress("ComplexCondition")
 		if (liveEntries.isNotEmpty() || liveRuns.isNotEmpty() || liveWindows.isNotEmpty() ||
 			entryDeletions.isNotEmpty() || retained.size != batch.size ||
 			retained.map { it.protectedIdentity }.toSet() != batch.toSet()
-		) return ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT
+		) {
+			return ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT
+		}
 		if (deletionGenerations.any { deletion ->
 			deletion.runIdentity !in runMarkers.mapTo(hashSetOf()) { it.protectedIdentity }
-		}) return ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT
+		}) {
+			return ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT
+		}
 	}
 	return null
 }
@@ -165,6 +228,8 @@ internal suspend fun ImportedPressureDao.authenticateImportedPressureEntryDeleti
 	}
 }
 
+// Validate the complete immutable count/byte footprint against the supplied limits.
+@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 internal fun ImportedPressureLineageFootprint.validate(
 	maximumTextBytes: Long = ImportedPressureDao.MAX_LINEAGE_TEXT_BYTES,
 ): ImportedPressureRetentionAuthorityFailure? = try {
@@ -197,6 +262,8 @@ internal fun ImportedPressureLineageFootprint.validate(
 	ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW
 }
 
+// Validate the complete immutable count/byte footprint against the supplied limits.
+@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 internal fun ImportedPressureLineageFootprint.validateGlobal(
 	maximumRevisions: Long,
 	maximumReceipts: Long,
@@ -222,11 +289,17 @@ internal fun ImportedPressureLineageFootprint.validateGlobal(
 			Math.addExact(headerTextBytes, receiptTextBytes),
 			Math.addExact(runTextBytes, windowTextBytes),
 		) > maximumTextBytes
-	) ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW else null
+	) {
+		ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW
+	} else {
+		null
+	}
 } catch (_: ArithmeticException) {
 	ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW
 }
 
+// Validate the complete immutable count/byte footprint against the supplied limits.
+@Suppress("ComplexCondition")
 internal fun ImportedPressureRetainedFootprint.validateGlobal(
 	maximumReceipts: Long,
 	maximumMarkers: Long,
@@ -238,11 +311,17 @@ internal fun ImportedPressureRetainedFootprint.validateGlobal(
 		markerCount !in 0L..maximumMarkers ||
 		receiptTextBytes < 0L || markerTextBytes < 0L ||
 		Math.addExact(receiptTextBytes, markerTextBytes) > maximumTextBytes
-	) ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW else null
+	) {
+		ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW
+	} else {
+		null
+	}
 } catch (_: ArithmeticException) {
 	ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW
 }
 
+// Validate the complete immutable count/byte footprint against the supplied limits.
+@Suppress("ComplexCondition")
 internal fun ImportedPressurePrivacyFootprint.validateGlobal(
 	maximumIdentityFences: Long,
 	maximumEntryDeletions: Long,
@@ -263,11 +342,17 @@ internal fun ImportedPressurePrivacyFootprint.validateGlobal(
 			sourceEraseTextBytes,
 		).any { it < 0L } ||
 		totalTextBytes > maximumTextBytes
-	) ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW else null
+	) {
+		ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW
+	} else {
+		null
+	}
 } catch (_: ArithmeticException) {
 	ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW
 }
 
+// Validate the complete immutable count/byte footprint against the supplied limits.
+@Suppress("ComplexCondition")
 internal fun ImportedPressureIdentityAuthorityFootprint.validate(
 	maximumIdentities: Int,
 ): ImportedPressureRetentionAuthorityFailure? = try {
@@ -282,7 +367,11 @@ internal fun ImportedPressureIdentityAuthorityFootprint.validate(
 			runDeletionTextBytes,
 		).any { it < 0L } ||
 		totalTextBytes > ImportedPressureDao.MAX_LINEAGE_TEXT_BYTES
-	) ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW else null
+	) {
+		ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW
+	} else {
+		null
+	}
 } catch (_: ArithmeticException) {
 	ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW
 }
@@ -322,24 +411,20 @@ internal class ImportedPressureMaintenanceByteBudget(
 		if (remaining < 0L) {
 			throw ImportedPressureMaintenanceFootprintFailure.DependencyOverflow
 		}
-		when (footprint.validate(minOf(
+		val failure = when (footprint.validate(minOf(
 			ImportedPressureDao.MAX_LINEAGE_TEXT_BYTES,
 			remaining,
 		))) {
 			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
-				throw ImportedPressureMaintenanceFootprintFailure.DependencyOverflow
+				ImportedPressureMaintenanceFootprintFailure.DependencyOverflow
 			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
-				throw ImportedPressureMaintenanceFootprintFailure.ValueOverflow
-			else -> Unit
+				ImportedPressureMaintenanceFootprintFailure.ValueOverflow
+			else -> null
 		}
-		try {
-			consumed = Math.addExact(consumed, footprint.totalTextBytes)
-		} catch (_: ArithmeticException) {
-			throw ImportedPressureMaintenanceFootprintFailure.ValueOverflow
+		if (failure != null) {
+			throw failure
 		}
-		if (consumed > maximumTextBytes) {
-			throw ImportedPressureMaintenanceFootprintFailure.DependencyOverflow
-		}
+		charge { footprint.totalTextBytes }
 	}
 
 	fun consume(
@@ -350,21 +435,28 @@ internal class ImportedPressureMaintenanceByteBudget(
 		if (remaining < 0L) {
 			throw ImportedPressureMaintenanceFootprintFailure.DependencyOverflow
 		}
-		when (footprint.validate(expectedMarkerCount, minOf(
+		val failure = when (footprint.validate(expectedMarkerCount, minOf(
 			ImportedPressureDao.MAX_LINEAGE_TEXT_BYTES,
 			remaining,
 		))) {
 			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
-				throw ImportedPressureMaintenanceFootprintFailure.DependencyOverflow
+				ImportedPressureMaintenanceFootprintFailure.DependencyOverflow
 			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
-				throw ImportedPressureMaintenanceFootprintFailure.ValueOverflow
+				ImportedPressureMaintenanceFootprintFailure.ValueOverflow
 			ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
 			ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
-			-> throw IllegalArgumentException("Imported Pressure retained footprint is invalid")
-			else -> Unit
+			-> IllegalArgumentException("Imported Pressure retained footprint is invalid")
+			else -> null
 		}
+		if (failure != null) {
+			throw failure
+		}
+		charge { footprint.totalTextBytes }
+	}
+
+	private inline fun charge(totalTextBytes: () -> Long) {
 		try {
-			consumed = Math.addExact(consumed, footprint.totalTextBytes)
+			consumed = Math.addExact(consumed, totalTextBytes())
 		} catch (_: ArithmeticException) {
 			throw ImportedPressureMaintenanceFootprintFailure.ValueOverflow
 		}
@@ -437,7 +529,9 @@ internal fun AuthenticatedImportedPressureLineage.identityFences(
 internal suspend fun ImportedPressureDao.insertOrAuthenticateIdentityFences(
 	expected: List<ImportedPressureIdentityFenceEntity>,
 ) {
-	if (expected.isEmpty()) return
+	if (expected.isEmpty()) {
+		return
+	}
 	require(expected.map { it.protectedIdentity }.distinct().size == expected.size)
 	expected.chunked(SQLITE_BIND_BATCH).forEach { batch ->
 		insertIdentityFences(batch)

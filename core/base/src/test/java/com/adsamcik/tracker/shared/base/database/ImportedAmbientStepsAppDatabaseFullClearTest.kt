@@ -39,6 +39,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
+// One real imported-Steps Room fixture keeps full-clear fences and reopen checks comparable.
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ImportedAmbientStepsAppDatabaseFullClearTest {
@@ -56,11 +58,17 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 
 	@After
 	fun tearDown() {
-		if (::database.isInitialized) database.close()
-		if (::context.isInitialized) context.deleteDatabase(FILE_DATABASE_NAME)
+		if (::database.isInitialized) {
+			database.close()
+		}
+		if (::context.isInitialized) {
+			context.deleteDatabase(FILE_DATABASE_NAME)
+		}
 	}
 
 	@Test
+	// Both clears prove old fences and an unrelated new epoch remain isolated.
+	@Suppress("LongMethod")
 	fun `suspend full clear preserves old authority and admits unrelated new epoch lineage`() = runTest {
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(revision = 4L, collectedDataEpoch = EPOCH),
@@ -473,6 +481,9 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 		dao.insertReceipt(lineage.receipt)
 	}
 
+	// Keep one legacy correction fixture with its original/retained day revisions and original count-domain
+	// binding together.
+	@Suppress("LongMethod")
 	private suspend fun seedTruncatedLegacyCorrection(
 		tag: String,
 		date: LocalDate,
@@ -618,7 +629,9 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 		)
 	}
 
-	@Suppress("LongParameterList")
+	// Keep one imported day lineage with its matching archive, facts, membership, receipt and protected
+	// identities together.
+	@Suppress("LongParameterList", "LongMethod")
 	private fun fixtureForDay(
 		tag: String,
 		day: PortableAmbientStepsDayV1,

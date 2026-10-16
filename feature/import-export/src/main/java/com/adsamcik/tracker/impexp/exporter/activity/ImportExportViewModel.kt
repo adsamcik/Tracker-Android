@@ -199,32 +199,7 @@ class ImportExportViewModel @Inject constructor(
         _uiState.update { it.copy(unfinishedFileRemoving = uri, unfinishedFileErrors = it.unfinishedFileErrors - uri) }
         viewModelScope.launch {
             try {
-                val error = if (startupGate.reconcile() !is TrackingStartupResult.Ready) {
-                    UnfinishedFileRemovalError.STARTUP
-                } else {
-                    val admitted = startupGate.withReadyGenerationTransfer(generation) {
-                        currentCoroutineContext().ensureActive()
-                        // Deletion and notice removal are one admitted cleanup, physically awaited by Clear.
-                        withContext(NonCancellable + dispatchers.io) {
-                            if (!deleteUnfinishedDocument(Uri.parse(file.uri))) {
-                                UnfinishedFileCleanup.FILE_ACCESS
-                            } else {
-                                try {
-                                    exportPlanStore.forgetUnfinishedFile(uri)
-                                    UnfinishedFileCleanup.REMOVED
-                                } catch (_: Exception) {
-                                    UnfinishedFileCleanup.NOTICE_STORAGE
-                                }
-                            }
-                        }
-                    }
-                    when (admitted) {
-                        UnfinishedFileCleanup.REMOVED -> null
-                        UnfinishedFileCleanup.FILE_ACCESS -> UnfinishedFileRemovalError.FILE_ACCESS
-                        UnfinishedFileCleanup.NOTICE_STORAGE -> UnfinishedFileRemovalError.NOTICE_STORAGE
-                        null -> UnfinishedFileRemovalError.STARTUP
-                    }
-                }
+                val error = removeAdmittedUnfinishedFile(file, uri, generation)
                 if (error != null) {
                     _uiState.update { it.copy(unfinishedFileErrors = it.unfinishedFileErrors + (uri to error)) }
                 }
@@ -232,7 +207,8 @@ class ImportExportViewModel @Inject constructor(
                 throw cancelled
             } catch (_: Exception) {
                 _uiState.update {
-                    it.copy(unfinishedFileErrors = it.unfinishedFileErrors + (uri to UnfinishedFileRemovalError.FILE_ACCESS))
+                    it.copy(unfinishedFileErrors =
+                        it.unfinishedFileErrors + (uri to UnfinishedFileRemovalError.FILE_ACCESS))
                 }
             } finally {
                 _uiState.update { it.copy(unfinishedFileRemoving = null) }
@@ -240,20 +216,38 @@ class ImportExportViewModel @Inject constructor(
         }
     }
 
-    private enum class UnfinishedFileCleanup { REMOVED, FILE_ACCESS, NOTICE_STORAGE }
-
-    private fun deleteUnfinishedDocument(uri: Uri): Boolean {
-        val deleted = runCatching { DocumentFile.fromSingleUri(appContext, uri)?.delete() == true }.getOrDefault(false)
-        if (deleted) return true
-        // A successful query with no row confirms removal by the person or another app. A lost
-        // grant, provider error or null cursor cannot establish that the file is gone.
-        return runCatching {
-            appContext.contentResolver.query(
-                uri, arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID), null, null, null,
-            )
-                ?.use { !it.moveToFirst() } == true
-        }.getOrDefault(false)
+    private suspend fun removeAdmittedUnfinishedFile(
+        file: UnfinishedExportFile, uri: String, generation: Long,
+    ): UnfinishedFileRemovalError? {
+        return if (startupGate.reconcile() !is TrackingStartupResult.Ready) {
+            UnfinishedFileRemovalError.STARTUP
+        } else {
+            val admitted = startupGate.withReadyGenerationTransfer(generation) {
+                currentCoroutineContext().ensureActive()
+                // Deletion and notice removal are one admitted cleanup, physically awaited by Clear.
+                withContext(NonCancellable + dispatchers.io) {
+                    if (!appContext.deleteUnfinishedDocument(Uri.parse(file.uri))) {
+                        UnfinishedFileCleanup.FILE_ACCESS
+                    } else {
+                        try {
+                            exportPlanStore.forgetUnfinishedFile(uri)
+                            UnfinishedFileCleanup.REMOVED
+                        } catch (_: Exception) {
+                            UnfinishedFileCleanup.NOTICE_STORAGE
+                        }
+                    }
+                }
+            }
+            when (admitted) {
+                UnfinishedFileCleanup.REMOVED -> null
+                UnfinishedFileCleanup.FILE_ACCESS -> UnfinishedFileRemovalError.FILE_ACCESS
+                UnfinishedFileCleanup.NOTICE_STORAGE -> UnfinishedFileRemovalError.NOTICE_STORAGE
+                null -> UnfinishedFileRemovalError.STARTUP
+            }
+        }
     }
+
+    private enum class UnfinishedFileCleanup { REMOVED, FILE_ACCESS, NOTICE_STORAGE }
 
     internal suspend fun exportDocument(
         directory: DocumentFile,
@@ -319,18 +313,24 @@ class ImportExportViewModel @Inject constructor(
             }
         } catch (exception: CancellationException) {
             createdFile?.let { file ->
-                if (removePartialDocument(file, createdFileName, externalDestination) != PartialDocumentCleanup.REMOVED) {
+                if (removePartialDocument(file, createdFileName,
+                    externalDestination) != PartialDocumentCleanup.REMOVED) {
                     exception.addSuppressed(IllegalStateException("Unfinished export remains at ${file.uri}"))
                 }
             }
             throw exception
         } catch (_: Exception) {
-            val file = createdFile
-            val cleanup = file?.let { removePartialDocument(it, createdFileName, externalDestination) }
-            if (file != null && cleanup != PartialDocumentCleanup.REMOVED) {
-                unfinishedFileFailure(file, createdFileName, requireNotNull(cleanup))
-            } else ExportDocumentResult.Failure(ExportResult.Error())
+            failedExportCleanup(createdFile, createdFileName, externalDestination)
         }
+    }
+
+    private suspend fun failedExportCleanup(
+        file: DocumentFile?, name: String, external: Boolean,
+    ): ExportDocumentResult {
+        val cleanup = file?.let { removePartialDocument(it, name, external) }
+        return if (file != null && cleanup != PartialDocumentCleanup.REMOVED) {
+            unfinishedFileFailure(file, name, requireNotNull(cleanup))
+        } else ExportDocumentResult.Failure(ExportResult.Error())
     }
 
     private enum class PartialDocumentCleanup { REMOVED, REMAINS, NOTICE_NOT_SAVED }
@@ -492,3 +492,19 @@ class ImportExportViewModel @Inject constructor(
         private const val EXPORT_PAGE_SIZE = 5000
     }
 }
+
+private fun Context.deleteUnfinishedDocument(uri: Uri): Boolean {
+    val deleted = runCatching { DocumentFile.fromSingleUri(this, uri)?.delete() == true }.getOrDefault(false)
+    if (deleted) {
+        return true
+    }
+    // A successful query with no row confirms removal by the person or another app. A lost
+    // grant, provider error or null cursor cannot establish that the file is gone.
+    return runCatching {
+        this.contentResolver.query(
+            uri, arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID), null, null, null,
+        )
+            ?.use { !it.moveToFirst() } == true
+    }.getOrDefault(false)
+}
+

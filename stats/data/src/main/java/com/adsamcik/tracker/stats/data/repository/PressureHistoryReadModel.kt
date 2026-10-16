@@ -85,7 +85,11 @@ internal data class PressureHistoryWindow(
 
 	/** Sample variance derived from retained Welford M2; one observation has no sample variance. */
 	val sampleVarianceHectopascalsSquared: Double?
-		get() = if (sampleCount > 1) sumSquaredDeviations / (sampleCount - 1).toDouble() else null
+		get() = if (sampleCount > 1) {
+			sumSquaredDeviations / (sampleCount - 1).toDouble()
+		} else {
+			null
+		}
 
 	/** Unclamped actual/expected ratio preserves both missing samples and legitimate oversampling. */
 	val actualToExpectedSampleRatio: Double
@@ -117,8 +121,12 @@ internal data class PressurePhysicalHistory(
 			PressureHistoryEvidence.NO_OBSERVATION -> require(windows.isEmpty())
 			PressureHistoryEvidence.RECORDED -> require(windows.isNotEmpty())
 		}
-		if (availability != PressureHistoryAvailability.AVAILABLE) require(windows.isEmpty())
-		if (windows.isNotEmpty()) require(captureAuthority.hasExactPressureProvenance(windows))
+		if (availability != PressureHistoryAvailability.AVAILABLE) {
+			require(windows.isEmpty())
+		}
+		if (windows.isNotEmpty()) {
+			require(captureAuthority.hasExactPressureProvenance(windows))
+		}
 	}
 
 	/**
@@ -245,7 +253,9 @@ internal data class PressureLogicalHistoryEntry(
 		require(physicalMembers.isNotEmpty())
 		require(physicalMembers.all { it.pressureEntryIdentity == identity })
 		require(physicalMembers == physicalMembers.sortedWith(pressurePhysicalMemberOrder))
-		if (identity is PressureHistoryEntryIdentity.Physical) require(physicalMembers.size == 1)
+		if (identity is PressureHistoryEntryIdentity.Physical) {
+			require(physicalMembers.size == 1)
+		}
 	}
 
 	/** Effective windows remain partitioned by physical run and ordered by elapsed time within it. */
@@ -259,7 +269,9 @@ internal data class PressureLogicalHistoryEntry(
 	val summary: PressureHistorySummary?
 		get() {
 			val facts = windows
-			if (facts.isEmpty()) return null
+			if (facts.isEmpty()) {
+				return null
+			}
 			return PressureHistorySummary(
 				firstHectopascals = facts.first().firstHectopascals,
 				latestHectopascals = facts.last().lastHectopascals,
@@ -309,7 +321,9 @@ internal data class PressureLogicalHistoryEntry(
 						capture.revisions.map(HistoricalCaptureRevision::manifestRevision)
 					},
 				)
-			) return false
+			) {
+				return false
+			}
 			return captures.all { capture -> capture.revisions.all { revision ->
 				revision.capturedSources == setOf(TrackingSourceComponent.PRESSURE)
 			} }
@@ -352,6 +366,9 @@ internal object PressureLogicalHistoryComposer {
 }
 
 /** Missing/open/inconsistent headers remain unresolved, without clearing independently valid windows. */
+// One immutable logical-session row yields original bounds only when its complete saved scalar shape is valid.
+// Keep ordered missing-reference and rejection exits together.
+@Suppress("ReturnCount", "CyclomaticComplexMethod", "ComplexCondition")
 private fun LogicalTrackingSessionEntity.originalClosedPressureBounds(
 	logicalId: String,
 ): PressureOriginalClosedBounds? {
@@ -364,7 +381,9 @@ private fun LogicalTrackingSessionEntity.originalClosedPressureBounds(
 		startedAtMs < 0L || cutoff < startedAtMs || completed < startedAtMs ||
 		startedElapsedNanos < 0L || cutoffElapsed < startedElapsedNanos ||
 		finalOrdinal < 0L || currentServiceRunId != null
-	) return null
+	) {
+		return null
+	}
 	return PressureOriginalClosedBounds(startedAtMs, cutoff)
 }
 

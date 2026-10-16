@@ -39,6 +39,10 @@ interface SourcePlanStateDao {
 	@Query("SELECT * FROM source_applied_plan_state ORDER BY source_kind")
 	suspend fun appliedStates(): List<SourceAppliedPlanStateEntity>
 
+	/**
+	 * Reads `source_applied_plan_state` rows. Query conditions include `desired_revision =
+	 * :desiredRevision`. Orders by `source_kind`.
+	 */
 	@Query(
 		"SELECT * FROM source_applied_plan_state WHERE desired_revision = :desiredRevision " +
 			"ORDER BY source_kind",
@@ -48,6 +52,10 @@ interface SourcePlanStateDao {
 	@Query("UPDATE acquisition_plan_revision SET status = :status WHERE revision = :revision")
 	suspend fun updateRevisionStatus(revision: Long, status: String): Int
 
+	/**
+	 * Deletes `source_applied_plan_state` rows matching the supplied scope. Query conditions include
+	 * `source_kind NOT IN (:sourceKinds)`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM source_applied_plan_state WHERE source_kind NOT IN (:sourceKinds)")
 	suspend fun deleteAppliedStatesOutside(sourceKinds: Collection<Int>): Int
 

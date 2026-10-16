@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -170,6 +171,7 @@ class RuntimePermissionReconcilerTest {
 	)
 
 	private suspend fun insertActiveSources() {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
 		SourceKind.entries.forEach { source ->
 			val demand = demand(source)
 			database.sourceBrokerDao().insertDemands(listOf(demand))

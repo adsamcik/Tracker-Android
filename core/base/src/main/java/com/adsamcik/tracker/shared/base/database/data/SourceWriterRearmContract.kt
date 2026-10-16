@@ -33,10 +33,18 @@ data class SourceWriterGenerationBinding(
 	val containedOwnerGeneration: Long =
 		SourceWriterGenerationContract.containedOwnerGeneration(bindingGeneration)
 
+	/**
+	 * Copies this writer binding with its next generation while preserving its source, destination
+	 * and projection contract.
+	 */
 	fun next(): SourceWriterGenerationBinding = copy(
 		bindingGeneration = SourceWriterGenerationContract.nextBindingGeneration(bindingGeneration),
 	)
 
+	/**
+	 * Builds the exact canonical activation identity for this binding and supplied activation
+	 * revision.
+	 */
 	fun canonicalActivation(activationRevision: Long): SourceWriterCanonicalActivation =
 		SourceWriterCanonicalActivation(
 			sourceKind = sourceKind,
@@ -50,6 +58,9 @@ data class SourceWriterGenerationBinding(
 			activationRevision = activationRevision,
 		)
 
+	/**
+	 * Builds the permanent destination owner expected when this binding is contained.
+	 */
 	fun containedDestinationOwner(): SourceWriterDestinationOwner =
 		SourceWriterDestinationOwner(
 			sourceKind = sourceKind,
@@ -58,6 +69,10 @@ data class SourceWriterGenerationBinding(
 			ownerGeneration = containedOwnerGeneration,
 		)
 
+	/**
+	 * Copies immutable writer provenance for historical reads without including current activation
+	 * state.
+	 */
 	fun historicalProvenance(): SourceWriterHistoricalProvenance =
 		SourceWriterHistoricalProvenance(
 			sourceKind = sourceKind,
@@ -69,14 +84,23 @@ data class SourceWriterGenerationBinding(
 			writerProjectionVersion = projectionVersion,
 		)
 
+	/**
+	 * Compares all canonical activation values, including the expected activation revision.
+	 */
 	fun matchesCanonicalActivation(
 		actual: SourceWriterCanonicalActivation,
 		expectedActivationRevision: Long,
 	): Boolean = actual == canonicalActivation(expectedActivationRevision)
 
+	/**
+	 * Compares the complete expected containment destination owner.
+	 */
 	fun matchesContainedOwner(actual: SourceWriterDestinationOwner): Boolean =
 		actual == containedDestinationOwner()
 
+	/**
+	 * Compares immutable source/destination/owner/projection provenance for this binding.
+	 */
 	fun matchesHistoricalProvenance(actual: SourceWriterHistoricalProvenance): Boolean =
 		actual == historicalProvenance()
 }
@@ -110,6 +134,10 @@ data class SourceWriterCanonicalActivation(
 		require(activationRevision > 0L)
 	}
 
+	/**
+	 * Copies immutable writer provenance for historical reads without including current activation
+	 * state.
+	 */
 	fun historicalProvenance(): SourceWriterHistoricalProvenance =
 		SourceWriterHistoricalProvenance(
 			sourceKind = sourceKind,
@@ -217,6 +245,10 @@ data class SourceWriterRearmCapability(
 		require(canonicalStage.isNotBlank())
 	}
 
+	/**
+	 * Builds a generation-specific writer binding from this capability's unchanged source and
+	 * projection contract.
+	 */
 	fun binding(bindingGeneration: Long): SourceWriterGenerationBinding =
 		SourceWriterGenerationBinding(
 			sourceKind = sourceKind,
@@ -229,6 +261,9 @@ data class SourceWriterRearmCapability(
 			canonicalStage = canonicalStage,
 		)
 
+	/**
+	 * Compares the full source, destination, owner, projection and canonical-stage contract.
+	 */
 	fun matchesIdentity(
 		sourceKind: Int,
 		destination: String,
@@ -287,27 +322,64 @@ data class SourceWriterRearmCapability(
 	}
 }
 
+/**
+ * Source-owned declaration of support for new writes under an exact generation binding.
+ */
 fun interface SourceWriterRearmWriterSupport {
+	/**
+	 * Reports whether this exact binding can accept new source writes.
+	 */
 	fun supportsNewWrites(binding: SourceWriterGenerationBinding): Boolean
 }
 
+/**
+ * Source-owned declaration that immutable facts from an exact writer provenance remain supported.
+ */
 fun interface SourceWriterRearmFactsSupport {
+	/**
+	 * Reports whether saved facts with this immutable writer provenance remain supported.
+	 */
 	fun supportsImmutableFacts(provenance: SourceWriterHistoricalProvenance): Boolean
 }
 
+/**
+ * Source-owned declaration that historical readers support an exact immutable provenance.
+ */
 fun interface SourceWriterRearmReaderSupport {
+	/**
+	 * Reports whether historical readers support this immutable writer provenance.
+	 */
 	fun supportsHistoricalReads(provenance: SourceWriterHistoricalProvenance): Boolean
 }
 
+/**
+ * Source-owned declaration that retention/recovery maintenance supports an exact immutable
+ * provenance.
+ */
 fun interface SourceWriterRearmMaintenanceSupport {
+	/**
+	 * Reports whether retention/recovery maintenance supports this immutable writer provenance.
+	 */
 	fun supportsHistoricalMaintenance(provenance: SourceWriterHistoricalProvenance): Boolean
 }
 
+/**
+ * Source-owned declaration that export/import supports an exact immutable provenance.
+ */
 fun interface SourceWriterRearmTransferSupport {
+	/**
+	 * Reports whether export/import supports this immutable writer provenance.
+	 */
 	fun supportsHistoricalTransfer(provenance: SourceWriterHistoricalProvenance): Boolean
 }
 
+/**
+ * Source-owned declaration that deletion supports an exact immutable provenance.
+ */
 fun interface SourceWriterRearmDeletionSupport {
+	/**
+	 * Reports whether deletion can retract data with this immutable writer provenance.
+	 */
 	fun supportsHistoricalDeletion(provenance: SourceWriterHistoricalProvenance): Boolean
 }
 
@@ -315,14 +387,25 @@ fun interface SourceWriterRearmDeletionSupport {
  * Source-owned authority that must keep its exact full-deletion proof valid through [operation].
  */
 interface SourceWriterFullDeletionRearmAuthority {
+	/**
+	 * Runs the operation only while the supplied full-deletion rearm authority remains valid; absent
+	 * authority returns null.
+	 */
 	suspend fun <T : Any> runIfAuthorized(
 		input: SourceWriterRearmAuthorityInput,
 		operation: suspend () -> T,
 	): T?
 
+	/**
+	 * Unavailable authority sentinel; it never executes the supplied rearm operation.
+	 */
 	companion object {
 		val UNAVAILABLE: SourceWriterFullDeletionRearmAuthority =
 			object : SourceWriterFullDeletionRearmAuthority {
+			/**
+			 * Runs the operation only while the supplied full-deletion rearm authority remains valid;
+			 * absent authority returns null.
+			 */
 			override suspend fun <T : Any> runIfAuthorized(
 				input: SourceWriterRearmAuthorityInput,
 				operation: suspend () -> T,
@@ -344,6 +427,10 @@ data class SourceWriterRearmSupportDeclaration(
 	val deletion: SourceWriterRearmDeletionSupport,
 	val fullDeletionAuthority: SourceWriterFullDeletionRearmAuthority,
 ) {
+	/**
+	 * Requires writer, facts, reads, maintenance, transfer and deletion support for the same exact
+	 * binding.
+	 */
 	fun fullySupports(binding: SourceWriterGenerationBinding): Boolean {
 		if (capability.bindingForHistoricalProvenance(binding.historicalProvenance()) != binding) {
 			return false
@@ -357,6 +444,10 @@ data class SourceWriterRearmSupportDeclaration(
 			deletion.supportsHistoricalDeletion(provenance)
 	}
 
+	/**
+	 * Returns the next binding only when the retired and next generations have full support and the
+	 * rearm input matches.
+	 */
 	fun nextBindingIfFullySupported(
 		input: SourceWriterRearmAuthorityInput,
 	): SourceWriterGenerationBinding? {
@@ -364,10 +455,16 @@ data class SourceWriterRearmSupportDeclaration(
 			input.retiredCanonicalActivation.historicalProvenance(),
 		) ?: return null
 		val nextBinding = capability.nextBindingAfter(input) ?: return null
-		if (!fullySupports(retiredBinding) || !fullySupports(nextBinding)) return null
+		if (!fullySupports(retiredBinding) || !fullySupports(nextBinding)) {
+			return null
+		}
 		return nextBinding
 	}
 
+	/**
+	 * Runs with the next binding only after full support and source-owned deletion authority both
+	 * accept the input.
+	 */
 	suspend fun <T : Any> runIfFullySupportedAndAuthorized(
 		input: SourceWriterRearmAuthorityInput,
 		operation: suspend (SourceWriterGenerationBinding) -> T,
@@ -383,8 +480,14 @@ data class SourceWriterRearmSupportDeclaration(
  * Explicit source lookup seam. The production default is fail-closed and registers nothing.
  */
 fun interface SourceWriterRearmSupportResolver {
+	/**
+	 * Returns the source-owned complete rearm support declaration, or null when none is installed.
+	 */
 	fun declarationFor(sourceKind: Int): SourceWriterRearmSupportDeclaration?
 
+	/**
+	 * Empty source-support resolver used when no complete rearm implementation is installed.
+	 */
 	companion object {
 		val NONE: SourceWriterRearmSupportResolver = SourceWriterRearmSupportResolver { null }
 	}

@@ -169,6 +169,8 @@ internal fun BatteryEstimateCard(
 }
 
 @Composable
+// Keep the finite source-status labels and their matching telemetry presentation together.
+@Suppress("CyclomaticComplexMethod", "LongMethod")
 internal fun EffectiveTrackingStatusCard(
 	uiState: TrackingSettingsUiState,
 	modifier: Modifier = Modifier,
@@ -218,8 +220,11 @@ internal fun EffectiveTrackingStatusCard(
 				.sortedBy { it.source.ordinal }
 				.forEach { status ->
 					Text(
-						text = "${status.source.displayName()}: ${status.requestedBalanceLevel?.let { locationBalanceLabel(it) } ?: status.requestedFrequency.displayName()} → " +
-							status.effectiveDescription(),
+						text =
+							"${status.source.displayName()}: " +
+								(status.requestedBalanceLevel?.let { locationBalanceLabel(it) }
+									?: status.requestedFrequency.displayName()) + " → " +
+								status.effectiveDescription(),
 						style = MaterialTheme.typography.bodySmall,
 					)
 				}
@@ -487,7 +492,8 @@ private fun SourcePlan.cadenceBadges(): List<String> = when (this) {
 	} else {
 		listOf(
 			stringResource(R.string.settings_source_badge_network_changes),
-			stringResource(R.string.settings_source_badge_refresh_limit, minimumRefreshAttemptIntervalMs.cadenceDuration()),
+			stringResource(R.string.settings_source_badge_refresh_limit,
+                minimumRefreshAttemptIntervalMs.cadenceDuration()),
 		)
 	}
 }

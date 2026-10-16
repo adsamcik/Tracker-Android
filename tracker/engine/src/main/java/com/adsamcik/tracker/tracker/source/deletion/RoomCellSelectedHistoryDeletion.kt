@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.CellCapturedSelectedDeletionBlo
 import com.adsamcik.tracker.shared.base.database.CellCapturedSelectedDeletionCheckpoint
 import com.adsamcik.tracker.shared.base.database.CellCapturedSelectedDeletionResult
 import com.adsamcik.tracker.shared.base.database.DeletedCapturedCellSelectionAuthentication
+import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedCellResult
 import com.adsamcik.tracker.shared.base.database.DeleteSelectedImportedCellRequest
 import com.adsamcik.tracker.shared.base.database.DeleteSelectedImportedCellResult
 import com.adsamcik.tracker.shared.base.database.DeleteSelectedImportedCell
@@ -23,17 +24,9 @@ import com.adsamcik.tracker.shared.base.database.deleteSelectedCapturedCellFacts
 import com.adsamcik.tracker.shared.base.database.authenticateDeletedCapturedCellSelectionInTransaction
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryLockedDays
-import com.adsamcik.tracker.shared.base.database.dao.ImportedCellDao
-import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedDeletedRunEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
-import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
-import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
-import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
-import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
-import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
-import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
@@ -45,11 +38,6 @@ import com.adsamcik.tracker.stats.api.repository.DeleteCellHistoryRequest
 import com.adsamcik.tracker.stats.api.repository.DeleteCellHistoryResult
 import com.adsamcik.tracker.stats.api.repository.ImportedCellHistorySelection
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
-import com.adsamcik.tracker.tracker.source.model.SourceKind
-import java.time.DateTimeException
-import java.time.Instant
-import java.time.ZoneId
-import java.time.ZoneOffset
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -79,8 +67,10 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 
 	override suspend fun delete(request: DeleteCellHistoryRequest): DeleteCellHistoryResult =
 		when (val selection = request.selection) {
-			is ImportedCellHistorySelection -> deleteImported(selection, request.requestedAtMs, request.expectedCollectedDataEpoch)
-			is LocalCellHistorySelection -> deleteLocal(selection, request.requestedAtMs, request.expectedCollectedDataEpoch)
+			is ImportedCellHistorySelection -> deleteImported(selection, request.requestedAtMs,
+                request.expectedCollectedDataEpoch)
+			is LocalCellHistorySelection -> deleteLocal(selection, request.requestedAtMs,
+                request.expectedCollectedDataEpoch)
 			else -> DeleteCellHistoryResult.NotFound
 		}
 
@@ -94,10 +84,12 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: SQLiteException) {
-			return retryable(CellHistoryDeletionRetryableReason.STORAGE_UNAVAILABLE)
-		} ?: return unverifiable(CellHistoryDeletionUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING)
-		if (expectedEpoch != null && state.collectedDataEpoch != expectedEpoch) return blocked(CellHistoryDeletionBlockedReason.STALE_SELECTION)
-		return when (val result = importedDeletion.delete(
+			return cellDeletionRetryable(CellHistoryDeletionRetryableReason.STORAGE_UNAVAILABLE)
+		} ?: return cellDeletionUnverifiable(CellHistoryDeletionUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING)
+		if (expectedEpoch != null && state.collectedDataEpoch != expectedEpoch) {
+			return cellDeletionBlocked(CellHistoryDeletionBlockedReason.STALE_SELECTION)
+		}
+		val result = importedDeletion.delete(
 			DeleteSelectedImportedCellRequest(
 				identity = PortableCellOpaqueIdentity(selection.identity.value),
 				expectedImportRevision = selection.importRevision,
@@ -105,39 +97,8 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 				expectedCollectedDataEpoch = expectedEpoch ?: state.collectedDataEpoch,
 				deletedAtMs = requestedAtMs,
 			),
-		)) {
-			is DeleteSelectedImportedCellResult.Deleted -> DeleteCellHistoryResult.Deleted(
-				1,
-				result.physicalRunCount,
-				result.observationIdentityCount,
-			)
-			DeleteSelectedImportedCellResult.AlreadyDeleted -> DeleteCellHistoryResult.AlreadyDeleted
-			DeleteSelectedImportedCellResult.NotFound -> DeleteCellHistoryResult.NotFound
-			is DeleteSelectedImportedCellResult.Blocked -> DeleteCellHistoryResult.Blocked(
-				when (result.reason) {
-					ImportedCellDeletionBlockedReason.COLLECTED_DATA_EPOCH_CHANGED,
-					ImportedCellDeletionBlockedReason.STALE_SELECTION,
-					-> CellHistoryDeletionBlockedReason.STALE_SELECTION
-					ImportedCellDeletionBlockedReason.RETENTION_BOUNDARY ->
-						CellHistoryDeletionBlockedReason.RETENTION_BOUNDARY
-					ImportedCellDeletionBlockedReason.STALE_REQUEST ->
-						CellHistoryDeletionBlockedReason.STALE_REQUEST
-					ImportedCellDeletionBlockedReason.PARTIAL_DELETION_STATE ->
-						CellHistoryDeletionBlockedReason.PARTIAL_DELETION_STATE
-				},
-			)
-			is DeleteSelectedImportedCellResult.Unverifiable -> unverifiable(
-				result.reason.toPublicDeletionReason(),
-			)
-			is DeleteSelectedImportedCellResult.RetryableFailure -> retryable(
-				when (result.reason) {
-					ImportedCellDeletionRetryableReason.CONCURRENT_STATE_CHANGE ->
-						CellHistoryDeletionRetryableReason.CONCURRENT_STATE_CHANGE
-					ImportedCellDeletionRetryableReason.STORAGE_UNAVAILABLE ->
-						CellHistoryDeletionRetryableReason.STORAGE_UNAVAILABLE
-				},
-			)
-		}
+		)
+		return result.toPublicCellDeletionResult()
 	}
 
 	private suspend fun deleteLocal(
@@ -146,68 +107,122 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 		expectedEpoch: Long?,
 	): DeleteCellHistoryResult = withContext(ioDispatcher) {
 		try {
-			when (val preflight = selectedLocalScope(selection, requestedAtMs, expectedEpoch)) {
+			when (val preflight = database.selectedCellDeletionScope(selection, requestedAtMs, expectedEpoch)) {
 				is LocalSelectionPreflight.Outcome -> preflight.result
-				is LocalSelectionPreflight.Ready -> {
-					DailySummaryAggregator(
-						database.dailySummaryDao(),
-						database.sessionSegmentDao(),
-						zoneId = preflight.scope.lockZone,
-					).withDayLocks(preflight.scope.affectedDays) { lockedDays ->
-						database.withTransaction {
-							if (expectedEpoch != null && database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch)
-								return@withTransaction blocked(CellHistoryDeletionBlockedReason.STALE_SELECTION)
-							val current = selectedLocalScope(selection, requestedAtMs, expectedEpoch)
-							val scope = (current as? LocalSelectionPreflight.Ready)?.scope
-								?: concurrentMutation()
-							if (scope != preflight.scope) concurrentMutation()
-							deleteLocalInTransaction(scope, requestedAtMs, lockedDays)
-						}
-					}
-				}
+				is LocalSelectionPreflight.Ready ->
+					deleteLocalWhileLocked(selection, requestedAtMs, expectedEpoch, preflight)
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: ConcurrentCellDeletionStateException) {
-			retryable(CellHistoryDeletionRetryableReason.CONCURRENT_STATE_CHANGE)
+			cellDeletionRetryable(CellHistoryDeletionRetryableReason.CONCURRENT_STATE_CHANGE)
 		} catch (_: SQLiteException) {
-			retryable(CellHistoryDeletionRetryableReason.STORAGE_UNAVAILABLE)
+			cellDeletionRetryable(CellHistoryDeletionRetryableReason.STORAGE_UNAVAILABLE)
 		} catch (_: IllegalArgumentException) {
-			unverifiable(CellHistoryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+			cellDeletionUnverifiable(CellHistoryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 		}
 	}
 
-	@Suppress("LongMethod")
+	private suspend fun deleteLocalWhileLocked(
+		selection: LocalCellHistorySelection,
+		requestedAtMs: Long,
+		expectedEpoch: Long?,
+		preflight: LocalSelectionPreflight.Ready,
+	): DeleteCellHistoryResult =
+		DailySummaryAggregator(
+			database.dailySummaryDao(),
+			database.sessionSegmentDao(),
+			zoneId = preflight.scope.lockZone,
+		).withDayLocks(preflight.scope.affectedDays) { lockedDays ->
+			database.withTransaction {
+				if (expectedEpoch != null &&
+					database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch
+				) {
+					return@withTransaction cellDeletionBlocked(CellHistoryDeletionBlockedReason.STALE_SELECTION)
+				}
+				val current = database.selectedCellDeletionScope(selection, requestedAtMs, expectedEpoch)
+				val scope = (current as? LocalSelectionPreflight.Ready)?.scope
+					?: concurrentMutation()
+				if (scope != preflight.scope) {
+					concurrentMutation()
+				}
+				deleteLocalInTransaction(scope, requestedAtMs, lockedDays)
+			}
+		}
+
 	private suspend fun deleteLocalInTransaction(
 		scope: LocalCellDeletionScope,
 		requestedAtMs: Long,
 		lockedDays: DailySummaryLockedDays,
 	): DeleteCellHistoryResult {
+		preflightLocalCellDeletion(scope)?.let { return it }
+		val runIds = scope.runs.map(SourceServiceRunEntity::serviceRunId)
+		val repair = when (val preflight = StepsDailySummaryRepairComposer(database).compose(
+			epochDays = scope.affectedDays,
+			excludedSegmentIds = scope.segments.mapTo(linkedSetOf(), SessionSegment::id),
+			dailySummaries = scope.dailySummaries,
+		)) {
+			is StepsDayRepairPreflight.Ready -> preflight.plans
+			is StepsDayRepairPreflight.Unsupported -> return cellDeletionUnverifiable(
+				CellHistoryDeletionUnverifiableReason.DAY_REPAIR_UNAVAILABLE,
+			)
+			StepsDayRepairPreflight.Materializing -> return cellDeletionRetryable(
+				CellHistoryDeletionRetryableReason.CONCURRENT_STATE_CHANGE,
+			)
+		}
+		return deletePreparedLocalCellScope(scope, requestedAtMs, lockedDays, runIds, repair)
+	}
+
+	private suspend fun preflightLocalCellDeletion(scope: LocalCellDeletionScope): DeleteCellHistoryResult? {
 		if (scope.session.state !in TERMINAL_SESSION_STATES ||
 			scope.session.currentServiceRunId != null ||
-			scope.runs.any { it.state !in TERMINAL_RUN_STATES || it.completedAtMs == null } ||
+			scope.runs.any { it.state !in TERMINAL_RUN_STATES || it.completedAtMs == null }
+		) {
+			return cellDeletionBlocked(CellHistoryDeletionBlockedReason.ACTIVE_CAPTURE)
+		}
+		if (
 			scope.runs.any {
 				database.sourceSessionDao().hasNonterminalLatestLifecycleAction(
 					scope.logicalTrackingId,
 					it.serviceRunId,
 				)
 			}
-		) return blocked(CellHistoryDeletionBlockedReason.ACTIVE_CAPTURE)
+		) {
+			return cellDeletionBlocked(CellHistoryDeletionBlockedReason.ACTIVE_CAPTURE)
+		}
 		val runIds = scope.runs.map(SourceServiceRunEntity::serviceRunId)
+		validateCellDeletionDemands(scope, runIds)?.let { return it }
+		return validateCellDeletionPortableScope(scope, runIds)
+	}
+
+	private suspend fun validateCellDeletionDemands(
+		scope: LocalCellDeletionScope,
+		runIds: List<String>,
+	): DeleteCellHistoryResult? {
 		val demands = database.cellCapturedFactDao().selectedCellCaptureDemandsForDeletion(
-			CELL_SOURCE,
+			SELECTED_CELL_SOURCE,
 			scope.logicalTrackingId,
 			runIds,
 			MAX_SELECTED_DEMANDS + 1,
 		)
 		if (demands.size > MAX_SELECTED_DEMANDS) {
-			return unverifiable(CellHistoryDeletionUnverifiableReason.REPLACEMENT_SCOPE_INVALID)
+			return cellDeletionUnverifiable(CellHistoryDeletionUnverifiableReason.REPLACEMENT_SCOPE_INVALID)
 		}
 		if (demands.any {
 			it.logicalTrackingId != scope.logicalTrackingId || it.serviceRunId !in runIds
-		}) return unverifiable(CellHistoryDeletionUnverifiableReason.REPLACEMENT_SCOPE_INVALID)
-		if (demands.isNotEmpty()) return blocked(CellHistoryDeletionBlockedReason.ACTIVE_CAPTURE)
+		}) {
+			return cellDeletionUnverifiable(CellHistoryDeletionUnverifiableReason.REPLACEMENT_SCOPE_INVALID)
+		}
+		if (demands.isNotEmpty()) {
+			return cellDeletionBlocked(CellHistoryDeletionBlockedReason.ACTIVE_CAPTURE)
+		}
+		return null
+	}
 
+	private suspend fun validateCellDeletionPortableScope(
+		scope: LocalCellDeletionScope,
+		runIds: List<String>,
+	): DeleteCellHistoryResult? {
 		val portable = RoomReadLocalPortableCapturedCell(database, laneExecutionAuthority)
 			.readInTransaction(scope.logicalTrackingId)
 		when (portable) {
@@ -224,60 +239,49 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 							it,
 						).value
 					}
-				) return unverifiable(
-					CellHistoryDeletionUnverifiableReason.WRITER_OR_FACT_AUTHORITY_INVALID,
-				)
-			}
-			is ReadLocalPortableCapturedCellResult.Outcome -> when (val result = portable.result) {
-				is com.adsamcik.tracker.shared.base.database.ExportPortableCapturedCellResult.Unavailable -> {
-					if (result.reason == PortableCellUnavailableReason.RETENTION_LIMIT) {
-						return blocked(CellHistoryDeletionBlockedReason.RETENTION_BOUNDARY)
-					}
-					if (result.reason !in setOf(
-							PortableCellUnavailableReason.NO_QUALIFIED_FACTS,
-							PortableCellUnavailableReason.PROVIDER_UNAVAILABLE,
-						)
-					) return unverifiable(
+				) {
+					return cellDeletionUnverifiable(
 						CellHistoryDeletionUnverifiableReason.WRITER_OR_FACT_AUTHORITY_INVALID,
 					)
 				}
-				com.adsamcik.tracker.shared.base.database.ExportPortableCapturedCellResult.Materializing ->
-					return blocked(CellHistoryDeletionBlockedReason.ACTIVE_CAPTURE)
-				com.adsamcik.tracker.shared.base.database.ExportPortableCapturedCellResult.Deleted ->
-					return blocked(CellHistoryDeletionBlockedReason.PARTIAL_DELETION_STATE)
-				is com.adsamcik.tracker.shared.base.database.ExportPortableCapturedCellResult.Unverifiable ->
-					return unverifiable(
-						CellHistoryDeletionUnverifiableReason.WRITER_OR_FACT_AUTHORITY_INVALID,
-					)
-				is com.adsamcik.tracker.shared.base.database.ExportPortableCapturedCellResult
-					.RetryableFailure -> return retryable(
-					CellHistoryDeletionRetryableReason.STORAGE_UNAVAILABLE,
-				)
-				is com.adsamcik.tracker.shared.base.database.ExportPortableCapturedCellResult.Exported ->
-					concurrentMutation()
 			}
+			is ReadLocalPortableCapturedCellResult.Outcome -> return classifyCellPortableOutcome(portable.result)
 		}
-		val repair = when (val preflight = StepsDailySummaryRepairComposer(database).compose(
-			epochDays = scope.affectedDays,
-			excludedSegmentIds = scope.segments.mapTo(linkedSetOf(), SessionSegment::id),
-			dailySummaries = scope.dailySummaries,
-		)) {
-			is StepsDayRepairPreflight.Ready -> preflight.plans
-			is StepsDayRepairPreflight.Unsupported -> return unverifiable(
-				CellHistoryDeletionUnverifiableReason.DAY_REPAIR_UNAVAILABLE,
+		return null
+	}
+
+	private fun classifyCellPortableOutcome(result: ExportPortableCapturedCellResult): DeleteCellHistoryResult? =
+		when (result) {
+			is ExportPortableCapturedCellResult.Unavailable -> when (result.reason) {
+				PortableCellUnavailableReason.RETENTION_LIMIT ->
+					cellDeletionBlocked(CellHistoryDeletionBlockedReason.RETENTION_BOUNDARY)
+				PortableCellUnavailableReason.NO_QUALIFIED_FACTS,
+				PortableCellUnavailableReason.PROVIDER_UNAVAILABLE -> null
+				else -> cellDeletionUnverifiable(
+					CellHistoryDeletionUnverifiableReason.WRITER_OR_FACT_AUTHORITY_INVALID,
+				)
+			}
+			ExportPortableCapturedCellResult.Materializing ->
+				cellDeletionBlocked(CellHistoryDeletionBlockedReason.ACTIVE_CAPTURE)
+			ExportPortableCapturedCellResult.Deleted ->
+				cellDeletionBlocked(CellHistoryDeletionBlockedReason.PARTIAL_DELETION_STATE)
+			is ExportPortableCapturedCellResult.Unverifiable -> cellDeletionUnverifiable(
+				CellHistoryDeletionUnverifiableReason.WRITER_OR_FACT_AUTHORITY_INVALID,
 			)
-			StepsDayRepairPreflight.Materializing -> return retryable(
-				CellHistoryDeletionRetryableReason.CONCURRENT_STATE_CHANGE,
-			)
+			is ExportPortableCapturedCellResult.RetryableFailure ->
+				cellDeletionRetryable(CellHistoryDeletionRetryableReason.STORAGE_UNAVAILABLE)
+			is ExportPortableCapturedCellResult.Exported -> concurrentMutation()
 		}
-		val latestDurableTimeMs = maxOf(
-			scope.evidenceUpdatedAtMs,
-			scope.session.completedAtMs ?: 0L,
-			scope.runs.maxOfOrNull { it.completedAtMs ?: 0L } ?: 0L,
-			scope.segments.maxOfOrNull(SessionSegment::createdAt) ?: 0L,
-		)
-		if (requestedAtMs < latestDurableTimeMs) {
-			return blocked(CellHistoryDeletionBlockedReason.STALE_REQUEST)
+
+	private suspend fun deletePreparedLocalCellScope(
+		scope: LocalCellDeletionScope,
+		requestedAtMs: Long,
+		lockedDays: DailySummaryLockedDays,
+		runIds: List<String>,
+		repair: List<StepsDayRepairPlan>,
+	): DeleteCellHistoryResult {
+		if (scope.isStaleRequest(requestedAtMs)) {
+			return cellDeletionBlocked(CellHistoryDeletionBlockedReason.STALE_REQUEST)
 		}
 		beforeMutation()
 		val payload = database.deleteSelectedCapturedCellFactsInTransaction(
@@ -295,24 +299,16 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 		val deleted = when (payload) {
 			is CellCapturedSelectedDeletionResult.Deleted -> payload
 			CellCapturedSelectedDeletionResult.AlreadyDeleted ->
-				return blocked(CellHistoryDeletionBlockedReason.PARTIAL_DELETION_STATE)
-			is CellCapturedSelectedDeletionResult.Blocked -> return when (payload.reason) {
-				CellCapturedSelectedDeletionBlockedReason.STALE_REQUEST ->
-					blocked(CellHistoryDeletionBlockedReason.STALE_REQUEST)
-				CellCapturedSelectedDeletionBlockedReason.STALE_COLLECTED_DATA_EPOCH ->
-					blocked(CellHistoryDeletionBlockedReason.STALE_SELECTION)
-				CellCapturedSelectedDeletionBlockedReason.DELETION_FENCE_CONFLICT ->
-					blocked(CellHistoryDeletionBlockedReason.PARTIAL_DELETION_STATE)
-				CellCapturedSelectedDeletionBlockedReason.MAINTENANCE_BOUND_EXCEEDED ->
-					unverifiable(
-						CellHistoryDeletionUnverifiableReason.SELECTION_LOOKUP_BUDGET_EXCEEDED,
-					)
-				CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE ->
-					unverifiable(
-						CellHistoryDeletionUnverifiableReason.WRITER_OR_FACT_AUTHORITY_INVALID,
-					)
-			}
+				return cellDeletionBlocked(CellHistoryDeletionBlockedReason.PARTIAL_DELETION_STATE)
+			is CellCapturedSelectedDeletionResult.Blocked -> return payload.reason.toPublicCellPayloadDeletionResult()
 		}
+		return finishLocalCellDeletion(scope, requestedAtMs, lockedDays, repair, deleted.logicalFactCount)
+	}
+
+	private suspend fun recordLocalCellDeletion(
+		scope: LocalCellDeletionScope,
+		requestedAtMs: Long,
+	): CellCapturedEntryDeletionReceiptEntity? {
 		val deletedRuns = scope.runs.zip(scope.segments).map { (run, segment) ->
 			CellCapturedDeletedRunEntity.create(
 				logicalTrackingId = scope.logicalTrackingId,
@@ -337,9 +333,23 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 		)
 		if (database.cellCapturedFactDao().entryDeletionReceipt(scope.logicalTrackingId) != null ||
 			database.cellCapturedFactDao().deletedRuns(scope.logicalTrackingId, 1).isNotEmpty()
-		) return blocked(CellHistoryDeletionBlockedReason.PARTIAL_DELETION_STATE)
+		) {
+			return null
+		}
 		database.cellCapturedFactDao().insertEntryDeletionReceipt(deletionReceipt)
 		database.cellCapturedFactDao().insertDeletedRuns(deletedRuns)
+		return deletionReceipt
+	}
+
+	private suspend fun finishLocalCellDeletion(
+		scope: LocalCellDeletionScope,
+		requestedAtMs: Long,
+		lockedDays: DailySummaryLockedDays,
+		repair: List<StepsDayRepairPlan>,
+		logicalFactCount: Int,
+	): DeleteCellHistoryResult {
+		val deletionReceipt = recordLocalCellDeletion(scope, requestedAtMs)
+			?: return cellDeletionBlocked(CellHistoryDeletionBlockedReason.PARTIAL_DELETION_STATE)
 		scope.segments.forEach { segment ->
 			database.skiRunSegmentDao().deleteBySession(segment.id)
 			if (database.sessionSegmentDao().deleteExact(
@@ -347,13 +357,17 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 					scope.logicalTrackingId,
 					requireNotNull(segment.serviceRunId),
 				) != 1
-			) concurrentMutation()
+			) {
+				concurrentMutation()
+			}
 		}
 		if (database.authenticateDeletedCapturedCellSelectionInTransaction(
 				scope.logicalTrackingId,
 				PortableCellOpaqueIdentity(deletionReceipt.entryIdentity),
 			) !is DeletedCapturedCellSelectionAuthentication.Exact
-		) concurrentMutation()
+		) {
+			concurrentMutation()
+		}
 		repair.forEach { plan ->
 			DailySummaryAggregator(
 				database.dailySummaryDao(),
@@ -368,323 +382,16 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 		return DeleteCellHistoryResult.Deleted(
 			1,
 			scope.runs.size,
-			deleted.logicalFactCount,
+			logicalFactCount,
 		)
 	}
 
-	@Suppress("LongMethod")
-	private suspend fun selectedLocalScope(
-		selection: LocalCellHistorySelection,
-		requestedAtMs: Long,
-		expectedEpoch: Long?,
-	): LocalSelectionPreflight {
-		val state = database.sourceEvidenceStateDao().get() ?: return outcome(unverifiable(
-			CellHistoryDeletionUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING,
-		))
-		if (expectedEpoch != null && state.collectedDataEpoch != expectedEpoch) {
-			return outcome(blocked(CellHistoryDeletionBlockedReason.STALE_SELECTION))
-		}
-		val logicalIds = database.importedCellDao().liveLogicalTrackingIds(
-			ImportedCellDao.MAX_LIVE_OWNER_ROWS + 1,
-		)
-		if (logicalIds.size > ImportedCellDao.MAX_LIVE_OWNER_ROWS) {
-			return outcome(unverifiable(
-				CellHistoryDeletionUnverifiableReason.SELECTION_LOOKUP_BUDGET_EXCEEDED,
-			))
-		}
-		val matching = logicalIds.filter { logicalId ->
-			PortableCellOpaqueIdentity.derive(
-				PortableCellIdentityKind.LOGICAL_ENTRY,
-				logicalId,
-			).value == selection.identity.value
-		}
-		if (matching.isEmpty()) return outcome(DeleteCellHistoryResult.NotFound)
-		if (matching.size != 1) return outcome(unverifiable(
-			CellHistoryDeletionUnverifiableReason.OPAQUE_IDENTITY_CONFLICT,
-		))
-		val logicalTrackingId = matching.single()
-		val session = database.sourceSessionDao().session(logicalTrackingId)
-			?: return outcome(unverifiable(
-				CellHistoryDeletionUnverifiableReason.REPLACEMENT_SCOPE_INVALID,
-			))
-		val runs = database.trackingHistoryReadDao().logicalEntryServiceRunPage(
-			listOf(logicalTrackingId),
-			MAX_REPLACEMENT_RUNS + 1,
-			null,
-			null,
-			null,
-		)
-		if (runs.isEmpty()) return outcome(unverifiable(
-			CellHistoryDeletionUnverifiableReason.REPLACEMENT_SCOPE_INVALID,
-		))
-		if (runs.size > MAX_REPLACEMENT_RUNS ||
-			runs.map(SourceServiceRunEntity::serviceRunId).distinct().size != runs.size ||
-			runs.any { it.logicalTrackingId != logicalTrackingId || it.sessionSegmentId == null }
-		) return outcome(unverifiable(
-			CellHistoryDeletionUnverifiableReason.REPLACEMENT_SCOPE_INVALID,
-		))
-		val segmentIds = runs.map { requireNotNull(it.sessionSegmentId) }
-		val segmentsById = database.trackingHistoryReadDao().segments(segmentIds).associateBy(SessionSegment::id)
-		if (segmentsById.isEmpty()) {
-			return outcome(authenticateLocalReplay(
-				LocalCellDeletionScope.replay(
-					logicalTrackingId,
-					session,
-					runs,
-					state.collectedDataEpoch,
-					state.retainedFromMs,
-					state.updatedAtMs,
-				),
-				requestedAtMs,
-			))
-		}
-		if (segmentsById.size != segmentIds.size) return outcome(unverifiable(
-			CellHistoryDeletionUnverifiableReason.REPLACEMENT_SCOPE_INVALID,
-		))
-		val segments = runs.map { run ->
-			val segment = segmentsById[requireNotNull(run.sessionSegmentId)]
-				?: return outcome(unverifiable(
-					CellHistoryDeletionUnverifiableReason.REPLACEMENT_SCOPE_INVALID,
-				))
-			if (segment.logicalTrackingId != logicalTrackingId ||
-				segment.serviceRunId != run.serviceRunId
-			) return outcome(unverifiable(
-				CellHistoryDeletionUnverifiableReason.REPLACEMENT_SCOPE_INVALID,
-			))
-			segment
-		}
-		val reverse = database.sessionSegmentDao().selectedOwnershipSegments(
-			logicalTrackingId,
-			runs.map(SourceServiceRunEntity::serviceRunId),
-			MAX_REPLACEMENT_RUNS + 1,
-		)
-		if (reverse.size != segments.size ||
-			reverse.mapTo(linkedSetOf(), SessionSegment::id) !=
-			segments.mapTo(linkedSetOf(), SessionSegment::id)
-		) return outcome(unverifiable(
-			CellHistoryDeletionUnverifiableReason.REPLACEMENT_SCOPE_INVALID,
-		))
-		val manifests = database.trackingHistoryReadDao().manifests(
-			runs.map(SourceServiceRunEntity::serviceRunId),
-			MAX_MANIFESTS + 1,
-		)
-		val sources = database.trackingHistoryReadDao().manifestSources(
-			runs.map(SourceServiceRunEntity::serviceRunId),
-			MAX_MANIFEST_SOURCES + 1,
-		)
-		if (manifests.size > MAX_MANIFESTS || sources.size > MAX_MANIFEST_SOURCES) {
-			return outcome(unverifiable(
-				CellHistoryDeletionUnverifiableReason.REPLACEMENT_SCOPE_INVALID,
-			))
-		}
-		val manifestsByRun = manifests.groupBy(SessionManifestVersionEntity::serviceRunId)
-		val sourcesByManifest = sources.groupBy {
-			it.logicalTrackingId to it.manifestRevision
-		}
-		val zones = linkedSetOf<ZoneId>()
-		for (run in runs) {
-			val runManifests = manifestsByRun[run.serviceRunId].orEmpty()
-			if (runManifests.isEmpty() ||
-				!SessionManifestIntegrity.hasValidServiceRunTimeline(run, runManifests)
-			) return outcome(unverifiable(
-				CellHistoryDeletionUnverifiableReason.MANIFEST_INTEGRITY_FAILED,
-			))
-			for (manifest in runManifests) {
-				val membership = sourcesByManifest[
-					manifest.logicalTrackingId to manifest.manifestRevision
-				].orEmpty()
-				if (manifest.logicalTrackingId != logicalTrackingId ||
-					!SessionManifestIntegrity.verify(manifest, membership) ||
-					membership.any {
-						it.sourceKind !in KNOWN_SOURCE_KINDS ||
-							it.purpose !in SessionManifestPurposeCode.ALL
-					}
-				) return outcome(unverifiable(
-					CellHistoryDeletionUnverifiableReason.MANIFEST_INTEGRITY_FAILED,
-				))
-				val capture = membership.filter {
-					it.purpose == SessionManifestPurposeCode.SESSION_CAPTURE
-				}
-				if (capture.size != 1 || capture.single().sourceKind != CELL_SOURCE ||
-					!capture.single().persistenceEligible ||
-					!capture.single().isExactCellWriter()
-				) return outcome(blocked(
-					CellHistoryDeletionBlockedReason.MIXED_OR_INCOMPLETE_CAPTURE_SET,
-				))
-				try {
-					zones += ZoneId.of(manifest.zoneId)
-				} catch (_: DateTimeException) {
-					return outcome(unverifiable(
-						CellHistoryDeletionUnverifiableReason.MANIFEST_INTEGRITY_FAILED,
-					))
-				}
-			}
-		}
-		if (!SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(
-				runs.map { run ->
-					manifestsByRun.getValue(run.serviceRunId).map(
-						SessionManifestVersionEntity::manifestRevision,
-					)
-				},
-			)
-		) return outcome(unverifiable(
-			CellHistoryDeletionUnverifiableReason.MANIFEST_INTEGRITY_FAILED,
-		))
-		val affectedDays = linkedSetOf<Long>()
-		for (segment in segments) {
-			for (zone in zones) {
-				affectedDays(segment.startTimeMs, segment.endTimeMs, zone, zone)
-					?.let(affectedDays::addAll) ?: return outcome(unverifiable(
-					CellHistoryDeletionUnverifiableReason.DAY_REPAIR_UNAVAILABLE,
-				))
-			}
-			affectedDays(
-				segment.startTimeMs,
-				segment.endTimeMs,
-				ZoneOffset.MIN,
-				ZoneOffset.MAX,
-			)?.let(affectedDays::addAll) ?: return outcome(unverifiable(
-				CellHistoryDeletionUnverifiableReason.DAY_REPAIR_UNAVAILABLE,
-			))
-		}
-		if (affectedDays.isEmpty() || affectedDays.size > MAX_AFFECTED_DAYS) {
-			return outcome(unverifiable(
-				CellHistoryDeletionUnverifiableReason.DAY_REPAIR_UNAVAILABLE,
-			))
-		}
-		val daySet = affectedDays.toSet()
-		val summaries = database.dailySummaryDao()
-			.getBetween(requireNotNull(affectedDays.minOrNull()), requireNotNull(affectedDays.maxOrNull()))
-			.filter { it.dateEpochDay in daySet }
-		return LocalSelectionPreflight.Ready(
-			LocalCellDeletionScope(
-				logicalTrackingId,
-				session,
-				runs,
-				segments,
-				state.collectedDataEpoch,
-				state.retainedFromMs,
-				state.updatedAtMs,
-				zones.first(),
-				affectedDays.sorted(),
-				summaries,
-			),
-		)
-	}
-
-	private suspend fun authenticateLocalReplay(
-		scope: LocalCellDeletionScope,
-		requestedAtMs: Long,
-	): DeleteCellHistoryResult {
-		return when (val authentication =
-			database.authenticateDeletedCapturedCellSelectionInTransaction(
-				scope.logicalTrackingId,
-				PortableCellOpaqueIdentity.derive(
-					PortableCellIdentityKind.LOGICAL_ENTRY,
-					scope.logicalTrackingId,
-				),
-			)
-		) {
-			DeletedCapturedCellSelectionAuthentication.Absent ->
-				unverifiable(CellHistoryDeletionUnverifiableReason.REPLACEMENT_SCOPE_INVALID)
-			DeletedCapturedCellSelectionAuthentication.Unverifiable ->
-				unverifiable(CellHistoryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-			is DeletedCapturedCellSelectionAuthentication.Exact ->
-				if (requestedAtMs < authentication.receipt.deletedAtMs) {
-					blocked(CellHistoryDeletionBlockedReason.STALE_REQUEST)
-				} else {
-					DeleteCellHistoryResult.AlreadyDeleted
-				}
-		}
-	}
-
-	private fun SessionManifestSourceEntity.isExactCellWriter(): Boolean =
-		outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL &&
-			writerOwner == SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS &&
-			writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION &&
-			writerProjectionId == SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID &&
-			writerProjectionVersion == SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION &&
-			writerBindingGeneration == SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION
-
-	private fun affectedDays(
-		startTimeMs: Long,
-		endTimeMs: Long,
-		startZone: ZoneId,
-		endZone: ZoneId,
-	): List<Long>? {
-		val lastCovered = if (endTimeMs > startTimeMs) endTimeMs - 1L else startTimeMs
-		val firstDay: Long
-		val lastDay: Long
-		try {
-			firstDay = Instant.ofEpochMilli(startTimeMs).atZone(startZone).toLocalDate().toEpochDay()
-			lastDay = Instant.ofEpochMilli(lastCovered).atZone(endZone).toLocalDate().toEpochDay()
-		} catch (_: DateTimeException) {
-			return null
-		}
-		val count = lastDay - firstDay + 1L
-		if (count <= 0L || count > MAX_AFFECTED_DAYS) return null
-		return List(count.toInt()) { firstDay + it }
-	}
-
-	private fun outcome(result: DeleteCellHistoryResult) = LocalSelectionPreflight.Outcome(result)
-	private fun blocked(reason: CellHistoryDeletionBlockedReason) =
-		DeleteCellHistoryResult.Blocked(reason)
-	private fun unverifiable(reason: CellHistoryDeletionUnverifiableReason) =
-		DeleteCellHistoryResult.Unverifiable(reason)
-	private fun retryable(reason: CellHistoryDeletionRetryableReason) =
-		DeleteCellHistoryResult.RetryableFailure(reason)
 	private fun concurrentMutation(): Nothing = throw ConcurrentCellDeletionStateException()
 
 	private companion object {
-		const val CELL_SOURCE = SourceDestinationOwnerEntity.SOURCE_CELL
-		const val MAX_REPLACEMENT_RUNS = 128
-		const val MAX_MANIFESTS = 4_096
-		const val MAX_MANIFEST_SOURCES = 49_152
 		const val MAX_SELECTED_DEMANDS = 256
-		const val MAX_AFFECTED_DAYS = 370
 		val TERMINAL_SESSION_STATES = setOf("FINALIZED", "FAILED", "CLOSED")
 		val TERMINAL_RUN_STATES = setOf("FINALIZED", "FAILED", "CLOSED")
-		val KNOWN_SOURCE_KINDS = SourceKind.entries.mapTo(hashSetOf(), SourceKind::stableCode)
-	}
-}
-
-private sealed interface LocalSelectionPreflight {
-	data class Ready(val scope: LocalCellDeletionScope) : LocalSelectionPreflight
-	data class Outcome(val result: DeleteCellHistoryResult) : LocalSelectionPreflight
-}
-
-private data class LocalCellDeletionScope(
-	val logicalTrackingId: String,
-	val session: LogicalTrackingSessionEntity,
-	val runs: List<SourceServiceRunEntity>,
-	val segments: List<SessionSegment>,
-	val collectedDataEpoch: Long,
-	val retainedFromMs: Long?,
-	val evidenceUpdatedAtMs: Long,
-	val lockZone: ZoneId,
-	val affectedDays: List<Long>,
-	val dailySummaries: List<DailySummaryEntity>,
-) {
-	companion object {
-		fun replay(
-			logicalTrackingId: String,
-			session: LogicalTrackingSessionEntity,
-			runs: List<SourceServiceRunEntity>,
-			collectedDataEpoch: Long,
-			retainedFromMs: Long?,
-			evidenceUpdatedAtMs: Long,
-		) = LocalCellDeletionScope(
-			logicalTrackingId,
-			session,
-			runs,
-			emptyList(),
-			collectedDataEpoch,
-			retainedFromMs,
-			evidenceUpdatedAtMs,
-			ZoneOffset.UTC,
-			emptyList(),
-			emptyList(),
-		)
 	}
 }
 
@@ -703,3 +410,67 @@ private fun ImportedCellProductFailure.toPublicDeletionReason():
 	ImportedCellProductFailure.VALUE_OVERFLOW,
 	-> CellHistoryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE
 }
+
+internal fun cellDeletionBlocked(reason: CellHistoryDeletionBlockedReason) =
+	DeleteCellHistoryResult.Blocked(reason)
+
+internal fun cellDeletionUnverifiable(reason: CellHistoryDeletionUnverifiableReason) =
+	DeleteCellHistoryResult.Unverifiable(reason)
+
+private fun cellDeletionRetryable(reason: CellHistoryDeletionRetryableReason) =
+	DeleteCellHistoryResult.RetryableFailure(reason)
+
+private fun DeleteSelectedImportedCellResult.toPublicCellDeletionResult(): DeleteCellHistoryResult =
+	when (val result = this) {
+		is DeleteSelectedImportedCellResult.Deleted -> DeleteCellHistoryResult.Deleted(
+			1,
+			result.physicalRunCount,
+			result.observationIdentityCount,
+		)
+		DeleteSelectedImportedCellResult.AlreadyDeleted -> DeleteCellHistoryResult.AlreadyDeleted
+		DeleteSelectedImportedCellResult.NotFound -> DeleteCellHistoryResult.NotFound
+		is DeleteSelectedImportedCellResult.Blocked -> DeleteCellHistoryResult.Blocked(
+			result.reason.toPublicCellBlockedReason(),
+		)
+		is DeleteSelectedImportedCellResult.Unverifiable -> cellDeletionUnverifiable(
+			result.reason.toPublicDeletionReason(),
+		)
+		is DeleteSelectedImportedCellResult.RetryableFailure -> cellDeletionRetryable(
+			result.reason.toPublicCellRetryableReason(),
+		)
+	}
+
+private fun ImportedCellDeletionBlockedReason.toPublicCellBlockedReason(): CellHistoryDeletionBlockedReason =
+	when (this) {
+		ImportedCellDeletionBlockedReason.COLLECTED_DATA_EPOCH_CHANGED,
+		ImportedCellDeletionBlockedReason.STALE_SELECTION,
+		-> CellHistoryDeletionBlockedReason.STALE_SELECTION
+		ImportedCellDeletionBlockedReason.RETENTION_BOUNDARY ->
+			CellHistoryDeletionBlockedReason.RETENTION_BOUNDARY
+		ImportedCellDeletionBlockedReason.STALE_REQUEST ->
+			CellHistoryDeletionBlockedReason.STALE_REQUEST
+		ImportedCellDeletionBlockedReason.PARTIAL_DELETION_STATE ->
+			CellHistoryDeletionBlockedReason.PARTIAL_DELETION_STATE
+	}
+
+private fun ImportedCellDeletionRetryableReason.toPublicCellRetryableReason(): CellHistoryDeletionRetryableReason =
+	when (this) {
+		ImportedCellDeletionRetryableReason.CONCURRENT_STATE_CHANGE ->
+			CellHistoryDeletionRetryableReason.CONCURRENT_STATE_CHANGE
+		ImportedCellDeletionRetryableReason.STORAGE_UNAVAILABLE ->
+			CellHistoryDeletionRetryableReason.STORAGE_UNAVAILABLE
+	}
+
+private fun CellCapturedSelectedDeletionBlockedReason.toPublicCellPayloadDeletionResult(): DeleteCellHistoryResult =
+	when (this) {
+		CellCapturedSelectedDeletionBlockedReason.STALE_REQUEST ->
+			cellDeletionBlocked(CellHistoryDeletionBlockedReason.STALE_REQUEST)
+		CellCapturedSelectedDeletionBlockedReason.STALE_COLLECTED_DATA_EPOCH ->
+			cellDeletionBlocked(CellHistoryDeletionBlockedReason.STALE_SELECTION)
+		CellCapturedSelectedDeletionBlockedReason.DELETION_FENCE_CONFLICT ->
+			cellDeletionBlocked(CellHistoryDeletionBlockedReason.PARTIAL_DELETION_STATE)
+		CellCapturedSelectedDeletionBlockedReason.MAINTENANCE_BOUND_EXCEEDED ->
+			cellDeletionUnverifiable(CellHistoryDeletionUnverifiableReason.SELECTION_LOOKUP_BUDGET_EXCEEDED)
+		CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE ->
+			cellDeletionUnverifiable(CellHistoryDeletionUnverifiableReason.WRITER_OR_FACT_AUTHORITY_INVALID)
+	}

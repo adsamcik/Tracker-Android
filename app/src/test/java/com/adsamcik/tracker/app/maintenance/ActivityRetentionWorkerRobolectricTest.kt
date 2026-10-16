@@ -228,7 +228,9 @@ class ActivityRetentionWorkerRobolectricTest {
 				coEvery { imported.truncate(any()) } coAnswers {
 					settledEvidence = db.sourceEvidenceStateDao().get()
 					db.sourceEvidenceStateDao().incrementRevision(System.currentTimeMillis())
-					if (cancel) throw CancellationException("cancel Activity retention caller")
+					if (cancel) {
+						throw CancellationException("cancel Activity retention caller")
+					}
 					throw SQLiteException("injected Activity retention storage failure")
 				}
 				var cancellationPropagated = false
@@ -356,7 +358,8 @@ class ActivityRetentionWorkerRobolectricTest {
 		val workExecutionCoordinator = workExecutionCoordinator(path)
 		val factory = object : WorkerFactory() {
 			override fun createWorker(appContext: Context, workerClassName: String, parameters: WorkerParameters): ListenableWorker =
-				if (path == WorkerPath.LEGACY) DataRetentionWorker(
+				if (path == WorkerPath.LEGACY) {
+					DataRetentionWorker(
 					appContext, parameters, store, Provider { db }, mockk<ExportPlanStore>(relaxed = true),
 					mockk(relaxed = true), lifecycle, READY_GATE, Provider { lane }, Provider { imported },
 					mockk<CellCapturedRetentionService> {
@@ -374,7 +377,9 @@ class ActivityRetentionWorkerRobolectricTest {
 						} returns PeriodicAmbientRetentionResult.Complete
 					},
 					workExecutionCoordinator,
-				) else RetentionPipelineWorker(
+				)
+				} else {
+					RetentionPipelineWorker(
 					appContext, parameters, store, lifecycle, Provider { db }, mockk(relaxed = true),
 					READY_GATE, Provider { lane }, mockk<com.adsamcik.tracker.tracker.source.projection.ActivityControlRetentionMaintenance> {
 						coEvery { pruneDue() } returns false
@@ -395,6 +400,7 @@ class ActivityRetentionWorkerRobolectricTest {
 					},
 					workExecutionCoordinator,
 				)
+				}
 		}
 
 		return if (path == WorkerPath.LEGACY) {
@@ -517,7 +523,9 @@ class ActivityRetentionWorkerRobolectricTest {
 
 	private fun evidenceDao(): SourceEvidenceStateDao = object : SourceEvidenceStateDao {
 		private var state: SourceEvidenceState? = null
-		override suspend fun ensure(state: SourceEvidenceState) { if (this.state == null) this.state = state }
+		override suspend fun ensure(state: SourceEvidenceState) { if (this.state == null) {
+			this.state = state
+		} }
 		override suspend fun get() = state
 		override suspend fun incrementRevisionForExactLifecycle(
 			expectedRevision: Long,
@@ -529,7 +537,9 @@ class ActivityRetentionWorkerRobolectricTest {
 			if (current.revision != expectedRevision ||
 				current.collectedDataEpoch != expectedCollectedDataEpoch ||
 				current.retainedFromMs != expectedRetainedFromMs
-			) return 0
+			) {
+				return 0
+			}
 			state = current.copy(revision = current.revision + 1L, updatedAtMs = updatedAtMs)
 			return 1
 		}
@@ -545,7 +555,9 @@ class ActivityRetentionWorkerRobolectricTest {
 			if (current.revision != expectedRevision ||
 				current.collectedDataEpoch != expectedEpoch ||
 				current.retainedFromMs != expectedRetainedFromMs
-			) return 0
+			) {
+				return 0
+			}
 			state = current.copy(
 				revision = current.revision + 1L,
 				collectedDataEpoch = epoch,
@@ -660,8 +672,16 @@ class ActivityRetentionWorkerRobolectricTest {
 		createdAt = 1_000L,
 	)
 	private fun owner(canonical: Boolean) = SourceDestinationOwnerEntity(ACTIVITY, DESTINATION,
-		if (canonical) SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS else SourceDestinationOwnerEntity.OWNER_LEGACY_ACTIVITY_SNAPSHOT,
-		if (canonical) SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION else SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION, 0L)
+		if (canonical) {
+			SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS
+		} else {
+			SourceDestinationOwnerEntity.OWNER_LEGACY_ACTIVITY_SNAPSHOT
+		},
+		if (canonical) {
+			SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+		} else {
+			SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
+		}, 0L)
 	private fun context(): Context = ApplicationProvider.getApplicationContext()
 	private fun rowCount(db: AppDatabase, table: String): Long = db.openHelper.writableDatabase.query("SELECT COUNT(*) FROM $table").use {
 		it.moveToFirst(); it.getLong(0)

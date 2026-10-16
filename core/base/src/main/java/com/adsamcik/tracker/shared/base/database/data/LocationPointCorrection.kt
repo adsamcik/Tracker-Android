@@ -44,7 +44,15 @@ data class LocationPointCorrection(
     @ColumnInfo(name = "alt_conversion_status") val altitudeConversionStatus: AltitudeConversionStatus,
     @ColumnInfo(name = "raw_gps_alt_datum") val rawGpsAltitudeDatum: AltitudeDatum,
 ) {
+    /**
+     * Factories and canonical digests binding this record to its original identity, revision and
+     * lifecycle fields.
+     */
     companion object {
+        /**
+         * Copies the supplied Location values into one current correction under the existing
+         * sample ID, data epoch and revision.
+         */
         fun from(sampleId: Long, epoch: Long, revision: Long, value: LocationSample) =
             LocationPointCorrection(sampleId, epoch, revision, value.timeMs, value.latE7, value.lonE7,
                 value.altitudeM, value.rawGpsAltitudeM, value.hAccM, value.vAccM, value.speedMps,

@@ -45,6 +45,7 @@ class SourceRuntimeRegistry private constructor(
 
 	fun registeredSources(): Set<SourceKind> = directory.registeredSources()
 
+	/** Reads catalog capability without starting or claiming a runtime. */
 	suspend fun availability(request: SourceAvailabilityRequest): SourceCatalogAvailability =
 		directory.availability(request)
 

@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.ImportedActivityProductReader
 import com.adsamcik.tracker.shared.base.database.PortableActivityCaptureCoverage
 import com.adsamcik.tracker.shared.base.database.PortableActivityFragmentV1
 import com.adsamcik.tracker.shared.base.database.PortableActivityOpaqueIdentity
+import com.adsamcik.tracker.shared.base.database.PortableActivityWindowV1
 import com.adsamcik.tracker.shared.base.database.dao.MeasuredHistoryCandidate
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsReadFailure
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedRead
@@ -26,7 +27,9 @@ import com.adsamcik.tracker.stats.api.repository.HistoryPurpose
 import com.adsamcik.tracker.stats.api.repository.HistoryRange
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.PortablePressureAvailability
+import com.adsamcik.tracker.stats.api.repository.PortablePressureRunV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsFactCoverage
+import com.adsamcik.tracker.stats.api.repository.PortableStepsFactV1
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage
@@ -41,22 +44,37 @@ internal data class MeasuredImportedSensorHistoryRead(
 )
 
 /** Caller owns the Room snapshot. Raw keys never authorize a measurement. */
+// One caller-owned Room snapshot qualifies the three imported sources and their isolated parent failures.
+@Suppress("TooManyFunctions")
 internal class MeasuredImportedSensorHistoryReader(private val database: AppDatabase) {
     suspend fun candidates(source: HistorySource, range: HistoryRange, after: HistoryPosition?):
         List<MeasuredHistoryCandidate> {
-        if (source !in range.sources || HistoryOrigin.IMPORTED !in range.origins || HistoryPurpose.CAPTURE !in range.purposes) return emptyList()
+        if (source !in range.sources || HistoryOrigin.IMPORTED !in range.origins ||
+            HistoryPurpose.CAPTURE !in range.purposes) {
+            return emptyList()
+        }
         val leaf = leafSql(source)
         val tag = "imported:${source.name.lowercase().let { "imported_$it" }}"
         // Activity endpoints are observations; a discontinuity may move the original end backwards.
-        val overlap = if (source == HistorySource.ACTIVITY) "(endTimeMs >= ? OR startTimeMs >= ?)"
-            else "(endTimeMs > ? OR (endTimeMs = startTimeMs AND startTimeMs >= ?))"
-        val seek = if (after == null) "" else """
+        val overlap = if (source == HistorySource.ACTIVITY) {
+            "(endTimeMs >= ? OR startTimeMs >= ?)"
+        }
+            else {
+            "(endTimeMs > ? OR (endTimeMs = startTimeMs AND startTimeMs >= ?))"
+        }
+        val seek = if (after == null) {
+            ""
+        } else {
+            """
             AND (startTimeMs < ? OR (startTimeMs = ? AND
                 (? > ? OR (? = ? AND identity > ?))))
         """.trimIndent()
+        }
         val arguments = mutableListOf<Any>(range.toExclusiveMs, range.fromInclusiveMs, range.fromInclusiveMs)
-        if (after != null) arguments.addAll(listOf(after.startTimeMs, after.startTimeMs,
+        if (after != null) {
+            arguments.addAll(listOf(after.startTimeMs, after.startTimeMs,
             tag, after.originTag, tag, after.originTag, after.stableId))
+        }
         return database.trackingHistoryReadDao().measuredHistoryCandidates(SimpleSQLiteQuery("""
             SELECT * FROM ($leaf)
             WHERE startTimeMs < ? AND $overlap
@@ -66,38 +84,57 @@ internal class MeasuredImportedSensorHistoryReader(private val database: AppData
 
     suspend fun qualify(source: HistorySource, keys: List<MeasuredHistoryCandidate>, range: HistoryRange):
         MeasuredImportedSensorHistoryRead {
-        require(keys.size <= 100 && keys.map(::measuredHistoryPosition).distinct().size == keys.size)
-        require(source in setOf(HistorySource.ACTIVITY, HistorySource.PRESSURE, HistorySource.STEPS))
-        require(keys.all { it.kind == "imported_${source.name.lowercase()}" && it.origin == "IMPORTED" &&
-            it.purpose == "CAPTURE" && it.writerId != null })
-        if (source !in range.sources || HistoryOrigin.IMPORTED !in range.origins || HistoryPurpose.CAPTURE !in range.purposes)
+        requireImportedCandidates(source, keys)
+        if (source !in range.sources || HistoryOrigin.IMPORTED !in range.origins ||
+            HistoryPurpose.CAPTURE !in range.purposes)
+            {
             return MeasuredImportedSensorHistoryRead(emptyMap(), emptySet())
+        }
         val rows = linkedMapOf<HistoryPosition, UnifiedHistoryRow>()
         val problems = linkedSetOf<HistoryProblem>()
         // One original parent is loaded at a time, then discarded. Sibling failures are isolated.
         for ((parent, selected) in keys.groupBy { requireNotNull(it.writerId) }) {
             currentCoroutineContext().ensureActive()
-            try {
-                val qualified = when (source) {
-                    HistorySource.ACTIVITY -> activity(parent, selected, range, problems)
-                    HistorySource.PRESSURE -> pressure(parent, selected, range, problems)
-                    HistorySource.STEPS -> steps(parent, selected, range, problems)
-                    else -> error("Unsupported imported measured source")
-                }
-                rows.putAll(qualified)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: IllegalArgumentException) {
-                problems += HistoryProblem(source, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
-            } catch (_: IllegalStateException) {
-                problems += HistoryProblem(source, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
-            } catch (_: ArithmeticException) {
-                problems += HistoryProblem(source, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
-            } catch (_: Exception) {
-                problems += HistoryProblem(source, HistoryProblemReason.STORAGE_UNAVAILABLE)
-            }
+            appendParent(source, parent, selected, range, rows, problems)
         }
         return MeasuredImportedSensorHistoryRead(rows, problems)
+    }
+
+    private fun requireImportedCandidates(source: HistorySource, keys: List<MeasuredHistoryCandidate>) {
+        require(keys.size <= MAX_MEASURED_CANDIDATES &&
+            keys.map(::measuredHistoryPosition).distinct().size == keys.size)
+        require(source in setOf(HistorySource.ACTIVITY, HistorySource.PRESSURE, HistorySource.STEPS))
+        require(keys.all { it.kind == "imported_${source.name.lowercase()}" && it.origin == "IMPORTED" &&
+            it.purpose == "CAPTURE" && it.writerId != null })
+    }
+
+    private suspend fun appendParent(
+        source: HistorySource,
+        parent: String,
+        keys: List<MeasuredHistoryCandidate>,
+        range: HistoryRange,
+        rows: MutableMap<HistoryPosition, UnifiedHistoryRow>,
+        problems: MutableSet<HistoryProblem>,
+    ) {
+        try {
+            val qualified = when (source) {
+                HistorySource.ACTIVITY -> activity(parent, keys, range, problems)
+                HistorySource.PRESSURE -> pressure(parent, keys, range, problems)
+                HistorySource.STEPS -> steps(parent, keys, range, problems)
+                else -> error("Unsupported imported measured source")
+            }
+            rows.putAll(qualified)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: IllegalArgumentException) {
+            problems += HistoryProblem(source, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+        } catch (_: IllegalStateException) {
+            problems += HistoryProblem(source, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+        } catch (_: ArithmeticException) {
+            problems += HistoryProblem(source, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+        } catch (_: Exception) {
+            problems += HistoryProblem(source, HistoryProblemReason.STORAGE_UNAVAILABLE)
+        }
     }
 
     private suspend fun activity(parent: String, keys: List<MeasuredHistoryCandidate>, range: HistoryRange,
@@ -105,65 +142,127 @@ internal class MeasuredImportedSensorHistoryReader(private val database: AppData
         val read = ImportedActivityProductReader(database)
             .selectIdentityInTransaction(PortableActivityOpaqueIdentity(parent))
         if (read !is ImportedActivityProductEvaluation.Readable) {
-            if (read is ImportedActivityProductEvaluation.Unverifiable) problems += HistoryProblem(
+            if (read is ImportedActivityProductEvaluation.Unverifiable) {
+                problems += HistoryProblem(
                 HistorySource.ACTIVITY, if (read.reason == ImportedActivityProductFailure.DEPENDENCY_OVERFLOW)
-                    HistoryProblemReason.DEPENDENCY_OVERFLOW else HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+                    {
+                    HistoryProblemReason.DEPENDENCY_OVERFLOW
+                } else {
+                    HistoryProblemReason.INTEGRITY_UNAVAILABLE
+                })
+            }
             return emptyMap()
         }
-        if (read.entryDeleted) return emptyMap()
-        val revision = read.candidate.importRevision
+        if (read.entryDeleted) {
+            return emptyMap()
+        }
         val accepted = linkedMapOf<HistoryPosition, UnifiedHistoryRow>()
         for (run in read.entry.runs) {
             if (run.identity.value in read.deletedRunIdentities ||
-                run.captureCoverage == PortableActivityCaptureCoverage.NOT_CAPTURED) continue
+                run.captureCoverage == PortableActivityCaptureCoverage.NOT_CAPTURED) {
+                continue
+            }
             for (window in run.windows) {
-                for ((index, fragment) in window.fragments.withIndex()) {
-                    if (fragment !is PortableActivityFragmentV1.Band) continue
-                    val key = keys.singleOrNull { it.identity == framed(parent, revision.toString(),
-                        run.identity.value, window.identity.value, index.toString()) } ?: continue
-                    check(key.factRevision == revision && key.factId == window.identity.value && key.itemIndex == index)
-                    check(key.startTimeMs == fragment.startWallTimeMs && key.endTimeMs == fragment.endWallTimeMs)
-                    if (!overlaps(key, range) || read.retainedFromMs?.let { floor ->
-                        earliest(fragment.startWallTimeMs, fragment.startWallTimeUncertaintyMs) < floor ||
-                            earliest(fragment.endWallTimeMs, fragment.endWallTimeUncertaintyMs) < floor
-                    } == true) continue
-                    if (window.fragments.any { it is PortableActivityFragmentV1.Gap }) {
-                        // Elapsed-only gaps have no trustworthy UTC location in a calendar.
-                        problems += HistoryProblem(HistorySource.ACTIVITY, HistoryProblemReason.TIME_UNCERTAIN)
-                    }
-                    val band = fragment.toMeasuredPublicFragment(window.storedZoneId) as ActivityHistoryFragment.Band
-                    val position = measuredHistoryPosition(key)
-                    accepted[position] = row(key, HistoryMeasurement.Activity(band))
-                }
+                accepted.putAll(read.activityWindow(parent, run.identity.value, window, keys, range, problems))
             }
         }
         return accepted
+    }
+
+    private fun ImportedActivityProductEvaluation.Readable.activityWindow(
+        parent: String,
+        runIdentity: String,
+        window: PortableActivityWindowV1,
+        keys: List<MeasuredHistoryCandidate>,
+        range: HistoryRange,
+        problems: MutableSet<HistoryProblem>,
+    ): Map<HistoryPosition, UnifiedHistoryRow> {
+        val revision = candidate.importRevision
+        val accepted = linkedMapOf<HistoryPosition, UnifiedHistoryRow>()
+        for ((index, fragment) in window.fragments.withIndex()) {
+            if (fragment !is PortableActivityFragmentV1.Band) {
+                continue
+            }
+            val key = keys.singleOrNull { it.identity == framed(parent, revision.toString(),
+                runIdentity, window.identity.value, index.toString()) } ?: continue
+            requireActivityFragmentPosition(key, revision, window, index, fragment)
+            if (!overlaps(key, range) || fragment.precedesRetainedFloor(retainedFromMs)) {
+                continue
+            }
+            if (window.fragments.any { it is PortableActivityFragmentV1.Gap }) {
+                // Elapsed-only gaps have no trustworthy UTC location in a calendar.
+                problems += HistoryProblem(HistorySource.ACTIVITY, HistoryProblemReason.TIME_UNCERTAIN)
+            }
+            val band = fragment.toMeasuredPublicFragment(window.storedZoneId) as ActivityHistoryFragment.Band
+            val position = measuredHistoryPosition(key)
+            accepted[position] = row(key, HistoryMeasurement.Activity(band))
+        }
+        return accepted
+    }
+
+    private fun PortableActivityFragmentV1.Band.precedesRetainedFloor(floor: Long?): Boolean =
+        floor?.let {
+            earliest(startWallTimeMs, startWallTimeUncertaintyMs) < it ||
+                earliest(endWallTimeMs, endWallTimeUncertaintyMs) < it
+        } == true
+
+    private fun requireActivityFragmentPosition(
+        key: MeasuredHistoryCandidate,
+        revision: Long,
+        window: PortableActivityWindowV1,
+        index: Int,
+        fragment: PortableActivityFragmentV1.Band,
+    ) {
+        check(key.factRevision == revision && key.factId == window.identity.value && key.itemIndex == index)
+        check(key.startTimeMs == fragment.startWallTimeMs && key.endTimeMs == fragment.endWallTimeMs)
     }
 
     private suspend fun pressure(parent: String, keys: List<MeasuredHistoryCandidate>, range: HistoryRange,
         problems: MutableSet<HistoryProblem>): Map<HistoryPosition, UnifiedHistoryRow> {
         val read = ImportedPressureHistoryEvaluator(database).selectedInTransaction(parent)
         if (read !is ImportedPressureHistoryEvaluation.Readable) {
-            if (read is ImportedPressureHistoryEvaluation.Unverifiable) problems += HistoryProblem(
+            if (read is ImportedPressureHistoryEvaluation.Unverifiable) {
+                problems += HistoryProblem(
                 HistorySource.PRESSURE, if (read.reason == ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW)
-                    HistoryProblemReason.DEPENDENCY_OVERFLOW else HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+                    {
+                    HistoryProblemReason.DEPENDENCY_OVERFLOW
+                } else {
+                    HistoryProblemReason.INTEGRITY_UNAVAILABLE
+                })
+            }
             return emptyMap()
         }
-        val revision = read.latest.header.importRevision
         val accepted = linkedMapOf<HistoryPosition, UnifiedHistoryRow>()
         for (run in read.latest.entry.runs) {
-            if (run.identity.value in read.deletedRunIdentities || run.availability == PortablePressureAvailability.DELETED) continue
-            for (window in run.windows) {
-                val key = keys.singleOrNull { it.identity == framed(parent, revision.toString(),
-                    run.identity.value, window.identity.value) } ?: continue
-                check(key.factRevision == revision && key.factId == window.identity.value)
-                check(key.startTimeMs == window.intervalStartTimeMs && key.endTimeMs == window.intervalEndTimeMs)
-                if (!overlaps(key, range) || read.retainedFromMs?.let {
-                    earliest(window.intervalStartTimeMs, window.wallTimeUncertaintyMs) < it
-                } == true) continue
-                val position = measuredHistoryPosition(key)
-                accepted[position] = row(key, HistoryMeasurement.Pressure(window.toPublicWindow()))
+            if (run.identity.value in read.deletedRunIdentities ||
+                run.availability == PortablePressureAvailability.DELETED) {
+                continue
             }
+            accepted.putAll(read.pressureRun(parent, run, keys, range))
+        }
+        return accepted
+    }
+
+    private fun ImportedPressureHistoryEvaluation.Readable.pressureRun(
+        parent: String,
+        run: PortablePressureRunV1,
+        keys: List<MeasuredHistoryCandidate>,
+        range: HistoryRange,
+    ): Map<HistoryPosition, UnifiedHistoryRow> {
+        val revision = latest.header.importRevision
+        val accepted = linkedMapOf<HistoryPosition, UnifiedHistoryRow>()
+        for (window in run.windows) {
+            val key = keys.singleOrNull { it.identity == framed(parent, revision.toString(),
+                run.identity.value, window.identity.value) } ?: continue
+            check(key.factRevision == revision && key.factId == window.identity.value)
+            check(key.startTimeMs == window.intervalStartTimeMs && key.endTimeMs == window.intervalEndTimeMs)
+            if (!overlaps(key, range) || retainedFromMs?.let {
+                earliest(window.intervalStartTimeMs, window.wallTimeUncertaintyMs) < it
+            } == true) {
+                continue
+            }
+            val position = measuredHistoryPosition(key)
+            accepted[position] = row(key, HistoryMeasurement.Pressure(window.toPublicWindow()))
         }
         return accepted
     }
@@ -176,9 +275,15 @@ internal class MeasuredImportedSensorHistoryReader(private val database: AppData
             is ImportedStepsRetainedRead.Ready -> read.entries.singleOrNull()
             is ImportedStepsRetainedRead.Unverifiable -> {
                 if (read.reason !in setOf(ImportedStepsReadFailure.RETENTION, ImportedStepsReadFailure.DELETION,
-                        ImportedStepsReadFailure.MISSING)) problems += HistoryProblem(HistorySource.STEPS,
+                        ImportedStepsReadFailure.MISSING)) {
+                    problems += HistoryProblem(HistorySource.STEPS,
                     if (read.reason == ImportedStepsReadFailure.DEPENDENCY_OVERFLOW)
-                        HistoryProblemReason.DEPENDENCY_OVERFLOW else HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+                        {
+                        HistoryProblemReason.DEPENDENCY_OVERFLOW
+                    } else {
+                        HistoryProblemReason.INTEGRITY_UNAVAILABLE
+                    })
+                }
                 null
             }
         } ?: return emptyMap()
@@ -196,27 +301,58 @@ internal class MeasuredImportedSensorHistoryReader(private val database: AppData
                     fact.identity.value, stored.semanticRevision.toString()) } ?: continue
                 check(key.factRevision == stored.semanticRevision && key.factId == fact.identity.value)
                 check(key.startTimeMs == fact.intervalStartTimeMs && key.endTimeMs == fact.intervalEndTimeMs)
-                if (!overlaps(key, range) || floor?.let {
-                    fact.intervalEndTimeMs < it ||
-                        (fact.intervalStartTimeMs < it && runId !in entry.retentionTruncatedRunIds)
-                } == true) continue
-                val count = if (fact.coverage == PortableStepsFactCoverage.COVERED) requireNotNull(fact.stepCount) else null
-                val cause = when (fact.coverage) {
-                    PortableStepsFactCoverage.BASELINE -> StepsHistoryCause.BASELINE_ONLY
-                    PortableStepsFactCoverage.RESET_GAP, PortableStepsFactCoverage.PARTIAL -> StepsHistoryCause.PROVIDER_GAP
-                    PortableStepsFactCoverage.COVERED -> null
+                if (!overlaps(key, range) || fact.precedesRetainedFloor(floor, entry, runId)) {
+                    continue
                 }
-                val history = StepsHistory(count, HistoryAvailability.RETAINED_IMPORTED,
-                    when { count == null -> HistoryEvidence.NONE; count == 0L -> HistoryEvidence.ACTIVE
-                        else -> HistoryEvidence.RECORDED },
-                    if (count == null) HistoryProductState.PARTIAL else HistoryProductState.READY,
-                    if (count == null) StepsHistoryCoverage.UNKNOWN else StepsHistoryCoverage.COMPLETE,
-                    if (cause == null) emptySet() else setOf(cause))
+                val history = fact.measuredHistory()
                 val position = measuredHistoryPosition(key)
                 accepted[position] = row(key, HistoryMeasurement.Steps(history))
             }
         }
         return accepted
+    }
+
+    private fun PortableStepsFactV1.precedesRetainedFloor(
+        floor: Long?,
+        entry: RetainedImportedStepsEntry,
+        runId: String,
+    ): Boolean = floor?.let {
+        intervalEndTimeMs < it ||
+            (intervalStartTimeMs < it && runId !in entry.retentionTruncatedRunIds)
+    } == true
+
+    // Projects the four portable coverage states to the existing public Steps value and status fields.
+    @Suppress("CyclomaticComplexMethod")
+    private fun PortableStepsFactV1.measuredHistory(): StepsHistory {
+        val count = if (coverage == PortableStepsFactCoverage.COVERED) {
+            requireNotNull(stepCount)
+        } else {
+            null
+        }
+        val cause = when (coverage) {
+            PortableStepsFactCoverage.BASELINE -> StepsHistoryCause.BASELINE_ONLY
+            PortableStepsFactCoverage.RESET_GAP, PortableStepsFactCoverage.PARTIAL ->
+                StepsHistoryCause.PROVIDER_GAP
+            PortableStepsFactCoverage.COVERED -> null
+        }
+        return StepsHistory(count, HistoryAvailability.RETAINED_IMPORTED,
+            when { count == null -> HistoryEvidence.NONE; count == 0L -> HistoryEvidence.ACTIVE
+                else -> HistoryEvidence.RECORDED },
+            if (count == null) {
+                HistoryProductState.PARTIAL
+            } else {
+                HistoryProductState.READY
+            },
+            if (count == null) {
+                StepsHistoryCoverage.UNKNOWN
+            } else {
+                StepsHistoryCoverage.COMPLETE
+            },
+            if (cause == null) {
+                emptySet()
+            } else {
+                setOf(cause)
+            })
     }
 
     private fun row(key: MeasuredHistoryCandidate, measurement: HistoryMeasurement) = UnifiedHistoryRow(
@@ -227,18 +363,27 @@ internal class MeasuredImportedSensorHistoryReader(private val database: AppData
 
     private fun overlaps(key: MeasuredHistoryCandidate, range: HistoryRange): Boolean =
         key.startTimeMs < range.toExclusiveMs && requireNotNull(key.endTimeMs).let {
-            if (key.kind == "imported_activity") it >= range.fromInclusiveMs || key.startTimeMs >= range.fromInclusiveMs
-            else it > range.fromInclusiveMs || it == key.startTimeMs && it >= range.fromInclusiveMs
+            if (key.kind == "imported_activity") {
+                it >= range.fromInclusiveMs || key.startTimeMs >= range.fromInclusiveMs
+            }
+            else {
+                it > range.fromInclusiveMs || it == key.startTimeMs && it >= range.fromInclusiveMs
+            }
         }
 
-    private fun earliest(time: Long, uncertainty: Long): Long = if (uncertainty >= time) 0L else time - uncertainty
+    private fun earliest(time: Long, uncertainty: Long): Long = if (uncertainty >= time) {
+        0L
+    } else {
+        time - uncertainty
+    }
 
     private fun framed(vararg values: String) = values.joinToString("") { "${it.length}:$it" }
 
     private fun leafSql(source: HistorySource): String = when (source) {
         HistorySource.ACTIVITY -> """
             SELECT 'imported_activity' AS kind, 'IMPORTED' AS origin, 'CAPTURE' AS purpose,
-                ${sqlFrame("entry.identity", "entry.import_revision", "fragment.run_identity", "fragment.window_identity", "fragment.ordinal")} AS identity,
+                ${sqlFrame("entry.identity", "entry.import_revision", "fragment.run_identity",
+                    "fragment.window_identity", "fragment.ordinal")} AS identity,
                 fragment.start_wall_time_ms AS startTimeMs, fragment.end_wall_time_ms AS endTimeMs,
                 NULL AS rowId, entry.identity AS writerId, NULL AS writerVersion,
                 fragment.window_identity AS factId, entry.import_revision AS factRevision, fragment.ordinal AS itemIndex, NULL AS physicalEventId, NULL AS physicalIdentity
@@ -250,7 +395,8 @@ internal class MeasuredImportedSensorHistoryReader(private val database: AppData
         """.trimIndent()
         HistorySource.PRESSURE -> """
             SELECT 'imported_pressure' AS kind, 'IMPORTED' AS origin, 'CAPTURE' AS purpose,
-                ${sqlFrame("entry.identity", "entry.import_revision", "window.run_identity", "window.identity")} AS identity,
+                ${sqlFrame("entry.identity", "entry.import_revision", "window.run_identity",
+                    "window.identity")} AS identity,
                 window.interval_start_time_ms AS startTimeMs, window.interval_end_time_ms AS endTimeMs,
                 NULL AS rowId, entry.identity AS writerId, NULL AS writerVersion,
                 window.identity AS factId, entry.import_revision AS factRevision, NULL AS itemIndex, NULL AS physicalEventId, NULL AS physicalIdentity
@@ -261,7 +407,8 @@ internal class MeasuredImportedSensorHistoryReader(private val database: AppData
         """.trimIndent()
         HistorySource.STEPS -> """
             SELECT 'imported_steps' AS kind, 'IMPORTED' AS origin, 'CAPTURE' AS purpose,
-                ${sqlFrame("entry.identity", "run.identity", "fact.logical_fact_id", "fact.semantic_revision")} AS identity,
+                ${sqlFrame("entry.identity", "run.identity", "fact.logical_fact_id",
+                    "fact.semantic_revision")} AS identity,
                 fact.interval_start_time_ms AS startTimeMs, fact.interval_end_time_ms AS endTimeMs,
                 NULL AS rowId, entry.identity AS writerId, NULL AS writerVersion,
                 fact.logical_fact_id AS factId, fact.semantic_revision AS factRevision, NULL AS itemIndex, NULL AS physicalEventId, NULL AS physicalIdentity
@@ -280,3 +427,5 @@ internal class MeasuredImportedSensorHistoryReader(private val database: AppData
         "length(CAST($it AS TEXT)) || ':' || CAST($it AS TEXT)"
     }
 }
+
+private const val MAX_MEASURED_CANDIDATES = 100

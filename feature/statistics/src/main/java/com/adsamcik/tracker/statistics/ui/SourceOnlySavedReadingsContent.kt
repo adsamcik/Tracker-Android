@@ -37,19 +37,36 @@ internal fun SourceOnlySavedReadingsContent(detail: SourceHistoryDetailState.Loa
             is SourceAwareHistoryPageEntry.PressureOnly -> entry.history.endTime.raw
             else -> return
         }
-        val format = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM).withZone(ZoneId.systemDefault())
-        Text(if (from == to) format.format(Instant.ofEpochMilli(from)) else
-            "${format.format(Instant.ofEpochMilli(from))} → ${format.format(Instant.ofEpochMilli(to))}",
-            style = MaterialTheme.typography.bodyMedium)
+        SavedReadingTimeRange(from, to)
         when (entry) {
-            is SourceAwareHistoryPageEntry.StepsOnly -> detail.members.forEach { member ->
-                val steps = (member.session as? SessionHistoryQuery.Found)?.history?.steps ?: return@forEach
-                MetricCard(label = stringResource(R.string.trip_detail_steps),
-                    value = steps.count?.toString() ?: stringResource(R.string.history_value_unavailable),
-                    supportingText = if (steps.hasCompleteValue) null else stringResource(R.string.history_value_partial))
-            }
+            is SourceAwareHistoryPageEntry.StepsOnly -> SavedStepsReadings(detail)
             is SourceAwareHistoryPageEntry.PressureOnly -> TripDetailPressureCard(entry.history.pressure)
             else -> Unit
         }
+    }
+}
+
+@Composable
+private fun SavedReadingTimeRange(from: Long, to: Long) {
+    val format = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM).withZone(ZoneId.systemDefault())
+    Text(if (from == to) {
+        format.format(Instant.ofEpochMilli(from))
+    } else {
+        "${format.format(Instant.ofEpochMilli(from))} → ${format.format(Instant.ofEpochMilli(to))}"
+    },
+        style = MaterialTheme.typography.bodyMedium)
+}
+
+@Composable
+private fun SavedStepsReadings(detail: SourceHistoryDetailState.Loaded) {
+    detail.members.forEach { member ->
+        val steps = (member.session as? SessionHistoryQuery.Found)?.history?.steps ?: return@forEach
+        MetricCard(label = stringResource(R.string.trip_detail_steps),
+            value = steps.count?.toString() ?: stringResource(R.string.history_value_unavailable),
+            supportingText = if (steps.hasCompleteValue) {
+                null
+            } else {
+                stringResource(R.string.history_value_partial)
+            })
     }
 }

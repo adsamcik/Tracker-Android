@@ -275,14 +275,26 @@ class StepsGoalAchievementReconcilerTest {
 			StepsGoalEffectEntity.STATE_READY_INCOMPLETE
 		},
 		unavailableReason = null,
-		qualifiedSteps = if (complete) 12_000L else 8_000L,
+		qualifiedSteps = if (complete) {
+			12_000L
+		} else {
+			8_000L
+		},
 		sourceAuthorityDigest = digest.toString().repeat(64),
 		sourceEvidenceRevision = sourceRevision,
 		effectRevision = 1L,
 		completionPointsMicros = 100_000_000L,
 		completionXp = 50,
-		desiredPointsMicros = if (complete) 100_000_000L else 0L,
-		desiredXp = if (complete) 50 else 0,
+		desiredPointsMicros = if (complete) {
+			100_000_000L
+		} else {
+			0L
+		},
+		desiredXp = if (complete) {
+			50
+		} else {
+			0
+		},
 		firstCompletedAtMs = 100L.takeIf { complete },
 		pointsAppliedRevision = 0L,
 		xpAppliedRevision = 0L,

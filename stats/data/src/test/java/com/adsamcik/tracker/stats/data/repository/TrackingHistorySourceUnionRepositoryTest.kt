@@ -91,6 +91,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
+// One real Room history-union fixture keeps typed composition and snapshot invalidation comparable.
+@Suppress("LargeClass")
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -230,6 +232,8 @@ class TrackingHistorySourceUnionRepositoryTest {
 				)
 		}
 
+	// Keep all four typed imported readers and the resulting shared page together to verify their exact wiring.
+	@Suppress("LongMethod")
 	@Test
 	fun `shared reader wires typed eligible pages without claiming producer Room coverage`() =
 		runTest {

@@ -209,7 +209,11 @@ private fun insertOrAuthenticateSourceFence(
 			expected.scopeKind,
 			expected.scopeIdentityDigest,
 		),
-	).use { cursor -> if (cursor.moveToFirst()) cursor.sourceDeletionFence() else null }
+	).use { cursor -> if (cursor.moveToFirst()) {
+		cursor.sourceDeletionFence()
+	} else {
+		null
+	} }
 	if (stored == null) {
 		sqlite.executeInsert(
 			"INSERT INTO source_deletion_fence(" +
@@ -935,7 +939,11 @@ private fun importedWifiEntryDeletion(
 ): ImportedWifiEntryDeletionEntity? = sqlite.query(
 	"SELECT * FROM imported_wifi_entry_deletion WHERE entry_identity = ? LIMIT 1",
 	arrayOf(entryIdentity),
-).use { cursor -> if (cursor.moveToFirst()) cursor.importedWifiEntryDeletion() else null }
+).use { cursor -> if (cursor.moveToFirst()) {
+	cursor.importedWifiEntryDeletion()
+} else {
+	null
+} }
 
 private fun importedWifiRunDeletion(
 	sqlite: SupportSQLiteDatabase,
@@ -943,7 +951,11 @@ private fun importedWifiRunDeletion(
 ): ImportedWifiDeletionGenerationEntity? = sqlite.query(
 	"SELECT * FROM imported_wifi_deletion_generation WHERE run_identity = ? LIMIT 1",
 	arrayOf(runIdentity),
-).use { cursor -> if (cursor.moveToFirst()) cursor.importedWifiRunDeletion() else null }
+).use { cursor -> if (cursor.moveToFirst()) {
+	cursor.importedWifiRunDeletion()
+} else {
+	null
+} }
 
 private fun importedCellEntryDeletion(
 	sqlite: SupportSQLiteDatabase,
@@ -951,7 +963,11 @@ private fun importedCellEntryDeletion(
 ): ImportedCellEntryDeletionEntity? = sqlite.query(
 	"SELECT * FROM imported_cell_entry_deletion WHERE entry_identity = ? LIMIT 1",
 	arrayOf(entryIdentity),
-).use { cursor -> if (cursor.moveToFirst()) cursor.importedCellEntryDeletion() else null }
+).use { cursor -> if (cursor.moveToFirst()) {
+	cursor.importedCellEntryDeletion()
+} else {
+	null
+} }
 
 private fun importedCellRunDeletion(
 	sqlite: SupportSQLiteDatabase,
@@ -959,7 +975,11 @@ private fun importedCellRunDeletion(
 ): ImportedCellDeletionGenerationEntity? = sqlite.query(
 	"SELECT * FROM imported_cell_deletion_generation WHERE run_identity = ? LIMIT 1",
 	arrayOf(runIdentity),
-).use { cursor -> if (cursor.moveToFirst()) cursor.importedCellRunDeletion() else null }
+).use { cursor -> if (cursor.moveToFirst()) {
+	cursor.importedCellRunDeletion()
+} else {
+	null
+} }
 
 private fun sourceDeletionFence(
 	sqlite: SupportSQLiteDatabase,
@@ -974,7 +994,11 @@ private fun sourceDeletionFence(
 		SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
 		scopeIdentityDigest,
 	),
-).use { cursor -> if (cursor.moveToFirst()) cursor.sourceDeletionFence() else null }
+).use { cursor -> if (cursor.moveToFirst()) {
+	cursor.sourceDeletionFence()
+} else {
+	null
+} }
 
 private inline fun SupportSQLiteDatabase.forEachBounded(
 	sql: String,
@@ -1019,7 +1043,11 @@ private fun SupportSQLiteStatement.bindAll(values: Array<out Any?>) {
 		when (value) {
 			null -> bindNull(position)
 			is String -> bindString(position, value)
-			is Boolean -> bindLong(position, if (value) 1L else 0L)
+			is Boolean -> bindLong(position, if (value) {
+				1L
+			} else {
+				0L
+			})
 			is Int -> bindLong(position, value.toLong())
 			is Long -> bindLong(position, value)
 			is Float -> bindDouble(position, value.toDouble())
@@ -1069,7 +1097,7 @@ private fun Cursor.importedWifiRunDeletion() = ImportedWifiDeletionGenerationEnt
 private fun Cursor.importedWifiEntry() = ImportedWifiEntryRevisionEntity(
 	identity = string("identity"),
 	importRevision = long("import_revision"),
-	supersedesImportRevision = nullableLong("supersedes_import_revision"),
+	supersedesImportRevision = nullableRadioFullClearLong("supersedes_import_revision"),
 	contentChecksum = string("content_checksum"),
 	sourceFormat = string("source_format"),
 	sourceSchemaVersion = int("source_schema_version"),
@@ -1104,7 +1132,7 @@ private fun Cursor.wifiSelectedDeletionReceipt() = WifiSelectedDeletionReceiptEn
 	selectionIdentity = string("selection_identity"),
 	origin = string("origin"),
 	collectedDataEpoch = long("collected_data_epoch"),
-	selectedImportRevision = nullableLong("selected_import_revision"),
+	selectedImportRevision = nullableRadioFullClearLong("selected_import_revision"),
 	selectedContentChecksum = nullableString("selected_content_checksum"),
 	startTimeMs = long("start_time_ms"),
 	endTimeMs = long("end_time_ms"),
@@ -1114,7 +1142,7 @@ private fun Cursor.wifiSelectedDeletionReceipt() = WifiSelectedDeletionReceiptEn
 	protectedIdentitySetChecksum = string("protected_identity_set_checksum"),
 	runDeletionSetChecksum = string("run_deletion_set_checksum"),
 	sourceFenceSetChecksum = string("source_fence_set_checksum"),
-	retainedFromMs = nullableLong("retained_from_ms"),
+	retainedFromMs = nullableRadioFullClearLong("retained_from_ms"),
 	deletedAtMs = long("deleted_at_ms"),
 	effectChecksum = string("effect_checksum"),
 )
@@ -1129,7 +1157,7 @@ private fun Cursor.wifiSelectedProtectedIdentity() =
 		ownerRunIdentity = nullableString("owner_run_identity"),
 		deletionScopeDigest = nullableString("deletion_scope_digest"),
 		aggregateOwnerIdentity = nullableString("aggregate_owner_identity"),
-		aggregateOwnerSemanticRevision = nullableLong("aggregate_owner_semantic_revision"),
+		aggregateOwnerSemanticRevision = nullableRadioFullClearLong("aggregate_owner_semantic_revision"),
 		revisionCount = int("revision_count"),
 		revisionSetChecksum = string("revision_set_checksum"),
 		collectedDataEpoch = long("collected_data_epoch"),
@@ -1165,7 +1193,7 @@ private fun Cursor.importedCellRunDeletion() = ImportedCellDeletionGenerationEnt
 private fun Cursor.importedCellEntry() = ImportedCellEntryRevisionEntity(
 	identity = string("identity"),
 	importRevision = long("import_revision"),
-	supersedesImportRevision = nullableLong("supersedes_import_revision"),
+	supersedesImportRevision = nullableRadioFullClearLong("supersedes_import_revision"),
 	contentChecksum = string("content_checksum"),
 	sourceFormat = string("source_format"),
 	sourceSchemaVersion = int("source_schema_version"),
@@ -1207,7 +1235,7 @@ private fun Cursor.importedCellDeletionReceipt() = ImportedCellEntryDeletionRece
 	startTimeMs = long("start_time_ms"),
 	endTimeMs = long("end_time_ms"),
 	receivedAtMs = long("received_at_ms"),
-	retainedFromMs = nullableLong("retained_from_ms"),
+	retainedFromMs = nullableRadioFullClearLong("retained_from_ms"),
 	expectedRevisionCount = int("expected_revision_count"),
 	expectedReceiptCount = int("expected_receipt_count"),
 	expectedRunCount = int("expected_run_count"),
@@ -1228,8 +1256,8 @@ private fun Cursor.importedCellDeletedIdentity() = ImportedCellDeletedIdentityEn
 	includedInLatest = boolean("included_in_latest"),
 	observationOrdinal = nullableInt("observation_ordinal"),
 	deletionScopeDigest = nullableString("deletion_scope_digest"),
-	runStartTimeMs = nullableLong("run_start_time_ms"),
-	runEndTimeMs = nullableLong("run_end_time_ms"),
+	runStartTimeMs = nullableRadioFullClearLong("run_start_time_ms"),
+	runEndTimeMs = nullableRadioFullClearLong("run_end_time_ms"),
 	captureCoverage = nullableString("capture_coverage"),
 	availability = nullableString("availability"),
 	acquisitionCompleteness = nullableString("acquisition_completeness"),
@@ -1246,7 +1274,7 @@ private fun Cursor.cellCapturedDeletionReceipt() = CellCapturedEntryDeletionRece
 	startTimeMs = long("start_time_ms"),
 	endTimeMs = long("end_time_ms"),
 	runFootprintSetChecksum = string("run_footprint_set_checksum"),
-	retainedFromMs = nullableLong("retained_from_ms"),
+	retainedFromMs = nullableRadioFullClearLong("retained_from_ms"),
 	deletedAtMs = long("deleted_at_ms"),
 	effectChecksum = string("effect_checksum"),
 )
@@ -1267,19 +1295,35 @@ private fun Cursor.cellCapturedDeletedRun() = CellCapturedDeletedRunEntity(
 private fun Cursor.string(name: String): String = getString(getColumnIndexOrThrow(name))
 
 private fun Cursor.nullableString(name: String): String? =
-	getColumnIndexOrThrow(name).let { index -> if (isNull(index)) null else getString(index) }
+	getColumnIndexOrThrow(name).let { index -> if (isNull(index)) {
+		null
+	} else {
+		getString(index)
+	} }
 
 private fun Cursor.long(name: String): Long = getLong(getColumnIndexOrThrow(name))
 
-private fun Cursor.nullableLong(name: String): Long? =
-	getColumnIndexOrThrow(name).let { index -> if (isNull(index)) null else getLong(index) }
+private fun Cursor.nullableRadioFullClearLong(name: String): Long? =
+	getColumnIndexOrThrow(name).let { index -> if (isNull(index)) {
+		null
+	} else {
+		getLong(index)
+	} }
 
 private fun Cursor.int(name: String): Int = getInt(getColumnIndexOrThrow(name))
 
 private fun Cursor.nullableInt(name: String): Int? =
-	getColumnIndexOrThrow(name).let { index -> if (isNull(index)) null else getInt(index) }
+	getColumnIndexOrThrow(name).let { index -> if (isNull(index)) {
+		null
+	} else {
+		getInt(index)
+	} }
 
 private fun Cursor.boolean(name: String): Boolean = int(name) != 0
 
 private fun Cursor.nullableBoolean(name: String): Boolean? =
-	getColumnIndexOrThrow(name).let { index -> if (isNull(index)) null else getInt(index) != 0 }
+	getColumnIndexOrThrow(name).let { index -> if (isNull(index)) {
+		null
+	} else {
+		getInt(index) != 0
+	} }

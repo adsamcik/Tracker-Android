@@ -432,6 +432,9 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		}
 
 	@Test
+	// Keep one isolated bootstrap generation through its closed gate, exact rearm and once-only reconciliation
+	// assertions together.
+	@Suppress("LongMethod")
 	fun `provider free Active bootstrap stays closed and rearms once for the new Ready generation`() =
 		runTest {
 			val isolatedDispatcher = StandardTestDispatcher(testScheduler)

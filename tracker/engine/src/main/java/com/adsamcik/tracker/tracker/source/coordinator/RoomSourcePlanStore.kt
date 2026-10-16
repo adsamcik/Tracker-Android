@@ -5,6 +5,8 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAppliedPlanStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.preferences.tracking.SourceBalanceSettings
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.SourceBalancePreference
 import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
@@ -81,29 +83,10 @@ class RoomSourcePlanStore @Inject constructor(
 		val plans = linkedMapOf<SourceKind, SourcePlan>()
 		val preferences = linkedMapOf<SourceKind, SourceBalancePreference>()
 		for (entity in dao.desiredPlans(revision)) {
-			if (entity.payload.size !in 1..SourcePlanCodec.MAX_PAYLOAD_BYTES ||
-				!entity.payloadChecksum.matches(LOWERCASE_SHA_256)
-			) return@withTransaction null
-			val sourcePlan = try {
-				codec.decode(entity.payload)
-			} catch (@Suppress("TooGenericExceptionCaught") _: Exception) {
+			val sourcePlan = entity.decodeDesiredPlanOrNull(codec, revision) ?: return@withTransaction null
+			if (!entity.appendBalancePreference(header.balanceProfileVersion, sourcePlan.source, preferences)) {
 				return@withTransaction null
 			}
-			val reencoded = codec.encode(sourcePlan)
-			if (sourcePlan.source.stableCode != entity.sourceKind ||
-				reencoded.formatVersion != entity.payloadVersion ||
-				sourcePlan.revision != revision ||
-				reencoded.checksum != entity.payloadChecksum ||
-				!reencoded.bytes.contentEquals(entity.payload)
-			) return@withTransaction null
-            if (header.balanceProfileVersion == null) {
-                if (entity.requestedBalanceLevel != null || entity.focusRequested) return@withTransaction null
-            } else {
-                val level = entity.requestedBalanceLevel ?: return@withTransaction null
-                val preference = runCatching { SourceBalancePreference(level, entity.focusRequested) }.getOrNull()
-                    ?: return@withTransaction null
-                preferences[sourcePlan.source] = preference
-            }
 			plans[sourcePlan.source] = sourcePlan
 		}
 		val result = runCatching { AcquisitionPlanRevision(
@@ -111,12 +94,12 @@ class RoomSourcePlanStore @Inject constructor(
 			header.planId,
 			header.createdAtMs,
 			plans,
-            header.sourcePolicyRevision,
-            header.balanceProfileVersion,
-            preferences,
-        ) }.getOrNull() ?: return@withTransaction null
-        readAuthenticatedBalance { validateBalanceMetadata(result) } ?: return@withTransaction null
-        result
+			header.sourcePolicyRevision,
+			header.balanceProfileVersion,
+			preferences,
+		) }.getOrNull() ?: return@withTransaction null
+		readAuthenticatedBalance { validateBalanceMetadata(result) } ?: return@withTransaction null
+		result
 	}
 
     private suspend fun validateBalanceMetadata(plan: AcquisitionPlanRevision) {
@@ -130,21 +113,10 @@ class RoomSourcePlanStore @Inject constructor(
         require(plan.balanceProfileVersion == 1)
         val policyRevision = requireNotNull(plan.sourcePolicyRevision)
         val policies = database.sourcePolicyDao().policiesAtRevision(policyRevision)
-        require(policies.size == SourceKind.entries.size)
-        require(policies.map { it.sourceKind }.toSet() == SourceKind.entries.map { it.stableCode }.toSet())
-        require(policies.map { it.overallBalanceLevel }.distinct().size == 1)
-        require(policies.all { it.balanceProfileVersion == 1 && it.overallBalanceLevel?.let { level -> level in 1..5 } == true })
-        require(policies.all { policy ->
-            policy.balanceLevel == (policy.sourceBalanceOverride ?: policy.overallBalanceLevel) &&
-                (policy.sourceBalanceOverride == null || policy.sourceBalanceOverride?.let { it in 1..5 } == true)
-        })
+        validateStoredBalancePolicies(policies)
         require(plan.sourcePreferences.keys == plan.plans.keys)
         plan.sourcePreferences.forEach { (source, preference) ->
-            val policy = policies.single { it.sourceKind == source.stableCode }
-            val baseline = requireNotNull(policy.sourceBalanceOverride ?: policy.overallBalanceLevel)
-            require(policy.balanceLevel == baseline)
-            require(preference.requestedLevel == if (preference.focusRequested) maxOf(baseline, 4) else baseline)
-            require(!preference.focusRequested || (policy.enabled && policy.capturePersistenceEligible && policy.captureConsentEpoch != null))
+            preference.requireStoredBalance(policies.single { it.sourceKind == source.stableCode })
         }
     }
 
@@ -158,30 +130,8 @@ class RoomSourcePlanStore @Inject constructor(
 			val current = dao.appliedStates().singleOrNull { row ->
 				row.sourceKind == state.source.stableCode
 			}
-			val encoded = effectivePlan?.let { plan ->
-				require(plan.source == state.source) { "Applied plan source mismatch" }
-				require(plan.revision == state.appliedRevision) { "Applied plan revision mismatch" }
-				require(state.status in setOf(SourceApplyStatus.APPLIED, SourceApplyStatus.DEGRADED)) {
-					"Only an accepted applied state may persist an effective plan"
-				}
-				require(
-					if (plan.enabled) {
-						state.sourceInstanceId?.value?.isNotBlank() == true &&
-							state.registrationGeneration?.let { generation -> generation > 0L } == true
-					} else {
-						state.sourceInstanceId == null && state.registrationGeneration == null
-					},
-				) { "Applied plan and runtime identity are inconsistent" }
-				codec.encode(plan)
-			}
-			val preserved = current?.takeIf { row ->
-				encoded == null &&
-					state.appliedRevision != null &&
-					row.appliedRevision == state.appliedRevision &&
-					row.sourceInstanceId == state.sourceInstanceId?.value &&
-					row.registrationGeneration == state.registrationGeneration &&
-					row.hasCompleteAppliedPayload()
-			}
+			val encoded = effectivePlan?.encodeAppliedFor(state, codec)
+			val preserved = current?.takeIf { it.preservesAppliedPayload(state, encoded == null) }
 			dao.saveAppliedState(
 				SourceAppliedPlanStateEntity(
 					sourceKind = state.source.stableCode,
@@ -237,17 +187,12 @@ class RoomSourcePlanStore @Inject constructor(
 			header.createdAtMs != plan.createdAtMs ||
 			header.sourcePolicyRevision != plan.sourcePolicyRevision ||
 			header.balanceProfileVersion != plan.balanceProfileVersion
-		) return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_DESIRED_IDENTITY_MISMATCH")
-        val desiredRows = dao.desiredPlans(plan.revision)
-        if (desiredRows.any { row ->
-            val source = SourceKind.entries.singleOrNull { it.stableCode == row.sourceKind } ?: return@any true
-            val preference = plan.sourcePreferences[source]
-            row.requestedBalanceLevel != preference?.requestedLevel || row.focusRequested != (preference?.focusRequested ?: false)
-        }) return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_BALANCE_IDENTITY_MISMATCH")
-		val desiredSourceKinds = desiredRows.mapTo(linkedSetOf(), SourceDesiredPlanEntity::sourceKind)
-		if (desiredSourceKinds != plan.plans.keys.mapTo(linkedSetOf(), SourceKind::stableCode)) {
-			return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_DESIRED_SOURCE_SET_MISMATCH")
+		) {
+			return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_DESIRED_IDENTITY_MISMATCH")
 		}
+		val desiredRows = dao.desiredPlans(plan.revision)
+		desiredRows.desiredPlanMismatch(plan)?.let { return it }
+		val desiredSourceKinds = desiredRows.mapTo(linkedSetOf(), SourceDesiredPlanEntity::sourceKind)
 		val before = dao.appliedStates()
 		val obsolete = before.filter { state -> state.sourceKind !in desiredSourceKinds }
 		if (desiredSourceKinds.isEmpty()) {
@@ -273,6 +218,8 @@ class RoomSourcePlanStore @Inject constructor(
 		database.sourcePlanStateDao().deleteAllAppliedStates()
 	}
 
+	// Reject a mismatched saved plan before returning the existing reconstructed view.
+	@Suppress("ReturnCount")
 	private suspend fun loadCurrentAppliedInTransaction(
 		desiredRevision: Long,
 		header: AcquisitionPlanRevisionEntity,
@@ -281,7 +228,9 @@ class RoomSourcePlanStore @Inject constructor(
 	): AppliedPlanRead {
 		if (states.mapTo(linkedSetOf(), SourceAppliedPlanStateEntity::sourceKind) !=
 			expectedSourceKinds || states.size != expectedSourceKinds.size
-		) return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_CURRENT_SOURCE_SET_MISMATCH")
+		) {
+			return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_CURRENT_SOURCE_SET_MISMATCH")
+		}
 		if (states.any { state -> state.desiredRevision != desiredRevision }) {
 			return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_CURRENT_REVISION_MISMATCH")
 		}
@@ -293,20 +242,25 @@ class RoomSourcePlanStore @Inject constructor(
 				if (read.plan.revision != desiredRevision) {
 					AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_REVISION_MISMATCH")
 				} else {
-                    val applied = readAuthenticatedBalance {
-                        // Authenticate the full immutable desired set, including disabled or failed rows.
-                        val desired = requireNotNull(load(desiredRevision))
-                        val preferences = desired.sourcePreferences.filterKeys { it in read.plan.plans }
-                        read.plan.copy(planId = "applied-runtime-$desiredRevision", createdAtMs = header.createdAtMs,
-                            sourcePolicyRevision = header.sourcePolicyRevision, balanceProfileVersion = header.balanceProfileVersion,
-                            sourcePreferences = preferences).also { validateBalanceMetadata(it) }
-                    } ?: return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_BALANCE_INVALID")
+                    val applied = readAppliedBalance(desiredRevision, header, read.plan)
+                        ?: return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_BALANCE_INVALID")
                     AppliedPlanRead.Available(applied)
 				}
 			}
 			is AppliedPlanRead.Invalid -> read
 			AppliedPlanRead.Missing -> AppliedPlanRead.Missing
 		}
+	}
+
+	private suspend fun readAppliedBalance(
+		desiredRevision: Long, header: AcquisitionPlanRevisionEntity, plan: AcquisitionPlanRevision,
+	): AcquisitionPlanRevision? = readAuthenticatedBalance {
+		// Authenticate the full immutable desired set, including disabled or failed rows.
+		val desired = requireNotNull(load(desiredRevision))
+		val preferences = desired.sourcePreferences.filterKeys { it in plan.plans }
+		plan.copy(planId = "applied-runtime-$desiredRevision", createdAtMs = header.createdAtMs,
+			sourcePolicyRevision = header.sourcePolicyRevision, balanceProfileVersion = header.balanceProfileVersion,
+			sourcePreferences = preferences).also { validateBalanceMetadata(it) }
 	}
 
 	internal suspend fun loadApplied(
@@ -316,7 +270,9 @@ class RoomSourcePlanStore @Inject constructor(
 	private fun decodeAppliedStates(
 		states: Collection<SourceAppliedPlanStateEntity>,
 	): AppliedPlanRead {
-		if (states.isEmpty()) return AppliedPlanRead.Missing
+		if (states.isEmpty()) {
+			return AppliedPlanRead.Missing
+		}
 		if (states.size > SourceKind.entries.size ||
 			states.map(SourceAppliedPlanStateEntity::sourceKind).toSet().size != states.size
 		) {
@@ -324,23 +280,39 @@ class RoomSourcePlanStore @Inject constructor(
 		}
 		val decoded = linkedMapOf<SourceKind, SourcePlan>()
 		for (state in states.sortedBy(SourceAppliedPlanStateEntity::sourceKind)) {
-			if (!state.isActive()) {
-				return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_STATUS_INVALID")
+			val failure = appendDecodedAppliedState(state, decoded)
+			if (failure != null) {
+				return failure
 			}
-			val plan = state.decodeAppliedPlanOrNull(codec)
-				?: return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_PAYLOAD_INVALID")
-			val appliedRevision = state.appliedRevision
-				?: return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_REVISION_MISSING")
-			if (plan.revision != appliedRevision) {
-				return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_REVISION_MISMATCH")
-			}
-			if (!state.hasRuntimeIdentityFor(plan)) {
-				return AppliedPlanRead.Invalid(
-					"APPLIED_SOURCE_PLAN_RUNTIME_IDENTITY_INVALID",
-				)
-			}
-			decoded[plan.source] = plan
 		}
+		return buildAppliedPlanRead(decoded)
+	}
+
+	private fun appendDecodedAppliedState(
+		state: SourceAppliedPlanStateEntity,
+		decoded: MutableMap<SourceKind, SourcePlan>,
+	): AppliedPlanRead.Invalid? {
+		if (!state.isActive()) {
+			return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_STATUS_INVALID")
+		}
+		val plan = state.decodeAppliedPlanOrNull(codec)
+			?: return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_PAYLOAD_INVALID")
+		val appliedRevision = state.appliedRevision
+			?: return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_REVISION_MISSING")
+		return when {
+			plan.revision != appliedRevision ->
+				AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_REVISION_MISMATCH")
+			!state.hasRuntimeIdentityFor(plan) -> AppliedPlanRead.Invalid(
+				"APPLIED_SOURCE_PLAN_RUNTIME_IDENTITY_INVALID",
+			)
+			else -> {
+				decoded[plan.source] = plan
+				null
+			}
+		}
+	}
+
+	private fun buildAppliedPlanRead(decoded: Map<SourceKind, SourcePlan>): AppliedPlanRead {
 		val revision = decoded.values.first().revision
 		if (decoded.values.any { plan -> plan.revision != revision }) {
 			return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_GENERATION_MIXED")
@@ -359,6 +331,99 @@ class RoomSourcePlanStore @Inject constructor(
 	suspend fun updateStatus(revision: Long, status: DesiredPlanStatus) {
 		check(database.sourcePlanStateDao().updateRevisionStatus(revision, status.name) == 1)
 	}
+}
+
+private fun SourceDesiredPlanEntity.decodeDesiredPlanOrNull(codec: SourcePlanCodec, revision: Long): SourcePlan? {
+	if (payload.size !in 1..SourcePlanCodec.MAX_PAYLOAD_BYTES || !payloadChecksum.matches(LOWERCASE_SHA_256)) {
+		return null
+	}
+	val sourcePlan = try {
+		codec.decode(payload)
+	} catch (@Suppress("TooGenericExceptionCaught") _: Exception) {
+		return null
+	}
+	val reencoded = codec.encode(sourcePlan)
+	if (sourcePlan.source.stableCode != sourceKind || reencoded.formatVersion != payloadVersion ||
+		sourcePlan.revision != revision
+	) {
+		return null
+	}
+	return sourcePlan.takeIf { reencoded.checksum == payloadChecksum && reencoded.bytes.contentEquals(payload) }
+}
+
+private fun SourceDesiredPlanEntity.appendBalancePreference(
+	profileVersion: Int?, source: SourceKind, preferences: MutableMap<SourceKind, SourceBalancePreference>,
+): Boolean {
+	if (profileVersion == null) {
+		return requestedBalanceLevel == null && !focusRequested
+	}
+	val level = requestedBalanceLevel ?: return false
+	val preference = runCatching { SourceBalancePreference(level, focusRequested) }.getOrNull() ?: return false
+	preferences[source] = preference
+	return true
+}
+
+private fun validateStoredBalancePolicies(policies: List<SourcePolicyEntity>) {
+	require(policies.size == SourceKind.entries.size)
+	require(policies.map { it.sourceKind }.toSet() == SourceKind.entries.map { it.stableCode }.toSet())
+	require(policies.map { it.overallBalanceLevel }.distinct().size == 1)
+	require(policies.all { it.balanceProfileVersion == 1 && it.overallBalanceLevel?.let { level ->
+	    level in 1..5 } == true })
+	require(policies.all { policy ->
+	    policy.balanceLevel == (policy.sourceBalanceOverride ?: policy.overallBalanceLevel) &&
+	        (policy.sourceBalanceOverride == null || policy.sourceBalanceOverride?.let { it in 1..5 } == true)
+	})
+}
+
+private fun SourceBalancePreference.requireStoredBalance(policy: SourcePolicyEntity) {
+	val baseline = requireNotNull(policy.sourceBalanceOverride ?: policy.overallBalanceLevel)
+	require(policy.balanceLevel == baseline)
+	require(requestedLevel == if (focusRequested) {
+		maxOf(baseline, SourceBalanceSettings.LIVE_LEVEL)
+	} else {
+		baseline
+	})
+	require(!focusRequested || (policy.enabled && policy.capturePersistenceEligible && policy.captureConsentEpoch != null))
+}
+
+private fun SourcePlan.encodeAppliedFor(state: AppliedSourcePlan, codec: SourcePlanCodec): EncodedSourcePlan {
+	require(source == state.source) { "Applied plan source mismatch" }
+	require(revision == state.appliedRevision) { "Applied plan revision mismatch" }
+	require(state.status in setOf(SourceApplyStatus.APPLIED, SourceApplyStatus.DEGRADED)) {
+		"Only an accepted applied state may persist an effective plan"
+	}
+	require(
+		if (enabled) {
+			state.sourceInstanceId?.value?.isNotBlank() == true &&
+				state.registrationGeneration?.let { generation -> generation > 0L } == true
+		} else {
+			state.sourceInstanceId == null && state.registrationGeneration == null
+		},
+	) { "Applied plan and runtime identity are inconsistent" }
+	return codec.encode(this)
+}
+
+private fun SourceAppliedPlanStateEntity.preservesAppliedPayload(
+	state: AppliedSourcePlan, hasNoEncodedPlan: Boolean,
+): Boolean =
+	hasNoEncodedPlan && state.appliedRevision != null && appliedRevision == state.appliedRevision &&
+		sourceInstanceId == state.sourceInstanceId?.value && registrationGeneration == state.registrationGeneration &&
+		hasCompleteAppliedPayload()
+
+private fun List<SourceDesiredPlanEntity>.desiredPlanMismatch(plan: AcquisitionPlanRevision): AppliedPlanRead.Invalid? {
+	if (any { row ->
+			val source = SourceKind.entries.singleOrNull { it.stableCode == row.sourceKind } ?: return@any true
+			val preference = plan.sourcePreferences[source]
+			row.requestedBalanceLevel != preference?.requestedLevel ||
+				row.focusRequested != (preference?.focusRequested ?: false)
+		}) {
+		return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_BALANCE_IDENTITY_MISMATCH")
+	}
+	val desiredSourceKinds = mapTo(linkedSetOf(), SourceDesiredPlanEntity::sourceKind)
+	if (desiredSourceKinds != plan.plans.keys.mapTo(linkedSetOf(), SourceKind::stableCode)) {
+		return AppliedPlanRead.Invalid("APPLIED_SOURCE_PLAN_DESIRED_SOURCE_SET_MISMATCH")
+	}
+	return null
 }
 
 private fun SourceAppliedPlanStateEntity.isActive(): Boolean =
@@ -382,9 +447,13 @@ private fun SourceAppliedPlanStateEntity.decodeAppliedPlanOrNull(
 ): SourcePlan? {
 	if (!hasCompleteAppliedPayload() ||
 		appliedPayloadChecksum?.matches(LOWERCASE_SHA_256) != true
-	) return null
+	) {
+		return null
+	}
 	val payload = requireNotNull(appliedPayload)
-	if (payload.size !in 1..SourcePlanCodec.MAX_PAYLOAD_BYTES) return null
+	if (payload.size !in 1..SourcePlanCodec.MAX_PAYLOAD_BYTES) {
+		return null
+	}
 	return try {
 		val decoded = codec.decode(payload)
 		val reencoded = codec.encode(decoded)

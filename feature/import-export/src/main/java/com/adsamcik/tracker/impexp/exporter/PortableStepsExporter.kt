@@ -156,28 +156,44 @@ internal class PortableStepsExporter(
 		verifySelectedContents: Boolean,
 		encode: suspend (OutputStream) -> ExportPortableStepsResult,
 	): ExportPortableStepsResult? = FileBackedExportSpool(context, prefix, maximumBytes).use { spool ->
-		val digest = if (verifySelectedContents) MessageDigest.getInstance("SHA-256") else null
+		val digest = if (verifySelectedContents) {
+			MessageDigest.getInstance("SHA-256")
+		} else {
+			null
+		}
 		when (val staged = spool.stage { output ->
-			encode(if (digest == null) output else DigestOutputStream(output, digest))
+			encode(if (digest == null) {
+				output
+			} else {
+				DigestOutputStream(output, digest)
+			})
 		}) {
 			is FileBackedExportStage.Complete -> {
-				val result = staged.value
-				if (result !is ExportPortableStepsResult.Exported) return@use result
-				if (spool.byteCount == 0L) {
-					throw PortableStepsJsonException("Successful Portable Steps export wrote no bytes")
-				}
-				val expectedHash = digest?.digest()
-				if (expectedHash != null) {
-					verifyContents(result, expectedHash, encode)?.let { return@use it }
-				}
-				spool.copyTo(outputStream)
-				if (expectedHash != null) {
-					verifyContents(result, expectedHash, encode)?.let { return@use it }
-				}
-				result
+				copyCompletedStage(spool, outputStream, staged.value, digest, encode)
 			}
 			FileBackedExportStage.EncodedSizeExceeded -> null
 		}
+	}
+
+	private suspend fun copyCompletedStage(
+		spool: FileBackedExportSpool, outputStream: OutputStream, result: ExportPortableStepsResult,
+		digest: MessageDigest?, encode: suspend (OutputStream) -> ExportPortableStepsResult,
+	): ExportPortableStepsResult {
+		if (result !is ExportPortableStepsResult.Exported) {
+			return result
+		}
+		if (spool.byteCount == 0L) {
+			throw PortableStepsJsonException("Successful Portable Steps export wrote no bytes")
+		}
+		val expectedHash = digest?.digest()
+		if (expectedHash != null) {
+			verifyContents(result, expectedHash, encode)?.let { return it }
+		}
+		spool.copyTo(outputStream)
+		if (expectedHash != null) {
+			verifyContents(result, expectedHash, encode)?.let { return it }
+		}
+		return result
 	}
 
 	/** Read-only re-encoding includes original graphs, corrections, identities and source bounds. */
@@ -211,6 +227,10 @@ internal class PortableStepsExporter(
 
 private fun LongRange.toPortableRequest(): ExportPortableStepsRequest {
 	require(first >= 0L && !isEmpty()) { "Portable Steps export range must be non-empty and non-negative" }
-	val exclusiveEnd = if (last == Long.MAX_VALUE) Long.MAX_VALUE else Math.addExact(last, 1L)
+	val exclusiveEnd = if (last == Long.MAX_VALUE) {
+		Long.MAX_VALUE
+	} else {
+		Math.addExact(last, 1L)
+	}
 	return ExportPortableStepsRequest(first, exclusiveEnd)
 }

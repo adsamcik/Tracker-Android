@@ -6,14 +6,25 @@ import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.CellPurposeItems
 import com.adsamcik.tracker.shared.base.database.qualifyCellPurposeItems
 import com.adsamcik.tracker.shared.base.database.qualifyCellCapturePurposeItems
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedChildEntity
 import com.adsamcik.tracker.shared.base.database.data.CellChildChecksumInput
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.CellWalQualifiedChild
 import com.adsamcik.tracker.shared.base.database.data.CellWalChildDisposition
 import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.AuthenticatedCellWalCarrier
 import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication
 import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthenticator
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -84,6 +95,8 @@ internal sealed interface CellCapturedWriteResult {
  * that created it. Its only production caller is the exact source-local Cell lane; executable code
  * alone neither installs that lane nor authorizes canonical rollout.
  */
+// One source writer owns the Room transaction, exact replay/correction checks and publication rollback.
+@Suppress("LargeClass", "TooManyFunctions")
 internal class CellCapturedFactWriter @Inject constructor(
 	private val database: AppDatabase,
 	private val adapter: CellWalQualificationAdapter,
@@ -153,22 +166,7 @@ internal class CellCapturedFactWriter @Inject constructor(
 				logicalFactId,
 				exactCursor.latestSemanticRevision,
 			) ?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-			val correctionBase = loadReusableFact(current, exactCursor)
-			if (exactCursor.latestSemanticRevision == Long.MAX_VALUE) {
-				reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-			}
-			val classification = CellCapturedFactClassifier.classify(
-				input = input,
-				authority = authority,
-				semanticRevision = exactCursor.latestSemanticRevision + 1L,
-				supersedesSemanticRevision = exactCursor.latestSemanticRevision,
-				priorFact = correctionBase,
-				correctionBase = correctionBase,
-			)
-			if (classification !is CellCapturedFactClassification.Replay &&
-				exactCursor.latestSemanticRevision >= MAX_FACT_REVISIONS
-			) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-			return classification
+			return classifyStoredRevision(input, authority, current, exactCursor)
 		}
 
 		val priorRow = dao.latestEffectiveBefore(
@@ -184,22 +182,57 @@ internal class CellCapturedFactWriter @Inject constructor(
 		val prior = priorRow?.let { row ->
 			val cursor = dao.cursor(WRITER_ID, WRITER_VERSION, row.logicalFactId)
 				?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-			try {
-				when (val reusable = loadReusableFact(row, cursor)) {
-					is CellReusableFact.DirectAggregateOwner -> reusable
-					is CellReusableFact.CoverageOnly -> reusable.directAggregateOwner
-				}
-			} catch (rejected: CellCapturedWriteRejectedException) {
-				// A fresh retained delivery remains useful after its former aggregate owner falls
-				// below retention. Materialize it directly instead of creating a dangling reuse.
-				if (rejected.reason == CellCapturedWriteRejection.RETAINED_DATA) null else throw rejected
-			}
+			loadPriorAggregateOwner(row, cursor)
 		}
 		return CellCapturedFactClassifier.classify(
 			input = input,
 			authority = authority,
 			priorFact = prior,
 		)
+	}
+
+	private suspend fun loadPriorAggregateOwner(
+		row: CellCapturedFactRevisionEntity,
+		cursor: CellCapturedFactCursorEntity,
+	): CellReusableFact.DirectAggregateOwner? = try {
+		when (val reusable = loadReusableFact(row, cursor)) {
+			is CellReusableFact.DirectAggregateOwner -> reusable
+			is CellReusableFact.CoverageOnly -> reusable.directAggregateOwner
+		}
+	} catch (rejected: CellCapturedWriteRejectedException) {
+		// A fresh retained delivery remains useful after its former aggregate owner falls
+		// below retention. Materialize it directly instead of creating a dangling reuse.
+		if (rejected.reason == CellCapturedWriteRejection.RETAINED_DATA) {
+			null
+		} else {
+			throw rejected
+		}
+	}
+
+	private suspend fun classifyStoredRevision(
+		input: CellObservationInput,
+		authority: CellCaptureAuthority,
+		current: CellCapturedFactRevisionEntity,
+		exactCursor: CellCapturedFactCursorEntity,
+	): CellCapturedFactClassification {
+		val correctionBase = loadReusableFact(current, exactCursor)
+		if (exactCursor.latestSemanticRevision == Long.MAX_VALUE) {
+			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
+		val classification = CellCapturedFactClassifier.classify(
+			input = input,
+			authority = authority,
+			semanticRevision = exactCursor.latestSemanticRevision + 1L,
+			supersedesSemanticRevision = exactCursor.latestSemanticRevision,
+			priorFact = correctionBase,
+			correctionBase = correctionBase,
+		)
+		if (classification !is CellCapturedFactClassification.Replay &&
+			exactCursor.latestSemanticRevision >= MAX_FACT_REVISIONS
+		) {
+			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
+		return classification
 	}
 
 	private suspend fun writeClassification(
@@ -234,6 +267,8 @@ internal class CellCapturedFactWriter @Inject constructor(
 			SOURCE_KIND,
 			PURPOSE,
 		)
+		// Match the complete acknowledged manifest/physical-writer tuple before writing this fact.
+		@Suppress("ComplexCondition")
 		if (binding == null || manifest == null || session == null ||
 			manifest.sessionMode != session.sessionMode ||
 			!binding.isExactCellWriter(authority.captureConsentEpoch, manifest.sessionMode) ||
@@ -244,7 +279,9 @@ internal class CellCapturedFactWriter @Inject constructor(
 			?: reject(CellCapturedWriteRejection.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
 		if (state.collectedDataEpoch != authority.collectedDataEpoch ||
 			fact.evidenceBinding.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal
-		) reject(CellCapturedWriteRejection.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		) {
+			reject(CellCapturedWriteRejection.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		}
 		val mapped = CellCapturedPersistence.map(fact, owner.ownerGeneration, requireNotNull(binding.writerBindingGeneration))
 		requireNoRetainedFactProof(mapped, state.retainedFromMs)
 		if (state.retainedFromMs?.let { retainedFrom ->
@@ -256,7 +293,9 @@ internal class CellCapturedFactWriter @Inject constructor(
 				coverageStartElapsedRealtimeNanos =
 					fact.coverage.providerIntervalStartElapsedRealtimeNanos,
 			)?.let { earliest -> earliest < retainedFrom } ?: true
-		} == true) reject(CellCapturedWriteRejection.RETAINED_DATA)
+		} == true) {
+			reject(CellCapturedWriteRejection.RETAINED_DATA)
+		}
 		requireUndeletedScope(logicalTrackingId, serviceRunId, authority.scopeDeletionGeneration)
 
 		val dao = database.cellCapturedFactDao()
@@ -272,12 +311,16 @@ internal class CellCapturedFactWriter @Inject constructor(
 			}
 			val cursor = dao.cursor(WRITER_ID, WRITER_VERSION, mapped.logicalFactId)
 				?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			// Existing mapped data must correspond to its complete saved cursor head or a later revision.
+			@Suppress("ComplexCondition")
 			if (!cursor.matchesScope(mapped) || cursor.latestSemanticRevision < mapped.semanticRevision ||
 				(cursor.latestSemanticRevision == mapped.semanticRevision &&
 					(cursor.latestMutationId != mapped.mutationId ||
 						cursor.latestEffectChecksum != mapped.effectChecksum ||
 						cursor.latestSourceAdmissionOrdinal != mapped.sourceAdmissionOrdinal))
-			) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			) {
+				reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			}
 			return CellCapturedWriteResult.Unchanged(
 				mapped.logicalFactId,
 				mapped.semanticRevision,
@@ -287,18 +330,7 @@ internal class CellCapturedFactWriter @Inject constructor(
 
 		validateAggregateOwner(mapped, authority)
 		val current = dao.cursor(WRITER_ID, WRITER_VERSION, mapped.logicalFactId)
-		if (current == null) {
-			if (mapped.semanticRevision != 1L || mapped.supersedesSemanticRevision != null) {
-				reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-			}
-		} else if (!current.matchesScope(mapped) ||
-			current.latestSemanticRevision != mapped.supersedesSemanticRevision ||
-			current.latestSemanticRevision == Long.MAX_VALUE ||
-			current.latestSemanticRevision + 1L != mapped.semanticRevision ||
-			mapped.sourceAdmissionOrdinal < current.latestSourceAdmissionOrdinal
-		) {
-			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-		}
+		requireNextRevision(mapped, current)
 
 		if (dao.insertRevision(mapped) == INSERT_IGNORED) {
 			reject(CellCapturedWriteRejection.IDENTITY_COLLISION)
@@ -347,28 +379,59 @@ internal class CellCapturedFactWriter @Inject constructor(
 		)
 	}
 
+	// This one complete nullable cursor/predecessor contract keeps its exact field and overflow order.
+	@Suppress("ComplexCondition")
+	private fun requireNextRevision(
+		mapped: CellCapturedFactRevisionEntity,
+		current: CellCapturedFactCursorEntity?,
+	) {
+		if (current == null) {
+			if (mapped.semanticRevision != 1L || mapped.supersedesSemanticRevision != null) {
+				reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			}
+		} else if (!current.matchesScope(mapped) ||
+			current.latestSemanticRevision != mapped.supersedesSemanticRevision ||
+			current.latestSemanticRevision == Long.MAX_VALUE ||
+			current.latestSemanticRevision + 1L != mapped.semanticRevision ||
+			mapped.sourceAdmissionOrdinal < current.latestSourceAdmissionOrdinal
+		) {
+			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
+	}
+
 	private suspend fun persistAcceptedChildren(fact: CellCapturedFactRevisionEntity) {
-		if (fact.payloadVersion != CELL_WAL_PAYLOAD_VERSION) return
+		if (fact.payloadVersion != CELL_WAL_PAYLOAD_VERSION) {
+			return
+		}
 		val wal = database.sourceEventWalDao().getByEventId(fact.sourceEventId)
 			?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-		val raw = when (val result = CellWalCarrierAuthenticator.authenticate(wal)) {
-			is CellWalCarrierAuthentication.Authenticated -> result.carrier
-			is CellWalCarrierAuthentication.Rejected ->
-				reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-		}
+		val raw = CellWalCarrierAuthenticator.authenticate(wal).requireCarrier()
 		val purpose = database.qualifyCellCapturePurposeItems(wal, raw.payload, fact) as? CellPurposeItems.Qualified
 			?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-		val carrier = when (val result = CellWalCarrierAuthenticator.authenticate(fact, wal, purpose.indexes.toSet())) {
-			is CellWalCarrierAuthentication.Authenticated -> result.carrier
-			is CellWalCarrierAuthentication.Rejected -> reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-		}
+		val carrier = CellWalCarrierAuthenticator.authenticate(fact, wal, purpose.indexes.toSet()).requireCarrier()
 		val accepted = requireNotNull(carrier.childQualification).children.withIndex()
 			.filter { it.value.disposition == CellWalChildDisposition.ACCEPTED }
 		if (accepted.isEmpty() || accepted.any { it.index !in purpose.indexes } ||
 			fact.authorizationEffectStartNanos != purpose.continuousFromNanos ||
 			fact.maximumObservationAgeNanos > purpose.demandMaximumAgeNanos
-		) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-		val children = accepted.map { (index, item) ->
+		) {
+			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
+		val children = projectAcceptedChildren(fact, wal, accepted)
+		database.radioObservationChildDao().insertCellSession(children)
+	}
+
+	private fun CellWalCarrierAuthentication.requireCarrier(): AuthenticatedCellWalCarrier = when (this) {
+		is CellWalCarrierAuthentication.Authenticated -> carrier
+		is CellWalCarrierAuthentication.Rejected -> reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+	}
+
+	private fun projectAcceptedChildren(
+		fact: CellCapturedFactRevisionEntity,
+		wal: SourceEventWalEntity,
+		accepted: List<IndexedValue<CellWalQualifiedChild>>,
+	): List<CellCapturedChildEntity> {
+		return accepted.map { (index, item) ->
 			val observation = item.observation
 			val providerTime = requireNotNull(observation.providerTimestampNanos)
 			val ageNanos = wal.observedElapsedNanos - providerTime
@@ -377,7 +440,11 @@ internal class CellCapturedFactWriter @Inject constructor(
 				?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 			val itemUncertainty = Math.addExact(
 				requireNotNull(wal.wallTimeUncertaintyMs),
-				if (ageNanos % 1_000_000L == 0L) 0L else 1L,
+				if (ageNanos % 1_000_000L == 0L) {
+					0L
+				} else {
+					1L
+				},
 			)
 			val owner = RadioChildOwner(
 				RadioChildPurpose.SESSION, fact.writerProjectionId, fact.writerProjectionVersion,
@@ -396,7 +463,6 @@ internal class CellCapturedFactWriter @Inject constructor(
 				RadioObservationChildIntegrity.cell(input),
 			)
 		}
-		database.radioObservationChildDao().insertCellSession(children)
 	}
 
 	private suspend fun writeReplay(
@@ -419,14 +485,20 @@ internal class CellCapturedFactWriter @Inject constructor(
 			replay.reference.semanticRevision,
 		) ?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 		requireCurrentWriteAuthority(revision)
+		// Recheck the saved operation pair after qualification, before acknowledging replay.
+		persistedAuthority(revision)
 		val cursor = database.cellCapturedFactDao().cursor(WRITER_ID, WRITER_VERSION, logicalFactId)
 			?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		// A replay acknowledges the same checksum-covered fact and complete saved cursor tuple.
+		@Suppress("ComplexCondition")
 		if (!CellCapturedFactRevisionIntegrity.hasValidEffectChecksum(revision) ||
 			!cursor.matchesScope(revision) || cursor.latestSemanticRevision < revision.semanticRevision ||
 			(cursor.latestSemanticRevision == revision.semanticRevision &&
 				(cursor.latestMutationId != revision.mutationId ||
 					cursor.latestEffectChecksum != revision.effectChecksum))
-		) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		) {
+			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
 		return CellCapturedWriteResult.Unchanged(
 			logicalFactId,
 			revision.semanticRevision,
@@ -434,7 +506,7 @@ internal class CellCapturedFactWriter @Inject constructor(
 		)
 	}
 
-	private suspend fun requireCurrentWriteAuthority(fact: CellCapturedFactRevisionEntity) {
+	private suspend fun requireCurrentManifestWriter(fact: CellCapturedFactRevisionEntity) {
 		val owner = database.sourceDestinationOwnerDao().get(SOURCE_KIND, DESTINATION)
 		if (owner?.owner != OWNER || owner.ownerGeneration != fact.writerOwnerGeneration) {
 			reject(CellCapturedWriteRejection.DESTINATION_OWNER_CHANGED)
@@ -448,6 +520,8 @@ internal class CellCapturedFactWriter @Inject constructor(
 			SOURCE_KIND,
 			PURPOSE,
 		)
+		// The saved manifest and binding must match the complete current physical writer tuple.
+		@Suppress("ComplexCondition")
 		if (binding == null || manifest == null || session == null ||
 			manifest.sessionMode != session.sessionMode ||
 			!binding.isExactCellWriter(fact.captureConsentEpoch, manifest.sessionMode) ||
@@ -455,14 +529,22 @@ internal class CellCapturedFactWriter @Inject constructor(
 			binding.writerOwnerGeneration != fact.writerOwnerGeneration) {
 			reject(CellCapturedWriteRejection.MANIFEST_WRITER_AUTHORITY_MISMATCH)
 		}
+	}
+
+	private suspend fun requireCurrentWriteAuthority(fact: CellCapturedFactRevisionEntity) {
+		requireCurrentManifestWriter(fact)
 		val state = database.sourceEvidenceStateDao().get()
 			?: reject(CellCapturedWriteRejection.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
 		if (state.collectedDataEpoch != fact.collectedDataEpoch ||
 			fact.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal
-		) reject(CellCapturedWriteRejection.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		) {
+			reject(CellCapturedWriteRejection.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		}
 		if (state.retainedFromMs?.let { retainedFrom ->
 			canonicalRetentionLowerBound(fact)?.let { earliest -> earliest < retainedFrom } ?: true
-		} == true) reject(CellCapturedWriteRejection.RETAINED_DATA)
+		} == true) {
+			reject(CellCapturedWriteRejection.RETAINED_DATA)
+		}
 		requireUndeletedScope(
 			fact.logicalTrackingId,
 			fact.serviceRunId,
@@ -543,11 +625,15 @@ internal class CellCapturedFactWriter @Inject constructor(
 			val expectedSemanticRevision = current.semanticRevision - index
 			val expectedSuperseded = (expectedSemanticRevision - 1L).takeIf { it > 0L }
 			val nextOlder = revisions.getOrNull(index + 1)
+			// One saved revision matches its exact expected predecessor, integrity and stable lineage.
+			@Suppress("ComplexCondition")
 			if (revision.semanticRevision != expectedSemanticRevision ||
 				revision.supersedesSemanticRevision != expectedSuperseded ||
 				!CellCapturedFactRevisionIntegrity.hasValidEffectChecksum(revision) ||
 				(nextOlder != null && !revision.isAuthenticatedSuccessorOf(nextOlder))
-			) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			) {
+				reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			}
 		}
 		return revisions
 	}
@@ -574,12 +660,16 @@ internal class CellCapturedFactWriter @Inject constructor(
 		if (row.factKind != CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE ||
 			!CellCapturedFactRevisionIntegrity.hasValidEffectChecksum(row) ||
 			!cursor.matchesCurrentRevision(current)
-		) reject(CellCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
+		) {
+			reject(CellCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
+		}
 		val lineage = requireExactRevisionLineage(current, cursor)
 		if (row !in lineage || lineage.any { revision ->
 				revision.factKind != CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE
 			}
-		) reject(CellCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
+		) {
+			reject(CellCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
+		}
 		requireCurrentWriteAuthority(row)
 		return try {
 			val authority = persistedAuthority(row)
@@ -609,39 +699,24 @@ internal class CellCapturedFactWriter @Inject constructor(
 		val sessionDao = database.sourceSessionDao()
 		val run = sessionDao.serviceRun(row.serviceRunId)
 		val session = sessionDao.session(row.logicalTrackingId)
-		if (run == null || session == null || run.logicalTrackingId != row.logicalTrackingId ||
-			!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, row.lifecycleLeaseGeneration) ||
-			run.sessionSegmentId != row.sessionSegmentId ||
-			session.logicalTrackingId != row.logicalTrackingId ||
-			session.lifecycleLeaseGeneration < row.lifecycleLeaseGeneration ||
-			(session.currentServiceRunId == row.serviceRunId &&
-				(run.leaseGeneration != session.lifecycleLeaseGeneration || run.bootId != session.lifecycleBootId)) ||
-			(session.cutoffAtMs == null) != (session.cutoffElapsedNanos == null) ||
-			(session.completedAtMs != null && session.cutoffElapsedNanos == null)
-		) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		if (run == null || session == null || hasConflictingSavedRunOwner(row, run, session) ||
+			hasInvalidSavedSessionCutoff(session)
+		) {
+			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
 		val manifests = sessionDao.manifestsForServiceRun(row.serviceRunId, MAX_MANIFESTS_PER_RUN + 1)
 		val allSources = database.trackingHistoryReadDao().manifestSources(
 			listOf(row.serviceRunId),
 			MAX_MANIFEST_SOURCES_PER_RUN + 1,
 		)
-		if (manifests.size > MAX_MANIFESTS_PER_RUN ||
-			allSources.size > MAX_MANIFEST_SOURCES_PER_RUN ||
-			!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) ||
-			manifests.any { manifest ->
-				!SessionManifestIntegrity.verify(
-					manifest,
-					allSources.filter { source ->
-						source.logicalTrackingId == manifest.logicalTrackingId &&
-							source.manifestRevision == manifest.manifestRevision
-					},
-				)
-			}
-		) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		requireRetainedManifestTimeline(run, manifests, allSources)
 		val manifestIndex = manifests.indexOfFirst { manifest ->
 			manifest.logicalTrackingId == row.logicalTrackingId &&
 				manifest.manifestRevision == row.manifestRevision
 		}
-		if (manifestIndex < 0) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		if (manifestIndex < 0) {
+			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
 		val manifest = manifests[manifestIndex]
 		val sources = allSources.filter { source ->
 			source.logicalTrackingId == row.logicalTrackingId &&
@@ -653,34 +728,23 @@ internal class CellCapturedFactWriter @Inject constructor(
 		val binding = sources.singleOrNull { source ->
 			source.sourceKind == SOURCE_KIND && source.purpose == PURPOSE
 		} ?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-		if (manifest.sessionMode != session.sessionMode ||
-			!binding.isExactCellWriter(row.captureConsentEpoch, manifest.sessionMode) ||
-			binding.writerBindingGeneration != row.writerBindingGeneration ||
-			binding.writerOwnerGeneration != row.writerOwnerGeneration ||
-			manifest.serviceRunId != row.serviceRunId ||
-			manifest.sourcePolicyRevision != row.sourcePolicyRevision ||
-			manifest.acquisitionPlanRevision != row.configurationRevision ||
-			manifest.effectiveBootId != row.clockDomainId || manifest.zoneId != row.storedZoneId ||
+		if (hasConflictingSavedManifestBinding(row, session, manifest, binding) ||
 			manifest.effectiveElapsedRealtimeNanos > row.coverageIntervalStartNanos
-		) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		) {
+			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
 
 		val brokerDao = database.sourceBrokerDao()
 		val registration = brokerDao.registration(SOURCE_KIND, row.registrationGeneration)
 			?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 		val registrationStart = registration.acceptedElapsedRealtimeNanos
 		val registrationEnd = registration.retiredElapsedRealtimeNanos ?: Long.MAX_VALUE
-		if (registrationStart == null || registration.sourceInstanceId != row.sourceInstanceId ||
-			registration.ownerScope != EXPECTED_OWNER_SCOPE ||
-			registration.providerResidency != ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND ||
-			registration.physicalConfigurationFingerprint != row.physicalConfigurationFingerprint ||
-			registration.collectedDataEpoch != row.collectedDataEpoch ||
-			registration.clockDomainId != row.clockDomainId ||
-			registration.status !in ACCEPTED_REGISTRATION_STATES ||
-			(registration.retiredAtMs == null) !=
-				(registration.retiredElapsedRealtimeNanos == null) ||
+		if (registrationStart == null || registration.hasConflictingSavedCellRegistration(row) ||
 			row.coverageIntervalStartNanos < registrationStart ||
 			row.coverageIntervalEndNanos >= registrationEnd
-		) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		) {
+			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
 		val authorizationRows = brokerDao.authorizationRevision(
 			SOURCE_KIND, row.registrationGeneration, row.authorizationRevision,
 		)
@@ -730,11 +794,7 @@ internal class CellCapturedFactWriter @Inject constructor(
 		val purpose = if (row.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
 			val wal = database.sourceEventWalDao().getByEventId(row.sourceEventId)
 				?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-			val carrier = when (val authentication = CellWalCarrierAuthenticator.authenticate(wal)) {
-				is CellWalCarrierAuthentication.Authenticated -> authentication.carrier
-				is CellWalCarrierAuthentication.Rejected ->
-					reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-			}
+			val carrier = CellWalCarrierAuthenticator.authenticate(wal).requireCarrier()
 			val demandId = captureMember?.demandId
 				?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 			val qualified = database.qualifyCellPurposeItems(
@@ -749,20 +809,27 @@ internal class CellCapturedFactWriter @Inject constructor(
 				?.map { it.index }.orEmpty()
 			if (qualified.indexes.isEmpty() || accepted.any { it !in qualified.indexes } ||
 				row.maximumObservationAgeNanos > qualified.demandMaximumAgeNanos
-			) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			) {
+				reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			}
 			qualified
-		} else null
-		if (authorization.isDenied || captureMember == null ||
-			(purpose == null && (startAuthorization != authorization || endAuthorization != authorization)) ||
-			demandIds.distinct().size != authorizationMembers.size ||
-			demands.size != authorizationMembers.size ||
-			recomputedAuthorization?.sortedBy { it.memberId } != authorization.members.sortedBy { it.memberId } ||
-			authorization.authorizationFingerprint != row.authorizationFingerprint ||
-			authorization.purposeEligibilityMask != row.purposeEligibilityMask ||
-			authorization.effectiveBootId != row.clockDomainId ||
+		} else {
+			null
+		}
+		if (authorization.isDenied || captureMember == null) {
+			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
+		if (purpose == null && (startAuthorization != authorization || endAuthorization != authorization)) {
+			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
+		if (hasConflictingReconstructedCellAuthorization(
+			row, authorization, demandIds, demands, recomputedAuthorization,
+		) ||
 			(purpose?.continuousFromNanos ?: authorization.effectiveElapsedRealtimeNanos) >
 				row.coverageIntervalStartNanos
-		) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		) {
+			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
 		val nextAuthorizationRows = brokerDao.nextAuthorizationRevision(
 			SOURCE_KIND,
 			row.registrationGeneration,
@@ -777,7 +844,9 @@ internal class CellCapturedFactWriter @Inject constructor(
 		if (nextAuthorization != null &&
 			(nextAuthorization.effectiveBootId != row.clockDomainId ||
 				nextAuthorization.effectiveElapsedRealtimeNanos < authorization.effectiveElapsedRealtimeNanos)
-		) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		) {
+			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
 		val authorizationEnd = purpose?.continuousUntilNanos ?: minOf(
 			registrationEnd,
 			nextAuthorization?.effectiveElapsedRealtimeNanos ?: Long.MAX_VALUE,
@@ -793,16 +862,10 @@ internal class CellCapturedFactWriter @Inject constructor(
 			PURPOSE,
 			row.captureConsentEpoch,
 		) ?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-		if (!policy.enabled || !policy.capturePersistenceEligible ||
-			policy.captureConsentEpoch != row.captureConsentEpoch ||
-			binding.qosCode != policy.qosCode ||
-			policy.effectiveBootId != row.clockDomainId ||
-			policy.effectiveElapsedRealtimeNanos > row.coverageIntervalStartNanos ||
-			!consent.eligible || !consent.persistenceEligible ||
-			consent.policyRevision > row.sourcePolicyRevision ||
-			consent.effectiveBootId != row.clockDomainId ||
-			consent.effectiveElapsedRealtimeNanos > row.coverageIntervalStartNanos
-		) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		if (hasInvalidOriginalCapturePolicy(row, binding, policy) || hasInvalidOriginalCaptureConsent(row, consent)
+		) {
+			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
 
 		val sessionEnd = database.savedSessionCutoff(session)
 			.retainedEnd(row.clockDomainId, row.deletionEffectEndNanos)
@@ -810,7 +873,9 @@ internal class CellCapturedFactWriter @Inject constructor(
 			?: minOf(sessionEnd, registrationEnd, authorizationEnd)
 		if (run.startedElapsedNanos > row.coverageIntervalStartNanos ||
 			row.coverageIntervalEndNanos >= sessionEnd || row.coverageIntervalEndNanos >= manifestEnd
-		) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		) {
+			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
 		val zone = runCatching { ZoneId.of(row.storedZoneId) }.getOrNull()
 			?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 		val earliestWall = canonicalRetentionLowerBound(row)
@@ -821,8 +886,12 @@ internal class CellCapturedFactWriter @Inject constructor(
 		val firstDay = Instant.ofEpochMilli(earliestWall).atZone(zone).toLocalDate().toEpochDay()
 		val lastDay = Instant.ofEpochMilli(latestWall).atZone(zone).toLocalDate().toEpochDay()
 		val measuredDay = Instant.ofEpochMilli(row.observedWallTimeMs).atZone(zone).toLocalDate().toEpochDay()
-		if (if (row.payloadVersion == CELL_WAL_PAYLOAD_VERSION) measuredDay != row.structuralEpochDay else
+		if (if (row.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
+			measuredDay != row.structuralEpochDay
+		} else
+			{
 			firstDay != lastDay || firstDay != row.structuralEpochDay
+		}
 		) {
 			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 		}
@@ -854,6 +923,106 @@ internal class CellCapturedFactWriter @Inject constructor(
 		}
 		return persisted
 	}
+
+	private fun requireRetainedManifestTimeline(
+		run: SourceServiceRunEntity,
+		manifests: List<SessionManifestVersionEntity>,
+		allSources: List<SessionManifestSourceEntity>,
+	) {
+		if (manifests.size > MAX_MANIFESTS_PER_RUN ||
+			allSources.size > MAX_MANIFEST_SOURCES_PER_RUN
+		) {
+			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
+		if (!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests)) {
+			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
+		if (manifests.any { manifest ->
+				!SessionManifestIntegrity.verify(
+					manifest,
+					allSources.filter { source ->
+						source.logicalTrackingId == manifest.logicalTrackingId &&
+							source.manifestRevision == manifest.manifestRevision
+					},
+				)
+			}
+		) {
+			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
+	}
+
+	private fun hasConflictingSavedRunOwner(
+		row: CellCapturedFactRevisionEntity,
+		run: SourceServiceRunEntity,
+		session: LogicalTrackingSessionEntity,
+	): Boolean = run.logicalTrackingId != row.logicalTrackingId ||
+		!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, row.lifecycleLeaseGeneration) ||
+		run.sessionSegmentId != row.sessionSegmentId ||
+		session.logicalTrackingId != row.logicalTrackingId ||
+		session.lifecycleLeaseGeneration < row.lifecycleLeaseGeneration ||
+		(session.currentServiceRunId == row.serviceRunId &&
+			(run.leaseGeneration != session.lifecycleLeaseGeneration || run.bootId != session.lifecycleBootId))
+
+	private fun hasInvalidSavedSessionCutoff(session: LogicalTrackingSessionEntity): Boolean =
+		(session.cutoffAtMs == null) != (session.cutoffElapsedNanos == null) ||
+		(session.completedAtMs != null && session.cutoffElapsedNanos == null)
+
+	private fun hasConflictingSavedManifestBinding(
+		row: CellCapturedFactRevisionEntity,
+		session: LogicalTrackingSessionEntity,
+		manifest: SessionManifestVersionEntity,
+		binding: SessionManifestSourceEntity,
+	): Boolean = manifest.sessionMode != session.sessionMode ||
+		!binding.isExactCellWriter(row.captureConsentEpoch, manifest.sessionMode) ||
+		binding.writerBindingGeneration != row.writerBindingGeneration ||
+		binding.writerOwnerGeneration != row.writerOwnerGeneration ||
+		manifest.serviceRunId != row.serviceRunId ||
+		manifest.sourcePolicyRevision != row.sourcePolicyRevision ||
+		manifest.acquisitionPlanRevision != row.configurationRevision ||
+		manifest.effectiveBootId != row.clockDomainId || manifest.zoneId != row.storedZoneId
+
+	private fun ProviderRegistrationGenerationEntity.hasConflictingSavedCellRegistration(
+		row: CellCapturedFactRevisionEntity,
+	): Boolean = this.sourceInstanceId != row.sourceInstanceId ||
+		this.ownerScope != EXPECTED_OWNER_SCOPE ||
+		this.providerResidency != ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND ||
+		this.physicalConfigurationFingerprint != row.physicalConfigurationFingerprint ||
+		this.collectedDataEpoch != row.collectedDataEpoch ||
+		this.clockDomainId != row.clockDomainId ||
+		this.status !in ACCEPTED_REGISTRATION_STATES ||
+		(this.retiredAtMs == null) !=
+			(this.retiredElapsedRealtimeNanos == null)
+
+	private fun hasConflictingReconstructedCellAuthorization(
+		row: CellCapturedFactRevisionEntity,
+		authorization: SourceAuthorizationSnapshot,
+		demandIds: List<String>,
+		demands: List<SourceDemandEntity>,
+		recomputedAuthorization: List<SourceAuthorizationEntity>?,
+	): Boolean = demandIds.distinct().size != authorization.authorizedMembers.size ||
+		demands.size != authorization.authorizedMembers.size ||
+		recomputedAuthorization?.sortedBy { it.memberId } != authorization.members.sortedBy { it.memberId } ||
+		authorization.authorizationFingerprint != row.authorizationFingerprint ||
+		authorization.purposeEligibilityMask != row.purposeEligibilityMask ||
+		authorization.effectiveBootId != row.clockDomainId
+
+	private fun hasInvalidOriginalCapturePolicy(
+		row: CellCapturedFactRevisionEntity,
+		binding: SessionManifestSourceEntity,
+		policy: SourcePolicyEntity,
+	): Boolean = !policy.enabled || !policy.capturePersistenceEligible ||
+		policy.captureConsentEpoch != row.captureConsentEpoch ||
+		binding.qosCode != policy.qosCode ||
+		policy.effectiveBootId != row.clockDomainId ||
+		policy.effectiveElapsedRealtimeNanos > row.coverageIntervalStartNanos
+
+	private fun hasInvalidOriginalCaptureConsent(
+		row: CellCapturedFactRevisionEntity,
+		consent: SourceConsentEpochEntity,
+	): Boolean = !consent.eligible || !consent.persistenceEligible ||
+		consent.policyRevision > row.sourcePolicyRevision ||
+		consent.effectiveBootId != row.clockDomainId ||
+		consent.effectiveElapsedRealtimeNanos > row.coverageIntervalStartNanos
 
 	private fun CellCapturedFactRevisionEntity.persistedAuthority(
 		capturedSources: Set<SourceKind>,
@@ -925,7 +1094,9 @@ internal class CellCapturedFactWriter @Inject constructor(
 				SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
 				identity,
 			)
-		) reject(CellCapturedWriteRejection.DELETED_SCOPE)
+		) {
+			reject(CellCapturedWriteRejection.DELETED_SCOPE)
+		}
 		val state = database.cellCapturedFactDao().deletionGeneration(logicalTrackingId, serviceRunId)
 		val actualGeneration = when {
 			state == null -> 0L
@@ -942,7 +1113,9 @@ internal class CellCapturedFactWriter @Inject constructor(
 		fact: CellCapturedFactRevisionEntity,
 		currentAuthority: CellCaptureAuthority,
 	) {
-		if (fact.factKind != CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY) return
+		if (fact.factKind != CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY) {
+			return
+		}
 		val ownerLogicalId = requireNotNull(fact.aggregateOwnerLogicalFactId)
 		val ownerRevision = requireNotNull(fact.aggregateOwnerSemanticRevision)
 		val owner = loadDirectAggregateOwner(ownerLogicalId, ownerRevision)
@@ -950,7 +1123,9 @@ internal class CellCapturedFactWriter @Inject constructor(
 			owner.reference.identity.serviceRunId.value != fact.serviceRunId ||
 			owner.reference.identity.sessionSegmentId != fact.sessionSegmentId ||
 			!currentAuthority.canReuseAggregateFrom(owner.authority)
-		) reject(CellCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
+		) {
+			reject(CellCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
+		}
 	}
 
 	private suspend fun canonicalRetentionLowerBound(
@@ -977,7 +1152,9 @@ internal class CellCapturedFactWriter @Inject constructor(
 			fact.writerProjectionVersion,
 			fact.logicalFactId,
 		)
-		if (!conflictingEvent && byFact == null) return
+		if (!conflictingEvent && byFact == null) {
+			return
+		}
 		if (conflictingEvent || byFact == null ||
 			!byFact.authenticatesRequest(
 				expectedSourceKind = SOURCE_KIND,
@@ -1003,7 +1180,9 @@ internal class CellCapturedFactWriter @Inject constructor(
 					),
 				currentRetainedFromMs = currentRetainedFromMs,
 			)
-		) reject(CellCapturedWriteRejection.IDENTITY_COLLISION)
+		) {
+			reject(CellCapturedWriteRejection.IDENTITY_COLLISION)
+		}
 		reject(CellCapturedWriteRejection.RETAINED_DATA)
 	}
 
@@ -1031,6 +1210,7 @@ internal class CellCapturedFactWriter @Inject constructor(
 	}
 }
 
+@Suppress("CyclomaticComplexMethod") // Keep this fixed field or enum projection together.
 private fun SessionManifestSourceEntity.isExactCellWriter(consentEpoch: Long, sessionMode: String?): Boolean =
 	sourceKind == SourceDestinationOwnerEntity.SOURCE_CELL &&
 		purpose == SourceBrokerPurpose.SESSION_CAPTURE && persistenceEligible &&
@@ -1234,11 +1414,14 @@ private fun MutableMap<CellRadioTechnology, Int>.putIfPositive(
 	count: Int?,
 ) {
 	val value = requireNotNull(count)
-	if (value > 0) put(technology, value)
+	if (value > 0) {
+		put(technology, value)
+	}
 }
 
 private object CellCapturedPersistence {
-	@Suppress("LongMethod")
+	// This fixed saved-row projection retains every Cell fact field and nullable aggregate default together.
+	@Suppress("LongMethod", "CyclomaticComplexMethod")
 	fun map(fact: CellCapturedFact, ownerGeneration: Long, writerBindingGeneration: Long): CellCapturedFactRevisionEntity {
 		val mutation = fact.mutation
 		val identity = mutation.identity

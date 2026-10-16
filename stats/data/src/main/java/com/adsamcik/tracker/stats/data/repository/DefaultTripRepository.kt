@@ -58,7 +58,8 @@ class DefaultTripRepository @Inject constructor(
 		fromMs: Long,
 		toMs: Long,
 	): PagingSource<Int, com.adsamcik.tracker.shared.model.Trip> =
-		TripModelPagingSource(tripDao.getPagedOverlapping(fromMs, toMs), ::measuredTrip, savedLocationMetrics::onSavedDataChange)
+		TripModelPagingSource(tripDao.getPagedOverlapping(fromMs, toMs), ::measuredTrip,
+            savedLocationMetrics::onSavedDataChange)
 
 	override suspend fun getTripsBetween(fromMs: Long, toMs: Long) =
 		tripDao.getBetween(fromMs, toMs).map { measuredTrip(it) }
@@ -115,7 +116,8 @@ class DefaultTripRepository @Inject constructor(
 
 private class TripModelPagingSource(
 	private val delegate: PagingSource<Int, com.adsamcik.tracker.shared.base.database.data.Trip>,
-	private val measure: suspend (com.adsamcik.tracker.shared.base.database.data.Trip) -> com.adsamcik.tracker.shared.model.Trip,
+	private val measure: suspend (com.adsamcik.tracker.shared.base.database.data.Trip) ->
+        com.adsamcik.tracker.shared.model.Trip,
 	registerChanges: (() -> Unit) -> (() -> Unit),
 ) : PagingSource<Int, com.adsamcik.tracker.shared.model.Trip>() {
 	private val stopObserving = registerChanges { invalidate() }
@@ -139,5 +141,8 @@ private class TripModelPagingSource(
 				itemsAfter = result.itemsAfter,
 			)
 		} } catch (cancelled: CancellationException) { throw cancelled }
-		catch (failure: Exception) { LoadResult.Error(failure) }
+		catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+			// Delegate loading and saved-distance conversion both need Paging's recoverable error.
+			LoadResult.Error(failure)
+		}
 }

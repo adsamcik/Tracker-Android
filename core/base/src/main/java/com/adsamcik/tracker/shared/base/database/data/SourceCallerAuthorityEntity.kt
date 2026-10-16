@@ -5,6 +5,10 @@ import androidx.room.Entity
 import androidx.room.Index
 import java.security.MessageDigest
 
+/**
+ * Accepted caller/purpose/source reference with original policy, consent/data epochs, optional
+ * session binding and retirement metadata.
+ */
 @Entity(
 	tableName = "source_caller_accepted_authority",
 	primaryKeys = ["reference", "source_kind", "purpose"],
@@ -45,6 +49,10 @@ data class SourceCallerAcceptedAuthorityEntity(
 	@ColumnInfo(name = "retire_reason") val retireReason: String?,
 	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
 ) {
+	/**
+	 * Stable persisted codes, including `FORMAT_VERSION`, `STATUS_ACTIVE`, `STATUS_RETIRED`, and any
+	 * identity-bound record factories.
+	 */
 	companion object {
 		const val FORMAT_VERSION = 3
 		const val STATUS_ACTIVE = "ACTIVE"
@@ -54,14 +62,23 @@ data class SourceCallerAcceptedAuthorityEntity(
 
 /** Binds the opaque reference and every normalized authority/effect field to one format version. */
 object SourceCallerAcceptedAuthorityEffectChecksum {
+	/**
+	 * Binds every row in one nonempty accepted caller-authority batch to the same canonical batch
+	 * digest.
+	 */
 	fun seal(rows: List<SourceCallerAcceptedAuthorityEntity>): List<SourceCallerAcceptedAuthorityEntity> {
 		require(rows.isNotEmpty())
 		val checksum = compute(rows)
 		return rows.map { it.copy(effectChecksum = checksum) }
 	}
 
+	/**
+	 * Checks the supplied record's stored checksum against its canonical fields.
+	 */
 	fun isAuthentic(rows: List<SourceCallerAcceptedAuthorityEntity>): Boolean {
-		if (rows.isEmpty()) return false
+		if (rows.isEmpty()) {
+			return false
+		}
 		val checksum = rows.first().effectChecksum
 		return checksum.isNotBlank() &&
 			rows.all { it.effectChecksum == checksum } &&

@@ -39,7 +39,9 @@ internal class PortableStepsJsonV2Codec {
 		val result = produce(
 			PortableStepsArchiveV2Sink { candidate ->
 				currentCoroutineContext().ensureActive()
-				if (archive != null) fail("Portable Steps v2 exporter emitted multiple archives")
+				if (archive != null) {
+					fail("Portable Steps v2 exporter emitted multiple archives")
+				}
 				archive = PortableStepsArchiveV2(
 					candidate.format,
 					candidate.schemaVersion,
@@ -58,7 +60,9 @@ internal class PortableStepsJsonV2Codec {
 				result
 			}
 			else -> {
-				if (archive != null) fail("Portable Steps v2 emitted data for a non-success result")
+				if (archive != null) {
+					fail("Portable Steps v2 emitted data for a non-success result")
+				}
 				result
 			}
 		}
@@ -86,49 +90,68 @@ internal class PortableStepsJsonV2Codec {
 			),
 		).apply { isLenient = false }
 		return try {
-			reader.beginObject()
-			var format: String? = null
-			var schemaVersion: Int? = null
-			var checksum: String? = null
-			var entries: List<PortableStepsEntryV2>? = null
-			val fields = hashSetOf<String>()
-			while (reader.hasNext()) {
-				val name = reader.nextName()
-				if (!fields.add(name)) fail("Duplicate Portable Steps v2 field $name")
-				when (name) {
-					"format" -> format = reader.nextString()
-					"schemaVersion" -> schemaVersion = reader.exactV2Int(name)
-					"contentChecksum" -> checksum = reader.nextString()
-					"entries" -> entries = reader.readV2Entries()
-					else -> fail("Unknown Portable Steps v2 field $name")
-				}
-			}
-			reader.endObject()
-			if (reader.peek() != JsonToken.END_DOCUMENT) fail("Trailing Portable Steps v2 content")
-			val archive = PortableStepsArchiveV2(
-				format = format ?: fail("Missing Portable Steps v2 format"),
-				schemaVersion = schemaVersion ?: fail("Missing Portable Steps v2 schema version"),
-				contentChecksum = PortableStepsDigest(
-					checksum ?: fail("Missing Portable Steps v2 checksum"),
-				),
-				entries = entries ?: fail("Missing Portable Steps v2 entries"),
-			)
+			val archive = readArchive(reader)
 			PortableStepsDecodedArchiveV2(archive, archive.metadata(bytes.size.toLong()))
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (failure: PortableStepsJsonException) {
 			throw failure
 		} catch (failure: PortableJsonTokenLimitException) {
-			throw PortableStepsJsonException(
+			fail(
 				"Portable Steps v2 token exceeds its lexical bound",
 				failure,
 			)
 		} catch (failure: IOException) {
-			throw PortableStepsJsonException("Invalid Portable Steps v2 JSON", failure)
-		} catch (failure: Exception) {
-			throw PortableStepsJsonException("Invalid Portable Steps v2 document", failure)
+			fail("Invalid Portable Steps v2 JSON", failure)
+		} catch (failure: IllegalArgumentException) {
+			fail("Invalid Portable Steps v2 document", failure)
+		} catch (failure: IllegalStateException) {
+			fail("Invalid Portable Steps v2 document", failure)
+		} catch (failure: ArithmeticException) {
+			fail("Invalid Portable Steps v2 document", failure)
 		}
 	}
+
+	private suspend fun readArchive(reader: JsonReader): PortableStepsArchiveV2 {
+		reader.beginObject()
+		var format: String? = null
+		var schemaVersion: Int? = null
+		var checksum: String? = null
+		var entries: List<PortableStepsEntryV2>? = null
+		val fields = hashSetOf<String>()
+		while (reader.hasNext()) {
+			val name = reader.nextName()
+			if (!fields.add(name)) {
+				fail("Duplicate Portable Steps v2 field $name")
+			}
+			when (name) {
+				"format" -> format = reader.nextString()
+				"schemaVersion" -> schemaVersion = reader.exactV2Int(name)
+				"contentChecksum" -> checksum = reader.nextString()
+				"entries" -> entries = reader.readV2Entries()
+				else -> fail("Unknown Portable Steps v2 field $name")
+			}
+		}
+		reader.endObject()
+		if (reader.peek() != JsonToken.END_DOCUMENT) {
+			fail("Trailing Portable Steps v2 content")
+		}
+		return assembleArchive(format, schemaVersion, checksum, entries)
+	}
+
+	private fun assembleArchive(
+		format: String?,
+		schemaVersion: Int?,
+		checksum: String?,
+		entries: List<PortableStepsEntryV2>?,
+	): PortableStepsArchiveV2 = PortableStepsArchiveV2(
+			format = format ?: fail("Missing Portable Steps v2 format"),
+			schemaVersion = schemaVersion ?: fail("Missing Portable Steps v2 schema version"),
+			contentChecksum = PortableStepsDigest(
+				checksum ?: fail("Missing Portable Steps v2 checksum"),
+			),
+			entries = entries ?: fail("Missing Portable Steps v2 entries"),
+		)
 
 	private suspend fun write(outputStream: OutputStream, archive: PortableStepsArchiveV2) {
 		val products = archive.entries.associateWith { encodeV1Product(it.product) }
@@ -154,7 +177,9 @@ internal class PortableStepsJsonV2Codec {
 	}
 
 	private suspend fun JsonReader.readV2Entries(): List<PortableStepsEntryV2> {
-		if (peek() != JsonToken.BEGIN_ARRAY) fail("Portable Steps v2 entries must be an array")
+		if (peek() != JsonToken.BEGIN_ARRAY) {
+			fail("Portable Steps v2 entries must be an array")
+		}
 		beginArray()
 		val result = mutableListOf<PortableStepsEntryV2>()
 		while (hasNext()) {
@@ -162,30 +187,36 @@ internal class PortableStepsJsonV2Codec {
 			if (result.size >= StepsPortableFormatV2.MAX_ENTRIES) {
 				fail("Portable Steps v2 entry count exceeds its bound")
 			}
-			beginObject()
-			var product: PortableStepsEntryV1? = null
-			var graph: com.adsamcik.tracker.stats.api.repository.PortableCountDomainGraphV2? = null
-			val fields = hashSetOf<String>()
-			while (hasNext()) {
-				val name = nextName()
-				if (!fields.add(name)) fail("Duplicate Portable Steps v2 entry field $name")
-				when (name) {
-					"productV1" -> product = decodeV1Product(nextString())
-					"countDomainGraph" -> graph = PortableCountDomainJsonV2.read(this)
-					else -> fail("Unknown Portable Steps v2 entry field $name")
-				}
-			}
-			endObject()
-			if (fields != setOf("productV1", "countDomainGraph")) {
-				fail("Portable Steps v2 entry is incomplete")
-			}
-			result += PortableStepsEntryV2(
-				product ?: fail("Portable Steps v2 product is missing"),
-				graph ?: fail("Portable Steps v2 count-domain graph is missing"),
-			)
+			result += readV2Entry()
 		}
 		endArray()
 		return result
+	}
+
+	private suspend fun JsonReader.readV2Entry(): PortableStepsEntryV2 {
+		beginObject()
+		var product: PortableStepsEntryV1? = null
+		var graph: com.adsamcik.tracker.stats.api.repository.PortableCountDomainGraphV2? = null
+		val fields = hashSetOf<String>()
+		while (hasNext()) {
+			val name = nextName()
+			if (!fields.add(name)) {
+				fail("Duplicate Portable Steps v2 entry field $name")
+			}
+			when (name) {
+				"productV1" -> product = decodeV1Product(nextString())
+				"countDomainGraph" -> graph = PortableCountDomainJsonV2.read(this)
+				else -> fail("Unknown Portable Steps v2 entry field $name")
+			}
+		}
+		endObject()
+		if (fields != setOf("productV1", "countDomainGraph")) {
+			fail("Portable Steps v2 entry is incomplete")
+		}
+		return PortableStepsEntryV2(
+			product ?: fail("Portable Steps v2 product is missing"),
+			graph ?: fail("Portable Steps v2 count-domain graph is missing"),
+		)
 	}
 
 	private suspend fun encodeV1Product(entry: PortableStepsEntryV1): String {
@@ -268,11 +299,15 @@ private class PortableV2BoundedOutputStream(
 }
 
 private fun JsonReader.exactV2Int(name: String): Int {
-	if (peek() != JsonToken.NUMBER) fail("Portable field $name must be an integer")
+	if (peek() != JsonToken.NUMBER) {
+		fail("Portable field $name must be an integer")
+	}
 	val token = nextString()
-	if (!V2_INTEGER_TOKEN.matches(token)) fail("Portable field $name must be an integer")
+	if (!V2_INTEGER_TOKEN.matches(token)) {
+		fail("Portable field $name must be an integer")
+	}
 	return token.toIntOrNull() ?: fail("Portable field $name is out of range")
 }
 
-private fun fail(message: String): Nothing = throw PortableStepsJsonException(message)
+private fun fail(message: String, cause: Throwable? = null): Nothing = throw PortableStepsJsonException(message, cause)
 private val V2_INTEGER_TOKEN = Regex("-?(0|[1-9][0-9]*)")

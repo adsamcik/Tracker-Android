@@ -77,6 +77,7 @@ class SetupViewModel @Inject constructor(
 
 	init { refreshStepsProviderAvailability() }
 
+	/** Refreshes supported on-device Steps capability without changing the person’s choice. */
 	fun refreshStepsProviderAvailability() {
 		val resolver = stepsCapabilityResolver ?: return
 		stepsCapabilityJob?.cancel()
@@ -100,6 +101,7 @@ class SetupViewModel @Inject constructor(
 		}
 	}
 
+	/** Keeps Steps selected and publishes repair failure when its permission screen could not open. */
 	fun onStepsProviderPermissionRequestFailed() {
 		_state.update { it.copy(stepsProviderRepairFailed = true) }
 	}
@@ -115,7 +117,9 @@ class SetupViewModel @Inject constructor(
     }
 
     fun goToPreviousStep() {
-		if (_state.value.completionInProgress) return
+        if (_state.value.completionInProgress) {
+            return
+        }
         updateState { current ->
             val prevIndex = current.currentStep.index - 1
             val prev = SetupStep.fromIndex(prevIndex) ?: return@updateState current
@@ -139,6 +143,7 @@ class SetupViewModel @Inject constructor(
         }) }
     }
 
+    /** Updates the five-level setup quality choice independently of source participation. */
     fun setBalanceLevel(level: Int) {
         require(level in 1..5)
         updateState { it.copy(balanceLevel = level) }
@@ -164,6 +169,7 @@ class SetupViewModel @Inject constructor(
         updateState { it.copy(stepsEnabled = enabled) }
     }
 
+	/** Updates optional Pressure participation in the saved setup draft. */
 	fun setPressureEnabled(enabled: Boolean) {
 		updateState { it.copy(pressureEnabled = enabled) }
 	}
@@ -291,7 +297,9 @@ class SetupViewModel @Inject constructor(
     // region Step 4 – Online Map Tiles
 
     fun setOnlineMapTilesEnabled(enabled: Boolean) {
-		if (_state.value.completionInProgress) return
+        if (_state.value.completionInProgress) {
+            return
+        }
         updateState { it.copy(onlineMapTilesEnabled = enabled) }
     }
 

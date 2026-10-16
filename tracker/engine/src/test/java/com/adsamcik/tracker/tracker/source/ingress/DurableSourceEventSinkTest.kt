@@ -6,6 +6,8 @@ import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.CellObservationEvidence
 import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
 import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
+import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
 import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
@@ -100,6 +102,7 @@ class DurableSourceEventSinkTest {
 			candidate().copy(
 				source = SourceKind.LOCATION,
 				sourceInstanceId = SourceInstanceId("location"),
+				payload = LocationFixPayload(50.0, 14.0, 5f, null, null, null, null, "gps", isMock = false),
 			),
 		).shouldBeInstanceOf<SourceAdmissionHandoff.Durable>()
 
@@ -464,6 +467,7 @@ class DurableSourceEventSinkTest {
 	private fun wifiCandidate() = candidate().copy(
 		source = SourceKind.WIFI,
 		sourceInstanceId = SourceInstanceId("wifi"),
+		payload = WifiResultSnapshotPayload(emptyList(), 1L, 0L),
 	)
 
 	private fun wifiDelivery() = SourceDeliveryCandidate(

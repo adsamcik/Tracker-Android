@@ -99,6 +99,9 @@ class PortableStepsProductionRoundTripTest {
 	}
 
 	@Test
+	// Keep the same automatic Steps recording through production history, portable import and exact re-export
+	// together.
+	@Suppress("LongMethod")
 	fun `automatic Steps reaches production history while Activity control stays out of captured product`() = runTest {
 		seedLocalStepsOnlySession()
 		val sourceHistory = PortableStepsRoundTripInternals.history(

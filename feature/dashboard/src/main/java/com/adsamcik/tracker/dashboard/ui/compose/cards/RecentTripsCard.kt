@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
+import com.adsamcik.tracker.dashboard.ui.compose.dashboardNameResource
 import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryEntry
 import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryState
 import com.adsamcik.tracker.dashboard.ui.compose.DashboardRadioHistoryFacts
@@ -102,6 +103,9 @@ internal fun RecentTripsCard(
 }
 
 @Composable
+// Keep this cohesive Compose declaration together; its operation and condition checks remain active.
+@Suppress("LongMethod", "CyclomaticComplexMethod")
+// Keep the exhaustive saved-source row presentation and its matching row actions together.
 private fun RecentHistoryRows(
 	recentHistory: DashboardRecentHistoryState,
 	onTripClick: ((Long) -> Unit)?,
@@ -125,24 +129,36 @@ private fun RecentHistoryRows(
 						val trip = entry.trip
 						RecentTripRow(
 							trip = trip,
-							distanceText = if (!trip.hasMeasuredDistance) "—" else context.resources.formatDistance(
+							distanceText = if (!trip.hasMeasuredDistance) {
+								"—"
+							} else {
+								context.resources.formatDistance(
 								trip.distanceM,
 								1,
 								settings.lengthSystem,
-							).let { if (trip.distanceIsPartial) context.getString(R.string.dashboard_recorded_partial_value, it) else it },
+							).let { if (trip.distanceIsPartial) {
+								stringResource(R.string.dashboard_recorded_partial_value, it)
+							} else {
+								it
+							} }
+							},
 							durationText = trip.durationMs.formatAsDuration(context),
 							timeText = relativeTime(trip.startTimeMs),
 							onClick = onTripClick?.let { click -> { click(trip.id) } },
 						)
 					}
 					is DashboardRecentHistoryEntry.StepsOnly -> key("steps-only", entry.history.key) {
-						RecentStepsOnlyRow(entry.history)
+						RecentStepsOnlyRow(entry.history, onClick = entry.detailSelection?.let { selection ->
+							onSourceHistoryClick?.let { click -> { click(selection) } }
+						})
 					}
 					is DashboardRecentHistoryEntry.ImportedSteps -> key("imported-steps", entry.history.key) {
 						RecentImportedStepsRow(entry.history, onTripClick)
 					}
 					is DashboardRecentHistoryEntry.PressureOnly -> key("pressure-only", entry.history.key) {
-						RecentPressureOnlyRow(entry.history)
+						RecentPressureOnlyRow(entry.history, onClick = entry.detailSelection?.let { selection ->
+							onSourceHistoryClick?.let { click -> { click(selection) } }
+						})
 					}
 					is DashboardRecentHistoryEntry.ActivityOnly -> key("activity-only", entry.history.key) {
 						RecentActivityOnlyRow(
@@ -183,12 +199,18 @@ private fun RecentHistoryRows(
 @Composable
 private fun RecentPressureOnlyRow(
 	history: PressureOnlyHistoryEntry,
+	onClick: (() -> Unit)?,
 	modifier: Modifier = Modifier,
 ) {
 	Row(
 		modifier = modifier
 			.fillMaxWidth()
 			.heightIn(min = 48.dp)
+			.then(if (onClick == null) {
+				Modifier
+			} else {
+				Modifier.clip(MaterialTheme.shapes.medium).clickable(onClick = onClick)
+			})
 			.padding(vertical = 8.dp, horizontal = 4.dp)
 			.testTag("dashboard_recent_pressure_row"),
 		verticalAlignment = Alignment.CenterVertically,
@@ -223,10 +245,15 @@ private fun RecentPressureOnlyRow(
 			style = MaterialTheme.typography.labelSmall,
 			color = MaterialTheme.colorScheme.onSurface,
 		)
+		if (onClick != null) {
+			SourceHistoryArrow()
+		}
 	}
 }
 
 @Composable
+// Keep this cohesive Compose declaration together; its operation and condition checks remain active.
+@Suppress("LongMethod")
 private fun RecentActivityOnlyRow(
 	history: ActivityHistoryEntry,
 	onClick: (() -> Unit)?,
@@ -363,17 +390,12 @@ private fun SourceHistoryArrow() {
 }
 
 @Composable
+// Keep the closed unavailable-reason to resource-label mapping together.
+@Suppress("CyclomaticComplexMethod")
 private fun DashboardRecentHistoryState.Unavailable.unavailableMessage(): String {
 	val sourceLabel = source?.let { source ->
 		stringResource(
-			when (source) {
-				HistorySource.LOCATION -> R.string.dashboard_history_source_location
-				HistorySource.WIFI -> R.string.dashboard_history_source_wifi
-				HistorySource.CELL -> R.string.dashboard_history_source_cell
-				HistorySource.ACTIVITY -> R.string.dashboard_history_source_activity
-				HistorySource.STEPS -> R.string.dashboard_history_source_steps
-				HistorySource.PRESSURE -> R.string.dashboard_history_source_pressure
-			},
+			source.dashboardNameResource,
 		)
 	}
 	val reasonLabel = reason?.let { reason ->
@@ -476,13 +498,20 @@ private fun RecentHistoryMessage(text: String) {
 @Composable
 private fun RecentStepsOnlyRow(
 	history: StepsOnlyHistoryEntry,
+	onClick: (() -> Unit)?,
 	modifier: Modifier = Modifier,
 ) {
 	Row(
 		modifier = modifier
 			.fillMaxWidth()
 			.heightIn(min = 48.dp)
-			.padding(vertical = 8.dp, horizontal = 4.dp),
+			.then(if (onClick == null) {
+				Modifier
+			} else {
+				Modifier.clip(MaterialTheme.shapes.medium).clickable(onClick = onClick)
+			})
+			.padding(vertical = 8.dp, horizontal = 4.dp)
+			.testTag("dashboard_recent_steps_row"),
 		verticalAlignment = Alignment.CenterVertically,
 		horizontalArrangement = Arrangement.spacedBy(12.dp),
 	) {
@@ -509,6 +538,9 @@ private fun RecentStepsOnlyRow(
 			style = MaterialTheme.typography.labelSmall,
 			color = MaterialTheme.colorScheme.onSurface,
 		)
+		if (onClick != null) {
+			SourceHistoryArrow()
+		}
 	}
 }
 

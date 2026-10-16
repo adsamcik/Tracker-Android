@@ -1,10 +1,7 @@
 package com.adsamcik.tracker.tracker.source.coordinator
 
-import com.adsamcik.tracker.shared.base.database.hasExactRadioSessionCaptureCallbackBarrier
 import androidx.room.withTransaction
-import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
@@ -146,6 +143,7 @@ class ExecutableSourceLaneCatalog internal constructor(
 		}
 	}
 
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	internal fun nextRearmBinding(
 		current: ExecutableSourceLaneBinding,
 		input: SourceWriterRearmAuthorityInput,
@@ -153,7 +151,9 @@ class ExecutableSourceLaneCatalog internal constructor(
 		candidateOwner: String,
 		containedOwner: String,
 	): ExecutableSourceRearmBinding? {
-		if (!owns(current)) return null
+		if (!owns(current)) {
+			return null
+		}
 		val declaration = rearmDeclarationsBySource[current.source] ?: return null
 		if (!declaration.capability.matchesIdentity(
 				sourceKind = current.source.stableCode,
@@ -164,14 +164,18 @@ class ExecutableSourceLaneCatalog internal constructor(
 				projectionVersion = current.projectionVersion,
 				canonicalStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
 			)
-		) return null
+		) {
+			return null
+		}
 		val nextContractBinding = declaration.nextBindingIfFullySupported(input) ?: return null
 		val nextLaneBinding = current.copy(bindingGeneration = nextContractBinding.bindingGeneration)
 		if (!owns(nextLaneBinding) ||
 			nextContractBinding.sourceKind != nextLaneBinding.source.stableCode ||
 			nextContractBinding.projectionId != nextLaneBinding.projectionId ||
 			nextContractBinding.projectionVersion != nextLaneBinding.projectionVersion
-		) return null
+		) {
+			return null
+		}
 		return ExecutableSourceRearmBinding(
 			nextLaneBinding = nextLaneBinding,
 			nextContractBinding = nextContractBinding,
@@ -184,9 +188,12 @@ class ExecutableSourceLaneCatalog internal constructor(
 			.filter { it.source == source }
 			.minByOrNull(ExecutableSourceLaneBinding::bindingGeneration)
 
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	private fun ExecutableSourceLaneBinding.isSupportedMonotonicRearm(): Boolean {
 		val declaration = rearmDeclarationsBySource[source] ?: return false
-		if (bindingGeneration <= 0L) return false
+		if (bindingGeneration <= 0L) {
+			return false
+		}
 		val base = baseBinding(source) ?: return false
 		val expected = expectedRearmCapability(source) ?: return false
 		val identityMatches = projectionId == base.projectionId &&
@@ -201,7 +208,9 @@ class ExecutableSourceLaneCatalog internal constructor(
 				projectionVersion = projectionVersion,
 				canonicalStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
 			)
-		if (!identityMatches) return false
+		if (!identityMatches) {
+			return false
+		}
 		return try {
 			declaration.fullySupports(declaration.capability.binding(bindingGeneration))
 		} catch (_: ArithmeticException) {
@@ -533,12 +542,26 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 		validatedDynamicRearm = true,
 	)
 
+	/** Exact known radio writer setup shares the acknowledged session boundary with a resident Ambient owner. */
+	internal suspend fun installFinalRadioWriterShadowLane(
+		binding: ExecutableSourceLaneBinding,
+		rolloutRevision: Long,
+		updatedAtMs: Long,
+		rearm: Boolean,
+	): SourceProductLaneActivation {
+		require(binding.source in setOf(SourceKind.WIFI, SourceKind.CELL))
+		require(SourceWriterTransitionSpec.entries.any { it.finalBinding == binding })
+		return installShadowLane(binding, rolloutRevision, updatedAtMs, rearm,
+			validatedDynamicRearm = false, finalRadioSetup = true)
+	}
+
 	private suspend fun installShadowLane(
 		binding: ExecutableSourceLaneBinding,
 		rolloutRevision: Long,
 		updatedAtMs: Long,
 		rearm: Boolean,
 		validatedDynamicRearm: Boolean,
+		finalRadioSetup: Boolean = false,
 	): SourceProductLaneActivation {
 		require(executableLaneCatalog.owns(binding)) {
 			"Source lane binding is not executable by this app binary"
@@ -581,7 +604,11 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 			require(projectionDao.registration(binding.projectionId, binding.projectionVersion) == null) {
 				"Projection identity ${binding.projectionId}:${binding.projectionVersion} is already registered globally"
 			}
-			database.requireSourceCaptureAdmissionFenced(binding.source.stableCode)
+			if (finalRadioSetup) {
+				require(database.isSharedRadioSessionCaptureAdmissionFenced(binding.source.stableCode))
+			} else {
+				database.requireSourceCaptureAdmissionFenced(binding.source.stableCode)
+			}
 
 			val activeLanes = projectionDao.allActiveProductLanes()
 			val current = currentEntity?.decodeCurrentModelOrNull()
@@ -606,7 +633,14 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 			projectionDao.installProductLane(lane)
 			val rollout = current.copy(
 				revision = rolloutRevision,
-				sourceOwners = current.sourceOwners + (binding.source to SourceOwner.CONTAINED),
+				sourceOwners = current.sourceOwners + (binding.source to if (
+					binding.source == SourceKind.ACTIVITY &&
+					current.sourceOwners.getValue(binding.source) == SourceOwner.CONTROL
+				) {
+					SourceOwner.CONTROL
+				} else {
+					SourceOwner.CONTAINED
+				}),
 				productProjectionStages = current.productProjectionStages +
 					(binding.source to ProductProjectionStage.LEGACY_CANONICAL),
 				captureModeMasks = current.captureModeMasks + (binding.source to 0L),
@@ -674,8 +708,12 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 			} else {
 				require(lane.matches(binding, ProductProjectionStage.EVENT_SHADOW, current.revision))
 				if (finalSetup && (binding.source == SourceKind.WIFI || binding.source == SourceKind.CELL))
+					{
 					require(database.isSharedRadioSessionCaptureAdmissionFenced(binding.source.stableCode))
-				else database.requireSourceCaptureAdmissionFenced(binding.source.stableCode)
+				}
+				else {
+					database.requireSourceCaptureAdmissionFenced(binding.source.stableCode)
+				}
 			}
 			check(lane.captureAdmissionCutoffOrdinal == null) {
 				"Source product lane capture admission is already fenced"
@@ -731,13 +769,13 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 			val cutoffOrdinal = requireNotNull(lane.captureAdmissionCutoffOrdinal) {
 				"Source capture admission must be fenced before retirement"
 			}
-			require(!lane.isRetainedCanonicalStepsRollbackLane(
+			require(!lane.isRetainedCanonicalWriterRollbackLane(
 					database,
 					rollout,
 					executableLaneCatalog,
 				)
 			) {
-				"Candidate-owned canonical Steps retirement must use its dedicated owner transition"
+				"Candidate-owned canonical retirement must use its source owner transition"
 			}
 			require(lane.contiguousAdmissionOrdinal == expectedCurrentOrdinal)
 			require(expectedCurrentOrdinal == cutoffOrdinal) {
@@ -766,15 +804,15 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 			!lane.isAuthorizedBy(database, repaired, activeLanes, executableLaneCatalog)
 		}.forEach { lane ->
 			val projectionDao = database.sourceProjectionStateDao()
-			if (lane.isRetainedCanonicalStepsRollbackLane(
+			if (lane.isRetainedCanonicalWriterRollbackLane(
 					database,
 					repaired,
 					executableLaneCatalog,
 				)
 			) {
-				// A contained canonical Steps lane may be between rollback phases. Keep its WAL pin
-				// until the dedicated coordinator atomically retires it and advances the permanent
-				// destination owner. Generic repair must never perform half of that transition.
+				// Keep a canonical rollback lane until its source coordinator atomically retires
+				// it and advances the destination owner. Activity CONTROL can remain available
+				// while capture is contained; generic repair must not perform half the handoff.
 				return@forEach
 			}
 			if (!lane.retentionRequired) {
@@ -788,7 +826,9 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 				) == 1) { "Non-retaining conflicting lane changed during containment repair" }
 				return@forEach
 			}
-			if (!database.isSourceCaptureAdmissionFenced(lane.sourceKind)) return@forEach
+			if (!database.isSourceCaptureAdmissionFenced(lane.sourceKind)) {
+				return@forEach
+			}
 			val cutoffOrdinal = lane.captureAdmissionCutoffOrdinal
 				?: (database.liveSourceProjectionActivationOrdinal() - 1L).also { cutoff ->
 					check(projectionDao.fenceProductLaneCaptureAdmission(
@@ -826,124 +866,31 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 
 }
 
-internal suspend fun AppDatabase.requireSourceCaptureAdmissionFenced(sourceKind: Int) {
-	require(isSourceCaptureAdmissionFenced(sourceKind)) {
-		"Source capture must cross its demand and callback-authorization retirement barrier first"
-	}
-}
-
-/** Location has one physical owner whose all-day purpose can outlive session capture. */
-internal suspend fun AppDatabase.isLocationSessionCaptureAdmissionFenced(): Boolean {
-	val broker = sourceBrokerDao()
-	val source = SourceKind.LOCATION.stableCode
-	if (broker.activeDemands(source).any { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) return false
-	val epoch = sourceEvidenceStateDao().get()?.collectedDataEpoch ?: return false
-	val registrations = (broker.currentPhysicalRegistrations(source) + broker.pendingProviderRemovals(source))
-		.distinctBy { it.registrationGeneration }
-	return registrations.all { registration ->
-		if (registration.collectedDataEpoch != epoch) return@all false
-		val current = try {
-			broker.latestAuthorization(source, registration.registrationGeneration).toAuthorizationSnapshotOrNull()
-		} catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
-			null
-		} ?: return@all false
-		if (current.effectiveBootId != registration.clockDomainId || current.authorizedMembers.any {
-				it.persistenceEligible && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE
-			}) return@all false
-		val lastCaptureRevision = broker.maximumLocationSessionCaptureAuthorizationRevision(
-			registration.registrationGeneration)
-		if (lastCaptureRevision == 0L) return@all true
-		val removal = try {
-			broker.nextAuthorizationRevision(source, registration.registrationGeneration, lastCaptureRevision)
-				.toAuthorizationSnapshotOrNull()
-		} catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
-			null
-		} ?: return@all false
-		removal.effectiveBootId == registration.clockDomainId &&
-			removal.authorizationRevision <= current.authorizationRevision &&
-			removal.authorizedMembers.none {
-				it.persistenceEligible && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE
-			} && registration.captureCallbackBarrierAuthorizationRevision >= removal.authorizationRevision &&
-			registration.captureCallbackBarrierAuthorizationRevision <= current.authorizationRevision
-	}
-}
-
-/** Session setup retires only shared radio CAPTURE; generic/privacy fencing remains full-purpose. */
-internal suspend fun AppDatabase.isSharedRadioSessionCaptureAdmissionFenced(sourceKind: Int): Boolean {
-	require(sourceKind in setOf(SourceKind.WIFI.stableCode, SourceKind.CELL.stableCode))
-	val broker = sourceBrokerDao()
-	val demands = broker.activeDemandsBounded(sourceKind, 257)
-	if (demands.size > 256 || demands.any { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) return false
-	val epoch = sourceEvidenceStateDao().get()?.collectedDataEpoch ?: return false
-	val active = broker.currentPhysicalRegistrationsBounded(sourceKind, 65)
-	val retiring = broker.pendingProviderRemovalsBounded(sourceKind, 65)
-	if (active.size > 64 || retiring.size > 64) return false
-	for (registration in (active + retiring).distinctBy { it.registrationGeneration }) {
-		if (registration.collectedDataEpoch != epoch) return false
-		val rows = broker.latestRadioAuthorizationBounded(sourceKind, registration.registrationGeneration, 65)
-		if (rows.size > 64) return false
-		val current = try { rows.toAuthorizationSnapshotOrNull() }
-		catch (@Suppress("SwallowedException") _: IllegalArgumentException) { null } ?: return false
-		if (current.effectiveBootId != registration.clockDomainId || current.authorizedMembers.any {
-				it.persistenceEligible && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE
-			}) return false
-		val lastCapture = broker.maximumRadioSessionCaptureAuthorizationRevision(sourceKind, registration.registrationGeneration)
-		if (lastCapture > 0L && !hasExactRadioSessionCaptureCallbackBarrier(registration, current, lastCapture)) return false
-	}
-	return true
-}
-
-internal suspend fun AppDatabase.isSourceCaptureAdmissionFenced(sourceKind: Int): Boolean {
-	val brokerDao = sourceBrokerDao()
-	val capturePurposes = setOf(
-		SourceBrokerPurpose.SESSION_CAPTURE,
-		SourceBrokerPurpose.AMBIENT_PRODUCT,
-	)
-	if (brokerDao.activeDemands(sourceKind).any { it.purpose in capturePurposes }) return false
-
-	val nonterminalRegistrations = (
-		brokerDao.currentPhysicalRegistrations(sourceKind) +
-			brokerDao.pendingProviderRemovals(sourceKind)
-	).distinctBy { it.registrationGeneration }
-	return nonterminalRegistrations.all { registration ->
-		val latestAuthorization = brokerDao.latestAuthorization(
-			sourceKind,
-			registration.registrationGeneration,
-		)
-		if (latestAuthorization.isEmpty() || latestAuthorization.any { authorization ->
-			authorization.persistenceEligible && authorization.purpose in capturePurposes
-		}) return@all false
-		val captureRevision = brokerDao.maximumCaptureAuthorizationRevision(
-			sourceKind,
-			registration.registrationGeneration,
-		)
-		registration.captureCallbackBarrierAuthorizationRevision >= captureRevision
-	}
-}
-
-private suspend fun SourceProductProjectionLaneEntity.isRetainedCanonicalStepsRollbackLane(
+private suspend fun SourceProductProjectionLaneEntity.isRetainedCanonicalWriterRollbackLane(
 	database: AppDatabase,
 	rollout: TrackingRolloutState,
 	executableLaneCatalog: ExecutableSourceLaneCatalog,
 ): Boolean {
-	if (!isFencedCanonicalStepsLane() || !rollout.hasContainedStepsRollbackShape()) return false
+	if (productStage != SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL ||
+		captureAdmissionCutoffOrdinal == null
+	) {
+		return false
+	}
 	val binding = executableLaneCatalog.bindingFor(this) ?: return false
+	if (binding.source == SourceKind.LOCATION || !rollout.authorizesInertShadow(binding.source)) {
+		return false
+	}
 	return matches(binding, ProductProjectionStage.EVENT_CANONICAL, rollout.revision) &&
-		database.sourceDestinationOwnerDao().get(
-		SourceDestinationOwnerEntity.SOURCE_STEPS,
-		SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
-	)?.owner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
+		if (binding.source == SourceKind.STEPS) {
+			// Preserve the original Steps rollback owner contract.
+			database.sourceDestinationOwnerDao().get(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+			)?.owner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
+		} else {
+			database.hasExactSourceCaptureDestinationOwner(binding, ProductProjectionStage.EVENT_CANONICAL)
+		}
 }
-
-private fun SourceProductProjectionLaneEntity.isFencedCanonicalStepsLane(): Boolean =
-	sourceKind == SourceKind.STEPS.stableCode &&
-		productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL &&
-		captureAdmissionCutoffOrdinal != null
-
-private fun TrackingRolloutState.hasContainedStepsRollbackShape(): Boolean =
-	sourceOwners.getValue(SourceKind.STEPS) == SourceOwner.CONTAINED &&
-		productProjectionStages.getValue(SourceKind.STEPS) == ProductProjectionStage.LEGACY_CANONICAL &&
-		captureModeMasks.getValue(SourceKind.STEPS) == 0L
 
 data class SourceProductLaneActivation(
 	val rollout: TrackingRolloutState,
@@ -972,7 +919,9 @@ private suspend fun TrackingRolloutState.withoutUnbackedProductLanes(
 	val lanesBySource = activeLanes.groupBy(SourceProductProjectionLaneEntity::sourceKind)
 	val unbacked = mutableSetOf<SourceKind>()
 	for (source in SourceKind.entries) {
-		if (!isAcquisitionReachable(source)) continue
+		if (!isAcquisitionReachable(source)) {
+			continue
+		}
 		val stage = productProjectionStages.getValue(source)
 		val lane = lanesBySource[source.stableCode]?.singleOrNull()
 		val binding = lane?.let(executableLaneCatalog::bindingFor)
@@ -985,20 +934,36 @@ private suspend fun TrackingRolloutState.withoutUnbackedProductLanes(
 					sourceKind = source.stableCode,
 					productStage = stage.name,
 					rolloutRevision = revision,
-				) && database.hasExactCanonicalDestinationOwner(binding, stage)
+				) && database.hasExactSourceCaptureDestinationOwner(binding, stage)
 		}
-		if (!backed) unbacked += source
+		if (!backed) {
+			unbacked += source
+		}
 	}
-	if (unbacked.isEmpty()) return this
+	if (unbacked.isEmpty()) {
+		return this
+	}
 	return copy(
 		sourceOwners = sourceOwners.mapValues { (source, owner) ->
-			if (source in unbacked) SourceOwner.CONTAINED else owner
+			if (source in unbacked) {
+				SourceOwner.CONTAINED
+			} else {
+				owner
+			}
 		},
 		productProjectionStages = productProjectionStages.mapValues { (source, stage) ->
-			if (source in unbacked) ProductProjectionStage.LEGACY_CANONICAL else stage
+			if (source in unbacked) {
+				ProductProjectionStage.LEGACY_CANONICAL
+			} else {
+				stage
+			}
 		},
 		captureModeMasks = captureModeMasks.mapValues { (source, mask) ->
-			if (source in unbacked) 0L else mask
+			if (source in unbacked) {
+				0L
+			} else {
+				mask
+			}
 		},
 	)
 }
@@ -1010,7 +975,9 @@ private suspend fun SourceProductProjectionLaneEntity.isAuthorizedBy(
 	executableLaneCatalog: ExecutableSourceLaneCatalog,
 ): Boolean {
 	val source = SourceKind.entries.singleOrNull { it.stableCode == sourceKind } ?: return false
-	if (activeLanes.count { it.sourceKind == sourceKind } != 1) return false
+	if (activeLanes.count { it.sourceKind == sourceKind } != 1) {
+		return false
+	}
 	val binding = executableLaneCatalog.bindingFor(this) ?: return false
 	return when (productStage) {
 		SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW ->
@@ -1025,104 +992,14 @@ private suspend fun SourceProductProjectionLaneEntity.isAuthorizedBy(
 	}
 }
 
-private fun TrackingRolloutState.authorizesInertShadow(source: SourceKind): Boolean =
-	sourceOwners.getValue(source) == SourceOwner.CONTAINED &&
+internal fun TrackingRolloutState.authorizesInertShadow(source: SourceKind): Boolean {
+	val owner = sourceOwners.getValue(source)
+	val captureInertOwner = owner == SourceOwner.CONTAINED ||
+		(source == SourceKind.ACTIVITY && owner == SourceOwner.CONTROL)
+	return captureInertOwner &&
 		productProjectionStages.getValue(source) == ProductProjectionStage.LEGACY_CANONICAL &&
 		captureModeMasks.getValue(source) == 0L
-
-@Suppress("CyclomaticComplexMethod", "ReturnCount") // Source-local owner rules are intentionally explicit.
-private suspend fun AppDatabase.hasExactCanonicalDestinationOwner(
-	binding: ExecutableSourceLaneBinding,
-	stage: ProductProjectionStage,
-): Boolean {
-	if (stage != ProductProjectionStage.EVENT_CANONICAL) return true
-	return when (binding.source) {
-		SourceKind.STEPS -> {
-			if (binding.projectionId != SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID ||
-				binding.projectionVersion != SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION
-			) return true
-			val owner = sourceDestinationOwnerDao().get(
-				SourceDestinationOwnerEntity.SOURCE_STEPS,
-				SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
-			) ?: return false
-			owner.owner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS &&
-				owner.ownerGeneration >= SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
-		}
-		SourceKind.PRESSURE -> {
-			if (!binding.hasSameWriterSemanticsAs(
-					ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS,
-				)
-			) return false
-			val owner = sourceDestinationOwnerDao().get(
-				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
-				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
-			) ?: return false
-			owner.owner == SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS &&
-				owner.ownerGeneration ==
-				com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
-					.canonicalOwnerGeneration(binding.bindingGeneration)
-		}
-		SourceKind.ACTIVITY -> {
-			if (!binding.hasSameWriterSemanticsAs(
-					ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS,
-				)
-			) return false
-			val owner = sourceDestinationOwnerDao().get(
-				SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
-				SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
-			) ?: return false
-			owner.owner == SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS &&
-				owner.ownerGeneration ==
-				com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
-					.canonicalOwnerGeneration(binding.bindingGeneration)
-		}
-		SourceKind.CELL -> {
-			if (!binding.hasSameWriterSemanticsAs(ExecutableSourceLaneCatalog.CELL_SESSION_FACTS)) {
-				return false
-			}
-			val owner = sourceDestinationOwnerDao().get(
-				SourceDestinationOwnerEntity.SOURCE_CELL,
-				SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
-			) ?: return false
-			owner.owner == SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS &&
-				owner.ownerGeneration ==
-				com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
-					.canonicalOwnerGeneration(binding.bindingGeneration)
-		}
-		SourceKind.WIFI -> {
-			if (!binding.hasSameWriterSemanticsAs(ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS)) {
-				return false
-			}
-			val owner = sourceDestinationOwnerDao().get(
-				SourceDestinationOwnerEntity.SOURCE_WIFI,
-				SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI,
-			) ?: return false
-			owner.owner == SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS &&
-				owner.ownerGeneration ==
-				com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
-					.canonicalOwnerGeneration(binding.bindingGeneration)
-		}
-		SourceKind.LOCATION -> {
-			if (binding != ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V1 &&
-				binding != ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V2
-			) return false
-			val owner = sourceDestinationOwnerDao().get(
-				SourceDestinationOwnerEntity.SOURCE_LOCATION,
-				SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
-			) ?: return false
-			owner.owner == SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE &&
-				owner.ownerGeneration == SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION
-		}
-	}
 }
-
-private fun ExecutableSourceLaneBinding.hasSameWriterSemanticsAs(
-	base: ExecutableSourceLaneBinding,
-): Boolean = source == base.source &&
-	projectionId == base.projectionId &&
-	projectionVersion == base.projectionVersion &&
-	(captureModes == base.captureModes || captureModeMask ==
-		SourceWriterGenerationContract.captureModeMaskForKnownBinding(bindingGeneration))
 
 /**
  * Transaction-local defense for durable capture admission. An executable lane alone is not
@@ -1147,7 +1024,7 @@ internal suspend fun SourceProductProjectionLaneEntity.isCanonicalCaptureAuthori
 ): Boolean {
 	val binding = executableLaneCatalog.bindingFor(this) ?: return false
 	return isCanonicalCaptureAuthorizedBy(rollout, executableLaneCatalog) &&
-		database.hasExactCanonicalDestinationOwner(
+		database.hasExactSourceCaptureDestinationOwner(
 			binding,
 			ProductProjectionStage.EVENT_CANONICAL,
 		)
@@ -1158,9 +1035,15 @@ internal fun SourceProductProjectionLaneEntity.matches(
 	stage: ProductProjectionStage,
 	rolloutRevision: Long,
 ): Boolean {
-	if (!matchesSourceBinding(binding)) return false
-	if (!matchesWriterBinding(binding)) return false
-	if (!matchesRolloutStage(stage, rolloutRevision)) return false
+	if (!matchesSourceBinding(binding)) {
+		return false
+	}
+	if (!matchesWriterBinding(binding)) {
+		return false
+	}
+	if (!matchesRolloutStage(stage, rolloutRevision)) {
+		return false
+	}
 	return hasActiveContiguousCursor()
 }
 
@@ -1244,7 +1127,9 @@ private fun decodeProductProjectionStages(encoded: String): Map<SourceKind, Prod
 }
 
 private fun decodeCaptureModeMasks(encoded: String): Map<SourceKind, Long> {
-	if (':' !in encoded) return SourceKind.entries.associateWith { 0L }
+	if (':' !in encoded) {
+		return SourceKind.entries.associateWith { 0L }
+	}
 	val decoded = encoded.split(',').filter(String::isNotBlank).associate { value ->
 		val parts = value.split(':', limit = 3)
 		val source = SourceKind.entries.single { it.stableCode == parts[0].toInt() }
@@ -1252,3 +1137,4 @@ private fun decodeCaptureModeMasks(encoded: String): Map<SourceKind, Long> {
 	}
 	return SourceKind.entries.associateWith { source -> decoded[source] ?: 0L }
 }
+

@@ -9,14 +9,23 @@ object LocationAcceptedReceiptIntegrity {
 		retainedProofVersion = 1, retainedProofChecksum = receiptChecksum(receipt),
 	)
 
+	/**
+	 * Copies the supplied record with its retained checksum derived from its persisted values.
+	 */
 	fun seal(purpose: LocationSamplePurposeAuthorityEntity,
 		receipt: LocationAcceptedReceiptEntity): LocationSamplePurposeAuthorityEntity = purpose.copy(
 		retainedProofChecksum = purposeChecksum(purpose, receipt),
 	)
 
+	/**
+	 * Checks the retained Location receipt or purpose checksum and required saved metadata.
+	 */
 	fun hasRetainedIntegrity(receipt: LocationAcceptedReceiptEntity): Boolean =
 		receipt.retainedProofVersion == 1 && receipt.retainedProofChecksum == receiptChecksum(receipt)
 
+	/**
+	 * Checks the retained Location receipt or purpose checksum and required saved metadata.
+	 */
 	fun hasRetainedIntegrity(purpose: LocationSamplePurposeAuthorityEntity,
 		receipt: LocationAcceptedReceiptEntity): Boolean = hasRetainedIntegrity(receipt) &&
 		purpose.sampleId == receipt.sampleId &&
@@ -28,6 +37,10 @@ object LocationAcceptedReceiptIntegrity {
 		(stored?.retainedProofVersion == 0 && stored.retainedProofChecksum.isEmpty() &&
 			stored == candidate.copy(retainedProofVersion = 0, retainedProofChecksum = ""))
 
+	/**
+	 * Checks that stored Location purpose rows and the receipt agree on their original scope, epochs
+	 * and capture binding.
+	 */
 	fun compatibleStoredPurpose(stored: LocationSamplePurposeAuthorityEntity?,
 		candidate: LocationSamplePurposeAuthorityEntity): Boolean = stored == candidate ||
 		(stored?.retainedProofChecksum?.isEmpty() == true &&
@@ -56,6 +69,11 @@ object LocationAcceptedReceiptIntegrity {
 		.digest(sample.protectedLocationCanonicalReceiptBytes())
 		.joinToString("") { "%02x".format(it) }
 
+	/**
+	 * Compares the stored Location receipt with the sample's measured values and canonical identity.
+	 */
+	// Compares one saved receipt/sample tuple and its deterministic canonical checksum.
+	@Suppress("CyclomaticComplexMethod")
 	fun matchesCanonicalSample(receipt: LocationAcceptedReceiptEntity, sample: LocationSample): Boolean =
 		sample.id == receipt.sampleId &&
 			sample.sourceEventId == receipt.sourceEventId &&

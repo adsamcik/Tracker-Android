@@ -28,6 +28,8 @@ import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
+// One dispatcher acceptance/replay contract shares exact manifest/demand factories and its receipt store.
+@Suppress("LargeClass")
 class GuardedSourceCallerDemandDispatcherTest {
 	@Test
 	fun `pending manual dispatch stages exact demands while Off blocks activation and late delivery`() = runTest {
@@ -239,7 +241,10 @@ class GuardedSourceCallerDemandDispatcherTest {
 			SourceCallerReplayKind.PROCESS_RECOVERY,
 		).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
 
-		rejected.rejection.reason shouldBe SourceCallerRejectionReason.STALE_OWNER_CAS_TOKEN
+		rejected.rejection.reason shouldBe SourceCallerRejectionReason.REPLAY_AUTHORITY_MISMATCH
+		repository.load(accepted.receipt.reference)
+			.shouldBeInstanceOf<StoredSourceCallerAuthorityLoadResult.Available>()
+			.authority.permittedDemandIdentities shouldBe accepted.receipt.permittedDemandIdentities
 	}
 
 	@Test

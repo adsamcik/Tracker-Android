@@ -220,6 +220,51 @@ class TrackerServiceApiTest {
 	}
 
 	@Test
+	fun `successful Android enqueue stays accepted when acknowledgement fails`() = runTest {
+		val acknowledgements: List<suspend () -> Boolean> = listOf(
+			{ false },
+			{ throw IllegalStateException("acknowledgement unavailable") },
+		)
+		for (acknowledge in acknowledgements) {
+			val events = mutableListOf<String>()
+			val coordinator = RecordingStartCoordinator(
+				TrackingStartPreparationResult.Prepared(PreparedTrackingStartToken("enqueued")),
+				events,
+				markEnqueued = acknowledge,
+			)
+
+			TrackerServiceApi.dispatchPreparedStartResult(
+				TrackingStartRequest(TrackingStartCommand(1L), isUserInitiated = true, isAmbient = false),
+				coordinator,
+				DispositionAuthority(TrackingStartCommandDisposition.Allowed, events),
+				platformEnqueue = { _, _ -> events += "enqueue"; true },
+			) shouldBe TrackingStartDispatchResult.Enqueued
+
+			events shouldBe listOf("prepare", "resolve", "enqueue", "mark-enqueued")
+		}
+	}
+
+	@Test
+	fun `unknown Android enqueue outcome does not acknowledge or compensate prepared data`() = runTest {
+		val events = mutableListOf<String>()
+		val coordinator = RecordingStartCoordinator(
+			TrackingStartPreparationResult.Prepared(PreparedTrackingStartToken("enqueue-unknown")), events,
+		)
+
+		TrackerServiceApi.dispatchPreparedStartResult(
+			TrackingStartRequest(TrackingStartCommand(1L), isUserInitiated = true, isAmbient = false),
+			coordinator,
+			DispositionAuthority(TrackingStartCommandDisposition.Allowed, events),
+			platformEnqueue = { _, _ ->
+				events += "enqueue"
+				throw IllegalStateException("Android enqueue outcome unavailable")
+			},
+		) shouldBe TrackingStartDispatchResult.Terminal("ANDROID_START_ENQUEUE_OUTCOME_UNKNOWN")
+
+		events shouldBe listOf("prepare", "resolve", "enqueue")
+	}
+
+	@Test
 	fun `stop fence after prepare prevents Android delivery and compensates exact token`() = runTest {
 		val events = mutableListOf<String>()
 		val token = PreparedTrackingStartToken("prepared-stop")

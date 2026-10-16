@@ -217,7 +217,8 @@ internal fun TripCard(
 						Spacer(modifier = Modifier.width(4.dp))
 						Text(
 							text = if (!trip.hasMeasuredDistance) stringResource(R.string.history_value_unavailable)
-								else if (trip.distanceIsPartial) stringResource(R.string.stats_recorded_partial_value, formatDistanceLabel(trip.distanceM))
+								else if (trip.distanceIsPartial) stringResource(R.string.stats_recorded_partial_value,
+                                    formatDistanceLabel(trip.distanceM))
 								else formatDistanceLabel(trip.distanceM),
 							style = MaterialTheme.typography.labelMedium,
 							color = MaterialTheme.colorScheme.error,
@@ -226,7 +227,8 @@ internal fun TripCard(
 				} else {
 					Text(
 						text = if (!trip.hasMeasuredDistance) stringResource(R.string.history_value_unavailable)
-							else if (trip.distanceIsPartial) stringResource(R.string.stats_recorded_partial_value, formatDistanceLabel(trip.distanceM))
+							else if (trip.distanceIsPartial) stringResource(R.string.stats_recorded_partial_value,
+                                formatDistanceLabel(trip.distanceM))
 							else formatDistanceLabel(trip.distanceM),
 						style = MaterialTheme.typography.labelMedium,
 						color = MaterialTheme.colorScheme.primary,

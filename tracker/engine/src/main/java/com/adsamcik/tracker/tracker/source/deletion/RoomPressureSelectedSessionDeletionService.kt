@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryLockedDa
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.MAX_PRESSURE_WAL_PAYLOAD_BYTES
+import com.adsamcik.tracker.shared.base.database.data.PressureFactRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -34,9 +35,6 @@ import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBindi
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.model.SourceKind
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 import java.time.DateTimeException
 import java.time.Instant
 import java.time.ZoneId
@@ -44,6 +42,9 @@ import java.time.ZoneOffset
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /** Exact, source-local selected-session deletion for the new-v28 Pressure fact writer. */
 @Singleton
@@ -78,55 +79,25 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 		executableLaneCatalog = executableLaneCatalog,
 	)
 
-	@Suppress("CyclomaticComplexMethod", "ReturnCount", "ThrowsCount")
 	override suspend fun deleteSelectedSession(sessionSegmentId: Long): PressureSessionDeletionResult =
 		deleteSelectedSessionInternal(sessionSegmentId, null)
 
-	override suspend fun deleteSelectedSession(sessionSegmentId: Long, expectedCollectedDataEpoch: Long): PressureSessionDeletionResult =
+	override suspend fun deleteSelectedSession(
+		sessionSegmentId: Long,
+		expectedCollectedDataEpoch: Long,
+	): PressureSessionDeletionResult =
 		deleteSelectedSessionInternal(sessionSegmentId, expectedCollectedDataEpoch)
 
-	private suspend fun deleteSelectedSessionInternal(sessionSegmentId: Long, expectedEpoch: Long?): PressureSessionDeletionResult {
+	private suspend fun deleteSelectedSessionInternal(
+		sessionSegmentId: Long,
+		expectedEpoch: Long?,
+	): PressureSessionDeletionResult {
 		if (sessionSegmentId <= 0L) {
 			return unsupported(PressureSessionDeletionUnsupportedReason.INVALID_SEGMENT_ID)
 		}
 		val deletedAtMs = wallTimeMsProvider().coerceAtLeast(0L)
 		val result = try {
-			if (expectedEpoch != null && database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch)
-				return unsupported(PressureSessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
-			val preReadSegment = database.sessionSegmentDao().getById(sessionSegmentId)
-				?: return PressureSessionDeletionResult.NotFound
-			if (preReadHasActiveOwner(preReadSegment)) {
-				return PressureSessionDeletionResult.BlockedActive
-			}
-			val expectedScope = when (val preflight = selectedScope(preReadSegment)) {
-				is SelectedScopePreflight.Ready -> preflight.scope
-				is SelectedScopePreflight.Unsupported -> return unsupported(preflight.reason)
-				SelectedScopePreflight.LegacyUnverifiable ->
-					return PressureSessionDeletionResult.LegacyUnverifiable
-			}
-			DailySummaryAggregator(
-				dailySummaryDao = database.dailySummaryDao(),
-				sessionSegmentDao = database.sessionSegmentDao(),
-				zoneId = expectedScope.zoneId,
-			).withDayLocks(expectedScope.affectedDays) { lockedDays ->
-				afterDayLocksAcquired()
-				database.withTransaction {
-						if (expectedEpoch != null && database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch)
-							return@withTransaction unsupported(PressureSessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
-					val segment = database.sessionSegmentDao().getById(sessionSegmentId)
-						?: throw ConcurrentPressureDeletionStateException()
-					val actualScope = (selectedScope(segment) as? SelectedScopePreflight.Ready)?.scope
-						?: throw ConcurrentPressureDeletionStateException()
-					if (actualScope != expectedScope) {
-						throw ConcurrentPressureDeletionStateException()
-					}
-					deleteInTransaction(
-						scope = actualScope,
-						deletedAtMs = deletedAtMs,
-						lockedDays = lockedDays,
-					)
-				}
-			}
+			deleteSelectedScope(sessionSegmentId, expectedEpoch, deletedAtMs)
 		} catch (cancellation: CancellationException) {
 			throw cancellation
 		} catch (_: ConcurrentPressureDeletionStateException) {
@@ -146,6 +117,61 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 			requestPressureDrain()
 		}
 		return result
+	}
+
+	private suspend fun deleteSelectedScope(
+		sessionSegmentId: Long,
+		expectedEpoch: Long?,
+		deletedAtMs: Long,
+	): PressureSessionDeletionResult {
+		if (expectedEpoch != null &&
+			database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch
+		) {
+			return unsupported(PressureSessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
+		}
+		val selected = database.sessionSegmentDao().getById(sessionSegmentId)
+			?: return PressureSessionDeletionResult.NotFound
+		if (preReadHasActiveOwner(selected)) {
+			return PressureSessionDeletionResult.BlockedActive
+		}
+		return when (val preflight = selectedScope(selected)) {
+			is SelectedScopePreflight.Ready ->
+				deletePreparedScope(sessionSegmentId, expectedEpoch, deletedAtMs, preflight.scope)
+			is SelectedScopePreflight.Unsupported -> unsupported(preflight.reason)
+			SelectedScopePreflight.LegacyUnverifiable -> PressureSessionDeletionResult.LegacyUnverifiable
+		}
+	}
+
+	private suspend fun deletePreparedScope(
+		sessionSegmentId: Long,
+		expectedEpoch: Long?,
+		deletedAtMs: Long,
+		expected: SelectedScope,
+	): PressureSessionDeletionResult = DailySummaryAggregator(
+		dailySummaryDao = database.dailySummaryDao(),
+		sessionSegmentDao = database.sessionSegmentDao(),
+		zoneId = expected.zoneId,
+	).withDayLocks(expected.affectedDays) { lockedDays ->
+		afterDayLocksAcquired()
+		database.withTransaction {
+			if (expectedEpoch != null &&
+				database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch
+			) {
+				return@withTransaction unsupported(PressureSessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
+			}
+			val actual = readCurrentSelectedScope(sessionSegmentId)
+			if (actual != expected) {
+				throw ConcurrentPressureDeletionStateException()
+			}
+			deleteInTransaction(actual, deletedAtMs, lockedDays)
+		}
+	}
+
+	private suspend fun readCurrentSelectedScope(sessionSegmentId: Long): SelectedScope {
+		val selected = database.sessionSegmentDao().getById(sessionSegmentId)
+			?: throw ConcurrentPressureDeletionStateException()
+		return (selectedScope(selected) as? SelectedScopePreflight.Ready)?.scope
+			?: throw ConcurrentPressureDeletionStateException()
 	}
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount", "ThrowsCount")
@@ -216,14 +242,7 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 			scopeKind = proposedFence.scopeKind,
 			scopeIdentityDigest = proposedFence.scopeIdentityDigest,
 		) ?: throw ConcurrentPressureDeletionStateException()
-		if (fence.sourceKind != SourceDestinationOwnerEntity.SOURCE_PRESSURE ||
-			fence.purpose != PressureFactRevisionEntity.PURPOSE_SESSION_CAPTURE ||
-			fence.scopeKind != SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN ||
-			fence.scopeIdentityDigest != scopeDigest ||
-			fence.fenceGeneration < FIRST_PRESSURE_DELETION_GENERATION ||
-			fence.collectedDataEpoch != scope.collectedDataEpoch ||
-			fence.deletedAtMs > deletedAtMs
-		) {
+		if (!fence.matchesPressureDeletionScope(scopeDigest, scope.collectedDataEpoch, deletedAtMs)) {
 			throw ConcurrentPressureDeletionStateException()
 		}
 		afterFenceInstalled()
@@ -271,6 +290,18 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 			)
 		}
 		return PressureSessionDeletionResult.Deleted
+	}
+
+	private fun SourceDeletionFenceEntity.matchesPressureDeletionScope(
+		expectedScopeDigest: String,
+		expectedEpoch: Long,
+		requestedDeletionTimeMs: Long,
+	): Boolean {
+		val sameScope = sourceKind == SourceDestinationOwnerEntity.SOURCE_PRESSURE &&
+			purpose == PressureFactRevisionEntity.PURPOSE_SESSION_CAPTURE &&
+			scopeKind == SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN && scopeIdentityDigest == expectedScopeDigest
+		return sameScope && fenceGeneration >= FIRST_PRESSURE_DELETION_GENERATION &&
+			collectedDataEpoch == expectedEpoch && deletedAtMs <= requestedDeletionTimeMs
 	}
 
 	private suspend fun deleteValidatedFactsInBatches(
@@ -890,10 +921,12 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 		}
 		return if (factCount > 0L) {
 			FactScopeValidation.Ready(factCount)
-		} else FactScopeValidation.Ready(0L)
+		} else {
+			FactScopeValidation.Ready(0L)
+		}
 	}
 
-	@Suppress("LongParameterList", "ReturnCount")
+	@Suppress("LongParameterList")
 	private suspend fun validateRetainedAuthority(
 		logicalTrackingId: String,
 		serviceRunId: String,
@@ -922,59 +955,101 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 				retainedScopeUnsupported()
 			}
 		}
-		if (retainedFromMs == null) return retainedScopeUnsupported()
-		var revisionCount = 0L
-		for (parent in parents) {
-			currentCoroutineContext().ensureActive()
-			if (!parent.hasValidStoredIntegrity() ||
-				parent.logicalTrackingId != logicalTrackingId ||
-				parent.serviceRunId != serviceRunId ||
-				parent.collectedDataEpoch != collectedDataEpoch ||
-				parent.retainedFromMs > retainedFromMs
-			) {
-				return retainedScopeUnsupported()
-			}
-			val revisions = revisionDao.forLineage(
-				parent.writerProjectionId,
-				parent.writerProjectionVersion,
-				parent.logicalFactId,
-				MAX_PRESSURE_LINEAGE_REVISIONS + 1,
-			)
-			if (!parent.authenticatesRevisionAuthorities(revisions) ||
-				revisions.any { revision ->
-					(revision.sourcePolicyRevision to revision.captureConsentEpoch) !in
-						allowedPolicyConsentPairs
-				}
-			) {
-				return retainedScopeUnsupported()
-			}
-			revisionCount = try {
-				Math.addExact(revisionCount, revisions.size.toLong())
-			} catch (_: ArithmeticException) {
-				return retainedScopeUnsupported()
-			}
-			if (revisionCount > MAX_SELECTED_RETENTION_REVISION_AUTHORITIES) {
-				return retainedScopeUnsupported()
-			}
-			for (zone in zonesByManifest.values.distinct()) {
-				affectedEpochDays(
-					parent.lineageIntervalStartMs,
-					parent.lineageIntervalEndMs,
-					zone,
-				)?.let(affectedDays::addAll) ?: return retainedScopeUnsupported()
-			}
-			plausiblyPersistedEpochDays(
-				parent.lineageIntervalStartMs,
-				parent.lineageIntervalEndMs,
-			)?.let(affectedDays::addAll) ?: return retainedScopeUnsupported()
-			if (affectedDays.size.toLong() > MAX_AFFECTED_DAYS) {
-				return retainedScopeUnsupported()
-			}
-		}
-		if (revisionDao.countForExactRun(logicalTrackingId, serviceRunId) != revisionCount) {
+		if (retainedFromMs == null) {
 			return retainedScopeUnsupported()
 		}
-		return RetainedScopeValidation.Ready(parents.size.toLong(), revisionCount)
+		val revisionCount = parents.validatedRetainedPressureRevisionCount(
+			logicalTrackingId, serviceRunId, collectedDataEpoch, retainedFromMs,
+			allowedPolicyConsentPairs, zonesByManifest, affectedDays,
+		)
+		return if (revisionCount == null ||
+			revisionDao.countForExactRun(logicalTrackingId, serviceRunId) != revisionCount
+		) {
+			retainedScopeUnsupported()
+		} else {
+			RetainedScopeValidation.Ready(parents.size.toLong(), revisionCount)
+		}
+	}
+
+	// One retained lineage pass keeps its captured scope, authority and existing affected-day target together.
+	@Suppress("LongParameterList")
+	private suspend fun List<PressureFactRetentionAuthorityEntity>.validatedRetainedPressureRevisionCount(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		collectedDataEpoch: Long,
+		retainedFromMs: Long,
+		allowedPolicyConsentPairs: Set<Pair<Long, Long>>,
+		zonesByManifest: Map<Long, ZoneId>,
+		affectedDays: MutableSet<Long>,
+	): Long? {
+		var revisionCount = 0L
+		for (parent in this) {
+			currentCoroutineContext().ensureActive()
+			val addedRevisions = validatedRetainedPressureParentCount(
+				parent, logicalTrackingId, serviceRunId, collectedDataEpoch, retainedFromMs, allowedPolicyConsentPairs,
+			) ?: return null
+			revisionCount = try {
+				Math.addExact(revisionCount, addedRevisions)
+			} catch (_: ArithmeticException) {
+				return null
+			}
+			if (revisionCount > MAX_SELECTED_RETENTION_REVISION_AUTHORITIES ||
+				!includeRetainedPressureParentDays(parent, zonesByManifest, affectedDays)
+			) {
+				return null
+			}
+		}
+		return revisionCount
+	}
+
+	private suspend fun validatedRetainedPressureParentCount(
+		parent: PressureFactRetentionAuthorityEntity,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		collectedDataEpoch: Long,
+		retainedFromMs: Long,
+		allowedPolicyConsentPairs: Set<Pair<Long, Long>>,
+	): Long? {
+		if (!parent.hasValidStoredIntegrity() ||
+			!parent.matchesRetainedPressureDeletionScope(
+				logicalTrackingId, serviceRunId, collectedDataEpoch, retainedFromMs,
+			)
+		) {
+			return null
+		}
+		val revisions = database.pressureFactRetentionRevisionAuthorityDao().forLineage(
+			parent.writerProjectionId, parent.writerProjectionVersion, parent.logicalFactId,
+			MAX_PRESSURE_LINEAGE_REVISIONS + 1,
+		)
+		return if (!parent.authenticatesRevisionAuthorities(revisions) || revisions.any { revision ->
+				(revision.sourcePolicyRevision to revision.captureConsentEpoch) !in allowedPolicyConsentPairs
+			}) {
+			null
+		} else {
+			revisions.size.toLong()
+		}
+	}
+
+	private fun PressureFactRetentionAuthorityEntity.matchesRetainedPressureDeletionScope(
+		expectedLogicalId: String,
+		expectedRunId: String,
+		expectedEpoch: Long,
+		maximumRetainedFromMs: Long,
+	): Boolean = logicalTrackingId == expectedLogicalId && serviceRunId == expectedRunId &&
+		collectedDataEpoch == expectedEpoch && retainedFromMs <= maximumRetainedFromMs
+
+	private fun includeRetainedPressureParentDays(
+		parent: PressureFactRetentionAuthorityEntity,
+		zonesByManifest: Map<Long, ZoneId>,
+		affectedDays: MutableSet<Long>,
+	): Boolean {
+		for (zone in zonesByManifest.values.distinct()) {
+			affectedEpochDays(parent.lineageIntervalStartMs, parent.lineageIntervalEndMs, zone)
+				?.let(affectedDays::addAll) ?: return false
+		}
+		plausiblyPersistedEpochDays(parent.lineageIntervalStartMs, parent.lineageIntervalEndMs)
+			?.let(affectedDays::addAll) ?: return false
+		return affectedDays.size.toLong() <= MAX_AFFECTED_DAYS
 	}
 
 	private fun retainedScopeUnsupported() = RetainedScopeValidation.Unsupported(

@@ -12,6 +12,10 @@ fun SourcePolicyEntity.hasExactEligibleAmbientConsentReference(
 		consent.eligible &&
 		consent.persistenceEligible == ambientPersistenceEligible
 
+/**
+ * Compares the effective boundary using elapsed nanoseconds on the same boot, with UTC
+ * milliseconds across boots.
+ */
 fun SourcePolicyEntity.isEffectiveAtOrBefore(
 	bootId: String,
 	elapsedRealtimeNanos: Long,
@@ -25,6 +29,10 @@ fun SourcePolicyEntity.isEffectiveAtOrBefore(
 	wallTimeMs,
 )
 
+/**
+ * Compares the effective boundary using elapsed nanoseconds on the same boot, with UTC
+ * milliseconds across boots.
+ */
 fun SourceConsentEpochEntity.isEffectiveAtOrBefore(
 	bootId: String,
 	elapsedRealtimeNanos: Long,
@@ -38,6 +46,10 @@ fun SourceConsentEpochEntity.isEffectiveAtOrBefore(
 	wallTimeMs,
 )
 
+/**
+ * Compares the effective boundary using elapsed nanoseconds on the same boot, with UTC
+ * milliseconds across boots.
+ */
 fun AmbientStepsRetentionAuthorityEntity.isEffectiveAtOrBefore(
 	bootId: String,
 	elapsedRealtimeNanos: Long,

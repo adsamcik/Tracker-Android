@@ -66,6 +66,8 @@ import java.util.Locale
  * Displays the calendar tab with a month grid and day detail.
  */
 @Composable
+// Keep the month loading/error states, selection and selected-day content in one declaration.
+@Suppress("CyclomaticComplexMethod")
 internal fun CalendarContent(
 	state: CalendarState,
 	onDayClick: (LocalDate) -> Unit,
@@ -94,8 +96,10 @@ internal fun CalendarContent(
 			onDayClick = onDayClick,
 		)
 
-        if (state.monthLoading) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        if (state.monthLoading) {
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(Modifier.size(20.dp).testTag("calendar_loading"))
+        }
         }
         state.monthProblems.distinctBy { it.source }.sortedBy { it.source?.ordinal ?: -1 }.forEach { problem ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -112,7 +116,9 @@ internal fun CalendarContent(
 			} }
 			when (organizationRead) {
 				SessionOrganizationRead.Unavailable -> Text(stringResource(R.string.organization_unavailable))
-				is SessionOrganizationRead.Content -> if (organizationRead.hasMore) Text(stringResource(R.string.organization_calendar_more))
+				is SessionOrganizationRead.Content -> if (organizationRead.hasMore) {
+					Text(stringResource(R.string.organization_calendar_more))
+				}
 				else -> Unit
 			}
 		}
@@ -120,13 +126,15 @@ internal fun CalendarContent(
 		if (state.selectedDay != null && observations != null) {
 			HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 			Box(Modifier.fillMaxWidth().weight(1f)) { observations() }
-		} else state.selectedDayDetail?.let { detail ->
+		} else {
+			state.selectedDayDetail?.let { detail ->
 			HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 			DayDetailSection(
 				detail = detail,
 				onTripClick = onNavigateToTripDetail,
 				onViewTripOnMap = onViewTripOnMap,
 			)
+		}
 		}
 	}
 }
@@ -153,7 +161,8 @@ private fun MonthHeader(
 			)
 		}
 		Text(
-			text = "${yearMonth.month.getDisplayName(TextStyle.FULL, locale)} ${String.format(locale, "%d", yearMonth.year)}",
+			text = "${yearMonth.month.getDisplayName(TextStyle.FULL, locale)} ${String.format(locale, "%d",
+                yearMonth.year)}",
 			style = MaterialTheme.typography.titleMedium,
 		)
 		IconButton(onClick = onNextMonth) {
@@ -225,6 +234,8 @@ private fun CalendarGrid(
 }
 
 @Composable
+// Keep the selected, today, saved-data and accessible-label variants of one calendar cell together.
+@Suppress("CyclomaticComplexMethod")
 private fun CalendarCell(
 	dayNum: Int,
 	hasSavedData: Boolean,
@@ -264,11 +275,17 @@ private fun CalendarCell(
 			},
 		contentAlignment = Alignment.Center,
 	) {
-		if (hasSavedData) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp).size(4.dp)
+		if (hasSavedData) {
+			Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp).size(4.dp)
             .background(textColor, CircleShape).testTag("calendar_saved_day_$dayNum"))
+		}
 		Text(
 			text = String.format(locale, "%d", dayNum),
-			style = if (isToday) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodySmall,
+			style = if (isToday) {
+				MaterialTheme.typography.labelMedium
+			} else {
+				MaterialTheme.typography.bodySmall
+			},
 			color = textColor,
 		)
 	}
@@ -396,9 +413,15 @@ private fun CalendarTripCard(
 				modifier = Modifier.weight(1f),
 			)
 			Text(
-				text = if (!trip.hasMeasuredDistance) stringResource(R.string.history_value_unavailable)
-					else if (trip.distanceIsPartial) stringResource(R.string.stats_recorded_partial_value, formatDistanceLabel(trip.distanceM))
-					else formatDistanceLabel(trip.distanceM),
+				text = if (!trip.hasMeasuredDistance) {
+					stringResource(R.string.history_value_unavailable)
+				}
+					else if (trip.distanceIsPartial) {
+						stringResource(R.string.stats_recorded_partial_value, formatDistanceLabel(trip.distanceM))
+					}
+					else {
+						formatDistanceLabel(trip.distanceM)
+					},
 				style = MaterialTheme.typography.labelMedium,
 				color = MaterialTheme.colorScheme.primary,
 			)

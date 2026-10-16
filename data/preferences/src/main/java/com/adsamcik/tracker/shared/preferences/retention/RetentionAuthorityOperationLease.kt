@@ -47,6 +47,7 @@ class RetentionAuthorityOperationLease(
 			operation()
 		}
 
+	/** Serializes an owned operation behind acknowledged DataStore work and closes its coroutine-bound permit on exit. */
 	suspend fun <T> withPermit(
 		cancellationShielded: Boolean = false,
 		operation: suspend (RetentionAuthorityOperationPermit) -> T,
@@ -118,7 +119,9 @@ class RetentionAuthorityOperationLease(
 			throw RetentionAuthorityDataStoreCommitUnknownException(flight.operationIdentity)
 		}
 		synchronized(dataStoreFlightMonitor) {
-			if (dataStoreFlight === flight) dataStoreFlight = null
+			if (dataStoreFlight === flight) {
+				dataStoreFlight = null
+			}
 		}
 		return outcome
 	}
@@ -129,6 +132,7 @@ class RetentionAuthorityOperationLease(
 	}
 }
 
+/** Lexical permission for one owner coroutine to complete a bounded Room or DataStore mutation. */
 class RetentionAuthorityOperationPermit internal constructor(
 	internal val owner: RetentionAuthorityOperationLease,
 	private val ownerJob: Job,
@@ -137,6 +141,7 @@ class RetentionAuthorityOperationPermit internal constructor(
 	private val operationMonitor = Any()
 	private var inFlightOperation: RetentionAuthorityInFlightOperation? = null
 
+	/** Checks that this permit is still active in its exact owning coroutine. */
 	suspend fun validate() {
 		requireActive()
 	}
@@ -220,7 +225,9 @@ class RetentionAuthorityOperationPermit internal constructor(
 			result
 		} finally {
 			synchronized(operationMonitor) {
-				if (inFlightOperation === registered) inFlightOperation = null
+				if (inFlightOperation === registered) {
+					inFlightOperation = null
+				}
 				registered.active.set(false)
 			}
 		}
@@ -246,6 +253,7 @@ internal class RetentionAuthorityOwnedSuspensionTimeoutException(
 	kind: RetentionAuthorityOwnedSuspensionKind,
 ) : IllegalStateException("Timed out waiting for lease-owned ${kind.name.lowercase()} commit")
 
+/** The named DataStore mutation is still owned but its completion was not acknowledged before the deadline. */
 class RetentionAuthorityDataStoreCommitUnknownException(
 	val operationIdentity: String,
 ) : IllegalStateException(

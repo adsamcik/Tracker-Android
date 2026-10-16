@@ -29,20 +29,39 @@ data class NativeRadioExportOwner(
 )
 
 /** Purpose-owned radio details. Callers authenticate the corresponding fact before presenting rows. */
+// This interface contains Room declarations only; keep this source’s SQL together.
+@Suppress("LargeClass")
 @Dao
 interface RadioObservationChildDao {
+	/**
+	 * Inserts [WifiCapturedChildEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert
 	suspend fun insertWifiSession(rows: List<WifiCapturedChildEntity>)
 
+	/**
+	 * Inserts [CellCapturedChildEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert
 	suspend fun insertCellSession(rows: List<CellCapturedChildEntity>)
 
+	/**
+	 * Inserts [AmbientWifiChildEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert
 	suspend fun insertWifiBackground(rows: List<AmbientWifiChildEntity>)
 
+	/**
+	 * Inserts [AmbientCellChildEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert
 	suspend fun insertCellBackground(rows: List<AmbientCellChildEntity>)
 
+	/**
+	 * Reads `wifi_captured_child` rows. Query conditions include `writer_projection_id = :writerId`,
+	 * `writer_projection_version = :writerVersion`, `logical_fact_id = :factId`, `semantic_revision =
+	 * :revision`. Orders by `item_index`. Returns at most `limit` rows.
+	 */
 	@Query("SELECT * FROM wifi_captured_child WHERE writer_projection_id = :writerId AND " +
 		"writer_projection_version = :writerVersion AND logical_fact_id = :factId AND " +
 		"semantic_revision = :revision ORDER BY item_index LIMIT :limit")
@@ -61,6 +80,11 @@ interface RadioObservationChildDao {
 	suspend fun wifiCurrentSessionChildrenByFactIds(writerId: String, writerVersion: Int,
 		factIds: List<String>, limit: Int): List<WifiCapturedChildEntity>
 
+	/**
+	 * Reads `wifi_captured_child` rows. Query conditions include `cursor.logical_tracking_id =
+	 * :logicalTrackingId`. Orders by `child.logical_fact_id, child.item_index`. Returns at most
+	 * `limit` rows.
+	 */
 	@Query("SELECT child.* FROM wifi_captured_child AS child " +
 		"INNER JOIN wifi_captured_fact_cursor AS cursor ON " +
 		"cursor.writer_projection_id = child.writer_projection_id AND " +
@@ -107,6 +131,11 @@ interface RadioObservationChildDao {
 		writerId: String, writerVersion: Int, revision: Long, factIds: List<String>,
 		limit: Int): List<WifiCapturedChildEntity>
 
+	/**
+	 * Reads `cell_captured_child` rows. Query conditions include `writer_projection_id = :writerId`,
+	 * `writer_projection_version = :writerVersion`, `logical_fact_id = :factId`, `semantic_revision =
+	 * :revision`. Orders by `item_index`. Returns at most `limit` rows.
+	 */
 	@Query("SELECT * FROM cell_captured_child WHERE writer_projection_id = :writerId AND " +
 		"writer_projection_version = :writerVersion AND logical_fact_id = :factId AND " +
 		"semantic_revision = :revision ORDER BY item_index LIMIT :limit")
@@ -125,6 +154,11 @@ interface RadioObservationChildDao {
 	suspend fun cellCurrentSessionChildrenByFactIds(writerId: String, writerVersion: Int,
 		factIds: List<String>, limit: Int): List<CellCapturedChildEntity>
 
+	/**
+	 * Reads `cell_captured_child` rows. Query conditions include `fact.logical_tracking_id =
+	 * :logicalTrackingId`. Orders by `fact.source_admission_ordinal, child.logical_fact_id,
+	 * child.item_index`. Returns at most `limit` rows.
+	 */
 	@Query("SELECT child.* FROM cell_captured_child AS child " +
 		"INNER JOIN cell_captured_fact_cursor AS cursor ON " +
 		"cursor.writer_projection_id = child.writer_projection_id AND " +
@@ -155,6 +189,12 @@ interface RadioObservationChildDao {
 		logicalTrackingId: String, limit: Int,
 	): List<CellCurrentDetailExpectation>
 
+	/**
+	 * Reads `cell_captured_fact_revision` rows. Query conditions include `fact.writer_projection_id =
+	 * :writerId`, `fact.writer_projection_version = :writerVersion`, `fact.logical_tracking_id =
+	 * :logicalTrackingId`, `fact.purpose = 'SESSION_CAPTURE'`. Orders by `fact.logical_fact_id`.
+	 * Returns at most `limit` rows.
+	 */
 	@Query("SELECT fact.logical_fact_id, fact.semantic_revision, fact.service_run_id, " +
 		"fact.payload_version, fact.accepted_child_count " +
 		"FROM cell_captured_fact_revision AS fact INNER JOIN cell_captured_fact_cursor AS cursor ON " +
@@ -168,6 +208,12 @@ interface RadioObservationChildDao {
 	suspend fun cellCurrentExportOwners(logicalTrackingId: String, writerId: String,
 		writerVersion: Int, limit: Int): List<NativeRadioExportOwner>
 
+	/**
+	 * Reads `cell_captured_child` rows. Query conditions include `child.writer_projection_id =
+	 * :writerId`, `child.writer_projection_version = :writerVersion`, `child.logical_fact_id IN
+	 * (:factIds)`, `child.semantic_revision = :revision`. Orders by `child.logical_fact_id,
+	 * child.item_index`. Returns at most `limitLongParameterList` rows.
+	 */
 	@Query("SELECT child.* FROM cell_captured_child AS child " +
 		"INNER JOIN cell_captured_fact_revision AS fact ON " +
 		"fact.writer_projection_id = child.writer_projection_id AND " +
@@ -187,12 +233,21 @@ interface RadioObservationChildDao {
 		writerId: String, writerVersion: Int, revision: Long, factIds: List<String>,
 		limit: Int): List<CellCapturedChildEntity>
 
+	/**
+	 * Reads `ambient_wifi_child` rows. Query conditions include `writer_id = :writerId`,
+	 * `writer_version = :writerVersion`, `logical_fact_id = :factId`, `semantic_revision =
+	 * :revision`. Orders by `item_index`. Returns at most `limit` rows.
+	 */
 	@Query("SELECT * FROM ambient_wifi_child WHERE writer_id = :writerId AND " +
 		"writer_version = :writerVersion AND logical_fact_id = :factId AND " +
 		"semantic_revision = :revision ORDER BY item_index LIMIT :limit")
 	suspend fun wifiBackgroundChildren(writerId: String, writerVersion: Int, factId: String, revision: Long,
 		limit: Int): List<AmbientWifiChildEntity>
 
+	/**
+	 * Reads `ambient_wifi_child` rows. Query conditions include `child.logical_fact_id IN
+	 * (:factIds)`. Orders by `child.logical_fact_id, child.item_index`. Returns at most `limit` rows.
+	 */
 	@Query("SELECT child.* FROM ambient_wifi_child AS child " +
 		"INNER JOIN ambient_wifi_fact_cursor AS cursor ON " +
 		"cursor.writer_id = child.writer_id AND cursor.writer_version = child.writer_version " +
@@ -216,12 +271,21 @@ interface RadioObservationChildDao {
 	suspend fun wifiBackgroundChildrenForRevision(factId: String, revision: Long,
 		limit: Int): List<AmbientWifiChildEntity>
 
+	/**
+	 * Reads `ambient_cell_child` rows. Query conditions include `writer_id = :writerId`,
+	 * `writer_version = :writerVersion`, `logical_fact_id = :factId`, `semantic_revision =
+	 * :revision`. Orders by `item_index`. Returns at most `limit` rows.
+	 */
 	@Query("SELECT * FROM ambient_cell_child WHERE writer_id = :writerId AND " +
 		"writer_version = :writerVersion AND logical_fact_id = :factId AND " +
 		"semantic_revision = :revision ORDER BY item_index LIMIT :limit")
 	suspend fun cellBackgroundChildren(writerId: String, writerVersion: Int, factId: String, revision: Long,
 		limit: Int): List<AmbientCellChildEntity>
 
+	/**
+	 * Reads `ambient_cell_child` rows. Query conditions include `child.logical_fact_id IN
+	 * (:factIds)`. Orders by `child.logical_fact_id, child.item_index`. Returns at most `limit` rows.
+	 */
 	@Query("SELECT child.* FROM ambient_cell_child AS child " +
 		"INNER JOIN ambient_cell_fact_cursor AS cursor ON " +
 		"cursor.writer_id = child.writer_id AND cursor.writer_version = child.writer_version AND " +
@@ -232,91 +296,188 @@ interface RadioObservationChildDao {
 	suspend fun cellCurrentBackgroundChildrenForFactIds(factIds: List<String>,
 		limit: Int): List<AmbientCellChildEntity>
 
+	/**
+	 * Reads `ambient_cell_child` rows. Query conditions include `logical_fact_id IN (:factIds)`.
+	 * Orders by `logical_fact_id, semantic_revision, item_index`. Returns at most `limit` rows.
+	 */
 	@Query("SELECT * FROM ambient_cell_child WHERE logical_fact_id IN (:factIds) " +
 		"ORDER BY logical_fact_id, semantic_revision, item_index LIMIT :limit")
 	suspend fun cellBackgroundChildrenForFactIds(factIds: List<String>,
 		limit: Int): List<AmbientCellChildEntity>
 
+	/**
+	 * Reads `ambient_cell_child` rows. Query conditions include `logical_fact_id = :factId`,
+	 * `semantic_revision = :revision`. Orders by `writer_id, writer_version, item_index`. Returns at
+	 * most `limit` rows.
+	 */
 	@Query("SELECT * FROM ambient_cell_child WHERE logical_fact_id = :factId " +
 		"AND semantic_revision = :revision ORDER BY writer_id, writer_version, item_index LIMIT :limit")
 	suspend fun cellBackgroundChildrenForRevision(factId: String, revision: Long,
 		limit: Int): List<AmbientCellChildEntity>
 
+	/**
+	 * Reads `wifi_captured_child` rows. Query conditions include `observed_wall_time_ms >= :fromMs`,
+	 * `observed_wall_time_ms < :toMs`. Orders by `observed_wall_time_ms, logical_fact_id,
+	 * item_index`. Returns at most `limit` rows. Timestamp bounds use UTC milliseconds.
+	 */
 	@Query("SELECT * FROM wifi_captured_child WHERE observed_wall_time_ms >= :fromMs AND " +
 		"observed_wall_time_ms < :toMs ORDER BY observed_wall_time_ms, logical_fact_id, item_index LIMIT :limit")
 	suspend fun wifiSessionInRange(fromMs: Long, toMs: Long, limit: Int): List<WifiCapturedChildEntity>
 
+	/**
+	 * Reads `cell_captured_child` rows. Query conditions include `observed_wall_time_ms >= :fromMs`,
+	 * `observed_wall_time_ms < :toMs`. Orders by `observed_wall_time_ms, logical_fact_id,
+	 * item_index`. Returns at most `limit` rows. Timestamp bounds use UTC milliseconds.
+	 */
 	@Query("SELECT * FROM cell_captured_child WHERE observed_wall_time_ms >= :fromMs AND " +
 		"observed_wall_time_ms < :toMs ORDER BY observed_wall_time_ms, logical_fact_id, item_index LIMIT :limit")
 	suspend fun cellSessionInRange(fromMs: Long, toMs: Long, limit: Int): List<CellCapturedChildEntity>
 
+	/**
+	 * Reads `ambient_wifi_child` rows. Query conditions include `observed_wall_time_ms >= :fromMs`,
+	 * `observed_wall_time_ms < :toMs`. Orders by `observed_wall_time_ms, logical_fact_id,
+	 * item_index`. Returns at most `limit` rows. Timestamp bounds use UTC milliseconds.
+	 */
 	@Query("SELECT * FROM ambient_wifi_child WHERE observed_wall_time_ms >= :fromMs AND " +
 		"observed_wall_time_ms < :toMs ORDER BY observed_wall_time_ms, logical_fact_id, item_index LIMIT :limit")
 	suspend fun wifiBackgroundInRange(fromMs: Long, toMs: Long, limit: Int): List<AmbientWifiChildEntity>
 
+	/**
+	 * Reads `ambient_cell_child` rows. Query conditions include `observed_wall_time_ms >= :fromMs`,
+	 * `observed_wall_time_ms < :toMs`. Orders by `observed_wall_time_ms, logical_fact_id,
+	 * item_index`. Returns at most `limit` rows. Timestamp bounds use UTC milliseconds.
+	 */
 	@Query("SELECT * FROM ambient_cell_child WHERE observed_wall_time_ms >= :fromMs AND " +
 		"observed_wall_time_ms < :toMs ORDER BY observed_wall_time_ms, logical_fact_id, item_index LIMIT :limit")
 	suspend fun cellBackgroundInRange(fromMs: Long, toMs: Long, limit: Int): List<AmbientCellChildEntity>
 
+	/**
+	 * Deletes `wifi_captured_child` rows matching the supplied scope. Query conditions include
+	 * `writer_projection_id = :writerId`, `writer_projection_version = :writerVersion`,
+	 * `logical_fact_id = :factId`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM wifi_captured_child WHERE writer_projection_id = :writerId AND " +
 		"writer_projection_version = :writerVersion AND logical_fact_id = :factId")
 	suspend fun deleteWifiSessionFact(writerId: String, writerVersion: Int, factId: String): Int
 
+	/**
+	 * Deletes `wifi_captured_child` rows matching the supplied scope. Query conditions include
+	 * `writer_projection_id = :writerId`, `writer_projection_version = :writerVersion`,
+	 * `logical_fact_id = :factId`, `semantic_revision = :revision`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM wifi_captured_child WHERE writer_projection_id = :writerId AND " +
 		"writer_projection_version = :writerVersion AND logical_fact_id = :factId AND semantic_revision = :revision")
 	suspend fun deleteWifiSessionRevision(writerId: String, writerVersion: Int, factId: String,
 		revision: Long): Int
 
+	/**
+	 * Deletes `cell_captured_child` rows matching the supplied scope. Query conditions include
+	 * `writer_projection_id = :writerId`, `writer_projection_version = :writerVersion`,
+	 * `logical_fact_id = :factId`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM cell_captured_child WHERE writer_projection_id = :writerId AND " +
 		"writer_projection_version = :writerVersion AND logical_fact_id = :factId")
 	suspend fun deleteCellSessionFact(writerId: String, writerVersion: Int, factId: String): Int
 
+	/**
+	 * Deletes `cell_captured_child` rows matching the supplied scope. Query conditions include
+	 * `writer_projection_id = :writerId`, `writer_projection_version = :writerVersion`,
+	 * `logical_fact_id = :factId`, `semantic_revision = :revision`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM cell_captured_child WHERE writer_projection_id = :writerId AND " +
 		"writer_projection_version = :writerVersion AND logical_fact_id = :factId AND semantic_revision = :revision")
 	suspend fun deleteCellSessionRevision(writerId: String, writerVersion: Int, factId: String,
 		revision: Long): Int
 
+	/**
+	 * Deletes `ambient_wifi_child` rows matching the supplied scope. Query conditions include
+	 * `writer_id = :writerId`, `writer_version = :writerVersion`, `logical_fact_id = :factId`.
+	 * Returns the affected row count.
+	 */
 	@Query("DELETE FROM ambient_wifi_child WHERE writer_id = :writerId AND " +
 		"writer_version = :writerVersion AND logical_fact_id = :factId")
 	suspend fun deleteWifiBackgroundFact(writerId: String, writerVersion: Int, factId: String): Int
 
+	/**
+	 * Deletes `ambient_wifi_child` rows matching the supplied scope. Query conditions include
+	 * `writer_id = :writerId`, `writer_version = :writerVersion`, `logical_fact_id = :factId`,
+	 * `semantic_revision = :revision`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM ambient_wifi_child WHERE writer_id = :writerId AND " +
 		"writer_version = :writerVersion AND logical_fact_id = :factId AND semantic_revision = :revision")
 	suspend fun deleteWifiBackgroundRevision(writerId: String, writerVersion: Int, factId: String,
 		revision: Long): Int
 
+	/**
+	 * Deletes `ambient_cell_child` rows matching the supplied scope. Query conditions include
+	 * `writer_id = :writerId`, `writer_version = :writerVersion`, `logical_fact_id = :factId`.
+	 * Returns the affected row count.
+	 */
 	@Query("DELETE FROM ambient_cell_child WHERE writer_id = :writerId AND " +
 		"writer_version = :writerVersion AND logical_fact_id = :factId")
 	suspend fun deleteCellBackgroundFact(writerId: String, writerVersion: Int, factId: String): Int
 
+	/**
+	 * Deletes `ambient_cell_child` rows matching the supplied scope. Query conditions include
+	 * `writer_id = :writerId`, `writer_version = :writerVersion`, `logical_fact_id = :factId`,
+	 * `semantic_revision = :revision`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM ambient_cell_child WHERE writer_id = :writerId AND " +
 		"writer_version = :writerVersion AND logical_fact_id = :factId AND semantic_revision = :revision")
 	suspend fun deleteCellBackgroundRevision(writerId: String, writerVersion: Int, factId: String,
 		revision: Long): Int
 
+	/**
+	 * Deletes `wifi_captured_child` rows.
+	 */
 	@Query("DELETE FROM wifi_captured_child")
 	suspend fun deleteAllWifiSession()
 
+	/**
+	 * Deletes `cell_captured_child` rows.
+	 */
 	@Query("DELETE FROM cell_captured_child")
 	suspend fun deleteAllCellSession()
 
+	/**
+	 * Deletes `ambient_wifi_child` rows.
+	 */
 	@Query("DELETE FROM ambient_wifi_child")
 	suspend fun deleteAllWifiBackground()
 
+	/**
+	 * Deletes `ambient_cell_child` rows.
+	 */
 	@Query("DELETE FROM ambient_cell_child")
 	suspend fun deleteAllCellBackground()
 
+	/**
+	 * Reads `legacy_wifi_child` rows. Query conditions include `time_ms >= :fromMs`, `time_ms <
+	 * :toMs`. Orders by `time_ms, legacy_row_id`. Returns at most `limit` rows. Timestamp bounds use
+	 * UTC milliseconds.
+	 */
 	@Query("SELECT * FROM legacy_wifi_child WHERE time_ms >= :fromMs AND time_ms < :toMs " +
 		"ORDER BY time_ms, legacy_row_id LIMIT :limit")
 	suspend fun legacyWifiInRange(fromMs: Long, toMs: Long, limit: Int): List<LegacyWifiChildEntity>
 
+	/**
+	 * Reads `legacy_cell_child` rows. Query conditions include `time_ms >= :fromMs`, `time_ms <
+	 * :toMs`. Orders by `time_ms, legacy_row_id`. Returns at most `limit` rows. Timestamp bounds use
+	 * UTC milliseconds.
+	 */
 	@Query("SELECT * FROM legacy_cell_child WHERE time_ms >= :fromMs AND time_ms < :toMs " +
 		"ORDER BY time_ms, legacy_row_id LIMIT :limit")
 	suspend fun legacyCellInRange(fromMs: Long, toMs: Long, limit: Int): List<LegacyCellChildEntity>
 
+	/**
+	 * Deletes `legacy_wifi_child` rows.
+	 */
 	@Query("DELETE FROM legacy_wifi_child")
 	suspend fun deleteAllLegacyWifi()
 
+	/**
+	 * Deletes `legacy_cell_child` rows.
+	 */
 	@Query("DELETE FROM legacy_cell_child")
 	suspend fun deleteAllLegacyCell()
 
@@ -703,6 +864,11 @@ interface RadioObservationChildDao {
 		purposes: List<String>, afterTime: Long?, afterTag: String?, afterIdentity: String?,
 		limit: Int): List<MeasuredHistoryCandidate>
 
+	/**
+	 * Reads `wifi_captured_child` rows. Query conditions include `c.observed_wall_time_ms IN
+	 * (:observedTimes)`, `physicalIdentity IN (:identities)`, `purpose IN (:purposes)`, `kind >
+	 * :afterKind`. Orders by `kind, identity`. Returns at most `limit` rows.
+	 */
 	@Query("""
 		WITH candidates AS (
 		SELECT 'captured_wifi' AS kind, 'LOCAL' AS origin, 'CAPTURE' AS purpose,
@@ -734,9 +900,16 @@ interface RadioObservationChildDao {
 		  AND (:afterKind IS NULL OR kind > :afterKind OR (kind = :afterKind AND identity > :afterIdentity))
 		ORDER BY kind, identity LIMIT :limit
 	""")
-	suspend fun wifiNativeMeasuredPurposeCandidates(identities: List<String>, purposes: List<String>, observedTimes: List<Long>,
+	suspend fun wifiNativeMeasuredPurposeCandidates(identities: List<String>, purposes: List<String>,
+        observedTimes: List<Long>,
 		afterKind: String?, afterIdentity: String?, limit: Int): List<MeasuredHistoryCandidate>
 
+	/**
+	 * Reads `cell_captured_child` rows. Query conditions include `startTimeMs >= 0`, `startTimeMs <
+	 * :toMs`, `startTimeMs >= :fromMs`, `endTimeMs > :fromMs`. Orders by `startTimeMs DESC, lower ||
+	 * || CASE WHEN physicalIdentity IS NULL THEN kind ELSE END ASC, coalesce ASC`. Returns at most
+	 * `limit` rows. Timestamp bounds use UTC milliseconds.
+	 */
 	@Query("""
 		WITH b0_raw AS (
 		SELECT 'captured_cell' AS kind, 'LOCAL' AS origin, 'CAPTURE' AS purpose,
@@ -1121,6 +1294,11 @@ interface RadioObservationChildDao {
 		purposes: List<String>, afterTime: Long?, afterTag: String?, afterIdentity: String?,
 		limit: Int): List<MeasuredHistoryCandidate>
 
+	/**
+	 * Reads `cell_captured_child` rows. Query conditions include `c.observed_wall_time_ms IN
+	 * (:observedTimes)`, `physicalIdentity IN (:identities)`, `purpose IN (:purposes)`, `kind >
+	 * :afterKind`. Orders by `kind, identity`. Returns at most `limit` rows.
+	 */
 	@Query("""
 		WITH candidates AS (
 		SELECT 'captured_cell' AS kind, 'LOCAL' AS origin, 'CAPTURE' AS purpose,
@@ -1152,12 +1330,21 @@ interface RadioObservationChildDao {
 		  AND (:afterKind IS NULL OR kind > :afterKind OR (kind = :afterKind AND identity > :afterIdentity))
 		ORDER BY kind, identity LIMIT :limit
 	""")
-	suspend fun cellNativeMeasuredPurposeCandidates(identities: List<String>, purposes: List<String>, observedTimes: List<Long>,
+	suspend fun cellNativeMeasuredPurposeCandidates(identities: List<String>, purposes: List<String>,
+        observedTimes: List<Long>,
 		afterKind: String?, afterIdentity: String?, limit: Int): List<MeasuredHistoryCandidate>
 
+	/**
+	 * Reads `legacy_wifi_child` rows. Query conditions include `legacy_row_id IN (:ids)`. Orders by
+	 * `legacy_row_id`.
+	 */
 	@Query("SELECT * FROM legacy_wifi_child WHERE legacy_row_id IN (:ids) ORDER BY legacy_row_id")
 	suspend fun legacyWifiByIds(ids: List<Long>): List<LegacyWifiChildEntity>
 
+	/**
+	 * Reads `legacy_cell_child` rows. Query conditions include `legacy_row_id IN (:ids)`. Orders by
+	 * `legacy_row_id`.
+	 */
 	@Query("SELECT * FROM legacy_cell_child WHERE legacy_row_id IN (:ids) ORDER BY legacy_row_id")
 	suspend fun legacyCellByIds(ids: List<Long>): List<LegacyCellChildEntity>
 }

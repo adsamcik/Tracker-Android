@@ -65,7 +65,11 @@ data class StepsGoalEffectEntity(
 		require(periodKind in PERIOD_KINDS)
 		val expectedEndEpochDay = Math.addExact(
 			periodStartEpochDay,
-			if (periodKind == PERIOD_DAY) 0L else 6L,
+			if (periodKind == PERIOD_DAY) {
+				0L
+			} else {
+				6L
+			},
 		)
 		require(periodEndEpochDay == expectedEndEpochDay)
 		require(qualifiedThroughEpochDay in periodStartEpochDay..periodEndEpochDay)
@@ -118,6 +122,8 @@ data class StepsGoalEffectEntity(
 	}
 
 	/** Semantic equality deliberately excludes observation time and the global evidence counter. */
+	// Compares the complete immutable decision tuple while intentionally excluding observation counters.
+	@Suppress("CyclomaticComplexMethod")
 	fun hasSameDecision(other: StepsGoalEffectEntity): Boolean =
 		effectIdentity == other.effectIdentity &&
 			periodKind == other.periodKind &&
@@ -136,6 +142,10 @@ data class StepsGoalEffectEntity(
 			desiredPointsMicros == other.desiredPointsMicros &&
 			desiredXp == other.desiredXp
 
+	/**
+	 * Stable persisted codes, including `PERIOD_DAY`, `PERIOD_WEEK`, `STATE_READY_COMPLETE`, and any
+	 * identity-bound record factories.
+	 */
 	companion object {
 		const val PERIOD_DAY = "DAY"
 		const val PERIOD_WEEK = "WEEK"
@@ -154,6 +164,10 @@ data class StepsGoalEffectEntity(
 		)
 		private val SHA_256_HEX = Regex("[0-9a-f]{64}")
 
+		/**
+		 * Builds the persisted goal-effect key from a supported day/week period kind and its civil
+		 * epoch-day start.
+		 */
 		fun identity(periodKind: String, periodStartEpochDay: Long): String {
 			require(periodKind in PERIOD_KINDS)
 			return "steps-goal-v1:$periodKind:$periodStartEpochDay"

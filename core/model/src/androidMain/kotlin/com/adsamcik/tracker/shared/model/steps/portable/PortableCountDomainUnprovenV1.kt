@@ -26,59 +26,35 @@ fun legacyUnprovenStepsCountDomainGraph(
 	runs.forEach { run ->
 		val container = PortableCountDomainOpaqueIdentity(run.identity.value)
 		run.facts.forEach { fact ->
-			val ownerIdentity = PortableCountDomainIntegrity.unprovenOwnerIdentity(
-				PortableCountDomainOwnerKind.SESSION_FACT,
-				fact.identity.value,
-			)
-			val effect = PortableCountDomainIntegrity.unprovenEffectChecksum(
-				PortableCountDomainOwnerKind.SESSION_FACT,
-				fact.identity.value,
-				fact.contentChecksum.value,
-			)
-			owners += PortableCountDomainOwnerRevisionV2(
+			val owner = legacyUnprovenOwner(
 				ownerKind = PortableCountDomainOwnerKind.SESSION_FACT,
-				scopeIdentity = PortableCountDomainIntegrity.unprovenScopeIdentity(run.identity.value),
-				ownerIdentity = ownerIdentity,
-				ownerRevision = LEGACY_UNPROVEN_REVISION,
-				operation = PortableCountDomainOperation.UNPROVEN,
-				receiptIdentity = null,
-				ownerEffectChecksum = effect,
-				linkedAtMs = LEGACY_UNPROVEN_LINK_TIME_MS,
+				scopeProductIdentity = run.identity.value,
+				productIdentity = fact.identity.value,
+				productChecksum = fact.contentChecksum.value,
 			)
+			owners += owner
 			roots += PortableCountDomainRootV2(
 				containerIdentity = container,
 				productIdentity = PortableCountDomainOpaqueIdentity(fact.identity.value),
 				ownerKind = PortableCountDomainOwnerKind.SESSION_FACT,
-				ownerIdentity = ownerIdentity,
+				ownerIdentity = owner.ownerIdentity,
 				ownerRevision = LEGACY_UNPROVEN_REVISION,
 			)
 		}
-		val completenessOwner = PortableCountDomainIntegrity.unprovenOwnerIdentity(
-			PortableCountDomainOwnerKind.SESSION_COMPLETENESS,
-			run.identity.value,
-		)
-		val completenessEffect = PortableCountDomainIntegrity.unprovenEffectChecksum(
-			PortableCountDomainOwnerKind.SESSION_COMPLETENESS,
-			run.identity.value,
-			entryContentChecksum.value,
-		)
-		owners += PortableCountDomainOwnerRevisionV2(
+		val completenessOwner = legacyUnprovenOwner(
 			ownerKind = PortableCountDomainOwnerKind.SESSION_COMPLETENESS,
-			scopeIdentity = PortableCountDomainIntegrity.unprovenScopeIdentity(run.identity.value),
-			ownerIdentity = completenessOwner,
-			ownerRevision = LEGACY_UNPROVEN_REVISION,
-			operation = PortableCountDomainOperation.UNPROVEN,
-			receiptIdentity = null,
-			ownerEffectChecksum = completenessEffect,
-			linkedAtMs = LEGACY_UNPROVEN_LINK_TIME_MS,
+			scopeProductIdentity = run.identity.value,
+			productIdentity = run.identity.value,
+			productChecksum = entryContentChecksum.value,
 		)
+		owners += completenessOwner
 		val timeline = PortableCountDomainIntegrity.unprovenEffectChecksum(
 			PortableCountDomainOwnerKind.SESSION_COMPLETENESS,
 			run.identity.value,
 			"legacy-v1-no-registration-timeline",
 		)
 		markers += PortableCountDomainCompletenessMarkerV2.create(
-			ownerIdentity = completenessOwner,
+			ownerIdentity = completenessOwner.ownerIdentity,
 			ownerRevision = LEGACY_UNPROVEN_REVISION,
 			terminalState = PortableCountDomainCompletenessState.UNPROVEN,
 			lastAdmissionOrdinal = null,
@@ -91,7 +67,7 @@ fun legacyUnprovenStepsCountDomainGraph(
 			containerIdentity = container,
 			productIdentity = container,
 			ownerKind = PortableCountDomainOwnerKind.SESSION_COMPLETENESS,
-			ownerIdentity = completenessOwner,
+			ownerIdentity = completenessOwner.ownerIdentity,
 			ownerRevision = LEGACY_UNPROVEN_REVISION,
 		)
 	}
@@ -148,6 +124,26 @@ fun PortableAmbientStepsDayV1.withExplicitUnprovenCountDomain(
 				)
 			},
 		),
+	)
+}
+
+private fun legacyUnprovenOwner(
+	ownerKind: PortableCountDomainOwnerKind,
+	scopeProductIdentity: String,
+	productIdentity: String,
+	productChecksum: String,
+): PortableCountDomainOwnerRevisionV2 {
+	val ownerIdentity = PortableCountDomainIntegrity.unprovenOwnerIdentity(ownerKind, productIdentity)
+	val effect = PortableCountDomainIntegrity.unprovenEffectChecksum(ownerKind, productIdentity, productChecksum)
+	return PortableCountDomainOwnerRevisionV2(
+		ownerKind = ownerKind,
+		scopeIdentity = PortableCountDomainIntegrity.unprovenScopeIdentity(scopeProductIdentity),
+		ownerIdentity = ownerIdentity,
+		ownerRevision = LEGACY_UNPROVEN_REVISION,
+		operation = PortableCountDomainOperation.UNPROVEN,
+		receiptIdentity = null,
+		ownerEffectChecksum = effect,
+		linkedAtMs = LEGACY_UNPROVEN_LINK_TIME_MS,
 	)
 }
 

@@ -100,8 +100,9 @@ class ImportJobRunnerTest {
 			runner.importSessionBundle(JOB_ID, bundle,
 				transactionModeForChild = { ImportTransactionMode.IMPORTER_MANAGED },
 				importChild = { stream ->
-					if (stream.receiptKey == "second")
+					if (stream.receiptKey == "second") {
 						throw PermanentImportInputException("Second source is invalid")
+					}
 					ImportResult(successCount = 1)
 				},
 				importMetadata = { error("Metadata must not be published") })
@@ -117,7 +118,9 @@ class ImportJobRunnerTest {
 		val store = FakeImportReceiptStore()
 		var epoch = 5L
 		val runner = ImportJobRunner(store, verifyCollectedDataAccess = {
-			if (epoch != 5L) throw IllegalStateException("recorded data was cleared")
+			if (epoch != 5L) {
+				throw IllegalStateException("recorded data was cleared")
+			}
 		})
 		val manifest = SessionBundleManifestV1("Walk", null, 100, 200, "UTC", emptyList(),
 			emptyList(), emptyList())
@@ -160,9 +163,12 @@ class ImportJobRunnerTest {
 			importChild = { stream ->
 				stream.requireOriginalDataEpoch() shouldBe 7L
 				calls[stream.receiptKey] = calls.getOrDefault(stream.receiptKey, 0) + 1
-				if (stream.receiptKey == "child-2" && calls.getValue("child-2") == 1)
+				if (stream.receiptKey == "child-2" && calls.getValue("child-2") == 1) {
 					ImportResult(failedCount = 1, errors = listOf("second failed"))
-				else ImportResult(successCount = 1)
+				}
+				else {
+					ImportResult(successCount = 1)
+				}
 			},
 			importMetadata = {
 				store.isInTransaction shouldBe true
@@ -200,7 +206,9 @@ class ImportJobRunnerTest {
 		assertFailsWith<IOException> {
 			runner.importArchive(JOB_ID, context, file, ZipArchiveExtractor()) { stream ->
 				calls[stream.fileName] = calls.getOrDefault(stream.fileName, 0) + 1
-				if (stream.fileName == "second.json") throw IOException("simulated interruption")
+				if (stream.fileName == "second.json") {
+					throw IOException("simulated interruption")
+				}
 				ImportResult(successCount = 1)
 			}
 		}
@@ -707,7 +715,11 @@ class ImportJobRunnerTest {
 		override suspend fun getEntry(
 			jobId: String,
 			entryKey: String,
-		): ImportEntryReceiptEntity? = if (entryKey == hiddenEntryKey) null else entries[jobId to entryKey]
+		): ImportEntryReceiptEntity? = if (entryKey == hiddenEntryKey) {
+			null
+		} else {
+			entries[jobId to entryKey]
+		}
 
 		override suspend fun putEntry(entry: ImportEntryReceiptEntity) {
 			lastPutWasTransactional = isInTransaction

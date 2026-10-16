@@ -169,10 +169,12 @@ internal class AndroidWifiSourceBackend internal constructor(
 		frequencyMhz = frequency,
 		signalLevelDbm = level,
 		platformTimestampMicros = timestamp.coerceAtLeast(0L),
-		networkName = SSID?.takeUnless { it.isEmpty() || it == WifiManager.UNKNOWN_SSID },
+		networkName = SSID?.takeUnless { it.isEmpty() || it == UNKNOWN_SSID },
 	)
 
 	private companion object {
 		const val REDACTED_BSSID = "02:00:00:00:00:00"
+		// Android uses this marker on older releases too; the public constant starts at API 30.
+		const val UNKNOWN_SSID = "<unknown ssid>"
 	}
 }

@@ -6,6 +6,8 @@ import org.junit.Test
 
 class ImportedPressureMaintenanceEntityTest {
 	@Test
+	// Keep the typed identity set, matching fences and receipt together for the missing-member regression.
+	@Suppress("LongMethod")
 	fun `retention receipt authenticates typed entry run scope and window authority`() {
 		val markers = listOf(
 			ImportedPressureRetainedIdentityEntity(

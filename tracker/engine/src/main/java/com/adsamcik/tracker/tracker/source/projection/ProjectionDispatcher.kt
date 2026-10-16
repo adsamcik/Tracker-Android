@@ -25,6 +25,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.yield
 
 @Singleton
+// One dispatcher owns projection registration, checkpoint and outbox transaction consistency.
+@Suppress("TooManyFunctions")
 class ProjectionDispatcher @Inject constructor(
 	private val database: AppDatabase,
 	projections: Set<@JvmSuppressWildcards Projection>,
@@ -65,18 +67,11 @@ class ProjectionDispatcher @Inject constructor(
 		source: SourceKind,
 		ingress: DurableSourceIngress,
 	): CoordinatorDrainResult {
-		val mutex = when (source) {
-			SourceKind.WIFI -> ambientWifiMutex
-			SourceKind.CELL -> ambientCellMutex
-			else -> error("Not an ambient radio source")
-		}
+		val mutex = ambientMutex(source)
 		return mutex.withLock {
 			val projection = ambientProjection(source)
 			registerProjection(projection, ambientActivationOrdinal())
-			val target = database.withTransaction {
-				maxOf(database.sourceEventWalDao().maximumAdmissionOrdinal() ?: 0L,
-					database.sourceEvidenceStateDao().get()?.deletedSourceEventHighWaterOrdinal ?: 0L)
-			}
+			val target = ambientHighWaterOrdinal()
 			var cursor = projectionCheckpoint(projection)
 			var dispatched = 0
 			while (cursor < target) {
@@ -107,6 +102,17 @@ class ProjectionDispatcher @Inject constructor(
 			}
 			CoordinatorDrainResult.Complete(cursor, dispatched)
 		}
+	}
+
+	private fun ambientMutex(source: SourceKind): Mutex = when (source) {
+		SourceKind.WIFI -> ambientWifiMutex
+		SourceKind.CELL -> ambientCellMutex
+		else -> error("Not an ambient radio source")
+	}
+
+	private suspend fun ambientHighWaterOrdinal(): Long = database.withTransaction {
+		maxOf(database.sourceEventWalDao().maximumAdmissionOrdinal() ?: 0L,
+			database.sourceEvidenceStateDao().get()?.deletedSourceEventHighWaterOrdinal ?: 0L)
 	}
 
 	private suspend fun projectionCheckpoint(projection: Projection): Long = requireNotNull(

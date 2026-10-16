@@ -21,12 +21,12 @@ import kotlinx.coroutines.ensureActive
  * run-to-segment reverse binding, or the explicit forward identity retained by a typed migrated
  * unverifiable run; it is never inferred from wall-time overlap.
  */
+// One logical-history reader resolves physical membership and source-aware pages within the same Room snapshot.
+@Suppress("TooManyFunctions")
 internal class LogicalTrackingHistoryReader @Inject constructor(
 	private val database: AppDatabase,
 	private val stepsSelector: StepsSegmentHistorySelector,
 ) {
-	// The bounded keyset loop keeps each fail-closed candidate and stop condition explicit.
-	@Suppress("CyclomaticComplexMethod")
 	internal suspend fun selectRecentEntries(limit: Int): List<HistoricalTrackingEntryEvidence> {
 		validateLimit(limit)
 		return database.withTransaction {
@@ -140,7 +140,6 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 		return (physicalRows + stepsOnlyRows).sortedWith(stepsAwarePageOrder)
 	}
 
-	@Suppress("CyclomaticComplexMethod")
 	private suspend fun selectRecentEntriesInTransaction(
 		limit: Int,
 		discoveryMode: StepsOnlyDiscoveryMode = StepsOnlyDiscoveryMode.ORDINARY,
@@ -160,41 +159,22 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 				ENTRY_CANDIDATE_BATCH_CAP,
 				remainingCandidateBudget,
 			)
-			val finalBudgetPage = remainingCandidateBudget <= ENTRY_CANDIDATE_BATCH_CAP
-			val candidateProbe = database.trackingHistoryReadDao().recentEntryCandidatePage(
-				limit = acceptedPageLimit + if (finalBudgetPage) 1 else 0,
-				stepsSourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-				capturePurpose = SessionManifestPurposeCode.SESSION_CAPTURE,
-				includeExactStepsOnlyIntent = discoveryMode == StepsOnlyDiscoveryMode.EXACT_INTENT,
-				beforeStartTimeMs = beforeStartTimeMs,
-				beforeSegmentId = beforeSegmentId,
-			)
-			val candidateBudgetExceeded = finalBudgetPage && candidateProbe.size > acceptedPageLimit
-			val candidates = candidateProbe.take(acceptedPageLimit)
+			val (candidates, candidateBudgetExceeded) = readRecentCandidatePage(acceptedPageLimit,
+				remainingCandidateBudget, discoveryMode, beforeStartTimeMs, beforeSegmentId)
 			if (candidates.isEmpty()) {
 				break
 			}
 			scannedCandidateCount += candidates.size
 
 			val entries = loadCandidateEntries(candidates)
-			for (candidate in candidates) {
-				val identity = candidate.toIdentity() ?: continue
-				val entry = entries[identity] ?: continue
-				val isDiscoverable = when (discoveryMode) {
-					StepsOnlyDiscoveryMode.ORDINARY -> entry.isOrdinarilyDiscoverable
-					StepsOnlyDiscoveryMode.EXACT_INTENT -> entry.hasExactStepsOnlyIntent
-				}
-				if (!isDiscoverable || !accept(entry)) {
-					continue
-				}
-				accepted += entry
-				if (accepted.size == limit) {
-					break@entryPages
-				}
+			if (appendAcceptedCandidateEntries(candidates, entries, discoveryMode, accept, accepted, limit)) {
+				break@entryPages
 			}
-			if (candidateBudgetExceeded) throw LogicalHistoryPageDependencyOverflow(
+			if (candidateBudgetExceeded) {
+				throw LogicalHistoryPageDependencyOverflow(
 				HistoryPageDependencyLimit.CANDIDATE_SCAN,
 			)
+			}
 
 			val lastScanned = candidates.last()
 			beforeStartTimeMs = lastScanned.sortStartTimeMs
@@ -204,6 +184,56 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 			}
 		}
 		return accepted
+	}
+
+	private fun appendAcceptedCandidateEntries(
+		candidates: List<RecentHistoryEntryCandidate>,
+		entries: Map<HistoricalEntryIdentity, HistoricalTrackingEntryEvidence>,
+		discoveryMode: StepsOnlyDiscoveryMode,
+		accept: (HistoricalTrackingEntryEvidence) -> Boolean,
+		accepted: MutableList<HistoricalTrackingEntryEvidence>,
+		limit: Int,
+	): Boolean {
+		for (candidate in candidates) {
+			val entry = acceptedCandidateEntry(candidate, entries, discoveryMode, accept) ?: continue
+			accepted += entry
+			if (accepted.size == limit) {
+				return true
+			}
+		}
+		return false
+	}
+
+	private suspend fun readRecentCandidatePage(
+		pageLimit: Int, remainingBudget: Int, discoveryMode: StepsOnlyDiscoveryMode,
+		beforeStartTimeMs: Long?, beforeSegmentId: Long?,
+	): Pair<List<RecentHistoryEntryCandidate>, Boolean> {
+		val finalBudgetPage = remainingBudget <= ENTRY_CANDIDATE_BATCH_CAP
+		val probe = database.trackingHistoryReadDao().recentEntryCandidatePage(
+			limit = pageLimit + if (finalBudgetPage) { 1 } else { 0 },
+			stepsSourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			capturePurpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+			includeExactStepsOnlyIntent = discoveryMode == StepsOnlyDiscoveryMode.EXACT_INTENT,
+			beforeStartTimeMs = beforeStartTimeMs,
+			beforeSegmentId = beforeSegmentId,
+		)
+		val exceeded = finalBudgetPage && probe.size > pageLimit
+		return probe.take(pageLimit) to exceeded
+	}
+
+	private fun acceptedCandidateEntry(
+		candidate: RecentHistoryEntryCandidate,
+		entries: Map<HistoricalEntryIdentity, HistoricalTrackingEntryEvidence>,
+		discoveryMode: StepsOnlyDiscoveryMode,
+		accept: (HistoricalTrackingEntryEvidence) -> Boolean,
+	): HistoricalTrackingEntryEvidence? {
+		val identity = candidate.toIdentity() ?: return null
+		val entry = entries[identity] ?: return null
+		val isDiscoverable = when (discoveryMode) {
+			StepsOnlyDiscoveryMode.ORDINARY -> entry.isOrdinarilyDiscoverable
+			StepsOnlyDiscoveryMode.EXACT_INTENT -> entry.hasExactStepsOnlyIntent
+		}
+		return if (!isDiscoverable || !accept(entry)) { null } else { entry }
 	}
 
 	private suspend fun loadCandidateEntries(
@@ -237,11 +267,17 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
     /** Typed selected membership; source products must still authenticate each member's authority. */
     internal suspend fun selectedLogicalMembersInTransaction(logicalId: String): SelectedLogicalHistoryRead {
         require(logicalId.isNotBlank())
-        if (database.sourceSessionDao().session(logicalId) == null) return SelectedLogicalHistoryRead.NotFound
+        if (database.sourceSessionDao().session(logicalId) == null) {
+            return SelectedLogicalHistoryRead.NotFound
+        }
         return try {
             val members = loadLogicalMemberEvidence(listOf(logicalId))
-            if (members.isEmpty()) SelectedLogicalHistoryRead.Unavailable(HistoryPageDependencyLimit.LOGICAL_MEMBERSHIP)
-            else SelectedLogicalHistoryRead.Content(members)
+            if (members.isEmpty()) {
+                SelectedLogicalHistoryRead.Unavailable(HistoryPageDependencyLimit.LOGICAL_MEMBERSHIP)
+            }
+            else {
+                SelectedLogicalHistoryRead.Content(members)
+            }
         } catch (overflow: LogicalHistoryPageDependencyOverflow) {
             SelectedLogicalHistoryRead.Unavailable(overflow.limit)
         }
@@ -251,7 +287,8 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
     internal suspend fun selectedLogicalMembersInTransaction(
         logicalIds: List<String>,
     ): SelectedLogicalHistoryRead {
-        require(logicalIds.size <= 100 && logicalIds.distinct().size == logicalIds.size)
+        require(logicalIds.size <= MAX_SELECTED_LOGICAL_ENTRIES &&
+            logicalIds.distinct().size == logicalIds.size)
         require(logicalIds.all(String::isNotBlank))
         return try {
             SelectedLogicalHistoryRead.Content(loadLogicalMemberEvidence(logicalIds))
@@ -277,7 +314,11 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 			val finalBudgetPage = remaining <= HISTORY_SEGMENT_BATCH_CAP
 			val segmentProbe = database.trackingHistoryReadDao().logicalEntrySegmentPage(
 				logicalTrackingIds = logicalIds,
-				limit = acceptedPageLimit + if (finalBudgetPage) 1 else 0,
+				limit = acceptedPageLimit + if (finalBudgetPage) {
+					1
+				} else {
+					0
+				},
 				afterStartTimeMs = afterStartTimeMs,
 				afterSegmentId = afterSegmentId,
 			)
@@ -325,7 +366,11 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 			val finalBudgetPage = remaining <= HISTORY_SEGMENT_BATCH_CAP
 			val runProbe = database.trackingHistoryReadDao().logicalEntryServiceRunPage(
 				logicalTrackingIds = logicalIds,
-				limit = acceptedPageLimit + if (finalBudgetPage) 1 else 0,
+				limit = acceptedPageLimit + if (finalBudgetPage) {
+					1
+				} else {
+					0
+				},
 				afterLogicalTrackingId = afterLogicalTrackingId,
 				afterStartedAtMs = afterStartedAtMs,
 				afterServiceRunId = afterServiceRunId,
@@ -423,3 +468,5 @@ internal sealed interface SelectedLogicalHistoryRead {
     data object NotFound : SelectedLogicalHistoryRead
     data class Unavailable(val dependency: HistoryPageDependencyLimit) : SelectedLogicalHistoryRead
 }
+
+private const val MAX_SELECTED_LOGICAL_ENTRIES = 100

@@ -176,7 +176,7 @@ class UnifiedMeasuredHistoryAssemblyRoomTest {
         reader = rangeReaderForRoomTest(database, ApplicationProvider.getApplicationContext(), qualifiedLocation = proof)
         var observed: CancellationException? = null
         try { reader.read(HistoryRangeRequest(range())) } catch (failure: CancellationException) { observed = failure }
-        (observed === cancelled) shouldBe true
+        observed.shouldBeInstanceOf<CancellationException>().message shouldBe cancelled.message
     }
 
     private suspend fun read(range: HistoryRange, limit: Int = 100) =

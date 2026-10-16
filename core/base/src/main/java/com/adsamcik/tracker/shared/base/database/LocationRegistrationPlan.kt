@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.shared.base.database
 
+import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
@@ -13,24 +14,7 @@ suspend fun AppDatabase.recordLocationRegistrationPlan(value: LocationRegistrati
 		SourceDestinationOwnerEntity.SOURCE_LOCATION, value.registrationGeneration))
 	check(registration.sourceInstanceId == value.sourceInstanceId &&
 		registration.physicalConfigurationFingerprint == value.physicalConfigurationFingerprint)
-	val state = sourceRegistrationStateDao().get(registration.sourceKind, registration.ownerScope)
-	when (registration.status) {
-		ProviderRegistrationGenerationEntity.STATUS_RESERVED -> {
-			// The pointer is deliberately published only after provider acceptance. A reservation
-			// may publish its immutable request first, but never after a newer reservation won.
-			check(sourceBrokerDao().maximumRegistrationGeneration(registration.sourceKind) == value.registrationGeneration)
-			check(registration.acceptedAtMs == null && registration.acceptedElapsedRealtimeNanos == null &&
-				registration.retiredAtMs == null && registration.retiredElapsedRealtimeNanos == null)
-			check(state == null || state.registrationGeneration <= value.registrationGeneration)
-		}
-		ProviderRegistrationGenerationEntity.STATUS_ACTIVE -> {
-			check(state != null && state.sourceInstanceId == value.sourceInstanceId &&
-				state.registrationGeneration == value.registrationGeneration &&
-				state.clockDomainId == registration.clockDomainId && state.collectedDataEpoch == registration.collectedDataEpoch &&
-				state.appliedRevision == value.configurationRevision)
-		}
-		else -> error("A terminal or retiring Location registration cannot publish a request")
-	}
+	requireCurrentLocationRegistration(value, registration)
 	check(sourceBrokerDao().maximumAuthorizationRevision(registration.sourceKind) == value.authorizationRevision)
 	check(sourceEvidenceStateDao().get()?.collectedDataEpoch == registration.collectedDataEpoch)
 	val rows = sourceBrokerDao().authorizationRevisionBounded(registration.sourceKind,
@@ -42,13 +26,49 @@ suspend fun AppDatabase.recordLocationRegistrationPlan(value: LocationRegistrati
 	val demands = sourceBrokerDao().demandsByIds(ids)
 	check(ids.distinct().size == ids.size && demands.size == ids.size)
 	val reconstructed = SourceBrokerAuthorization.rows(registration.sourceKind, value.registrationGeneration,
-		value.authorizationRevision, demands, authorization.effectiveBootId, authorization.effectiveElapsedRealtimeNanos,
+		value.authorizationRevision, demands, authorization.effectiveBootId,
+            authorization.effectiveElapsedRealtimeNanos,
 		authorization.members.first().effectiveWallTimeMs)
 	check(rows.sortedBy { it.memberId } == reconstructed.sortedBy { it.memberId })
 	val dao = locationPurposeDao()
 	if (dao.insertRegistrationPlanIfAbsent(value) == -1L) {
-		check(dao.registrationPlan(value.registrationGeneration, value.configurationRevision, value.authorizationRevision)?.hasSameValue(value) == true) {
+		check(dao.registrationPlan(value.registrationGeneration, value.configurationRevision,
+            value.authorizationRevision)?.hasSameValue(value) == true) {
 			"An acknowledged Location generation cannot change its physical plan"
 		}
 	}
+}
+
+private suspend fun AppDatabase.requireCurrentLocationRegistration(
+	value: LocationRegistrationPlanEntity,
+	registration: ProviderRegistrationGenerationEntity,
+) {
+	val state = sourceRegistrationStateDao().get(registration.sourceKind, registration.ownerScope)
+	when (registration.status) {
+		ProviderRegistrationGenerationEntity.STATUS_RESERVED -> {
+			// The pointer is deliberately published only after provider acceptance. A reservation
+			// may publish its immutable request first, but never after a newer reservation won.
+			check(sourceBrokerDao().maximumRegistrationGeneration(
+				registration.sourceKind) == value.registrationGeneration)
+			check(registration.acceptedAtMs == null && registration.acceptedElapsedRealtimeNanos == null &&
+				registration.retiredAtMs == null && registration.retiredElapsedRealtimeNanos == null)
+			check(state == null || state.registrationGeneration <= value.registrationGeneration)
+		}
+		ProviderRegistrationGenerationEntity.STATUS_ACTIVE -> {
+			requireActiveLocationRegistration(value, registration, state)
+		}
+		else -> error("A terminal or retiring Location registration cannot publish a request")
+	}
+}
+
+private fun requireActiveLocationRegistration(
+	value: LocationRegistrationPlanEntity,
+	registration: ProviderRegistrationGenerationEntity,
+	state: SourceRegistrationStateEntity?,
+) {
+	check(state != null && state.sourceInstanceId == value.sourceInstanceId &&
+		state.registrationGeneration == value.registrationGeneration &&
+		state.clockDomainId == registration.clockDomainId &&
+		state.collectedDataEpoch == registration.collectedDataEpoch &&
+		state.appliedRevision == value.configurationRevision)
 }

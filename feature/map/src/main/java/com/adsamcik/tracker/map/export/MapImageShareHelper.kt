@@ -29,7 +29,9 @@ class MapImageShareHelper @Inject constructor(
 		expectedGeneration: Long,
 		render: suspend () -> Bitmap,
 	): Boolean {
-		if (startupGate.reconcile() !is TrackingStartupResult.Ready) return false
+		if (startupGate.reconcile() !is TrackingStartupResult.Ready) {
+			return false
+		}
 		return startupGate.withReadyGenerationTransfer(expectedGeneration) {
 			saveAndShare(context, render(), expectedGeneration)
 		} == true
@@ -68,8 +70,10 @@ class MapImageShareHelper @Inject constructor(
 			}
 			return handedOff
 		} finally {
-			if (!handedOff) withContext(NonCancellable + dispatchersProvider.io) {
+			if (!handedOff) {
+				withContext(NonCancellable + dispatchersProvider.io) {
 				createdFile?.let { check(!it.exists() || it.delete()) { "Could not remove unfinished map share" } }
+			}
 			}
 		}
 	}

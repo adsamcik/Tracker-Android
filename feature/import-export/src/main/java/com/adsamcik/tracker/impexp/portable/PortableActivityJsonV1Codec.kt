@@ -50,7 +50,9 @@ internal class PortableActivityJsonV1Codec(
 		val result = produce(
 			PortableActivityEnvelopeSink { emitted ->
 				currentCoroutineContext().ensureActive()
-				if (envelope != null) formatFailure("Portable Activity exporter emitted more than one envelope")
+				if (envelope != null) {
+					formatFailure("Portable Activity exporter emitted more than one envelope")
+				}
 				envelope = emitted
 			},
 		)
@@ -82,37 +84,44 @@ internal class PortableActivityJsonV1Codec(
 			InputStreamReader(tokenLimitedInput, Charsets.UTF_8),
 		).apply { isLenient = false }
 		return try {
-			val counts = DecodeCounts()
-			val envelope = readEnvelope(reader, counts)
-			if (reader.peek() != JsonToken.END_DOCUMENT) {
-				formatFailure("Portable Activity document contains trailing content")
-			}
-			validateEnvelopeLimits(envelope)
-			envelope
+			readCheckedEnvelope(reader)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (failure: ActivitySourceReadFailure) {
 			throw failure.original
-		} catch (format: PortableActivityFormatException) {
-			throw format
 		} catch (failure: PortableJsonTokenLimitException) {
-			throw PortableActivityFormatException(
+			formatFailure(
 				"Portable Activity JSON token exceeds its lexical bound",
 				failure,
 			)
 		} catch (failure: MalformedJsonException) {
-			throw PortableActivityFormatException("Malformed portable Activity document", failure)
+			formatFailure("Malformed portable Activity document", failure)
 		} catch (failure: EOFException) {
-			throw PortableActivityFormatException("Truncated portable Activity document", failure)
-		} catch (failure: IOException) {
-			throw failure
+			formatFailure("Truncated portable Activity document", failure)
 		} catch (failure: ArithmeticException) {
-			throw PortableActivityFormatException("Portable Activity count overflow", failure)
+			formatFailure("Portable Activity count overflow", failure)
 		} catch (failure: IllegalArgumentException) {
-			throw PortableActivityFormatException("Invalid portable Activity document", failure)
+			invalidDocument(failure)
 		} catch (failure: IllegalStateException) {
-			throw PortableActivityFormatException("Invalid portable Activity document", failure)
+			formatFailure("Invalid portable Activity document", failure)
 		}
+	}
+
+	private fun invalidDocument(failure: IllegalArgumentException): Nothing {
+		if (failure is PortableActivityFormatException) {
+			throw failure
+		}
+		formatFailure("Invalid portable Activity document", failure)
+	}
+
+	private suspend fun readCheckedEnvelope(reader: JsonReader): PortableActivityEnvelopeV1 {
+		val counts = DecodeCounts()
+		val envelope = readEnvelope(reader, counts)
+		if (reader.peek() != JsonToken.END_DOCUMENT) {
+			formatFailure("Portable Activity document contains trailing content")
+		}
+		validateEnvelopeLimits(envelope)
+		return envelope
 	}
 
 	private suspend fun writeEnvelope(
@@ -135,12 +144,6 @@ internal class PortableActivityJsonV1Codec(
 			writer.endArray()
 			writer.endObject()
 			writer.flush()
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (format: PortableActivityFormatException) {
-			throw format
-		} catch (failure: IOException) {
-			throw failure
 		} catch (failure: ArithmeticException) {
 			throw PortableActivityFormatException("Portable Activity output count overflow", failure)
 		}
@@ -258,7 +261,9 @@ internal class PortableActivityJsonV1Codec(
 					if (format != ActivityCapturedPortableFormatV1.FORMAT ||
 						schemaVersion != ActivityCapturedPortableFormatV1.SCHEMA_VERSION ||
 						checksum == null
-					) formatFailure("Portable Activity header must precede entries")
+					) {
+						formatFailure("Portable Activity header must precede entries")
+					}
 					entries = readArray(reader, ENTRIES, limits.maxEntries) {
 						currentCoroutineContext().ensureActive()
 						counts.entries = Math.addExact(counts.entries, 1)
@@ -297,7 +302,9 @@ internal class PortableActivityJsonV1Codec(
 				END_TIME_MS -> endTimeMs = long(reader, END_TIME_MS)
 				RUNS -> runs = readArray(reader, RUNS, limits.maxRunsPerEntry) {
 					counts.runs = Math.addExact(counts.runs, 1)
-					if (counts.runs > limits.maxRuns) formatFailure("Portable Activity run count exceeded")
+					if (counts.runs > limits.maxRuns) {
+						formatFailure("Portable Activity run count exceeded")
+					}
 					readRun(reader, counts)
 				}
 				else -> formatFailure("Unknown Activity entry field")
@@ -580,14 +587,19 @@ internal class PortableActivityJsonV1Codec(
 		} catch (_: ArithmeticException) {
 			formatFailure("Portable Activity envelope count overflow")
 		}
-		if (envelope.entries.size > limits.maxEntries || runCount > limits.maxRuns ||
-			zoneCount > limits.maxZoneEpochs || windowCount > limits.maxWindows ||
-			fragmentCount > limits.maxFragments ||
+		if (exceedsEnvelopeCounts(envelope.entries.size, runCount, zoneCount, windowCount, fragmentCount) ||
 			PortableActivityOpaqueOwnershipVerifier.fromEntries(envelope.entries) == null
 		) {
 			formatFailure("Portable Activity envelope exceeds limits or has conflicting identities")
 		}
 	}
+
+	// Fixed aggregate counters are compared to their corresponding configured limits together.
+	@Suppress("ComplexCondition")
+	private fun exceedsEnvelopeCounts(
+		entryCount: Int, runCount: Int, zoneCount: Int, windowCount: Int, fragmentCount: Int,
+	): Boolean = entryCount > limits.maxEntries || runCount > limits.maxRuns ||
+		zoneCount > limits.maxZoneEpochs || windowCount > limits.maxWindows || fragmentCount > limits.maxFragments
 
 	private inline fun <T> readArray(
 		reader: JsonReader,
@@ -599,7 +611,9 @@ internal class PortableActivityJsonV1Codec(
 		reader.beginArray()
 		val values = ArrayList<T>()
 		while (reader.hasNext()) {
-			if (values.size >= maximum) formatFailure("$name count exceeds $maximum")
+			if (values.size >= maximum) {
+				formatFailure("$name count exceeds $maximum")
+			}
 			values += readItem()
 		}
 		reader.endArray()
@@ -609,12 +623,16 @@ internal class PortableActivityJsonV1Codec(
 	private fun uniqueName(reader: JsonReader, fields: MutableSet<String>, owner: String): String {
 		expect(reader, JsonToken.NAME, owner)
 		val name = reader.nextName()
-		if (!fields.add(name)) formatFailure("$owner repeats field $name")
+		if (!fields.add(name)) {
+			formatFailure("$owner repeats field $name")
+		}
 		return name
 	}
 
 	private fun expect(reader: JsonReader, token: JsonToken, owner: String) {
-		if (reader.peek() != token) formatFailure("$owner must contain $token")
+		if (reader.peek() != token) {
+			formatFailure("$owner must contain $token")
+		}
 	}
 
 	private fun boundedString(reader: JsonReader, name: String): String {
@@ -675,15 +693,25 @@ internal class PortableActivityJsonV1Codec(
 		}
 
 	private fun requireOnlyFields(actual: Set<String>, expected: Set<String>, owner: String) {
-		if (actual != expected) formatFailure("$owner fields are incomplete or incompatible")
+		if (actual != expected) {
+			formatFailure("$owner fields are incomplete or incompatible")
+		}
 	}
 
 	private fun nullableValue(writer: JsonWriter, value: String?) {
-		if (value == null) writer.nullValue() else writer.value(value)
+		if (value == null) {
+			writer.nullValue()
+		} else {
+			writer.value(value)
+		}
 	}
 
 	private fun nullableValue(writer: JsonWriter, value: Int?) {
-		if (value == null) writer.nullValue() else writer.value(value.toLong())
+		if (value == null) {
+			writer.nullValue()
+		} else {
+			writer.value(value.toLong())
+		}
 	}
 
 	private class DecodeCounts {
@@ -805,13 +833,17 @@ private class ActivityBoundedInputStream(
 
 	override fun read(): Int {
 		val value = readSource { super.read() }
-		if (value >= 0) include(1)
+		if (value >= 0) {
+			include(1)
+		}
 		return value
 	}
 
 	override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
 		val read = readSource { super.read(buffer, offset, length) }
-		if (read > 0) include(read)
+		if (read > 0) {
+			include(read)
+		}
 		return read
 	}
 
@@ -823,7 +855,9 @@ private class ActivityBoundedInputStream(
 
 	private fun include(bytes: Int) {
 		count = Math.addExact(count, bytes.toLong())
-		if (count > maximumBytes) formatFailure("Portable Activity file exceeds $maximumBytes bytes")
+		if (count > maximumBytes) {
+			formatFailure("Portable Activity file exceeds $maximumBytes bytes")
+		}
 	}
 }
 
@@ -849,8 +883,11 @@ private class ActivityBoundedOutputStream(
 
 	private fun include(bytes: Int) {
 		count = Math.addExact(count, bytes.toLong())
-		if (count > maximumBytes) formatFailure("Portable Activity file exceeds $maximumBytes bytes")
+		if (count > maximumBytes) {
+			formatFailure("Portable Activity file exceeds $maximumBytes bytes")
+		}
 	}
 }
 
-private fun formatFailure(message: String): Nothing = throw PortableActivityFormatException(message)
+private fun formatFailure(message: String, cause: Throwable? = null): Nothing =
+	throw PortableActivityFormatException(message, cause)

@@ -15,6 +15,7 @@ import com.adsamcik.tracker.shared.base.database.markStepsRetentionTruncation
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventProjectionEligibilityRow
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
@@ -34,6 +35,8 @@ import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.SourceDrainMembership
 import com.adsamcik.tracker.tracker.source.coordinator.SourceDrainRetirementClaim
+import com.adsamcik.tracker.tracker.source.coordinator.SourceDrainActionIdentity
+import com.adsamcik.tracker.tracker.source.coordinator.stepsProductActionIdentities
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import com.adsamcik.tracker.tracker.source.ingress.STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION
@@ -184,15 +187,7 @@ class StepsSessionFactProjectionLane private constructor(
 					membership.registrationGeneration,
 				)
 			}.toSet(),
-			productActions = retirementClaims
-				.filterNot(SourceDrainRetirementClaim::cleanupOnly)
-				.map { claim ->
-					StepsProviderActionIdentity(
-						claim.sourceInstanceId,
-						claim.registrationGeneration,
-						claim.leaseGeneration,
-					)
-				}.toSet(),
+			productActions = stepsProductActionIdentities(database, logicalTrackingId, serviceRunId, retirementClaims),
 		)
 		val initialLane = database.withTransaction { executableLaneOrNull() }
 			?: return@withLock StepsSessionFactDrainResult.Inactive
@@ -254,7 +249,7 @@ class StepsSessionFactProjectionLane private constructor(
 		while (cursor < targetAdmissionOrdinal) {
 			var attemptedOrdinal: Long? = null
 			val pass = try {
-				database.withTransaction {
+				StepsCountDomainStore(database).withValidatedWriteBatch { countDomainStore ->
 					val lane = requireExactLane(initialLane, expectedCursor = cursor)
 					val evidenceState = evidenceState()
 					val manifestBindings = mutableMapOf<StepsManifestKey, SessionManifestSourceEntity>()
@@ -287,7 +282,7 @@ class StepsSessionFactProjectionLane private constructor(
 					val readThroughOrdinal = terminal?.admissionOrdinal?.minus(1L)
 						?: targetAdmissionOrdinal
 					if (readThroughOrdinal <= cursor) {
-						return@withTransaction StepsProjectionPass.TerminalBlocked(
+						return@withValidatedWriteBatch StepsProjectionPass.TerminalBlocked(
 							failure = requireNotNull(terminal),
 							throughOrdinal = cursor,
 						)
@@ -301,7 +296,7 @@ class StepsSessionFactProjectionLane private constructor(
 					)
 					if (events.isEmpty()) {
 						advanceCursor(lane, readThroughOrdinal)
-						return@withTransaction StepsProjectionPass.Applied(
+						return@withValidatedWriteBatch StepsProjectionPass.Applied(
 							throughOrdinal = readThroughOrdinal,
 							factsInserted = 0,
 							eventsValidated = 0,
@@ -330,11 +325,12 @@ class StepsSessionFactProjectionLane private constructor(
 								candidate != null
 							) {
 								recordWalCountDomainOrThrow(
+									countDomainStore,
 									event.admissionOrdinal,
 									(event.evidence.payload as StepCounterWindowPayload)
 										.counterDomainToken,
 								)
-								when (insertOrVerifyExactReplay(candidate)) {
+								when (insertOrVerifyExactReplay(candidate, countDomainStore)) {
 									FactAdmission.INSERTED -> {
 										inserted++
 										val range = candidate.possibleCalendarDayRange()
@@ -378,7 +374,7 @@ class StepsSessionFactProjectionLane private constructor(
 							)
 							val through = event.admissionOrdinal - 1L
 							advanceCursor(lane, through)
-							return@withTransaction StepsProjectionPass.TerminalBlocked(
+							return@withValidatedWriteBatch StepsProjectionPass.TerminalBlocked(
 								failure = terminalFailure,
 								throughOrdinal = through,
 							)
@@ -573,23 +569,7 @@ class StepsSessionFactProjectionLane private constructor(
 		val raw = database.sourceEventWalDao()
 			.projectionEligibilityByAdmissionOrdinal(admissionOrdinal) ?: return true
 		if (raw.sourceKind != SourceKind.STEPS.stableCode) return true
-		if (
-			productAuthority != null &&
-			raw.serviceRunId == productAuthority.serviceRunId &&
-			(
-				raw.logicalTrackingId != productAuthority.logicalTrackingId ||
-					StepsProviderIdentity(
-						raw.sourceInstanceId,
-						raw.registrationGeneration,
-					) !in productAuthority.productProviders ||
-					(productAuthority.productActions.isNotEmpty() &&
-						StepsProviderActionIdentity(
-							raw.sourceInstanceId,
-							raw.registrationGeneration,
-							raw.lifecycleLeaseGeneration ?: return false,
-						) !in productAuthority.productActions)
-				)
-		) {
+		if (raw.hasConflictingDrainAuthority(productAuthority)) {
 			return false
 		}
 		if (raw.capturedCollectedDataEpoch != evidenceState.collectedDataEpoch) {
@@ -624,6 +604,26 @@ class StepsSessionFactProjectionLane private constructor(
 			return true
 		}
 		return false
+	}
+
+	private fun SourceEventProjectionEligibilityRow.hasConflictingDrainAuthority(
+		productAuthority: StepsProductDrainAuthority?,
+	): Boolean {
+		return productAuthority != null &&
+			this.serviceRunId == productAuthority.serviceRunId &&
+			(
+				this.logicalTrackingId != productAuthority.logicalTrackingId ||
+					StepsProviderIdentity(
+						this.sourceInstanceId,
+						this.registrationGeneration,
+					) !in productAuthority.productProviders ||
+					(productAuthority.productActions.isNotEmpty() &&
+						SourceDrainActionIdentity(
+							this.sourceInstanceId,
+							this.registrationGeneration,
+							this.lifecycleLeaseGeneration ?: return true,
+						) !in productAuthority.productActions)
+				)
 	}
 
 	private suspend fun SourceEventProjectionEligibilityRow.isDeletedScope(): Boolean {
@@ -709,10 +709,11 @@ class StepsSessionFactProjectionLane private constructor(
 
 	private suspend fun insertOrVerifyExactReplay(
 		candidate: StepFactRevisionEntity,
+		countDomainStore: StepsCountDomainStore,
 	): FactAdmission {
 		val dao = database.stepFactRevisionDao()
 		if (dao.insert(candidate) != INSERT_IGNORED) {
-			recordCountDomainOrThrow(candidate)
+			recordCountDomainOrThrow(candidate, countDomainStore)
 			return FactAdmission.INSERTED
 		}
 
@@ -733,7 +734,7 @@ class StepsSessionFactProjectionLane private constructor(
 			requireNotNull(candidate.sourceAdmissionOrdinal),
 		)
 		if (byRevision == candidate && byMutation == candidate && byAdmission == candidate) {
-			recordCountDomainOrThrow(candidate)
+			recordCountDomainOrThrow(candidate, countDomainStore)
 			return FactAdmission.EXACT_REPLAY
 		}
 		val collisions = buildList {
@@ -747,9 +748,11 @@ class StepsSessionFactProjectionLane private constructor(
 		)
 	}
 
-	private suspend fun recordCountDomainOrThrow(candidate: StepFactRevisionEntity) {
+	private suspend fun recordCountDomainOrThrow(
+		candidate: StepFactRevisionEntity,
+		store: StepsCountDomainStore,
+	) {
 		val admissionOrdinal = requireNotNull(candidate.sourceAdmissionOrdinal)
-		val store = StepsCountDomainStore(database)
 		when (store.recordSessionFact(candidate)) {
 			StepsCountDomainWriteResult.INSERTED,
 			StepsCountDomainWriteResult.EXACT_REPLAY,
@@ -766,6 +769,15 @@ class StepsSessionFactProjectionLane private constructor(
 			admissionOrdinal,
 			"STEPS_WAL_CARRIER_MISSING",
 		)
+		authenticateRecordedFact(candidate, wal, store)
+	}
+
+	private suspend fun authenticateRecordedFact(
+		candidate: StepFactRevisionEntity,
+		wal: SourceEventWalEntity,
+		store: StepsCountDomainStore,
+	) {
+		val admissionOrdinal = requireNotNull(candidate.sourceAdmissionOrdinal)
 		val ownerKeys = listOf(
 			StepsCountDomainOwnerLookupKey(
 				StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
@@ -805,6 +817,7 @@ class StepsSessionFactProjectionLane private constructor(
 	}
 
 	private suspend fun recordWalCountDomainOrThrow(
+		store: StepsCountDomainStore,
 		admissionOrdinal: Long,
 		counterDomainToken: StepsCounterDomainToken?,
 	) {
@@ -815,6 +828,25 @@ class StepsSessionFactProjectionLane private constructor(
 			admissionOrdinal,
 			"STEPS_COUNT_DOMAIN_WAL_MISSING",
 		)
+		requireWalCounterDomain(wal, admissionOrdinal, counterDomainToken)
+		requireCountDomainSchema(store, admissionOrdinal)
+		when (store.recordSessionWal(wal, counterDomainToken)) {
+			StepsCountDomainWriteResult.INSERTED,
+			StepsCountDomainWriteResult.EXACT_REPLAY,
+			StepsCountDomainWriteResult.UNPROVEN,
+			-> Unit
+			else -> throw StepsSessionFactIdentityCollisionException(
+				admissionOrdinal,
+				"STEPS_COUNT_DOMAIN_WAL_CONFLICT",
+			)
+		}
+	}
+
+	private fun requireWalCounterDomain(
+		wal: SourceEventWalEntity,
+		admissionOrdinal: Long,
+		counterDomainToken: StepsCounterDomainToken?,
+	) {
 		val carrier = StepsWalCarrierAuthenticator.authenticate(wal)
 			as? StepsWalCarrierAuthentication.Authenticated
 			?: throw StepsSessionFactIdentityCollisionException(
@@ -827,29 +859,24 @@ class StepsSessionFactProjectionLane private constructor(
 				"STEPS_COUNT_DOMAIN_TOKEN_MISMATCH",
 			)
 		}
-		when (StepsCountDomainSchema.inspect(database.openHelper.writableDatabase)) {
-			StepsCountDomainSchemaState.Absent,
-			StepsCountDomainSchemaState.FreshRoomScaffold,
-			-> throw StepsSessionFactIdentityCollisionException(
-				admissionOrdinal,
-				"STEPS_COUNT_DOMAIN_SCHEMA_UNAVAILABLE",
-			)
-			StepsCountDomainSchemaState.Incompatible ->
-				throw StepsSessionFactIdentityCollisionException(
+	}
+
+	private suspend fun requireCountDomainSchema(store: StepsCountDomainStore, admissionOrdinal: Long) {
+		if (!store.isInstalled()) {
+			when (StepsCountDomainSchema.inspect(database.openHelper.writableDatabase)) {
+				StepsCountDomainSchemaState.Absent,
+				StepsCountDomainSchemaState.FreshRoomScaffold,
+				-> throw StepsSessionFactIdentityCollisionException(
 					admissionOrdinal,
-					"STEPS_COUNT_DOMAIN_STORED_EVIDENCE_UNVERIFIABLE",
+					"STEPS_COUNT_DOMAIN_SCHEMA_UNAVAILABLE",
 				)
-			StepsCountDomainSchemaState.ValidV2 -> Unit
-		}
-		when (StepsCountDomainStore(database).recordSessionWal(wal, counterDomainToken)) {
-			StepsCountDomainWriteResult.INSERTED,
-			StepsCountDomainWriteResult.EXACT_REPLAY,
-			StepsCountDomainWriteResult.UNPROVEN,
-			-> Unit
-			else -> throw StepsSessionFactIdentityCollisionException(
-				admissionOrdinal,
-				"STEPS_COUNT_DOMAIN_WAL_CONFLICT",
-			)
+				StepsCountDomainSchemaState.Incompatible ->
+					throw StepsSessionFactIdentityCollisionException(
+						admissionOrdinal,
+						"STEPS_COUNT_DOMAIN_STORED_EVIDENCE_UNVERIFIABLE",
+					)
+				StepsCountDomainSchemaState.ValidV2 -> Unit
+			}
 		}
 	}
 
@@ -884,7 +911,7 @@ class StepsSessionFactProjectionLane private constructor(
 						evidence.registrationGeneration,
 					) !in productAuthority.productProviders ||
 					(productAuthority.productActions.isNotEmpty() &&
-						StepsProviderActionIdentity(
+						SourceDrainActionIdentity(
 							evidence.sourceInstanceId.value,
 							evidence.registrationGeneration,
 							evidence.lifecycleLeaseGeneration ?: poison(
@@ -1201,17 +1228,13 @@ private data class StepsProviderIdentity(
 	val registrationGeneration: Long,
 )
 
-private data class StepsProviderActionIdentity(
-	val sourceInstanceId: String,
-	val registrationGeneration: Long,
-	val leaseGeneration: Long,
-)
+
 
 private data class StepsProductDrainAuthority(
 	val logicalTrackingId: String,
 	val serviceRunId: String,
 	val productProviders: Set<StepsProviderIdentity>,
-	val productActions: Set<StepsProviderActionIdentity>,
+	val productActions: Set<SourceDrainActionIdentity>,
 )
 
 private fun StepFactRevisionEntity.possibleCalendarDayRange(): LongRange {

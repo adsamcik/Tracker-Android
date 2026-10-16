@@ -40,4 +40,23 @@
     <string name="format_database">Andmebaasi varukoopia (ZIP)</string>
     <string name="settings_import_summary">Impordi andmeid toetatud tüüpidest (%1$s) ja arhiividest (%2$s). Andmebaasi import ühendab ühilduvad read ega asenda olemasolevaid andmeid.</string>
     <string name="settings_import_title">Impordi</string>
+    <string name="export_radio_sensitivity_title">Kas eksportida võrguandmed?</string>
+    <string name="export_wifi_sensitivity_message">See fail sisaldab salvestatud Wi-Fi nimesid ja pääsupunktide ID-sid.</string>
+    <string name="export_cell_sensitivity_message">See fail sisaldab salvestatud tugijaamade ID-sid ja signaalimõõtmisi.</string>
+    <string name="export_radio_no_data">Selle allika kohta pole salvestatud andmeid</string>
+    <string name="export_include_complete_sessions">Kaasa terved seansid</string>
+    <string name="import_location_conflict_title">Kas asendada salvestatud punktid?</string>
+    <string name="import_location_replace">Kasuta faili punkte</string>
+    <string name="import_location_keep">Säilita salvestatud punktid</string>
+    <string name="export_backup_review_title">Vaata plaanitud varukoopiad üle</string>
+    <string name="export_backup_review_summary">Peatatud, kuni vaatad uuendatud andmevarukoopia üle.</string>
+    <string name="export_backup_review_message">Need ajakavad varundavad nüüd kõik salvestatud jälgimisandmed ja nende taastamiseks vajalikud failid. Seadeid ei kaasata. Kas jätkata nende ajakavadega?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Jätka varundamist</string>
+    <string name="import_backup_replace_title">Kas taastada andmevarukoopia?</string>
+    <string name="import_backup_replace_message">Kas asendada salvestatud andmed selle varukoopiaga? Sinu seaded jäävad samaks. Jälgimine on välja lülitatud, kuni selle uuesti käivitad.</string>
+    <string name="import_backup_restore">Asenda andmed</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d punkt selles failis erineb salvestatud koopiast. Vali, milline säilitada. Ülejäänud punktid imporditakse tavapäraselt.</item>
+        <item quantity="other">%d punkti selles failis erinevad salvestatud koopiatest. Vali, millised säilitada. Ülejäänud punktid imporditakse tavapäraselt.</item>
+    </plurals>
 </resources>

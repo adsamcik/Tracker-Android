@@ -8,6 +8,7 @@ import com.adsamcik.tracker.diagnostics.TrackingDiagnosticFailureReason
 import com.adsamcik.tracker.tracker.api.retryingTrackingSettingsObservation
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
@@ -52,64 +53,141 @@ class ChosenSourceWriterSetup @Inject internal constructor(
 	private val wifi: Provider<SharedWifiSourceController>,
 	private val cell: Provider<SharedCellSourceController>,
 ) {
+	/**
+	 * Prepares selected capture/all-day writers and the independently allowed automatic trigger.
+	 */
 	suspend fun ensureCurrentChosenSources(): ChosenSourceWriterSetupResult {
-		if (!startupGate.get().isReady) return ChosenSourceWriterSetupResult(emptyMap(), policyAvailable = false)
+		if (!startupGate.get().isReady) {
+			return ChosenSourceWriterSetupResult(emptyMap(), policyAvailable = false)
+		}
 		val state = policyRepository.currentState() as? SourcePolicyAuthorityState.Active
 			?: return ChosenSourceWriterSetupResult(emptyMap(), policyAvailable = false)
 		// CONTROL alone never selects an Activity capture writer. Ambient does not grant capture consent.
 		val chosen = state.snapshot.policies.values.filter {
 			it.capturePersistenceEligible || it.ambientPersistenceEligible
 		}.mapTo(linkedSetOf()) { it.source.toSetupSource() }
-		return ensure(chosen)
+		val result = ensure(chosen)
+		if (state.snapshot[TrackingSourceComponent.ACTIVITY].controlConsentEpoch != null) {
+			try {
+				prepareAutomaticControl()
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				// Trigger preparation must not suppress independently ready all-day sources.
+			}
+		}
+		return result
 	}
 
+	/** CONTROL needs provider reachability, not a captured Activity product lane. */
+	private suspend fun prepareAutomaticControl() {
+		withContext(dispatchers.io) {
+			val gate = startupGate.get()
+			val generation = gate.currentGeneration
+			gate.withReadyGenerationOperation(generation) {
+				database.withTransaction {
+					val policy = policyRepository.currentState() as? SourcePolicyAuthorityState.Active
+					if (policy?.snapshot?.get(TrackingSourceComponent.ACTIVITY)?.controlConsentEpoch == null) {
+						return@withTransaction
+					}
+					val current = rolloutStore.load()
+					if (current.sourceOwners.getValue(SourceKind.ACTIVITY) != SourceOwner.CONTAINED) {
+						return@withTransaction
+					}
+					rolloutStore.save(
+						current.copy(
+							revision = Math.addExact(current.revision, 1L),
+							sourceOwners = current.sourceOwners + (SourceKind.ACTIVITY to SourceOwner.CONTROL),
+						),
+						clock.currentTimeMillis().coerceAtLeast(0L),
+					)
+				}
+			}
+		}
+	}
+
+	/**
+	 * Prepares selected writers on the IO dispatcher and reports each source independently; it does not
+	 * start sensors.
+	 */
 	suspend fun ensure(chosen: Set<SourceKind>): ChosenSourceWriterSetupResult = withContext(dispatchers.io) {
-		if (chosen.isEmpty()) return@withContext ChosenSourceWriterSetupResult(emptyMap())
-		if (!startupGate.get().isReady) return@withContext pending(chosen)
-		try { rolloutStore.load() } catch (cancelled: CancellationException) { throw cancelled }
-		catch (_: Exception) { return@withContext pending(chosen) }
+		if (chosen.isEmpty()) {
+			return@withContext ChosenSourceWriterSetupResult(emptyMap())
+		}
+		if (!startupGate.get().isReady) {
+			return@withContext pending(chosen)
+		}
+		try {
+			rolloutStore.load()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			return@withContext pending(chosen)
+		}
 		val results = linkedMapOf<SourceKind, ChosenSourceWriterStatus>()
 		for (source in chosen.sortedBy { it.stableCode }) {
 			currentCoroutineContext().ensureActive()
-			results[source] = try {
-				if (!prepareOriginalRadioCallbackBoundary(source)) {
-					results[source] = ChosenSourceWriterStatus.PENDING
-					continue
-				}
-				val now = clock.currentTimeMillis().coerceAtLeast(0L)
-				val status = when (source) {
-					SourceKind.LOCATION -> location.ensureFinalWriter(now).setupStatus()
-					SourceKind.STEPS -> steps.preparePreferredWriter(now).setupStatus()
-					else -> transitions.create(requireNotNull(SourceWriterTransitionSpec.entries.singleOrNull { it.source == source }))
-						.prepareFinalKnownWriter(now).setupStatus()
-				}
-				if (status == ChosenSourceWriterStatus.READY) readReadiness(setOf(source)).sources.getValue(source) else status
-			} catch (cancelled: CancellationException) { throw cancelled }
-			catch (_: Exception) { ChosenSourceWriterStatus.PENDING }
+			results[source] = prepareSource(source)
 		}
 		ChosenSourceWriterSetupResult(results)
 	}
 
-	/** Existing resident owner only; End/recovery remains responsible for active capture and cold registrations. */
-	private suspend fun prepareOriginalRadioCallbackBoundary(source: SourceKind): Boolean {
-		if (source != SourceKind.WIFI && source != SourceKind.CELL) return true
-		val needsPrefix = database.withTransaction {
-			val spec = SourceWriterTransitionSpec.entries.single { it.source == source }
-			val lane = database.sourceProjectionStateDao().activeProductLane(source.stableCode)
-			val sessions = database.sourceSessionDao()
-			lane != null && catalog.bindingFor(lane) == spec.binding &&
-				!sessions.hasLifecycleBoundaryBlocker() && !sessions.hasIncompleteServiceRun() &&
-				!sessions.hasNonterminalLatestLifecycleAction() &&
-				database.sourceBrokerDao().activeDemands(source.stableCode).none { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE } &&
-				!database.isSharedRadioSessionCaptureAdmissionFenced(source.stableCode)
+	private suspend fun prepareSource(source: SourceKind): ChosenSourceWriterStatus = try {
+		if (!prepareOriginalRadioCallbackBoundary(source)) {
+			ChosenSourceWriterStatus.PENDING
+		} else {
+			val now = clock.currentTimeMillis().coerceAtLeast(0L)
+			val status = when (source) {
+				SourceKind.LOCATION -> location.ensureFinalWriter(now).setupStatus()
+				SourceKind.STEPS -> steps.preparePreferredWriter(now).setupStatus()
+				else -> transitions.create(requireNotNull(SourceWriterTransitionSpec.entries.singleOrNull {
+					it.source == source
+				})).prepareFinalKnownWriter(now).setupStatus()
+			}
+			if (status == ChosenSourceWriterStatus.READY) {
+				readReadiness(setOf(source)).sources.getValue(source)
+			} else {
+				status
+			}
 		}
-		if (!needsPrefix) return true
-		// This outer bound includes controller/lifecycle mutexes and enqueue, before the actor's own deadline starts.
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		ChosenSourceWriterStatus.PENDING
+	}
+
+	/**
+	 * Existing resident owner only; End/recovery remains responsible for active capture and cold registrations.
+	 */
+	private suspend fun prepareOriginalRadioCallbackBoundary(source: SourceKind): Boolean {
+		if (source != SourceKind.WIFI && source != SourceKind.CELL) {
+			return true
+		}
+		if (!needsOriginalRadioCallbackBoundary(source)) {
+			return true
+		}
+		// This includes controller/lifecycle mutexes and enqueue, before the actor's own deadline starts.
 		return withTimeoutOrNull(RADIO_CALLBACK_PREPARATION_TIMEOUT_MS) {
-			val deadline = android.os.SystemClock.elapsedRealtimeNanos() + RADIO_CALLBACK_PREPARATION_TIMEOUT_MS * 1_000_000L
-			if (source == SourceKind.WIFI) wifi.get().prepareSessionCaptureBoundary(deadline)
-			else cell.get().prepareSessionCaptureBoundary(deadline)
+			val deadline = android.os.SystemClock.elapsedRealtimeNanos() +
+				RADIO_CALLBACK_PREPARATION_TIMEOUT_MS * 1_000_000L
+			if (source == SourceKind.WIFI) {
+				wifi.get().prepareSessionCaptureBoundary(deadline)
+			} else {
+				cell.get().prepareSessionCaptureBoundary(deadline)
+			}
 		} ?: false
+	}
+
+	private suspend fun needsOriginalRadioCallbackBoundary(source: SourceKind): Boolean = database.withTransaction {
+		val spec = SourceWriterTransitionSpec.entries.single { it.source == source }
+		val lane = database.sourceProjectionStateDao().activeProductLane(source.stableCode)
+		val sessions = database.sourceSessionDao()
+		lane != null && catalog.bindingFor(lane) == spec.binding &&
+			!sessions.hasLifecycleBoundaryBlocker() && !sessions.hasIncompleteServiceRun() &&
+			!sessions.hasNonterminalLatestLifecycleAction() &&
+			database.sourceBrokerDao().activeDemands(source.stableCode).none {
+				it.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+			} && !database.isSharedRadioSessionCaptureAdmissionFenced(source.stableCode)
 	}
 
 	/** Read-only status; display callers never run a transition or open a provider. */
@@ -122,16 +200,32 @@ class ChosenSourceWriterSetup @Inject internal constructor(
 		val lanes = database.sourceProjectionStateDao().allActiveProductLanes()
 		return ChosenSourceWriterSetupResult(chosen.associateWith { source ->
 			val selected = lanes.filter { it.sourceKind == source.stableCode }
-			if (selected.size > 1) ChosenSourceWriterStatus.REPAIR_REQUIRED else {
-				val lane = selected.singleOrNull()
-				val binding = lane?.let(catalog::bindingFor)
-				if (lane != null && binding != null &&
-					lane.captureAdmissionCutoffOrdinal == null && lane.terminalDisposition == null && lane.terminalAtMs == null &&
-					lane.isCanonicalCaptureAuthorizedBy(database, rollout, catalog)) ChosenSourceWriterStatus.READY
-				else if (lane != null && binding == null) ChosenSourceWriterStatus.REPAIR_REQUIRED
-				else ChosenSourceWriterStatus.PENDING
+			if (selected.size > 1) {
+				ChosenSourceWriterStatus.REPAIR_REQUIRED
+			} else {
+				readLaneReadiness(selected.singleOrNull(), rollout)
 			}
 		}, rolloutRevision = rollout.revision)
+	}
+
+	private suspend fun readLaneReadiness(
+		lane: SourceProductProjectionLaneEntity?,
+		rollout: TrackingRolloutState,
+	): ChosenSourceWriterStatus {
+		val current = lane ?: return ChosenSourceWriterStatus.PENDING
+		if (catalog.bindingFor(current) == null) {
+			return ChosenSourceWriterStatus.REPAIR_REQUIRED
+		}
+		if (current.captureAdmissionCutoffOrdinal != null || current.terminalDisposition != null ||
+			current.terminalAtMs != null
+		) {
+			return ChosenSourceWriterStatus.PENDING
+		}
+		return if (current.isCanonicalCaptureAuthorizedBy(database, rollout, catalog)) {
+			ChosenSourceWriterStatus.READY
+		} else {
+			ChosenSourceWriterStatus.PENDING
+		}
 	}
 
 	/** The existing purpose observer needs progress subscriptions only while preparation is pending. */
@@ -141,8 +235,11 @@ class ChosenSourceWriterSetup @Inject internal constructor(
 			?.filter { it.capturePersistenceEligible || it.ambientPersistenceEligible }
 			?.mapTo(linkedSetOf()) { it.source.toSetupSource() }
 	}.distinctUntilChanged().flatMapLatest { chosen ->
-		if (chosen == null) flowOf(listOf("policy-unavailable")) else combine(
-			merge(startupGate.get().runtimeReadyChanges.onStart { emit(Unit) },
+		if (chosen == null) {
+			flowOf(listOf("policy-unavailable"))
+		} else {
+			combine(
+			merge(startupGate.get().runtimeReadyChanges,
 				database.invalidationTracker.createFlow("tracking_rollout_state", "source_destination_owner",
 					emitInitialState = true).map { Unit }),
 			laneSetupChanges(chosen),
@@ -150,13 +247,18 @@ class ChosenSourceWriterSetup @Inject internal constructor(
 				.map { database.sourceEvidenceStateDao().get()?.collectedDataEpoch }.distinctUntilChanged(),
 		) { _, _, _ -> database.withTransaction { wakeupKey(chosen) } }
 			.distinctUntilChanged().flatMapLatest { key ->
-				if (key.none { it.startsWith("status:") && it.endsWith(":PENDING") }) flowOf(key)
-				else database.invalidationTracker.createFlow("logical_tracking_session", "source_service_run",
+				if (key.none { it.startsWith("status:") && it.endsWith(":PENDING") }) {
+					flowOf(key)
+				}
+				else {
+					database.invalidationTracker.createFlow("logical_tracking_session", "source_service_run",
 					"lifecycle_desired_action", "provider_registration_generation", "source_authorization",
 					"source_demand", "pending_signal", "source_product_projection_lane", "source_event_wal",
 					emitInitialState = true).map { database.withTransaction { wakeupKey(chosen) } }
 					.onStart { emit(key) }
+				}
 			}
+		}
 	}.distinctUntilChanged()
 		.retryingTrackingSettingsObservation(
 			onFailure = {
@@ -165,7 +267,11 @@ class ChosenSourceWriterSetup @Inject internal constructor(
 			},
 			waitBeforeRetry = {
 				val gate = startupGate.get()
-				if (gate.isReady) delay(SETUP_OBSERVATION_RETRY_DELAY_MS) else gate.awaitReady()
+				if (gate.isReady) {
+					delay(SETUP_OBSERVATION_RETRY_DELAY_MS)
+				} else {
+					gate.awaitReady()
+				}
 			},
 		).flowOn(dispatchers.io)
 
@@ -173,7 +279,10 @@ class ChosenSourceWriterSetup @Inject internal constructor(
 	private fun laneSetupChanges(chosen: Set<SourceKind>): Flow<List<String>> =
 		database.invalidationTracker.createFlow("source_product_projection_lane", "source_projection_registration",
 			emitInitialState = true).map {
-			if (chosen.isEmpty()) emptyList() else buildList {
+			if (chosen.isEmpty()) {
+				emptyList()
+			} else {
+				buildList {
 				val codes = chosen.sortedBy { it.stableCode }.map { it.stableCode }
 				database.query(SimpleSQLiteQuery("/* writer-setup-lane-shape */ " +
 					"SELECT source_kind,binding_generation,projection_id,projection_version,capture_mode_mask," +
@@ -184,37 +293,36 @@ class ChosenSourceWriterSetup @Inject internal constructor(
 					"WHERE registration.projection_id = lane.projection_id AND " +
 					"registration.projection_version = lane.projection_version) " +
 					"FROM source_product_projection_lane lane WHERE source_kind IN (${codes.joinToString { "?" }}) " +
-					"AND status = 'ACTIVE' ORDER BY source_kind,binding_generation", codes.toTypedArray())).use { rows ->
+					"AND status = 'ACTIVE' ORDER BY source_kind,binding_generation",
+                        codes.toTypedArray())).use { rows ->
 					while (rows.moveToNext()) add((0 until rows.columnCount).joinToString("|") { column ->
-						if (rows.isNull(column)) "-" else rows.getString(column).let { "${it.length}:$it" }
+						if (rows.isNull(column)) {
+							"-"
+						} else {
+							rows.getString(column).let { "${it.length}:$it" }
+						}
 					})
 				}
+			}
 			}
 		}.distinctUntilChanged()
 
 	private suspend fun wakeupKey(chosen: Set<SourceKind>): List<String> = buildList {
 		add("ready:${startupGate.get().isReady}:${startupGate.get().currentGeneration}")
 		val readiness = readReadinessInTransaction(chosen)
-		for (source in chosen.sortedBy { it.stableCode }) add("status:${source.stableCode}:${readiness.sources[source]}")
+		for (source in chosen.sortedBy { it.stableCode }) {
+			add("status:${source.stableCode}:${readiness.sources[source]}")
+		}
 		add("epoch:${database.sourceEvidenceStateDao().get()?.collectedDataEpoch}")
 		val pending = readiness.pendingSources
-		if (pending.isEmpty()) return@buildList
-		val sessions = database.sourceSessionDao()
-		add("idle:${!sessions.hasLifecycleBoundaryBlocker() && !sessions.hasIncompleteServiceRun() && !sessions.hasNonterminalLatestLifecycleAction()}")
-		add("pending:${database.pendingSignalDao().countAll() > 0}")
-		val highWater = maxOf(database.sourceEventWalDao().admissionAllocatorHighWater(),
-			database.sourceEvidenceStateDao().get()?.deletedSourceEventHighWaterOrdinal ?: 0L)
-		val codes = pending.map { it.stableCode }
-		database.query(SimpleSQLiteQuery("SELECT source_kind,binding_generation,product_stage,status,capture_admission_cutoff_ordinal," +
-			"contiguous_admission_ordinal,projection_id,projection_version,capture_mode_mask,terminal_disposition " +
-			"FROM source_product_projection_lane WHERE source_kind IN (${codes.joinToString { "?" }}) " +
-			"ORDER BY source_kind,binding_generation", codes.toTypedArray())).use { rows ->
-			while (rows.moveToNext()) {
-				val target = if (rows.isNull(4)) highWater else rows.getLong(4)
-				add("lane:${rows.getInt(0)}:${rows.getLong(1)}:${rows.getString(2)}:${rows.getString(3)}:" +
-					"${rows.getLong(5) >= target}:${rows.getString(6)}:${rows.getInt(7)}:${rows.getLong(8)}:${rows.getString(9)}")
-			}
+		if (pending.isEmpty()) {
+			return@buildList
 		}
+		val sessions = database.sourceSessionDao()
+		add("idle:${!sessions.hasLifecycleBoundaryBlocker() && !sessions.hasIncompleteServiceRun() &&
+            !sessions.hasNonterminalLatestLifecycleAction()}")
+		add("pending:${database.pendingSignalDao().countAll() > 0}")
+		appendPendingLaneProgress(pending)
 		for (source in pending.sortedBy { it.stableCode }) add("fence:${source.stableCode}:" + when (source) {
 			SourceKind.LOCATION -> database.isLocationSessionCaptureAdmissionFenced()
 			SourceKind.WIFI, SourceKind.CELL -> database.isSharedRadioSessionCaptureAdmissionFenced(source.stableCode)
@@ -222,17 +330,55 @@ class ChosenSourceWriterSetup @Inject internal constructor(
 		})
 	}
 
-	private fun pending(chosen: Set<SourceKind>) = ChosenSourceWriterSetupResult(chosen.associateWith { ChosenSourceWriterStatus.PENDING })
+	private suspend fun MutableList<String>.appendPendingLaneProgress(pending: Set<SourceKind>) {
+		val highWater = maxOf(database.sourceEventWalDao().admissionAllocatorHighWater(),
+			database.sourceEvidenceStateDao().get()?.deletedSourceEventHighWaterOrdinal ?: 0L)
+		val codes = pending.map { it.stableCode }
+		database.query(SimpleSQLiteQuery("SELECT source_kind,binding_generation,product_stage,status," +
+			"capture_admission_cutoff_ordinal," +
+			"contiguous_admission_ordinal,projection_id,projection_version,capture_mode_mask,terminal_disposition " +
+			"FROM source_product_projection_lane WHERE source_kind IN (${codes.joinToString { "?" }}) " +
+			"ORDER BY source_kind,binding_generation", codes.toTypedArray())).use { rows ->
+			while (rows.moveToNext()) {
+				val target = if (rows.isNull(LANE_CAPTURE_CUTOFF_COLUMN)) {
+					highWater
+				} else {
+					rows.getLong(LANE_CAPTURE_CUTOFF_COLUMN)
+				}
+				add("lane:${rows.getInt(LANE_SOURCE_KIND_COLUMN)}:${rows.getLong(LANE_BINDING_GENERATION_COLUMN)}:" +
+					"${rows.getString(LANE_PRODUCT_STAGE_COLUMN)}:${rows.getString(LANE_STATUS_COLUMN)}:" +
+					"${rows.getLong(LANE_CONTIGUOUS_ORDINAL_COLUMN) >= target}:" +
+					"${rows.getString(LANE_PROJECTION_ID_COLUMN)}:" +
+					"${rows.getInt(LANE_PROJECTION_VERSION_COLUMN)}:${rows.getLong(LANE_CAPTURE_MODE_MASK_COLUMN)}:" +
+					"${rows.getString(LANE_TERMINAL_DISPOSITION_COLUMN)}")
+			}
+		}
+	}
+
+	private fun pending(chosen: Set<SourceKind>) =
+        ChosenSourceWriterSetupResult(chosen.associateWith { ChosenSourceWriterStatus.PENDING })
 
 	private companion object {
+		const val LANE_SOURCE_KIND_COLUMN = 0
+		const val LANE_BINDING_GENERATION_COLUMN = 1
+		const val LANE_PRODUCT_STAGE_COLUMN = 2
+		const val LANE_STATUS_COLUMN = 3
+		const val LANE_CAPTURE_CUTOFF_COLUMN = 4
+		const val LANE_CONTIGUOUS_ORDINAL_COLUMN = 5
+		const val LANE_PROJECTION_ID_COLUMN = 6
+		const val LANE_PROJECTION_VERSION_COLUMN = 7
+		const val LANE_CAPTURE_MODE_MASK_COLUMN = 8
+		const val LANE_TERMINAL_DISPOSITION_COLUMN = 9
 		const val RADIO_CALLBACK_PREPARATION_TIMEOUT_MS = 3_000L
 		// Same failure-only observation backoff as the existing purpose/settings observer.
 		const val SETUP_OBSERVATION_RETRY_DELAY_MS = 250L
 	}
 }
 
+/** Whether one selected source’s writer is usable now, still preparing, or needs explicit repair. */
 enum class ChosenSourceWriterStatus { READY, PENDING, REPAIR_REQUIRED }
 
+/** Independent writer-readiness outcomes from shared setup; a missing policy is reported separately. */
 data class ChosenSourceWriterSetupResult(
 	val sources: Map<SourceKind, ChosenSourceWriterStatus>,
 	val policyAvailable: Boolean = true,
@@ -244,20 +390,34 @@ data class ChosenSourceWriterSetupResult(
 }
 
 private fun SourceWriterTransitionResult.setupStatus(): ChosenSourceWriterStatus = when (this) {
-	is SourceWriterTransitionResult.Applied, is SourceWriterTransitionResult.AlreadyApplied -> ChosenSourceWriterStatus.READY
-	is SourceWriterTransitionResult.Busy, is SourceWriterTransitionResult.StartupUnavailable -> ChosenSourceWriterStatus.PENDING
-	is SourceWriterTransitionResult.Blocked -> if (blocker.name in SETUP_PENDING_BLOCKERS) ChosenSourceWriterStatus.PENDING
-		else ChosenSourceWriterStatus.REPAIR_REQUIRED
+	is SourceWriterTransitionResult.Applied, is SourceWriterTransitionResult.AlreadyApplied ->
+        ChosenSourceWriterStatus.READY
+	is SourceWriterTransitionResult.Busy, is SourceWriterTransitionResult.StartupUnavailable ->
+        ChosenSourceWriterStatus.PENDING
+	is SourceWriterTransitionResult.Blocked -> if (blocker.name in SETUP_PENDING_BLOCKERS) {
+		ChosenSourceWriterStatus.PENDING
+	}
+		else {
+		ChosenSourceWriterStatus.REPAIR_REQUIRED
+	}
 }
 private fun StepsWriterTransitionResult.setupStatus(): ChosenSourceWriterStatus = when (this) {
-	is StepsWriterTransitionResult.Applied, is StepsWriterTransitionResult.AlreadyApplied -> ChosenSourceWriterStatus.READY
-	is StepsWriterTransitionResult.Busy, is StepsWriterTransitionResult.StartupUnavailable -> ChosenSourceWriterStatus.PENDING
-	is StepsWriterTransitionResult.Blocked -> if (blocker.name in SETUP_PENDING_BLOCKERS) ChosenSourceWriterStatus.PENDING
-		else ChosenSourceWriterStatus.REPAIR_REQUIRED
+	is StepsWriterTransitionResult.Applied, is StepsWriterTransitionResult.AlreadyApplied ->
+        ChosenSourceWriterStatus.READY
+	is StepsWriterTransitionResult.Busy, is StepsWriterTransitionResult.StartupUnavailable ->
+        ChosenSourceWriterStatus.PENDING
+	is StepsWriterTransitionResult.Blocked -> if (blocker.name in SETUP_PENDING_BLOCKERS) {
+		ChosenSourceWriterStatus.PENDING
+	}
+		else {
+		ChosenSourceWriterStatus.REPAIR_REQUIRED
+	}
 }
-private val SETUP_PENDING_BLOCKERS = setOf("ROLLOUT_REVISION_CHANGED", "LIFECYCLE_NOT_IDLE", "SERVICE_RUN_NOT_FINALIZED",
+private val SETUP_PENDING_BLOCKERS = setOf("ROLLOUT_REVISION_CHANGED", "LIFECYCLE_NOT_IDLE",
+    "SERVICE_RUN_NOT_FINALIZED",
 	"LIFECYCLE_ACTION_NOT_TERMINAL", "CAPTURE_CALLBACK_BARRIER_OPEN", "LEGACY_WRITER_NOT_QUIESCENT",
-	"LEGACY_STEPS_WRITER_NOT_QUIESCENT", "STEPS_COMMAND_PENDING", "SHADOW_CURSOR_BEHIND", "ROLLBACK_CURSOR_BEHIND", "SESSION_LEASE_LOST")
+	"LEGACY_STEPS_WRITER_NOT_QUIESCENT", "STEPS_COMMAND_PENDING", "SHADOW_CURSOR_BEHIND", "ROLLBACK_CURSOR_BEHIND",
+        "SESSION_LEASE_LOST")
 private fun TrackingSourceComponent.toSetupSource(): SourceKind = when (this) {
 	TrackingSourceComponent.LOCATION -> SourceKind.LOCATION
 	TrackingSourceComponent.ACTIVITY -> SourceKind.ACTIVITY

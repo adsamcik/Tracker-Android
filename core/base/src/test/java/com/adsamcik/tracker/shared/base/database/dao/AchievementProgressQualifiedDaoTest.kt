@@ -64,6 +64,27 @@ class AchievementProgressQualifiedDaoTest {
 	}
 
 	@Test
+	fun `complete generic recomputation retracts a removed tier and unlock time`() = runTest {
+		val metric = "distance_total_m"
+		dao.upsertMonotonic(metric, 2, 30_000.0, 100L)
+		val corrected = AchievementProgressEntity(metric, -1, 0.0, 200L)
+
+		dao.replaceEvaluatedAll(listOf(corrected))
+
+		dao.getByMetric(metric) shouldBe corrected
+	}
+
+	@Test
+	fun `incremental generic writes retain their monotonic tier behavior`() = runTest {
+		val metric = "distance_total_m"
+		dao.upsertMonotonic(metric, 2, 30_000.0, 100L)
+		dao.upsertMonotonic(metric, 0, 1_000.0, 200L)
+
+		dao.getByMetric(metric)?.lastTierIndex shouldBe 2
+		dao.getByMetric(metric)?.lastUnlockedAt shouldBe 100L
+	}
+
+	@Test
 	fun `generic monotonic write clears qualified authority`() = runTest {
 		dao.replaceQualified(
 			metricKey = METRIC,
@@ -122,7 +143,11 @@ class AchievementProgressQualifiedDaoTest {
 		dao.getQualifiedStepsAchievementRows().forEach { row ->
 			val isGoalMetric = row.metricKey == AchievementProgressEntity.METRIC_GOAL_STREAK_DAYS ||
 				row.metricKey == AchievementProgressEntity.METRIC_PERFECT_WEEKS
-			row.authorityRevision shouldBe if (isGoalMetric) 5L else 4L
+			row.authorityRevision shouldBe if (isGoalMetric) {
+				5L
+			} else {
+				4L
+			}
 			row.authorityDigest shouldBe "a".repeat(64)
 			row.authorityState shouldBe if (isGoalMetric) {
 				AchievementProgressEntity.AUTHORITY_STATE_MATERIALIZING

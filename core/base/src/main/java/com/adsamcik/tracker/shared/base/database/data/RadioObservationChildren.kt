@@ -10,7 +10,8 @@ import androidx.room.PrimaryKey
 /** One accepted Wi-Fi result owned by one exact session fact revision. */
 @Entity(
 	tableName = "wifi_captured_child",
-	primaryKeys = ["writer_projection_id", "writer_projection_version", "logical_fact_id", "semantic_revision", "item_index"],
+	primaryKeys = ["writer_projection_id", "writer_projection_version", "logical_fact_id", "semantic_revision",
+        "item_index"],
 	foreignKeys = [ForeignKey(
 		entity = WifiCapturedFactRevisionEntity::class,
 		parentColumns = ["writer_projection_id", "writer_projection_version", "logical_fact_id", "semantic_revision"],
@@ -37,14 +38,16 @@ data class WifiCapturedChildEntity(
 	@ColumnInfo(name = "signal_dbm") val signalDbm: Int,
 	@ColumnInfo(name = "content_checksum") val contentChecksum: String,
 ) {
-	init { requireRadioChild(itemIndex, providerTimestampNanos, observedWallTimeMs, wallTimeUncertaintyMs, contentChecksum) }
+	init { requireRadioChild(itemIndex, providerTimestampNanos, observedWallTimeMs, wallTimeUncertaintyMs,
+        contentChecksum) }
 	override fun toString(): String = "WifiCapturedChildEntity"
 }
 
 /** One accepted Cell result owned by one exact session fact revision. */
 @Entity(
 	tableName = "cell_captured_child",
-	primaryKeys = ["writer_projection_id", "writer_projection_version", "logical_fact_id", "semantic_revision", "item_index"],
+	primaryKeys = ["writer_projection_id", "writer_projection_version", "logical_fact_id", "semantic_revision",
+        "item_index"],
 	foreignKeys = [ForeignKey(
 		entity = CellCapturedFactRevisionEntity::class,
 		parentColumns = ["writer_projection_id", "writer_projection_version", "logical_fact_id", "semantic_revision"],
@@ -71,7 +74,8 @@ data class CellCapturedChildEntity(
 	@ColumnInfo(name = "signal_dbm") val signalDbm: Int?,
 	@ColumnInfo(name = "content_checksum") val contentChecksum: String,
 ) {
-	init { requireRadioChild(itemIndex, providerTimestampNanos, observedWallTimeMs, wallTimeUncertaintyMs, contentChecksum) }
+	init { requireRadioChild(itemIndex, providerTimestampNanos, observedWallTimeMs, wallTimeUncertaintyMs,
+        contentChecksum) }
 	override fun toString(): String = "CellCapturedChildEntity"
 }
 
@@ -105,7 +109,8 @@ data class AmbientWifiChildEntity(
 	@ColumnInfo(name = "signal_dbm") val signalDbm: Int,
 	@ColumnInfo(name = "content_checksum") val contentChecksum: String,
 ) {
-	init { requireRadioChild(itemIndex, providerTimestampNanos, observedWallTimeMs, wallTimeUncertaintyMs, contentChecksum) }
+	init { requireRadioChild(itemIndex, providerTimestampNanos, observedWallTimeMs, wallTimeUncertaintyMs,
+        contentChecksum) }
 	override fun toString(): String = "AmbientWifiChildEntity"
 }
 
@@ -139,7 +144,8 @@ data class AmbientCellChildEntity(
 	@ColumnInfo(name = "signal_dbm") val signalDbm: Int?,
 	@ColumnInfo(name = "content_checksum") val contentChecksum: String,
 ) {
-	init { requireRadioChild(itemIndex, providerTimestampNanos, observedWallTimeMs, wallTimeUncertaintyMs, contentChecksum) }
+	init { requireRadioChild(itemIndex, providerTimestampNanos, observedWallTimeMs, wallTimeUncertaintyMs,
+        contentChecksum) }
 	override fun toString(): String = "AmbientCellChildEntity"
 }
 
@@ -163,6 +169,10 @@ data class LegacyWifiChildEntity(
 	@Embedded val observationStamp: ObservationStampColumns = ObservationStampColumns(),
 ) { override fun toString(): String = "LegacyWifiChildEntity" }
 
+/**
+ * Preserved legacy tower details and original measured time; optional coordinates describe the
+ * observed device rather than the tower.
+ */
 @Entity(tableName = "legacy_cell_child", indices = [Index(value = ["time_ms"], name = "idx_legacy_cell_child_time")])
 data class LegacyCellChildEntity(
 	@PrimaryKey @ColumnInfo(name = "legacy_row_id") val legacyRowId: Long,

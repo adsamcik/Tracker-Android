@@ -296,7 +296,11 @@ class OwnerlessStepsManifestTimelinePaginationTest {
 		effectiveWallTimeMs = revision - 1L,
 		zoneId = "UTC",
 		automationEpoch = null,
-		changeReason = if (revision == 1L) "TEST" else "POLICY_RECONCILIATION",
+		changeReason = if (revision == 1L) {
+			"TEST"
+		} else {
+			"POLICY_RECONCILIATION"
+		},
 		manifestChecksum = "a".repeat(64),
 	)
 
@@ -411,7 +415,11 @@ class OwnerlessStepsManifestTimelinePaginationTest {
 			sourceKind = sourceKind.toLong(),
 			purpose = purpose,
 			consentEpoch = consentEpoch,
-			persistenceEligible = if (persistenceEligible) 1L else 0L,
+			persistenceEligible = if (persistenceEligible) {
+				1L
+			} else {
+				0L
+			},
 			qosCode = qosCode.toLong(),
 			outputDestination = outputDestination,
 			writerOwner = writerOwner,

@@ -27,6 +27,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntit
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
@@ -204,7 +205,11 @@ class ReconfiguredSessionSourceProofRoomTest {
 	}
 
 	private suspend fun recording(wal: SourceEventWalEntity): SourceProofResult<RecordingProofState> {
-		val source = if (wal.sourceKind == SourceKind.STEPS.stableCode) TrackingSource.STEPS else TrackingSource.PRESSURE
+		val source = if (wal.sourceKind == SourceKind.STEPS.stableCode) {
+			TrackingSource.STEPS
+		} else {
+			TrackingSource.PRESSURE
+		}
 		return DefaultSourceLifecycleProofAdapterFactory(
 			database = database,
 			payloadCodec = payloadCodec,
@@ -235,7 +240,8 @@ class ReconfiguredSessionSourceProofRoomTest {
 	}
 
 	/** Both revisions share the original run and physical registration, as a compatible reconfiguration does. */
-	@Suppress("LongMethod")
+	// Keep the fixed two-manifest Steps/Pressure reconfiguration fixture variants together.
+	@Suppress("LongMethod", "CyclomaticComplexMethod")
 	private suspend fun seed(
 		source: SourceKind,
 		manifestRevision: Long = 2L,
@@ -245,7 +251,11 @@ class ReconfiguredSessionSourceProofRoomTest {
 	): SourceEventWalEntity {
 		database.sourceEvidenceStateDao().ensure()
 		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, null, 1L)
-		val mode = if (originalOrigin == AUTOMATIC) "AUTOMATIC" else "MANUAL"
+		val mode = if (originalOrigin == AUTOMATIC) {
+			"AUTOMATIC"
+		} else {
+			"MANUAL"
+		}
 		val segmentId = database.sessionSegmentDao().insert(
 			SessionSegment(
 				startTimeMs = START_MS, endTimeMs = 5_000L, distanceM = 0f, steps = null,
@@ -282,8 +292,16 @@ class ReconfiguredSessionSourceProofRoomTest {
 		insertPolicy(source)
 		val demands = mutableListOf<SourceDemandEntity>()
 		for (revision in 1L..2L) {
-			val effectiveMs = if (revision == 1L) START_MS else RECONFIGURED_MS
-			val origin = if (revision == 1L) originalOrigin else laterOrigin
+			val effectiveMs = if (revision == 1L) {
+				START_MS
+			} else {
+				RECONFIGURED_MS
+			}
+			val origin = if (revision == 1L) {
+				originalOrigin
+			} else {
+				laterOrigin
+			}
 			val plan = plan(source, revision)
 			val encoded = planCodec.encode(plan)
 			database.sourcePlanStateDao().insertRevision(
@@ -292,14 +310,18 @@ class ReconfiguredSessionSourceProofRoomTest {
 			database.sourcePlanStateDao().insertDesiredPlans(
 				listOf(SourceDesiredPlanEntity(revision, source.stableCode, encoded.formatVersion, encoded.bytes, encoded.checksum)),
 			)
-			val binding = binding(source, revision)
+			val binding = binding(source, revision, mode)
 			val unsignedManifest = SessionManifestVersionEntity(
 				logicalTrackingId = LOGICAL, manifestRevision = revision, serviceRunId = RUN,
 				sessionMode = mode, sourcePolicyRevision = POLICY, acquisitionPlanRevision = revision,
 				rolloutRevision = 1L, startOrigin = origin, effectiveBootId = BOOT,
 				effectiveElapsedRealtimeNanos = elapsed(effectiveMs), effectiveWallTimeMs = effectiveMs,
 				zoneId = "UTC", automationEpoch = 1L.takeIf { mode == "AUTOMATIC" },
-				changeReason = if (revision == 1L) "START" else origin, manifestChecksum = "pending",
+				changeReason = if (revision == 1L) {
+					"START"
+				} else {
+					origin
+				}, manifestChecksum = "pending",
 			)
 			database.sourceSessionDao().insertManifest(
 				unsignedManifest.copy(manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, listOf(binding))),
@@ -318,7 +340,11 @@ class ReconfiguredSessionSourceProofRoomTest {
 						manifestRevision = revision, actionRevision = revision, actionFamily = "SOURCE_RUNTIME",
 						sourceKind = source.stableCode, desiredState = "STARTED", desiredPlanRevision = revision,
 						sourcePolicyRevision = POLICY, consentEpoch = CONSENT,
-						startOrigin = if (revision == manifestRevision) actionOrigin ?: origin else origin,
+						startOrigin = if (revision == manifestRevision) {
+							actionOrigin ?: origin
+						} else {
+							origin
+						},
 						bootId = BOOT, leaseGeneration = 1L, requestedAtMs = effectiveMs,
 						requestedElapsedRealtimeNanos = elapsed(effectiveMs), status = "START_ACCEPTED",
 						attemptCount = 1, acknowledgedAtMs = effectiveMs,
@@ -342,11 +368,19 @@ class ReconfiguredSessionSourceProofRoomTest {
 			),
 		)
 		val selectedDemand = demands.single { it.manifestRevision == manifestRevision }
-		val effectiveMs = if (manifestRevision == 1L) START_MS else RECONFIGURED_MS
+		val effectiveMs = if (manifestRevision == 1L) {
+			START_MS
+		} else {
+			RECONFIGURED_MS
+		}
 		val windowStart = elapsed(effectiveMs + 200L)
 		val windowEnd = windowStart + 150_000_000L
 		val payload = payload(source, windowStart, windowEnd)
-		val payloadVersion = if (source == SourceKind.STEPS) 7 else 4
+		val payloadVersion = if (source == SourceKind.STEPS) {
+			7
+		} else {
+			4
+		}
 		val encoded = payloadCodec.encode(payload, payloadVersion)
 		val wallMs = windowEnd / NANOS_PER_MS
 		val unsigned = SourceEventWalEntity(
@@ -406,18 +440,40 @@ class ReconfiguredSessionSourceProofRoomTest {
 		)
 	}
 
-	private fun binding(source: SourceKind, revision: Long): SessionManifestSourceEntity {
+	private fun binding(source: SourceKind, revision: Long, sessionMode: String): SessionManifestSourceEntity {
 		val steps = source == SourceKind.STEPS
+		val bindingGeneration = when {
+			sessionMode == "AUTOMATIC" && steps -> SourceDestinationOwnerEntity.STEPS_FACT_AUTOMATIC_BINDING_GENERATION
+			sessionMode == "AUTOMATIC" -> SourceDestinationOwnerEntity.PRESSURE_FACT_AUTOMATIC_BINDING_GENERATION
+			steps -> SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION
+			else -> SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION
+		}
 		return SessionManifestSourceEntity(
 			logicalTrackingId = LOGICAL, manifestRevision = revision, sourceKind = source.stableCode,
 			purpose = SessionManifestPurposeCode.SESSION_CAPTURE, consentEpoch = CONSENT,
 			persistenceEligible = true, qosCode = 1,
-			outputDestination = if (steps) SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS else SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
-			writerOwner = if (steps) SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS else SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
-			writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
-			writerProjectionId = if (steps) SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID else SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
-			writerProjectionVersion = if (steps) SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION else SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
-			writerBindingGeneration = if (steps) SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION else SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+			outputDestination = if (steps) {
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS
+			} else {
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE
+			},
+			writerOwner = if (steps) {
+				SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
+			} else {
+				SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS
+			},
+			writerOwnerGeneration = SourceWriterGenerationContract.canonicalOwnerGeneration(bindingGeneration),
+			writerProjectionId = if (steps) {
+				SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID
+			} else {
+				SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID
+			},
+			writerProjectionVersion = if (steps) {
+				SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION
+			} else {
+				SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION
+			},
+			writerBindingGeneration = bindingGeneration,
 		)
 	}
 
@@ -435,7 +491,11 @@ class ReconfiguredSessionSourceProofRoomTest {
 			minimumAcquisitionSpec = SourceAcquisitionFloorCodec.encode(floor), adaptiveReductionAllowed = true,
 			maximumAgeMs = 200L, desiredLatencyMs = 200L, requestedDeliveryLatencyMs = 0L,
 			requestedBootId = BOOT, requestedElapsedRealtimeNanos = elapsed(effectiveMs), requestedAtMs = effectiveMs,
-			status = if (revision == 1L) SourceDemandEntity.STATUS_RETIRED else SourceDemandEntity.STATUS_ACTIVE,
+			status = if (revision == 1L) {
+				SourceDemandEntity.STATUS_RETIRED
+			} else {
+				SourceDemandEntity.STATUS_ACTIVE
+			},
 			retireBootId = BOOT.takeIf { revision == 1L },
 			retireElapsedRealtimeNanos = elapsed(RECONFIGURED_MS).takeIf { revision == 1L },
 			retiredAtMs = RECONFIGURED_MS.takeIf { revision == 1L },

@@ -128,6 +128,8 @@ class CellWalCarrierAuthenticatorTest {
 		assertEquals(CellWalCarrierFailure.DELIVERY_IDENTITY_MISMATCH, rejected.reason)
 	}
 
+	// Keep the Cell payload, delivery identity and complete signed WAL record together as one fixture.
+	@Suppress("LongMethod")
 	private fun validWal(
 		observations: List<CellWalPayloadObservation> = listOf(
 			observation("LTE", true, -100, 1_500_000_000L),

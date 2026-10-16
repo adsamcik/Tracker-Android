@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.model.SegmentSource
 import io.kotest.matchers.shouldBe
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -27,7 +28,7 @@ import kotlin.test.assertTrue
 class SavedLocationMetricsReaderRoomTest {
     private lateinit var database: AppDatabase
     private lateinit var reader: SavedLocationMetricsReader
-    private val queries = mutableListOf<String>()
+    private val queries = CopyOnWriteArrayList<String>()
 
     @Before fun setup() {
         database = AppDatabase.inMemoryBuilder(ApplicationProvider.getApplicationContext<Context>())

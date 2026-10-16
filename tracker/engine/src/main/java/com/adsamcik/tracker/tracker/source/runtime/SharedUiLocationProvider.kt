@@ -57,21 +57,8 @@ class SharedUiLocationProvider constructor(
 			?: throw IllegalStateException("Location is unavailable")
 		val requestId = nextRequestId.incrementAndGet()
 		try {
-			currentCoroutineContext().ensureActive()
-			if (!owner.uiPermissionGranted()) throw SecurityException("Location permission was removed")
-			synchronized(activeLock) {
-				active[requestId] = UiLocationRequestInfo(request.tag, wallTimeMillis())
-				publishActiveLocked()
-			}
-			val health = flow<UiLocationEvent> {
-				var unavailableChecks = 0
-				while (true) {
-					delay(5_000L)
-					if (!owner.uiPermissionGranted()) throw SecurityException("Location permission was removed")
-					unavailableChecks = if (owner.uiProviderAvailable()) 0 else unavailableChecks + 1
-					if (unavailableChecks >= 2) throw IllegalStateException("Location provider stopped")
-				}
-			}
+			publishActiveLease(requestId, request)
+			val health = leaseHealthEvents()
 			merge(owner.uiLocationEvents, health).collect { event ->
 				when (event) {
 					UiLocationEvent.Ready -> Unit
@@ -91,13 +78,47 @@ class SharedUiLocationProvider constructor(
 		}
 	}
 
+	private suspend fun publishActiveLease(requestId: Long, request: UiLocationRequest) {
+		currentCoroutineContext().ensureActive()
+		if (!owner.uiPermissionGranted()) {
+			throw SecurityException("Location permission was removed")
+		}
+		synchronized(activeLock) {
+			active[requestId] = UiLocationRequestInfo(request.tag, wallTimeMillis())
+			publishActiveLocked()
+		}
+	}
+
+	private fun leaseHealthEvents(): Flow<UiLocationEvent> = flow {
+		var unavailableChecks = 0
+		while (true) {
+			delay(UI_LEASE_HEALTH_CHECK_INTERVAL_MS)
+			if (!owner.uiPermissionGranted()) {
+				throw SecurityException("Location permission was removed")
+			}
+			unavailableChecks = if (owner.uiProviderAvailable()) {
+				0
+			} else {
+				unavailableChecks + 1
+			}
+			if (unavailableChecks >= 2) {
+				throw IllegalStateException("Location provider stopped")
+			}
+		}
+	}
+
 	private fun publishActiveLocked() {
 		_activeRequests.value = active.values.toList()
 	}
 }
 
 internal fun Location.isFreshForUi(maximumAgeMs: Long, nowElapsedNanos: Long): Boolean {
-	if (!isValidLocationEvidence()) return false
+	if (!isValidLocationEvidence()) {
+		return false
+	}
 	val observed = qualifiedObservedElapsedRealtimeNanos(nowElapsedNanos) ?: return false
-	return nowElapsedNanos - observed <= maximumAgeMs * 1_000_000L
+	return nowElapsedNanos - observed <= maximumAgeMs * NANOS_PER_MILLISECOND
 }
+
+private const val NANOS_PER_MILLISECOND = 1_000_000L
+private const val UI_LEASE_HEALTH_CHECK_INTERVAL_MS = 5_000L

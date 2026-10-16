@@ -19,12 +19,18 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 
+/**
+ * Payload-free Cell event identity and admission ordinal used to page maintenance work
+ * deterministically.
+ */
 data class CellWalMaintenanceKey(
 	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
 	@ColumnInfo(name = "event_id") val eventId: String,
 )
 
 /** Narrow source-local persistence boundary for dormant captured Cell facts. */
+// This interface contains Room declarations only; keep this source’s SQL together.
+@Suppress("LargeClass")
 @Dao
 interface CellCapturedFactDao {
 
@@ -36,7 +42,8 @@ interface CellCapturedFactDao {
 			"AND fact.logical_fact_id = child.logical_fact_id AND fact.semantic_revision = child.semantic_revision " +
 			"JOIN cell_captured_fact_cursor cursor ON cursor.writer_projection_id = fact.writer_projection_id " +
 			"AND cursor.writer_projection_version = fact.writer_projection_version " +
-			"AND cursor.logical_fact_id = fact.logical_fact_id AND cursor.latest_semantic_revision = fact.semantic_revision " +
+			("AND cursor.logical_fact_id = fact.logical_fact_id AND cursor.latest_semantic_revision = " +
+                "fact.semantic_revision ") +
 			"WHERE fact.logical_tracking_id = :logicalId AND child.observed_wall_time_ms = :observedTimeMs " +
 			"AND child.item_index = :itemIndex ORDER BY fact.logical_fact_id LIMIT :limit",
 	)
@@ -138,8 +145,10 @@ interface CellCapturedFactDao {
 
 	/** Discovery only; capture qualification is reused inside the caller's paired Room snapshot. */
 	@Query("SELECT fact.* FROM cell_captured_fact_revision fact JOIN cell_captured_fact_cursor cursor " +
-		"ON cursor.writer_projection_id = fact.writer_projection_id AND cursor.writer_projection_version = fact.writer_projection_version " +
-		"AND cursor.logical_fact_id = fact.logical_fact_id AND cursor.latest_semantic_revision = fact.semantic_revision " +
+		("ON cursor.writer_projection_id = fact.writer_projection_id AND cursor.writer_projection_version = " +
+            "fact.writer_projection_version ") +
+		("AND cursor.logical_fact_id = fact.logical_fact_id AND cursor.latest_semantic_revision = " +
+            "fact.semantic_revision ") +
 		"WHERE fact.fact_kind IN ('AGGREGATE', 'COVERAGE_ONLY') AND fact.observed_wall_time_ms >= :fromMs " +
 		"AND fact.observed_wall_time_ms < :toMs ORDER BY fact.observed_wall_time_ms, fact.logical_fact_id LIMIT :limit")
 	suspend fun contextCandidates(fromMs: Long, toMs: Long, limit: Int): List<CellCapturedFactRevisionEntity>
@@ -159,12 +168,23 @@ interface CellCapturedFactDao {
 	suspend fun selectedHistoryLineages(writerId: String, writerVersion: Int, factId: String,
 		limit: Int): List<CellCapturedFactRevisionEntity>
 
+	/**
+	 * Inserts [CellCapturedEntryDeletionReceiptEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertEntryDeletionReceipt(receipt: CellCapturedEntryDeletionReceiptEntity)
 
+	/**
+	 * Inserts [CellCapturedDeletedRunEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertDeletedRuns(runs: List<CellCapturedDeletedRunEntity>)
 
+	/**
+	 * Reads `cell_captured_entry_deletion_receipt` rows. Query conditions include
+	 * `logical_tracking_id = :logicalTrackingId`. Returns at most 1 row. Returns null when no row
+	 * matches.
+	 */
 	@Query(
 		"SELECT * FROM cell_captured_entry_deletion_receipt " +
 			"WHERE logical_tracking_id = :logicalTrackingId LIMIT 1",
@@ -173,6 +193,11 @@ interface CellCapturedFactDao {
 		logicalTrackingId: String,
 	): CellCapturedEntryDeletionReceiptEntity?
 
+	/**
+	 * Reads `cell_captured_deleted_run` rows. Query conditions include `logical_tracking_id =
+	 * :logicalTrackingId`. Orders by `start_time_ms, session_segment_id, service_run_id`. Returns at
+	 * most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM cell_captured_deleted_run WHERE logical_tracking_id = :logicalTrackingId " +
 			"ORDER BY start_time_ms, session_segment_id, service_run_id LIMIT :limit",
@@ -182,9 +207,19 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<CellCapturedDeletedRunEntity>
 
+	/**
+	 * Inserts [CellCapturedFactRevisionEntity] rows. Existing conflicting rows remain unchanged. An
+	 * ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertRevision(entity: CellCapturedFactRevisionEntity): Long
 
+	/**
+	 * Reads `cell_captured_fact_revision` rows. Query conditions include `writer_projection_id =
+	 * :writerProjectionId`, `writer_projection_version = :writerProjectionVersion`, `logical_fact_id
+	 * = :logicalFactId`, `semantic_revision = :semanticRevision`. Returns at most 1 row. Returns null
+	 * when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM cell_captured_fact_revision WHERE writer_projection_id = :writerProjectionId " +
 			"AND writer_projection_version = :writerProjectionVersion " +
@@ -197,6 +232,11 @@ interface CellCapturedFactDao {
 		semanticRevision: Long,
 	): CellCapturedFactRevisionEntity?
 
+	/**
+	 * Reads `cell_captured_fact_revision` rows. Query conditions include `writer_projection_id =
+	 * :writerProjectionId`, `writer_projection_version = :writerProjectionVersion`, `logical_fact_id
+	 * = :logicalFactId`. Orders by `semantic_revision DESC`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM cell_captured_fact_revision WHERE writer_projection_id = :writerProjectionId " +
 			"AND writer_projection_version = :writerProjectionVersion " +
@@ -277,6 +317,9 @@ interface CellCapturedFactDao {
 		captureConsentEpoch: Long? = null,
 	): List<CellCapturedFactRevisionEntity>
 
+	/**
+	 * Counts rows in `cell_captured_fact_revision`.
+	 */
 	@Query("SELECT COUNT(*) FROM cell_captured_fact_revision")
 	suspend fun revisionCount(): Long
 
@@ -478,6 +521,10 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<CellCaptureDeletionGenerationEntity>
 
+	/**
+	 * Counts rows in `cell_captured_fact_revision`. Query conditions include `writer_projection_id !=
+	 * :writerProjectionId`, `writer_projection_version != :writerProjectionVersion`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM cell_captured_fact_revision WHERE " +
 			"writer_projection_id != :writerProjectionId " +
@@ -488,6 +535,10 @@ interface CellCapturedFactDao {
 		writerProjectionVersion: Int,
 	): Long
 
+	/**
+	 * Counts rows in `cell_captured_fact_cursor`. Query conditions include `writer_projection_id !=
+	 * :writerProjectionId`, `writer_projection_version != :writerProjectionVersion`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM cell_captured_fact_cursor WHERE " +
 			"writer_projection_id != :writerProjectionId " +
@@ -509,6 +560,11 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<SourceDemandEntity>
 
+	/**
+	 * Reads `source_demand` rows. Query conditions include `source_kind = :sourceKind`, `purpose =
+	 * 'SESSION_CAPTURE'`, `logical_tracking_id = :logicalTrackingId`, `service_run_id IN
+	 * (:serviceRunIds)`. Orders by `demand_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_demand WHERE source_kind = :sourceKind " +
 			"AND purpose = 'SESSION_CAPTURE' " +
@@ -532,6 +588,11 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<SourceDemandEntity>
 
+	/**
+	 * Updates `source_demand` rows matching the supplied scope. Query conditions include `source_kind
+	 * = :sourceKind`, `purpose = 'SESSION_CAPTURE'`, `status IN ('RETIRING', 'BLOCKED')`. Returns the
+	 * affected row count.
+	 */
 	@Query(
 		"UPDATE source_demand SET status = 'RETIRED', " +
 			"retire_boot_id = COALESCE(retire_boot_id, :bootId), " +
@@ -559,6 +620,11 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<ProviderRegistrationGenerationEntity>
 
+	/**
+	 * Reads `source_authorization` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `registration_generation = :registrationGeneration`, `authorization_revision =
+	 * :authorizationRevision`. Orders by `member_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
 			"AND registration_generation = :registrationGeneration " +
@@ -571,6 +637,11 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<SourceAuthorizationEntity>
 
+	/**
+	 * Returns the greatest `authorization_revision` in `source_authorization`. Query conditions
+	 * include `source_kind = :sourceKind`, `registration_generation = :registrationGeneration`.
+	 * Returns 0 when no saved value exists.
+	 */
 	@Query(
 		"SELECT COALESCE(MAX(authorization_revision), 0) FROM source_authorization " +
 			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration",
@@ -580,6 +651,11 @@ interface CellCapturedFactDao {
 		registrationGeneration: Long,
 	): Long
 
+	/**
+	 * Reads `source_authorization` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `registration_generation = :registrationGeneration`, `effective_boot_id = :bootId`. Orders by
+	 * `member_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
 			"AND registration_generation = :registrationGeneration AND effective_boot_id = :bootId " +
@@ -598,6 +674,12 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<SourceAuthorizationEntity>
 
+	/**
+	 * Reads `source_authorization` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `registration_generation = :registrationGeneration`, `M IN (authorization_revision)`,
+	 * `authorization_revision > :authorizationRevision`. Orders by `member_id`. Returns at most
+	 * `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
 			"AND registration_generation = :registrationGeneration " +
@@ -613,6 +695,10 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<SourceAuthorizationEntity>
 
+	/**
+	 * Reads `source_desired_plan` rows. Query conditions include `revision = :revision`. Orders by
+	 * `source_kind`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_desired_plan WHERE revision = :revision " +
 			"ORDER BY source_kind LIMIT :limit",
@@ -622,6 +708,13 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<SourceDesiredPlanEntity>
 
+	/**
+	 * Reads `cell_captured_fact_revision` rows. Query conditions include `fact.writer_projection_id =
+	 * :writerProjectionId`, `fact.writer_projection_version = :writerProjectionVersion`,
+	 * `fact.logical_tracking_id = :logicalTrackingId`, `fact.service_run_id = :serviceRunId`. Orders
+	 * by `fact.source_admission_ordinal DESC`. Returns at most 1 row. Returns null when no row
+	 * matches.
+	 */
 	@Query(
 		"SELECT fact.* FROM cell_captured_fact_revision AS fact " +
 			"INNER JOIN cell_captured_fact_cursor AS fact_cursor ON " +
@@ -654,6 +747,11 @@ interface CellCapturedFactDao {
 		beforeSourceAdmissionOrdinal: Long,
 	): CellCapturedFactRevisionEntity?
 
+	/**
+	 * Reads `cell_captured_fact_cursor` rows. Query conditions include `writer_projection_id =
+	 * :writerProjectionId`, `writer_projection_version = :writerProjectionVersion`, `logical_fact_id
+	 * = :logicalFactId`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM cell_captured_fact_cursor WHERE writer_projection_id = :writerProjectionId " +
 			"AND writer_projection_version = :writerProjectionVersion " +
@@ -665,12 +763,23 @@ interface CellCapturedFactDao {
 		logicalFactId: String,
 	): CellCapturedFactCursorEntity?
 
+	/**
+	 * Counts rows in `cell_captured_fact_cursor`.
+	 */
 	@Query("SELECT COUNT(*) FROM cell_captured_fact_cursor")
 	suspend fun cursorCount(): Long
 
+	/**
+	 * Counts rows in `source_event_wal`. Query conditions include `source_kind = :sourceKind`.
+	 */
 	@Query("SELECT COUNT(*) FROM source_event_wal WHERE source_kind = :sourceKind")
 	suspend fun maintenanceWalCount(sourceKind: Int): Long
 
+	/**
+	 * Reads `source_event_wal` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `admission_ordinal > :afterAdmissionOrdinal`. Orders by `admission_ordinal`. Returns at most
+	 * `limit` rows.
+	 */
 	@Query(
 		"SELECT admission_ordinal, event_id FROM source_event_wal WHERE source_kind = :sourceKind " +
 			"AND admission_ordinal > :afterAdmissionOrdinal " +
@@ -737,9 +846,19 @@ interface CellCapturedFactDao {
 	@Query("SELECT length(payload) FROM source_event_wal WHERE event_id = :eventId LIMIT 1")
 	suspend fun maintenanceWalPayloadByteCount(eventId: String): Long?
 
+	/**
+	 * Inserts [CellCapturedFactCursorEntity] rows. Existing conflicting rows remain unchanged. An
+	 * ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertCursor(entity: CellCapturedFactCursorEntity): Long
 
+	/**
+	 * Updates `cell_captured_fact_cursor` rows matching the supplied scope. Query conditions include
+	 * `writer_projection_id = :writerProjectionId`, `writer_projection_version =
+	 * :writerProjectionVersion`, `logical_fact_id = :logicalFactId`, `logical_tracking_id =
+	 * :logicalTrackingId`. Returns the affected row count.
+	 */
 	@Query(
 		"UPDATE cell_captured_fact_cursor SET " +
 			"latest_semantic_revision = :newSemanticRevision, latest_mutation_id = :newMutationId, " +
@@ -786,6 +905,11 @@ interface CellCapturedFactDao {
 		updatedAtMs: Long,
 	): Int
 
+	/**
+	 * Reads `cell_capture_deletion_generation` rows. Query conditions include `logical_tracking_id =
+	 * :logicalTrackingId`, `service_run_id = :serviceRunId`. Returns at most 1 row. Returns null when
+	 * no row matches.
+	 */
 	@Query(
 		"SELECT * FROM cell_capture_deletion_generation " +
 			"WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId LIMIT 1",
@@ -795,12 +919,25 @@ interface CellCapturedFactDao {
 		serviceRunId: String,
 	): CellCaptureDeletionGenerationEntity?
 
+	/**
+	 * Counts rows in `cell_capture_deletion_generation`.
+	 */
 	@Query("SELECT COUNT(*) FROM cell_capture_deletion_generation")
 	suspend fun deletionGenerationCount(): Long
 
+	/**
+	 * Records one initial run-deletion fence after requiring generation 1; higher generations must
+	 * use the dedicated revision operation.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertDeletionGeneration(entity: CellCaptureDeletionGenerationEntity)
 
+	/**
+	 * Updates `cell_capture_deletion_generation` rows matching the supplied scope. Query conditions
+	 * include `logical_tracking_id = :logicalTrackingId`, `service_run_id = :serviceRunId`,
+	 * `collected_data_epoch = :collectedDataEpoch`, `generation = :expectedGeneration`. Returns the
+	 * affected row count.
+	 */
 	@Query(
 		"UPDATE cell_capture_deletion_generation SET generation = :newGeneration, " +
 			"updated_at_ms = :updatedAtMs WHERE logical_tracking_id = :logicalTrackingId " +
@@ -816,6 +953,12 @@ interface CellCapturedFactDao {
 		updatedAtMs: Long,
 	): Int
 
+	/**
+	 * Deletes `cell_captured_fact_cursor` rows matching the supplied scope. Query conditions include
+	 * `writer_projection_id = :writerProjectionId`, `writer_projection_version =
+	 * :writerProjectionVersion`, `logical_fact_id IN (:logicalFactIds)`. Returns the affected row
+	 * count.
+	 */
 	@Query(
 		"DELETE FROM cell_captured_fact_cursor WHERE writer_projection_id = :writerProjectionId " +
 			"AND writer_projection_version = :writerProjectionVersion " +
@@ -827,6 +970,12 @@ interface CellCapturedFactDao {
 		logicalFactIds: List<String>,
 	): Int
 
+	/**
+	 * Deletes `cell_captured_fact_revision` rows matching the supplied scope. Query conditions
+	 * include `writer_projection_id = :writerProjectionId`, `writer_projection_version =
+	 * :writerProjectionVersion`, `logical_fact_id IN (:logicalFactIds)`. Returns the affected row
+	 * count.
+	 */
 	@Query(
 		"DELETE FROM cell_captured_fact_revision WHERE writer_projection_id = :writerProjectionId " +
 			"AND writer_projection_version = :writerProjectionVersion " +
@@ -1125,6 +1274,11 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<SourceEventWalEntity>
 
+	/**
+	 * Reads `cell_captured_fact_cursor` rows. Query conditions include `logical_fact_id IN
+	 * (:logicalFactIds)`. Orders by `writer_projection_id, writer_projection_version,
+	 * logical_fact_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM cell_captured_fact_cursor WHERE logical_fact_id IN (:logicalFactIds) " +
 			"ORDER BY writer_projection_id, writer_projection_version, logical_fact_id LIMIT :limit",
@@ -1134,6 +1288,12 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<CellCapturedFactCursorEntity>
 
+	/**
+	 * Reads `cell_capture_deletion_generation` rows. Query conditions include
+	 * `generation.logical_tracking_id IN (:logicalTrackingIds)`, `generation.service_run_id IN
+	 * (:serviceRunIds)`. Orders by `generation.logical_tracking_id, generation.service_run_id`.
+	 * Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT generation.* FROM cell_capture_deletion_generation AS generation " +
 			"INNER JOIN source_service_run AS run ON " +
@@ -1149,12 +1309,20 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<CellCaptureDeletionGenerationEntity>
 
+	/**
+	 * Reads `acquisition_plan_revision` rows. Query conditions include `revision IN (:revisions)`.
+	 * Orders by `revision`. Returns at most `limit` rows.
+	 */
 	@Query("SELECT * FROM acquisition_plan_revision WHERE revision IN (:revisions) ORDER BY revision LIMIT :limit")
 	suspend fun historyAcquisitionPlanRevisions(
 		revisions: List<Long>,
 		limit: Int,
 	): List<AcquisitionPlanRevisionEntity>
 
+	/**
+	 * Reads `source_desired_plan` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `revision IN (:revisions)`. Orders by `revision`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_desired_plan WHERE source_kind = :sourceKind " +
 			"AND revision IN (:revisions) ORDER BY revision LIMIT :limit",
@@ -1165,6 +1333,11 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<SourceDesiredPlanEntity>
 
+	/**
+	 * Reads `provider_registration_generation` rows. Query conditions include `source_kind =
+	 * :sourceKind`, `registration_generation IN (:registrationGenerations)`. Orders by
+	 * `registration_generation`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
 			"AND registration_generation IN (:registrationGenerations) " +
@@ -1176,6 +1349,12 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<ProviderRegistrationGenerationEntity>
 
+	/**
+	 * Reads `source_authorization` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `registration_generation IN (:registrationGenerations)`. Orders by `registration_generation,
+	 * effective_elapsed_realtime_nanos, authorization_revision, member_id`. Returns at most `limit`
+	 * rows.
+	 */
 	@Query(
 		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
 			"AND registration_generation IN (:registrationGenerations) " +
@@ -1188,16 +1367,28 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<SourceAuthorizationEntity>
 
+	/**
+	 * Deletes `cell_captured_fact_cursor` rows.
+	 */
 	@Query("DELETE FROM cell_captured_fact_cursor")
 	fun deleteAllCursors()
 
+	/**
+	 * Deletes `cell_captured_fact_revision` rows.
+	 */
 	@Query("DELETE FROM cell_captured_fact_revision")
 	fun deleteAllRevisions()
 
+	/**
+	 * Deletes `cell_capture_deletion_generation` rows.
+	 */
 	@Query("DELETE FROM cell_capture_deletion_generation")
 	fun deleteAllDeletionGenerations()
 }
 
+/**
+ * Physical Cell segment paired with the stable recency tuple of its logical recording.
+ */
 data class CellLogicalHistoryCandidate(
 	@Embedded val segment: SessionSegment,
 	@ColumnInfo(name = "logical_recency_start_ms") val logicalRecencyStartMs: Long,

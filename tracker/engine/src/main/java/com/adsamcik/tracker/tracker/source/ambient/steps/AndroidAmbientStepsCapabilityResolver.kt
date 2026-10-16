@@ -23,6 +23,10 @@ import kotlinx.coroutines.CancellationException
 class AndroidAmbientStepsCapabilityResolver @Inject constructor(
 	@ApplicationContext private val context: Context,
 ) {
+	/**
+	 * Probes current platform support and permission grants, then selects a system Steps provider without
+	 * subscribing.
+	 */
 	suspend fun resolve(): AmbientStepsCapability = AmbientStepsCapabilitySelector.select(snapshot())
 
 	internal suspend fun snapshot(): AmbientStepsPlatformSnapshot {
@@ -49,7 +53,7 @@ class AndroidAmbientStepsCapabilityResolver @Inject constructor(
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
 			return HealthConnectAmbientStepsAvailability.PLATFORM_TOO_OLD
 		}
-		if (Build.VERSION.SDK_INT < 37 &&
+		if (Build.VERSION.SDK_INT < MOBILE_STEPS_MIN_API_LEVEL &&
 			SdkExtensions.getExtensionVersion(Build.VERSION_CODES.UPSIDE_DOWN_CAKE) <
 			MOBILE_STEPS_MIN_EXTENSION
 		) {
@@ -120,7 +124,11 @@ class AndroidAmbientStepsCapabilityResolver @Inject constructor(
 		val failure: HealthConnectAmbientStepsAvailability? = null,
 	)
 
-	private companion object {
+	/** Shared immutable support thresholds used by capability checks and provider reads. */
+	internal companion object {
+		/** Minimum base API accepted without an extension check. */
+		const val MOBILE_STEPS_MIN_API_LEVEL = 37
+		/** Minimum extension accepted on supported earlier platform versions. */
 		const val MOBILE_STEPS_MIN_EXTENSION = 22
 	}
 }

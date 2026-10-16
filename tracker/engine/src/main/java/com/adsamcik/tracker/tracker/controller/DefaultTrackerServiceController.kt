@@ -54,7 +54,8 @@ class DefaultTrackerServiceController : TrackerServiceController {
         applicationScope: CoroutineScope): Job {
         check(savedLocationObservation == null) { "Saved Location presentation is already bound" }
         return applicationScope.launch {
-            kotlinx.coroutines.flow.combine(isServiceRunningFlow, sessionInfoFlow, sessionFlow) { hosted, info, session ->
+            kotlinx.coroutines.flow.combine(isServiceRunningFlow, sessionInfoFlow,
+                sessionFlow) { hosted, info, session ->
                 session?.id?.takeIf { hosted && info != null && it > 0L }
             }.distinctUntilChanged().flatMapLatest { segmentId ->
                 if (segmentId == null) kotlinx.coroutines.flow.flowOf(null to
@@ -73,10 +74,13 @@ class DefaultTrackerServiceController : TrackerServiceController {
     @Synchronized
     private fun publishSavedLocation(segmentId: Long?, read: SavedLocationSummaryRead) {
         val current = _sessionFlow.value?.id
-        _savedLocationSummary.value = if (segmentId != null && current == segmentId &&
-            _isServiceRunning.value && _sessionInfoFlow.value != null &&
-            (read !is SavedLocationSummaryRead.Snapshot ||
-                read.selection == SavedLocationSummarySelection.Session(segmentId))) read
+        if (segmentId == null || current != segmentId ||
+            !_isServiceRunning.value || _sessionInfoFlow.value == null) {
+            _savedLocationSummary.value = SavedLocationSummaryRead.NotFound
+            return
+        }
+        _savedLocationSummary.value = if (read !is SavedLocationSummaryRead.Snapshot ||
+            read.selection == SavedLocationSummarySelection.Session(segmentId)) read
             else SavedLocationSummaryRead.NotFound
     }
 

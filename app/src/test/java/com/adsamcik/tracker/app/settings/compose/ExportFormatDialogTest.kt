@@ -73,7 +73,7 @@ class ExportFormatDialogTest {
             "Locations, legacy Wi-Fi and Cell readings, and session summaries. Includes whole sessions that overlap chosen dates; other sources are omitted."
         ).assertIsDisplayed()
         composeTestRule.onNodeWithText(
-            "Raw SQLite backup with all data and settings; import merges compatible rows, not a full restore"
+            "All saved data. Settings are excluded."
         ).assertIsDisplayed()
     }
 
@@ -163,6 +163,36 @@ class ExportFormatDialogTest {
     }
 
     @Test
+    fun wifiSelectsOnlyTheRegisteredWifiExport() {
+        selectRadioFormat(ExportFormat.WIFI, "Wi-Fi", "saved Wi-Fi names and access-point IDs")
+    }
+
+    @Test
+    fun cellSelectsOnlyTheRegisteredCellExport() {
+        selectRadioFormat(ExportFormat.CELL, "Cell", "saved tower IDs and signal measurements")
+    }
+
+    private fun selectRadioFormat(format: ExportFormat, label: String, contents: String) {
+        var selectedFormat: ExportFormat? = null
+        var dismissed = false
+        composeTestRule.setContent {
+            AppTheme(useDynamicColor = false) {
+                ExportFormatDialog(
+                    onDismiss = { dismissed = true },
+                    onFormatSelected = { selectedFormat = it },
+                )
+            }
+        }
+        composeTestRule.onNodeWithText(label).performScrollTo().performClick()
+        composeTestRule.onNodeWithText("Export network details?").assertIsDisplayed()
+        composeTestRule.onNodeWithText(contents, substring = true).assertIsDisplayed()
+        assertEquals(null, selectedFormat)
+        composeTestRule.onNodeWithText("Continue export").performClick()
+        assertEquals(format, selectedFormat)
+        assertTrue(dismissed)
+    }
+
+    @Test
     fun portableStepsCanBeSelectedWithoutClaimingRouteCoordinates() {
         selectPortableFormat(ExportFormat.PORTABLE_STEPS, "Portable Steps", "Steps counts")
     }
@@ -223,7 +253,7 @@ class ExportFormatDialogTest {
                 )
             }
         }
-        composeTestRule.onNodeWithText("GPX (Recommended)").performClick()
+        composeTestRule.onNodeWithText("GPX").performClick()
         composeTestRule.onNodeWithText("Continue export").performClick()
         assertTrue(dismissed)
     }
@@ -241,7 +271,7 @@ class ExportFormatDialogTest {
         }
         composeTestRule.onNodeWithText("Database").performClick()
         composeTestRule.onNodeWithText("Export precise location data?").assertIsDisplayed()
-        composeTestRule.onNodeWithText("precise locations, Wi-Fi/cell radio data", substring = true)
+        composeTestRule.onNodeWithText("saved tracking data", substring = true)
             .assertIsDisplayed()
         assertEquals(null, selectedFormat)
     }
@@ -259,7 +289,7 @@ class ExportFormatDialogTest {
         }
         composeTestRule.onNodeWithText("JSON").performClick()
         composeTestRule.onNodeWithText("Export precise location data?").assertIsDisplayed()
-        composeTestRule.onNodeWithText("full-precision locations", substring = true)
+        composeTestRule.onNodeWithText("precise locations, Wi-Fi and Cell identifiers", substring = true)
             .assertIsDisplayed()
         assertEquals(null, selectedFormat)
     }

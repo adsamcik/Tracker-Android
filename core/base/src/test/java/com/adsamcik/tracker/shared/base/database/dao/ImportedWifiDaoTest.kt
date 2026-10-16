@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base.database.dao
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.deleteAllCollectedData
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiDeletionGenerationEntity
@@ -41,6 +42,8 @@ class ImportedWifiDaoTest {
 	@After
 	fun tearDown() = database.close()
 
+	// Keep one imported Wi-Fi hierarchy and its bounded ownership and deletion readback together.
+	@Suppress("LongMethod")
 	@Test
 	fun `bounded hierarchy and cross-kind owners are queryable without live authority`() = runTest {
 		dao.insertEntryRevision(entry())

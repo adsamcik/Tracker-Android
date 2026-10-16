@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.PlayerProfileEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsGoalEffectEntity
 import com.adsamcik.tracker.shared.base.database.data.XpLedgerEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.stats.api.event.DomainEvent
@@ -96,7 +97,8 @@ class PlayerProgressionRepository @Inject constructor(
                 epoch = read.value.dataEpoch
                 revision = read.value.revision
                 awardedAt = read.value.earnedAtMs
-                amount = XpCalculator.sessionXp((read.value.distanceMeters ?: 0.0).coerceAtMost(Float.MAX_VALUE.toDouble()).toFloat(),
+                amount = XpCalculator.sessionXp((read.value.distanceMeters ?:
+                    0.0).coerceAtMost(Float.MAX_VALUE.toDouble()).toFloat(),
                     read.value.durationMs)
             }
             is com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Removed -> {
@@ -110,15 +112,19 @@ class PlayerProgressionRepository @Inject constructor(
             com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Unavailable ->
                 throw IllegalStateException("Saved recording reward is unavailable")
         }
+        return commitSessionXp(sessionId, old, epoch, revision, awardedAt, amount)
+    }
+
+    private suspend fun commitSessionXp(
+        sessionId: Long, old: XpLedgerEntity?, epoch: Long, revision: Long, awardedAt: Long, amount: Int,
+    ): Boolean {
+        val dao = database.xpLedgerDao()
         if (old?.sourceRevision?.let { it >= revision } == true) return false
         val key = old?.sourceKey ?: "recording:$epoch:$sessionId"
-        val keyParts = key.split(':')
-        val originalEpoch = keyParts.takeIf { it.size == 3 && it[0] == "recording" &&
-            it[2].toLongOrNull() == sessionId }?.get(1)?.toLongOrNull() ?: return false
-        val state = database.sourceEvidenceStateDao().get() ?: return false
-        if (!state.acceptsRetainedEpoch(originalEpoch)) return false
+        if (!hasRetainedSessionReceipt(key, sessionId)) return false
         val awardDay = dayBounds(awardedAt)
-        val otherXp = (dao.getXpBetween(awardDay.startInclusive, awardDay.endExclusive) - (old?.amount ?: 0)).coerceAtLeast(0L)
+        val otherXp = (dao.getXpBetween(awardDay.startInclusive, awardDay.endExclusive) - (old?.amount ?:
+            0)).coerceAtLeast(0L)
         val capped = amount.toLong().coerceAtMost((XpCalculator.DAILY_CAP - otherXp).coerceAtLeast(0L)).toInt()
         val changed = if (old == null) {
             dao.insertOrIgnore(XpLedgerEntity(amount = capped, source = XpSource.SESSION.name,
@@ -128,6 +134,14 @@ class PlayerProgressionRepository @Inject constructor(
         return changed
     }
 
+    private suspend fun hasRetainedSessionReceipt(key: String, sessionId: Long): Boolean {
+        val keyParts = key.split(':')
+        val originalEpoch = keyParts.takeIf { it.size == 3 && it[0] == "recording" &&
+            it[2].toLongOrNull() == sessionId }?.get(1)?.toLongOrNull() ?: return false
+        val state = database.sourceEvidenceStateDao().get() ?: return false
+        return state.acceptsRetainedEpoch(originalEpoch)
+    }
+
     /** Bounded crash catchup of existing receipts; edited labels and re-imports never earn again. */
     internal suspend fun reconcileSessionRewards(expectedGeneration: Long) {
         withContext(dispatchers.io) {
@@ -135,24 +149,31 @@ class PlayerProgressionRepository @Inject constructor(
                 var changed = false
                 while (true) {
                     val count = trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
-                    val rows = database.xpLedgerDao().sessionEffectPage(after, 100)
-                    for (row in rows) {
-                        try {
-                            database.withTransaction { changed = insertSessionXp(requireNotNull(row.sourceId)) || changed }
-                        } catch (cancelled: kotlinx.coroutines.CancellationException) {
-                            throw cancelled
-                        } catch (_: Exception) {
-                            // Keep this receipt and retry on the next saved-data change or app startup.
-                        }
-                    }
+                    val rows = database.xpLedgerDao().sessionEffectPage(after, SESSION_REWARD_PAGE_SIZE)
+                    changed = reconcileSessionRewardPage(rows) || changed
                     if (rows.isNotEmpty()) after = rows.last().id
                     rows.size
                     } ?: break
-                    if (count < 100) break
+                    if (count < SESSION_REWARD_PAGE_SIZE) break
                 }
                 if (changed) metricDirtyTracker.markDirty(LEVELING_DIRTY_TABLES)
         }
     }
+    private suspend fun reconcileSessionRewardPage(rows: List<XpLedgerEntity>): Boolean {
+        var changed = false
+        for (row in rows) {
+            try {
+                database.withTransaction { changed =
+                    insertSessionXp(requireNotNull(row.sourceId)) || changed }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Keep this receipt and retry on the next saved-data change or app startup.
+            }
+        }
+        return changed
+    }
+
 	/**
 	 * Repairs the XP half of one mini-game reward while the caller holds the accepted startup-gate
 	 * operation. The caller owns deletion serialization so this method must not acquire a nested
@@ -215,20 +236,11 @@ class PlayerProgressionRepository @Inject constructor(
 					source = XpSource.GOAL.name,
 					sourceKey = effectIdentity,
 				)
-				val zeroReceipt = currentReceipt?.takeIf { receipt ->
-					effect.firstCompletedAtMs == null && effect.desiredXp == 0 &&
-						receipt.source == XpSource.GOAL.name && receipt.sourceKey == effectIdentity &&
-						receipt.sourceRevision == effectRevision && receipt.amount == 0 &&
-						receipt.sourceId == null && receipt.earnedAt >= 0L
-				}
+				val zeroReceiptTime = currentReceipt?.exactZeroGoalTime(effect)
 				// A diagnostic observation-time refresh is not a new reward revision. Keep the
 				// existing zero receipt's time when completing an interrupted acknowledgement.
-				val earnedAt = effect.firstCompletedAtMs ?: zeroReceipt?.earnedAt ?: effect.updatedAtMs
-				val receiptAlreadyExact = currentReceipt != null &&
-					currentReceipt.sourceRevision == effectRevision &&
-					currentReceipt.sourceId == null &&
-					currentReceipt.amount == effect.desiredXp &&
-					currentReceipt.earnedAt == earnedAt
+				val earnedAt = effect.firstCompletedAtMs ?: zeroReceiptTime ?: effect.updatedAtMs
+				val receiptAlreadyExact = currentReceipt.matchesGoalReceipt(effectRevision, effect.desiredXp, earnedAt)
 				if (!receiptAlreadyExact) {
 					val accepted = database.xpLedgerDao().applyStepsGoalEffect(
 						effectKey = effectIdentity,
@@ -298,4 +310,23 @@ class PlayerProgressionRepository @Inject constructor(
 			MetricKeys.TABLE_PLAYER_PROFILE,
 		)
 	}
+}
+
+private const val SESSION_REWARD_PAGE_SIZE = 100
+
+private fun XpLedgerEntity.exactZeroGoalTime(effect: StepsGoalEffectEntity): Long? {
+	if (effect.firstCompletedAtMs != null || effect.desiredXp != 0 || source != XpSource.GOAL.name) {
+		return null
+	}
+	if (sourceKey != effect.effectIdentity || sourceRevision != effect.effectRevision || amount != 0 || sourceId != null) {
+		return null
+	}
+	return earnedAt.takeIf { it >= 0L }
+}
+
+private fun XpLedgerEntity?.matchesGoalReceipt(revision: Long, amount: Int, earnedAt: Long): Boolean {
+	if (this == null) {
+		return false
+	}
+	return sourceRevision == revision && sourceId == null && this.amount == amount && this.earnedAt == earnedAt
 }

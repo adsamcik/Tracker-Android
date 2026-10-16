@@ -206,12 +206,24 @@ class PreviousExitSourceSessionFinalizer @Inject internal constructor(
 				check(
 					dao.updateSession(
 						session.copy(
-							state = if (abandonedProviderStart) SessionLifecycleState.FAILED.name
-								else SessionLifecycleState.FINALIZED.name,
+							state = if (abandonedProviderStart) {
+								SessionLifecycleState.FAILED.name
+							}
+								else {
+								SessionLifecycleState.FINALIZED.name
+							},
 							lifecycleRevision = session.lifecycleRevision + 1L,
-							cutoffAtMs = if (abandonedProviderStart) session.startedAtMs else cutoffAtMs,
-							cutoffElapsedNanos = if (abandonedProviderStart) session.startedElapsedNanos
-								else cutoffElapsedNanos,
+							cutoffAtMs = if (abandonedProviderStart) {
+								session.startedAtMs
+							} else {
+								cutoffAtMs
+							},
+							cutoffElapsedNanos = if (abandonedProviderStart) {
+								session.startedElapsedNanos
+							}
+								else {
+								cutoffElapsedNanos
+							},
 							completedAtMs = completedAtMs,
 							failureCode = COMPLETION_REASON,
 							currentServiceRunId = null,
@@ -235,27 +247,10 @@ class PreviousExitSourceSessionFinalizer @Inject internal constructor(
 		val provider = coordinatorProvider ?: return
 		val dao = database.sourceSessionDao()
 		for (session in dao.incompleteSessions()) {
-			if (session.state != SessionLifecycleState.STARTING.name || session.clockDomainId != bootId) continue
-			val run = session.currentServiceRunId?.let { dao.serviceRun(it) } ?: continue
-			if (run.logicalTrackingId != session.logicalTrackingId || run.bootId != bootId ||
-				run.state != SessionLifecycleState.STARTING.name || run.completedAtMs != null ||
-				run.androidDeliveryState !in setOf(AndroidStartDeliveryState.PREPARED.name,
-					AndroidStartDeliveryState.ENQUEUED.name, AndroidStartDeliveryState.DELIVERED.name,
-					AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name) ||
-				run.startCommandGeneration <= 0L ||
-				commandAuthority?.isAcceptedStart(TrackingStartCommand(run.startCommandGeneration)) != true
-			) continue
-			val manifest = dao.manifest(session.logicalTrackingId, run.preparedManifestRevision) ?: continue
-			if (manifest.serviceRunId != run.serviceRunId || manifest.changeReason != "PROVIDER_STEPS_JOIN") continue
-			if (run.androidDeliveryState == AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name &&
-				(run.preparedManifestRevision != 1L || run.sessionSegmentId != null ||
-					run.runtimeAcknowledgement != LifecycleActionStatus.PENDING.name ||
-					dao.hasProviderJoinPublishedEvidence(session.logicalTrackingId, run.serviceRunId) ||
-					dao.lifecycleActions(session.logicalTrackingId).filter { it.serviceRunId == run.serviceRunId }.any {
-						it.status !in setOf(LifecycleActionStatus.PENDING.name, LifecycleActionStatus.AWAITING_FOREGROUND.name) ||
-							it.attemptCount != 0 || it.sourceInstanceId != null || it.registrationGeneration != null
-					})
-			) continue
+			val run = interruptedProviderJoinRun(session, bootId, dao) ?: continue
+			if (!providerJoinRemainsUnpublished(dao, session.logicalTrackingId, run)) {
+				continue
+			}
 			val token = run.startDeliveryToken?.takeIf(String::isNotBlank) ?: continue
 			// The coordinator rechecks the exact authenticated envelope under its existing lease and transaction.
 			if (!provider.get().compensatePreparedAndroidStart(
@@ -265,8 +260,41 @@ class PreviousExitSourceSessionFinalizer @Inject internal constructor(
 				currentBootId = bootId,
 				elapsedRealtimeNanos = elapsedRealtimeNanos,
 				wallTimeMs = recoveryAtMs,
-			)) throw PreviousExitCallerAuthorityUnavailableException("PROVIDER_STEPS_JOIN_COMPENSATION_PENDING")
+			)) {
+				throw PreviousExitCallerAuthorityUnavailableException("PROVIDER_STEPS_JOIN_COMPENSATION_PENDING")
+			}
 		}
+	}
+
+	private suspend fun interruptedProviderJoinRun(
+		session: LogicalTrackingSessionEntity, bootId: String, dao: SourceSessionDao,
+	): SourceServiceRunEntity? {
+		if (session.state != SessionLifecycleState.STARTING.name || session.clockDomainId != bootId) {
+			return null
+		}
+		val run = session.currentServiceRunId?.let { dao.serviceRun(it) } ?: return null
+		return run.takeIf {
+			it.belongsToStartingSession(session, bootId) && it.hasPreparedProviderDelivery() &&
+				commandAuthority?.isAcceptedStart(TrackingStartCommand(it.startCommandGeneration)) == true
+		}
+	}
+
+	private suspend fun providerJoinRemainsUnpublished(
+		dao: SourceSessionDao, logicalId: String, run: SourceServiceRunEntity,
+	): Boolean {
+		val manifest = dao.manifest(logicalId, run.preparedManifestRevision) ?: return false
+		if (manifest.serviceRunId != run.serviceRunId || manifest.changeReason != "PROVIDER_STEPS_JOIN") {
+			return false
+		}
+		if (run.androidDeliveryState != AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name) {
+			return true
+		}
+		val initialJoin = run.preparedManifestRevision == 1L && run.sessionSegmentId == null &&
+			run.runtimeAcknowledgement == LifecycleActionStatus.PENDING.name
+		return initialJoin && !dao.hasProviderJoinPublishedEvidence(logicalId, run.serviceRunId) &&
+			dao.lifecycleActions(logicalId).filter { it.serviceRunId == run.serviceRunId }.all {
+				it.isUnpublishedProviderJoinAction()
+			}
 	}
 
 	private suspend fun terminalizeRuns(
@@ -289,8 +317,12 @@ class PreviousExitSourceSessionFinalizer @Inject internal constructor(
 							status = LifecycleActionStatus.TERMINAL_FAILURE.name,
 							acknowledgedAtMs = completedAtMs,
 							acknowledgedElapsedRealtimeNanos =
-								if (action.bootId == bootId) acknowledgedElapsedRealtimeNanos
-								else action.acknowledgedElapsedRealtimeNanos,
+								if (action.bootId == bootId) {
+									acknowledgedElapsedRealtimeNanos
+								}
+								else {
+									action.acknowledgedElapsedRealtimeNanos
+								},
 							failureCode = COMPLETION_REASON,
 							retryTrigger = null,
 						),
@@ -345,13 +377,17 @@ data class PreviousExitSourceSessionFinalization(
 		PreviousExitRecoveryDescriptorDisposition.NoDescriptor,
 )
 
+/** States whether startup recovery must retain or clear the exact previous-run session descriptor. */
 sealed interface PreviousExitRecoveryDescriptorDisposition {
+	/** No previous-run descriptor needs a recovery decision. */
 	data object NoDescriptor : PreviousExitRecoveryDescriptorDisposition
 
+	/** The descriptor remains available because its recovery has not safely completed. */
 	data class Preserved(
 		val descriptor: ActiveTrackingSessionDescriptor,
 	) : PreviousExitRecoveryDescriptorDisposition
 
+	/** Recovery permits clearing this exact descriptor without removing a newer session. */
 	data class Clear(
 		val descriptor: ActiveTrackingSessionDescriptor,
 	) : PreviousExitRecoveryDescriptorDisposition
@@ -360,3 +396,18 @@ sealed interface PreviousExitRecoveryDescriptorDisposition {
 internal class PreviousExitCallerAuthorityUnavailableException(
 	val failureCode: String,
 ) : IOException(failureCode)
+
+private fun SourceServiceRunEntity.belongsToStartingSession(
+    session: LogicalTrackingSessionEntity, bootId: String,
+): Boolean = logicalTrackingId == session.logicalTrackingId && this.bootId == bootId &&
+    state == SessionLifecycleState.STARTING.name && completedAtMs == null
+
+private fun SourceServiceRunEntity.hasPreparedProviderDelivery(): Boolean =
+    androidDeliveryState in setOf(AndroidStartDeliveryState.PREPARED.name,
+        AndroidStartDeliveryState.ENQUEUED.name, AndroidStartDeliveryState.DELIVERED.name,
+        AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name) && startCommandGeneration > 0L
+
+private fun com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
+	.isUnpublishedProviderJoinAction(): Boolean =
+	status in setOf(LifecycleActionStatus.PENDING.name, LifecycleActionStatus.AWAITING_FOREGROUND.name) &&
+		attemptCount == 0 && sourceInstanceId == null && registrationGeneration == null

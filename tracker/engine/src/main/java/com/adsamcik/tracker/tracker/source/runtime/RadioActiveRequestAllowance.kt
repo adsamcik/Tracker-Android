@@ -67,7 +67,9 @@ class RadioActiveRequestAllowance @Inject constructor(
 				val result = decision(source, logicalTrackingId, minimumIntervalMs, bootId,
 					nowElapsedRealtimeMs, nowWallTimeMs)
 				if (result !is RadioActiveRequestDecision.ReadyAt ||
-					result.elapsedRealtimeMs > nowElapsedRealtimeMs) return@withContext result
+					result.elapsedRealtimeMs > nowElapsedRealtimeMs) {
+					return@withContext result
+				}
 				val prefix = prefix(source)
 				if (!preferences.edit()
 						.putString("${prefix}_session", logicalTrackingId)
@@ -75,7 +77,11 @@ class RadioActiveRequestAllowance @Inject constructor(
 						.putLong("${prefix}_elapsed", nowElapsedRealtimeMs)
 						.putLong("${prefix}_wall", nowWallTimeMs)
 						.putLong("${prefix}_interval", minimumIntervalMs)
-						.commit()) RadioActiveRequestDecision.Unavailable else result
+						.commit()) {
+					RadioActiveRequestDecision.Unavailable
+				} else {
+					result
+				}
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -84,6 +90,8 @@ class RadioActiveRequestAllowance @Inject constructor(
 		}
 	}
 
+	// Read-only reservation decisions preserve unavailable, spent and cooldown precedence.
+	@Suppress("ReturnCount")
 	private fun decision(
 		source: SourceKind,
 		logicalTrackingId: String,
@@ -92,9 +100,10 @@ class RadioActiveRequestAllowance @Inject constructor(
 		nowElapsedRealtimeMs: Long,
 		nowWallTimeMs: Long,
 	): RadioActiveRequestDecision {
-		if (source != SourceKind.WIFI && source != SourceKind.CELL ||
-			logicalTrackingId.isBlank() || bootId.isBlank() || minimumIntervalMs < 0L ||
-			nowElapsedRealtimeMs < 0L || nowWallTimeMs < 0L) return RadioActiveRequestDecision.Unavailable
+		if (!validRequest(source, logicalTrackingId, minimumIntervalMs, bootId,
+			nowElapsedRealtimeMs, nowWallTimeMs)) {
+			return RadioActiveRequestDecision.Unavailable
+		}
 		val prefix = prefix(source)
 		if (preferences.getString("${prefix}_session", null) == logicalTrackingId) {
 			return RadioActiveRequestDecision.Spent
@@ -108,6 +117,22 @@ class RadioActiveRequestAllowance @Inject constructor(
 			preferences.getString("${prefix}_session", null).isNullOrBlank()) {
 			return RadioActiveRequestDecision.Unavailable
 		}
+		return reservationDeadline(prefix, minimumIntervalMs, bootId, nowElapsedRealtimeMs, nowWallTimeMs)
+	}
+
+	// Fixed request fields; no storage, clock reads or reservation mutation.
+	@Suppress("ComplexCondition")
+	private fun validRequest(
+		source: SourceKind, logicalTrackingId: String, minimumIntervalMs: Long, bootId: String,
+		nowElapsedRealtimeMs: Long, nowWallTimeMs: Long,
+	): Boolean = !(source != SourceKind.WIFI && source != SourceKind.CELL ||
+		logicalTrackingId.isBlank() || bootId.isBlank() || minimumIntervalMs < 0L ||
+		nowElapsedRealtimeMs < 0L || nowWallTimeMs < 0L)
+
+	private fun reservationDeadline(
+		prefix: String, minimumIntervalMs: Long, bootId: String,
+		nowElapsedRealtimeMs: Long, nowWallTimeMs: Long,
+	): RadioActiveRequestDecision {
 		val priorBoot = preferences.getString("${prefix}_boot", null)
 			?.takeIf(String::isNotBlank) ?: return RadioActiveRequestDecision.Unavailable
 		val priorElapsed = preferences.getLong("${prefix}_elapsed", -1L)
@@ -119,13 +144,19 @@ class RadioActiveRequestAllowance @Inject constructor(
 		// A new profile/session may ask for a longer cooldown, but cannot shorten the spent one.
 		val cooldownMs = maxOf(priorInterval, minimumIntervalMs)
 		val remaining = if (priorBoot == bootId) {
-			if (nowElapsedRealtimeMs < priorElapsed) return RadioActiveRequestDecision.Unavailable
+			if (nowElapsedRealtimeMs < priorElapsed) {
+				return RadioActiveRequestDecision.Unavailable
+			}
 			(cooldownMs - (nowElapsedRealtimeMs - priorElapsed)).coerceAtLeast(0L)
 		} else {
 			(cooldownMs - (nowWallTimeMs - priorWall).coerceAtLeast(0L)).coerceAtLeast(0L)
 		}
-		val deadline = if (remaining > Long.MAX_VALUE - nowElapsedRealtimeMs) Long.MAX_VALUE
-			else nowElapsedRealtimeMs + remaining
+		val deadline = if (remaining > Long.MAX_VALUE - nowElapsedRealtimeMs) {
+			Long.MAX_VALUE
+		}
+			else {
+			nowElapsedRealtimeMs + remaining
+		}
 		return RadioActiveRequestDecision.ReadyAt(deadline)
 	}
 

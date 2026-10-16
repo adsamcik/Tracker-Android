@@ -14,6 +14,7 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkConstructor
+import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.spyk
 import io.mockk.unmockkAll
@@ -73,7 +74,7 @@ class OnAppUpdateReceiverTest {
 
 		@BeforeEach
 		fun setUp() {
-			mockkStatic(WorkManager::class)
+			mockkObject(WorkManager.Companion)
 			every { WorkManager.getInstance(context) } returns workManager
 			every { receiver.goAsync() } returns pendingResult
 			every { context.getString(any<Int>()) } returns "key_last_app_version"

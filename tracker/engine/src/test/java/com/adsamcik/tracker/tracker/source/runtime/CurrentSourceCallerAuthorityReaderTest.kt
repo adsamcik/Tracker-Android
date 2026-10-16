@@ -163,6 +163,9 @@ class CurrentSourceCallerAuthorityReaderTest {
 		startIsUserInitiated = true, startIsAmbient = false,
 	)
 
+	// Keep one current-caller session fixture with its matching policy, manifest, session pointers and
+	// coordinator lease together.
+	@Suppress("LongMethod")
 	private suspend fun seedSession(
 		liveLease: Boolean,
 		suspended: Boolean,
@@ -281,7 +284,11 @@ class CurrentSourceCallerAuthorityReaderTest {
 				bootId = storedBootId,
 				generation = EXECUTION_REVISION,
 				acquiredElapsedRealtimeNanos = 1L,
-				expiresElapsedRealtimeNanos = if (liveLease) Long.MAX_VALUE else now,
+				expiresElapsedRealtimeNanos = if (liveLease) {
+					Long.MAX_VALUE
+				} else {
+					now
+				},
 			),
 		)
 	}

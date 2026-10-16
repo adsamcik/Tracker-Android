@@ -380,6 +380,9 @@ class CellCapturedFactClassifierTest {
 		deletionEffect = CellProviderTimeInterval(start, end),
 	)
 
+	// Keep one Cell classifier input with its canonical payload, complete captured clock/authority fields and
+	// matching WAL identity together.
+	@Suppress("LongMethod")
 	private fun input(
 		authority: CellCaptureAuthority = authority(),
 		origin: CellObservationOrigin = CellObservationOrigin.CHANGE_CALLBACK,
@@ -389,7 +392,9 @@ class CellCapturedFactClassifierTest {
 		),
 		deliveryIdentityOverride: SourceDeliveryIdentity? = null,
 	): CellObservationInput {
-		if (outcome != CellProviderOutcome.DELIVERED) return CellObservationInput(origin, outcome, null)
+		if (outcome != CellProviderOutcome.DELIVERED) {
+			return CellObservationInput(origin, outcome, null)
+		}
 		val payload = CellSnapshotPayload(
 			null,
 			observations,
@@ -401,7 +406,7 @@ class CellCapturedFactClassifierTest {
 		val observed = providerTimes.maxOrNull() ?: RECEIVED_ELAPSED_NANOS
 		val observedStart = providerTimes.minOrNull() ?: observed
 		val canonicalIdentity = runCatching {
-			cellProviderDeliveryIdentity(authority.clockDomainId, observations)
+			cellProviderDeliveryIdentity(authority.clockDomainId, observations, CELL_PAYLOAD_VERSION)
 		}.getOrNull()
 		val raw = CellWalObservationEvidence(
 			sourceEventId = SourceEventId("cell-event-${observed}-${observations.size}"),

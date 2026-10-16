@@ -10,7 +10,6 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.metric.MetricKey
-import com.adsamcik.tracker.stats.api.repository.AchievementRepository
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.repository.UnconsumedEvent
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
@@ -37,7 +36,6 @@ class GameDomainEventConsumerTest {
 	private val achievementEvaluationScheduler: AchievementEvaluationScheduler = mockk(relaxed = true)
 	private val progressionRepository: PlayerProgressionRepository = mockk(relaxed = true)
 	private val trackingStartupGate = TestTrackingStartupGate()
-	private val achievementRepository: AchievementRepository = mockk(relaxed = true)
 	private val achievementProgressDao: AchievementProgressDao = mockk(relaxed = true)
 	private val context: Context = mockk(relaxed = true)
 	private val consumer = GameDomainEventConsumer(
@@ -45,7 +43,6 @@ class GameDomainEventConsumerTest {
 		achievementEvaluationScheduler,
 		progressionRepository,
 		trackingStartupGate,
-		achievementRepository,
 		achievementProgressDao,
 		context,
 	)
@@ -127,20 +124,15 @@ class GameDomainEventConsumerTest {
 				)
 			} returnsMany listOf(listOf(first, second), emptyList())
 			val authorityReadLeaseTokens = mutableListOf<Long>()
-			coEvery { achievementRepository.getAllSnapshots() } coAnswers {
-				authorityReadLeaseTokens += requireNotNull(trackingStartupGate.activeOperationToken)
-				emptyList()
-			}
-			coEvery { achievementProgressDao.getQualifiedStepsAchievementRows() } coAnswers {
+			coEvery { achievementProgressDao.getAll() } coAnswers {
 				authorityReadLeaseTokens += requireNotNull(trackingStartupGate.activeOperationToken)
 				emptyList()
 			}
 
 			consumer.processUnconsumed()
 
-			authorityReadLeaseTokens shouldBe listOf(2L, 2L)
-			coVerify(exactly = 1) { achievementRepository.getAllSnapshots() }
-			coVerify(exactly = 1) { achievementProgressDao.getQualifiedStepsAchievementRows() }
+			authorityReadLeaseTokens shouldBe listOf(2L)
+			coVerify(exactly = 1) { achievementProgressDao.getAll() }
 			coVerify(exactly = 1) {
 				domainEventRepository.markBatchConsumed(
 					GameDomainEventConsumer.CONSUMER_ID,

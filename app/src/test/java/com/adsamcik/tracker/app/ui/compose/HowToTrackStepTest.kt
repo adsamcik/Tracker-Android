@@ -11,7 +11,6 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.app.onboarding.ui.steps.HowToTrackStep
-import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import io.kotest.matchers.shouldBe
 import kotlin.test.assertTrue
@@ -32,7 +31,7 @@ class HowToTrackStepTest {
     fun allFiveQualityChoicesIncludeIntermediateLevels() {
         var chosen: Int? = null
         composeTestRule.setContent {
-            AppTheme { HowToTrackStep(1, TrackingPolicyPreset.BALANCED, {}, {}, {},
+            AppTheme { HowToTrackStep(1, {}, {},
                 balanceLevel = 3, onBalanceChange = { chosen = it }) }
         }
         (1..5).forEach { composeTestRule.onNodeWithTag("setupBalance-$it").performScrollTo().assertIsDisplayed() }
@@ -46,9 +45,7 @@ class HowToTrackStepTest {
             AppTheme {
                 HowToTrackStep(
                     autoTrackingMode = 1,
-                    trackingPreset = TrackingPolicyPreset.BALANCED,
                     onAutoTrackingModeChange = {},
-                    onPresetChange = {},
                     onContinue = {},
                 )
             }
@@ -63,9 +60,7 @@ class HowToTrackStepTest {
             AppTheme {
                 HowToTrackStep(
                     autoTrackingMode = 1,
-                    trackingPreset = TrackingPolicyPreset.BALANCED,
                     onAutoTrackingModeChange = {},
-                    onPresetChange = {},
                     onContinue = { called = true },
                 )
             }
@@ -81,9 +76,7 @@ class HowToTrackStepTest {
             AppTheme {
                 HowToTrackStep(
                     autoTrackingMode = 1,
-                    trackingPreset = TrackingPolicyPreset.BALANCED,
                     onAutoTrackingModeChange = { newMode = it },
-                    onPresetChange = {},
                     onContinue = {},
                 )
             }
@@ -99,9 +92,7 @@ class HowToTrackStepTest {
             AppTheme {
                 HowToTrackStep(
                     autoTrackingMode = 1,
-                    trackingPreset = TrackingPolicyPreset.BALANCED,
                     onAutoTrackingModeChange = {},
-                    onPresetChange = {},
                     onContinue = {},
                 )
             }
@@ -128,10 +119,8 @@ class HowToTrackStepTest {
                 Box(modifier = Modifier.size(width = 412.dp, height = 760.dp)) {
                     HowToTrackStep(
                         autoTrackingMode = 1,
-                        trackingPreset = TrackingPolicyPreset.BALANCED,
-                        onAutoTrackingModeChange = {},
-                        onPresetChange = {},
-                        onContinue = {},
+                            onAutoTrackingModeChange = {},
+                            onContinue = {},
                     )
                 }
             }

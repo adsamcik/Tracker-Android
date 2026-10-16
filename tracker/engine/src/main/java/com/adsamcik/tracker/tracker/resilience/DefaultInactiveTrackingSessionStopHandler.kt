@@ -24,8 +24,12 @@ class DefaultInactiveTrackingSessionStopHandler @Inject constructor(
 ) : InactiveTrackingSessionStopHandler {
 	override suspend fun finalizeWithoutService(command: TrackingStopCommand): Boolean =
 		when (val result = commandAuthority.completeActionableStop(command) {
-			if (providerStepsSessions?.close(command) == true) TrackingStopActionResult.Terminal(true)
-			else TrackingStopActionResult.StillActionable(false)
+			if (providerStepsSessions?.close(command) == true) {
+				TrackingStopActionResult.Terminal(true)
+			}
+			else {
+				TrackingStopActionResult.StillActionable(false)
+			}
 		}) {
 			is LockedTrackingStopResult.Handled -> result.value
 			else -> false

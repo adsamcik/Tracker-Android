@@ -49,7 +49,9 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 		expectedGeneration: Long,
 		selection: ManualTrackingStartSelection,
 	): ManualTrackingStartContinuation? = commandGate.withLock {
-		if (commandState.lastGeneration != expectedGeneration) return@withLock null
+		if (commandState.lastGeneration != expectedGeneration) {
+			return@withLock null
+		}
 		val updated = commandState.issueManualStart(selection)
 		updated.pendingManualStart.takeIf { writeState(updated) }
 	}
@@ -58,13 +60,17 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 		generation: Long,
 		selection: ManualTrackingStartSelection,
 	): TrackingStartCommand? = commandGate.withLock {
-		if (!commandState.isPendingManualStart(generation, selection)) return@withLock null
+		if (!commandState.isPendingManualStart(generation, selection)) {
+			return@withLock null
+		}
 		val pending = requireNotNull(commandState.pendingManualStart)
 		pending.command.takeIf { writeState(commandState.copy(pendingManualStart = null)) }
 	}
 
 	override suspend fun cancelManualStart(generation: Long): Boolean = commandGate.withLock {
-		if (commandState.pendingManualStart?.command?.generation != generation) return@withLock false
+		if (commandState.pendingManualStart?.command?.generation != generation) {
+			return@withLock false
+		}
 		writeState(commandState.copy(pendingManualStart = null))
 	}
 
@@ -86,7 +92,9 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 			(commandState.lastGeneration != expectedStartGeneration ||
 				commandState.latestStartGeneration != expectedStartGeneration ||
 				commandState.collectionResumeRequired)
-		) return@withLock null
+		) {
+			return@withLock null
+		}
 		withContext(NonCancellable) {
 			val stopped = commandState.observeUserExit(exitId)
 			val (next, command) = stopped.issueStop(
@@ -97,7 +105,9 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 			)
 			// One committed preference edit is both the Off latch and actionable STOP.
 			// A crash before the Room fence is repaired from this command on startup.
-			if (!writeState(next)) return@withContext null
+			if (!writeState(next)) {
+				return@withContext null
+			}
 			try {
 				fenceSources()
 			} catch (_: Exception) {
@@ -111,18 +121,24 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 		exitId: String,
 		closeOwners: suspend () -> Boolean,
 	): Boolean? = commandGate.withLock {
-		if (!exitId.startsWith(TRACKING_TURN_OFF_EXIT_PREFIX) ||
-			commandState.handledUserExitId != exitId ||
-			!commandState.collectionResumeRequired ||
+		val matchesExit = exitId.startsWith(TRACKING_TURN_OFF_EXIT_PREFIX) &&
+			commandState.handledUserExitId == exitId
+		if (!matchesExit || !commandState.collectionResumeRequired ||
 			commandState.pendingCollectionStartGeneration != null ||
 			commandState.latestUnhandledStop() != null
-		) return@withLock null
+		) {
+			return@withLock null
+		}
 		withContext(NonCancellable) { closeOwners() }
 	}
 
 	override suspend fun resumeCollectionAfterUserExit(expectedExitId: String): Boolean = commandGate.withLock {
-		if (expectedExitId.startsWith(TRACKING_TURN_OFF_EXIT_PREFIX)) return@withLock false
-		if (commandState.handledUserExitId != expectedExitId) return@withLock false
+		if (expectedExitId.startsWith(TRACKING_TURN_OFF_EXIT_PREFIX)) {
+			return@withLock false
+		}
+		if (commandState.handledUserExitId != expectedExitId) {
+			return@withLock false
+		}
 		val updated = commandState.resumeCollection(expectedExitId, TrackingCollectionResumeBoundary(
 			System.currentTimeMillis(), bootClockDomainProvider.current(), SystemClock.elapsedRealtimeNanos()))
 		updated == commandState || writeState(updated)
@@ -140,7 +156,9 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 	}
 
 	override suspend fun cancelPendingCollectionStart(generation: Long): Boolean = commandGate.withLock {
-		if (commandState.pendingCollectionStartGeneration != generation) return@withLock false
+		if (commandState.pendingCollectionStartGeneration != generation) {
+			return@withLock false
+		}
 		val revoked = commandState.copy(pendingCollectionStartGeneration = null)
 		try { writeState(revoked) } finally {
 			// Revoking this process's delivery exemption is safe even when cleanup cannot save.
@@ -158,7 +176,9 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 	override suspend fun reserveStartIfGeneration(
 		expectedGeneration: Long,
 	): TrackingStartCommand? = commandGate.withLock {
-		if (commandState.lastGeneration != expectedGeneration) return@withLock null
+		if (commandState.lastGeneration != expectedGeneration) {
+			return@withLock null
+		}
 		val (updated, command) = commandState.issueStart()
 		command.takeIf { writeState(updated) }
 	}
@@ -168,15 +188,21 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 		automaticTrigger: AutomaticTrackingStartTrigger,
 	): TrackingStartCommand? = commandGate.withLock {
 		val current = commandState
-		if (current.lastGeneration != expectedGeneration || current.collectionResumeRequired) return@withLock null
+		if (current.lastGeneration != expectedGeneration || current.collectionResumeRequired) {
+			return@withLock null
+		}
 		val bootId = bootClockDomainProvider.current()
-		if (automaticTrigger.bootId != bootId) return@withLock null
+		if (automaticTrigger.bootId != bootId) {
+			return@withLock null
+		}
 		if (current.latestStopGeneration > 0L) {
 			val stopBoot = current.latestStopRequestedBootId ?: return@withLock null
 			val stopElapsed = current.latestStopRequestedElapsedRealtimeNanos ?: return@withLock null
 			// Elapsed counters in distinct boots cannot be compared. Current-boot registration and
 			// automation authority independently qualify a new-boot trigger; Off still blocks above.
-			if (stopBoot == bootId && automaticTrigger.observedElapsedRealtimeNanos <= stopElapsed) return@withLock null
+			if (stopBoot == bootId && automaticTrigger.observedElapsedRealtimeNanos <= stopElapsed) {
+				return@withLock null
+			}
 		}
 		val (updated, command) = current.issueStart()
 		command.takeIf { writeState(updated) }
@@ -185,7 +211,9 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 	override suspend fun reserveRedeliveryRecoveryStart(
 		redeliveredCommand: TrackingStartCommand,
 	): TrackingRedeliveryRecoveryReservation = commandGate.withLock {
-		if (commandState.collectionResumeRequired) return@withLock TrackingRedeliveryRecoveryReservation.Stale
+		if (commandState.collectionResumeRequired) {
+			return@withLock TrackingRedeliveryRecoveryReservation.Stale
+		}
 		when (val disposition = commandState.resolveStart(redeliveredCommand)) {
 			TrackingStartCommandDisposition.Allowed -> {
 				val (updated, recoveryCommand) = commandState.issueStart()
@@ -250,29 +278,43 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 				val value = action()
 				currentCoroutineContext().ensureActive()
 				if (acceptWhen(value)) {
-					val accepted = commandState.acceptStart(command,
-						if (commandState.isPendingCollectionStart(command)) TrackingCollectionResumeBoundary(
-							System.currentTimeMillis(), bootClockDomainProvider.current(), SystemClock.elapsedRealtimeNanos(),
-						) else null)
-					if (accepted != commandState) {
-						val stopped = commandState.copy(pendingCollectionStartGeneration = null)
-						try {
-							check(writeState(accepted)) { "Accepted START was not durably published" }
-						} catch (failure: Exception) {
-							// A failed commit may have updated the preference cache. Restore the same
-							// stopped state, without reserving another command or touching a successor.
-							try { writeState(stopped) } catch (cleanup: Exception) {
-								failure.addSuppressed(cleanup)
-							} finally { commandState = stopped }
-							throw failure
-						}
-					}
+					publishAcceptedStart(command)
 				}
 				LockedTrackingStartResult.Executed(value)
 			}
 			TrackingStartCommandDisposition.Stale -> LockedTrackingStartResult.Stale
 			is TrackingStartCommandDisposition.BlockedByStop ->
 				LockedTrackingStartResult.BlockedByStop(disposition.stop)
+		}
+	}
+
+	private suspend fun publishAcceptedStart(command: TrackingStartCommand) {
+		val accepted = commandState.acceptStart(command,
+			if (commandState.isPendingCollectionStart(command)) {
+				TrackingCollectionResumeBoundary(
+				System.currentTimeMillis(), bootClockDomainProvider.current(), SystemClock.elapsedRealtimeNanos(),
+			)
+			} else {
+				null
+			})
+		if (accepted != commandState) {
+			val stopped = commandState.copy(pendingCollectionStartGeneration = null)
+			try {
+				check(writeState(accepted)) { "Accepted START was not durably published" }
+			} catch (
+				// A failed preference publication restores the same stopped command before rethrowing.
+				@Suppress("TooGenericExceptionCaught") failure: Exception
+			) {
+				// A failed commit may have updated the preference cache. Restore the same
+				// stopped state, without reserving another command or touching a successor.
+				try { writeState(stopped) } catch (
+					// Cleanup errors are attached to the failed publication; its failure remains primary.
+					@Suppress("TooGenericExceptionCaught") cleanup: Exception
+				) {
+					failure.addSuppressed(cleanup)
+				} finally { commandState = stopped }
+				throw failure
+			}
 		}
 	}
 
@@ -353,11 +395,15 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 	}
 
 	private fun persistedManualStart(): ManualTrackingStartContinuation? {
-		if (preferences.getString(KEY_MANUAL_START_PROCESS, null) != processIncarnationIdProvider.current()) return null
+		if (preferences.getString(KEY_MANUAL_START_PROCESS, null) != processIncarnationIdProvider.current()) {
+			return null
+		}
 		val generation = preferences.getLong(KEY_MANUAL_START_GENERATION, -1L)
 		if (generation <= 0L || generation != preferences.getLong(KEY_LAST_GENERATION, 0L) ||
 			generation != preferences.getLong(KEY_LATEST_START_GENERATION, 0L)
-		) return null
+		) {
+			return null
+		}
 		val selection = preferences.getString(KEY_MANUAL_START_SELECTION, null)
 			?.let(ManualTrackingStartSelection::decode) ?: return null
 		return ManualTrackingStartContinuation(TrackingStartCommand(generation), selection)
@@ -367,13 +413,19 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 		val boot = preferences.getString(KEY_RESUME_BOOT, null)?.takeIf(String::isNotBlank) ?: return null
 		val wall = preferences.getLong(KEY_RESUME_WALL, -1L)
 		val elapsed = preferences.getLong(KEY_RESUME_ELAPSED, -1L)
-		return if (wall >= 0L && elapsed >= 0L) TrackingCollectionResumeBoundary(wall, boot, elapsed) else null
+		return if (wall >= 0L && elapsed >= 0L) {
+			TrackingCollectionResumeBoundary(wall, boot, elapsed)
+		} else {
+			null
+		}
 	}
 
 	private fun persistedStopClock(): Pair<String, Long>? {
 		val bootId = preferences.getString(KEY_LATEST_STOP_REQUESTED_BOOT_ID, null)
 			?.takeIf(String::isNotBlank) ?: return null
-		if (!preferences.contains(KEY_LATEST_STOP_REQUESTED_ELAPSED_NANOS)) return null
+		if (!preferences.contains(KEY_LATEST_STOP_REQUESTED_ELAPSED_NANOS)) {
+			return null
+		}
 		val elapsedRealtimeNanos =
 			preferences.getLong(KEY_LATEST_STOP_REQUESTED_ELAPSED_NANOS, -1L)
 		return elapsedRealtimeNanos.takeIf { it >= 0L }?.let { bootId to it }

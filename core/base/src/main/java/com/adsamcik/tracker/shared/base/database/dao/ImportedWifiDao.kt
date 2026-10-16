@@ -18,55 +18,102 @@ import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionProtec
 import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionReceiptEntity
 
 /** Wi-Fi-local imported-product storage. This DAO grants no live capture authority. */
+// Keep the ImportedWifiDao SQL contract together; query text accounts for this declaration's size.
+@Suppress("LargeClass")
 @Dao
 abstract class ImportedWifiDao {
+	/**
+	 * Inserts [ImportedWifiEntryRevisionEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertEntryRevision(row: ImportedWifiEntryRevisionEntity)
 
+	/**
+	 * Inserts [ImportedWifiReceiptEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertReceipt(row: ImportedWifiReceiptEntity)
 
+	/**
+	 * Inserts [ImportedWifiRunEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertRun(row: ImportedWifiRunEntity)
 
+	/**
+	 * Inserts [ImportedWifiRunZoneEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertRunZone(row: ImportedWifiRunZoneEntity)
 
+	/**
+	 * Inserts [ImportedWifiObservationEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertObservation(row: ImportedWifiObservationEntity)
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	protected abstract suspend fun insertDeletionGenerationRow(row: ImportedWifiDeletionGenerationEntity)
 
+	/**
+	 * Records one initial run-deletion fence after requiring generation 1; higher generations must
+	 * use the dedicated revision operation.
+	 */
 	suspend fun insertDeletionGeneration(row: ImportedWifiDeletionGenerationEntity) {
 		require(row.generation == 1L)
 		insertDeletionGenerationRow(row)
 	}
 
+	/**
+	 * Inserts [ImportedWifiDeletionGenerationEntity] rows. Existing conflicting rows remain
+	 * unchanged. An ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	abstract suspend fun insertImportedDeletionGenerations(
 		rows: List<ImportedWifiDeletionGenerationEntity>,
 	): List<Long>
 
+	/**
+	 * Inserts [WifiCaptureDeletionGenerationEntity] rows. Existing conflicting rows remain unchanged.
+	 * An ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	abstract suspend fun insertLocalDeletionGenerations(
 		rows: List<WifiCaptureDeletionGenerationEntity>,
 	): List<Long>
 
+	/**
+	 * Inserts [SourceDeletionFenceEntity] rows. Existing conflicting rows remain unchanged. An
+	 * ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	abstract suspend fun insertSourceDeletionFences(rows: List<SourceDeletionFenceEntity>): List<Long>
 
+	/**
+	 * Inserts [ImportedWifiEntryDeletionEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertEntryDeletion(row: ImportedWifiEntryDeletionEntity)
 
+	/**
+	 * Inserts [WifiSelectedDeletionReceiptEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertSelectedDeletionReceipt(row: WifiSelectedDeletionReceiptEntity)
 
+	/**
+	 * Inserts [WifiSelectedDeletionProtectedIdentityEntity] rows. A conflicting key aborts the
+	 * insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertSelectedDeletionProtectedIdentities(
 		rows: List<WifiSelectedDeletionProtectedIdentityEntity>,
 	)
 
+	/**
+	 * Reads `wifi_selected_deletion_receipt` rows. Query conditions include `selection_identity =
+	 * :selection`, `origin = :origin`. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM wifi_selected_deletion_receipt WHERE selection_identity = :selection " +
 			"AND origin = :origin",
@@ -76,6 +123,11 @@ abstract class ImportedWifiDao {
 		origin: String,
 	): WifiSelectedDeletionReceiptEntity?
 
+	/**
+	 * Reads `wifi_selected_deletion_protected_identity` rows. Query conditions include
+	 * `selection_identity = :selection`, `receipt_origin = :origin`. Orders by `identity_kind,
+	 * protected_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM wifi_selected_deletion_protected_identity " +
 			"WHERE selection_identity = :selection AND receipt_origin = :origin " +
@@ -87,6 +139,13 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<WifiSelectedDeletionProtectedIdentityEntity>
 
+	/**
+	 * Reads `wifi_selected_deletion_protected_identity` rows. Query conditions include
+	 * `protected_identity IN (:identities)`, `owner_entry_identity IN (:identities)`,
+	 * `owner_run_identity IN (:identities)`, `deletion_scope_digest IN (:identities)`. Orders by
+	 * `selection_identity, receipt_origin, identity_kind, protected_identity`. Returns at most
+	 * `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM wifi_selected_deletion_protected_identity " +
 			"WHERE protected_identity IN (:identities) OR owner_entry_identity IN (:identities) " +
@@ -99,6 +158,12 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<WifiSelectedDeletionProtectedIdentityEntity>
 
+	/**
+	 * Reads `wifi_selected_deletion_protected_identity` rows. Query conditions include
+	 * `selection_identity != :excludedSelection`, `protected_identity IN (:identities)`,
+	 * `owner_entry_identity IN (:identities)`, `owner_run_identity IN (:identities)`. Returns at most
+	 * 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM wifi_selected_deletion_protected_identity " +
 			"WHERE selection_identity != :excludedSelection AND (" +
@@ -111,6 +176,12 @@ abstract class ImportedWifiDao {
 		excludedSelection: String,
 	): WifiSelectedDeletionProtectedIdentityEntity?
 
+	/**
+	 * Reads `imported_wifi_entry_revision` rows. Query conditions include `identity IN
+	 * (:identities)`, `deletion_scope_digest IN (:identities)`, `entry_identity IN (:identities)`,
+	 * `run_identity IN (:identities)`. Orders by `protected_identity, owner_kind, entry_identity,
+	 * run_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"""
 		SELECT DISTINCT 'ENTRY' AS owner_kind,
@@ -192,9 +263,17 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<ImportedWifiEntryRevisionEntity>
 
+	/**
+	 * Reads one Wi-Fi entry in revision order with one overflow row beyond the maximum retained
+	 * correction lineage.
+	 */
 	suspend fun entryRevisionsForAdmission(identity: String): List<ImportedWifiEntryRevisionEntity> =
 		loadEntryRevisions(identity, MAX_REVISIONS_PER_ENTRY + 1)
 
+	/**
+	 * Reads `imported_wifi_entry_revision` rows. Query conditions include `identity IN
+	 * (:identities)`. Orders by `identity, import_revision`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_wifi_entry_revision WHERE identity IN (:identities) " +
 			"ORDER BY identity, import_revision LIMIT :limit",
@@ -204,6 +283,10 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<ImportedWifiEntryRevisionEntity>
 
+	/**
+	 * Counts rows in `imported_wifi_entry_revision`. Query conditions include `identity IN
+	 * (:identities)`.
+	 */
 	@Query(
 		"""
 		SELECT COUNT(*) AS row_count,
@@ -234,9 +317,18 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<ImportedWifiReceiptEntity>
 
+	/**
+	 * Reads import receipts for one entry in revision/job/key order, including one overflow row to
+	 * detect excessive lineage.
+	 */
 	suspend fun receiptsForAdmission(identity: String): List<ImportedWifiReceiptEntity> =
 		loadReceipts(identity, MAX_RECEIPTS_PER_ENTRY + 1)
 
+	/**
+	 * Reads `imported_wifi_receipt` rows. Query conditions include `entry_identity IN (:identities)`.
+	 * Orders by `entry_identity, entry_import_revision, import_job_id, import_entry_key`. Returns at
+	 * most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_wifi_receipt WHERE entry_identity IN (:identities) " +
 			"ORDER BY entry_identity, entry_import_revision, import_job_id, import_entry_key LIMIT :limit",
@@ -246,6 +338,10 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<ImportedWifiReceiptEntity>
 
+	/**
+	 * Counts rows in `imported_wifi_receipt`. Query conditions include `entry_identity IN
+	 * (:identities)`.
+	 */
 	@Query(
 		"""
 		SELECT COUNT(*) AS row_count,
@@ -265,6 +361,10 @@ abstract class ImportedWifiDao {
 		identities: List<String>,
 	): ImportedWifiHistoryStorageMeasure
 
+	/**
+	 * Reads `imported_wifi_receipt` rows. Query conditions include `import_job_id = :jobId`,
+	 * `import_entry_key = :entryKey`. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM imported_wifi_receipt " +
 			"WHERE import_job_id = :jobId AND import_entry_key = :entryKey",
@@ -280,9 +380,18 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<ImportedWifiRunEntity>
 
+	/**
+	 * Reads saved runs across one Wi-Fi entry lineage in revision/start-time/identity order,
+	 * including one overflow row beyond the lineage limit.
+	 */
 	suspend fun allRunsForAdmission(identity: String): List<ImportedWifiRunEntity> =
 		loadAllRuns(identity, MAX_TOTAL_RUNS_PER_ENTRY_LINEAGE + 1)
 
+	/**
+	 * Reads `imported_wifi_run` rows. Query conditions include `entry_identity IN (:identities)`.
+	 * Orders by `entry_identity, entry_import_revision, start_time_ms, identity`. Returns at most
+	 * `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_wifi_run WHERE entry_identity IN (:identities) " +
 			"ORDER BY entry_identity, entry_import_revision, start_time_ms, identity LIMIT :limit",
@@ -292,6 +401,9 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<ImportedWifiRunEntity>
 
+	/**
+	 * Counts rows in `imported_wifi_run`. Query conditions include `entry_identity IN (:identities)`.
+	 */
 	@Query(
 		"""
 		SELECT COUNT(*) AS row_count,
@@ -322,9 +434,18 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<ImportedWifiRunZoneEntity>
 
+	/**
+	 * Reads every saved zone epoch across one Wi-Fi entry lineage in revision/run/ordinal order with
+	 * one overflow row beyond the lineage limit.
+	 */
 	suspend fun allRunZonesForAdmission(identity: String): List<ImportedWifiRunZoneEntity> =
 		loadAllRunZones(identity, MAX_TOTAL_ZONES_PER_ENTRY_LINEAGE + 1)
 
+	/**
+	 * Reads `imported_wifi_run_zone` rows. Query conditions include `entry_identity IN
+	 * (:identities)`. Orders by `entry_identity, entry_import_revision, run_identity, ordinal`.
+	 * Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_wifi_run_zone WHERE entry_identity IN (:identities) " +
 			"ORDER BY entry_identity, entry_import_revision, run_identity, ordinal LIMIT :limit",
@@ -334,6 +455,10 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<ImportedWifiRunZoneEntity>
 
+	/**
+	 * Counts rows in `imported_wifi_run_zone`. Query conditions include `entry_identity IN
+	 * (:identities)`.
+	 */
 	@Query(
 		"""
 		SELECT COUNT(*) AS row_count,
@@ -361,9 +486,18 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<ImportedWifiObservationEntity>
 
+	/**
+	 * Reads Wi-Fi observations across one entry lineage in revision/run/coverage/measurement order
+	 * with one overflow row beyond the lineage limit.
+	 */
 	suspend fun allObservationsForAdmission(identity: String): List<ImportedWifiObservationEntity> =
 		loadAllObservations(identity, MAX_TOTAL_OBSERVATIONS_PER_ENTRY_LINEAGE + 1)
 
+	/**
+	 * Reads `imported_wifi_observation` rows. Query conditions include `entry_identity IN
+	 * (:identities)`. Orders by `entry_identity, entry_import_revision, run_identity,
+	 * coverage_start_time_ms, observed_time_ms, identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_wifi_observation WHERE entry_identity IN (:identities) " +
 			"ORDER BY entry_identity, entry_import_revision, run_identity, coverage_start_time_ms, " +
@@ -374,6 +508,10 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<ImportedWifiObservationEntity>
 
+	/**
+	 * Counts rows in `imported_wifi_observation`. Query conditions include `entry_identity IN
+	 * (:identities)`.
+	 */
 	@Query(
 		"""
 		SELECT COUNT(*) AS row_count,
@@ -396,6 +534,12 @@ abstract class ImportedWifiDao {
 		identities: List<String>,
 	): ImportedWifiHistoryStorageMeasure
 
+	/**
+	 * Reads `imported_wifi_entry_revision` rows. Query conditions include
+	 * `newest_member_start_time_ms < :beforeStartTimeMs`, `newest_member_start_time_ms =
+	 * :beforeStartTimeMs`. Orders by `newest_member_start_time_ms DESC, newest_member_identity DESC`.
+	 * Returns at most `limit` rows. Timestamp bounds use UTC milliseconds.
+	 */
 	@Query(
 		"""
 		WITH latest_revision AS (
@@ -450,6 +594,14 @@ abstract class ImportedWifiDao {
 		beforeIdentity: String?,
 	): List<ImportedWifiHistoryCandidate>
 
+	/**
+	 * Reads `imported_wifi_entry_revision` rows. Query conditions include
+	 * `latest_revision.end_time_ms > :fromInclusiveMs`, `latest_revision.start_time_ms <
+	 * :toExclusiveMs`, `newest_member_start_time_ms < :beforeStartTimeMs`,
+	 * `newest_member_start_time_ms = :beforeStartTimeMs`. Orders by `newest_member_start_time_ms
+	 * DESC, newest_member_identity DESC`. Returns at most `limit` rows. Timestamp bounds use UTC
+	 * milliseconds.
+	 */
 	@Query(
 		"""
 		WITH latest_revision AS (
@@ -566,6 +718,10 @@ abstract class ImportedWifiDao {
 		beforeStartTimeMs: Long?, beforeIdentity: String?,
 	): List<ImportedWifiHistoryCandidate>
 
+	/**
+	 * Reads `imported_wifi_run` rows. Query conditions include `revision.identity = :identity`.
+	 * Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT revision.identity, revision.import_revision, revision.content_checksum, " +
 			"revision.start_time_ms, revision.end_time_ms, revision.received_at_ms, " +
@@ -588,12 +744,20 @@ abstract class ImportedWifiDao {
 	)
 	abstract suspend fun latestHistoryCandidate(identity: String): ImportedWifiHistoryCandidate?
 
+	/**
+	 * Reads distinct `identity` values from `imported_wifi_entry_revision`. Query conditions include
+	 * `identity IN (:identities)`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT DISTINCT identity FROM imported_wifi_entry_revision " +
 			"WHERE identity IN (:identities) LIMIT :limit",
 	)
 	abstract suspend fun existingEntryIdentities(identities: List<String>, limit: Int): List<String>
 
+	/**
+	 * Reads `imported_wifi_run` rows. Query conditions include `identity IN (:identities)`. Returns
+	 * at most `limit` rows.
+	 */
 	@Query(
 		"SELECT DISTINCT identity, entry_identity, deletion_scope_digest FROM imported_wifi_run " +
 			"WHERE identity IN (:identities) LIMIT :limit",
@@ -603,6 +767,10 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<ImportedWifiRunIdentityOwner>
 
+	/**
+	 * Reads `imported_wifi_observation` rows. Query conditions include `identity IN (:identities)`.
+	 * Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT DISTINCT identity, entry_identity, run_identity FROM imported_wifi_observation " +
 			"WHERE identity IN (:identities) LIMIT :limit",
@@ -612,6 +780,10 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<ImportedWifiObservationIdentityOwner>
 
+	/**
+	 * Reads `imported_wifi_run` rows. Query conditions include `deletion_scope_digest IN (:digests)`.
+	 * Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT DISTINCT deletion_scope_digest, entry_identity, identity FROM imported_wifi_run " +
 			"WHERE deletion_scope_digest IN (:digests) LIMIT :limit",
@@ -621,9 +793,17 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<ImportedWifiRunScopeOwner>
 
+	/**
+	 * Reads `imported_wifi_entry_deletion` rows. Query conditions include `entry_identity IN
+	 * (:identities)`.
+	 */
 	@Query("SELECT * FROM imported_wifi_entry_deletion WHERE entry_identity IN (:identities)")
 	abstract suspend fun entryDeletions(identities: List<String>): List<ImportedWifiEntryDeletionEntity>
 
+	/**
+	 * Reads `imported_wifi_entry_deletion` rows. Query conditions include `entry_identity IN
+	 * (:identities)`. Orders by `entry_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_wifi_entry_deletion WHERE entry_identity IN (:identities) " +
 			"ORDER BY entry_identity LIMIT :limit",
@@ -633,20 +813,36 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<ImportedWifiEntryDeletionEntity>
 
+	/**
+	 * Reads `imported_wifi_entry_deletion` rows. Query conditions include `entry_identity =
+	 * :identity`. Returns null when no row matches.
+	 */
 	@Query("SELECT * FROM imported_wifi_entry_deletion WHERE entry_identity = :identity")
 	abstract suspend fun entryDeletion(identity: String): ImportedWifiEntryDeletionEntity?
 
+	/**
+	 * Reads `imported_wifi_deletion_generation` rows. Query conditions include `run_identity IN
+	 * (:identities)`.
+	 */
 	@Query("SELECT * FROM imported_wifi_deletion_generation WHERE run_identity IN (:identities)")
 	abstract suspend fun deletionGenerationsByRun(
 		identities: List<String>,
 	): List<ImportedWifiDeletionGenerationEntity>
 
+	/**
+	 * Reads `imported_wifi_deletion_generation` rows. Query conditions include `entry_identity IN
+	 * (:identities)`. Returns at most `limit` rows.
+	 */
 	@Query("SELECT * FROM imported_wifi_deletion_generation WHERE entry_identity IN (:identities) LIMIT :limit")
 	abstract suspend fun deletionGenerationsByEntry(
 		identities: List<String>,
 		limit: Int,
 	): List<ImportedWifiDeletionGenerationEntity>
 
+	/**
+	 * Reads `imported_wifi_deletion_generation` rows. Query conditions include `entry_identity IN
+	 * (:identities)`. Orders by `entry_identity, run_identity`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM imported_wifi_deletion_generation WHERE entry_identity IN (:identities) " +
 			"ORDER BY entry_identity, run_identity LIMIT :limit",
@@ -656,6 +852,10 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<ImportedWifiDeletionGenerationEntity>
 
+	/**
+	 * Reads `imported_wifi_deletion_generation` rows. Query conditions include `deletion_scope_digest
+	 * IN (:digests)`.
+	 */
 	@Query(
 		"SELECT * FROM imported_wifi_deletion_generation " +
 			"WHERE deletion_scope_digest IN (:digests)",
@@ -664,33 +864,63 @@ abstract class ImportedWifiDao {
 		digests: List<String>,
 	): List<ImportedWifiDeletionGenerationEntity>
 
+	/**
+	 * Counts rows in `imported_wifi_entry_revision`.
+	 */
 	@Query("SELECT COUNT(*) FROM imported_wifi_entry_revision")
 	abstract suspend fun entryRevisionCount(): Long
 
+	/**
+	 * Counts distinct `identity` in `imported_wifi_entry_revision`.
+	 */
 	@Query("SELECT COUNT(DISTINCT identity) FROM imported_wifi_entry_revision")
 	abstract suspend fun distinctEntryCount(): Long
 
+	/**
+	 * Counts rows in `imported_wifi_receipt`.
+	 */
 	@Query("SELECT COUNT(*) FROM imported_wifi_receipt")
 	abstract suspend fun receiptCount(): Long
 
+	/**
+	 * Counts rows in `imported_wifi_run`.
+	 */
 	@Query("SELECT COUNT(*) FROM imported_wifi_run")
 	abstract suspend fun runCount(): Long
 
+	/**
+	 * Counts rows in `imported_wifi_run_zone`.
+	 */
 	@Query("SELECT COUNT(*) FROM imported_wifi_run_zone")
 	abstract suspend fun runZoneCount(): Long
 
+	/**
+	 * Counts rows in `imported_wifi_observation`.
+	 */
 	@Query("SELECT COUNT(*) FROM imported_wifi_observation")
 	abstract suspend fun observationCount(): Long
 
+	/**
+	 * Counts rows in `imported_wifi_entry_deletion`.
+	 */
 	@Query("SELECT COUNT(*) FROM imported_wifi_entry_deletion")
 	abstract suspend fun entryDeletionCount(): Long
 
+	/**
+	 * Counts rows in `imported_wifi_deletion_generation`.
+	 */
 	@Query("SELECT COUNT(*) FROM imported_wifi_deletion_generation")
 	abstract suspend fun deletionGenerationCount(): Long
 
+	/**
+	 * Counts rows in `wifi_selected_deletion_receipt`.
+	 */
 	@Query("SELECT COUNT(*) FROM wifi_selected_deletion_receipt")
 	abstract suspend fun selectedDeletionReceiptCount(): Long
 
+	/**
+	 * Counts rows in `wifi_selected_deletion_protected_identity`.
+	 */
 	@Query("SELECT COUNT(*) FROM wifi_selected_deletion_protected_identity")
 	abstract suspend fun selectedDeletionProtectedIdentityCount(): Long
 
@@ -698,6 +928,10 @@ abstract class ImportedWifiDao {
 	@Query("SELECT COUNT(*) FROM logical_tracking_session")
 	abstract suspend fun localEntryOwnerCount(): Long
 
+	/**
+	 * Reads `logical_tracking_session` rows. Query conditions include `logical_tracking_id >
+	 * :afterIdentity`. Orders by `logical_tracking_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT logical_tracking_id FROM logical_tracking_session " +
 			"WHERE (:afterIdentity IS NULL OR logical_tracking_id > :afterIdentity) " +
@@ -708,9 +942,16 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<String>
 
+	/**
+	 * Counts rows in `source_service_run`.
+	 */
 	@Query("SELECT COUNT(*) FROM source_service_run")
 	abstract suspend fun localRunOwnerCount(): Long
 
+	/**
+	 * Reads `source_service_run` rows. Query conditions include `service_run_id > :afterIdentity`.
+	 * Orders by `service_run_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT logical_tracking_id, service_run_id FROM source_service_run " +
 			"WHERE (:afterIdentity IS NULL OR service_run_id > :afterIdentity) " +
@@ -721,9 +962,17 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<WifiLocalRunOwner>
 
+	/**
+	 * Counts distinct native Wi-Fi fact ownership associations from cursors, revisions and aggregate
+	 * owners.
+	 */
 	@Query("SELECT COUNT(*) FROM (" + LOCAL_OBSERVATION_OWNER_UNION + ")")
 	abstract suspend fun localObservationOwnerCount(): Long
 
+	/**
+	 * Reads native Wi-Fi observation ownership after the supplied logical fact ID, ordered by fact,
+	 * logical session and service run, with at most limit rows.
+	 */
 	@Query(
 		"SELECT * FROM (" + LOCAL_OBSERVATION_OWNER_UNION + ") " +
 			"WHERE (:afterIdentity IS NULL OR logical_fact_id > :afterIdentity) " +
@@ -744,9 +993,16 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<SourceDeletionFenceEntity>
 
+	/**
+	 * Counts rows in `wifi_capture_deletion_generation`.
+	 */
 	@Query("SELECT COUNT(*) FROM wifi_capture_deletion_generation")
 	abstract suspend fun localDeletionOwnerCount(): Long
 
+	/**
+	 * Reads `wifi_capture_deletion_generation` rows. Query conditions include `service_run_id >
+	 * :afterIdentity`. Orders by `service_run_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT logical_tracking_id, service_run_id FROM wifi_capture_deletion_generation " +
 			"WHERE (:afterIdentity IS NULL OR service_run_id > :afterIdentity) " +
@@ -757,6 +1013,12 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<WifiLocalRunOwner>
 
+	/**
+	 * Reads `wifi_capture_deletion_generation` rows. Query conditions include `logical_tracking_id >
+	 * :afterLogicalTrackingId`, `logical_tracking_id = :afterLogicalTrackingId`, `service_run_id >
+	 * :afterServiceRunId`. Orders by `logical_tracking_id, service_run_id`. Returns at most `limit`
+	 * rows.
+	 */
 	@Query(
 		"SELECT * FROM wifi_capture_deletion_generation " +
 			"WHERE (:afterLogicalTrackingId IS NULL OR logical_tracking_id > :afterLogicalTrackingId " +
@@ -769,15 +1031,31 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<WifiCaptureDeletionGenerationEntity>
 
+	/**
+	 * Counts rows in `ski_run_segment`. Query conditions include `session_id IN (:segmentIds)`.
+	 */
 	@Query("SELECT COUNT(*) FROM ski_run_segment WHERE session_id IN (:segmentIds)")
 	abstract suspend fun selectedSkiSegmentCount(segmentIds: List<Long>): Long
 
+	/**
+	 * Reports whether a row exists within the query scope. Query conditions include `session_id IN
+	 * (:segmentIds)`.
+	 */
 	@Query("SELECT EXISTS(SELECT 1 FROM pending_signal WHERE session_id IN (:segmentIds) LIMIT 1)")
 	abstract suspend fun hasSelectedPendingSignal(segmentIds: List<Long>): Boolean
 
+	/**
+	 * Reports whether a row exists within the query scope. Query conditions include `session_id IN
+	 * (:segmentIds)`.
+	 */
 	@Query("SELECT EXISTS(SELECT 1 FROM quarantined_signal WHERE session_id IN (:segmentIds) LIMIT 1)")
 	abstract suspend fun hasSelectedQuarantinedSignal(segmentIds: List<Long>): Boolean
 
+	/**
+	 * Deletes `session_segment` rows matching the supplied scope. Query conditions include
+	 * `logical_tracking_id = :logicalTrackingId`, `id IN (:segmentIds)`, `service_run_id IN
+	 * (:serviceRunIds)`. Returns the affected row count.
+	 */
 	@Query(
 		"DELETE FROM session_segment WHERE logical_tracking_id = :logicalTrackingId " +
 			"AND id IN (:segmentIds) AND service_run_id IN (:serviceRunIds)",
@@ -788,30 +1066,58 @@ abstract class ImportedWifiDao {
 		serviceRunIds: List<String>,
 	): Int
 
+	/**
+	 * Deletes `imported_wifi_receipt` rows.
+	 */
 	@Query("DELETE FROM imported_wifi_receipt")
 	abstract fun deleteAllReceipts()
 
+	/**
+	 * Deletes `imported_wifi_entry_revision` rows.
+	 */
 	@Query("DELETE FROM imported_wifi_entry_revision")
 	abstract fun deleteAllEntryRevisions()
 
+	/**
+	 * Deletes `imported_wifi_entry_deletion` rows.
+	 */
 	@Query("DELETE FROM imported_wifi_entry_deletion")
 	abstract fun deleteAllEntryDeletions()
 
+	/**
+	 * Deletes `imported_wifi_deletion_generation` rows.
+	 */
 	@Query("DELETE FROM imported_wifi_deletion_generation")
 	abstract fun deleteAllDeletionGenerations()
 
+	/**
+	 * Deletes `imported_wifi_observation` rows matching the supplied scope. Query conditions include
+	 * `entry_identity = :identity`. Returns the affected row count.
+	 */
 	@Query(
 		"DELETE FROM imported_wifi_observation WHERE entry_identity = :identity " +
 			"AND aggregate_owner_identity IS NOT NULL",
 	)
 	abstract suspend fun deleteDependentObservations(identity: String): Int
 
+	/**
+	 * Deletes `imported_wifi_observation` rows matching the supplied scope. Query conditions include
+	 * `entry_identity = :identity`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM imported_wifi_observation WHERE entry_identity = :identity")
 	abstract suspend fun deleteRemainingObservations(identity: String): Int
 
+	/**
+	 * Deletes `imported_wifi_entry_revision` rows matching the supplied scope. Query conditions
+	 * include `identity = :identity`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM imported_wifi_entry_revision WHERE identity = :identity")
 	abstract suspend fun deleteEntryRevisions(identity: String): Int
 
+	/**
+	 * Limits for bounded Wi-Fi admission, lineage and maintenance reads; callers detect overflow
+	 * before loading more dependencies.
+	 */
 	companion object {
 		private const val LOCAL_OBSERVATION_OWNER_UNION =
 			"SELECT logical_fact_id, logical_tracking_id, service_run_id FROM wifi_captured_fact_cursor " +
@@ -838,6 +1144,10 @@ abstract class ImportedWifiDao {
 	}
 }
 
+/**
+ * Saved Wi-Fi import identity, revision, checksum and UTC bounds selected before retained payload
+ * qualification.
+ */
 data class ImportedWifiHistoryCandidate(
 	val identity: String,
 	@ColumnInfo(name = "import_revision") val importRevision: Long,
@@ -849,6 +1159,9 @@ data class ImportedWifiHistoryCandidate(
 	@ColumnInfo(name = "newest_member_identity") val newestMemberIdentity: String,
 )
 
+/**
+ * Row and text-byte totals used to bound allocation of a retained Wi-Fi history result.
+ */
 data class ImportedWifiHistoryStorageMeasure(
 	@ColumnInfo(name = "row_count") val rowCount: Long,
 	@ColumnInfo(name = "estimated_bytes") val estimatedBytes: Long,
@@ -858,12 +1171,18 @@ data class ImportedWifiHistoryStorageMeasure(
 	}
 }
 
+/**
+ * Associates an imported Wi-Fi run identity with its owning entry and deletion scope.
+ */
 data class ImportedWifiRunIdentityOwner(
 	val identity: String,
 	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
 	@ColumnInfo(name = "deletion_scope_digest") val deletionScopeDigest: String,
 )
 
+/**
+ * Payload-free reverse ownership metadata for imported Wi-Fi authority and protected identities.
+ */
 data class ImportedWifiAuthorityOwner(
 	@ColumnInfo(name = "owner_kind") val ownerKind: String,
 	@ColumnInfo(name = "protected_identity") val protectedIdentity: String,
@@ -877,6 +1196,9 @@ data class ImportedWifiAuthorityOwner(
 	@ColumnInfo(name = "receipt_origin") val receiptOrigin: String?,
 	@ColumnInfo(name = "selection_identity") val selectionIdentity: String?,
 ) {
+	/**
+	 * Stored ownership-kind codes used to classify Wi-Fi identity and deletion references.
+	 */
 	companion object {
 		const val ENTRY = "ENTRY"
 		const val RUN = "RUN"
@@ -889,23 +1211,37 @@ data class ImportedWifiAuthorityOwner(
 	}
 }
 
+/**
+ * Associates an imported Wi-Fi observation identity with its entry, run and optional aggregate
+ * owner.
+ */
 data class ImportedWifiObservationIdentityOwner(
 	val identity: String,
 	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
 	@ColumnInfo(name = "run_identity") val runIdentity: String,
 )
 
+/**
+ * Associates a Wi-Fi deletion-scope digest with the imported run and entry that own it.
+ */
 data class ImportedWifiRunScopeOwner(
 	@ColumnInfo(name = "deletion_scope_digest") val deletionScopeDigest: String,
 	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
 	@ColumnInfo(name = "identity") val runIdentity: String,
 )
 
+/**
+ * Original local Wi-Fi run and logical recording used to reconcile retained import ownership.
+ */
 data class WifiLocalRunOwner(
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String,
 	@ColumnInfo(name = "service_run_id") val serviceRunId: String,
 )
 
+/**
+ * Original local Wi-Fi observation ownership used to compare an import with independently readable
+ * saved data.
+ */
 data class WifiLocalObservationOwner(
 	@ColumnInfo(name = "logical_fact_id") val logicalFactId: String,
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String,

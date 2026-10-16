@@ -174,8 +174,16 @@ class MeasuredSessionNamesRoomTest {
             HistoryMeasurement.Steps(count),
         )
         val keys = values.map { value -> key(value.source.name.lowercase(), "LOCAL", "BACKGROUND",
-            value.source.name, if (value is HistoryMeasurement.Steps) 1_000 else 1_200,
-            if (value is HistoryMeasurement.Steps) 1_500 else null) }
+            value.source.name, if (value is HistoryMeasurement.Steps) {
+                1_000
+            } else {
+                1_200
+            },
+            if (value is HistoryMeasurement.Steps) {
+                1_500
+            } else {
+                null
+            }) }
         val rows = values.zip(keys).map { (value, key) -> UnifiedHistoryRow(measuredHistoryPosition(key),
             key.endTimeMs, setOf(HistoryOrigin.LOCAL), HistoryPurpose.BACKGROUND, sections = emptyList(), measurement = value) }
         val result = database.withTransaction { MeasuredSessionNamesReader(database, measuredCapturedRadioFixture(database))

@@ -80,6 +80,8 @@ class TrackingEnrichmentContractTest {
 	}
 
 	@Test
+	// Keep this complete immutable-record contract and its paired assertions together.
+	@Suppress("LongMethod")
 	fun `source sets and snapshot collections are defensively immutable`() {
 		val sourceInput = mutableSetOf(HistorySource.LOCATION, HistorySource.CELL)
 		val request = request(sourceInput)

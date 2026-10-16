@@ -26,6 +26,10 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	@Query("SELECT COUNT(*) FROM location_sample")
 	suspend fun countAll(): Long
 
+	/**
+	 * Reads `location_sample` rows. Query conditions include `id > :afterId`. Orders by `id`. Returns
+	 * at most `limit` rows.
+	 */
 	@Query("SELECT * FROM location_sample WHERE id > :afterId ORDER BY id LIMIT :limit")
 	suspend fun retentionPage(afterId: Long, limit: Int): List<LocationSample>
 
@@ -37,12 +41,24 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	@Query("SELECT * FROM effective_location_sample WHERE id IN (:ids) ORDER BY id")
 	suspend fun effectiveByIds(ids: List<Long>): List<LocationSample>
 
+	/**
+	 * Deletes `location_sample` rows matching the supplied scope. Query conditions include `id IN
+	 * (:ids)`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM location_sample WHERE id IN (:ids)")
 	suspend fun deleteExactIds(ids: List<Long>): Int
 
+	/**
+	 * Deletes `location_sample` rows matching the supplied scope. Query conditions include
+	 * `source_event_id IN (:sourceEventIds)`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM location_sample WHERE source_event_id IN (:sourceEventIds)")
 	suspend fun deleteBySourceEventIds(sourceEventIds: List<String>): Int
 
+	/**
+	 * Reads `location_sample` rows. Query conditions include `source_signal_id = :sourceSignalId`.
+	 * Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"""
 		SELECT * FROM location_sample
@@ -52,6 +68,10 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	)
 	suspend fun getBySourceSignalId(sourceSignalId: String): LocationSample?
 
+	/**
+	 * Reads `location_sample` rows. Query conditions include `source_event_id = :sourceEventId`.
+	 * Orders by `id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"""
 		SELECT * FROM location_sample
@@ -71,7 +91,10 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	 */
 	@Query(
 		"SELECT alt_m, alt_datum, clock_domain_id FROM effective_location_sample AS location_sample " +
-			"WHERE (NOT EXISTS (SELECT 1 FROM location_accepted_receipt lr WHERE lr.sample_id = location_sample.id) OR EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id AND lp.purpose = 'SESSION_CAPTURE')) AND alt_m IS NOT NULL ORDER BY time_ms ASC, id ASC",
+			("WHERE (NOT EXISTS (SELECT 1 FROM location_accepted_receipt lr WHERE lr.sample_id = " +
+                "location_sample.id) OR EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE " +
+                "lp.sample_id = location_sample.id AND lp.purpose = 'SESSION_CAPTURE')) AND alt_m IS NOT " +
+                "NULL ORDER BY time_ms ASC, id ASC"),
 	)
 	suspend fun getAltitudeSamplesOrdered(): List<OrderedAltitudeSampleRow>
 	
@@ -103,6 +126,11 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 		includeAmbient: Boolean = false,
 ): List<LocationSample>
 
+	/**
+	 * Reads `effective_location_sample` rows. Query conditions include `time_ms >= :fromMs`, `time_ms
+	 * <= :toMs`. Orders by `time_ms DESC, id DESC`. Returns at most 1 row. Returns null when no row
+	 * matches. Timestamp bounds use UTC milliseconds.
+	 */
 	@Query(
 		"""
 		SELECT * FROM effective_location_sample AS location_sample
@@ -173,6 +201,11 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 		includeAmbient: Boolean = false,
 ): List<LocationSample>
 
+	/**
+	 * Reads `effective_location_sample` rows. Query conditions include `time_ms >= :fromMs`, `time_ms
+	 * <= :toMs`, `lat_e7 <= :northE7`, `lat_e7 >= :southE7`. Orders by `time_ms DESC, id DESC`.
+	 * Returns at most 1 row. Returns null when no row matches. Timestamp bounds use UTC milliseconds.
+	 */
 	@Query(
 		"""
 		SELECT * FROM effective_location_sample AS location_sample
@@ -212,7 +245,8 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 		LIMIT :limit
 		"""
 	)
-	fun getAllBetweenFlowLimited(fromMs: Long, toMs: Long, limit: Int, includeAmbient: Boolean = false): Flow<List<LocationSample>>
+	fun getAllBetweenFlowLimited(fromMs: Long, toMs: Long, limit: Int, includeAmbient: Boolean =
+        false): Flow<List<LocationSample>>
 
 	/**
 	 * Get nearest location sample to a given timestamp (within tolerance).
@@ -224,12 +258,14 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 		ORDER BY ABS(time_ms - :timeMs) ASC 
 		LIMIT 1
 	""")
-	suspend fun getNearestWithCoordinates(timeMs: Long, toleranceMs: Long, includeAmbient: Boolean = false): LocationSample?
+	suspend fun getNearestWithCoordinates(timeMs: Long, toleranceMs: Long, includeAmbient: Boolean =
+        false): LocationSample?
 
 	/**
 	 * Count samples in time range.
 	 */
-	@Query("SELECT COUNT(*) FROM effective_location_sample AS location_sample WHERE ${LocationReadScope.WITH_OPTIONAL_AMBIENT} AND time_ms >= :fromMs AND time_ms <= :toMs")
+	@Query(("SELECT COUNT(*) FROM effective_location_sample AS location_sample WHERE " +
+        "${LocationReadScope.WITH_OPTIONAL_AMBIENT} AND time_ms >= :fromMs AND time_ms <= :toMs"))
 	suspend fun countBetween(fromMs: Long, toMs: Long, includeAmbient: Boolean = false): Int
 
 	/**

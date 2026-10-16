@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageAuth
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailure
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailureReason
 import com.adsamcik.tracker.shared.base.database.authenticateAllAmbientStepsFences
+import com.adsamcik.tracker.shared.base.database.dao.AmbientStepsStructuralDayRow
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsRecentDayCandidate
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveDayEntity
@@ -93,8 +94,10 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 			display.days.isEmpty() -> AmbientStepsNumericStructuralDayRead.NoAmbientAuthority
 			else -> AmbientStepsNumericStructuralDayRead.Exact(display.sourceEvidenceRevision, display.days)
 		}
-		is AmbientStepsDisplayStructuralDayRead.Unavailable -> AmbientStepsNumericStructuralDayRead.Unavailable(display.reason)
-		AmbientStepsDisplayStructuralDayRead.StorageUnavailable -> AmbientStepsNumericStructuralDayRead.StorageUnavailable
+		is AmbientStepsDisplayStructuralDayRead.Unavailable ->
+            AmbientStepsNumericStructuralDayRead.Unavailable(display.reason)
+		AmbientStepsDisplayStructuralDayRead.StorageUnavailable ->
+            AmbientStepsNumericStructuralDayRead.StorageUnavailable
 	}
 
 	override suspend fun discoverDisplayStructuralDaysInCurrentTransaction(
@@ -117,6 +120,15 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 				AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
 			)
 		}
+		return discoverSavedDisplayDays(firstEpochDay, lastEpochDayInclusive, sessionCalendarDays, evidence)
+	}
+
+	private suspend fun discoverSavedDisplayDays(
+		firstEpochDay: Long,
+		lastEpochDayInclusive: Long,
+		sessionCalendarDays: List<AmbientStepsStructuralDay>,
+		evidence: SourceEvidenceState,
+	): AmbientStepsDisplayStructuralDayRead {
 		val invalidCalendarDays = linkedSetOf<Long>()
 		val zonesByDay = linkedMapOf<Long, LinkedHashSet<String>>()
 		sessionCalendarDays.forEach { day ->
@@ -139,19 +151,13 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 			)
 		}
 		native.forEach { row ->
-			val valid = try {
-				AmbientStepsDayIdentity(row.structuralEpochDay, row.storedZoneId,
-					row.structuralDayStartTimeMs, row.structuralDayEndTimeMs)
-				true
-			} catch (_: IllegalArgumentException) {
-				false
-			} catch (_: DateTimeException) {
-				false
-			} catch (_: ArithmeticException) {
-				false
+			val valid = row.hasValidStoredDayBounds()
+			if (valid) {
+				zonesByDay.getOrPut(row.structuralEpochDay, ::linkedSetOf).add(row.storedZoneId)
 			}
-			if (valid) zonesByDay.getOrPut(row.structuralEpochDay, ::linkedSetOf).add(row.storedZoneId)
-			else invalidCalendarDays += row.structuralEpochDay
+			else {
+				invalidCalendarDays += row.structuralEpochDay
+			}
 		}
 		val imported = importedDao.latestDaysForEpochRange(
 			firstEpochDay,
@@ -176,6 +182,14 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		fences.forEach { row ->
 			zonesByDay.getOrPut(row.structuralEpochDay, ::linkedSetOf).add(row.storedZoneId)
 		}
+		return displayStructuralDaySnapshot(evidence.revision, zonesByDay, invalidCalendarDays)
+	}
+
+	private fun displayStructuralDaySnapshot(
+		evidenceRevision: Long,
+		zonesByDay: Map<Long, LinkedHashSet<String>>,
+		invalidCalendarDays: Set<Long>,
+	): AmbientStepsDisplayStructuralDayRead.Snapshot {
 		val conflicts = zonesByDay.filterValues { it.size != 1 }.keys.toSet() + invalidCalendarDays
 		val result = zonesByDay.filterKeys { it !in conflicts }.map { (epochDay, zones) ->
 			AmbientStepsStructuralDay(epochDay, zones.single())
@@ -183,7 +197,18 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 			compareBy(AmbientStepsStructuralDay::epochDay)
 				.thenBy(AmbientStepsStructuralDay::storedZoneId),
 		)
-		return AmbientStepsDisplayStructuralDayRead.Snapshot(evidence.revision, result, conflicts)
+		return AmbientStepsDisplayStructuralDayRead.Snapshot(evidenceRevision, result, conflicts)
+	}
+
+	private fun AmbientStepsStructuralDayRow.hasValidStoredDayBounds(): Boolean = try {
+		AmbientStepsDayIdentity(structuralEpochDay, storedZoneId, structuralDayStartTimeMs, structuralDayEndTimeMs)
+		true
+	} catch (_: IllegalArgumentException) {
+		false
+	} catch (_: DateTimeException) {
+		false
+	} catch (_: ArithmeticException) {
+		false
 	}
 
 	override suspend fun readDay(
@@ -193,7 +218,9 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 	override suspend fun readRange(
 		request: AmbientStepsHistoryRangeRequest,
 	): AmbientStepsHistoryRead = withContext(ioDispatcher) {
-		if (!database.isOpen) return@withContext AmbientStepsHistoryRead.StorageUnavailable
+		if (!database.isOpen) {
+			return@withContext AmbientStepsHistoryRead.StorageUnavailable
+		}
 		try {
 			database.withTransaction {
 				val evidence = database.sourceEvidenceStateDao().get()
@@ -269,16 +296,20 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		val fences = importedDao.fencesForIdentities(identities, identities.size + 1)
 		check(headers.size + fences.size == identities.size &&
 			(headers.map { it.dayIdentity } + fences.map { it.dayIdentity }).toSet() == identities.toSet())
-		val daysById = headers.associate { it.dayIdentity to AmbientStepsStructuralDay(it.structuralEpochDay, it.storedZoneId) } +
+		val daysById = headers.associate { it.dayIdentity to AmbientStepsStructuralDay(it.structuralEpochDay,
+            it.storedZoneId) } +
 			fences.associate { it.dayIdentity to AmbientStepsStructuralDay(it.structuralEpochDay, it.storedZoneId) }
 		check(daysById.values.distinct().size == daysById.size)
 		val sorted = daysById.values.sortedWith(compareBy({ it.epochDay }, { it.storedZoneId }))
 		val batches = mutableListOf<MutableList<AmbientStepsStructuralDay>>()
 		for (day in sorted) {
 			val batch = batches.lastOrNull()
-			if (batch == null || day.epochDay - batch.first().epochDay >= AmbientStepsHistoryRangeRequest.MAX_DAY_COUNT) {
+			if (batch == null ||
+                day.epochDay - batch.first().epochDay >= AmbientStepsHistoryRangeRequest.MAX_DAY_COUNT) {
 				batches.add(mutableListOf(day))
-			} else batch.add(day)
+			} else {
+				batch.add(day)
+			}
 		}
 		val products = batches.flatMap { batch ->
 			currentCoroutineContext().ensureActive()
@@ -317,7 +348,8 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		val range = AmbientStepsRequestedRange(days)
 		val native = if (!includeLocal) {
 			NativeAmbientStepsRangeRead.Ready(emptyMap(), emptyMap(), emptySet(), emptySet())
-		} else when (val read = NativeAmbientStepsRangeReader(database).read(range, evidence)) {
+		} else {
+			when (val read = NativeAmbientStepsRangeReader(database).read(range, evidence)) {
 			is NativeAmbientStepsRangeRead.Ready -> read
 			is NativeAmbientStepsRangeRead.DependencyOverflow ->
 				return AmbientStepsHistoryRead.DependencyOverflow(read.dependency)
@@ -326,10 +358,13 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 					AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
 				)
 		}
+		}
 		val imported = if (!includeImported) {
 			ImportedAmbientStepsRangeRead.Ready(emptyMap(), emptyMap(), emptyMap(), emptyMap())
-		} else when (
-			val read = ImportedAmbientStepsRangeReader(database, importedDao).read(range, evidence, selectedImportedDayIds)
+		} else {
+			when (
+			val read = ImportedAmbientStepsRangeReader(database, importedDao).read(range, evidence,
+                selectedImportedDayIds)
 		) {
 			is ImportedAmbientStepsRangeRead.Ready -> read
 			is ImportedAmbientStepsRangeRead.DependencyOverflow ->
@@ -338,6 +373,7 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 				return AmbientStepsHistoryRead.Unavailable(
 					AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
 				)
+		}
 		}
 		val sessions = if (includeSessions) {
 			when (val read = AmbientStepsSessionRangeReader(database, stepsSelector).read(range, evidence)) {
@@ -388,55 +424,12 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 	override suspend fun readRecent(
 		request: AmbientStepsHistoryRecentRequest,
 	): AmbientStepsHistoryRecentRead = withContext(ioDispatcher) {
-		if (!database.isOpen) return@withContext AmbientStepsHistoryRecentRead.StorageUnavailable
+		if (!database.isOpen) {
+			return@withContext AmbientStepsHistoryRecentRead.StorageUnavailable
+		}
 		try {
 			database.withTransaction {
-				val evidence = database.sourceEvidenceStateDao().get()
-					?: return@withTransaction AmbientStepsHistoryRecentRead.Unavailable(
-						AmbientStepsHistoryUnavailableReason.SOURCE_EVIDENCE_STATE_MISSING,
-					)
-				val candidates = recentCandidates(request, evidence)
-				val accepted = candidates.take(request.limit)
-				if (accepted.isEmpty()) {
-					return@withTransaction AmbientStepsHistoryRecentRead.Page(
-						evidence.revision,
-						emptyList(),
-						null,
-					)
-				}
-				val range = readRangeInCurrentTransaction(
-					AmbientStepsHistoryRangeRequest(
-						accepted.map(AmbientStepsRecentCandidate::day).sortedWith(
-							compareBy(AmbientStepsStructuralDay::epochDay)
-								.thenBy(AmbientStepsStructuralDay::storedZoneId),
-						),
-					),
-					evidence.revision,
-					includeSessions = true,
-				)
-				when (range) {
-					is AmbientStepsHistoryRead.Snapshot -> {
-						val byDay = range.days.associateBy(AmbientStepsHistoryDay::day)
-						AmbientStepsHistoryRecentRead.Page(
-							sourceEvidenceRevision = range.sourceEvidenceRevision,
-							days = accepted.map { candidate ->
-								requireNotNull(byDay[candidate.day])
-							},
-							next = accepted.lastOrNull()?.takeIf {
-								candidates.size > request.limit
-							}?.toCursor(
-								evidence.revision,
-								evidence.collectedDataEpoch,
-							),
-						)
-					}
-					is AmbientStepsHistoryRead.DependencyOverflow ->
-						AmbientStepsHistoryRecentRead.DependencyOverflow(range.dependency)
-					is AmbientStepsHistoryRead.Unavailable ->
-						AmbientStepsHistoryRecentRead.Unavailable(range.reason)
-					AmbientStepsHistoryRead.StorageUnavailable ->
-						AmbientStepsHistoryRecentRead.StorageUnavailable
-				}
+				readRecentInTransaction(request)
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -471,6 +464,57 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		}
 	}
 
+	private suspend fun readRecentInTransaction(
+		request: AmbientStepsHistoryRecentRequest,
+	): AmbientStepsHistoryRecentRead {
+		val evidence = database.sourceEvidenceStateDao().get()
+			?: return AmbientStepsHistoryRecentRead.Unavailable(
+				AmbientStepsHistoryUnavailableReason.SOURCE_EVIDENCE_STATE_MISSING,
+			)
+		val candidates = recentCandidates(request, evidence)
+		val accepted = candidates.take(request.limit)
+		if (accepted.isEmpty()) {
+			return AmbientStepsHistoryRecentRead.Page(
+				evidence.revision,
+				emptyList(),
+				null,
+			)
+		}
+		val range = readRangeInCurrentTransaction(
+			AmbientStepsHistoryRangeRequest(
+				accepted.map(AmbientStepsRecentCandidate::day).sortedWith(
+					compareBy(AmbientStepsStructuralDay::epochDay)
+						.thenBy(AmbientStepsStructuralDay::storedZoneId),
+				),
+			),
+			evidence.revision,
+			includeSessions = true,
+		)
+		return when (range) {
+			is AmbientStepsHistoryRead.Snapshot -> {
+				val byDay = range.days.associateBy(AmbientStepsHistoryDay::day)
+				AmbientStepsHistoryRecentRead.Page(
+					sourceEvidenceRevision = range.sourceEvidenceRevision,
+					days = accepted.map { candidate ->
+						requireNotNull(byDay[candidate.day])
+					},
+					next = accepted.lastOrNull()?.takeIf {
+						candidates.size > request.limit
+					}?.toCursor(
+						evidence.revision,
+						evidence.collectedDataEpoch,
+					),
+				)
+			}
+			is AmbientStepsHistoryRead.DependencyOverflow ->
+				AmbientStepsHistoryRecentRead.DependencyOverflow(range.dependency)
+			is AmbientStepsHistoryRead.Unavailable ->
+				AmbientStepsHistoryRecentRead.Unavailable(range.reason)
+			AmbientStepsHistoryRead.StorageUnavailable ->
+				AmbientStepsHistoryRecentRead.StorageUnavailable
+		}
+	}
+
 	override fun observeRange(
 		request: AmbientStepsHistoryRangeRequest,
 	): Flow<AmbientStepsHistoryRead> = database.invalidationTracker.createFlow(
@@ -479,7 +523,9 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 	).conflate().map {
 		readRange(request)
 	}.catch { failure ->
-		if (failure is CancellationException) throw failure
+		if (failure is CancellationException) {
+			throw failure
+		}
 		if (failure is SQLiteException) {
 			emit(AmbientStepsHistoryRead.StorageUnavailable)
 		} else {
@@ -565,7 +611,9 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 			} ?: candidates
 		}
 		val bounded = ordered.take(request.limit + 1)
-		if (bounded.isEmpty()) return emptyList()
+		if (bounded.isEmpty()) {
+			return emptyList()
+		}
 		val minimumEpochDay = bounded.minOf { it.day.epochDay }
 		val maximumEpochDay = bounded.maxOf { it.day.epochDay }
 		val span = maximumEpochDay.toULong() - minimumEpochDay.toULong()
@@ -722,40 +770,8 @@ private fun composePublicDay(
 		daySessions,
 		imported.causesByDay[key].orEmpty(),
 	)
-	val product = when {
-		key in native.unverifiableDays -> {
-			val unavailable = AmbientStepsNumericValue.Unavailable(
-				setOf(AmbientStepsDayCause.AMBIENT_AUTHORITY_UNVERIFIABLE),
-			)
-			base.copy(total = unavailable, betweenSession = unavailable)
-		}
-		key in native.materializingDays && base.total == AmbientStepsNumericValue.Unavailable(
-			setOf(AmbientStepsDayCause.NO_AMBIENT_FACT),
-		) -> {
-			val unavailable = AmbientStepsNumericValue.Unavailable(
-				setOf(AmbientStepsDayCause.AMBIENT_MATERIALIZING),
-			)
-			base.copy(total = unavailable, betweenSession = unavailable)
-		}
-		else -> base
-	}
-	val origins = facts.map { fact ->
-		AmbientStepsHistoryFactOrigin(
-			kind = when (fact.origin) {
-				QualifiedAmbientStepsFactOrigin.LOCAL_PROVIDER ->
-					AmbientStepsHistoryFactOriginKind.NATIVE_PROVIDER
-				QualifiedAmbientStepsFactOrigin.PORTABLE_IMPORT ->
-					AmbientStepsHistoryFactOriginKind.PORTABLE_IMPORT
-			},
-			opaqueFactIdentity = fact.portableIdentity,
-			correctionRevision = fact.correctionRevision,
-			archiveIdentity = fact.importedProvenance?.archiveIdentity,
-		)
-	}.distinct().sortedWith(
-		compareBy(AmbientStepsHistoryFactOrigin::opaqueFactIdentity)
-			.thenBy { it.kind.ordinal }
-			.thenBy(AmbientStepsHistoryFactOrigin::correctionRevision),
-	)
+	val product = base.withNativeReadAvailability(native, key)
+	val origins = facts.toPublicFactOrigins()
 	return AmbientStepsHistoryDay(
 		day = AmbientStepsStructuralDay(day.epochDay, day.storedZoneId),
 		opaqueDayIdentity = day.publicDayIdentity(),
@@ -785,12 +801,58 @@ private fun composePublicDay(
 	)
 }
 
+private fun AmbientStepsDayProduct.withNativeReadAvailability(
+	native: NativeAmbientStepsRangeRead.Ready,
+	key: AmbientStepsHistoryKey,
+): AmbientStepsDayProduct = when {
+	key in native.unverifiableDays -> {
+		val unavailable = AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.AMBIENT_AUTHORITY_UNVERIFIABLE),
+		)
+		copy(total = unavailable, betweenSession = unavailable)
+	}
+	key in native.materializingDays && total == AmbientStepsNumericValue.Unavailable(
+		setOf(AmbientStepsDayCause.NO_AMBIENT_FACT),
+	) -> {
+		val unavailable = AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.AMBIENT_MATERIALIZING),
+		)
+		copy(total = unavailable, betweenSession = unavailable)
+	}
+	else -> this
+}
+
+private fun List<QualifiedAmbientStepsFact>.toPublicFactOrigins(): List<AmbientStepsHistoryFactOrigin> =
+	map { fact ->
+		AmbientStepsHistoryFactOrigin(
+			kind = when (fact.origin) {
+				QualifiedAmbientStepsFactOrigin.LOCAL_PROVIDER ->
+					AmbientStepsHistoryFactOriginKind.NATIVE_PROVIDER
+				QualifiedAmbientStepsFactOrigin.PORTABLE_IMPORT ->
+					AmbientStepsHistoryFactOriginKind.PORTABLE_IMPORT
+			},
+			opaqueFactIdentity = fact.portableIdentity,
+			correctionRevision = fact.correctionRevision,
+			archiveIdentity = fact.importedProvenance?.archiveIdentity,
+		)
+	}.distinct().sortedWith(
+		compareBy(AmbientStepsHistoryFactOrigin::opaqueFactIdentity)
+			.thenBy { it.kind.ordinal }
+			.thenBy(AmbientStepsHistoryFactOrigin::correctionRevision),
+	)
+
 private fun QualifiedSessionStepsWindow.forDay(
 	day: AmbientStepsDayIdentity,
 ): QualifiedSessionStepsWindow? {
-	if (endTimeMs <= day.startTimeMs || startTimeMs >= day.endTimeMs) return null
-	if (storedZoneId != day.storedZoneId) return this
-	if (startTimeMs >= day.startTimeMs && endTimeMs <= day.endTimeMs) return this
+	if (endTimeMs <= day.startTimeMs || startTimeMs >= day.endTimeMs) {
+		return null
+	}
+	if (storedZoneId != day.storedZoneId) {
+		return this
+	}
+	if (startTimeMs >= day.startTimeMs && endTimeMs <= day.endTimeMs) {
+		return this
+	}
 	val clippedStart = maxOf(startTimeMs, day.startTimeMs)
 	val clippedEnd = minOf(endTimeMs, day.endTimeMs)
 	return copy(
@@ -811,6 +873,8 @@ private fun AmbientStepsNumericValue.toPublicValue(): AmbientStepsHistoryValue =
 	)
 }
 
+// Exhaustive scalar cause mapping; keep every source cause beside its public result.
+@Suppress("CyclomaticComplexMethod")
 private fun AmbientStepsDayCause.toPublicCause(): AmbientStepsHistoryCause = when (this) {
 	AmbientStepsDayCause.NO_AMBIENT_FACT -> AmbientStepsHistoryCause.NO_EVIDENCE
 	AmbientStepsDayCause.AMBIENT_GAP -> AmbientStepsHistoryCause.EXPLICIT_GAP
@@ -850,7 +914,8 @@ internal sealed interface ImportedAmbientStepsRangeRead {
 		val gapsByDay: Map<AmbientStepsHistoryKey, List<EffectiveAmbientStepsGap>>,
 		val causesByDay: Map<AmbientStepsHistoryKey, Set<AmbientStepsDayCause>>,
 		val dispositionByDay: Map<AmbientStepsHistoryKey, AmbientStepsImportedDisposition>,
-        val measuredGapsByDay: Map<AmbientStepsHistoryKey, List<com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsGapV1>> = emptyMap(),
+		val measuredGapsByDay: Map<AmbientStepsHistoryKey,
+            List<com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsGapV1>> = emptyMap(),
 	) : ImportedAmbientStepsRangeRead
 
 	data class DependencyOverflow(
@@ -871,9 +936,9 @@ internal class ImportedAmbientStepsRangeReader(
 		range: AmbientStepsRequestedRange,
 		evidence: SourceEvidenceState,
 		selectedDayIds: Set<String>? = null,
-        selectedMeasurements: Boolean = false,
+		selectedMeasurements: Boolean = false,
 	): ImportedAmbientStepsRangeRead {
-        require(!selectedMeasurements || selectedDayIds != null)
+		require(!selectedMeasurements || selectedDayIds != null)
 		try {
 			dao.authenticateAllAmbientStepsFences(evidence)
 		} catch (failure: ImportedAmbientStepsLineageFailure) {
@@ -886,13 +951,17 @@ internal class ImportedAmbientStepsRangeReader(
 			}
 		}
 		val sourceDeleted = sourceDeletionActive(evidence)
-		val fences = if (selectedDayIds != null) dao.fencesForIdentities(selectedDayIds.toList(), MAX_IMPORTED_DAY_CANDIDATES + 1)
-		else dao.fencesForStructuralRange(
+		val fences = if (selectedDayIds != null) {
+			dao.fencesForIdentities(selectedDayIds.toList(), MAX_IMPORTED_DAY_CANDIDATES + 1)
+		}
+		else {
+			dao.fencesForStructuralRange(
 			range.firstEpochDay,
 			range.lastEpochDayInclusive,
 			range.zoneIds,
 			MAX_IMPORTED_DAY_CANDIDATES + 1,
 		)
+		}
 		if (fences.size > MAX_IMPORTED_DAY_CANDIDATES) {
 			return overflow(AmbientStepsHistoryDependency.IMPORTED_DAYS)
 		}
@@ -903,14 +972,20 @@ internal class ImportedAmbientStepsRangeReader(
 			matchingFences.groupBy {
 				AmbientStepsHistoryKey(it.structuralEpochDay, it.storedZoneId)
 			}.values.any { it.size != 1 }
-		) return ImportedAmbientStepsRangeRead.Unverifiable
-		val candidates = if (selectedDayIds != null) dao.latestDaysForIdentities(selectedDayIds.toList(), MAX_IMPORTED_DAY_CANDIDATES + 1)
-		else dao.latestDaysForStructuralRange(
+		) {
+			return ImportedAmbientStepsRangeRead.Unverifiable
+		}
+		val candidates = if (selectedDayIds != null) {
+			dao.latestDaysForIdentities(selectedDayIds.toList(), MAX_IMPORTED_DAY_CANDIDATES + 1)
+		}
+		else {
+			dao.latestDaysForStructuralRange(
 			range.firstEpochDay,
 			range.lastEpochDayInclusive,
 			range.zoneIds,
 			MAX_IMPORTED_DAY_CANDIDATES + 1,
 		)
+		}
 		if (candidates.size > MAX_IMPORTED_DAY_CANDIDATES) {
 			return overflow(AmbientStepsHistoryDependency.IMPORTED_DAYS)
 		}
@@ -920,11 +995,15 @@ internal class ImportedAmbientStepsRangeReader(
 		if (selected.groupBy {
 				AmbientStepsHistoryKey(it.structuralEpochDay, it.storedZoneId)
 			}.values.any { it.size != 1 }
-		) return ImportedAmbientStepsRangeRead.Unverifiable
+		) {
+			return ImportedAmbientStepsRangeRead.Unverifiable
+		}
 		if (selected.any { candidate ->
 				matchingFences.any { it.dayIdentity == candidate.dayIdentity }
 			}
-		) return ImportedAmbientStepsRangeRead.Unverifiable
+		) {
+			return ImportedAmbientStepsRangeRead.Unverifiable
+		}
 		val importedOwnedKeys = buildSet {
 			matchingFences.mapTo(this) {
 				AmbientStepsHistoryKey(it.structuralEpochDay, it.storedZoneId)
@@ -1001,7 +1080,9 @@ internal class ImportedAmbientStepsRangeReader(
 		val gaps = dao.gapsForHistory(dayIds, MAX_IMPORTED_GAPS + 1)
 		if (headers.size > MAX_IMPORTED_DAY_REVISIONS || directMembers.size > MAX_IMPORTED_ARCHIVES ||
 			facts.size > MAX_IMPORTED_FACTS || gaps.size > MAX_IMPORTED_GAPS
-		) return overflow(AmbientStepsHistoryDependency.IMPORTED_LINEAGES)
+		) {
+			return overflow(AmbientStepsHistoryDependency.IMPORTED_LINEAGES)
+		}
 		val archiveIds = directMembers.map { it.archiveIdentity }.distinct()
 		val archives = archiveIds.chunked(ARCHIVE_QUERY_BATCH_SIZE).flatMap { ids ->
 			dao.archives(ids, ids.size + 1)
@@ -1029,7 +1110,9 @@ internal class ImportedAmbientStepsRangeReader(
 		if (archives.size != archiveIds.size ||
 			allMembers.size > MAX_IMPORTED_ARCHIVE_MEMBERS ||
 			receipts.size > MAX_IMPORTED_RECEIPTS
-		) return overflow(AmbientStepsHistoryDependency.IMPORTED_LINEAGES)
+		) {
+			return overflow(AmbientStepsHistoryDependency.IMPORTED_LINEAGES)
+		}
 		val headersByDay = headers.groupBy(ImportedAmbientStepsDayRevisionEntity::dayIdentity)
 		val factsByDay = facts.groupBy { it.dayIdentity }
 		val gapsByDay = gaps.groupBy { it.dayIdentity }
@@ -1040,7 +1123,8 @@ internal class ImportedAmbientStepsRangeReader(
 		val resultFacts = linkedMapOf<AmbientStepsHistoryKey, List<QualifiedAmbientStepsFact>>()
 		val resultGaps = linkedMapOf<AmbientStepsHistoryKey, List<EffectiveAmbientStepsGap>>()
 		val resultCauses = linkedMapOf<AmbientStepsHistoryKey, Set<AmbientStepsDayCause>>()
-        val measuredGaps = linkedMapOf<AmbientStepsHistoryKey, List<com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsGapV1>>()
+		val measuredGaps = linkedMapOf<AmbientStepsHistoryKey,
+            List<com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsGapV1>>()
 		dispositions.forEach { (key, disposition) ->
 			when (disposition) {
 				AmbientStepsImportedDisposition.DELETED ->
@@ -1081,16 +1165,22 @@ internal class ImportedAmbientStepsRangeReader(
 						ImportedAmbientStepsRangeRead.Unverifiable
 				}
 			}
-			if (lineage.latest.header != candidate) return ImportedAmbientStepsRangeRead.Unverifiable
+			if (lineage.latest.header != candidate) {
+				return ImportedAmbientStepsRangeRead.Unverifiable
+			}
 			val revision = lineage.latest
 			val day = revision.day
 			val key = AmbientStepsHistoryKey(day.structuralEpochDay, day.storedZoneId)
-			if (key !in range.keys) return ImportedAmbientStepsRangeRead.Unverifiable
+			if (key !in range.keys) {
+				return ImportedAmbientStepsRangeRead.Unverifiable
+			}
 			val internalDay = range.days.singleOrNull { it.historyKey == key }
 				?: return ImportedAmbientStepsRangeRead.Unverifiable
 			if (day.structuralDayStartTimeMs != internalDay.startTimeMs ||
 				day.structuralDayEndTimeMs != internalDay.endTimeMs
-			) return ImportedAmbientStepsRangeRead.Unverifiable
+			) {
+				return ImportedAmbientStepsRangeRead.Unverifiable
+			}
 			val provenance = ImportedAmbientStepsFactProvenance(
 				revision.header.archiveIdentity,
 				revision.header.dayIdentity,
@@ -1117,7 +1207,9 @@ internal class ImportedAmbientStepsRangeReader(
 					countDomainOwner = countDomainOwners[fact.identity.value],
 				)
 			}
-			            if (selectedMeasurements) measuredGaps[key] = day.gaps
+			            if (selectedMeasurements) {
+                            measuredGaps[key] = day.gaps
+			            }
 			resultGaps[key] = day.gaps.map {
 				EffectiveAmbientStepsGap(it.intervalStartTimeMs, it.intervalEndTimeMs)
 			}
@@ -1129,7 +1221,7 @@ internal class ImportedAmbientStepsRangeReader(
 			resultGaps,
 			resultCauses,
 			dispositions,
-            measuredGaps,
+			measuredGaps,
 		)
 	}
 
@@ -1209,7 +1301,9 @@ private class AmbientStepsSessionRangeReader(
 					it.segment.logicalTrackingId.isNullOrBlank() ||
 						it.segment.serviceRunId.isNullOrBlank()
 				}
-			) return AmbientStepsSessionRangeRead.Unverifiable
+			) {
+				return AmbientStepsSessionRangeRead.Unverifiable
+			}
 			local += selected.map { selectedEvidence ->
 				val result = selectedEvidence.steps
 				val serviceRunId = requireNotNull(selectedEvidence.segment.serviceRunId)

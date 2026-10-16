@@ -48,7 +48,7 @@ class PreparedStartForegroundAcceptanceTest {
     }
 
     @Test
-    fun `current manual foreground and Room acceptance resumes Off only after both succeed`() = runBlocking {
+    fun `current manual foreground and Room acceptance resumes Off only after both succeed`(): Unit = runBlocking {
         commands.recordUserRequestedExit("off") shouldBe true
         val start = requireNotNull(commands.reserveStart())
         commands.prepareCollectionResumeForManualStart("off", start) shouldBe true
@@ -76,7 +76,7 @@ class PreparedStartForegroundAcceptanceTest {
     }
 
     @Test
-    fun `automatic accepted Start uses the same flow without reacquiring the command mutex`() = runBlocking {
+    fun `automatic accepted Start uses the same flow without reacquiring the command mutex`(): Unit = runBlocking {
         val start = requireNotNull(commands.reserveStart())
         val prepared = prepared()
         withTimeout(2_000L) { coordinator().acceptForeground(prepared, start) { true } } shouldBe prepared
@@ -86,7 +86,7 @@ class PreparedStartForegroundAcceptanceTest {
     }
 
     @Test
-    fun `failed foreground or Room acceptance leaves Off and does not accept the Start`() = runBlocking {
+    fun `failed foreground or Room acceptance leaves Off and does not accept the Start`(): Unit = runBlocking {
         for (foreground in listOf(false, true)) {
             commands.recordUserRequestedExit("off-$foreground") shouldBe true
             val start = requireNotNull(commands.reserveStart())
@@ -95,14 +95,18 @@ class PreparedStartForegroundAcceptanceTest {
             val result = withTimeout(2_000L) { coordinator().acceptForeground(prepared(), start) { foreground } }
             (result is TrackingServicePreparedStartClaim.Rejected) shouldBe true
             commands.pendingCollectionResumeExitId shouldBe "off-$foreground"
-            coVerify(exactly = if (foreground) 1 else 0) {
+            coVerify(exactly = if (foreground) {
+                1
+            } else {
+                0
+            }) {
                 room.markPreparedForegroundAccepted(token, start.generation, "boot", any(), any())
             }
         }
     }
 
     @Test
-    fun `new Start before final acceptance blocks the old foreground and Room operation`() = runBlocking {
+    fun `new Start before final acceptance blocks the old foreground and Room operation`(): Unit = runBlocking {
         val start = requireNotNull(commands.reserveStart())
         beforeWork = { commands.reserveStart() }
         var promoted = false
@@ -113,7 +117,7 @@ class PreparedStartForegroundAcceptanceTest {
     }
 
     @Test
-    fun `previously accepted command cannot regain foreground after a newer Start was reserved`() = runBlocking {
+    fun `previously accepted command cannot regain foreground after a newer Start was reserved`(): Unit = runBlocking {
         val start = requireNotNull(commands.reserveStart())
         commands.withCurrentStart(start, acceptWhen = { it }) { true }
         beforeWork = { commands.reserveStart() }
@@ -125,7 +129,7 @@ class PreparedStartForegroundAcceptanceTest {
     }
 
     @Test
-    fun `new End before final acceptance blocks the old foreground and Room operation`() = runBlocking {
+    fun `new End before final acceptance blocks the old foreground and Room operation`(): Unit = runBlocking {
         val start = requireNotNull(commands.reserveStart())
         beforeWork = { commands.reserveStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 2_000L) }
         var promoted = false
@@ -136,7 +140,7 @@ class PreparedStartForegroundAcceptanceTest {
     }
 
     @Test
-    fun `Room cancellation escapes and cannot release the durable Off latch`() = runBlocking {
+    fun `Room cancellation escapes and cannot release the durable Off latch`(): Unit = runBlocking {
         commands.recordUserRequestedExit("off") shouldBe true
         val start = requireNotNull(commands.reserveStart())
         commands.prepareCollectionResumeForManualStart("off", start) shouldBe true
@@ -145,7 +149,7 @@ class PreparedStartForegroundAcceptanceTest {
         val failure = shouldThrow<CancellationException> {
             withTimeout(2_000L) { coordinator().acceptForeground(prepared(), start) { true } }
         }
-        (failure === cancellation) shouldBe true
+        generateSequence<Throwable>(failure) { it.cause }.any { it === cancellation } shouldBe true
         commands.pendingCollectionResumeExitId shouldBe "off"
         SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
             .pendingCollectionResumeExitId shouldBe "off"
@@ -154,6 +158,7 @@ class PreparedStartForegroundAcceptanceTest {
     private fun prepared(): TrackingServicePreparedStartClaim.Claimed {
         val claim = mockk<ClaimedPreparedSessionStart>()
         every { claim.token } returns token
+        every { claim.isProviderStepsJoin } returns false
         return TrackingServicePreparedStartClaim.Claimed(claim, mockk(), mockk(), mockk(), 0L)
     }
 

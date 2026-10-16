@@ -661,12 +661,16 @@ class PortableStepsFileImportTest {
 		private var offset = 0
 
 		override fun read(): Int {
-			if (offset >= prefix.size) throw failure
+			if (offset >= prefix.size) {
+				throw failure
+			}
 			return prefix[offset++].toInt() and 0xff
 		}
 
 		override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-			if (this.offset >= prefix.size) throw failure
+			if (this.offset >= prefix.size) {
+				throw failure
+			}
 			val count = minOf(length, prefix.size - this.offset)
 			prefix.copyInto(buffer, offset, this.offset, this.offset + count)
 			this.offset += count

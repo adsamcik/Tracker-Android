@@ -80,12 +80,14 @@ class ActivityRegistrationPlanAttribution(
 		require(physicalConfigurationFingerprint.isNotBlank())
 	}
 
+	/** Compares serialized plan bytes and all authority fields, independent of object identity. */
 	fun hasSameValueAs(other: ActivityRegistrationPlanAttribution): Boolean =
 		configurationRevision == other.configurationRevision &&
 			payloadVersion == other.payloadVersion &&
 			storedPayload.contentEquals(other.storedPayload) && payloadChecksum == other.payloadChecksum &&
 			physicalConfigurationFingerprint == other.physicalConfigurationFingerprint
 
+	/** Defines the maximum serialized plan size accepted by the physical Activity arbiter. */
 	companion object {
 		const val MAX_PLAN_PAYLOAD_BYTES = 64 * 1_024
 

@@ -33,10 +33,12 @@ import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthenticati
 import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthenticator
 import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
@@ -117,6 +119,9 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// One real Cell qualifier/writer Room fixture follows the same saved WAL through admission, replay,
+// lifecycle and deletion.
+@Suppress("LargeClass")
 class CellWalQualificationAdapterTest {
 	private lateinit var database: AppDatabase
 	private val payloadCodec = DefaultSourcePayloadCodec()
@@ -609,12 +614,17 @@ class CellWalQualificationAdapterTest {
 		val towers = observations().mapIndexed { index, item ->
 			item.copy(
 				providerTimestampNanos = requireNotNull(item.providerTimestampNanos) +
-					if (index == 0) 1L else 0L,
+					if (index == 0) {
+						1L
+					} else {
+						0L
+					},
 				identifierToken = "tower-$index",
 			)
 		}
 		installValidFixture(candidateWriter = true, observations = towers,
 			payloadVersion = CELL_WAL_PAYLOAD_VERSION)
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
 		val applied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
 		val children = database.radioObservationChildDao().cellSessionChildren(
 			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
@@ -696,7 +706,11 @@ class CellWalQualificationAdapterTest {
 	fun `version six cached Cell reading before registration preserves its valid sibling`() = runTest {
 		installValidFixture(candidateWriter = true, payloadVersion = CELL_WAL_PAYLOAD_VERSION,
 			observations = observations().mapIndexed { index, item ->
-				if (index == 0) item.copy(providerTimestampNanos = RUN_START_NANOS - 100_000_000L) else item
+				if (index == 0) {
+					item.copy(providerTimestampNanos = RUN_START_NANOS - 100_000_000L)
+				} else {
+					item
+				}
 			})
 		val applied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
 		val saved = fact(applied.logicalFactId, applied.semanticRevision)
@@ -710,7 +724,11 @@ class CellWalQualificationAdapterTest {
 	fun `version six Cell reading after retirement preserves its earlier valid sibling`() = runTest {
 		installValidFixture(candidateWriter = true, payloadVersion = CELL_WAL_PAYLOAD_VERSION,
 			observations = observations().mapIndexed { index, item ->
-				if (index == 0) item.copy(providerTimestampNanos = OBSERVED_START_NANOS + 1L) else item
+				if (index == 0) {
+					item.copy(providerTimestampNanos = OBSERVED_START_NANOS + 1L)
+				} else {
+					item
+				}
 			})
 		val retiredAt = OBSERVED_START_NANOS + 50_000_000L
 		database.openHelper.writableDatabase.execSQL(
@@ -734,7 +752,11 @@ class CellWalQualificationAdapterTest {
 	fun `version six Cell parent bounds include a rounded sibling close to the latest reading`() = runTest {
 		installValidFixture(candidateWriter = true, payloadVersion = CELL_WAL_PAYLOAD_VERSION,
 			observations = observations().mapIndexed { index, item ->
-				if (index == 0) item.copy(providerTimestampNanos = OBSERVED_END_NANOS - 1L) else item
+				if (index == 0) {
+					item.copy(providerTimestampNanos = OBSERVED_END_NANOS - 1L)
+				} else {
+					item
+				}
 			})
 		val applied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
 		val saved = fact(applied.logicalFactId, applied.semanticRevision)
@@ -1185,10 +1207,24 @@ class CellWalQualificationAdapterTest {
 		)
 	}
 
+	// Follow one Cell owner/dependent lineage through cursor corruption, repair, and its retention boundary.
+	@Suppress("LongMethod")
 	@Test
 	fun `Cell lifecycle materialization requires current owner and applies its retention floor`() =
 		runTest {
 			installValidFixture(candidateWriter = true)
+			database.sourceSessionDao().insertLifecycleActions(listOf(LifecycleDesiredActionEntity(
+				actionId = "cell-lifecycle-original-start", logicalTrackingId = LOGICAL_ID, serviceRunId = RUN_ID,
+				manifestRevision = MANIFEST_REVISION, actionRevision = 1L, actionFamily = "SOURCE_RUNTIME",
+				sourceKind = CELL_SOURCE, desiredState = "STARTED", desiredPlanRevision = PLAN_REVISION,
+				sourcePolicyRevision = POLICY_REVISION, consentEpoch = CONSENT_EPOCH,
+				startOrigin = START_ORIGIN, bootId = BOOT_ID, leaseGeneration = LEASE_GENERATION,
+				requestedAtMs = RUN_START_WALL_MS, requestedElapsedRealtimeNanos = RUN_START_NANOS,
+				status = "START_ACCEPTED", attemptCount = 1, acknowledgedAtMs = RUN_START_WALL_MS + 1L,
+				acknowledgedElapsedRealtimeNanos = AUTHORIZATION_START_NANOS + 1L,
+				failureCode = null, retryTrigger = null, sourceInstanceId = SOURCE_INSTANCE,
+				registrationGeneration = REGISTRATION_GENERATION,
+			)))
 			val ownerApplied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
 			val shifted = observations().map { observation ->
 				observation.copy(
@@ -1209,19 +1245,6 @@ class CellWalQualificationAdapterTest {
 					"WHERE source_kind = ?",
 				arrayOf(CELL_SOURCE),
 			)
-			val recording = RecordingProofState(
-				lineage = SourceProofLineage(
-					evidenceIdentity = SourceEvidenceIdentity(SECOND_EVENT_ID.value),
-					sourceAdmissionOrdinal = dependent.sourceAdmissionOrdinal,
-					sourceEvidenceRevision =
-						requireNotNull(database.sourceEvidenceStateDao().get()).revision,
-				),
-				coverage = SourceProofCoverage.ProviderInterval(
-					dependent.coverageIntervalStartNanos,
-					dependent.coverageIntervalEndNanos,
-				),
-				completeness = SourceProofCompleteness.COMPLETE,
-			)
 			val key = SourceProofKey(
 				source = TrackingSource.CELL,
 				purpose = TrackingPurpose.SESSION_CAPTURE,
@@ -1232,6 +1255,7 @@ class CellWalQualificationAdapterTest {
 				scope = SourceProofScope.Run(LOGICAL_ID, RUN_ID),
 			)
 			val adapter = lifecycleFactory().create(TrackingSource.CELL)
+			val recording = assertIs<SourceProofResult.Proven<RecordingProofState>>(adapter.recording(key)).state
 
 			val materialized = adapter.materialized(key, recording)
 			assertIs<SourceProofResult.Proven<*>>(materialized, materialized.toString())
@@ -1814,7 +1838,9 @@ class CellWalQualificationAdapterTest {
 		val event = installHistoricalCellGroups()
 		assertFailsWith<CancellationException> {
 			writer.write(event) { checkpoint ->
-				if (checkpoint == CellCapturedWriteCheckpoint.REVISION_INSERTED) throw CancellationException("cancel first group")
+				if (checkpoint == CellCapturedWriteCheckpoint.REVISION_INSERTED) {
+					throw CancellationException("cancel first group")
+				}
 			}
 		}
 		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
@@ -2022,11 +2048,16 @@ class CellWalQualificationAdapterTest {
 		val originals = observations()
 		val towers = List(256) { index ->
 			originals[index % originals.size].copy(identifierToken = "tower-$index")
-		}
+		}.sortedWith(compareBy(
+			CellObservationEvidence::radioType, CellObservationEvidence::identifierToken,
+			CellObservationEvidence::registered, CellObservationEvidence::signalLevelDbm,
+			CellObservationEvidence::providerTimestampNanos,
+		))
 		installValidFixture(candidateWriter = true, observations = towers,
 			payloadVersion = CELL_WAL_PAYLOAD_VERSION)
-		assertEquals(1, assertIs<CellSessionFactDrainResult.Complete>(
-			CellSessionFactProjectionLane(database, subject, writer).drainAvailable()).factsInserted)
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val drain = CellSessionFactProjectionLane(database, subject, writer).drainAvailable()
+		assertEquals(1, assertIs<CellSessionFactDrainResult.Complete>(drain, drain.toString()).factsInserted)
 		val saved = historicalCellFacts().single()
 		val children = database.radioObservationChildDao().cellSessionChildren(
 			saved.writerProjectionId, saved.writerProjectionVersion,
@@ -2092,10 +2123,88 @@ class CellWalQualificationAdapterTest {
 		rotateCaptureConsent: Boolean = false,
 	): SourceEventId {
 		require(!rotateCaptureConsent || sameRunPolicyRotation)
-		val backgroundDemand = if (background) demand(true).copy(demandId = "cell-background-sibling",
+		val siblings = installHistoricalCellProviderScope(background, observedWallMs)
+		val split = 1_550_000_000L
+		val end = 1_650_000_000L
+		val splitWall = observedWallMs - 50L
+		val endWall = observedWallMs + 50L
+		val secondLogical = if (sameRunPolicyRotation) { LOGICAL_ID } else { HISTORICAL_SECOND_LOGICAL }
+		val secondRun = if (sameRunPolicyRotation) { RUN_ID } else { HISTORICAL_SECOND_RUN }
+		val rotationOffset = if (sameRunPolicyRotation) { 1L } else { 0L }
+		val secondPolicy = POLICY_REVISION + rotationOffset
+		val secondManifestRevision = MANIFEST_REVISION + rotationOffset
+		val secondPlan = PLAN_REVISION + rotationOffset
+		val secondConsent = CONSENT_EPOCH + if (rotateCaptureConsent) {
+			1L
+		} else {
+			0L
+		}
+		if (sameRunPolicyRotation) {
+			installHistoricalCellPolicy(rotateCaptureConsent, secondPolicy, secondConsent, split, splitWall, secondPlan)
+		}
+		installHistoricalCellSessionWindows(
+			sameRunPolicyRotation, secondPlan, secondManifestRevision, split, end, splitWall, endWall, secondRun,
+		)
+		val source = database.sourceSessionDao().manifestSources(LOGICAL_ID, MANIFEST_REVISION).single()
+		val secondSource = source.copy(logicalTrackingId = secondLogical,
+			manifestRevision = secondManifestRevision, consentEpoch = secondConsent)
+		val manifest = requireNotNull(database.sourceSessionDao().manifest(LOGICAL_ID, MANIFEST_REVISION))
+		val secondManifest = manifest.copy(logicalTrackingId = secondLogical,
+			serviceRunId = secondRun, manifestRevision = secondManifestRevision, sourcePolicyRevision = secondPolicy,
+			acquisitionPlanRevision = secondPlan, effectiveElapsedRealtimeNanos = split, effectiveWallTimeMs = splitWall,
+			startOrigin = if (sameRunPolicyRotation) {
+				"POLICY_RECONCILIATION"
+			} else {
+				manifest.startOrigin
+			},
+			changeReason = if (sameRunPolicyRotation) {
+				"POLICY_RECONCILIATION"
+			} else {
+				manifest.changeReason
+			})
+		database.sourceSessionDao().insertManifest(secondManifest.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(secondManifest, listOf(secondSource))))
+		database.sourceSessionDao().insertManifestSources(listOf(secondSource))
+		val secondDemand = demand().copy(demandId = "second-cell-demand",
+			consumerId = "session:$secondLogical", logicalTrackingId = secondLogical, serviceRunId = secondRun,
+			manifestRevision = secondManifestRevision, sourcePolicyRevision = secondPolicy, consentEpoch = secondConsent,
+			requestedElapsedRealtimeNanos = split, requestedAtMs = splitWall,
+			retireElapsedRealtimeNanos = end, retiredAtMs = endWall)
+		val denied = installHistoricalCellAuthorizations(secondDemand, siblings, split, end, splitWall, endWall)
+		return admitHistoricalCellDelivery(
+			observedWallMs, extraUnsupportedItem, secondPlan, secondLogical, secondRun, denied,
+		)
+	}
+
+	private suspend fun installHistoricalCellAuthorizations(
+		secondDemand: SourceDemandEntity,
+		siblings: List<SourceDemandEntity>,
+		split: Long,
+		end: Long,
+		splitWall: Long,
+		endWall: Long,
+	): List<SourceAuthorizationEntity> {
+		database.sourceBrokerDao().insertDemands(listOf(secondDemand))
+		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(CELL_SOURCE,
+			REGISTRATION_GENERATION, 2L, listOf(secondDemand) + siblings, BOOT_ID, split, splitWall))
+		val denied = SourceBrokerAuthorization.rows(CELL_SOURCE, REGISTRATION_GENERATION, 3L,
+			siblings, BOOT_ID, end, endWall)
+		database.sourceBrokerDao().insertAuthorizations(denied)
+		return denied
+	}
+
+
+	private suspend fun installHistoricalCellProviderScope(
+		background: Boolean, observedWallMs: Long,
+	): List<SourceDemandEntity> {
+		val backgroundDemand = if (background) {
+			demand(true).copy(demandId = "cell-background-sibling",
 			consumerId = "app:cell-background-sibling", purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
 			logicalTrackingId = null, serviceRunId = null, manifestRevision = null, lifecycleLeaseGeneration = null,
-			requestedElapsedRealtimeNanos = POLICY_START_NANOS) else null
+			requestedElapsedRealtimeNanos = POLICY_START_NANOS)
+		} else {
+			null
+		}
 		val siblings = listOfNotNull(backgroundDemand)
 		installValidFixture(candidateWriter = true, payloadVersion = CELL_WAL_PAYLOAD_VERSION,
 			insertWal = false, additionalDemands = siblings)
@@ -2116,32 +2225,45 @@ class CellWalQualificationAdapterTest {
 				arrayOf<Any?>(observedWallMs - 1_000L, observedWallMs - 900L, observedWallMs + 1_000L,
 					CELL_SOURCE, REGISTRATION_GENERATION))
 		}
-		val split = 1_550_000_000L
-		val end = 1_650_000_000L
-		val splitWall = observedWallMs - 50L
-		val endWall = observedWallMs + 50L
-		val secondLogical = if (sameRunPolicyRotation) LOGICAL_ID else HISTORICAL_SECOND_LOGICAL
-		val secondRun = if (sameRunPolicyRotation) RUN_ID else HISTORICAL_SECOND_RUN
-		val secondPolicy = POLICY_REVISION + if (sameRunPolicyRotation) 1L else 0L
-		val secondManifestRevision = MANIFEST_REVISION + if (sameRunPolicyRotation) 1L else 0L
-		val secondPlan = PLAN_REVISION + if (sameRunPolicyRotation) 1L else 0L
-		val secondConsent = CONSENT_EPOCH + if (rotateCaptureConsent) 1L else 0L
-		if (sameRunPolicyRotation) {
-			val policyDao = database.sourcePolicyDao()
-			val originalPolicy = requireNotNull(policyDao.policyAtRevision(POLICY_REVISION, CELL_SOURCE))
-			policyDao.insertPolicies(listOf(originalPolicy.copy(policyRevision = secondPolicy,
-				captureConsentEpoch = secondConsent, effectiveElapsedRealtimeNanos = split,
-				effectiveWallTimeMs = splitWall, changeReason = "TEST_POLICY_RECONCILIATION")))
-			if (rotateCaptureConsent) policyDao.insertConsentEpochs(listOf(SourceConsentEpochEntity(
-				CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, secondConsent, true, true, secondPolicy,
-				BOOT_ID, split, splitWall, "TEST_CAPTURE_REGRANT")))
-			assertEquals(1, policyDao.compareAndSetAuthority(SourcePolicyAuthorityEntity.STATE_ACTIVE,
-				POLICY_REVISION, SourcePolicyAuthorityEntity.STATE_ACTIVE, secondPolicy, null, splitWall))
-			insertPlan(cellPlan().copy(revision = secondPlan), secondPolicy, splitWall)
+		return siblings
+	}
+
+	private suspend fun installHistoricalCellPolicy(
+		rotateCaptureConsent: Boolean, secondPolicy: Long, secondConsent: Long,
+		split: Long, splitWall: Long, secondPlan: Long,
+	) {
+		val policyDao = database.sourcePolicyDao()
+		val originalPolicy = requireNotNull(policyDao.policyAtRevision(POLICY_REVISION, CELL_SOURCE))
+		policyDao.insertPolicies(listOf(originalPolicy.copy(policyRevision = secondPolicy,
+			captureConsentEpoch = secondConsent, effectiveElapsedRealtimeNanos = split,
+			effectiveWallTimeMs = splitWall, changeReason = "TEST_POLICY_RECONCILIATION")))
+		if (rotateCaptureConsent) {
+			policyDao.insertConsentEpochs(listOf(SourceConsentEpochEntity(
+			CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, secondConsent, true, true, secondPolicy,
+			BOOT_ID, split, splitWall, "TEST_CAPTURE_REGRANT")))
 		}
+		assertEquals(1, policyDao.compareAndSetAuthority(SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			POLICY_REVISION, SourcePolicyAuthorityEntity.STATE_ACTIVE, secondPolicy, null, splitWall))
+		insertPlan(cellPlan().copy(revision = secondPlan), secondPolicy, splitWall)
+	}
+
+	// Keep the captured historical interval and both immutable session identities explicit in this fixture.
+	@Suppress("LongParameterList")
+	private suspend fun installHistoricalCellSessionWindows(
+		sameRunPolicyRotation: Boolean, secondPlan: Long, secondManifestRevision: Long,
+		split: Long, end: Long, splitWall: Long, endWall: Long, secondRun: String,
+	) {
 		val firstSession = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
-		val firstEndWall = if (sameRunPolicyRotation) endWall else splitWall
-		val firstEndNanos = if (sameRunPolicyRotation) end else split
+		val firstEndWall = if (sameRunPolicyRotation) {
+			endWall
+		} else {
+			splitWall
+		}
+		val firstEndNanos = if (sameRunPolicyRotation) {
+			end
+		} else {
+			split
+		}
 		database.sourceSessionDao().updateSession(firstSession.copy(cutoffAtMs = firstEndWall,
 			cutoffElapsedNanos = firstEndNanos, completedAtMs = firstEndWall, finalAdmissionOrdinal = 0L,
 			desiredPlanRevision = secondPlan, currentManifestRevision = secondManifestRevision))
@@ -2165,29 +2287,12 @@ class CellWalQualificationAdapterTest {
 				presentationAcknowledgedAtMs = endWall, startDeliveryToken = "second-cell-start-token",
 				androidDeliveryUpdatedAtMs = splitWall))
 		}
-		val source = database.sourceSessionDao().manifestSources(LOGICAL_ID, MANIFEST_REVISION).single()
-		val secondSource = source.copy(logicalTrackingId = secondLogical,
-			manifestRevision = secondManifestRevision, consentEpoch = secondConsent)
-		val manifest = requireNotNull(database.sourceSessionDao().manifest(LOGICAL_ID, MANIFEST_REVISION))
-		val secondManifest = manifest.copy(logicalTrackingId = secondLogical,
-			serviceRunId = secondRun, manifestRevision = secondManifestRevision, sourcePolicyRevision = secondPolicy,
-			acquisitionPlanRevision = secondPlan, effectiveElapsedRealtimeNanos = split, effectiveWallTimeMs = splitWall,
-			startOrigin = if (sameRunPolicyRotation) "POLICY_RECONCILIATION" else manifest.startOrigin,
-			changeReason = if (sameRunPolicyRotation) "POLICY_RECONCILIATION" else manifest.changeReason)
-		database.sourceSessionDao().insertManifest(secondManifest.copy(
-			manifestChecksum = SessionManifestIntegrity.compute(secondManifest, listOf(secondSource))))
-		database.sourceSessionDao().insertManifestSources(listOf(secondSource))
-		val secondDemand = demand().copy(demandId = "second-cell-demand",
-			consumerId = "session:$secondLogical", logicalTrackingId = secondLogical, serviceRunId = secondRun,
-			manifestRevision = secondManifestRevision, sourcePolicyRevision = secondPolicy, consentEpoch = secondConsent,
-			requestedElapsedRealtimeNanos = split, requestedAtMs = splitWall,
-			retireElapsedRealtimeNanos = end, retiredAtMs = endWall)
-		database.sourceBrokerDao().insertDemands(listOf(secondDemand))
-		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(CELL_SOURCE,
-			REGISTRATION_GENERATION, 2L, listOf(secondDemand) + siblings, BOOT_ID, split, splitWall))
-		val denied = SourceBrokerAuthorization.rows(CELL_SOURCE, REGISTRATION_GENERATION, 3L,
-			siblings, BOOT_ID, end, endWall)
-		database.sourceBrokerDao().insertAuthorizations(denied)
+	}
+
+	private suspend fun admitHistoricalCellDelivery(
+		observedWallMs: Long, extraUnsupportedItem: Boolean, secondPlan: Long,
+		secondLogical: String, secondRun: String, denied: List<SourceAuthorizationEntity>,
+	): SourceEventId {
 		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
 		val catalog = ExecutableSourceLaneCatalog.explicit(ExecutableSourceLaneCatalog.CELL_SESSION_FACTS)
 		RoomTrackingRolloutStateStore(database, catalog).save(TrackingRolloutState.eventCanonical(
@@ -2204,9 +2309,17 @@ class CellWalQualificationAdapterTest {
 				TrackingStartupResult.Ready(false, 0L)
 		}
 		val towers = observations().mapIndexed { index, item -> item.copy(
-			identifierToken = if (index == 0) "first-tower" else "second-tower") } +
-			if (extraUnsupportedItem) listOf(CellObservationEvidence("unsupported-tower", "UNKNOWN", true, -70,
-				OBSERVED_END_NANOS - 1L)) else emptyList()
+			identifierToken = if (index == 0) {
+				"first-tower"
+			} else {
+				"second-tower"
+			}) } +
+			if (extraUnsupportedItem) {
+				listOf(CellObservationEvidence("unsupported-tower", "UNKNOWN", true, -70,
+				OBSERVED_END_NANOS - 1L))
+			} else {
+				emptyList()
+			}
 		val evidence = SourceEvidenceCandidate(providerDedupKey = null, logicalTrackingId = null,
 			serviceRunId = null, source = SourceKind.CELL, sourceInstanceId = SourceInstanceId(SOURCE_INSTANCE),
 			registrationGeneration = REGISTRATION_GENERATION, physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
@@ -2230,14 +2343,17 @@ class CellWalQualificationAdapterTest {
 		return event
 	}
 
-
 	/** Constructed immutable writer binding only; actual setup/callback authority is outside this fixture. */
 	private suspend fun installWriterContractFixture(generation: Long, mode: String, advanceOwner: Boolean) {
 		database.withTransaction {
 			val dao = database.sourceSessionDao()
 			val source = dao.manifestSources(LOGICAL_ID, MANIFEST_REVISION).single()
 			val changed = source.copy(writerBindingGeneration = generation, writerOwnerGeneration = generation * 2L)
-			val origin = if (mode == "AUTOMATIC") "AUTOMATIC_BACKGROUND_START" else "MANUAL_FOREGROUND_START"
+			val origin = if (mode == "AUTOMATIC") {
+				"AUTOMATIC_BACKGROUND_START"
+			} else {
+				"MANUAL_FOREGROUND_START"
+			}
 			val manifest = requireNotNull(dao.manifest(LOGICAL_ID, MANIFEST_REVISION)).copy(sessionMode = mode, startOrigin = origin)
 			val checksum = SessionManifestIntegrity.compute(manifest, listOf(changed))
 			database.openHelper.writableDatabase.execSQL("UPDATE session_manifest_source SET writer_binding_generation = ?, writer_owner_generation = ? WHERE logical_tracking_id = ? AND manifest_revision = ? AND source_kind = ? AND purpose = ?",
@@ -2245,13 +2361,18 @@ class CellWalQualificationAdapterTest {
 			database.openHelper.writableDatabase.execSQL("UPDATE session_manifest_version SET session_mode = ?, start_origin = ?, manifest_checksum = ? WHERE logical_tracking_id = ? AND manifest_revision = ?", arrayOf<Any?>(mode, origin, checksum, LOGICAL_ID, MANIFEST_REVISION))
 			dao.updateSession(requireNotNull(dao.session(LOGICAL_ID)).copy(sessionMode = mode, startOrigin = origin))
 			dao.updateServiceRun(requireNotNull(dao.serviceRun(RUN_ID)).copy(startOrigin = origin))
-			if (advanceOwner) assertEquals(1, database.sourceDestinationOwnerDao().compareAndSetOwner(
+			if (advanceOwner) {
+				assertEquals(1, database.sourceDestinationOwnerDao().compareAndSetOwner(
 				CELL_SOURCE, SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
 				SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS, 2L,
 				SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS, 4L, OBSERVED_WALL_MS))
+			}
 		}
 	}
 
+	// Keep one Cell plan, policy, source owner, session, provider authorization and exact WAL setup sequence
+	// together.
+	@Suppress("LongMethod")
 	private suspend fun installValidFixture(
 		sourceSequence: Long = SOURCE_SEQUENCE,
 		deliveryIdentityOverride: String? = null,
@@ -2312,7 +2433,9 @@ class CellWalQualificationAdapterTest {
 			effectiveWallTimeMs = RUN_START_WALL_MS,
 		)
 		database.sourceBrokerDao().insertAuthorizations(authorization)
-		if (!insertWal) return
+		if (!insertWal) {
+			return
+		}
 		val payload = CellSnapshotPayload(
 			null,
 			observations,
@@ -2709,11 +2832,17 @@ class CellWalQualificationAdapterTest {
 				),
 			),
 		)
-		if (background) policyDao.insertConsentEpochs(listOf(SourceConsentEpochEntity(
+		if (background) {
+			policyDao.insertConsentEpochs(listOf(SourceConsentEpochEntity(
 			CELL_SOURCE, SourceBrokerPurpose.AMBIENT_PRODUCT, CONSENT_EPOCH, true, true, POLICY_REVISION,
 			BOOT_ID, POLICY_START_NANOS, RUN_START_WALL_MS, "TEST_BACKGROUND_SIBLING")))
+		}
 	}
 
+	// Keep one Cell session/run and its checksum-bound capture manifest together; its fixed open/closed setup
+	// stays explicit.
+	// Keep the fixed open/closed and candidate/legacy session-manifest fixture rows together.
+	@Suppress("LongMethod", "CyclomaticComplexMethod")
 	private suspend fun installSessionAndManifest(
 		segmentId: Long,
 		zoneId: String,
@@ -2723,8 +2852,16 @@ class CellWalQualificationAdapterTest {
 		database.sourceSessionDao().insertSession(
 			LogicalTrackingSessionEntity(
 				logicalTrackingId = LOGICAL_ID,
-				state = if (openAuthority) "ACTIVE" else "FINALIZED",
-				lifecycleRevision = if (openAuthority) 1L else 2L,
+				state = if (openAuthority) {
+					"ACTIVE"
+				} else {
+					"FINALIZED"
+				},
+				lifecycleRevision = if (openAuthority) {
+					1L
+				} else {
+					2L
+				},
 				desiredPlanRevision = PLAN_REVISION,
 				rolloutRevision = ROLLOUT_REVISION,
 				startOrigin = START_ORIGIN,
@@ -2749,7 +2886,11 @@ class CellWalQualificationAdapterTest {
 			SourceServiceRunEntity(
 				serviceRunId = RUN_ID,
 				logicalTrackingId = LOGICAL_ID,
-				state = if (openAuthority) "ACTIVE" else "FINALIZED",
+				state = if (openAuthority) {
+					"ACTIVE"
+				} else {
+					"FINALIZED"
+				},
 				desiredPlanRevision = PLAN_REVISION,
 				rolloutRevision = ROLLOUT_REVISION,
 				foregroundCapabilityFlags = 0L,
@@ -2762,7 +2903,11 @@ class CellWalQualificationAdapterTest {
 				startOrigin = START_ORIGIN,
 				desiredForegroundCapabilityFlags = 0L,
 				appliedForegroundCapabilityFlags = 0L,
-				runtimeAcknowledgement = if (openAuthority) "START_ACCEPTED" else "STOP_ACCEPTED",
+				runtimeAcknowledgement = if (openAuthority) {
+					"START_ACCEPTED"
+				} else {
+					"STOP_ACCEPTED"
+				},
 				runtimeFailureCode = null,
 				runRevision = 2L,
 				startDeliveryToken = "cell-start-token",
@@ -2792,22 +2937,34 @@ class CellWalQualificationAdapterTest {
 			qosCode = QOS_CODE,
 			outputDestination = if (candidateWriter) {
 				SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL
-			} else null,
+			} else {
+				null
+			},
 			writerOwner = if (candidateWriter) {
 				SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS
-			} else null,
+			} else {
+				null
+			},
 			writerOwnerGeneration = if (candidateWriter) {
 				SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
-			} else null,
+			} else {
+				null
+			},
 			writerProjectionId = if (candidateWriter) {
 				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID
-			} else null,
+			} else {
+				null
+			},
 			writerProjectionVersion = if (candidateWriter) {
 				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION
-			} else null,
+			} else {
+				null
+			},
 			writerBindingGeneration = if (candidateWriter) {
 				SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION
-			} else null,
+			} else {
+				null
+			},
 		)
 		val unsigned = SessionManifestVersionEntity(
 			logicalTrackingId = LOGICAL_ID,
@@ -2847,8 +3004,12 @@ class CellWalQualificationAdapterTest {
 		collectedDataEpoch = 0L,
 		providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
 		providerProcessIncarnationId = "process-$generation",
-		status = if (openAuthority) ProviderRegistrationGenerationEntity.STATUS_ACTIVE else
-			ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+		status = if (openAuthority) {
+			ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+		} else
+			{
+			ProviderRegistrationGenerationEntity.STATUS_RETIRED
+		},
 		reservedAtMs = RUN_START_WALL_MS,
 		reservedElapsedRealtimeNanos = RUN_START_NANOS,
 		acceptedAtMs = RUN_START_WALL_MS,
@@ -2872,7 +3033,7 @@ class CellWalQualificationAdapterTest {
 		consentEpoch = CONSENT_EPOCH,
 		persistenceEligible = true,
 		qosCode = QOS_CODE,
-		minimumAcquisitionSpec = "cell:v1:change_callbacks",
+		minimumAcquisitionSpec = "cell:v1:required=CHANGE_CALLBACK",
 		adaptiveReductionAllowed = false,
 		maximumAgeMs = 1_000L,
 		desiredLatencyMs = 1_000L,
@@ -2880,7 +3041,11 @@ class CellWalQualificationAdapterTest {
 		requestedBootId = BOOT_ID,
 		requestedElapsedRealtimeNanos = RUN_START_NANOS,
 		requestedAtMs = RUN_START_WALL_MS,
-		status = if (openAuthority) SourceDemandEntity.STATUS_ACTIVE else SourceDemandEntity.STATUS_RETIRED,
+		status = if (openAuthority) {
+			SourceDemandEntity.STATUS_ACTIVE
+		} else {
+			SourceDemandEntity.STATUS_RETIRED
+		},
 		retireBootId = BOOT_ID.takeUnless { openAuthority },
 		retireElapsedRealtimeNanos = SESSION_END_NANOS.takeUnless { openAuthority },
 		retiredAtMs = SESSION_END_WALL_MS.takeUnless { openAuthority },

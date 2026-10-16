@@ -159,12 +159,12 @@
     <string name="export_format_json_name">JSON</string>
     <string name="export_format_json_desc">Průběžné polohy a souhrny relací; import sloučí data a znovu vytvoří část metadat</string>
     <string name="export_format_db_name">Databáze</string>
-    <string name="export_format_db_desc">Nezpracovaná záloha SQLite se všemi daty a nastaveními; import sloučí kompatibilní řádky, nejde o úplné obnovení</string>
+    <string name="export_format_db_desc">Všechna uložená data. Bez nastavení.</string>
     <string name="export_sensitivity_dialog_title">Exportovat přesná data o poloze?</string>
     <string name="export_sensitivity_gpx_message">Tento export GPX obsahuje body trasy v plné přesnosti. Uložte jej nebo jej sdílejte pouze s lidmi a aplikacemi, kterým důvěřujete.</string>
     <string name="export_sensitivity_kml_message">Tento export KML obsahuje body trasy v plné přesnosti. Uložte jej nebo jej sdílejte pouze s lidmi a aplikacemi, kterým důvěřujete.</string>
     <string name="export_sensitivity_json_message">Tento export JSON obsahuje polohy v plné přesnosti a souhrny relací. Při importu může dojít ke ztrátě části odvozených metadat; ukládejte jej nebo jej sdílejte pouze s cíli, kterým důvěřujete.</string>
-    <string name="export_sensitivity_db_message">Tato nezpracovaná záloha databáze může obsahovat přesné polohy, rádiová data Wi-Fi/mobilních sítí, aktivity a nastavení. Uchovávejte ji soukromě a ukládejte ji jen na místo, kterému důvěřujete.</string>
+    <string name="export_sensitivity_db_message">Tato záloha obsahuje uložená data sledování, včetně případných poloh a podrobností sítí. Nastavení nejsou zahrnuta.</string>
     <string name="export_sensitivity_confirm">Pokračovat v exportu</string>
     <string name="settings_export_title">Export</string>
     <string name="settings_import_summary">Import dat z podporovaných typů (%1$s) a archivů (%2$s). Importy databáze slučují kompatibilní řádky; nenahrazují stávající data.</string>
@@ -361,4 +361,20 @@
     <string name="setup_background_location_open_settings">Otevřít nastavení polohy</string>
     <string name="setup_background_location_decline">Teď ne</string>
     <string name="setup_background_location_manual_only">Ruční sledování v popředí zůstává dostupné. Automatické sledování polohy zůstane vypnuté, dokud nebude povolena poloha na pozadí.</string>
+    <string name="settings_tracking_changes_apply_live">Změny se použijí v probíhajícím sledování</string>
+    <string name="settings_balance_title">Spotřeba a podrobnosti</string>
+    <string name="settings_balance_custom">Vlastní nastavení · Zvolit vyvážení</string>
+    <string name="settings_balance_value">Vyvážení: %1$s</string>
+    <string name="settings_balance_inherit_value">Podrobnosti · Celkové vyvážení: %1$s</string>
+    <string name="settings_balance_inherit">Použít celkové vyvážení</string>
+    <string name="settings_balance_summary">Zvolte běžnou kvalitu vybraných zdrojů. Aktivní relace upřednostňují podrobnosti u zapojených zdrojů. Volba vyvážení nahradí dřívější frekvence sběru; volby zdrojů, souhlas se sběrem na pozadí a filtry přesnosti zůstanou zachovány.</string>
+    <string name="export_format_portable_steps_desc">Ověřená historie kroků, pokrytí a mezery bez souřadnic trasy</string>
+    <string name="export_format_portable_ambient_steps_desc">Celodenní počty kroků, doba aktivity, data, mezery v pokrytí a uložené časové pásmo bez souřadnic trasy</string>
+    <string name="export_format_portable_activity_desc">Zaznamenané intervaly pohybu, míra jistoty a pokrytí bez souřadnic trasy</string>
+    <string name="export_format_portable_pressure_desc">Přímá měření tlaku v hPa, pokrytí a mezery bez souřadnic trasy</string>
+    <string name="export_sensitivity_portable_title">Exportovat zaznamenanou historii?</string>
+    <string name="export_sensitivity_portable_steps_message">Tento soubor obsahuje počty kroků, časové intervaly a údaje o pokrytí. Neobsahuje souřadnice trasy. Pokračujte pouze, pokud důvěřujete cílovému umístění.</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">Tento soubor obsahuje celodenní počty kroků, intervaly aktivity, data, mezery v pokrytí a uložené časové pásmo. Neobsahuje souřadnice trasy. Pokračujte pouze, pokud důvěřujete cílovému umístění.</string>
+    <string name="export_sensitivity_portable_activity_message">Tento soubor obsahuje zaznamenané intervaly pohybu, časové intervaly a údaje o pokrytí. Neobsahuje souřadnice trasy. Pokračujte pouze, pokud důvěřujete cílovému umístění.</string>
+    <string name="export_sensitivity_portable_pressure_message">Tento soubor obsahuje měření tlaku a časové intervaly, které mohou odhalit údaje o prostředí. Neobsahuje souřadnice trasy ani kalibrovanou nadmořskou výšku. Pokračujte pouze, pokud důvěřujete cílovému umístění.</string>
 </resources>

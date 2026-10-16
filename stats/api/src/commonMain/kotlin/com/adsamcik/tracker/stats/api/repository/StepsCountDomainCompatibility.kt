@@ -15,7 +15,14 @@ class StepsCountDomainOwnerIdentity private constructor(
 	override fun hashCode(): Int = encoded.hashCode()
 	override fun toString(): String = "StepsCountDomainOwnerIdentity"
 
+	/**
+	 * Validates namespaced opaque owner identities without granting recording or mutation authority.
+	 */
 	companion object {
+		/**
+		 * Parses a namespaced SHA-256 owner identity; malformed encodings throw and parsing grants no
+		 * source authority.
+		 */
 		fun opaque(encoded: String): StepsCountDomainOwnerIdentity {
 			require(STEPS_COUNT_DOMAIN_OPAQUE_IDENTITY.matches(encoded))
 			return StepsCountDomainOwnerIdentity(encoded)
@@ -38,7 +45,15 @@ class StepsCountDomainReceipt private constructor(
 	override fun hashCode(): Int = identity.hashCode()
 	override fun toString(): String = "StepsCountDomainReceipt"
 
+	/**
+	 * Validates namespaced opaque receipt identities; stored lineage must still be checked before
+	 * use.
+	 */
 	companion object {
+		/**
+		 * Parses a namespaced SHA-256 receipt identity; the stored receipt and owner revision must still
+		 * be verified.
+		 */
 		fun opaque(identity: String): StepsCountDomainReceipt {
 			require(STEPS_COUNT_DOMAIN_OPAQUE_IDENTITY.matches(identity))
 			return StepsCountDomainReceipt(identity)
@@ -56,7 +71,13 @@ class StepsCountDomainOwnerEffect private constructor(
 	override fun hashCode(): Int = encoded.hashCode()
 	override fun toString(): String = "StepsCountDomainOwnerEffect"
 
+	/**
+	 * Validates the canonical content-digest representation of an owner revision.
+	 */
 	companion object {
+		/**
+		 * Parses a lowercase SHA-256 owner-effect digest; malformed encodings throw.
+		 */
 		fun opaque(encoded: String): StepsCountDomainOwnerEffect {
 			require(STEPS_COUNT_DOMAIN_DIGEST.matches(encoded))
 			return StepsCountDomainOwnerEffect(encoded)
@@ -107,9 +128,17 @@ class StepsCountDomainCompatibilityRequest(
 			sessionOwners.size.toLong() + ambientOwners.size.toLong() >
 			MAX_STEPS_COUNT_DOMAIN_OWNERS_PER_REQUEST.toLong()
 	private val sessionOwnersSnapshot =
-		if (exceedsOwnerBounds) emptyList() else sessionOwners.toList()
+		if (exceedsOwnerBounds) {
+			emptyList()
+		} else {
+			sessionOwners.toList()
+		}
 	private val ambientOwnersSnapshot =
-		if (exceedsOwnerBounds) emptyList() else ambientOwners.toList()
+		if (exceedsOwnerBounds) {
+			emptyList()
+		} else {
+			ambientOwners.toList()
+		}
 
 	val sessionOwners: List<StepsCountDomainOwnerReference>
 		get() = sessionOwnersSnapshot.toList()
@@ -136,15 +165,34 @@ class StepsCountDomainCompatibilityRequest(
  * display name. Missing either side remains [Unproven].
  */
 sealed interface StepsCountDomainCompatibilityResult {
+	/**
+	 * Both selected sides have compatible exact producer-issued count-domain ownership.
+	 */
 	data object ExactCompatible : StepsCountDomainCompatibilityResult
+	/**
+	 * The selected source count domains conflict and cannot be added or treated as one domain.
+	 */
 	data object Conflict : StepsCountDomainCompatibilityResult
+	/**
+	 * The stored count-domain evidence cannot prove exact compatibility between both sides.
+	 */
 	data object Unproven : StepsCountDomainCompatibilityResult
+	/**
+	 * A selected count-domain owner or receipt has been deleted.
+	 */
 	data object Deleted : StepsCountDomainCompatibilityResult
+	/**
+	 * Stored count-domain identity or lineage cannot be verified.
+	 */
 	data object Unverifiable : StepsCountDomainCompatibilityResult
 }
 
 /** Bounded read-only compatibility API for day and numeric composers. */
 interface StepsCountDomainCompatibilityQuery {
+	/**
+	 * Compares bounded selected owner lists in request order using source-issued count-domain
+	 * lineage, not numeric equality or wall overlap.
+	 */
 	suspend fun compare(
 		requests: List<StepsCountDomainCompatibilityRequest>,
 	): List<StepsCountDomainCompatibilityResult>

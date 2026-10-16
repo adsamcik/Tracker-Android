@@ -90,6 +90,7 @@ class StepSourceRuntimeRetirementTest {
 		}
 		val fixture = fixture(
 			scope = this,
+			registrations = listOf(registration(plan(1L), 1L, generation = 1L)),
 			registerFailure = IllegalStateException("provider apply was ambiguous"),
 			completionOutcomes = ArrayDeque(listOf(false, true)),
 			sink = sink,
@@ -360,6 +361,8 @@ class StepSourceRuntimeRetirementTest {
 			fixture.repository.saveRuntimeState(
 				any(), any(), any(), any(), any(), any(), any(),
 				match { completeness -> completeness?.serviceRunId == "run-1" },
+				match { it?.providerFlushOutcome == ProviderFlushOutcome.NOT_SUPPORTED.name &&
+					it.registrationRemovalOutcome == RegistrationRemovalOutcome.REMOVED.name },
 			)
 		}
 	}
@@ -392,6 +395,8 @@ class StepSourceRuntimeRetirementTest {
 				match { it.state.registrationGeneration == 1L },
 				any(), any(), any(), any(), any(), any(),
 				match { completeness -> completeness?.registrationGeneration == 1L },
+				match { it?.providerFlushOutcome == ProviderFlushOutcome.NOT_SUPPORTED.name &&
+					it.registrationRemovalOutcome == RegistrationRemovalOutcome.REMOVED.name },
 			)
 		}
 		coVerify(exactly = 1) {
@@ -399,6 +404,8 @@ class StepSourceRuntimeRetirementTest {
 				match { it.state.registrationGeneration == 2L },
 				any(), any(), any(), any(), any(), any(),
 				match { completeness -> completeness?.registrationGeneration == 2L },
+				match { it?.providerFlushOutcome == ProviderFlushOutcome.NOT_SUPPORTED.name &&
+					it.registrationRemovalOutcome == RegistrationRemovalOutcome.REMOVED.name },
 			)
 		}
 	}
@@ -415,7 +422,7 @@ class StepSourceRuntimeRetirementTest {
 		).copy(requiresProviderAcceptance = false)
 		val fixture = fixture(this, registrations = listOf(initial))
 		coEvery {
-			fixture.repository.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+			fixture.repository.refreshPurposeScopedAuthorization(any(), any(), any(), any(), any(), any(), any())
 		} returns refreshed
 		val predecessor = runtimeClaim("steps-predecessor")
 		val successor = runtimeClaim("steps-successor")
@@ -498,6 +505,7 @@ class StepSourceRuntimeRetirementTest {
 			val claim = runtimeClaim("terminal-checkpoint-retry")
 			val fixture = fixture(
 				scope = this,
+				registrations = listOf(registration(plan(1L), 1L, generation = 1L)),
 				checkpointOutcomes = ArrayDeque(
 					listOf(
 						SourceRuntimeStateSaveResult.Saved,

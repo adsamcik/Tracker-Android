@@ -14,6 +14,10 @@ import com.adsamcik.tracker.tracker.source.runtime.LocationPrerequisiteEvaluator
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Assembles supported source-purpose acquisition and product contracts without activating providers or
+ * writers.
+ */
 @Singleton
 class DefaultSourceImplementationCatalog internal constructor(
 	private val acquisitionRevisionFactory: SourceAcquisitionRevisionFactory,

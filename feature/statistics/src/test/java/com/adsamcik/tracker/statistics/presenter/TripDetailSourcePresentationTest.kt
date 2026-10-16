@@ -453,7 +453,11 @@ class TripDetailSourcePresentationTest {
 	) = StepsHistory(
 		count = count,
 		availability = availability,
-		evidence = if (count == 0L) HistoryEvidence.ACTIVE else HistoryEvidence.RECORDED,
+		evidence = if (count == 0L) {
+			HistoryEvidence.ACTIVE
+		} else {
+			HistoryEvidence.RECORDED
+		},
 		productState = HistoryProductState.READY,
 		coverage = StepsHistoryCoverage.COMPLETE,
 	)

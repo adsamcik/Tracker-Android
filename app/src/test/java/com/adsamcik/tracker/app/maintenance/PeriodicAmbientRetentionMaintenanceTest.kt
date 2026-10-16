@@ -25,6 +25,8 @@ class PeriodicAmbientRetentionMaintenanceTest {
 	)
 
 	@Test
+	// Keep the shared floor, independent source calls and every resulting debt in one causal scenario.
+	@Suppress("LongMethod")
 	fun `all source-specific maintenance uses the exact settled floor and reports every debt`() =
 		runTest {
 			val calls = mutableListOf<String>()

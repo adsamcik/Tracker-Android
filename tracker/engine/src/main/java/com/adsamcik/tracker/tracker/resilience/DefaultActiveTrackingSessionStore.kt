@@ -98,8 +98,12 @@ class DefaultActiveTrackingSessionStore internal constructor(
 					descriptor.toProto()
 				}
 			}
-			if (resetRequired) corruptionResetRequired()
-			else ActiveTrackingSessionStoreResult.Success(descriptor)
+			if (resetRequired) {
+				corruptionResetRequired()
+			}
+			else {
+				ActiveTrackingSessionStoreResult.Success(descriptor)
+			}
 		}
 	}
 
@@ -119,8 +123,12 @@ class DefaultActiveTrackingSessionStore internal constructor(
 						.also { persisted = it }
 				}
 			}
-			if (resetRequired) corruptionResetRequired()
-			else ActiveTrackingSessionStoreResult.Success(persisted?.toDescriptor())
+			if (resetRequired) {
+				corruptionResetRequired()
+			}
+			else {
+				ActiveTrackingSessionStoreResult.Success(persisted?.toDescriptor())
+			}
 		}
 	}
 
@@ -141,8 +149,12 @@ class DefaultActiveTrackingSessionStore internal constructor(
 					current.also { persisted = it }
 				}
 			}
-			if (resetRequired) corruptionResetRequired()
-			else ActiveTrackingSessionStoreResult.Success(persisted?.toDescriptor())
+			if (resetRequired) {
+				corruptionResetRequired()
+			}
+			else {
+				ActiveTrackingSessionStoreResult.Success(persisted?.toDescriptor())
+			}
 		}
 	}
 
@@ -159,14 +171,20 @@ class DefaultActiveTrackingSessionStore internal constructor(
 				if (current.requiresCorruptionReset()) {
 					resetRequired = true
 					current
-				} else when (current.toDescriptor()) {
+				} else {
+					when (current.toDescriptor()) {
 					expected -> bound.toProto().also { persisted = it }
 					bound -> current.also { persisted = it }
 					else -> current.also { persisted = it }
 				}
+				}
 			}
-			if (resetRequired) corruptionResetRequired()
-			else ActiveTrackingSessionStoreResult.Success(persisted?.toDescriptor())
+			if (resetRequired) {
+				corruptionResetRequired()
+			}
+			else {
+				ActiveTrackingSessionStoreResult.Success(persisted?.toDescriptor())
+			}
 		}
 	}
 
@@ -181,8 +199,12 @@ class DefaultActiveTrackingSessionStore internal constructor(
 					defaultProto()
 				}
 			}
-			if (resetRequired) corruptionResetRequired()
-			else ActiveTrackingSessionStoreResult.Success(null)
+			if (resetRequired) {
+				corruptionResetRequired()
+			}
+			else {
+				ActiveTrackingSessionStoreResult.Success(null)
+			}
 		}
 	}
 
@@ -234,8 +256,12 @@ class DefaultActiveTrackingSessionStore internal constructor(
 					}
 				}
 			}
-			if (resetRequired) corruptionResetRequired()
-			else ActiveTrackingSessionStoreResult.Success(remaining?.toDescriptor())
+			if (resetRequired) {
+				corruptionResetRequired()
+			}
+			else {
+				ActiveTrackingSessionStoreResult.Success(remaining?.toDescriptor())
+			}
 		}
 	}
 
@@ -256,8 +282,12 @@ class DefaultActiveTrackingSessionStore internal constructor(
 					current
 				}
 			}
-			if (resetRequired) corruptionResetRequired()
-			else ActiveTrackingSessionStoreResult.Success(remaining?.toDescriptor())
+			if (resetRequired) {
+				corruptionResetRequired()
+			}
+			else {
+				ActiveTrackingSessionStoreResult.Success(remaining?.toDescriptor())
+			}
 		}
 	}
 
@@ -291,7 +321,9 @@ class DefaultActiveTrackingSessionStore internal constructor(
 					ActiveTrackingSessionStoreFailureKind.CORRUPT,
 				)
 			}
-			if (!exception.isTrackingOperationalFailure()) throw exception
+			if (!exception.isTrackingOperationalFailure()) {
+				throw exception
+			}
 			ActiveTrackingSessionStoreResult.Failure(
 				exception,
 				ActiveTrackingSessionStoreFailureKind.UNAVAILABLE,
@@ -307,7 +339,9 @@ private fun ActiveTrackingSessionProto.isCorruptionResetPending(): Boolean =
 	!active && policyTier == CORRUPTION_RESET_PENDING_MARKER
 
 private fun ActiveTrackingSessionProto.requiresCorruptionReset(): Boolean {
-	if (isCorruptionResetPending()) return true
+	if (isCorruptionResetPending()) {
+		return true
+	}
 	return try {
 		toDescriptor()
 		false
@@ -320,17 +354,27 @@ private fun Throwable.corruptionCause(): CorruptionException? {
 	val visited = mutableSetOf<Throwable>()
 	var current: Throwable? = this
 	while (current != null && visited.add(current)) {
-		if (current is CorruptionException) return current
+		if (current is CorruptionException) {
+			return current
+		}
 		current = current.cause
 	}
 	return null
 }
 
+// Decode one saved descriptor with its versioned defaults and field validation together.
+@Suppress("CyclomaticComplexMethod", "LongMethod")
 private fun ActiveTrackingSessionProto.toDescriptor(): ActiveTrackingSessionDescriptor? {
-	if (!active) return null
+	if (!active) {
+		return null
+	}
 	val tier = PolicyTier.entries.firstOrNull { it.name == policyTier }
-		?.takeUnless { it == PolicyTier.OFF }
 		?: corruptActiveTrackingSession("Active descriptor has an invalid policy tier")
+	// Unified Starts persist their guarded source plan before Location has an effective tier.
+	// Non-Location sessions can also retain OFF; recording authority stays in the source plan.
+	if (tier == PolicyTier.OFF && !hasGuardedSourcePlan()) {
+		corruptActiveTrackingSession("Active descriptor has an invalid policy tier")
+	}
 	val persistedLifecycleState = lifecycleState.toLifecycleStateOrNull()
 		?: corruptActiveTrackingSession("Active descriptor has an invalid lifecycle state")
 	val stopCandidate = if (persistedLifecycleState == LogicalTrackingLifecycleState.STOP_CANDIDATE) {
@@ -387,6 +431,10 @@ private fun ActiveTrackingSessionProto.toDescriptor(): ActiveTrackingSessionDesc
 		throw CorruptionException("Active tracking session descriptor is invalid", exception)
 	}
 }
+
+private fun ActiveTrackingSessionProto.hasGuardedSourcePlan(): Boolean =
+	sourceCallerAuthorityReference.isNotBlank() &&
+		(hasDesiredSourcePlanIdentity() || hasAppliedSourcePlanIdentity())
 
 private fun ActiveTrackingSessionProto.normalizedForCurrentContract(): ActiveTrackingSessionProto {
 	val descriptor = toDescriptor() ?: return this
@@ -520,15 +568,21 @@ private fun mergeServiceDescriptorForPersistence(
 	current: ActiveTrackingSessionDescriptor?,
 	proposed: ActiveTrackingSessionDescriptor,
 ): ActiveTrackingSessionDescriptor {
-	if (current == null) return proposed
+	if (current == null) {
+		return proposed
+	}
 	if (
 		current.logicalTrackingId != proposed.logicalTrackingId ||
 		current.serviceRunId != proposed.serviceRunId
-	) return current
+	) {
+		return current
+	}
 	if (current.lifecycleRevision > proposed.lifecycleRevision ||
 		(current.lifecycleRevision == proposed.lifecycleRevision &&
 			current.lifecycleState != proposed.lifecycleState)
-	) return current
+	) {
+		return current
+	}
 	return proposed.copy(
 		sourceCallerAuthorityReference = current.sourceCallerAuthorityReference,
 		pendingRetirementSourceCallerAuthorityReference =

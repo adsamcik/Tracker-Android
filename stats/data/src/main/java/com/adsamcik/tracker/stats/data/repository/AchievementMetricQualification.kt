@@ -35,19 +35,34 @@ object AchievementMetricQualification {
 		MetricKey.PERFECT_WEEKS,
 	)
 
+	/** Identifies Steps metrics that require the dedicated qualified projector rather than generic cached progress. */
 	fun requiresQualifiedStepsAuthority(metric: MetricKey): Boolean = metric in qualifiedStepsMetrics
 
+	/**
+	 * Whether generic metric evaluation has a trustworthy source; qualified Steps metrics use their dedicated
+	 * projector.
+	 */
 	fun isAvailableForEvaluation(metric: MetricKey): Boolean = metric !in sourceUnverifiableMetrics
 
 	/** Whether a catalog series can be shown without inventing unavailable progress as zero. */
 	fun isAvailableForProduct(metric: MetricKey, hasTrustedProgress: Boolean): Boolean =
-		if (metric in qualifiedStepsMetrics) hasTrustedProgress else isTrustedPersistedProgress(metric)
+		if (metric in qualifiedStepsMetrics) {
+			hasTrustedProgress
+		} else {
+			isTrustedPersistedProgress(metric)
+		}
 
+	/**
+	 * Checks metric ownership and READY Steps provenance; unavailable or derived meta families cannot supply
+	 * trusted progress.
+	 */
 	fun isTrustedPersistedProgress(
 		metric: MetricKey,
 		row: AchievementProgressEntity? = null,
 	): Boolean {
-		if (metric in derivedMetaMetrics) return false
+		if (metric in derivedMetaMetrics) {
+			return false
+		}
 		if (metric in qualifiedStepsMetrics) {
 			return row?.metricKey == metric.storageKey &&
 				row.authorityKind == AchievementProgressEntity.AUTHORITY_QUALIFIED_STEPS_V1 &&
@@ -71,7 +86,9 @@ object AchievementMetricQualification {
 		metric: MetricKey,
 		row: AchievementProgressEntity,
 	): Boolean {
-		if (!isTrustedPersistedProgress(metric, row) || row.lastUnlockedAt == null) return false
+		if (!isTrustedPersistedProgress(metric, row) || row.lastUnlockedAt == null) {
+			return false
+		}
 		return if (metric in qualifiedStepsMetrics) {
 			row.qualifiedNotificationClaimedTierIndex == row.lastTierIndex
 		} else {

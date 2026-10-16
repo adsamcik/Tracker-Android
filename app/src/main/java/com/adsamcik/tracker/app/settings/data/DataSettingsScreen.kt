@@ -1,5 +1,9 @@
 package com.adsamcik.tracker.app.settings.data
 
+import com.adsamcik.tracker.app.settings.MigrationBackupExportResult
+import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanId
+import com.adsamcik.tracker.impexp.importer.file.LocationFileConflictChoice
+
 import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -77,7 +81,7 @@ fun DataSettingsScreen() {
     var showLegacyDatabaseDetails by remember { mutableStateOf(false) }
     var showLegacyDatabaseDeleteConfirmation by remember { mutableStateOf(false) }
     var databasePlanReview by remember {
-        mutableStateOf<Map<com.adsamcik.tracker.impexp.exporter.automation.ExportPlanId, String>?>(null)
+        mutableStateOf<Map<ExportPlanId, String>?>(null)
     }
     val dataImport = remember { DataImport() }
     val importMimeTypes = remember { supportedImportMimeTypes(dataImport) }
@@ -96,11 +100,11 @@ fun DataSettingsScreen() {
         if (uri != null) {
             dataVm.exportMigrationBackup(uri) { result ->
                 val message = when (result) {
-                    com.adsamcik.tracker.app.settings.MigrationBackupExportResult.Success ->
+                    MigrationBackupExportResult.Success ->
                         R.string.settings_migration_backup_export_success
-                    com.adsamcik.tracker.app.settings.MigrationBackupExportResult.Failure ->
+                    MigrationBackupExportResult.Failure ->
                         R.string.settings_migration_backup_export_failure
-                    com.adsamcik.tracker.app.settings.MigrationBackupExportResult.CleanupRequired ->
+                    MigrationBackupExportResult.CleanupRequired ->
                         R.string.settings_migration_backup_export_cleanup_required
                 }
                 Toast.makeText(context, resources.getString(message), Toast.LENGTH_SHORT).show()
@@ -184,7 +188,9 @@ fun DataSettingsScreen() {
                     },
                 )
                 SettingsRowDivider()
-                if (fileImportState.checking) LinearProgressIndicator(Modifier.padding(horizontal = 16.dp))
+                if (fileImportState.checking) {
+                    LinearProgressIndicator(Modifier.padding(horizontal = 16.dp))
+                }
                 SettingsItem(
                     title = stringResource(com.adsamcik.tracker.impexp.R.string.settings_import_title),
                     subtitle = stringResource(
@@ -193,7 +199,9 @@ fun DataSettingsScreen() {
                         archiveNames,
                     ),
                     icon = Icons.Default.FileDownload,
-                    onClick = { if (!fileImportState.checking) importLauncher.launch(importMimeTypes) },
+                    onClick = { if (!fileImportState.checking) {
+                        importLauncher.launch(importMimeTypes)
+                    } },
                 )
             }
         }
@@ -272,10 +280,10 @@ fun DataSettingsScreen() {
             text = { Text(pluralStringResource(com.adsamcik.tracker.impexp.R.plurals.import_location_conflict_count,
                 pending.preview.conflictCount, pending.preview.conflictCount)) },
             confirmButton = { TextButton(onClick = {
-                dataVm.chooseLocationImport(com.adsamcik.tracker.impexp.importer.file.LocationFileConflictChoice.REPLACE_WITH_FILE)
+                dataVm.chooseLocationImport(LocationFileConflictChoice.REPLACE_WITH_FILE)
             }) { Text(stringResource(com.adsamcik.tracker.impexp.R.string.import_location_replace)) } },
             dismissButton = { TextButton(onClick = {
-                dataVm.chooseLocationImport(com.adsamcik.tracker.impexp.importer.file.LocationFileConflictChoice.KEEP_EXISTING)
+                dataVm.chooseLocationImport(LocationFileConflictChoice.KEEP_EXISTING)
             }) { Text(stringResource(com.adsamcik.tracker.impexp.R.string.import_location_keep)) } },
         )
     }
@@ -307,13 +315,15 @@ fun DataSettingsScreen() {
             } },
         )
     }
-    if (fileImportState.error) AlertDialog(
+    if (fileImportState.error) {
+        AlertDialog(
         onDismissRequest = dataVm::dismissFileImport,
         title = { Text(stringResource(com.adsamcik.tracker.impexp.R.string.import_start_error)) },
         confirmButton = { TextButton(onClick = dataVm::dismissFileImport) {
             Text(stringResource(com.adsamcik.tracker.shared.base.R.string.generic_ok))
         } },
     )
+    }
 
     // Delete data confirmation dialog
     if (showDeleteDataDialog) {

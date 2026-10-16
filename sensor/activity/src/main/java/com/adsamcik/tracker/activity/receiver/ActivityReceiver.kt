@@ -82,11 +82,15 @@ internal class ActivityReceiver : BroadcastReceiver() {
 	override fun onReceive(context: Context, intent: Intent) {
 		val hasActivityResult = ActivityRecognitionResult.hasResult(intent)
 		val hasTransitionResult = ActivityTransitionResult.hasResult(intent)
-		if (!hasActivityResult && !hasTransitionResult) return
+		if (!hasActivityResult && !hasTransitionResult) {
+			return
+		}
 		// There is no public app-usable permission-change callback on all supported Android
 		// versions. Check at the external callback boundary so a revocation cannot be followed by a
 		// durable Activity/control write while the service's periodic reconciliation catches up.
-		if (!context.hasActivityPermission) return
+		if (!context.hasActivityPermission) {
+			return
+		}
 
 		val receivedElapsedRealtimeMillis = Time.elapsedRealtimeMillis
 		val receivedElapsedRealtimeNanos = Time.elapsedRealtimeNanos
@@ -101,30 +105,12 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		val callbackPermit = registrationIdentity?.let {
 			entryPoint.callbackAdmissionBarrier().tryEnter(it)
 		}
-		if (registrationIdentity != null && callbackPermit == null) return
+		if (registrationIdentity != null && callbackPermit == null) {
+			return
+		}
 		val physicalDelivery = runCatching {
-			parseDelivery(
-				registrationIdentity = registrationIdentity,
-				automaticRecognitionEligible = intent.getBooleanExtra(
-					EXTRA_AUTOMATIC_RECOGNITION_ELIGIBLE,
-					false,
-				),
-				automaticTransitions = intent.automaticTransitions(),
-				activityResult = if (hasActivityResult) {
-					requireNotNull(ActivityRecognitionResult.extractResult(intent))
-				} else {
-					null
-				},
-				transitionResult = if (hasTransitionResult) {
-					requireNotNull(ActivityTransitionResult.extractResult(intent))
-				} else {
-					null
-				},
-				receivedElapsedRealtimeMillis = receivedElapsedRealtimeMillis,
-				receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
-				receivedWallTimeMs = System.currentTimeMillis(),
-				liveStartCommandGeneration = commandGeneration,
-			)
+			intent.parsePhysicalDelivery(registrationIdentity, hasActivityResult, hasTransitionResult,
+				receivedElapsedRealtimeMillis, receivedElapsedRealtimeNanos, commandGeneration)
 		}.getOrElse {
 			// An invalid provider payload is a permanent callback-boundary rejection.
 			callbackPermit?.complete()
@@ -197,7 +183,6 @@ internal class ActivityReceiver : BroadcastReceiver() {
 						finalizeActivityCallbackAuthority(
 							terminallyOwnedOrRejected = terminallyOwnedOrRejected,
 							durablyRetryOwned = retryOwnership.isDurablyRetained,
-							gapCode = retryOwnership.lastFailureCode,
 							recordGap = retryOwnership::recordGap,
 							completePermit = { callbackPermit?.complete() },
 						)
@@ -208,6 +193,37 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			)
 		}
 	}
+
+	private fun Intent.parsePhysicalDelivery(
+		registrationIdentity: ActivityRegistrationIdentity?,
+		hasActivityResult: Boolean,
+		hasTransitionResult: Boolean,
+		receivedElapsedRealtimeMillis: Long,
+		receivedElapsedRealtimeNanos: Long,
+		commandGeneration: Long?,
+	): ParsedActivityDelivery =
+		parseDelivery(
+			registrationIdentity = registrationIdentity,
+			automaticRecognitionEligible = this.getBooleanExtra(
+				EXTRA_AUTOMATIC_RECOGNITION_ELIGIBLE,
+				false,
+			),
+			automaticTransitions = this.automaticTransitions(),
+			activityResult = if (hasActivityResult) {
+				requireNotNull(ActivityRecognitionResult.extractResult(this))
+			} else {
+				null
+			},
+			transitionResult = if (hasTransitionResult) {
+				requireNotNull(ActivityTransitionResult.extractResult(this))
+			} else {
+				null
+			},
+			receivedElapsedRealtimeMillis = receivedElapsedRealtimeMillis,
+			receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
+			receivedWallTimeMs = System.currentTimeMillis(),
+			liveStartCommandGeneration = commandGeneration,
+		)
 
 	private fun parseDelivery(
 		registrationIdentity: ActivityRegistrationIdentity?,
@@ -236,7 +252,9 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			val transitionType = ActivityTransitionType.entries
 				.firstOrNull { it.value == event.transitionType }
 				?: return@mapNotNull null
-			if (event.elapsedRealTimeNanos < 0L) return@mapNotNull null
+			if (event.elapsedRealTimeNanos < 0L) {
+				return@mapNotNull null
+			}
 			TransitionUpdate(
 				activityType = ActivityTypeMapping.fromPlayServicesCode(event.activityType),
 				transitionType = transitionType,
@@ -281,7 +299,9 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			!hasExtra(EXTRA_COLLECTED_DATA_EPOCH) ||
 			getStringExtra(EXTRA_CLOCK_DOMAIN_ID) == null ||
 			getStringExtra(EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT) == null
-		) return null
+		) {
+			return null
+		}
 		return runCatching {
 			ActivityRegistrationIdentity(
 				sourceInstanceId = sourceInstanceId,
@@ -300,7 +320,9 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			?: return emptySet()
 		val transitionTypes = getIntArrayExtra(EXTRA_AUTOMATIC_TRANSITION_TYPES)
 			?: return emptySet()
-		if (activityTypes.size != transitionTypes.size) return emptySet()
+		if (activityTypes.size != transitionTypes.size) {
+			return emptySet()
+		}
 		return activityTypes.indices.mapNotNull { index ->
 			val transitionType = ActivityTransitionType.entries.firstOrNull { type ->
 				type.value == transitionTypes[index]
@@ -312,11 +334,16 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		}.toSet()
 	}
 
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	private fun Intent.durableTransitions(): Set<ActivityTransitionData>? {
-		if (!getBooleanExtra(EXTRA_DURABLE_TRANSITION_FILTER, false)) return null
+		if (!getBooleanExtra(EXTRA_DURABLE_TRANSITION_FILTER, false)) {
+			return null
+		}
 		val activityTypes = getIntArrayExtra(EXTRA_DURABLE_TRANSITION_ACTIVITY_TYPES) ?: return emptySet()
 		val transitionTypes = getIntArrayExtra(EXTRA_DURABLE_TRANSITION_TYPES) ?: return emptySet()
-		if (activityTypes.size != transitionTypes.size) return emptySet()
+		if (activityTypes.size != transitionTypes.size) {
+			return emptySet()
+		}
 		return activityTypes.indices.mapNotNull { index ->
 			val type = ActivityTransitionType.entries.firstOrNull { it.value == transitionTypes[index] }
 				?: return@mapNotNull null
@@ -330,7 +357,9 @@ internal class ActivityReceiver : BroadcastReceiver() {
 	) {
 		try {
 			val assistance = entryPoint.motionAssistance()
-			if (assistance.currentAuthority == null) return
+			if (assistance.currentAuthority == null) {
+				return
+			}
 			if (entryPoint.trackingStartupGate().reconcileAdmission() is TrackingAdmissionStartupResult.Ready) {
 				assistance.publish(batch)
 			}
@@ -372,7 +401,9 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			val selectedTransitions = transitionUpdates.filterIndexed { index, _ ->
 				index in selection.transitionIndexes
 			}
-			if (selectedTransitions.isNotEmpty()) backend.onTransitionResult(selectedTransitions)
+			if (selectedTransitions.isNotEmpty()) {
+				backend.onTransitionResult(selectedTransitions)
+			}
 			selectedTransitions.lastOrNull()
 				?.takeIf { selection.recognitionIndexes.isEmpty() }
 				?.let { transition ->
@@ -403,7 +434,11 @@ internal fun ActivityRecognitionEvidenceBatch.forDurableActivityOwners(
 	recognitionEligible: Boolean,
 	transitions: Set<ActivityTransitionData>?,
 ): ActivityRecognitionEvidenceBatch = copy(
-	recognitions = if (recognitionEligible) recognitions else emptyList(),
+	recognitions = if (recognitionEligible) {
+		recognitions
+	} else {
+		emptyList()
+	},
 	transitions = this.transitions.filter { event ->
 		transitions == null || ActivityTransitionData(event.activityType, event.transitionType) in transitions
 	},
@@ -534,7 +569,9 @@ internal class ActivityCallbackRetryOwnership(
 
 	suspend fun retain() {
 		mutex.withLock {
-			if (retainedId != null) return
+			if (retainedId != null) {
+				return
+			}
 			try {
 				retainedId = owner.retain(batch)
 			} catch (error: ActivityCallbackRetryStoreException) {
@@ -575,7 +612,6 @@ internal enum class ActivityCallbackFinalizationDisposition {
 internal suspend fun finalizeActivityCallbackAuthority(
 	terminallyOwnedOrRejected: Boolean,
 	durablyRetryOwned: Boolean,
-	gapCode: ActivityCallbackGapCode,
 	recordGap: suspend () -> Boolean,
 	completePermit: () -> Unit,
 ): ActivityCallbackFinalizationDisposition = try {

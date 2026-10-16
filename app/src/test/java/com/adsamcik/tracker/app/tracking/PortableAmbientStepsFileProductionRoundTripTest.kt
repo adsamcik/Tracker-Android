@@ -68,6 +68,9 @@ class PortableAmbientStepsFileProductionRoundTripTest {
 	}
 
 	@Test
+	// Keep one native partial Steps day through production export, import, re-export, deletion and replay
+	// rejection together.
+	@Suppress("LongMethod")
 	fun `native partial outside-authority zero and nonzero facts survive file import and reexport`() =
 		runTest {
 			source.withTransaction {
@@ -121,6 +124,7 @@ class PortableAmbientStepsFileProductionRoundTripTest {
 					"direct-source-v1",
 					"content-addressed-job",
 					DAY_END + 1_000L,
+					EPOCH,
 				),
 			).successCount shouldBe 1
 
@@ -158,6 +162,7 @@ class PortableAmbientStepsFileProductionRoundTripTest {
 					"replay-source-v1",
 					"replay-content-job",
 					DAY_END + 3_000L,
+					EPOCH,
 				),
 			).skippedCount shouldBe 1
 		}

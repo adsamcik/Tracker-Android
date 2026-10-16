@@ -49,6 +49,9 @@ data class ActivityCapturedRegistrationPlanEntity(
 		require(bindingIdentity == calculatedBindingIdentity())
 	}
 
+	/**
+	 * Recomputes the binding digest from the exact registration, plan payload and apply boundary.
+	 */
 	fun calculatedBindingIdentity(): String = calculateBindingIdentity(
 		sourceInstanceId = sourceInstanceId,
 		registrationGeneration = registrationGeneration,
@@ -60,9 +63,17 @@ data class ActivityCapturedRegistrationPlanEntity(
 		applyStatus = applyStatus,
 	)
 
+	/**
+	 * Factories and canonical digests binding this record to its original identity, revision and
+	 * lifecycle fields.
+	 */
 	companion object {
 		val APPLIED_STATUSES = setOf("APPLIED", "DEGRADED")
 
+		/**
+		 * Copies the applied Activity plan payload and binds it to the exact provider registration,
+		 * configuration and apply boundary with a digest.
+		 */
 		@Suppress("LongParameterList")
 		fun create(
 			sourceInstanceId: String,
@@ -211,8 +222,12 @@ data class ActivityCapturedWindowRevisionEntity(
 		require(logicalWindowId.isNotBlank() && mutationId.isNotBlank())
 		require(semanticRevision > 0L)
 		require(
-			if (semanticRevision == 1L) supersedesSemanticRevision == null
-			else supersedesSemanticRevision == semanticRevision - 1L,
+			if (semanticRevision == 1L) {
+				supersedesSemanticRevision == null
+			}
+			else {
+				supersedesSemanticRevision == semanticRevision - 1L
+			},
 		)
 		require(logicalTrackingId.isNotBlank() && serviceRunId.isNotBlank())
 		require(sessionSegmentId > 0L)
@@ -250,6 +265,10 @@ data class ActivityCapturedWindowRevisionEntity(
 		require(effectChecksum.isNotBlank() && appliedAtMs >= 0L)
 	}
 
+	/**
+	 * Factories and canonical digests binding this record to its original identity, revision and
+	 * lifecycle fields.
+	 */
 	companion object {
 		val COVERAGES = setOf("NONE", "PARTIAL", "COMPLETE")
 	}
@@ -359,6 +378,10 @@ data class ActivityCapturedFragmentEntity(
 		}
 	}
 
+	/**
+	 * Stable persisted codes, including `KIND_BAND`, `KIND_GAP`, `CONFIDENCE_TRANSITION`, and any
+	 * identity-bound record factories.
+	 */
 	companion object {
 		const val KIND_BAND = "BAND"
 		const val KIND_GAP = "GAP"
@@ -461,6 +484,10 @@ data class ActivityCapturedEvidenceEntity(
 		}
 	}
 
+	/**
+	 * Stable persisted codes, including `KIND_TRANSITION`, `KIND_SAMPLED_CLASSIFICATION`, and any
+	 * identity-bound record factories.
+	 */
 	companion object {
 		const val KIND_TRANSITION = "TRANSITION"
 		const val KIND_SAMPLED_CLASSIFICATION = "SAMPLED_CLASSIFICATION"

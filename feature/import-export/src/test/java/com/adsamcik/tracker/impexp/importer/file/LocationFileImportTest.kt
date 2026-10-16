@@ -8,6 +8,7 @@ import com.adsamcik.tracker.impexp.portable.LocationFileJsonV1
 import com.adsamcik.tracker.impexp.portable.LocationFilePointV1
 import com.adsamcik.tracker.impexp.portable.LocationFileOrigin
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.deleteAllCollectedDataForTesting
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
@@ -272,7 +273,9 @@ class LocationFileImportTest {
             private var delivered = false
             override fun read(): Int = throw CancellationException("Import cancelled")
             override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-                if (delivered) throw CancellationException("Import cancelled")
+                if (delivered) {
+                    throw CancellationException("Import cancelled")
+                }
                 delivered = true
                 buffer[offset] = 'x'.code.toByte()
                 return 1

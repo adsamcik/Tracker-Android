@@ -58,8 +58,14 @@ internal data class SessionExportChoices(
 	val unavailableSources: Set<HistorySource>,
 )
 
+/**
+ * Owns local-date session browsing, annotation editing and exact-source bundle export; stale data epochs
+ * invalidate drafts and selections.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
+// One session selection and data epoch own browsing, editing and export.
+@Suppress("TooManyFunctions")
 class SessionOrganizationViewModel @Inject constructor(
 	private val repository: PagedSessionOrganizationRepository,
 	private val clock: Clock,
@@ -102,12 +108,17 @@ class SessionOrganizationViewModel @Inject constructor(
 
 	val pagedContents = _contents.flatMapLatest { session ->
 		val selection = session?.contentsRange()
-		if (selection == null) flowOf(PagingData.empty<HistoryPagingItem>())
-		else Pager(PagingConfig(pageSize = 50, initialLoadSize = 100, enablePlaceholders = false),
+		if (selection == null) {
+			flowOf(PagingData.empty<HistoryPagingItem>())
+		}
+		else {
+			Pager(PagingConfig(pageSize = 50, initialLoadSize = 100, enablePlaceholders = false),
 			pagingSourceFactory = { history.pagingSource(selection) }).flow
+		}
 	}.cachedIn(viewModelScope)
 
-	val pagedSessions = combine(range, lifecycle.snapshots.map { it.epoch }.distinctUntilChanged()) { day, epoch -> day to epoch }
+	val pagedSessions = combine(range, lifecycle.snapshots.map { it.epoch }.distinctUntilChanged()) { day, epoch ->
+        day to epoch }
 		.flatMapLatest { (day, _) ->
 			val zone = ZoneId.systemDefault()
 			Pager(PagingConfig(pageSize = 50, initialLoadSize = 100, enablePlaceholders = false),
@@ -120,8 +131,13 @@ class SessionOrganizationViewModel @Inject constructor(
 			range.collectLatest { day ->
 				val zone = ZoneId.systemDefault()
 				repository.observe(day?.atStartOfDay(zone)?.toInstant()?.toEpochMilli(),
-					day?.plusDays(1)?.atStartOfDay(zone)?.toInstant()?.toEpochMilli()).combine(lifecycle.snapshots) { result, snapshot ->
-						if (result is SessionOrganizationRead.Content && result.collectedDataEpoch != snapshot.epoch) null else result
+					day?.plusDays(1)?.atStartOfDay(zone)?.toInstant()?.toEpochMilli()).combine(lifecycle.snapshots) { result,
+                        snapshot ->
+						if (result is SessionOrganizationRead.Content && result.collectedDataEpoch != snapshot.epoch) {
+							null
+						} else {
+							result
+						}
 					}.collect { _read.value = it }
 			}
 		}
@@ -131,7 +147,11 @@ class SessionOrganizationViewModel @Inject constructor(
 				repository.observe(value.atDay(1).atStartOfDay(zone).toInstant().toEpochMilli(),
 					value.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant().toEpochMilli())
 					.combine(lifecycle.snapshots) { result, snapshot ->
-						if (result is SessionOrganizationRead.Content && result.collectedDataEpoch != snapshot.epoch) null else result
+						if (result is SessionOrganizationRead.Content && result.collectedDataEpoch != snapshot.epoch) {
+							null
+						} else {
+							result
+						}
 					}.collect { _monthRead.value = it }
 			}
 		}
@@ -139,10 +159,20 @@ class SessionOrganizationViewModel @Inject constructor(
 			lifecycle.snapshots.collect { snapshot ->
 				val changedEpoch = currentEpoch != snapshot.epoch
 				currentEpoch = snapshot.epoch
-				if ((_read.value as? SessionOrganizationRead.Content)?.collectedDataEpoch?.let { it != snapshot.epoch } == true) _read.value = null
-				if ((_monthRead.value as? SessionOrganizationRead.Content)?.collectedDataEpoch?.let { it != snapshot.epoch } == true) _monthRead.value = null
-				if (changedEpoch) _labels.value = emptyList()
-				if (_contents.value?.collectedDataEpoch?.let { it != snapshot.epoch } == true) closeContents()
+				if ((_read.value as? SessionOrganizationRead.Content)?.collectedDataEpoch?.let { it != snapshot.epoch } == true) {
+					_read.value = null
+				}
+				if ((_monthRead.value as? SessionOrganizationRead.Content)?.collectedDataEpoch
+					?.let { it != snapshot.epoch } == true
+				) {
+					_monthRead.value = null
+				}
+				if (changedEpoch) {
+					_labels.value = emptyList()
+				}
+				if (_contents.value?.collectedDataEpoch?.let { it != snapshot.epoch } == true) {
+					closeContents()
+				}
 				if (_editor.value?.epoch?.let { it != snapshot.epoch } == true) {
 					_editor.value = null
 					_problem.value = OrganizationEditProblem.STALE
@@ -151,37 +181,57 @@ class SessionOrganizationViewModel @Inject constructor(
 		}
 	}
 
+	/** Selects a displayed local day; null removes the day filter from session browsing. */
 	fun showDay(day: LocalDate?) { range.value = day }
+	/** Selects the local calendar month whose session annotations are observed. */
 	fun showMonth(value: YearMonth) { month.value = value }
+	/** Observes the selected session and pages its saved data; refuses a session from another data epoch. */
 	fun showContents(session: OrganizedSession) {
-		if (currentEpoch?.let { it != session.collectedDataEpoch } == true) return
+		if (currentEpoch?.let { it != session.collectedDataEpoch } == true) {
+			return
+		}
 		contentsJob?.cancel()
 		_contents.value = session
 		_contentsUnavailable.value = false
 		_exportFailure.value = null
 		contentsJob = viewModelScope.launch {
 			try { repository.observeSession(session.id).collect { read ->
-				if (_contents.value?.id != session.id) return@collect
-				when (read) {
-					SessionOrganizationRead.Unavailable -> _contentsUnavailable.value = true
-					is SessionOrganizationRead.Content -> {
-						val fresh = read.sessions.singleOrNull()
-						if (fresh == null || currentEpoch?.let { fresh.collectedDataEpoch != it } == true) closeContents()
-						else {
-							_contents.value = fresh; _contentsUnavailable.value = false
-							if (_exportChoices.value?.session?.let { it != fresh } == true) {
-								_exportChoices.value = null; _exportFailure.value = SessionBundleExportFailure.STALE
-							}
-						}
-					}
+				acceptContentsRead(session, read)
+			} } catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+				// Keep the selected session available for Retry when its stream fails; cancellation still escapes.
+				if (failure is CancellationException) {
+					throw failure
 				}
-			} } catch (failure: Exception) {
-				if (failure is CancellationException) throw failure
-				if (_contents.value?.id == session.id) _contentsUnavailable.value = true
+				if (_contents.value?.id == session.id) {
+					_contentsUnavailable.value = true
+				}
 			}
 		}
 	}
+	private fun acceptContentsRead(session: OrganizedSession, read: SessionOrganizationRead) {
+		if (_contents.value?.id != session.id) {
+			return
+		}
+		when (read) {
+			SessionOrganizationRead.Unavailable -> _contentsUnavailable.value = true
+			is SessionOrganizationRead.Content -> {
+				val fresh = read.sessions.singleOrNull()
+				if (fresh == null || currentEpoch?.let { fresh.collectedDataEpoch != it } == true) {
+					closeContents()
+				}
+				else {
+					_contents.value = fresh; _contentsUnavailable.value = false
+					if (_exportChoices.value?.session?.let { it != fresh } == true) {
+						_exportChoices.value = null; _exportFailure.value = SessionBundleExportFailure.STALE
+					}
+				}
+			}
+		}
+	}
+
+	/** Restarts the current session observation after a read failure, preserving the selected session. */
 	fun retryContents() { _contents.value?.let(::showContents) }
+	/** Cancels contents and export work and releases their selections when the session detail closes. */
 	fun closeContents() {
 		++exportGeneration
 		contentsJob?.cancel(); contentsJob = null
@@ -194,84 +244,147 @@ class SessionOrganizationViewModel @Inject constructor(
 	fun chooseExportSources() {
 		val session = _contents.value ?: return
 		val selection = session.contentsRange() ?: return
-		if (_exportBusy.value) return
+		if (_exportBusy.value) {
+			return
+		}
 		val generation = ++exportGeneration
 		_exportBusy.value = true; _exportFailure.value = null
 		exportJob = viewModelScope.launch {
 			try {
-				val available = linkedSetOf<HistorySource>()
-				val unavailable = linkedSetOf<HistorySource>()
-				for (source in HistorySource.entries) {
-					val sourceRange = selection.copy(sources = setOf(source))
-					var continuation: HistoryContinuation? = null
-					do {
-						when (val page = history.readRange(HistoryRangeRequest(sourceRange, after = continuation))) {
-							is HistoryRangeRead.Unavailable -> { unavailable += source; break }
-							is HistoryRangeRead.Page -> {
-								if (page.snapshot.collectedDataEpoch != session.collectedDataEpoch) {
-									if (generation == exportGeneration) _exportFailure.value = SessionBundleExportFailure.STALE
-									return@launch
-								}
-								if (page.rows.isNotEmpty()) { available += source; break }
-								if (page.problems.isNotEmpty()) { unavailable += source; break }
-								continuation = page.next
-							}
-						}
-					} while (continuation != null)
+				val choices = readExportChoices(session, selection, generation) ?: return@launch
+				publishExportChoices(generation, choices)
+			} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+				// Publish the current chooser failure without changing a newer request; cancellation still escapes.
+				if (failure is CancellationException) {
+					throw failure
 				}
-				if (generation == exportGeneration && _contents.value == session)
-					_exportChoices.value = SessionExportChoices(session, available, unavailable)
-			} catch (failure: Exception) {
-				if (failure is CancellationException) throw failure
-				if (generation == exportGeneration) _exportFailure.value = SessionBundleExportFailure.UNAVAILABLE
-			} finally { if (generation == exportGeneration) _exportBusy.value = false }
+				if (generation == exportGeneration) {
+					_exportFailure.value = SessionBundleExportFailure.UNAVAILABLE
+				}
+			} finally { if (generation == exportGeneration) {
+				_exportBusy.value = false
+			} }
 		}
 	}
+	private fun publishExportChoices(generation: Long, choices: SessionExportChoices) {
+		if (generation == exportGeneration && _contents.value == choices.session) {
+			_exportChoices.value = choices
+		}
+	}
+
+	private suspend fun readExportChoices(
+		session: OrganizedSession, selection: HistoryRange, generation: Long,
+	): SessionExportChoices? {
+		val available = linkedSetOf<HistorySource>()
+		val unavailable = linkedSetOf<HistorySource>()
+		for (source in HistorySource.entries) {
+			when (val page = readExportSource(selection.copy(sources = setOf(source)), session.collectedDataEpoch)) {
+				null -> {
+					if (generation == exportGeneration) {
+						_exportFailure.value = SessionBundleExportFailure.STALE
+					}
+					return null
+				}
+				is HistoryRangeRead.Unavailable -> unavailable += source
+				is HistoryRangeRead.Page -> {
+					if (page.rows.isNotEmpty()) {
+						available += source
+					} else if (page.problems.isNotEmpty()) {
+						unavailable += source
+					}
+				}
+			}
+		}
+		return SessionExportChoices(session, available, unavailable)
+	}
+
+	private suspend fun readExportSource(range: HistoryRange, expectedEpoch: Long): HistoryRangeRead? {
+		var continuation: HistoryContinuation? = null
+		while (true) {
+			when (val page = history.readRange(HistoryRangeRequest(range, after = continuation))) {
+				is HistoryRangeRead.Unavailable -> return page
+				is HistoryRangeRead.Page -> {
+					if (page.snapshot.collectedDataEpoch != expectedEpoch) {
+						return null
+					}
+					if (page.rows.isNotEmpty() || page.problems.isNotEmpty() || page.next == null) {
+						return page
+					}
+					continuation = page.next
+				}
+			}
+		}
+	}
+
+	/** Closes the source chooser without writing a file or changing the session. */
 	fun dismissExportChoices() { _exportChoices.value = null }
 	internal fun prepareExport(sources: Set<HistorySource>): Boolean {
 		val choices = _exportChoices.value ?: return false
-		if (sources.isEmpty() || !choices.availableSources.containsAll(sources) || _contents.value != choices.session) return false
+		if (sources.isEmpty() || !choices.availableSources.containsAll(sources) || _contents.value != choices.session) {
+			return false
+		}
 		pendingExport = SessionBundleExportRequest(choices.session.id, choices.session.revision,
 			choices.session.collectedDataEpoch, sources.toSet())
 		_exportChoices.value = null
 		return true
 	}
+	/** Consumes the prepared session/source selection once; a null destination cancels the picker result. */
 	fun exportTo(destination: Uri?) {
 		val request = pendingExport ?: return
 		pendingExport = null
-		if (destination == null || _exportBusy.value) return
+		if (destination == null || _exportBusy.value) {
+			return
+		}
 		val generation = ++exportGeneration
 		_exportBusy.value = true; _exportFailure.value = null
 		exportJob = viewModelScope.launch {
 			try {
-				val result = exporter.export(destination, request)
-				if (generation != exportGeneration) return@launch
-				when (result) {
-					is SessionBundleExportResult.Success -> _exportSaved.emit(result)
-					is SessionBundleExportResult.Failure -> _exportFailure.value = result.reason
+				val result = exporter.export(destination.toString(), request)
+				publishExportResult(generation, result)
+			} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+				// Publish destination/storage failure for this export request; cancellation still escapes.
+				if (failure is CancellationException) {
+					throw failure
 				}
-			} catch (failure: Exception) {
-				if (failure is CancellationException) throw failure
-				if (generation == exportGeneration) _exportFailure.value = SessionBundleExportFailure.STORAGE
-			} finally { if (generation == exportGeneration) _exportBusy.value = false }
+				if (generation == exportGeneration) {
+					_exportFailure.value = SessionBundleExportFailure.STORAGE
+				}
+			} finally { if (generation == exportGeneration) {
+				_exportBusy.value = false
+			} }
 		}
 	}
+	private suspend fun publishExportResult(generation: Long, result: SessionBundleExportResult) {
+		if (generation != exportGeneration) {
+			return
+		}
+		when (result) {
+			is SessionBundleExportResult.Success -> _exportSaved.emit(result)
+			is SessionBundleExportResult.Failure -> _exportFailure.value = result.reason
+		}
+	}
+
+	/** Opens a retrospective session draft for the local day, or the recent hour when no day is selected. */
 	fun add(day: LocalDate?) {
 		val epoch = (_read.value as? SessionOrganizationRead.Content)?.collectedDataEpoch ?: return
 		val zone = ZoneId.systemDefault()
 		val now = clock.currentTimeMillis()
-		val start = day?.atStartOfDay(zone)?.toInstant()?.toEpochMilli() ?: (now - 3_600_000L).coerceAtLeast(0L)
+		val start = day?.atStartOfDay(zone)?.toInstant()?.toEpochMilli()
+			?: (now - DEFAULT_SESSION_INTERVAL_MS).coerceAtLeast(0L)
 		val end = day?.plusDays(1)?.atStartOfDay(zone)?.toInstant()?.toEpochMilli()?.coerceAtMost(now) ?: now
 		open(SessionEditorTarget(null, epoch, OrganizationInterval(start, end), zone.id))
 	}
+	/** Opens an annotation draft bound to the selected session revision and original data epoch. */
 	fun edit(session: OrganizedSession) {
 		val now = clock.currentTimeMillis()
 		open(SessionEditorTarget(session, session.collectedDataEpoch,
-			OrganizationInterval(session.fromMs ?: (now - 3_600_000L).coerceAtLeast(0L), session.toMs ?: now),
+			OrganizationInterval(session.fromMs ?: (now - DEFAULT_SESSION_INTERVAL_MS).coerceAtLeast(0L), session.toMs ?: now),
 			session.displayZoneId))
 	}
 	private fun open(target: SessionEditorTarget) {
-		if (_busy.value) return
+		if (_busy.value) {
+			return
+		}
 		if (currentEpoch?.let { it != target.epoch } == true) {
 			_editor.value = null; _problem.value = OrganizationEditProblem.STALE
 			return
@@ -281,55 +394,85 @@ class SessionOrganizationViewModel @Inject constructor(
 		viewModelScope.launch {
 			try {
 				val labels = repository.activityLabels()
-				if (_editor.value == target && currentEpoch == target.epoch) _labels.value = labels
+				if (_editor.value == target && currentEpoch == target.epoch) {
+					_labels.value = labels
+				}
 			}
-			catch (failure: Exception) {
-				if (failure is CancellationException) throw failure
-				if (_editor.value == target && currentEpoch == target.epoch) _problem.value = OrganizationEditProblem.STORAGE_UNAVAILABLE
+			catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+				// Keep the current annotation draft on label-load failure; cancellation still escapes.
+				if (failure is CancellationException) {
+					throw failure
+				}
+				if (_editor.value == target && currentEpoch == target.epoch) {
+					_problem.value = OrganizationEditProblem.STORAGE_UNAVAILABLE
+				}
 			}
 		}
 	}
+	/** Closes an idle annotation draft and its error; a mutation already in progress keeps ownership. */
 	fun dismiss() { if (!_busy.value) { _editor.value = null; _problem.value = null } }
 	/** Explicit reload discards the stale draft only after the user chooses to reopen. */
 	fun reload() {
 		val old = _editor.value ?: return
 		val id = old.session?.id ?: return
-		if (_busy.value) return
+		if (_busy.value) {
+			return
+		}
 		_busy.value = true
 		viewModelScope.launch {
 			try {
 				val result = repository.find(id)
-				if (_editor.value != old) return@launch
-				when (result) {
-					SessionOrganizationRead.Unavailable -> _problem.value = OrganizationEditProblem.STORAGE_UNAVAILABLE
-					is SessionOrganizationRead.Content -> {
-						val fresh = result.sessions.singleOrNull()
-						if (fresh == null) { _editor.value = null; _problem.value = OrganizationEditProblem.NOT_FOUND }
-						else if (fresh.collectedDataEpoch == old.epoch) {
-							_busy.value = false
-							edit(fresh)
-						}
-					}
+				if (_editor.value != old) {
+					return@launch
 				}
-			} catch (failure: Exception) {
-				if (failure is CancellationException) throw failure
+				acceptReload(old, result)
+			} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+				// Show reload recovery without discarding the current draft; cancellation still escapes.
+				if (failure is CancellationException) {
+					throw failure
+				}
 				_problem.value = OrganizationEditProblem.STORAGE_UNAVAILABLE
 			} finally { _busy.value = false }
 		}
 	}
 
+	private fun acceptReload(old: SessionEditorTarget, result: SessionOrganizationRead) {
+		when (result) {
+			SessionOrganizationRead.Unavailable -> _problem.value = OrganizationEditProblem.STORAGE_UNAVAILABLE
+			is SessionOrganizationRead.Content -> {
+				val fresh = result.sessions.singleOrNull()
+				if (fresh == null) { _editor.value = null; _problem.value = OrganizationEditProblem.NOT_FOUND }
+				else if (fresh.collectedDataEpoch == old.epoch) {
+					_busy.value = false
+					edit(fresh)
+				}
+			}
+		}
+	}
+
+	/**
+	 * Creates or edits session metadata with optional UTC-millisecond interval changes; saved observations are
+	 * not rewritten.
+	 */
 	fun save(intervalChange: OrganizationInterval?, zoneId: String, name: String?, label: Long?,
 		clearImportedActivityLabel: Boolean = false) = perform { target ->
-		if (target.session == null) repository.create(target.epoch, intervalChange ?: target.interval, zoneId, name, label)
-		else repository.edit(target.session, intervalChange, zoneId, name, label, clearImportedActivityLabel)
+		if (target.session == null) {
+			repository.create(target.epoch, intervalChange ?: target.interval, zoneId, name, label)
+		}
+		else {
+			repository.edit(target.session, intervalChange, zoneId, name, label, clearImportedActivityLabel)
+		}
 	}
+	/** Removes the selected session annotation through the repository, preserving its underlying observations. */
 	fun remove() = perform { target ->
 		target.session?.let { repository.remove(it) }
 			?: OrganizationMutationResult.Rejected(OrganizationEditProblem.NOT_FOUND)
 	}
 	private fun perform(action: suspend (SessionEditorTarget) -> OrganizationMutationResult) {
 		val target = _editor.value ?: return
-		if (_busy.value) return
+		if (_busy.value) {
+			return
+		}
 		_busy.value = true
 		viewModelScope.launch {
 			try {
@@ -344,9 +487,21 @@ class SessionOrganizationViewModel @Inject constructor(
 
 internal fun OrganizedSession.contentsRange(): HistoryRange? {
 	val from = fromMs ?: return null
-	val to = toMs ?: if (isActive) Long.MAX_VALUE else return null
-	if (to < from || from == Long.MAX_VALUE) return null
-	val queryEnd = if (to == from) to + 1L else to
+	val to = toMs ?: if (isActive) {
+		Long.MAX_VALUE
+	} else {
+		return null
+	}
+	if (to < from || from == Long.MAX_VALUE) {
+		return null
+	}
+	val queryEnd = if (to == from) {
+		to + 1L
+	} else {
+		to
+	}
 	return HistoryRange(from, queryEnd, displayZoneId, mode = HistoryBrowseMode.OBSERVATIONS,
 		organizationSessionId = id, expectedCollectedDataEpoch = collectedDataEpoch)
 }
+
+private const val DEFAULT_SESSION_INTERVAL_MS = 3_600_000L

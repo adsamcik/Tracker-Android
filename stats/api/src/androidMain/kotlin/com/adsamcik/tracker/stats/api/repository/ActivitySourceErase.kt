@@ -21,10 +21,21 @@ data class ActivitySourceEraseRequest(
  * outside this command.
  */
 interface ActivitySourceErase {
+	/**
+	 * Erases Activity captured product after consent revocation and provider quiescence; callers must
+	 * continue bounded batches until complete.
+	 */
 	suspend fun erase(request: ActivitySourceEraseRequest): ActivitySourceEraseResult
 }
 
+/**
+ * Source-wide Activity erase outcome, including completed work when a later bounded batch cannot
+ * finish.
+ */
 sealed interface ActivitySourceEraseResult {
+	/**
+	 * Reports removed local and imported Activity rows and fenced local runs after source erasure.
+	 */
 	data class Erased(
 		val localLogicalWindowCount: Int,
 		val localRevisionCount: Int,
@@ -55,6 +66,10 @@ sealed interface ActivitySourceEraseResult {
 	/** Local payload and every imported product lineage were already absent or durably erased. */
 	data object AlreadyErased : ActivitySourceEraseResult
 
+	/**
+	 * Erasure stopped at the stated authority change; fields report work completed before that
+	 * boundary.
+	 */
 	data class Blocked(
 		val reason: ActivitySourceEraseBlockedReason,
 		val localProductErasedBeforeFailure: Boolean = false,
@@ -82,6 +97,9 @@ sealed interface ActivitySourceEraseResult {
 		}
 	}
 
+	/**
+	 * Erasure could not verify the remaining scope; fields preserve the amount already erased.
+	 */
 	data class Unverifiable(
 		val reason: ActivitySourceEraseUnverifiableReason,
 		val localProductErasedBeforeFailure: Boolean = false,
@@ -92,6 +110,9 @@ sealed interface ActivitySourceEraseResult {
 		}
 	}
 
+	/**
+	 * Erasure encountered a temporary failure; fields report work completed before a retry is needed.
+	 */
 	data class RetryableFailure(
 		val reason: ActivitySourceEraseRetryableReason,
 		val localProductErasedBeforeFailure: Boolean = false,
@@ -103,6 +124,10 @@ sealed interface ActivitySourceEraseResult {
 	}
 }
 
+/**
+ * Consent, provider, destination or imported-selection changes that prevent continuing the
+ * Activity erase.
+ */
 enum class ActivitySourceEraseBlockedReason {
 	SOURCE_EVIDENCE_AUTHORITY_CHANGED,
 	POLICY_AUTHORITY_UNAVAILABLE,
@@ -116,6 +141,10 @@ enum class ActivitySourceEraseBlockedReason {
 	IMPORTED_RETENTION_BOUNDARY_CHANGED,
 }
 
+/**
+ * Invalid local/imported lineage, unrecognized payload or exceeded maintenance bounds during
+ * Activity erase.
+ */
 enum class ActivitySourceEraseUnverifiableReason {
 	LOCAL_FACT_AUTHORITY_UNVERIFIABLE,
 	UNRECOGNIZED_LOCAL_PAYLOAD,
@@ -126,6 +155,9 @@ enum class ActivitySourceEraseUnverifiableReason {
 	VALUE_OVERFLOW,
 }
 
+/**
+ * Concurrent-state or storage failures for which Activity erase can be retried.
+ */
 enum class ActivitySourceEraseRetryableReason {
 	CONCURRENT_STATE_CHANGE,
 	STORAGE_UNAVAILABLE,

@@ -37,14 +37,18 @@ internal class TraceboxTrackingDiagnosticAdapter internal constructor(
 		} catch (_: Exception) {
 			false
 		}
-		if (writeSucceeded) return TrackingDiagnosticStorageResult.STORED
+		if (writeSucceeded) {
+			return TrackingDiagnosticStorageResult.STORED
+		}
 
 		reportFailureSafely()
 		return TrackingDiagnosticStorageResult.STORAGE_RETRYABLE
 	}
 
 	private suspend fun reportFailureSafely() {
-		if (!reportingFailure.compareAndSet(false, true)) return
+		if (!reportingFailure.compareAndSet(false, true)) {
+			return
+		}
 		try {
 			try {
 				failureReporter()

@@ -3,27 +3,27 @@ package com.adsamcik.tracker.tracker.source.importer
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.authenticatedGraph
-import com.adsamcik.tracker.shared.base.database.insertAuthenticatedGraph
-import com.adsamcik.tracker.shared.base.database.loadAuthenticatedImportedSessionCountDomainBinding
-import com.adsamcik.tracker.shared.base.database.hasCompletePortableOwnerLineages
-import com.adsamcik.tracker.shared.base.database.enqueueStepsGoalRepairDay
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryLockedDays
+import com.adsamcik.tracker.shared.base.database.authenticatedGraph
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPortableStepsCountDomainDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
-import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
-import com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableCountDomainIdentity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainRootEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFileReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.enqueueStepsGoalRepairDay
+import com.adsamcik.tracker.shared.base.database.hasCompletePortableOwnerLineages
+import com.adsamcik.tracker.shared.base.database.insertAuthenticatedGraph
+import com.adsamcik.tracker.shared.base.database.loadAuthenticatedImportedSessionCountDomainBinding
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsAdmissionRows
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsReadFailure
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedRead
@@ -33,34 +33,30 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.repository.ExportPortableSteps
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
-import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
 import com.adsamcik.tracker.stats.api.repository.ImportPortableSteps
+import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsResult
 import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsV1WithReceipt
 import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsV2
 import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsV2Request
-import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsResult
-import com.adsamcik.tracker.stats.api.repository.PORTABLE_STEPS_ENTRY_ORDER
+import com.adsamcik.tracker.stats.api.repository.PortableCountDomainGraphV2
 import com.adsamcik.tracker.stats.api.repository.PortableStepsConflictScope
 import com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV2
+import com.adsamcik.tracker.stats.api.repository.PortableStepsImportMetadataV2
 import com.adsamcik.tracker.stats.api.repository.PortableStepsImportReceipt
-import com.adsamcik.tracker.stats.api.repository.PortableStepsExportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableStepsImportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableStepsTransferRetryableReason
-import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import com.adsamcik.tracker.tracker.source.deletion.StepsDailySummaryRepairComposer
+import com.adsamcik.tracker.tracker.source.deletion.StepsDayRepairPlan
 import com.adsamcik.tracker.tracker.source.deletion.StepsDayRepairPreflight
-import java.time.DateTimeException
-import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
-import java.time.ZoneOffset
 import java.util.ConcurrentModificationException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -69,7 +65,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 
 /**
  * Authoritative, source-local admission for one already-decoded portable Steps logical entry.
@@ -151,11 +146,7 @@ internal class RoomImportPortableSteps internal constructor(
 		val expected = request.metadata
 		val graph = request.entry.countDomainGraph
 		if (request.metadata.entryCount <= request.entryOrdinal ||
-			request.metadata.receiptCount < graph.receipts.size ||
-			request.metadata.ownerRevisionCount < graph.ownerRevisions.size ||
-			request.metadata.completenessMarkerCount < graph.completenessMarkers.size ||
-			request.metadata.rootCount < graph.roots.size ||
-			!graph.hasCompletePortableOwnerLineages()
+			!graph.fitsImportMetadata(request.metadata) || !graph.hasCompletePortableOwnerLineages()
 		) {
 			return ImportPortableStepsResult.Unverifiable(
 				PortableStepsImportUnverifiableReason.ATTRIBUTION_UNVERIFIABLE,
@@ -229,31 +220,37 @@ internal class RoomImportPortableSteps internal constructor(
 		} catch (unverifiable: PortableStepsImportUnverifiableException) {
 			return ImportPortableStepsResult.Unverifiable(unverifiable.reason)
 		}
-		val entry = prepared.entry
-		if (entry != callerEntryV2.product) {
-			return concurrentState()
+		return if (prepared.entry != callerEntryV2.product) {
+			concurrentState()
+		} else {
+			val graph = callerEntryV2.snapshotImportGraph(prepared.entry)
+			if (graph == null) {
+				attributionUnverifiable()
+			} else {
+				val conflict = prepared.entry.identityConflictWithinEntry()
+				if (conflict != null) {
+					ImportPortableStepsResult.Conflict(conflict)
+				} else {
+					prepared.importRetainedSnapshot(
+						callerEntry, graph, sourceSchemaVersion, fileReceipt, entryOrdinal,
+						sourcePayloadChecksum, expectedCollectedDataEpoch,
+					)
+				}
+			}
 		}
-		val graph = try {
-			callerEntryV2.countDomainGraph.let { source ->
-				source.copy(
-					receipts = source.receipts.map { it.copy() },
-					ownerRevisions = source.ownerRevisions.map { it.copy() },
-					completenessMarkers = source.completenessMarkers.map { it.copy() },
-					roots = source.roots.map { it.copy() },
-				)
-			}.also { PortableStepsEntryV2(entry, it) }
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (_: IllegalArgumentException) {
-			return attributionUnverifiable()
-		} catch (_: IllegalStateException) {
-			return attributionUnverifiable()
-		} catch (_: ArithmeticException) {
-			return attributionUnverifiable()
-		}
-		entry.identityConflictWithinEntry()?.let { scope ->
-			return ImportPortableStepsResult.Conflict(scope)
-		}
+	}
+
+	// Keep the original caller snapshot and immutable admission inputs explicit through preflight.
+	@Suppress("LongParameterList")
+	private suspend fun PreparedPortableStepsDayScope.importRetainedSnapshot(
+		callerEntry: PortableStepsEntryV1,
+		graph: PortableCountDomainGraphV2,
+		sourceSchemaVersion: Int,
+		fileReceipt: PortableStepsImportReceipt?,
+		entryOrdinal: Int,
+		sourcePayloadChecksum: String,
+		expectedCollectedDataEpoch: Long?,
+	): ImportPortableStepsResult {
 		val lifecycle = try {
 			lifecycleStore.snapshot()
 		} catch (cancelled: CancellationException) {
@@ -261,35 +258,30 @@ internal class RoomImportPortableSteps internal constructor(
 		} catch (_: Exception) {
 			return storageUnavailable()
 		}
-		if (expectedCollectedDataEpoch != null && lifecycle.epoch != expectedCollectedDataEpoch) {
-			return concurrentState()
+		return when {
+			expectedCollectedDataEpoch != null && lifecycle.epoch != expectedCollectedDataEpoch -> concurrentState()
+			entry.isOutsideRetention(lifecycle.retainedFromMs) -> ImportPortableStepsResult.OutsideRetention
+			else -> database.readAdmissionRefusal(
+				entry, graph, sourceSchemaVersion, fileReceipt, entryOrdinal, sourcePayloadChecksum, lifecycle,
+			) ?: preflightAndImport(
+				callerEntry, graph, sourceSchemaVersion, fileReceipt, entryOrdinal,
+				sourcePayloadChecksum, lifecycle, expectedCollectedDataEpoch,
+			)
 		}
-		if (entry.isOutsideRetention(lifecycle.retainedFromMs)) {
-			return ImportPortableStepsResult.OutsideRetention
-		}
-		val storedRefusal = try {
-			database.withTransaction {
-				admissionRefusal(
-					entry,
-					graph,
-					sourceSchemaVersion,
-					fileReceipt,
-					entryOrdinal,
-					sourcePayloadChecksum,
-					lifecycle,
-				)
-			}
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (_: SQLiteException) {
-			return storageUnavailable()
-		} catch (_: IllegalArgumentException) {
-			return attributionUnverifiable()
-		} catch (_: Exception) {
-			return storageUnavailable()
-		}
-		storedRefusal?.let { return it }
+	}
 
+	// The accepted lifecycle and original caller are carried unchanged into the locked operation.
+	@Suppress("LongParameterList")
+	private suspend fun PreparedPortableStepsDayScope.preflightAndImport(
+		callerEntry: PortableStepsEntryV1,
+		graph: PortableCountDomainGraphV2,
+		sourceSchemaVersion: Int,
+		fileReceipt: PortableStepsImportReceipt?,
+		entryOrdinal: Int,
+		sourcePayloadChecksum: String,
+		lifecycle: CollectedDataLifecycleSnapshot,
+		expectedCollectedDataEpoch: Long?,
+	): ImportPortableStepsResult {
 		val nativePreflight = when (val preflight = preflightNativeAuthority(entry)) {
 			is NativeAuthorityPreflight.Outcome -> return preflight.result
 			is NativeAuthorityPreflight.Stable -> preflight
@@ -304,101 +296,38 @@ internal class RoomImportPortableSteps internal constructor(
 		if (lifecycleAfterPreflight != lifecycle) {
 			return concurrentState()
 		}
+		return importUnderDayLocks(
+			callerEntry, graph, sourceSchemaVersion, fileReceipt, entryOrdinal,
+			sourcePayloadChecksum, lifecycle, nativePreflight, expectedCollectedDataEpoch,
+		)
+	}
 
+	// One locked import keeps its captured proof and file receipt inputs without a second state holder.
+	@Suppress("LongParameterList")
+	private suspend fun PreparedPortableStepsDayScope.importUnderDayLocks(
+		callerEntry: PortableStepsEntryV1,
+		graph: PortableCountDomainGraphV2,
+		sourceSchemaVersion: Int,
+		fileReceipt: PortableStepsImportReceipt?,
+		entryOrdinal: Int,
+		sourcePayloadChecksum: String,
+		lifecycle: CollectedDataLifecycleSnapshot,
+		nativePreflight: NativeAuthorityPreflight.Stable,
+		expectedCollectedDataEpoch: Long?,
+	): ImportPortableStepsResult {
 		val lockCoordinator = DailySummaryAggregator(
 			dailySummaryDao = database.dailySummaryDao(),
 			sessionSegmentDao = database.sessionSegmentDao(),
-			zoneId = prepared.defaultZoneId,
+			zoneId = defaultZoneId,
 		)
 		return try {
-			lockCoordinator.withDayLocks(prepared.lockDays) { lockedDays ->
+			lockCoordinator.withDayLocks(lockDays) { lockedDays ->
 				afterDayLocksAcquired()
-				if (lifecycleStore.snapshot() != lifecycle) {
-					throw PortableStepsConcurrentStateException()
-				}
+				ensureLifecycle(lifecycle)
 				database.withTransaction {
-					if (lifecycleStore.snapshot() != lifecycle ||
-						database.sourceEvidenceStateDao().get() != nativePreflight.evidenceState
-					) {
-						return@withTransaction concurrentState()
-					}
-					val transactionEntry = try {
-						callerEntry.snapshotAndValidate()
-					} catch (_: PortableStepsSnapshotException) {
-						return@withTransaction concurrentState()
-					}
-					if (transactionEntry != entry) {
-						return@withTransaction concurrentState()
-					}
-
-					admissionRefusal(
-						entry,
-						graph,
-						sourceSchemaVersion,
-						fileReceipt,
-						entryOrdinal,
-						sourcePayloadChecksum,
-						lifecycle,
-					)?.let { return@withTransaction it }
-					when (val resolution = nativePreflight.resolution) {
-						NativeAuthorityResolution.NoCollision -> Unit
-						NativeAuthorityResolution.Duplicate ->
-							return@withTransaction ImportPortableStepsResult.Duplicate
-						is NativeAuthorityResolution.Conflict ->
-							return@withTransaction ImportPortableStepsResult.Conflict(resolution.scope)
-					}
-					val owner = database.sourceDestinationOwnerDao().get(
-						SourceDestinationOwnerEntity.SOURCE_STEPS,
-						SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
-					) ?: return@withTransaction attributionUnverifiable()
-					if (owner.owner !in PORTABLE_ADMISSION_OWNERS) {
-						return@withTransaction attributionUnverifiable()
-					}
-
-					val evidenceDao = database.sourceEvidenceStateDao()
-					val appliedAtMs = clock.currentTimeMillis().coerceAtLeast(0L)
-					val lifecycleChanged = evidenceDao.synchronizeLifecycle(
-						epoch = lifecycle.epoch,
-						retainedFromMs = lifecycle.retainedFromMs,
-						updatedAtMs = appliedAtMs,
-					)
-					val evidence = requireNotNull(evidenceDao.get())
-					if (expectedCollectedDataEpoch?.let { evidence.collectedDataEpoch != it } == true ||
-						evidence.collectedDataEpoch != lifecycle.epoch ||
-						evidence.retainedFromMs != lifecycle.retainedFromMs
-					) {
-						throw PortableStepsConcurrentStateException()
-					}
-
-					val repairZones = database.resolvePortableStepsRepairZones(prepared)
-					beforeMutation()
-					insertEntryPayload(entry, lifecycle, owner.ownerGeneration, appliedAtMs)
-					insertCountDomainGraph(
-						entry = entry,
-						graph = graph,
-						sourceSchemaVersion = sourceSchemaVersion,
-						fileReceipt = fileReceipt,
-						entryOrdinal = entryOrdinal,
-						sourcePayloadChecksum = sourcePayloadChecksum,
-					)
-					afterPayloadInserted()
-					repairImportedDays(
-						prepared = prepared,
-						repairZones = repairZones,
-						lockedDays = lockedDays,
-					)
-					if (lifecycleStore.snapshot() != lifecycle) {
-						throw PortableStepsConcurrentStateException()
-					}
-					if (!lifecycleChanged && evidenceDao.incrementRevision(appliedAtMs) != 1) {
-						throw PortableStepsConcurrentStateException()
-					}
-					repairZones.keys.forEach { epochDay ->
-						database.enqueueStepsGoalRepairDay(epochDay)
-					}
-					ImportPortableStepsResult.Applied(
-						physicalRunCount = entry.runs.size,
-						factCount = entry.runs.sumOf { run -> run.facts.size },
+					importInTransaction(
+						callerEntry, graph, sourceSchemaVersion, fileReceipt, entryOrdinal,
+						sourcePayloadChecksum, lifecycle, nativePreflight, expectedCollectedDataEpoch, lockedDays,
 					)
 				}
 			}
@@ -419,206 +348,101 @@ internal class RoomImportPortableSteps internal constructor(
 		}
 	}
 
-	private suspend fun admissionRefusal(
-		entry: PortableStepsEntryV1,
-		graph: com.adsamcik.tracker.stats.api.repository.PortableCountDomainGraphV2,
+	// Complete transaction admission uses the same snapshots, receipt and already-held day locks.
+	@Suppress("LongParameterList")
+	private suspend fun PreparedPortableStepsDayScope.importInTransaction(
+		callerEntry: PortableStepsEntryV1,
+		graph: PortableCountDomainGraphV2,
 		sourceSchemaVersion: Int,
 		fileReceipt: PortableStepsImportReceipt?,
 		entryOrdinal: Int,
 		sourcePayloadChecksum: String,
 		lifecycle: CollectedDataLifecycleSnapshot,
-	): ImportPortableStepsResult? {
-		require(sourceSchemaVersion in 1..2)
-		require(entryOrdinal >= 0)
-		require(ImportedPortableCountDomainIdentity.isOpaque(sourcePayloadChecksum))
-		if (entry.isOutsideRetention(lifecycle.retainedFromMs)) {
-			return ImportPortableStepsResult.OutsideRetention
+		nativePreflight: NativeAuthorityPreflight.Stable,
+		expectedCollectedDataEpoch: Long?,
+		lockedDays: DailySummaryLockedDays,
+	): ImportPortableStepsResult {
+		if (!matchesPreflight(callerEntry, lifecycle, nativePreflight)) {
+			return concurrentState()
 		}
-		val digests = entry.runs.map { run -> run.deletionScopeDigest.value }
-		val history = database.trackingHistoryReadDao()
-		if (history.deletionFences(
-				SourceDestinationOwnerEntity.SOURCE_STEPS,
-				StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
-				SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
-				digests,
-			).isNotEmpty()
-		) {
-			return ImportPortableStepsResult.DeletedScope
-		}
-		if (history.deletionFences(
-				SourceDestinationOwnerEntity.SOURCE_STEPS,
-				StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
-				SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
-				digests,
-			).isNotEmpty()
-		) {
-			return ImportPortableStepsResult.OutsideRetention
-		}
-		val graphDao = database.importedPortableStepsCountDomainDao()
-		val graphOwnerIdentities = graph.roots.map { it.ownerIdentity.value }.distinct()
-		val graphFences = graphOwnerIdentities.chunked(GRAPH_QUERY_BATCH_SIZE).flatMap { identities ->
-			graphDao.ownerFences(identities, identities.size + 1)
-		}
-		if (graphFences.isNotEmpty()) return ImportPortableStepsResult.DeletedScope
-		val existing = database.importedStepsDao().entry(entry.identity.value)
-		val existingRoots = mutableListOf<
-			com.adsamcik.tracker.shared.base.database.data
-				.ImportedPortableStepsCountDomainRootEntity>()
-		graphOwnerIdentities.chunked(GRAPH_QUERY_BATCH_SIZE).forEach { identities ->
-			existingRoots += graphDao.rootsForOwners(
-				identities,
-				MAX_IMPORTED_ROOT_LOOKUP - existingRoots.size + 1,
+		return database.admissionRefusal(
+			entry, graph, sourceSchemaVersion, fileReceipt, entryOrdinal, sourcePayloadChecksum, lifecycle,
+		) ?: when (val resolution = nativePreflight.resolution) {
+			NativeAuthorityResolution.NoCollision -> insertApprovedPayload(
+				graph, sourceSchemaVersion, fileReceipt, entryOrdinal, sourcePayloadChecksum,
+				lifecycle, expectedCollectedDataEpoch, lockedDays,
 			)
-			if (existingRoots.size > MAX_IMPORTED_ROOT_LOOKUP) {
-				return ImportPortableStepsResult.Unverifiable(
-					PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
-				)
-			}
+			NativeAuthorityResolution.Duplicate -> ImportPortableStepsResult.Duplicate
+			is NativeAuthorityResolution.Conflict -> ImportPortableStepsResult.Conflict(resolution.scope)
 		}
-		if (existingRoots.size > MAX_IMPORTED_ROOT_LOOKUP) {
-			return ImportPortableStepsResult.Unverifiable(
-				PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
-			)
-		}
-		if (existing == null) {
-			if (existingRoots.isNotEmpty()) {
-				return ImportPortableStepsResult.Conflict(PortableStepsConflictScope.FACT)
-			}
-			return null
-		}
-		if (existing.contentChecksum != entry.contentChecksum.value) {
-			return ImportPortableStepsResult.Conflict(PortableStepsConflictScope.LOGICAL_ENTRY)
-		}
-		val productResult = when (
-			val retained = ImportedStepsRetainedReader(database)
-				.readEntriesInTransaction(listOf(existing.identity))
-		) {
-			is ImportedStepsRetainedRead.Ready -> {
-				val exact = retained.entries.singleOrNull()?.portable
-				when {
-					retained.unverifiableEntries.isNotEmpty() || exact == null -> attributionUnverifiable()
-					exact == entry -> ImportPortableStepsResult.Duplicate
-					else -> ImportPortableStepsResult.Conflict(PortableStepsConflictScope.LOGICAL_ENTRY)
-				}
-			}
-			is ImportedStepsRetainedRead.Unverifiable -> retained.reason.toImportResult()
-		}
-		if (productResult != ImportPortableStepsResult.Duplicate) return productResult
-		val binding = graphDao.binding(
-			ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
-			entry.identity.value,
-			IMPORTED_PRODUCT_REVISION,
-		) ?: return attributionUnverifiable()
-		val authenticated = try {
-			database.loadAuthenticatedImportedSessionCountDomainBinding(entry)
-		} catch (_: IllegalArgumentException) {
-			return attributionUnverifiable()
-		} catch (_: IllegalStateException) {
-			return attributionUnverifiable()
-		}
-		if (authenticated == null ||
-			binding.sourceSchemaVersion != sourceSchemaVersion ||
-			binding.graphIdentity != graph.identity.value ||
-			authenticated.binding != binding ||
-			authenticated.graph != graph
-		) {
-			return ImportPortableStepsResult.Conflict(PortableStepsConflictScope.LOGICAL_ENTRY)
-		}
-		if (fileReceipt != null) {
-			val row = fileReceipt.toEntity(
-				entry,
-				graph,
-				entryOrdinal,
-				sourcePayloadChecksum,
-			)
-			when (admitFileReceipt(row)) {
-				FileReceiptAdmission.INSERTED,
-				FileReceiptAdmission.EXACT_REPLAY,
-				-> Unit
-				FileReceiptAdmission.LIMIT_REACHED ->
-					return ImportPortableStepsResult.Unverifiable(
-						PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
-					)
-				FileReceiptAdmission.CONFLICT ->
-					return ImportPortableStepsResult.Conflict(
-						PortableStepsConflictScope.LOGICAL_ENTRY,
-					)
-			}
-		}
-		return ImportPortableStepsResult.Duplicate
 	}
 
-	private suspend fun insertCountDomainGraph(
-		entry: PortableStepsEntryV1,
-		graph: com.adsamcik.tracker.stats.api.repository.PortableCountDomainGraphV2,
+	private suspend fun PreparedPortableStepsDayScope.matchesPreflight(
+		callerEntry: PortableStepsEntryV1,
+		lifecycle: CollectedDataLifecycleSnapshot,
+		nativePreflight: NativeAuthorityPreflight.Stable,
+	): Boolean {
+		if (lifecycleStore.snapshot() != lifecycle ||
+			database.sourceEvidenceStateDao().get() != nativePreflight.evidenceState
+		) {
+			return false
+		}
+		val transactionEntry = try {
+			callerEntry.snapshotAndValidate()
+		} catch (_: PortableStepsSnapshotException) {
+			return false
+		}
+		return transactionEntry == entry
+	}
+
+	// Preserve one accepted operation's graph, lifecycle and receipt through payload and daily repair.
+	@Suppress("LongParameterList")
+	private suspend fun PreparedPortableStepsDayScope.insertApprovedPayload(
+		graph: PortableCountDomainGraphV2,
 		sourceSchemaVersion: Int,
 		fileReceipt: PortableStepsImportReceipt?,
 		entryOrdinal: Int,
 		sourcePayloadChecksum: String,
-	) {
-		val dao = database.importedPortableStepsCountDomainDao()
-		val stored = dao.graph(graph.identity.value)
-		if (stored == null) {
-			dao.insertAuthenticatedGraph(
-				graph,
-				ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
-			)
-		} else if (dao.authenticatedGraph(
-				graph.identity.value,
-				ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
-			) != graph
-		) {
-			throw IllegalStateException("Imported portable count-domain graph conflict")
+		lifecycle: CollectedDataLifecycleSnapshot,
+		expectedCollectedDataEpoch: Long?,
+		lockedDays: DailySummaryLockedDays,
+	): ImportPortableStepsResult {
+		val owner = database.sourceDestinationOwnerDao().get(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+		) ?: return attributionUnverifiable()
+		if (owner.owner !in PORTABLE_ADMISSION_OWNERS) {
+			return attributionUnverifiable()
 		}
-		dao.insertBinding(
-			ImportedPortableStepsCountDomainBindingEntity(
-				productKind =
-					ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
-				productIdentity = entry.identity.value,
-				productRevision = IMPORTED_PRODUCT_REVISION,
-				graphIdentity = graph.identity.value,
-				sourceSchemaVersion = sourceSchemaVersion,
-				sourceReceiptIdentity = fileReceipt?.let {
-					ImportedPortableCountDomainIdentity.fileReceipt(it.jobId, it.entryKey)
-				},
-				sourceArchiveIdentity = null,
-				sourceArchiveContentChecksum = fileReceipt?.let { sourcePayloadChecksum },
-			),
+		val evidenceDao = database.sourceEvidenceStateDao()
+		val appliedAtMs = clock.currentTimeMillis().coerceAtLeast(0L)
+		val lifecycleChanged = evidenceDao.synchronizeImportLifecycle(lifecycle, expectedCollectedDataEpoch, appliedAtMs)
+		val repairZones = database.resolvePortableStepsRepairZones(this)
+		beforeMutation()
+		database.insertEntryPayload(entry, lifecycle, owner.ownerGeneration, appliedAtMs)
+		database.insertCountDomainGraph(
+			entry, graph, sourceSchemaVersion, fileReceipt, entryOrdinal, sourcePayloadChecksum,
 		)
-		fileReceipt?.let { receipt ->
-			check(
-				admitFileReceipt(
-					receipt.toEntity(entry, graph, entryOrdinal, sourcePayloadChecksum),
-				) == FileReceiptAdmission.INSERTED,
-			) {
-				"New imported Steps product did not receive one bounded file receipt"
-			}
+		afterPayloadInserted()
+		repairImportedDays(this, repairZones, lockedDays)
+		ensureLifecycle(lifecycle)
+		if (!lifecycleChanged && evidenceDao.incrementRevision(appliedAtMs) != 1) {
+			throw PortableStepsConcurrentStateException()
+		}
+		repairZones.keys.forEach { epochDay -> database.enqueueStepsGoalRepairDay(epochDay) }
+		return ImportPortableStepsResult.Applied(
+			physicalRunCount = entry.runs.size,
+			factCount = entry.runs.sumOf { run -> run.facts.size },
+		)
+	}
+
+	private suspend fun ensureLifecycle(lifecycle: CollectedDataLifecycleSnapshot) {
+		if (lifecycleStore.snapshot() != lifecycle) {
+			throw PortableStepsConcurrentStateException()
 		}
 	}
 
-	private suspend fun admitFileReceipt(
-		candidate: ImportedPortableStepsFileReceiptEntity,
-	): FileReceiptAdmission {
-		check(database.inTransaction()) {
-			"Imported Steps file receipt admission must be atomic with its product"
-		}
-		val dao = database.importedPortableStepsCountDomainDao()
-		val stored = dao.fileReceipt(candidate.importJobId, candidate.entryKey)
-		if (stored != null) {
-			return if (stored == candidate) {
-				FileReceiptAdmission.EXACT_REPLAY
-			} else {
-				FileReceiptAdmission.CONFLICT
-			}
-		}
-		val count = dao.fileReceiptCountForEntry(candidate.entryIdentity)
-		if (count >= ImportedPortableStepsCountDomainDao.MAX_FILE_RECEIPTS_PER_ENTRY) {
-			return FileReceiptAdmission.LIMIT_REACHED
-		}
-		dao.insertFileReceipt(candidate)
-		return FileReceiptAdmission.INSERTED
-	}
-
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	private suspend fun preflightNativeAuthority(
 		entry: PortableStepsEntryV1,
 	): NativeAuthorityPreflight {
@@ -645,54 +469,12 @@ internal class RoomImportPortableSteps internal constructor(
 		return collector.finish(exportResult, evidenceAfter)
 	}
 
-	private suspend fun insertEntryPayload(
-		portable: PortableStepsEntryV1,
-		lifecycle: CollectedDataLifecycleSnapshot,
-		ownerGeneration: Long,
-		appliedAtMs: Long,
-	) {
-		val importedDao = database.importedStepsDao()
-		val metadata = ImportedStepsAdmissionRows.entry(portable, lifecycle.epoch, ownerGeneration)
-		importedDao.insertEntry(metadata)
-		for (run in portable.runs) {
-			currentCoroutineContext().ensureActive()
-			val segmentId = database.sessionSegmentDao().insert(run.toPresentationSegment(metadata, appliedAtMs))
-			if (segmentId <= 0L) {
-				throw PortableStepsConcurrentStateException()
-			}
-			importedDao.insertRun(ImportedStepsAdmissionRows.run(metadata, run, segmentId))
-			ImportedStepsAdmissionRows.manifests(run).chunked(INSERT_BATCH_SIZE).forEach { batch ->
-				currentCoroutineContext().ensureActive()
-				importedDao.insertManifests(batch)
-			}
-			val facts = run.facts.map { fact ->
-				ImportedStepsAdmissionRows.fact(metadata, run, fact, appliedAtMs)
-			}
-			facts.chunked(INSERT_BATCH_SIZE).forEach { batch ->
-				currentCoroutineContext().ensureActive()
-				if (database.stepFactRevisionDao().insert(batch).any { rowId -> rowId == INSERT_IGNORED }) {
-					throw PortableStepsConcurrentStateException()
-				}
-			}
-		}
-	}
-
 	private suspend fun repairImportedDays(
 		prepared: PreparedPortableStepsDayScope,
 		repairZones: Map<Long, ZoneId>,
 		lockedDays: DailySummaryLockedDays,
 	) {
-		val plans = when (
-			val repair = StepsDailySummaryRepairComposer(database).composeForImportedMutation(repairZones)
-		) {
-			is StepsDayRepairPreflight.Ready -> repair.plans
-			is StepsDayRepairPreflight.Unsupported -> throw dayRepairUnverifiable()
-			StepsDayRepairPreflight.Materializing -> throw PortableStepsDayRepairException(
-				ImportPortableStepsResult.RetryableFailure(
-					PortableStepsTransferRetryableReason.DAY_REPAIR_MATERIALIZING,
-				),
-			)
-		}
+		val plans = database.readImportedDayRepairPlans(repairZones)
 		if (plans.associate { plan -> plan.epochDay to plan.zoneId } != repairZones) {
 			throw dayRepairUnverifiable()
 		}
@@ -711,18 +493,370 @@ internal class RoomImportPortableSteps internal constructor(
 	}
 
 	private companion object {
-		const val INSERT_IGNORED = -1L
-		const val INSERT_BATCH_SIZE = 256
 		val GLOBAL_AUTHORITY_REQUEST = ExportPortableStepsRequest(0L, Long.MAX_VALUE)
 		val PORTABLE_ADMISSION_OWNERS = setOf(
 			SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
 			SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
 		)
-		const val IMPORTED_PRODUCT_REVISION = 1L
-		const val MAX_IMPORTED_ROOT_LOOKUP = 131_072
-		const val GRAPH_QUERY_BATCH_SIZE = 256
 	}
 }
+
+private suspend fun SourceEvidenceStateDao.synchronizeImportLifecycle(
+	lifecycle: CollectedDataLifecycleSnapshot,
+	expectedCollectedDataEpoch: Long?,
+	appliedAtMs: Long,
+): Boolean {
+	val lifecycleChanged = synchronizeLifecycle(
+		epoch = lifecycle.epoch,
+		retainedFromMs = lifecycle.retainedFromMs,
+		updatedAtMs = appliedAtMs,
+	)
+	val evidence = requireNotNull(get())
+	if (expectedCollectedDataEpoch?.let { evidence.collectedDataEpoch != it } == true ||
+		evidence.collectedDataEpoch != lifecycle.epoch || evidence.retainedFromMs != lifecycle.retainedFromMs
+	) {
+		throw PortableStepsConcurrentStateException()
+	}
+	return lifecycleChanged
+}
+
+private fun PortableCountDomainGraphV2.fitsImportMetadata(metadata: PortableStepsImportMetadataV2): Boolean =
+	metadata.receiptCount >= receipts.size && metadata.ownerRevisionCount >= ownerRevisions.size &&
+		metadata.completenessMarkerCount >= completenessMarkers.size && metadata.rootCount >= roots.size
+
+private fun PortableStepsEntryV2.snapshotImportGraph(
+	entry: PortableStepsEntryV1,
+): PortableCountDomainGraphV2? = try {
+	countDomainGraph.copy(
+		receipts = countDomainGraph.receipts.map { it.copy() },
+		ownerRevisions = countDomainGraph.ownerRevisions.map { it.copy() },
+		completenessMarkers = countDomainGraph.completenessMarkers.map { it.copy() },
+		roots = countDomainGraph.roots.map { it.copy() },
+	).also { graph -> PortableStepsEntryV2(entry, graph) }
+} catch (cancelled: CancellationException) {
+	throw cancelled
+} catch (_: IllegalArgumentException) {
+	null
+} catch (_: IllegalStateException) {
+	null
+} catch (_: ArithmeticException) {
+	null
+}
+
+private suspend fun AppDatabase.readImportedDayRepairPlans(
+	repairZones: Map<Long, ZoneId>,
+): List<StepsDayRepairPlan> = when (
+	val repair = StepsDailySummaryRepairComposer(this).composeForImportedMutation(repairZones)
+) {
+	is StepsDayRepairPreflight.Ready -> repair.plans
+	is StepsDayRepairPreflight.Unsupported -> throw dayRepairUnverifiable()
+	StepsDayRepairPreflight.Materializing -> throw PortableStepsDayRepairException(
+		ImportPortableStepsResult.RetryableFailure(PortableStepsTransferRetryableReason.DAY_REPAIR_MATERIALIZING),
+	)
+}
+
+// Keep the complete file receipt and lifecycle inputs with the saved-data admission operation.
+@Suppress("LongParameterList")
+private suspend fun AppDatabase.readAdmissionRefusal(
+	entry: PortableStepsEntryV1,
+	graph: PortableCountDomainGraphV2,
+	sourceSchemaVersion: Int,
+	fileReceipt: PortableStepsImportReceipt?,
+	entryOrdinal: Int,
+	sourcePayloadChecksum: String,
+	lifecycle: CollectedDataLifecycleSnapshot,
+): ImportPortableStepsResult? = try {
+	withTransaction {
+		admissionRefusal(entry, graph, sourceSchemaVersion, fileReceipt, entryOrdinal, sourcePayloadChecksum, lifecycle)
+	}
+} catch (cancelled: CancellationException) {
+	throw cancelled
+} catch (_: SQLiteException) {
+	storageUnavailable()
+} catch (_: IllegalArgumentException) {
+	attributionUnverifiable()
+} catch (_: Exception) {
+	storageUnavailable()
+}
+
+// Admission keeps deletion and duplicate checks on the exact captured file and lifecycle inputs.
+@Suppress("LongParameterList")
+private suspend fun AppDatabase.admissionRefusal(
+	entry: PortableStepsEntryV1,
+	graph: PortableCountDomainGraphV2,
+	sourceSchemaVersion: Int,
+	fileReceipt: PortableStepsImportReceipt?,
+	entryOrdinal: Int,
+	sourcePayloadChecksum: String,
+	lifecycle: CollectedDataLifecycleSnapshot,
+): ImportPortableStepsResult? {
+	require(sourceSchemaVersion in 1..2)
+	require(entryOrdinal >= 0)
+	require(ImportedPortableCountDomainIdentity.isOpaque(sourcePayloadChecksum))
+	return if (entry.isOutsideRetention(lifecycle.retainedFromMs)) {
+		ImportPortableStepsResult.OutsideRetention
+	} else {
+		deletedImportRefusal(entry, graph) ?: existingImportRefusal(
+			entry, graph, sourceSchemaVersion, fileReceipt, entryOrdinal, sourcePayloadChecksum,
+		)
+	}
+}
+
+private suspend fun AppDatabase.deletedImportRefusal(
+	entry: PortableStepsEntryV1,
+	graph: PortableCountDomainGraphV2,
+): ImportPortableStepsResult? {
+	val digests = entry.runs.map { run -> run.deletionScopeDigest.value }
+	val history = trackingHistoryReadDao()
+	if (history.deletionFences(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			digests,
+		).isNotEmpty()
+	) {
+		return ImportPortableStepsResult.DeletedScope
+	}
+	if (history.deletionFences(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			digests,
+		).isNotEmpty()
+	) {
+		return ImportPortableStepsResult.OutsideRetention
+	}
+	val graphDao = importedPortableStepsCountDomainDao()
+	val graphOwnerIdentities = graph.roots.map { it.ownerIdentity.value }.distinct()
+	val graphFences = graphOwnerIdentities.chunked(GRAPH_QUERY_BATCH_SIZE).flatMap { identities ->
+		graphDao.ownerFences(identities, identities.size + 1)
+	}
+	return ImportPortableStepsResult.DeletedScope.takeIf { graphFences.isNotEmpty() }
+}
+
+private suspend fun AppDatabase.existingImportRefusal(
+	entry: PortableStepsEntryV1,
+	graph: PortableCountDomainGraphV2,
+	sourceSchemaVersion: Int,
+	fileReceipt: PortableStepsImportReceipt?,
+	entryOrdinal: Int,
+	sourcePayloadChecksum: String,
+): ImportPortableStepsResult? {
+	val existing = importedStepsDao().entry(entry.identity.value)
+	val roots = importedPortableStepsCountDomainDao().readImportOwnerRoots(graph)
+		?: return ImportPortableStepsResult.Unverifiable(PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW)
+	return when {
+		existing == null -> ImportPortableStepsResult.Conflict(PortableStepsConflictScope.FACT)
+			.takeIf { roots.isNotEmpty() }
+		existing.contentChecksum != entry.contentChecksum.value ->
+			ImportPortableStepsResult.Conflict(PortableStepsConflictScope.LOGICAL_ENTRY)
+		else -> {
+			val productResult = retainedImportProductResult(existing.identity, entry)
+			if (productResult != ImportPortableStepsResult.Duplicate) {
+				productResult
+			} else {
+				duplicateCountDomainResult(
+					entry, graph, sourceSchemaVersion, fileReceipt, entryOrdinal, sourcePayloadChecksum,
+				)
+			}
+		}
+	}
+}
+
+private suspend fun ImportedPortableStepsCountDomainDao.readImportOwnerRoots(
+	graph: PortableCountDomainGraphV2,
+): List<ImportedPortableStepsCountDomainRootEntity>? {
+	val roots = mutableListOf<ImportedPortableStepsCountDomainRootEntity>()
+	val ownerIdentities = graph.roots.map { it.ownerIdentity.value }.distinct()
+	ownerIdentities.chunked(GRAPH_QUERY_BATCH_SIZE).forEach { identities ->
+		roots += rootsForOwners(identities, MAX_IMPORTED_ROOT_LOOKUP - roots.size + 1)
+		if (roots.size > MAX_IMPORTED_ROOT_LOOKUP) {
+			return null
+		}
+	}
+	return roots.takeUnless { roots.size > MAX_IMPORTED_ROOT_LOOKUP }
+}
+
+private suspend fun AppDatabase.retainedImportProductResult(
+	identity: String,
+	entry: PortableStepsEntryV1,
+): ImportPortableStepsResult = when (
+	val retained = ImportedStepsRetainedReader(this).readEntriesInTransaction(listOf(identity))
+) {
+	is ImportedStepsRetainedRead.Ready -> {
+		val exact = retained.entries.singleOrNull()?.portable
+		when {
+			retained.unverifiableEntries.isNotEmpty() || exact == null -> attributionUnverifiable()
+			exact == entry -> ImportPortableStepsResult.Duplicate
+			else -> ImportPortableStepsResult.Conflict(PortableStepsConflictScope.LOGICAL_ENTRY)
+		}
+	}
+	is ImportedStepsRetainedRead.Unverifiable -> retained.reason.toImportResult()
+}
+
+private suspend fun AppDatabase.duplicateCountDomainResult(
+	entry: PortableStepsEntryV1,
+	graph: PortableCountDomainGraphV2,
+	sourceSchemaVersion: Int,
+	fileReceipt: PortableStepsImportReceipt?,
+	entryOrdinal: Int,
+	sourcePayloadChecksum: String,
+): ImportPortableStepsResult {
+	val binding = importedPortableStepsCountDomainDao().binding(
+		ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+		entry.identity.value,
+		IMPORTED_PRODUCT_REVISION,
+	) ?: return attributionUnverifiable()
+	val authenticated = try {
+		loadAuthenticatedImportedSessionCountDomainBinding(entry)
+	} catch (_: IllegalArgumentException) {
+		return attributionUnverifiable()
+	} catch (_: IllegalStateException) {
+		return attributionUnverifiable()
+	}
+	return if (authenticated == null || binding.sourceSchemaVersion != sourceSchemaVersion ||
+		binding.graphIdentity != graph.identity.value || authenticated.binding != binding
+	) {
+		ImportPortableStepsResult.Conflict(PortableStepsConflictScope.LOGICAL_ENTRY)
+	} else if (authenticated.graph != graph) {
+		ImportPortableStepsResult.Conflict(PortableStepsConflictScope.LOGICAL_ENTRY)
+	} else {
+		admitDuplicateFileReceipt(entry, graph, fileReceipt, entryOrdinal, sourcePayloadChecksum)
+	}
+}
+
+private suspend fun AppDatabase.admitDuplicateFileReceipt(
+	entry: PortableStepsEntryV1,
+	graph: PortableCountDomainGraphV2,
+	fileReceipt: PortableStepsImportReceipt?,
+	entryOrdinal: Int,
+	sourcePayloadChecksum: String,
+): ImportPortableStepsResult {
+	if (fileReceipt == null) {
+		return ImportPortableStepsResult.Duplicate
+	}
+	val row = fileReceipt.toEntity(entry, graph, entryOrdinal, sourcePayloadChecksum)
+	return when (admitFileReceipt(row)) {
+		FileReceiptAdmission.INSERTED,
+		FileReceiptAdmission.EXACT_REPLAY,
+		-> ImportPortableStepsResult.Duplicate
+		FileReceiptAdmission.LIMIT_REACHED -> ImportPortableStepsResult.Unverifiable(
+			PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
+		)
+		FileReceiptAdmission.CONFLICT -> ImportPortableStepsResult.Conflict(
+			PortableStepsConflictScope.LOGICAL_ENTRY,
+		)
+	}
+}
+
+private suspend fun AppDatabase.insertCountDomainGraph(
+	entry: PortableStepsEntryV1,
+	graph: PortableCountDomainGraphV2,
+	sourceSchemaVersion: Int,
+	fileReceipt: PortableStepsImportReceipt?,
+	entryOrdinal: Int,
+	sourcePayloadChecksum: String,
+) {
+	val dao = importedPortableStepsCountDomainDao()
+	val stored = dao.graph(graph.identity.value)
+	if (stored == null) {
+		dao.insertAuthenticatedGraph(
+			graph,
+			ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+		)
+	} else if (dao.authenticatedGraph(
+			graph.identity.value,
+			ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS,
+		) != graph
+	) {
+		throw IllegalStateException("Imported portable count-domain graph conflict")
+	}
+	dao.insertBinding(
+		ImportedPortableStepsCountDomainBindingEntity(
+			productKind =
+				ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+			productIdentity = entry.identity.value,
+			productRevision = IMPORTED_PRODUCT_REVISION,
+			graphIdentity = graph.identity.value,
+			sourceSchemaVersion = sourceSchemaVersion,
+			sourceReceiptIdentity = fileReceipt?.let {
+				ImportedPortableCountDomainIdentity.fileReceipt(it.jobId, it.entryKey)
+			},
+			sourceArchiveIdentity = null,
+			sourceArchiveContentChecksum = fileReceipt?.let { sourcePayloadChecksum },
+		),
+	)
+	fileReceipt?.let { receipt ->
+		check(
+			admitFileReceipt(
+				receipt.toEntity(entry, graph, entryOrdinal, sourcePayloadChecksum),
+			) == FileReceiptAdmission.INSERTED,
+		) {
+			"New imported Steps product did not receive one bounded file receipt"
+		}
+	}
+}
+
+private suspend fun AppDatabase.admitFileReceipt(
+	candidate: ImportedPortableStepsFileReceiptEntity,
+): FileReceiptAdmission {
+	check(inTransaction()) {
+		"Imported Steps file receipt admission must be atomic with its product"
+	}
+	val dao = importedPortableStepsCountDomainDao()
+	val stored = dao.fileReceipt(candidate.importJobId, candidate.entryKey)
+	if (stored != null) {
+		return if (stored == candidate) {
+			FileReceiptAdmission.EXACT_REPLAY
+		} else {
+			FileReceiptAdmission.CONFLICT
+		}
+	}
+	val count = dao.fileReceiptCountForEntry(candidate.entryIdentity)
+	if (count >= ImportedPortableStepsCountDomainDao.MAX_FILE_RECEIPTS_PER_ENTRY) {
+		return FileReceiptAdmission.LIMIT_REACHED
+	}
+	dao.insertFileReceipt(candidate)
+	return FileReceiptAdmission.INSERTED
+}
+
+private suspend fun AppDatabase.insertEntryPayload(
+	portable: PortableStepsEntryV1,
+	lifecycle: CollectedDataLifecycleSnapshot,
+	ownerGeneration: Long,
+	appliedAtMs: Long,
+) {
+	val importedDao = importedStepsDao()
+	val metadata = ImportedStepsAdmissionRows.entry(portable, lifecycle.epoch, ownerGeneration)
+	importedDao.insertEntry(metadata)
+	for (run in portable.runs) {
+		currentCoroutineContext().ensureActive()
+		val segmentId = sessionSegmentDao().insert(run.toPresentationSegment(metadata, appliedAtMs))
+		if (segmentId <= 0L) {
+			throw PortableStepsConcurrentStateException()
+		}
+		importedDao.insertRun(ImportedStepsAdmissionRows.run(metadata, run, segmentId))
+		ImportedStepsAdmissionRows.manifests(run).chunked(INSERT_BATCH_SIZE).forEach { batch ->
+			currentCoroutineContext().ensureActive()
+			importedDao.insertManifests(batch)
+		}
+		val facts = run.facts.map { fact ->
+			ImportedStepsAdmissionRows.fact(metadata, run, fact, appliedAtMs)
+		}
+		facts.chunked(INSERT_BATCH_SIZE).forEach { batch ->
+			currentCoroutineContext().ensureActive()
+			if (stepFactRevisionDao().insert(batch).any { rowId -> rowId == INSERT_IGNORED }) {
+				throw PortableStepsConcurrentStateException()
+			}
+		}
+	}
+}
+
+private const val INSERT_IGNORED = -1L
+private const val INSERT_BATCH_SIZE = 256
+private const val IMPORTED_PRODUCT_REVISION = 1L
+private const val MAX_IMPORTED_ROOT_LOOKUP = 131_072
+private const val GRAPH_QUERY_BATCH_SIZE = 256
 
 private enum class FileReceiptAdmission {
 	INSERTED,
@@ -750,375 +884,6 @@ private fun PortableStepsImportReceipt.toEntity(
 		entryIdentity = entry.identity.value,
 		graphIdentity = graph.identity.value,
 	)
-}
-
-/**
- * Resolves the persisted calendar authority shared by portable admission and source-local deletion.
- * Callers must already hold every [PreparedPortableStepsDayScope.lockDays] lock and a Room transaction.
- */
-@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
-internal suspend fun AppDatabase.resolvePortableStepsRepairZones(
-	prepared: PreparedPortableStepsDayScope,
-): Map<Long, ZoneId> {
-	val lockedDaySet = prepared.lockDays.toSet()
-	val summaries = dailySummaryDao()
-		.getBetween(prepared.lockDays.first(), prepared.lockDays.last())
-		.filter { summary -> summary.dateEpochDay in lockedDaySet }
-	if (summaries.map(DailySummaryEntity::dateEpochDay).distinct().size != summaries.size) {
-		throw dayRepairUnverifiable()
-	}
-	val persistedWindows = linkedMapOf<Long, Pair<ZoneId, ImportWallInterval>>()
-	for (summary in summaries) {
-		val zoneId = try {
-			ZoneId.of(summary.calendarZoneId ?: throw dayRepairUnverifiable())
-		} catch (_: DateTimeException) {
-			throw dayRepairUnverifiable()
-		}
-		persistedWindows[summary.dateEpochDay] = zoneId to
-			(dayWindow(summary.dateEpochDay, zoneId) ?: throw dayRepairUnverifiable())
-	}
-	val candidateWindowsByDay = prepared.candidateZonesByDay.mapValues { (epochDay, zones) ->
-		zones.map { zoneId -> zoneId to (dayWindow(epochDay, zoneId) ?: throw dayRepairUnverifiable()) }
-	}
-	val constraintWindows = persistedWindows.filter { (epochDay, authority) ->
-		epochDay in candidateWindowsByDay ||
-			prepared.coverageIntervals.any(authority.second::overlaps)
-	}.values.map { (_, window) -> window }.sortedBy(ImportWallInterval::startMs)
-	if (constraintWindows.zipWithNext().any { (left, right) -> right.startMs < left.endMs }) {
-		throw dayRepairUnverifiable()
-	}
-
-	val resolved = persistedWindows.filterValues { (_, window) ->
-		prepared.coverageIntervals.any(window::overlaps)
-	}.mapValuesTo(linkedMapOf()) { (_, authority) -> authority.first }
-	for ((epochDay, candidateZones) in candidateWindowsByDay.toSortedMap()) {
-		val candidateSlices = candidateZones.flatMap { (_, window) ->
-			prepared.coverageIntervals.mapNotNull(window::intersection)
-		}.distinct()
-		if (candidateSlices.isEmpty()) {
-			throw dayRepairUnverifiable()
-		}
-		val resolvedWindows = resolved.map { (day, zone) ->
-			dayWindow(day, zone) ?: throw dayRepairUnverifiable()
-		}.sortedBy(ImportWallInterval::startMs)
-		if (candidateSlices.all(resolvedWindows::cover)) {
-			continue
-		}
-		if (epochDay in persistedWindows) {
-			throw dayRepairUnverifiable()
-		}
-		val viableByWindow = candidateZones.filterNot { (_, candidateWindow) ->
-			persistedWindows.values.any { (_, persistedWindow) -> persistedWindow.overlaps(candidateWindow) } ||
-				resolvedWindows.any(candidateWindow::overlaps)
-		}.groupBy { (_, window) -> window }.filterKeys { candidateWindow ->
-			val coverageWindows = (resolvedWindows + candidateWindow)
-				.sortedBy(ImportWallInterval::startMs)
-			candidateSlices.all(coverageWindows::cover)
-		}
-		val selectedZone = viableByWindow.values.singleOrNull()
-			?.minByOrNull { (zone, _) -> zone.id }
-			?.first
-			?: throw dayRepairUnverifiable()
-		resolved[epochDay] = selectedZone
-	}
-
-	if (resolved.isEmpty() || resolved.size > StepsNumericSummaryRequest.MAX_DAY_COUNT) {
-		throw dayRepairUnverifiable()
-	}
-	val windows = resolved.map { (epochDay, zoneId) ->
-		dayWindow(epochDay, zoneId) ?: throw dayRepairUnverifiable()
-	}.sortedBy(ImportWallInterval::startMs)
-	if (windows.zipWithNext().any { (left, right) -> right.startMs < left.endMs } ||
-		prepared.coverageIntervals.any { interval -> !windows.cover(interval) }
-	) {
-		throw dayRepairUnverifiable()
-	}
-	return resolved.toSortedMap()
-}
-
-private class NativeAuthorityCollector(
-	private val candidate: PortableStepsEntryV1,
-) {
-	private val seenIdentities = hashSetOf<String>()
-	private val seenDeletionScopes = hashSetOf<String>()
-	private var previous: PortableStepsEntryV1? = null
-	private var count = 0
-	private var resolution: NativeAuthorityResolution = NativeAuthorityResolution.NoCollision
-
-	suspend fun emit(value: PortableStepsEntryV1) {
-		currentCoroutineContext().ensureActive()
-		val entry = value.snapshotAndValidate()
-		if (previous?.let { prior -> PORTABLE_STEPS_ENTRY_ORDER.compare(prior, entry) >= 0 } == true) {
-			throw IllegalArgumentException("Portable Steps authority is not in canonical order")
-		}
-		entry.identityConflictWithinEntry()?.let {
-			throw IllegalArgumentException("Portable Steps authority repeats an identity within an entry")
-		}
-		val existingIdentities = entry.identityScopes()
-		if (existingIdentities.keys.any { identity -> !seenIdentities.add(identity) } ||
-			entry.runs.any { run -> !seenDeletionScopes.add(run.deletionScopeDigest.value) }
-		) {
-			throw IllegalArgumentException("Portable Steps authority repeats an identity")
-		}
-		val next = when {
-			entry.identity == candidate.identity -> if (entry == candidate) {
-				NativeAuthorityResolution.Duplicate
-			} else {
-				NativeAuthorityResolution.Conflict(PortableStepsConflictScope.LOGICAL_ENTRY)
-			}
-			else -> candidate.collisionWith(existingIdentities.keys, entry.runs.map { it.deletionScopeDigest.value })
-		}
-		resolution = resolution.combine(next)
-		previous = entry
-		count++
-	}
-
-	fun finish(
-		result: ExportPortableStepsResult,
-		evidence: SourceEvidenceState?,
-	): NativeAuthorityPreflight = when (result) {
-		is ExportPortableStepsResult.Exported -> if (result.entryCount == count && count > 0) {
-			NativeAuthorityPreflight.Stable(evidence, resolution)
-		} else {
-			NativeAuthorityPreflight.Outcome(attributionUnverifiable())
-		}
-		ExportPortableStepsResult.NoEntries -> if (count == 0) {
-			NativeAuthorityPreflight.Stable(evidence, NativeAuthorityResolution.NoCollision)
-		} else {
-			NativeAuthorityPreflight.Outcome(attributionUnverifiable())
-		}
-		is ExportPortableStepsResult.Unverifiable -> NativeAuthorityPreflight.Outcome(
-			result.toImportResult(),
-		)
-		is ExportPortableStepsResult.RetryableFailure -> NativeAuthorityPreflight.Outcome(
-			ImportPortableStepsResult.RetryableFailure(result.reason),
-		)
-	}
-
-	private fun PortableStepsEntryV1.collisionWith(
-		existingIdentities: Set<String>,
-		existingDeletionScopes: List<String>,
-	): NativeAuthorityResolution = when {
-		identity.value in existingIdentities ->
-			NativeAuthorityResolution.Conflict(PortableStepsConflictScope.LOGICAL_ENTRY)
-		runs.any { run -> run.identity.value in existingIdentities ||
-			run.deletionScopeDigest.value in existingDeletionScopes
-		} -> NativeAuthorityResolution.Conflict(PortableStepsConflictScope.PHYSICAL_RUN)
-		runs.any { run -> run.facts.any { fact -> fact.identity.value in existingIdentities } } ->
-			NativeAuthorityResolution.Conflict(PortableStepsConflictScope.FACT)
-		else -> NativeAuthorityResolution.NoCollision
-	}
-}
-
-private sealed interface NativeAuthorityPreflight {
-	data class Stable(
-		val evidenceState: SourceEvidenceState?,
-		val resolution: NativeAuthorityResolution,
-	) : NativeAuthorityPreflight
-
-	data class Outcome(val result: ImportPortableStepsResult) : NativeAuthorityPreflight
-}
-
-private sealed interface NativeAuthorityResolution {
-	data object NoCollision : NativeAuthorityResolution
-	data object Duplicate : NativeAuthorityResolution
-	data class Conflict(val scope: PortableStepsConflictScope) : NativeAuthorityResolution
-}
-
-private fun NativeAuthorityResolution.combine(other: NativeAuthorityResolution): NativeAuthorityResolution {
-	if (this is NativeAuthorityResolution.Conflict || other is NativeAuthorityResolution.Conflict) {
-		val scopes = listOfNotNull(
-			(this as? NativeAuthorityResolution.Conflict)?.scope,
-			(other as? NativeAuthorityResolution.Conflict)?.scope,
-		)
-		val scope = scopes.minBy { it.conflictPriority() }
-		return NativeAuthorityResolution.Conflict(scope)
-	}
-	return if (this == NativeAuthorityResolution.Duplicate || other == NativeAuthorityResolution.Duplicate) {
-		NativeAuthorityResolution.Duplicate
-	} else {
-		NativeAuthorityResolution.NoCollision
-	}
-}
-
-private fun PortableStepsConflictScope.conflictPriority(): Int = when (this) {
-	PortableStepsConflictScope.LOGICAL_ENTRY -> 0
-	PortableStepsConflictScope.PHYSICAL_RUN -> 1
-	PortableStepsConflictScope.FACT -> 2
-}
-
-private fun PortableStepsEntryV1.identityScopes(): Map<String, PortableStepsConflictScope> = buildMap {
-	put(identity.value, PortableStepsConflictScope.LOGICAL_ENTRY)
-	runs.forEach { run ->
-		put(run.identity.value, PortableStepsConflictScope.PHYSICAL_RUN)
-		run.facts.forEach { fact -> put(fact.identity.value, PortableStepsConflictScope.FACT) }
-	}
-}
-
-private fun PortableStepsEntryV1.identityConflictWithinEntry(): PortableStepsConflictScope? {
-	val seen = hashSetOf<String>()
-	if (!seen.add(identity.value)) {
-		return PortableStepsConflictScope.LOGICAL_ENTRY
-	}
-	for (run in runs) {
-		if (!seen.add(run.identity.value)) {
-			return PortableStepsConflictScope.PHYSICAL_RUN
-		}
-		for (fact in run.facts) {
-			if (!seen.add(fact.identity.value)) {
-				return PortableStepsConflictScope.FACT
-			}
-		}
-	}
-	return null
-}
-
-private fun PortableStepsEntryV1.snapshotAndValidate(): PortableStepsEntryV1 = try {
-	copy(
-		runs = runs.map { run ->
-			run.copy(manifests = run.manifests.toList(), facts = run.facts.toList())
-		},
-	).also { snapshot ->
-		require(
-			com.adsamcik.tracker.stats.api.repository.PortableStepsIntegrity
-				.expectedEntryChecksum(snapshot) == snapshot.contentChecksum,
-		)
-	}
-} catch (failure: IllegalArgumentException) {
-	throw PortableStepsSnapshotException(failure)
-} catch (failure: ConcurrentModificationException) {
-	throw PortableStepsSnapshotException(failure)
-}
-
-@Suppress("CyclomaticComplexMethod", "LongMethod")
-internal fun PortableStepsEntryV1.prepareForImport(): PreparedPortableStepsDayScope {
-	val entry = snapshotAndValidate()
-	val candidateZonesByDay = linkedMapOf<Long, MutableSet<ZoneId>>()
-	val lockDays = sortedSetOf<Long>()
-	val coverageIntervals = mutableListOf<ImportWallInterval>()
-	var defaultZoneId: ZoneId? = null
-
-	fun includeInterval(startMs: Long, endMs: Long, zoneId: ZoneId) {
-		val interval = ImportWallInterval(startMs, endMs)
-		val exactDays = affectedEpochDays(startMs, endMs, zoneId, zoneId, MAX_IMPORT_DAYS)
-			?: throw dependencyOverflow()
-		val plausibleDays = affectedEpochDays(
-			startMs, endMs, ZoneOffset.MIN, ZoneOffset.MAX, MAX_IMPORT_LOCK_DAYS,
-		) ?: throw dependencyOverflow()
-		for (epochDay in exactDays) {
-			candidateZonesByDay.getOrPut(epochDay) { linkedSetOf() }.add(zoneId)
-			val window = dayWindow(epochDay, zoneId) ?: throw dayRepairUnverifiable()
-			lockDays += affectedEpochDays(
-				window.startMs, window.endMs, ZoneOffset.MIN, ZoneOffset.MAX, MAX_IMPORT_LOCK_DAYS,
-			) ?: throw dependencyOverflow()
-		}
-		lockDays += exactDays
-		lockDays += plausibleDays
-		coverageIntervals += interval
-		if (candidateZonesByDay.size > MAX_IMPORT_DAYS || lockDays.size > MAX_IMPORT_LOCK_DAYS) {
-			throw dependencyOverflow()
-		}
-	}
-
-	for (run in entry.runs) {
-		if (run.endTimeMs <= run.startTimeMs) {
-			throw PortableStepsImportUnverifiableException(
-				PortableStepsImportUnverifiableReason.ATTRIBUTION_UNVERIFIABLE,
-			)
-		}
-		val zoneId = try {
-			ZoneId.of(run.storedZoneId)
-		} catch (_: DateTimeException) {
-			throw PortableStepsImportUnverifiableException(
-				PortableStepsImportUnverifiableReason.ATTRIBUTION_UNVERIFIABLE,
-			)
-		}
-		if (defaultZoneId == null) {
-			defaultZoneId = zoneId
-		}
-		includeInterval(run.startTimeMs, run.endTimeMs, zoneId)
-		for (fact in run.facts) {
-			val repairEndMs = when {
-				fact.intervalEndTimeMs > fact.intervalStartTimeMs -> fact.intervalEndTimeMs
-				fact.stepCount != null || fact.intervalStartTimeMs == Long.MAX_VALUE ->
-					throw dayRepairUnverifiable()
-				else -> fact.intervalStartTimeMs + 1L
-			}
-			includeInterval(fact.intervalStartTimeMs, repairEndMs, zoneId)
-		}
-	}
-	val firstDay = candidateZonesByDay.keys.minOrNull() ?: throw dayRepairUnverifiable()
-	val lastDay = candidateZonesByDay.keys.maxOrNull() ?: throw dayRepairUnverifiable()
-	val span = try {
-		Math.addExact(Math.subtractExact(lastDay, firstDay), 1L)
-	} catch (_: ArithmeticException) {
-		throw dependencyOverflow()
-	}
-	if (span !in 1L..MAX_IMPORT_DAYS.toLong()) {
-		throw dependencyOverflow()
-	}
-	return PreparedPortableStepsDayScope(
-		entry = entry,
-		candidateZonesByDay = candidateZonesByDay.mapValues { (_, zones) -> zones.toSet() },
-		lockDays = lockDays.toList(),
-		defaultZoneId = requireNotNull(defaultZoneId),
-		coverageIntervals = coverageIntervals,
-	)
-}
-
-private fun affectedEpochDays(
-	startTimeMs: Long,
-	endTimeMs: Long,
-	startZoneId: ZoneId,
-	endZoneId: ZoneId,
-	maximumDays: Int,
-): List<Long>? {
-	if (endTimeMs <= startTimeMs || maximumDays <= 0) {
-		return null
-	}
-	return try {
-		val lastCoveredMs = Math.subtractExact(endTimeMs, 1L)
-		val startDay = Instant.ofEpochMilli(startTimeMs).atZone(startZoneId).toLocalDate().toEpochDay()
-		val endDay = Instant.ofEpochMilli(lastCoveredMs).atZone(endZoneId).toLocalDate().toEpochDay()
-		val dayCount = Math.addExact(Math.subtractExact(endDay, startDay), 1L)
-		if (dayCount !in 1L..maximumDays.toLong()) {
-			null
-		} else {
-			List(dayCount.toInt()) { index -> Math.addExact(startDay, index.toLong()) }
-		}
-	} catch (_: ArithmeticException) {
-		null
-	} catch (_: DateTimeException) {
-		null
-	}
-}
-
-private fun dayWindow(epochDay: Long, zoneId: ZoneId): ImportWallInterval? = try {
-	val startMs = LocalDate.ofEpochDay(epochDay).atStartOfDay(zoneId).toInstant().toEpochMilli()
-	val endMs = LocalDate.ofEpochDay(Math.addExact(epochDay, 1L))
-		.atStartOfDay(zoneId).toInstant().toEpochMilli()
-	ImportWallInterval(startMs, endMs).takeIf { interval -> interval.endMs > interval.startMs }
-} catch (_: ArithmeticException) {
-	null
-} catch (_: DateTimeException) {
-	null
-}
-
-private fun List<ImportWallInterval>.cover(target: ImportWallInterval): Boolean {
-	var cursor = target.startMs
-	for (window in this) {
-		if (window.endMs <= cursor) {
-			continue
-		}
-		if (window.startMs > cursor) {
-			return false
-		}
-		cursor = maxOf(cursor, window.endMs)
-		if (cursor >= target.endMs) {
-			return true
-		}
-	}
-	return false
 }
 
 private fun PortableStepsEntryV1.isOutsideRetention(retainedFromMs: Long?): Boolean =
@@ -1158,25 +923,6 @@ private fun ImportedStepsReadFailure.toImportResult(): ImportPortableStepsResult
 	-> attributionUnverifiable()
 }
 
-private fun ExportPortableStepsResult.Unverifiable.toImportResult(): ImportPortableStepsResult = when (reason) {
-	PortableStepsExportUnverifiableReason.ENTRY_MATERIALIZING -> ImportPortableStepsResult.RetryableFailure(
-		PortableStepsTransferRetryableReason.DAY_REPAIR_MATERIALIZING,
-	)
-	PortableStepsExportUnverifiableReason.RETENTION_CROSSES_ENTRY ->
-		ImportPortableStepsResult.OutsideRetention
-	PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW,
-	PortableStepsExportUnverifiableReason.RANGE_UNSUPPORTED,
-	-> ImportPortableStepsResult.Unverifiable(PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW)
-	PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
-	PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
-	PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
-	-> attributionUnverifiable()
-}
-
-private fun attributionUnverifiable() = ImportPortableStepsResult.Unverifiable(
-	PortableStepsImportUnverifiableReason.ATTRIBUTION_UNVERIFIABLE,
-)
-
 private fun concurrentState() = ImportPortableStepsResult.RetryableFailure(
 	PortableStepsTransferRetryableReason.CONCURRENT_STATE_CHANGE,
 )
@@ -1185,47 +931,9 @@ private fun storageUnavailable() = ImportPortableStepsResult.RetryableFailure(
 	PortableStepsTransferRetryableReason.STORAGE_UNAVAILABLE,
 )
 
-internal fun dayRepairUnverifiable() = PortableStepsImportUnverifiableException(
-	PortableStepsImportUnverifiableReason.DAY_REPAIR_UNVERIFIABLE,
-)
-
-private fun dependencyOverflow() = PortableStepsImportUnverifiableException(
-	PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
-)
-
-internal data class PreparedPortableStepsDayScope(
-	val entry: PortableStepsEntryV1,
-	val candidateZonesByDay: Map<Long, Set<ZoneId>>,
-	val lockDays: List<Long>,
-	val defaultZoneId: ZoneId,
-	val coverageIntervals: List<ImportWallInterval>,
-)
-
-internal data class ImportWallInterval(
-	val startMs: Long,
-	val endMs: Long,
-) {
-	init {
-		require(endMs > startMs)
-	}
-
-	fun overlaps(other: ImportWallInterval): Boolean = startMs < other.endMs && endMs > other.startMs
-
-	fun intersection(other: ImportWallInterval): ImportWallInterval? {
-		val start = maxOf(startMs, other.startMs)
-		val end = minOf(endMs, other.endMs)
-		return if (end > start) ImportWallInterval(start, end) else null
-	}
-}
-
 internal class PortableStepsSnapshotException(cause: Throwable) : IllegalStateException(cause)
-internal class PortableStepsImportUnverifiableException(
-	val reason: PortableStepsImportUnverifiableReason,
-) : IllegalStateException()
 private class PortableStepsDayRepairException(
 	val result: ImportPortableStepsResult,
 ) : IllegalStateException()
 private class PortableStepsConcurrentStateException : IllegalStateException()
 
-private const val MAX_IMPORT_DAYS = StepsNumericSummaryRequest.MAX_DAY_COUNT
-private const val MAX_IMPORT_LOCK_DAYS = MAX_IMPORT_DAYS + 2

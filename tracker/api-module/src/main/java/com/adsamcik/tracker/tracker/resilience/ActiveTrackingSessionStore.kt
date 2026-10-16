@@ -64,6 +64,9 @@ data class TrackingStopCandidate(
 	}
 }
 
+/**
+ * Bounded encoded plan for one source, with a format version and checksum used during durable retry.
+ */
 data class CatalogReconfigurationSourcePlan(
 	val sourceStableCode: Int,
 	val payloadVersion: Int,
@@ -176,6 +179,10 @@ data class CatalogReconfigurationDebt(
 		require(controlDependencyMask >= 0L) { "controlDependencyMask must not be negative" }
 	}
 
+	/**
+	 * Rebinds existing configuration debt to the replacement service run without changing its requested
+	 * plans.
+	 */
 	fun forServiceRun(serviceRunId: String): CatalogReconfigurationDebt =
 		copy(serviceRunId = serviceRunId)
 }
@@ -429,11 +436,15 @@ sealed interface ActiveTrackingSessionStoreResult {
 	) : ActiveTrackingSessionStoreResult
 }
 
+/** Distinguishes unreadable/corrupt descriptor storage from an ordinary persistence failure. */
 enum class ActiveTrackingSessionStoreFailureKind {
 	CORRUPT,
 	UNAVAILABLE,
 }
 
+/**
+ * Signals an invalid durable session descriptor while preserving the underlying cause for local recovery.
+ */
 class ActiveTrackingSessionStoreCorruptionException(
 	cause: Throwable,
 ) : IllegalStateException("Active tracking session persistence is corrupt", cause)
@@ -454,28 +465,32 @@ interface ActiveTrackingSessionStore {
 		is ActiveTrackingSessionStoreResult.Failure -> current
 		is ActiveTrackingSessionStoreResult.Success -> {
 			val stored = current.descriptor
-			val merged = when {
-				stored == null -> descriptor
-				stored.logicalTrackingId != descriptor.logicalTrackingId ||
-					stored.serviceRunId != descriptor.serviceRunId -> stored
-				stored.lifecycleRevision > descriptor.lifecycleRevision ||
-					(stored.lifecycleRevision == descriptor.lifecycleRevision &&
-						stored.lifecycleState != descriptor.lifecycleState) -> stored
-				else -> descriptor.copy(
-					sourceCallerAuthorityReference = stored.sourceCallerAuthorityReference,
-					pendingRetirementSourceCallerAuthorityReference =
-						stored.pendingRetirementSourceCallerAuthorityReference,
-					catalogReconfigurationDebt = stored.catalogReconfigurationDebt,
-					appliedSourcePlanIdentity = stored.appliedSourcePlanIdentity,
-					desiredSourcePlanIdentity = stored.desiredSourcePlanIdentity,
-				)
-			}
+			val merged = if (stored == null) descriptor else mergeServiceFields(stored, descriptor)
 			when {
 				stored == merged -> ActiveTrackingSessionStoreResult.Success(merged)
 				stored == null -> save(merged)
 				else -> replaceExact(stored, merged)
 			}
 		}
+	}
+
+	private fun mergeServiceFields(
+		stored: ActiveTrackingSessionDescriptor,
+		descriptor: ActiveTrackingSessionDescriptor,
+	): ActiveTrackingSessionDescriptor = when {
+		stored.logicalTrackingId != descriptor.logicalTrackingId ||
+			stored.serviceRunId != descriptor.serviceRunId -> stored
+		stored.lifecycleRevision > descriptor.lifecycleRevision ||
+			(stored.lifecycleRevision == descriptor.lifecycleRevision &&
+				stored.lifecycleState != descriptor.lifecycleState) -> stored
+		else -> descriptor.copy(
+			sourceCallerAuthorityReference = stored.sourceCallerAuthorityReference,
+			pendingRetirementSourceCallerAuthorityReference =
+				stored.pendingRetirementSourceCallerAuthorityReference,
+			catalogReconfigurationDebt = stored.catalogReconfigurationDebt,
+			appliedSourcePlanIdentity = stored.appliedSourcePlanIdentity,
+			desiredSourcePlanIdentity = stored.desiredSourcePlanIdentity,
+		)
 	}
 
 	/**

@@ -55,6 +55,7 @@ sealed interface TripDetailStepsState {
  * as complete. Explicit policy disablement wins over the coarse not-captured cause; other specific
  * causes take precedence over generic availability/product states.
  */
+@Suppress("CyclomaticComplexMethod") // Keep this fixed field or enum projection together.
 internal fun StepsHistory.toTripDetailStepsState(): TripDetailStepsState {
 	val legacyPresentation = legacyState()
 	val unavailablePresentation = availability.unavailableState()

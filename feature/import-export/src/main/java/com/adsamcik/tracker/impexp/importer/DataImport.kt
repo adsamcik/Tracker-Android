@@ -35,7 +35,9 @@ class DataImport {
 	 * List of all supported extensions (import + archive).
 	 */
 	val supportedExtensions: Collection<String>
-		get() = supportedImporterExtensions.union(supportedArchiveExtractorExtensions) + SessionBundleManifestCodecV1.EXTENSION
+		get() =
+			supportedImporterExtensions.union(supportedArchiveExtractorExtensions) +
+				SessionBundleManifestCodecV1.EXTENSION
 
 	init {
 		this.activeImporterList = FormatRegistry.allImporters()

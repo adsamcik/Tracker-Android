@@ -124,7 +124,11 @@ private fun ActivityStateHeader(activity: DashboardLiveActivityValue) {
 		}
 		Text(
 			text = stringResource(
-				if (recording) R.string.dashboard_recording else activity.state.labelResource,
+				if (recording) {
+					R.string.dashboard_recording
+				} else {
+					activity.state.labelResource
+				},
 			),
 			modifier = Modifier.testTag("dashboard_live_activity_header"),
 			style = MaterialTheme.typography.labelLarge,

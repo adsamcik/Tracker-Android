@@ -111,20 +111,39 @@ class SourceBrokerAllDayReadinessTest {
 		}
 	}
 
+	// Keep each all-day source preparation with its writer, retention and exact accepted caller fixture
+	// together.
+	@Suppress("LongMethod")
 	private suspend fun prepare(source: SourceKind): Triple<AmbientReconciliationIdentity,
 		LiveAmbientRetentionSnapshot, PreparedSourceCallerAcceptance> {
 		val location = source == SourceKind.LOCATION
-		val binding = if (location) ExecutableSourceLaneCatalog.PREFERRED_LOCATION_CANONICAL_HANDOFF
-			else ExecutableSourceLaneCatalog.PREFERRED_STEPS_SESSION_FACTS
+		val binding = if (location) {
+			ExecutableSourceLaneCatalog.PREFERRED_LOCATION_CANONICAL_HANDOFF
+		}
+			else {
+			ExecutableSourceLaneCatalog.PREFERRED_STEPS_SESSION_FACTS
+		}
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 3L, updatedAtMs = 1L))
 		database.sourceDestinationOwnerDao().insertIfAbsent(SourceDestinationOwnerEntity(
 			sourceKind = source.stableCode,
-			destination = if (location) SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION
-				else SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
-			owner = if (location) SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE
-				else SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
-			ownerGeneration = if (location) SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION
-				else SourceWriterGenerationContract.canonicalOwnerGeneration(binding.bindingGeneration),
+			destination = if (location) {
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION
+			}
+				else {
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS
+			},
+			owner = if (location) {
+				SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE
+			}
+				else {
+				SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
+			},
+			ownerGeneration = if (location) {
+				SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION
+			}
+				else {
+				SourceWriterGenerationContract.canonicalOwnerGeneration(binding.bindingGeneration)
+			},
 			updatedAtMs = 1L,
 		))
 		rolloutStore = installCanonicalProductLanesForTest(database, listOf(binding), 1L)
@@ -134,20 +153,27 @@ class SourceBrokerAllDayReadinessTest {
 			SourcePolicyEffectiveTime("boot-1", 10L, 10L)
 		}.bootstrapFromLegacy(TrackingParamsState(
 			locationEnabled = false,
-			stepsEnabled = false,
+			stepsEnabled = !location,
 			ambientLocationEnabled = location,
-			ambientStepsEnabled = !location,
 			locationProfileVersion = 1,
 			locationBalanceLevel = 3,
 			locationBackgroundMode = LocationBackgroundMode.ADAPTIVE,
 			legacySettingsMigrationCompleted = true,
 		))
-		val component = if (location) TrackingSourceComponent.LOCATION else TrackingSourceComponent.STEPS
+		val component = if (location) {
+			TrackingSourceComponent.LOCATION
+		} else {
+			TrackingSourceComponent.STEPS
+		}
 		val retention = retentionReader.installCurrent(database, component, policy.revision,
 			requireNotNull(policy[component].ambientConsentEpoch), 3L, "boot-1")
 		val grant = retention.grants.getValue(source)
 		val identity = AmbientReconciliationIdentity(
-			source = if (location) AmbientTrackingSource.LOCATION else AmbientTrackingSource.STEPS,
+			source = if (location) {
+				AmbientTrackingSource.LOCATION
+			} else {
+				AmbientTrackingSource.STEPS
+			},
 			policyRevision = policy.revision,
 			consentEpoch = grant.ambientConsentEpoch,
 			collectedDataEpoch = 3L,

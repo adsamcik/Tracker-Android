@@ -67,6 +67,9 @@ class StepsGoalCoordinatorTest {
 	}
 
 	@Test
+	// Keep the real daily-goal coordinator from launch through persisted effects and orderly cancellation
+	// together.
+	@Suppress("LongMethod")
 	fun `qualified source change records and settles the current daily goal`() = runTest {
 		appDatabase.sourceEvidenceStateDao().ensure(SourceEvidenceState(revision = 1L))
 		val settings = GoalsSettingsState.defaults().copy(notificationsEnabled = false)
@@ -130,7 +133,9 @@ class StepsGoalCoordinatorTest {
 						val current = appDatabase.stepsGoalEffectDao().get(identity)
 						if (current != null &&
 							current.notificationClaimedRevision == current.effectRevision
-						) break
+						) {
+							break
+						}
 						delay(10L)
 					}
 				}

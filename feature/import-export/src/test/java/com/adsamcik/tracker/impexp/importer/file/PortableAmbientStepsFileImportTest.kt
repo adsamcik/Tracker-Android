@@ -265,6 +265,8 @@ class PortableAmbientStepsFileImportTest {
 	}
 
 	@Test
+	// Keep this complete contract scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `malformed file is terminal before source mutation while raw IO retry and cancellation escape`() =
 		runTest {
 			var calls = 0

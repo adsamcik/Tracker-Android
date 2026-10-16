@@ -1,5 +1,15 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureWindowEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetainedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureRunIdentityOwner
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureWindowIdentityOwner
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureRetainedFootprint
+
 import android.database.sqlite.SQLiteConstraintException
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
@@ -71,7 +81,6 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 		}
 	}
 
-	@Suppress("LongMethod")
 	private suspend fun deleteInTransaction(
 		request: DeleteImportedPressureEntryRequest,
 	): DeleteImportedPressureEntryResult {
@@ -84,6 +93,58 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 		}
 
 		val identity = request.identity.value
+		authenticateDeletionPreflight(dao, identity)
+		return deleteSavedHierarchy(dao, state, request)
+	}
+
+	private suspend fun deleteSavedHierarchy(
+		dao: ImportedPressureDao, state: SourceEvidenceState, request: DeleteImportedPressureEntryRequest,
+	): DeleteImportedPressureEntryResult {
+		val identity = request.identity.value
+		val headers = dao.entryRevisionsForAdmission(identity)
+		val receipts = dao.receiptsForAdmission(identity)
+		val runs = dao.allRunsForAdmission(identity)
+		val windows = dao.allWindowsForAdmission(identity)
+		val entryMarker = dao.entryDeletion(identity)
+		rejectRetainedDeletion(dao, state, identity, headers, receipts, runs, windows, entryMarker)
+		if (entryMarker != null) {
+			if (hasStoredPressureHierarchy(headers, receipts, runs, windows)) {
+				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.PARTIAL_DELETION_STATE)
+			}
+			authenticateDeletedEntryAuthority(dao, entryMarker)
+			if (entryMarker.deletedImportRevision != request.expectedImportRevision) {
+				stale(ImportedPressureEntryDeletionStaleReason.IMPORT_REVISION_CHANGED)
+			}
+			return DeleteImportedPressureEntryResult.AlreadyDeleted
+		}
+		if (headers.isEmpty()) {
+			if (hasStoredPressureHierarchy(headers, receipts, runs, windows)) {
+				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.PARTIAL_DELETION_STATE)
+			}
+			return DeleteImportedPressureEntryResult.NotFound
+		}
+		if (headers.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) }) {
+			stale(ImportedPressureEntryDeletionStaleReason.COLLECTED_DATA_EPOCH_CHANGED)
+		}
+
+		val lineage = authenticateDeletionLineage(request, state, headers, receipts, runs, windows)
+		val latest = requireNotNull(lineage.latest)
+		if (latest.header.importRevision != request.expectedImportRevision) {
+			stale(ImportedPressureEntryDeletionStaleReason.IMPORT_REVISION_CHANGED)
+		}
+		authenticateGlobalIdentityOwnership(dao, lineage)
+		val runIdentities = lineage.revisions.flatMap { revision ->
+			revision.entry.runs.map { run -> run.identity.value }
+		}.distinct()
+		val existingMarkers = dao.deletionGenerationsForHistory(runIdentities)
+		if (existingMarkers.isNotEmpty()) {
+			unverifiable(ImportedPressureEntryDeletionUnverifiableReason.PARTIAL_DELETION_STATE)
+		}
+
+		return deleteAuthenticatedLineage(dao, request, lineage, runIdentities)
+	}
+
+	private suspend fun authenticateDeletionPreflight(dao: ImportedPressureDao, identity: String) {
 		when (dao.identityAuthorityFootprint(listOf(identity)).validate(1)) {
 			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW,
 			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW,
@@ -107,22 +168,25 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 			)
 			null -> Unit
 		}
-		val headers = dao.entryRevisionsForAdmission(identity)
-		val receipts = dao.receiptsForAdmission(identity)
-		val runs = dao.allRunsForAdmission(identity)
-		val windows = dao.allWindowsForAdmission(identity)
-		val entryMarker = dao.entryDeletion(identity)
+	}
+
+	// These are the original captured source state and saved hierarchy rows of one retention admission.
+	@Suppress("LongParameterList")
+	private suspend fun rejectRetainedDeletion(
+		dao: ImportedPressureDao, state: SourceEvidenceState, identity: String,
+		headers: List<ImportedPressureEntryRevisionEntity>, receipts: List<ImportedPressureReceiptEntity>,
+		runs: List<ImportedPressureRunEntity>, windows: List<ImportedPressureWindowEntity>,
+		entryMarker: ImportedPressureEntryDeletionEntity?,
+	) {
 		val retainedFootprint = dao.retainedFootprint(identity)
-		if (retainedFootprint.receiptCount !in 0L..1L ||
-			retainedFootprint.receiptTextBytes < 0L || retainedFootprint.markerTextBytes < 0L ||
-			retainedFootprint.totalTextBytes > ImportedPressureDao.MAX_LINEAGE_TEXT_BYTES
-		) unverifiable(ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW)
+		if (!retainedFootprint.isBoundedDeletionFootprint()) {
+			unverifiable(ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW)
+		}
 		if (retainedFootprint.receiptCount == 0L && retainedFootprint.markerCount != 0L) {
 			unverifiable(ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 		}
 		if (dao.retentionReceipt(identity) != null) {
-			if (headers.isNotEmpty() || receipts.isNotEmpty() || runs.isNotEmpty() ||
-				windows.isNotEmpty() || entryMarker != null
+			if (hasStoredPressureHierarchy(headers, receipts, runs, windows) || entryMarker != null
 			) {
 				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.PARTIAL_DELETION_STATE)
 			}
@@ -140,29 +204,16 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 				)
 			}
 		}
-		if (entryMarker != null) {
-			if (headers.isNotEmpty() || receipts.isNotEmpty() || runs.isNotEmpty() || windows.isNotEmpty()) {
-				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.PARTIAL_DELETION_STATE)
-			}
-			authenticateDeletedEntryAuthority(dao, entryMarker)
-			if (entryMarker.deletedImportRevision != request.expectedImportRevision) {
-				stale(ImportedPressureEntryDeletionStaleReason.IMPORT_REVISION_CHANGED)
-			}
-			return DeleteImportedPressureEntryResult.AlreadyDeleted
-		}
-		if (headers.isEmpty()) {
-			if (receipts.isNotEmpty() || runs.isNotEmpty() || windows.isNotEmpty()) {
-				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.PARTIAL_DELETION_STATE)
-			}
-			return DeleteImportedPressureEntryResult.NotFound
-		}
-		if (headers.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) }) {
-			stale(ImportedPressureEntryDeletionStaleReason.COLLECTED_DATA_EPOCH_CHANGED)
-		}
+	}
 
-		val lineage = try {
+	private fun authenticateDeletionLineage(
+		request: DeleteImportedPressureEntryRequest, state: SourceEvidenceState,
+		headers: List<ImportedPressureEntryRevisionEntity>, receipts: List<ImportedPressureReceiptEntity>,
+		runs: List<ImportedPressureRunEntity>, windows: List<ImportedPressureWindowEntity>,
+	): AuthenticatedImportedPressureLineage {
+		return try {
 			ImportedPressureLineageAuthenticator.authenticate(
-				identity = identity,
+				identity = request.identity.value,
 				expectedCollectedDataEpoch = request.expectedCollectedDataEpoch,
 				retainedState = state,
 				headers = headers,
@@ -173,19 +224,13 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 		} catch (failure: ImportedPressureLineageFailure) {
 			unverifiable(failure.reason.toDeletionReason())
 		}
-		val latest = requireNotNull(lineage.latest)
-		if (latest.header.importRevision != request.expectedImportRevision) {
-			stale(ImportedPressureEntryDeletionStaleReason.IMPORT_REVISION_CHANGED)
-		}
-		authenticateGlobalIdentityOwnership(dao, lineage)
-		val runIdentities = lineage.revisions.flatMap { revision ->
-			revision.entry.runs.map { run -> run.identity.value }
-		}.distinct()
-		val existingMarkers = dao.deletionGenerationsForHistory(runIdentities)
-		if (existingMarkers.isNotEmpty()) {
-			unverifiable(ImportedPressureEntryDeletionUnverifiableReason.PARTIAL_DELETION_STATE)
-		}
+	}
 
+	private suspend fun deleteAuthenticatedLineage(
+		dao: ImportedPressureDao, request: DeleteImportedPressureEntryRequest,
+		lineage: AuthenticatedImportedPressureLineage, runIdentities: List<String>,
+	): DeleteImportedPressureEntryResult {
+		val identity = request.identity.value
 		val deletedAtMs = wallTimeMsProvider().coerceAtLeast(0L)
 		val identityFences = lineage.identityFences(
 			collectedDataEpoch = request.expectedCollectedDataEpoch,
@@ -226,7 +271,9 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 			dao.receiptsForAdmission(identity).isNotEmpty() ||
 			dao.allRunsForAdmission(identity).isNotEmpty() ||
 			dao.allWindowsForAdmission(identity).isNotEmpty()
-		) concurrentMutation()
+		) {
+			concurrentMutation()
+		}
 		writeCheckpoint(ImportedPressureDeletionWriteCheckpoint.HIERARCHY_REMOVED)
 		return DeleteImportedPressureEntryResult.Deleted
 	}
@@ -237,149 +284,138 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 	 * Tombstones are keyed only by opaque identity, so a corrupt cross-owner or cross-kind row must
 	 * block before the first durable privacy fence can affect an unrelated imported entry.
 	 */
-	@Suppress("LongMethod")
 	private suspend fun authenticateGlobalIdentityOwnership(
 		dao: ImportedPressureDao,
 		lineage: AuthenticatedImportedPressureLineage,
 	) {
-		val latest = requireNotNull(lineage.latest)
-		val expected = linkedMapOf<String, ImportedPressureGlobalIdentityOwner>()
-		fun bind(identity: String, owner: ImportedPressureGlobalIdentityOwner) {
-			val previous = expected[identity]
-			if (previous == null) expected[identity] = owner else if (previous != owner) {
-				unverifiable(
-					ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
-				)
-			}
-		}
-		bind(
-			latest.header.identity,
-			ImportedPressureGlobalIdentityOwner(
-				kind = PortablePressureIdentityKind.LOGICAL_ENTRY,
-				entryIdentity = latest.header.identity,
-			),
-		)
-		lineage.revisions.forEach { revision ->
-			revision.entry.runs.forEach { run ->
-				bind(
-					run.identity.value,
-					ImportedPressureGlobalIdentityOwner(
-						kind = PortablePressureIdentityKind.PHYSICAL_RUN,
-						entryIdentity = latest.header.identity,
-					),
-				)
-				run.windows.forEach { window ->
-					bind(
-						window.identity.value,
-						ImportedPressureGlobalIdentityOwner(
-							kind = PortablePressureIdentityKind.WINDOW,
-							entryIdentity = latest.header.identity,
-							runIdentity = run.identity.value,
-						),
-					)
-				}
-			}
-		}
+		val expected = lineage.expectedPressureDeletionOwners() ?: unverifiable(
+			ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 
 		expected.keys.chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { identities ->
-			val queryLimit = identities.size + 1
-			val entries = dao.existingEntryIdentities(identities, queryLimit)
-			val runs = dao.existingRunIdentityOwners(identities, queryLimit)
-			val windows = dao.existingWindowIdentityOwners(identities, queryLimit)
-			val retainedIdentities = dao.retainedIdentityOwners(identities, queryLimit)
-			val permanentFences = dao.identityFences(identities, queryLimit)
-			val entryTombstones = dao.entryDeletions(identities)
-			val runTombstones = dao.deletionGenerations(identities)
-			if (entries.size >= queryLimit || runs.size >= queryLimit ||
-				windows.size >= queryLimit || retainedIdentities.size >= queryLimit ||
-				permanentFences.size >= queryLimit
-			) {
-				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW)
+			authenticateGlobalIdentityChunk(dao, identities, expected)
+		}
+	}
+
+	private suspend fun authenticateGlobalIdentityChunk(
+		dao: ImportedPressureDao, identities: List<String>,
+		expected: Map<String, ImportedPressureGlobalIdentityOwner>,
+	) {
+		val queryLimit = identities.size + 1
+		val entries = dao.existingEntryIdentities(identities, queryLimit)
+		val runs = dao.existingRunIdentityOwners(identities, queryLimit)
+		val windows = dao.existingWindowIdentityOwners(identities, queryLimit)
+		val retainedIdentities = dao.retainedIdentityOwners(identities, queryLimit)
+		val permanentFences = dao.identityFences(identities, queryLimit)
+		val entryTombstones = dao.entryDeletions(identities)
+		val runTombstones = dao.deletionGenerations(identities)
+		if (listOf(entries.size, runs.size, windows.size, retainedIdentities.size, permanentFences.size)
+			.any { it >= queryLimit }) {
+			unverifiable(ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW)
+		}
+		authenticateRetainedDeletionOwners(retainedIdentities)
+		if (retainedIdentities.isNotEmpty()) {
+			unverifiable(ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		if (permanentFences.isNotEmpty()) {
+			unverifiable(
+				ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+		authenticateIdentityDeletionMarkers(expected, entryTombstones, runTombstones)
+		authenticateObservedDeletionOwners(identities, expected, entries, runs, windows)
+	}
+
+	private suspend fun authenticateRetainedDeletionOwners(
+		retainedIdentities: List<ImportedPressureRetainedIdentityEntity>,
+	) {
+		retainedIdentities.map { it.entryIdentity }.distinct().forEach { retainedEntry ->
+			when (database.authenticateImportedPressureRetainedOwner(
+				requireNotNull(database.sourceEvidenceStateDao().get()),
+				retainedEntry,
+			)) {
+				ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW,
+				ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW,
+				-> unverifiable(
+					ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW,
+				)
+				ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
+				ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
+				-> unverifiable(
+					ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+				)
+				null -> Unit
 			}
-			retainedIdentities.map { it.entryIdentity }.distinct().forEach { retainedEntry ->
-				when (database.authenticateImportedPressureRetainedOwner(
-					requireNotNull(database.sourceEvidenceStateDao().get()),
-					retainedEntry,
-				)) {
-					ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW,
-					ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW,
-					-> unverifiable(
-						ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW,
-					)
-					ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
-					ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
-					-> unverifiable(
-						ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
-					)
-					null -> Unit
-				}
-			}
-			if (retainedIdentities.isNotEmpty()) {
+		}
+	}
+
+	private fun authenticateIdentityDeletionMarkers(
+		expected: Map<String, ImportedPressureGlobalIdentityOwner>,
+		entryTombstones: List<ImportedPressureEntryDeletionEntity>,
+		runTombstones: List<ImportedPressureDeletionGenerationEntity>,
+	) {
+		val incompatibleEntryTombstone = entryTombstones.any { marker ->
+			expected[marker.entryIdentity]?.kind != PortablePressureIdentityKind.LOGICAL_ENTRY
+		}
+
+		val incompatibleRunTombstone = runTombstones.any { marker ->
+			expected[marker.runIdentity]?.kind != PortablePressureIdentityKind.PHYSICAL_RUN
+		}
+		if (incompatibleEntryTombstone || incompatibleRunTombstone) {
+			unverifiable(
+				ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+		if (entryTombstones.isNotEmpty() || runTombstones.isNotEmpty()) {
+			unverifiable(ImportedPressureEntryDeletionUnverifiableReason.PARTIAL_DELETION_STATE)
+		}
+	}
+
+	private fun authenticateObservedDeletionOwners(
+		identities: List<String>, expected: Map<String, ImportedPressureGlobalIdentityOwner>,
+		entries: List<String>, runs: List<ImportedPressureRunIdentityOwner>,
+		windows: List<ImportedPressureWindowIdentityOwner>,
+	) {
+		val observed = linkedMapOf<String, ImportedPressureGlobalIdentityOwner>()
+
+		entries.forEach { entryIdentity ->
+			if (!observed.bindPressureDeletionOwner(
+				entryIdentity,
+				ImportedPressureGlobalIdentityOwner(
+					PortablePressureIdentityKind.LOGICAL_ENTRY,
+					entryIdentity,
+				),
+			)) {
 				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 			}
-			if (permanentFences.isNotEmpty()) {
-				unverifiable(
-					ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
-				)
+		}
+		runs.forEach { run ->
+			if (!observed.bindPressureDeletionOwner(
+				run.identity,
+				ImportedPressureGlobalIdentityOwner(
+					PortablePressureIdentityKind.PHYSICAL_RUN,
+					run.entryIdentity,
+				),
+			)) {
+				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 			}
-			val incompatibleEntryTombstone = entryTombstones.any { marker ->
-				expected[marker.entryIdentity]?.kind != PortablePressureIdentityKind.LOGICAL_ENTRY
+		}
+		windows.forEach { window ->
+			if (!observed.bindPressureDeletionOwner(
+				window.identity,
+				ImportedPressureGlobalIdentityOwner(
+					PortablePressureIdentityKind.WINDOW,
+					window.entryIdentity,
+					window.runIdentity,
+				),
+			)) {
+				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 			}
-
-			val incompatibleRunTombstone = runTombstones.any { marker ->
-				expected[marker.runIdentity]?.kind != PortablePressureIdentityKind.PHYSICAL_RUN
-			}
-			if (incompatibleEntryTombstone || incompatibleRunTombstone) {
-				unverifiable(
-					ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
-				)
-			}
-			if (entryTombstones.isNotEmpty() || runTombstones.isNotEmpty()) {
-				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.PARTIAL_DELETION_STATE)
-			}
-			val observed = linkedMapOf<String, ImportedPressureGlobalIdentityOwner>()
-			fun observe(identity: String, owner: ImportedPressureGlobalIdentityOwner) {
-				val previous = observed[identity]
-				if (previous == null) observed[identity] = owner else if (previous != owner) {
-					unverifiable(
-						ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
-					)
-				}
-			}
-			entries.forEach { entryIdentity ->
-				observe(
-					entryIdentity,
-					ImportedPressureGlobalIdentityOwner(
-						PortablePressureIdentityKind.LOGICAL_ENTRY,
-						entryIdentity,
-					),
-				)
-			}
-			runs.forEach { run ->
-				observe(
-					run.identity,
-					ImportedPressureGlobalIdentityOwner(
-						PortablePressureIdentityKind.PHYSICAL_RUN,
-						run.entryIdentity,
-					),
-				)
-			}
-			windows.forEach { window ->
-				observe(
-					window.identity,
-					ImportedPressureGlobalIdentityOwner(
-						PortablePressureIdentityKind.WINDOW,
-						window.entryIdentity,
-						window.runIdentity,
-					),
-				)
-			}
-			val expectedChunk = identities.associateWith { identity -> requireNotNull(expected[identity]) }
-			if (observed != expectedChunk) {
-				unverifiable(
-					ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
-				)
-			}
+		}
+		val expectedChunk = identities.associateWith { identity -> requireNotNull(expected[identity]) }
+		if (observed != expectedChunk) {
+			unverifiable(
+				ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
 		}
 	}
 
@@ -428,6 +464,52 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 	private companion object {
 		const val IDENTITY_QUERY_CHUNK_SIZE = 256
 	}
+}
+
+private fun ImportedPressureRetainedFootprint.isBoundedDeletionFootprint(): Boolean =
+	receiptCount in 0L..1L && receiptTextBytes >= 0L && markerTextBytes >= 0L &&
+		totalTextBytes <= ImportedPressureDao.MAX_LINEAGE_TEXT_BYTES
+
+private fun hasStoredPressureHierarchy(
+	headers: List<ImportedPressureEntryRevisionEntity>, receipts: List<ImportedPressureReceiptEntity>,
+	runs: List<ImportedPressureRunEntity>, windows: List<ImportedPressureWindowEntity>,
+): Boolean = headers.isNotEmpty() || receipts.isNotEmpty() || runs.isNotEmpty() || windows.isNotEmpty()
+
+private fun MutableMap<String, ImportedPressureGlobalIdentityOwner>.bindPressureDeletionOwner(
+	identity: String, owner: ImportedPressureGlobalIdentityOwner,
+): Boolean {
+	val previous = this[identity]
+	return if (previous == null) {
+		this[identity] = owner
+		true
+	} else {
+		previous == owner
+	}
+}
+
+private fun AuthenticatedImportedPressureLineage.expectedPressureDeletionOwners():
+	Map<String, ImportedPressureGlobalIdentityOwner>? {
+	val latest = requireNotNull(this.latest)
+	val expected = linkedMapOf<String, ImportedPressureGlobalIdentityOwner>()
+	if (!expected.bindPressureDeletionOwner(latest.header.identity, ImportedPressureGlobalIdentityOwner(
+		PortablePressureIdentityKind.LOGICAL_ENTRY, latest.header.identity))) {
+		return null
+	}
+	revisions.forEach { revision ->
+		revision.entry.runs.forEach { run ->
+			if (!expected.bindPressureDeletionOwner(run.identity.value, ImportedPressureGlobalIdentityOwner(
+				PortablePressureIdentityKind.PHYSICAL_RUN, latest.header.identity))) {
+				return null
+			}
+			run.windows.forEach { window ->
+				if (!expected.bindPressureDeletionOwner(window.identity.value, ImportedPressureGlobalIdentityOwner(
+					PortablePressureIdentityKind.WINDOW, latest.header.identity, run.identity.value))) {
+					return null
+				}
+			}
+		}
+	}
+	return expected
 }
 
 private data class ImportedPressureGlobalIdentityOwner(

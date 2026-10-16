@@ -27,6 +27,10 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 @Dao
 @Suppress("LargeClass") // Cohesive batched history reads; a second Room DAO has no independent owner.
 interface TrackingHistoryReadDao {
+	/**
+	 * Executes a code-owned, bound measurement candidate query. The caller supplies time
+	 * bounds/paging and qualifies the selected payloads in the same Room transaction.
+	 */
 	@androidx.room.RawQuery
 	suspend fun measuredHistoryCandidates(query: androidx.sqlite.db.SupportSQLiteQuery): List<MeasuredHistoryCandidate>
 
@@ -34,6 +38,10 @@ interface TrackingHistoryReadDao {
     @androidx.room.RawQuery
     suspend fun unifiedHistoryCandidates(query: androidx.sqlite.db.SupportSQLiteQuery): List<UnifiedHistoryCandidate>
 
+    /**
+     * Executes the bound zone-discovery query used to establish stored calendar choices; it starts
+     * no provider and grants no capture authority.
+     */
     @androidx.room.RawQuery
     suspend fun unifiedHistoryZones(query: androidx.sqlite.db.SupportSQLiteQuery): List<String>
 
@@ -565,8 +573,14 @@ interface TrackingHistoryReadDao {
 	@androidx.room.RawQuery
 	suspend fun retainedLocationManifests(query: androidx.sqlite.db.SupportSQLiteQuery): List<SessionManifestVersionEntity>
 
+	/**
+	 * Executes a bound query for original Location manifest membership; the surrounding retained
+	 * reader validates the complete source lineage.
+	 */
 	@androidx.room.RawQuery
-	suspend fun retainedLocationManifestSources(query: androidx.sqlite.db.SupportSQLiteQuery): List<SessionManifestSourceEntity>
+	suspend fun retainedLocationManifestSources(
+		query: androidx.sqlite.db.SupportSQLiteQuery
+	): List<SessionManifestSourceEntity>
 
 	/** Reads all immutable manifest revisions for the requested service runs. */
 	@Query(

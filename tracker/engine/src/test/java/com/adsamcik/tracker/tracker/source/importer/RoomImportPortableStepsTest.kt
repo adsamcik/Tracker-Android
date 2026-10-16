@@ -142,6 +142,8 @@ class RoomImportPortableStepsTest {
 		dirtyTracker.marked shouldBe emptyList()
 	}
 
+	// Keep the original Steps import and its saved provenance, totals and no-live-authority assertions together.
+	@Suppress("LongMethod")
 	@Test
 	fun `applied import preserves portable attribution without fabricating live authority`() = runTest {
 		database.sourceEvidenceStateDao().ensure(
@@ -236,6 +238,8 @@ class RoomImportPortableStepsTest {
 		database.sessionSegmentDao().countTotal() shouldBe 1L
 	}
 
+	// Keep replacement-member import, complete-entry deletion and replay refusal in one scenario.
+	@Suppress("LongMethod")
 	@Test
 	fun `selecting one replacement member deletes the complete imported entry and blocks replay`() =
 		runTest {
@@ -1286,7 +1290,9 @@ class RoomImportPortableStepsTest {
 			val intervalStartTimeMs = START_MS + index.toLong() * durationMs / stepCounts.size
 			val intervalEndTimeMs = START_MS + (index + 1L) * durationMs / stepCounts.size
 			PortableStepsFactV1.create(
-				identity = if (index == 0) factIdentity else {
+				identity = if (index == 0) {
+					factIdentity
+				} else {
 					opaque(PortableStepsIdentityKind.FACT, "$logicalSeed-fact-$index")
 				},
 				manifestRevision = 1L,

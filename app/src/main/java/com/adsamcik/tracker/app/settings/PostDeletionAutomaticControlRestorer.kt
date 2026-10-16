@@ -44,6 +44,7 @@ class PostDeletionAutomaticControlRestorer @Inject constructor(
 ) {
 	private val readyRearm = PostDeletionReadyRearm()
 
+	/** Persists one recovery owner for the collected-data epoch before reopening collection. */
 	suspend fun schedule(
 		collectedDataEpoch: Long,
 	): PostDeletionRecoveryScheduleResult {
@@ -110,14 +111,19 @@ class PostDeletionAutomaticControlRestorer @Inject constructor(
 	}
 }
 
+/** Outcome of scheduling recovery for the exact post-deletion data epoch. */
 sealed interface PostDeletionRecoveryScheduleResult {
+	/** Recovery now has a persistent WorkManager owner. */
 	data object Enqueued : PostDeletionRecoveryScheduleResult
+	/** A newer data epoch already owns recovery, so this request adds no work. */
 	data object Superseded : PostDeletionRecoveryScheduleResult
+	/** Persistent recovery could not be enqueued and must be retried. */
 	data class Retryable(
 		val failure: PostDeletionRecoveryScheduleFailure,
 	) : PostDeletionRecoveryScheduleResult
 }
 
+/** Failure to persist the post-deletion recovery request. */
 enum class PostDeletionRecoveryScheduleFailure {
 	ENQUEUE_PERSISTENCE,
 }
@@ -152,55 +158,67 @@ class PostDeletionRecoveryWorker @AssistedInject constructor(
 						.reconcileCurrentPolicyRevisionWithinReadyOperation(generation)
 				}
 			}
-		val outcome = try {
-			runPostDeletionRecovery(
-				expectedEpoch = expectedEpoch,
-				currentEpoch = { lifecycleStore.snapshot().epoch },
-				startupGeneration = startupGeneration,
-				currentStartupGeneration = { startupGate.currentGeneration },
-				isDeletionClosed = { deletionBarrier.isClosed },
-				isStartupReady = { startupGate.isReady },
-				reconcileStartup = { startupGate.reconcile() },
-				withReadyGenerationOperation = { generation, operation ->
-					startupGate.withReadyGenerationOperation(generation, operation)
-				},
-				reconcileSourcePolicyGeneration = reconcilePolicyGeneration,
-				resumeWriters = writerQuiescer::resume,
-				resumeActivityArbiter = {
-					activityRegistrationArbiterProvider.get()
-						.resumeAfterCollectedDataDeletion()
-				},
-				reconcileAutomaticControl = {
-					BackgroundTrackingApi.reconcileAutomaticControlDemandAfterStartup(
-						applicationContext,
-					)
-				},
-			)
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (_: Exception) {
-			PostDeletionRecoveryOutcome.DURABLE_RETRY
-		}
-		return when (outcome) {
-			PostDeletionRecoveryOutcome.WAITING_FOR_STARTUP_READY -> when (
-				automaticControlRestorer.preserveUntilStartupReady(
-					collectedDataEpoch = expectedEpoch,
-					startupGeneration = startupGeneration,
+		val outcome = reconcileRecovery(expectedEpoch, startupGeneration, reconcilePolicyGeneration)
+		return recoveryResult(outcome, expectedEpoch, startupGeneration)
+	}
+
+	private suspend fun reconcileRecovery(
+		expectedEpoch: Long,
+		startupGeneration: Long,
+		reconcilePolicyGeneration: (suspend (Long) -> SourcePolicyRevisionReconciliationResult)?,
+	): PostDeletionRecoveryOutcome = try {
+		runPostDeletionRecovery(
+			expectedEpoch = expectedEpoch,
+			currentEpoch = { lifecycleStore.snapshot().epoch },
+			startupGeneration = startupGeneration,
+			currentStartupGeneration = { startupGate.currentGeneration },
+			isDeletionClosed = { deletionBarrier.isClosed },
+			isStartupReady = { startupGate.isReady },
+			reconcileStartup = { startupGate.reconcile() },
+			withReadyGenerationOperation = { generation, operation ->
+				startupGate.withReadyGenerationOperation(generation, operation)
+			},
+			reconcileSourcePolicyGeneration = reconcilePolicyGeneration,
+			resumeWriters = writerQuiescer::resume,
+			resumeActivityArbiter = {
+				activityRegistrationArbiterProvider.get()
+					.resumeAfterCollectedDataDeletion()
+			},
+			reconcileAutomaticControl = {
+				BackgroundTrackingApi.reconcileAutomaticControlDemandAfterStartup(
+					applicationContext,
 				)
-			) {
-				BlockedPostDeletionRecoveryDisposition.RETRY_CURRENT_WORK_ONCE -> Result.retry()
-				BlockedPostDeletionRecoveryDisposition.PENDING_READY,
-				BlockedPostDeletionRecoveryDisposition.STALE_EPOCH,
-				-> Result.success()
-			}
-			PostDeletionRecoveryOutcome.COMPLETE,
-			PostDeletionRecoveryOutcome.OPTIONAL_CONTROL_RETRY,
-			-> {
-				automaticControlRestorer.onRecoveryHandoffCompleted(expectedEpoch)
-				if (outcome.shouldRetry(runAttemptCount)) Result.retry() else Result.success()
-			}
-			PostDeletionRecoveryOutcome.DURABLE_RETRY -> Result.retry()
+			},
+		)
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		PostDeletionRecoveryOutcome.DURABLE_RETRY
+	}
+
+	private suspend fun recoveryResult(
+		outcome: PostDeletionRecoveryOutcome,
+		expectedEpoch: Long,
+		startupGeneration: Long,
+	): Result = when (outcome) {
+		PostDeletionRecoveryOutcome.WAITING_FOR_STARTUP_READY -> when (
+			automaticControlRestorer.preserveUntilStartupReady(
+				collectedDataEpoch = expectedEpoch,
+				startupGeneration = startupGeneration,
+			)
+		) {
+			BlockedPostDeletionRecoveryDisposition.RETRY_CURRENT_WORK_ONCE -> Result.retry()
+			BlockedPostDeletionRecoveryDisposition.PENDING_READY,
+			BlockedPostDeletionRecoveryDisposition.STALE_EPOCH,
+			-> Result.success()
 		}
+		PostDeletionRecoveryOutcome.COMPLETE,
+		PostDeletionRecoveryOutcome.OPTIONAL_CONTROL_RETRY,
+		-> {
+			automaticControlRestorer.onRecoveryHandoffCompleted(expectedEpoch)
+			if (outcome.shouldRetry(runAttemptCount)) Result.retry() else Result.success()
+		}
+		PostDeletionRecoveryOutcome.DURABLE_RETRY -> Result.retry()
 	}
 
 	companion object {
@@ -291,13 +309,7 @@ internal suspend fun runPostDeletionRecovery(
 				// This reopens process-local deletion latches used by captured Activity as well as
 				// optional automatic control. Failure therefore retains durable retry ownership.
 				resumeActivityArbiter()
-				try {
-					reconcileAutomaticControl()
-				} catch (cancelled: CancellationException) {
-					throw cancelled
-				} catch (_: Exception) {
-					AutomaticControlRecoveryResult.RETRYABLE
-				}
+				runOptionalControlRecovery(reconcileAutomaticControl)
 			}
 		}
 	} catch (cancelled: CancellationException) {
@@ -325,6 +337,16 @@ internal suspend fun runPostDeletionRecovery(
 	}
 }
 
+private suspend fun runOptionalControlRecovery(
+	reconcileAutomaticControl: suspend () -> AutomaticControlRecoveryResult,
+): AutomaticControlRecoveryResult = try {
+	reconcileAutomaticControl()
+} catch (cancelled: CancellationException) {
+	throw cancelled
+} catch (_: Exception) {
+	AutomaticControlRecoveryResult.RETRYABLE
+}
+
 private const val OPTIONAL_CONTROL_MAX_ATTEMPTS = 3
 
 private object PostDeletionSourcePolicyGenerationDebt : IllegalStateException()
@@ -349,6 +371,7 @@ internal class PostDeletionReadyRearm {
 	private var latestReadyGeneration = NO_GENERATION
 	private var readyRaceRetryConsumedGeneration = NO_GENERATION
 
+	/** Persists one recovery owner for the collected-data epoch before reopening collection. */
 	suspend fun schedule(
 		collectedDataEpoch: Long,
 		enqueue: suspend (Long) -> Unit,

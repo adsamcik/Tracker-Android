@@ -48,6 +48,7 @@ data class AmbientRadioReconciliationEvidence(
 		require((ownerCasToken == null) == (authorityReconciliationAttempt == null))
 	}
 
+	/** Creates reconciliation evidence from the exact broker authority and provider registration. */
 	companion object {
 		internal fun from(
 			authority: AmbientRadioReconciliationAuthority,
@@ -78,18 +79,24 @@ data class AmbientRadioReconciliationEvidence(
 	}
 }
 
+/** Admission result for publishing an all-day radio reconciliation under its current purpose lease. */
 sealed interface AmbientRadioReportPreparation {
+	/** The reconciled provider outcome and evidence are ready for guarded status publication. */
 	data class Prepared(
 		val result: AmbientSourceReconciliationResult,
 		val evidence: AmbientRadioReconciliationEvidence,
 	) : AmbientRadioReportPreparation
 
+	/**
+	 * The outcome cannot be published for this lease; optional evidence identifies the rejected attempt.
+	 */
 	data class Rejected(
 		val evidence: AmbientRadioReconciliationEvidence?,
 		val reason: AmbientRadioReportPreparationRejection,
 	) : AmbientRadioReportPreparation
 }
 
+/** Explains which source, authority, attempt or provider-settlement check prevented publication. */
 enum class AmbientRadioReportPreparationRejection {
 	SOURCE_MISMATCH,
 	STALE_AUTHORITY,
@@ -102,59 +109,8 @@ internal fun prepareAmbientRadioReport(
 	evidence: AmbientRadioReconciliationEvidence,
 	availability: AmbientSourceOperationalAvailability,
 ): AmbientRadioReportPreparation {
-	if (lease.identity.source != evidence.source || availability.source != evidence.source) {
-		return AmbientRadioReportPreparation.Rejected(
-			evidence,
-			AmbientRadioReportPreparationRejection.SOURCE_MISMATCH,
-		)
-	}
-	val actualPolicyRevision = evidence.policyRevision
-	val actualConsentEpoch = evidence.ambientConsentEpoch
-	val actualCollectedDataEpoch = evidence.collectedDataEpoch
-	val actualRetainedFromMs = evidence.retainedFromMs
-	if (actualPolicyRevision == null || actualConsentEpoch == null ||
-		actualCollectedDataEpoch == null ||
-		lease.identity.policyRevision != actualPolicyRevision ||
-		lease.identity.consentEpoch != actualConsentEpoch ||
-		lease.identity.collectedDataEpoch != actualCollectedDataEpoch ||
-		lease.identity.retainedFromMs != actualRetainedFromMs ||
-		lease.identity.rolloutRevision != evidence.rolloutRevision ||
-		lease.identity.ownerCasToken != evidence.ownerCasToken ||
-		evidence.authorityReconciliationAttempt != evidence.reconciliationAttempt
-	) {
-		return AmbientRadioReportPreparation.Rejected(
-			evidence,
-			AmbientRadioReportPreparationRejection.STALE_AUTHORITY,
-		)
-	}
-	if (availability.isOperational &&
-		(
-			evidence.executionGeneration == null ||
-				evidence.providerKey == null ||
-				lease.identity.executionRevision != evidence.executionGeneration
-			)
-	) {
-		return AmbientRadioReportPreparation.Rejected(
-			evidence,
-			AmbientRadioReportPreparationRejection.OPERATIONAL_PROVIDER_UNSETTLED,
-		)
-	}
-	if (availability.state == AmbientSourceOperationalState.WAITING) {
-		return AmbientRadioReportPreparation.Rejected(
-			evidence,
-			AmbientRadioReportPreparationRejection.NOT_RECONCILED,
-		)
-	}
-	if (
-		availability.operationalIdentity != null &&
-		availability.operationalIdentity != lease.purposeLeaseIdentity ||
-		availability.lastIdentity != null &&
-		availability.lastIdentity != lease.purposeLeaseIdentity
-	) {
-		return AmbientRadioReportPreparation.Rejected(
-			evidence,
-			AmbientRadioReportPreparationRejection.STALE_AUTHORITY,
-		)
+	ambientRadioReportRejection(lease, evidence, availability)?.let { reason ->
+		return AmbientRadioReportPreparation.Rejected(evidence, reason)
 	}
 	val report = AmbientSourceReconciliationReport(
 		identity = lease.identity,
@@ -166,6 +122,50 @@ internal fun prepareAmbientRadioReport(
 		AmbientSourceReconciliationResult.Unavailable(report)
 	}
 	return AmbientRadioReportPreparation.Prepared(result, evidence)
+}
+
+private fun ambientRadioReportRejection(
+	lease: AmbientReconciliationLease,
+	evidence: AmbientRadioReconciliationEvidence,
+	availability: AmbientSourceOperationalAvailability,
+): AmbientRadioReportPreparationRejection? {
+	if (lease.identity.source != evidence.source || availability.source != evidence.source) {
+		return AmbientRadioReportPreparationRejection.SOURCE_MISMATCH
+	}
+	if (!evidence.matchesLeaseAuthority(lease)) {
+		return AmbientRadioReportPreparationRejection.STALE_AUTHORITY
+	}
+	return availability.operationalReportRejection(lease, evidence)
+}
+
+// Exact immutable source-policy, consent, data, retained floor, rollout and attempt tuple.
+@Suppress("ComplexCondition", "CyclomaticComplexMethod")
+private fun AmbientRadioReconciliationEvidence.matchesLeaseAuthority(lease: AmbientReconciliationLease): Boolean =
+	policyRevision != null && ambientConsentEpoch != null && collectedDataEpoch != null &&
+	lease.identity.policyRevision == policyRevision && lease.identity.consentEpoch == ambientConsentEpoch &&
+	lease.identity.collectedDataEpoch == collectedDataEpoch && lease.identity.retainedFromMs == retainedFromMs &&
+	lease.identity.rolloutRevision == rolloutRevision && lease.identity.ownerCasToken == ownerCasToken &&
+	authorityReconciliationAttempt == reconciliationAttempt
+
+private fun AmbientSourceOperationalAvailability.operationalReportRejection(
+	lease: AmbientReconciliationLease,
+	evidence: AmbientRadioReconciliationEvidence,
+): AmbientRadioReportPreparationRejection? {
+	if (isOperational && (evidence.executionGeneration == null || evidence.providerKey == null ||
+		lease.identity.executionRevision != evidence.executionGeneration)
+	) {
+		return AmbientRadioReportPreparationRejection.OPERATIONAL_PROVIDER_UNSETTLED
+	}
+	if (state == AmbientSourceOperationalState.WAITING) {
+		return AmbientRadioReportPreparationRejection.NOT_RECONCILED
+	}
+	return if (operationalIdentity != null && operationalIdentity != lease.purposeLeaseIdentity ||
+		lastIdentity != null && lastIdentity != lease.purposeLeaseIdentity
+	) {
+		AmbientRadioReportPreparationRejection.STALE_AUTHORITY
+	} else {
+		null
+	}
 }
 
 private fun com.adsamcik.tracker.tracker.source.model.SourceKind.toAmbientTrackingSource():

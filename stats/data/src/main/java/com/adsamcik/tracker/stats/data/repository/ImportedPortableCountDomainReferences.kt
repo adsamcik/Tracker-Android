@@ -62,7 +62,9 @@ internal suspend fun AppDatabase.importedAmbientCountDomainOwners(
 	return try {
 		val latestGraph = loadAuthenticatedImportedAmbientStepsGraphLineage(lineage).lastOrNull()
 			?: return null
-		if (lineage.latest.header.importRevision !in latestGraph.productImportRevisions) return null
+		if (lineage.latest.header.importRevision !in latestGraph.productImportRevisions) {
+			return null
+		}
 		latestGraph.graph.ambientCountDomainOwners(lineage.latest.header.dayIdentity)
 	} catch (_: IllegalArgumentException) {
 		null
@@ -80,7 +82,9 @@ internal fun PortableCountDomainGraphV2.ambientCountDomainOwners(
 		it.containerIdentity.value == dayIdentity &&
 			it.ownerKind.name == StepsCountDomainOwnerKind.AMBIENT_FACT.name
 	}
-	if (selectedRoots.isEmpty()) return null
+	if (selectedRoots.isEmpty()) {
+		return null
+	}
 	val result = selectedRoots.associate { root ->
 		root.productIdentity.value to (referenceForRoot(root) ?: return null)
 	}
@@ -91,7 +95,9 @@ private fun PortableCountDomainGraphV2.referencesForContainer(
 	containerIdentity: String,
 ): List<StepsCountDomainOwnerReference>? {
 	val selected = roots.filter { it.containerIdentity.value == containerIdentity }
-	if (selected.isEmpty()) return null
+	if (selected.isEmpty()) {
+		return null
+	}
 	return selected.map { root ->
 		referenceForRoot(root) ?: return null
 	}.distinct()

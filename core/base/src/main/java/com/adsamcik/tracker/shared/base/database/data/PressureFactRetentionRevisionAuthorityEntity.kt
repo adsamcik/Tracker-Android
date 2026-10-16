@@ -82,6 +82,12 @@ data class PressureFactRetentionRevisionAuthorityEntity(
 	@ColumnInfo(name = "effect_checksum")
 	val effectChecksum: String,
 ) {
+	/**
+	 * Checks the record's stored identity, value constraints and deterministic digest before using
+	 * retained metadata.
+	 */
+	// Checks the complete immutable child/parent tuple and the child digest in one place.
+	@Suppress("CyclomaticComplexMethod")
 	fun hasValidStoredIntegrity(parent: PressureFactRetentionAuthorityEntity): Boolean =
 		writerProjectionId == parent.writerProjectionId &&
 			writerProjectionVersion == parent.writerProjectionVersion &&
@@ -95,6 +101,10 @@ data class PressureFactRetentionRevisionAuthorityEntity(
 			parentAuthorityChecksum == parent.effectChecksum &&
 			effectChecksum == calculatedEffectChecksum()
 
+	/**
+	 * Compares retained Pressure revision metadata with the original saved evidence and parent
+	 * witness.
+	 */
 	@Suppress("LongParameterList")
 	fun authenticatesEvidence(
 		parent: PressureFactRetentionAuthorityEntity,
@@ -111,6 +121,9 @@ data class PressureFactRetentionRevisionAuthorityEntity(
 		sourcePolicyRevision == expectedSourcePolicyRevision &&
 		captureConsentEpoch == expectedCaptureConsentEpoch
 
+	/**
+	 * Recomputes the digest from this record's persisted values for replay and corruption checks.
+	 */
 	fun calculatedEffectChecksum(): String = checksum(
 		CONTRACT,
 		writerProjectionId,
@@ -125,10 +138,18 @@ data class PressureFactRetentionRevisionAuthorityEntity(
 		parentAuthorityChecksum,
 	)
 
+	/**
+	 * Stable persisted codes, including `CONTRACT`, `SET_CONTRACT`, and any identity-bound record
+	 * factories.
+	 */
 	companion object {
 		private const val CONTRACT = "pressure-fact-retention-revision-authority-v1"
 		private const val SET_CONTRACT = "pressure-fact-retention-revision-authority-set-v1"
 
+		/**
+		 * Builds one retained revision witness after checking its parent digest and exact writer/fact
+		 * ownership.
+		 */
 		fun create(
 			parent: PressureFactRetentionAuthorityEntity,
 			revision: PressureFactRevisionEntity,
@@ -153,6 +174,10 @@ data class PressureFactRetentionRevisionAuthorityEntity(
 			return unsigned.copy(effectChecksum = unsigned.calculatedEffectChecksum())
 		}
 
+		/**
+		 * Builds sorted Pressure revision witnesses and requires them to reproduce the parent's complete
+		 * lineage digest.
+		 */
 		fun createAll(
 			parent: PressureFactRetentionAuthorityEntity,
 			revisions: List<PressureFactRevisionEntity>,
@@ -202,7 +227,11 @@ data class PressureFactRetentionRevisionAuthorityEntity(
 		private fun checksum(vararg values: Any?): String {
 			val canonical = values.joinToString(separator = "") { value ->
 				val text = value?.toString()
-				if (text == null) "-1:" else "${text.length}:$text"
+				if (text == null) {
+					"-1:"
+				} else {
+					"${text.length}:$text"
+				}
 			}
 			return MessageDigest.getInstance("SHA-256")
 				.digest(canonical.toByteArray(Charsets.UTF_8))

@@ -139,8 +139,12 @@ data class CellCapturedFactRevisionEntity(
 		require(SourceWriterGenerationContract.captureModeMaskForKnownBinding(writerBindingGeneration) != null)
 		require(writerOwnerGeneration == SourceWriterGenerationContract.canonicalOwnerGeneration(writerBindingGeneration))
 		require(semanticRevision > 0L)
-		require(if (semanticRevision == 1L) supersedesSemanticRevision == null else
-			supersedesSemanticRevision == semanticRevision - 1L)
+		require(if (semanticRevision == 1L) {
+			supersedesSemanticRevision == null
+		} else
+			{
+			supersedesSemanticRevision == semanticRevision - 1L
+		})
 		require(logicalTrackingId.isNotBlank() && serviceRunId.isNotBlank() && sessionSegmentId > 0L)
 		require(purpose == SourceBrokerPurpose.SESSION_CAPTURE)
 		require(LOWERCASE_SHA_256.matches(sourceDeliveryIdentity))
@@ -245,6 +249,10 @@ data class CellCapturedFactRevisionEntity(
 		require(startNanos >= 0L && endNanos > startNanos)
 	}
 
+	/**
+	 * Stable persisted codes, including `FACT_KIND_AGGREGATE`, `FACT_KIND_COVERAGE_ONLY`,
+	 * `PLAN_ATTRIBUTION_CAPTURED_REGISTRATION`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val FACT_KIND_AGGREGATE = "AGGREGATE"
 		const val FACT_KIND_COVERAGE_ONLY = "COVERAGE_ONLY"
@@ -366,9 +374,16 @@ data class CellCapturedEntryDeletionReceiptEntity(
 		))
 	}
 
+	/**
+	 * Stable persisted codes, including `MAX_RUNS`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val MAX_RUNS = 128
 
+		/**
+		 * Validates matching deleted-run footprints and binds their canonical digest and original UTC
+		 * envelope to the entry deletion.
+		 */
 		fun create(
 			logicalTrackingId: String,
 			entryIdentity: String,
@@ -409,6 +424,10 @@ data class CellCapturedEntryDeletionReceiptEntity(
 			)
 		}
 
+		/**
+		 * Hashes the canonical deleted-run footprint set, preserving original measured bounds and data
+		 * epochs.
+		 */
 		fun checksumRunFootprints(values: List<CellCapturedDeletedRunEntity>): String =
 			cellDeletionDigest(
 				"cell-captured-deleted-run-set-v1",
@@ -510,7 +529,15 @@ data class CellCapturedDeletedRunEntity(
 		))
 	}
 
+	/**
+	 * Factories and canonical digests binding this record to its original identity, revision and
+	 * lifecycle fields.
+	 */
 	companion object {
+		/**
+		 * Builds the initial deleted-run witness using its original session, segment, UTC bounds, data
+		 * epoch and canonical scope digest.
+		 */
 		fun create(
 			logicalTrackingId: String,
 			serviceRunId: String,
@@ -616,6 +643,12 @@ data class CellAggregateReuseAuthority(
 		require(scopeDeletionGeneration >= 0L && storedZoneId.isNotBlank())
 	}
 
+	/**
+	 * Compares session ownership, selected purposes, consent/data/deletion epochs and stored calendar
+	 * before aggregate reuse.
+	 */
+	// Compares the complete immutable reuse-authority tuple without hiding individual fields.
+	@Suppress("CyclomaticComplexMethod")
 	fun canReuseAggregateFrom(other: CellAggregateReuseAuthority): Boolean =
 		logicalTrackingId == other.logicalTrackingId &&
 			serviceRunId == other.serviceRunId &&
@@ -630,6 +663,9 @@ data class CellAggregateReuseAuthority(
 			structuralEpochDay == other.structuralEpochDay
 }
 
+/**
+ * Extracts the recorded session/purpose/epoch/calendar values used to compare aggregate reuse.
+ */
 fun CellCapturedFactRevisionEntity.aggregateReuseAuthority(
 	capturedSources: Set<Int>,
 	controlSources: Set<Int>,
@@ -648,7 +684,13 @@ fun CellCapturedFactRevisionEntity.aggregateReuseAuthority(
 )
 
 /** Complete retained-effect digest and stable identities for Cell fact revisions. */
+// Captured Cell identities, revision digests and cursor checks share one immutable fact protocol.
+@Suppress("TooManyFunctions")
 object CellCapturedFactRevisionIntegrity {
+	/**
+	 * Derives the session Cell fact identity from its original delivery, session/run/segment,
+	 * manifest and data/deletion epochs.
+	 */
 	fun logicalFactId(
 		sourceDeliveryIdentity: String,
 		logicalTrackingId: String,
@@ -662,17 +704,31 @@ object CellCapturedFactRevisionIntegrity {
 		sessionSegmentId, manifestRevision, collectedDataEpoch, scopeDeletionGeneration,
 	)
 
+	/**
+	 * Builds a stable mutation key from the logical fact identity, semantic revision and operation.
+	 */
 	fun mutationId(logicalFactId: String, semanticRevision: Long): String =
 		digest("cell-captured-mutation-v1", logicalFactId, semanticRevision)
 
+	/**
+	 * Computes the deterministic digest of the persisted revision values, excluding its stored
+	 * digest.
+	 */
 	fun effectChecksum(fact: CellCapturedFactRevisionEntity): String = digest(
 		"cell-captured-effect-v1",
 		*fact.effectParts().toTypedArray(),
 	)
 
+	/**
+	 * Checks the stored revision digest against its values; this does not establish current capture
+	 * permission.
+	 */
 	fun hasValidEffectChecksum(fact: CellCapturedFactRevisionEntity): Boolean =
 		fact.effectChecksum == effectChecksum(fact)
 
+	/**
+	 * Requires contiguous revisions from 1, valid effect digests and exact successor relationships.
+	 */
 	fun hasValidRetainedLineage(
 		ordered: List<CellCapturedFactRevisionEntity>,
 	): Boolean =
@@ -684,6 +740,12 @@ object CellCapturedFactRevisionIntegrity {
 				next.isExactSuccessorOf(previous)
 			}
 
+	/**
+	 * Checks that the current cursor names this exact fact revision, mutation, scope, epoch and
+	 * effect digest.
+	 */
+	// Compares the stored cursor and fact field by field; no current tracking state is consulted.
+	@Suppress("CyclomaticComplexMethod")
 	fun cursorAuthenticatesCurrent(
 		cursor: CellCapturedFactCursorEntity,
 		fact: CellCapturedFactRevisionEntity,
@@ -704,6 +766,10 @@ object CellCapturedFactRevisionIntegrity {
 			cursor.cursorRevision == fact.semanticRevision &&
 			cursor.updatedAtMs == fact.appliedAtMs
 
+	/**
+	 * Checks that a coverage-only fact references this aggregate revision and that its owner cursor
+	 * is current.
+	 */
 	fun coverageOnlyOwnerCursorAuthenticates(
 		dependent: CellCapturedFactRevisionEntity,
 		owner: CellCapturedFactRevisionEntity,
@@ -785,7 +851,11 @@ object CellCapturedFactRevisionIntegrity {
 	private fun digest(vararg values: Any?): String {
 		val canonical = values.joinToString(separator = "") { value ->
 			val text = value?.toString()
-			if (text == null) "-1:" else "${text.length}:$text"
+			if (text == null) {
+				"-1:"
+			} else {
+				"${text.length}:$text"
+			}
 		}
 		return MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray(Charsets.UTF_8))

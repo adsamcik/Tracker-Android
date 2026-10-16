@@ -149,12 +149,19 @@ data class DashboardLivePressureMetrics(
 /** Truthful durable Pressure state for an accepted exact-capture Pressure-only session. */
 @Immutable
 sealed interface DashboardLivePressureValue {
+	/** Complete retained Pressure metrics are ready to display in hectopascals. */
 	data class Ready(val metrics: DashboardLivePressureMetrics) : DashboardLivePressureValue
+	/** Pressure coverage is incomplete; null metrics mean no trustworthy numeric summary is available. */
 	data class Partial(val metrics: DashboardLivePressureMetrics?) : DashboardLivePressureValue
+	/** Pressure processing is still catching up; any supplied metrics represent the retained data so far. */
 	data class Materializing(val metrics: DashboardLivePressureMetrics?) : DashboardLivePressureValue
+	/** The selected Pressure recording was erased and carries no displayed measurement. */
 	data object Deleted : DashboardLivePressureValue
+	/** The retained Pressure evidence cannot establish a trustworthy displayed value. */
 	data object Unverifiable : DashboardLivePressureValue
+	/** The source reader cannot currently supply Pressure measurements. */
 	data object Unavailable : DashboardLivePressureValue
+	/** Pressure processing failed; no numeric summary is manufactured. */
 	data object Failed : DashboardLivePressureValue
 }
 

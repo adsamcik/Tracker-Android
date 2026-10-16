@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.activity.api.registration
 
+import com.adsamcik.tracker.activity.ActivityTransitionData
+
 import android.content.Context
 import android.os.SystemClock
 import androidx.room.withTransaction
@@ -1107,6 +1109,14 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	 * only a transient Location lease and an explicit deny-all Activity persistence vector.
 	 * It uses the same registration pointer, generation, provider cleanup and retirement path.
 	 */
+	private fun continuingAssistanceSequence(
+		previous: SourceRegistrationStateEntity?,
+		current: SourceRegistrationStateEntity,
+	): Long = if (previous != null && previous.sourceInstanceId == current.sourceInstanceId &&
+		previous.clockDomainId == current.clockDomainId &&
+		previous.collectedDataEpoch == current.collectedDataEpoch
+	) previous.nextSequence else current.nextSequence
+
 	private suspend fun acceptAssistanceReservation(
 		reservation: ReservedActivityRegistration,
 	): ProviderRegistrationGenerationEntity? {
@@ -1137,10 +1147,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 				) == 1)
 			}
 		}
-		dao.replaceRegistrationState(state.copy(nextSequence = if (
-			pointer != null && pointer.sourceInstanceId == state.sourceInstanceId && pointer.clockDomainId == state.clockDomainId &&
-			pointer.collectedDataEpoch == state.collectedDataEpoch
-		) pointer.nextSequence else state.nextSequence))
+		dao.replaceRegistrationState(state.copy(nextSequence = continuingAssistanceSequence(pointer, state)))
 		return previous?.takeIf { it.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE }
 	}
 
@@ -1557,14 +1564,14 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	private data class CombinedDemand(
 		val owners: Set<ActivityRegistrationOwner>,
 		val intervalSeconds: Int?,
-		val transitions: Set<com.adsamcik.tracker.activity.ActivityTransitionData>,
+		val transitions: Set<ActivityTransitionData>,
 		val automaticRecognitionEligible: Boolean,
-		val automaticTransitions: Set<com.adsamcik.tracker.activity.ActivityTransitionData>,
+		val automaticTransitions: Set<ActivityTransitionData>,
 		val appliedRevision: Long?,
 		val capturePlan: ActivityRegistrationPlanAttribution?,
 		val assistanceAuthority: ActivityMotionAssistanceAuthority?,
 		val durableRecognitionEligible: Boolean,
-		val durableTransitions: Set<com.adsamcik.tracker.activity.ActivityTransitionData>,
+		val durableTransitions: Set<ActivityTransitionData>,
 	) {
 		val assistanceOnly: Boolean get() = owners == setOf(ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE)
 		val enabled: Boolean get() = intervalSeconds != null || transitions.isNotEmpty()
@@ -1589,7 +1596,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 				append(intervalSeconds ?: 0)
 				append('\u001f')
 				transitions.sortedWith(
-					compareBy<com.adsamcik.tracker.activity.ActivityTransitionData> { it.activity.name }
+					compareBy<ActivityTransitionData> { it.activity.name }
 						.thenBy { it.type.value },
 				).forEach { transition ->
 					append(transition.activity.name)
@@ -1606,9 +1613,9 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 
 	private data class ActivityCallbackMetadata(
 		val automaticRecognitionEligible: Boolean,
-		val automaticTransitions: Set<com.adsamcik.tracker.activity.ActivityTransitionData>,
+		val automaticTransitions: Set<ActivityTransitionData>,
 		val durableRecognitionEligible: Boolean,
-		val durableTransitions: Set<com.adsamcik.tracker.activity.ActivityTransitionData>,
+		val durableTransitions: Set<ActivityTransitionData>,
 	)
 
 	private data class ReservedActivityRegistration(

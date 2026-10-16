@@ -7,6 +7,9 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
+// One public history-model fixture compares the same saved-source qualification, selected actions and
+// common session/snapshot contracts.
+@Suppress("LargeClass")
 class TrackingHistoryRepositoryTest {
 	@Test
 	fun `live snapshot rejects mixed-time capture authority`() {
@@ -446,6 +449,8 @@ class TrackingHistoryRepositoryTest {
 	}
 
 	@Test
+	// Keep one imported Activity fixture and all common native-session rejection assertions together.
+	@Suppress("LongMethod")
 	fun `native selected session rejects imported Activity bands`() {
 		val capture = HistoryCapture.Exact(
 			listOf(
@@ -526,6 +531,8 @@ class TrackingHistoryRepositoryTest {
 	}
 
 	@Test
+	// Keep this complete immutable-record contract and its paired assertions together.
+	@Suppress("LongMethod")
 	fun `portable source rows preserve producer action authority without native membership`() {
 		val wifiSelection = WifiImportedHistorySelection(
 			key = WifiImportedHistorySelectionKey("a".repeat(64)),

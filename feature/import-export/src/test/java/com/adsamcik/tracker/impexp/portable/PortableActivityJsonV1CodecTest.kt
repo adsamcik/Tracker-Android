@@ -224,7 +224,9 @@ class PortableActivityJsonV1CodecTest {
 			}
 
 		override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-			if (bytesRead >= bytes.size) return -1
+			if (bytesRead >= bytes.size) {
+				return -1
+			}
 			val count = minOf(length, bytes.size - bytesRead)
 			bytes.copyInto(buffer, offset, bytesRead, bytesRead + count)
 			bytesRead += count
@@ -239,12 +241,16 @@ class PortableActivityJsonV1CodecTest {
 		private var offset = 0
 
 		override fun read(): Int {
-			if (offset >= prefix.size) throw failure
+			if (offset >= prefix.size) {
+				throw failure
+			}
 			return prefix[offset++].toInt() and 0xff
 		}
 
 		override fun read(buffer: ByteArray, targetOffset: Int, length: Int): Int {
-			if (offset >= prefix.size) throw failure
+			if (offset >= prefix.size) {
+				throw failure
+			}
 			val count = minOf(length, prefix.size - offset)
 			prefix.copyInto(buffer, targetOffset, offset, offset + count)
 			offset += count

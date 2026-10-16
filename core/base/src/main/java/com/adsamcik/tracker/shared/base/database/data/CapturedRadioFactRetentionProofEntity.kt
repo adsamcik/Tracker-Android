@@ -122,10 +122,19 @@ data class CapturedRadioFactRetentionProofEntity(
 		require(reason in REASONS)
 	}
 
+	/**
+	 * Checks the record's stored identity, value constraints and deterministic digest before using
+	 * retained metadata.
+	 */
 	fun hasValidStoredIntegrity(): Boolean = runCatching {
 		SHA_256_HEX.matches(effectChecksum) && effectChecksum == calculatedEffectChecksum()
 	}.getOrDefault(false)
 
+	/**
+	 * Checks retained fact ownership against the supplied source-erase scope and original data epoch.
+	 */
+	// Compare the retained fact/cursor tuple and supplied erase bounds together.
+	@Suppress("CyclomaticComplexMethod")
 	fun authenticatesSourceErase(
 		expectedSourceKind: Int,
 		expectedCollectedDataEpoch: Long,
@@ -146,6 +155,10 @@ data class CapturedRadioFactRetentionProofEntity(
 		currentRetainedFromMs?.let { retainedFromMs <= it } == true &&
 		deletedAtMs >= retainedAtMs
 
+	/**
+	 * Returns the original session/run scope only when this retained record's capture metadata and
+	 * digest are valid; otherwise returns null.
+	 */
 	fun authenticatedCaptureScope(
 		expectedSourceKind: Int,
 		expectedCollectedDataEpoch: Long,
@@ -158,7 +171,9 @@ data class CapturedRadioFactRetentionProofEntity(
 				currentRetainedFromMs = currentRetainedFromMs,
 				deletedAtMs = deletedAtMs,
 			)
-		) return null
+		) {
+			return null
+		}
 		return RetainedCaptureScopeIdentity(
 			sourceKind = sourceKind,
 			logicalTrackingId = logicalTrackingId,
@@ -169,6 +184,10 @@ data class CapturedRadioFactRetentionProofEntity(
 		).takeIf { it.isCanonicalFor(expectedSourceKind, expectedCollectedDataEpoch) }
 	}
 
+	/**
+	 * Returns the original admitted event and capture scope only when retained metadata validates;
+	 * otherwise returns null.
+	 */
 	fun authenticatedCaptureEvent(
 		expectedSourceKind: Int,
 		expectedCollectedDataEpoch: Long,
@@ -191,7 +210,11 @@ data class CapturedRadioFactRetentionProofEntity(
 		)
 	}
 
-	@Suppress("LongParameterList")
+	/**
+	 * Compares the requested fact/scope identity and epoch with this retained radio witness.
+	 */
+	// Match every requested ownership/cursor field to the same retained receipt.
+	@Suppress("CyclomaticComplexMethod", "LongParameterList")
 	fun authenticatesRequest(
 		expectedSourceKind: Int,
 		expectedWriterProjectionId: String,
@@ -231,6 +254,9 @@ data class CapturedRadioFactRetentionProofEntity(
 		cursorSourceAdmissionOrdinal == sourceAdmissionOrdinal &&
 		currentRetainedFromMs?.let { retainedFromMs <= it } == true
 
+	/**
+	 * Recomputes the digest from this record's persisted values for replay and corruption checks.
+	 */
 	fun calculatedEffectChecksum(): String = checksum(
 		CONTRACT,
 		sourceKind,
@@ -269,6 +295,10 @@ data class CapturedRadioFactRetentionProofEntity(
 		reason,
 	)
 
+	/**
+	 * Stable persisted codes, including `REASON_DIRECT_FLOOR`, `REASON_DEPENDENCY_CLOSURE`,
+	 * `CONTRACT`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val REASON_DIRECT_FLOOR = "DIRECT_FLOOR"
 		const val REASON_DEPENDENCY_CLOSURE = "DEPENDENCY_CLOSURE"
@@ -281,6 +311,10 @@ data class CapturedRadioFactRetentionProofEntity(
 		)
 		private val REASONS = setOf(REASON_DIRECT_FLOOR, REASON_DEPENDENCY_CLOSURE)
 
+		/**
+		 * Builds a retained Wi-Fi fact witness from its exact revision/cursors and optional aggregate
+		 * owner, preserving the retention boundary.
+		 */
 		fun createWifi(
 			fact: WifiCapturedFactRevisionEntity,
 			cursor: WifiCapturedFactCursorEntity,
@@ -300,6 +334,10 @@ data class CapturedRadioFactRetentionProofEntity(
 			reason = reason,
 		)
 
+		/**
+		 * Builds a retained Cell fact witness from its exact revision/cursors and optional aggregate
+		 * owner, preserving the retention boundary.
+		 */
 		fun createCell(
 			fact: CellCapturedFactRevisionEntity,
 			cursor: CellCapturedFactCursorEntity,
@@ -416,7 +454,11 @@ data class CapturedRadioFactRetentionProofEntity(
 		private fun checksum(vararg values: Any?): String {
 			val canonical = values.joinToString(separator = "") { value ->
 				val text = value?.toString()
-				if (text == null) "-1:" else "${text.length}:$text"
+				if (text == null) {
+					"-1:"
+				} else {
+					"${text.length}:$text"
+				}
 			}
 			return MessageDigest.getInstance("SHA-256")
 				.digest(canonical.toByteArray(Charsets.UTF_8))
@@ -447,6 +489,10 @@ private data class RadioRetentionFact(
 	val aggregateOwnerSemanticRevision: Long?,
 	val aggregateOwnerCursorRevision: Long?,
 ) {
+	/**
+	 * Factories and canonical digests binding this record to its original identity, revision and
+	 * lifecycle fields.
+	 */
 	companion object {
 		fun from(fact: WifiCapturedFactRevisionEntity) = RadioRetentionFact(
 			fact.writerProjectionId, fact.writerProjectionVersion, fact.writerBindingGeneration,
@@ -488,6 +534,10 @@ private data class RadioRetentionCursor(
 			latestSourceAdmissionOrdinal == fact.sourceAdmissionOrdinal &&
 			cursorRevision == fact.semanticRevision
 
+	/**
+	 * Factories and canonical digests binding this record to its original identity, revision and
+	 * lifecycle fields.
+	 */
 	companion object {
 		fun from(cursor: WifiCapturedFactCursorEntity) = RadioRetentionCursor(
 			cursor.logicalFactId, cursor.latestSemanticRevision, cursor.latestMutationId,

@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEn
 import com.adsamcik.tracker.shared.base.database.data.WifiChildChecksumInput
 import com.adsamcik.tracker.shared.base.database.data.WifiWalPayloadCodec
 import com.adsamcik.tracker.shared.base.database.data.WifiWalPayloadDecodeResult
+import com.adsamcik.tracker.shared.base.database.data.WifiWalPayloadObservation
 
 /** Accepted item indexes retain the original callback order for exact replay and per-purpose proof. */
 internal object WifiPurposeChildren {
@@ -56,24 +57,17 @@ internal object WifiPurposeChildren {
 	): List<Child>? {
 		val payload = (WifiWalPayloadCodec.decodeCanonical(wal.payloadVersion, wal.payload)
 			as? WifiWalPayloadDecodeResult.Decoded)?.payload ?: return null
-		if (indexes.isEmpty() || indexes.size != indexes.distinct().size ||
-			indexes.any { it !in payload.observations.indices }
-		) return null
-		val wallAnchor = wal.wallTimeMs ?: return null
-		val uncertaintyAnchor = wal.wallTimeUncertaintyMs ?: return null
+		val wallAnchor = wal.wallTimeMs
+		val uncertaintyAnchor = wal.wallTimeUncertaintyMs
+		if (!indexes.isValidSelection(payload.observations) || wallAnchor == null || uncertaintyAnchor == null) {
+			return null
+		}
 		return indexes.sorted().map { index ->
 			val observation = payload.observations[index]
-			val providerNanos = observation.providerTimestampNanos ?: return null
-			val ageNanos = wal.observedElapsedNanos - providerNanos
-			if (providerNanos <= 0L || ageNanos < 0L) return null
-			val wallMs = runCatching {
-				Math.subtractExact(wallAnchor, ageNanos / NANOS_PER_MILLISECOND)
-			}.getOrNull() ?: return null
-			val uncertaintyMs = runCatching {
-				Math.addExact(uncertaintyAnchor,
-					if (ageNanos % NANOS_PER_MILLISECOND == 0L) 0L else 1L)
-			}.getOrNull() ?: return null
-			if (wallMs < 0L || uncertaintyMs < 0L) return null
+			val (wallMs, uncertaintyMs) = observation.measuredTime(
+				wal.observedElapsedNanos, wallAnchor, uncertaintyAnchor,
+			) ?: return null
+			val providerNanos = requireNotNull(observation.providerTimestampNanos)
 			val bssid = observation.identifierToken.takeIf(String::isNotEmpty)
 			val ssid = observation.networkName
 			val input = WifiChildChecksumInput(
@@ -85,6 +79,25 @@ internal object WifiPurposeChildren {
 				observation.frequencyMhz, observation.signalLevelDbm,
 				RadioObservationChildIntegrity.wifi(input))
 		}
+	}
+
+	private fun List<Int>.isValidSelection(observations: List<WifiWalPayloadObservation>): Boolean =
+		isNotEmpty() && size == distinct().size && all { it in observations.indices }
+
+	private fun WifiWalPayloadObservation.measuredTime(
+		observedElapsedNanos: Long, wallAnchor: Long, uncertaintyAnchor: Long,
+	): Pair<Long, Long>? {
+		val providerNanos = providerTimestampNanos ?: return null
+		val ageNanos = observedElapsedNanos - providerNanos
+		if (providerNanos <= 0L || ageNanos < 0L) {
+			return null
+		}
+		return runCatching {
+			val wallMs = Math.subtractExact(wallAnchor, ageNanos / NANOS_PER_MILLISECOND)
+			val uncertaintyMs = Math.addExact(uncertaintyAnchor,
+				if (ageNanos % NANOS_PER_MILLISECOND == 0L) { 0L } else { 1L })
+			(wallMs to uncertaintyMs).takeIf { wallMs >= 0L && uncertaintyMs >= 0L }
+		}.getOrNull()
 	}
 
 	private data class Child(

@@ -63,7 +63,11 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
@@ -161,7 +165,11 @@ class LocationSourceRuntimeTest {
 		val cold = installColdSystemLocation(fixture)
 		var attempts = 0
 		coEvery { fixture.registrations.completeRetirement(any()) } answers {
-			if (attempts++ == 0) false else cold.acknowledge(firstArg())
+			if (attempts++ == 0) {
+				false
+			} else {
+				cold.acknowledge(firstArg())
+			}
 		}
 
 		assertTrue(fixture.runtime.start(fixture.plan, fixture.sink) is SourceStartResult.Failed)
@@ -184,15 +192,21 @@ class LocationSourceRuntimeTest {
 		val restored = registration(restoredPlan, 3L, generation = 11L, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT)
 		var reservations = 0
 		coEvery { fixture.registrations.beginSystemRearmableLocation(any(), any(), any()) } answers {
-			if (reservations++ == 0) cold.registration else restored.also {
+			if (reservations++ == 0) {
+				cold.registration
+			} else {
+				restored.also {
 				cold.row = systemLocationRow(it)
+			}
 			}
 		}
 		coEvery { fixture.registrations.beginRetirement(any(), any(), any(), any()) } answers {
 			val owner = firstArg<SourceRegistration>()
 			if (owner.state.registrationGeneration == cold.row?.registrationGeneration) {
 				cold.retire(secondArg(), thirdArg(), arg(3))
-			} else retirementToken(owner, secondArg(), thirdArg(), arg(3))
+			} else {
+				retirementToken(owner, secondArg(), thirdArg(), arg(3))
+			}
 		}
 		assertTrue(fixture.runtime.start(cold.plan, fixture.sink) is SourceStartResult.Started)
 		assertTrue(fixture.runtime.reconfigure(fixture.plan, fixture.sink) is SourceApplyResult.Applied)
@@ -260,15 +274,19 @@ class LocationSourceRuntimeTest {
 		collector.cancel()
 	}
 
+	// Keep one Off transition and the continuing explicit map/game requests in the same composition.
+	@Suppress("LongMethod")
 	@Test
-	fun `composed Off fences durable Location while fresh temporary leases remain independent`() = runTest {
-		val dispatcher = StandardTestDispatcher(testScheduler)
+	fun `composed Off fences durable Location while fresh temporary leases remain independent`(): Unit = runBlocking {
+		val dispatcher = Dispatchers.Unconfined
 		Dispatchers.setMain(dispatcher)
 		val context = ApplicationProvider.getApplicationContext<Application>()
 		val preferences = context.getSharedPreferences(
 			"tracking_lifecycle_commands", Context.MODE_PRIVATE)
 		assertTrue(preferences.edit().clear().commit())
 		val database = AppDatabase.testDatabase(context)
+		database.sourceEvidenceStateDao().ensure()
+		assertEquals(1, database.sourceEvidenceStateDao().updateLifecycle(1L, null, 1L))
 		mockkObject(BackgroundTrackingApi)
 		try {
 			ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
@@ -295,7 +313,7 @@ class LocationSourceRuntimeTest {
 				sourceCallerAuthorityReference = reference.value,
 				liveAmbientRetentionPolicyId = identity.retentionPolicyId,
 				liveAmbientRetentionApprovalRevision = identity.retentionApprovalRevision)
-			val fixture = locationRuntimeFixture(backgroundScope)
+			val fixture = locationRuntimeFixture(this)
 			val plan = fixture.plan.copy(mode = LocationMode.HIGH_ACCURACY,
 				requestedIntervalMs = 1_000L, minimumUpdateIntervalMs = 250L, maximumBatchDelayMs = 0L)
 			val original = registration(plan, 1L, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT)
@@ -326,7 +344,7 @@ class LocationSourceRuntimeTest {
 			val owners = DefaultTrackingPurposePublicationRuntime(
 				leaseIssuer = issuer, reporter = reporter,
 				executionRevisionRegistry = TrackingPurposeExecutionRevisionRegistry(),
-				retentionAuthorityProducer = mockk(), ownerCallbackScope = backgroundScope,
+				retentionAuthorityProducer = mockk(), ownerCallbackScope = this,
 				ownerCallbackTimeoutMillis = 2_000L,
 				ambientLocationPurposeOwnerProvider = Provider { locationOwner })
 			coEvery { BackgroundTrackingApi.stopAutomaticControlForUser(any()) } returns true
@@ -339,17 +357,22 @@ class LocationSourceRuntimeTest {
 			val provider = SharedUiLocationProvider(shared, lifecycle)
 			val mapFixes = mutableListOf<android.location.Location>()
 			val gameFixes = mutableListOf<android.location.Location>()
-			val map = backgroundScope.launch {
+			val mapObserved = MutableStateFlow<List<Double>>(emptyList())
+			val gameObserved = MutableStateFlow<List<Double>>(emptyList())
+			val map = this.launch {
 				provider.locationUpdates(UiLocationRequest("my-location", 1_000L, 250L,
-					highAccuracy = true, maximumAgeMillis = 10_000L)).collect { mapFixes += it }
+					highAccuracy = true, maximumAgeMillis = 10_000L)).collect {
+					mapFixes += it
+					mapObserved.value = mapFixes.map { fix -> fix.latitude }
+				}
 			}
 			var game: kotlinx.coroutines.Job? = null
 			try {
-				runCurrent()
+				provider.activeRequests.first { requests -> requests.map { it.tag } == listOf("my-location") }
 				assertEquals(listOf("my-location"), provider.activeRequests.value.map { it.tag })
 				val oldTrackingCallback = fixture.providerCallback()
 				oldTrackingCallback(listOf(location(50.0, SystemClock.elapsedRealtimeNanos())))
-				runCurrent()
+				withTimeout(2_000L) { mapObserved.first { it.lastOrNull() == 50.0 } }
 				assertEquals(listOf(50.0), mapFixes.map { it.latitude })
 				assertEquals(1, fixture.sink.deliveries.size)
 				val admittedBeforeOff = fixture.sink.deliveries.toList()
@@ -378,44 +401,50 @@ class LocationSourceRuntimeTest {
 				coVerify(exactly = 1) { fixture.registrations.completeRetirement(any()) }
 
 				// Off does not cancel an explicit map request or prohibit a new independent game request.
-				game = backgroundScope.launch {
+				game = this.launch {
 					provider.locationUpdates(UiLocationRequest("game", 1_000L, 250L,
 						highAccuracy = true, maximumAgeMillis = 5_000L, cancelOnAppBackground = false))
-						.collect { gameFixes += it }
+						.collect {
+							gameFixes += it
+							gameObserved.value = gameFixes.map { fix -> fix.latitude }
+						}
 				}
-				runCurrent()
+				provider.activeRequests.first { requests -> requests.map { it.tag }.toSet() == setOf("my-location", "game") }
 				assertEquals(setOf("my-location", "game"), provider.activeRequests.value.map { it.tag }.toSet())
 				val mapBeforeLateCallback = mapFixes.size
 				val gameBeforeLateCallback = gameFixes.size
 				oldTrackingCallback(listOf(location(49.0, SystemClock.elapsedRealtimeNanos())))
-				runCurrent()
+				yield()
 				assertEquals(mapBeforeLateCallback, mapFixes.size)
 				assertEquals(gameBeforeLateCallback, gameFixes.size)
 				val temporaryCallback = fixture.providerCallback()
 				temporaryCallback(listOf(location(51.0, SystemClock.elapsedRealtimeNanos() - 7_000_000_000L)))
-				runCurrent()
+				withTimeout(2_000L) { mapObserved.first { it.lastOrNull() == 51.0 } }
 				assertEquals(51.0, mapFixes.last().latitude, 0.0)
 				assertEquals(gameBeforeLateCallback, gameFixes.size)
 				temporaryCallback(listOf(location(52.0, SystemClock.elapsedRealtimeNanos())))
-				runCurrent()
+				withTimeout(2_000L) {
+					mapObserved.first { it.lastOrNull() == 52.0 }
+					gameObserved.first { it.lastOrNull() == 52.0 }
+				}
 				assertEquals(52.0, mapFixes.last().latitude, 0.0)
 				assertEquals(52.0, gameFixes.last().latitude, 0.0)
 				assertEquals(admittedBeforeOff, fixture.sink.deliveries)
 
 				map.cancelAndJoin()
-				runCurrent()
+				yield()
 				assertEquals(listOf("game"), provider.activeRequests.value.map { it.tag })
 				val stoppedMapCount = mapFixes.size
 				temporaryCallback(listOf(location(53.0, SystemClock.elapsedRealtimeNanos())))
-				runCurrent()
+				withTimeout(2_000L) { gameObserved.first { it.lastOrNull() == 53.0 } }
 				assertEquals(stoppedMapCount, mapFixes.size)
 				assertEquals(53.0, gameFixes.last().latitude, 0.0)
 				requireNotNull(game).cancelAndJoin()
-				runCurrent()
+				yield()
 				assertTrue(provider.activeRequests.value.isEmpty())
 				val stoppedGameCount = gameFixes.size
 				temporaryCallback(listOf(location(54.0, SystemClock.elapsedRealtimeNanos())))
-				runCurrent()
+				yield()
 				assertEquals(stoppedGameCount, gameFixes.size)
 				assertEquals(admittedBeforeOff, fixture.sink.deliveries)
 				assertTrue(broker.authorizationDemands(SourceKind.LOCATION).isEmpty())
@@ -437,6 +466,8 @@ class LocationSourceRuntimeTest {
 		}
 	}
 
+	// Keep per-consumer freshness and sequential shared-owner release in one composed flow.
+	@Suppress("LongMethod")
 	@Test
 	fun `composed feature flows apply independent freshness and retain the remaining lease`() = runTest {
 		Dispatchers.setMain(StandardTestDispatcher(testScheduler))
@@ -504,6 +535,8 @@ class LocationSourceRuntimeTest {
 		}
 	}
 
+	// Keep the map lifecycle and independent game lease through release, reacquire and final callback fencing.
+	@Suppress("LongMethod")
 	@Test
 	fun `composed map lifecycle releases and reacquires independently of the game flow`() = runTest {
 		Dispatchers.setMain(StandardTestDispatcher(testScheduler))
@@ -1269,6 +1302,8 @@ class LocationSourceRuntimeTest {
 			coVerify(exactly = 1) { fusedBackend.stop() }
 		}
 
+	// Keep listener refresh, the exact authorization boundary and both delayed-fix destinations together.
+	@Suppress("LongMethod")
 	@Test
 	fun `compatible authorization refresh partitions delayed fixes without borrowing newer consent`() = runTest {
 		val initialPlan = locationPlan(revision = 1L)
@@ -2339,12 +2374,16 @@ class LocationSourceRuntimeTest {
 			if (owner.state.registrationGeneration == cold.row?.registrationGeneration &&
 				owner.state.sourceInstanceId == cold.row?.sourceInstanceId) {
 				cold.retire(secondArg(), thirdArg(), arg(3))
-			} else retirementToken(owner, secondArg(), thirdArg(), arg(3))
+			} else {
+				retirementToken(owner, secondArg(), thirdArg(), arg(3))
+			}
 		}
 		coEvery { fixture.registrations.completeRetirement(any()) } answers { cold.acknowledge(firstArg()) }
 		coEvery { fixture.passiveBackend.removeExact(any()) } answers {
 			cold.events += "remove-exact"
-			if (cold.retainedIdentity == firstArg<PassiveLocationIdentity>()) cold.retainedIdentity = null
+			if (cold.retainedIdentity == firstArg<PassiveLocationIdentity>()) {
+				cold.retainedIdentity = null
+			}
 			RegistrationRemovalOutcome.REMOVED
 		}
 		coEvery { fixture.passiveBackend.start(any(), any()) } answers {
@@ -2382,7 +2421,11 @@ class LocationSourceRuntimeTest {
 		val capture = purpose == SourceBrokerPurpose.SESSION_CAPTURE
 		val demand = SourceDemandEntity(
 			demandId = "location-demand-$authorizationRevision",
-			consumerId = if (capture) "session:location-test" else "ambient:location",
+			consumerId = if (capture) {
+				"session:location-test"
+			} else {
+				"ambient:location"
+			},
 			sourceKind = SourceKind.LOCATION.stableCode,
 			purpose = purpose,
 			logicalTrackingId = "location-test".takeIf { capture },

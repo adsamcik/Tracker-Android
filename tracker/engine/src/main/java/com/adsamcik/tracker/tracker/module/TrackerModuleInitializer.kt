@@ -75,12 +75,7 @@ class TrackerModuleInitializer @Inject constructor(
 		applicationScope.launch {
 			// Register independently of another source's repair debt. The worker checks startup,
 			// user-stop and Steps authority before any provider access.
-			withContext(dispatchers.main) {
-				registerTrackingForegroundWork(
-					ProcessLifecycleOwner.get().lifecycle, applicationScope, ambientStepsImportScheduler,
-					reconcileSession = { TrackerServiceApi.reconcileProviderStepsSession(context) },
-				)
-			}
+			registerForegroundTrackingWork()
 			while (true) {
 				try {
 					handoffTrackerInitializationAfterAuthorization(
@@ -102,30 +97,7 @@ class TrackerModuleInitializer @Inject constructor(
 							trackingStartupGuard.releaseAutoRecoveryForReadyGeneration(context)
 						},
 						handoff = { handoffAuthorization ->
-							val readyGeneration = trackingStartupGate.currentGeneration
-							when (val authority = reconcileTrackerStartupAuthority(
-								reconcileSourcePolicy = {
-									sourcePolicyRevisionReconciliationCoordinator
-										.reconcileCurrentPolicyRevisionWithinReadyOperation(
-											readyGeneration,
-										)
-								},
-								reconcilePurposes = {
-								// Source-local setup debt never blocks a healthy purpose or saved-data readiness.
-								chosenSourceWriterSetup.ensureCurrentChosenSources()
-								trackingPurposeSettingsReconciler.reconcileCurrentSettings()
-							},
-							)) {
-								TrackerStartupAuthorityResult.Complete -> Unit
-								else -> throw TrackerStartupAuthorityPendingException(authority)
-							}
-							lockManager.initializeFromPersistence(context)
-							activityAutomationEpochAuthority
-								.startRuntimeBoundaryMonitoring(applicationScope)
-							initializeTrackerAutomaticControlAfterAuthorization(
-								authorization = handoffAuthorization,
-								initialize = { BackgroundTrackingApi.initialize(context) },
-							)
+							initializeAuthorizedTracking(handoffAuthorization)
 						},
 					) ?: return@launch
 					break
@@ -157,6 +129,41 @@ class TrackerModuleInitializer @Inject constructor(
 				drain = sourcePipelineRecovery::drainActivityAutomationEffects,
 			)
 		}
+	}
+	private suspend fun registerForegroundTrackingWork() {
+		withContext(dispatchers.main) {
+			registerTrackingForegroundWork(
+				ProcessLifecycleOwner.get().lifecycle, applicationScope, ambientStepsImportScheduler,
+				reconcileSession = { TrackerServiceApi.reconcileProviderStepsSession(context) },
+			)
+		}
+	}
+
+	private suspend fun initializeAuthorizedTracking(authorization: TrackingAutoRecoveryAuthorization) {
+		val readyGeneration = trackingStartupGate.currentGeneration
+		when (val authority = reconcileTrackerStartupAuthority(
+			reconcileSourcePolicy = {
+				sourcePolicyRevisionReconciliationCoordinator
+					.reconcileCurrentPolicyRevisionWithinReadyOperation(
+						readyGeneration,
+					)
+			},
+			reconcilePurposes = {
+				// Source-local setup debt never blocks a healthy purpose or saved-data readiness.
+				chosenSourceWriterSetup.ensureCurrentChosenSources()
+				trackingPurposeSettingsReconciler.reconcileCurrentSettings()
+			},
+		)) {
+			TrackerStartupAuthorityResult.Complete -> Unit
+			else -> throw TrackerStartupAuthorityPendingException(authority)
+		}
+		lockManager.initializeFromPersistence(context)
+		activityAutomationEpochAuthority
+			.startRuntimeBoundaryMonitoring(applicationScope)
+		initializeTrackerAutomaticControlAfterAuthorization(
+			authorization = authorization,
+			initialize = { BackgroundTrackingApi.initialize(context) },
+		)
 	}
 }
 

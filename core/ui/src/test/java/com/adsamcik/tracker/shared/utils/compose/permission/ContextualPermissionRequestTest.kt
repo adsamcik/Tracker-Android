@@ -45,10 +45,12 @@ class ContextualPermissionRequestTest {
 		composeRule.setContent {
 			MaterialTheme {
 				SnackbarHost(snackbar)
-				if (visible.value) PermissionDeniedSnackbar(snackbar, "Access is still needed.", onDismissed = {
+				if (visible.value) {
+					PermissionDeniedSnackbar(snackbar, "Access is still needed.", onDismissed = {
 					dismissed++
 					visible.value = false
 				})
+				}
 			}
 		}
 		composeRule.onNodeWithText("Access is still needed.").assertIsDisplayed()

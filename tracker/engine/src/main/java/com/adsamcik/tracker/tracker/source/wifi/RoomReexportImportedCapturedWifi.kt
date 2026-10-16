@@ -58,102 +58,7 @@ internal class RoomReexportImportedCapturedWifi @Inject constructor(
 		sink: PortableCapturedWifiSink,
 	): ReexportImportedCapturedWifiResult = withContext(ioDispatcher) {
 		val snapshot = try {
-			database.withTransaction {
-				val state = database.sourceEvidenceStateDao().get()
-					?: return@withTransaction ImportedWifiReexportSnapshot.Outcome(
-						ReexportImportedCapturedWifiResult.Unverifiable(
-							ImportedWifiProductFailure.SOURCE_EVIDENCE_STATE_MISSING,
-						),
-					)
-				if (!state.hasValidImportedWifiReexportShape()) {
-					return@withTransaction ImportedWifiReexportSnapshot.Outcome(
-						ReexportImportedCapturedWifiResult.Unverifiable(
-							ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
-						),
-					)
-				}
-				if (state.collectedDataEpoch != request.expectedCollectedDataEpoch) {
-					return@withTransaction ImportedWifiReexportSnapshot.Outcome(
-						ReexportImportedCapturedWifiResult.Blocked(
-							ImportedWifiReexportBlockedReason.COLLECTED_DATA_EPOCH_CHANGED,
-						),
-					)
-				}
-				when (val deleted = deletedHistoryReader.readDeletedInTransaction(
-					WifiHistorySelection.Imported(request.selection),
-				)) {
-					is WifiDeletedHistoryResult.Deleted ->
-						return@withTransaction ImportedWifiReexportSnapshot.Outcome(
-							ReexportImportedCapturedWifiResult.Deleted,
-						)
-					is WifiDeletedHistoryResult.Unverifiable ->
-						return@withTransaction ImportedWifiReexportSnapshot.Outcome(
-							ReexportImportedCapturedWifiResult.Unverifiable(
-								ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
-							),
-						)
-					WifiDeletedHistoryResult.NotDeleted -> Unit
-				}
-				when (val evaluation = evaluator.selectIdentityInTransaction(request.selection.key)) {
-					null -> ImportedWifiReexportSnapshot.Outcome(
-						ReexportImportedCapturedWifiResult.NotFound,
-					)
-					is ImportedWifiProductEvaluation.Unverifiable ->
-						ImportedWifiReexportSnapshot.Outcome(
-							when (evaluation.reason) {
-								ImportedWifiProductFailure.STALE_COLLECTED_DATA_EPOCH ->
-									ReexportImportedCapturedWifiResult.Unavailable(
-										ImportedWifiReexportUnavailableReason.PRIVACY_EPOCH_MISMATCH,
-									)
-								else -> ReexportImportedCapturedWifiResult.Unverifiable(
-									evaluation.reason,
-								)
-							},
-						)
-					is ImportedWifiProductEvaluation.Readable -> when {
-						evaluation.candidate.selection != request.selection ->
-							ImportedWifiReexportSnapshot.Outcome(
-								ReexportImportedCapturedWifiResult.Blocked(
-									ImportedWifiReexportBlockedReason.STALE_SELECTION,
-								),
-							)
-						evaluation.entryDeleted || evaluation.deletedRunIdentities.isNotEmpty() ->
-							ImportedWifiReexportSnapshot.Outcome(
-								ReexportImportedCapturedWifiResult.Deleted,
-							)
-						evaluation.retentionLimited ->
-							ImportedWifiReexportSnapshot.Outcome(
-								ReexportImportedCapturedWifiResult.Unavailable(
-									ImportedWifiReexportUnavailableReason.RETENTION_LIMIT,
-								),
-							)
-						else -> {
-							val collision = evaluation.collidingLocalLogicalTrackingId
-							if (collision == null) {
-								ImportedWifiReexportSnapshot.Entry(
-									evaluation.candidate.importRevision,
-									evaluation.entry,
-								)
-							} else {
-								when (val local = localPortableReader.readInTransaction(
-									ExportPortableCapturedWifiRequest(collision),
-								)) {
-									is ReadLocalPortableCapturedWifiResult.Ready ->
-										if (local.entry == evaluation.entry) {
-											ImportedWifiReexportSnapshot.Entry(
-												evaluation.candidate.importRevision,
-												evaluation.entry,
-											)
-										} else {
-											originConflict()
-										}
-									is ReadLocalPortableCapturedWifiResult.Outcome -> originConflict()
-								}
-							}
-						}
-					}
-				}
-			}
+			database.withTransaction { readReexportSnapshot(request) }
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (blocked: WifiCapturedRetentionBlockedException) {
@@ -186,6 +91,12 @@ internal class RoomReexportImportedCapturedWifi @Inject constructor(
 			)
 		}
 
+		publishReexportSnapshot(snapshot, sink)
+	}
+
+	private suspend fun publishReexportSnapshot(
+		snapshot: ImportedWifiReexportSnapshot, sink: PortableCapturedWifiSink,
+	): ReexportImportedCapturedWifiResult =
 		when (snapshot) {
 			is ImportedWifiReexportSnapshot.Outcome -> snapshot.result
 			is ImportedWifiReexportSnapshot.Entry -> {
@@ -200,7 +111,99 @@ internal class RoomReexportImportedCapturedWifi @Inject constructor(
 				)
 			}
 		}
+
+	private suspend fun readReexportSnapshot(
+		request: ReexportImportedCapturedWifiRequest,
+	): ImportedWifiReexportSnapshot {
+		val state = database.sourceEvidenceStateDao().get()
+			?: return ImportedWifiReexportSnapshot.Outcome(
+				ReexportImportedCapturedWifiResult.Unverifiable(
+					ImportedWifiProductFailure.SOURCE_EVIDENCE_STATE_MISSING,
+				),
+			)
+		state.reexportRejection(request.expectedCollectedDataEpoch)?.let {
+			return ImportedWifiReexportSnapshot.Outcome(it)
+		}
+		deletedHistoryReader.readDeletedInTransaction(WifiHistorySelection.Imported(request.selection))
+			.toReexportSnapshotOrNull()?.let { return it }
+		return evaluateReexportSelection(request)
 	}
+
+	private fun SourceEvidenceState.reexportRejection(
+		expectedCollectedDataEpoch: Long,
+	): ReexportImportedCapturedWifiResult? {
+		if (!hasValidImportedWifiReexportShape()) {
+			return ReexportImportedCapturedWifiResult.Unverifiable(
+				ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+		if (collectedDataEpoch != expectedCollectedDataEpoch) {
+			return ReexportImportedCapturedWifiResult.Blocked(
+				ImportedWifiReexportBlockedReason.COLLECTED_DATA_EPOCH_CHANGED,
+			)
+		}
+		return null
+	}
+
+	private fun WifiDeletedHistoryResult.toReexportSnapshotOrNull(): ImportedWifiReexportSnapshot? = when (this) {
+		is WifiDeletedHistoryResult.Deleted ->
+			ImportedWifiReexportSnapshot.Outcome(ReexportImportedCapturedWifiResult.Deleted)
+		is WifiDeletedHistoryResult.Unverifiable -> ImportedWifiReexportSnapshot.Outcome(
+			ReexportImportedCapturedWifiResult.Unverifiable(
+				ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			),
+		)
+		WifiDeletedHistoryResult.NotDeleted -> null
+	}
+
+	private suspend fun evaluateReexportSelection(
+		request: ReexportImportedCapturedWifiRequest,
+	): ImportedWifiReexportSnapshot =
+		when (val evaluation = evaluator.selectIdentityInTransaction(request.selection.key)) {
+			null -> ImportedWifiReexportSnapshot.Outcome(ReexportImportedCapturedWifiResult.NotFound)
+			is ImportedWifiProductEvaluation.Unverifiable -> ImportedWifiReexportSnapshot.Outcome(
+				when (evaluation.reason) {
+					ImportedWifiProductFailure.STALE_COLLECTED_DATA_EPOCH ->
+						ReexportImportedCapturedWifiResult.Unavailable(
+							ImportedWifiReexportUnavailableReason.PRIVACY_EPOCH_MISMATCH,
+						)
+					else -> ReexportImportedCapturedWifiResult.Unverifiable(evaluation.reason)
+				},
+			)
+			is ImportedWifiProductEvaluation.Readable -> evaluation.readableReexportSnapshot(request)
+		}
+
+	private suspend fun ImportedWifiProductEvaluation.Readable.readableReexportSnapshot(
+		request: ReexportImportedCapturedWifiRequest,
+	): ImportedWifiReexportSnapshot = when {
+		candidate.selection != request.selection -> ImportedWifiReexportSnapshot.Outcome(
+			ReexportImportedCapturedWifiResult.Blocked(ImportedWifiReexportBlockedReason.STALE_SELECTION),
+		)
+		entryDeleted || deletedRunIdentities.isNotEmpty() ->
+			ImportedWifiReexportSnapshot.Outcome(ReexportImportedCapturedWifiResult.Deleted)
+		retentionLimited -> ImportedWifiReexportSnapshot.Outcome(
+			ReexportImportedCapturedWifiResult.Unavailable(ImportedWifiReexportUnavailableReason.RETENTION_LIMIT),
+		)
+		else -> readMatchingLocalReexport()
+	}
+
+	private suspend fun ImportedWifiProductEvaluation.Readable.readMatchingLocalReexport(
+	): ImportedWifiReexportSnapshot {
+		val collision = collidingLocalLogicalTrackingId
+		return if (collision == null) {
+			ImportedWifiReexportSnapshot.Entry(candidate.importRevision, entry)
+		} else {
+			when (val local = localPortableReader.readInTransaction(ExportPortableCapturedWifiRequest(collision))) {
+				is ReadLocalPortableCapturedWifiResult.Ready -> if (local.entry == entry) {
+					ImportedWifiReexportSnapshot.Entry(candidate.importRevision, entry)
+				} else {
+					originConflict()
+				}
+				is ReadLocalPortableCapturedWifiResult.Outcome -> originConflict()
+			}
+		}
+	}
+
 }
 
 private object RejectingLocalPortableWifiReader : ReadLocalPortableCapturedWifi {

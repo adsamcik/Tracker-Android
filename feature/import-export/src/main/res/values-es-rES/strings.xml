@@ -40,4 +40,24 @@
     <string name="format_database">Copia de seguridad de base de datos (ZIP)</string>
     <string name="settings_import_summary">Importa datos de tipos compatibles (%1$s) y archivos (%2$s). Las importaciones de base de datos combinan filas compatibles; no sustituyen los datos existentes.</string>
     <string name="settings_import_title">Importar</string>
+    <string name="export_radio_sensitivity_title">¿Exportar detalles de redes?</string>
+    <string name="export_wifi_sensitivity_message">Este archivo incluye nombres de Wi-Fi e identificadores de puntos de acceso guardados.</string>
+    <string name="export_cell_sensitivity_message">Este archivo incluye identificadores de torres y mediciones de señal guardados.</string>
+    <string name="export_radio_no_data">No hay datos guardados de esta fuente</string>
+    <string name="export_include_complete_sessions">Incluir sesiones completas</string>
+    <string name="import_location_conflict_title">¿Reemplazar puntos guardados?</string>
+    <string name="import_location_replace">Usar los puntos del archivo</string>
+    <string name="import_location_keep">Conservar los puntos guardados</string>
+    <string name="export_backup_review_title">Revisar copias programadas</string>
+    <string name="export_backup_review_summary">En pausa hasta que revises la copia de datos actualizada.</string>
+    <string name="export_backup_review_message">Estas programaciones ahora copian todos los datos de seguimiento guardados y los archivos necesarios para restaurarlos. Se excluyen los ajustes. ¿Reanudar estas programaciones?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Reanudar copias</string>
+    <string name="import_backup_replace_title">¿Restaurar copia de datos?</string>
+    <string name="import_backup_replace_message">¿Reemplazar los datos guardados por esta copia? Tus ajustes no cambiarán. El seguimiento estará desactivado hasta que lo reanudes.</string>
+    <string name="import_backup_restore">Reemplazar datos</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d punto de este archivo difiere de su copia guardada. Elige cuál conservar. Los demás puntos se importarán normalmente.</item>
+        <item quantity="many">%d puntos de este archivo difieren de sus copias guardadas. Elige cuáles conservar. Los demás puntos se importarán normalmente.</item>
+        <item quantity="other">%d puntos de este archivo difieren de sus copias guardadas. Elige cuáles conservar. Los demás puntos se importarán normalmente.</item>
+    </plurals>
 </resources>

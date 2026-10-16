@@ -49,12 +49,17 @@ interface LocationPurposeDao {
     suspend fun savedSessionReceiptPageAfterId(logicalId: String, runId: String, segmentId: Long,
         afterId: Long, throughId: Long, limit: Int): List<LocationAcceptedReceiptEntity>
 
-    /** Indexed membership-count sentinel only; it never qualifies data or becomes a user total. */
-    @Query("""SELECT COUNT(*) FROM location_sample_purpose_authority
-        WHERE purpose = 'SESSION_CAPTURE' AND authority_id = :runId
-        AND logical_tracking_id = :logicalId AND service_run_id = :runId
-        AND session_segment_id = :segmentId""")
-    suspend fun savedSessionCandidateCount(logicalId: String, runId: String, segmentId: Long): Long
+    /** Membership sentinel in the optional current measured window; never a qualified user total. */
+    @Query("""SELECT COUNT(*) FROM location_sample_purpose_authority p
+        WHERE p.purpose = 'SESSION_CAPTURE' AND p.authority_id = :runId
+        AND p.logical_tracking_id = :logicalId AND p.service_run_id = :runId
+        AND p.session_segment_id = :segmentId
+        AND ((:fromMs IS NULL AND :toMs IS NULL) OR EXISTS (
+            SELECT 1 FROM effective_location_sample location_sample WHERE location_sample.id = p.sample_id
+            AND (:fromMs IS NULL OR location_sample.time_ms >= :fromMs)
+            AND (:toMs IS NULL OR location_sample.time_ms <= :toMs)))""")
+    suspend fun savedSessionCandidateCount(logicalId: String, runId: String, segmentId: Long,
+        fromMs: Long? = null, toMs: Long? = null): Long
 
 	/** Exact saved capture membership. Coordinates are current user data, not reauthenticated provider payload. */
 	@Query("""SELECT DISTINCT location_sample.*, CASE WHEN location_sample.clock_domain_id IS NULL THEN NULL ELSE lr.source_instance_id || ':' || lr.registration_generation END AS continuity_id,
@@ -109,6 +114,10 @@ interface LocationPurposeDao {
 		AND (EXISTS (SELECT 1 FROM location_file_identity i WHERE i.sample_id = location_sample.id AND i.imported = 1)
 		OR ${LocationReadScope.HISTORY_CURRENT_IMPORT_COPY})""")
 	suspend fun importedHistorySampleIds(sampleIds: List<Long>): List<Long>
+	/**
+	 * Reads `location_accepted_receipt` rows. Query conditions include `sample_id IN (:sampleIds)`.
+	 * Orders by `observed_wall_time_ms, sample_id`. Returns at most `limit` rows.
+	 */
 	@Query("SELECT * FROM location_accepted_receipt WHERE sample_id IN (:sampleIds) " +
 		"ORDER BY observed_wall_time_ms, sample_id LIMIT :limit")
 	suspend fun contextReceiptsForSamples(sampleIds: List<Long>, limit: Int): List<LocationAcceptedReceiptEntity>
@@ -153,14 +162,29 @@ interface LocationPurposeDao {
 	suspend fun contextReceipts(bootId: String, clockDomainId: String, fromNanos: Long,
 		toNanos: Long, limit: Int): List<LocationAcceptedReceiptEntity>
 
+	/**
+	 * Reads `location_sample_purpose_authority` rows. Query conditions include `sample_id IN
+	 * (:sampleIds)`. Orders by `sample_id, purpose, authority_id`. Returns at most `limit` rows.
+	 */
 	@Query("SELECT * FROM location_sample_purpose_authority WHERE sample_id IN (:sampleIds) " +
 		"ORDER BY sample_id, purpose, authority_id LIMIT :limit")
 	suspend fun contextPurposes(sampleIds: List<Long>, limit: Int): List<LocationSamplePurposeAuthorityEntity>
 
+	/**
+	 * Reads `ambient_location_retention_authority` rows. Query conditions include `scope =
+	 * 'LIVE_AMBIENT'`, `approval_revision IN (:revisions)`. Orders by `approval_revision`. Returns at
+	 * most `limit` rows.
+	 */
 	@Query("SELECT * FROM ambient_location_retention_authority WHERE scope = 'LIVE_AMBIENT' " +
 		"AND approval_revision IN (:revisions) ORDER BY approval_revision LIMIT :limit")
-	suspend fun contextRetentionApprovals(revisions: List<Long>, limit: Int): List<AmbientLocationRetentionAuthorityEntity>
+	suspend fun contextRetentionApprovals(revisions: List<Long>,
+        limit: Int): List<AmbientLocationRetentionAuthorityEntity>
 
+	/**
+	 * Reads `source_event_wal` rows. Query conditions include `source_kind = 1`, `source_instance_id
+	 * = :sourceInstanceId`, `admission_ordinal <= :throughOrdinal`. Orders by `admission_ordinal
+	 * DESC`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query("""SELECT event_id, admission_ordinal, source_kind, source_instance_id,
 		registration_generation, source_sequence, logical_tracking_id, service_run_id
 		FROM source_event_wal WHERE source_kind = 1 AND source_instance_id = :sourceInstanceId
@@ -189,6 +213,12 @@ interface LocationPurposeDao {
 	""")
 	suspend fun ambientExportAuthorityStamp(): String
 
+	/**
+	 * Reads `location_sample_purpose_authority` rows. Query conditions include `lp.purpose =
+	 * 'SESSION_CAPTURE'`, `time_ms >= :fromMs`, `time_ms <= :toMs`, `ambientOnly = 0`. Orders by
+	 * `time_ms, location_sample.id`. Returns at most `limit` rows. Timestamp bounds use UTC
+	 * milliseconds.
+	 */
 	@Query("""
 		SELECT location_sample.*, CASE WHEN location_sample.clock_domain_id IS NULL THEN NULL ELSE lr.source_instance_id || ':' || lr.registration_generation END AS continuity_id,
 		lr.source_sequence AS continuity_sequence,
@@ -206,7 +236,8 @@ interface LocationPurposeDao {
 		ORDER BY time_ms, location_sample.id LIMIT :limit
 	""")
 	suspend fun visiblePathChunk(fromMs: Long, toMs: Long, afterTimeMs: Long?, afterId: Long?, limit: Int,
-		ambientOnly: Boolean = false, northE7: Int? = null, southE7: Int? = null, eastE7: Int? = null, westE7: Int? = null): List<LocationPathSampleRow>
+		ambientOnly: Boolean = false, northE7: Int? = null, southE7: Int? = null, eastE7: Int? = null, westE7: Int? =
+            null): List<LocationPathSampleRow>
 
 	/** User data backup; missing historical receipts or grants do not hide saved points. */
 	@Query("""SELECT location_sample.*, CASE WHEN location_sample.clock_domain_id IS NULL THEN NULL ELSE lr.source_instance_id || ':' || lr.registration_generation END AS continuity_id,
@@ -240,16 +271,43 @@ interface LocationPurposeDao {
 			'RETENTION_SOURCE_MAINTENANCE_COMPLETED'))""")
 	suspend fun savedFileExportAuthorityStamp(): String
 
-	@Query("""DELETE FROM location_sample_purpose_authority WHERE purpose = 'AMBIENT_PRODUCT' AND sample_id IN
-		(SELECT sample_id FROM location_accepted_receipt WHERE observed_wall_time_ms - wall_time_uncertainty_ms < :retainedFromMs)""")
+	/**
+	 * Deletes `location_sample_purpose_authority` rows matching the supplied scope. Query conditions
+	 * include `purpose = 'AMBIENT_PRODUCT'`. Returns the affected row count. Timestamp bounds use UTC
+	 * milliseconds.
+	 */
+	@Query(
+		"""DELETE FROM location_sample_purpose_authority WHERE purpose = 'AMBIENT_PRODUCT' AND sample_id IN
+		(SELECT sample_id FROM location_accepted_receipt WHERE """ +
+			"""observed_wall_time_ms - wall_time_uncertainty_ms < :retainedFromMs)""",
+	)
 	suspend fun removeAmbientAssociationsBefore(retainedFromMs: Long): Int
 
-	@Query("DELETE FROM source_projection_join_state WHERE projection_id = '${SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID}' AND projection_version = ${SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION} AND state_key LIKE 'ambient-curation:%'")
+	/**
+	 * Deletes `source_projection_join_state` rows matching the supplied scope. Query conditions
+	 * include `projection_id =
+	 * '${SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID}'`, `state_key LIKE
+	 * 'ambient-curation:%'`. Returns the affected row count.
+	 */
+	@Query(("DELETE FROM source_projection_join_state WHERE projection_id = " +
+        "'${SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID}' AND projection_version " +
+        "= ${SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION} AND state_key " +
+        "LIKE 'ambient-curation:%'"))
 	suspend fun clearAmbientCurationCheckpoints(): Int
 
+	/**
+	 * Deletes `location_sample_purpose_authority` rows matching the supplied scope. Query conditions
+	 * include `purpose = 'AMBIENT_PRODUCT'`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM location_sample_purpose_authority WHERE purpose = 'AMBIENT_PRODUCT'")
 	suspend fun removeAmbientAssociations(): Int
 
+	/**
+	 * Deletes `location_observation` rows matching the supplied scope. Query conditions include
+	 * `j.projection_id = '${SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID}'`,
+	 * `j.state_key = 'ambient-receipt:'`, `fix_time_ms < :beforeMs`. Returns the affected row count.
+	 * Timestamp bounds use UTC milliseconds.
+	 */
 	@Query("""DELETE FROM location_observation WHERE EXISTS (
 		SELECT 1 FROM source_projection_join_state j WHERE j.projection_id = '${SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID}' AND j.projection_version = ${SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION} AND j.state_key = 'ambient-receipt:' || location_observation.source_event_id)
 		AND (fix_time_ms < :beforeMs OR EXISTS (SELECT 1 FROM location_accepted_receipt r WHERE r.source_event_id = location_observation.source_event_id))
@@ -257,6 +315,13 @@ interface LocationPurposeDao {
 		WHERE s.source_event_id = location_observation.source_event_id)""")
 	suspend fun deleteUnassociatedAmbientObservations(beforeMs: Long = Long.MAX_VALUE): Int
 
+	/**
+	 * Deletes `location_observation_decision` rows matching the supplied scope. Query conditions
+	 * include `j.projection_id =
+	 * '${SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID}'`, `j.state_key =
+	 * 'ambient-receipt:'`, `decided_at_ms < :beforeMs`. Returns the affected row count. Timestamp
+	 * bounds use UTC milliseconds.
+	 */
 	@Query("""DELETE FROM location_observation_decision WHERE EXISTS (
 		SELECT 1 FROM source_projection_join_state j WHERE j.projection_id = '${SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID}' AND j.projection_version = ${SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION} AND j.state_key = 'ambient-receipt:' || location_observation_decision.observation_source_event_id)
 		AND (decided_at_ms < :beforeMs OR EXISTS (SELECT 1 FROM location_accepted_receipt r WHERE r.source_event_id = location_observation_decision.observation_source_event_id))
@@ -264,51 +329,118 @@ interface LocationPurposeDao {
 		WHERE s.source_event_id = location_observation_decision.observation_source_event_id)""")
 	suspend fun deleteUnassociatedAmbientDecisions(beforeMs: Long = Long.MAX_VALUE): Int
 
+	/**
+	 * Deletes `location_sample` rows matching the supplied scope. Returns the affected row count.
+	 */
 	@Query("""DELETE FROM location_sample WHERE EXISTS (SELECT 1 FROM location_accepted_receipt r WHERE r.sample_id = location_sample.id)
 		AND NOT EXISTS (SELECT 1 FROM location_sample_purpose_authority p WHERE p.sample_id = location_sample.id)""")
 	suspend fun deleteUnassociatedSamples(): Int
 
-	@Query("DELETE FROM source_projection_join_state WHERE projection_id = '${SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID}' AND projection_version = ${SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION} AND (state_key LIKE 'ambient-curation:%' OR state_key LIKE 'ambient-receipt:%')")
+	/**
+	 * Deletes `source_projection_join_state` rows matching the supplied scope. Query conditions
+	 * include `projection_id =
+	 * '${SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID}'`, `state_key LIKE
+	 * 'ambient-curation:%'`, `state_key LIKE 'ambient-receipt:%'`. Returns the affected row count.
+	 */
+	@Query(("DELETE FROM source_projection_join_state WHERE projection_id = " +
+        "'${SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID}' AND projection_version " +
+        "= ${SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION} AND (state_key " +
+        "LIKE 'ambient-curation:%' OR state_key LIKE 'ambient-receipt:%')"))
 	suspend fun deleteAmbientCurationState(): Int
 
+	/**
+	 * Inserts [LocationRegistrationPlanEntity] rows. Existing conflicting rows remain unchanged. An
+	 * ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertRegistrationPlanIfAbsent(value: LocationRegistrationPlanEntity): Long
 
-	@Query("SELECT * FROM location_registration_plan WHERE registration_generation = :generation AND configuration_revision = :configurationRevision AND authorization_revision = :authorizationRevision")
-	suspend fun registrationPlan(generation: Long, configurationRevision: Long, authorizationRevision: Long): LocationRegistrationPlanEntity?
+	/**
+	 * Reads `location_registration_plan` rows. Query conditions include `registration_generation =
+	 * :generation`, `configuration_revision = :configurationRevision`, `authorization_revision =
+	 * :authorizationRevision`. Returns null when no row matches.
+	 */
+	@Query(("SELECT * FROM location_registration_plan WHERE registration_generation = :generation AND " +
+        "configuration_revision = :configurationRevision AND authorization_revision = " +
+        ":authorizationRevision"))
+	suspend fun registrationPlan(generation: Long, configurationRevision: Long,
+        authorizationRevision: Long): LocationRegistrationPlanEntity?
 
+	/**
+	 * Reads `location_registration_plan` rows. Query conditions include `registration_generation =
+	 * :generation`. Orders by `authorization_revision DESC`. Returns at most 1 row. Returns null when
+	 * no row matches.
+	 */
 	@Query("SELECT * FROM location_registration_plan WHERE registration_generation = :generation " +
 		"ORDER BY authorization_revision DESC LIMIT 1")
 	suspend fun latestRegistrationPlan(generation: Long): LocationRegistrationPlanEntity?
 
+	/**
+	 * Inserts [LocationAcceptedReceiptEntity] rows. Existing conflicting rows remain unchanged. An
+	 * ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertReceiptIfAbsent(value: LocationAcceptedReceiptEntity): Long
 
+	/**
+	 * Reads `location_accepted_receipt` rows. Query conditions include `sample_id = :sampleId`.
+	 * Returns null when no row matches.
+	 */
 	@Query("SELECT * FROM location_accepted_receipt WHERE sample_id = :sampleId")
 	suspend fun receipt(sampleId: Long): LocationAcceptedReceiptEntity?
 
+	/**
+	 * Reads `location_accepted_receipt` rows. Query conditions include `source_event_id = :eventId`.
+	 * Returns null when no row matches.
+	 */
 	@Query("SELECT * FROM location_accepted_receipt WHERE source_event_id = :eventId")
 	suspend fun receiptByEvent(eventId: String): LocationAcceptedReceiptEntity?
 
+	/**
+	 * Inserts [LocationSamplePurposeAuthorityEntity] rows. Existing conflicting rows remain
+	 * unchanged. An ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertPurposeIfAbsent(value: LocationSamplePurposeAuthorityEntity): Long
 
-	@Query("SELECT * FROM location_sample_purpose_authority WHERE sample_id = :sampleId AND purpose = :purpose AND authority_id = :authorityId")
+	/**
+	 * Reads `location_sample_purpose_authority` rows. Query conditions include `sample_id =
+	 * :sampleId`, `purpose = :purpose`, `authority_id = :authorityId`. Returns null when no row
+	 * matches.
+	 */
+	@Query(("SELECT * FROM location_sample_purpose_authority WHERE sample_id = :sampleId AND purpose = " +
+        ":purpose AND authority_id = :authorityId"))
 	suspend fun purpose(sampleId: Long, purpose: String, authorityId: String): LocationSamplePurposeAuthorityEntity?
 
-	@Query("SELECT * FROM location_sample_purpose_authority WHERE sample_id = :sampleId ORDER BY purpose, authority_id LIMIT :limit")
+	/**
+	 * Reads `location_sample_purpose_authority` rows. Query conditions include `sample_id =
+	 * :sampleId`. Orders by `purpose, authority_id`. Returns at most `limit` rows.
+	 */
+	@Query(("SELECT * FROM location_sample_purpose_authority WHERE sample_id = :sampleId ORDER BY purpose, " +
+        "authority_id LIMIT :limit"))
 	suspend fun purposes(sampleId: Long, limit: Int): List<LocationSamplePurposeAuthorityEntity>
 
 
+	/**
+	 * Inserts [AmbientLocationRetentionAuthorityEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertRetentionAuthority(value: AmbientLocationRetentionAuthorityEntity)
 
+	/**
+	 * Reads `ambient_location_retention_authority` rows. Query conditions include `scope = :scope`.
+	 * Orders by `approval_revision DESC`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM ambient_location_retention_authority WHERE scope = :scope " +
 			"ORDER BY approval_revision DESC LIMIT 1",
 	)
 	suspend fun latestRetentionAuthority(scope: String): AmbientLocationRetentionAuthorityEntity?
 
+	/**
+	 * Reads `ambient_location_retention_authority` rows. Query conditions include `scope = :scope`.
+	 * Orders by `approval_revision ASC`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM ambient_location_retention_authority WHERE scope = :scope " +
 			"ORDER BY approval_revision ASC LIMIT :limit",
@@ -318,6 +450,12 @@ interface LocationPurposeDao {
 		limit: Int,
 	): List<AmbientLocationRetentionAuthorityEntity>
 
+	/**
+	 * Reads `ambient_location_retention_authority` rows. Query conditions include `scope = :scope`,
+	 * `effective_boot_id = :bootId`, `effective_elapsed_realtime_nanos <=
+	 * :observedElapsedRealtimeNanos`. Orders by `effective_elapsed_realtime_nanos DESC,
+	 * approval_revision DESC`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM ambient_location_retention_authority WHERE scope = :scope " +
 			"AND effective_boot_id = :bootId " +
@@ -330,6 +468,10 @@ interface LocationPurposeDao {
 		observedElapsedRealtimeNanos: Long,
 	): AmbientLocationRetentionAuthorityEntity?
 
+	/**
+	 * Returns the greatest `approval_revision` in `ambient_location_retention_authority`. Query
+	 * conditions include `scope = :scope`. Returns 0 when no saved value exists.
+	 */
 	@Query(
 		"SELECT COALESCE(MAX(approval_revision), 0) FROM ambient_location_retention_authority " +
 			"WHERE scope = :scope",

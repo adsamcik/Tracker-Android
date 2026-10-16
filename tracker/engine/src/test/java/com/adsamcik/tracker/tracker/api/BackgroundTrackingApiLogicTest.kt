@@ -64,7 +64,9 @@ class BackgroundTrackingApiLogicTest {
 		val values = flow {
 			val subscription = ++subscriptions
 			emit(subscription)
-			if (subscription == 1) error("transient settings read")
+			if (subscription == 1) {
+				error("transient settings read")
+			}
 		}.retryingTrackingSettingsObservation(
 			onFailure = { failures += requireNotNull(it.message) },
 			waitBeforeRetry = {},
@@ -265,7 +267,9 @@ class BackgroundTrackingApiLogicTest {
 			},
 			waitBeforeRetry = { delayMillis ->
 				delays += delayMillis
-				if (delays.size == 4) current = false
+				if (delays.size == 4) {
+					current = false
+				}
 			},
 			initialRetryDelayMillis = 250L,
 			maxRetryDelayMillis = 1_000L,
@@ -1130,7 +1134,9 @@ class BackgroundTrackingApiLogicTest {
 				onFailure = { failures++ },
 			) {
 				attempts++
-				if (attempts < 3) error("remove failed")
+				if (attempts < 3) {
+					error("remove failed")
+				}
 			}
 
 			removed shouldBe true

@@ -23,19 +23,30 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 
 /** Deliberately narrow storage boundary for the dormant Pressure fact writer. */
+// Keep the PressureFactRevisionDao SQL contract together; query text accounts for this declaration's size.
+@Suppress("LargeClass")
 @Dao
 interface PressureFactRevisionDao {
 	/** Appends one immutable revision, returning its row id or `-1` for an existing identity. */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertRow(entity: PressureFactRevisionEntity): Long
 
+	/**
+	 * Inserts [NativePortableOwnershipEntity] rows. Existing conflicting rows remain unchanged.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertPortableOwners(owners: List<NativePortableOwnershipEntity>)
 
+	/**
+	 * Inserts a Pressure revision and its portable ownership rows in the same transaction; duplicate
+	 * revisions return -1.
+	 */
 	@Transaction
 	suspend fun insert(entity: PressureFactRevisionEntity): Long {
 		val inserted = insertRow(entity)
-		if (inserted != -1L) insertPortableOwners(NativePortableOwnership.pressure(entity))
+		if (inserted != -1L) {
+			insertPortableOwners(NativePortableOwnership.pressure(entity))
+		}
 		return inserted
 	}
 
@@ -619,6 +630,9 @@ interface PressureFactRevisionDao {
 		limit: Int,
 	): List<SourceEventWalEntity>
 
+	/**
+	 * Counts rows in `source_event_wal`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM source_event_wal " +
 			"WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE} " +
@@ -627,6 +641,9 @@ interface PressureFactRevisionDao {
 	)
 	suspend fun sourceEraseWalCount(): Long
 
+	/**
+	 * Deletes `source_event_wal` rows matching the supplied scope. Returns the affected row count.
+	 */
 	@Query(
 		"DELETE FROM source_event_wal " +
 			"WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE} " +
@@ -635,15 +652,29 @@ interface PressureFactRevisionDao {
 	)
 	suspend fun deleteSourceEraseWal(): Int
 
+	/**
+	 * Deletes `pressure_fact_revision` rows. Returns the affected row count.
+	 */
 	@Query("DELETE FROM pressure_fact_revision")
 	suspend fun deleteFactsForSourceErase(): Int
 
+	/**
+	 * Counts rows in `pressure_sample`.
+	 */
 	@Query("SELECT COUNT(*) FROM pressure_sample")
 	suspend fun legacyPressureSampleCount(): Long
 
+	/**
+	 * Returns the greatest `time_ms` in `pressure_sample`. Returns null when the aggregate has no
+	 * saved value.
+	 */
 	@Query("SELECT MAX(time_ms) FROM pressure_sample")
 	suspend fun latestLegacyPressureSampleTimeMs(): Long?
 
+	/**
+	 * Reads `pressure_sample` rows. Query conditions include `id > :afterId`. Orders by `id`. Returns
+	 * at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM pressure_sample WHERE id > :afterId ORDER BY id LIMIT :limit",
 	)
@@ -652,9 +683,18 @@ interface PressureFactRevisionDao {
 		limit: Int,
 	): List<PressureSample>
 
+	/**
+	 * Deletes `pressure_sample` rows. Returns the affected row count.
+	 */
 	@Query("DELETE FROM pressure_sample")
 	suspend fun deleteLegacyPressureSamplesForSourceErase(): Int
 
+	/**
+	 * Reads `source_deletion_fence` rows. Query conditions include `purpose =
+	 * '${SessionManifestPurposeCode.SESSION_CAPTURE}'`, `scope_kind =
+	 * '${SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN}'`, `scope_identity_digest >
+	 * :afterDigest`. Orders by `scope_identity_digest`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_deletion_fence " +
 			"WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE} " +
@@ -668,6 +708,12 @@ interface PressureFactRevisionDao {
 		limit: Int,
 	): List<SourceDeletionFenceEntity>
 
+	/**
+	 * Reads `source_deletion_fence` rows. Query conditions include `purpose =
+	 * '${SessionManifestPurposeCode.SESSION_CAPTURE}'`, `scope_kind =
+	 * '${SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN}'`, `rowid > :afterOwnerRowId`. Orders
+	 * by `rowid`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT rowid FROM source_deletion_fence " +
 			"WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE} " +
@@ -680,6 +726,11 @@ interface PressureFactRevisionDao {
 		limit: Int,
 	): List<Long>
 
+	/**
+	 * Counts rows in `source_deletion_fence`. Query conditions include `rowid = :ownerRowId`,
+	 * `purpose = '${SessionManifestPurposeCode.SESSION_CAPTURE}'`, `scope_kind =
+	 * '${SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN}'`.
+	 */
 	@Query(
 		"""
 		SELECT COUNT(*) AS row_count,
@@ -700,6 +751,12 @@ interface PressureFactRevisionDao {
 		ownerRowId: Long,
 	): PressureSourceDeletionFenceFootprint
 
+	/**
+	 * Reads `source_deletion_fence` rows. Query conditions include `rowid = :ownerRowId`, `purpose =
+	 * '${SessionManifestPurposeCode.SESSION_CAPTURE}'`, `scope_kind =
+	 * '${SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN}'`. Returns at most 1 row. Returns null
+	 * when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM source_deletion_fence WHERE rowid = :ownerRowId " +
 			"AND source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE} " +
@@ -710,6 +767,11 @@ interface PressureFactRevisionDao {
 		ownerRowId: Long,
 	): SourceDeletionFenceEntity?
 
+	/**
+	 * Counts rows in `source_deletion_fence`. Query conditions include `purpose =
+	 * '${SessionManifestPurposeCode.SESSION_CAPTURE}'`, `scope_kind =
+	 * '${SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN}'`.
+	 */
 	@Query(
 		"""
 		SELECT COUNT(*) AS row_count,
@@ -727,6 +789,11 @@ interface PressureFactRevisionDao {
 	)
 	suspend fun sourceEraseFenceGlobalFootprint(): PressureSourceDeletionFenceFootprint
 
+	/**
+	 * Counts rows in `source_deletion_fence`. Query conditions include `purpose =
+	 * '${SessionManifestPurposeCode.SESSION_CAPTURE}'`, `scope_kind =
+	 * '${SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN}'`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM source_deletion_fence " +
 			"WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE} " +
@@ -751,6 +818,9 @@ data class PressureLogicalHistoryCandidate(
 	val logicalRecencySegmentId: Long,
 )
 
+/**
+ * Deletion-fence dependency counts and text-byte totals for bounded Pressure cleanup.
+ */
 data class PressureSourceDeletionFenceFootprint(
 	@ColumnInfo(name = "row_count") val rowCount: Long,
 	@ColumnInfo(name = "text_bytes") val textBytes: Long,

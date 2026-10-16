@@ -197,6 +197,10 @@ data class AmbientCellFactRevisionEntity(
 		}
 	}
 
+	/**
+	 * Stable persisted codes, including `WRITER_ID`, `WRITER_VERSION`, `FACT_KIND_AGGREGATE`, and any
+	 * identity-bound record factories.
+	 */
 	companion object {
 		const val WRITER_ID = "ambient-cell-facts"
 		const val WRITER_VERSION = 1
@@ -214,6 +218,10 @@ data class AmbientCellFactRevisionEntity(
 	}
 }
 
+/**
+ * Latest effective all-day Cell revision under one writer/fact identity; it does not contain tower
+ * measurements.
+ */
 @Entity(
 	tableName = "ambient_cell_fact_cursor",
 	primaryKeys = ["writer_id", "writer_version", "logical_fact_id"],
@@ -244,6 +252,10 @@ data class AmbientCellFactCursorEntity(
 	}
 }
 
+/**
+ * Original all-day Cell collection gap with its source/purpose epochs and elapsed/UTC coverage
+ * bounds.
+ */
 @Entity(
 	tableName = "ambient_cell_gap",
 	primaryKeys = ["gap_id"],
@@ -290,6 +302,10 @@ data class AmbientCellGapEntity(
 		require(effectChecksum == AmbientCellFactIntegrity.gapChecksum(this))
 	}
 
+	/**
+	 * Stable persisted codes, including `REASON_CLOCK_UNVERIFIABLE`, `REASON_SUBSCRIPTION_PARTIAL`,
+	 * `REASON_PROVIDER_COMPLETENESS_UNVERIFIABLE`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val REASON_CLOCK_UNVERIFIABLE = "CLOCK_UNVERIFIABLE"
 		const val REASON_SUBSCRIPTION_PARTIAL = "SUBSCRIPTION_PARTIAL"
@@ -305,6 +321,9 @@ data class AmbientCellGapEntity(
 	}
 }
 
+/**
+ * Payload-free Cell fact deletion marker preserving identity, data epoch and deletion generation.
+ */
 @Entity(
 	tableName = "ambient_cell_deletion_marker",
 	primaryKeys = ["collected_data_epoch", "deletion_generation"],
@@ -413,6 +432,9 @@ data class ImportedAmbientCellFactEntity(
 	}
 }
 
+/**
+ * Imported Cell gap with original archive membership, bounds and cause plus its local data epoch.
+ */
 @Entity(
 	tableName = "imported_ambient_cell_gap",
 	primaryKeys = ["archive_id", "gap_id"],
@@ -465,6 +487,9 @@ data class ImportedAmbientCellGapEntity(
 	}
 }
 
+/**
+ * Durable receipt linking an import job and source file to the original Cell archive identity.
+ */
 @Entity(
 	tableName = "imported_ambient_cell_receipt",
 	primaryKeys = ["import_job_id", "import_entry_key"],
@@ -489,6 +514,10 @@ data class ImportedAmbientCellReceiptEntity(
 	}
 }
 
+/**
+ * Payload-free imported Cell deletion fence preventing the original archive from reappearing on
+ * replay.
+ */
 @Entity(
 	tableName = "imported_ambient_cell_tombstone",
 	primaryKeys = ["archive_id"],
@@ -507,6 +536,10 @@ data class ImportedAmbientCellTombstoneEntity(
 	}
 }
 
+/**
+ * Payload-free original Cell delivery ownership retained for replay comparisons after payload
+ * cleanup.
+ */
 @Entity(
 	tableName = "ambient_cell_replay_footprint",
 	primaryKeys = ["footprint_kind", "identity_digest", "semantic_revision"],
@@ -532,6 +565,10 @@ data class AmbientCellReplayFootprintEntity(
 		require(AmbientCellAuthorityIntegrity.isDigest(effectChecksum))
 	}
 
+	/**
+	 * Stable persisted codes, including `KIND_LOCAL_FACT`, `KIND_LOCAL_GAP`, `KIND_FACT_IDENTITY`,
+	 * and any identity-bound record factories.
+	 */
 	companion object {
 		const val KIND_LOCAL_FACT = "LOCAL_FACT"
 		const val KIND_LOCAL_GAP = "LOCAL_GAP"
@@ -552,7 +589,16 @@ data class AmbientCellReplayFootprintEntity(
 	}
 }
 
+/**
+ * Stable Cell fact/gap/deletion identities and digests for native and imported stored values.
+ */
+// Cell fact, gap and deletion identities share the same source-owned canonical digest contract.
+@Suppress("TooManyFunctions")
 object AmbientCellFactIntegrity {
+	/**
+	 * Builds a payload-free replay footprint binding the source delivery to its original purpose,
+	 * epochs and owner.
+	 */
 	fun createReplayFootprint(
 		footprintKind: String,
 		identityDigest: String,
@@ -578,6 +624,9 @@ object AmbientCellFactIntegrity {
 			),
 		)
 
+	/**
+	 * Hashes the replay footprint's original source identity and lifecycle values.
+	 */
 	fun replayFootprintChecksum(value: AmbientCellReplayFootprintEntity): String =
 		replayFootprintChecksum(
 			value.footprintKind,
@@ -606,20 +655,36 @@ object AmbientCellFactIntegrity {
 			recordedAtMs,
 		)
 
+	/**
+	 * Checks the supplied record's stored checksum against its canonical fields.
+	 */
 	fun isAuthentic(value: AmbientCellDeletionMarkerEntity): Boolean =
 		value.effectChecksum == deletionChecksum(value)
 
+	/**
+	 * Checks the supplied record's stored checksum against its canonical fields.
+	 */
 	fun isAuthentic(value: AmbientCellReplayFootprintEntity): Boolean =
 		value.effectChecksum == replayFootprintChecksum(value)
 
+	/**
+	 * Checks the supplied record's stored checksum against its canonical fields.
+	 */
 	fun isAuthentic(value: ImportedAmbientCellFactEntity): Boolean =
 		value.portableEffectChecksum == importedFactEffectChecksum(value) &&
 			value.contentChecksum == importedFactContentChecksum(value)
 
+	/**
+	 * Checks the supplied record's stored checksum against its canonical fields.
+	 */
 	fun isAuthentic(value: ImportedAmbientCellGapEntity): Boolean =
 		value.portableEffectChecksum == importedGapEffectChecksum(value) &&
 			value.contentChecksum == importedGapContentChecksum(value)
 
+	/**
+	 * Hashes the original imported measurement content independently of its local storage/import
+	 * effect.
+	 */
 	fun importedFactContentChecksum(value: ImportedAmbientCellFactEntity): String =
 		AmbientCellAuthorityIntegrity.digest(
 			"ambient-cell-portable-fact-v1",
@@ -627,6 +692,10 @@ object AmbientCellFactIntegrity {
 			value.portableEffectChecksum,
 		)
 
+	/**
+	 * Hashes the original imported gap bounds and cause independently of its local storage/import
+	 * effect.
+	 */
 	fun importedGapContentChecksum(value: ImportedAmbientCellGapEntity): String =
 		AmbientCellAuthorityIntegrity.digest(
 			"ambient-cell-portable-gap-v1",
@@ -634,6 +703,10 @@ object AmbientCellFactIntegrity {
 			value.portableEffectChecksum,
 		)
 
+	/**
+	 * Hashes the imported measurement's local ownership, epoch and revision together with its content
+	 * digest.
+	 */
 	fun importedFactEffectChecksum(value: ImportedAmbientCellFactEntity): String =
 		AmbientCellAuthorityIntegrity.digest(
 			"ambient-cell-portable-fact-effect-v1",
@@ -653,6 +726,9 @@ object AmbientCellFactIntegrity {
 			value.supersedesSemanticRevision,
 		)
 
+	/**
+	 * Hashes the imported gap's local ownership, epoch and revision together with its content digest.
+	 */
 	fun importedGapEffectChecksum(value: ImportedAmbientCellGapEntity): String =
 		AmbientCellAuthorityIntegrity.digest(
 			"ambient-cell-portable-gap-effect-v1",
@@ -682,6 +758,10 @@ object AmbientCellFactIntegrity {
 			"goodCount=${value.qualityGoodCount}, " +
 			"greatCount=${value.qualityGreatCount})"
 
+	/**
+	 * Derives the all-day Cell fact identity from its original delivery, consent/data/deletion epochs
+	 * and optional exact demand ID.
+	 */
 	fun logicalFactId(
 		sourceDeliveryIdentity: String,
 		ambientConsentEpoch: Long,
@@ -696,6 +776,9 @@ object AmbientCellFactIntegrity {
 			ambientConsentEpoch, collectedDataEpoch, scopeDeletionGeneration, purposeDemandId)
 	}
 
+	/**
+	 * Builds a stable mutation key from the logical fact identity, semantic revision and operation.
+	 */
 	fun mutationId(logicalFactId: String, semanticRevision: Long): String =
 		AmbientCellAuthorityIntegrity.digest(
 			"ambient-cell-mutation-v1",
@@ -703,6 +786,12 @@ object AmbientCellFactIntegrity {
 			semanticRevision,
 		)
 
+	/**
+	 * Computes the deterministic digest of the persisted revision values, excluding its stored
+	 * digest.
+	 */
+	// Persisted checksum field order is a wire contract; keep the full tuple together.
+	@Suppress("LongMethod")
 	fun effectChecksum(value: AmbientCellFactRevisionEntity): String =
 		AmbientCellAuthorityIntegrity.digest(
 			"ambient-cell-effect-v1",
@@ -770,6 +859,9 @@ object AmbientCellFactIntegrity {
 			} ?: legacy
 		}
 
+	/**
+	 * Hashes the original deleted fact identity, data epoch, deletion generation and erase time.
+	 */
 	fun deletionChecksum(value: AmbientCellDeletionMarkerEntity): String =
 		deletionChecksum(
 			value.collectedDataEpoch,
@@ -779,6 +871,10 @@ object AmbientCellFactIntegrity {
 			value.deletedAtMs,
 		)
 
+	/**
+	 * Builds a payload-free deletion marker and digest for the selected logical fact, data epoch and
+	 * deletion generation.
+	 */
 	fun createDeletionMarker(
 		collectedDataEpoch: Long,
 		deletionGeneration: Long,
@@ -816,6 +912,10 @@ object AmbientCellFactIntegrity {
 			deletedAtMs,
 		)
 
+	/**
+	 * Builds a stored collection-gap record with its original clock/coverage boundary and
+	 * deterministic digest.
+	 */
 	fun createGap(
 		gapId: String,
 		reason: String,
@@ -861,6 +961,9 @@ object AmbientCellFactIntegrity {
 		),
 	)
 
+	/**
+	 * Hashes the saved gap identity, original bounds, reason and lifecycle metadata.
+	 */
 	fun gapChecksum(value: AmbientCellGapEntity): String = gapChecksum(
 		value.gapId,
 		value.reason,
@@ -908,6 +1011,9 @@ object AmbientCellFactIntegrity {
 		createdAtMs,
 	)
 
+	/**
+	 * Hashes the imported identity's deletion epoch and boundary for replay checks.
+	 */
 	fun importTombstoneChecksum(value: ImportedAmbientCellTombstoneEntity): String =
 		importTombstoneChecksum(
 			value.archiveId,
@@ -916,6 +1022,10 @@ object AmbientCellFactIntegrity {
 			value.deletedAtMs,
 		)
 
+	/**
+	 * Builds the original imported identity's deletion fence and checksum without retaining
+	 * observation payloads.
+	 */
 	fun createImportTombstone(
 		archiveId: String,
 		collectedDataEpoch: Long,

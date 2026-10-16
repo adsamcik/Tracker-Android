@@ -90,8 +90,7 @@ class SharedStepSourceController @Inject internal constructor(
 	): SourceStartResult {
 		@Suppress("UNUSED_VARIABLE") val sessionBoundSinkMustNotRelabelSharedEvidence = sink
 		if (!plan.enabled) return SourceStartResult.Started(disabledState(plan))
-		if ((claim != null && sourceBroker.requiresContinuingStepsRecording(claim)) ||
-			(sessionClaim?.let { sourceBroker.requiresContinuingStepsRecording(it) } == true)) {
+		if (requiresContinuingRecording(claim)) {
 			return SourceStartResult.Blocked(blockedState(plan))
 		}
 		val predecessorPlan = sessionPlan
@@ -139,14 +138,17 @@ class SharedStepSourceController @Inject internal constructor(
 		reconfigureForClaimLocked(claim, plan, sink)
 	}
 
+	private suspend fun requiresContinuingRecording(claim: SourceRuntimeClaim?): Boolean =
+		(claim != null && sourceBroker.requiresContinuingStepsRecording(claim)) ||
+			(sessionClaim?.let { sourceBroker.requiresContinuingStepsRecording(it) } == true)
+
 	private suspend fun reconfigureForClaimLocked(
 		claim: SourceRuntimeClaim?,
 		plan: StepsPlan,
 		sink: SourceEventSink,
 	): SourceApplyResult {
 		@Suppress("UNUSED_VARIABLE") val sessionBoundSinkMustNotRelabelSharedEvidence = sink
-		if (plan.enabled && ((claim != null && sourceBroker.requiresContinuingStepsRecording(claim)) ||
-			(sessionClaim?.let { sourceBroker.requiresContinuingStepsRecording(it) } == true))) {
+		if (plan.enabled && requiresContinuingRecording(claim)) {
 			// Only the coordinator's fresh physical preflight can adopt a continuing recording.
 			return SourceApplyResult.Failed(blockedState(plan), retryable = false)
 		}
@@ -170,24 +172,34 @@ class SharedStepSourceController @Inject internal constructor(
 			return SourceApplyResult.Failed(blockedState(plan), retryable = false)
 		}
 		val effective = effectivePlan(demands)
-		return try {
-			val result = if (effective == null) {
-				applyEffective(plan.copy(enabled = false), claim)
-			} else {
-				applyEffective(effective, claim)
-			}
-			if (result is SourceApplyResult.Applied || result is SourceApplyResult.Degraded) {
-				sessionClaim = claim.takeIf { plan.enabled }
-			} else {
-				sessionPlan = predecessorPlan
-				sessionClaim = predecessorClaim
-			}
-			result
-		} catch (failure: Throwable) {
+		return applySessionPlanAndRestoreOnFailureLocked(
+			effective, claim, plan, predecessorPlan, predecessorClaim,
+		)
+	}
+
+	private suspend fun applySessionPlanAndRestoreOnFailureLocked(
+		effective: StepsPlan?,
+		claim: SourceRuntimeClaim?,
+		plan: StepsPlan,
+		predecessorPlan: StepsPlan?,
+		predecessorClaim: SourceRuntimeClaim?,
+	): SourceApplyResult = try {
+		val result = if (effective == null) {
+			applyEffective(plan.copy(enabled = false), claim)
+		} else {
+			applyEffective(effective, claim)
+		}
+		if (result is SourceApplyResult.Applied || result is SourceApplyResult.Degraded) {
+			sessionClaim = claim.takeIf { plan.enabled }
+		} else {
 			sessionPlan = predecessorPlan
 			sessionClaim = predecessorClaim
-			throw failure
 		}
+		result
+	} catch (failure: Throwable) {
+		sessionPlan = predecessorPlan
+		sessionClaim = predecessorClaim
+		throw failure
 	}
 
 	override suspend fun quiesce(cutoff: SessionCutoff): SourceStopAck = mutex.withLock {

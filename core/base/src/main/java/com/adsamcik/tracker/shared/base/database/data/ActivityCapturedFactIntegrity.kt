@@ -7,7 +7,13 @@ import java.io.DataOutputStream
 import java.security.MessageDigest
 
 /** Canonical identity and product-effect verification shared by the Activity writer and readers. */
+// Activity fact identity, summaries and revision checks share one deterministic record contract.
+@Suppress("TooManyFunctions")
 object ActivityCapturedFactIntegrity {
+	/**
+	 * Derives the stable Activity window identity from its recorded source, capture scope and
+	 * original bounds.
+	 */
 	fun logicalWindowId(revision: ActivityCapturedWindowRevisionEntity): String = digest(
 		"activity-captured-window-v1",
 		listOf(
@@ -37,11 +43,18 @@ object ActivityCapturedFactIntegrity {
 		),
 	)
 
+	/**
+	 * Builds a stable mutation key from the logical fact identity, semantic revision and operation.
+	 */
 	fun mutationId(logicalWindowId: String, semanticRevision: Long): String = digest(
 		"activity-captured-mutation-v1",
 		listOf(logicalWindowId, semanticRevision.toString()),
 	)
 
+	/**
+	 * Computes the deterministic digest of the persisted revision values, excluding its stored
+	 * digest.
+	 */
 	fun effectChecksum(
 		revision: ActivityCapturedWindowRevisionEntity,
 		fragments: List<ActivityCapturedFragmentEntity>,
@@ -68,7 +81,15 @@ object ActivityCapturedFactIntegrity {
 		revision.logicalWindowId == logicalWindowId(revision) &&
 			revision.mutationId == mutationId(revision.logicalWindowId, revision.semanticRevision) &&
 			revision.effectChecksum == effectChecksum(revision, fragments, evidence) &&
-			fragments.map(ActivityCapturedFragmentEntity::fragmentOrdinal) == fragments.indices.toList() &&
+			validFragmentLayout(revision, fragments) &&
+			validEvidenceLinks(revision, fragments, evidence) &&
+			validEvidenceBands(fragments, evidence) && validSummary(revision, fragments)
+	}.getOrDefault(false)
+
+	private fun validFragmentLayout(
+		revision: ActivityCapturedWindowRevisionEntity,
+		fragments: List<ActivityCapturedFragmentEntity>,
+	): Boolean = fragments.map(ActivityCapturedFragmentEntity::fragmentOrdinal) == fragments.indices.toList() &&
 			fragments.all { fragment -> fragment.belongsTo(revision) } &&
 			fragments.firstOrNull()?.intervalStartElapsedRealtimeNanos ==
 				revision.windowStartElapsedRealtimeNanos &&
@@ -76,8 +97,13 @@ object ActivityCapturedFactIntegrity {
 				revision.windowEndElapsedRealtimeNanos &&
 			fragments.zipWithNext().all { (left, right) ->
 				left.intervalEndElapsedRealtimeNanos == right.intervalStartElapsedRealtimeNanos
-			} &&
-			evidence.all { row ->
+			}
+
+	private fun validEvidenceLinks(
+		revision: ActivityCapturedWindowRevisionEntity,
+		fragments: List<ActivityCapturedFragmentEntity>,
+		evidence: List<ActivityCapturedEvidenceEntity>,
+	): Boolean = evidence.all { row ->
 				row.belongsTo(revision) && fragments.getOrNull(row.fragmentOrdinal)?.fragmentKind ==
 					ActivityCapturedFragmentEntity.KIND_BAND
 			} &&
@@ -85,27 +111,42 @@ object ActivityCapturedFactIntegrity {
 				.mapNotNull(ActivityCapturedFragmentEntity::bandOrdinal) ==
 				fragments.filter { it.fragmentKind == ActivityCapturedFragmentEntity.KIND_BAND }.indices.toList() &&
 			fragments.filter { it.fragmentKind == ActivityCapturedFragmentEntity.KIND_BAND }
-				.all { fragment -> evidence.any { it.fragmentOrdinal == fragment.fragmentOrdinal } } &&
-			evidence.groupBy(ActivityCapturedEvidenceEntity::fragmentOrdinal).values.all { rows ->
+				.all { fragment -> evidence.any { it.fragmentOrdinal == fragment.fragmentOrdinal } }
+
+	private fun validEvidenceBands(
+		fragments: List<ActivityCapturedFragmentEntity>,
+		evidence: List<ActivityCapturedEvidenceEntity>,
+	): Boolean = evidence.groupBy(ActivityCapturedEvidenceEntity::fragmentOrdinal).values.all { rows ->
 				rows.map(ActivityCapturedEvidenceEntity::evidenceOrdinal) == rows.indices.toList() &&
 					rows.map(ActivityCapturedEvidenceEntity::sourceEventId).distinct().size == rows.size
 			} && fragments.all { fragment ->
 				fragment.fragmentKind != ActivityCapturedFragmentEntity.KIND_BAND ||
 					validBand(fragment, evidence.filter { it.fragmentOrdinal == fragment.fragmentOrdinal })
-			} && validSummary(revision, fragments)
-	}.getOrDefault(false)
+			}
 
+	/**
+	 * Requires revisions starting at 1 with no gaps, exact predecessor links and the same stable
+	 * capture authority.
+	 */
 	fun hasCompleteRevisionLineage(
 		ordered: List<ActivityCapturedWindowRevisionEntity>,
 	): Boolean = ordered.isNotEmpty() &&
 		ordered.withIndex().all { (index, revision) ->
 			val expectedRevision = index + 1L
-			val expectedSupersedes = if (index == 0) null else index.toLong()
+			val expectedSupersedes = if (index == 0) {
+				null
+			} else {
+				index.toLong()
+			}
 			revision.semanticRevision == expectedRevision &&
 				revision.supersedesSemanticRevision == expectedSupersedes &&
 				hasSameStableAuthority(ordered.first(), revision)
 		}
 
+	/**
+	 * Compares the original event identity, provider times and measured Activity values across stored
+	 * revisions.
+	 */
 	fun hasSameRecordedObservation(
 		first: ActivityCapturedEvidenceEntity,
 		candidate: ActivityCapturedEvidenceEntity,
@@ -121,7 +162,8 @@ object ActivityCapturedFactIntegrity {
 		first.coverageEndExclusiveElapsedRealtimeNanos ==
 		candidate.coverageEndExclusiveElapsedRealtimeNanos
 
-	@Suppress("ComplexCondition", "LongMethod")
+	// Compares one immutable authority tuple; keeping each field explicit makes omissions reviewable.
+	@Suppress("ComplexCondition", "LongMethod", "CyclomaticComplexMethod")
 	private fun hasSameStableAuthority(
 		first: ActivityCapturedWindowRevisionEntity,
 		candidate: ActivityCapturedWindowRevisionEntity,
@@ -179,15 +221,17 @@ object ActivityCapturedFactIntegrity {
 				else -> unknown = Math.addExact(unknown, duration)
 			}
 		}
-		val expectedCoverage = when {
-			fragments.none { it.fragmentKind == ActivityCapturedFragmentEntity.KIND_BAND } -> "NONE"
-			fragments.none { it.fragmentKind == ActivityCapturedFragmentEntity.KIND_GAP } -> "COMPLETE"
-			else -> "PARTIAL"
-		}
+		val expectedCoverage = summaryCoverage(fragments)
 		return revision.knownActiveDurationNanos == active &&
 			revision.knownInactiveDurationNanos == inactive &&
 			revision.unknownActivityDurationNanos == unknown &&
 			revision.unobservedDurationNanos == unobserved && revision.coverage == expectedCoverage
+	}
+
+	private fun summaryCoverage(fragments: List<ActivityCapturedFragmentEntity>): String = when {
+		fragments.none { it.fragmentKind == ActivityCapturedFragmentEntity.KIND_BAND } -> "NONE"
+		fragments.none { it.fragmentKind == ActivityCapturedFragmentEntity.KIND_GAP } -> "COMPLETE"
+		else -> "PARTIAL"
 	}
 
 	@Suppress("ComplexCondition", "CyclomaticComplexMethod")
@@ -207,7 +251,9 @@ object ActivityCapturedFactIntegrity {
 			fragment.startAnchorProviderElapsedNanos != fragment.intervalStartElapsedRealtimeNanos ||
 			fragment.endBoundaryKind == "EXACT_PROVIDER_OBSERVATION" &&
 			fragment.endAnchorProviderElapsedNanos != fragment.intervalEndElapsedRealtimeNanos
-		) return false
+		) {
+			return false
+		}
 		val sampled = evidence.filter { it.observationKind == ActivityCapturedEvidenceEntity.KIND_SAMPLED_CLASSIFICATION }
 		val transitions = evidence.filter { it.observationKind == ActivityCapturedEvidenceEntity.KIND_TRANSITION }
 		return when (fragment.mechanism) {
@@ -329,6 +375,9 @@ data class ActivityCapturedDesiredPlan(
 	val enabled: Boolean
 		get() = mode != MODE_OFF
 
+	/**
+	 * Stable persisted codes, including `MODE_OFF`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val MODE_OFF = "OFF"
 	}
@@ -341,9 +390,13 @@ data class ActivityCapturedDesiredPlan(
  * any alternate byte representation before a checksum or physical fingerprint can authorize data.
  */
 object ActivityCapturedPlanIntegrity {
+	/**
+	 * Decodes the versioned Activity payload after checking its format and integrity fields;
+	 * malformed data is rejected.
+	 */
 	fun decode(row: SourceDesiredPlanEntity): ActivityCapturedDesiredPlan? = runCatching {
 		require(row.sourceKind == SourceDestinationOwnerEntity.SOURCE_ACTIVITY)
-		require(row.payloadVersion in setOf(1, 3))
+		require(row.payloadVersion in setOf(ORIGINAL_PAYLOAD_VERSION, ADAPTIVE_PAYLOAD_VERSION))
 		require(row.payloadChecksum == sha256(row.payload))
 		val decoded = DataInputStream(ByteArrayInputStream(row.payload)).use { input ->
 			require(input.readInt() == row.payloadVersion)
@@ -357,7 +410,11 @@ object ActivityCapturedPlanIntegrity {
 			val transitions = buildSet(transitionCount) {
 				repeat(transitionCount) { add(input.readInt()) }
 			}
-			val profile = if (row.payloadVersion == 3) input.readInt().also { require(it == 1) } else null
+			val profile = if (row.payloadVersion == ADAPTIVE_PAYLOAD_VERSION) {
+				input.readInt().also { require(it == 1) }
+			} else {
+				null
+			}
 			require(input.available() == 0)
 			require(revision == row.revision && revision > 0L)
 			require(mode in ACTIVITY_MODES)
@@ -385,7 +442,11 @@ object ActivityCapturedPlanIntegrity {
 	private fun encode(plan: ActivityCapturedDesiredPlan): ByteArray =
 		ByteArrayOutputStream().use { buffer ->
 			DataOutputStream(buffer).use { output ->
-				output.writeInt(if (plan.adaptiveProfileVersion == null) 1 else 3)
+				output.writeInt(if (plan.adaptiveProfileVersion == null) {
+					ORIGINAL_PAYLOAD_VERSION
+				} else {
+					ADAPTIVE_PAYLOAD_VERSION
+				})
 				output.writeUTF(SOURCE_ACTIVITY)
 				output.writeLong(plan.revision)
 				output.writeUTF(plan.mode)
@@ -417,6 +478,8 @@ object ActivityCapturedPlanIntegrity {
 		.digest(bytes)
 		.joinToString(separator = "") { byte -> "%02x".format(byte) }
 
+	private const val ORIGINAL_PAYLOAD_VERSION = 1
+	private const val ADAPTIVE_PAYLOAD_VERSION = 3
 	private const val SOURCE_ACTIVITY = "ACTIVITY"
 	private const val MAX_TRANSITION_TYPES = 10_000
 	private val ACTIVITY_MODES = setOf("OFF", "TRANSITIONS_ONLY", "CONTINUOUS_RECOGNITION")

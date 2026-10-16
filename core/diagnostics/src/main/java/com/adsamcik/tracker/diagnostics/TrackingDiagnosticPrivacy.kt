@@ -19,6 +19,7 @@ enum class TrackingDiagnosticField(val wireName: String) {
 	OCCURRENCE_COUNT_BUCKET("occurrence_count_bucket"),
 }
 
+/** Reasons an event shape or schema would expose unsupported diagnostic information. */
 enum class TrackingDiagnosticPrivacyRejectionReason {
 	INVALID_EVENT,
 	METRIC_OPERATION_MISMATCH,
@@ -34,14 +35,18 @@ enum class TrackingDiagnosticPrivacyRejectionReason {
 	PROVIDER_PAYLOADS,
 }
 
+/** Whether the closed event or developer-authored schema fits the diagnostic allowlist. */
 sealed interface TrackingDiagnosticPrivacyValidation {
+	/** The event shape contains only the approved fixed fields and operation metrics. */
 	data object Allowed : TrackingDiagnosticPrivacyValidation
 
+	/** A specific field or event-contract violation; no offending runtime value is retained. */
 	data class Rejected(
 		val reason: TrackingDiagnosticPrivacyRejectionReason,
 	) : TrackingDiagnosticPrivacyValidation
 }
 
+/** Validates fixed schemas and metric sets; accepts no arbitrary runtime attributes. */
 object TrackingDiagnosticPrivacyValidator {
 	private val storedOnlyFields = setOf(TrackingDiagnosticField.OCCURRENCE_COUNT_BUCKET)
 
@@ -210,7 +215,9 @@ object TrackingDiagnosticPrivacyValidator {
 	): TrackingDiagnosticPrivacyValidation {
 		fieldNames.forEach { fieldName ->
 			val normalized = fieldName.trim().lowercase()
-			if (normalized in allowedNames) return@forEach
+			if (normalized in allowedNames) {
+				return@forEach
+			}
 
 			val compact = normalized.filter(Char::isLetterOrDigit)
 			val forbiddenReason = forbiddenAliases.firstNotNullOfOrNull { (reason, aliases) ->

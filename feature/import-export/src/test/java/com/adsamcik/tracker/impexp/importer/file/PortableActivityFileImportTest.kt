@@ -279,6 +279,8 @@ class PortableActivityFileImportTest {
 	}
 
 	@Test
+	// Keep this complete import scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `actual import runner records permanent format failure but rethrows transport IO`() = runTest {
 		val store = ActivityImportReceiptStore()
 		val runner = ImportJobRunner(store, nowMs = { 100L })
@@ -389,12 +391,16 @@ class PortableActivityFileImportTest {
 			private var offset = 0
 
 			override fun read(): Int {
-				if (offset >= prefix.size) throw failure
+				if (offset >= prefix.size) {
+					throw failure
+				}
 				return prefix[offset++].toInt() and 0xff
 			}
 
 			override fun read(buffer: ByteArray, targetOffset: Int, length: Int): Int {
-				if (offset >= prefix.size) throw failure
+				if (offset >= prefix.size) {
+					throw failure
+				}
 				val count = minOf(length, prefix.size - offset)
 				prefix.copyInto(buffer, targetOffset, offset, offset + count)
 				offset += count

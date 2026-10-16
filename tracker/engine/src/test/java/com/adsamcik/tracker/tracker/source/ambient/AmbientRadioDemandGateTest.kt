@@ -46,6 +46,9 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 
+// The paired radio reconcilers share exact lease and demand fixtures for the same admission/teardown
+// contract.
+@Suppress("LargeClass")
 class AmbientRadioDemandGateTest {
 	@Test
 	fun `caller guard rejection blocks Wi-Fi addition and still reconciles teardown`() = runTest {
@@ -497,7 +500,9 @@ class AmbientRadioDemandGateTest {
 			} returns AmbientRadioDemandResult.Active(demand, 7L, activeAuthority)
 			coEvery { controller.reconcileAmbientJoin() } answers {
 				providerCalls += 1
-				if (providerCalls == 1) throw primary
+				if (providerCalls == 1) {
+					throw primary
+				}
 				throw cleanupFailure
 			}
 			coEvery {
@@ -733,6 +738,83 @@ class AmbientRadioDemandGateTest {
 		assertEquals(AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE, report.availability.reason)
 		assertEquals(lease.purposeLeaseIdentity, report.availability.operationalIdentity)
 		coVerify(exactly = 0) { controller.closeAmbientForCollectedDataDeletion() }
+	}
+
+
+	@Test
+	fun `deletion closes Wifi only after its exact demand retires`() = runTest {
+		for (matches in listOf(true, false)) {
+			val broker = mockk<SourceBroker>()
+			val controller = mockk<SharedWifiSourceController>()
+			val plan = AmbientRadioRetirementPlan.Required(
+				lease(AmbientTrackingSource.WIFI), 4L, "wifi-demand", 7L,
+				SourceCallerReplayReference("wifi-caller"),
+			)
+			coEvery { broker.ambientRadioRetirementPlan(SourceKind.WIFI, "app:ambient:wifi") } returns plan
+			coEvery { broker.reduceAmbientWifiDemandForRecovery(
+				"app:ambient:wifi", plan, 5L, "boot-1", any(), any(),
+			) } returns AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.REQUEST_DISABLED,
+				retiredDemandId = if (matches) {
+					"wifi-demand"
+				} else {
+					"another-demand"
+				},
+			)
+			coEvery { controller.closeAmbientForCollectedDataDeletion() } returns true
+			val subject = AmbientWifiDemandReconciler(
+				broker,
+				mockk<com.adsamcik.tracker.tracker.source.runtime.SourceCallerDemandDispatcher>(),
+				controller, BootClockDomainProvider { "boot-1" },
+			)
+			assertEquals(matches, subject.closeForCollectedDataDeletion())
+			coVerify(exactly = 1) { broker.reduceAmbientWifiDemandForRecovery(
+				"app:ambient:wifi", plan, 5L, "boot-1", any(), any(),
+			) }
+			coVerify(exactly = if (matches) {
+				1
+			} else {
+				0
+			}) { controller.closeAmbientForCollectedDataDeletion() }
+		}
+	}
+
+	@Test
+	fun `deletion closes Cell only after its exact demand retires`() = runTest {
+		for (matches in listOf(true, false)) {
+			val broker = mockk<SourceBroker>()
+			val controller = mockk<SharedCellSourceController>()
+			val plan = AmbientRadioRetirementPlan.Required(
+				lease(AmbientTrackingSource.CELL), 4L, "cell-demand", 7L,
+				SourceCallerReplayReference("cell-caller"),
+			)
+			coEvery { broker.ambientRadioRetirementPlan(SourceKind.CELL, "app:ambient:cell") } returns plan
+			coEvery { broker.reduceAmbientCellDemandForRecovery(
+				"app:ambient:cell", plan, 5L, "boot-1", any(), any(),
+			) } returns AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.REQUEST_DISABLED,
+				retiredDemandId = if (matches) {
+					"cell-demand"
+				} else {
+					"another-demand"
+				},
+			)
+			coEvery { controller.closeAmbientForCollectedDataDeletion() } returns true
+			val subject = AmbientCellDemandReconciler(
+				broker,
+				mockk<com.adsamcik.tracker.tracker.source.runtime.SourceCallerDemandDispatcher>(),
+				controller, BootClockDomainProvider { "boot-1" },
+			)
+			assertEquals(matches, subject.closeForCollectedDataDeletion())
+			coVerify(exactly = 1) { broker.reduceAmbientCellDemandForRecovery(
+				"app:ambient:cell", plan, 5L, "boot-1", any(), any(),
+			) }
+			coVerify(exactly = if (matches) {
+				1
+			} else {
+				0
+			}) { controller.closeAmbientForCollectedDataDeletion() }
+		}
 	}
 
 	private fun authority(

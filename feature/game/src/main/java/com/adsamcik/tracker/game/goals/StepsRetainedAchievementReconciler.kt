@@ -44,39 +44,7 @@ internal class StepsRetainedAchievementReconciler @Inject constructor(
 			startupGate.withReadyGenerationOperation(expectedGeneration) {
 				withContext(dispatchers.io) {
 					database.withTransaction {
-						val currentRevision = database.sourceEvidenceStateDao().get()?.revision
-						if (currentRevision != decision.sourceEvidenceRevision) {
-							return@withTransaction StepsRetainedAchievementReconcileResult.RetryableFailure
-						}
-						val currentRows = database.achievementProgressDao()
-							.getQualifiedStepsAchievementRows()
-							.associateBy(AchievementProgressEntity::metricKey)
-						when (val retained = decision.result) {
-							is StepsRetainedMetrics.Ready -> applyReady(
-								retained = retained,
-								decision = decision,
-								currentRows = currentRows,
-								observedAtMs = observedAtMs,
-							)
-							StepsRetainedMetrics.Materializing ->
-								StepsRetainedAchievementReconcileResult.Materializing(
-									markAuthorityState(
-										currentRows,
-										decision,
-										AchievementProgressEntity.AUTHORITY_STATE_MATERIALIZING,
-										observedAtMs,
-									),
-								)
-							is StepsRetainedMetrics.Unverifiable ->
-								StepsRetainedAchievementReconcileResult.Unverifiable(
-									markAuthorityState(
-										currentRows,
-										decision,
-										AchievementProgressEntity.AUTHORITY_STATE_UNVERIFIABLE,
-										observedAtMs,
-									),
-								)
-						}
+						reconcileInTransaction(decision, observedAtMs)
 					}
 				}
 			} ?: StepsRetainedAchievementReconcileResult.RetryableFailure
@@ -84,6 +52,45 @@ internal class StepsRetainedAchievementReconciler @Inject constructor(
 			throw cancellation
 		} catch (_: Exception) {
 			StepsRetainedAchievementReconcileResult.RetryableFailure
+		}
+	}
+
+	private suspend fun reconcileInTransaction(
+		decision: StepsRetainedMetricsDecision.Snapshot,
+		observedAtMs: Long,
+	): StepsRetainedAchievementReconcileResult {
+		val currentRevision = database.sourceEvidenceStateDao().get()?.revision
+		if (currentRevision != decision.sourceEvidenceRevision) {
+			return StepsRetainedAchievementReconcileResult.RetryableFailure
+		}
+		val currentRows = database.achievementProgressDao()
+			.getQualifiedStepsAchievementRows()
+			.associateBy(AchievementProgressEntity::metricKey)
+		return when (val retained = decision.result) {
+			is StepsRetainedMetrics.Ready -> applyReady(
+				retained = retained,
+				decision = decision,
+				currentRows = currentRows,
+				observedAtMs = observedAtMs,
+			)
+			StepsRetainedMetrics.Materializing ->
+				StepsRetainedAchievementReconcileResult.Materializing(
+					markAuthorityState(
+						currentRows,
+						decision,
+						AchievementProgressEntity.AUTHORITY_STATE_MATERIALIZING,
+						observedAtMs,
+					),
+				)
+			is StepsRetainedMetrics.Unverifiable ->
+				StepsRetainedAchievementReconcileResult.Unverifiable(
+					markAuthorityState(
+						currentRows,
+						decision,
+						AchievementProgressEntity.AUTHORITY_STATE_UNVERIFIABLE,
+						observedAtMs,
+					),
+				)
 		}
 	}
 
@@ -108,7 +115,9 @@ internal class StepsRetainedAchievementReconciler @Inject constructor(
 			observedAtMs = observedAtMs,
 		)
 		val unlocks = total.unlocks + best.unlocks
-		if (unlocks.isNotEmpty()) domainEvents.persist(unlocks)
+		if (unlocks.isNotEmpty()) {
+			domainEvents.persist(unlocks)
+		}
 		return StepsRetainedAchievementReconcileResult.Applied(total.changed || best.changed)
 	}
 
@@ -157,13 +166,8 @@ internal class StepsRetainedAchievementReconciler @Inject constructor(
 		val tier = definitions
 			.filter { definition -> value.toDouble() >= definition.threshold }
 			.maxOfOrNull { definition -> definition.tierIndex } ?: -1
-		if (current != null && current.lastTierIndex == tier && current.lastValue == value.toDouble() &&
-			current.authorityKind == AchievementProgressEntity.AUTHORITY_QUALIFIED_STEPS_V1 &&
-			current.authorityRevision == decision.sourceEvidenceRevision &&
-			current.authorityDigest == decision.sourceResultDigest &&
-			current.authorityState == AchievementProgressEntity.AUTHORITY_STATE_READY &&
-			current.qualifiedNotificationClaimedTierIndex != null
-		) {
+		if (current?.matchesQualifiedStepsValue(
+			tier, value, decision.sourceEvidenceRevision, decision.sourceResultDigest) == true) {
 			return Replacement(changed = false, unlocks = emptyList())
 		}
 		val qualifiedCurrent = current?.takeIf {

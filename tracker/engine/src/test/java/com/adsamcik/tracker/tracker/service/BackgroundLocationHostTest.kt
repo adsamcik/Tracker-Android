@@ -12,8 +12,6 @@ import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
 import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.delay
 import android.app.Application
 import android.content.ComponentName
@@ -43,8 +41,8 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -58,7 +56,10 @@ class BackgroundLocationHostTest {
 	fun tearDown() = unmockkAll()
 
 	@Test
-	fun `host requires acknowledged foreground and exact release preserves successor`() = runTest {
+	// Keep one acknowledged host through successor adoption, cancelled tickets, timeout and exact release
+	// assertions together.
+	@Suppress("LongMethod")
+	fun `host requires acknowledged foreground and exact release preserves successor`(): Unit = runBlocking {
 		val app = ApplicationProvider.getApplicationContext<Application>()
 		val database = AppDatabase.testDatabase(app)
 		try {
@@ -89,7 +90,7 @@ class BackgroundLocationHostTest {
 				ComponentName(app, TrackerService::class.java)
 			}
 			val host = BackgroundLocationHost(app, database, lifecycle, gate, commands,
-				TestDispatchersProvider(StandardTestDispatcher(testScheduler)))
+				TestDispatchersProvider(Dispatchers.Unconfined))
 			val owner = Any()
 			var released = 0
 			host.attach(owner) { released++ }
@@ -120,7 +121,7 @@ class BackgroundLocationHostTest {
 			host.acceptDelivery(requireNotNull(acceptedIntent.getStringExtra(TrackerServiceContract.ARG_BACKGROUND_LOCATION_HOST_TICKET)),
 				owner, scope) { true } shouldBe true
 			abandoned.cancel()
-			runCurrent()
+			abandoned.join()
 			accepted.await() shouldBe BackgroundLocationHostResult.Active(sharedIdentity, scope)
 			host.active.value?.identity shouldBe sharedIdentity
 			host.acceptDelivery(requireNotNull(abandonedIntent.getStringExtra(TrackerServiceContract.ARG_BACKGROUND_LOCATION_HOST_TICKET)),
@@ -137,9 +138,6 @@ class BackgroundLocationHostTest {
 				host.acceptDelivery(requireNotNull(slowIntent.getStringExtra(TrackerServiceContract.ARG_BACKGROUND_LOCATION_HOST_TICKET)),
 					owner, scope) { promoted = true; true }
 			}
-			runCurrent()
-			advanceTimeBy(PRE_FOREGROUND_START_BUDGET_MILLIS + 1L)
-			runCurrent()
 			slowDelivery.await() shouldBe false
 			promoted shouldBe false
 			host.active.value shouldBe null
@@ -151,8 +149,10 @@ class BackgroundLocationHostTest {
 		}
 	}
 
+	// Follow shared Wi-Fi/Cell hosting through successor adoption and exact retirement while preserving the sibling.
+	@Suppress("LongMethod")
 	@Test
-	fun `radio-only hosts coexist and exact retirement preserves a sibling and successor`() = runTest {
+	fun `radio-only hosts coexist and exact retirement preserves a sibling and successor`(): Unit = runBlocking {
 		val app = ApplicationProvider.getApplicationContext<Application>()
 		val database = AppDatabase.testDatabase(app)
 		try {
@@ -183,7 +183,7 @@ class BackgroundLocationHostTest {
 			}
 			val status = AtomicTrackingPurposeAvailabilityStore()
 			val host = BackgroundLocationHost(app, database, lifecycle, gate, commands,
-				TestDispatchersProvider(StandardTestDispatcher(testScheduler)), status)
+				TestDispatchersProvider(Dispatchers.Unconfined), status)
 			val owner = Any()
 			host.attach(owner) {}
 			val scope = LocationMotionScope("radio-host", "boot", 1L, "host", setOf(LocationMotionPurpose.BACKGROUND))
@@ -195,8 +195,12 @@ class BackgroundLocationHostTest {
 				status.beginOrReplaceAmbientLease(identity)
 				status.tryAccept(AmbientSourceReconciliationReport(identity,
 					AmbientSourceOperationalAvailability.ready(identity.source,
-						if (identity.source == AmbientTrackingSource.WIFI) AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS
-						else AmbientAcquisitionMechanism.CELL_CHANGE_CALLBACKS, identity.purposeLeaseIdentity)))
+						if (identity.source == AmbientTrackingSource.WIFI) {
+							AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS
+						}
+						else {
+							AmbientAcquisitionMechanism.CELL_CHANGE_CALLBACKS
+						}, identity.purposeLeaseIdentity)))
 				val pending = async { host.acquire(identity) }
 				val intent = delivered.receive()
 				var promoted = emptySet<SourceKind>()
@@ -246,7 +250,7 @@ class BackgroundLocationHostTest {
 	}
 
 	@Test
-	fun `stopped startup cannot acquire a radio host`() = runTest {
+	fun `stopped startup cannot acquire a radio host`(): Unit = runBlocking {
 		val app = ApplicationProvider.getApplicationContext<Application>()
 		val database = AppDatabase.testDatabase(app)
 		try {
@@ -255,7 +259,7 @@ class BackgroundLocationHostTest {
 			val gate = mockk<TrackingStartupGate> { every { permitsNewCollection } returns false }
 			val commands = mockk<TrackingLifecycleCommandAuthority>(relaxed = true)
 			val host = BackgroundLocationHost(app, database, lifecycle, gate, commands,
-				TestDispatchersProvider(StandardTestDispatcher(testScheduler)))
+				TestDispatchersProvider(Dispatchers.Unconfined))
 			host.releaseRadio(radioIdentity(AmbientTrackingSource.WIFI, "none")) shouldBe true
 			(host.acquire(radioIdentity(AmbientTrackingSource.CELL, "stopped")) is BackgroundLocationHostResult.Blocked) shouldBe true
 			host.hasActiveSources shouldBe false

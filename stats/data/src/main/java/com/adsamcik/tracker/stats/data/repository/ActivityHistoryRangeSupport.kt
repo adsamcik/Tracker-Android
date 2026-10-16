@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetainedZo
 import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityProductRevisionSnapshot
 import com.adsamcik.tracker.shared.base.database.dao.ActivityProductRevisionSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryRangeContinuation
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryRangeEntry
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryRangeScope
@@ -89,23 +90,36 @@ internal fun localActivityTemporalAuthority(
 ): ActivityTemporalAuthority {
 	val segments = snapshot.expansion.segments
 		.filter { it.logicalTrackingId == composed.logicalTrackingId }
-	if (segments.isEmpty()) throw ActivityHistoryRangeFailure()
+	if (segments.isEmpty()) {
+		throw ActivityHistoryRangeFailure()
+	}
 	var complete = true
 	val ranges = segments.flatMap { segment ->
-		val runId = segment.serviceRunId ?: throw ActivityHistoryRangeFailure()
-		val manifests = snapshot.manifestsByRun[runId].orEmpty()
-			.sortedBy(SessionManifestVersionEntity::manifestRevision)
-		if (manifests.isEmpty()) throw ActivityHistoryRangeFailure()
-		val authority = temporalRanges(
-			startTimeMs = segment.startTimeMs,
-			endTimeMs = segment.endTimeMs,
-			epochs = manifests.map { it.effectiveWallTimeMs to it.zoneId },
-		)
+		val authority = localSegmentTemporalAuthority(segment, snapshot)
 		complete = complete && authority.complete
 		authority.ranges
 	}.sortedWith(ACTIVITY_TEMPORAL_RANGE_ORDER)
-	if (ranges.size > MAX_ACTIVITY_TEMPORAL_RANGES) throw ActivityHistoryRangeLimitExceeded()
+	if (ranges.size > MAX_ACTIVITY_TEMPORAL_RANGES) {
+		throw ActivityHistoryRangeLimitExceeded()
+	}
 	return ActivityTemporalAuthority(ranges, complete)
+}
+
+private fun localSegmentTemporalAuthority(
+	segment: SessionSegment,
+	snapshot: ActivityHistorySnapshot,
+): ActivityTemporalAuthority {
+	val runId = segment.serviceRunId ?: throw ActivityHistoryRangeFailure()
+	val manifests = snapshot.manifestsByRun[runId].orEmpty()
+		.sortedBy(SessionManifestVersionEntity::manifestRevision)
+	if (manifests.isEmpty()) {
+		throw ActivityHistoryRangeFailure()
+	}
+	return temporalRanges(
+		startTimeMs = segment.startTimeMs,
+		endTimeMs = segment.endTimeMs,
+		epochs = manifests.map { it.effectiveWallTimeMs to it.zoneId },
+	)
 }
 
 internal fun importedActivityTemporalAuthority(
@@ -135,7 +149,9 @@ private fun PortableActivityEntryV1.toTemporalAuthority(): ActivityTemporalAutho
 		complete = complete && authority.complete
 		authority.ranges
 	}.sortedWith(ACTIVITY_TEMPORAL_RANGE_ORDER)
-	if (ranges.size > MAX_ACTIVITY_TEMPORAL_RANGES) throw ActivityHistoryRangeLimitExceeded()
+	if (ranges.size > MAX_ACTIVITY_TEMPORAL_RANGES) {
+		throw ActivityHistoryRangeLimitExceeded()
+	}
 	return ActivityTemporalAuthority(ranges, complete)
 }
 
@@ -154,15 +170,29 @@ private fun temporalRanges(
 	require(epochs.isNotEmpty())
 	val ordered = epochs.sortedWith(compareBy<Pair<Long, String>>({ it.first }, { it.second }))
 	require(ordered == epochs && ordered.map { it.first }.distinct().size == ordered.size)
-	val endInclusive = if (endTimeMs > startTimeMs) endTimeMs - 1L else endTimeMs
+	val endInclusive = if (endTimeMs > startTimeMs) {
+		endTimeMs - 1L
+	} else {
+		endTimeMs
+	}
 	val complete = ordered.any { it.first <= startTimeMs }
 	val ranges = ordered.mapIndexedNotNull { index, epoch ->
 		val start = maxOf(startTimeMs, epoch.first)
 		val next = ordered.getOrNull(index + 1)?.first
-		val end = minOf(endInclusive, next?.let { if (it == 0L) -1L else it - 1L } ?: endInclusive)
-		if (end < start) null else ActivityTemporalZoneRange(start, end, epoch.second)
+		val end = minOf(endInclusive, next?.let { if (it == 0L) {
+			-1L
+		} else {
+			it - 1L
+		} } ?: endInclusive)
+		if (end < start) {
+			null
+		} else {
+			ActivityTemporalZoneRange(start, end, epoch.second)
+		}
 	}
-	if (ranges.isEmpty()) throw ActivityHistoryRangeFailure()
+	if (ranges.isEmpty()) {
+		throw ActivityHistoryRangeFailure()
+	}
 	return ActivityTemporalAuthority(ranges, complete)
 }
 
@@ -172,19 +202,45 @@ internal fun activityHistoryRangeEntry(
 	scope: ActivityHistoryRangeScope,
 ): ActivityHistoryRangeEntry? {
 	if (authority == null) {
-		return if (scope is ActivityHistoryRangeScope.WallTime &&
-			entry.startTime.raw < scope.toExclusive.raw &&
-			entry.endTime.raw > scope.fromInclusive.raw
-		) {
-			ActivityHistoryRangeEntry(
-				entry,
-				emptySet(),
-				ActivityHistoryStructuralDayCompleteness.UNAVAILABLE,
-			)
-		} else {
-			null
-		}
+		return unavailableActivityRangeEntry(entry, scope)
 	}
+	val days = activityStructuralDays(authority, scope)
+	if (days.isEmpty()) {
+		return null
+	}
+	return ActivityHistoryRangeEntry(
+		entry = entry,
+		structuralDays = days,
+		structuralDayCompleteness = if (authority.complete) {
+			ActivityHistoryStructuralDayCompleteness.EXACT
+		} else {
+			ActivityHistoryStructuralDayCompleteness.PARTIAL
+		},
+	)
+}
+
+private fun unavailableActivityRangeEntry(
+	entry: com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry,
+	scope: ActivityHistoryRangeScope,
+): ActivityHistoryRangeEntry? {
+	return if (scope is ActivityHistoryRangeScope.WallTime &&
+		entry.startTime.raw < scope.toExclusive.raw &&
+		entry.endTime.raw > scope.fromInclusive.raw
+	) {
+		ActivityHistoryRangeEntry(
+			entry,
+			emptySet(),
+			ActivityHistoryStructuralDayCompleteness.UNAVAILABLE,
+		)
+	} else {
+		null
+	}
+}
+
+private fun activityStructuralDays(
+	authority: ActivityTemporalAuthority,
+	scope: ActivityHistoryRangeScope,
+): Set<ActivityHistoryStructuralDay> {
 	val days = linkedSetOf<ActivityHistoryStructuralDay>()
 	authority.ranges.forEach { range ->
 		val clipped = range.clip(scope) ?: return@forEach
@@ -199,7 +255,9 @@ internal fun activityHistoryRangeEntry(
 			is ActivityHistoryRangeScope.WallTime -> lastDay
 			is ActivityHistoryRangeScope.StructuralDays -> minOf(lastDay, scope.lastEpochDayInclusive)
 		}
-		if (boundedLast < boundedFirst) return@forEach
+		if (boundedLast < boundedFirst) {
+			return@forEach
+		}
 		val span = Math.addExact(Math.subtractExact(boundedLast, boundedFirst), 1L)
 		if (span > MAX_ACTIVITY_STRUCTURAL_DAYS_PER_ENTRY) {
 			throw ActivityHistoryRangeLimitExceeded()
@@ -208,16 +266,7 @@ internal fun activityHistoryRangeEntry(
 			days += ActivityHistoryStructuralDay(day, clipped.storedZoneId)
 		}
 	}
-	if (days.isEmpty()) return null
-	return ActivityHistoryRangeEntry(
-		entry = entry,
-		structuralDays = days,
-		structuralDayCompleteness = if (authority.complete) {
-			ActivityHistoryStructuralDayCompleteness.EXACT
-		} else {
-			ActivityHistoryStructuralDayCompleteness.PARTIAL
-		},
-	)
+	return days
 }
 
 private fun ActivityTemporalZoneRange.clip(
@@ -227,7 +276,11 @@ private fun ActivityTemporalZoneRange.clip(
 		val endLimit = scope.toExclusive.raw - 1L
 		val start = maxOf(startTimeMs, scope.fromInclusive.raw)
 		val end = minOf(endInclusiveMs, endLimit)
-		if (end < start) null else copy(startTimeMs = start, endInclusiveMs = end)
+		if (end < start) {
+			null
+		} else {
+			copy(startTimeMs = start, endInclusiveMs = end)
+		}
 	}
 	is ActivityHistoryRangeScope.StructuralDays -> this
 }

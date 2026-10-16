@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicySnapshot
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.service.manualTrackingSourceCapabilities
+import com.adsamcik.tracker.tracker.service.ManualTrackingSourceCapabilities
 import com.adsamcik.tracker.tracker.service.ProviderStepsSessionLifecycle
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterSetup
@@ -35,7 +36,8 @@ class DefaultManualTrackingStartReadinessReader @Inject constructor(
 
 	override fun changes(): Flow<Unit> = combine(sourcePolicyRepositoryProvider.get().states,
 		chosenSourceWriterSetupProvider.get().stateChanges(),
-		trackingParamsRepositoryProvider.get().data.map { it.sourcePolicyRevision }.distinctUntilChanged()) { _, _, _ -> Unit }
+		trackingParamsRepositoryProvider.get().data.map { it.sourcePolicyRevision }.distinctUntilChanged()) { _, _, _ ->
+            Unit }
 
 	override suspend fun preparePreflight(): ManualTrackingStartPreflight {
 		// An explicit Start may follow a fully handled End whose Ready publication is still stale.
@@ -44,8 +46,10 @@ class DefaultManualTrackingStartReadinessReader @Inject constructor(
 			return ManualTrackingStartPreflight(ManualTrackingStartReadiness.TrackingUnavailable, null)
 		}
 		val policy = sourcePolicyRepositoryProvider.get().currentState() as? SourcePolicyAuthorityState.Active
-		if (policy != null) chosenSourceWriterSetupProvider.get().ensure(policy.snapshot.policies.values
+		if (policy != null) {
+			chosenSourceWriterSetupProvider.get().ensure(policy.snapshot.policies.values
 			.filter { it.capturePersistenceEligible }.mapTo(linkedSetOf()) { it.source.toSourceKind() })
+		}
 		return readPreflight()
 	}
 
@@ -63,41 +67,70 @@ class DefaultManualTrackingStartReadinessReader @Inject constructor(
 				.filter { policy -> policy.enabled && policy.capturePersistenceEligible }
 				.mapTo(linkedSetOf()) { policy -> policy.source.toSourceKind() }
 			val setup = chosenSourceWriterSetupProvider.get().readReadiness(enabledSources)
-			val rolloutRevision = setup.rolloutRevision ?: return@withReadyGenerationOperation ManualTrackingStartPreflight(
-				if (enabledSources.isEmpty()) ManualTrackingStartReadiness.NoAvailableCaptureSource
-				else ManualTrackingStartReadiness.SetupPending, policyState.snapshot.manualStartSelection())
+			val rolloutRevision = setup.rolloutRevision ?:
+                return@withReadyGenerationOperation ManualTrackingStartPreflight(
+				if (enabledSources.isEmpty()) {
+					ManualTrackingStartReadiness.NoAvailableCaptureSource
+				}
+				else {
+					ManualTrackingStartReadiness.SetupPending
+				}, policyState.snapshot.manualStartSelection())
 			// READY already proves the exact canonical binding, both prospective capture modes and owner in that snapshot.
 			val reachableSources = setup.readySources
 			val capabilities = context.manualTrackingSourceCapabilities()
-			val providerSteps = SourceKind.STEPS in enabledSources && providerStepsSessions?.isAvailable() == true
-			val available = capabilities.availableSources + if (providerSteps) setOf(SourceKind.STEPS) else emptySet()
-			val supported = capabilities.supportedSources + if (providerSteps) setOf(SourceKind.STEPS) else emptySet()
-			val reachable = reachableSources + if (providerSteps) setOf(SourceKind.STEPS) else emptySet()
-			val readiness = resolveManualTrackingStartReadiness(
-				rolloutRevision = rolloutRevision,
-				enabledSources = enabledSources.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
-				reachableSources = reachable.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
-				supportedSources = supported
-					.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
-				availableSources = available
-					.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
-				sourcesMissingPreciseLocationPermission =
-					capabilities.sourcesMissingPreciseLocationPermission
-						.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
-				sourcesMissingActivityRecognitionPermission =
-					capabilities.sourcesMissingActivityRecognitionPermission
-						.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
-				sourcesMissingReadPhoneStatePermission =
-					capabilities.sourcesMissingReadPhoneStatePermission
-						.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
-				sourcesBlockedByLocationServices = capabilities.sourcesBlockedByLocationServices
-					.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
+			val providerSources = availableProviderSources(enabledSources)
+			val available = capabilities.availableSources + providerSources
+			val supported = capabilities.supportedSources + providerSources
+			val reachable = reachableSources + providerSources
+			val readiness = resolveReadiness(
+				rolloutRevision, enabledSources, reachable, supported, available, capabilities,
 			)
 			val pending = setup.pendingSources.any(capabilities.supportedSources::contains) &&
-				(readiness == ManualTrackingStartReadiness.TrackingUnavailable || readiness == ManualTrackingStartReadiness.NoAvailableCaptureSource)
-			ManualTrackingStartPreflight(if (pending) ManualTrackingStartReadiness.SetupPending else readiness,
+				(readiness == ManualTrackingStartReadiness.TrackingUnavailable ||
+                    readiness == ManualTrackingStartReadiness.NoAvailableCaptureSource)
+			ManualTrackingStartPreflight(if (pending) {
+				ManualTrackingStartReadiness.SetupPending
+			} else {
+				readiness
+			},
 				policyState.snapshot.manualStartSelection())
 		} ?: ManualTrackingStartPreflight(ManualTrackingStartReadiness.TrackingUnavailable, null)
+	}
+	private suspend fun availableProviderSources(enabledSources: Set<SourceKind>): Set<SourceKind> =
+		if (SourceKind.STEPS in enabledSources && providerStepsSessions?.isAvailable() == true) {
+			setOf(SourceKind.STEPS)
+		} else {
+			emptySet()
+		}
+
+	private fun resolveReadiness(
+		rolloutRevision: Long,
+		enabledSources: Set<SourceKind>,
+		reachable: Set<SourceKind>,
+		supported: Set<SourceKind>,
+		available: Set<SourceKind>,
+		capabilities: ManualTrackingSourceCapabilities,
+	): ManualTrackingStartReadiness {
+		return resolveManualTrackingStartReadiness(
+			rolloutRevision = rolloutRevision,
+			enabledSources = enabledSources.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
+			reachableSources = reachable.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
+			supportedSources = supported
+				.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
+			availableSources = available
+				.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
+			sourcesMissingPreciseLocationPermission =
+				capabilities.sourcesMissingPreciseLocationPermission
+					.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
+			sourcesMissingActivityRecognitionPermission =
+				capabilities.sourcesMissingActivityRecognitionPermission
+					.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
+			sourcesMissingReadPhoneStatePermission =
+				capabilities.sourcesMissingReadPhoneStatePermission
+					.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
+			sourcesBlockedByLocationServices = capabilities.sourcesBlockedByLocationServices
+				.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
+		)
 	}
 }
 

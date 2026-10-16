@@ -53,6 +53,9 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import javax.inject.Provider
 
+// One six-source catalog fixture keeps lazy runtime ownership and its source-purpose contract mappings
+// comparable.
+@Suppress("LargeClass")
 class DefaultSourceImplementationCatalogTest {
 	@Test
 	fun `catalog covers exactly six sources and all eighteen source purpose pairs`() {
@@ -93,7 +96,11 @@ class DefaultSourceImplementationCatalogTest {
 
 		fixture.registry.runtime(SourceKind.LOCATION)?.source shouldBe SourceKind.LOCATION
 		fixture.providerCreations() shouldBe SourceKind.entries.associateWith { source ->
-			if (source == SourceKind.LOCATION) 1 else 0
+			if (source == SourceKind.LOCATION) {
+				1
+			} else {
+				0
+			}
 		}
 	}
 
@@ -108,7 +115,11 @@ class DefaultSourceImplementationCatalogTest {
 				(fixture.registry.runtime(source) === owner) shouldBe true
 			}
 			fixture.providerCreations() shouldBe SourceKind.entries.associateWith { source ->
-				if (source in selected) 1 else 0
+				if (source in selected) {
+					1
+				} else {
+					0
+				}
 			}
 			fixture.availabilityReads() shouldBe 0
 		}
@@ -155,6 +166,8 @@ class DefaultSourceImplementationCatalogTest {
 	}
 
 	@Test
+	// Keep this complete contract scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `provider limitation variants remain distinct`() = runTest {
 		runtimeAvailability(SourceDegradedReason.PERMISSION_MISSING) shouldBe
 			SourceProviderAvailability.PermissionRequired(
@@ -506,6 +519,8 @@ class DefaultSourceImplementationCatalogTest {
 	}
 
 	@Test
+	// Keep this complete retention scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `query portable projection and retention contracts are source explicit`() {
 		val fixture = fixture()
 

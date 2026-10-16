@@ -15,6 +15,9 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCount
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsSourceFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsProtectedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.fenceAuthenticatedImportedPortableGraphs
@@ -68,35 +71,7 @@ internal class RoomDeleteImportedAmbientStepsDay internal constructor(
 	): DeleteImportedAmbientStepsDayResult = withContext(ioDispatcher) {
 		try {
 			database.withPermanentAmbientStepsMaintenanceMapping {
-				checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.TRANSACTION_STARTED)
-				val state = requireState(request.expectedCollectedDataEpoch)
-				authenticateFenceAuthority(dao, state)
-				if (sourceDeletionActive(database, dao, state)) {
-					blocked(ImportedAmbientStepsMutationBlockedReason.SOURCE_DELETION_PENDING)
-				}
-				when (dao.fence(request.dayIdentity.value)?.fenceKind) {
-					ImportedAmbientStepsDayFenceEntity.FENCE_RETENTION ->
-						return@withPermanentAmbientStepsMaintenanceMapping DeleteImportedAmbientStepsDayResult.Retained
-					null -> Unit
-					else -> return@withPermanentAmbientStepsMaintenanceMapping DeleteImportedAmbientStepsDayResult.AlreadyDeleted
-				}
-				val lineage = authenticate(request.dayIdentity.value, state)
-				if (lineage.revisions.isEmpty()) {
-					return@withPermanentAmbientStepsMaintenanceMapping DeleteImportedAmbientStepsDayResult.NotFound
-				}
-				val removed = fenceAndDelete(
-					lineage,
-					state,
-					ImportedAmbientStepsDayFenceEntity.FENCE_SELECTED_DELETE,
-					request.deletedAtMs,
-					retainedFromMs = null,
-				)
-				incrementImportedAmbientStepsEvidenceRevision(
-					database,
-					state,
-					request.deletedAtMs,
-				)
-				DeleteImportedAmbientStepsDayResult.Deleted(removed)
+				deleteDayInTransaction(request)
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -116,6 +91,40 @@ internal class RoomDeleteImportedAmbientStepsDay internal constructor(
 				PortableAmbientStepsTransferRetryableReason.STORAGE_UNAVAILABLE,
 			)
 		}
+	}
+
+	private suspend fun deleteDayInTransaction(
+		request: DeleteImportedAmbientStepsDayRequest,
+	): DeleteImportedAmbientStepsDayResult {
+		checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.TRANSACTION_STARTED)
+		val state = requireState(request.expectedCollectedDataEpoch)
+		authenticateFenceAuthority(dao, state)
+		if (sourceDeletionActive(database, dao, state)) {
+			blocked(ImportedAmbientStepsMutationBlockedReason.SOURCE_DELETION_PENDING)
+		}
+		when (dao.fence(request.dayIdentity.value)?.fenceKind) {
+			ImportedAmbientStepsDayFenceEntity.FENCE_RETENTION ->
+				return DeleteImportedAmbientStepsDayResult.Retained
+			null -> Unit
+			else -> return DeleteImportedAmbientStepsDayResult.AlreadyDeleted
+		}
+		val lineage = authenticate(request.dayIdentity.value, state)
+		if (lineage.revisions.isEmpty()) {
+			return DeleteImportedAmbientStepsDayResult.NotFound
+		}
+		val removed = fenceAndDelete(
+			lineage,
+			state,
+			ImportedAmbientStepsDayFenceEntity.FENCE_SELECTED_DELETE,
+			request.deletedAtMs,
+			retainedFromMs = null,
+		)
+		incrementImportedAmbientStepsEvidenceRevision(
+			database,
+			state,
+			request.deletedAtMs,
+		)
+		return DeleteImportedAmbientStepsDayResult.Deleted(removed)
 	}
 
 	private suspend fun requireState(expectedEpoch: Long): SourceEvidenceState {
@@ -170,43 +179,7 @@ internal class RoomTruncateImportedAmbientStepsRetention internal constructor(
 	): TruncateImportedAmbientStepsRetentionResult = withContext(ioDispatcher) {
 		try {
 			database.withPermanentAmbientStepsMaintenanceMapping {
-				checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.TRANSACTION_STARTED)
-				val state = database.sourceEvidenceStateDao().get()
-					?: unavailable(
-						ImportedAmbientStepsMutationUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING,
-					)
-				if (state.collectedDataEpoch != request.expectedCollectedDataEpoch) {
-					blocked(ImportedAmbientStepsMutationBlockedReason.COLLECTED_DATA_EPOCH_CHANGED)
-				}
-				authenticateFenceAuthority(dao, state)
-				if (state.retainedFromMs != request.retainedFromMs) {
-					blocked(ImportedAmbientStepsMutationBlockedReason.RETENTION_FLOOR_CHANGED)
-				}
-				if (sourceDeletionActive(database, dao, state)) {
-					blocked(ImportedAmbientStepsMutationBlockedReason.SOURCE_DELETION_PENDING)
-				}
-				val candidate = dao.nextRetentionCandidate(request.retainedFromMs)
-					?: return@withPermanentAmbientStepsMaintenanceMapping TruncateImportedAmbientStepsRetentionResult.Complete
-				val lineage = authenticateLineage(dao, candidate.dayIdentity, state)
-				if (lineage.latest.header != candidate ||
-					candidate.structuralDayStartTimeMs >= request.retainedFromMs
-				) unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-				val removed = fenceAndDeleteLineage(
-					database,
-					dao,
-					lineage,
-					state,
-					ImportedAmbientStepsDayFenceEntity.FENCE_RETENTION,
-					request.retainedAtMs,
-					request.retainedFromMs,
-					checkpoint,
-				)
-				incrementImportedAmbientStepsEvidenceRevision(
-					database,
-					state,
-					request.retainedAtMs,
-				)
-				TruncateImportedAmbientStepsRetentionResult.Retained(removed)
+				truncateNextInTransaction(request)
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -226,6 +199,50 @@ internal class RoomTruncateImportedAmbientStepsRetention internal constructor(
 				PortableAmbientStepsTransferRetryableReason.STORAGE_UNAVAILABLE,
 			)
 		}
+	}
+
+	private suspend fun truncateNextInTransaction(
+		request: TruncateImportedAmbientStepsRetentionRequest,
+	): TruncateImportedAmbientStepsRetentionResult {
+		checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.TRANSACTION_STARTED)
+		val state = database.sourceEvidenceStateDao().get()
+			?: unavailable(
+				ImportedAmbientStepsMutationUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING,
+			)
+		if (state.collectedDataEpoch != request.expectedCollectedDataEpoch) {
+			blocked(ImportedAmbientStepsMutationBlockedReason.COLLECTED_DATA_EPOCH_CHANGED)
+		}
+		authenticateFenceAuthority(dao, state)
+		if (state.retainedFromMs != request.retainedFromMs) {
+			blocked(ImportedAmbientStepsMutationBlockedReason.RETENTION_FLOOR_CHANGED)
+		}
+		if (sourceDeletionActive(database, dao, state)) {
+			blocked(ImportedAmbientStepsMutationBlockedReason.SOURCE_DELETION_PENDING)
+		}
+		val candidate = dao.nextRetentionCandidate(request.retainedFromMs)
+			?: return TruncateImportedAmbientStepsRetentionResult.Complete
+		val lineage = authenticateLineage(dao, candidate.dayIdentity, state)
+		if (lineage.latest.header != candidate ||
+			candidate.structuralDayStartTimeMs >= request.retainedFromMs
+		) {
+			unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		val removed = fenceAndDeleteLineage(
+			database,
+			dao,
+			lineage,
+			state,
+			ImportedAmbientStepsDayFenceEntity.FENCE_RETENTION,
+			request.retainedAtMs,
+			request.retainedFromMs,
+			checkpoint,
+		)
+		incrementImportedAmbientStepsEvidenceRevision(
+			database,
+			state,
+			request.retainedAtMs,
+		)
+		return TruncateImportedAmbientStepsRetentionResult.Retained(removed)
 	}
 }
 
@@ -249,55 +266,7 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 	): DeleteImportedAmbientStepsAfterConsentResetResult = withContext(ioDispatcher) {
 		try {
 			database.withPermanentAmbientStepsMaintenanceMapping {
-				checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.TRANSACTION_STARTED)
-				val state = database.sourceEvidenceStateDao().get()
-					?: unavailable(
-						ImportedAmbientStepsMutationUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING,
-					)
-				if (state.collectedDataEpoch != request.expectedCollectedDataEpoch) {
-					blocked(ImportedAmbientStepsMutationBlockedReason.COLLECTED_DATA_EPOCH_CHANGED)
-				}
-				authenticateFenceAuthority(dao, state)
-				requireRevokedConsent(request.expectedRevokedConsentEpoch)
-				val sourceFenceChanged = ensureSourceFence(state, request)
-				val candidate = dao.nextDayCandidate()
-					?: run {
-						val completionChanged = completeSourceFence(
-							state,
-							request.expectedRevokedConsentEpoch,
-							request.deletedAtMs,
-						)
-						if (sourceFenceChanged || completionChanged) {
-							incrementImportedAmbientStepsEvidenceRevision(
-								database,
-								state,
-								request.deletedAtMs,
-							)
-						}
-						return@withPermanentAmbientStepsMaintenanceMapping DeleteImportedAmbientStepsAfterConsentResetResult.Complete
-					}
-				val lineage = authenticateLineage(dao, candidate.dayIdentity, state)
-				if (lineage.latest.header != candidate) {
-					unavailable(
-						ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
-					)
-				}
-				val removed = fenceAndDeleteLineage(
-					database,
-					dao,
-					lineage,
-					state,
-					ImportedAmbientStepsDayFenceEntity.FENCE_CONSENT_REVOKED,
-					request.deletedAtMs,
-					retainedFromMs = null,
-					checkpoint,
-				)
-				incrementImportedAmbientStepsEvidenceRevision(
-					database,
-					state,
-					request.deletedAtMs,
-				)
-				DeleteImportedAmbientStepsAfterConsentResetResult.Deleted(removed)
+				deleteNextInTransaction(request)
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -319,6 +288,60 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 		}
 	}
 
+	private suspend fun deleteNextInTransaction(
+		request: DeleteImportedAmbientStepsAfterConsentResetRequest,
+	): DeleteImportedAmbientStepsAfterConsentResetResult {
+		checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.TRANSACTION_STARTED)
+		val state = database.sourceEvidenceStateDao().get()
+			?: unavailable(
+				ImportedAmbientStepsMutationUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING,
+			)
+		if (state.collectedDataEpoch != request.expectedCollectedDataEpoch) {
+			blocked(ImportedAmbientStepsMutationBlockedReason.COLLECTED_DATA_EPOCH_CHANGED)
+		}
+		authenticateFenceAuthority(dao, state)
+		requireRevokedConsent(request.expectedRevokedConsentEpoch)
+		val sourceFenceChanged = ensureSourceFence(state, request)
+		val candidate = dao.nextDayCandidate()
+			?: run {
+				val completionChanged = completeSourceFence(
+					state,
+					request.expectedRevokedConsentEpoch,
+					request.deletedAtMs,
+				)
+				if (sourceFenceChanged || completionChanged) {
+					incrementImportedAmbientStepsEvidenceRevision(
+						database,
+						state,
+						request.deletedAtMs,
+					)
+				}
+				return DeleteImportedAmbientStepsAfterConsentResetResult.Complete
+			}
+		val lineage = authenticateLineage(dao, candidate.dayIdentity, state)
+		if (lineage.latest.header != candidate) {
+			unavailable(
+				ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+		val removed = fenceAndDeleteLineage(
+			database,
+			dao,
+			lineage,
+			state,
+			ImportedAmbientStepsDayFenceEntity.FENCE_CONSENT_REVOKED,
+			request.deletedAtMs,
+			retainedFromMs = null,
+			checkpoint,
+		)
+		incrementImportedAmbientStepsEvidenceRevision(
+			database,
+			state,
+			request.deletedAtMs,
+		)
+		return DeleteImportedAmbientStepsAfterConsentResetResult.Deleted(removed)
+	}
+
 	private suspend fun requireRevokedConsent(expectedEpoch: Long) {
 		val authority = database.sourcePolicyDao().authority()
 		val policy = authority?.takeIf {
@@ -336,10 +359,14 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 		if (policy == null || consent == null) {
 			unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 		}
-		if (consent.epoch != expectedEpoch || consent.eligible || consent.persistenceEligible ||
-			policy.ambientPersistenceEligible || policy.ambientConsentEpoch != null ||
+		if (consent.epoch != expectedEpoch || consent.eligible || consent.persistenceEligible) {
+			blocked(ImportedAmbientStepsMutationBlockedReason.CONSENT_NOT_REVOKED)
+		}
+		if (policy.ambientPersistenceEligible || policy.ambientConsentEpoch != null ||
 			consent.policyRevision != policy.policyRevision
-		) blocked(ImportedAmbientStepsMutationBlockedReason.CONSENT_NOT_REVOKED)
+		) {
+			blocked(ImportedAmbientStepsMutationBlockedReason.CONSENT_NOT_REVOKED)
+		}
 	}
 
 	private suspend fun ensureSourceFence(
@@ -364,7 +391,9 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 		) {
 			unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 		}
-		if (existing.revokedConsentEpoch == request.expectedRevokedConsentEpoch) return false
+		if (existing.revokedConsentEpoch == request.expectedRevokedConsentEpoch) {
+			return false
+		}
 		val replacement = ImportedAmbientStepsSourceFenceEntity.create(
 			state.collectedDataEpoch,
 			request.expectedRevokedConsentEpoch,
@@ -389,7 +418,9 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 		) {
 			unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 		}
-		if (existing.deletionCompleted) return false
+		if (existing.deletionCompleted) {
+			return false
+		}
 		val replacement = ImportedAmbientStepsSourceFenceEntity.completed(
 			existing,
 			maxOf(completedAtMs, existing.deletedAtMs),
@@ -462,6 +493,13 @@ private suspend fun sourceDeletionActive(
 	if (!state.acceptsRetainedEpoch(fence.collectedDataEpoch)) {
 	unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 	}
+	return sourceFenceBlocksCollection(database, fence)
+}
+
+private suspend fun sourceFenceBlocksCollection(
+	database: AppDatabase,
+	fence: ImportedAmbientStepsSourceFenceEntity,
+): Boolean {
 	val authority = database.sourcePolicyDao().authority()
 	val policy = authority?.takeIf {
 		it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE
@@ -475,13 +513,22 @@ private suspend fun sourceDeletionActive(
 		SourceDestinationOwnerEntity.SOURCE_STEPS,
 		SourceBrokerPurpose.AMBIENT_PRODUCT,
 	)
-	return policy == null || consent == null || !policy.enabled ||
-		!fence.deletionCompleted ||
-		!policy.ambientPersistenceEligible || policy.ambientConsentEpoch != consent.epoch ||
-		!consent.eligible || !consent.persistenceEligible ||
-		consent.policyRevision != policy.policyRevision ||
-		consent.epoch <= fence.revokedConsentEpoch ||
+	if (policy == null || consent == null || !policy.enabled || !fence.deletionCompleted) {
+		return true
+	}
+	return !hasEligibleAmbientStepsConsent(policy, consent) || consent.epoch <= fence.revokedConsentEpoch ||
 		fence.reopenedConsentEpoch != consent.epoch
+}
+
+private fun hasEligibleAmbientStepsConsent(
+	policy: SourcePolicyEntity,
+	consent: SourceConsentEpochEntity,
+): Boolean {
+	if (!policy.ambientPersistenceEligible || policy.ambientConsentEpoch != consent.epoch ||
+		!consent.eligible || !consent.persistenceEligible) {
+		return false
+	}
+	return consent.policyRevision == policy.policyRevision
 }
 
 private suspend fun readSourceFence(
@@ -553,7 +600,37 @@ private suspend fun fenceAndDeleteLineage(
 		markers.size.toLong(),
 		ImportedAmbientStepsDao.MAX_GLOBAL_PROTECTED_IDENTITIES,
 	)
-	val fence = ImportedAmbientStepsDayFenceEntity.create(
+	val fence = dayDeletionFence(lineage, state, kind, fencedAtMs, retainedFromMs, markers)
+	dao.insertFence(fence)
+	checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.FENCE_INSERTED)
+	dao.insertProtectedIdentities(markers)
+	checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.PROTECTED_IDENTITIES_INSERTED)
+	fencePortableCountDomainGraphs(
+		database = database,
+		lineage = lineage,
+		kind = kind,
+		state = state,
+		fencedAtMs = fencedAtMs,
+	)
+	val removed = dao.deleteDayLineage(latest.header.dayIdentity)
+	if (removed != lineage.revisions.size) {
+		unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+	}
+	dao.deleteOrphanArchives()
+	checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.PAYLOAD_REMOVED)
+	return removed
+}
+
+private fun dayDeletionFence(
+	lineage: AuthenticatedImportedAmbientStepsLineage,
+	state: SourceEvidenceState,
+	kind: String,
+	fencedAtMs: Long,
+	retainedFromMs: Long?,
+	markers: List<ImportedAmbientStepsProtectedIdentityEntity>,
+): ImportedAmbientStepsDayFenceEntity {
+	val latest = lineage.latest
+	return ImportedAmbientStepsDayFenceEntity.create(
 		dayIdentity = latest.header.dayIdentity,
 		deletionScopeIdentity = latest.header.deletionScopeIdentity,
 		fenceKind = kind,
@@ -578,24 +655,6 @@ private suspend fun fenceAndDeleteLineage(
 		protectedIdentities = markers,
 		lineageChecksum = lineage.lineageChecksum,
 	)
-	dao.insertFence(fence)
-	checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.FENCE_INSERTED)
-	dao.insertProtectedIdentities(markers)
-	checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.PROTECTED_IDENTITIES_INSERTED)
-	fencePortableCountDomainGraphs(
-		database = database,
-		lineage = lineage,
-		kind = kind,
-		state = state,
-		fencedAtMs = fencedAtMs,
-	)
-	val removed = dao.deleteDayLineage(latest.header.dayIdentity)
-	if (removed != lineage.revisions.size) {
-		unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-	}
-	dao.deleteOrphanArchives()
-	checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.PAYLOAD_REMOVED)
-	return removed
 }
 
 private suspend fun fencePortableCountDomainGraphs(
@@ -638,7 +697,9 @@ private suspend fun fencePortableCountDomainGraphs(
 				binding.productRevision,
 				binding.graphIdentity,
 			) != 1
-		) unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		) {
+			unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
 		graphDao.deleteGraphIfUnbound(binding.graphIdentity)
 	}
 }

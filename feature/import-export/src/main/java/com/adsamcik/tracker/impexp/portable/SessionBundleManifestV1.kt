@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.impexp.portable
 
 import org.json.JSONArray
+import org.json.JSONException
 import org.json.JSONObject
 import java.io.IOException
 import java.time.DateTimeException
@@ -46,8 +47,6 @@ internal object SessionBundleManifestCodecV1 {
 	const val MAX_TOTAL_BYTES = 256L * 1024 * 1024
 	/** Child allowance plus manifest and conservative ZIP header room. */
 	const val MAX_ARCHIVE_BYTES = MAX_TOTAL_BYTES + MAX_MANIFEST_BYTES + MAX_CHILDREN * 1024L + 4096L
-	private val safePath = Regex("sources/[0-9]{1,2}/[a-z0-9-]{1,64}\\.[a-z0-9]{1,32}")
-	private val sha256 = Regex("[0-9a-f]{64}")
 	private val sources = setOf("location", "steps", "wifi", "cell", "activity", "pressure")
 
 	fun encode(manifest: SessionBundleManifestV1): ByteArray {
@@ -65,99 +64,151 @@ internal object SessionBundleManifestCodecV1 {
 			.put("selectedOrigins", JSONArray(manifest.selectedOrigins))
 			.put("omissions", JSONArray(manifest.omissions))
 		val children = JSONArray()
-		manifest.children.forEach { child ->
-			children.put(JSONObject()
-				.put("path", child.path)
-				.put("formatId", child.formatId)
-				.put("formatVersion", child.formatVersion)
-				.put("sizeBytes", child.sizeBytes)
-				.put("sha256", child.sha256)
-				.put("fromMs", child.fromMs)
-				.put("toMs", child.toMs)
-				.put("wholeEntries", child.wholeEntries))
-		}
+		manifest.children.forEach { child -> children.put(child.toJson()) }
 		root.put("children", children)
 		return root.toString().toByteArray(Charsets.UTF_8).also {
-			if (it.size > MAX_MANIFEST_BYTES) throw InvalidSessionBundle("Session details exceed the file limit")
+			if (it.size > MAX_MANIFEST_BYTES) {
+				throw InvalidSessionBundle("Session details exceed the file limit")
+			}
 		}
 	}
 
 	fun decode(bytes: ByteArray): SessionBundleManifestV1 {
-		if (bytes.isEmpty() || bytes.size > MAX_MANIFEST_BYTES)
+		if (bytes.isEmpty() || bytes.size > MAX_MANIFEST_BYTES) {
 			throw InvalidSessionBundle("Session details are missing or too large")
-		return try {
-			val root = JSONObject(bytes.toString(Charsets.UTF_8))
-			if (root.getString("format") != FORMAT || root.getInt("version") != VERSION)
-				throw InvalidSessionBundle("Unsupported session file version")
-			val childrenArray = root.getJSONArray("children")
-			if (childrenArray.length() > MAX_CHILDREN) throw InvalidSessionBundle("Too many session data files")
-			val children = (0 until childrenArray.length()).map { index ->
-				val child = childrenArray.getJSONObject(index)
-				SessionBundleChildV1(
-					path = child.getString("path"),
-					formatId = child.getString("formatId"),
-					formatVersion = child.getInt("formatVersion"),
-					sizeBytes = child.getLong("sizeBytes"),
-					sha256 = child.getString("sha256"),
-					fromMs = child.getLong("fromMs"),
-					toMs = child.getLong("toMs"),
-					wholeEntries = child.getBoolean("wholeEntries"),
-				)
-			}
-			val manifest = SessionBundleManifestV1(
-				name = root.optString("name").takeIf(String::isNotEmpty),
-				activityLabel = root.optString("activityLabel").takeIf(String::isNotEmpty),
-				fromMs = root.getLong("fromMs"),
-				toMs = root.getLong("toMs"),
-				zoneId = root.getString("zoneId"),
-				selectedSources = root.getJSONArray("selectedSources").strings(),
-				children = children,
-				omissions = root.getJSONArray("omissions").strings(),
-				selectedPurposes = root.getJSONArray("selectedPurposes").strings(),
-				selectedOrigins = root.getJSONArray("selectedOrigins").strings(),
-			)
-			validate(manifest)
-			manifest
-		} catch (failure: InvalidSessionBundle) {
-			throw failure
-		} catch (failure: Exception) {
-			throw InvalidSessionBundle("Session details are malformed")
 		}
+		return parseManifest(bytes)
+	}
+
+	private fun parseManifest(bytes: ByteArray): SessionBundleManifestV1 = try {
+		val manifest = JSONObject(bytes.toString(Charsets.UTF_8)).readManifest()
+		validate(manifest)
+		manifest
+	} catch (_: JSONException) {
+		throw InvalidSessionBundle("Session details are malformed")
+	}
+
+	private fun JSONObject.readManifest(): SessionBundleManifestV1 {
+		if (getString("format") != FORMAT || getInt("version") != VERSION) {
+			throw InvalidSessionBundle("Unsupported session file version")
+		}
+		val childrenArray = getJSONArray("children")
+		if (childrenArray.length() > MAX_CHILDREN) {
+			throw InvalidSessionBundle("Too many session data files")
+		}
+		val children = (0 until childrenArray.length()).map { index ->
+			childrenArray.getJSONObject(index).readChild()
+		}
+		return SessionBundleManifestV1(
+			name = optString("name").takeIf(String::isNotEmpty),
+			activityLabel = optString("activityLabel").takeIf(String::isNotEmpty),
+			fromMs = getLong("fromMs"),
+			toMs = getLong("toMs"),
+			zoneId = getString("zoneId"),
+			selectedSources = getJSONArray("selectedSources").strings(),
+			children = children,
+			omissions = getJSONArray("omissions").strings(),
+			selectedPurposes = getJSONArray("selectedPurposes").strings(),
+			selectedOrigins = getJSONArray("selectedOrigins").strings(),
+		)
 	}
 
 	private fun JSONArray.strings(): List<String> = (0 until length()).map(::getString)
 
 	private fun validate(manifest: SessionBundleManifestV1) {
-		if (manifest.fromMs < 0L || manifest.toMs < manifest.fromMs)
+		validateTimes(manifest)
+		if ((manifest.name?.length ?: 0) > MAX_TEXT_LENGTH ||
+			(manifest.activityLabel?.length ?: 0) > MAX_TEXT_LENGTH) {
+			throw InvalidSessionBundle("Session label is too long")
+		}
+		validateSelections(manifest)
+		if (manifest.omissions.size > MAX_OMISSION_COUNT || manifest.omissions.any { it.length > MAX_TEXT_LENGTH }) {
+			throw InvalidSessionBundle("Session missing-data list is invalid")
+		}
+		validateChildren(manifest)
+	}
+
+	private fun validateTimes(manifest: SessionBundleManifestV1) {
+		if (manifest.fromMs < 0L || manifest.toMs < manifest.fromMs) {
 			throw InvalidSessionBundle("Session times are invalid")
+		}
 		try { ZoneId.of(manifest.zoneId) } catch (_: DateTimeException) {
 			throw InvalidSessionBundle("Session time zone is invalid")
 		}
-		if ((manifest.name?.length ?: 0) > 200 || (manifest.activityLabel?.length ?: 0) > 200)
-			throw InvalidSessionBundle("Session label is too long")
-		if (manifest.selectedSources.size > 6 || manifest.selectedSources.distinct().size != manifest.selectedSources.size ||
-			manifest.selectedSources.any { it !in sources })
+	}
+
+	private fun validateSelections(manifest: SessionBundleManifestV1) {
+		if (manifest.selectedSources.size > MAX_SOURCE_COUNT ||
+			manifest.selectedSources.distinct().size != manifest.selectedSources.size ||
+			manifest.selectedSources.any { it !in sources }) {
 			throw InvalidSessionBundle("Session source list is invalid")
+		}
 		if (manifest.selectedPurposes.distinct().size != manifest.selectedPurposes.size ||
 			manifest.selectedPurposes.any { it !in setOf("session", "background") } ||
 			manifest.selectedOrigins.distinct().size != manifest.selectedOrigins.size ||
-			manifest.selectedOrigins.any { it !in setOf("local", "imported") })
+			manifest.selectedOrigins.any { it !in setOf("local", "imported") }) {
 			throw InvalidSessionBundle("Session data description is invalid")
-		if (manifest.omissions.size > 64 || manifest.omissions.any { it.length > 200 })
-			throw InvalidSessionBundle("Session missing-data list is invalid")
+		}
+	}
+
+	private fun validateChildren(manifest: SessionBundleManifestV1) {
 		if (manifest.children.size > MAX_CHILDREN ||
-			manifest.children.map { it.path }.distinct().size != manifest.children.size)
+			manifest.children.map { it.path }.distinct().size != manifest.children.size) {
 			throw InvalidSessionBundle("Session data file list is invalid")
+		}
 		var total = 0L
 		manifest.children.forEach { child ->
-			if (!safePath.matches(child.path) || child.formatId.isBlank() || child.formatId.length > 80 ||
-				child.formatVersion < 1 || child.sizeBytes !in 1..MAX_CHILD_BYTES ||
-				!sha256.matches(child.sha256) || child.fromMs < 0L || child.toMs < child.fromMs ||
-				(!child.wholeEntries &&
-					(child.fromMs < manifest.fromMs || child.toMs > manifest.toMs)))
-				throw InvalidSessionBundle("Session data file details are invalid")
+			child.validateFor(manifest)
 			total += child.sizeBytes
-			if (total > MAX_TOTAL_BYTES) throw InvalidSessionBundle("Session data exceeds the file limit")
+			if (total > MAX_TOTAL_BYTES) {
+				throw InvalidSessionBundle("Session data exceeds the file limit")
+			}
 		}
 	}
 }
+
+private fun SessionBundleChildV1.toJson(): JSONObject = JSONObject()
+	.put("path", path)
+	.put("formatId", formatId)
+	.put("formatVersion", formatVersion)
+	.put("sizeBytes", sizeBytes)
+	.put("sha256", sha256)
+	.put("fromMs", fromMs)
+	.put("toMs", toMs)
+	.put("wholeEntries", wholeEntries)
+
+private fun JSONObject.readChild(): SessionBundleChildV1 = SessionBundleChildV1(
+	path = getString("path"),
+	formatId = getString("formatId"),
+	formatVersion = getInt("formatVersion"),
+	sizeBytes = getLong("sizeBytes"),
+	sha256 = getString("sha256"),
+	fromMs = getLong("fromMs"),
+	toMs = getLong("toMs"),
+	wholeEntries = getBoolean("wholeEntries"),
+)
+
+private fun SessionBundleChildV1.validateFor(manifest: SessionBundleManifestV1) {
+	if (!hasValidFormat() || sizeBytes !in 1..SessionBundleManifestCodecV1.MAX_CHILD_BYTES ||
+		!sha256Pattern.matches(sha256) || !hasValidTimes(manifest)) {
+		throw InvalidSessionBundle("Session data file details are invalid")
+	}
+}
+
+private fun SessionBundleChildV1.hasValidFormat(): Boolean = safePath.matches(path) &&
+	formatId.isNotBlank() && formatId.length <= MAX_FORMAT_ID_LENGTH && formatVersion >= 1
+
+private fun SessionBundleChildV1.hasValidTimes(manifest: SessionBundleManifestV1): Boolean {
+	if (fromMs < 0L || toMs < fromMs) {
+		return false
+	}
+	return wholeEntries || (fromMs >= manifest.fromMs && toMs <= manifest.toMs)
+}
+
+private val safePath = Regex("sources/[0-9]{1,2}/[a-z0-9-]{1,64}\\.[a-z0-9]{1,32}")
+private val sha256Pattern = Regex("[0-9a-f]{64}")
+
+private const val MAX_TEXT_LENGTH = 200
+private const val MAX_SOURCE_COUNT = 6
+private const val MAX_OMISSION_COUNT = 64
+private const val MAX_FORMAT_ID_LENGTH = 80

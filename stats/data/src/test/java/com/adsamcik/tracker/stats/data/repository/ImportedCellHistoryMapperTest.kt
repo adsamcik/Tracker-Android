@@ -107,6 +107,8 @@ class ImportedCellHistoryMapperTest {
 		public.causes shouldBe setOf(CellHistoryCause.NO_QUALIFIED_FACTS)
 	}
 
+	// Keep one imported Cell entry and all of its public views together to verify quality without native source rows.
+	@Suppress("LongMethod")
 	@Test
 	fun `imported-only repository exposes opaque origin and exact identity-free quality truth`() = runTest {
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
@@ -326,6 +328,8 @@ class ImportedCellHistoryMapperTest {
 		range.continuation shouldBe null
 	}
 
+	// Keep midnight uncertainty and DST fixtures beside the structural-day results derived from their stored zones.
+	@Suppress("LongMethod")
 	@Test
 	fun `structural range preserves uncertainty crossing and stored DST zone authority`() = runTest {
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
@@ -393,6 +397,8 @@ class ImportedCellHistoryMapperTest {
 		}
 	}
 
+	// Keep neighboring-zone candidates, deletion, and corruption together to verify the same structural-day query.
+	@Suppress("LongMethod")
 	@Test
 	fun `structural range verifies stored zone membership before accepting broad SQL candidates`() =
 		runTest {
@@ -640,7 +646,9 @@ class ImportedCellHistoryMapperTest {
 						val normalized = sql.trimStart()
 						if (normalized.startsWith("SELECT", true) ||
 							normalized.startsWith("WITH", true)
-						) statements += normalized
+						) {
+							statements += normalized
+						}
 					},
 					Executor { command -> command.run() },
 				)
@@ -681,6 +689,8 @@ class ImportedCellHistoryMapperTest {
 			statements.count { it.contains("UNION ALL", true) } shouldBe 64
 		}
 
+	// Keep the explicit correction/run overflow fixture and query observations together to prove preflight rejection.
+	@Suppress("LongMethod")
 	@Test
 	fun `aggregate correction and run budgets fail before loading the overflowing batch`() =
 		runTest {
@@ -694,7 +704,9 @@ class ImportedCellHistoryMapperTest {
 						val normalized = sql.trimStart()
 						if (normalized.startsWith("SELECT", true) ||
 							normalized.startsWith("WITH", true)
-						) statements += normalized
+						) {
+							statements += normalized
+						}
 					},
 					Executor { command -> command.run() },
 				)
@@ -803,6 +815,8 @@ class ImportedCellHistoryMapperTest {
 			)
 		}
 
+	// Keep the observed paged query and its cancelled repeat together to verify context reuse and the query boundary.
+	@Suppress("LongMethod")
 	@Test
 	fun `eligible imported scan reuses one source context and cancellation stops before next page`() =
 		runTest {
@@ -816,7 +830,9 @@ class ImportedCellHistoryMapperTest {
 						val normalized = sql.trimStart()
 						if (normalized.startsWith("SELECT", true) ||
 							normalized.startsWith("WITH", true)
-						) statements += normalized
+						) {
+							statements += normalized
+						}
 					},
 					Executor { command -> command.run() },
 				)
@@ -929,8 +945,12 @@ class ImportedCellHistoryMapperTest {
 		val value = importCellDetailsParent()
 		val rows = cellDetails(value)
 		database.importedRadioChildDao().insertCellSession(rows.mapIndexed { index, row ->
-			if (index == 0) row.copy(contentChecksum = cellDetailChecksum(row, semanticRevision = 2L))
-			else row
+			if (index == 0) {
+				row.copy(contentChecksum = cellDetailChecksum(row, semanticRevision = 2L))
+			}
+			else {
+				row
+			}
 		})
 		assertCellDetailsUnavailable(value)
 	}
@@ -942,9 +962,13 @@ class ImportedCellHistoryMapperTest {
 			Long.MAX_VALUE to 1L).forEach { (time, uncertainty) ->
 			database.importedRadioChildDao().deleteCellSession(value.identity.value, 1L)
 			val rows = cellDetails(value).mapIndexed { index, row ->
-				if (index == 0) row.copy(observedWallTimeMs = time,
+				if (index == 0) {
+					row.copy(observedWallTimeMs = time,
 					wallTimeUncertaintyMs = uncertainty).let { it.copy(contentChecksum = cellDetailChecksum(it)) }
-				else row
+				}
+				else {
+					row
+				}
 			}
 			database.importedRadioChildDao().insertCellSession(rows)
 			assertCellDetailsUnavailable(value)
@@ -1023,7 +1047,11 @@ class ImportedCellHistoryMapperTest {
 		listOf(100L, 112L).mapIndexed { index, time ->
 			ImportedCellChildEntity(value.identity.value, 1L, run.identity.value,
 				observation.identity.value, index, 1_000L + index, time, 0L,
-				"tower-$index", if (index == 0) "LTE" else "NR", true, -80,
+				"tower-$index", if (index == 0) {
+					"LTE"
+				} else {
+					"NR"
+				}, true, -80,
 				contentChecksum = "").let { it.copy(contentChecksum = cellDetailChecksum(it)) }
 		}
 
@@ -1056,6 +1084,9 @@ class ImportedCellHistoryMapperTest {
 			cursor.getLong(0)
 		}
 
+	// Keep the one stored quality-count corruption fixture and its matching observation/run/entry/receipt
+	// checksums together.
+	@Suppress("LongMethod")
 	private fun rehashStoredKnownQualityCount(
 		entry: PortableCapturedCellEntryV1,
 		knownQualityObservationCount: Int,
@@ -1220,7 +1251,9 @@ private fun cellRun(
 ): PortableCapturedCellRunV1 {
 	val availability = if (observations.isEmpty()) {
 		PortableCellRunAvailability.NO_RETAINED_OBSERVATION
-	} else PortableCellRunAvailability.RETAINED
+	} else {
+		PortableCellRunAvailability.RETAINED
+	}
 	val runIdentity = PortableCellOpaqueIdentity.derive(
 		PortableCellIdentityKind.PHYSICAL_RUN,
 		runLocal,
@@ -1304,6 +1337,9 @@ private fun cellEntryFromRuns(
 	)
 }
 
+// Keep one complete immutable portable Cell observation fixture and its matching field-ordered checksum
+// together.
+@Suppress("LongMethod")
 private fun cellObservation(
 	localId: String = "observation",
 	childCompleteness: PortableCellChildCompleteness = PortableCellChildCompleteness.COMPLETE,
@@ -1317,7 +1353,11 @@ private fun cellObservation(
 	val identity = PortableCellOpaqueIdentity.derive(PortableCellIdentityKind.OBSERVATION, localId)
 	val latestPossibleTimeMs = Math.addExact(observedTimeMs, wallTimeUncertaintyMs)
 	val submittedChildCount =
-		if (childCompleteness == PortableCellChildCompleteness.COMPLETE) 2 else 3
+		if (childCompleteness == PortableCellChildCompleteness.COMPLETE) {
+			2
+		} else {
+			3
+		}
 	val staleChildCount = submittedChildCount - 2
 	val checksum = portableCellDigest("tracker-portable-cell-observation-v1") {
 		writeCellString(identity.value)
@@ -1402,15 +1442,21 @@ private fun portableCellDigest(
 
 private fun DataOutputStream.writeCellString(value: String?) {
 	writeBoolean(value != null)
-	if (value != null) writeUTF(value)
+	if (value != null) {
+		writeUTF(value)
+	}
 }
 
 private fun DataOutputStream.writeNullableLong(value: Long?) {
 	writeBoolean(value != null)
-	if (value != null) writeLong(value)
+	if (value != null) {
+		writeLong(value)
+	}
 }
 
 private fun DataOutputStream.writeNullableDouble(value: Double?) {
 	writeBoolean(value != null)
-	if (value != null) writeDouble(value)
+	if (value != null) {
+		writeDouble(value)
+	}
 }

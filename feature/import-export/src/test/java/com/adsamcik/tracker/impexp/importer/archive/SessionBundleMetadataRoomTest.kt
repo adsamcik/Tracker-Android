@@ -61,7 +61,9 @@ class SessionBundleMetadataRoomTest {
 		db = AppDatabase.testDatabase(context)
 		db.sourceEvidenceStateDao().ensure()
 		runner = ImportJobRunner(RoomImportReceiptStore(db), verifyCollectedDataAccess = {
-			if (db.sourceEvidenceStateDao().get()?.collectedDataEpoch != 0L) throw IOException("Recorded data was cleared")
+			if (db.sourceEvidenceStateDao().get()?.collectedDataEpoch != 0L) {
+				throw IOException("Recorded data was cleared")
+			}
 		}, originalDataEpoch = 0L, nowMs = { 1_000L })
 	}
 	@After fun close() { db.close(); fixtures.forEach { it.delete() } }
@@ -119,7 +121,9 @@ class SessionBundleMetadataRoomTest {
 			runner.start("retry", "retry.trackersession", 100)
 			var firstCalls = 0
 			val failed = receive(bundle, "retry", childImport = { stream ->
-				if (stream.fileName == second.first.path) ImportResult(failedCount = 1)
+				if (stream.fileName == second.first.path) {
+					ImportResult(failedCount = 1)
+				}
 				else { firstCalls++; LocationFileImport().import(context, db, stream) }
 			})
 			failed.failedCount shouldBe 1
@@ -127,7 +131,9 @@ class SessionBundleMetadataRoomTest {
 			db.locationFileIdentityDao().byPortableId("second") shouldBe null
 			db.organizationAnnotationDao().visible(null, null, 10) shouldBe emptyList()
 			receive(bundle, "retry", childImport = { stream ->
-				if (stream.fileName == first.first.path) firstCalls++
+				if (stream.fileName == first.first.path) {
+					firstCalls++
+				}
 				LocationFileImport().import(context, db, stream)
 			}).failedCount shouldBe 0
 			firstCalls shouldBe 1
@@ -202,7 +208,9 @@ class SessionBundleMetadataRoomTest {
 					if (stream.fileName == blocked.first.path) {
 						// An importer can finish with a retained/deleted record skipped and no source receipt.
 						ImportResult(skippedCount = 1, errors = listOf("Source data is no longer retained"))
-					} else LocationFileImport().import(context, db, stream)
+					} else {
+						LocationFileImport().import(context, db, stream)
+					}
 				})
 			}
 			failure.toImportResult().successCount shouldBe 1
@@ -232,7 +240,11 @@ class SessionBundleMetadataRoomTest {
 			add(HistorySource.LOCATION to SessionBundleSourceClaim.Location(rawId, 1))
 			listOf(HistorySource.STEPS, HistorySource.ACTIVITY, HistorySource.PRESSURE,
 				HistorySource.WIFI, HistorySource.CELL).forEach { source ->
-				val id = if (source == HistorySource.STEPS || source == HistorySource.PRESSURE) prefixedId else rawId
+				val id = if (source == HistorySource.STEPS || source == HistorySource.PRESSURE) {
+					prefixedId
+				} else {
+					rawId
+				}
 				add(source to SessionBundleSourceClaim.Captured(source, id, id, "missing-source-receipt"))
 			}
 			listOf(HistorySource.WIFI, HistorySource.CELL).forEach { source ->

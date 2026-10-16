@@ -260,6 +260,23 @@ class PortableCountDomainJsonV2CodecTest {
 	}
 
 	@Test
+	fun `version dispatch validates unicode escapes in skipped values`() {
+		listOf("tracker-portable-steps", "tracker-portable-ambient-steps").forEach { format ->
+			val valid = """{"payload":{"nested":"\u0061\u1234"},"format":"$format","schemaVersion":2}"""
+			val readVersion: (ByteArray) -> Int = if (format == "tracker-portable-steps") {
+				::portableStepsSchemaVersion
+			} else {
+				::portableAmbientStepsSchemaVersion
+			}
+			readVersion(valid.encodeToByteArray()) shouldBe 2
+			listOf("""\u00xz""", """\u123""").forEach { escape ->
+				val malformed = """{"payload":{"nested":"$escape"},"format":"$format","schemaVersion":2}"""
+				shouldThrow<IOException> { readVersion(malformed.encodeToByteArray()) }
+			}
+		}
+	}
+
+	@Test
 	fun `version dispatch accepts maximum nesting and rejects the next level`() {
 		val maximum = "[".repeat(31) + "0" + "]".repeat(31)
 		val excessive = "[".repeat(32) + "0" + "]".repeat(32)
@@ -308,6 +325,30 @@ class PortableCountDomainJsonV2CodecTest {
 				PortableAmbientStepsJsonV2Codec().decode(FailingInputStream(ambientIo))
 			} === ambientIo) shouldBe true
 		}
+
+	@Test
+	fun `v2 malformed JSON shapes and checksums remain invalid files`() = runTest {
+		listOf(
+			"{",
+			"""{"format":[]}""",
+			"""{"format":"tracker-portable-steps","schemaVersion":2,"entries":[}""",
+			"""{"format":"tracker-portable-steps","schemaVersion":2,"contentChecksum":"bad","entries":[]}""",
+		).forEach { document ->
+			shouldThrow<PortableStepsJsonException> {
+				PortableStepsJsonV2Codec().decode(document.encodeToByteArray())
+			}
+		}
+		listOf(
+			"{",
+			"""{"format":[]}""",
+			"""{"format":"tracker-portable-ambient-steps","schemaVersion":2,"days":[}""",
+			"""{"format":"tracker-portable-ambient-steps","schemaVersion":2,"contentChecksum":"bad","days":[]}""",
+		).forEach { document ->
+			shouldThrow<PortableAmbientStepsFormatException> {
+				PortableAmbientStepsJsonV2Codec().decode(document.encodeToByteArray())
+			}
+		}
+	}
 
 	@Test
 	fun `non-successful source creates no bytes`() = runTest {
@@ -386,7 +427,9 @@ class PortableCountDomainJsonV2CodecTest {
 			}
 
 		override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-			if (bytesRead >= bytes.size) return -1
+			if (bytesRead >= bytes.size) {
+				return -1
+			}
 			val count = minOf(length, bytes.size - bytesRead)
 			bytes.copyInto(buffer, offset, bytesRead, bytesRead + count)
 			bytesRead += count

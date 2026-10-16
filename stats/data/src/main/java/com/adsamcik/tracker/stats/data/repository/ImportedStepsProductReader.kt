@@ -43,6 +43,8 @@ internal sealed interface ImportedStepsRecentRead {
 }
 
 /** Caller owns one Room snapshot; all retained source validation is shared with deletion/retention. */
+// One imported Steps reader keeps retained qualification shared across session, history and export entry points.
+@Suppress("TooManyFunctions")
 internal class ImportedStepsProductReader(
 	private val database: AppDatabase,
 	private val retained: ImportedStepsRetainedReader = ImportedStepsRetainedReader(database),
@@ -95,7 +97,8 @@ internal class ImportedStepsProductReader(
     /** Batches the source-owned retained reader while retaining entry-local failures. */
     internal suspend fun selectedInTransaction(identities: List<String>):
         Pair<Map<String, ImportedStepsHistoryEntry>, Map<String, ImportedStepsReadFailure>> {
-        require(identities.size <= 100 && identities.distinct().size == identities.size)
+        require(identities.size <= MAX_SELECTED_HISTORY_ENTRIES &&
+            identities.distinct().size == identities.size)
         val read = readSessionEntries(identities)
         return read.entries.associate { it.metadata.identity to it.toListEntry() } to read.unverifiableEntries
     }
@@ -103,7 +106,9 @@ internal class ImportedStepsProductReader(
 	suspend fun recentInTransaction(limit: Int): List<ImportedStepsHistoryEntry> {
 		require(limit in 1..100)
 		val entries = database.importedStepsDao().recentEntries(limit)
-		if (entries.isEmpty()) return emptyList()
+		if (entries.isEmpty()) {
+			return emptyList()
+		}
 		return entries.chunked(ImportedStepsRetainedReader.MAX_ENTRY_BATCH).flatMap { batch ->
 			when (val result = retained.readEntriesInTransaction(batch.map { it.identity })) {
 				is ImportedStepsRetainedRead.Ready -> result.entries.map { it.toListEntry() }
@@ -118,10 +123,14 @@ internal class ImportedStepsProductReader(
 	 * One failed candidate makes the whole bounded origin unavailable so a corrupt newest entry
 	 * cannot disappear and reveal an older row as if the page were complete.
 	 */
+	// Ordered bounded-batch failure and membership exits prevent publishing a partially qualified recent page.
+	@Suppress("ReturnCount")
 	suspend fun recentSourceAwareInTransaction(limit: Int): ImportedStepsRecentRead {
 		require(limit in 1..100)
 		val entries = database.importedStepsDao().recentEntries(limit)
-		if (entries.isEmpty()) return ImportedStepsRecentRead.Ready(emptyList())
+		if (entries.isEmpty()) {
+			return ImportedStepsRecentRead.Ready(emptyList())
+		}
 		val publicEntries = mutableListOf<ImportedStepsHistoryEntry>()
 		for (batch in entries.chunked(ImportedStepsRetainedReader.MAX_ENTRY_BATCH)) {
 			val batchIds = batch.map { it.identity }
@@ -130,7 +139,9 @@ internal class ImportedStepsProductReader(
 					return ImportedStepsRecentRead.Unavailable(result.reason)
 				is ImportedStepsRetainedRead.Ready -> {
 					val failed = batchIds.firstNotNullOfOrNull(result.unverifiableEntries::get)
-					if (failed != null) return ImportedStepsRecentRead.Unavailable(failed)
+					if (failed != null) {
+						return ImportedStepsRecentRead.Unavailable(failed)
+					}
 					if (result.unverifiableEntries.keys.any { it !in batchIds }) {
 						return ImportedStepsRecentRead.Unavailable(
 							ImportedStepsReadFailure.INTEGRITY,
@@ -179,6 +190,8 @@ internal class ImportedStepsProductReader(
 		}
 	}
 
+	// Keep overflow, empty, retained-read and cardinality outcomes before count-domain export construction.
+	@Suppress("ReturnCount")
 	suspend fun exportV2InTransaction(
 		request: ExportPortableStepsRequest,
 	): PortableStepsV2Snapshot {
@@ -200,7 +213,9 @@ internal class ImportedStepsProductReader(
 					return v2Unavailable(result.reason.toExportReason())
 				is ImportedStepsRetainedRead.Ready -> {
 					val failure = result.unverifiableEntries.values.firstOrNull()
-					if (failure != null) return v2Unavailable(failure.toExportReason())
+					if (failure != null) {
+						return v2Unavailable(failure.toExportReason())
+					}
 					retainedEntries += result.entries
 				}
 			}
@@ -232,6 +247,8 @@ internal class ImportedStepsProductReader(
 			}
 		}
 
+	// Each missing, invalid or over-budget selected entry exits before adding it to the export collection.
+	@Suppress("ReturnCount")
 	private suspend fun readSelectedExportEntries(
 		request: ExportSelectedPortableStepsRequest,
 	): ImportedStepsRetainedRead {
@@ -265,6 +282,8 @@ internal class ImportedStepsProductReader(
 		return ImportedStepsRetainedRead.Ready(entries)
 	}
 
+	// Keep missing-product, binding and graph failures beside each existing checked export construction.
+	@Suppress("ReturnCount")
 	private suspend fun toV2Export(
 		retainedEntries: List<RetainedImportedStepsEntry>,
 		reconcileRetainedLegacyBinding: Boolean = true,
@@ -384,3 +403,5 @@ internal class ImportedStepsProductReader(
 		const val MAX_EXPORT_DEPENDENCIES = 16_384
 	}
 }
+
+private const val MAX_SELECTED_HISTORY_ENTRIES = 100

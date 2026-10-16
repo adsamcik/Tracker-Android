@@ -37,6 +37,7 @@ import com.adsamcik.tracker.tracker.control.TrackingControlOutputSink
 import com.adsamcik.tracker.tracker.control.TrackingControlShadow
 import com.adsamcik.tracker.tracker.control.TrackingDecisionFeatureFlags
 import com.adsamcik.tracker.tracker.data.TrackingClockDomain
+import com.adsamcik.tracker.tracker.data.collection.LocationCanonicalCurationContext
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.collection.isLocationObservationOnly
 import com.adsamcik.tracker.tracker.data.session.toSnapshot
@@ -108,6 +109,8 @@ import java.time.ZoneId
  * Android lifecycle concerns (foreground notification, wake lock, timer, shortcuts,
  * intents) remain in [TrackerService], which delegates business logic here.
  */
+// One component mutex owns the live pipeline, canonical curation and complete teardown.
+@Suppress("LargeClass", "TooManyFunctions")
 internal class TrackingOrchestrator(
 	private val controller: TrackerServiceController,
 	private val signalProcessors: Set<SignalProcessor>,
@@ -451,7 +454,8 @@ internal class TrackingOrchestrator(
 			// Wire mutable references into tier escalation handler
 			tierEscalationHandler.processorPipeline = processorPipeline
 			pendingPresentationBinding
-		} catch (failure: Throwable) {
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Throwable) {
+			// Stop partial startup before rethrowing the same failure, with cleanup failure kept suppressed.
 			withContext(NonCancellable) {
 				val cleanupFailure = runCatching { pipeline.stop() }.exceptionOrNull()
 				if (cleanupFailure == null) {
@@ -519,31 +523,55 @@ internal class TrackingOrchestrator(
 			?: return@withLock ProtectedLocationCanonicalWriteResult.Inactive(
 				"LOCATION_CANONICAL_SESSION_UNBOUND",
 			)
+		writeBoundCanonicalLocation(context, command, acquisitionMetadata, binding)
+	}
+
+	// Keep distinct binding, pipeline, persistence and curation availability results before writing any Location point.
+	@Suppress("ReturnCount")
+	private suspend fun writeBoundCanonicalLocation(
+		context: Context,
+		command: LocationCapturedFactCommand,
+		acquisitionMetadata: LocationWalAcquisitionMetadata,
+		binding: SessionPresentationBinding,
+	): ProtectedLocationCanonicalWriteResult {
 		if (binding.logicalTrackingId != command.authority.logicalTrackingId.value ||
 			binding.serviceRunId != command.authority.serviceRunId.value ||
 			binding.sessionSegmentId != command.authority.sessionSegmentId
 		) {
-			return@withLock ProtectedLocationCanonicalWriteResult.Inactive(
+			return ProtectedLocationCanonicalWriteResult.Inactive(
 				"LOCATION_CANONICAL_ACTIVE_RUN_MISMATCH",
 			)
 		}
 		val pipeline = processorPipeline
-			?: return@withLock ProtectedLocationCanonicalWriteResult.Inactive(
+			?: return ProtectedLocationCanonicalWriteResult.Inactive(
 				"LOCATION_CANONICAL_PROCESSOR_PIPELINE_INACTIVE",
 			)
 		val persistence = signalProcessors.filterIsInstance<PersistenceProcessor>().singleOrNull()
-			?: return@withLock ProtectedLocationCanonicalWriteResult.Failed(
+			?: return ProtectedLocationCanonicalWriteResult.Failed(
 				"LOCATION_CANONICAL_PERSISTENCE_PROCESSOR_UNAVAILABLE",
 				terminal = false,
 			)
 		val locationComponent = dataComponentList.filterIsInstance<LocationTrackerComponent>()
 			.singleOrNull()
-			?: return@withLock ProtectedLocationCanonicalWriteResult.Failed(
+			?: return ProtectedLocationCanonicalWriteResult.Failed(
 				"LOCATION_CANONICAL_CURATION_COMPONENT_UNAVAILABLE",
 				terminal = false,
 			)
+		return writeActiveCanonicalLocation(
+			context, command, acquisitionMetadata, pipeline, persistence, locationComponent,
+		)
+	}
+
+	private suspend fun writeActiveCanonicalLocation(
+		context: Context,
+		command: LocationCapturedFactCommand,
+		acquisitionMetadata: LocationWalAcquisitionMetadata,
+		pipeline: ProcessorPipeline,
+		persistence: PersistenceProcessor,
+		locationComponent: LocationTrackerComponent,
+	): ProtectedLocationCanonicalWriteResult {
 		if (!persistence.flushProtectedLocationCanonicalHandoff()) {
-			return@withLock ProtectedLocationCanonicalWriteResult.Deferred(
+			return ProtectedLocationCanonicalWriteResult.Deferred(
 				"LOCATION_CANONICAL_PENDING_COMMIT",
 			)
 		}
@@ -556,16 +584,29 @@ internal class TrackingOrchestrator(
 					command.mutation.identity.sourceAdmissionOrdinal,
 					receipt.curationState,
 				)
-				return@withLock ProtectedLocationCanonicalWriteResult.Committed
+				return ProtectedLocationCanonicalWriteResult.Committed
 			}
 			is ProtectedLocationCanonicalReceipt.Invalid ->
-				return@withLock ProtectedLocationCanonicalWriteResult.Failed(
+				return ProtectedLocationCanonicalWriteResult.Failed(
 					receipt.reason,
 					terminal = true,
 				)
 			is ProtectedLocationCanonicalReceipt.Incomplete -> Unit
 		}
 		seedCommittedProtectedLocationCurationIfNeeded()
+		return prepareCanonicalLocationDecision(
+			context, command, acquisitionMetadata, pipeline, persistence, locationComponent,
+		)
+	}
+
+	private suspend fun prepareCanonicalLocationDecision(
+		context: Context,
+		command: LocationCapturedFactCommand,
+		acquisitionMetadata: LocationWalAcquisitionMetadata,
+		pipeline: ProcessorPipeline,
+		persistence: PersistenceProcessor,
+		locationComponent: LocationTrackerComponent,
+	): ProtectedLocationCanonicalWriteResult {
 		val curationStateBefore = try {
 			appDatabase.withTransaction {
 				appDatabase.loadPreparedProtectedLocationCanonicalCurationState(command)
@@ -573,8 +614,9 @@ internal class TrackingOrchestrator(
 			} ?: locationComponent.snapshotCanonicalState()
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (failure: Exception) {
-			return@withLock ProtectedLocationCanonicalWriteResult.Failed(
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+			// Report unavailable saved curation state through the canonical writer result; cancellation escapes.
+			return ProtectedLocationCanonicalWriteResult.Failed(
 				failure::class.java.simpleName.ifBlank {
 					"LOCATION_CANONICAL_PREPARED_STATE_FAILED"
 				},
@@ -586,113 +628,19 @@ internal class TrackingOrchestrator(
 				curationStateBefore,
 			)
 		} catch (_: IllegalStateException) {
-			return@withLock ProtectedLocationCanonicalWriteResult.Failed(
+			return ProtectedLocationCanonicalWriteResult.Failed(
 				"LOCATION_CANONICAL_CURATION_CONTRACT_UNSUPPORTED",
 				terminal = true,
 			)
 		}
-		return@withLock try {
-			if (!pipeline.checkpointDurableSignals(
-				listOf(command.toProtectedLocationObservationSignal(
-					acquisitionMetadata = acquisitionMetadata,
-					policyTier = acquisitionMetadata.policyTier,
-					policyName = acquisitionMetadata.policyName,
-				)),
-			)) {
-				return@withLock ProtectedLocationCanonicalWriteResult.Deferred(
-					"LOCATION_CANONICAL_RAW_ADMISSION_DEFERRED",
-				)
-			}
-			if (command.productEffect.isMock) {
-				val decisionSignal = command.toProtectedLocationMockRejectionSignal(
-					acquisitionMetadata = acquisitionMetadata,
-					policyTier = acquisitionMetadata.policyTier,
-					policyName = acquisitionMetadata.policyName,
-				)
-				appDatabase.withTransaction {
-					appDatabase.prepareProtectedLocationCanonicalCurationState(
-						command,
-						curationContext.stateBefore,
-						curationContext.stateBefore,
-						ProtectedLocationPreparedCanonicalOutput.fromSignal(
-							command,
-							decisionSignal,
-						),
-					)
-				}
-				if (!pipeline.onSignal(decisionSignal)) {
-					return@withLock ProtectedLocationCanonicalWriteResult.Deferred(
-						"LOCATION_CANONICAL_DECISION_ADMISSION_DEFERRED",
-					)
-				}
-			} else {
-				val cycle = command.toProtectedLocationTrackingCycle(
-					acquisitionMetadata,
-					curationContext,
-				)
-				TrackingPipeline(
-					stages = listOf(
-						DataCollectionStage(dataComponentList),
-						SignalDispatchStage(
-							processorPipelineProvider = { pipeline },
-							currentTierProvider = { acquisitionMetadata.policyTier },
-							currentPolicyNameProvider = { acquisitionMetadata.policyName },
-							beforeSignalAdmission = { cycleContext, signal ->
-								check(
-									cycleContext.collectionData.location != null ||
-										curationContext.outcome.decisionReason != null,
-								) {
-									"Protected Location curation produced no terminal outcome"
-								}
-								appDatabase.withTransaction {
-									appDatabase.prepareProtectedLocationCanonicalCurationState(
-										command,
-										curationContext.stateBefore,
-										curationContext.outcome.stateAfter,
-										ProtectedLocationPreparedCanonicalOutput.fromSignal(
-											command,
-											signal,
-										),
-									)
-								}
-							},
-						),
-					),
-				).execute(
-					context,
-					CycleContext(
-						cycle = cycle,
-						collectionData = MutableCollectionData(cycle.timestampMs),
-					),
-				)
-			}
-			if (!persistence.flushProtectedLocationCanonicalHandoff()) {
-				return@withLock ProtectedLocationCanonicalWriteResult.Deferred(
-					"LOCATION_CANONICAL_DESTINATION_COMMIT_DEFERRED",
-				)
-			}
-			when (val receipt = appDatabase.withTransaction {
-				appDatabase.readProtectedLocationCanonicalReceipt(command, acquisitionMetadata)
-			}) {
-				is ProtectedLocationCanonicalReceipt.Complete -> {
-					applyCommittedProtectedLocationCuration(
-						locationComponent,
-						command.mutation.identity.sourceAdmissionOrdinal,
-						receipt.curationState,
-					)
-					ProtectedLocationCanonicalWriteResult.Committed
-				}
-				is ProtectedLocationCanonicalReceipt.Incomplete ->
-					ProtectedLocationCanonicalWriteResult.Deferred(receipt.reason)
-				is ProtectedLocationCanonicalReceipt.Invalid ->
-					ProtectedLocationCanonicalWriteResult.Failed(
-						receipt.reason,
-						terminal = true,
-					)
-			}
+		return try {
+			writePreparedCanonicalLocation(
+				context, command, acquisitionMetadata, pipeline, persistence, locationComponent, curationContext,
+			)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (failure: Exception) {
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+			// Return a retryable canonical-write failure while leaving durable admission and cancellation intact.
 			ProtectedLocationCanonicalWriteResult.Failed(
 				failure::class.java.simpleName.ifBlank {
 					"LOCATION_CANONICAL_WRITE_FAILED"
@@ -700,6 +648,141 @@ internal class TrackingOrchestrator(
 				terminal = false,
 			)
 		}
+	}
+
+	// These are the existing live pipeline, persistence and curation owners under the same component lock.
+	// Keep them explicit rather than introduce a carrier solely for this private phase.
+	@Suppress("LongParameterList")
+	private suspend fun writePreparedCanonicalLocation(
+		context: Context,
+		command: LocationCapturedFactCommand,
+		acquisitionMetadata: LocationWalAcquisitionMetadata,
+		pipeline: ProcessorPipeline,
+		persistence: PersistenceProcessor,
+		locationComponent: LocationTrackerComponent,
+		curationContext: LocationCanonicalCurationContext,
+	): ProtectedLocationCanonicalWriteResult {
+		if (!pipeline.checkpointDurableSignals(
+			listOf(command.toProtectedLocationObservationSignal(
+				acquisitionMetadata = acquisitionMetadata,
+				policyTier = acquisitionMetadata.policyTier,
+				policyName = acquisitionMetadata.policyName,
+			)),
+		)) {
+			return ProtectedLocationCanonicalWriteResult.Deferred(
+				"LOCATION_CANONICAL_RAW_ADMISSION_DEFERRED",
+			)
+		}
+		if (!admitProtectedLocationDecision(context, command, acquisitionMetadata, curationContext, pipeline)) {
+			return ProtectedLocationCanonicalWriteResult.Deferred(
+				"LOCATION_CANONICAL_DECISION_ADMISSION_DEFERRED",
+			)
+		}
+		if (!persistence.flushProtectedLocationCanonicalHandoff()) {
+			return ProtectedLocationCanonicalWriteResult.Deferred(
+				"LOCATION_CANONICAL_DESTINATION_COMMIT_DEFERRED",
+			)
+		}
+		return when (val receipt = appDatabase.withTransaction {
+			appDatabase.readProtectedLocationCanonicalReceipt(command, acquisitionMetadata)
+		}) {
+			is ProtectedLocationCanonicalReceipt.Complete -> {
+				applyCommittedProtectedLocationCuration(
+					locationComponent,
+					command.mutation.identity.sourceAdmissionOrdinal,
+					receipt.curationState,
+				)
+				ProtectedLocationCanonicalWriteResult.Committed
+			}
+			is ProtectedLocationCanonicalReceipt.Incomplete ->
+				ProtectedLocationCanonicalWriteResult.Deferred(receipt.reason)
+			is ProtectedLocationCanonicalReceipt.Invalid ->
+				ProtectedLocationCanonicalWriteResult.Failed(
+					receipt.reason,
+					terminal = true,
+				)
+		}
+	}
+
+	private suspend fun admitProtectedLocationDecision(
+		context: Context,
+		command: LocationCapturedFactCommand,
+		acquisitionMetadata: LocationWalAcquisitionMetadata,
+		curationContext: LocationCanonicalCurationContext,
+		pipeline: ProcessorPipeline,
+	): Boolean {
+		if (command.productEffect.isMock) {
+			val decisionSignal = command.toProtectedLocationMockRejectionSignal(
+				acquisitionMetadata = acquisitionMetadata,
+				policyTier = acquisitionMetadata.policyTier,
+				policyName = acquisitionMetadata.policyName,
+			)
+			appDatabase.withTransaction {
+				appDatabase.prepareProtectedLocationCanonicalCurationState(
+					command,
+					curationContext.stateBefore,
+					curationContext.stateBefore,
+					ProtectedLocationPreparedCanonicalOutput.fromSignal(
+						command,
+						decisionSignal,
+					),
+				)
+			}
+			if (!pipeline.onSignal(decisionSignal)) {
+				return false
+			}
+		} else {
+			admitCuratedProtectedLocationDecision(context, command, acquisitionMetadata, curationContext, pipeline)
+		}
+		return true
+	}
+
+	private suspend fun admitCuratedProtectedLocationDecision(
+		context: Context,
+		command: LocationCapturedFactCommand,
+		acquisitionMetadata: LocationWalAcquisitionMetadata,
+		curationContext: LocationCanonicalCurationContext,
+		pipeline: ProcessorPipeline,
+	) {
+		val cycle = command.toProtectedLocationTrackingCycle(
+			acquisitionMetadata,
+			curationContext,
+		)
+		TrackingPipeline(
+			stages = listOf(
+				DataCollectionStage(dataComponentList),
+				SignalDispatchStage(
+					processorPipelineProvider = { pipeline },
+					currentTierProvider = { acquisitionMetadata.policyTier },
+					currentPolicyNameProvider = { acquisitionMetadata.policyName },
+					beforeSignalAdmission = { cycleContext, signal ->
+						check(
+							cycleContext.collectionData.location != null ||
+								curationContext.outcome.decisionReason != null,
+						) {
+							"Protected Location curation produced no terminal outcome"
+						}
+						appDatabase.withTransaction {
+							appDatabase.prepareProtectedLocationCanonicalCurationState(
+								command,
+								curationContext.stateBefore,
+								curationContext.outcome.stateAfter,
+								ProtectedLocationPreparedCanonicalOutput.fromSignal(
+									command,
+									signal,
+								),
+							)
+						}
+					},
+				),
+			),
+		).execute(
+			context,
+			CycleContext(
+				cycle = cycle,
+				collectionData = MutableCollectionData(cycle.timestampMs),
+			),
+		)
 	}
 
 	private suspend fun seedCommittedProtectedLocationCurationIfNeeded() {

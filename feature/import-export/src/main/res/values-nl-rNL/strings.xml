@@ -40,4 +40,23 @@
     <string name="format_database">Databaseback-up (ZIP)</string>
     <string name="settings_import_summary">Importeer gegevens uit ondersteunde typen (%1$s) en archieven (%2$s). Database-imports voegen compatibele rijen samen; bestaande gegevens worden niet vervangen.</string>
     <string name="settings_import_title">Importeren</string>
+    <string name="export_radio_sensitivity_title">Netwerkdetails exporteren?</string>
+    <string name="export_wifi_sensitivity_message">Dit bestand bevat opgeslagen Wi-Fi-namen en toegangspunt-ID\'s.</string>
+    <string name="export_cell_sensitivity_message">Dit bestand bevat opgeslagen zendmast-ID\'s en signaalmetingen.</string>
+    <string name="export_radio_no_data">Geen opgeslagen gegevens voor deze bron</string>
+    <string name="export_include_complete_sessions">Volledige sessies opnemen</string>
+    <string name="import_location_conflict_title">Opgeslagen punten vervangen?</string>
+    <string name="import_location_replace">Punten uit het bestand gebruiken</string>
+    <string name="import_location_keep">Opgeslagen punten behouden</string>
+    <string name="export_backup_review_title">Geplande back-ups controleren</string>
+    <string name="export_backup_review_summary">Gepauzeerd totdat je de bijgewerkte gegevensback-up hebt gecontroleerd.</string>
+    <string name="export_backup_review_message">Deze schema\'s maken nu een back-up van alle opgeslagen trackinggegevens en de bestanden die nodig zijn om ze te herstellen. Instellingen worden niet opgenomen. Deze schema\'s hervatten?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Back-ups hervatten</string>
+    <string name="import_backup_replace_title">Gegevensback-up herstellen?</string>
+    <string name="import_backup_replace_message">Opgeslagen gegevens vervangen door deze back-up? Je instellingen blijven hetzelfde. Tracking blijft uitgeschakeld totdat je het hervat.</string>
+    <string name="import_backup_restore">Gegevens vervangen</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d punt in dit bestand verschilt van de opgeslagen kopie. Kies welk punt je wilt behouden. Andere punten worden normaal geïmporteerd.</item>
+        <item quantity="other">%d punten in dit bestand verschillen van hun opgeslagen kopieën. Kies welke je wilt behouden. Andere punten worden normaal geïmporteerd.</item>
+    </plurals>
 </resources>

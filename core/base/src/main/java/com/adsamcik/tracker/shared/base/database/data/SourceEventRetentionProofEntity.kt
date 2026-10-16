@@ -59,6 +59,12 @@ data class SourceEventRetentionProofEntity(
 	@ColumnInfo(name = "effect_checksum")
 	val effectChecksum: String,
 ) {
+	/**
+	 * Checks the supplied original Location ownership/lineage metadata against this retained record's
+	 * saved values and digest.
+	 */
+	// Compares supplied expected fields with one immutable retained event record.
+	@Suppress("CyclomaticComplexMethod")
 	fun authenticates(
 		expectedSourceKind: Int,
 		expectedEventId: String,
@@ -80,6 +86,12 @@ data class SourceEventRetentionProofEntity(
 		reason == REASON_RETENTION_EXPIRED &&
 		hasValidStoredIntegrity()
 
+	/**
+	 * Checks the record's stored identity, value constraints and deterministic digest before using
+	 * retained metadata.
+	 */
+	// Checks the stored nullable-field combinations and digest without reading live authority.
+	@Suppress("CyclomaticComplexMethod")
 	fun hasValidStoredIntegrity(): Boolean =
 		sourceKind in SUPPORTED_SOURCE_KINDS &&
 			eventId.isNotBlank() &&
@@ -111,6 +123,12 @@ data class SourceEventRetentionProofEntity(
 			reason == REASON_RETENTION_EXPIRED &&
 			effectChecksum == calculatedEffectChecksum()
 
+	/**
+	 * Returns the original session/run scope only when this retained record's capture metadata and
+	 * digest are valid; otherwise returns null.
+	 */
+	// One nullable saved-scope projection keeps each absent required field as an explicit rejection.
+	@Suppress("ReturnCount")
 	fun authenticatedCaptureScope(
 		expectedSourceKind: Int,
 		expectedCollectedDataEpoch: Long,
@@ -119,7 +137,9 @@ data class SourceEventRetentionProofEntity(
 			sourceKind != expectedSourceKind ||
 			purposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
 			collectedDataEpoch != expectedCollectedDataEpoch
-		) return null
+		) {
+			return null
+		}
 		return RetainedCaptureScopeIdentity(
 			sourceKind = sourceKind,
 			logicalTrackingId = logicalTrackingId ?: return null,
@@ -130,6 +150,10 @@ data class SourceEventRetentionProofEntity(
 		).takeIf { it.isCanonicalFor(expectedSourceKind, expectedCollectedDataEpoch) }
 	}
 
+	/**
+	 * Returns the original admitted event and capture scope only when retained metadata validates;
+	 * otherwise returns null.
+	 */
 	fun authenticatedCaptureEvent(
 		expectedSourceKind: Int,
 		expectedCollectedDataEpoch: Long,
@@ -148,6 +172,9 @@ data class SourceEventRetentionProofEntity(
 		)
 	}
 
+	/**
+	 * Recomputes the digest from this record's persisted values for replay and corruption checks.
+	 */
 	fun calculatedEffectChecksum(): String = checksum(
 		CONTRACT,
 		sourceKind,
@@ -167,6 +194,10 @@ data class SourceEventRetentionProofEntity(
 		reason,
 	)
 
+	/**
+	 * Stable persisted codes, including `REASON_RETENTION_EXPIRED`, `CONTRACT`, `AUTHORITY_CONTRACT`,
+	 * and any identity-bound record factories.
+	 */
 	companion object {
 		const val REASON_RETENTION_EXPIRED = "RETENTION_EXPIRED"
 		private const val CONTRACT = "source-event-retention-proof-v4"
@@ -181,119 +212,26 @@ data class SourceEventRetentionProofEntity(
 			SourceDestinationOwnerEntity.SOURCE_CELL,
 		)
 
-		@Suppress("LongMethod", "LongParameterList")
+		/**
+		 * Builds payload-free retained event metadata after checking the original WAL digest and capture
+		 * ownership fields.
+		 */
 		fun createFromWal(wal: SourceEventWalEntity): SourceEventRetentionProofEntity {
-			require(wal.hasQualifiedIntegrity())
-			val sourceKind = wal.sourceKind
-			val eventId = wal.eventId
-			val sourceAdmissionOrdinal = wal.admissionOrdinal
-			val purposeEligibilityMask = wal.authorizationPurposeEligibilityMask
-			val sourcePolicyRevision = wal.sourcePolicyRevision
-			val captureConsentEpoch = wal.captureConsentEpoch
-			val collectedDataEpoch = wal.capturedCollectedDataEpoch
-			val logicalTrackingId = wal.logicalTrackingId
-			val serviceRunId = wal.serviceRunId
-			require(sourceKind in SUPPORTED_SOURCE_KINDS)
-			require(eventId.isNotBlank())
-			require(sourceAdmissionOrdinal > 0L)
-			require(purposeEligibilityMask in 0L..SourceBrokerPurpose.ALL_MASK)
-			require(sourcePolicyRevision == null || sourcePolicyRevision > 0L)
-			require(captureConsentEpoch == null || captureConsentEpoch >= 0L)
-			require(collectedDataEpoch >= 0L)
-			require(wal.clockDomainId.isNotBlank())
-			require(wal.sourceInstanceId.isNotBlank())
-			require(wal.registrationGeneration >= 0L)
-			require(wal.payloadChecksum.matches(SHA_256_HEX))
-			require(wal.integrityIdentity.matches(SHA_256_HEX))
-			val captureEligible =
-				purposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
-			val logicalRunScopeDigest = if (captureEligible) {
-				require(sourcePolicyRevision != null && sourcePolicyRevision > 0L)
-				require(captureConsentEpoch != null && captureConsentEpoch >= 0L)
-				require(wal.sessionManifestRevision != null && wal.sessionManifestRevision > 0L)
-				require(wal.lifecycleLeaseGeneration != null && wal.lifecycleLeaseGeneration > 0L)
-				require(wal.registrationGeneration > 0L)
-				require(!wal.physicalConfigurationFingerprint.isNullOrBlank())
-				require(wal.authorizationRevision != null && wal.authorizationRevision > 0L)
-				require(!wal.authorizationFingerprint.isNullOrBlank())
-				require(wal.configRevision != null && wal.configRevision > 0L)
-				val logicalId = requireNotNull(logicalTrackingId).also {
-					require(it.isNotBlank())
-				}
-				val runId = requireNotNull(serviceRunId).also {
-					require(it.isNotBlank())
-				}
-				SourceDeletionFenceEntity.logicalServiceRunIdentity(
-					sourceKind = sourceKind,
-					purpose = SourceBrokerPurpose.SESSION_CAPTURE,
-					logicalTrackingId = logicalId,
-					serviceRunId = runId,
-				)
-			} else {
-				require(logicalTrackingId == null && serviceRunId == null)
-				null
-			}
-			val retainedLogicalTrackingId = logicalTrackingId.takeIf { captureEligible }
-			val retainedServiceRunId = serviceRunId.takeIf { captureEligible }
-			val scopeDeletionGeneration = 0L.takeIf { captureEligible }
-			val proofAuthorityFingerprint = checksum(
-				AUTHORITY_CONTRACT,
-				sourceKind,
-				SourceBrokerPurpose.SESSION_CAPTURE.takeIf { captureEligible },
-				purposeEligibilityMask,
-				eventId,
-				sourceAdmissionOrdinal,
-				sourcePolicyRevision,
-				captureConsentEpoch,
-				collectedDataEpoch,
-				wal.logicalTrackingId,
-				wal.serviceRunId,
-				retainedLogicalTrackingId,
-				retainedServiceRunId,
-				scopeDeletionGeneration,
-				logicalRunScopeDigest,
-				wal.providerDedupKey,
-				wal.deliveryIdentity,
-				wal.deliveryUnitIndex,
-				wal.deliveryUnitCount,
-				wal.sourceInstanceId,
-				wal.registrationGeneration,
-				wal.physicalConfigurationFingerprint,
-				wal.authorizationRevision,
-				wal.authorizationFingerprint,
-				wal.sourceSequence,
-				wal.configRevision,
-				wal.planAttribution,
-				wal.clockDomainId,
-				wal.observedElapsedNanos,
-				wal.observedIntervalStartNanos,
-				wal.receivedElapsedNanos,
-				wal.receivedWallTimeMs,
-				wal.wallTimeMs,
-				wal.wallTimeUncertaintyMs,
-				wal.activityAutomationEpoch,
-				wal.sessionManifestRevision,
-				wal.lifecycleLeaseGeneration,
-				wal.acquiredAtMs,
-				wal.qualityFlags,
-				wal.qualityConfidence,
-				wal.payloadVersion,
-				wal.payloadChecksum,
-				wal.integrityIdentity,
-				wal.createdAtMs,
-			)
+			requireOriginalWal(wal)
+			val scope = captureScopeFromWal(wal)
+			val proofAuthorityFingerprint = authorityFingerprint(wal, scope)
 			val unsigned = SourceEventRetentionProofEntity(
-				sourceKind = sourceKind,
-				eventId = eventId,
-				sourceAdmissionOrdinal = sourceAdmissionOrdinal,
-				purposeEligibilityMask = purposeEligibilityMask,
-				sourcePolicyRevision = sourcePolicyRevision,
-				captureConsentEpoch = captureConsentEpoch,
-				collectedDataEpoch = collectedDataEpoch,
-				logicalTrackingId = retainedLogicalTrackingId,
-				serviceRunId = retainedServiceRunId,
-				scopeDeletionGeneration = scopeDeletionGeneration,
-				logicalRunScopeDigest = logicalRunScopeDigest,
+				sourceKind = wal.sourceKind,
+				eventId = wal.eventId,
+				sourceAdmissionOrdinal = wal.admissionOrdinal,
+				purposeEligibilityMask = wal.authorizationPurposeEligibilityMask,
+				sourcePolicyRevision = wal.sourcePolicyRevision,
+				captureConsentEpoch = wal.captureConsentEpoch,
+				collectedDataEpoch = wal.capturedCollectedDataEpoch,
+				logicalTrackingId = scope?.logicalTrackingId,
+				serviceRunId = scope?.serviceRunId,
+				scopeDeletionGeneration = scope?.scopeDeletionGeneration,
+				logicalRunScopeDigest = scope?.logicalRunScopeDigest,
 				walPayloadChecksum = wal.payloadChecksum,
 				walIntegrityIdentity = wal.integrityIdentity,
 				proofAuthorityFingerprint = proofAuthorityFingerprint,
@@ -303,10 +241,121 @@ data class SourceEventRetentionProofEntity(
 			return unsigned.copy(effectChecksum = unsigned.calculatedEffectChecksum())
 		}
 
+		private fun requireOriginalWal(wal: SourceEventWalEntity) {
+			require(wal.hasQualifiedIntegrity())
+			require(wal.sourceKind in SUPPORTED_SOURCE_KINDS)
+			require(wal.eventId.isNotBlank())
+			require(wal.admissionOrdinal > 0L)
+			require(wal.authorizationPurposeEligibilityMask in 0L..SourceBrokerPurpose.ALL_MASK)
+			require(wal.sourcePolicyRevision == null || wal.sourcePolicyRevision > 0L)
+			require(wal.captureConsentEpoch == null || wal.captureConsentEpoch >= 0L)
+			require(wal.capturedCollectedDataEpoch >= 0L)
+			require(wal.clockDomainId.isNotBlank())
+			require(wal.sourceInstanceId.isNotBlank())
+			require(wal.registrationGeneration >= 0L)
+			require(wal.payloadChecksum.matches(SHA_256_HEX))
+			require(wal.integrityIdentity.matches(SHA_256_HEX))
+		}
+
+		// Fixed immutable capture fields are validated before constructing their saved scope identity.
+		@Suppress("CyclomaticComplexMethod")
+		private fun captureScopeFromWal(wal: SourceEventWalEntity): RetainedCaptureScopeIdentity? {
+			val captureEligible =
+				wal.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
+			return if (captureEligible) {
+				require(wal.sourcePolicyRevision != null && wal.sourcePolicyRevision > 0L)
+				require(wal.captureConsentEpoch != null && wal.captureConsentEpoch >= 0L)
+				require(wal.sessionManifestRevision != null && wal.sessionManifestRevision > 0L)
+				require(wal.lifecycleLeaseGeneration != null && wal.lifecycleLeaseGeneration > 0L)
+				require(wal.registrationGeneration > 0L)
+				require(!wal.physicalConfigurationFingerprint.isNullOrBlank())
+				require(wal.authorizationRevision != null && wal.authorizationRevision > 0L)
+				require(!wal.authorizationFingerprint.isNullOrBlank())
+				require(wal.configRevision != null && wal.configRevision > 0L)
+				val logicalId = requireNotNull(wal.logicalTrackingId).also {
+					require(it.isNotBlank())
+				}
+				val runId = requireNotNull(wal.serviceRunId).also {
+					require(it.isNotBlank())
+				}
+				val logicalRunScopeDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+					sourceKind = wal.sourceKind,
+					purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+					logicalTrackingId = logicalId,
+					serviceRunId = runId,
+				)
+				RetainedCaptureScopeIdentity(
+					sourceKind = wal.sourceKind,
+					logicalTrackingId = logicalId,
+					serviceRunId = runId,
+					collectedDataEpoch = wal.capturedCollectedDataEpoch,
+					scopeDeletionGeneration = 0L,
+					logicalRunScopeDigest = logicalRunScopeDigest,
+				)
+			} else {
+				require(wal.logicalTrackingId == null && wal.serviceRunId == null)
+				null
+			}
+		}
+
+		private fun authorityFingerprint(
+			wal: SourceEventWalEntity,
+			scope: RetainedCaptureScopeIdentity?,
+		): String = checksum(
+			AUTHORITY_CONTRACT,
+			wal.sourceKind,
+			SourceBrokerPurpose.SESSION_CAPTURE.takeIf { scope != null },
+			wal.authorizationPurposeEligibilityMask,
+			wal.eventId,
+			wal.admissionOrdinal,
+			wal.sourcePolicyRevision,
+			wal.captureConsentEpoch,
+			wal.capturedCollectedDataEpoch,
+			wal.logicalTrackingId,
+			wal.serviceRunId,
+			scope?.logicalTrackingId,
+			scope?.serviceRunId,
+			scope?.scopeDeletionGeneration,
+			scope?.logicalRunScopeDigest,
+			wal.providerDedupKey,
+			wal.deliveryIdentity,
+			wal.deliveryUnitIndex,
+			wal.deliveryUnitCount,
+			wal.sourceInstanceId,
+			wal.registrationGeneration,
+			wal.physicalConfigurationFingerprint,
+			wal.authorizationRevision,
+			wal.authorizationFingerprint,
+			wal.sourceSequence,
+			wal.configRevision,
+			wal.planAttribution,
+			wal.clockDomainId,
+			wal.observedElapsedNanos,
+			wal.observedIntervalStartNanos,
+			wal.receivedElapsedNanos,
+			wal.receivedWallTimeMs,
+			wal.wallTimeMs,
+			wal.wallTimeUncertaintyMs,
+			wal.activityAutomationEpoch,
+			wal.sessionManifestRevision,
+			wal.lifecycleLeaseGeneration,
+			wal.acquiredAtMs,
+			wal.qualityFlags,
+			wal.qualityConfidence,
+			wal.payloadVersion,
+			wal.payloadChecksum,
+			wal.integrityIdentity,
+			wal.createdAtMs,
+		)
+
 		private fun checksum(vararg values: Any?): String {
 			val canonical = values.joinToString(separator = "") { value ->
 				val text = value?.toString()
-				if (text == null) "-1:" else "${text.length}:$text"
+				if (text == null) {
+					"-1:"
+				} else {
+					"${text.length}:$text"
+				}
 			}
 			return MessageDigest.getInstance("SHA-256")
 				.digest(canonical.toByteArray(Charsets.UTF_8))

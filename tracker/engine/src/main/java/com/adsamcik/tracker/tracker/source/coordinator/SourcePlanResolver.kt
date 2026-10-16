@@ -82,25 +82,21 @@ class SourcePlanResolver @Inject constructor() {
 			if (!constraint.foregroundCapabilityLegal) reasons += SourceDegradedReason.FOREGROUND_CAPABILITY_MISSING
 			if (!constraint.backgroundStartLegal) reasons += SourceDegradedReason.BACKGROUND_START_ILLEGAL
 
-			val blocked = reasons.any { reason ->
-				reason == SourceDegradedReason.HARDWARE_UNAVAILABLE ||
-					reason == SourceDegradedReason.PROVIDER_UNAVAILABLE ||
-					reason == SourceDegradedReason.PERMISSION_MISSING ||
-					reason == SourceDegradedReason.FOREGROUND_CAPABILITY_MISSING ||
-					reason == SourceDegradedReason.BACKGROUND_START_ILLEGAL
-			}
+			val blocked = reasons.any { reason -> reason.isHardPrerequisite() }
 			// The desired plan is the policy-derived QoS ceiling. A demand describes a
 			// consumer requirement; it may diagnose degradation, but must never silently
 			// upgrade physical acquisition beyond the effective SourcePolicy.
 			if (!targetSatisfiesFloors) reasons += SourceDegradedReason.DEMAND_FLOOR_UNSATISFIED
 			var applicable = if (blocked || !targetSatisfiesFloors) plan.disabled() else plan
-			if (!blocked && targetSatisfiesFloors && adaptationAllowed && (context.powerSaver ||
+			val canAdapt = !blocked && targetSatisfiesFloors && adaptationAllowed
+			if (canAdapt && (context.powerSaver ||
 				(source == SourceKind.LOCATION && context.batteryPressure != BatteryPressure.NONE))) {
 				val candidate = when (applicable) {
 					is LocationPlan -> if (applicable.adaptiveProfileVersion == 1) {
 						if (context.locationLiveFocus) applicable else {
 							val level = context.locationProfileLevel
-							if (level == null) applicable else adaptiveLocationPlan(minOf(level, if (context.batteryPressure == BatteryPressure.STRONG) 1 else 3),
+							if (level == null) applicable else adaptiveLocationPlan(minOf(level,
+                                if (context.batteryPressure == BatteryPressure.STRONG) 1 else 3),
 								applicable.revision, applicable.backend, applicable.preciseLocationAvailable)
 						}
 					} else if (applicable.mode == LocationMode.HIGH_ACCURACY) {
@@ -123,21 +119,21 @@ class SourcePlanResolver @Inject constructor() {
 			if (context.doze && applicable is WifiPlan && applicable.mode == WifiMode.ACTIVE_ATTEMPTS) {
 				reasons += SourceDegradedReason.DOZE
 			}
-			if (!blocked && targetSatisfiesFloors && adaptationAllowed && context.severeThermalPressure &&
-				applicable is LocationPlan && applicable.adaptiveProfileVersion == 1 && applicable.enabled) {
-				val level = context.locationProfileLevel ?: 1
-				val reduced = adaptiveLocationPlan(minOf(level, 1), applicable.revision,
-					applicable.backend, applicable.preciseLocationAvailable)
-				val accepted = applicable.acceptReduction(reduced, sourceFloors)
-				if (accepted != applicable) {
-					reasons += SourceDegradedReason.THERMAL
-					applicable = accepted
+			if (canAdapt && context.severeThermalPressure && applicable is LocationPlan &&
+				applicable.adaptiveProfileVersion == 1) {
+				if (applicable.enabled) {
+					val level = context.locationProfileLevel ?: 1
+					val reduced = adaptiveLocationPlan(minOf(level, 1), applicable.revision,
+						applicable.backend, applicable.preciseLocationAvailable)
+					val accepted = applicable.acceptReduction(reduced, sourceFloors)
+					if (accepted != applicable) {
+						reasons += SourceDegradedReason.THERMAL
+						applicable = accepted
+					}
 				}
 			}
 			if (
-				!blocked &&
-				targetSatisfiesFloors &&
-				adaptationAllowed &&
+				canAdapt &&
 				context.severeThermalPressure &&
 				applicable is PressurePlan &&
 				applicable.enabled
@@ -167,8 +163,11 @@ class SourcePlanResolver @Inject constructor() {
 					if (context.motionProfile.stationary) plan.adaptiveStationary() else plan
                 } else if (desired.balanceProfileVersion != null) {
                     when {
-                        context.motionProfile.stationary && plan is WifiPlan && plan.mode == WifiMode.ACTIVE_ATTEMPTS -> plan.copy(mode = WifiMode.BROADCAST_DRIVEN)
-                        context.motionProfile.stationary && plan is CellPlan && plan.mode == CellMode.OBSERVE_AND_SPARSE_REFRESH -> plan.copy(mode = CellMode.OBSERVE_CHANGES)
+                        context.motionProfile.stationary && plan is WifiPlan &&
+                            plan.mode == WifiMode.ACTIVE_ATTEMPTS -> plan.copy(mode = WifiMode.BROADCAST_DRIVEN)
+                        context.motionProfile.stationary && plan is CellPlan &&
+                            plan.mode == CellMode.OBSERVE_AND_SPARSE_REFRESH ->
+                                plan.copy(mode = CellMode.OBSERVE_CHANGES)
                         else -> plan
                     }
                 } else plan.applyMotionPolicy(context.motionProfile, activityWakeAvailable)

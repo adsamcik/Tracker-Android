@@ -19,6 +19,8 @@ class SourceAcquisitionFloorTest {
 			.maximumProviderItemAgeMs shouldBe 2_000L
 	}
 	@Test
+	// Keep the finite source, quality and purpose round-trip matrix intact.
+	@Suppress("CyclomaticComplexMethod")
 	fun `all source qos and relevant purpose floors have an exact canonical round trip`() {
 		val purposes = listOf(
 			DirectSourceDemandPurpose.SESSION_CAPTURE,

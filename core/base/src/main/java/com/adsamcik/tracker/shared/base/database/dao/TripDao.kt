@@ -136,6 +136,10 @@ interface TripDao {
 	@Query("DELETE FROM organization_annotation WHERE recording_adapter_key = 'segment:' || :id")
 	suspend fun deleteSegmentAnnotation(id: Long)
 
+	/**
+	 * Deletes `session_segment` rows matching the supplied scope. Query conditions include `id =
+	 * :id`.
+	 */
 	@Query("DELETE FROM session_segment WHERE id = :id")
 	suspend fun deleteSegmentRow(id: Long)
 

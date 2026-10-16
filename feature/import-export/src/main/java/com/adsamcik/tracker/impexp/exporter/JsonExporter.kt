@@ -7,6 +7,7 @@ import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
 import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.base.mapper.toModel
@@ -111,7 +112,8 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		}
 	} catch (cancelled: CancellationException) {
 		throw cancelled
-	} catch (failure: Exception) {
+	} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+		// The selected-file export reports a recoverable result; cancellation was already rethrown.
 		ExportResult.Error(LocalizedString(R.string.export_error_with_reason,
 			failure.message ?: "Failed to write selected session"))
 	}
@@ -186,47 +188,72 @@ class JsonExporter @JvmOverloads @Inject constructor(
 					first = false
 				},
 			)
-			var ambientAfterTime = afterTimeMs
-			var ambientAfterId = afterId
-			var ambientStarted = false
-			var ambientAuthorityStamp: String? = null
-			var firstAmbientPoint = true
-			while (true) {
-				verifyCollectedDataAccess()
-				val before = database.locationPurposeDao().ambientExportAuthorityStamp()
-				if (ambientStarted) check(before == ambientAuthorityStamp) { "Location export consent or retention changed" }
-				val page = database.locationPurposeDao().visiblePathChunk(fromMs, toMs,
-					ambientAfterTime, ambientAfterId, 256, ambientOnly = true)
-				if (page.isEmpty()) break
-				if (!ambientStarted) ambientAuthorityStamp = before
-				check(database.locationPurposeDao().ambientExportAuthorityStamp() == ambientAuthorityStamp) {
-					"Location export consent or retention changed"
-				}
-				if (!ambientStarted) {
-					if (!first) writer.write(",")
-					writer.write("{\"schemaVersion\":3,\"orphanedData\":true,\"locations\":[")
-					ambientStarted = true
-				}
-				page.forEach { row ->
-					verifyCollectedDataAccess()
-					if (!firstAmbientPoint) writer.write(",")
-					firstAmbientPoint = false
-					writeLocation(writer, row.sample.toModel())
-					progress.include(row.sample.id, row.sample.timeMs)
-				}
-				ambientAfterTime = page.last().sample.timeMs
-				ambientAfterId = page.last().sample.id
-			}
-			if (ambientStarted) {
-				check(database.locationPurposeDao().ambientExportAuthorityStamp() == ambientAuthorityStamp) {
-					"Location export consent or retention changed"
-				}
-				writer.write("],\"wifiObservations\":[],\"cellSamples\":[]}")
-			}
+			writeAmbientLocations(
+				database, dateRange, afterTimeMs, afterId,
+				OrphanRecordWriter(writer) { if (!first) writer.write(",") },
+				progress, verifyCollectedDataAccess,
+			)
 			writer.write("]")
 			writer.flush()
 		}
 		return progress
+	}
+
+	// Keep the streaming context and both original cursor values explicit.
+	@Suppress("LongParameterList")
+	private suspend fun writeAmbientLocations(
+		database: AppDatabase,
+		dateRange: LongRange?,
+		afterTimeMs: Long?,
+		afterId: Long?,
+		writer: OrphanRecordWriter,
+		progress: LocationProgress,
+		verifyCollectedDataAccess: () -> Unit,
+	) {
+		val fromMs = dateRange?.first ?: 0L
+		val toMs = dateRange?.last ?: Long.MAX_VALUE
+		var ambientAfterTime = afterTimeMs
+		var ambientAfterId = afterId
+		var ambientStarted = false
+		var ambientAuthorityStamp: String? = null
+		while (true) {
+			verifyCollectedDataAccess()
+			val before = database.locationPurposeDao().ambientExportAuthorityStamp()
+			if (ambientStarted) check(before == ambientAuthorityStamp) { "Location export consent or retention changed" }
+			val page = database.locationPurposeDao().visiblePathChunk(fromMs, toMs,
+				ambientAfterTime, ambientAfterId, 256, ambientOnly = true)
+			if (page.isEmpty()) break
+			if (!ambientStarted) ambientAuthorityStamp = before
+			check(database.locationPurposeDao().ambientExportAuthorityStamp() == ambientAuthorityStamp) {
+				"Location export consent or retention changed"
+			}
+			if (!ambientStarted) {
+				writer.startLocations()
+				ambientStarted = true
+			}
+			writeAmbientPage(page, writer, progress, verifyCollectedDataAccess)
+			ambientAfterTime = page.last().sample.timeMs
+			ambientAfterId = page.last().sample.id
+		}
+		if (ambientStarted) {
+			check(database.locationPurposeDao().ambientExportAuthorityStamp() == ambientAuthorityStamp) {
+				"Location export consent or retention changed"
+			}
+			writer.finish()
+		}
+	}
+
+	private fun writeAmbientPage(
+		page: List<LocationPathSampleRow>,
+		writer: OrphanRecordWriter,
+		progress: LocationProgress,
+		verifyCollectedDataAccess: () -> Unit,
+	) {
+		page.forEach { row ->
+			verifyCollectedDataAccess()
+			writer.writeLocation(row.sample.toModel())
+			progress.include(row.sample.id, row.sample.timeMs)
+		}
 	}
 
 	private suspend fun writeSessionRecord(
@@ -632,6 +659,8 @@ class JsonExporter @JvmOverloads @Inject constructor(
 	) {
 		private var stage = 0
 		private var firstInStage = true
+
+		fun startLocations() = advanceTo(1)
 
 		fun writeLocation(sample: LocationSample) {
 			advanceTo(1)

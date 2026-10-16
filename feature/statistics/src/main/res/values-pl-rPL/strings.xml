@@ -166,4 +166,5 @@
     <string name="history_button_label">Historia</string>
     <string name="history_view_trip_on_map">Wyświetl podróż na mapie</string>
     <string name="stats_heatmap_title">Aktywność</string>
+    <string name="stats_recorded_partial_value">%1$s · częściowo</string>
 </resources>

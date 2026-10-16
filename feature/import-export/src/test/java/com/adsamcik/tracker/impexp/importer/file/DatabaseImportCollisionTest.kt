@@ -236,7 +236,11 @@ class DatabaseImportCollisionTest {
 				}
 			}
 			inheritedObjects.forEach { (type, name) ->
-				val objectType = if (type == "view") "VIEW" else "TRIGGER"
+				val objectType = if (type == "view") {
+					"VIEW"
+				} else {
+					"TRIGGER"
+				}
 				source.execSQL("DROP $objectType IF EXISTS `${name.replace("`", "``")}`")
 			}
 			block(sourceRoom, targetRoom)

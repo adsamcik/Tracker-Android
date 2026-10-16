@@ -76,17 +76,24 @@ class DefaultDataBackupRestore @Inject constructor(
                 is DataBackupInspection.Ready -> try {
                     val copy = File(reader.directory(result.preview.token), "databases/$ACTIVE_DATABASE_NAME")
                     LogicalDataBackupImporter.normalizeOwnedCopy(context, copy)
-                    LogicalDataBackupImporter.validateOwnedCopy(copy, database.get().openHelper.writableDatabase, tracker = true)
-                    val pointsCopy = File(reader.directory(result.preview.token), "databases/${DatabaseBackupScope.POINTS_DATABASE_NAME}")
+                    LogicalDataBackupImporter.validateOwnedCopy(copy,
+                        database.get().openHelper.writableDatabase, tracker = true)
+                    val pointsCopy = File(reader.directory(result.preview.token),
+                        "databases/${DatabaseBackupScope.POINTS_DATABASE_NAME}")
                     if (pointsCopy.isFile) {
                         val ownedPoints = PointsDatabase.ownedCopyBuilder(context, pointsCopy.path).build()
                         try { ownedPoints.openHelper.writableDatabase } finally { ownedPoints.close() }
                     }
-                    if (pointsCopy.isFile) LogicalDataBackupImporter.validateOwnedCopy(pointsCopy, points.get().openHelper.writableDatabase, tracker = false)
+                    if (pointsCopy.isFile) {
+                        LogicalDataBackupImporter.validateOwnedCopy(pointsCopy,
+                            points.get().openHelper.writableDatabase, tracker = false)
+                    }
                     if (lifecycle.snapshot().epoch != epoch) {
                         reader.discard(result.preview.token)
                         DataBackupInspection.Invalid
-                    } else result.copy(preview = result.preview.copy(originalDataEpoch = epoch))
+                    } else {
+                        result.copy(preview = result.preview.copy(originalDataEpoch = epoch))
+                    }
                 } catch (cancelled: CancellationException) {
                     reader.discard(result.preview.token)
                     throw cancelled
@@ -101,7 +108,9 @@ class DefaultDataBackupRestore @Inject constructor(
 
     override suspend fun discardPreview(token: String) = withContext(dispatchers.io) {
         mutex.withLock {
-            if (readJournal()?.token != token) reader.discard(token)
+            if (readJournal()?.token != token) {
+                reader.discard(token)
+            }
         }
     }
 
@@ -111,13 +120,15 @@ class DefaultDataBackupRestore @Inject constructor(
         mutex.withLock {
             activeRestore = job
             try {
-                if (deletionCleanupActive || readJournal() != null || !startup.get().isReady || deletionIsPending() ||
+                if (isRestorePreparationBlocked() ||
                     preview.originalDataEpoch < 0L || lifecycle.snapshot().epoch != preview.originalDataEpoch) {
                     return@withLock DataBackupRestoreResult.Unavailable
                 }
                 val directory = reader.directory(preview.token)
                 val source = File(directory, "databases/$ACTIVE_DATABASE_NAME")
-                if (!source.isFile) return@withLock DataBackupRestoreResult.Unavailable
+                if (!source.isFile) {
+                    return@withLock DataBackupRestoreResult.Unavailable
+                }
                 val targetEpoch = Math.addExact(maxOf(preview.originalDataEpoch,
                     LogicalDataBackupImporter.maximumOriginalEpoch(source)), 1L)
                 val operation = RestoreJournal(preview.token, preview.originalDataEpoch, targetEpoch, "prepared")
@@ -129,7 +140,9 @@ class DefaultDataBackupRestore @Inject constructor(
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { DataBackupRestoreResult.Unavailable }
         }
-        } finally { if (activeRestore === job) activeRestore = null }
+        } finally { if (activeRestore === job) {
+            activeRestore = null
+        } }
     }
 
     override suspend fun reconcilePendingRestore(): Boolean = withContext(dispatchers.io) {
@@ -145,14 +158,18 @@ class DefaultDataBackupRestore @Inject constructor(
                         // cleanup stays in the known owned folder for Clear all to retry.
                         try { reader.clearAllOwned() } catch (_: Exception) { }
                     }
-                    if (!deletionIsPending()) deletionCleanupActive = false
+                    if (!deletionIsPending()) {
+                        deletionCleanupActive = false
+                    }
                     return@withLock true
                 }
             try { apply(pending); true }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { false }
         }
-        } finally { if (activeRestore === job) activeRestore = null }
+        } finally { if (activeRestore === job) {
+            activeRestore = null
+        } }
     }
 
     override suspend fun cancelAndClearOwnedData() = withContext(dispatchers.io) {
@@ -162,10 +179,15 @@ class DefaultDataBackupRestore @Inject constructor(
             reader.clearAllOwned()
             val preserved = File(context.filesDir, "data-backup/legacy-database")
             require(preserved.canonicalFile.toPath().startsWith(context.filesDir.canonicalFile.toPath()))
-            if (preserved.exists() && !preserved.delete()) throw IOException("Preserved imported data could not be removed")
+            if (preserved.exists() && !preserved.delete()) {
+                throw IOException("Preserved imported data could not be removed")
+            }
             com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository(context).refreshRestoredData()
         }
     }
+
+    private fun isRestorePreparationBlocked(): Boolean =
+        deletionCleanupActive || readJournal() != null || !startup.get().isReady || deletionIsPending()
 
     private fun deletionIsPending(): Boolean = listOf("", ".tmp", ".clearing").any {
         File(context.noBackupFilesDir, "collected-data-deletion-pending$it").exists()
@@ -193,56 +215,76 @@ class DefaultDataBackupRestore @Inject constructor(
         val writers = quiescer.get()
         writers.quiesce()
         barrier.awaitQuiescence()
-        try {
-            val safety = File(root, "previous-data.zip")
-            if (operation.phase == "prepared") {
-                val temporary = File(root, "previous-data.zip.tmp")
-                try {
-                    temporary.outputStream().use { output ->
-                        DataBackupSnapshot.write(context, output)
-                        output.fd.sync()
-                    }
-                    check(temporary.renameTo(safety)) { "The previous data could not be preserved" }
-                } finally { temporary.delete() }
-                operation = operation.copy(phase = "preserved")
-                writeJournal(operation)
-            }
-            val floor = LogicalDataBackupImporter.backedUpRetentionFloor(source)
-            lifecycle.beginDataRestore(operation.token, operation.targetEpoch, floor)
-            LogicalDataBackupImporter.replaceTrackerRows(database.get(), source, operation.targetEpoch,
-                System.currentTimeMillis(), sourcePolicies.get())
-            val pointsSource = File(directory, "databases/${DatabaseBackupScope.POINTS_DATABASE_NAME}")
-            val pointsDatabase = points.get()
-            if (pointsSource.isFile) {
-                LogicalDataBackupImporter.replaceAuxiliaryRows(pointsSource, pointsDatabase.openHelper.writableDatabase)
-                pointsDatabase.invalidationTracker.refreshAsync()
-            } else pointsDatabase.clearAllTables()
-            for (path in DatabaseBackupScope.allowedPaths.filter { it.startsWith("files/") }) {
-                val staged = File(directory, path)
-                val destination = DatabaseBackupScope.destination(context, path)
-                if (staged.isFile) replaceOwnedFile(staged, destination)
-                else if (destination.exists() && !destination.delete()) throw IOException("Previous imported file could not be removed")
-            }
-            // The preserved legacy source is durable user data, not a replacement Room database.
-            val legacy = File(directory, "databases/$LEGACY_DATABASE_NAME")
-            if (legacy.isFile) replaceOwnedFile(legacy, File(context.filesDir, "data-backup/legacy-database"))
-            val legacyRepository = com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository(context)
-            legacyRepository.removeReleasedSourceAfterConfirmedRestore()
-            legacyRepository.refreshRestoredData()
-            com.adsamcik.tracker.shared.base.data.ImportedDataFilesRevision.changed()
-            writeJournal(operation.copy(phase = "complete"))
-            finishCompleted(operation)
-        } catch (failure: Throwable) {
-            // A partly imported dataset remains behind the closed barrier and durable journal.
-            // The next startup retries from the same validated input, retaining the safety copy.
-            throw failure
+        // A partly imported dataset remains behind the closed barrier and durable journal.
+        // The next startup retries from the same validated input, retaining the safety copy.
+        if (operation.phase == "prepared") {
+            preserveCurrentData()
+            operation = operation.copy(phase = "preserved")
+            writeJournal(operation)
         }
+        importSavedRows(directory, source, operation)
+        importOwnedAssets(directory)
+        writeJournal(operation.copy(phase = "complete"))
+        finishCompleted(operation)
+    }
+
+    private suspend fun preserveCurrentData() {
+        val safety = File(root, "previous-data.zip")
+        val temporary = File(root, "previous-data.zip.tmp")
+        try {
+            temporary.outputStream().use { output ->
+                DataBackupSnapshot.write(context, output)
+            }
+            // The ZIP writer closes its stream after writing the central directory.
+            // Reopen the completed file without truncating it before the durable handoff.
+            java.io.RandomAccessFile(temporary, "rw").use { it.fd.sync() }
+            check(temporary.renameTo(safety)) { "The previous data could not be preserved" }
+        } finally { temporary.delete() }
+    }
+
+    private suspend fun importSavedRows(directory: File, source: File, operation: RestoreJournal) {
+        val floor = LogicalDataBackupImporter.backedUpRetentionFloor(source)
+        lifecycle.beginDataRestore(operation.token, operation.targetEpoch, floor)
+        LogicalDataBackupImporter.replaceTrackerRows(database.get(), source, operation.targetEpoch,
+            System.currentTimeMillis(), sourcePolicies.get())
+        val pointsSource = File(directory, "databases/${DatabaseBackupScope.POINTS_DATABASE_NAME}")
+        val pointsDatabase = points.get()
+        if (pointsSource.isFile) {
+            LogicalDataBackupImporter.replaceAuxiliaryRows(pointsSource, pointsDatabase.openHelper.writableDatabase)
+            pointsDatabase.invalidationTracker.refreshAsync()
+        } else {
+            pointsDatabase.clearAllTables()
+        }
+    }
+
+    private suspend fun importOwnedAssets(directory: File) {
+        for (path in DatabaseBackupScope.allowedPaths.filter { it.startsWith("files/") }) {
+            val staged = File(directory, path)
+            val destination = DatabaseBackupScope.destination(context, path)
+            if (staged.isFile) {
+                replaceOwnedFile(staged, destination)
+            }
+            else if (destination.exists() && !destination.delete()) {
+                throw IOException("Previous imported file could not be removed")
+            }
+        }
+        // The preserved legacy source is durable user data, not a replacement Room database.
+        val legacy = File(directory, "databases/$LEGACY_DATABASE_NAME")
+        if (legacy.isFile) {
+            replaceOwnedFile(legacy, File(context.filesDir, "data-backup/legacy-database"))
+        }
+        val legacyRepository = com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository(context)
+        legacyRepository.removeReleasedSourceAfterConfirmedRestore()
+        legacyRepository.refreshRestoredData()
+        com.adsamcik.tracker.shared.base.data.ImportedDataFilesRevision.changed()
     }
 
     private suspend fun finishCompleted(operation: RestoreJournal) {
         reader.discard(operation.token)
         val safety = File(root, "previous-data.zip")
-        if (safety.exists() && !safety.delete()) throw IOException("Restore safety copy could not be removed")
+        if (safety.exists() && !safety.delete()) {
+            throw IOException("Restore safety copy could not be removed")
+        }
         journal.delete()
         check(!journal.baseFile.exists()) { "Restore completion could not be saved" }
         barrier.reopen()
@@ -259,16 +301,23 @@ class DefaultDataBackupRestore @Inject constructor(
                 while (true) {
                     kotlinx.coroutines.currentCoroutineContext().ensureActive()
                     val count = input.read(buffer)
-                    if (count < 0) break
+                    if (count < 0) {
+                        break
+                    }
                     output.write(buffer, 0, count)
                 }
             }
             atomic.finishWrite(output)
-        } catch (failure: Throwable) { atomic.failWrite(output); throw failure }
+        } catch (@Suppress("TooGenericExceptionCaught") failure: Throwable) {
+            // AtomicFile must roll back any interrupted asset write before the same failure escapes.
+            atomic.failWrite(output); throw failure
+        }
     }
 
     private fun readJournal(): RestoreJournal? {
-        if (!journal.baseFile.exists() && !File(journal.baseFile.path + ".bak").exists()) return null
+        if (!journal.baseFile.exists() && !File(journal.baseFile.path + ".bak").exists()) {
+            return null
+        }
         val values = Properties().apply { journal.openRead().use(::load) }
         val token = values.getProperty("token") ?: throw IOException("Restore journal is incomplete")
         require(UUID.fromString(token).toString() == token)
@@ -281,15 +330,24 @@ class DefaultDataBackupRestore @Inject constructor(
 
     private fun writeJournal(operation: RestoreJournal) {
         check(root.mkdirs() || root.isDirectory)
-        val output = journal.startWrite()
+        val atomic = journal
+        val output = atomic.startWrite()
         try {
             Properties().apply {
                 setProperty("token", operation.token); setProperty("originalEpoch", operation.originalEpoch.toString())
                 setProperty("targetEpoch", operation.targetEpoch.toString()); setProperty("phase", operation.phase)
             }.store(output, null)
-            journal.finishWrite(output)
-        } catch (failure: Throwable) { journal.failWrite(output); throw failure }
+            output.fd.sync()
+            atomic.finishWrite(output)
+            if (readJournal() != operation) {
+                throw IOException("Restore checkpoint could not be committed")
+            }
+        } catch (@Suppress("TooGenericExceptionCaught") failure: Throwable) {
+            // AtomicFile must roll back any failed journal commit, including validation failures.
+            atomic.failWrite(output); throw failure
+        }
     }
 
-    private data class RestoreJournal(val token: String, val originalEpoch: Long, val targetEpoch: Long, val phase: String)
+    private data class RestoreJournal(val token: String, val originalEpoch: Long, val targetEpoch: Long,
+        val phase: String)
 }

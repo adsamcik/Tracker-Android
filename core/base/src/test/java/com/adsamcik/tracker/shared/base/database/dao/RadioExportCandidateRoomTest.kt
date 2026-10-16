@@ -94,7 +94,9 @@ class RadioExportCandidateRoomTest {
 			var after: String? = null
 			while (true) {
 				val values = page(source, 1_000, 2_000, after)
-				if (values.isEmpty()) break
+				if (values.isEmpty()) {
+					break
+				}
 				seen += values
 				after = values.last()
 			}
@@ -119,7 +121,9 @@ class RadioExportCandidateRoomTest {
 			start, 1, end, 2, end, 1, null))
 		dao.saveCompleteness(SourceSessionCompletenessEntity(id, "run:$id", source, "provider:$id",
 			1, 1, 1, true, "COMPLETE", "COMPLETE", null, null, end))
-		if (!withRun) return
+		if (!withRun) {
+			return
+		}
 		val segment = database.sessionSegmentDao().insert(SessionSegment(
 			startTimeMs = start, endTimeMs = end, distanceM = 0f, steps = null,
 			primaryActivity = null, activityConfidence = null, sampleCount = 0,

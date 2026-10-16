@@ -64,6 +64,10 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	suspend fun legacyLocationTripCandidatePage(fromMs: Long, toMs: Long,
 		afterStartMs: Long?, afterId: Long?, limit: Int): List<SessionSegment>
 
+	/**
+	 * Returns the sum of `end_time_ms` in `session_segment`. Query conditions include `sample_count >
+	 * 0`. Returns 0 when no saved value exists.
+	 */
 	@Query(
 		"""
 		SELECT
@@ -81,6 +85,11 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 		inVehicleActivities: List<Int>,
 	): SessionSegmentStats
 
+	/**
+	 * Returns the sum of `end_time_ms` in `session_segment`. Query conditions include `sample_count >
+	 * 0`, `start_time_ms >= :fromMs`, `end_time_ms <= :toMs`. Timestamp bounds use UTC milliseconds.
+	 * Returns 0 when no saved value exists.
+	 */
 	@Query(
 		"""
 		SELECT
@@ -422,6 +431,10 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	/** Number of distinct local start hours represented by recorded segments. */
 	suspend fun countDistinctStartHours(): Long
 
+	/**
+	 * Counts distinct `primary_activity` in `session_segment`. Query conditions include `sample_count
+	 * > 0`, `start_time_ms < :toMs`, `end_time_ms > :fromMs`. Timestamp bounds use UTC milliseconds.
+	 */
 	@Query(
 		"""
 		SELECT COUNT(DISTINCT primary_activity)

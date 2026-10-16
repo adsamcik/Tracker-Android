@@ -12,8 +12,12 @@ internal object UnifiedHistoryCandidateQueries {
     fun backgroundObservationBefore(source: String, range: HistoryRange, beforeExclusiveMs: Long): SimpleSQLiteQuery {
         require(source in setOf("location", "wifi", "cell"))
         require(beforeExclusiveMs > range.fromInclusiveMs && beforeExclusiveMs <= range.toExclusiveMs)
-        val relation = if (source == "location") sessionlessLocationRelation(range.origins)
-            else radioObservationRelation(source, range.origins)
+        val relation = if (source == "location") {
+            sessionlessLocationRelation(range.origins)
+        }
+            else {
+            radioObservationRelation(source, range.origins)
+        }
         return SimpleSQLiteQuery("""SELECT '$source' AS category, '$source' AS identity,
             MIN(endTimeMs - 1, ?3) AS startTimeMs, NULL AS endTimeMs, NULL AS zoneId,
             NULL AS epochDay, NULL AS segmentId, 0 AS candidateConflict, 0 AS temporalUncertain
@@ -24,7 +28,9 @@ internal object UnifiedHistoryCandidateQueries {
 
     private fun sessionlessLocationRelation(origins: Set<HistoryOrigin>): String {
         val included = origins.intersect(setOf(HistoryOrigin.LOCAL, HistoryOrigin.IMPORTED, HistoryOrigin.LEGACY))
-        if (included.isEmpty()) return emptyObservationRelation
+        if (included.isEmpty()) {
+            return emptyObservationRelation
+        }
         val names = included.joinToString(",") { "'${it.name}'" }
         return """SELECT * FROM (SELECT location_sample.time_ms AS startTimeMs,
             CASE WHEN location_sample.time_ms = 9223372036854775807 THEN location_sample.time_ms
@@ -44,17 +50,24 @@ internal object UnifiedHistoryCandidateQueries {
         fun gap(table: String, start: String, end: String) =
             "SELECT * FROM (SELECT $start AS startTimeMs, $end AS endTimeMs FROM $table WHERE $start < ?2 AND $end > ?1 ORDER BY MIN($end - 1, ?3) DESC LIMIT 1)"
         if (HistoryOrigin.LOCAL in origins) {
-            val current = "JOIN ambient_${source}_fact_cursor c ON c.writer_id = f.writer_id AND c.writer_version = f.writer_version AND c.logical_fact_id = f.logical_fact_id AND c.latest_semantic_revision = f.semantic_revision"
+            val current =
+                "JOIN ambient_${source}_fact_cursor c ON c.writer_id = f.writer_id AND c.writer_version = f.writer_version AND c.logical_fact_id = f.logical_fact_id AND c.latest_semantic_revision = f.semantic_revision"
             relations += point("ambient_${source}_fact_revision f", "f.observed_wall_time_ms", current)
             relations += point("ambient_${source}_child n", "n.observed_wall_time_ms",
-                "JOIN ambient_${source}_fact_cursor c ON c.writer_id = n.writer_id AND c.writer_version = n.writer_version AND c.logical_fact_id = n.logical_fact_id AND c.latest_semantic_revision = n.semantic_revision")
+                "JOIN ambient_${source}_fact_cursor c ON c.writer_id = n.writer_id AND " +
+                    "c.writer_version = n.writer_version AND " +
+                    "c.logical_fact_id = n.logical_fact_id AND " +
+                    "c.latest_semantic_revision = n.semantic_revision")
             relations += gap("ambient_${source}_gap", "gap_start_time_ms", "gap_end_time_ms")
         }
         if (HistoryOrigin.IMPORTED in origins) {
-            val latest = "AND f.semantic_revision = (SELECT MAX(n.semantic_revision) FROM imported_ambient_${source}_fact n WHERE n.fact_id = f.fact_id)"
+            val latest =
+                "AND f.semantic_revision = (SELECT MAX(n.semantic_revision) FROM imported_ambient_${source}_fact n WHERE n.fact_id = f.fact_id)"
             relations += point("imported_ambient_${source}_fact f", "f.observed_time_ms", predicate = latest)
             relations += point("imported_ambient_${source}_child c", "c.observed_wall_time_ms",
-                "JOIN imported_ambient_${source}_fact f ON f.archive_id = c.archive_id AND f.fact_id = c.fact_id AND f.semantic_revision = c.semantic_revision", latest)
+                "JOIN imported_ambient_${source}_fact f ON f.archive_id = c.archive_id AND " +
+                    "f.fact_id = c.fact_id AND " +
+                    "f.semantic_revision = c.semantic_revision", latest)
             relations += gap("imported_ambient_${source}_gap", "start_time_ms", "end_time_ms")
         }
         return relations.joinToString(" UNION ALL ").ifEmpty { emptyObservationRelation }
@@ -135,8 +148,10 @@ internal object UnifiedHistoryCandidateQueries {
             relations += """SELECT structural_epoch_day AS epochDay, stored_zone_id AS zoneId,
                 structural_day_start_time_ms AS startTimeMs, structural_day_end_time_ms AS endTimeMs
                 FROM ambient_${source}_fact_revision"""
-            if (source != "steps") relations += """SELECT structural_epoch_day AS epochDay, stored_zone_id AS zoneId,
+            if (source != "steps") {
+                relations += """SELECT structural_epoch_day AS epochDay, stored_zone_id AS zoneId,
                 gap_start_time_ms AS startTimeMs, gap_end_time_ms AS endTimeMs FROM ambient_${source}_gap"""
+            }
         }
         if (HistoryOrigin.IMPORTED in origins) {
             if (source == "steps") {
@@ -163,12 +178,24 @@ internal object UnifiedHistoryCandidateQueries {
 
     fun imported(source: String, range: HistoryRange, after: HistoryPosition?): SimpleSQLiteQuery {
         require(source in setOf("wifi", "cell", "activity", "pressure", "steps"))
-        val table = if (source == "steps") "imported_steps_entry" else "imported_${source}_entry_revision"
-        val latest = if (source == "steps") "" else
+        val table = if (source == "steps") {
+            "imported_steps_entry"
+        } else {
+            "imported_${source}_entry_revision"
+        }
+        val latest = if (source == "steps") {
+            ""
+        } else
+            {
             "WHERE e.import_revision = (SELECT MAX(n.import_revision) FROM $table n WHERE n.identity = e.identity)"
+        }
         val conflict = if (source in setOf("activity", "pressure"))
+            {
             "EXISTS(SELECT 1 FROM imported_${source}_retention_receipt r WHERE r.entry_identity = e.identity)"
-            else "0"
+        }
+            else {
+            "0"
+        }
         val live = """SELECT '$source' AS category, e.identity, e.start_time_ms AS startTimeMs,
             e.end_time_ms AS endTimeMs, NULL AS zoneId, NULL AS epochDay, NULL AS segmentId, $conflict AS candidateConflict
             FROM $table e $latest"""
@@ -181,12 +208,20 @@ internal object UnifiedHistoryCandidateQueries {
         return page(live + retained, "imported:$source", range, after)
     }
 
-    private fun page(relation: String, origin: String, range: HistoryRange, after: HistoryPosition?): SimpleSQLiteQuery {
-        val seek = if (after == null) "" else
+    private fun page(relation: String, origin: String, range: HistoryRange,
+        after: HistoryPosition?): SimpleSQLiteQuery {
+        val seek = if (after == null) {
+            ""
+        } else
+            {
             "AND (startTimeMs < ? OR (startTimeMs = ? AND (? > ? OR (? = ? AND identity > ?))))"
-        val bindings = mutableListOf<Any?>(range.toExclusiveMs, range.fromInclusiveMs, range.fromInclusiveMs, range.fromInclusiveMs)
-        if (after != null) bindings.addAll(listOf(after.startTimeMs, after.startTimeMs,
+        }
+        val bindings = mutableListOf<Any?>(range.toExclusiveMs, range.fromInclusiveMs,
+            range.fromInclusiveMs, range.fromInclusiveMs)
+        if (after != null) {
+            bindings.addAll(listOf(after.startTimeMs, after.startTimeMs,
             origin, after.originTag, origin, after.originTag, after.stableId))
+        }
         return SimpleSQLiteQuery("""SELECT *, (endTimeMs IS NOT NULL AND endTimeMs < startTimeMs) AS temporalUncertain FROM ($relation)
             WHERE startTimeMs >= 0 AND startTimeMs < ?
             AND (endTimeMs IS NULL OR endTimeMs > ? OR (endTimeMs = startTimeMs AND startTimeMs >= ?) OR (endTimeMs < startTimeMs AND startTimeMs >= ?))

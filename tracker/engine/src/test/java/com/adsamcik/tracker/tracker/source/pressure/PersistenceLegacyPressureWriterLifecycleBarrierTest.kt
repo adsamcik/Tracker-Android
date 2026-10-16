@@ -43,8 +43,9 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.async
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import org.junit.After
@@ -55,6 +56,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import javax.inject.Provider
 
+// One real persistence/Pressure-owner fixture keeps erase-fence establishment and verification comparable.
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class PersistenceLegacyPressureWriterLifecycleBarrierTest {
@@ -687,9 +690,9 @@ class PersistenceLegacyPressureWriterLifecycleBarrierTest {
 		}
 
 	@Test
-	fun `recoverable startup backlog is retried by erase and transition lifecycle fences`() =
-		runTest {
-			val eraseRecovery = prepareRecoverableBacklog(testScheduler, "erase-recovery")
+	fun `recoverable startup backlog is retried by erase and transition lifecycle fences`(): Unit =
+		runBlocking {
+			val eraseRecovery = prepareRecoverableBacklog(Dispatchers.Unconfined, "erase-recovery")
 			eraseRecovery.processor.hasUnrecoverablePersistenceStateForLifecycleFence() shouldBe false
 			eraseRecovery.processor.hasUnsettledPersistenceStateForPressureFence() shouldBe true
 			eraseRecovery.transactor.fail = false
@@ -709,7 +712,7 @@ class PersistenceLegacyPressureWriterLifecycleBarrierTest {
 			eraseRecovery.processor.hasUnsettledPersistenceStateForPressureFence() shouldBe false
 
 			val transitionRecovery =
-				prepareRecoverableBacklog(testScheduler, "transition-recovery")
+				prepareRecoverableBacklog(Dispatchers.Unconfined, "transition-recovery")
 			transitionRecovery.transactor.fail = false
 			val boundary = PersistenceLegacySourceWriterTransitionBoundary(
 				transitionRecovery.processor,
@@ -723,9 +726,9 @@ class PersistenceLegacyPressureWriterLifecycleBarrierTest {
 		}
 
 	@Test
-	fun `repeated orphan recovery failure remains retryable and retains durable backlog`() =
-		runTest {
-			val recovery = prepareRecoverableBacklog(testScheduler, "repeated-failure")
+	fun `repeated orphan recovery failure remains retryable and retains durable backlog`(): Unit =
+		runBlocking {
+			val recovery = prepareRecoverableBacklog(Dispatchers.Unconfined, "repeated-failure")
 			val barrier = PersistenceLegacyPressureWriterLifecycleBarrier(
 				database,
 				recovery.processor,
@@ -744,12 +747,12 @@ class PersistenceLegacyPressureWriterLifecycleBarrierTest {
 		}
 
 	private suspend fun prepareRecoverableBacklog(
-		scheduler: TestCoroutineScheduler,
+		dispatcher: CoroutineDispatcher,
 		signalId: String,
 	): RecoverablePersistence {
 		insertPendingPressure(signalId)
 		val transactor = SwitchablePersistenceTransactor(database)
-		val processor = realPersistenceProcessor(scheduler, transactor)
+		val processor = realPersistenceProcessor(dispatcher, transactor)
 		processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L), sessionId = 1L))
 		processor.onStop()
 		return RecoverablePersistence(processor, transactor)
@@ -783,7 +786,7 @@ class PersistenceLegacyPressureWriterLifecycleBarrierTest {
 	}
 
 	private fun realPersistenceProcessor(
-		scheduler: TestCoroutineScheduler,
+		dispatcher: CoroutineDispatcher,
 		transactor: TrackingPersistenceTransactor = RoomPersistenceTransactor(database),
 	) = PersistenceProcessor(
 		locationSampleDao = database.locationSampleDao(),
@@ -799,7 +802,7 @@ class PersistenceLegacyPressureWriterLifecycleBarrierTest {
 		pendingSignalClaimDao = database.pendingSignalClaimDao(),
 		durableBuffer = DurableSignalBuffer(
 			pendingSignalDao = database.pendingSignalDao(),
-			dispatchers = TestDispatchersProvider(StandardTestDispatcher(scheduler)),
+			dispatchers = TestDispatchersProvider(dispatcher),
 			pendingSignalClaimDao = database.pendingSignalClaimDao(),
 			appDatabase = database,
 		),
@@ -819,7 +822,9 @@ class PersistenceLegacyPressureWriterLifecycleBarrierTest {
 		var fail: Boolean = true
 
 		override suspend fun <R> inTransaction(block: suspend () -> R): R {
-			if (fail) error("transient startup recovery failure")
+			if (fail) {
+				error("transient startup recovery failure")
+			}
 			return database.withTransaction { block() }
 		}
 	}

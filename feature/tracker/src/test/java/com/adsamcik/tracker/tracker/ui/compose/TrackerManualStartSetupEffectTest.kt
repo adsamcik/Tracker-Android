@@ -69,7 +69,9 @@ class TrackerManualStartSetupEffectTest {
     @Test fun `setup changes during a retry are retained and retried serially with the original generation`() {
         val state = PendingStart()
         val firstRetry = CompletableDeferred<Unit>()
-        state.onRequest = { if (state.requests.size == 1) firstRetry.await() }
+        state.onRequest = { if (state.requests.size == 1) {
+            firstRetry.await()
+        } }
         composeRule.setContent { state.Content() }
         composeRule.waitUntil(5_000) { changes.subscriptionCount.value == 1 }
 

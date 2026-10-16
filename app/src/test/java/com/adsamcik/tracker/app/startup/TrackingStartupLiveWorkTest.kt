@@ -59,17 +59,17 @@ class TrackingStartupLiveWorkTest {
         coEvery { deletion.reconcilePendingDeletion() } returns CollectedDataDeletionCompletion.Complete
         gate = DefaultTrackingStartupGate(
             legacyDatabaseUpgradeCoordinator = storage,
-            collectedDataDeletionService = deletion,
+            collectedDataDeletionService = Provider { deletion },
             recoveryResolver = resolver,
             lifecycleCommandAuthority = commands,
-            inactiveSessionStopHandler = mockk(),
+            inactiveSessionStopHandler = Provider { mockk() },
             sourcePipelineRecoveryProvider = Provider { recovery },
             deletionBarrier = barrier,
         )
     }
 
     @Test
-    fun `live work reserves a real Start and can enter ordinary preparation without deadlock`() = runBlocking {
+    fun `live work reserves a real Start and can enter ordinary preparation without deadlock`(): Unit = runBlocking {
         gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
         withTimeout(2_000L) {
             gate.withReadyGenerationWork(0L) {
@@ -80,7 +80,7 @@ class TrackingStartupLiveWorkTest {
     }
 
     @Test
-    fun `live work does not block a newer End and withholds stale completion`() = runBlocking {
+    fun `live work does not block a newer End and withholds stale completion`(): Unit = runBlocking {
         gate.reconcile()
         val entered = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
@@ -97,7 +97,7 @@ class TrackingStartupLiveWorkTest {
     }
 
     @Test
-    fun `clear cancels live startup and joins its physical cleanup before closing generation`() = runBlocking {
+    fun `clear cancels live startup and joins its physical cleanup before closing generation`(): Unit = runBlocking {
         gate.reconcile()
         val entered = CompletableDeferred<Unit>()
         val cleaning = CompletableDeferred<Unit>()
@@ -126,7 +126,7 @@ class TrackingStartupLiveWorkTest {
     }
 
     @Test
-    fun `closed or stale live work never runs and never opens Off collection`() = runBlocking {
+    fun `closed or stale live work never runs and never opens Off collection`(): Unit = runBlocking {
         gate.reconcile()
         commands.recordUserRequestedExit("off") shouldBe true
         gate.permitsNewCollection shouldBe false

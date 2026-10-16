@@ -108,6 +108,9 @@ sealed interface DomainEvent {
 		val tripCount: Int,
 	) : DomainEvent
 
+	/**
+	 * Validation pattern for correction-sensitive achievement authority digests.
+	 */
 	companion object {
 		private val AUTHORITY_DIGEST = Regex("[0-9a-f]{64}")
 	}

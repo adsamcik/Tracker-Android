@@ -77,7 +77,9 @@ class DurableSourceEventSinkFactory private constructor(
 					}
 				}
 			} finally {
-				if (committed.isNotEmpty()) requestSourceDrain(SourceKind.LOCATION)
+				if (committed.isNotEmpty()) {
+					requestSourceDrain(SourceKind.LOCATION)
+				}
 			}
 		}) { transaction ->
 			operation(object : SourceEventSink {
@@ -91,7 +93,9 @@ class DurableSourceEventSinkFactory private constructor(
 					if (result is DeliveryAdmissionResult.RetryableFailure) {
 						throw AtomicSourceDeliveryAdmissionException(result.code)
 					}
-					if (result.isDurable) committed += delivery to result
+					if (result.isDurable) {
+						committed += delivery to result
+					}
 					return result.toHandoff()
 				}
 			})
@@ -149,7 +153,9 @@ class DurableSourceEventSinkFactory private constructor(
 			val latest = latestMotionEvidenceNanos[stream]
 			if (latest != null && (candidate.observedElapsedRealtimeNanos < latest ||
 				duplicate && candidate.observedElapsedRealtimeNanos == latest)
-			) return
+			) {
+				return
+			}
 			controller.onDurableEvidence(candidate)
 			latestMotionEvidenceNanos[stream] = maxOf(
 				latest ?: Long.MIN_VALUE,

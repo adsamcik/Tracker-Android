@@ -9,9 +9,15 @@ import kotlinx.coroutines.flow.Flow
  * The facade reports durable product state. Observing history never starts a provider, changes a
  * writer, repairs a projection, or writes a derived summary.
  */
+// Keep the shared read-only history contract together for session and daily consumers.
+@Suppress("TooManyFunctions")
 interface TrackingHistoryRepository {
 	/** Resolve exact saved members in one snapshot; no source is activated. */
 	suspend fun readCapturedSourceMembers(segmentIds: List<Long>): List<LiveSessionHistorySnapshot> = emptyList()
+    /**
+     * Reads current completed-recording reward authority; the default implementation reports
+     * unavailable.
+     */
     suspend fun readSavedSessionReward(segmentId: Long): SavedSessionRewardRead = SavedSessionRewardRead.Unavailable
 
     /** Saved-data changes that may alter completed recording awards. Observing starts no sensor. */
@@ -26,12 +32,18 @@ interface TrackingHistoryRepository {
      * Initial/recovery reads are complete; normal updates qualify only new saved receipt IDs.
      */
     fun observeLiveSavedLocationSummary(segmentId: Long): Flow<SavedLocationSummaryRead> =
-        kotlinx.coroutines.flow.flow { emit(readSavedLocationSummary(SavedLocationSummarySelection.Session(segmentId))) }
+        kotlinx.coroutines.flow.flow {
+            emit(readSavedLocationSummary(SavedLocationSummarySelection.Session(segmentId)))
+        }
 
     /** Bounded source-qualified history for arbitrary days and ranges. */
     suspend fun readRange(request: HistoryRangeRequest): HistoryRangeRead =
         HistoryRangeRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
 
+    /**
+     * Returns a saved-range flow; the default emits one read and concrete repositories may observe
+     * saved dependency changes.
+     */
     fun observeRange(request: HistoryRangeRequest): Flow<HistoryRangeRead> =
         kotlinx.coroutines.flow.flow { emit(readRange(request)) }
 
@@ -266,6 +278,10 @@ data class SessionHistory(
 			revision.capturedSources == setOf(HistorySource.STEPS)
 		} == true
 
+	/**
+	 * Derives public source qualification from retained source-local products independently of
+	 * capture intent.
+	 */
 	companion object {
 		/**
 		 * Derives public qualification only from retained source-local product evidence.
@@ -273,6 +289,8 @@ data class SessionHistory(
 		 * Capture intent remains independent: a factless source-only row is still visible, but it
 		 * does not become a qualified numeric or observational source.
 		 */
+		// This closed source/product projection keeps independently usable source outcomes together.
+		@Suppress("CyclomaticComplexMethod")
 		fun deriveQualifiedSources(
 			capture: HistoryCapture,
 			steps: StepsHistory,
@@ -288,33 +306,43 @@ data class SessionHistory(
 				if (
 					HistorySource.STEPS in capturedSources &&
 					steps.hasQualifiedRetainedProof
-				) add(HistorySource.STEPS)
+				) {
+					add(HistorySource.STEPS)
+				}
 				val wifi = (products.wifi as? WifiHistoryQuery.Found)?.entry
 				if (
 					HistorySource.WIFI in capturedSources &&
 					wifi?.state != WifiHistoryProductState.FAILED &&
 					wifi?.observations?.isNotEmpty() == true
-				) add(HistorySource.WIFI)
+				) {
+					add(HistorySource.WIFI)
+				}
 				val cell = (products.cell as? CellHistoryQuery.Found)?.entry
 				if (
 					HistorySource.CELL in capturedSources &&
 					cell?.state != CellHistoryProductState.FAILED &&
 					cell?.state != CellHistoryProductState.UNVERIFIABLE &&
 					cell?.observations?.isNotEmpty() == true
-				) add(HistorySource.CELL)
+				) {
+					add(HistorySource.CELL)
+				}
 				val activity = (products.activity as? ActivityHistoryQuery.Found)?.entry
 				if (
 					HistorySource.ACTIVITY in capturedSources &&
 					activity?.origin == ActivityHistoryOrigin.LOCAL &&
 					activity?.state != ActivityHistoryProductState.FAILED &&
 					activity?.fragments?.any { it is ActivityHistoryFragment.Band } == true
-				) add(HistorySource.ACTIVITY)
+				) {
+					add(HistorySource.ACTIVITY)
+				}
 				val pressure = (products.pressure as? PressureSessionHistoryQuery.Found)?.history
 				if (
 					HistorySource.PRESSURE in capturedSources &&
 					pressure?.pressure?.productState != HistoryProductState.FAILED &&
 					pressure?.pressure?.windows?.isNotEmpty() == true
-				) add(HistorySource.PRESSURE)
+				) {
+					add(HistorySource.PRESSURE)
+				}
 			}
 		}
 	}
@@ -344,6 +372,10 @@ data class TrackingHistoryReadSnapshot(
 	}
 }
 
+/**
+ * Missing source state, integrity or physical-membership failure and bounded-read exhaustion
+ * affecting saved History.
+ */
 enum class TrackingHistoryUnavailableReason {
 	SOURCE_EVIDENCE_STATE_UNAVAILABLE,
 	SOURCE_READ_BUDGET_EXCEEDED,
@@ -644,6 +676,10 @@ sealed interface SourceAwareHistoryPageEntry {
 	}
 }
 
+/**
+ * Exact native-only capture intent or imported source membership; these carry different action
+ * authority.
+ */
 enum class SourceOnlyHistoryIntent {
 	EXACT_NATIVE_ONLY,
 	PORTABLE_SOURCE_MEMBERSHIP,
@@ -656,22 +692,36 @@ enum class SourceOnlyHistoryIntent {
  * later optimistic actions. A non-actionable target is explicit rather than a fabricated scope.
  */
 sealed interface TrackingHistoryActionTarget {
-	data class ImportedPressure(val identity: ImportedPressureHistoryIdentity, val importRevision: Long) : TrackingHistoryActionTarget {
+	/**
+	 * Exact imported Pressure identity and current revision for source-owned actions.
+	 */
+	data class ImportedPressure(val identity: ImportedPressureHistoryIdentity,
+        val importRevision: Long) : TrackingHistoryActionTarget {
 		init { require(importRevision > 0L) }
 	}
 
+	/**
+	 * Exact saved native source and physical segment membership supplied by the qualified reader.
+	 */
 	data class CapturedSource(val source: HistorySource, val segmentIds: List<Long>) : TrackingHistoryActionTarget {
 		init {
 			require(source == HistorySource.STEPS || source == HistorySource.PRESSURE)
-			require(segmentIds.isNotEmpty() && segmentIds.all { it > 0L } && segmentIds.distinct().size == segmentIds.size)
+			require(segmentIds.isNotEmpty() && segmentIds.all { it > 0L } &&
+                segmentIds.distinct().size == segmentIds.size)
 		}
 	}
+	/**
+	 * Selects one positive saved physical recording segment for existing session actions.
+	 */
 	data class PhysicalSegment(val segmentId: Long) : TrackingHistoryActionTarget {
 		init {
 			require(segmentId > 0L)
 		}
 	}
 
+	/**
+	 * Selects the original imported Steps members supplied by the qualified History reader.
+	 */
 	data class ImportedStepsMembers(
 		val members: List<ImportedStepsHistoryMember>,
 	) : TrackingHistoryActionTarget {
@@ -680,20 +730,35 @@ sealed interface TrackingHistoryActionTarget {
 		}
 	}
 
+	/**
+	 * Retains the original source-issued local/imported Wi-Fi selection for exact actions.
+	 */
 	data class Wifi(val selection: WifiHistorySelection) : TrackingHistoryActionTarget
 
+	/**
+	 * Retains the original source-issued local/imported Cell selection for exact actions.
+	 */
 	data class Cell(val selection: CellHistoryEntrySelection) : TrackingHistoryActionTarget
 
+	/**
+	 * Retains the original source-issued local/imported Activity selection for exact actions.
+	 */
 	data class Activity(
 		val selection: ActivityHistorySelection,
 	) : TrackingHistoryActionTarget
 
+	/**
+	 * The source is visible but its exact action selector is unavailable for the named reason.
+	 */
 	data class NonActionable(
 		val source: HistorySource,
 		val reason: TrackingHistoryNonActionableReason,
 	) : TrackingHistoryActionTarget
 }
 
+/**
+ * The source-owned selector needed for an exact saved-data action is unavailable.
+ */
 enum class TrackingHistoryNonActionableReason {
 	LOCAL_STEPS_SELECTOR_UNAVAILABLE,
 	ACTIVITY_SELECTOR_UNAVAILABLE,
@@ -726,6 +791,9 @@ sealed interface SourceAwareHistoryPageQuery {
 	}
 }
 
+/**
+ * Reason the shared source-aware History page cannot be read safely.
+ */
 enum class SourceAwareHistoryPageUnavailableReason {
 	CANDIDATE_SCAN_LIMIT,
 	LOGICAL_MEMBERSHIP_LIMIT,

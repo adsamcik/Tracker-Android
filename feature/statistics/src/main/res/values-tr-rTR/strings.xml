@@ -30,4 +30,5 @@
     <string name="wifilist_title_frequency">Frequency</string>
     <string name="wifilist_title_last_seen">Last seen</string>
     <string name="wifilist_title_ssid">SSID</string>
+    <string name="stats_recorded_partial_value">%1$s · kısmi</string>
 </resources>

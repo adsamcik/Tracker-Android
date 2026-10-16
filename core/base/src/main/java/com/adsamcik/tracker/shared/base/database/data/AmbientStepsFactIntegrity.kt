@@ -29,6 +29,9 @@ object AmbientStepsFactIntegrity {
 		collectedDataEpoch,
 	)
 
+	/**
+	 * Builds a stable mutation key from the logical fact identity, semantic revision and operation.
+	 */
 	fun mutationId(logicalFactId: String, semanticRevision: Long, operation: String): String {
 		require(isOpaque(logicalFactId))
 		require(semanticRevision > 0L)
@@ -40,6 +43,10 @@ object AmbientStepsFactIntegrity {
 		)
 	}
 
+	/**
+	 * Computes the deterministic digest of the persisted revision values, excluding its stored
+	 * digest.
+	 */
 	fun effectChecksum(fact: AmbientStepsFactRevisionEntity): String = digest(
 		"ambient-steps-effect-v3",
 		fact.logicalFactId,
@@ -74,6 +81,10 @@ object AmbientStepsFactIntegrity {
 		fact.retentionApprovalRevision,
 	)
 
+	/**
+	 * Checks the stored revision digest against its values; this does not establish current capture
+	 * permission.
+	 */
 	fun hasValidEffectChecksum(fact: AmbientStepsFactRevisionEntity): Boolean =
 		fact.effectChecksum == effectChecksum(fact)
 
@@ -87,7 +98,11 @@ object AmbientStepsFactIntegrity {
 	private fun digest(vararg values: Any?): String {
 		val canonical = values.joinToString(separator = "") { value ->
 			val text = value?.toString()
-			if (text == null) "-1:" else "${text.length}:$text"
+			if (text == null) {
+				"-1:"
+			} else {
+				"${text.length}:$text"
+			}
 		}
 		return MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray(Charsets.UTF_8))

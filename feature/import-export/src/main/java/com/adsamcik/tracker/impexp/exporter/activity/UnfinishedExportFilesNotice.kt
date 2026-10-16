@@ -23,10 +23,14 @@ internal fun UnfinishedExportFilesNotice(
     removeFile: (String) -> Unit,
     reload: () -> Unit,
 ) {
-    if (!state.hasUnfinishedFileRecovery) return
+    if (!state.hasUnfinishedFileRecovery) {
+        return
+    }
     GlassCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (state.unfinishedFilesLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (state.unfinishedFilesLoading) {
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
             if (state.unfinishedFilesLoadFailed) {
                 Text(stringResource(R.string.export_unfinished_load_failed))
                 TextButton(onClick = reload, enabled = !state.unfinishedFilesLoading) {
@@ -34,27 +38,39 @@ internal fun UnfinishedExportFilesNotice(
                 }
             }
             if (state.unfinishedFileNoticeSaveFailed) {
-                Text(stringResource(R.string.export_unfinished_notice_save_failed), color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.export_unfinished_notice_save_failed), color =
+                    MaterialTheme.colorScheme.error)
             }
             state.unfinishedFiles.forEach { file ->
-                val removalDescription = stringResource(R.string.export_unfinished_remove_accessibility, file.name)
-                Text(file.name, style = MaterialTheme.typography.titleSmall)
-                state.unfinishedFileErrors[file.uri]?.let { error ->
-                    Text(stringResource(when (error) {
-                        UnfinishedFileRemovalError.FILE_ACCESS -> R.string.export_unfinished_files_guidance
-                        UnfinishedFileRemovalError.NOTICE_STORAGE -> R.string.export_unfinished_notice_update_failed
-                        UnfinishedFileRemovalError.STARTUP -> R.string.export_unfinished_startup_unavailable
-                    }), color = MaterialTheme.colorScheme.error)
-                }
-                TextButton(
-                    onClick = { removeFile(file.uri) },
-                    enabled = state.unfinishedFileRemoving == null,
-                    modifier = Modifier.semantics { contentDescription = removalDescription },
-                ) {
-                    Text(stringResource(R.string.export_unfinished_remove))
-                }
-                if (state.unfinishedFileRemoving == file.uri) LinearProgressIndicator(Modifier.fillMaxWidth())
+                UnfinishedExportFileRow(state, file, removeFile)
             }
         }
+    }
+}
+
+@Composable
+private fun UnfinishedExportFileRow(
+    state: ImportExportUiState,
+    file: com.adsamcik.tracker.impexp.exporter.automation.UnfinishedExportFile,
+    removeFile: (String) -> Unit,
+) {
+    val removalDescription = stringResource(R.string.export_unfinished_remove_accessibility, file.name)
+    Text(file.name, style = MaterialTheme.typography.titleSmall)
+    state.unfinishedFileErrors[file.uri]?.let { error ->
+        Text(stringResource(when (error) {
+            UnfinishedFileRemovalError.FILE_ACCESS -> R.string.export_unfinished_files_guidance
+            UnfinishedFileRemovalError.NOTICE_STORAGE -> R.string.export_unfinished_notice_update_failed
+            UnfinishedFileRemovalError.STARTUP -> R.string.export_unfinished_startup_unavailable
+        }), color = MaterialTheme.colorScheme.error)
+    }
+    TextButton(
+        onClick = { removeFile(file.uri) },
+        enabled = state.unfinishedFileRemoving == null,
+        modifier = Modifier.semantics { contentDescription = removalDescription },
+    ) {
+        Text(stringResource(R.string.export_unfinished_remove))
+    }
+    if (state.unfinishedFileRemoving == file.uri) {
+        LinearProgressIndicator(Modifier.fillMaxWidth())
     }
 }

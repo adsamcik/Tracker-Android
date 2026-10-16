@@ -20,6 +20,8 @@ import com.adsamcik.tracker.stats.api.repository.HistorySource
 
 /** Identity-free radio status and counts shared by live and recent Dashboard products. */
 @Composable
+// Keep this radio summary column with its status, empty state and matching retained/partial counts together.
+@Suppress("LongMethod")
 internal fun DashboardRadioHistoryFacts(
 	value: DashboardRadioHistoryValue,
 	modifier: Modifier = Modifier,

@@ -88,6 +88,8 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// Source-detail cases share one Compose lifecycle and checks for qualified values without invented Location data.
+@Suppress("LargeClass")
 class TripDetailSourceOverviewsComposeTest {
 	@get:Rule
 	val composeRule = createComposeRule()

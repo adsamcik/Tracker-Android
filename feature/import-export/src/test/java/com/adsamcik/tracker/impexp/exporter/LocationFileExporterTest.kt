@@ -70,6 +70,8 @@ class LocationFileExporterTest {
 		row(true, true).fileOrigin() shouldBe LocationFileOrigin.BOTH
 	}
 
+	// Keep the explicit stored purpose receipts beside the export to verify session, background, and unknown origins.
+	@Suppress("LongMethod")
 	@Test fun `saved session point is labelled session by its stored purpose`(): Unit = runBlocking {
 		val sampleId = database.locationSampleDao().insert(sample(1_000L).copy(
 			sourceEventId = "event-1", sourceSignalId = "signal-1",

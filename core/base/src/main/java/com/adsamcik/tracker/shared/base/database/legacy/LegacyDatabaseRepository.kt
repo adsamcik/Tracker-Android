@@ -197,12 +197,14 @@ class LegacyDatabaseRepository(
 				"The legacy database must be exported before it can be deleted",
 			)
 		}
-		val files = (databaseFamily(databaseFile) + databaseFamily(appContext.getDatabasePath(LEGACY_DATABASE_NAME))).distinct()
+		val files =
+            (databaseFamily(databaseFile) + databaseFamily(appContext.getDatabasePath(LEGACY_DATABASE_NAME))).distinct()
 		val bytes = files.sumOf { it.takeIf(File::isFile)?.length() ?: 0L }
 		// Remove expendable sidecars first so a failure cannot strand only WAL bytes after the
 		// authoritative main file has already disappeared.
 		(files.filter { it.name.endsWith("-wal") || it.name.endsWith("-shm") || it.name.endsWith("-journal") } +
-			files.filterNot { it.name.endsWith("-wal") || it.name.endsWith("-shm") || it.name.endsWith("-journal") }).forEach { file ->
+			files.filterNot { it.name.endsWith("-wal") || it.name.endsWith("-shm") ||
+                it.name.endsWith("-journal") }).forEach { file ->
 			if (file.exists() && !file.delete()) {
 				throw LegacyDatabaseException("Could not delete legacy database file ${file.name}")
 			}

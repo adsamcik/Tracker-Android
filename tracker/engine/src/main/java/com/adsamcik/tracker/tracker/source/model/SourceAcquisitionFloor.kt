@@ -149,24 +149,50 @@ internal object SourceDemandContractFactory {
 		level: Int,
 		purpose: DirectSourceDemandPurpose,
 	): SourceDemandContract {
-        require(profileVersion == 1 && level in 1..5)
-        require(purpose == DirectSourceDemandPurpose.SESSION_CAPTURE || purpose == DirectSourceDemandPurpose.AMBIENT_PRODUCT)
-        require(purpose == DirectSourceDemandPurpose.SESSION_CAPTURE || source in setOf(SourceKind.LOCATION, SourceKind.WIFI, SourceKind.CELL)) {
-            "This source has no profile-based background acquisition; system Steps uses its native contract"
-        }
-        val index = level - 1
-        return when (source) {
-            SourceKind.LOCATION -> SourceDemandContract(LocationAcquisitionFloor(LocationFloorMode.LOW_POWER),
-                120_000L, listOf(60_000L, 30_000L, 10_000L, 5_000L, 1_000L)[index], 120_000L, true)
-            SourceKind.ACTIVITY -> SourceDemandContract(ActivityAcquisitionFloor(setOf(ActivityAcquisitionCapability.CLASSIFICATIONS)),
-                120_000L, listOf(60_000L, 45_000L, 30_000L, 15_000L, 5_000L)[index], 120_000L, true)
-            SourceKind.STEPS -> SourceDemandContract(StepsAcquisitionFloor(StepsAcquisitionMechanism.DIRECT_COUNTER, 300_000L, false),
-                300_000L, listOf(300_000L, 120_000L, 60_000L, 15_000L, 5_000L)[index], 300_000L, true)
-            SourceKind.PRESSURE -> SourceDemandContract(PressureAcquisitionFloor(1_000_000, 60_000_000, 60_000L),
-                60_000L, listOf(60_000L, 30_000L, 10_000L, 5_000L, 1_000L)[index], 60_000L, true)
-            SourceKind.WIFI -> SourceDemandContract(WifiBroadcastAcquisitionFloor, 600_000L, Long.MAX_VALUE, null, true)
-            SourceKind.CELL -> SourceDemandContract(CellCallbackAcquisitionFloor, 600_000L, Long.MAX_VALUE, null, true)
-        }
+		require(profileVersion == BALANCE_PROFILE_VERSION && level in profileBalanceLevels)
+		require(purpose == DirectSourceDemandPurpose.SESSION_CAPTURE ||
+			purpose == DirectSourceDemandPurpose.AMBIENT_PRODUCT)
+		require(purpose == DirectSourceDemandPurpose.SESSION_CAPTURE || source in setOf(
+			SourceKind.LOCATION, SourceKind.WIFI, SourceKind.CELL)) {
+			"This source has no profile-based background acquisition; system Steps uses its native contract"
+		}
+		val index = level - profileBalanceLevels.first
+		return when (source) {
+			SourceKind.LOCATION -> SourceDemandContract(
+				floor = LocationAcquisitionFloor(LocationFloorMode.LOW_POWER),
+				maximumProviderItemAgeMs = PROFILE_LOCATION_MAXIMUM_ITEM_AGE_MS,
+				targetPlanningLatencyMs = profileLocationTargetLatenciesMs[index],
+				requestedDeliveryLatencyMs = PROFILE_LOCATION_MAXIMUM_ITEM_AGE_MS,
+				adaptiveReductionAllowed = true,
+			)
+			SourceKind.ACTIVITY -> SourceDemandContract(
+				floor = ActivityAcquisitionFloor(setOf(ActivityAcquisitionCapability.CLASSIFICATIONS)),
+				maximumProviderItemAgeMs = PROFILE_ACTIVITY_MAXIMUM_ITEM_AGE_MS,
+				targetPlanningLatencyMs = profileActivityTargetLatenciesMs[index],
+				requestedDeliveryLatencyMs = PROFILE_ACTIVITY_MAXIMUM_ITEM_AGE_MS,
+				adaptiveReductionAllowed = true,
+			)
+			SourceKind.STEPS -> SourceDemandContract(
+				floor = StepsAcquisitionFloor(StepsAcquisitionMechanism.DIRECT_COUNTER,
+					PROFILE_STEPS_MAXIMUM_REPORT_LATENCY_MS, false),
+				maximumProviderItemAgeMs = PROFILE_STEPS_MAXIMUM_REPORT_LATENCY_MS,
+				targetPlanningLatencyMs = profileStepsTargetLatenciesMs[index],
+				requestedDeliveryLatencyMs = PROFILE_STEPS_MAXIMUM_REPORT_LATENCY_MS,
+				adaptiveReductionAllowed = true,
+			)
+			SourceKind.PRESSURE -> SourceDemandContract(
+				floor = PressureAcquisitionFloor(PROFILE_PRESSURE_MAXIMUM_SAMPLE_PERIOD_MICROS,
+					PROFILE_PRESSURE_MAXIMUM_REPORT_LATENCY_MICROS, PROFILE_PRESSURE_MAXIMUM_WINDOW_MS),
+				maximumProviderItemAgeMs = PROFILE_PRESSURE_MAXIMUM_WINDOW_MS,
+				targetPlanningLatencyMs = profilePressureTargetLatenciesMs[index],
+				requestedDeliveryLatencyMs = PROFILE_PRESSURE_MAXIMUM_WINDOW_MS,
+				adaptiveReductionAllowed = true,
+			)
+			SourceKind.WIFI -> SourceDemandContract(WifiBroadcastAcquisitionFloor,
+				PROFILE_RADIO_MAXIMUM_ITEM_AGE_MS, Long.MAX_VALUE, null, true)
+			SourceKind.CELL -> SourceDemandContract(CellCallbackAcquisitionFloor,
+				PROFILE_RADIO_MAXIMUM_ITEM_AGE_MS, Long.MAX_VALUE, null, true)
+		}
 	}
 
 	/**
@@ -301,6 +327,21 @@ internal object SourceDemandContractFactory {
 			adaptiveReductionAllowed = true,
 		)
 	}
+	// Levels change desired latency; these limits describe the same useful evidence at every level.
+	private const val BALANCE_PROFILE_VERSION = 1
+	private val profileBalanceLevels = 1..5
+	private val profileLocationTargetLatenciesMs = listOf(60_000L, 30_000L, 10_000L, 5_000L, 1_000L)
+	private val profileActivityTargetLatenciesMs = listOf(60_000L, 45_000L, 30_000L, 15_000L, 5_000L)
+	private val profileStepsTargetLatenciesMs = listOf(300_000L, 120_000L, 60_000L, 15_000L, 5_000L)
+	private val profilePressureTargetLatenciesMs = listOf(60_000L, 30_000L, 10_000L, 5_000L, 1_000L)
+	private const val PROFILE_LOCATION_MAXIMUM_ITEM_AGE_MS = 120_000L
+	private const val PROFILE_ACTIVITY_MAXIMUM_ITEM_AGE_MS = 120_000L
+	private const val PROFILE_STEPS_MAXIMUM_REPORT_LATENCY_MS = 300_000L
+	private const val PROFILE_PRESSURE_MAXIMUM_SAMPLE_PERIOD_MICROS = 1_000_000
+	private const val PROFILE_PRESSURE_MAXIMUM_REPORT_LATENCY_MICROS = 60_000_000
+	private const val PROFILE_PRESSURE_MAXIMUM_WINDOW_MS = 60_000L
+	private const val PROFILE_RADIO_MAXIMUM_ITEM_AGE_MS = 600_000L
+
 }
 
 internal object SourceAcquisitionFloorCodec {

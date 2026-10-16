@@ -7,6 +7,10 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
 
+/**
+ * Decision-row ID and original observation identity used to page Location retention cleanup
+ * without loading decisions.
+ */
 data class LocationObservationDecisionRetentionRef(
 	val id: Long,
 	@ColumnInfo(name = "observation_source_event_id") val observationSourceEventId: String,
@@ -27,6 +31,10 @@ interface LocationObservationDecisionDao {
 	)
 	suspend fun getBySourceEventId(sourceEventId: String): LocationObservationDecision?
 
+	/**
+	 * Reads `location_observation_decision` rows. Query conditions include `id > :afterId`. Orders by
+	 * `id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT id, observation_source_event_id FROM location_observation_decision " +
 			"WHERE id > :afterId ORDER BY id LIMIT :limit",
@@ -48,6 +56,10 @@ interface LocationObservationDecisionDao {
 	@Query("DELETE FROM location_observation_decision WHERE decided_at_ms < :beforeMs")
 	suspend fun deleteOlderThan(beforeMs: Long): Int
 
+	/**
+	 * Deletes `location_observation_decision` rows matching the supplied scope. Query conditions
+	 * include `observation_source_event_id IN (:sourceEventIds)`. Returns the affected row count.
+	 */
 	@Query(
 		"DELETE FROM location_observation_decision " +
 			"WHERE observation_source_event_id IN (:sourceEventIds)",

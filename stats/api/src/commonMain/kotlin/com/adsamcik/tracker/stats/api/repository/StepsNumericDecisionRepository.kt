@@ -46,6 +46,10 @@ data class StepsNumericExactDecisionRequest(
 
 /** A coherent source snapshot, or a transient failure that grants no effect-writing authority. */
 sealed interface StepsNumericDecisionBatch {
+	/**
+	 * One source revision with one or two exact decision windows; numeric and unavailable results
+	 * remain separately typed.
+	 */
 	data class Snapshot(
 		val sourceEvidenceRevision: Long,
 		val windows: List<StepsNumericDecisionWindow>,
@@ -56,6 +60,10 @@ sealed interface StepsNumericDecisionBatch {
 		}
 	}
 
+	/**
+	 * The saved-data snapshot could not be read; this is distinct from an empty or measured-zero
+	 * result.
+	 */
 	data object StorageUnavailable : StepsNumericDecisionBatch
 }
 
@@ -75,9 +83,7 @@ data class StepsNumericDecisionWindow(
 					(request.firstEpochDay..request.lastEpochDayInclusive).toList(),
 			) { "Exact Steps calendar authority must cover the complete requested range" }
 			StepsNumericCalendarAuthority.Unavailable -> require(
-				summary == StepsNumericSummary.Unverifiable(
-					StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
-				),
+				summary is StepsNumericSummary.Unverifiable,
 			) { "Unavailable calendar authority must remain a typed nonnumeric result" }
 		}
 		if (summary is StepsNumericSummary.Ready) {
@@ -88,6 +94,9 @@ data class StepsNumericDecisionWindow(
 		}
 	}
 
+	/**
+	 * Canonical digest pattern for one exact Steps decision result.
+	 */
 	companion object {
 		private val SHA_256_HEX = Regex("[0-9a-f]{64}")
 	}
@@ -95,6 +104,10 @@ data class StepsNumericDecisionWindow(
 
 /** Exact persisted-or-fallback zone authority, or an explicit inability to resolve it. */
 sealed interface StepsNumericCalendarAuthority {
+	/**
+	 * Contiguous increasing calendar days with the exact zones used for the original numeric
+	 * decision.
+	 */
 	data class Exact(
 		val days: List<StepsNumericCalendarDay>,
 	) : StepsNumericCalendarAuthority {
@@ -111,6 +124,10 @@ sealed interface StepsNumericCalendarAuthority {
 		}
 	}
 
+	/**
+	 * The requested data or authority is unavailable; any named reason preserves the original failure
+	 * cause.
+	 */
 	data object Unavailable : StepsNumericCalendarAuthority
 }
 

@@ -186,24 +186,25 @@ internal class DefaultTrackingHistorySourceUnionReader @Inject constructor(
 		val wifiQuery = wifi.sessionInTransaction(segment.id).let { query ->
 			if (query is WifiHistoryQuery.Found && query.entry.origin != WifiHistoryOrigin.LOCAL) {
 				WifiHistoryQuery.NotFound
-			} else query
+			} else {
+				query
+			}
 		}
 		val cellQuery = cell.sessionInTransaction(segment.id).let { query ->
 			if (query is CellHistoryQuery.Found && query.entry.origin != CellHistoryOrigin.Local) {
 				CellHistoryQuery.NotFound
-			} else query
+			} else {
+				query
+			}
 		}
 		val activityQuery = activity.sessionInTransaction(segment.id).let { query ->
 			if (query is ActivityHistoryQuery.Found && query.entry.origin != ActivityHistoryOrigin.LOCAL) {
 				ActivityHistoryQuery.NotFound
-			} else query
-		}
-		val pressureQuery = pressureSelector.selectManyInTransaction(listOf(segment))
-			.singleOrNull { selected -> selected.segment.id == segment.id }
-			?.let { selected ->
-				PressureSessionHistoryQuery.Found(selected.toPublicPressureSessionHistory())
+			} else {
+				query
 			}
-			?: PressureSessionHistoryQuery.NotFound
+		}
+		val pressureQuery = pressureSessionInTransaction(segment)
 		return HistoricalSessionSourceRead.Available(
 			segmentId = segment.id,
 			wifi = wifiQuery,
@@ -213,6 +214,16 @@ internal class DefaultTrackingHistorySourceUnionReader @Inject constructor(
 		)
 	}
 
+	private suspend fun pressureSessionInTransaction(segment: SessionSegment): PressureSessionHistoryQuery =
+		pressureSelector.selectManyInTransaction(listOf(segment))
+			.singleOrNull { selected -> selected.segment.id == segment.id }
+			?.let { selected ->
+				PressureSessionHistoryQuery.Found(selected.toPublicPressureSessionHistory())
+			}
+			?: PressureSessionHistoryQuery.NotFound
+
+	// Each source read returns its existing unavailable outcome before merging the successful rows.
+	@Suppress("ReturnCount")
 	override suspend fun candidateNativeOnlyInTransaction(
 		segmentIds: List<Long>,
 	): HistoricalSourceUnionRead<List<HistoricalSourceOnlyMembership>> {
@@ -248,6 +259,8 @@ internal class DefaultTrackingHistorySourceUnionReader @Inject constructor(
 		})
 	}
 
+	// Keep each unavailable radio result before entering the following source reads.
+	@Suppress("ReturnCount")
 	override suspend fun recentInTransaction(
 		limit: Int,
 	): HistoricalSourceUnionRead<List<HistoricalSourceUnionEntry>> {
@@ -275,6 +288,18 @@ internal class DefaultTrackingHistorySourceUnionReader @Inject constructor(
 			is ImportedHistoryEligiblePage.Unavailable ->
 				return page.toUnionFailure(HistorySource.CELL)
 		}
+		return recentSensorEntries(limit, wifiOnly, wifiImportedEntries, cellOnly, cellImportedEntries)
+	}
+
+	// Preserve Activity and Pressure query failures before projecting any already-read radio entry.
+	@Suppress("ReturnCount")
+	private suspend fun recentSensorEntries(
+		limit: Int,
+		wifiOnly: List<ComposedWifiEntry>,
+		wifiImportedEntries: List<WifiImportedHistoryEligibleEntry>,
+		cellOnly: List<ComposedCellEntry>,
+		cellImportedEntries: List<CellImportedHistoryEligibleEntry>,
+	): HistoricalSourceUnionRead<List<HistoricalSourceUnionEntry>> {
 		val activityOnly = when (val page = activity.recentActivityOnlyInTransaction(limit)) {
 			is ActivityComposedPage.Available -> page.entries
 			is ActivityComposedPage.Failed ->
@@ -369,6 +394,8 @@ internal class LegacyTrackingHistorySourceUnionReader(
 		})
 	}
 
+	// Each source read returns its existing unavailable outcome before merging the successful rows.
+	@Suppress("ReturnCount")
 	override suspend fun recentInTransaction(
 		limit: Int,
 	): HistoricalSourceUnionRead<List<HistoricalSourceUnionEntry>> {

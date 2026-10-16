@@ -2,6 +2,8 @@ package com.adsamcik.tracker.impexp.backup
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
@@ -115,6 +117,9 @@ class LogicalDataBackupImporterRoomTest {
         } finally { context.deleteDatabase(name) }
     }
 
+    // Keep source and target policy setup, restore, and retry together to verify local choices survive both
+    // restores.
+    @Suppress("LongMethod")
     @Test
     fun `restore keeps local source choices and quality while preserving the backup policy history`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -235,6 +240,91 @@ class LogicalDataBackupImporterRoomTest {
             } finally { target.close() }
         } finally { context.deleteDatabase(name) }
     }
+
+    @Test
+    fun `restore rebuilds stale Pressure ownership without changing facts or deletion receipts`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val name = "logical-restore-pressure-lookup"
+        context.deleteDatabase(name)
+        val fact = pressureFixture()
+        val fence = com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity.createLogicalServiceRun(
+            SourceDestinationOwnerEntity.SOURCE_PRESSURE, PressureFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+            fact.logicalTrackingId, "deleted-other-run", 1L, 1L, 2_000L)
+        val obsoleteIdentity = "a".repeat(64)
+        try {
+            val source = AppDatabase.fileBuilder(context, name).allowMainThreadQueries().build()
+            try {
+                source.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 1L))
+                source.pressureFactRevisionDao().insert(fact)
+                source.sourceDeletionFenceDao().insertIfAbsent(fence)
+                source.openHelper.writableDatabase.execSQL(
+                    "UPDATE native_portable_ownership SET opaque_identity=? WHERE source_kind=4 AND identity_kind='WINDOW'",
+                    arrayOf(obsoleteIdentity))
+            } finally { source.close() }
+            val target = AppDatabase.inMemoryBuilder(context).allowMainThreadQueries().build()
+            try {
+                target.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 2L))
+                LogicalDataBackupImporter.replaceTrackerRows(target, context.getDatabasePath(name), 3L, 3_000L, policies(target))
+                val expected = com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership.pressure(fact).last()
+                target.nativePortableOwnershipDao().ownerLogicalIds(4, listOf(expected.opaqueIdentity), 2) shouldBe
+                    listOf(fact.logicalTrackingId)
+                target.nativePortableOwnershipDao().ownerLogicalIds(4, listOf(obsoleteIdentity), 2) shouldBe emptyList()
+                target.pressureFactRevisionDao().latest(fact.writerProjectionId, fact.writerProjectionVersion,
+                    fact.logicalFactId) shouldBe fact
+                target.sourceDeletionFenceDao().get(fence.sourceKind, fence.purpose, fence.scopeKind,
+                    fence.scopeIdentityDigest) shouldBe fence
+            } finally { target.close() }
+        } finally { context.deleteDatabase(name) }
+    }
+
+    private fun pressureFixture() = PressureFactRevisionEntity(
+		logicalFactId = "pressure-session-facts:window-1",
+		semanticRevision = 1L,
+		mutationId = "pressure-mutation-1",
+		sourceEventId = "pressure-event-10",
+		sourceAdmissionOrdinal = 10L,
+		writerProjectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+		writerProjectionVersion = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+		writerBindingGeneration = SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+		payloadVersion = PressureFactRevisionEntity.QUALIFIED_PRESSURE_PAYLOAD_VERSION,
+		intervalStartTimeMs = 850L,
+		intervalEndTimeMs = 1_000L,
+		windowStartElapsedRealtimeNanos = 1_000_000_000L,
+		windowEndElapsedRealtimeNanos = 1_150_000_000L,
+		clockDomainId = "boot-1",
+		wallTimeUncertaintyMs = 25L,
+		sampleCount = 4,
+		meanHectopascals = 1_001.5,
+		sumSquaredDeviations = 5.0,
+		minimumHectopascals = 1_000f,
+		maximumHectopascals = 1_003f,
+		firstProviderSequence = 1L,
+		lastProviderSequence = 4L,
+		firstHectopascals = 1_000f,
+		lastHectopascals = 1_003f,
+		slopeHectopascalsPerSecond = 20.0,
+		rSquared = 1.0,
+		sensorAccuracy = PressureFactRevisionEntity.SENSOR_ACCURACY_HIGH,
+		effectiveSamplePeriodMicros = 50_000,
+		effectiveMaximumReportLatencyMicros = 200_000,
+		targetWindowDurationNanos = 200_000_000L,
+		expectedSampleCount = 4,
+		maximumInterSampleGapNanos = 50_000_000L,
+		closureKind = PressureFactRevisionEntity.CLOSURE_TARGET_ELAPSED,
+		qualification = PressureFactRevisionEntity.QUALIFICATION_COMPLETE,
+		sourceQualityFlags = 0L,
+		sourceQualityConfidence = 1f,
+		logicalTrackingId = "tracking-1",
+		serviceRunId = "run-1",
+		purpose = PressureFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+		manifestRevision = 1L,
+		sourcePolicyRevision = 1L,
+		captureConsentEpoch = 1L,
+		collectedDataEpoch = 1L,
+		effectChecksum = "pressure-effect-1",
+		appliedAtMs = 1_000L,
+	)
+
 
     private suspend fun policies(database: AppDatabase): RoomSourcePolicyRepository =
         RoomSourcePolicyRepository(database, effectiveTimeProvider = {

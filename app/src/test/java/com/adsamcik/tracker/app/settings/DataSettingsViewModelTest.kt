@@ -89,6 +89,8 @@ class DataSettingsViewModelTest {
     private lateinit var stagedPolicy: ApprovedRetentionPolicy
 
     @BeforeEach
+    // Keep the shared settings fixture reset and its ordered prepare/commit/approval callbacks together.
+    @Suppress("LongMethod")
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         configFlow.value = RetentionConfigState()
@@ -180,7 +182,7 @@ class DataSettingsViewModelTest {
 
     @Test
     fun `backup inspection waits for explicit confirmation before replacing data`() = runTest(testDispatcher) {
-        val uri = Uri.parse("content://files/data.zip")
+        val uri: Uri = mockk()
         val preview = com.adsamcik.tracker.impexp.backup.DataBackupPreview("owned-token", 0L)
         coEvery { dataBackupRestore.inspect(uri) } returns
             com.adsamcik.tracker.impexp.backup.DataBackupInspection.Ready(preview)
@@ -197,7 +199,7 @@ class DataSettingsViewModelTest {
 
     @Test
     fun `canceling backup confirmation removes its staged copy without restoring`() = runTest(testDispatcher) {
-        val uri = Uri.parse("content://files/canceled.zip")
+        val uri: Uri = mockk()
         val preview = com.adsamcik.tracker.impexp.backup.DataBackupPreview("canceled-token", 0L)
         coEvery { dataBackupRestore.inspect(uri) } returns
             com.adsamcik.tracker.impexp.backup.DataBackupInspection.Ready(preview)
@@ -212,7 +214,7 @@ class DataSettingsViewModelTest {
 
     @Test
     fun `canceling backup confirmation reports cleanup failure without restoring`() = runTest(testDispatcher) {
-        val uri = Uri.parse("content://files/canceled.zip")
+        val uri: Uri = mockk()
         val preview = com.adsamcik.tracker.impexp.backup.DataBackupPreview("failed-cleanup-token", 0L)
         coEvery { dataBackupRestore.inspect(uri) } returns
             com.adsamcik.tracker.impexp.backup.DataBackupInspection.Ready(preview)
@@ -253,7 +255,9 @@ class DataSettingsViewModelTest {
 
             vm.uiState.test {
                 var state = awaitItem()
-                if (state.migrationBackup == null) state = awaitItem()
+                if (state.migrationBackup == null) {
+                    state = awaitItem()
+                }
                 state.migrationBackup?.sourceVersion shouldBe 10
                 state.migrationBackup?.targetVersion shouldBe 35
             }
@@ -642,12 +646,16 @@ class DataSettingsViewModelTest {
 
             createViewModel().uiState.test {
                 var state = awaitItem()
-                if (state.legacyDatabase == null) state = awaitItem()
+                if (state.legacyDatabase == null) {
+                    state = awaitItem()
+                }
                 state.legacyDatabase?.sourceVersion shouldBe 26
                 state.legacyDatabase?.sizeBytes shouldBe 4096L
                 state.legacyDatabase?.importedRows shouldBe 7L
                 state.legacyDatabase?.skippedRows shouldBe 2L
-                state.legacyDatabase?.canDelete shouldBe true
+                state.legacyDatabase?.canDelete shouldBe false
+                legacyStateFlow.value = legacyStateFlow.value.copy(externallyExported = true)
+                awaitItem().legacyDatabase?.canDelete shouldBe true
             }
         }
 
@@ -856,7 +864,11 @@ class DataSettingsViewModelTest {
             val cleanupFailure = CancellationException("Document provider cleanup failed")
             var opens = 0
             every { contentResolver.openOutputStream(uri, "rwt") } answers {
-                if (opens++ == 0) output else throw cleanupFailure
+                if (opens++ == 0) {
+                    output
+                } else {
+                    throw cleanupFailure
+                }
             }
             every { contentResolver.delete(uri, null, null) } answers {
                 closed shouldBe true
@@ -882,7 +894,11 @@ class DataSettingsViewModelTest {
             val output = ByteArrayOutputStream()
             var opens = 0
             every { contentResolver.openOutputStream(uri, "rwt") } answers {
-                if (opens++ == 0) output else throw IllegalStateException("Provider unavailable")
+                if (opens++ == 0) {
+                    output
+                } else {
+                    throw IllegalStateException("Provider unavailable")
+                }
             }
             every { contentResolver.delete(uri, null, null) } throws IllegalStateException("Provider unavailable")
             every { backupRepository.exportLatest(any()) } answers {
@@ -933,7 +949,9 @@ class DataSettingsViewModelTest {
         override val permitsNewCollection: Boolean get() = collectionAllowed && isReady
 
         override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult {
-            if (advanceGenerationOnReconcile) currentGeneration++
+            if (advanceGenerationOnReconcile) {
+                currentGeneration++
+            }
             return startupResult
         }
 
@@ -941,7 +959,9 @@ class DataSettingsViewModelTest {
             expectedGeneration: Long,
             operation: suspend () -> T,
         ): T? {
-            if (!isReadyGeneration(expectedGeneration)) return null
+            if (!isReadyGeneration(expectedGeneration)) {
+                return null
+            }
             transferCount++
             return coroutineScope {
                 transferJob = currentCoroutineContext()[Job]

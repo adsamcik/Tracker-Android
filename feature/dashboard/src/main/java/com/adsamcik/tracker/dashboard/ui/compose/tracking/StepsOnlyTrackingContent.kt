@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
+import com.adsamcik.tracker.dashboard.ui.compose.dashboardNameResource
 import com.adsamcik.tracker.dashboard.ui.compose.DashboardLayoutDefaults
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveSessionPresentation
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveStepsValue
@@ -175,28 +176,12 @@ private fun historyUnavailableMessage(
 		): String {
 			val sourceLabel = source?.let {
 				stringResource(
-					when (it) {
-						HistorySource.LOCATION -> R.string.dashboard_history_source_location
-						HistorySource.WIFI -> R.string.dashboard_history_source_wifi
-						HistorySource.CELL -> R.string.dashboard_history_source_cell
-						HistorySource.ACTIVITY -> R.string.dashboard_history_source_activity
-						HistorySource.STEPS -> R.string.dashboard_history_source_steps
-						HistorySource.PRESSURE -> R.string.dashboard_history_source_pressure
-					},
+					it.dashboardNameResource,
 				)
 			}
 			val reasonLabel = reason?.let {
 				stringResource(
-					when (it) {
-						TrackingHistoryUnavailableReason.SOURCE_EVIDENCE_STATE_UNAVAILABLE ->
-							R.string.dashboard_live_history_evidence_unavailable
-						TrackingHistoryUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED ->
-							R.string.dashboard_live_history_budget_unavailable
-						TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE ->
-							R.string.dashboard_live_history_integrity_unavailable
-						TrackingHistoryUnavailableReason.PHYSICAL_MEMBERSHIP_INVALID ->
-							R.string.dashboard_live_history_membership_unavailable
-					},
+					it.dashboardUnavailableReasonResource,
 				)
 			}
 			return when {
@@ -237,3 +222,12 @@ private fun DashboardLiveStepsValue.metricStatus(): String = stringResource(
 		DashboardLiveStepsValue.Unavailable -> R.string.dashboard_live_steps_unavailable
 	},
 )
+
+private val TrackingHistoryUnavailableReason.dashboardUnavailableReasonResource: Int
+	get() = when (this) {
+		TrackingHistoryUnavailableReason.SOURCE_EVIDENCE_STATE_UNAVAILABLE ->
+			R.string.dashboard_live_history_evidence_unavailable
+		TrackingHistoryUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED -> R.string.dashboard_live_history_budget_unavailable
+		TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE -> R.string.dashboard_live_history_integrity_unavailable
+		TrackingHistoryUnavailableReason.PHYSICAL_MEMBERSHIP_INVALID -> R.string.dashboard_live_history_membership_unavailable
+	}

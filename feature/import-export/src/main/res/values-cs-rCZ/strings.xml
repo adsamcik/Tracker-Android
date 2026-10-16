@@ -45,4 +45,25 @@
     <string name="format_portable_location">Poloha</string>
     <string name="settings_import_summary">Import dat z podporovaných formátů (%1$s) a archivů (%2$s)</string>
     <string name="settings_import_title">Import</string>
+    <string name="export_radio_sensitivity_title">Exportovat podrobnosti sítí?</string>
+    <string name="export_wifi_sensitivity_message">Tento soubor obsahuje uložené názvy Wi-Fi sítí a ID přístupových bodů.</string>
+    <string name="export_cell_sensitivity_message">Tento soubor obsahuje uložená ID základnových stanic a měření signálu.</string>
+    <string name="export_radio_no_data">Pro tento zdroj nejsou uložena žádná data</string>
+    <string name="export_include_complete_sessions">Zahrnout celé relace</string>
+    <string name="import_location_conflict_title">Nahradit uložené body?</string>
+    <string name="import_location_replace">Použít body ze souboru</string>
+    <string name="import_location_keep">Ponechat uložené body</string>
+    <string name="export_backup_review_title">Zkontrolovat plánované zálohy</string>
+    <string name="export_backup_review_summary">Pozastaveno do kontroly aktualizované zálohy dat.</string>
+    <string name="export_backup_review_message">Tyto plány nyní zálohují všechna uložená data sledování a soubory potřebné k jejich obnovení. Nastavení se nezálohuje. Obnovit tyto plány?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Obnovit zálohování</string>
+    <string name="import_backup_replace_title">Obnovit zálohu dat?</string>
+    <string name="import_backup_replace_message">Nahradit uložená data touto zálohou? Nastavení zůstane stejné. Sledování bude vypnuté, dokud ho znovu nezapnete.</string>
+    <string name="import_backup_restore">Nahradit data</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d bod v tomto souboru se liší od uložené kopie. Vyberte, který ponechat. Ostatní body se importují běžným způsobem.</item>
+        <item quantity="few">%d body v tomto souboru se liší od uložených kopií. Vyberte, které ponechat. Ostatní body se importují běžným způsobem.</item>
+        <item quantity="many">%d bodů v tomto souboru se liší od uložených kopií. Vyberte, které ponechat. Ostatní body se importují běžným způsobem.</item>
+        <item quantity="other">%d bodů v tomto souboru se liší od uložených kopií. Vyberte, které ponechat. Ostatní body se importují běžným způsobem.</item>
+    </plurals>
 </resources>

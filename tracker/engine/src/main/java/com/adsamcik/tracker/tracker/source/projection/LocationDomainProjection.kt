@@ -33,8 +33,8 @@ class LocationDomainProjection @Inject constructor(
 		context: ProjectionContext,
 	) {
 		val payload = event.evidence.payload as? LocationFixPayload ?: return
-        // This dormant legacy shadow schema requires accuracy; the protected canonical writer does not.
-        val accuracy = payload.horizontalAccuracyMeters ?: return
+		// This dormant legacy shadow schema requires accuracy; the protected canonical writer does not.
+		val accuracy = payload.horizontalAccuracyMeters ?: return
 		val logicalTrackingId = event.evidence.logicalTrackingId?.value ?: return
 		val dao = database.locationProjectionDao()
 		val observationEntity = LocationProjectionObservationEntity(

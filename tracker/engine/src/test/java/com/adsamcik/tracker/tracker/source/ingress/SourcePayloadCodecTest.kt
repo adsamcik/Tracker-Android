@@ -467,14 +467,14 @@ class SourcePayloadCodecTest {
 		}
 
 		val encoded = codec.encode(valid, PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION).bytes
-		shouldThrow<java.io.EOFException> {
+		shouldThrow<IllegalStateException> {
 			codec.decode(
 				valid.source,
 				PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION,
 				encoded.copyOf(encoded.size - 1),
 			)
 		}
-		shouldThrow<IllegalArgumentException> {
+		shouldThrow<IllegalStateException> {
 			codec.decode(
 				valid.source,
 				PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION,
@@ -493,7 +493,7 @@ class SourcePayloadCodecTest {
 
 	@Test
 	fun `version four rejects independently encoded Pressure sequence cardinality mismatch`() {
-		shouldThrow<IllegalArgumentException> {
+		shouldThrow<IllegalStateException> {
 			codec.decode(
 				SourceKind.PRESSURE,
 				PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION,
@@ -504,7 +504,7 @@ class SourcePayloadCodecTest {
 
 	@Test
 	fun `version four rejects independently encoded one sample statistics mismatch`() {
-		shouldThrow<IllegalArgumentException> {
+		shouldThrow<IllegalStateException> {
 			codec.decode(
 				SourceKind.PRESSURE,
 				PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION,

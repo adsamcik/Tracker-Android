@@ -17,10 +17,15 @@ class StepsCounterDomainToken private constructor(
 	override fun hashCode(): Int = encoded.hashCode()
 	override fun toString(): String = "StepsCounterDomainToken"
 
+	/** Defines payload versions that retain the physical counter epoch and parses its opaque token shape. */
 	companion object {
 		const val MINIMUM_DURABLE_PAYLOAD_VERSION = 6
 		const val COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION = 7
 
+		/**
+		 * Validates a sha256-prefixed opaque token; parsing does not establish provider, persistence or import
+		 * authority.
+		 */
 		fun opaque(encoded: String): StepsCounterDomainToken {
 			require(OPAQUE_TOKEN.matches(encoded))
 			return StepsCounterDomainToken(encoded)

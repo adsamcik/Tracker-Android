@@ -17,6 +17,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /** One physical Cell owner shared by session capture and independently consented ambient demand. */
+// These operations share one mutex and physical runtime; keep method-level algorithm checks active.
+@Suppress("TooManyFunctions")
 @Singleton
 class SharedCellSourceController @Inject constructor(
 	private val physicalRuntime: CellSourceRuntime,
@@ -50,35 +52,19 @@ class SharedCellSourceController @Inject constructor(
 		sink: SourceEventSink,
 	): SourceStartResult {
 		@Suppress("UNUSED_VARIABLE") val sessionSinkCannotRelabelSharedEvidence = sink
-		if (!plan.enabled) return SourceStartResult.Started(disabledState(plan))
+		if (!plan.enabled) {
+			return SourceStartResult.Started(disabledState(plan))
+		}
 		val previousPlan = sessionPlan
 		val previousClaim = sessionClaim
-		sessionPlan = plan
-		sessionClaim = claim
-		val demands = try {
-			selectedDemands()
-		} catch (failure: Throwable) {
-			sessionPlan = previousPlan
-			sessionClaim = previousClaim
-			throw failure
-		}
-		if (demands.none { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) {
-			sessionPlan = previousPlan
-			sessionClaim = previousClaim
-			return SourceStartResult.Blocked(blockedState(plan))
-		}
 		return try {
-			val result = applyEffective(requireNotNull(effectivePlan(demands)), claim)
-			if (result is SourceApplyResult.Applied || result is SourceApplyResult.Degraded) {
-				sessionClaim = claim
-				ambientSubscriptionIds = plan.subscriptionIds
-				ambientAttached = demands.any { it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT }
-			} else {
-				sessionPlan = previousPlan
-				sessionClaim = previousClaim
-			}
+			val result = applyEnabledPlanLocked(claim, plan)
+				?: return SourceStartResult.Blocked(blockedState(plan))
 			result.toStartResult()
-		} catch (failure: Throwable) {
+		} catch (
+			// Restore this owner's previous state before propagating the same failure.
+			@Suppress("TooGenericExceptionCaught") failure: Throwable
+		) {
 			sessionPlan = previousPlan
 			sessionClaim = previousClaim
 			throw failure
@@ -117,7 +103,9 @@ class SharedCellSourceController @Inject constructor(
 				)
 				val acknowledgement = quiesceLocked(cutoff)
 				return if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) {
-					if (sessionClaim == claim) sessionClaim = null
+					if (sessionClaim == claim) {
+						sessionClaim = null
+					}
 					SourceApplyResult.Applied(disabledState(plan), stopAck = acknowledgement)
 				} else {
 					SourceApplyResult.Failed(
@@ -135,13 +123,25 @@ class SharedCellSourceController @Inject constructor(
 				applyEffective(effective, claim = null)
 			}
 		}
+		return applyEnabledPlanLocked(claim, plan)
+			?: SourceApplyResult.Failed(blockedState(plan), retryable = false)
+	}
+
+	/** Null means no eligible capture demand; Start and reconfigure keep distinct rejection results. */
+	private suspend fun applyEnabledPlanLocked(
+		claim: SourceRuntimeClaim?,
+		plan: CellPlan,
+	): SourceApplyResult? {
 		val previousPlan = sessionPlan
 		val previousClaim = sessionClaim
 		sessionPlan = plan
 		sessionClaim = claim
 		val demands = try {
 			selectedDemands()
-		} catch (failure: Throwable) {
+		} catch (
+			// Restore this owner's previous state before propagating the same failure.
+			@Suppress("TooGenericExceptionCaught") failure: Throwable
+		) {
 			sessionPlan = previousPlan
 			sessionClaim = previousClaim
 			throw failure
@@ -149,22 +149,23 @@ class SharedCellSourceController @Inject constructor(
 		if (demands.none { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) {
 			sessionPlan = previousPlan
 			sessionClaim = previousClaim
-			return SourceApplyResult.Failed(blockedState(plan), retryable = false)
+			return null
 		}
 		return try {
-			applyEffective(requireNotNull(effectivePlan(demands)), claim).also { result ->
-				if (result is SourceApplyResult.Applied || result is SourceApplyResult.Degraded) {
-					sessionClaim = claim
-					ambientSubscriptionIds = plan.subscriptionIds
-					ambientAttached = demands.any {
-						it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT
-					}
-				} else {
-					sessionPlan = previousPlan
-					sessionClaim = previousClaim
-				}
+			val result = applyEffective(requireNotNull(effectivePlan(demands)), claim)
+			if (result is SourceApplyResult.Applied || result is SourceApplyResult.Degraded) {
+				sessionClaim = claim
+				ambientSubscriptionIds = plan.subscriptionIds
+				ambientAttached = demands.any { it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT }
+			} else {
+				sessionPlan = previousPlan
+				sessionClaim = previousClaim
 			}
-		} catch (failure: Throwable) {
+			result
+		} catch (
+			// Restore this owner's previous state before propagating the same failure.
+			@Suppress("TooGenericExceptionCaught") failure: Throwable
+		) {
 			sessionPlan = previousPlan
 			sessionClaim = previousClaim
 			throw failure
@@ -187,7 +188,10 @@ class SharedCellSourceController @Inject constructor(
 		}
 		return try {
 			settleSessionCutoffLocked(cutoff)
-		} catch (failure: Throwable) {
+		} catch (
+			// Restore this owner's previous state before propagating the same failure.
+			@Suppress("TooGenericExceptionCaught") failure: Throwable
+		) {
 			sessionPlan = previousPlan
 			throw failure
 		}
@@ -203,11 +207,57 @@ class SharedCellSourceController @Inject constructor(
 		if (ambientPlan == null) {
 			ambientSubscriptionIds = emptySet()
 			return physicalRuntime.quiesce(cutoff).withSessionMembership(retiringClaim).also {
-				if (it.toOwnedShutdown() is OwnedSourceShutdown.Incomplete) sessionPlan = priorPlan
+				if (it.toOwnedShutdown() is OwnedSourceShutdown.Incomplete) {
+					sessionPlan = priorPlan
+				}
 			}
 		}
+		val acknowledgement = continueAmbientAfterSession(cutoff, ambientPlan)
+		return acknowledgement.withSessionMembership(retiringClaim).also {
+			if (it.toOwnedShutdown() is OwnedSourceShutdown.Incomplete) {
+				sessionPlan = priorPlan
+			}
+		}
+	}
+
+	override suspend fun shutdownIfOwned(
+		claim: SourceRuntimeClaim,
+		cutoff: SessionCutoff,
+	): OwnedSourceShutdown = mutex.withLock {
+		require(claim.source == source)
+		if (sessionClaim != claim) {
+			return@withLock physicalRuntime.shutdownIfOwned(claim, cutoff)
+		}
+		quiesceLocked(cutoff).toOwnedShutdown().also { shutdown ->
+			if (shutdown is OwnedSourceShutdown.Released) {
+				sessionClaim = null
+			}
+		}
+	}
+
+	/** Finishes only a resident no-CAP callback prefix; setup never starts a provider. */
+	internal suspend fun prepareSessionCaptureBoundary(deadlineElapsedRealtimeNanos: Long): Boolean {
+		val remainingMs = (deadlineElapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos()) / 1_000_000L
+		if (remainingMs <= 0L) {
+			return false
+		}
+		return withTimeoutOrNull(remainingMs) {
+			mutex.withLock {
+				if (sessionPlan != null || sessionClaim != null || sourceBroker.authorizationDemands(source).any {
+					it.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+				}) {
+					return@withLock false
+				}
+				physicalRuntime.prepareSessionCaptureBoundary(deadlineElapsedRealtimeNanos)
+			}
+		} == true
+	}
+
+	private suspend fun continueAmbientAfterSession(
+		cutoff: SessionCutoff, ambientPlan: CellPlan,
+	): SourceStopAck {
 		val refreshed = physicalRuntime.refreshShared(ambientPlan, unboundSink, claim = null)
-		val acknowledgement = if (
+		return if (
 			refreshed is SourceApplyResult.Applied || refreshed is SourceApplyResult.Degraded
 		) {
 			ambientAttached = true
@@ -221,34 +271,6 @@ class SharedCellSourceController @Inject constructor(
 			}
 			stopped
 		}
-		return acknowledgement.withSessionMembership(retiringClaim).also {
-			if (it.toOwnedShutdown() is OwnedSourceShutdown.Incomplete) sessionPlan = priorPlan
-		}
-	}
-
-	override suspend fun shutdownIfOwned(
-		claim: SourceRuntimeClaim,
-		cutoff: SessionCutoff,
-	): OwnedSourceShutdown = mutex.withLock {
-		require(claim.source == source)
-		if (sessionClaim != claim) return@withLock physicalRuntime.shutdownIfOwned(claim, cutoff)
-		quiesceLocked(cutoff).toOwnedShutdown().also { shutdown ->
-			if (shutdown is OwnedSourceShutdown.Released) sessionClaim = null
-		}
-	}
-
-	/** Finishes only a resident no-CAP callback prefix; setup never starts a provider. */
-	internal suspend fun prepareSessionCaptureBoundary(deadlineElapsedRealtimeNanos: Long): Boolean {
-		val remainingMs = (deadlineElapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos()) / 1_000_000L
-		if (remainingMs <= 0L) return false
-		return withTimeoutOrNull(remainingMs) {
-			mutex.withLock {
-				if (sessionPlan != null || sessionClaim != null || sourceBroker.authorizationDemands(source).any {
-					it.purpose == SourceBrokerPurpose.SESSION_CAPTURE
-				}) return@withLock false
-				physicalRuntime.prepareSessionCaptureBoundary(deadlineElapsedRealtimeNanos)
-			}
-		} == true
 	}
 
 	internal suspend fun reconcileAmbientJoin(): AmbientCellRuntimeJoinResult = mutex.withLock {
@@ -274,18 +296,26 @@ class SharedCellSourceController @Inject constructor(
 				)
 			}
 		}
-		when (val result = applyEffective(effective, sessionClaim)) {
+		publishAmbientJoin(applyEffective(effective, sessionClaim), ambientDemand != null)
+	}
+
+	private fun publishAmbientJoin(
+		result: SourceApplyResult, ambientSelected: Boolean,
+	): AmbientCellRuntimeJoinResult {
+		return when (result) {
 			is SourceApplyResult.Applied -> {
-				ambientAttached = ambientDemand != null
-				if (ambientDemand == null) {
+				ambientAttached = ambientSelected
+				if (!ambientSelected) {
 					AmbientCellRuntimeJoinResult.Inactive(result.state.providerKeyOrNull())
-				} else AmbientCellRuntimeJoinResult.Active(
+				} else {
+					AmbientCellRuntimeJoinResult.Active(
 					result.state.sourceInstanceId,
 					result.state.registrationGeneration,
 				)
+				}
 			}
 			is SourceApplyResult.Degraded -> {
-				ambientAttached = ambientDemand != null
+				ambientAttached = ambientSelected
 				AmbientCellRuntimeJoinResult.Degraded(
 					result.state.sourceInstanceId,
 					result.state.registrationGeneration,
@@ -305,13 +335,18 @@ class SharedCellSourceController @Inject constructor(
 		}
 	}
 
+
 	internal suspend fun closeAmbientForCollectedDataDeletion(): Boolean = mutex.withLock {
 		val ambientDemand = selectedDemands().any {
 			it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT
 		}
-		if (ambientDemand) return@withLock false
+		if (ambientDemand) {
+			return@withLock false
+		}
 		ambientAttached = false
-		if (sessionPlan != null) return@withLock false
+		if (sessionPlan != null) {
+			return@withLock false
+		}
 		physicalRuntime.closeShared().toOwnedShutdown() is OwnedSourceShutdown.Released
 	}
 
@@ -323,7 +358,9 @@ class SharedCellSourceController @Inject constructor(
 				SessionCutoff(retiringClaim.logicalTrackingId, now, System.currentTimeMillis(),
 					now + 3_000_000_000L),
 			)
-			if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) sessionClaim = null
+			if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) {
+				sessionClaim = null
+			}
 			return@withLock Unit
 		}
 		sessionPlan = null
@@ -357,7 +394,9 @@ class SharedCellSourceController @Inject constructor(
 		}
 
 	private fun effectivePlan(demands: List<SourceDemandEntity>): CellPlan? {
-		if (demands.isEmpty()) return null
+		if (demands.isEmpty()) {
+			return null
+		}
 		val capturePlan = sessionPlan
 		return CellPlan(
 			revision = capturePlan?.revision

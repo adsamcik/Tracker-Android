@@ -49,6 +49,7 @@ import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.preferences.retention.ApprovedRetentionPolicy
 import com.adsamcik.tracker.shared.preferences.retention.ApprovedRetentionOperation
@@ -175,6 +176,74 @@ class DataRetentionWorkerTest {
 		coVerify(exactly = 0) { cellCapturedRetentionService.prune(any(), any(), any()) }
 		coVerify(exactly = 0) { wifiCapturedRetentionService.prune(any(), any(), any()) }
     }
+
+	@Test
+	fun `closed startup leaves legacy retention Room and receipts untouched`() = runTest {
+		val startupResults = listOf(
+			TrackingStartupResult.RetryableFailure(TrackingStartupStage.STORAGE, "DB_BUSY") to
+				ListenableWorker.Result.retry(),
+			TrackingStartupResult.Blocked(TrackingStartupStage.STORAGE, "CONTAINED") to
+				ListenableWorker.Result.success(),
+		)
+		startupResults.forEach { (startupResult, expectedResult) ->
+			val gate = object : TrackingStartupGate {
+				override val isReady = false
+				override suspend fun reconcile(retryFailedStorage: Boolean) = startupResult
+			}
+			val coordinator = mockk<RetentionWorkExecutionCoordinator>()
+			val settlement = mockk<RetentionFloorSettlement>()
+			var resolutions = 0
+
+			worker(
+				store = enabledRetentionStore(),
+				database = mockDatabase,
+				trackingStartupGate = gate,
+				retentionFloorSettlement = settlement,
+				executionCoordinator = coordinator,
+				databaseProvider = Provider {
+					resolutions += 1
+					error("Room must stay closed")
+				},
+			).doWork() shouldBe expectedResult
+
+			resolutions shouldBe 0
+			coVerify(exactly = 0) { coordinator.begin(any(), any(), any(), any(), any()) }
+			coVerify(exactly = 0) { settlement.pendingOperation(any(), any()) }
+			verify(exactly = 0) { migrationBackupRepository.deleteAll() }
+		}
+	}
+
+	@Test
+	fun `generation change during startup prevents legacy retention handoff`() = runTest {
+		var generation = 7L
+		val gate = object : TrackingStartupGate {
+			override val isReady = true
+			override val currentGeneration get() = generation
+			override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult {
+				generation += 1L
+				return TrackingStartupResult.Ready(false, 0L)
+			}
+		}
+		val coordinator = mockk<RetentionWorkExecutionCoordinator>()
+		val settlement = mockk<RetentionFloorSettlement>()
+		var resolutions = 0
+
+		worker(
+			store = enabledRetentionStore(),
+			database = mockDatabase,
+			trackingStartupGate = gate,
+			retentionFloorSettlement = settlement,
+			executionCoordinator = coordinator,
+			databaseProvider = Provider {
+				resolutions += 1
+				error("Stale work must not open Room")
+			},
+		).doWork() shouldBe ListenableWorker.Result.retry()
+
+		resolutions shouldBe 0
+		coVerify(exactly = 0) { coordinator.begin(any(), any(), any(), any(), any()) }
+		coVerify(exactly = 0) { settlement.pendingOperation(any(), any()) }
+	}
 
 	@Test
 	fun `final execution retry succeeds without reopening legacy retention work`() =
@@ -405,6 +474,9 @@ class DataRetentionWorkerTest {
 		}
 
 	@Test
+	// Keep retention ordering observable across the real segment, imported Steps, radio callbacks and WAL
+	// cleanup.
+	@Suppress("LongMethod")
 	fun `enabled retention preserves attributed segment through radio before segment and WAL pruning`() = runTest {
 		val database = AppDatabase.testDatabase(context)
 		val operations = mutableListOf<String>()
@@ -586,6 +658,8 @@ class DataRetentionWorkerTest {
 	}
 
 	@Test
+	// Keep each radio rejection through the same worker retry and surviving segment/WAL assertions together.
+	@Suppress("LongMethod")
 	fun `each captured radio rejection keeps attributed segment and WAL after both services run once`() = runTest {
 		for (rejectedSource in RadioSource.entries) {
 			val database = AppDatabase.testDatabase(context)
@@ -653,6 +727,8 @@ class DataRetentionWorkerTest {
 	}
 
 	@Test
+	// Keep each radio storage failure through the same worker retry and preserved history assertions together.
+	@Suppress("LongMethod")
 	fun `each captured radio storage failure keeps attributed segment and WAL for retry`() = runTest {
 		for (failedSource in RadioSource.entries) {
 			val database = AppDatabase.testDatabase(context)
@@ -707,7 +783,11 @@ class DataRetentionWorkerTest {
 				)
 				assertEquals(1L, database.sourceEventWalDao().countAll())
 				coVerify(exactly = 1) { cellRetention.prune(database, 3L, any()) }
-				coVerify(exactly = if (failedSource == RadioSource.CELL) 0 else 1) {
+				coVerify(exactly = if (failedSource == RadioSource.CELL) {
+					0
+				} else {
+					1
+				}) {
 					wifiRetention.prune(database, 3L, any())
 				}
 			} finally {
@@ -717,6 +797,9 @@ class DataRetentionWorkerTest {
 	}
 
 	@Test
+	// Keep cancellation injection, propagation and untouched segment/WAL assertions in the same worker
+	// scenario.
+	@Suppress("LongMethod")
 	fun `each captured radio cancellation propagates with attributed segment and WAL intact`() = runTest {
 		for (cancelledSource in RadioSource.entries) {
 			val database = AppDatabase.testDatabase(context)
@@ -770,7 +853,11 @@ class DataRetentionWorkerTest {
 				)
 				assertEquals(1L, database.sourceEventWalDao().countAll())
 				coVerify(exactly = 1) { cellRetention.prune(database, 3L, any()) }
-				coVerify(exactly = if (cancelledSource == RadioSource.CELL) 0 else 1) {
+				coVerify(exactly = if (cancelledSource == RadioSource.CELL) {
+					0
+				} else {
+					1
+				}) {
 					wifiRetention.prune(database, 3L, any())
 				}
 			} finally {
@@ -780,6 +867,9 @@ class DataRetentionWorkerTest {
 	}
 
 	@Test
+	// Keep startup-generation change during radio retention through the fenced later-mutation assertions
+	// together.
+	@Suppress("LongMethod")
 	fun `startup generation changes during captured radio retention fence later mutations`() = runTest {
 		for (changedSource in RadioSource.entries) {
 			val database = AppDatabase.testDatabase(context)
@@ -792,7 +882,9 @@ class DataRetentionWorkerTest {
 						attributedSegment.copy(id = attributedSegmentId),
 						database.sessionSegmentDao().getById(attributedSegmentId),
 					)
-					if (changedSource == RadioSource.CELL) gate.generation += 1L
+					if (changedSource == RadioSource.CELL) {
+						gate.generation += 1L
+					}
 					CellCapturedRetentionResult.NoChange
 				}
 			}
@@ -802,7 +894,9 @@ class DataRetentionWorkerTest {
 						attributedSegment.copy(id = attributedSegmentId),
 						database.sessionSegmentDao().getById(attributedSegmentId),
 					)
-					if (changedSource == RadioSource.WIFI) gate.generation += 1L
+					if (changedSource == RadioSource.WIFI) {
+						gate.generation += 1L
+					}
 					WifiCapturedRetentionResult.NoChange
 				}
 			}
@@ -829,7 +923,11 @@ class DataRetentionWorkerTest {
 				)
 				assertEquals(1L, database.sourceEventWalDao().countAll())
 				coVerify(exactly = 1) { cellRetention.prune(database, 3L, any()) }
-				coVerify(exactly = if (changedSource == RadioSource.CELL) 0 else 1) {
+				coVerify(exactly = if (changedSource == RadioSource.CELL) {
+					0
+				} else {
+					1
+				}) {
 					wifiRetention.prune(database, 3L, any())
 				}
 			} finally {
@@ -985,6 +1083,7 @@ class DataRetentionWorkerTest {
 		ambientRetention: PeriodicAmbientRetentionMaintenance =
 			periodicAmbientRetentionMaintenance,
 		executionCoordinator: RetentionWorkExecutionCoordinator = workExecutionCoordinator,
+		databaseProvider: Provider<AppDatabase> = Provider { database },
 	): DataRetentionWorker =
 		TestListenableWorkerBuilder<DataRetentionWorker>(context)
 			.setWorkerFactory(object : WorkerFactory() {
@@ -996,7 +1095,7 @@ class DataRetentionWorkerTest {
 					appContext,
 					workerParameters,
 					store,
-					Provider { database },
+					databaseProvider,
 					exportPlanStore,
 					migrationBackupRepository,
 					lifecycleStore,

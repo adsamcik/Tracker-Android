@@ -350,7 +350,7 @@ class AutomaticStartTransitionMonitorTest {
 
 		coVerify(exactly = 1) { arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR) }
 		coVerify(exactly = 0) { arbiter.setDemand(any(), any()) }
-		coVerify(exactly = 1) { activityProjectionLane.ensureRegisteredAtLiveTail() }
+		coVerify(exactly = 0) { activityProjectionLane.ensureRegisteredAtLiveTail() }
 		result.status shouldBe ActivityRegistrationStatus.BLOCKED
 	}
 

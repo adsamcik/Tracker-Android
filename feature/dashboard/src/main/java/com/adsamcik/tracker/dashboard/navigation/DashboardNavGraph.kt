@@ -47,7 +47,10 @@ fun NavGraphBuilder.dashboardGraph(
                     navController.navigate(route) {
                         launchSingleTop = true
                     }
-                } catch (error: RuntimeException) {
+                } catch (
+                	// Navigation failures must release this exact handoff before propagating.
+                	@Suppress("TooGenericExceptionCaught") error: RuntimeException
+                ) {
                     SourceHistoryDetailHandoff.release(route.selectionToken)
                     throw error
                 }

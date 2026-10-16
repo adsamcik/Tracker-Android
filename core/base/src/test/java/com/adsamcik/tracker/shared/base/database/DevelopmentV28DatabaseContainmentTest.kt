@@ -22,6 +22,9 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// One synthetic database fixture verifies the same non-destructive preflight and containment contract
+// across development schema variants.
+@Suppress("LargeClass")
 class DevelopmentV28DatabaseContainmentTest {
 	private lateinit var context: Application
 
@@ -1091,6 +1094,9 @@ class DevelopmentV28DatabaseContainmentTest {
 			SupportSQLiteOpenHelper.Configuration.builder(context)
 				.name(DATABASE_NAME)
 				.callback(object : SupportSQLiteOpenHelper.Callback(version) {
+					// Keep the synthetic development-schema fixture declarations and their explicit
+					// missing-table/index/column switches visible together.
+					@Suppress("LongMethod")
 					override fun onCreate(db: SupportSQLiteDatabase) {
 						if (includeBaseline) {
 								db.execSQL(

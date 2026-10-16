@@ -160,4 +160,5 @@
     <string name="history_button_label">इतिहास</string>
     <string name="history_view_trip_on_map">यात्रा को मानचित्र पर देखें</string>
     <string name="stats_heatmap_title">गतिविधि</string>
+    <string name="stats_recorded_partial_value">%1$s · आंशिक</string>
 </resources>

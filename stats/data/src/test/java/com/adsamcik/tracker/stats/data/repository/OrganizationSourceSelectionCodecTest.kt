@@ -22,7 +22,11 @@ class OrganizationSourceSelectionCodecTest {
 			OrganizationSourceSelector.BackgroundRadioArchive(HistorySource.CELL, "d".repeat(64)),
 		) + HistorySource.entries.filter { it != HistorySource.LOCATION }.map { source ->
 			OrganizationSourceSelector.CapturedEntry(source,
-				(if (source == HistorySource.STEPS || source == HistorySource.PRESSURE) "sha256:" else "") + "e".repeat(64))
+				(if (source == HistorySource.STEPS || source == HistorySource.PRESSURE) {
+					"sha256:"
+				} else {
+					""
+				}) + "e".repeat(64))
 		}
 		OrganizationSourceSelectionCodec.decode(OrganizationSourceSelectionCodec.encode(selection)) shouldBe selection
 		OrganizationSourceSelectionCodec.encode(emptyList()) shouldBe "[]"
@@ -83,5 +87,47 @@ class OrganizationSourceSelectionCodecTest {
 		).forEach { encoded -> shouldThrow<IllegalArgumentException> { OrganizationSourceSelectionCodec.decode(encoded) } }
 		val encoded = OrganizationSourceSelectionCodec.encode(listOf(OrganizationSourceSelector.LocationFile(identity)))
 		shouldThrow<IllegalArgumentException> { OrganizationSourceSelectionCodec.decode("[${encoded.drop(1).dropLast(1)},${encoded.drop(1).dropLast(1)}]") }
+	}
+
+	@Test fun `imported captured membership round trips beside original selectors in order`() {
+		val identity = "a".repeat(64)
+		val selection = listOf(
+			OrganizationSourceSelector.LocationFile("b".repeat(64)),
+			OrganizationSourceSelector.CapturedEntry(HistorySource.WIFI, identity, "job:1", "entry:1"),
+			OrganizationSourceSelector.CapturedEntry(HistorySource.WIFI, identity),
+			OrganizationSourceSelector.CapturedEntry(HistorySource.WIFI, identity, "job:2", "entry:2"),
+		)
+
+		OrganizationSourceSelectionCodec.decode(OrganizationSourceSelectionCodec.encode(selection)) shouldBe selection
+	}
+
+	@Test fun `import membership requires the exact paired keys on a captured entry`() {
+		val identity = "a".repeat(64)
+		listOf(
+			"""
+			[{"kind":"captured-entry","source":"WIFI","identity":"$identity","importJobId":"job"}]
+			""".trimIndent(),
+			"""
+			[{"kind":"captured-entry","source":"WIFI","identity":"$identity","importEntryKey":"entry"}]
+			""".trimIndent(),
+			"""
+			[{"kind":"location-file","source":"LOCATION","identity":"$identity",
+			"importJobId":"job","importEntryKey":"entry"}]
+			""".trimIndent(),
+			"""
+			[{"kind":"background-radio-archive","source":"WIFI","identity":"$identity",
+			"importJobId":"job","importEntryKey":"entry"}]
+			""".trimIndent(),
+		).forEach { encoded ->
+			shouldThrow<IllegalArgumentException> { OrganizationSourceSelectionCodec.decode(encoded) }
+		}
+	}
+
+	@Test fun `malformed list rows keep the public invalid metadata error`() {
+		listOf("[null]", "[[]]", "[{").forEach { encoded ->
+			shouldThrow<IllegalArgumentException> {
+				OrganizationSourceSelectionCodec.decode(encoded)
+			}.message shouldBe "Invalid organization source selection"
+		}
 	}
 }

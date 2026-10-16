@@ -128,7 +128,11 @@ class TrackingCoordinatorTest {
 	}
 
 	private class FailingBackgroundProjection(source: SourceKind, override val version: Int = 1) : Projection {
-		override val id = if (source == SourceKind.WIFI) AmbientWifiFactRevisionEntity.WRITER_ID else AmbientCellFactRevisionEntity.WRITER_ID
+		override val id = if (source == SourceKind.WIFI) {
+			AmbientWifiFactRevisionEntity.WRITER_ID
+		} else {
+			AmbientCellFactRevisionEntity.WRITER_ID
+		}
 		var attempts = 0
 		override suspend fun apply(event: AdmittedSourceEvent<out SourcePayload>, context: ProjectionContext) {
 			attempts++

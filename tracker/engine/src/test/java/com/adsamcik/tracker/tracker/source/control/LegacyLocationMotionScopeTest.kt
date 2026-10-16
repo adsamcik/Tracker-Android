@@ -33,6 +33,7 @@ class LegacyLocationMotionScopeTest {
 			capturedCollectedDataEpoch = 0L,
 			acquiredAtMs = 1_000L,
 			quality = SourceQuality(),
+			locationSpeedAccuracyMetersPerSecond = 0.1f,
 			payloadVersion = 1,
 			payload = LocationFixPayload(50.0, 14.0, 5f, null, null, 2f, null, "gps", false),
 		))

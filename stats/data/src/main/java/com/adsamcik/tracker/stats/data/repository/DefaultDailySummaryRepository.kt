@@ -62,16 +62,29 @@ class DefaultDailySummaryRepository @Inject constructor(
 		catch (cancelled: CancellationException) { throw cancelled }
 		catch (_: Exception) { null }
 		return (saved.keys + measured.orEmpty().keys).filter { it in fromDay..toDay }.sorted().mapNotNull { day ->
-			val entity = saved[day]
-			val location = measured?.get(day)
-			if (entity == null && (location?.pointCount ?: 0L) == 0L) null else DailySummary(
+			measuredDay(day, saved[day], measured?.get(day), measured == null)
+		}
+	}
+
+	// One fixed nullable saved/measured row projection keeps defaults and partial flags visible together.
+	@Suppress("CyclomaticComplexMethod")
+	private fun measuredDay(
+		day: Long,
+		entity: com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity?,
+		location: SavedLocationDayMetrics?,
+		measurementUnavailable: Boolean,
+	): DailySummary? {
+		return if (entity == null && (location?.pointCount ?: 0L) == 0L) {
+			null
+		} else {
+			DailySummary(
 				dayEpoch = day,
 				totalDistance = DistanceM.coerced((location?.distanceMeters ?: 0.0).toFloat()),
 				totalDuration = DurationMs((entity?.totalDurationMs ?: 0L).coerceAtLeast(0L)),
 				tripCount = (entity?.tripCount ?: 0).coerceAtLeast(0),
 				activeTrackingDuration = DurationMs((entity?.activeTrackingMs ?: 0L).coerceAtLeast(0L)),
 				hasMeasuredDistance = location?.distanceMeters != null,
-				distanceIsPartial = measured == null || location?.partial == true,
+				distanceIsPartial = measurementUnavailable || location?.partial == true,
 			)
 		}
 	}

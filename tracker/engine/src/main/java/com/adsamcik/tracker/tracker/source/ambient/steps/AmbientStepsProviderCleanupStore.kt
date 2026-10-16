@@ -64,47 +64,57 @@ internal class AmbientStepsProviderCleanupStore private constructor(
 				corrupt = false,
 			)
 		}
-		return try {
-			DataInputStream(input).use(::decode)
+		val failure = try {
+			return DataInputStream(input).use(::decode)
 		} catch (error: AmbientStepsProviderCleanupStoreException) {
-			throw error
+			error
 		} catch (error: EOFException) {
-			throw AmbientStepsProviderCleanupStoreException(
+			AmbientStepsProviderCleanupStoreException(
 				"Ambient Steps provider cleanup journal is truncated",
 				error,
 				corrupt = true,
 			)
 		} catch (error: IOException) {
-			throw AmbientStepsProviderCleanupStoreException(
+			AmbientStepsProviderCleanupStoreException(
 				"Ambient Steps provider cleanup journal cannot be decoded",
 				error,
 				corrupt = true,
 			)
 		} catch (error: IllegalArgumentException) {
-			throw AmbientStepsProviderCleanupStoreException(
+			AmbientStepsProviderCleanupStoreException(
 				"Ambient Steps provider cleanup journal contains an invalid provider",
 				error,
 				corrupt = true,
 			)
 		}
+		throw failure
 	}
 
 	@Synchronized
 	internal fun addPending(provider: AmbientStepsProvider): AmbientStepsProviderCleanupState {
 		val current = read()
-		if (provider in current.pending) return current
+		if (provider in current.pending) {
+			return current
+		}
 		return current.copy(pending = current.pending + provider).also(::write)
 	}
 
 	@Synchronized
 	internal fun removePending(provider: AmbientStepsProvider): AmbientStepsProviderCleanupState {
 		val current = read()
-		if (provider !in current.pending) return current
+		if (provider !in current.pending) {
+			return current
+		}
 		return current.copy(pending = current.pending - provider).also(::write)
 	}
 
 	@Synchronized
 	internal fun write(state: AmbientStepsProviderCleanupState) {
+		writeJournal(state)
+		syncJournalDirectory()
+	}
+
+	private fun writeJournal(state: AmbientStepsProviderCleanupState) {
 		val output = try {
 			journal.startWrite()
 		} catch (error: IOException) {
@@ -123,18 +133,26 @@ internal class AmbientStepsProviderCleanupStore private constructor(
 			pending.forEach { provider -> data.writeByte(provider.wireCode) }
 			data.flush()
 			journal.finishWrite(output)
-		} catch (error: Exception) {
+		} catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
+			// Abort the atomic journal write before preserving its typed storage failure and original cause.
 			journal.failWrite(output)
-			if (error is AmbientStepsProviderCleanupStoreException) throw error
-			throw AmbientStepsProviderCleanupStoreException(
-				"Unable to persist Ambient Steps provider cleanup journal",
-				error,
-				corrupt = false,
-			)
+			throw if (error is AmbientStepsProviderCleanupStoreException) {
+				error
+			} else {
+				AmbientStepsProviderCleanupStoreException(
+					"Unable to persist Ambient Steps provider cleanup journal",
+					error,
+					corrupt = false,
+				)
+			}
 		}
+	}
+
+	private fun syncJournalDirectory() {
 		try {
 			directorySync(checkNotNull(journal.baseFile.parentFile))
-		} catch (error: Exception) {
+		} catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
+			// Expose directory-sync failure as the same retryable journal error, retaining its original cause.
 			throw AmbientStepsProviderCleanupStoreException(
 				"Unable to sync Ambient Steps provider cleanup journal directory",
 				error,
@@ -144,6 +162,25 @@ internal class AmbientStepsProviderCleanupStore private constructor(
 	}
 
 	private fun decode(input: DataInputStream): AmbientStepsProviderCleanupState {
+		readSupportedHeader(input)
+		val count = input.readInt()
+		if (count !in 0..AmbientStepsProvider.entries.size) {
+			throw AmbientStepsProviderCleanupStoreException(
+				"Invalid Ambient Steps provider cleanup count $count",
+				corrupt = true,
+			)
+		}
+		val pending = readPendingProviders(input, count)
+		if (input.read() != -1) {
+			throw AmbientStepsProviderCleanupStoreException(
+				"Ambient Steps provider cleanup journal has trailing data",
+				corrupt = true,
+			)
+		}
+		return AmbientStepsProviderCleanupState(pending)
+	}
+
+	private fun readSupportedHeader(input: DataInputStream) {
 		if (input.readInt() != JOURNAL_MAGIC) {
 			throw AmbientStepsProviderCleanupStoreException(
 				"Ambient Steps provider cleanup journal has an invalid header",
@@ -157,13 +194,9 @@ internal class AmbientStepsProviderCleanupStore private constructor(
 				corrupt = true,
 			)
 		}
-		val count = input.readInt()
-		if (count !in 0..AmbientStepsProvider.entries.size) {
-			throw AmbientStepsProviderCleanupStoreException(
-				"Invalid Ambient Steps provider cleanup count $count",
-				corrupt = true,
-			)
-		}
+	}
+
+	private fun readPendingProviders(input: DataInputStream, count: Int): Set<AmbientStepsProvider> {
 		val pending = LinkedHashSet<AmbientStepsProvider>(count)
 		repeat(count) {
 			val provider = providerFromWireCode(input.readUnsignedByte())
@@ -174,13 +207,7 @@ internal class AmbientStepsProviderCleanupStore private constructor(
 				)
 			}
 		}
-		if (input.read() != -1) {
-			throw AmbientStepsProviderCleanupStoreException(
-				"Ambient Steps provider cleanup journal has trailing data",
-				corrupt = true,
-			)
-		}
-		return AmbientStepsProviderCleanupState(pending)
+		return pending
 	}
 
 	private companion object {

@@ -37,6 +37,8 @@ class AmbientStepsImportStateDaoTest {
 	fun tearDown() = database.close()
 
 	@Test
+	// Progress, stale rejection and the gap transition share the same cursor.
+	@Suppress("LongMethod")
 	fun `progress and segment transitions are monotonic compare and set`() = runTest {
 		val initial = cursor()
 		dao.insertCursor(initial) shouldBe 7L

@@ -16,6 +16,8 @@ class LegacySourceSettingsUnavailableException : IllegalStateException(
 )
 
 /** Room-backed single runtime authority for source enablement, QoS, persistence, and consent. */
+// Keep policy changes, consent rows and their atomic publication in the existing Room authority.
+@Suppress("LargeClass", "TooManyFunctions")
 class RoomSourcePolicyRepository(
 	private val database: AppDatabase,
 	private val setupCompleted: suspend () -> Boolean = { true },
@@ -60,72 +62,19 @@ class RoomSourcePolicyRepository(
 			val desired = desiredCapturePolicies(settings)
 			val automaticControlEligible = setupComplete && settings.automaticControlEligible()
 			val ambientEligibleSources = settings.ambientEnabledSources(setupComplete)
-			val initialConsentRows = buildList {
-				TrackingSourceComponent.entries.forEach { source ->
-					SourcePurpose.entries.forEach { purpose ->
-						add(
-							consentEntity(
-								source = source,
-								purpose = purpose,
-								epoch = 0L,
-								eligible = false,
-								persistenceEligible = false,
-								policyRevision = revision,
-								effectiveTime = effectiveTime,
-								reason = REASON_BOOTSTRAP_DENY,
-							),
-						)
-					}
-					if (desired.getValue(source).enabled) {
-						add(
-							consentEntity(
-								source = source,
-								purpose = SourcePurpose.SESSION_CAPTURE,
-								epoch = 1L,
-								eligible = true,
-								persistenceEligible = true,
-								policyRevision = revision,
-								effectiveTime = effectiveTime,
-								reason = REASON_LEGACY_CAPTURE_IMPORT,
-							),
-						)
-					}
-					if (source.supportsPurpose(SourcePurpose.CONTROL) && automaticControlEligible) {
-						add(
-							consentEntity(
-								source = source,
-								purpose = SourcePurpose.CONTROL,
-								epoch = 1L,
-								eligible = true,
-								persistenceEligible = false,
-								policyRevision = revision,
-								effectiveTime = effectiveTime,
-								reason = REASON_LEGACY_AUTOMATIC_CONTROL_IMPORT,
-							),
-						)
-					}
-					if (source in ambientEligibleSources) {
-						add(
-							consentEntity(
-								source = source,
-								purpose = SourcePurpose.AMBIENT_PRODUCT,
-								epoch = 1L,
-								eligible = true,
-								persistenceEligible = true,
-								policyRevision = revision,
-								effectiveTime = effectiveTime,
-								reason = REASON_AMBIENT_CONSENT_IMPORT,
-							),
-						)
-					}
-				}
-			}
+			val initialConsentRows = bootstrapConsentRows(
+				desired, automaticControlEligible, ambientEligibleSources, revision, effectiveTime,
+			)
 			dao.insertConsentEpochs(initialConsentRows)
 			val policies = desired.values.map { policy ->
 				policyEntity(
 					revision = revision,
 					desired = policy,
-					captureConsentEpoch = if (policy.enabled) 1L else null,
+					captureConsentEpoch = if (policy.enabled) {
+						1L
+					} else {
+						null
+					},
 					controlConsentEpoch = 1L.takeIf {
 						policy.source.supportsPurpose(SourcePurpose.CONTROL) &&
 							automaticControlEligible
@@ -152,6 +101,65 @@ class RoomSourcePolicyRepository(
 				) == 1,
 			) { "Source-policy bootstrap authority CAS failed" }
 			requireActiveSnapshot(requireNotNull(dao.authority()), dao.currentPolicies())
+		}
+	}
+
+	private fun bootstrapConsentRows(
+		desired: Map<TrackingSourceComponent, DesiredCapturePolicy>,
+		automaticControlEligible: Boolean,
+		ambientEligibleSources: Set<TrackingSourceComponent>,
+		revision: Long,
+		effectiveTime: SourcePolicyEffectiveTime,
+	): List<SourceConsentEpochEntity> = buildList {
+		TrackingSourceComponent.entries.forEach { source ->
+			SourcePurpose.entries.forEach { purpose ->
+				add(consentEntity(
+					source = source,
+					purpose = purpose,
+					epoch = 0L,
+					eligible = false,
+					persistenceEligible = false,
+					policyRevision = revision,
+					effectiveTime = effectiveTime,
+					reason = REASON_BOOTSTRAP_DENY,
+				))
+			}
+			if (desired.getValue(source).enabled) {
+				add(consentEntity(
+					source = source,
+					purpose = SourcePurpose.SESSION_CAPTURE,
+					epoch = 1L,
+					eligible = true,
+					persistenceEligible = true,
+					policyRevision = revision,
+					effectiveTime = effectiveTime,
+					reason = REASON_LEGACY_CAPTURE_IMPORT,
+				))
+			}
+			if (source.supportsPurpose(SourcePurpose.CONTROL) && automaticControlEligible) {
+				add(consentEntity(
+					source = source,
+					purpose = SourcePurpose.CONTROL,
+					epoch = 1L,
+					eligible = true,
+					persistenceEligible = false,
+					policyRevision = revision,
+					effectiveTime = effectiveTime,
+					reason = REASON_LEGACY_AUTOMATIC_CONTROL_IMPORT,
+				))
+			}
+			if (source in ambientEligibleSources) {
+				add(consentEntity(
+					source = source,
+					purpose = SourcePurpose.AMBIENT_PRODUCT,
+					epoch = 1L,
+					eligible = true,
+					persistenceEligible = true,
+					policyRevision = revision,
+					effectiveTime = effectiveTime,
+					reason = REASON_AMBIENT_CONSENT_IMPORT,
+				))
+			}
 		}
 	}
 
@@ -439,18 +447,21 @@ class RoomSourcePolicyRepository(
 			"Persistent CONTROL consent is unavailable until its retention policy is approved"
 		}
 		require(reason.isNotBlank()) { "Consent change reason must not be blank" }
-		val setupComplete = if (eligible && (
-			(source == TrackingSourceComponent.STEPS && purpose == SourcePurpose.AMBIENT_PRODUCT) ||
-			(source == CONTROL_SOURCE && purpose == SourcePurpose.CONTROL)
-		)) setupCompleted() else true
+		val isStepsConsent = source == TrackingSourceComponent.STEPS && purpose == SourcePurpose.AMBIENT_PRODUCT
+		val isControlConsent = source == CONTROL_SOURCE && purpose == SourcePurpose.CONTROL
+		val setupComplete = if (eligible && (isStepsConsent || isControlConsent)) {
+			setupCompleted()
+		} else {
+			true
+		}
 		return database.withTransaction {
 			val current = activeSnapshotAtExpectedRevision(expectedPolicyRevision)
-			if (source == TrackingSourceComponent.STEPS && purpose == SourcePurpose.AMBIENT_PRODUCT && eligible) {
+			if (isStepsConsent && eligible) {
 				require(setupComplete || current[source].ambientConsentEpoch != null) {
 					"All-day Steps requires completed setup"
 				}
 			}
-			if (source == CONTROL_SOURCE && purpose == SourcePurpose.CONTROL && eligible) {
+			if (isControlConsent && eligible) {
 				require(setupComplete || current[source].controlConsentEpoch != null) {
 					"Automatic tracking requires completed setup"
 				}
@@ -720,7 +731,11 @@ class RoomSourcePolicyRepository(
 		DesiredCapturePolicy(
 			source = source,
 			enabled = enabled,
-			qos = if (enabled) frequency.takeUnless { it == SourceCollectionFrequency.OFF }?.toQos() ?: SourceQos.BALANCED else SourceQos.OFF,
+			qos = if (enabled) {
+				frequency.takeUnless { it == SourceCollectionFrequency.OFF }?.toQos() ?: SourceQos.BALANCED
+			} else {
+				SourceQos.OFF
+			},
 			locationMinTimeSeconds = settings.minTimeSeconds.coerceAtLeast(1).takeIf {
 				source == TrackingSourceComponent.LOCATION
 			},
@@ -730,11 +745,13 @@ class RoomSourcePolicyRepository(
 			locationRequiredAccuracyMeters = settings.requiredAccuracyMeters.coerceAtLeast(1).takeIf {
 				source == TrackingSourceComponent.LOCATION
 			},
-			balanceProfileVersion = settings.balanceProfileVersion ?: settings.locationProfileVersion.takeIf { source == TrackingSourceComponent.LOCATION },
+			balanceProfileVersion = settings.balanceProfileVersion ?:
+                settings.locationProfileVersion.takeIf { source == TrackingSourceComponent.LOCATION },
 			balanceLevel = settings.baselineBalanceLevel(source),
 			overallBalanceLevel = settings.overallBalanceLevel,
 			sourceBalanceOverride = settings.sourceBalanceOverrides[source],
-			locationBackgroundMode = settings.locationBackgroundMode.takeIf { source == TrackingSourceComponent.LOCATION },
+			locationBackgroundMode =
+                settings.locationBackgroundMode.takeIf { source == TrackingSourceComponent.LOCATION },
 			locationMotionAssistanceEnabled = source == TrackingSourceComponent.LOCATION &&
 				settings.locationMotionAssistanceEnabled,
 			backgroundNotificationHostEnabled = when (source) {
@@ -818,14 +835,25 @@ class RoomSourcePolicyRepository(
 			"ambient-wifi:${settings.ambientWifiEnabled}|" +
 			"ambient-cell:${settings.ambientCellEnabled}" +
 			// Preserve the exact old fingerprint while both newly introduced choices are off.
-			(if (!settings.backgroundWifiNotificationEnabled && !settings.backgroundCellNotificationEnabled)
-				"" else "|radio-host:${settings.backgroundWifiNotificationEnabled}:${settings.backgroundCellNotificationEnabled}") +
+			(if (!settings.backgroundWifiNotificationEnabled && !settings.backgroundCellNotificationEnabled) {
+				""
+			} else {
+				"|radio-host:${settings.backgroundWifiNotificationEnabled}:${settings.backgroundCellNotificationEnabled}"
+			}) +
 			(if (settings.locationProfileVersion == null && settings.locationBackgroundMode == null &&
 				!settings.locationMotionAssistanceEnabled
-			) "" else "|location-profile:${settings.locationProfileVersion}:${settings.locationBalanceLevel}:" +
-				"${settings.locationBackgroundMode?.stableCode}:${settings.locationMotionAssistanceEnabled}") +
-			if (settings.balanceProfileVersion == null) "" else "|balance:${settings.balanceProfileVersion}:${settings.overallBalanceLevel}:" +
+			) {
+				""
+			} else {
+				"|location-profile:${settings.locationProfileVersion}:${settings.locationBalanceLevel}:" +
+				"${settings.locationBackgroundMode?.stableCode}:${settings.locationMotionAssistanceEnabled}"
+			}) +
+			if (settings.balanceProfileVersion == null) {
+				""
+			} else {
+				"|balance:${settings.balanceProfileVersion}:${settings.overallBalanceLevel}:" +
 				TrackingSourceComponent.entries.joinToString(",") { "${it.stableCode}:${settings.sourceBalanceOverrides[it]}" }
+			}
 		return MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray(Charsets.UTF_8))
 			.joinToString("") { byte -> "%02x".format(byte) }
@@ -892,7 +920,9 @@ private fun TrackingParamsState.ambientEnabled(
 	source: TrackingSourceComponent,
 	setupCompleted: Boolean,
 ): Boolean {
-	if (!source.supportsPurpose(SourcePurpose.AMBIENT_PRODUCT)) return false
+	if (!source.supportsPurpose(SourcePurpose.AMBIENT_PRODUCT)) {
+		return false
+	}
 	return when (source) {
 		TrackingSourceComponent.LOCATION -> ambientLocationEnabled
 		TrackingSourceComponent.STEPS -> setupCompleted && captureParticipates(TrackingSourceComponent.STEPS)

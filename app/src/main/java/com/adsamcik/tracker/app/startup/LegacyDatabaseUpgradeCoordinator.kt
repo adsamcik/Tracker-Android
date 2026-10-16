@@ -21,9 +21,11 @@ import kotlinx.coroutines.sync.withLock
 
 sealed interface LegacyDatabaseStartupResult {
 	data object Ready : LegacyDatabaseStartupResult
+	/** Preserved active data cannot be opened safely and requires explicit remediation. */
 	data class ActiveDatabaseBlocked(
 		val reason: ActiveDatabaseBlockReason,
 	) : LegacyDatabaseStartupResult
+	/** A transient active-database failure permits a later retry without deleting its data. */
 	data class ActiveDatabaseRetryable(
 		val reason: ActiveDatabaseRetryableReason,
 	) : LegacyDatabaseStartupResult

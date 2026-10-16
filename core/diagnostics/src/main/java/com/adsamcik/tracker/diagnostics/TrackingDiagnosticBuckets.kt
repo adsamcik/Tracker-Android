@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.diagnostics
 
+/** Coarse operational count ranges; NOT_REPORTED distinguishes an omitted count from zero. */
 enum class TrackingDiagnosticCountBucket {
 	NOT_REPORTED,
 	ZERO,
@@ -10,6 +11,7 @@ enum class TrackingDiagnosticCountBucket {
 	SIXTY_FIVE_OR_MORE,
 	;
 
+	/** Converts nonnegative counts into the fixed ranges used by diagnostic storage. */
 	companion object {
 		@JvmSynthetic
 		internal fun fromCount(count: Long): TrackingDiagnosticCountBucket {
@@ -26,6 +28,7 @@ enum class TrackingDiagnosticCountBucket {
 	}
 }
 
+/** Coarse elapsed-duration ranges derived from nonnegative milliseconds. */
 enum class TrackingDiagnosticDurationBucket {
 	NOT_REPORTED,
 	UNDER_TEN_MILLISECONDS,
@@ -36,6 +39,7 @@ enum class TrackingDiagnosticDurationBucket {
 	THIRTY_SECONDS_OR_MORE,
 	;
 
+	/** Converts nonnegative milliseconds into the fixed elapsed-duration ranges. */
 	companion object {
 		@JvmSynthetic
 		internal fun fromMilliseconds(durationMilliseconds: Long): TrackingDiagnosticDurationBucket {
@@ -52,6 +56,7 @@ enum class TrackingDiagnosticDurationBucket {
 	}
 }
 
+/** Coarse queue-length ranges; an empty queue differs from an omitted backlog metric. */
 enum class TrackingDiagnosticBacklogBucket {
 	NOT_REPORTED,
 	EMPTY,
@@ -62,6 +67,7 @@ enum class TrackingDiagnosticBacklogBucket {
 	ONE_HUNDRED_TWENTY_NINE_OR_MORE,
 	;
 
+	/** Converts nonnegative queued-item counts into the fixed backlog ranges. */
 	companion object {
 		@JvmSynthetic
 		internal fun fromItemCount(itemCount: Long): TrackingDiagnosticBacklogBucket {
@@ -78,6 +84,7 @@ enum class TrackingDiagnosticBacklogBucket {
 	}
 }
 
+/** Coarse encoded-byte ranges in kibibytes, with no payload content. */
 enum class TrackingDiagnosticSizeBucket {
 	NOT_REPORTED,
 	EMPTY,
@@ -88,6 +95,7 @@ enum class TrackingDiagnosticSizeBucket {
 	OVER_SIXTY_FOUR_KIBIBYTES,
 	;
 
+	/** Converts nonnegative byte counts into the fixed encoded-size ranges. */
 	companion object {
 		@JvmSynthetic
 		internal fun fromBytes(byteCount: Long): TrackingDiagnosticSizeBucket {

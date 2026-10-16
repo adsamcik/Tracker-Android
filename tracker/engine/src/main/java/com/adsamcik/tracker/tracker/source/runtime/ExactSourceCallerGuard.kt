@@ -1,3 +1,6 @@
+// Authority construction and its private validators share one protocol; method checks remain active.
+@file:Suppress("TooManyFunctions")
+
 package com.adsamcik.tracker.tracker.source.runtime
 
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
@@ -171,29 +174,30 @@ internal class ExactSourceCallerGuard @Inject constructor(
 		) {
 			return rejected(SourceCallerRejectionReason.REPLAY_KIND_REQUIRES_FRESH_ACCEPTANCE)
 		}
-		validateBoundExecution(canonicalRequest.requestedDemandIdentities.toSet())?.let { return it }
+		return validateBoundExecution(canonicalRequest.requestedDemandIdentities.toSet())
+			?: acceptCurrentAuthority(canonicalRequest)
+	}
+
+	private suspend fun acceptCurrentAuthority(request: SourceCallerRequest): SourceCallerGuardResult {
 		val currentAuthority = try {
-			authorityReader.read(canonicalRequest)
+			authorityReader.read(request)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (failure: Exception) {
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+			// Authority reads become explicit storage/invariant rejections; cancellation was rethrown.
 			return rejected(failure.toAuthorityFailureReason())
 		}
-		return when (canonicalRequest) {
-			is SourceCallerRequest.ManualSessionStart ->
-				acceptFresh(prepareFreshAcceptance(canonicalRequest, currentAuthority, System.currentTimeMillis()))
-			is SourceCallerRequest.AutomaticSessionStart ->
-				acceptFresh(prepareFreshAcceptance(canonicalRequest, currentAuthority, System.currentTimeMillis()))
-			is SourceCallerRequest.RecoverySessionStart ->
-				acceptFresh(prepareFreshAcceptance(canonicalRequest, currentAuthority, System.currentTimeMillis()))
-			is SourceCallerRequest.PurposeOwnerMutation ->
-				acceptFresh(prepareFreshAcceptance(canonicalRequest, currentAuthority, System.currentTimeMillis()))
+		return when (request) {
+			is SourceCallerRequest.ManualSessionStart,
+			is SourceCallerRequest.AutomaticSessionStart,
+			is SourceCallerRequest.RecoverySessionStart,
+			is SourceCallerRequest.PurposeOwnerMutation,
+			is SourceCallerRequest.Ambient,
+			-> acceptFresh(prepareFreshAcceptance(request, currentAuthority, System.currentTimeMillis()))
 			is SourceCallerRequest.PurposeOwnerRetirement ->
 				error("Purpose-owner retirement is handled before current-authority acquisition")
-			is SourceCallerRequest.Ambient ->
-				acceptFresh(prepareFreshAcceptance(canonicalRequest, currentAuthority, System.currentTimeMillis()))
 			is SourceCallerRequest.Replay ->
-				authenticateReplayAgainstSnapshot(canonicalRequest, currentAuthority)
+				authenticateReplayAgainstSnapshot(request, currentAuthority)
 		}
 	}
 
@@ -210,9 +214,15 @@ internal class ExactSourceCallerGuard @Inject constructor(
 		require(request !is SourceCallerRequest.PurposeOwnerRetirement)
 		require(createdAtMs >= 0L)
 		val evaluation = when (request) {
-			is SourceCallerRequest.ManualSessionStart -> evaluateManual(request, currentAuthority)
+			is SourceCallerRequest.ManualSessionStart -> evaluateSessionCapture(
+				request.requestedCapturedSources, request.requestedDemandIdentities,
+				request.manifestIdentity, currentAuthority, AcceptedSourceCallerOrigin.MANUAL,
+			)
 			is SourceCallerRequest.AutomaticSessionStart -> evaluateAutomatic(request, currentAuthority)
-			is SourceCallerRequest.RecoverySessionStart -> evaluateRecovery(request, currentAuthority)
+			is SourceCallerRequest.RecoverySessionStart -> evaluateSessionCapture(
+				request.requestedCapturedSources, request.requestedDemandIdentities,
+				request.manifestIdentity, currentAuthority, AcceptedSourceCallerOrigin.RECOVERY,
+			)
 			is SourceCallerRequest.PurposeOwnerMutation ->
 				evaluatePurposeOwnerMutation(request, currentAuthority)
 			is SourceCallerRequest.Ambient -> evaluateAmbient(request, currentAuthority)
@@ -264,7 +274,9 @@ internal class ExactSourceCallerGuard @Inject constructor(
 		currentAuthority: SourceCallerAuthoritySnapshot,
 	): Boolean {
 		val gate = startupGateProvider?.get() ?: return true
-		if (gate.permitsNewCollection) return true
+		if (gate.permitsNewCollection) {
+			return true
+		}
 		val generation = currentAuthority.pendingManualStartGeneration ?: return false
 		return request.isPendingManualDeliveryCandidate() &&
 			gate.permitsPendingManualStart(generation) &&
@@ -274,30 +286,42 @@ internal class ExactSourceCallerGuard @Inject constructor(
 			}
 	}
 
+	private suspend fun loadAcceptedAuthority(
+		reference: SourceCallerReplayReference,
+	): SourceCallerEvaluation {
+		val loaded = try {
+			authorityRepository.load(reference)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+			// Saved authority reads preserve storage/invariant rejection and rethrow cancellation.
+			return rejectedEvaluation(failure.toAuthorityFailureReason())
+		}
+		return when (loaded) {
+			is StoredSourceCallerAuthorityLoadResult.Available -> try {
+				SourceCallerEvaluation.Accepted(loaded.authority.toAccepted())
+			} catch (_: IllegalArgumentException) {
+				rejectedEvaluation(SourceCallerRejectionReason.REPLAY_AUTHORITY_CORRUPT)
+			}
+			StoredSourceCallerAuthorityLoadResult.Missing ->
+				rejectedEvaluation(SourceCallerRejectionReason.REPLAY_AUTHORITY_UNAVAILABLE)
+			StoredSourceCallerAuthorityLoadResult.Corrupt ->
+				rejectedEvaluation(SourceCallerRejectionReason.REPLAY_AUTHORITY_CORRUPT)
+			StoredSourceCallerAuthorityLoadResult.Retired ->
+				rejectedEvaluation(SourceCallerRejectionReason.REPLAY_AUTHORITY_RETIRED)
+		}
+	}
+
 	private suspend fun acceptPurposeOwnerRetirement(
 		request: SourceCallerRequest.PurposeOwnerRetirement,
 	): SourceCallerGuardResult {
-		val loaded = try {
-			authorityRepository.load(request.reference)
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (failure: Exception) {
-			return rejected(failure.toAuthorityFailureReason())
-		}
-		val accepted = when (loaded) {
-			is StoredSourceCallerAuthorityLoadResult.Available -> try {
-				loaded.authority.toAccepted()
-			} catch (_: IllegalArgumentException) {
-				return rejected(SourceCallerRejectionReason.REPLAY_AUTHORITY_CORRUPT)
-			}
-			StoredSourceCallerAuthorityLoadResult.Missing ->
-				return rejected(SourceCallerRejectionReason.REPLAY_AUTHORITY_UNAVAILABLE)
-			StoredSourceCallerAuthorityLoadResult.Corrupt ->
-				return rejected(SourceCallerRejectionReason.REPLAY_AUTHORITY_CORRUPT)
-			StoredSourceCallerAuthorityLoadResult.Retired ->
-				return rejected(SourceCallerRejectionReason.REPLAY_AUTHORITY_RETIRED)
+		val accepted = when (val loaded = loadAcceptedAuthority(request.reference)) {
+			is SourceCallerEvaluation.Accepted -> loaded.authority
+			is SourceCallerEvaluation.Rejected -> return SourceCallerGuardResult.Rejected(loaded.rejection)
 		}
 		val identity = accepted.permittedDemandIdentities.singleOrNull()
+		// One saved receipt must match this complete sessionless source-purpose identity.
+		@Suppress("ComplexCondition")
 		if (identity == null ||
 			accepted.origin != AcceptedSourceCallerOrigin.PURPOSE_OWNER ||
 			accepted.purpose != request.purpose ||
@@ -330,7 +354,8 @@ internal class ExactSourceCallerGuard @Inject constructor(
 				}
 			} catch (cancelled: CancellationException) {
 				throw cancelled
-			} catch (failure: Exception) {
+			} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+				// Persisting one acceptance reports storage or invariant failure without issuing authority.
 				rejected(
 					if (failure.isTrackingOperationalFailure()) {
 						SourceCallerRejectionReason.AUTHORITY_PERSISTENCE_UNAVAILABLE
@@ -346,25 +371,9 @@ internal class ExactSourceCallerGuard @Inject constructor(
 		request: SourceCallerRequest.Replay,
 		currentAuthority: SourceCallerAuthoritySnapshot,
 	): SourceCallerGuardResult {
-		val loaded = try {
-			authorityRepository.load(request.reference)
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (failure: Exception) {
-			return rejected(failure.toAuthorityFailureReason())
-		}
-		val accepted = when (loaded) {
-			is StoredSourceCallerAuthorityLoadResult.Available -> try {
-				loaded.authority.toAccepted()
-			} catch (_: IllegalArgumentException) {
-				return rejected(SourceCallerRejectionReason.REPLAY_AUTHORITY_CORRUPT)
-			}
-			StoredSourceCallerAuthorityLoadResult.Missing ->
-				return rejected(SourceCallerRejectionReason.REPLAY_AUTHORITY_UNAVAILABLE)
-			StoredSourceCallerAuthorityLoadResult.Corrupt ->
-				return rejected(SourceCallerRejectionReason.REPLAY_AUTHORITY_CORRUPT)
-			StoredSourceCallerAuthorityLoadResult.Retired ->
-				return rejected(SourceCallerRejectionReason.REPLAY_AUTHORITY_RETIRED)
+		val accepted = when (val loaded = loadAcceptedAuthority(request.reference)) {
+			is SourceCallerEvaluation.Accepted -> loaded.authority
+			is SourceCallerEvaluation.Rejected -> return SourceCallerGuardResult.Rejected(loaded.rejection)
 		}
 		if (accepted.purpose != TrackingPurpose.SESSION_CAPTURE ||
 			accepted.origin !in setOf(
@@ -376,18 +385,14 @@ internal class ExactSourceCallerGuard @Inject constructor(
 			return rejected(SourceCallerRejectionReason.REPLAY_KIND_NOT_PERMITTED)
 		}
 		val requestedDemands = request.requestedDemandIdentities.toSet()
-		if (request.purpose != accepted.purpose) {
-			return rejected(SourceCallerRejectionReason.REPLAY_PURPOSE_MISMATCH)
+		return when {
+			request.purpose != accepted.purpose -> rejected(SourceCallerRejectionReason.REPLAY_PURPOSE_MISMATCH)
+			requestedDemands != accepted.permittedDemandIdentities ->
+				rejected(replayMismatchReason(request.purpose, requestedDemands, accepted))
+			else -> validateReplayReadiness(accepted, currentAuthority.purposeAvailability)
+				?: validateCurrentAuthority(accepted.permittedDemandIdentities, currentAuthority.currentDemandIdentities)
+				?: permitted(request.reference, accepted)
 		}
-		if (requestedDemands != accepted.permittedDemandIdentities) {
-			return rejected(replayMismatchReason(request.purpose, requestedDemands, accepted))
-		}
-		validateReplayReadiness(accepted, currentAuthority.purposeAvailability)?.let { return it }
-		validateCurrentAuthority(
-			accepted.permittedDemandIdentities,
-			currentAuthority.currentDemandIdentities,
-		)?.let { return it }
-		return permitted(request.reference, accepted)
 	}
 }
 
@@ -461,17 +466,25 @@ internal class ExactAcceptedSourceCallerAuthority private constructor(
 			require(permittedDemandIdentities.all { identity ->
 				identity.purposeLeaseIdentity.executionRevision > 0L
 			})
+			requireOriginShape(origin, purpose, permittedDemandIdentities)
+			return ExactAcceptedSourceCallerAuthority(
+				origin,
+				purpose,
+				permittedDemandIdentities,
+			)
+		}
+
+		private fun requireOriginShape(
+			origin: AcceptedSourceCallerOrigin, purpose: TrackingPurpose,
+			permittedDemandIdentities: Set<SourceCallerDemandIdentity>,
+		) {
 			val captures = permittedDemandIdentities.filter { identity ->
 				identity.sourcePurpose.purpose == TrackingPurpose.SESSION_CAPTURE
 			}
 			when (origin) {
-				AcceptedSourceCallerOrigin.MANUAL -> {
-					require(purpose == TrackingPurpose.SESSION_CAPTURE)
-					require(captures.size == permittedDemandIdentities.size)
-					require(captures.map(SourceCallerDemandIdentity::manifestIdentity)
-						.distinct().size == 1)
-				}
-				AcceptedSourceCallerOrigin.RECOVERY -> {
+				AcceptedSourceCallerOrigin.MANUAL,
+				AcceptedSourceCallerOrigin.RECOVERY,
+				-> {
 					require(purpose == TrackingPurpose.SESSION_CAPTURE)
 					require(captures.size == permittedDemandIdentities.size)
 					require(captures.map(SourceCallerDemandIdentity::manifestIdentity)
@@ -507,21 +520,21 @@ internal class ExactAcceptedSourceCallerAuthority private constructor(
 						TrackingPurpose.AMBIENT_PRODUCT)
 				}
 			}
-			return ExactAcceptedSourceCallerAuthority(
-				origin,
-				purpose,
-				permittedDemandIdentities,
-			)
 		}
 	}
 }
 
-private fun evaluateManual(
-	request: SourceCallerRequest.ManualSessionStart,
+// Preserve ordered identity, manifest, consent and readiness rejection reasons before acceptance.
+@Suppress("ReturnCount")
+private fun evaluateSessionCapture(
+	requestedCapturedSources: Set<TrackingSource>,
+	requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
+	manifestIdentity: SourceCallerManifestIdentity,
 	currentAuthority: SourceCallerAuthoritySnapshot,
+	origin: AcceptedSourceCallerOrigin,
 ): SourceCallerEvaluation {
-	val capturedSources = request.requestedCapturedSources.toSet()
-	val requestedDemands = request.requestedDemandIdentities.toSet()
+	val capturedSources = requestedCapturedSources.toSet()
+	val requestedDemands = requestedDemandIdentities.toSet()
 	validateBoundExecution(requestedDemands)?.let {
 		return SourceCallerEvaluation.Rejected(it.rejection)
 	}
@@ -534,11 +547,11 @@ private fun evaluateManual(
 	validateDeclaredDemandSet(expected, requestedDemands)?.let {
 		return SourceCallerEvaluation.Rejected(it.rejection)
 	}
-	validateSessionManifest(request.manifestIdentity, requestedDemands)?.let {
+	validateSessionManifest(manifestIdentity, requestedDemands)?.let {
 		return SourceCallerEvaluation.Rejected(it.rejection)
 	}
 	validateCurrentManifestDemandSet(
-		request.manifestIdentity,
+		manifestIdentity,
 		requestedDemands,
 		currentAuthority.currentDemandIdentities,
 	)?.let { return SourceCallerEvaluation.Rejected(it.rejection) }
@@ -547,12 +560,14 @@ private fun evaluateManual(
 		currentAuthority.currentDemandIdentities,
 	)?.let { return SourceCallerEvaluation.Rejected(it.rejection) }
 	return acceptedEvaluation(
-		AcceptedSourceCallerOrigin.MANUAL,
+		origin,
 		TrackingPurpose.SESSION_CAPTURE,
 		requestedDemands,
 	)
 }
 
+// Ordered eligibility failures remain direct; all demand-set algorithms are checked separately.
+@Suppress("ReturnCount")
 private fun evaluateAutomatic(
 	request: SourceCallerRequest.AutomaticSessionStart,
 	currentAuthority: SourceCallerAuthoritySnapshot,
@@ -589,6 +604,16 @@ private fun evaluateAutomatic(
 	}.apply {
 		add(ACTIVITY_CONTROL)
 	}
+	return evaluateAutomaticDemandSet(request, currentAuthority, requestedDemands, expected, availability)
+}
+
+// Preserve ordered identity, manifest, consent and readiness rejection reasons before acceptance.
+@Suppress("ReturnCount")
+private fun evaluateAutomaticDemandSet(
+	request: SourceCallerRequest.AutomaticSessionStart, currentAuthority: SourceCallerAuthoritySnapshot,
+	requestedDemands: Set<SourceCallerDemandIdentity>, expected: Set<TrackingSourcePurposeIdentity>,
+	availability: AutomaticTrackingOperationalAvailability.Ready,
+): SourceCallerEvaluation {
 	validateDeclaredDemandSet(expected, requestedDemands)?.let {
 		return SourceCallerEvaluation.Rejected(it.rejection)
 	}
@@ -620,43 +645,6 @@ private fun evaluateAutomatic(
 	)
 }
 
-private fun evaluateRecovery(
-	request: SourceCallerRequest.RecoverySessionStart,
-	currentAuthority: SourceCallerAuthoritySnapshot,
-): SourceCallerEvaluation {
-	val capturedSources = request.requestedCapturedSources.toSet()
-	val requestedDemands = request.requestedDemandIdentities.toSet()
-	validateBoundExecution(requestedDemands)?.let {
-		return SourceCallerEvaluation.Rejected(it.rejection)
-	}
-	if (capturedSources.isEmpty()) {
-		return rejectedEvaluation(SourceCallerRejectionReason.ZERO_CAPTURE_SOURCE_REQUEST)
-	}
-	val expected = capturedSources.mapTo(mutableSetOf()) { source ->
-		source.forPurpose(TrackingPurpose.SESSION_CAPTURE)
-	}
-	validateDeclaredDemandSet(expected, requestedDemands)?.let {
-		return SourceCallerEvaluation.Rejected(it.rejection)
-	}
-	validateSessionManifest(request.manifestIdentity, requestedDemands)?.let {
-		return SourceCallerEvaluation.Rejected(it.rejection)
-	}
-	validateCurrentManifestDemandSet(
-		request.manifestIdentity,
-		requestedDemands,
-		currentAuthority.currentDemandIdentities,
-	)?.let { return SourceCallerEvaluation.Rejected(it.rejection) }
-	validateCurrentAuthority(
-		requestedDemands,
-		currentAuthority.currentDemandIdentities,
-	)?.let { return SourceCallerEvaluation.Rejected(it.rejection) }
-	return acceptedEvaluation(
-		AcceptedSourceCallerOrigin.RECOVERY,
-		TrackingPurpose.SESSION_CAPTURE,
-		requestedDemands,
-	)
-}
-
 private fun evaluatePurposeOwnerMutation(
 	request: SourceCallerRequest.PurposeOwnerMutation,
 	currentAuthority: SourceCallerAuthoritySnapshot,
@@ -680,6 +668,8 @@ private fun evaluatePurposeOwnerMutation(
 	)
 }
 
+// Preserve ordered identity, manifest, consent and readiness rejection reasons before acceptance.
+@Suppress("ReturnCount")
 private fun evaluateAmbient(
 	request: SourceCallerRequest.Ambient,
 	currentAuthority: SourceCallerAuthoritySnapshot,
@@ -821,46 +811,39 @@ private fun validateCurrentAuthority(
 				SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE,
 				requested.sourcePurpose,
 			)
-		if (requested.manifestIdentity != current.manifestIdentity) {
-			return rejected(
-				SourceCallerRejectionReason.STALE_MANIFEST_IDENTITY,
-				requested.sourcePurpose,
-			)
-		}
-		val requestedLease = requested.purposeLeaseIdentity
-		val currentLease = current.purposeLeaseIdentity
-		if (requestedLease.policyRevision != currentLease.policyRevision) {
-			return rejected(SourceCallerRejectionReason.STALE_POLICY_REVISION, requested.sourcePurpose)
-		}
-		if (requestedLease.consentEpoch != currentLease.consentEpoch) {
-			return rejected(SourceCallerRejectionReason.STALE_CONSENT_EPOCH, requested.sourcePurpose)
-		}
-		if (requestedLease.collectedDataEpoch != currentLease.collectedDataEpoch) {
-			return rejected(
-				SourceCallerRejectionReason.STALE_COLLECTED_DATA_EPOCH,
-				requested.sourcePurpose,
-			)
-		}
-		if (requestedLease.retainedFromMs != currentLease.retainedFromMs) {
-			return rejected(
-				SourceCallerRejectionReason.STALE_RETENTION_BOUNDARY,
-				requested.sourcePurpose,
-			)
-		}
-		if (requestedLease.rolloutRevision != currentLease.rolloutRevision) {
-			return rejected(SourceCallerRejectionReason.STALE_ROLLOUT_REVISION, requested.sourcePurpose)
-		}
-		if (requestedLease.executionRevision != currentLease.executionRevision) {
-			return rejected(
-				SourceCallerRejectionReason.STALE_EXECUTION_REVISION,
-				requested.sourcePurpose,
-			)
-		}
-		if (requestedLease.ownerCasToken != currentLease.ownerCasToken) {
-			return rejected(SourceCallerRejectionReason.STALE_OWNER_CAS_TOKEN, requested.sourcePurpose)
+		currentAuthorityMismatch(requested, current)?.let { reason ->
+			return rejected(reason, requested.sourcePurpose)
 		}
 	}
 	return null
+}
+
+private fun currentAuthorityMismatch(
+	requested: SourceCallerDemandIdentity,
+	current: SourceCallerDemandIdentity,
+): SourceCallerRejectionReason? {
+	if (requested.manifestIdentity != current.manifestIdentity) {
+		return SourceCallerRejectionReason.STALE_MANIFEST_IDENTITY
+	}
+	val requestedLease = requested.purposeLeaseIdentity
+	val currentLease = current.purposeLeaseIdentity
+	return when {
+		requestedLease.policyRevision != currentLease.policyRevision ->
+			SourceCallerRejectionReason.STALE_POLICY_REVISION
+		requestedLease.consentEpoch != currentLease.consentEpoch ->
+			SourceCallerRejectionReason.STALE_CONSENT_EPOCH
+		requestedLease.collectedDataEpoch != currentLease.collectedDataEpoch ->
+			SourceCallerRejectionReason.STALE_COLLECTED_DATA_EPOCH
+		requestedLease.retainedFromMs != currentLease.retainedFromMs ->
+			SourceCallerRejectionReason.STALE_RETENTION_BOUNDARY
+		requestedLease.rolloutRevision != currentLease.rolloutRevision ->
+			SourceCallerRejectionReason.STALE_ROLLOUT_REVISION
+		requestedLease.executionRevision != currentLease.executionRevision ->
+			SourceCallerRejectionReason.STALE_EXECUTION_REVISION
+		requestedLease.ownerCasToken != currentLease.ownerCasToken ->
+			SourceCallerRejectionReason.STALE_OWNER_CAS_TOKEN
+		else -> null
+	}
 }
 
 private fun validateReplayReadiness(
@@ -871,57 +854,65 @@ private fun validateReplayReadiness(
 		AcceptedSourceCallerOrigin.MANUAL,
 		AcceptedSourceCallerOrigin.RECOVERY,
 		-> null
-		AcceptedSourceCallerOrigin.AUTOMATIC -> {
-			val automatic = availability.automaticControl
-			if (automatic !is AutomaticTrackingOperationalAvailability.Ready) {
-				SourceCallerGuardResult.Rejected(
-					SourceCallerGuardRejection(
-						reason = SourceCallerRejectionReason.AUTOMATIC_CONTROL_UNAVAILABLE,
-						source = TrackingSource.ACTIVITY,
-						purpose = TrackingPurpose.CONTROL,
-						automaticUnavailableReason =
-							(automatic as AutomaticTrackingOperationalAvailability.Unavailable).reason,
-					),
-				)
-			} else {
-				val control = accepted.permittedDemandIdentities.single { identity ->
-					identity.sourcePurpose == ACTIVITY_CONTROL
-				}
-				if (automatic.identity == control.purposeLeaseIdentity) {
-					null
-				} else {
-					rejected(
-						SourceCallerRejectionReason.READINESS_AUTHORITY_MISMATCH,
-						ACTIVITY_CONTROL,
-					)
-				}
-			}
-		}
+		AcceptedSourceCallerOrigin.AUTOMATIC -> validateAutomaticReplayReadiness(accepted, availability)
 		AcceptedSourceCallerOrigin.PURPOSE_OWNER -> null
-		AcceptedSourceCallerOrigin.AMBIENT -> {
-			val demand = accepted.permittedDemandIdentities.single()
-			val ambientSource = demand.sourcePurpose.source.toAmbientTrackingSourceOrNull()
-				?: return rejected(
-					SourceCallerRejectionReason.REPLAY_AUTHORITY_MISMATCH,
-					demand.sourcePurpose,
-				)
-			val current = availability.ambientSources.getValue(ambientSource)
-			when {
-				!current.isOperational -> SourceCallerGuardResult.Rejected(
-					SourceCallerGuardRejection(
-						reason = SourceCallerRejectionReason.AMBIENT_SOURCE_UNAVAILABLE,
-						source = demand.sourcePurpose.source,
-						purpose = demand.sourcePurpose.purpose,
-						ambientAvailability = current,
-					),
-				)
-				current.operationalIdentity != demand.purposeLeaseIdentity -> rejected(
-					SourceCallerRejectionReason.READINESS_AUTHORITY_MISMATCH,
-					demand.sourcePurpose,
-				)
-				else -> null
-			}
+		AcceptedSourceCallerOrigin.AMBIENT -> validateAmbientReplayReadiness(accepted, availability)
+	}
+}
+
+private fun validateAutomaticReplayReadiness(
+	accepted: AcceptedSourceCallerAuthority, availability: TrackingPurposeAvailabilitySnapshot,
+): SourceCallerGuardResult.Rejected? {
+	val automatic = availability.automaticControl
+	return if (automatic !is AutomaticTrackingOperationalAvailability.Ready) {
+		SourceCallerGuardResult.Rejected(
+			SourceCallerGuardRejection(
+				reason = SourceCallerRejectionReason.AUTOMATIC_CONTROL_UNAVAILABLE,
+				source = TrackingSource.ACTIVITY,
+				purpose = TrackingPurpose.CONTROL,
+				automaticUnavailableReason =
+					(automatic as AutomaticTrackingOperationalAvailability.Unavailable).reason,
+			),
+		)
+	} else {
+		val control = accepted.permittedDemandIdentities.single { identity ->
+			identity.sourcePurpose == ACTIVITY_CONTROL
 		}
+		if (automatic.identity == control.purposeLeaseIdentity) {
+			null
+		} else {
+			rejected(
+				SourceCallerRejectionReason.READINESS_AUTHORITY_MISMATCH,
+				ACTIVITY_CONTROL,
+			)
+		}
+	}
+}
+
+private fun validateAmbientReplayReadiness(
+	accepted: AcceptedSourceCallerAuthority, availability: TrackingPurposeAvailabilitySnapshot,
+): SourceCallerGuardResult.Rejected? {
+	val demand = accepted.permittedDemandIdentities.single()
+	val ambientSource = demand.sourcePurpose.source.toAmbientTrackingSourceOrNull()
+		?: return rejected(
+			SourceCallerRejectionReason.REPLAY_AUTHORITY_MISMATCH,
+			demand.sourcePurpose,
+		)
+	val current = availability.ambientSources.getValue(ambientSource)
+	return when {
+		!current.isOperational -> SourceCallerGuardResult.Rejected(
+			SourceCallerGuardRejection(
+				reason = SourceCallerRejectionReason.AMBIENT_SOURCE_UNAVAILABLE,
+				source = demand.sourcePurpose.source,
+				purpose = demand.sourcePurpose.purpose,
+				ambientAvailability = current,
+			),
+		)
+		current.operationalIdentity != demand.purposeLeaseIdentity -> rejected(
+			SourceCallerRejectionReason.READINESS_AUTHORITY_MISMATCH,
+			demand.sourcePurpose,
+		)
+		else -> null
 	}
 }
 
@@ -943,6 +934,19 @@ private fun replayMismatchReason(
 	if ((acceptedByKey.keys - requestedByKey.keys).isNotEmpty()) {
 		return SourceCallerRejectionReason.REPLAY_AUTHORITY_DOWNGRADE
 	}
+	return compareRequestedDemandAuthorities(requestedByKey, acceptedByKey)
+}
+
+private fun TrackingPurposeLeaseIdentity.hasReplayAuthorityMismatch(
+	prior: TrackingPurposeLeaseIdentity,
+	manifestOrder: Int,
+): Boolean = manifestOrder == AUTHORITY_INCOMPARABLE ||
+	retainedFromMs != prior.retainedFromMs || ownerCasToken != prior.ownerCasToken
+
+private fun compareRequestedDemandAuthorities(
+	requestedByKey: Map<TrackingSourcePurposeIdentity, SourceCallerDemandIdentity>,
+	acceptedByKey: Map<TrackingSourcePurposeIdentity, SourceCallerDemandIdentity>,
+): SourceCallerRejectionReason {
 	var escalation = false
 	var downgrade = false
 	var mismatch = false
@@ -951,31 +955,13 @@ private fun replayMismatchReason(
 		val manifestOrder = requested.manifestIdentity.compareAuthority(prior.manifestIdentity)
 		val requestedLease = requested.purposeLeaseIdentity
 		val priorLease = prior.purposeLeaseIdentity
-		if (
-			manifestOrder > 0 ||
-			requestedLease.policyRevision > priorLease.policyRevision ||
-			requestedLease.consentEpoch > priorLease.consentEpoch ||
-			requestedLease.collectedDataEpoch > priorLease.collectedDataEpoch ||
-			requestedLease.rolloutRevision > priorLease.rolloutRevision ||
-			requestedLease.executionRevision > priorLease.executionRevision
-		) {
+		if (requestedLease.exceedsReplayAuthority(priorLease, manifestOrder)) {
 			escalation = true
 		}
-		if (
-			manifestOrder < 0 ||
-			requestedLease.policyRevision < priorLease.policyRevision ||
-			requestedLease.consentEpoch < priorLease.consentEpoch ||
-			requestedLease.collectedDataEpoch < priorLease.collectedDataEpoch ||
-			requestedLease.rolloutRevision < priorLease.rolloutRevision ||
-			requestedLease.executionRevision < priorLease.executionRevision
-		) {
+		if (requestedLease.precedesReplayAuthority(priorLease, manifestOrder)) {
 			downgrade = true
 		}
-		if (
-			manifestOrder == AUTHORITY_INCOMPARABLE ||
-			requestedLease.retainedFromMs != priorLease.retainedFromMs ||
-			requestedLease.ownerCasToken != priorLease.ownerCasToken
-		) {
+		if (requestedLease.hasReplayAuthorityMismatch(priorLease, manifestOrder)) {
 			mismatch = true
 		}
 	}
@@ -986,6 +972,28 @@ private fun replayMismatchReason(
 		else -> SourceCallerRejectionReason.REPLAY_AUTHORITY_MISMATCH
 	}
 }
+
+// Fixed revision vector; no lookup, iteration, mutation or clock reads.
+@Suppress("ComplexCondition")
+private fun TrackingPurposeLeaseIdentity.exceedsReplayAuthority(
+	priorLease: TrackingPurposeLeaseIdentity, manifestOrder: Int,
+): Boolean = manifestOrder > 0 ||
+	policyRevision > priorLease.policyRevision ||
+	consentEpoch > priorLease.consentEpoch ||
+	collectedDataEpoch > priorLease.collectedDataEpoch ||
+	rolloutRevision > priorLease.rolloutRevision ||
+	executionRevision > priorLease.executionRevision
+
+// Fixed revision vector; no lookup, iteration, mutation or clock reads.
+@Suppress("ComplexCondition")
+private fun TrackingPurposeLeaseIdentity.precedesReplayAuthority(
+	priorLease: TrackingPurposeLeaseIdentity, manifestOrder: Int,
+): Boolean = manifestOrder < 0 ||
+	policyRevision < priorLease.policyRevision ||
+	consentEpoch < priorLease.consentEpoch ||
+	collectedDataEpoch < priorLease.collectedDataEpoch ||
+	rolloutRevision < priorLease.rolloutRevision ||
+	executionRevision < priorLease.executionRevision
 
 private fun SourceCallerManifestIdentity?.compareAuthority(
 	prior: SourceCallerManifestIdentity?,

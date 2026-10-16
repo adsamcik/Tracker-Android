@@ -75,16 +75,23 @@ sealed interface TrackingStartPreparationResult {
 	) : TrackingStartPreparationResult
 }
 
+/** Whether the same prepared Start can be retried or must be abandoned. */
 enum class TrackingStartFailureDisposition {
 	RETRYABLE,
 	TERMINAL,
 }
 
+/** Outcome of handing a prepared Start to its execution path; enqueue is not provider acceptance. */
 sealed interface TrackingStartDispatchResult {
+	/** Android accepted the service intent for delivery; tracking may still be initializing. */
 	data object Enqueued : TrackingStartDispatchResult
+	/** An active session already satisfies the request, so no additional start was enqueued. */
 	data object AlreadyActive : TrackingStartDispatchResult
+	/** Shared source setup is unfinished and the original eligible Start can be resumed later. */
 	data object SetupPending : TrackingStartDispatchResult
+	/** Dispatch failed temporarily; its failure code supports retrying the existing attempt. */
 	data class Retryable(val failureCode: String) : TrackingStartDispatchResult
+	/** Dispatch cannot continue this attempt and requires a fresh Start after repair. */
 	data class Terminal(val failureCode: String) : TrackingStartDispatchResult
 }
 
@@ -98,6 +105,10 @@ sealed interface TrackingStartDispatchResult {
 interface TrackingStartRequestCoordinator {
 	suspend fun prepare(request: TrackingStartRequest): TrackingStartPreparationResult
 
+	/**
+	 * Returns a pending provider-backed Steps session request when it can continue without a foreground
+	 * service.
+	 */
 	suspend fun providerStepsContinuationRequest(): TrackingStartRequest? = null
 
 	/** Same durable Start fence, without creating a physical acquisition run. */

@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.shared.base.database.steps.imported
 
+import android.database.Cursor
+import androidx.sqlite.db.SimpleSQLiteQuery
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
@@ -10,7 +12,6 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
  * original Steps capture digests must outlive collected payload and repeated clears. A scope fence
  * forbids restoration; it does not qualify any captured metric or grant local provider authority.
  */
-@Suppress("MagicNumber") // Positional SQL bindings follow the explicit INSERT column order below.
 internal fun preserveStepsFullClearFences(
 	sqlite: SupportSQLiteDatabase,
 	oldCollectedDataEpoch: Long,
@@ -51,14 +52,19 @@ internal fun preserveStepsFullClearFences(
 					newCollectedDataEpoch,
 					deletedAtMs,
 				)
-			statement.bindLong(1, fence.sourceKind.toLong())
-			statement.bindString(2, fence.purpose)
-			statement.bindString(3, fence.scopeKind)
-			statement.bindString(4, fence.scopeIdentityDigest)
-			statement.bindLong(5, fence.fenceGeneration)
-			statement.bindLong(6, fence.collectedDataEpoch)
-			statement.bindLong(7, fence.deletedAtMs)
-			statement.bindString(8, fence.effectChecksum)
+			SimpleSQLiteQuery.bind(
+				statement,
+				arrayOf<Any?>(
+					fence.sourceKind.toLong(),
+					fence.purpose,
+					fence.scopeKind,
+					fence.scopeIdentityDigest,
+					fence.fenceGeneration,
+					fence.collectedDataEpoch,
+					fence.deletedAtMs,
+					fence.effectChecksum,
+				),
+			)
 			statement.executeInsert()
 			val winner = readStepsFence(sqlite, digest)
 			check(winner == fence) { "Steps full-clear fence winner is incompatible" }
@@ -136,51 +142,57 @@ private fun authenticateAndReepochRetainedStepsFences(
 		),
 	).use { cursor ->
 		while (cursor.moveToNext()) {
-			val current = SourceDeletionFenceEntity(
-				sourceKind = cursor.getInt(0),
-				purpose = cursor.getString(1),
-				scopeKind = cursor.getString(2),
-				scopeIdentityDigest = cursor.getString(3),
-				fenceGeneration = cursor.getLong(4),
-				collectedDataEpoch = cursor.getLong(5),
-				deletedAtMs = cursor.getLong(6),
-				effectChecksum = cursor.getString(7),
-			)
-			check(current.scopeKind == SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN)
-			check(current.collectedDataEpoch <= oldCollectedDataEpoch)
-			check(current.deletedAtMs <= clearedAtMs)
-			val replacement = SourceDeletionFenceEntity.createForOriginalRunDigest(
-				sourceKind = current.sourceKind,
-				purpose = current.purpose,
-				scopeIdentityDigest = current.scopeIdentityDigest,
-				fenceGeneration = current.fenceGeneration,
-				collectedDataEpoch = newCollectedDataEpoch,
-				deletedAtMs = current.deletedAtMs,
-			)
-			sqlite.compileStatement(
-				"UPDATE source_deletion_fence SET collected_data_epoch = ?, effect_checksum = ? " +
-					"WHERE source_kind = ? AND purpose = ? AND scope_kind = ? " +
-					"AND scope_identity_digest = ? AND collected_data_epoch = ? " +
-					"AND fence_generation = ? AND deleted_at_ms = ? AND effect_checksum = ?",
-			).use { statement ->
-				statement.bindLong(1, replacement.collectedDataEpoch)
-				statement.bindString(2, replacement.effectChecksum)
-				statement.bindLong(3, current.sourceKind.toLong())
-				statement.bindString(4, current.purpose)
-				statement.bindString(5, current.scopeKind)
-				statement.bindString(6, current.scopeIdentityDigest)
-				statement.bindLong(7, current.collectedDataEpoch)
-				statement.bindLong(8, current.fenceGeneration)
-				statement.bindLong(9, current.deletedAtMs)
-				statement.bindString(10, current.effectChecksum)
-				check(statement.executeUpdateDelete() == 1) {
-					"Steps full-clear fence epoch transition lost its exact winner"
-				}
-			}
+			reepochRetainedStepsFence(sqlite, cursor, oldCollectedDataEpoch, newCollectedDataEpoch, clearedAtMs)
 			authenticatedCount = Math.addExact(authenticatedCount, 1L)
 		}
 	}
 	check(authenticatedCount == storedCount)
+}
+
+private fun reepochRetainedStepsFence(
+	sqlite: SupportSQLiteDatabase,
+	cursor: Cursor,
+	oldCollectedDataEpoch: Long,
+	newCollectedDataEpoch: Long,
+	clearedAtMs: Long,
+) {
+	val current = cursor.readStepsDeletionFence()
+	check(current.scopeKind == SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN)
+	check(current.collectedDataEpoch <= oldCollectedDataEpoch)
+	check(current.deletedAtMs <= clearedAtMs)
+	val replacement = SourceDeletionFenceEntity.createForOriginalRunDigest(
+		sourceKind = current.sourceKind,
+		purpose = current.purpose,
+		scopeIdentityDigest = current.scopeIdentityDigest,
+		fenceGeneration = current.fenceGeneration,
+		collectedDataEpoch = newCollectedDataEpoch,
+		deletedAtMs = current.deletedAtMs,
+	)
+	sqlite.compileStatement(
+		"UPDATE source_deletion_fence SET collected_data_epoch = ?, effect_checksum = ? " +
+			"WHERE source_kind = ? AND purpose = ? AND scope_kind = ? " +
+			"AND scope_identity_digest = ? AND collected_data_epoch = ? " +
+			"AND fence_generation = ? AND deleted_at_ms = ? AND effect_checksum = ?",
+	).use { statement ->
+		SimpleSQLiteQuery.bind(
+			statement,
+			arrayOf<Any?>(
+				replacement.collectedDataEpoch,
+				replacement.effectChecksum,
+				current.sourceKind.toLong(),
+				current.purpose,
+				current.scopeKind,
+				current.scopeIdentityDigest,
+				current.collectedDataEpoch,
+				current.fenceGeneration,
+				current.deletedAtMs,
+				current.effectChecksum,
+			),
+		)
+		check(statement.executeUpdateDelete() == 1) {
+			"Steps full-clear fence epoch transition lost its exact winner"
+		}
+	}
 }
 
 private fun readStepsFenceOrNull(
@@ -201,16 +213,7 @@ private fun readStepsFenceOrNull(
 	if (!cursor.moveToFirst()) {
 		null
 	} else {
-		SourceDeletionFenceEntity(
-			sourceKind = cursor.getInt(0),
-			purpose = cursor.getString(1),
-			scopeKind = cursor.getString(2),
-			scopeIdentityDigest = cursor.getString(3),
-			fenceGeneration = cursor.getLong(4),
-			collectedDataEpoch = cursor.getLong(5),
-			deletedAtMs = cursor.getLong(6),
-			effectChecksum = cursor.getString(7),
-		)
+		cursor.readStepsDeletionFence()
 	}
 }
 
@@ -220,3 +223,14 @@ private fun readStepsFence(
 ): SourceDeletionFenceEntity = checkNotNull(readStepsFenceOrNull(sqlite, scopeIdentityDigest)) {
 	"Steps full-clear fence winner disappeared"
 }
+
+private fun Cursor.readStepsDeletionFence() = SourceDeletionFenceEntity(
+	sourceKind = getInt(getColumnIndexOrThrow("source_kind")),
+	purpose = getString(getColumnIndexOrThrow("purpose")),
+	scopeKind = getString(getColumnIndexOrThrow("scope_kind")),
+	scopeIdentityDigest = getString(getColumnIndexOrThrow("scope_identity_digest")),
+	fenceGeneration = getLong(getColumnIndexOrThrow("fence_generation")),
+	collectedDataEpoch = getLong(getColumnIndexOrThrow("collected_data_epoch")),
+	deletedAtMs = getLong(getColumnIndexOrThrow("deleted_at_ms")),
+	effectChecksum = getString(getColumnIndexOrThrow("effect_checksum")),
+)

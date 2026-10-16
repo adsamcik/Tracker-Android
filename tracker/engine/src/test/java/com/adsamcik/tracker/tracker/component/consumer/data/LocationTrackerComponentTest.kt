@@ -33,6 +33,9 @@ import kotlin.math.abs
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
+// One Location consumer fixture keeps filtering, altitude and estimator continuity on the same processor
+// setup.
+@Suppress("LargeClass")
 class LocationTrackerComponentTest {
 
 	private lateinit var component: LocationTrackerComponent

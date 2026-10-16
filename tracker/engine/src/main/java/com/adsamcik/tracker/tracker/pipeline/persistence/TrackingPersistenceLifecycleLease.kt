@@ -52,7 +52,9 @@ internal class ExclusiveTrackingPersistenceLifecycleLease @Inject constructor() 
 	override suspend fun <T : Any> tryWithOfflineLocationRecovery(block: suspend () -> T): T? {
 		kotlinx.coroutines.currentCoroutineContext().ensureActive()
 		val owner = Any()
-		if (!mutex.tryLock(owner)) return null
+		if (!mutex.tryLock(owner)) {
+			return null
+		}
 		val permit = Permit(TrackingPersistenceLifecycleMode.OFFLINE_LOCATION_RECOVERY, mutex, owner)
 		return try { block() } finally {
 			withContext(NonCancellable) { permit.release() }
@@ -96,7 +98,9 @@ internal class ExclusiveTrackingPersistenceLifecycleLease @Inject constructor() 
 
 		override fun release() {
 			synchronized(this) {
-				if (released) return
+				if (released) {
+					return
+				}
 				released = true
 				mutex.unlock(owner)
 			}

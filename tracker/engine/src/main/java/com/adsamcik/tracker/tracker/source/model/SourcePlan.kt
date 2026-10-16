@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.source.model
 
+import com.adsamcik.tracker.shared.preferences.tracking.SourceBalanceSettings
 import java.security.MessageDigest
 
 sealed interface SourcePlan {
@@ -114,8 +115,14 @@ data class CellPlan(
 	override val enabled: Boolean get() = mode != CellMode.OFF
 }
 
+/**
+ * Requested quality level from 1 to 5; session focus may be requested only at quality levels 4 or 5.
+ */
 data class SourceBalancePreference(val requestedLevel: Int, val focusRequested: Boolean) {
-    init { require(requestedLevel in 1..5); require(!focusRequested || requestedLevel >= 4) }
+    init {
+        require(requestedLevel in 1..5)
+        require(!focusRequested || requestedLevel >= SourceBalanceSettings.LIVE_LEVEL)
+    }
 }
 
 data class AcquisitionPlanRevision(
@@ -132,9 +139,9 @@ data class AcquisitionPlanRevision(
 		require(planId.isNotBlank())
 		require(createdAtMs >= 0L)
 		require(sourcePolicyRevision == null || sourcePolicyRevision > 0L)
-        require(balanceProfileVersion == null || balanceProfileVersion == 1)
-        require(balanceProfileVersion != null || sourcePreferences.isEmpty())
-        require(balanceProfileVersion == null || sourcePreferences.keys == plans.keys)
+		require(balanceProfileVersion == null || balanceProfileVersion == 1)
+		require(balanceProfileVersion != null || sourcePreferences.isEmpty())
+		require(balanceProfileVersion == null || sourcePreferences.keys == plans.keys)
 		require(plans.all { (source, plan) -> source == plan.source && plan.revision == revision }) {
 			"Every source plan must match its map key and desired-plan revision"
 		}
@@ -175,8 +182,16 @@ enum class SourceDegradedReason {
 
 /** Maximum provider-item age admitted by the plan, independent of acquisition cadence. */
 internal fun SourcePlan.providerItemMaximumAgeMs(): Long = when (this) {
-	is LocationPlan -> if (adaptiveProfileVersion == 1) 120_000L else maxOf(requestedIntervalMs, maximumBatchDelayMs)
-	is ActivityPlan -> if (adaptiveProfileVersion == 1) 120_000L else desiredDetectionLatencyMs
+	is LocationPlan -> if (adaptiveProfileVersion == 1) {
+		ADAPTIVE_PROVIDER_ITEM_MAXIMUM_AGE_MS
+	} else {
+		maxOf(requestedIntervalMs, maximumBatchDelayMs)
+	}
+	is ActivityPlan -> if (adaptiveProfileVersion == 1) {
+		ADAPTIVE_PROVIDER_ITEM_MAXIMUM_AGE_MS
+	} else {
+		desiredDetectionLatencyMs
+	}
 	is StepsPlan -> maximumReportLatencyMs
 	is PressurePlan -> maxOf(maximumReportLatencyMicros.toLong().microsToMillisCeiling(), aggregationWindowMs)
 	is WifiPlan -> maximumAcceptableResultAgeMs
@@ -282,3 +297,5 @@ fun SourcePlan.physicalConfigurationFingerprint(): String {
 		.digest(canonical.toByteArray(Charsets.UTF_8))
 		.joinToString("") { byte -> "%02x".format(byte) }
 }
+
+internal const val ADAPTIVE_PROVIDER_ITEM_MAXIMUM_AGE_MS = 120_000L

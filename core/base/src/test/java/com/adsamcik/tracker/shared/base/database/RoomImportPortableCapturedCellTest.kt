@@ -39,6 +39,8 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// Keep this shared-fixture contract suite together; individual test algorithms remain checked.
+@Suppress("LargeClass")
 class RoomImportPortableCapturedCellTest {
 	private lateinit var database: AppDatabase
 
@@ -944,6 +946,8 @@ class RoomImportPortableCapturedCellTest {
 			)
 	}
 
+	// Keep the complete three-member Cell import, correction and typed product read together.
+	@Suppress("LongMethod")
 	@Test
 	fun `typed product authenticates complete replacement membership and latest correction`() = runTest {
 			seedEvidence()
@@ -1167,6 +1171,8 @@ class RoomImportPortableCapturedCellTest {
 	}
 
 	@Test
+	// Keep this complete import scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `latest imported reexport is outside Room and stale deleted cancellation storage are typed`() =
 			runTest {
 				seedEvidence()
@@ -1307,6 +1313,8 @@ class RoomImportPortableCapturedCellTest {
 			ExportPortableCapturedCellResult.Deleted
 	}
 
+	// Keep Cell correction, retention removal, selected deletion and replay refusal in one lineage.
+	@Suppress("LongMethod")
 	@Test
 	fun `selected deletion preserves terminal corrected observation after retention removal`() =
 		runTest {
@@ -1416,6 +1424,8 @@ class RoomImportPortableCapturedCellTest {
 		}
 
 	@Test
+	// Keep the six deliberate hierarchy corruptions and their unchanged rejection assertions together.
+	@Suppress("CyclomaticComplexMethod", "LongMethod")
 	fun `rehashed deleted hierarchy topology corruption blocks detail and reexport`() = runTest {
 		repeat(6) { corruption ->
 			if (corruption > 0) {
@@ -1470,27 +1480,43 @@ class RoomImportPortableCapturedCellTest {
 			}
 			val changed = when (corruption) {
 				0 -> markers.map { marker ->
-					if (marker == runMarker) marker.rehashed(
+					if (marker == runMarker) {
+						marker.rehashed(
 						deletionScopeDigest = "a".repeat(64),
-					) else marker
+					)
+					} else {
+						marker
+					}
 				}
 				1 -> markers - scopeMarker
 				2 -> markers + scopeMarker.rehashed(protectedIdentity = "b".repeat(64),
 					deletionScopeDigest = "b".repeat(64))
 				3 -> markers.map { marker ->
-					if (marker == observationMarkers.last()) marker.rehashed(
+					if (marker == observationMarkers.last()) {
+						marker.rehashed(
 						runIdentity = "c".repeat(64),
-					) else marker
+					)
+					} else {
+						marker
+					}
 				}
 				4 -> markers.map { marker ->
-					if (marker == observationMarkers.last()) marker.rehashed(
+					if (marker == observationMarkers.last()) {
+						marker.rehashed(
 						aggregateOwnerIdentity = observationMarkers[1].protectedIdentity,
-					) else marker
+					)
+					} else {
+						marker
+					}
 				}
 				else -> markers.map { marker ->
-					if (marker == runMarker) marker.rehashed(
+					if (marker == runMarker) {
+						marker.rehashed(
 						runStartTimeMs = requireNotNull(marker.runStartTimeMs) + 1L,
-					) else marker
+					)
+					} else {
+						marker
+					}
 				}
 			}
 			replaceDeletedAuthority(value.identity.value, changed)
@@ -1646,7 +1672,9 @@ class RoomImportPortableCapturedCellTest {
 					val normalized = sql.trimStart()
 					if (normalized.startsWith("SELECT", true) ||
 						normalized.startsWith("WITH", true)
-					) statements += normalized
+					) {
+						statements += normalized
+					}
 				},
 				Executor { command -> command.run() },
 			)
@@ -1796,7 +1824,9 @@ class RoomImportPortableCapturedCellTest {
 		var checkpointCount = 0
 		val reader = ImportedCellProductReader(database) { _ ->
 			checkpointCount++
-			if (checkpointCount == 2) throw CancellationException("cancel between batches")
+			if (checkpointCount == 2) {
+				throw CancellationException("cancel between batches")
+			}
 		}
 
 		shouldThrow<CancellationException> {
@@ -2046,7 +2076,11 @@ class RoomImportPortableCapturedCellTest {
 			"weak_observation_count = ?, all_known_quality_is_weak = ?, content_checksum = ? WHERE entry_identity = ?",
 			arrayOf<Any?>(observation.coverageStartTimeMs, observation.observedTimeMs, observation.latestPossibleTimeMs,
 				observation.wallTimeUncertaintyMs, observation.knownQualityObservationCount, observation.weakObservationCount,
-				if (observation.allKnownQualityIsWeak) 1 else 0, observationChecksum, entry.identity.value))
+				if (observation.allKnownQualityIsWeak) {
+					1
+				} else {
+					0
+				}, observationChecksum, entry.identity.value))
 		sql.execSQL("UPDATE imported_cell_run SET content_checksum = ? WHERE entry_identity = ?", arrayOf(runChecksum, entry.identity.value))
 		sql.execSQL("UPDATE imported_cell_entry_revision SET content_checksum = ? WHERE identity = ?", arrayOf(entryChecksum, entry.identity.value))
 		sql.execSQL("UPDATE imported_cell_receipt SET entry_content_checksum = ? WHERE entry_identity = ?", arrayOf(entryChecksum, entry.identity.value))
@@ -2271,5 +2305,7 @@ private fun testCanonicalChecksum(namespace: String, content: DataOutputStream.(
 
 private fun DataOutputStream.writeCellString(value: String?) {
 	writeBoolean(value != null)
-	if (value != null) writeUTF(value)
+	if (value != null) {
+		writeUTF(value)
+	}
 }

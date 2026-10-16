@@ -251,11 +251,15 @@ class HistoryPresenterViewModelTest {
             val release = CompletableDeferred<Unit>()
             var attempts = 0
             trackingHistoryRepository.readPage = { request ->
-                if (request.range.fromInclusiveMs != from) trackingHistoryRepository.page(request)
+                if (request.range.fromInclusiveMs != from) {
+                    trackingHistoryRepository.page(request)
+                }
                 else {
                     attempts++
-                    if (attempts < 3) trackingHistoryRepository.page(request, next = HistoryContinuation(request.range,
+                    if (attempts < 3) {
+                        trackingHistoryRepository.page(request, next = HistoryContinuation(request.range,
                         HistoryPosition(from + 1_000L - attempts, "local:ambient_wifi", "rejected-$attempts")))
+                    }
                     else { release.await(); trackingHistoryRepository.page(request, listOf(measuredWifi(from + 1L))) }
                 }
             }
@@ -279,8 +283,16 @@ class HistoryPresenterViewModelTest {
             val from = month.atDay(10).atStartOfDay(zone).toInstant().toEpochMilli()
             var failed = true
             trackingHistoryRepository.readPage = { request -> trackingHistoryRepository.page(request,
-                if (request.range.fromInclusiveMs == from) listOf(measuredWifi(from + 1L)) else emptyList(),
-                problems = if (failed) setOf(HistoryProblem(HistorySource.CELL, HistoryProblemReason.STORAGE_UNAVAILABLE)) else emptySet()) }
+                if (request.range.fromInclusiveMs == from) {
+                    listOf(measuredWifi(from + 1L))
+                } else {
+                    emptyList()
+                },
+                problems = if (failed) {
+                    setOf(HistoryProblem(HistorySource.CELL, HistoryProblemReason.STORAGE_UNAVAILABLE))
+                } else {
+                    emptySet()
+                }) }
             val vm = createViewModel()
             vm.useViewZone(zone); vm.selectMonth(month); vm.selectTab(HistoryTab.CALENDAR)
             advanceUntilIdle()
@@ -300,8 +312,13 @@ class HistoryPresenterViewModelTest {
             val from = month.atDay(31).atStartOfDay(zone).toInstant().toEpochMilli()
             val release = CompletableDeferred<Unit>()
             trackingHistoryRepository.readPage = { request ->
-                if (trackingHistoryRepository.revision.value == 0L)
-                    trackingHistoryRepository.page(request, if (request.range.fromInclusiveMs == from) listOf(measuredWifi(from + 1L)) else emptyList())
+                if (trackingHistoryRepository.revision.value == 0L) {
+                    trackingHistoryRepository.page(request, if (request.range.fromInclusiveMs == from) {
+                        listOf(measuredWifi(from + 1L))
+                    } else {
+                        emptyList()
+                    })
+                }
                 else { release.await(); trackingHistoryRepository.page(request) }
             }
             val vm = createViewModel()

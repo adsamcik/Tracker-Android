@@ -3,6 +3,7 @@ package com.adsamcik.tracker.stats.data.repository
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.deleteAllCollectedDataForTesting
 import com.adsamcik.tracker.shared.base.database.data.LocationFileArchiveEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationFileArchivePointEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationFileIdentityEntity

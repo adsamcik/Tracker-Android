@@ -64,6 +64,8 @@ data class SourceProductProjectionLaneEntity(
 }
 
 /** Immutable-shape validation used when a retained fact outlives active owner or lane selection. */
+// Validate the saved cursor, cutoff and terminal-state tuple together; no live state is consulted.
+@Suppress("ComplexCondition", "CyclomaticComplexMethod", "ReturnCount")
 fun SourceProductProjectionLaneEntity.hasValidCanonicalHistoryShape(): Boolean {
 	if (captureModeMask <= 0L ||
 		productStage != SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL ||
@@ -71,19 +73,27 @@ fun SourceProductProjectionLaneEntity.hasValidCanonicalHistoryShape(): Boolean {
 		activationOrdinal <= 0L ||
 		installedAtMs < 0L ||
 		updatedAtMs < installedAtMs
-	) return false
+	) {
+		return false
+	}
 	val minimumCursor = activationOrdinal - 1L
 	val cutoff = captureAdmissionCutoffOrdinal
 	if (contiguousAdmissionOrdinal < minimumCursor ||
 		(cutoff != null && (cutoff < minimumCursor || contiguousAdmissionOrdinal > cutoff)) ||
 		(terminalDisposition == null) != (terminalAtMs == null)
-	) return false
+	) {
+		return false
+	}
 	return when (status) {
 		SourceProductProjectionLaneEntity.STATUS_ACTIVE ->
 			retentionRequired && terminalDisposition == null
 		SourceProductProjectionLaneEntity.STATUS_RETIRED -> {
-			if (retentionRequired) return false
-			if (terminalDisposition == null) return cutoff == null
+			if (retentionRequired) {
+				return false
+			}
+			if (terminalDisposition == null) {
+				return cutoff == null
+			}
 			val terminalAt = terminalAtMs ?: return false
 			terminalDisposition ==
 				SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN &&

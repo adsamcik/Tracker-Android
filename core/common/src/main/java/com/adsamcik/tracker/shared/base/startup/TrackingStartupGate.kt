@@ -55,7 +55,11 @@ interface TrackingStartupGate {
 	fun <T> withReadyGeneration(
 		expectedGeneration: Long,
 		operation: () -> T,
-	): T? = if (isReadyGeneration(expectedGeneration)) operation() else null
+	): T? = if (isReadyGeneration(expectedGeneration)) {
+		operation()
+	} else {
+		null
+	}
 
 	/**
 	 * Runs low-frequency control-plane work while deletion is excluded. High-rate observation
@@ -64,7 +68,11 @@ interface TrackingStartupGate {
 	suspend fun <T> withReadyGenerationOperation(
 		expectedGeneration: Long,
 		operation: suspend () -> T,
-	): T? = if (isReadyGeneration(expectedGeneration)) operation() else null
+	): T? = if (isReadyGeneration(expectedGeneration)) {
+		operation()
+	} else {
+		null
+	}
 
 	/**
 	 * Cancellable live work that may itself reserve a START. It holds neither startup nor command
@@ -75,7 +83,11 @@ interface TrackingStartupGate {
 	suspend fun <T> withReadyGenerationWork(
 		expectedGeneration: Long,
 		operation: suspend () -> T,
-	): T? = if (isReadyGeneration(expectedGeneration)) operation() else null
+	): T? = if (isReadyGeneration(expectedGeneration)) {
+		operation()
+	} else {
+		null
+	}
 
 	/**
 	 * One short retained-data handoff, fenced by storage/deletion rather than collection Stop.
@@ -95,7 +107,11 @@ interface TrackingStartupGate {
 	suspend fun <T> withReadyGenerationTransfer(
 		expectedGeneration: Long,
 		operation: suspend () -> T,
-	): T? = if (withRetainedDataGeneration(expectedGeneration) { true } == true) operation() else null
+	): T? = if (withRetainedDataGeneration(expectedGeneration) { true } == true) {
+		operation()
+	} else {
+		null
+	}
 
 	/**
 	 * Compatibility entry point for live admission. It deliberately reconciles the full gate.
@@ -116,6 +132,7 @@ interface TrackingStartupGate {
 		)
 	}
 
+	/** Reconciles storage and recovery; explicit retry permits another failed-storage open attempt. */
 	suspend fun reconcile(retryFailedStorage: Boolean = false): TrackingStartupResult
 
 	/**
@@ -143,6 +160,7 @@ interface TrackingStartupGate {
 	}
 }
 
+/** UTC and boot-relative resume boundary that excludes observations collected while tracking was Off. */
 data class TrackingCollectionResumeBoundary(
 	val wallTimeMs: Long,
 	val bootId: String,
@@ -152,21 +170,31 @@ data class TrackingCollectionResumeBoundary(
 		require(wallTimeMs >= 0L && bootId.isNotBlank() && elapsedRealtimeNanos >= 0L)
 	}
 
+	/** Uses the monotonic boundary within the same boot and UTC milliseconds across boots. */
 	fun permitsObservation(observedBootId: String, observedElapsedNanos: Long, observedWallTimeMs: Long): Boolean =
-		if (observedBootId == bootId) observedElapsedNanos >= elapsedRealtimeNanos else observedWallTimeMs >= wallTimeMs
+		if (observedBootId == bootId) {
+			observedElapsedNanos >= elapsedRealtimeNanos
+		} else {
+			observedWallTimeMs >= wallTimeMs
+		}
 
+	/** Accepts only provider windows starting at or after the resume time in UTC milliseconds. */
 	fun permitsWindow(windowStartWallTimeMs: Long): Boolean = windowStartWallTimeMs >= wallTimeMs
 }
 
+/** Admission-facing view of the full startup result; no intermediate state grants collection. */
 sealed interface TrackingAdmissionStartupResult {
+	/** Full recovery completed, allowing ordinary admission checks to proceed. */
 	data object Ready : TrackingAdmissionStartupResult
 
+	/** A recoverable stage failure with a payload-free code and optional database retry reason. */
 	data class RetryableFailure(
 		val stage: TrackingStartupStage,
 		val failureCode: String,
 		val databaseRetryable: TrackingDatabaseRetryable? = null,
 	) : TrackingAdmissionStartupResult
 
+	/** A stage requiring remediation; preserved database data must not be overwritten. */
 	data class Blocked(
 		val stage: TrackingStartupStage,
 		val failureCode: String,
@@ -174,18 +202,22 @@ sealed interface TrackingAdmissionStartupResult {
 	) : TrackingAdmissionStartupResult
 }
 
+/** Full storage and recovery outcome, separating retryable failure from preserved-data containment. */
 sealed interface TrackingStartupResult {
+	/** Recovery progress, including honest partial legacy coverage and the completed live ordinal. */
 	data class Ready(
 		val legacyRecoveryPartial: Boolean,
 		val liveCompletedThroughOrdinal: Long,
 	) : TrackingStartupResult
 
+	/** A recoverable stage failure with a payload-free code and optional database retry reason. */
 	data class RetryableFailure(
 		val stage: TrackingStartupStage,
 		val failureCode: String,
 		val databaseRetryable: TrackingDatabaseRetryable? = null,
 	) : TrackingStartupResult
 
+	/** A stage requiring remediation; preserved database data must not be overwritten. */
 	data class Blocked(
 		val stage: TrackingStartupStage,
 		val failureCode: String,
@@ -193,12 +225,14 @@ sealed interface TrackingStartupResult {
 	) : TrackingStartupResult
 }
 
+/** Reason and non-destructive remediation for an unsupported or unreadable preserved database. */
 data class TrackingDatabaseContainment(
 	val reason: TrackingDatabaseContainmentReason,
 	val remediation: TrackingDatabaseRemediation =
 		TrackingDatabaseRemediation.PRESERVE_AND_BACK_UP_MANUALLY,
 )
 
+/** Stable reasons why startup cannot safely open or migrate the saved database. */
 enum class TrackingDatabaseContainmentReason {
 	STALE_DEVELOPMENT_V28,
 	UNSUPPORTED_DATABASE_VERSION,
@@ -210,19 +244,23 @@ enum class TrackingDatabaseContainmentReason {
 	FINAL_V28_OPEN_VALIDATION_FAILED,
 }
 
+/** Permitted action for preserved data that automated recovery cannot safely open. */
 enum class TrackingDatabaseRemediation {
 	PRESERVE_AND_BACK_UP_MANUALLY,
 }
 
+/** Storage failure that can be retried without replacing saved data. */
 data class TrackingDatabaseRetryable(
 	val reason: TrackingDatabaseRetryableReason,
 )
 
+/** Distinguishes transient contention from other operational storage failures. */
 enum class TrackingDatabaseRetryableReason {
 	CONTENDED,
 	OPERATIONALLY_UNAVAILABLE,
 }
 
+/** Ordered recovery stages reported by the shared startup gate. */
 enum class TrackingStartupStage {
 	STORAGE,
 	LEGACY_IMPORT,

@@ -21,6 +21,8 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
 /** One bounded Room snapshot composing local and portable-origin Pressure-only rows. */
+// One bounded Pressure page owner keeps selected/recent reads and exact duplicate authority in the same Room snapshot.
+@Suppress("TooManyFunctions")
 @Singleton
 internal class PressureHistoryPageReader @Inject constructor(
 	private val database: AppDatabase,
@@ -31,6 +33,8 @@ internal class PressureHistoryPageReader @Inject constructor(
 		TrackingHistoryIntegrationObserver(),
 ) : PressureImportedHistoryEligibleReader {
 	/** Source-qualified keys from arbitrary ranges reuse exact native/import duplicate authority. */
+	// Preserve ordered candidate, native-owner and storage rejection before exposing selected data.
+	@Suppress("ReturnCount")
 	internal suspend fun selectedImportedInTransaction(
 		identities: List<String>,
 		range: com.adsamcik.tracker.stats.api.repository.HistoryRange,
@@ -51,6 +55,15 @@ internal class PressureHistoryPageReader @Inject constructor(
 		}
 		authenticateLocalDuplicateAuthorities(localEntries)
 			?: return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+		return selectedImportedWithLocalOwners(candidates, identities, range, localEntries)
+	}
+
+	private suspend fun selectedImportedWithLocalOwners(
+		candidates: List<ImportedPressureHistoryCandidate>,
+		identities: List<String>,
+		range: com.adsamcik.tracker.stats.api.repository.HistoryRange,
+		localEntries: List<PressureLogicalHistoryEntry>,
+	): ImportedHistoryEligiblePage<PressureImportedHistoryEligibleEntry> {
 		val collisionIds = localEntries.mapNotNullTo(linkedSetOf()) { entry ->
 			val id = (entry.identity as? PressureHistoryEntryIdentity.Logical)?.logicalTrackingId
 			id?.takeIf { logicalId -> PortablePressureOpaqueIdentity.derive(
@@ -62,19 +75,30 @@ internal class PressureHistoryPageReader @Inject constructor(
 		for (candidate in candidates) {
 			currentCoroutineContext().ensureActive()
 			val evaluation = importedEvaluator.evaluateCandidateInTransaction(candidate)
-			when (val decision = evaluation.qualifyWithExactNativeOwners()) {
+			when (val decision = evaluation.selectedEligibility(candidate.identity, visible)) {
 				is PressureImportedEligibilityDecision.Accepted -> entries += decision.entry
-				PressureImportedEligibilityDecision.Suppressed -> if (PortablePressureOpaqueIdentity(candidate.identity) !in visible) {
-					when (val unsuppressed = evaluation.toSharedHistoryEligibility(emptyMap())) {
-						is PressureImportedEligibilityDecision.Accepted -> entries += unsuppressed.entry
-						is PressureImportedEligibilityDecision.Unavailable -> return unavailable(unsuppressed.reason)
-						PressureImportedEligibilityDecision.Suppressed -> error("Empty native authority cannot suppress an import")
-					}
-				}
+				PressureImportedEligibilityDecision.Suppressed -> Unit
 				is PressureImportedEligibilityDecision.Unavailable -> return unavailable(decision.reason)
 			}
 		}
 		return ImportedHistoryEligiblePage.Available(entries)
+	}
+
+	private suspend fun ImportedPressureHistoryEvaluation.selectedEligibility(
+		identity: String,
+		visible: Set<PortablePressureOpaqueIdentity>,
+	): PressureImportedEligibilityDecision {
+		val decision = qualifyWithExactNativeOwners()
+		if (decision != PressureImportedEligibilityDecision.Suppressed ||
+			PortablePressureOpaqueIdentity(identity) in visible
+		) {
+			return decision
+		}
+		return when (val unsuppressed = toSharedHistoryEligibility(emptyMap())) {
+			is PressureImportedEligibilityDecision.Accepted -> unsuppressed
+			is PressureImportedEligibilityDecision.Unavailable -> unsuppressed
+			PressureImportedEligibilityDecision.Suppressed -> error("Empty native authority cannot suppress an import")
+		}
 	}
 
 	internal suspend fun selectRecent(limit: Int): List<PressureOnlyHistoryEntry> =
@@ -95,6 +119,11 @@ internal class PressureHistoryPageReader @Inject constructor(
 			val live = liveSelector.discoverRecentPressureOnlyInTransaction(limit)
 			for (evaluation in imported) {
 				currentCoroutineContext().ensureActive()
+				// A corrupt import remains a value-free row in its source list. It cannot
+				// suppress a native recording or enter shared qualified history.
+				if (evaluation is ImportedPressureHistoryEvaluation.Unverifiable) {
+					continue
+				}
 				when (val decision = evaluation.qualifyWithExactNativeOwners()) {
 					is PressureImportedEligibilityDecision.Unavailable ->
 						throw PressureHistoryPageDependencyOverflow(decision.reason)
@@ -126,6 +155,11 @@ internal class PressureHistoryPageReader @Inject constructor(
 				SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
 			)
 		}
+		importedRecencyAuthorityFailure()?.let { return it }
+		return collectRecentImportedEligible(limit)
+	}
+
+	private suspend fun importedRecencyAuthorityFailure(): ImportedHistoryEligiblePage.Unavailable? {
 		val recencyAuthorityFailure = try {
 			importedEvaluator.recentRecencyAuthorityFailureInTransaction()
 		} catch (cancelled: CancellationException) {
@@ -135,9 +169,14 @@ internal class PressureHistoryPageReader @Inject constructor(
 				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
 			)
 		}
-		recencyAuthorityFailure?.let { failure ->
-			return unavailable(failure.toPageUnavailableReason())
-		}
+		return recencyAuthorityFailure?.let { failure -> unavailable(failure.toPageUnavailableReason()) }
+	}
+
+	// Preserve ordered query, recency, budget and per-candidate rejection inside the one bounded traversal.
+	@Suppress("ReturnCount")
+	private suspend fun collectRecentImportedEligible(
+		limit: Int,
+	): ImportedHistoryEligiblePage<PressureImportedHistoryEligibleEntry> {
 		val accepted = mutableListOf<PressureImportedHistoryEligibleEntry>()
 		var beforeRecencyStartTimeMs: Long? = null
 		var beforeRecencyTieIdentity: String? = null
@@ -147,61 +186,25 @@ internal class PressureHistoryPageReader @Inject constructor(
 			val remainingBudget = PRESSURE_IMPORTED_ELIGIBLE_SCAN_BUDGET - scannedCandidates
 			val pageLimit = minOf(PRESSURE_IMPORTED_ELIGIBLE_PAGE_SIZE, remainingBudget)
 			val finalBudgetPage = remainingBudget <= PRESSURE_IMPORTED_ELIGIBLE_PAGE_SIZE
-			val probeLimit = pageLimit + if (finalBudgetPage) 1 else 0
-			val candidateProbe = try {
-				integrationObserver.record(
-					TrackingHistoryIntegrationCheckpoint.PRESSURE_IMPORTED_CANDIDATE_PAGE,
-				)
-				database.importedPressureDao().recentHistoryCandidatePage(
-					limit = probeLimit,
-					beforeRecencyStartTimeMs = beforeRecencyStartTimeMs,
-					beforeRecencyTieIdentity = beforeRecencyTieIdentity,
-				)
-			} catch (cancelled: CancellationException) {
-				throw cancelled
-			} catch (_: RuntimeException) {
-				return unavailable(
-					SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-				)
+			val probeLimit = pageLimit + if (finalBudgetPage) {
+				1
+			} else {
+				0
 			}
-			if (candidateProbe.isEmpty()) break
-			if (!isValidImportedPressureHistoryCandidatePage(
-					candidateProbe,
-					beforeRecencyStartTimeMs,
-					beforeRecencyTieIdentity,
-				)
-			) {
-				return unavailable(
-					SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-				)
+			val candidateProbe = readImportedCandidateProbe(
+				probeLimit, beforeRecencyStartTimeMs, beforeRecencyTieIdentity,
+			) ?: return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+			if (candidateProbe.isEmpty()) {
+				break
 			}
-			val candidateBudgetExceeded = finalBudgetPage && candidateProbe.size > pageLimit
-			if (candidateBudgetExceeded) {
-				return unavailable(
-					SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
-				)
-			}
+			importedCandidatePageFailure(candidateProbe, beforeRecencyStartTimeMs, beforeRecencyTieIdentity,
+				finalBudgetPage, pageLimit)?.let { return it }
 			val candidates = candidateProbe.take(pageLimit)
-			for (candidate in candidates) {
-				currentCoroutineContext().ensureActive()
-				val evaluation = try {
-					importedEvaluator.evaluateCandidateInTransaction(candidate)
-				} catch (cancelled: CancellationException) {
-					throw cancelled
-				} catch (_: RuntimeException) {
-					return unavailable(
-						SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-					)
-				}
-				scannedCandidates++
-				when (val decision = evaluation.qualifyWithExactNativeOwners()) {
-					is PressureImportedEligibilityDecision.Accepted -> accepted += decision.entry
-					PressureImportedEligibilityDecision.Suppressed -> Unit
-					is PressureImportedEligibilityDecision.Unavailable ->
-						return unavailable(decision.reason)
-				}
+			appendEligibleImportedCandidates(candidates, accepted)?.let { return it }
+			scannedCandidates += candidates.size
+			if (candidateProbe.size < probeLimit) {
+				break
 			}
-			if (candidateProbe.size < probeLimit) break
 			val last = candidates.last()
 			beforeRecencyStartTimeMs = last.recencyStartTimeMs
 			beforeRecencyTieIdentity = last.recencyTieIdentity
@@ -209,6 +212,68 @@ internal class PressureHistoryPageReader @Inject constructor(
 		return ImportedHistoryEligiblePage.Available(
 			accepted.sortedWith(pressureImportedHistoryEligibleOrder).take(limit),
 		)
+	}
+
+	private fun importedCandidatePageFailure(
+		candidateProbe: List<ImportedPressureHistoryCandidate>,
+		beforeRecencyStartTimeMs: Long?,
+		beforeRecencyTieIdentity: String?,
+		finalBudgetPage: Boolean,
+		pageLimit: Int,
+	): ImportedHistoryEligiblePage.Unavailable? {
+		if (!isValidImportedPressureHistoryCandidatePage(
+				candidateProbe, beforeRecencyStartTimeMs, beforeRecencyTieIdentity,
+			)
+		) {
+			return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+		}
+		val candidateBudgetExceeded = finalBudgetPage && candidateProbe.size > pageLimit
+		if (candidateBudgetExceeded) {
+			return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED)
+		}
+		return null
+	}
+
+	private suspend fun readImportedCandidateProbe(
+		probeLimit: Int,
+		beforeRecencyStartTimeMs: Long?,
+		beforeRecencyTieIdentity: String?,
+	): List<ImportedPressureHistoryCandidate>? = try {
+		integrationObserver.record(TrackingHistoryIntegrationCheckpoint.PRESSURE_IMPORTED_CANDIDATE_PAGE)
+		database.importedPressureDao().recentHistoryCandidatePage(
+			limit = probeLimit,
+			beforeRecencyStartTimeMs = beforeRecencyStartTimeMs,
+			beforeRecencyTieIdentity = beforeRecencyTieIdentity,
+		)
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: RuntimeException) {
+		null
+	}
+
+	private suspend fun appendEligibleImportedCandidates(
+		candidates: List<ImportedPressureHistoryCandidate>,
+		accepted: MutableList<PressureImportedHistoryEligibleEntry>,
+	): ImportedHistoryEligiblePage.Unavailable? {
+		for (candidate in candidates) {
+			currentCoroutineContext().ensureActive()
+			val evaluation = try {
+				importedEvaluator.evaluateCandidateInTransaction(candidate)
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: RuntimeException) {
+				return unavailable(
+					SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+				)
+			}
+			when (val decision = evaluation.qualifyWithExactNativeOwners()) {
+				is PressureImportedEligibilityDecision.Accepted -> accepted += decision.entry
+				PressureImportedEligibilityDecision.Suppressed -> Unit
+				is PressureImportedEligibilityDecision.Unavailable ->
+					return unavailable(decision.reason)
+			}
+		}
+		return null
 	}
 
 	private suspend fun loadExactLocalDuplicateEntries(
@@ -235,7 +300,9 @@ internal class PressureHistoryPageReader @Inject constructor(
 				portableReader.portableEntryForComparison(entry),
 			)
 			val previous = authorities[identity]
-			if (previous != null && previous != authority) return null
+			if (previous != null && previous != authority) {
+				return null
+			}
 			authorities[identity] = authority
 		}
 		return authorities
@@ -247,17 +314,26 @@ internal class PressureHistoryPageReader @Inject constructor(
 		if (this is ImportedPressureHistoryEvaluation.Unverifiable) {
 			return toSharedHistoryEligibility(emptyMap())
 		}
-		val keys: Sequence<String> = when (this) {
-			is ImportedPressureHistoryEvaluation.Readable -> sequence {
-				yield(latest.entry.identity.value)
-				for (run in latest.entry.runs) {
-					yield(run.identity.value)
-					for (window in run.windows) yield(window.identity.value)
-				}
+		return qualifyExactNativeOwnerKeys(nativeOwnerKeys())
+	}
+
+	private fun ImportedPressureHistoryEvaluation.nativeOwnerKeys(): Sequence<String> = when (this) {
+		is ImportedPressureHistoryEvaluation.Readable -> sequence {
+			yield(latest.entry.identity.value)
+			for (run in latest.entry.runs) {
+				yield(run.identity.value)
+				for (window in run.windows) yield(window.identity.value)
 			}
-			is ImportedPressureHistoryEvaluation.Retained -> protectedIdentities.asSequence().map { it.value }
-			is ImportedPressureHistoryEvaluation.Unverifiable -> error("Handled above")
 		}
+		is ImportedPressureHistoryEvaluation.Retained -> protectedIdentities.asSequence().map { it.value }
+		is ImportedPressureHistoryEvaluation.Unverifiable -> error("Handled above")
+	}
+
+	// Keep exact owner loading and its ordered budget, storage and collision failures in the same snapshot.
+	@Suppress("ReturnCount")
+	private suspend fun ImportedPressureHistoryEvaluation.qualifyExactNativeOwnerKeys(
+		keys: Sequence<String>,
+	): PressureImportedEligibilityDecision {
 		val local = try {
 			integrationObserver.record(TrackingHistoryIntegrationCheckpoint.PRESSURE_LOCAL_DUPLICATE_SELECTOR)
 			authenticateLocalDuplicateAuthorities(loadExactLocalDuplicateEntries(keys))
@@ -269,25 +345,32 @@ internal class PressureHistoryPageReader @Inject constructor(
 			return PressureImportedEligibilityDecision.Unavailable(
 				SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED)
 		} catch (overflow: PressureHistoryPageDependencyOverflow) {
-			return PressureImportedEligibilityDecision.Unavailable(when (overflow.reason) {
-				SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
-				SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
-				SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED ->
-					SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
-				else -> SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE
-			})
+			return PressureImportedEligibilityDecision.Unavailable(overflow.reason.toNativeOwnerUnavailableReason())
 		} catch (_: RuntimeException) {
 			return PressureImportedEligibilityDecision.Unavailable(
 				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
 		}
-		val ownerConflict = when (this) {
-			is ImportedPressureHistoryEvaluation.Readable -> local.keys.any { it != latest.entry.identity }
-			is ImportedPressureHistoryEvaluation.Retained -> local.isNotEmpty()
-			is ImportedPressureHistoryEvaluation.Unverifiable -> false
-		}
-		if (ownerConflict) return PressureImportedEligibilityDecision.Unavailable(
+		if (conflictsWithNativeOwners(local)) {
+			return PressureImportedEligibilityDecision.Unavailable(
 			SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+		}
 		return toSharedHistoryEligibility(local)
+	}
+
+	private fun ImportedPressureHistoryEvaluation.conflictsWithNativeOwners(
+		local: Map<PortablePressureOpaqueIdentity, PressureLocalDuplicateAuthority>,
+	): Boolean = when (this) {
+		is ImportedPressureHistoryEvaluation.Readable -> local.keys.any { it != latest.entry.identity }
+		is ImportedPressureHistoryEvaluation.Retained -> local.isNotEmpty()
+		is ImportedPressureHistoryEvaluation.Unverifiable -> false
+	}
+
+	private fun SourceAwareHistoryPageUnavailableReason.toNativeOwnerUnavailableReason() = when (this) {
+		SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
+		SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
+		SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED ->
+			SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
+		else -> SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE
 	}
 
 	private fun ImportedPressureHistoryEvaluation.toSharedHistoryEligibility(
@@ -331,6 +414,7 @@ internal class PressureHistoryPageReader @Inject constructor(
 		)
 	}
 
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	private fun ImportedPressureHistoryEvaluation.Retained.retainedEligibility(
 		localAuthorities: Map<PortablePressureOpaqueIdentity, PressureLocalDuplicateAuthority>,
 	): PressureImportedEligibilityDecision {

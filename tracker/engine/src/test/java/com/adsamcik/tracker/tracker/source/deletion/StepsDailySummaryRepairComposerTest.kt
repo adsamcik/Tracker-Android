@@ -1890,22 +1890,25 @@ class StepsDailySummaryRepairComposerTest {
 			(DAY + offset.toLong()) to ZONE
 		}
 		installLane(cursor = StepsNumericSummaryRequest.MAX_DAY_COUNT.toLong())
-		zoneByDay.keys.forEachIndexed { index, epochDay ->
-			val startMs = LocalDate.ofEpochDay(epochDay).atStartOfDay(ZONE)
-				.toInstant().toEpochMilli() + HOUR_MS
-			val logicalId = "paged-envelope-$index-logical"
-			val runId = "paged-envelope-$index-run"
-			val admissionOrdinal = index.toLong() + 1L
-			insertCandidate(
-				logicalId = logicalId,
-				runId = runId,
-				manifestRevision = 1L,
-				startMs = startMs,
-				endMs = startMs + HOUR_MS,
-				steps = 1L,
-				admissionOrdinal = admissionOrdinal,
-				completenessOrdinal = admissionOrdinal,
-			)
+		database.withTransaction {
+			zoneByDay.keys.forEachIndexed { index, epochDay ->
+				val startMs = LocalDate.ofEpochDay(epochDay).atStartOfDay(ZONE)
+					.toInstant().toEpochMilli() + HOUR_MS
+				val logicalId = "paged-envelope-$index-logical"
+				val runId = "paged-envelope-$index-run"
+				val admissionOrdinal = index.toLong() + 1L
+				insertCandidate(
+					logicalId = logicalId,
+					runId = runId,
+					manifestRevision = 1L,
+					startMs = startMs,
+					endMs = startMs + HOUR_MS,
+					steps = 1L,
+					admissionOrdinal = admissionOrdinal,
+					completenessOrdinal = admissionOrdinal,
+					registrationGeneration = admissionOrdinal,
+				)
+			}
 		}
 
 		val ready = composer().composeForNumericRead(zoneByDay)
@@ -3449,6 +3452,7 @@ class StepsDailySummaryRepairComposerTest {
 		coverage: String = StepFactRevisionEntity.COVERAGE_COVERED,
 		admissionOrdinal: Long = ordinal++,
 		completenessOrdinal: Long = admissionOrdinal,
+		registrationGeneration: Long = 1L,
 		logicalStartedAtMs: Long = startMs,
 		zoneId: ZoneId = ZONE,
 		manifestEffectiveAtMs: Long = startMs,
@@ -3514,7 +3518,7 @@ class StepsDailySummaryRepairComposerTest {
 		)
 		database.sourceSessionDao().insertManifestSources(listOf(source))
 		database.sourceSessionDao().saveCompleteness(
-			completeness(logicalId, runId, completenessOrdinal),
+			completeness(logicalId, runId, completenessOrdinal, registrationGeneration = registrationGeneration),
 		)
 		database.stepFactRevisionDao().insert(
 			fact(

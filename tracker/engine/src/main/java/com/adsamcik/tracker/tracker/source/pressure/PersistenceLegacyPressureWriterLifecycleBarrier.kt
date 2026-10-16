@@ -17,6 +17,7 @@ import com.adsamcik.tracker.tracker.pipeline.persistence.ExclusiveTrackingPersis
 import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
 import com.adsamcik.tracker.tracker.source.coordinator.CONTAINED_PRESSURE_SESSION_OWNER
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.ProductProjectionStage
 import com.adsamcik.tracker.tracker.source.coordinator.SourceOwner
 import com.adsamcik.tracker.tracker.source.coordinator.decodeCurrentModelOrNull
@@ -37,15 +38,7 @@ internal class PersistenceLegacyPressureWriterLifecycleBarrier @Inject construct
 		settleProvider: suspend () -> PressureProviderEraseSettlement,
 	): PressureSourceEraseBarrierResult =
 		persistenceLifecycleLease.withPressureWriterTransition {
-			if (!hasExactEpoch(expectedCollectedDataEpoch)) {
-				return@withPressureWriterTransition blockedStaleLifecycle()
-			}
-			if (hasActivePressurePersistenceDemand()) {
-				return@withPressureWriterTransition blockedCaptureAuthorization()
-			}
-			if (!hasEstablishablePressureOwner()) {
-				return@withPressureWriterTransition blockedStaleLifecycle()
-			}
+			preparePressureFence(expectedCollectedDataEpoch)?.let { return@withPressureWriterTransition it }
 			val providerSettlement = settleProvider()
 			if (providerSettlement != PressureProviderEraseSettlement.NoLocalProvider &&
 				providerSettlement !is PressureProviderEraseSettlement.Settled
@@ -56,27 +49,12 @@ internal class PersistenceLegacyPressureWriterLifecycleBarrier @Inject construct
 					SourceDestinationOwnerEntity.FIRST_LEGACY_PRESSURE_FENCE_GENERATION,
 				)
 			}
-			if (persistenceProcessor.hasUnrecoverablePersistenceStateForLifecycleFence() ||
-				!persistenceProcessor.drainOrphanedSignals() ||
-				persistenceProcessor.hasUnsettledPersistenceStateForPressureFence()
-			) {
+			if (!flushPressurePersistence()) {
 				return@withPressureWriterTransition PressureSourceEraseBarrierResult.Retryable(
 					PressureSourceEraseBarrierRetryableReason.PROVIDER_REMOVAL_FAILED,
 				)
 			}
-			val fenceIdentity = when (val fence = database.withTransaction {
-				when {
-					!hasExactEpoch(expectedCollectedDataEpoch) ->
-						PressureFenceInstallResult.StaleLifecycle
-					hasActivePressurePersistenceDemand() ->
-						PressureFenceInstallResult.CaptureAuthorizationActive
-					database.pendingSignalDao().hasPressureWriterCommand() ->
-						PressureFenceInstallResult.StaleLifecycle
-					else -> installOrReadPressureFence()?.let { identity ->
-						PressureFenceInstallResult.Installed(identity)
-					} ?: PressureFenceInstallResult.StaleLifecycle
-				}
-			}) {
+			val fenceIdentity = when (val fence = installPressureFence(expectedCollectedDataEpoch)) {
 				is PressureFenceInstallResult.Installed -> fence.identity
 				PressureFenceInstallResult.CaptureAuthorizationActive ->
 					return@withPressureWriterTransition blockedCaptureAuthorization()
@@ -90,6 +68,33 @@ internal class PersistenceLegacyPressureWriterLifecycleBarrier @Inject construct
 			)
 		}
 
+	private suspend fun preparePressureFence(expectedCollectedDataEpoch: Long): PressureSourceEraseBarrierResult? =
+		when {
+			!hasExactEpoch(expectedCollectedDataEpoch) -> blockedStaleLifecycle()
+			hasActivePressurePersistenceDemand() -> blockedCaptureAuthorization()
+			!hasEstablishablePressureOwner() -> blockedStaleLifecycle()
+			else -> null
+		}
+
+	private suspend fun flushPressurePersistence(): Boolean =
+		!persistenceProcessor.hasUnrecoverablePersistenceStateForLifecycleFence() &&
+			persistenceProcessor.drainOrphanedSignals() &&
+			!persistenceProcessor.hasUnsettledPersistenceStateForPressureFence()
+
+	private suspend fun installPressureFence(expectedCollectedDataEpoch: Long): PressureFenceInstallResult =
+		database.withTransaction {
+			when {
+				!hasExactEpoch(expectedCollectedDataEpoch) -> PressureFenceInstallResult.StaleLifecycle
+				hasActivePressurePersistenceDemand() -> PressureFenceInstallResult.CaptureAuthorizationActive
+				database.pendingSignalDao().hasPressureWriterCommand() -> PressureFenceInstallResult.StaleLifecycle
+				else -> installOrReadPressureFence()?.let { identity ->
+					PressureFenceInstallResult.Installed(identity)
+				}
+					?: PressureFenceInstallResult.StaleLifecycle
+			}
+		}
+
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	override suspend fun verifySettled(
 		token: PressureSourceEraseBarrierToken,
 		verifyProvider: suspend () -> PressureProviderEraseVerification,
@@ -99,8 +104,12 @@ internal class PersistenceLegacyPressureWriterLifecycleBarrier @Inject construct
 				PressureSourceEraseBarrierRetryableReason.PROVIDER_REMOVAL_FAILED,
 			)
 		}
-		if (!hasExactEpoch(token.collectedDataEpoch)) return blockedStaleVerification()
-		if (hasActivePressurePersistenceDemand()) return blockedCaptureVerification()
+		if (!hasExactEpoch(token.collectedDataEpoch)) {
+			return blockedStaleVerification()
+		}
+		if (hasActivePressurePersistenceDemand()) {
+			return blockedCaptureVerification()
+		}
 		if (!hasExactPressureFence(
 				token.legacyWriteFenceOwner,
 				token.legacyWriteFenceGeneration,
@@ -109,7 +118,9 @@ internal class PersistenceLegacyPressureWriterLifecycleBarrier @Inject construct
 			return blockedStaleVerification()
 		}
 		val provider = verifyProvider().toBarrierVerification()
-		if (provider != PressureSourceEraseBarrierVerification.Verified) return provider
+		if (provider != PressureSourceEraseBarrierVerification.Verified) {
+			return provider
+		}
 		if (!hasExactEpoch(token.collectedDataEpoch) ||
 			hasActivePressurePersistenceDemand() ||
 			!hasExactPressureFence(
@@ -174,7 +185,7 @@ internal class PersistenceLegacyPressureWriterLifecycleBarrier @Inject construct
 			return null
 		}
 		val nextGeneration = SourceDestinationOwnerEntity.FIRST_LEGACY_PRESSURE_FENCE_GENERATION
-		if (dao.compareAndSetOwner(
+		return if (dao.compareAndSetOwner(
 				sourceKind = current.sourceKind,
 				destination = current.destination,
 				expectedOwner = current.owner,
@@ -182,20 +193,20 @@ internal class PersistenceLegacyPressureWriterLifecycleBarrier @Inject construct
 				newOwner = current.owner,
 				newOwnerGeneration = nextGeneration,
 				updatedAtMs = Time.nowMillis,
-			) != 1) {
-			return null
+			) == 1) {
+			PressureFenceIdentity(PressureSourceEraseFenceOwner.LEGACY_PRESSURE_SAMPLE, nextGeneration)
+		} else {
+			null
 		}
-		return PressureFenceIdentity(
-			PressureSourceEraseFenceOwner.LEGACY_PRESSURE_SAMPLE,
-			nextGeneration,
-		)
 	}
 
 	private suspend fun hasExactPressureFence(
 		expectedOwner: PressureSourceEraseFenceOwner,
 		expectedGeneration: Long,
 	): Boolean {
-		if (database.pendingSignalDao().hasPressureWriterCommand()) return false
+		if (database.pendingSignalDao().hasPressureWriterCommand()) {
+			return false
+		}
 		return database.sourceDestinationOwnerDao().get(
 			SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 			SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
@@ -222,70 +233,36 @@ internal class PersistenceLegacyPressureWriterLifecycleBarrier @Inject construct
 			val bindingGeneration =
 				SourceWriterGenerationContract.bindingGenerationForContainedOwner(ownerGeneration)
 					?: return null
-			val binding = ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS
-			val projectionDao = database.sourceProjectionStateDao()
-			if (projectionDao.allActiveProductLanes().any {
-					it.sourceKind == SourceDestinationOwnerEntity.SOURCE_PRESSURE
-				} ||
-				projectionDao.registration(
-					SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
-					SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
-				) != null ||
-				database.sourceBrokerDao().currentPhysicalRegistrations(
-					SourceDestinationOwnerEntity.SOURCE_PRESSURE,
-				).isNotEmpty() ||
-				database.sourceBrokerDao().pendingProviderRemovals(
-					SourceDestinationOwnerEntity.SOURCE_PRESSURE,
-				).isNotEmpty()
-			) {
-				return null
+			if (hasContainedPressureFence(bindingGeneration)) {
+				PressureFenceIdentity(
+					PressureSourceEraseFenceOwner.CONTAINED_PRESSURE_SESSION_FACTS,
+					ownerGeneration,
+				)
+			} else {
+				null
 			}
-			val rollout = database.trackingRolloutStateDao().get()
-				?.decodeCurrentModelOrNull()
-				?: return null
-			if (rollout.sourceOwners[SourceKind.PRESSURE] != SourceOwner.CONTAINED ||
-				rollout.productProjectionStages[SourceKind.PRESSURE] !=
-				ProductProjectionStage.LEGACY_CANONICAL ||
-				rollout.captureModeMasks[SourceKind.PRESSURE] != 0L
-			) {
-				return null
-			}
-			val retired = projectionDao.latestProductLane(
-				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
-			) ?: return null
-			val cutoff = retired.captureAdmissionCutoffOrdinal
-			val terminalAtMs = retired.terminalAtMs
-			if (retired.sourceKind != SourceDestinationOwnerEntity.SOURCE_PRESSURE ||
-				retired.bindingGeneration != bindingGeneration ||
-				retired.projectionId != binding.projectionId ||
-				retired.projectionVersion != binding.projectionVersion ||
-				retired.captureModeMask != binding.captureModeMask ||
-				retired.productStage != SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL ||
-				retired.activatedRolloutRevision <= 0L ||
-				retired.activatedRolloutRevision > rollout.revision ||
-				retired.activationOrdinal <= 0L ||
-				retired.status != SourceProductProjectionLaneEntity.STATUS_RETIRED ||
-				retired.retentionRequired ||
-				retired.terminalDisposition !=
-				SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN ||
-				terminalAtMs == null ||
-				cutoff == null ||
-				cutoff < retired.activationOrdinal - 1L ||
-				retired.contiguousAdmissionOrdinal != cutoff ||
-				retired.installedAtMs < 0L ||
-				retired.updatedAtMs < retired.installedAtMs ||
-				terminalAtMs < retired.installedAtMs ||
-				retired.updatedAtMs < terminalAtMs
-			) {
-				return null
-			}
-			PressureFenceIdentity(
-				PressureSourceEraseFenceOwner.CONTAINED_PRESSURE_SESSION_FACTS,
-				ownerGeneration,
-			)
 		}
 		else -> null
 		}
+	}
+
+	private suspend fun hasContainedPressureFence(bindingGeneration: Long): Boolean {
+		val binding = ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS
+		if (database.hasActivePressureFenceOwners()) {
+			return false
+		}
+		val rollout = database.trackingRolloutStateDao().get()?.decodeCurrentModelOrNull() ?: return false
+		if (rollout.sourceOwners[SourceKind.PRESSURE] != SourceOwner.CONTAINED ||
+			rollout.productProjectionStages[SourceKind.PRESSURE] != ProductProjectionStage.LEGACY_CANONICAL ||
+			rollout.captureModeMasks[SourceKind.PRESSURE] != 0L
+		) {
+			return false
+		}
+		val retired = database.sourceProjectionStateDao().latestProductLane(
+			SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+		)
+		return retired != null && retired.matchesPressureFenceBinding(bindingGeneration, binding) &&
+			retired.hasContainedPressureDisposition(rollout.revision) && retired.hasCompletedPressureDrain()
 	}
 
 	private data class PressureFenceIdentity(
@@ -318,4 +295,38 @@ internal class PersistenceLegacyPressureWriterLifecycleBarrier @Inject construct
 		data object CaptureAuthorizationActive : PressureFenceInstallResult
 		data object StaleLifecycle : PressureFenceInstallResult
 	}
+}
+
+private suspend fun AppDatabase.hasActivePressureFenceOwners(): Boolean {
+	val projectionDao = sourceProjectionStateDao()
+	return projectionDao.allActiveProductLanes().any {
+		it.sourceKind == SourceDestinationOwnerEntity.SOURCE_PRESSURE
+	} || projectionDao.registration(
+		SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+		SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+	) != null || sourceBrokerDao().currentPhysicalRegistrations(
+		SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+	).isNotEmpty() || sourceBrokerDao().pendingProviderRemovals(
+		SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+	).isNotEmpty()
+}
+
+private fun SourceProductProjectionLaneEntity.matchesPressureFenceBinding(
+	bindingGeneration: Long,
+	binding: ExecutableSourceLaneBinding,
+): Boolean = sourceKind == SourceDestinationOwnerEntity.SOURCE_PRESSURE &&
+	bindingGeneration == this.bindingGeneration && projectionId == binding.projectionId &&
+	projectionVersion == binding.projectionVersion && captureModeMask == binding.captureModeMask &&
+	productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL
+
+private fun SourceProductProjectionLaneEntity.hasContainedPressureDisposition(rolloutRevision: Long): Boolean =
+	activatedRolloutRevision > 0L && activatedRolloutRevision <= rolloutRevision && activationOrdinal > 0L &&
+		status == SourceProductProjectionLaneEntity.STATUS_RETIRED && !retentionRequired &&
+		terminalDisposition == SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN
+
+private fun SourceProductProjectionLaneEntity.hasCompletedPressureDrain(): Boolean {
+	val terminalAt = terminalAtMs ?: return false
+	val cutoff = captureAdmissionCutoffOrdinal ?: return false
+	return cutoff >= activationOrdinal - 1L && contiguousAdmissionOrdinal == cutoff && installedAtMs >= 0L &&
+		updatedAtMs >= installedAtMs && terminalAt >= installedAtMs && updatedAtMs >= terminalAt
 }

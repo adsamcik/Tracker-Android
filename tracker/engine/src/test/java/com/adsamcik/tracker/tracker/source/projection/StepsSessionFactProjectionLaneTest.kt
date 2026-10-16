@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainRetirementEvidence
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
+import com.adsamcik.tracker.shared.base.database.StepsTerminalProductAuthentication
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -82,6 +83,8 @@ class StepsSessionFactProjectionLaneTest {
 	@After
 	fun tearDown() = database.close()
 
+	// Keep one four-boundary Steps batch and its single evidence/cursor commit assertions together.
+	@Suppress("LongMethod")
 	@Test
 	fun `canonical lane maps every Steps boundary and mutates evidence once per batch`() = runTest {
 		StepsCountDomainSchema.inspect(database.openHelper.writableDatabase) shouldBe
@@ -219,6 +222,55 @@ class StepsSessionFactProjectionLaneTest {
 		activeLane()?.contiguousAdmissionOrdinal shouldBe 0L
 	}
 
+	@Test
+	fun `recovered unknown coverage materializes saved Steps without certifying a complete total`() = runTest {
+		installCountDomainSchema()
+		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val event = stepEvent(ordinal = 1L, firstCount = 100L, lastCount = 104L, delta = 4L,
+			counterDomainToken = StepsCounterDomainToken.opaque("sha256:${"9".repeat(64)}"),
+			counterEpochGeneration = 1L)
+		val ingress = sourceIngress(0L, 1L, listOf(event))
+		val completeness = SourceSessionCompletenessEntity(
+			logicalTrackingId = LOGICAL_TRACKING_ID, serviceRunId = SERVICE_RUN_ID,
+			sourceKind = SourceKind.STEPS.stableCode, sourceInstanceId = "steps-provider",
+			registrationGeneration = 1L, lastAdmissionOrdinal = 1L, lastSourceSequence = 1L,
+			appDrainComplete = false, providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
+			stopStatus = "PROCESS_RESTARTED", unresolvedSequenceStart = null,
+			unresolvedSequenceEnd = null, updatedAtMs = 20_000L,
+		)
+		database.sourceSessionDao().saveCompleteness(completeness)
+		val store = StepsCountDomainStore(database)
+		store.recordSessionCompleteness(completeness,
+			StepsCountDomainRetirementEvidence("NOT_SUPPORTED", "REMOVED")) shouldBe
+			StepsCountDomainWriteResult.INSERTED
+
+		StepsSessionFactProjectionLane(database, ingress).drainThrough(
+			throughAdmissionOrdinal = 1L, logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = SERVICE_RUN_ID,
+			productMemberships = listOf(SourceDrainMembership(
+				sourceInstanceId = "steps-provider", registrationGeneration = 1L,
+				lastAdmissionOrdinal = 1L, lastSourceSequence = 1L, appDrainComplete = false,
+				providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE", stopStatus = "PROCESS_RESTARTED",
+				unresolvedSequenceStart = null, unresolvedSequenceEndInclusive = null,
+			)),
+			retirementClaims = listOf(SourceDrainRetirementClaim(
+				source = SourceKind.STEPS, sourceInstanceId = "steps-provider", registrationGeneration = 1L,
+				actionId = "product-action", attemptCount = 1, leaseGeneration = 6L, cleanupOnly = false,
+			)),
+		) shouldBe StepsSessionFactDrainResult.Complete(1L, factsInserted = 1, eventsValidated = 1)
+
+		val saved = requireNotNull(fact(1L))
+		saved.effectiveStepCount shouldBe 4L
+		saved.coverageKind shouldBe StepFactRevisionEntity.COVERAGE_COVERED
+		StepFactRevisionIntegrity.hasValidCanonicalLiveWalFact(saved) shouldBe true
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 1L
+		store.authenticateTerminalProductDisposition(LOGICAL_TRACKING_ID, SERVICE_RUN_ID,
+			listOf(completeness)) shouldBe StepsTerminalProductAuthentication.TerminalUnavailable
+		database.openHelper.writableDatabase.countRows(
+			"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
+				"WHERE owner_kind = 'SESSION_COMPLETENESS' AND operation = 'UNPROVEN'",
+		) shouldBe 1L
+	}
 	@Test
 	fun `generation 1 is not reinterpreted with the generation 2 capture modes`() = runTest {
 		installManifestBinding(
@@ -396,6 +448,8 @@ class StepsSessionFactProjectionLaneTest {
 			) shouldBe 0L
 		}
 
+	// Keep the original pre-reset/reset/post-reset chain and terminal completeness result together.
+	@Suppress("LongMethod")
 	@Test
 	fun `retained v6 token cannot bind before across or after a counter reset`() = runTest {
 		installCountDomainSchema()
@@ -917,7 +971,6 @@ class StepsSessionFactProjectionLaneTest {
 	@Test
 	fun `each receipt identity collision rolls back then durably blocks its exact ordinal`() = runTest {
 		val event = stepEvent(1L)
-		insertRawStepsRow(ordinal = 1L, wallTimeMs = 10_001L, acquiredAtMs = 10_001L)
 		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
 		StepsSessionFactProjectionLane(
 			database,
@@ -1029,11 +1082,12 @@ class StepsSessionFactProjectionLaneTest {
 		}
 	}
 
-	private fun sourceIngress(
+	private suspend fun sourceIngress(
 		afterOrdinal: Long,
 		throughOrdinal: Long,
 		events: List<AdmittedSourceEvent<StepCounterWindowPayload>>,
 	): DurableSourceIngress = mockk<DurableSourceIngress>().also { ingress ->
+		events.forEach { insertCountDomainWal(it) }
 		coEvery {
 			ingress.committedSourceBatch(
 				SourceKind.STEPS,
@@ -1088,7 +1142,9 @@ class StepsSessionFactProjectionLaneTest {
 		binding: ExecutableSourceLaneBinding = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1,
 		sessionMode: String = "MANUAL",
 	) {
-		if (database.sourceSessionDao().manifest(LOGICAL_TRACKING_ID, MANIFEST_REVISION) != null) return
+		if (database.sourceSessionDao().manifest(LOGICAL_TRACKING_ID, MANIFEST_REVISION) != null) {
+			return
+		}
 		val owner = requireNotNull(database.sourceDestinationOwnerDao().get(
 			SourceDestinationOwnerEntity.SOURCE_STEPS,
 			SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
@@ -1252,8 +1308,8 @@ class StepsSessionFactProjectionLaneTest {
 			admissionOrdinal = event.admissionOrdinal,
 			eventId = event.eventId.value,
 			providerDedupKey = evidence.providerDedupKey,
-			logicalTrackingId = requireNotNull(evidence.logicalTrackingId).value,
-			serviceRunId = requireNotNull(evidence.serviceRunId).value,
+			logicalTrackingId = evidence.logicalTrackingId?.value,
+			serviceRunId = evidence.serviceRunId?.value,
 			sourceKind = evidence.source.stableCode,
 			sourceInstanceId = evidence.sourceInstanceId.value,
 			registrationGeneration = evidence.registrationGeneration,
@@ -1317,6 +1373,9 @@ class StepsSessionFactProjectionLaneTest {
 		),
 	)
 
+	// Keep one admitted Steps event fixture with its boundary/version shape and complete source evidence
+	// fields together.
+	@Suppress("LongMethod")
 	private fun stepEvent(
 		ordinal: Long,
 		boundary: StepBoundaryKind = StepBoundaryKind.COVERED,
@@ -1335,7 +1394,11 @@ class StepsSessionFactProjectionLaneTest {
 		registrationGeneration: Long = 1L,
 	): AdmittedSourceEvent<StepCounterWindowPayload> {
 		val endNanos = ordinal * 2_000_000L
-		val startNanos = if (boundary == StepBoundaryKind.BASELINE) endNanos else endNanos - 1_000_000L
+		val startNanos = if (boundary == StepBoundaryKind.BASELINE) {
+			endNanos
+		} else {
+			endNanos - 1_000_000L
+		}
 		return AdmittedSourceEvent(
 			eventId = SourceEventId("steps-event-$ordinal"),
 			admissionOrdinal = ordinal,
@@ -1368,7 +1431,11 @@ class StepsSessionFactProjectionLaneTest {
 				acquiredAtMs = acquiredAtMs,
 				quality = SourceQuality(),
 				payloadVersion = payloadVersion ?: if (counterEpochGeneration == null) {
-					3
+					if (boundary == StepBoundaryKind.LEGACY_AMBIGUOUS) {
+						2
+					} else {
+						3
+					}
 				} else {
 					STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION
 				},

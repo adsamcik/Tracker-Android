@@ -85,11 +85,15 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 	override suspend fun delete(
 		request: DeleteSelectedWifiHistoryRequest,
 	): DeleteSelectedWifiHistoryResult = withContext(ioDispatcher) {
+		var evidenceReadCompleted = false
 		try {
 			database.withTransaction {
 				val state = database.sourceEvidenceStateDao().get()
 					?: unverifiable(WifiHistoryDeletionUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING)
-				if (!state.hasValidSelectedWifiDeletionShape()) storedCorrupt()
+				evidenceReadCompleted = true
+				if (!state.hasValidSelectedWifiDeletionShape()) {
+					storedCorrupt()
+				}
 				if (state.collectedDataEpoch != request.expectedCollectedDataEpoch) {
 					blocked(WifiHistoryDeletionBlockedReason.COLLECTED_DATA_EPOCH_CHANGED)
 				}
@@ -117,7 +121,11 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		} catch (_: ArithmeticException) {
 			unverifiableResult(WifiHistoryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW)
 		} catch (_: RuntimeException) {
-			unverifiableResult(WifiHistoryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+			if (!evidenceReadCompleted || !database.isOpen) {
+				DeleteSelectedWifiHistoryResult.RetryableFailure(WifiHistoryDeletionRetryableReason.STORAGE_UNAVAILABLE)
+			} else {
+				unverifiableResult(WifiHistoryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+			}
 		}
 	}
 
@@ -180,15 +188,21 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		if (readable.retentionLimited || readable.entry.runs.any { it.retentionLoss }) {
 			blocked(WifiHistoryDeletionBlockedReason.RETENTION_BOUNDARY)
 		}
-		if (readable.entryDeleted) storedCorrupt()
+		if (readable.entryDeleted) {
+			storedCorrupt()
+		}
 		val identity = selected.key.value
 		val lineage = authenticateImportedLineage(identity, state.collectedDataEpoch)
-		if (lineage.revisions.last().entry != readable.entry) storedCorrupt()
+		if (lineage.revisions.last().entry != readable.entry) {
+			storedCorrupt()
+		}
 		if (request.deletedAtMs < maxOf(
 				readable.candidate.receivedAtMs,
 				lineage.receipts.maxOfOrNull { it.receivedAtMs } ?: 0L,
 			)
-		) blocked(WifiHistoryDeletionBlockedReason.STALE_REQUEST)
+		) {
+			blocked(WifiHistoryDeletionBlockedReason.STALE_REQUEST)
+		}
 		val authority = WifiSelectedDeletionAuthorityFactory.imported(
 			lineage,
 			state.collectedDataEpoch,
@@ -200,15 +214,20 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 			listOf(identity),
 			authority.runMarkers.size + 1,
 		)
-		if (existingRunMarkers.size > authority.runMarkers.size ||
-			existingRunMarkers.any { marker ->
-				authority.runMarkers.none {
-					it.runIdentity == marker.runIdentity &&
-						it.entryIdentity == marker.entryIdentity &&
-						it.deletionScopeDigest == marker.deletionScopeDigest
-				} || !state.acceptsRetainedEpoch(marker.collectedDataEpoch) || marker.generation != 1L
+		if (existingRunMarkers.size > authority.runMarkers.size) {
+			storedCorrupt()
+		}
+		val hasInvalidRunMarkers = existingRunMarkers.any { marker ->
+			val hasOriginalRunAuthority = authority.runMarkers.any {
+				it.runIdentity == marker.runIdentity && it.entryIdentity == marker.entryIdentity &&
+					it.deletionScopeDigest == marker.deletionScopeDigest
 			}
-		) storedCorrupt()
+			!hasOriginalRunAuthority || !state.acceptsRetainedEpoch(marker.collectedDataEpoch) ||
+				marker.generation != 1L
+		}
+		if (hasInvalidRunMarkers) {
+			storedCorrupt()
+		}
 		val existingByRun = existingRunMarkers.associateBy(ImportedWifiDeletionGenerationEntity::runIdentity)
 		val missingImportedRunMarkers = authority.runMarkers
 			.filter { it.runIdentity !in existingByRun }
@@ -231,7 +250,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 			listOf(identity),
 			authority.runMarkers.size + 1,
 		)
-		if (finalImportedRunMarkers.size != authority.runMarkers.size) storedCorrupt()
+		if (finalImportedRunMarkers.size != authority.runMarkers.size) {
+			storedCorrupt()
+		}
 		val finalAuthority = authority.copy(
 			runMarkers = finalImportedRunMarkers.map { marker ->
 				WifiSelectedDeletionRunMarker(
@@ -249,7 +270,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 				finalImportedRunMarkers.maxOfOrNull { it.deletedAtMs } ?: 0L,
 				sourceFences.maxOfOrNull { it.deletedAtMs } ?: 0L,
 			)
-		) blocked(WifiHistoryDeletionBlockedReason.STALE_REQUEST)
+		) {
+			blocked(WifiHistoryDeletionBlockedReason.STALE_REQUEST)
+		}
 		val entryDeletion = ImportedWifiEntryDeletionEntity.create(
 			identity,
 			state.collectedDataEpoch,
@@ -279,7 +302,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		if (dao.deleteDependentObservations(identity) != expectedDependentRows ||
 			dao.deleteRemainingObservations(identity) != expectedObservationRows - expectedDependentRows ||
 			dao.deleteEntryRevisions(identity) != lineage.revisions.size
-		) concurrentMutation()
+		) {
+			concurrentMutation()
+		}
 		database.importedRadioFileMembershipDao().deleteEntry(WIFI_SOURCE, identity)
 		authenticatePayloadAbsent(finalAuthority, imported = true)
 		checkpoint(WifiSelectedDeletionCheckpoint.PAYLOAD_REMOVED)
@@ -315,8 +340,12 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		)
 		if (runs.size !in 1..MAX_SELECTED_RUNS) {
 			blocked(
-				if (runs.isEmpty()) WifiHistoryDeletionBlockedReason.ORIGINAL_SCOPE_MISSING else
-					WifiHistoryDeletionBlockedReason.ORIGINAL_SCOPE_REBOUND,
+				if (runs.isEmpty()) {
+					WifiHistoryDeletionBlockedReason.ORIGINAL_SCOPE_MISSING
+				} else
+					{
+					WifiHistoryDeletionBlockedReason.ORIGINAL_SCOPE_REBOUND
+				},
 			)
 		}
 		val segmentIds = runs.mapNotNull(SourceServiceRunEntity::sessionSegmentId)
@@ -332,13 +361,16 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 				segment.logicalTrackingId != logicalTrackingId ||
 					runs.singleOrNull { it.serviceRunId == segment.serviceRunId }?.sessionSegmentId != segment.id
 			}
-		) blocked(WifiHistoryDeletionBlockedReason.ORIGINAL_SCOPE_REBOUND)
-		if (segments.any {
-				it.distanceM != 0f || it.steps != null || it.primaryActivity != null ||
-					it.activityConfidence != null || it.sampleCount != 0 ||
-					it.inferenceVersion != null || it.hasDistanceAnomaly
-			}
 		) {
+			blocked(WifiHistoryDeletionBlockedReason.ORIGINAL_SCOPE_REBOUND)
+		}
+		val hasNonWifiPresentation = segments.any { segment ->
+			val hasOtherMeasurements = segment.distanceM != 0f || segment.steps != null ||
+				segment.primaryActivity != null || segment.activityConfidence != null
+			hasOtherMeasurements || segment.sampleCount != 0 ||
+				segment.inferenceVersion != null || segment.hasDistanceAnomaly
+		}
+		if (hasNonWifiPresentation) {
 			blocked(WifiHistoryDeletionBlockedReason.MIXED_CAPTURE_SCOPE)
 		}
 		if (dao.selectedSkiSegmentCount(segmentIds) != 0L ||
@@ -377,14 +409,18 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 				importedCollision !is ImportedWifiProductEvaluation.Readable ||
 					!importedCollision.isReExportable || importedCollision.entry != portable
 				)
-		) originConflict()
+		) {
+			originConflict()
+		}
 		val completeness = database.trackingHistoryReadDao().completenessForSource(
 			WIFI_SOURCE,
 			logicalTrackingId,
 			runs.map(SourceServiceRunEntity::serviceRunId),
 			MAX_COMPLETENESS + 1,
 		)
-		if (completeness.size > MAX_COMPLETENESS) dependencyOverflow()
+		if (completeness.size > MAX_COMPLETENESS) {
+			dependencyOverflow()
+		}
 		val audit = maintenance.auditPortableInTransaction(
 			state,
 			logicalTrackingId,
@@ -476,7 +512,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 					SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION,
 					ids,
 				) != lineageBatch.sumOf { it.revisions.size }
-			) concurrentMutation()
+			) {
+				concurrentMutation()
+			}
 		}
 		if (dao.deleteSelectedLocalSegments(
 				logicalTrackingId,
@@ -504,7 +542,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		val runIds = runs.map(SourceServiceRunEntity::serviceRunId)
 		val manifests = database.trackingHistoryReadDao().manifests(runIds, MAX_MANIFESTS + 1)
 		val sources = database.trackingHistoryReadDao().manifestSources(runIds, MAX_MANIFEST_SOURCES + 1)
-		if (manifests.size > MAX_MANIFESTS || sources.size > MAX_MANIFEST_SOURCES) dependencyOverflow()
+		if (manifests.size > MAX_MANIFESTS || sources.size > MAX_MANIFEST_SOURCES) {
+			dependencyOverflow()
+		}
 		val manifestsByRun = manifests.groupBy { it.serviceRunId }
 		val sourcesByManifest = sources.groupBy { it.logicalTrackingId to it.manifestRevision }
 		if (!SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(
@@ -520,7 +560,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 							)
 					}
 			}
-		) storedCorrupt()
+		) {
+			storedCorrupt()
+		}
 		for (manifest in manifests) {
 			val membership = sourcesByManifest[logicalTrackingId to manifest.manifestRevision].orEmpty()
 			val captured = membership.filter {
@@ -528,7 +570,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 			}
 			if (captured.mapTo(linkedSetOf(), SessionManifestSourceEntity::sourceKind) != setOf(WIFI_SOURCE) ||
 				captured.singleOrNull()?.isExactSelectedWifiWriter() != true
-			) blocked(WifiHistoryDeletionBlockedReason.MIXED_CAPTURE_SCOPE)
+			) {
+				blocked(WifiHistoryDeletionBlockedReason.MIXED_CAPTURE_SCOPE)
+			}
 		}
 	}
 
@@ -547,20 +591,30 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 			if (page.size > ImportedWifiDao.OWNER_PAGE_SIZE ||
 				page.zipWithNext().any { (left, right) -> left >= right } ||
 				after?.let { previous -> page.firstOrNull()?.let { it <= previous } } == true
-			) storedCorrupt()
+			) {
+				storedCorrupt()
+			}
 			page.forEach { logicalId ->
 				if (PortableWifiOpaqueIdentity.derive(
 						PortableWifiIdentityKind.LOGICAL_ENTRY,
 						logicalId,
 					).value == selectionIdentity
-				) matches += logicalId
+				) {
+					matches += logicalId
+				}
 			}
 			loaded = Math.addExact(loaded, page.size.toLong())
-			if (loaded > expectedCount) storedCorrupt()
-			if (page.isEmpty() || page.size < ImportedWifiDao.OWNER_PAGE_SIZE) break
+			if (loaded > expectedCount) {
+				storedCorrupt()
+			}
+			if (page.isEmpty() || page.size < ImportedWifiDao.OWNER_PAGE_SIZE) {
+				break
+			}
 			after = page.last()
 		}
-		if (loaded != expectedCount || matches.size > 1) storedCorrupt()
+		if (loaded != expectedCount || matches.size > 1) {
+			storedCorrupt()
+		}
 		return matches.singleOrNull()
 	}
 
@@ -594,14 +648,18 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		if (authority.protectedIdentities.size > limits.maximumProtectedIdentities ||
 			authority.protectedIdentities.sumOf(::protectedIdentityByteSize) >
 			limits.maximumProtectedBytes
-		) dependencyOverflow()
+		) {
+			dependencyOverflow()
+		}
 		val receiptCount = dao.selectedDeletionReceiptCount()
 		val protectedCount = dao.selectedDeletionProtectedIdentityCount()
 		if (receiptCount < 0L || protectedCount < 0L ||
 			Math.addExact(receiptCount, 1L) > ImportedWifiDao.MAX_GLOBAL_AUTHORITY_ROWS ||
 			Math.addExact(protectedCount, authority.protectedIdentities.size.toLong()) >
 			ImportedWifiDao.MAX_GLOBAL_AUTHORITY_ROWS
-		) dependencyOverflow()
+		) {
+			dependencyOverflow()
+		}
 	}
 
 	private suspend fun insertReceiptAndProtected(
@@ -636,7 +694,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 				origin,
 				authority.protectedIdentities.size + 1,
 			).toSet() != authority.protectedIdentities.toSet()
-		) concurrentMutation()
+		) {
+			concurrentMutation()
+		}
 	}
 
 	private suspend fun authenticateReplay(
@@ -644,7 +704,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		receipt: WifiSelectedDeletionReceiptEntity,
 		state: SourceEvidenceState,
 	): DeleteSelectedWifiHistoryResult {
-		if (authenticateStoredDeletion(request.selection, state) != receipt) storedCorrupt()
+		if (authenticateStoredDeletion(request.selection, state) != receipt) {
+			storedCorrupt()
+		}
 		if (request.deletedAtMs < maxOf(receipt.deletedAtMs, state.updatedAtMs)) {
 			blocked(WifiHistoryDeletionBlockedReason.STALE_REQUEST)
 		}
@@ -663,17 +725,23 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		) ?: return null
 		if (receipt.selectionIdentity != selectionIdentity ||
 			!state.acceptsRetainedEpoch(receipt.collectedDataEpoch)
-		) storedCorrupt()
+		) {
+			storedCorrupt()
+		}
 		when (selection) {
 			is WifiHistorySelection.Imported -> if (
 				receipt.origin != WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED ||
 				receipt.selectedImportRevision != selection.selected.importRevision ||
 				receipt.selectedContentChecksum != selection.selected.contentChecksum
-			) blocked(WifiHistoryDeletionBlockedReason.STALE_SELECTION)
+			) {
+				blocked(WifiHistoryDeletionBlockedReason.STALE_SELECTION)
+			}
 			is WifiHistorySelection.Local -> if (
 				receipt.origin != WifiSelectedDeletionReceiptEntity.ORIGIN_LOCAL ||
 				receipt.selectedImportRevision != null || receipt.selectedContentChecksum != null
-			) blocked(WifiHistoryDeletionBlockedReason.STALE_SELECTION)
+			) {
+				blocked(WifiHistoryDeletionBlockedReason.STALE_SELECTION)
+			}
 		}
 		if (receipt.retainedFromMs != state.retainedFromMs) {
 			blocked(WifiHistoryDeletionBlockedReason.RETENTION_BOUNDARY)
@@ -695,7 +763,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		val sourceFences = exactSourceFences(authority, state)
 		if (WifiSelectedDeletionReceiptEntity.checksumSourceFences(sourceFences) !=
 			receipt.sourceFenceSetChecksum
-		) storedCorrupt()
+		) {
+			storedCorrupt()
+		}
 		return receipt
 	}
 
@@ -711,7 +781,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 				entryDeletion.collectedDataEpoch != receipt.collectedDataEpoch ||
 				entryDeletion.deletedImportRevision != receipt.selectedImportRevision ||
 				entryDeletion.deletedAtMs != receipt.deletedAtMs
-			) storedCorrupt()
+			) {
+				storedCorrupt()
+			}
 			database.importedWifiDao().deletionGenerationsByEntry(
 				listOf(receipt.selectionIdentity),
 				authority.runMarkers.size + 1,
@@ -731,7 +803,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		if (actual.size != authority.runMarkers.size ||
 			WifiSelectedDeletionReceiptEntity.checksumRunDeletions(actual) !=
 			receipt.runDeletionSetChecksum
-		) storedCorrupt()
+		) {
+			storedCorrupt()
+		}
 	}
 
 	private suspend fun loadLocalReplayRunMarkers(
@@ -744,7 +818,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		var afterRun: String? = null
 		var loaded = 0L
 		val total = database.importedWifiDao().localDeletionOwnerCount()
-		if (total < 0L || total > ImportedWifiDao.MAX_GLOBAL_AUTHORITY_ROWS) dependencyOverflow()
+		if (total < 0L || total > ImportedWifiDao.MAX_GLOBAL_AUTHORITY_ROWS) {
+			dependencyOverflow()
+		}
 		while (true) {
 			currentCoroutineContext().ensureActive()
 			val page = database.importedWifiDao().localDeletionGenerationPage(
@@ -752,12 +828,18 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 				afterRun,
 				ImportedWifiDao.OWNER_PAGE_SIZE,
 			)
-			if (page.size > ImportedWifiDao.OWNER_PAGE_SIZE ||
-				page.zipWithNext().any { (left, right) ->
+			if (page.size > ImportedWifiDao.OWNER_PAGE_SIZE) {
+				storedCorrupt()
+			}
+			if (page.zipWithNext().any { (left, right) ->
 					left.logicalTrackingId > right.logicalTrackingId ||
 						left.logicalTrackingId == right.logicalTrackingId &&
 						left.serviceRunId >= right.serviceRunId
-				} || afterLogical?.let { logical ->
+				}
+			) {
+				storedCorrupt()
+			}
+			if (afterLogical?.let { logical ->
 					val first = page.firstOrNull()
 					first != null && (
 						first.logicalTrackingId < logical ||
@@ -765,7 +847,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 							first.serviceRunId <= requireNotNull(afterRun)
 						)
 				} == true
-			) storedCorrupt()
+			) {
+				storedCorrupt()
+			}
 			for (marker in page) {
 				val entryIdentity = PortableWifiOpaqueIdentity.derive(
 					PortableWifiIdentityKind.LOGICAL_ENTRY,
@@ -787,7 +871,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 						expected.deletionScopeDigest != scope ||
 						marker.collectedDataEpoch != expected.collectedDataEpoch ||
 						marker.generation != expected.generation
-					) originConflict()
+					) {
+						originConflict()
+					}
 					matched += WifiSelectedDeletionRunMarker(
 						runIdentity,
 						entryIdentity,
@@ -799,12 +885,16 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 				}
 			}
 			loaded = Math.addExact(loaded, page.size.toLong())
-			if (page.isEmpty() || page.size < ImportedWifiDao.OWNER_PAGE_SIZE) break
+			if (page.isEmpty() || page.size < ImportedWifiDao.OWNER_PAGE_SIZE) {
+				break
+			}
 			val last = page.last()
 			afterLogical = last.logicalTrackingId
 			afterRun = last.serviceRunId
 		}
-		if (loaded != total) storedCorrupt()
+		if (loaded != total) {
+			storedCorrupt()
+		}
 		return matched
 	}
 
@@ -831,7 +921,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 				dao.selectedDeletionReceipt(authority.selectionIdentity, origin)
 					?.let { loadStoredProtectedFootprint(it, state) }
 			} ?: continue
-			if (origin == targetOrigin && !allowOwnReceipt) originConflict()
+			if (origin == targetOrigin && !allowOwnReceipt) {
+				originConflict()
+			}
 			authenticatedRows = Math.addExact(
 				authenticatedRows,
 				footprint.protected.size.toLong(),
@@ -842,12 +934,16 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 			)
 			if (authenticatedRows > limits.maximumProtectedIdentities ||
 				authenticatedBytes > limits.maximumProtectedBytes
-			) dependencyOverflow()
+			) {
+				dependencyOverflow()
+			}
 			if (footprint.protected.any { owner ->
 					val expected = expectedByKey[owner.identityKind to owner.protectedIdentity]
 					expected == null || !owner.hasCompatibleProtectedOwner(expected)
 				}
-			) originConflict()
+			) {
+				originConflict()
+			}
 		}
 		val expectedScopes = authority.runMarkers.mapTo(hashSetOf()) {
 			it.deletionScopeDigest
@@ -858,19 +954,25 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 			if (dao.foreignSelectedDeletionProtectedIdentityOwner(
 				identities,
 				authority.selectionIdentity,
-			) != null) originConflict()
+			) != null) {
+				originConflict()
+			}
 			val fences = dao.deletionFenceIdentityOwners(
 				identities,
 				identities.size + 1,
 			)
-			if (fences.size > identities.size ||
-				fences.any { fence ->
+			if (fences.size > identities.size) {
+				originConflict()
+			}
+			if (fences.any { fence ->
 					!state.acceptsRetainedEpoch(fence.collectedDataEpoch) ||
 						fence.scopeIdentityDigest !in expectedScopes ||
 						fence.sourceKind != WIFI_SOURCE ||
 						fence.purpose != SessionManifestPurposeCode.SESSION_CAPTURE
 				}
-			) originConflict()
+			) {
+				originConflict()
+			}
 		}
 	}
 
@@ -892,16 +994,23 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 			Math.addExact(receipt.expectedProtectedIdentityCount, 1),
 		)
 		val protectedBytes = protectedFootprintByteSize(protected)
-		if (protectedBytes > limits.maximumProtectedBytes) dependencyOverflow()
+		if (protectedBytes > limits.maximumProtectedBytes) {
+			dependencyOverflow()
+		}
 		if (protected.size != receipt.expectedProtectedIdentityCount ||
 			protected.any {
 				it.selectionIdentity != receipt.selectionIdentity ||
 					it.receiptOrigin != receipt.origin ||
 					it.collectedDataEpoch != receipt.collectedDataEpoch
-			} ||
-			WifiSelectedDeletionReceiptEntity.checksumProtectedIdentities(protected) !=
+			}
+		) {
+			storedCorrupt()
+		}
+		if (WifiSelectedDeletionReceiptEntity.checksumProtectedIdentities(protected) !=
 			receipt.protectedIdentitySetChecksum
-		) storedCorrupt()
+		) {
+			storedCorrupt()
+		}
 		return StoredWifiProtectedFootprint(receipt, protected)
 	}
 
@@ -912,11 +1021,16 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		val dao = database.importedWifiDao()
 		if (imported) {
 			if (dao.entryRevisionsForAdmission(authority.selectionIdentity).isNotEmpty() ||
-				dao.receiptsForAdmission(authority.selectionIdentity).isNotEmpty() ||
-				dao.allRunsForAdmission(authority.selectionIdentity).isNotEmpty() ||
+				dao.receiptsForAdmission(authority.selectionIdentity).isNotEmpty()
+			) {
+				concurrentMutation()
+			}
+			if (dao.allRunsForAdmission(authority.selectionIdentity).isNotEmpty() ||
 				dao.allRunZonesForAdmission(authority.selectionIdentity).isNotEmpty() ||
 				dao.allObservationsForAdmission(authority.selectionIdentity).isNotEmpty()
-			) concurrentMutation()
+			) {
+				concurrentMutation()
+			}
 		} else {
 			val protectedObservations = authority.protectedIdentities.filter {
 				it.identityKind == WifiSelectedDeletionProtectedIdentityEntity.KIND_OBSERVATION
@@ -924,7 +1038,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 			var after: String? = null
 			var loaded = 0L
 			val expected = dao.localObservationOwnerCount()
-			if (expected < 0L || expected > ImportedWifiDao.MAX_GLOBAL_AUTHORITY_ROWS) dependencyOverflow()
+			if (expected < 0L || expected > ImportedWifiDao.MAX_GLOBAL_AUTHORITY_ROWS) {
+				dependencyOverflow()
+			}
 			while (true) {
 				val page = dao.localObservationOwnerPage(after, ImportedWifiDao.OWNER_PAGE_SIZE)
 				if (page.any { owner ->
@@ -933,12 +1049,18 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 							owner.logicalFactId,
 						).value in protectedObservations
 					}
-				) concurrentMutation()
+				) {
+					concurrentMutation()
+				}
 				loaded = Math.addExact(loaded, page.size.toLong())
-				if (page.isEmpty() || page.size < ImportedWifiDao.OWNER_PAGE_SIZE) break
+				if (page.isEmpty() || page.size < ImportedWifiDao.OWNER_PAGE_SIZE) {
+					break
+				}
 				after = page.last().logicalFactId
 			}
-			if (loaded != expected) storedCorrupt()
+			if (loaded != expected) {
+				storedCorrupt()
+			}
 		}
 	}
 
@@ -958,7 +1080,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 				!state.acceptsRetainedEpoch(it.collectedDataEpoch) || it.fenceGeneration <= 0L ||
 					it.scopeIdentityDigest !in scopes
 			}
-		) storedCorrupt()
+		) {
+			storedCorrupt()
+		}
 		return fences
 	}
 
@@ -982,7 +1106,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 			runProtected.size != receipt.expectedRunCount ||
 			scopeProtected.size != receipt.expectedRunCount ||
 			observationProtected.size != receipt.expectedObservationCount
-		) storedCorrupt()
+		) {
+			storedCorrupt()
+		}
 		val runRows = runProtected.map { marker ->
 			WifiSelectedDeletionRunMarker(
 				marker.protectedIdentity,
@@ -994,12 +1120,18 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 			)
 		}
 		val runByIdentity = runRows.associateBy(WifiSelectedDeletionRunMarker::runIdentity)
-		if (runByIdentity.size != runRows.size ||
-			scopeProtected.any { scope ->
+		if (runByIdentity.size != runRows.size) {
+			storedCorrupt()
+		}
+		if (scopeProtected.any { scope ->
 				val run = scope.ownerRunIdentity?.let(runByIdentity::get)
 				run == null || scope.protectedIdentity != run.deletionScopeDigest ||
 					scope.ownerEntryIdentity != receipt.selectionIdentity
-			} || observationProtected.any { observation ->
+			}
+		) {
+			storedCorrupt()
+		}
+		if (observationProtected.any { observation ->
 				observation.ownerEntryIdentity != receipt.selectionIdentity ||
 					observation.ownerRunIdentity !in runByIdentity ||
 					observation.aggregateOwnerIdentity?.let { aggregate ->
@@ -1008,7 +1140,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 						}?.let { owner -> owner.aggregateOwnerIdentity == null } != true
 					} == true
 			}
-		) storedCorrupt()
+		) {
+			storedCorrupt()
+		}
 		return WifiSelectedDeletionAuthority(
 			receipt.selectionIdentity,
 			receipt.startTimeMs,
@@ -1086,7 +1220,7 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 
 internal data class WifiSelectedDeletionLimits(
 	val maximumProtectedIdentities: Int = 262_144,
-	val maximumProtectedBytes: Long = 8L * 1024L * 1024L,
+	val maximumProtectedBytes: Long = DEFAULT_MAXIMUM_PROTECTED_BYTES,
 ) {
 	init {
 		require(maximumProtectedIdentities in 1..ImportedWifiDao.MAX_GLOBAL_AUTHORITY_ROWS)
@@ -1175,3 +1309,5 @@ private fun ImportedWifiLineageAuthenticator.Reason.toDeletionReason():
 	ImportedWifiLineageAuthenticator.Reason.STORED_EVIDENCE_UNVERIFIABLE ->
 		WifiHistoryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE
 }
+
+private const val DEFAULT_MAXIMUM_PROTECTED_BYTES = 8L * 1024L * 1024L

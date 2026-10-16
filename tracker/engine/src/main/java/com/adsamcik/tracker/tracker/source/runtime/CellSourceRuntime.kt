@@ -167,24 +167,13 @@ class CellSourceRuntime @Inject internal constructor(
 				)
 			}
 		}
-		if (!plan.enabled) return@withLock SourceApplyResult.Applied(
+		if (!plan.enabled) {
+			return@withLock SourceApplyResult.Applied(
 			appliedState(source, plan.revision, null, SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()),
 			stopAck = predecessorStopAck,
 		)
-		when (val result = startLocked(claim, plan, sink)) {
-			is SourceStartResult.Started -> SourceApplyResult.Applied(result.applied, predecessorStopAck)
-			is SourceStartResult.Degraded -> SourceApplyResult.Degraded(result.applied, predecessorStopAck)
-			is SourceStartResult.Blocked -> SourceApplyResult.Failed(
-				result.applied,
-				retryable = false,
-				stopAck = predecessorStopAck,
-			)
-			is SourceStartResult.Failed -> SourceApplyResult.Failed(
-				result.applied,
-				result.retryable,
-				predecessorStopAck,
-			)
 		}
+		startLocked(claim, plan, sink).toApplyResult(predecessorStopAck)
 	}
 
 	override suspend fun quiesce(cutoff: SessionCutoff): SourceStopAck = lifecycleMutex.withLock {
@@ -192,7 +181,9 @@ class CellSourceRuntime @Inject internal constructor(
 	}
 
 	override suspend fun close() = lifecycleMutex.withLock {
-		if (currentPlan != null) shutdownLocked(null)
+		if (currentPlan != null) {
+			shutdownLocked(null)
+		}
 	}
 
 	override suspend fun shutdownIfOwned(
@@ -201,7 +192,9 @@ class CellSourceRuntime @Inject internal constructor(
 	): OwnedSourceShutdown {
 		require(claim.source == source)
 		return lifecycleMutex.withLock {
-			if (ownerClaim != claim) return@withLock OwnedSourceShutdown.NotOwned
+			if (ownerClaim != claim) {
+				return@withLock OwnedSourceShutdown.NotOwned
+			}
 			(automaticFailureAck ?: shutdownLocked(cutoff)).toOwnedShutdown()
 		}
 	}
@@ -232,11 +225,15 @@ class CellSourceRuntime @Inject internal constructor(
 	/** Setup may drain only this exact live no-CAP owner, without refresh or retirement. */
 	internal suspend fun prepareSessionCaptureBoundary(deadlineElapsedRealtimeNanos: Long): Boolean {
 		val remainingMs = (deadlineElapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos()) / NANOS_PER_MILLISECOND
-		if (remainingMs <= 0L) return false
+		if (remainingMs <= 0L) {
+			return false
+		}
 		return withTimeoutOrNull(remainingMs) {
 			lifecycleMutex.withLock {
 				val active = registration ?: return@withLock false
-				if (!canPreserveIndependentCallbackIntake(active)) return@withLock false
+				if (!canPreserveIndependentCallbackIntake(active)) {
+					return@withLock false
+				}
 				val ack = drainSharedSessionPrefixLocked(active, deadlineElapsedRealtimeNanos,
 					freezeCallbackIntake = false)
 				ack.status == SourceStopStatus.COMPLETE && ack.appDrainComplete
@@ -264,30 +261,68 @@ class CellSourceRuntime @Inject internal constructor(
 			return sharedCutoffUnavailable(activeRegistration)
 		}
 		val completion = CompletableDeferred<RuntimeAdmissionSnapshot>()
-		val barrier = providerOperationMutex.withLock {
-			synchronized(callbackLock) {
-				if (!accepting || registration !== activeRegistration ||
-					callbackToken !== activeToken || queue !== activeQueue
-				) {
-					return@synchronized null
-				}
-				// Setup/settled End captures a finite prefix without pausing independently allowed Ambient.
-				if (freezeCallbackIntake) accepting = false
-				callbackSequence
+		val barrier = captureCallbackBarrierLocked(
+			activeRegistration, activeToken, activeQueue, freezeCallbackIntake,
+		) ?: return sharedCutoffUnavailable(activeRegistration)
+		submitSharedCutoff(activeRegistration, activeToken, activeQueue, activeActor, completion, freezeCallbackIntake)
+		val admission = awaitSharedCutoff(completion, deadlineElapsedRealtimeNanos, barrier)
+		val publication = if (admission != null) {
+			publishSharedSessionBarrier(activeRegistration, deadlineElapsedRealtimeNanos)
+		} else null
+		return sharedCutoffAck(activeRegistration, barrier, admission, publication)
+	}
+
+	private suspend fun captureCallbackBarrierLocked(
+		activeRegistration: SourceRegistration,
+		activeToken: CellCallbackToken,
+		activeQueue: CellCallbackLane<CellRuntimeInput>,
+		freezeCallbackIntake: Boolean,
+	): Long? = providerOperationMutex.withLock {
+		synchronized(callbackLock) {
+			if (!accepting || registration !== activeRegistration ||
+				callbackToken !== activeToken || queue !== activeQueue
+			) {
+				return@synchronized null
 			}
-		} ?: return sharedCutoffUnavailable(activeRegistration)
+			// Setup/settled End captures a finite prefix without pausing independently allowed Ambient.
+			if (freezeCallbackIntake) {
+				accepting = false
+			}
+			callbackSequence
+		}
+	}
+
+	private suspend fun submitSharedCutoff(
+		activeRegistration: SourceRegistration,
+		activeToken: CellCallbackToken,
+		activeQueue: CellCallbackLane<CellRuntimeInput>,
+		activeActor: Job,
+		completion: CompletableDeferred<RuntimeAdmissionSnapshot>,
+		freezeCallbackIntake: Boolean,
+	) {
 		try {
 			activeQueue.submit(CellRuntimeInput.SharedCutoff(completion))
 		} finally {
-			if (freezeCallbackIntake) synchronized(callbackLock) {
-				if (registration === activeRegistration && callbackToken === activeToken &&
-					queue === activeQueue && activeActor.isActive &&
-					cutoffElapsedNanos == null && retirementIntent == null
-				) {
-					accepting = true
+			if (freezeCallbackIntake) {
+				synchronized(callbackLock) {
+					// Fixed callback identity and stop-state tuple, read under callbackLock.
+					@Suppress("ComplexCondition")
+					val sameOwner = registration === activeRegistration && callbackToken === activeToken &&
+						queue === activeQueue && activeActor.isActive &&
+						cutoffElapsedNanos == null && retirementIntent == null
+					if (sameOwner) {
+						accepting = true
+					}
 				}
 			}
 		}
+	}
+
+	private suspend fun awaitSharedCutoff(
+		completion: CompletableDeferred<RuntimeAdmissionSnapshot>,
+		deadlineElapsedRealtimeNanos: Long,
+		barrier: Long,
+	): RuntimeAdmissionSnapshot? {
 		val remainingMs =
 			((deadlineElapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos()) /
 				NANOS_PER_MILLISECOND).coerceAtLeast(1L)
@@ -302,15 +337,28 @@ class CellSourceRuntime @Inject internal constructor(
 				)
 			}
 		}
-		val publication = if (admission != null) {
-			val publicationMs = ((deadlineElapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos()) /
-				NANOS_PER_MILLISECOND).coerceAtLeast(1L)
-			withTimeoutOrNull(publicationMs) {
-				try { registrations.publishRadioSessionCaptureCallbackBarrier(activeRegistration) }
-				catch (cancelled: CancellationException) { throw cancelled }
-				catch (@Suppress("SwallowedException") _: Exception) { false }
-			}
-		} else null
+		return admission
+	}
+
+	private suspend fun publishSharedSessionBarrier(
+		activeRegistration: SourceRegistration,
+		deadlineElapsedRealtimeNanos: Long,
+	): Boolean? {
+		val publicationMs = ((deadlineElapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos()) /
+			NANOS_PER_MILLISECOND).coerceAtLeast(1L)
+		return withTimeoutOrNull(publicationMs) {
+			try { registrations.publishRadioSessionCaptureCallbackBarrier(activeRegistration) }
+			catch (cancelled: CancellationException) { throw cancelled }
+			catch (@Suppress("SwallowedException") _: Exception) { false }
+		}
+	}
+
+	private fun sharedCutoffAck(
+		activeRegistration: SourceRegistration,
+		barrier: Long,
+		admission: RuntimeAdmissionSnapshot?,
+		publication: Boolean?,
+	): SourceStopAck {
 		val settled = admission ?: metrics.snapshot()
 		return SourceStopAck(
 			source = source,
@@ -386,9 +434,11 @@ class CellSourceRuntime @Inject internal constructor(
 		}
 		if (activeRegistration.authorization.authorizedMembers.any { member ->
 				member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
-			}) return@withLock CellCaptureDeletionBarrierResult.Blocked(
+			}) {
+			return@withLock CellCaptureDeletionBarrierResult.Blocked(
 			CellCaptureDeletionBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
 		)
+		}
 
 		val activeToken = callbackToken
 		val activeQueue = queue
@@ -400,53 +450,31 @@ class CellSourceRuntime @Inject internal constructor(
 				CellCaptureDeletionBarrierRetryableReason.CALLBACK_LANE_UNAVAILABLE,
 			)
 		}
-		val closed = providerOperationMutex.withLock {
-			synchronized(callbackLock) {
-				if (!accepting || registration !== activeRegistration || callbackToken !== activeToken ||
-					queue !== activeQueue
-				) {
-					false
-				} else {
-					accepting = false
-					true
-				}
-			}
-		}
-		if (!closed) return@withLock CellCaptureDeletionBarrierResult.Retryable(
+		val closed = captureCallbackBarrierLocked(
+			activeRegistration, activeToken, activeQueue, freezeCallbackIntake = true,
+		) != null
+		if (!closed) {
+			return@withLock CellCaptureDeletionBarrierResult.Retryable(
 			CellCaptureDeletionBarrierRetryableReason.CALLBACK_LANE_UNAVAILABLE,
 		)
+		}
 
+		settleCaptureDeletionBarrier(activeRegistration, activeToken, activeQueue, activeActor, expectedCollectedDataEpoch)
+	}
+
+	private suspend fun settleCaptureDeletionBarrier(
+		activeRegistration: SourceRegistration,
+		activeToken: CellCallbackToken,
+		activeQueue: CellCallbackLane<CellRuntimeInput>,
+		activeActor: Job,
+		expectedCollectedDataEpoch: Long,
+	): CellCaptureDeletionBarrierResult {
 		var cancellation: CancellationException? = null
 		var resumed = false
 		var outcome: CellCaptureDeletionBarrierResult? = null
 		try {
 			try {
-				wakeups.cancel(REFRESH_WAKEUP_ID)
-				wakeups.cancel(TIMEOUT_WAKEUP_ID)
-				val completion = CompletableDeferred<Unit>()
-				val drained = try {
-					withTimeoutOrNull(DEFAULT_DRAIN_TIMEOUT_MS) {
-						activeQueue.submit(CellRuntimeInput.CaptureBarrier(completion))
-						completion.await()
-						true
-					}
-				} catch (cancelled: CancellationException) {
-					throw cancelled
-				} catch (@Suppress("SwallowedException") _: Exception) {
-					false
-				}
-				outcome = when (drained) {
-					null -> CellCaptureDeletionBarrierResult.Retryable(
-						CellCaptureDeletionBarrierRetryableReason.CALLBACK_DRAIN_TIMED_OUT,
-					)
-					false -> CellCaptureDeletionBarrierResult.Retryable(
-						CellCaptureDeletionBarrierRetryableReason.CALLBACK_LANE_UNAVAILABLE,
-					)
-					true -> publishCaptureDeletionBarrier(
-						activeRegistration,
-						expectedCollectedDataEpoch,
-					)
-				}
+				outcome = drainAndPublishCaptureBarrier(activeRegistration, activeQueue, expectedCollectedDataEpoch)
 			} catch (cancelled: CancellationException) {
 				cancellation = cancelled
 			} catch (@Suppress("SwallowedException") _: Exception) {
@@ -466,13 +494,48 @@ class CellSourceRuntime @Inject internal constructor(
 			)
 		}
 		cancellation?.let { throw it }
-		if (!outcome.allowsNoncaptureLaneResumption()) {
+		return if (!outcome.allowsNoncaptureLaneResumption()) {
 			requireNotNull(outcome)
 		} else if (!resumed) {
 			CellCaptureDeletionBarrierResult.Retryable(
 				CellCaptureDeletionBarrierRetryableReason.CALLBACK_LANE_UNAVAILABLE,
 			)
-		} else requireNotNull(outcome)
+		} else {
+			requireNotNull(outcome)
+		}
+	}
+
+	private suspend fun drainAndPublishCaptureBarrier(
+		activeRegistration: SourceRegistration,
+		activeQueue: CellCallbackLane<CellRuntimeInput>,
+		expectedCollectedDataEpoch: Long,
+	): CellCaptureDeletionBarrierResult {
+		wakeups.cancel(REFRESH_WAKEUP_ID)
+		wakeups.cancel(TIMEOUT_WAKEUP_ID)
+		val completion = CompletableDeferred<Unit>()
+		val drained = try {
+			withTimeoutOrNull(DEFAULT_DRAIN_TIMEOUT_MS) {
+				activeQueue.submit(CellRuntimeInput.CaptureBarrier(completion))
+				completion.await()
+				true
+			}
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (@Suppress("SwallowedException") _: Exception) {
+			false
+		}
+		return when (drained) {
+			null -> CellCaptureDeletionBarrierResult.Retryable(
+				CellCaptureDeletionBarrierRetryableReason.CALLBACK_DRAIN_TIMED_OUT,
+			)
+			false -> CellCaptureDeletionBarrierResult.Retryable(
+				CellCaptureDeletionBarrierRetryableReason.CALLBACK_LANE_UNAVAILABLE,
+			)
+			true -> publishCaptureDeletionBarrier(
+				activeRegistration,
+				expectedCollectedDataEpoch,
+			)
+		}
 	}
 
 	private suspend fun publishCaptureDeletionBarrier(
@@ -520,10 +583,11 @@ class CellSourceRuntime @Inject internal constructor(
 		allowResume: Boolean,
 	): Boolean = synchronized(callbackLock) {
 		val currentRegistration = registration ?: return@synchronized false
-		if (!allowResume || accepting || currentRegistration !== activeRegistration ||
-			callbackToken !== activeToken || queue !== activeQueue || actor !== activeActor ||
-			!activeActor.isActive || currentPlan == null || currentSink == null ||
-			currentRegistration.authorization.authorizedMembers.any { member ->
+		if (!allowResume || accepting ||
+			!hasCellResumeOwner(currentRegistration, activeRegistration, activeToken, activeQueue, activeActor)) {
+			return@synchronized false
+		}
+		if (currentRegistration.authorization.authorizedMembers.any { member ->
 				member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
 			}
 		) {
@@ -534,6 +598,15 @@ class CellSourceRuntime @Inject internal constructor(
 			notified
 		}
 	}
+
+	// Called while callbackLock is held: the exact callback owner and its retained delivery state.
+	@Suppress("ComplexCondition")
+	private fun hasCellResumeOwner(
+		currentRegistration: SourceRegistration, activeRegistration: SourceRegistration,
+		activeToken: CellCallbackToken, activeQueue: CellCallbackLane<CellRuntimeInput>, activeActor: Job,
+	): Boolean = !(currentRegistration !== activeRegistration || callbackToken !== activeToken ||
+		queue !== activeQueue || actor !== activeActor || !activeActor.isActive ||
+		currentPlan == null || currentSink == null)
 
 	private fun CellCaptureDeletionBarrierResult?.allowsNoncaptureLaneResumption(): Boolean = when (this) {
 		is CellCaptureDeletionBarrierResult.Blocked -> reason !in setOf(
@@ -575,7 +648,9 @@ class CellSourceRuntime @Inject internal constructor(
 		}
 		val application = CellPrerequisiteEvaluator.evaluate(plan, deviceStateProvider.cell())
 		_capabilities.value = capabilitiesNow()
-		if (application.status == SourceApplyStatus.BLOCKED) return null
+		if (application.status == SourceApplyStatus.BLOCKED) {
+			return null
+		}
 		val refreshBoundary = providerOperationMutex.withLock {
 			synchronized(callbackLock) {
 				if (!accepting || callbackToken !== activeCallbackToken || registration !== activeRegistration) {
@@ -607,7 +682,18 @@ class CellSourceRuntime @Inject internal constructor(
 			refreshed.state.registrationGeneration != activeRegistration.state.registrationGeneration ||
 			refreshed.physicalConfigurationFingerprint != activeRegistration.physicalConfigurationFingerprint ||
 			refreshed.requiresProviderAcceptance
-		) return null
+		) {
+			return null
+		}
+		return installCompatibleRefreshLocked(claim, plan, sink, activeRegistration,
+			activeCallbackToken, refreshed, application)
+	}
+
+	private fun installCompatibleRefreshLocked(
+		claim: SourceRuntimeClaim?, plan: CellPlan, sink: SourceEventSink,
+		activeRegistration: SourceRegistration, activeCallbackToken: CellCallbackToken,
+		refreshed: SourceRegistration, application: CellPlanApplication,
+	): SourceApplyResult? {
 		val retained = synchronized(callbackLock) {
 			if (accepting || callbackToken !== activeCallbackToken || registration !== activeRegistration) {
 				false
@@ -616,11 +702,15 @@ class CellSourceRuntime @Inject internal constructor(
 				currentPlan = plan
 				currentSink = sink
 				val notified = queue?.offer(CellRuntimeInput.PlanChanged) == true
-				if (notified) accepting = true
+				if (notified) {
+					accepting = true
+				}
 				notified
 			}
 		}
-		if (!retained) return null
+		if (!retained) {
+			return null
+		}
 		// The compatible refresh is a new durable lifecycle attempt even though it retains the same
 		// Telephony handle. Transfer authority only after its callback context commits.
 		ownerClaim = claim
@@ -629,7 +719,9 @@ class CellSourceRuntime @Inject internal constructor(
 		).copy(degradedReasons = application.reasons)
 		return if (application.status == SourceApplyStatus.DEGRADED) {
 			SourceApplyResult.Degraded(state)
-		} else SourceApplyResult.Applied(state)
+		} else {
+			SourceApplyResult.Applied(state)
+		}
 	}
 
 	private suspend fun startLocked(
@@ -650,15 +742,19 @@ class CellSourceRuntime @Inject internal constructor(
 			)
 		}
 		automaticFailureAck = null
-		if (!plan.enabled) return SourceStartResult.Started(
+		if (!plan.enabled) {
+			return SourceStartResult.Started(
 			appliedState(source, plan.revision, null, SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()),
 		)
+		}
 		val application = CellPrerequisiteEvaluator.evaluate(plan, deviceStateProvider.cell())
 		_capabilities.value = capabilitiesNow()
-		if (application.status == SourceApplyStatus.BLOCKED) return SourceStartResult.Blocked(
+		if (application.status == SourceApplyStatus.BLOCKED) {
+			return SourceStartResult.Blocked(
 			appliedState(source, plan.revision, null, SourceApplyStatus.BLOCKED, SystemClock.elapsedRealtimeNanos())
 				.copy(degradedReasons = application.reasons),
 		)
+		}
 		val nextRegistration = runCatchingNonCancellation {
 			registrations.begin(source, plan.revision, plan.physicalConfigurationFingerprint(), System.currentTimeMillis())
 		}.getOrElse {
@@ -746,7 +842,9 @@ class CellSourceRuntime @Inject internal constructor(
 		).copy(degradedReasons = application.reasons)
 		return if (application.status == SourceApplyStatus.DEGRADED) {
 			SourceStartResult.Degraded(state)
-		} else SourceStartResult.Started(state)
+		} else {
+			SourceStartResult.Started(state)
+		}
 	}
 
 	private fun containFailedActor(
@@ -762,7 +860,9 @@ class CellSourceRuntime @Inject internal constructor(
 				true
 			}
 		}
-		if (!cleanupRequired) return
+		if (!cleanupRequired) {
+			return
+		}
 		applicationScope.launch {
 			lifecycleMutex.withLock {
 				if (actor === failedActor && currentPlan != null) {
@@ -820,11 +920,13 @@ class CellSourceRuntime @Inject internal constructor(
 		}
 		val retirement = if (providerRetiredWhileActorRetained) {
 			CellProviderRetirement.COMPLETE
-		} else retireProviderRegistration(
+		} else {
+			retireProviderRegistration(
 			activeRegistration,
 			reason = "ORDERLY_STOP",
 			retiredElapsedRealtimeNanos = retirementBoundary,
 		)
+		}
 		val removed = if (retirement == CellProviderRetirement.COMPLETE) {
 			RegistrationRemovalOutcome.REMOVED
 		} else {
@@ -842,7 +944,9 @@ class CellSourceRuntime @Inject internal constructor(
 			val timedOutActor = requireNotNull(activeActor)
 			timedOutActor.cancel()
 			withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) { timedOutActor.join(); true } == true
-		} else true
+		} else {
+			true
+		}
 		val unaccountedTail = callbackOfferFailureCoverage.unaccountedRanges(
 			processedCallbackSequence.value,
 			barrier,
@@ -929,7 +1033,11 @@ class CellSourceRuntime @Inject internal constructor(
 				registrations.completeRetirement(token)
 			}.getOrDefault(false)
 		} == true
-		if (completed) CellProviderRetirement.COMPLETE else CellProviderRetirement.PENDING
+		if (completed) {
+			CellProviderRetirement.COMPLETE
+		} else {
+			CellProviderRetirement.PENDING
+		}
 	}
 
 	private suspend fun reconcilePendingProviderRetirements(): Boolean {
@@ -939,8 +1047,12 @@ class CellSourceRuntime @Inject internal constructor(
 					registrations.pendingRetirements(source)
 				}.getOrNull()
 			} ?: return@withContext false
-			if (pending.isEmpty()) return@withContext !backend.hasRetainedRegistrations
-			if (pending.size != 1) return@withContext false
+			if (pending.isEmpty()) {
+				return@withContext !backend.hasRetainedRegistrations
+			}
+			if (pending.size != 1) {
+				return@withContext false
+			}
 			val token = pending.single()
 			val localIntent = synchronized(callbackLock) { retirementIntent }
 			if (localIntent != null && localIntent.token?.sameRetirementAs(token) != true) {
@@ -949,7 +1061,9 @@ class CellSourceRuntime @Inject internal constructor(
 			val removed = withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
 				runCatchingNonCancellation { backend.stop() }.getOrDefault(false)
 			} == true
-			if (!removed) return@withContext false
+			if (!removed) {
+				return@withContext false
+			}
 			withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
 				runCatchingNonCancellation {
 					registrations.completeRetirement(token)
@@ -975,7 +1089,9 @@ class CellSourceRuntime @Inject internal constructor(
 			currentSink = null
 			queue = null
 		}
-		if (!keepActor) actor = null
+		if (!keepActor) {
+			actor = null
+		}
 	}
 
 	private fun onBackendSnapshot(
@@ -985,11 +1101,15 @@ class CellSourceRuntime @Inject internal constructor(
 		request: CellRefreshRequest? = null,
 	) {
 		synchronized(callbackLock) {
-			if (!accepting || callbackToken !== token) return
+			if (!accepting || callbackToken !== token) {
+				return
+			}
 			val context = currentCallbackContextLocked() ?: return
 			// This lock is also the compatible-authorization boundary. The live prerequisite read and
 			// immutable context capture therefore precede the FIFO offer as one callback-entry step.
-			if (!prerequisiteGate.allows(context.plan)) return
+			if (!prerequisiteGate.allows(context.plan)) {
+				return
+			}
 			val receivedElapsedNanos = SystemClock.elapsedRealtimeNanos()
 			val receivedWallTimeMs = System.currentTimeMillis()
 			val sequence = ++callbackSequence
@@ -1016,13 +1136,19 @@ class CellSourceRuntime @Inject internal constructor(
 
 	private fun enqueueControl(input: CellRuntimeInput) {
 		synchronized(callbackLock) {
-			if (accepting) queue?.offer(input)
+			if (accepting) {
+				queue?.offer(input)
+			}
 		}
 	}
 
 	private fun currentCallbackContext(token: CellCallbackToken): CellCallbackContext? =
 		synchronized(callbackLock) {
-			if (!accepting || callbackToken !== token) null else currentCallbackContextLocked()
+			if (!accepting || callbackToken !== token) {
+				null
+			} else {
+				currentCallbackContextLocked()
+			}
 		}
 
 	private fun currentCallbackContextLocked(): CellCallbackContext? {
@@ -1108,7 +1234,9 @@ class CellSourceRuntime @Inject internal constructor(
 			val replayGate = replayGateBySubscription.getOrPut(input.snapshot.subscriptionId) {
 				BoundedReplayIdentityGate()
 			}
-			if (!replayGate.shouldAdmit(qualified.snapshotIdentity)) return null
+			if (!replayGate.shouldAdmit(qualified.snapshotIdentity)) {
+				return null
+			}
 			val deliveryIdentity = cellProviderDeliveryIdentity(
 				clockDomainId = input.context.registration.state.clockDomainId,
 				observations = qualified.observations,
@@ -1123,7 +1251,9 @@ class CellSourceRuntime @Inject internal constructor(
 					input.callbackSequence,
 					deliveryIdentity,
 				)
-			if (admitted != null) replayGate.record(qualified.snapshotIdentity)
+			if (admitted != null) {
+				replayGate.record(qualified.snapshotIdentity)
+			}
 			return admitted
 		}
 
@@ -1140,13 +1270,16 @@ class CellSourceRuntime @Inject internal constructor(
 							val captureTimes = registrations.captureQualifiedRadioObservationTimes(input.context.registration, admitted)
 							val currentOwnerEvidence = synchronized(callbackLock) {
 								val context = currentCallbackContextLocked()
-								accepting && callbackToken === activeToken && queue === inputs && context != null &&
+								// Fixed callback/request ownership; freshness remains a separate live check.
+								@Suppress("ComplexCondition")
+								val sameOwner = accepting && callbackToken === activeToken && queue === inputs && context != null &&
 									context.registration === input.context.registration &&
 									context.plan == input.context.plan && cutoffElapsedNanos == null &&
 									retirementIntent == null &&
 									(input.request == null ||
 										(input.request.context.registration === context.registration &&
-											input.request.context.plan == context.plan)) &&
+											input.request.context.plan == context.plan))
+								sameOwner &&
 									input.context.registration.hasFreshLiveRadioObservation(
 										captureTimes, input.receivedElapsedNanos,
 										SystemClock.elapsedRealtimeNanos(),
@@ -1191,13 +1324,19 @@ class CellSourceRuntime @Inject internal constructor(
 						val request = synchronized(callbackLock) {
 							val context = currentCallbackContextLocked()
 							val now = SystemClock.elapsedRealtime()
-							if (!accepting || callbackToken !== activeToken || context == null ||
-								context.registration !== input.context.registration ||
-								context.plan != input.context.plan || outstandingRequest != null ||
-								now < input.earliestElapsedMs || !canRequestRefresh(context) ||
+							if (!accepting || callbackToken !== activeToken || context == null) {
+								return@synchronized null
+							}
+							if (context.registration !== input.context.registration ||
+								context.plan != input.context.plan || outstandingRequest != null) {
+								return@synchronized null
+							}
+							if (now < input.earliestElapsedMs || !canRequestRefresh(context) ||
 								!prerequisiteGate.allows(context.plan) ||
 								!shouldScheduleCellRefresh(context.plan.mode, deviceStateProvider.cell().refreshApiAvailable)
-							) return@synchronized null
+							) {
+								return@synchronized null
+							}
 							CellRefreshRequest(context, CellRefreshResponses(
 								subscriptions, now + REFRESH_TIMEOUT_MS,
 							))
@@ -1211,11 +1350,15 @@ class CellSourceRuntime @Inject internal constructor(
 							System.currentTimeMillis(),
 						)
 						if (allowance !is RadioActiveRequestDecision.ReadyAt ||
-							allowance.elapsedRealtimeMs > now) return@withLock null
+							allowance.elapsedRealtimeMs > now) {
+							return@withLock null
+						}
 						val stillCurrent = synchronized(callbackLock) {
 							val context = currentCallbackContextLocked()
 							if (context?.registration !== request.context.registration ||
-								context.plan != request.context.plan || outstandingRequest != null) false
+								context.plan != request.context.plan || outstandingRequest != null) {
+								false
+							}
 							else {
 								refreshAttempts++
 								lastRefreshAtMs = now
@@ -1223,7 +1366,9 @@ class CellSourceRuntime @Inject internal constructor(
 								true
 							}
 						}
-						if (!stillCurrent) return@withLock null
+						if (!stillCurrent) {
+							return@withLock null
+						}
 						val outcome = runCatchingNonCancellation {
 							backend.requestRefresh { snapshot ->
 								onBackendSnapshot(activeToken, snapshot, CellRefreshOutcome.CALLBACK, request)
@@ -1279,7 +1424,9 @@ class CellSourceRuntime @Inject internal constructor(
 	): SourceEvidenceCandidate<*>? {
 		val registration = context.registration
 		val observed = providerTimeNanos
-		if (!isAtOrBeforeCutoff(observed)) return null
+		if (!isAtOrBeforeCutoff(observed)) {
+			return null
+		}
 		if (!prerequisiteGate.allows(context.plan)) {
 			metrics.recordFailure(callbackSequence)
 			return null
@@ -1299,9 +1446,7 @@ class CellSourceRuntime @Inject internal constructor(
 			registrationEligibilityFingerprint = registration.eligibilityFingerprint,
 			// Atomic ingress allocates a sequence only when this delivery is newly durable.
 			sourceSequence = 0L,
-			configRevision = registration.state.appliedRevision.takeUnless {
-				attribution == PlanAttribution.RECEIVE_TIME_ONLY
-			},
+			configRevision = registration.state.appliedRevision,
 			planAttribution = attribution,
 			clockDomainId = registration.state.clockDomainId,
 			observedElapsedRealtimeNanos = observed.coerceAtLeast(0L),
@@ -1329,44 +1474,33 @@ class CellSourceRuntime @Inject internal constructor(
 				),
 			),
 		)
-		when (val handoff = retryCellDeliveryAdmissionWithinBudget(
+		val handoff = retryCellDeliveryAdmissionWithinBudget(
 			prerequisiteAllows = {
 				prerequisiteGate.allows(context.plan) && isAtOrBeforeCutoff(observed)
 			},
 			admit = { context.sink.admit(delivery) },
-		)) {
-			is SourceDeliveryAdmissionHandoff.Durable -> {
-				val ordinal = handoff.admissionOrdinals.singleOrNull() ?: run {
-					metrics.recordFailure(callbackSequence)
-					return null
-				}
-				recordDurableAdmission(callbackSequence, ordinal)
-				return candidate
-			}
-			is SourceDeliveryAdmissionHandoff.Duplicate -> {
-				val ordinal = handoff.existingAdmissionOrdinals.singleOrNull() ?: run {
-					metrics.recordFailure(callbackSequence)
-					return null
-				}
-				recordDurableAdmission(callbackSequence, ordinal)
-				return candidate
-			}
-			is SourceDeliveryAdmissionHandoff.SessionCutoff -> {
-				// Cell does not reinterpret an already-composed atomic delivery.
-				metrics.recordFailure(callbackSequence)
-				return null
-			}
+		)
+		return completeSnapshotAdmission(handoff, callbackSequence, candidate)
+	}
+
+	private fun completeSnapshotAdmission(
+		handoff: SourceDeliveryAdmissionHandoff?, callbackSequence: Long, candidate: SourceEvidenceCandidate<*>,
+	): SourceEvidenceCandidate<*>? {
+		val ordinal = when (handoff) {
+			is SourceDeliveryAdmissionHandoff.Durable -> handoff.admissionOrdinals.singleOrNull()
+			is SourceDeliveryAdmissionHandoff.Duplicate -> handoff.existingAdmissionOrdinals.singleOrNull()
+			// Cell does not reinterpret an already-composed atomic delivery.
+			is SourceDeliveryAdmissionHandoff.SessionCutoff,
 			is SourceDeliveryAdmissionHandoff.TerminalFailure,
 			is SourceDeliveryAdmissionHandoff.RetryableFailure,
-			-> {
-				metrics.recordFailure(callbackSequence)
-				return null
-			}
-			null -> {
-				metrics.recordFailure(callbackSequence)
-				return null
-			}
+			null -> null
 		}
+		if (ordinal == null) {
+			metrics.recordFailure(callbackSequence)
+			return null
+		}
+		recordDurableAdmission(callbackSequence, ordinal)
+		return candidate
 	}
 
 	private fun recordDurableAdmission(callbackSequence: Long, admissionOrdinal: Long) {
@@ -1406,7 +1540,11 @@ class CellSourceRuntime @Inject internal constructor(
 		callbackSequence, null, null, 0L, null, null,
 		RegistrationRemovalOutcome.NOT_REGISTERED, ProviderFlushOutcome.NOT_REQUESTED,
 		ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE, true,
-		if (cutoff == null) SourceStopStatus.COMPLETE else SourceStopStatus.PROVIDER_FAILED,
+		if (cutoff == null) {
+			SourceStopStatus.COMPLETE
+		} else {
+			SourceStopStatus.PROVIDER_FAILED
+		},
 	).withSessionMembership(ownerClaim)
 
 	private sealed interface CellRuntimeInput {
@@ -1488,7 +1626,9 @@ internal class CellRefreshResponses(
 	private val remaining = subscriptionIds.toMutableSet()
 
 	fun record(subscriptionId: Int?, receivedElapsedMs: Long): Boolean {
-		if (receivedElapsedMs > deadlineElapsedMs || !remaining.remove(subscriptionId)) return false
+		if (receivedElapsedMs > deadlineElapsedMs || !remaining.remove(subscriptionId)) {
+			return false
+		}
 		return remaining.isEmpty()
 	}
 }
@@ -1550,7 +1690,9 @@ internal fun qualifyCellSnapshot(
 ): QualifiedCellSnapshot? {
 	// Cached snapshots may help bootstrap provider state in memory, but neither they nor
 	// operational outcomes can establish a fresh durable observation.
-	if (outcome != CellRefreshOutcome.CALLBACK) return null
+	if (outcome != CellRefreshOutcome.CALLBACK) {
+		return null
+	}
 	val eligible = freshProviderObservations(
 		snapshot.observations,
 		receivedElapsedNanos,
@@ -1559,7 +1701,9 @@ internal fun qualifyCellSnapshot(
 	)
 	// Empty callbacks have no provider timestamp or durable transition state. Receipt-time identity
 	// would persist repeated unchanged emptiness, so empty coverage remains deferred.
-	if (eligible.isEmpty()) return null
+	if (eligible.isEmpty()) {
+		return null
+	}
 	val providerTime = eligible.mapNotNull(CellBackendObservation::providerTimestampNanos)
 		.maxOrNull() ?: return null
 	val observations = eligible.map(CellBackendObservation::toDurableEvidence)
@@ -1585,9 +1729,13 @@ internal suspend fun retryCellDeliveryAdmissionWithinBudget(
 ): SourceDeliveryAdmissionHandoff? {
 	var retryIndex = 0
 	while (true) {
-		if (!prerequisiteAllows()) return null
+		if (!prerequisiteAllows()) {
+			return null
+		}
 		val result = admit()
-		if (result !is SourceDeliveryAdmissionHandoff.RetryableFailure) return result
+		if (result !is SourceDeliveryAdmissionHandoff.RetryableFailure) {
+			return result
+		}
 		val retryDelayMs = retryDelaysMs.getOrNull(retryIndex++) ?: return result
 		waitBeforeRetry(retryDelayMs)
 	}
@@ -1597,7 +1745,11 @@ internal fun unprocessedCellCallbackRange(processedSequence: Long, barrierSequen
 	require(processedSequence >= 0L)
 	require(barrierSequence >= 0L)
 	val first = processedSequence + 1L
-	return if (first <= barrierSequence) first..barrierSequence else null
+	return if (first <= barrierSequence) {
+		first..barrierSequence
+	} else {
+		null
+	}
 }
 
 /** Compact exact coverage for Cell callbacks rejected before actor processing. */
@@ -1626,16 +1778,26 @@ private class CellCallbackFailureCoverage {
 		require(processedSequence >= 0L)
 		require(barrierSequence >= 0L)
 		var cursor = processedSequence + 1L
-		if (cursor > barrierSequence) return emptyList()
+		if (cursor > barrierSequence) {
+			return emptyList()
+		}
 		val accounted = synchronized(lock) { ranges.toList() }
 		return buildList {
 			accounted.forEach { range ->
-				if (range.last < cursor) return@forEach
-				if (range.first > barrierSequence) return@forEach
-				if (range.first > cursor) add(cursor..minOf(barrierSequence, range.first - 1L))
+				if (range.last < cursor) {
+					return@forEach
+				}
+				if (range.first > barrierSequence) {
+					return@forEach
+				}
+				if (range.first > cursor) {
+					add(cursor..minOf(barrierSequence, range.first - 1L))
+				}
 				cursor = maxOf(cursor, range.last + 1L)
 			}
-			if (cursor <= barrierSequence) add(cursor..barrierSequence)
+			if (cursor <= barrierSequence) {
+				add(cursor..barrierSequence)
+			}
 		}
 	}
 }
@@ -1648,7 +1810,9 @@ internal fun cellCapabilities(state: CellDeviceState): SourceCapabilities {
 	val available = state.radioFeatureAvailable && state.fineLocationPermission &&
 		state.readPhoneStatePermission
 	val reasons = buildSet {
-		if (!state.radioFeatureAvailable) add(SourceDegradedReason.HARDWARE_UNAVAILABLE)
+		if (!state.radioFeatureAvailable) {
+			add(SourceDegradedReason.HARDWARE_UNAVAILABLE)
+		}
 		if (!state.fineLocationPermission || !state.readPhoneStatePermission) {
 			add(SourceDegradedReason.PERMISSION_MISSING)
 		}

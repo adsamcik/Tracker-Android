@@ -79,17 +79,26 @@ internal fun Location.isValidLocationEvidence(): Boolean =
 		longitude in CoordinateConstants.MIN_LONGITUDE..CoordinateConstants.MAX_LONGITUDE
 
 /** Copy the provider fix; optional invalid values are absent, never repaired measurements. */
+@Suppress("CyclomaticComplexMethod") // Keep this fixed field or enum projection together.
 internal fun Location.withValidOptionalFields(): Location = Location(this).apply {
-    if (hasAccuracy() && (!accuracy.isFinite() || accuracy < 0f)) removeAccuracy()
-    if (hasAltitude() && (!altitude.isFinite() || !altitude.toFloat().isFinite())) removeAltitude()
+    if (hasAccuracy() && (!accuracy.isFinite() || accuracy < 0f)) {
+        removeAccuracy()
+    }
+    if (hasAltitude() && (!altitude.isFinite() || !altitude.toFloat().isFinite())) {
+        removeAltitude()
+    }
     if (hasVerticalAccuracy() && (!verticalAccuracyMeters.isFinite() || verticalAccuracyMeters < 0f)) {
         LocationCompat.removeVerticalAccuracy(this)
     }
-    if (hasSpeed() && (!speed.isFinite() || speed < 0f)) removeSpeed()
+    if (hasSpeed() && (!speed.isFinite() || speed < 0f)) {
+        removeSpeed()
+    }
     if (hasSpeedAccuracy() && (!speedAccuracyMetersPerSecond.isFinite() || speedAccuracyMetersPerSecond < 0f)) {
         LocationCompat.removeSpeedAccuracy(this)
     }
-    if (hasBearing() && (!bearing.isFinite() || bearing !in 0f..<360f)) removeBearing()
+    if (hasBearing() && (!bearing.isFinite() || bearing !in 0f..<360f)) {
+        removeBearing()
+    }
     if (hasBearingAccuracy() && (!bearingAccuracyDegrees.isFinite() || bearingAccuracyDegrees < 0f)) {
         LocationCompat.removeBearingAccuracy(this)
     }

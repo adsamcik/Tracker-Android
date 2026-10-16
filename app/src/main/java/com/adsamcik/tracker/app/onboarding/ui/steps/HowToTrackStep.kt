@@ -24,7 +24,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 
 /**
@@ -37,9 +36,7 @@ import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 @Composable
 fun HowToTrackStep(
     autoTrackingMode: Int,
-    trackingPreset: TrackingPolicyPreset,
     onAutoTrackingModeChange: (Int) -> Unit,
-    onPresetChange: (TrackingPolicyPreset) -> Unit,
     onContinue: () -> Unit,
     modifier: Modifier = Modifier,
 	balanceLevel: Int = 3,
@@ -120,7 +117,7 @@ fun HowToTrackStep(
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(Modifier.selectableGroup()) {
-            (1..5).forEach { level ->
+            for (level in 1..5) {
                 com.adsamcik.tracker.app.settings.tracking.LocationChoice(
                     com.adsamcik.tracker.app.settings.tracking.locationBalanceLabel(level),
                     balanceLevel == level, "setupBalance-$level",

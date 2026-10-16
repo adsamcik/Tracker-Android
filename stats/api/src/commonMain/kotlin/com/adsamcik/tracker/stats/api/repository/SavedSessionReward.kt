@@ -12,10 +12,24 @@ data class SavedSessionReward(
     val effectKey: String get() = "recording:$dataEpoch:$segmentId"
 }
 
+/**
+ * Current saved recording reward, removal revision, legacy ownership or unavailable source data.
+ */
 sealed interface SavedSessionRewardRead {
+    /**
+     * One current completed-recording reward with its exact data epoch and revision.
+     */
     data class Ready(val value: SavedSessionReward) : SavedSessionRewardRead
+    /**
+     * Current data epoch/revision indicates that the previous saved recording reward should be
+     * retracted.
+     */
     data class Removed(val dataEpoch: Long, val revision: Long) : SavedSessionRewardRead
     /** Older awards have no reconstructable recording ownership; preserve them without awarding twice. */
     data object Legacy : SavedSessionRewardRead
+    /**
+     * The requested data or authority is unavailable; any named reason preserves the original
+     * failure cause.
+     */
     data object Unavailable : SavedSessionRewardRead
 }

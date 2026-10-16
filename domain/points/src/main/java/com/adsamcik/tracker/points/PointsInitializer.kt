@@ -1,5 +1,8 @@
 package com.adsamcik.tracker.points
 
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.points.event.PointsDomainEventConsumer
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
@@ -21,8 +24,8 @@ class PointsInitializer @Inject constructor(
 	private val dispatchers: DispatchersProvider,
 	private val consumer: PointsDomainEventConsumer,
 	private val domainEventRepository: DomainEventRepository,
-	private val trackingHistory: com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository,
-	private val trackingStartupGate: com.adsamcik.tracker.shared.base.startup.TrackingStartupGate,
+	private val trackingHistory: TrackingHistoryRepository,
+	private val trackingStartupGate: TrackingStartupGate,
 ) : ModuleInitializer {
 	override val priority: Int = 40
 
@@ -34,7 +37,10 @@ class PointsInitializer @Inject constructor(
 			}
 		}
 		appScope.launch(dispatchers.io) {
-			combine(trackingHistory.observeSessionRewardChanges(), trackingStartupGate.runtimeReadyChanges) { _, _ -> Unit }.collect {
+			combine(
+				trackingHistory.observeSessionRewardChanges(),
+				trackingStartupGate.runtimeReadyChanges
+			) { _, _ -> Unit }.collect {
 				consumer.processUnconsumed()
 				consumer.reconcileSessionEffects()
 			}

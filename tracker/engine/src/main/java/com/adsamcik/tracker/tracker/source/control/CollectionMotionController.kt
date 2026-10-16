@@ -39,12 +39,15 @@ class CollectionMotionController @Inject constructor() {
 		val previous = session
 		if (previous?.serviceRunId == scopeId && previous.clockDomainId == clockDomainId &&
 			previous.startedElapsedRealtimeNanos == effectiveSinceNanos && !previous.sessionBound
-		) return@synchronized
+		) {
+			return@synchronized
+		}
 		session = ActiveMotionSession(scopeId, scopeId, effectiveSinceNanos, sessionBound = false,
 			clockDomainId = clockDomainId)
 		_policy.value = CollectionMotionPolicy.awaitingEvidence()
 	}
 
+	/** Stops motion adaptation only when this identifier matches the active collection scope. */
 	fun stopScope(scopeId: String) = stopSession(scopeId)
 
 	/** Caller has already matched the transient helper's exact current authority and registration. */
@@ -59,7 +62,9 @@ class CollectionMotionController @Inject constructor() {
 		val active = session ?: return@synchronized
 		if (active.serviceRunId != scopeId || !active.acceptTime(clockDomainId,
 			observedElapsedRealtimeNanos, receivedElapsedRealtimeNanos, MOTION_HINT_MAX_AGE_NANOS)
-		) return@synchronized
+		) {
+			return@synchronized
+		}
 		active.onActivityTransition(ActivityTransitionPayload(activityType, transitionType,
 			observedElapsedRealtimeNanos), observedElapsedRealtimeNanos)
 		publish(active.policyAt(active.latestNowNanos))
@@ -75,13 +80,17 @@ class CollectionMotionController @Inject constructor() {
 		require(serviceRunId.isNotBlank())
 		require(startedElapsedRealtimeNanos >= 0L)
 		val active = ActiveMotionSession(logicalTrackingId, serviceRunId, startedElapsedRealtimeNanos)
-		if (initialMotion) active.markMoving(startedElapsedRealtimeNanos, MotionPolicyReason.ACTIVITY_TRANSITION)
+		if (initialMotion) {
+			active.markMoving(startedElapsedRealtimeNanos, MotionPolicyReason.ACTIVITY_TRANSITION)
+		}
 		session = active
 		_policy.value = active.policyAt(startedElapsedRealtimeNanos)
 	}
 
 	fun stopSession(serviceRunId: String) = synchronized(lock) {
-		if (session?.serviceRunId != serviceRunId) return@synchronized
+		if (session?.serviceRunId != serviceRunId) {
+			return@synchronized
+		}
 		session = null
 		_policy.value = CollectionMotionPolicy.unrestricted()
 	}
@@ -90,16 +99,27 @@ class CollectionMotionController @Inject constructor() {
 		val active = session ?: return@synchronized
 		if (active.sessionBound && (candidate.logicalTrackingId?.value != active.logicalTrackingId ||
 			candidate.serviceRunId?.value != active.serviceRunId)
-		) return@synchronized
+		) {
+			return@synchronized
+		}
 		val payload = candidate.payload
 		val stillHint = payload is ActivityRecognitionPayload && payload.activityType == ACTIVITY_STILL ||
 			payload is ActivityTransitionPayload && payload.activityType == ACTIVITY_STILL ||
-			payload is LocationFixPayload && payload.speedMetersPerSecond?.let { it <= STATIONARY_SPEED_METERS_PER_SECOND } == true
+			payload is LocationFixPayload &&
+                payload.speedMetersPerSecond?.let { it <= STATIONARY_SPEED_METERS_PER_SECOND } == true
 		if (!active.acceptTime(candidate.clockDomainId, candidate.observedElapsedRealtimeNanos,
-			candidate.receivedElapsedRealtimeNanos, if (stillHint) STILL_HINT_MAX_AGE_NANOS else MOTION_HINT_MAX_AGE_NANOS)
-		) return@synchronized
+			candidate.receivedElapsedRealtimeNanos, if (stillHint) {
+				STILL_HINT_MAX_AGE_NANOS
+			} else {
+				MOTION_HINT_MAX_AGE_NANOS
+			})
+		) {
+			return@synchronized
+		}
 		val previousAt = active.latestSourceObservation[candidate.source]
-		if (previousAt != null && candidate.observedElapsedRealtimeNanos <= previousAt) return@synchronized
+		if (previousAt != null && candidate.observedElapsedRealtimeNanos <= previousAt) {
+			return@synchronized
+		}
 		active.latestSourceObservation[candidate.source] = candidate.observedElapsedRealtimeNanos
 
 		val at = candidate.observedElapsedRealtimeNanos
@@ -126,7 +146,9 @@ class CollectionMotionController @Inject constructor() {
 	}
 
 	private fun publish(next: CollectionMotionPolicy) {
-		if (_policy.value != next) _policy.value = next
+		if (_policy.value != next) {
+			_policy.value = next
+		}
 	}
 
 	private data class ActiveMotionSession(
@@ -148,16 +170,24 @@ class CollectionMotionController @Inject constructor() {
 		var previousLocation: TimedLocation? = null,
 	) {
 		fun acceptTime(clock: String, observed: Long, received: Long, maximumAge: Long): Boolean {
-			if (clockDomainId != null && clockDomainId != clock) return false
-			if (observed < startedElapsedRealtimeNanos || received < observed) return false
+			if (clockDomainId != null && clockDomainId != clock) {
+				return false
+			}
+			if (observed < startedElapsedRealtimeNanos || received < observed) {
+				return false
+			}
 			val now = maxOf(latestNowNanos, received)
-			if (now - observed > maximumAge) return false
+			if (now - observed > maximumAge) {
+				return false
+			}
 			clockDomainId = clock
 			latestNowNanos = now
 			return true
 		}
 		fun onActivityRecognition(payload: ActivityRecognitionPayload, at: Long) {
-			if (payload.confidencePercent < MIN_ACTIVITY_CONFIDENCE) return
+			if (payload.confidencePercent < MIN_ACTIVITY_CONFIDENCE) {
+				return
+			}
 			when (payload.activityType) {
 				ACTIVITY_IN_VEHICLE -> markVehicle(at, MotionPolicyReason.ACTIVITY_RECOGNITION)
 				ACTIVITY_ON_BICYCLE -> markMoving(at, MotionPolicyReason.ACTIVITY_RECOGNITION)
@@ -191,8 +221,16 @@ class CollectionMotionController @Inject constructor() {
             } == true
 			val speed = payload.speedMetersPerSecond?.takeIf { it.isFinite() && it >= 0f }
 			val uncertainty = speedUncertainty?.takeIf { it.isFinite() && it >= 0f }
-			val minimumSpeed = if (speed != null && uncertainty != null) maxOf(0f, speed - uncertainty) else null
-			val maximumSpeed = if (speed != null && uncertainty != null) speed + uncertainty else null
+			val minimumSpeed = if (speed != null && uncertainty != null) {
+				maxOf(0f, speed - uncertainty)
+			} else {
+				null
+			}
+			val maximumSpeed = if (speed != null && uncertainty != null) {
+				speed + uncertainty
+			} else {
+				null
+			}
 			when {
 				accurate && minimumSpeed != null && minimumSpeed >= VEHICLE_SPEED_METERS_PER_SECOND ->
 					markVehicle(at, MotionPolicyReason.LOCATION_MOTION)
@@ -208,24 +246,32 @@ class CollectionMotionController @Inject constructor() {
 					lastStationaryConfirmationNanos = null
 				}
 			}
-			if (accurate && (previousLocation == null || at > previousLocation!!.atNanos)) previousLocation = TimedLocation(payload, at)
+			if (accurate && (previousLocation == null || at > previousLocation!!.atNanos)) {
+				previousLocation = TimedLocation(payload, at)
+			}
 		}
 
 		fun markVehicle(at: Long, reason: MotionPolicyReason) {
-			if (lastMovingNanos?.let { at < it } == true) return
+			if (lastMovingNanos?.let { at < it } == true) {
+				return
+			}
 			lastVehicleNanos = max(lastVehicleNanos ?: Long.MIN_VALUE, at)
 			vehicleExitNanos = null
 			markMoving(at, reason)
 		}
 
 		fun markPedestrian(at: Long, reason: MotionPolicyReason) {
-			if (lastMovingNanos?.let { at < it } == true) return
+			if (lastMovingNanos?.let { at < it } == true) {
+				return
+			}
 			lastPedestrianNanos = max(lastPedestrianNanos ?: Long.MIN_VALUE, at)
 			markMoving(at, reason)
 		}
 
 		fun markMoving(at: Long, reason: MotionPolicyReason) {
-			if (lastMovingNanos?.let { at < it } == true) return
+			if (lastMovingNanos?.let { at < it } == true) {
+				return
+			}
 			lastMovingNanos = max(lastMovingNanos ?: Long.MIN_VALUE, at)
 			lastMotionReason = reason
 			stationaryCandidateNanos = null
@@ -234,13 +280,17 @@ class CollectionMotionController @Inject constructor() {
 		}
 
 		fun markStationaryCandidate(at: Long) {
-			if (lastMovingNanos?.let { at < it } == true) return
+			if (lastMovingNanos?.let { at < it } == true) {
+				return
+			}
 			if (lastStationaryConfirmationNanos?.let { at - it > STILL_HINT_MAX_AGE_NANOS } == true) {
 				stationaryCandidateNanos = null
 				stationaryConfirmations = 0
 				lastStationaryConfirmationNanos = null
 			}
-			if (stationaryCandidateNanos == null) stationaryCandidateNanos = at
+			if (stationaryCandidateNanos == null) {
+				stationaryCandidateNanos = at
+			}
 			val previousConfirmation = lastStationaryConfirmationNanos
 			if (previousConfirmation == null || at - previousConfirmation >= STATIONARY_CONFIRMATION_SPACING_NANOS) {
 				stationaryConfirmations++
@@ -252,7 +302,11 @@ class CollectionMotionController @Inject constructor() {
 			val vehicleAt = lastVehicleNanos
 			if (vehicleAt != null) {
 				val exitedAfterEvidence = vehicleExitNanos?.let { it >= vehicleAt } == true
-				val hold = if (exitedAfterEvidence) VEHICLE_EXIT_HOLD_NANOS else VEHICLE_CONTINUITY_NANOS
+				val hold = if (exitedAfterEvidence) {
+					VEHICLE_EXIT_HOLD_NANOS
+				} else {
+					VEHICLE_CONTINUITY_NANOS
+				}
 				if (now - vehicleAt <= hold) {
 					return movingPolicy(
 						CollectionMotionState.VEHICLE,
@@ -269,10 +323,7 @@ class CollectionMotionController @Inject constructor() {
 			} }
 
 			val stationarySince = stationaryCandidateNanos
-			if (stationarySince != null && stationaryConfirmations >= REQUIRED_STATIONARY_CONFIRMATIONS &&
-				lastStationaryConfirmationNanos?.let { now - it in 0..STILL_HINT_MAX_AGE_NANOS } == true &&
-				now - stationarySince >= STATIONARY_DWELL_NANOS &&
-				(lastMovingNanos == null || lastMovingNanos!! <= stationarySince)
+			if (stationarySince != null && hasConfirmedStationaryEvidence(now, stationarySince)
 			) {
 				return CollectionMotionPolicy(
 					motionState = CollectionMotionState.STATIONARY,
@@ -286,6 +337,12 @@ class CollectionMotionController @Inject constructor() {
 			}
 			return CollectionMotionPolicy.awaitingEvidence()
 		}
+
+		private fun hasConfirmedStationaryEvidence(now: Long, stationarySince: Long): Boolean =
+			stationaryConfirmations >= REQUIRED_STATIONARY_CONFIRMATIONS &&
+				lastStationaryConfirmationNanos?.let { now - it in 0..STILL_HINT_MAX_AGE_NANOS } == true &&
+				now - stationarySince >= STATIONARY_DWELL_NANOS &&
+				(lastMovingNanos == null || lastMovingNanos!! <= stationarySince)
 
 		private fun movingPolicy(
 			state: CollectionMotionState,
@@ -304,15 +361,17 @@ class CollectionMotionController @Inject constructor() {
 
 	private data class TimedLocation(val payload: LocationFixPayload, val atNanos: Long) {
 		fun isMeaningfulDisplacement(next: LocationFixPayload, nextAtNanos: Long): Boolean {
-			if (nextAtNanos - atNanos !in 1..LOCATION_DISPLACEMENT_WINDOW_NANOS) return false
+			if (nextAtNanos - atNanos !in 1..LOCATION_DISPLACEMENT_WINDOW_NANOS) {
+				return false
+			}
 			val distance = haversineMeters(
 				payload.latitudeDegrees,
 				payload.longitudeDegrees,
 				next.latitudeDegrees,
 				next.longitudeDegrees,
 			)
-            val beforeAccuracy = payload.horizontalAccuracyMeters ?: return false
-            val nextAccuracy = next.horizontalAccuracyMeters ?: return false
+			val beforeAccuracy = payload.horizontalAccuracyMeters ?: return false
+			val nextAccuracy = next.horizontalAccuracyMeters ?: return false
 			val uncertainty = beforeAccuracy + nextAccuracy
 			return distance >= max(MINIMUM_DISPLACEMENT_METERS, uncertainty.toDouble())
 		}

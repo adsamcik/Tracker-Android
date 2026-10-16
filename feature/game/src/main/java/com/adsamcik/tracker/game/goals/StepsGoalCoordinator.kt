@@ -108,24 +108,31 @@ internal class StepsGoalCoordinator @Inject constructor(
 			val effects = database.stepsGoalEffectDao().observeActionable().first { it.isNotEmpty() }
 			var retryNeeded = false
 			effects.forEach { effect ->
-				when (val reward = rewardProjector.project(effect.effectIdentity, effect.effectRevision)) {
-					is StepsGoalRewardProjectionResult.RetryableFailure -> retryNeeded = true
-					is StepsGoalRewardProjectionResult.Settled -> {
-						if (reward.points == StepsGoalRewardComponentResult.RETRYABLE_FAILURE ||
-							reward.xp == StepsGoalRewardComponentResult.RETRYABLE_FAILURE
-						) {
-							retryNeeded = true
-						} else if (reward.points != StepsGoalRewardComponentResult.SUPERSEDED &&
-							reward.xp != StepsGoalRewardComponentResult.SUPERSEDED
-						) {
-							retryNeeded = dispatchNotification(effect) || retryNeeded
-						}
-					}
-				}
+				retryNeeded = projectEffect(effect) || retryNeeded
 			}
-			if (retryNeeded) delay(RETRY_DELAY_MS)
+			if (retryNeeded) {
+				delay(RETRY_DELAY_MS)
+			}
 		}
 	}
+
+	private suspend fun projectEffect(effect: StepsGoalEffectEntity): Boolean =
+		when (val reward = rewardProjector.project(effect.effectIdentity, effect.effectRevision)) {
+			is StepsGoalRewardProjectionResult.RetryableFailure -> true
+			is StepsGoalRewardProjectionResult.Settled -> {
+				if (reward.points == StepsGoalRewardComponentResult.RETRYABLE_FAILURE ||
+					reward.xp == StepsGoalRewardComponentResult.RETRYABLE_FAILURE
+				) {
+					true
+				} else if (reward.points != StepsGoalRewardComponentResult.SUPERSEDED &&
+					reward.xp != StepsGoalRewardComponentResult.SUPERSEDED
+				) {
+					dispatchNotification(effect)
+				} else {
+					false
+				}
+			}
+		}
 
 	private suspend fun dispatchNotification(
 		effect: StepsGoalEffectEntity,

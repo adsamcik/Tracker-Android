@@ -47,7 +47,9 @@ internal fun AutomaticTrackingAvailabilityCard(
 	onEnableTransitions: () -> Unit = {},
 	onPermission: () -> Unit = {},
 ) {
-	if (!uiState.autoTrackingEnabled || uiState.automaticTrackingOperational) return
+	if (!uiState.autoTrackingEnabled || uiState.automaticTrackingOperational) {
+		return
+	}
 	val unavailable = uiState.automaticControlAvailability as?
 		AutomaticTrackingOperationalAvailability.Unavailable
 	val summary = when {
@@ -145,39 +147,19 @@ internal fun AmbientSourcePurposeSettings(
 				onMotionPermission = onMotionPermission,
 			)
 			HorizontalDivider()
-			AmbientSourceSettingItem(
-				source = AmbientTrackingSource.WIFI,
-				title = stringResource(
-					com.adsamcik.tracker.R.string.settings_ambient_wifi_title,
-				),
-				enabledIntent = uiState.ambientWifiEnabled,
-				availability = uiState.ambientSourceAvailability.getValue(
-					AmbientTrackingSource.WIFI,
-				),
-				onEnabledChanged = onWifiEnabledChanged,
+			AmbientWifiPurposeSettings(
+				uiState = uiState,
+				onWifiEnabledChanged = onWifiEnabledChanged,
+				onWifiNotificationChanged = onWifiNotificationChanged,
+				onSourcePermission = onSourcePermission,
 			)
-			if (uiState.ambientWifiEnabled) BackgroundRadioNotificationSetting(
-				AmbientTrackingSource.WIFI, uiState.backgroundWifiNotificationEnabled, onWifiNotificationChanged)
-			SourcePermissionRepair(TrackingSourceComponent.WIFI,
-				uiState.ambientWifiEnabled && !uiState.wifiPermissionGranted, onSourcePermission,
-				"ambientSourcePermission-wifi")
 			HorizontalDivider()
-			AmbientSourceSettingItem(
-				source = AmbientTrackingSource.CELL,
-				title = stringResource(
-					com.adsamcik.tracker.R.string.settings_ambient_cell_title,
-				),
-				enabledIntent = uiState.ambientCellEnabled,
-				availability = uiState.ambientSourceAvailability.getValue(
-					AmbientTrackingSource.CELL,
-				),
-				onEnabledChanged = onCellEnabledChanged,
+			AmbientCellPurposeSettings(
+				uiState = uiState,
+				onCellEnabledChanged = onCellEnabledChanged,
+				onCellNotificationChanged = onCellNotificationChanged,
+				onSourcePermission = onSourcePermission,
 			)
-			if (uiState.ambientCellEnabled) BackgroundRadioNotificationSetting(
-				AmbientTrackingSource.CELL, uiState.backgroundCellNotificationEnabled, onCellNotificationChanged)
-			SourcePermissionRepair(TrackingSourceComponent.CELL,
-				uiState.ambientCellEnabled && !uiState.cellPermissionGranted, onSourcePermission,
-				"ambientSourcePermission-cell")
 		}
 		Text(
 			text = stringResource(com.adsamcik.tracker.R.string.settings_ambient_retention_summary),
@@ -186,6 +168,60 @@ internal fun AmbientSourcePurposeSettings(
 			modifier = Modifier.testTag("ambientRetentionExplanation"),
 		)
 	}
+}
+
+@Composable
+private fun AmbientWifiPurposeSettings(
+	uiState: TrackingSettingsUiState,
+	onWifiEnabledChanged: (Boolean) -> Unit,
+	onWifiNotificationChanged: (Boolean) -> Unit,
+	onSourcePermission: (TrackingSourceComponent) -> Unit,
+) {
+	AmbientSourceSettingItem(
+		source = AmbientTrackingSource.WIFI,
+		title = stringResource(
+			com.adsamcik.tracker.R.string.settings_ambient_wifi_title,
+		),
+		enabledIntent = uiState.ambientWifiEnabled,
+		availability = uiState.ambientSourceAvailability.getValue(
+			AmbientTrackingSource.WIFI,
+		),
+		onEnabledChanged = onWifiEnabledChanged,
+	)
+	if (uiState.ambientWifiEnabled) {
+		BackgroundRadioNotificationSetting(
+		AmbientTrackingSource.WIFI, uiState.backgroundWifiNotificationEnabled, onWifiNotificationChanged)
+	}
+	SourcePermissionRepair(TrackingSourceComponent.WIFI,
+		uiState.ambientWifiEnabled && !uiState.wifiPermissionGranted, onSourcePermission,
+		"ambientSourcePermission-wifi")
+}
+
+@Composable
+private fun AmbientCellPurposeSettings(
+	uiState: TrackingSettingsUiState,
+	onCellEnabledChanged: (Boolean) -> Unit,
+	onCellNotificationChanged: (Boolean) -> Unit,
+	onSourcePermission: (TrackingSourceComponent) -> Unit,
+) {
+	AmbientSourceSettingItem(
+		source = AmbientTrackingSource.CELL,
+		title = stringResource(
+			com.adsamcik.tracker.R.string.settings_ambient_cell_title,
+		),
+		enabledIntent = uiState.ambientCellEnabled,
+		availability = uiState.ambientSourceAvailability.getValue(
+			AmbientTrackingSource.CELL,
+		),
+		onEnabledChanged = onCellEnabledChanged,
+	)
+	if (uiState.ambientCellEnabled) {
+		BackgroundRadioNotificationSetting(
+		AmbientTrackingSource.CELL, uiState.backgroundCellNotificationEnabled, onCellNotificationChanged)
+	}
+	SourcePermissionRepair(TrackingSourceComponent.CELL,
+		uiState.ambientCellEnabled && !uiState.cellPermissionGranted, onSourcePermission,
+		"ambientSourcePermission-cell")
 }
 
 @Composable
@@ -276,78 +312,76 @@ private fun AmbientSourceSettingItem(
 internal fun ambientOperationalSummary(
 	availability: AmbientSourceOperationalAvailability,
 ): String {
-	if (availability.reason == AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE) {
-		return stringResource(com.adsamcik.tracker.R.string.settings_radio_notification_unavailable)
+	val summaryResource = when {
+		availability.reason == AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE ->
+			com.adsamcik.tracker.R.string.settings_radio_notification_unavailable
+		availability.reason == AmbientSourceUnavailableReason.LOCATION_REQUEST_ADJUSTED ->
+			com.adsamcik.tracker.R.string.settings_location_request_adjusted
+		availability.reason == AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL ->
+			com.adsamcik.tracker.R.string.settings_ambient_steps_health_connect_background_optional
+		availability.isOperational -> ambientMechanismSummaryResource(availability.mechanism)
+		else -> ambientUnavailableSummaryResource(availability.reason)
 	}
-	if (availability.reason == AmbientSourceUnavailableReason.LOCATION_REQUEST_ADJUSTED) {
-		return stringResource(com.adsamcik.tracker.R.string.settings_location_request_adjusted)
-	}
-	if (
-		availability.reason ==
-		AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL
-	) {
-		return stringResource(
-			com.adsamcik.tracker.R.string
-				.settings_ambient_steps_health_connect_background_optional,
-		)
-	}
-	if (availability.isOperational) {
-		return stringResource(
-			when (availability.mechanism) {
-				AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS ->
-					com.adsamcik.tracker.R.string.settings_ambient_steps_health_connect_ready
-				AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS ->
-					com.adsamcik.tracker.R.string.settings_ambient_steps_recording_ready
-				AmbientAcquisitionMechanism.PASSIVE_LOCATION ->
-					com.adsamcik.tracker.R.string.settings_ambient_location_ready
-				AmbientAcquisitionMechanism.ADAPTIVE_LOCATION ->
-					com.adsamcik.tracker.R.string.settings_location_adaptive_ready
-				AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS ->
-					com.adsamcik.tracker.R.string.settings_ambient_wifi_ready
-				AmbientAcquisitionMechanism.CELL_CHANGE_CALLBACKS ->
-					com.adsamcik.tracker.R.string.settings_ambient_cell_ready
-				null -> com.adsamcik.tracker.R.string.settings_ambient_reconciliation_pending
-			},
-		)
-	}
-	return stringResource(
-		when (availability.reason) {
-			AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE ->
-				com.adsamcik.tracker.R.string.settings_radio_notification_unavailable
-			AmbientSourceUnavailableReason.USER_TURNED_OFF ->
-				com.adsamcik.tracker.R.string.settings_ambient_user_turned_off
-			AmbientSourceUnavailableReason.LOCATION_REQUEST_ADJUSTED ->
-				com.adsamcik.tracker.R.string.settings_location_request_adjusted
-			AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE ->
-				com.adsamcik.tracker.R.string.settings_ambient_retention_unavailable
-			AmbientSourceUnavailableReason.RECONCILIATION_PENDING ->
-				com.adsamcik.tracker.R.string.settings_ambient_reconciliation_pending
-			AmbientSourceUnavailableReason.ROLLOUT_CONTAINED ->
-				com.adsamcik.tracker.R.string.settings_ambient_rollout_contained
-			AmbientSourceUnavailableReason.HEALTH_CONNECT_STEPS_PERMISSION_REQUIRED ->
-				com.adsamcik.tracker.R.string.settings_ambient_steps_health_connect_permission
-			AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL ->
-				com.adsamcik.tracker.R.string.settings_ambient_steps_health_connect_background_optional
-			AmbientSourceUnavailableReason.HEALTH_CONNECT_UNAVAILABLE ->
-				com.adsamcik.tracker.R.string.settings_ambient_steps_health_connect_unavailable
-			AmbientSourceUnavailableReason.HEALTH_CONNECT_UPDATE_REQUIRED ->
-				com.adsamcik.tracker.R.string.settings_ambient_steps_health_connect_update
-			AmbientSourceUnavailableReason.HEALTH_CONNECT_PROBE_FAILED ->
-				com.adsamcik.tracker.R.string.settings_ambient_steps_health_connect_probe_failed
-			AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED ->
-				com.adsamcik.tracker.R.string.settings_ambient_steps_recording_permission
-			AmbientSourceUnavailableReason.LOCAL_RECORDING_UNAVAILABLE ->
-				com.adsamcik.tracker.R.string.settings_ambient_steps_recording_unavailable
-			AmbientSourceUnavailableReason.BACKGROUND_LOCATION_PERMISSION_REQUIRED ->
-				com.adsamcik.tracker.R.string.settings_ambient_location_permission
-			AmbientSourceUnavailableReason.WIFI_SCAN_PERMISSION_REQUIRED ->
-				com.adsamcik.tracker.R.string.settings_ambient_wifi_permission
-			AmbientSourceUnavailableReason.CELL_SCAN_PERMISSION_REQUIRED ->
-				com.adsamcik.tracker.R.string.settings_ambient_cell_permission
-			AmbientSourceUnavailableReason.PLATFORM_UNAVAILABLE,
-			AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
-			null,
-			-> com.adsamcik.tracker.R.string.settings_ambient_provider_unavailable
-		},
-	)
+	return stringResource(summaryResource)
+}
+
+private fun ambientMechanismSummaryResource(
+	mechanism: AmbientAcquisitionMechanism?,
+): Int = when (mechanism) {
+	AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS ->
+		com.adsamcik.tracker.R.string.settings_ambient_steps_health_connect_ready
+	AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS ->
+		com.adsamcik.tracker.R.string.settings_ambient_steps_recording_ready
+	AmbientAcquisitionMechanism.PASSIVE_LOCATION ->
+		com.adsamcik.tracker.R.string.settings_ambient_location_ready
+	AmbientAcquisitionMechanism.ADAPTIVE_LOCATION ->
+		com.adsamcik.tracker.R.string.settings_location_adaptive_ready
+	AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS ->
+		com.adsamcik.tracker.R.string.settings_ambient_wifi_ready
+	AmbientAcquisitionMechanism.CELL_CHANGE_CALLBACKS ->
+		com.adsamcik.tracker.R.string.settings_ambient_cell_ready
+	null -> com.adsamcik.tracker.R.string.settings_ambient_reconciliation_pending
+}
+
+// Keep the finite unavailable-reason to existing copy mapping complete and visible.
+@Suppress("CyclomaticComplexMethod")
+private fun ambientUnavailableSummaryResource(
+	reason: AmbientSourceUnavailableReason?,
+): Int = when (reason) {
+	AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE ->
+		com.adsamcik.tracker.R.string.settings_radio_notification_unavailable
+	AmbientSourceUnavailableReason.USER_TURNED_OFF ->
+		com.adsamcik.tracker.R.string.settings_ambient_user_turned_off
+	AmbientSourceUnavailableReason.LOCATION_REQUEST_ADJUSTED ->
+		com.adsamcik.tracker.R.string.settings_location_request_adjusted
+	AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE ->
+		com.adsamcik.tracker.R.string.settings_ambient_retention_unavailable
+	AmbientSourceUnavailableReason.RECONCILIATION_PENDING ->
+		com.adsamcik.tracker.R.string.settings_ambient_reconciliation_pending
+	AmbientSourceUnavailableReason.ROLLOUT_CONTAINED ->
+		com.adsamcik.tracker.R.string.settings_ambient_rollout_contained
+	AmbientSourceUnavailableReason.HEALTH_CONNECT_STEPS_PERMISSION_REQUIRED ->
+		com.adsamcik.tracker.R.string.settings_ambient_steps_health_connect_permission
+	AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL ->
+		com.adsamcik.tracker.R.string.settings_ambient_steps_health_connect_background_optional
+	AmbientSourceUnavailableReason.HEALTH_CONNECT_UNAVAILABLE ->
+		com.adsamcik.tracker.R.string.settings_ambient_steps_health_connect_unavailable
+	AmbientSourceUnavailableReason.HEALTH_CONNECT_UPDATE_REQUIRED ->
+		com.adsamcik.tracker.R.string.settings_ambient_steps_health_connect_update
+	AmbientSourceUnavailableReason.HEALTH_CONNECT_PROBE_FAILED ->
+		com.adsamcik.tracker.R.string.settings_ambient_steps_health_connect_probe_failed
+	AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED ->
+		com.adsamcik.tracker.R.string.settings_ambient_steps_recording_permission
+	AmbientSourceUnavailableReason.LOCAL_RECORDING_UNAVAILABLE ->
+		com.adsamcik.tracker.R.string.settings_ambient_steps_recording_unavailable
+	AmbientSourceUnavailableReason.BACKGROUND_LOCATION_PERMISSION_REQUIRED ->
+		com.adsamcik.tracker.R.string.settings_ambient_location_permission
+	AmbientSourceUnavailableReason.WIFI_SCAN_PERMISSION_REQUIRED ->
+		com.adsamcik.tracker.R.string.settings_ambient_wifi_permission
+	AmbientSourceUnavailableReason.CELL_SCAN_PERMISSION_REQUIRED ->
+		com.adsamcik.tracker.R.string.settings_ambient_cell_permission
+	AmbientSourceUnavailableReason.PLATFORM_UNAVAILABLE,
+	AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
+	null,
+	-> com.adsamcik.tracker.R.string.settings_ambient_provider_unavailable
 }

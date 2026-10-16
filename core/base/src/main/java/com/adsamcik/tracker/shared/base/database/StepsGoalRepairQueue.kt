@@ -49,7 +49,9 @@ suspend fun AppDatabase.enqueueAllStepsGoalRepairs() {
 		"Steps goal repair requires source-evidence state"
 	}
 	val stale = stepsGoalEffectDao().getAllStale(sourceState.revision)
-	if (stale.isEmpty()) return
+	if (stale.isEmpty()) {
+		return
+	}
 	achievementProgressDao().markQualifiedStepsMaterializing(
 		sourceEvidenceRevision = sourceState.revision,
 		updatedAtMs = sourceState.updatedAtMs,

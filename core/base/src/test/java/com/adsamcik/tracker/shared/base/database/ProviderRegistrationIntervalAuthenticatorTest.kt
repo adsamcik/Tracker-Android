@@ -241,6 +241,8 @@ class ProviderRegistrationIntervalAuthenticatorTest {
 	}
 
 	@Test
+	// Keep the retirement boundary and its adjacent elapsed/wall-time acceptance assertions together.
+	@Suppress("LongMethod")
 	fun `elapsed retirement rejects actual observation while equal wall milliseconds remain valid`() {
 		val retired = registration(SourceDestinationOwnerEntity.SOURCE_ACTIVITY).copy(
 			providerResidency =

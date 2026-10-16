@@ -35,7 +35,11 @@ internal class ImportedRadioChildAttachment(private val database: AppDatabase) {
 					child.frequencyMhz, child.signalDbm, child.contentChecksum)
 				val existing = dao.wifiSessionChild(child.entryIdentity, revision,
 					child.runIdentity, child.observationIdentity, child.itemIndex)
-				if (existing == null) dao.insertWifiSession(listOf(row)) else check(existing == row)
+				if (existing == null) {
+					dao.insertWifiSession(listOf(row))
+				} else {
+					check(existing == row)
+				}
 			}
 		}
 
@@ -55,7 +59,11 @@ internal class ImportedRadioChildAttachment(private val database: AppDatabase) {
 					child.radioType, child.registered, child.signalDbm, child.contentChecksum)
 				val existing = dao.cellSessionChild(child.entryIdentity, revision,
 					child.runIdentity, child.observationIdentity, child.itemIndex)
-				if (existing == null) dao.insertCellSession(listOf(row)) else check(existing == row)
+				if (existing == null) {
+					dao.insertCellSession(listOf(row))
+				} else {
+					check(existing == row)
+				}
 			}
 		}
 
@@ -75,7 +83,11 @@ internal class ImportedRadioChildAttachment(private val database: AppDatabase) {
 					child.frequencyMhz, child.signalDbm, child.contentChecksum)
 				val existing = dao.wifiBackgroundChild(parent.archiveId, child.factIdentity,
 					child.semanticRevision, child.itemIndex)
-				if (existing == null) dao.insertWifiBackground(listOf(row)) else check(existing == row)
+				if (existing == null) {
+					dao.insertWifiBackground(listOf(row))
+				} else {
+					check(existing == row)
+				}
 			}
 		}
 
@@ -94,13 +106,18 @@ internal class ImportedRadioChildAttachment(private val database: AppDatabase) {
 					child.radioType, child.registered, child.signalDbm, child.contentChecksum)
 				val existing = dao.cellBackgroundChild(parent.archiveId, child.factIdentity,
 					child.semanticRevision, child.itemIndex)
-				if (existing == null) dao.insertCellBackground(listOf(row)) else check(existing == row)
+				if (existing == null) {
+					dao.insertCellBackground(listOf(row))
+				} else {
+					check(existing == row)
+				}
 			}
 		}
 
 	private suspend fun retainedState(expected: Long): SourceEvidenceState {
-		if (database.activeRetentionFloorSettlement() != null)
+		if (database.activeRetentionFloorSettlement() != null) {
 			throw IOException("Recorded data cleanup is in progress")
+		}
 		val state = database.sourceEvidenceStateDao().get()
 			?: error("Recorded data is unavailable during radio import")
 		check(state.collectedDataEpoch == expected) {

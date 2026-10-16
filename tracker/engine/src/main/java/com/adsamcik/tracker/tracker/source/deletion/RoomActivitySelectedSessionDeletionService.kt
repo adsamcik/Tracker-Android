@@ -11,13 +11,17 @@ import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregat
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryLockedDays
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.database.deleteSelectedCapturedActivityFactsInTransaction
@@ -64,47 +68,27 @@ internal class RoomActivitySelectedSessionDeletionService internal constructor(
 		requestActivityDrain = { sourcePipelineRecovery.get().requestActivityCapturedFactDrain() },
 	)
 
-	@Suppress("CyclomaticComplexMethod", "ReturnCount", "ThrowsCount")
 	override suspend fun deleteSelectedSession(sessionSegmentId: Long): ActivitySessionDeletionResult =
 		deleteSelectedSessionInternal(sessionSegmentId, null)
 
-	override suspend fun deleteSelectedSession(sessionSegmentId: Long, expectedCollectedDataEpoch: Long): ActivitySessionDeletionResult =
+	override suspend fun deleteSelectedSession(
+		sessionSegmentId: Long,
+		expectedCollectedDataEpoch: Long,
+	): ActivitySessionDeletionResult =
 		deleteSelectedSessionInternal(sessionSegmentId, expectedCollectedDataEpoch)
 
-	private suspend fun deleteSelectedSessionInternal(sessionSegmentId: Long, expectedEpoch: Long?): ActivitySessionDeletionResult {
-		if (sessionSegmentId <= 0L) return unsupported(
-			ActivitySessionDeletionUnsupportedReason.INVALID_SEGMENT_ID,
-		)
+	private suspend fun deleteSelectedSessionInternal(
+		sessionSegmentId: Long,
+		expectedEpoch: Long?,
+	): ActivitySessionDeletionResult {
+		if (sessionSegmentId <= 0L) {
+			return unsupported(
+				ActivitySessionDeletionUnsupportedReason.INVALID_SEGMENT_ID,
+			)
+		}
 		val deletedAtMs = wallTimeMsProvider().coerceAtLeast(0L)
 		val result = try {
-			if (expectedEpoch != null && database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch)
-				return unsupported(ActivitySessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
-			val selected = database.sessionSegmentDao().getById(sessionSegmentId)
-				?: return ActivitySessionDeletionResult.NotFound
-			if (preReadHasActiveOwner(selected)) return ActivitySessionDeletionResult.BlockedActive
-			val expected = when (val preflight = selectedScope(selected)) {
-				is SelectedScopePreflight.Ready -> preflight.scope
-				is SelectedScopePreflight.Unsupported -> return unsupported(preflight.reason)
-				SelectedScopePreflight.LegacyUnverifiable ->
-					return ActivitySessionDeletionResult.LegacyUnverifiable
-			}
-			DailySummaryAggregator(
-				dailySummaryDao = database.dailySummaryDao(),
-				sessionSegmentDao = database.sessionSegmentDao(),
-				zoneId = expected.lockZone,
-			).withDayLocks(expected.affectedDays) { lockedDays ->
-				afterDayLocksAcquired()
-				database.withTransaction {
-						if (expectedEpoch != null && database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch)
-							return@withTransaction unsupported(ActivitySessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
-					val retainedSelected = database.sessionSegmentDao().getById(sessionSegmentId)
-						?: throw ConcurrentActivityDeletionStateException()
-					val actual = (selectedScope(retainedSelected) as? SelectedScopePreflight.Ready)?.scope
-						?: throw ConcurrentActivityDeletionStateException()
-					if (actual != expected) throw ConcurrentActivityDeletionStateException()
-					deleteInTransaction(actual, deletedAtMs, lockedDays)
-				}
-			}
+			deleteSelectedScope(sessionSegmentId, expectedEpoch, deletedAtMs)
 		} catch (cancellation: CancellationException) {
 			throw cancellation
 		} catch (_: ActivityCapturedSelectedDeletionConcurrentMutationException) {
@@ -129,6 +113,61 @@ internal class RoomActivitySelectedSessionDeletionService internal constructor(
 			requestActivityDrain()
 		}
 		return result
+	}
+
+	private suspend fun deleteSelectedScope(
+		sessionSegmentId: Long,
+		expectedEpoch: Long?,
+		deletedAtMs: Long,
+	): ActivitySessionDeletionResult {
+		if (expectedEpoch != null &&
+			database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch
+		) {
+			return unsupported(ActivitySessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
+		}
+		val selected = database.sessionSegmentDao().getById(sessionSegmentId)
+			?: return ActivitySessionDeletionResult.NotFound
+		if (preReadHasActiveOwner(selected)) {
+			return ActivitySessionDeletionResult.BlockedActive
+		}
+		return when (val preflight = selectedScope(selected)) {
+			is SelectedScopePreflight.Ready ->
+				deletePreparedScope(sessionSegmentId, expectedEpoch, deletedAtMs, preflight.scope)
+			is SelectedScopePreflight.Unsupported -> unsupported(preflight.reason)
+			SelectedScopePreflight.LegacyUnverifiable -> ActivitySessionDeletionResult.LegacyUnverifiable
+		}
+	}
+
+	private suspend fun deletePreparedScope(
+		sessionSegmentId: Long,
+		expectedEpoch: Long?,
+		deletedAtMs: Long,
+		expected: SelectedScope,
+	): ActivitySessionDeletionResult = DailySummaryAggregator(
+		dailySummaryDao = database.dailySummaryDao(),
+		sessionSegmentDao = database.sessionSegmentDao(),
+		zoneId = expected.lockZone,
+	).withDayLocks(expected.affectedDays) { lockedDays ->
+		afterDayLocksAcquired()
+		database.withTransaction {
+			if (expectedEpoch != null &&
+				database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch
+			) {
+				return@withTransaction unsupported(ActivitySessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
+			}
+			val actual = readCurrentSelectedScope(sessionSegmentId)
+			if (actual != expected) {
+				throw ConcurrentActivityDeletionStateException()
+			}
+			deleteInTransaction(actual, deletedAtMs, lockedDays)
+		}
+	}
+
+	private suspend fun readCurrentSelectedScope(sessionSegmentId: Long): SelectedScope {
+		val selected = database.sessionSegmentDao().getById(sessionSegmentId)
+			?: throw ConcurrentActivityDeletionStateException()
+		return (selectedScope(selected) as? SelectedScopePreflight.Ready)?.scope
+			?: throw ConcurrentActivityDeletionStateException()
 	}
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount", "ThrowsCount")
@@ -198,7 +237,9 @@ internal class RoomActivitySelectedSessionDeletionService internal constructor(
 					logicalTrackingId = scope.logicalTrackingId,
 					serviceRunId = run.serviceRunId,
 				) != 1
-			) throw ConcurrentActivityDeletionStateException()
+			) {
+				throw ConcurrentActivityDeletionStateException()
+			}
 		}
 		for (plan in repairPlans) {
 			DailySummaryAggregator(
@@ -221,23 +262,26 @@ internal class RoomActivitySelectedSessionDeletionService internal constructor(
 		if (logicalTrackingId == null && selectedRunId == null) {
 			return SelectedScopePreflight.LegacyUnverifiable
 		}
-		if (logicalTrackingId.isNullOrBlank() || selectedRunId.isNullOrBlank()) return unsupportedScope(
+		if (logicalTrackingId.isNullOrBlank() || selectedRunId.isNullOrBlank()) {
+			return unsupportedScope(
 			ActivitySessionDeletionUnsupportedReason.INCOMPLETE_ATTRIBUTION,
 		)
+		}
 		val sessionDao = database.sourceSessionDao()
 		val directSelectedRun = sessionDao.serviceRun(selectedRunId) ?: return unsupportedScope(
 			ActivitySessionDeletionUnsupportedReason.SERVICE_RUN_MISSING,
 		)
 		if (directSelectedRun.logicalTrackingId != logicalTrackingId ||
 			directSelectedRun.sessionSegmentId != selected.id
-		) return unsupportedScope(ActivitySessionDeletionUnsupportedReason.SERVICE_RUN_BINDING_MISMATCH)
+		) {
+			return unsupportedScope(ActivitySessionDeletionUnsupportedReason.SERVICE_RUN_BINDING_MISMATCH)
+		}
 		val logicalSession = sessionDao.session(logicalTrackingId) ?: return unsupportedScope(
 			ActivitySessionDeletionUnsupportedReason.LOGICAL_SESSION_MISSING,
 		)
-		if (logicalSession.logicalTrackingId != logicalTrackingId ||
-			logicalSession.sessionMode !in SUPPORTED_SESSION_MODES || logicalSession.rolloutRevision <= 0L ||
-			logicalSession.startedAtMs < 0L || logicalSession.startedElapsedNanos < 0L
-		) return unsupportedScope(ActivitySessionDeletionUnsupportedReason.REPLACEMENT_SCOPE_MISMATCH)
+		if (!logicalSession.isSupportedActivityDeletionSession(logicalTrackingId)) {
+			return unsupportedScope(ActivitySessionDeletionUnsupportedReason.REPLACEMENT_SCOPE_MISMATCH)
+		}
 		val runs = database.trackingHistoryReadDao().logicalEntryServiceRunPage(
 			logicalTrackingIds = listOf(logicalTrackingId),
 			limit = MAX_REPLACEMENT_RUNS + 1,
@@ -245,31 +289,43 @@ internal class RoomActivitySelectedSessionDeletionService internal constructor(
 			afterStartedAtMs = null,
 			afterServiceRunId = null,
 		)
-		if (runs.size > MAX_REPLACEMENT_RUNS) return unsupportedScope(
+		if (runs.size > MAX_REPLACEMENT_RUNS) {
+			return unsupportedScope(
 			ActivitySessionDeletionUnsupportedReason.REPLACEMENT_SCOPE_OVERFLOW,
 		)
+		}
 		if (runs.isEmpty() || runs.map(SourceServiceRunEntity::serviceRunId).distinct().size != runs.size ||
 			runs.any { run -> run.logicalTrackingId != logicalTrackingId }
-		) return unsupportedScope(ActivitySessionDeletionUnsupportedReason.REPLACEMENT_SCOPE_MISMATCH)
+		) {
+			return unsupportedScope(ActivitySessionDeletionUnsupportedReason.REPLACEMENT_SCOPE_MISMATCH)
+		}
 		val selectedRun = runs.singleOrNull { run -> run.serviceRunId == selectedRunId }
 			?: return unsupportedScope(ActivitySessionDeletionUnsupportedReason.REPLACEMENT_SCOPE_MISMATCH)
-		if (selectedRun != directSelectedRun) return unsupportedScope(
+		if (selectedRun != directSelectedRun) {
+			return unsupportedScope(
 			ActivitySessionDeletionUnsupportedReason.REPLACEMENT_SCOPE_MISMATCH,
 		)
+		}
 		if (runs.any { run ->
 			run.presentationAcknowledgement == SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE ||
 				run.sessionSegmentId == null
-		}) return SelectedScopePreflight.LegacyUnverifiable
+		}) {
+			return SelectedScopePreflight.LegacyUnverifiable
+		}
 		val segmentIds = runs.map { run -> requireNotNull(run.sessionSegmentId) }
-		if (segmentIds.distinct().size != segmentIds.size) return unsupportedScope(
+		if (segmentIds.distinct().size != segmentIds.size) {
+			return unsupportedScope(
 			ActivitySessionDeletionUnsupportedReason.REPLACEMENT_SCOPE_MISMATCH,
 		)
+		}
 		val segmentsById = segmentIds.chunked(QUERY_ID_BATCH_SIZE).flatMap { ids ->
 			database.trackingHistoryReadDao().segments(ids)
 		}.associateBy(SessionSegment::id)
-		if (segmentsById.size != segmentIds.size) return unsupportedScope(
+		if (segmentsById.size != segmentIds.size) {
+			return unsupportedScope(
 			ActivitySessionDeletionUnsupportedReason.REPLACEMENT_SCOPE_MISMATCH,
 		)
+		}
 		val segments = runs.map { run ->
 			val segment = segmentsById[requireNotNull(run.sessionSegmentId)] ?: return unsupportedScope(
 				ActivitySessionDeletionUnsupportedReason.REPLACEMENT_SCOPE_MISMATCH,
@@ -287,55 +343,53 @@ internal class RoomActivitySelectedSessionDeletionService internal constructor(
 			serviceRunIds = runs.map(SourceServiceRunEntity::serviceRunId),
 			limit = MAX_REPLACEMENT_RUNS + 1,
 		)
-		if (reverseOwnedSegments.size > MAX_REPLACEMENT_RUNS) return unsupportedScope(
+		if (reverseOwnedSegments.size > MAX_REPLACEMENT_RUNS) {
+			return unsupportedScope(
 			ActivitySessionDeletionUnsupportedReason.REPLACEMENT_SCOPE_OVERFLOW,
 		)
+		}
 		if (reverseOwnedSegments.size != segments.size ||
 			reverseOwnedSegments.mapTo(hashSetOf(), SessionSegment::id) !=
 			segments.mapTo(hashSetOf(), SessionSegment::id)
-		) return unsupportedScope(ActivitySessionDeletionUnsupportedReason.REPLACEMENT_SCOPE_MISMATCH)
+		) {
+			return unsupportedScope(ActivitySessionDeletionUnsupportedReason.REPLACEMENT_SCOPE_MISMATCH)
+		}
 
 		val runIds = runs.map(SourceServiceRunEntity::serviceRunId)
 		val manifests = database.trackingHistoryReadDao().manifests(
 			runIds,
 			MAX_TOTAL_MANIFESTS + 1,
 		)
-		if (manifests.size > MAX_TOTAL_MANIFESTS) return unsupportedScope(
+		if (manifests.size > MAX_TOTAL_MANIFESTS) {
+			return unsupportedScope(
 			ActivitySessionDeletionUnsupportedReason.REPLACEMENT_SCOPE_OVERFLOW,
 		)
+		}
 		val manifestsByRun = manifests.groupBy(SessionManifestVersionEntity::serviceRunId)
-		if (runs.any { run -> manifestsByRun[run.serviceRunId].isNullOrEmpty() }) return unsupportedScope(
+		if (runs.any { run -> manifestsByRun[run.serviceRunId].isNullOrEmpty() }) {
+			return unsupportedScope(
 			ActivitySessionDeletionUnsupportedReason.MANIFEST_MISSING,
 		)
+		}
 		if (runs.any { run ->
 			val owned = manifestsByRun[run.serviceRunId].orEmpty()
 			owned.size > MAX_MANIFESTS_PER_RUN ||
 				!SessionManifestIntegrity.hasValidServiceRunTimeline(run, owned)
-		}) return unsupportedScope(ActivitySessionDeletionUnsupportedReason.MANIFEST_INTEGRITY_FAILED)
-		val logicalCompletedAtMs = logicalSession.completedAtMs
-		if (!SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(
-				runs.map { run ->
-					manifestsByRun.getValue(run.serviceRunId).map(
-						SessionManifestVersionEntity::manifestRevision,
-					)
-				},
-			) || logicalSession.currentManifestRevision != manifests.maxOfOrNull(
-				SessionManifestVersionEntity::manifestRevision,
-			) || manifests.any { manifest ->
-				manifest.sessionMode != logicalSession.sessionMode ||
-					manifest.rolloutRevision != logicalSession.rolloutRevision
-			} || runs.minOf(SourceServiceRunEntity::startedAtMs) < logicalSession.startedAtMs ||
-			(logicalCompletedAtMs != null && runs.any { run ->
-				run.completedAtMs?.let { completed -> completed > logicalCompletedAtMs } == true
-			})
-		) return unsupportedScope(ActivitySessionDeletionUnsupportedReason.MANIFEST_INTEGRITY_FAILED)
+		}) {
+			return unsupportedScope(ActivitySessionDeletionUnsupportedReason.MANIFEST_INTEGRITY_FAILED)
+		}
+		if (!hasValidActivityLogicalManifestScope(logicalSession, runs, manifests, manifestsByRun)) {
+			return unsupportedScope(ActivitySessionDeletionUnsupportedReason.MANIFEST_INTEGRITY_FAILED)
+		}
 		val sources = database.trackingHistoryReadDao().manifestSources(
 			runIds,
 			MAX_TOTAL_MANIFEST_SOURCES + 1,
 		)
-		if (sources.size > MAX_TOTAL_MANIFEST_SOURCES) return unsupportedScope(
+		if (sources.size > MAX_TOTAL_MANIFEST_SOURCES) {
+			return unsupportedScope(
 			ActivitySessionDeletionUnsupportedReason.REPLACEMENT_SCOPE_OVERFLOW,
 		)
+		}
 		val sourcesByRevision = sources.groupBy { source ->
 			source.logicalTrackingId to source.manifestRevision
 		}
@@ -344,31 +398,45 @@ internal class RoomActivitySelectedSessionDeletionService internal constructor(
 		for (manifest in manifests) {
 			if (manifest.logicalTrackingId != logicalTrackingId ||
 				manifest.serviceRunId !in runIds
-			) return unsupportedScope(ActivitySessionDeletionUnsupportedReason.MANIFEST_MEMBERSHIP_MISMATCH)
+			) {
+				return unsupportedScope(ActivitySessionDeletionUnsupportedReason.MANIFEST_MEMBERSHIP_MISMATCH)
+			}
 			val membership = sourcesByRevision[logicalTrackingId to manifest.manifestRevision].orEmpty()
-			if (!SessionManifestIntegrity.verify(manifest, membership)) return unsupportedScope(
+			if (!SessionManifestIntegrity.verify(manifest, membership)) {
+				return unsupportedScope(
 				ActivitySessionDeletionUnsupportedReason.MANIFEST_INTEGRITY_FAILED,
 			)
+			}
 			if (membership.any { source ->
 				source.purpose !in SessionManifestPurposeCode.ALL ||
 					source.sourceKind !in KNOWN_SOURCE_KINDS
-			}) return unsupportedScope(
+			}) {
+				return unsupportedScope(
 				ActivitySessionDeletionUnsupportedReason.MIXED_OR_INCOMPLETE_CAPTURE_SET,
 			)
+			}
 			val captured = membership.filter { source ->
 				source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE
 			}
 			if (captured.size != 1 || captured.single().sourceKind != ACTIVITY_SOURCE ||
 				!captured.single().persistenceEligible
-			) return unsupportedScope(
+			) {
+				return unsupportedScope(
 				ActivitySessionDeletionUnsupportedReason.MIXED_OR_INCOMPLETE_CAPTURE_SET,
 			)
-			if (!captured.single().isExactActivityWriter()) return unsupportedScope(
+			}
+			if (!captured.single().isExactActivityWriter()) {
+				return unsupportedScope(
 				if (captured.single().writerOwner ==
 					SourceDestinationOwnerEntity.OWNER_LEGACY_ACTIVITY_SNAPSHOT
-				) ActivitySessionDeletionUnsupportedReason.LEGACY_WRITER
-				else ActivitySessionDeletionUnsupportedReason.CANDIDATE_WRITER_BINDING_INVALID,
+				) {
+					ActivitySessionDeletionUnsupportedReason.LEGACY_WRITER
+				}
+				else {
+					ActivitySessionDeletionUnsupportedReason.CANDIDATE_WRITER_BINDING_INVALID
+				},
 			)
+			}
 			captureByRevision[manifest.manifestRevision] = captured.single()
 			val zone = try {
 				ZoneId.of(manifest.zoneId)
@@ -377,23 +445,29 @@ internal class RoomActivitySelectedSessionDeletionService internal constructor(
 			}
 			zonesByRun.getOrPut(manifest.serviceRunId, ::linkedSetOf).add(zone)
 		}
-		if (captureByRevision.size != manifests.size) return unsupportedScope(
+		if (captureByRevision.size != manifests.size) {
+			return unsupportedScope(
 			ActivitySessionDeletionUnsupportedReason.MIXED_OR_INCOMPLETE_CAPTURE_SET,
 		)
+		}
 		val policies = database.trackingHistoryReadDao().policiesForServiceRuns(
 			sourceKind = ACTIVITY_SOURCE,
 			serviceRunIds = runIds,
 		)
 		val policiesByRevision = policies.associateBy { policy -> policy.policyRevision }
-		if (policiesByRevision.size != policies.size) return unsupportedScope(
+		if (policiesByRevision.size != policies.size) {
+			return unsupportedScope(
 			ActivitySessionDeletionUnsupportedReason.MIXED_OR_INCOMPLETE_CAPTURE_SET,
 		)
+		}
 		val consentEpochs = captureByRevision.values.map(
 			SessionManifestSourceEntity::consentEpoch,
 		).distinct()
-		if (consentEpochs.isEmpty() || consentEpochs.size > MAX_TOTAL_MANIFESTS) return unsupportedScope(
+		if (consentEpochs.isEmpty() || consentEpochs.size > MAX_TOTAL_MANIFESTS) {
+			return unsupportedScope(
 			ActivitySessionDeletionUnsupportedReason.MIXED_OR_INCOMPLETE_CAPTURE_SET,
 		)
+		}
 		val consents = consentEpochs.chunked(QUERY_ID_BATCH_SIZE).flatMap { epochs ->
 			database.sourcePolicyDao().consentEpochs(
 				sourceKind = ACTIVITY_SOURCE,
@@ -413,14 +487,13 @@ internal class RoomActivitySelectedSessionDeletionService internal constructor(
 			)
 			val policy = policiesByRevision[manifest.sourcePolicyRevision]
 			val consent = consentsByEpoch[binding.consentEpoch]
-			if (policy == null || consent == null || policy.sourceKind != ACTIVITY_SOURCE ||
-				!policy.enabled || !policy.capturePersistenceEligible ||
-				policy.captureConsentEpoch != binding.consentEpoch || policy.qosCode != binding.qosCode ||
-				!consent.eligible || !consent.persistenceEligible ||
-				consent.policyRevision > manifest.sourcePolicyRevision
-			) return unsupportedScope(
-				ActivitySessionDeletionUnsupportedReason.MIXED_OR_INCOMPLETE_CAPTURE_SET,
-			)
+			if (!policy.matchesActivityDeletionCapture(binding) ||
+				!consent.matchesActivityDeletionCapture(manifest.sourcePolicyRevision)
+			) {
+				return unsupportedScope(
+					ActivitySessionDeletionUnsupportedReason.MIXED_OR_INCOMPLETE_CAPTURE_SET,
+				)
+			}
 		}
 		val evidenceState = database.sourceEvidenceStateDao().get() ?: return unsupportedScope(
 			ActivitySessionDeletionUnsupportedReason.SOURCE_EVIDENCE_STATE_MISSING,
@@ -437,13 +510,17 @@ internal class RoomActivitySelectedSessionDeletionService internal constructor(
 				?.let(affectedDays::addAll) ?: return unsupportedScope(
 				ActivitySessionDeletionUnsupportedReason.AFFECTED_DAY_RANGE_TOO_LARGE,
 			)
-			if (affectedDays.size > MAX_AFFECTED_DAYS) return unsupportedScope(
+			if (affectedDays.size > MAX_AFFECTED_DAYS) {
+				return unsupportedScope(
 				ActivitySessionDeletionUnsupportedReason.AFFECTED_DAY_RANGE_TOO_LARGE,
 			)
+			}
 		}
-		if (affectedDays.isEmpty()) return unsupportedScope(
+		if (affectedDays.isEmpty()) {
+			return unsupportedScope(
 			ActivitySessionDeletionUnsupportedReason.AFFECTED_DAY_RANGE_TOO_LARGE,
 		)
+		}
 		val affectedDaySet = affectedDays.toSet()
 		val summaries = database.dailySummaryDao().getBetween(affectedDays.first(), affectedDays.last())
 			.filter { summary -> summary.dateEpochDay in affectedDaySet }
@@ -461,30 +538,33 @@ internal class RoomActivitySelectedSessionDeletionService internal constructor(
 		)
 	}
 
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	private suspend fun preReadHasActiveOwner(selected: SessionSegment): Boolean {
 		val logicalId = selected.logicalTrackingId?.takeIf(String::isNotBlank) ?: return false
 		val runId = selected.serviceRunId?.takeIf(String::isNotBlank) ?: return false
 		val run = database.sourceSessionDao().serviceRun(runId) ?: return false
 		val session = database.sourceSessionDao().session(logicalId) ?: return false
 		return run.logicalTrackingId == logicalId && run.sessionSegmentId == selected.id &&
-			(session.state !in TERMINAL_SESSION_STATES || session.currentServiceRunId != null ||
-				run.state !in TERMINAL_RUN_STATES || run.completedAtMs == null ||
+			(session.hasNonterminalActivitySession() || run.hasUnfinishedActivityRun() ||
 				database.sourceSessionDao().hasNonterminalLatestLifecycleAction(logicalId, runId))
 	}
 
-	@Suppress("ReturnCount")
 	private suspend fun liveMutationAuthority(scope: SelectedScope): LiveMutationAuthority {
-		if (scope.logicalSession.state !in TERMINAL_SESSION_STATES ||
-			scope.logicalSession.currentServiceRunId != null || scope.logicalSession.completedAtMs == null ||
-			scope.runs.any { run -> run.state !in TERMINAL_RUN_STATES || run.completedAtMs == null }
-		) return LiveMutationAuthority.Blocked
+		if (scope.logicalSession.hasNonterminalActivitySession() || scope.logicalSession.completedAtMs == null ||
+			scope.runs.any { it.hasUnfinishedActivityRun() }
+		) {
+			return LiveMutationAuthority.Blocked
+		}
 		val runIds = scope.runs.map(SourceServiceRunEntity::serviceRunId)
 		if (scope.runs.any { run ->
-			database.sourceSessionDao().hasNonterminalLatestLifecycleAction(
-				scope.logicalTrackingId,
-				run.serviceRunId,
-			)
-		}) return LiveMutationAuthority.Blocked
+				database.sourceSessionDao().hasNonterminalLatestLifecycleAction(scope.logicalTrackingId, run.serviceRunId)
+			}) {
+			return LiveMutationAuthority.Blocked
+		}
+		return activeDemandAuthority(scope, runIds) ?: registrationMutationAuthority(scope, runIds)
+	}
+
+	private suspend fun activeDemandAuthority(scope: SelectedScope, runIds: List<String>): LiveMutationAuthority? {
 		val demands = database.activityCapturedFactDao().selectedCapturedActivityDemands(
 			sourceKind = ACTIVITY_SOURCE,
 			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
@@ -492,59 +572,142 @@ internal class RoomActivitySelectedSessionDeletionService internal constructor(
 			serviceRunIds = runIds,
 			limit = MAX_SELECTED_DEMANDS + 1,
 		)
-		if (demands.size > MAX_SELECTED_DEMANDS) return LiveMutationAuthority.Unverifiable
-		if (demands.any { demand ->
-			demand.logicalTrackingId != scope.logicalTrackingId || demand.serviceRunId !in runIds
-		}) return LiveMutationAuthority.Unverifiable
-		if (demands.isNotEmpty()) return LiveMutationAuthority.Blocked
+		return when {
+			demands.size > MAX_SELECTED_DEMANDS -> LiveMutationAuthority.Unverifiable
+			demands.any { it.logicalTrackingId != scope.logicalTrackingId || it.serviceRunId !in runIds } ->
+				LiveMutationAuthority.Unverifiable
+			demands.isNotEmpty() -> LiveMutationAuthority.Blocked
+			else -> null
+		}
+	}
 
+	private suspend fun registrationMutationAuthority(
+		scope: SelectedScope,
+		runIds: List<String>,
+	): LiveMutationAuthority {
 		val registrations = database.activityCapturedFactDao().activityRegistrationsForDeletion(
-			ACTIVITY_SOURCE,
-			MAX_CURRENT_REGISTRATIONS + 1,
+			ACTIVITY_SOURCE, MAX_CURRENT_REGISTRATIONS + 1,
 		)
-		if (registrations.size > MAX_CURRENT_REGISTRATIONS) return LiveMutationAuthority.Unverifiable
+		if (registrations.size > MAX_CURRENT_REGISTRATIONS) {
+			return LiveMutationAuthority.Unverifiable
+		}
 		for (registration in registrations) {
-			val rows = try {
-				val latestAuthorizationRevision = database.activityCapturedFactDao()
-					.latestAuthorizationRevision(ACTIVITY_SOURCE, registration.registrationGeneration)
-				latestAuthorizationRevision?.let { revision ->
-					database.activityCapturedFactDao().maintenanceAuthorizationMembers(
-						sourceKind = ACTIVITY_SOURCE,
-						registrationGeneration = registration.registrationGeneration,
-						authorizationRevision = revision,
-						limit = MAX_AUTHORIZATION_MEMBERS + 1,
-					)
-				}.orEmpty()
-			} catch (_: IllegalArgumentException) {
-				return LiveMutationAuthority.Unverifiable
-			}
-			if (rows.size > MAX_AUTHORIZATION_MEMBERS) return LiveMutationAuthority.Unverifiable
-			if (rows.isEmpty()) {
-				if (registration.acceptedElapsedRealtimeNanos != null) {
-					return LiveMutationAuthority.Unverifiable
-				}
-				continue
-			}
-			val authorization = try {
-				rows.toAuthorizationSnapshotOrNull()
-			} catch (_: IllegalArgumentException) {
-				return LiveMutationAuthority.Unverifiable
-			}
-			if (authorization == null) return LiveMutationAuthority.Unverifiable
-			for (row in rows.filter { member ->
-				member.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
-					(member.logicalTrackingId == scope.logicalTrackingId ||
-						member.serviceRunId in runIds)
-			}) {
-				if (row.logicalTrackingId != scope.logicalTrackingId || row.serviceRunId !in runIds) {
-					return LiveMutationAuthority.Unverifiable
-				}
-				if (!row.persistenceEligible) return LiveMutationAuthority.Unverifiable
-				return LiveMutationAuthority.Blocked
-			}
+			registrationMutationAuthority(registration, scope, runIds)?.let { return it }
 		}
 		return LiveMutationAuthority.Quiesced
 	}
+
+	private suspend fun registrationMutationAuthority(
+		registration: ProviderRegistrationGenerationEntity,
+		scope: SelectedScope,
+		runIds: List<String>,
+	): LiveMutationAuthority? {
+		val rows = readLatestActivityDeletionMembers(registration) ?: return LiveMutationAuthority.Unverifiable
+		if (rows.size > MAX_AUTHORIZATION_MEMBERS) {
+			return LiveMutationAuthority.Unverifiable
+		}
+		if (rows.isEmpty()) {
+			return if (registration.acceptedElapsedRealtimeNanos != null) {
+				LiveMutationAuthority.Unverifiable
+			} else {
+				null
+			}
+		}
+		return if (hasValidActivityDeletionAuthorization(rows)) {
+			selectedActivityMemberAuthority(rows, scope, runIds)
+		} else {
+			LiveMutationAuthority.Unverifiable
+		}
+	}
+
+	private suspend fun readLatestActivityDeletionMembers(
+		registration: ProviderRegistrationGenerationEntity,
+	): List<SourceAuthorizationEntity>? = try {
+		val latestAuthorizationRevision = database.activityCapturedFactDao()
+			.latestAuthorizationRevision(ACTIVITY_SOURCE, registration.registrationGeneration)
+		latestAuthorizationRevision?.let { revision ->
+			database.activityCapturedFactDao().maintenanceAuthorizationMembers(
+				sourceKind = ACTIVITY_SOURCE,
+				registrationGeneration = registration.registrationGeneration,
+				authorizationRevision = revision,
+				limit = MAX_AUTHORIZATION_MEMBERS + 1,
+			)
+		}.orEmpty()
+	} catch (_: IllegalArgumentException) {
+		null
+	}
+
+	private fun hasValidActivityDeletionAuthorization(rows: List<SourceAuthorizationEntity>): Boolean = try {
+		rows.toAuthorizationSnapshotOrNull() != null
+	} catch (_: IllegalArgumentException) {
+		false
+	}
+
+	private fun selectedActivityMemberAuthority(
+		rows: List<SourceAuthorizationEntity>,
+		scope: SelectedScope,
+		runIds: List<String>,
+	): LiveMutationAuthority? {
+		for (row in rows.filter { member ->
+			member.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+				(member.logicalTrackingId == scope.logicalTrackingId || member.serviceRunId in runIds)
+		}) {
+			if (row.logicalTrackingId != scope.logicalTrackingId || row.serviceRunId !in runIds) {
+				return LiveMutationAuthority.Unverifiable
+			}
+			if (!row.persistenceEligible) {
+				return LiveMutationAuthority.Unverifiable
+			}
+			return LiveMutationAuthority.Blocked
+		}
+		return null
+	}
+
+	private fun LogicalTrackingSessionEntity.hasNonterminalActivitySession(): Boolean =
+		state !in TERMINAL_SESSION_STATES || currentServiceRunId != null
+
+	private fun SourceServiceRunEntity.hasUnfinishedActivityRun(): Boolean =
+		state !in TERMINAL_RUN_STATES || completedAtMs == null
+
+	private fun hasValidActivityLogicalManifestScope(
+		session: LogicalTrackingSessionEntity,
+		runs: List<SourceServiceRunEntity>,
+		manifests: List<SessionManifestVersionEntity>,
+		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
+	): Boolean {
+		val completedAtMs = session.completedAtMs
+		if (!SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(
+				runs.map { run ->
+					manifestsByRun.getValue(run.serviceRunId).map(SessionManifestVersionEntity::manifestRevision)
+				},
+			) || session.currentManifestRevision != manifests.maxOfOrNull(
+				SessionManifestVersionEntity::manifestRevision,
+			)
+		) {
+			return false
+		}
+		if (manifests.any { it.sessionMode != session.sessionMode || it.rolloutRevision != session.rolloutRevision }) {
+			return false
+		}
+		return runs.minOf(SourceServiceRunEntity::startedAtMs) >= session.startedAtMs &&
+			(completedAtMs == null || runs.none { run ->
+				run.completedAtMs?.let { it > completedAtMs } == true
+			})
+	}
+
+	private fun LogicalTrackingSessionEntity.isSupportedActivityDeletionSession(expectedLogicalId: String): Boolean =
+		logicalTrackingId == expectedLogicalId && sessionMode in SUPPORTED_SESSION_MODES &&
+			rolloutRevision > 0L && startedAtMs >= 0L && startedElapsedNanos >= 0L
+
+	private fun SourcePolicyEntity?.matchesActivityDeletionCapture(binding: SessionManifestSourceEntity): Boolean {
+		if (this == null || sourceKind != ACTIVITY_SOURCE || !enabled || !capturePersistenceEligible) {
+			return false
+		}
+		return captureConsentEpoch == binding.consentEpoch && qosCode == binding.qosCode
+	}
+
+	private fun SourceConsentEpochEntity?.matchesActivityDeletionCapture(manifestPolicyRevision: Long): Boolean =
+		this != null && eligible && persistenceEligible && policyRevision <= manifestPolicyRevision
 
 	private fun SessionManifestSourceEntity.isExactActivityWriter(): Boolean =
 		outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY &&
@@ -566,7 +729,11 @@ internal class RoomActivitySelectedSessionDeletionService internal constructor(
 		startZoneId: ZoneId,
 		endZoneId: ZoneId,
 	): List<Long>? {
-		val lastCoveredMs = if (endTimeMs > startTimeMs) endTimeMs - 1L else startTimeMs
+		val lastCoveredMs = if (endTimeMs > startTimeMs) {
+			endTimeMs - 1L
+		} else {
+			startTimeMs
+		}
 		val startDay: Long
 		val endDay: Long
 		try {
@@ -576,7 +743,9 @@ internal class RoomActivitySelectedSessionDeletionService internal constructor(
 			return null
 		}
 		val count = endDay - startDay + 1L
-		if (count <= 0L || count > MAX_AFFECTED_DAYS) return null
+		if (count <= 0L || count > MAX_AFFECTED_DAYS) {
+			return null
+		}
 		return List(count.toInt()) { offset -> startDay + offset }
 	}
 

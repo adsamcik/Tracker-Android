@@ -85,7 +85,9 @@ internal class PortablePressureExporter(
 			PortablePressureJsonV1Codec.MAX_FILE_BYTES).use { spool ->
 			val digest = MessageDigest.getInstance("SHA-256")
 			val staged = spool.write { encode(DigestOutputStream(it, digest)) }
-			if (staged !is ExportPortablePressureResult.Exported) return@use staged
+			if (staged !is ExportPortablePressureResult.Exported) {
+				return@use staged
+			}
 			val expectedHash = digest.digest()
 			verifyContents(staged, expectedHash, encode)?.let { return@use it }
 			spool.copyTo(outputStream)
@@ -148,6 +150,10 @@ private fun LongRange.toPortablePressureRequest(): ExportPortablePressureRequest
 	require(first >= 0L && !isEmpty()) {
 		"Portable Pressure export range must be non-empty and non-negative"
 	}
-	val exclusiveEnd = if (last == Long.MAX_VALUE) Long.MAX_VALUE else Math.addExact(last, 1L)
+	val exclusiveEnd = if (last == Long.MAX_VALUE) {
+		Long.MAX_VALUE
+	} else {
+		Math.addExact(last, 1L)
+	}
 	return ExportPortablePressureRequest(first, exclusiveEnd)
 }

@@ -1,10 +1,13 @@
 package com.adsamcik.tracker.impexp.exporter
 
+import com.adsamcik.tracker.stats.api.repository.CellHistoryEntrySelection
+
 import android.content.Context
 import androidx.annotation.Keep
 import com.adsamcik.tracker.shared.base.database.readRadioFileMembers
 import com.adsamcik.tracker.shared.base.database.selectReadings
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelector
 import androidx.room.withTransaction
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.portable.CellBackgroundChildV2
@@ -117,52 +120,77 @@ internal class PortableCellSourceExporter @Keep @JvmOverloads constructor(
 		}
 	}
 
-	private suspend fun writeFile(entry: CellSourceExportEntryPoint, dates: SourceExportDates?,
-		includeSessionsAcrossDates: Boolean, writer: CellStreamWriter): Int {
+	private suspend fun writeFile(
+		entry: CellSourceExportEntryPoint,
+		dates: SourceExportDates?,
+		includeSessionsAcrossDates: Boolean,
+		writer: CellStreamWriter,
+	): Int {
 		val database = entry.database()
 		var outsideCount = 0
-		var afterId: String? = null
-		while (true) {
-			currentCoroutineContext().ensureActive()
-			val page = database.cellCapturedFactDao().completedExportCandidateIdsPage(
-				SourceDestinationOwnerEntity.SOURCE_CELL,
-				dates?.fromInclusiveMs, dates?.toExclusiveMs, afterId, 100,
-			)
-			if (page.isEmpty()) break
-			require(page.size <= 100 && page.zipWithNext().all { (a, b) -> a < b })
-			page.forEach { logicalId ->
-				var captured: PortableCapturedCellEntryV1? = null
-				val result = entry.capturedCell().export(ExportPortableCapturedCellRequest(logicalId)) {
-					value -> check(captured == null); captured = value
-				}
-				when (result) {
-					is ExportPortableCapturedCellResult.Exported -> {
-						val product = requireNotNull(captured)
-						check(product.contentChecksum == result.contentChecksum)
-						val completeFile = CellSessionFileV2(product, localChildren(database, logicalId, product))
-						selectCellSessionFile(completeFile, dates, includeSessionsAcrossDates)?.let { selected ->
-							writer.session(selected)
-							outsideCount = Math.addExact(outsideCount, cellReadingsOutsideDates(selected, dates))
-						}
-					}
-					is ExportPortableCapturedCellResult.Unavailable,
-					ExportPortableCapturedCellResult.Deleted -> Unit
-					else -> throw RadioSourceFileFormatException("Cell session cannot be read completely")
-				}
-			}
-			if (page.size < 100) break
-			afterId = page.last()
+		appendNativeSessions(entry, database, dates, includeSessionsAcrossDates) { selected ->
+			writer.session(selected)
+			outsideCount = Math.addExact(outsideCount, cellReadingsOutsideDates(selected, dates))
 		}
 		appendImportedSessions(database, dates, includeSessionsAcrossDates) { session, outside ->
 			writer.session(session)
 			outsideCount = Math.addExact(outsideCount, outside)
 		}
 		val ambient = exportBackground(entry, dates)
-		if (writer.sessionCount == 0 && ambient == null) throw RadioSourceNoDataException()
-		val backgroundChildren = ambient?.let { backgroundChildren(entry, it) }.orEmpty()
-		outsideCount = Math.addExact(outsideCount, cellBackgroundReadingsOutsideDates(ambient, backgroundChildren, dates))
-		writer.finish(ambient, backgroundChildren, outsideCount)
-		return writer.sessionCount + (ambient?.facts?.size ?: 0) + (ambient?.gaps?.size ?: 0)
+		return finishFile(entry, dates, writer, ambient, outsideCount)
+	}
+
+	private suspend fun appendNativeSessions(
+		entry: CellSourceExportEntryPoint,
+		database: AppDatabase,
+		dates: SourceExportDates?,
+		includeAcross: Boolean,
+		emit: (CellSessionFileV2) -> Unit,
+	) {
+		var afterId: String? = null
+		while (true) {
+			currentCoroutineContext().ensureActive()
+			val page = database.cellCapturedFactDao().completedExportCandidateIdsPage(
+				SourceDestinationOwnerEntity.SOURCE_CELL,
+				dates?.fromInclusiveMs, dates?.toExclusiveMs, afterId, CELL_EXPORT_PAGE_SIZE,
+			)
+			if (page.isEmpty()) {
+				break
+			}
+			require(page.size <= CELL_EXPORT_PAGE_SIZE && page.zipWithNext().all { (a, b) -> a < b })
+			page.forEach { logicalId ->
+				readNativeSession(entry, database, logicalId, dates, includeAcross)?.let(emit)
+			}
+			if (page.size < CELL_EXPORT_PAGE_SIZE) {
+				break
+			}
+			afterId = page.last()
+		}
+	}
+
+	private suspend fun readNativeSession(
+		entry: CellSourceExportEntryPoint,
+		database: AppDatabase,
+		logicalId: String,
+		dates: SourceExportDates?,
+		includeAcross: Boolean,
+	): CellSessionFileV2? {
+		var captured: PortableCapturedCellEntryV1? = null
+		val result = entry.capturedCell().export(ExportPortableCapturedCellRequest(logicalId)) { value ->
+			check(captured == null)
+			captured = value
+		}
+		return when (result) {
+			is ExportPortableCapturedCellResult.Exported -> {
+				val product = requireNotNull(captured)
+				check(product.contentChecksum == result.contentChecksum)
+				val completeFile = CellSessionFileV2(product, localChildren(database, logicalId, product))
+				selectCellSessionFile(completeFile, dates, includeAcross)
+			}
+			is ExportPortableCapturedCellResult.Unavailable,
+			ExportPortableCapturedCellResult.Deleted -> null
+			else -> throw RadioSourceFileFormatException("Cell session cannot be read completely")
+		}
 	}
 
 	internal suspend fun exportSession(context: Context, request: SessionLocationFileRequest,
@@ -172,56 +200,112 @@ internal class PortableCellSourceExporter @Keep @JvmOverloads constructor(
 			outputStream, maximumBytes, verifyCollectedDataAccess) { selection, output ->
 			val writer = RadioSourceFileJsonV2Codec().cellStreamWriter(output,
 				selection.dates?.fromInclusiveMs, selection.dates?.toExclusiveMs, false)
-			var outside = 0
-			if (selection.retrospective) writeFile(entry, selection.dates, false, writer) else {
-				for ((identity, selectors) in selection.captured.groupBy { it.entryIdentity }) {
-					verifyCollectedDataAccess(); currentCoroutineContext().ensureActive()
-					val evaluation = ImportedCellProductReader(entry.database()).selectIdentityInTransaction(PortableCellOpaqueIdentity(identity))
-					val readable = evaluation as? ImportedCellProductEvaluation.Readable
-						?: throw RadioSourceFileFormatException("The selected imported Cell recording is unavailable")
-					check(readable.isReExportable)
-					val fileMembers = if (selectors.any { it.importJobId == null }) null else selectors.flatMap { selector ->
-						readRadioFileMembers(entry.database(), SourceDestinationOwnerEntity.SOURCE_CELL,
-							requireNotNull(selector.importJobId), requireNotNull(selector.importEntryKey), identity,
-							request.expectedCollectedDataEpoch, RadioSourceFileV2.MAX_CHILDREN)
-					}
-					val members = fileMembers?.filter { it.kind == "OBSERVATION" }?.associateBy { it.identity }
-					val gapIds = fileMembers?.filter { it.kind == "GAP" }?.mapTo(mutableSetOf()) { it.identity }
-					val selected = if (members == null) readable.entry else readable.entry.selectReadings({ observation ->
-						members[observation.identity.value]?.let { it.revision == observation.semanticRevision &&
-							it.checksum == observation.contentChecksum.value } == true
-					}, { run -> gapIds?.contains(run.identity.value) == true })
-					selected?.let { value ->
-						val ids = value.runs.flatMap { it.observations }.mapTo(mutableSetOf()) { it.identity.value }
-						val children = entry.database().importedRadioChildDao().cellSessionChildren(identity,
-							readable.candidate.importRevision, RadioSourceFileV2.MAX_CHILDREN + 1)
-						check(children.size <= RadioSourceFileV2.MAX_CHILDREN)
-						val full = CellSessionFileV2(value, mapImportedCellSessionChildren(value,
-							children.filter { it.observationIdentity in ids }))
-						selectCellSessionFile(full, selection.dates, false)?.let {
-							writer.session(it); outside = Math.addExact(outside, cellReadingsOutsideDates(it, selection.dates))
-						}
-					}
-				}
-				val background = if (selection.backgroundArchives.isEmpty()) null else {
-					var saved: PortableAmbientCellArchiveV1? = null
-					val result = entry.backgroundCell().export(ExportPortableAmbientCellRequest(selection.dates?.fromInclusiveMs ?: 0L, selection.dates?.toExclusiveMs ?: Long.MAX_VALUE,
-						setOf(AmbientCellOrigin.PORTABLE_IMPORT), selection.backgroundArchives)) { saved = it }
-					if (result !is ExportPortableAmbientCellResult.Exported)
-						throw RadioSourceFileFormatException("The selected background Cell recording is unavailable")
-					requireNotNull(saved)
-				}
-				if (writer.sessionCount == 0 && background == null) throw RadioSourceNoDataException()
-				val details = background?.let { backgroundChildren(entry, it) }.orEmpty()
-				outside = Math.addExact(outside, cellBackgroundReadingsOutsideDates(background, details, selection.dates))
-				writer.finish(background, details, outside)
-				writer.sessionCount + (background?.facts?.size ?: 0) + (background?.gaps?.size ?: 0)
+			if (selection.retrospective) {
+				writeFile(entry, selection.dates, false, writer)
+			} else {
+				val outside = appendSelectedImportedSessions(entry, request, selection, verifyCollectedDataAccess, writer)
+				val background = exportSelectedBackground(entry, selection)
+				finishFile(entry, selection.dates, writer, background, outside)
 			}
 		}
 	}
 
+	private suspend fun appendSelectedImportedSessions(
+		entry: CellSourceExportEntryPoint,
+		request: SessionLocationFileRequest,
+		selection: RadioSessionFileSelection,
+		verifyCollectedDataAccess: () -> Unit,
+		writer: CellStreamWriter,
+	): Int {
+		var outside = 0
+		for ((identity, selectors) in selection.captured.groupBy { it.entryIdentity }) {
+			verifyCollectedDataAccess(); currentCoroutineContext().ensureActive()
+			readSelectedImportedSession(entry, request, identity, selectors, selection.dates)?.let { selected ->
+				writer.session(selected)
+				outside = Math.addExact(outside, cellReadingsOutsideDates(selected, selection.dates))
+			}
+		}
+		return outside
+	}
+
+	private suspend fun readSelectedImportedSession(
+		entry: CellSourceExportEntryPoint,
+		request: SessionLocationFileRequest,
+		identity: String,
+		selectors: List<OrganizationSourceSelector.CapturedEntry>,
+		dates: SourceExportDates?,
+	): CellSessionFileV2? {
+		val evaluation = ImportedCellProductReader(entry.database())
+			.selectIdentityInTransaction(PortableCellOpaqueIdentity(identity))
+		val readable = evaluation as? ImportedCellProductEvaluation.Readable
+			?: throw RadioSourceFileFormatException("The selected imported Cell recording is unavailable")
+		check(readable.isReExportable)
+		val fileMembers = if (selectors.any { it.importJobId == null }) {
+			null
+		} else {
+			selectors.flatMap { selector ->
+				readRadioFileMembers(entry.database(), SourceDestinationOwnerEntity.SOURCE_CELL,
+					requireNotNull(selector.importJobId), requireNotNull(selector.importEntryKey), identity,
+					request.expectedCollectedDataEpoch, RadioSourceFileV2.MAX_CHILDREN)
+			}
+		}
+		val members = fileMembers?.filter { it.kind == "OBSERVATION" }?.associateBy { it.identity }
+		val gapIds = fileMembers?.filter { it.kind == "GAP" }?.mapTo(mutableSetOf()) { it.identity }
+		val selected = if (members == null) {
+			readable.entry
+		} else {
+			readable.entry.selectReadings({ observation ->
+				members[observation.identity.value]?.let { it.revision == observation.semanticRevision &&
+					it.checksum == observation.contentChecksum.value } == true
+			}, { run -> gapIds?.contains(run.identity.value) == true })
+		}
+		return selected?.let { value ->
+			val ids = value.runs.flatMap { it.observations }.mapTo(mutableSetOf()) { it.identity.value }
+			val full = readImportedSessionFile(entry.database(), identity, value,
+				readable.candidate.importRevision, ids)
+			selectCellSessionFile(full, dates, false)
+		}
+	}
+
+
+	private suspend fun exportSelectedBackground(
+		entry: CellSourceExportEntryPoint,
+		selection: RadioSessionFileSelection,
+	): PortableAmbientCellArchiveV1? {
+		return if (selection.backgroundArchives.isEmpty()) {
+			null
+		} else {
+			var saved: PortableAmbientCellArchiveV1? = null
+			val result = entry.backgroundCell().export(ExportPortableAmbientCellRequest(
+				selection.dates?.fromInclusiveMs ?: 0L,
+				selection.dates?.toExclusiveMs ?: Long.MAX_VALUE,
+				setOf(AmbientCellOrigin.PORTABLE_IMPORT), selection.backgroundArchives)) { saved = it }
+			if (result !is ExportPortableAmbientCellResult.Exported) {
+				throw RadioSourceFileFormatException("The selected background Cell recording is unavailable")
+			}
+			requireNotNull(saved)
+		}
+	}
+
+	private suspend fun finishFile(
+		entry: CellSourceExportEntryPoint,
+		dates: SourceExportDates?,
+		writer: CellStreamWriter,
+		background: PortableAmbientCellArchiveV1?,
+		outside: Int,
+	): Int {
+		if (writer.sessionCount == 0 && background == null) {
+			throw RadioSourceNoDataException()
+		}
+		val details = background?.let { backgroundChildren(entry, it) }.orEmpty()
+		val totalOutside = Math.addExact(outside, cellBackgroundReadingsOutsideDates(background, details, dates))
+		writer.finish(background, details, totalOutside)
+		return writer.sessionCount + (background?.facts?.size ?: 0) + (background?.gaps?.size ?: 0)
+	}
+
 	/** Caller owns complete file staging, transfer lifetime and optimistic rechecks. */
-	internal suspend fun writeSelection(context: Context, selection: com.adsamcik.tracker.stats.api.repository.CellHistoryEntrySelection,
+	internal suspend fun writeSelection(context: Context,
+        selection: CellHistoryEntrySelection,
 		output: OutputStream): ExportResult = writeSelectedCellFile(source(context), selection, output)
 
 
@@ -230,7 +314,9 @@ internal class PortableCellSourceExporter @Keep @JvmOverloads constructor(
 		val indexed = entry.runs.flatMap { run -> run.observations.map { observation ->
 			observation.identity.value to (run.identity.value to observation.semanticRevision)
 		} }.toMap()
-		if (indexed.isEmpty()) return emptyList()
+		if (indexed.isEmpty()) {
+			return emptyList()
+		}
 		val dao = database.radioObservationChildDao()
 		val owners = dao.cellCurrentExportOwners(logicalId,
 			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
@@ -247,7 +333,7 @@ internal class PortableCellSourceExporter @Keep @JvmOverloads constructor(
 		check(selectedOwners.size == indexed.size)
 		val rows = mutableListOf<CellCapturedChildEntity>()
 		for ((scope, scopeOwners) in selectedOwners.groupBy { it.serviceRunId to it.semanticRevision }) {
-			for (chunk in scopeOwners.chunked(300)) {
+			for (chunk in scopeOwners.chunked(CELL_DETAIL_QUERY_BATCH_SIZE)) {
 				currentCoroutineContext().ensureActive()
 				val remaining = RadioSourceFileV2.MAX_CHILDREN - rows.size
 				val page = dao.cellCurrentSessionChildrenForOwners(logicalId, scope.first,
@@ -266,28 +352,7 @@ internal class PortableCellSourceExporter @Keep @JvmOverloads constructor(
 		requireCompleteCellDetails(selectedRequirements, rows.groupingBy {
 			it.logicalFactId to it.semanticRevision
 		}.eachCount())
-		val context = currentCoroutineContext()
-		return rows.map { row ->
-			context.ensureActive()
-			check(RadioObservationChildIntegrity.cell(CellChildChecksumInput(
-				RadioChildOwner(RadioChildPurpose.SESSION, row.writerProjectionId,
-					row.writerProjectionVersion, row.logicalFactId, row.semanticRevision, row.itemIndex),
-				row.providerTimestampNanos, row.observedWallTimeMs, row.wallTimeUncertaintyMs,
-				row.towerIdentity, row.radioType, row.registered, row.signalDbm,
-			)) == row.contentChecksum)
-			val observationId = PortableCellOpaqueIdentity.derive(
-				PortableCellIdentityKind.OBSERVATION, row.logicalFactId).value
-			val (runId, revision) = requireNotNull(indexed[observationId])
-			check(revision == row.semanticRevision)
-			CellSessionChildV2(entry.identity.value, runId, observationId,
-				row.semanticRevision, row.itemIndex, row.providerTimestampNanos,
-				row.observedWallTimeMs, row.wallTimeUncertaintyMs, row.towerIdentity,
-				row.radioType, row.registered, row.signalDbm,
-				radioChildDigest("cell", listOf(entry.identity.value, runId, observationId),
-					listOf(row.semanticRevision, row.itemIndex, row.providerTimestampNanos,
-						row.observedWallTimeMs, row.wallTimeUncertaintyMs, row.towerIdentity,
-						row.radioType, row.registered, row.signalDbm)))
-		}
+		return mapLocalCellSessionChildren(rows, indexed, entry, currentCoroutineContext())
 	}
 
 	private suspend fun appendImportedSessions(database: AppDatabase, dates: SourceExportDates?,
@@ -299,30 +364,41 @@ internal class PortableCellSourceExporter @Keep @JvmOverloads constructor(
 		var beforeIdentity: String? = null
 		while (true) {
 			currentCoroutineContext().ensureActive()
-			val page = reader.selectExportWallRangePageInTransaction(from, to, 100,
+			val page = reader.selectExportWallRangePageInTransaction(from, to, CELL_EXPORT_PAGE_SIZE,
 				beforeStart, beforeIdentity)
-			if (page.isEmpty()) break
-			page.forEach { evaluation ->
-				currentCoroutineContext().ensureActive()
-				when (evaluation) {
-					is ImportedCellProductEvaluation.Readable -> {
-						if (!evaluation.isReExportable || evaluation.localOriginHandle != null) return@forEach
-						val rows = database.importedRadioChildDao().cellSessionChildren(
-							evaluation.entry.identity.value, evaluation.candidate.importRevision, RadioSourceFileV2.MAX_CHILDREN + 1)
-						check(rows.size <= RadioSourceFileV2.MAX_CHILDREN)
-						val full = CellSessionFileV2(evaluation.entry, mapImportedCellSessionChildren(evaluation.entry, rows))
-						selectCellSessionFile(full, dates, includeAcross)?.let { selected ->
-							emit(selected, cellReadingsOutsideDates(selected, dates))
-						}
-					}
-					is ImportedCellProductEvaluation.Unverifiable ->
-						throw RadioSourceFileFormatException("Imported Cell session cannot be verified")
-				}
+			if (page.isEmpty()) {
+				break
 			}
-			if (page.size < 100) break
+			page.forEach { evaluation ->
+				appendImportedSession(database, evaluation, dates, includeAcross, emit)
+			}
+			if (page.size < CELL_EXPORT_PAGE_SIZE) {
+				break
+			}
 			val last = page.last().candidate
 			beforeStart = last.startTimeMs
 			beforeIdentity = last.identity
+		}
+	}
+
+	private suspend fun appendImportedSession(
+		database: AppDatabase, evaluation: ImportedCellProductEvaluation, dates: SourceExportDates?,
+		includeAcross: Boolean, emit: (CellSessionFileV2, Int) -> Unit,
+	) {
+		currentCoroutineContext().ensureActive()
+		when (evaluation) {
+			is ImportedCellProductEvaluation.Readable -> {
+				if (!evaluation.isReExportable || evaluation.localOriginHandle != null) {
+					return
+				}
+				val full = readImportedSessionFile(database, evaluation.entry.identity.value,
+					evaluation.entry, evaluation.candidate.importRevision)
+				selectCellSessionFile(full, dates, includeAcross)?.let { selected ->
+					emit(selected, cellReadingsOutsideDates(selected, dates))
+				}
+			}
+			is ImportedCellProductEvaluation.Unverifiable ->
+				throw RadioSourceFileFormatException("Imported Cell session cannot be verified")
 		}
 	}
 
@@ -350,7 +426,7 @@ internal class PortableCellSourceExporter @Keep @JvmOverloads constructor(
 		}.distinct()
 		val localIds = mutableListOf<String>()
 		val importedIds = mutableListOf<String>()
-		uniqueIds.chunked(300).forEach { chunk ->
+		uniqueIds.chunked(CELL_DETAIL_QUERY_BATCH_SIZE).forEach { chunk ->
 			context.ensureActive()
 			val local = database.importedRadioChildDao().localCellFactIds(chunk).toSet()
 			context.ensureActive()
@@ -376,40 +452,7 @@ internal class PortableCellSourceExporter @Keep @JvmOverloads constructor(
 				factId, revision, limit)
 		}
 		require(rows.size + importedRows.size <= RadioSourceFileV2.MAX_CHILDREN)
-		val local = rows.map { row ->
-			context.ensureActive()
-			check(RadioObservationChildIntegrity.cell(CellChildChecksumInput(
-				RadioChildOwner(RadioChildPurpose.BACKGROUND, row.writerId, row.writerVersion,
-					row.logicalFactId, row.semanticRevision, row.itemIndex),
-				row.providerTimestampNanos, row.observedWallTimeMs, row.wallTimeUncertaintyMs,
-				row.towerIdentity, row.radioType, row.registered, row.signalDbm,
-			)) == row.contentChecksum)
-			CellBackgroundChildV2(row.logicalFactId, row.semanticRevision, row.itemIndex,
-				row.providerTimestampNanos, row.observedWallTimeMs, row.wallTimeUncertaintyMs,
-				row.towerIdentity, row.radioType, row.registered, row.signalDbm,
-				radioChildDigest("cell", listOf(row.logicalFactId), listOf(row.semanticRevision,
-					row.itemIndex, row.providerTimestampNanos, row.observedWallTimeMs,
-					row.wallTimeUncertaintyMs, row.towerIdentity, row.radioType,
-					row.registered, row.signalDbm)))
-		}
-		val imported = importedRows.map { row ->
-			context.ensureActive()
-			CellBackgroundChildV2(row.factId, row.semanticRevision, row.itemIndex,
-				row.providerTimestampNanos, row.observedWallTimeMs, row.wallTimeUncertaintyMs,
-				row.towerIdentity, row.radioType, row.registered, row.signalDbm, row.contentChecksum)
-		}
-		val byOwner = imported.groupBy {
-			context.ensureActive()
-			Triple(it.factIdentity, it.semanticRevision, it.itemIndex)
-		}
-		check(byOwner.values.all { duplicates ->
-			context.ensureActive()
-			duplicates.distinct().size == 1
-		})
-		return local + byOwner.values.map {
-			context.ensureActive()
-			it.first()
-		}
+		return mapCellBackgroundChildren(rows, importedRows, context)
 	}
 }
 
@@ -431,3 +474,92 @@ internal fun requireCompleteCellDetails(
 		}
 	}
 }
+
+private suspend fun readImportedSessionFile(
+	database: AppDatabase,
+	identity: String,
+	product: PortableCapturedCellEntryV1,
+	importRevision: Long,
+	selectedObservationIds: Set<String>? = null,
+): CellSessionFileV2 {
+	val children = database.importedRadioChildDao().cellSessionChildren(identity,
+		importRevision, RadioSourceFileV2.MAX_CHILDREN + 1)
+	check(children.size <= RadioSourceFileV2.MAX_CHILDREN)
+	val selectedChildren = if (selectedObservationIds == null) {
+		children
+	} else {
+		children.filter { it.observationIdentity in selectedObservationIds }
+	}
+	return CellSessionFileV2(product, mapImportedCellSessionChildren(product, selectedChildren))
+}
+
+private fun mapLocalCellSessionChildren(
+	rows: List<CellCapturedChildEntity>, indexed: Map<String, Pair<String, Long>>,
+	entry: PortableCapturedCellEntryV1, context: kotlin.coroutines.CoroutineContext,
+): List<CellSessionChildV2> {
+	return rows.map { row ->
+		context.ensureActive()
+		check(RadioObservationChildIntegrity.cell(CellChildChecksumInput(
+			RadioChildOwner(RadioChildPurpose.SESSION, row.writerProjectionId,
+				row.writerProjectionVersion, row.logicalFactId, row.semanticRevision, row.itemIndex),
+			row.providerTimestampNanos, row.observedWallTimeMs, row.wallTimeUncertaintyMs,
+			row.towerIdentity, row.radioType, row.registered, row.signalDbm,
+		)) == row.contentChecksum)
+		val observationId = PortableCellOpaqueIdentity.derive(
+			PortableCellIdentityKind.OBSERVATION, row.logicalFactId).value
+		val (runId, revision) = requireNotNull(indexed[observationId])
+		check(revision == row.semanticRevision)
+		CellSessionChildV2(entry.identity.value, runId, observationId,
+			row.semanticRevision, row.itemIndex, row.providerTimestampNanos,
+			row.observedWallTimeMs, row.wallTimeUncertaintyMs, row.towerIdentity,
+			row.radioType, row.registered, row.signalDbm,
+			radioChildDigest("cell", listOf(entry.identity.value, runId, observationId),
+				listOf(row.semanticRevision, row.itemIndex, row.providerTimestampNanos,
+					row.observedWallTimeMs, row.wallTimeUncertaintyMs, row.towerIdentity,
+					row.radioType, row.registered, row.signalDbm)))
+	}
+}
+
+private fun mapCellBackgroundChildren(
+	rows: List<com.adsamcik.tracker.shared.base.database.data.AmbientCellChildEntity>,
+	importedRows: List<com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellChildEntity>,
+	context: kotlin.coroutines.CoroutineContext,
+): List<CellBackgroundChildV2> {
+	val local = rows.map { row ->
+		context.ensureActive()
+		check(RadioObservationChildIntegrity.cell(CellChildChecksumInput(
+			RadioChildOwner(RadioChildPurpose.BACKGROUND, row.writerId, row.writerVersion,
+				row.logicalFactId, row.semanticRevision, row.itemIndex),
+			row.providerTimestampNanos, row.observedWallTimeMs, row.wallTimeUncertaintyMs,
+			row.towerIdentity, row.radioType, row.registered, row.signalDbm,
+		)) == row.contentChecksum)
+		CellBackgroundChildV2(row.logicalFactId, row.semanticRevision, row.itemIndex,
+			row.providerTimestampNanos, row.observedWallTimeMs, row.wallTimeUncertaintyMs,
+			row.towerIdentity, row.radioType, row.registered, row.signalDbm,
+			radioChildDigest("cell", listOf(row.logicalFactId), listOf(row.semanticRevision,
+				row.itemIndex, row.providerTimestampNanos, row.observedWallTimeMs,
+				row.wallTimeUncertaintyMs, row.towerIdentity, row.radioType,
+				row.registered, row.signalDbm)))
+	}
+	val imported = importedRows.map { row ->
+		context.ensureActive()
+		CellBackgroundChildV2(row.factId, row.semanticRevision, row.itemIndex,
+			row.providerTimestampNanos, row.observedWallTimeMs, row.wallTimeUncertaintyMs,
+			row.towerIdentity, row.radioType, row.registered, row.signalDbm, row.contentChecksum)
+	}
+	val byOwner = imported.groupBy {
+		context.ensureActive()
+		Triple(it.factIdentity, it.semanticRevision, it.itemIndex)
+	}
+	check(byOwner.values.all { duplicates ->
+		context.ensureActive()
+		duplicates.distinct().size == 1
+	})
+	return local + byOwner.values.map {
+		context.ensureActive()
+		it.first()
+	}
+}
+
+private const val CELL_EXPORT_PAGE_SIZE = 100
+private const val CELL_DETAIL_QUERY_BATCH_SIZE = 300

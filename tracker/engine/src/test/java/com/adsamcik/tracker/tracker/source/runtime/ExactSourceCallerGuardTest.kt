@@ -32,6 +32,7 @@ import javax.inject.Provider
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
+@Suppress("LargeClass") // Shared fixtures compare manual, automatic and ambient caller authority.
 class ExactSourceCallerGuardTest {
 	@Test
 	fun `pending Off allows exact manual authority and foreground replay but no other purpose`() = runTest {
@@ -212,7 +213,7 @@ class ExactSourceCallerGuardTest {
 				manifestIdentity = MANIFEST,
 				requestedDemandIdentities = setOf(location),
 			),
-		) shouldBe rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
+		) shouldBe rejected(SourceCallerRejectionReason.AUTHORITY_INVARIANT_VIOLATION)
 	}
 
 	@Test
@@ -263,6 +264,8 @@ class ExactSourceCallerGuardTest {
 	}
 
 	@Test
+	// Keep this complete contract scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `automatic path requires exactly Activity CONTROL and checks readiness unconditionally`() =
 		runTest {
 			val steps = capture(TrackingSource.STEPS)
@@ -585,6 +588,8 @@ class ExactSourceCallerGuardTest {
 	}
 
 	@Test
+	// Keep this complete recovery scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `FGS active redelivery and process recovery replay only exact persisted authority`() = runTest {
 		val location = capture(TrackingSource.LOCATION)
 		val steps = capture(TrackingSource.STEPS)
@@ -684,7 +689,8 @@ class ExactSourceCallerGuardTest {
 		}
 	}
 
-	@Suppress("DEPRECATION")
+	// Keep this complete retention scenario with its setup, actions and unchanged assertions.
+	@Suppress("DEPRECATION", "LongMethod")
 	@Test
 	fun `legacy replay aliases preserve canonical authority and retention fences`() = runTest {
 		val location = withLease(capture(TrackingSource.LOCATION)) {
@@ -956,6 +962,8 @@ class ExactSourceCallerGuardTest {
 		}
 
 	@Test
+	// Keep this complete contract scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `session replay cannot survive automatic readiness loss and excludes ambient authority`() = runTest {
 		val capture = capture(TrackingSource.STEPS)
 		val control = control()
@@ -1225,7 +1233,7 @@ internal class TrustedSourceCallerGuardFixture(
 	val guard = ExactSourceCallerGuard(
 		startupGateProvider = startupGate?.let { gate -> Provider { gate } },
 		authorityReader = SourceCallerAuthoritySnapshotReader {
-			SourceCallerAuthoritySnapshot(current, availability, pendingManualStartGeneration)
+			SourceCallerAuthoritySnapshot(this.current, this.availability, pendingManualStartGeneration)
 		},
 		authorityRepository = object : SourceCallerAcceptedAuthorityRepository {
 			override suspend fun insertIfAbsent(

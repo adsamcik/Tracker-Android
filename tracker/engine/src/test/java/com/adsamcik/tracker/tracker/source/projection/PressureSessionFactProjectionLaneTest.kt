@@ -506,7 +506,7 @@ class PressureSessionFactProjectionLaneTest {
 	@Test
 	fun `v4 is mandatory and a terminal poison is not reread`() = runTest {
 		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
-		insertRawPressureRow(1L, wallTimeMs = 10_001L, acquiredAtMs = 10_001L)
+		insertWalEvent(pressureEvent(1L), DefaultSourcePayloadCodec())
 		val ingress = sourceIngress(0L, 1L, listOf(pressureEvent(1L, payloadVersion = 3)))
 		val subject = PressureSessionFactProjectionLane(database, ingress)
 		val expected = PressureSessionFactDrainResult.Failed(
@@ -607,7 +607,8 @@ class PressureSessionFactProjectionLaneTest {
 	fun `cancellation after a fact insert rolls back fact evidence failure and cursor`() = runTest {
 		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
 		val event = pressureEvent(1L)
-		val ingress = sourceIngress(0L, 1L, cancellingAfterFirstEvent(event))
+		insertWalEvent(event, DefaultSourcePayloadCodec())
+		val ingress = sourceIngress(0L, 1L, cancellingAfterFirstEvent(event), seedWal = false)
 		val subject = PressureSessionFactProjectionLane(database, ingress)
 		val evidenceRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
 		var cancellationPropagated = false
@@ -758,19 +759,29 @@ class PressureSessionFactProjectionLaneTest {
 		}
 	}
 
-	private fun sourceIngress(
+	private suspend fun sourceIngress(
 		afterOrdinal: Long,
 		throughOrdinal: Long,
 		events: List<AdmittedSourceEvent<PressureWindowPayload>>,
-	): DurableSourceIngress = mockk<DurableSourceIngress>().also { ingress ->
-		coEvery {
-			ingress.committedSourceBatch(
-				SourceKind.PRESSURE,
-				afterOrdinal,
-				throughOrdinal,
-				64,
-			)
-		} returns events
+		seedWal: Boolean = true,
+	): DurableSourceIngress {
+		if (seedWal) {
+			for (event in events) {
+				if (database.sourceEventWalDao().getByEventId(event.eventId.value) == null) {
+					insertWalEvent(event, DefaultSourcePayloadCodec())
+				}
+			}
+		}
+		return mockk<DurableSourceIngress>().also { ingress ->
+			coEvery {
+				ingress.committedSourceBatch(
+					SourceKind.PRESSURE,
+					afterOrdinal,
+					throughOrdinal,
+					64,
+				)
+			} returns events
+		}
 	}
 
 	private suspend fun installLane(
@@ -912,6 +923,7 @@ class PressureSessionFactProjectionLaneTest {
 		)
 
 	private fun clearProjectionFixture() {
+		database.sourceEventWalDao().deleteAll()
 		database.pressureFactRevisionDao().deleteAll()
 		database.sourceProjectionStateDao().deleteAllFailures()
 		database.sourceProjectionStateDao().deleteAllRegistrations()
@@ -952,7 +964,7 @@ class PressureSessionFactProjectionLaneTest {
 		payloadCodec: DefaultSourcePayloadCodec,
 	) {
 		val evidence = event.evidence
-		val encoded = payloadCodec.encode(evidence.payload, evidence.payloadVersion)
+		val encoded = payloadCodec.encode(evidence.payload, PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION)
 		val raw = SourceEventWalEntity(
 			admissionOrdinal = event.admissionOrdinal,
 			eventId = event.eventId.value,

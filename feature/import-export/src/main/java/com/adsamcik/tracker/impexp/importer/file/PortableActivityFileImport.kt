@@ -20,7 +20,6 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import java.io.IOException
 import java.security.MessageDigest
-import kotlinx.coroutines.CancellationException
 
 @EntryPoint
 @InstallIn(SingletonComponent::class)
@@ -45,6 +44,8 @@ internal class PortableActivityFileImport(
 	override val supportedExtensions: Collection<String> = listOf(EXTENSION)
 	override val transactionMode: ImportTransactionMode = ImportTransactionMode.IMPORTER_MANAGED
 
+	// Preserve ordered missing-provenance, malformed-input, missing-state and cleared-data results.
+	@Suppress("ReturnCount")
 	override suspend fun import(
 		context: Context,
 		database: AppDatabase,
@@ -57,8 +58,6 @@ internal class PortableActivityFileImport(
 		val epoch = stream.requireOriginalDataEpoch()
 		val envelope = try {
 			PortableActivityJsonV1Codec().decode(stream)
-		} catch (cancelled: CancellationException) {
-			throw cancelled
 		} catch (format: PortableActivityFormatException) {
 			return ImportResult(
 				failedCount = 1,
@@ -67,8 +66,6 @@ internal class PortableActivityFileImport(
 		}
 		val state = try {
 			database.sourceEvidenceStateDao().get()
-		} catch (cancelled: CancellationException) {
-			throw cancelled
 		} catch (_: SQLiteException) {
 			throw PortableActivityRetryableImportException(
 				PortableActivityTransferRetryableReason.STORAGE_UNAVAILABLE,
@@ -77,32 +74,30 @@ internal class PortableActivityFileImport(
 			failedCount = envelope.entries.size,
 			errors = listOf("Portable Activity source evidence is unavailable."),
 		)
-		if (state.collectedDataEpoch != epoch) return ImportResult(
+		if (state.collectedDataEpoch != epoch) {
+			return ImportResult(
 			failedCount = 1,
 			errors = listOf("Import stopped because recorded data was cleared"),
 		)
+		}
 		val importer = importerProvider(context)
 		var aggregate = ImportResult.EMPTY
 		envelope.entries.forEach { entry ->
-			try {
-				aggregate += importer.importEntry(
-					ImportPortableCapturedActivityRequest(
-						entry = entry,
-						receipt = PortableActivityImportReceipt(
-							jobId = fileReceipt.jobId,
-							entryKey = subordinateEntryKey(
-								fileReceipt.entryKey,
-								entry.identity.value,
-							),
-							sourceName = fileReceipt.sourceName,
-							receivedAtMs = fileReceipt.receivedAtMs,
+			aggregate += importer.importEntry(
+				ImportPortableCapturedActivityRequest(
+					entry = entry,
+					receipt = PortableActivityImportReceipt(
+						jobId = fileReceipt.jobId,
+						entryKey = subordinateEntryKey(
+							fileReceipt.entryKey,
+							entry.identity.value,
 						),
-						expectedCollectedDataEpoch = epoch,
+						sourceName = fileReceipt.sourceName,
+						receivedAtMs = fileReceipt.receivedAtMs,
 					),
-				).toFileResult()
-			} catch (cancelled: CancellationException) {
-				throw cancelled
-			}
+					expectedCollectedDataEpoch = epoch,
+				),
+			).toFileResult()
 		}
 		return aggregate
 	}

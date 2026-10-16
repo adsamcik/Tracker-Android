@@ -19,6 +19,10 @@ import kotlinx.coroutines.yield
 /** One bounded copy attempt; the existing importer owns durable progress and count identity. */
 enum class AmbientStepsImportAttemptResult { COMPLETE, DEFERRED, RETRY }
 
+/**
+ * Runs one bounded system Steps import after shared setup and current-purpose checks, preserving the
+ * cursor for later attempts.
+ */
 @Singleton
 class AmbientStepsImportRunner internal constructor(
 	private val prepare: suspend () -> Boolean,
@@ -54,7 +58,7 @@ class AmbientStepsImportRunner internal constructor(
 		boundary = {
 			val now = clock.currentTimeMillis()
 			AmbientStepsImportBoundary(bootClockDomainProvider.current(), clock.elapsedRealtimeNanos(),
-				now, now - now % 1_000L, ZoneId.systemDefault())
+				now, now - now % MILLISECONDS_PER_SECOND, ZoneId.systemDefault())
 		},
 		importNext = importer::importNext,
 	)
@@ -65,30 +69,16 @@ class AmbientStepsImportRunner internal constructor(
 	suspend fun run(): AmbientStepsImportAttemptResult = try {
 		withTimeoutOrNull(timeoutMillis) {
 			mutex.withLock {
-				if (!prepare()) return@withLock AmbientStepsImportAttemptResult.DEFERRED
+				if (!prepare()) {
+					return@withLock AmbientStepsImportAttemptResult.DEFERRED
+				}
 				val currentBoundary = boundary()
 				repeat(MAX_WINDOWS_PER_ATTEMPT) {
-					if (!importAllowed()) return@withLock AmbientStepsImportAttemptResult.DEFERRED
-					when (val result = importNext(currentBoundary)) {
-						is AmbientStepsImportResult.Applied -> {
-							if (result.window.endTimeMs >= currentBoundary.throughTimeMs) {
-								return@withLock AmbientStepsImportAttemptResult.COMPLETE
-							}
-						}
-						is AmbientStepsImportResult.Unchanged -> {
-							if (result.window.endTimeMs >= currentBoundary.throughTimeMs) {
-								return@withLock AmbientStepsImportAttemptResult.COMPLETE
-							}
-						}
-						is AmbientStepsImportResult.Gap -> {
-							if (result.toTimeMs >= currentBoundary.throughTimeMs) {
-								return@withLock AmbientStepsImportAttemptResult.COMPLETE
-							}
-						}
-						is AmbientStepsImportResult.NoEvidence -> return@withLock AmbientStepsImportAttemptResult.COMPLETE
-						is AmbientStepsImportResult.Ineligible -> return@withLock AmbientStepsImportAttemptResult.DEFERRED
-						is AmbientStepsImportResult.Retryable,
-						is AmbientStepsImportResult.Stale -> return@withLock AmbientStepsImportAttemptResult.RETRY
+					if (!importAllowed()) {
+						return@withLock AmbientStepsImportAttemptResult.DEFERRED
+					}
+					importNext(currentBoundary).attemptDisposition(currentBoundary.throughTimeMs)?.let { disposition ->
+						return@withLock disposition
 					}
 					yield()
 				}
@@ -101,8 +91,39 @@ class AmbientStepsImportRunner internal constructor(
 		AmbientStepsImportAttemptResult.RETRY
 	}
 
+	private fun AmbientStepsImportResult.attemptDisposition(throughTimeMs: Long): AmbientStepsImportAttemptResult? =
+		when (this) {
+			is AmbientStepsImportResult.Applied -> {
+				if (window.endTimeMs >= throughTimeMs) {
+					AmbientStepsImportAttemptResult.COMPLETE
+				} else {
+					null
+				}
+			}
+			is AmbientStepsImportResult.Unchanged -> {
+				if (window.endTimeMs >= throughTimeMs) {
+					AmbientStepsImportAttemptResult.COMPLETE
+				} else {
+					null
+				}
+			}
+			is AmbientStepsImportResult.Gap -> {
+				if (toTimeMs >= throughTimeMs) {
+					AmbientStepsImportAttemptResult.COMPLETE
+				} else {
+					null
+				}
+			}
+			is AmbientStepsImportResult.NoEvidence -> AmbientStepsImportAttemptResult.COMPLETE
+			is AmbientStepsImportResult.Ineligible -> AmbientStepsImportAttemptResult.DEFERRED
+			is AmbientStepsImportResult.Retryable,
+			is AmbientStepsImportResult.Stale -> AmbientStepsImportAttemptResult.RETRY
+		}
+
 	internal companion object {
 		const val ATTEMPT_TIMEOUT_MILLIS = 30_000L
 		const val MAX_WINDOWS_PER_ATTEMPT = 32
 	}
 }
+
+private const val MILLISECONDS_PER_SECOND = 1_000L

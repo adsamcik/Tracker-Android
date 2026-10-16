@@ -40,4 +40,24 @@
     <string name="format_database">Backup database (ZIP)</string>
     <string name="settings_import_summary">Importa dati da tipi supportati (%1$s) e archivi (%2$s). Le importazioni di database uniscono le righe compatibili; non sostituiscono i dati esistenti.</string>
     <string name="settings_import_title">Importa</string>
+    <string name="export_radio_sensitivity_title">Esportare i dettagli delle reti?</string>
+    <string name="export_wifi_sensitivity_message">Questo file include nomi Wi-Fi e ID dei punti di accesso salvati.</string>
+    <string name="export_cell_sensitivity_message">Questo file include ID delle antenne e misurazioni del segnale salvati.</string>
+    <string name="export_radio_no_data">Nessun dato salvato per questa fonte</string>
+    <string name="export_include_complete_sessions">Includi sessioni complete</string>
+    <string name="import_location_conflict_title">Sostituire i punti salvati?</string>
+    <string name="import_location_replace">Usa i punti del file</string>
+    <string name="import_location_keep">Mantieni i punti salvati</string>
+    <string name="export_backup_review_title">Controlla i backup pianificati</string>
+    <string name="export_backup_review_summary">In pausa finché non controlli il backup dei dati aggiornato.</string>
+    <string name="export_backup_review_message">Queste pianificazioni ora salvano tutti i dati di tracciamento e i file necessari per ripristinarli. Le impostazioni sono escluse. Riprendere queste pianificazioni?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Riprendi i backup</string>
+    <string name="import_backup_replace_title">Ripristinare il backup dei dati?</string>
+    <string name="import_backup_replace_message">Sostituire i dati salvati con questo backup? Le impostazioni non cambieranno. Il tracciamento resterà disattivato finché non lo riprendi.</string>
+    <string name="import_backup_restore">Sostituisci i dati</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d punto in questo file è diverso dalla copia salvata. Scegli quale mantenere. Gli altri punti verranno importati normalmente.</item>
+        <item quantity="many">%d punti in questo file sono diversi dalle copie salvate. Scegli quali mantenere. Gli altri punti verranno importati normalmente.</item>
+        <item quantity="other">%d punti in questo file sono diversi dalle copie salvate. Scegli quali mantenere. Gli altri punti verranno importati normalmente.</item>
+    </plurals>
 </resources>

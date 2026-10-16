@@ -28,6 +28,10 @@ data class ExportSelectedPortablePressureRequest(
 
 /** Receives one fully authenticated logical Pressure entry. */
 fun interface PortablePressureEntrySink {
+	/**
+	 * Accepts one prepared Pressure entry; the caller owns staging and discarding bytes if the
+	 * enclosing export fails.
+	 */
 	suspend fun emit(entry: PortablePressureEntryV1)
 }
 
@@ -82,10 +86,21 @@ data class ImportPortablePressureRequest(
 
 /** Import admission never creates live capture authority or a live Pressure fact. */
 interface ImportPortablePressure {
+	/**
+	 * Admits one decoded Pressure entry and file receipt under the expected data epoch; imports do
+	 * not grant live capture authority.
+	 */
 	suspend fun importEntry(request: ImportPortablePressureRequest): ImportPortablePressureResult
 }
 
+/**
+ * Imported Pressure admission outcome, reporting saved revision/run/window counts independently of
+ * rejected transfers.
+ */
 sealed interface ImportPortablePressureResult {
+	/**
+	 * Reports the imported revision and physical-run/window counts saved for the Pressure entry.
+	 */
 	data class Applied(
 		val importRevision: Long,
 		val physicalRunCount: Int,
@@ -98,25 +113,41 @@ sealed interface ImportPortablePressureResult {
 		}
 	}
 
+	/**
+	 * The same Pressure entry is already represented at the returned import revision.
+	 */
 	data class Duplicate(val importRevision: Long) : ImportPortablePressureResult {
 		init {
 			require(importRevision > 0L)
 		}
 	}
 
+	/**
+	 * The stated lifecycle, selection or privacy boundary prevents this operation from continuing.
+	 */
 	data class Blocked(
 		val reason: PortablePressureImportBlockedReason,
 	) : ImportPortablePressureResult
 
+	/**
+	 * The required stored scope or source lineage could not be verified for this operation.
+	 */
 	data class Unverifiable(
 		val reason: PortablePressureImportUnverifiableReason,
 	) : ImportPortablePressureResult
 
+	/**
+	 * A temporary storage or concurrent-state failure prevents completion and allows a retry.
+	 */
 	data class RetryableFailure(
 		val reason: PortablePressureTransferRetryableReason,
 	) : ImportPortablePressureResult
 }
 
+/**
+ * Existing deletion, retention, receipt, identity or data-epoch conflicts that prevent imported
+ * Pressure admission.
+ */
 enum class PortablePressureImportBlockedReason {
 	COLLECTED_DATA_EPOCH_CHANGED,
 	RECEIPT_CONFLICT,
@@ -127,6 +158,10 @@ enum class PortablePressureImportBlockedReason {
 	RETENTION_TRUNCATED,
 }
 
+/**
+ * Invalid entry or stored evidence and exceeded hierarchy/revision/value limits during Pressure
+ * admission.
+ */
 enum class PortablePressureImportUnverifiableReason {
 	ENTRY_INVALID,
 	SOURCE_EVIDENCE_STATE_MISSING,
@@ -141,18 +176,30 @@ enum class PortablePressureImportUnverifiableReason {
 
 /** No-entry and unverifiable outcomes cannot be mistaken for successful empty data. */
 sealed interface ExportPortablePressureResult {
+	/**
+	 * The complete Pressure export emitted the reported positive number of logical entries.
+	 */
 	data class Exported(val entryCount: Int) : ExportPortablePressureResult {
 		init {
 			require(entryCount > 0)
 		}
 	}
 
+	/**
+	 * No retained Pressure entry matches the export selection.
+	 */
 	data object NoEntries : ExportPortablePressureResult
 
+	/**
+	 * The required stored scope or source lineage could not be verified for this operation.
+	 */
 	data class Unverifiable(
 		val reason: PortablePressureExportUnverifiableReason,
 	) : ExportPortablePressureResult
 
+	/**
+	 * A temporary storage or concurrent-state failure prevents completion and allows a retry.
+	 */
 	data class RetryableFailure(
 		val reason: PortablePressureTransferRetryableReason,
 	) : ExportPortablePressureResult
@@ -167,6 +214,9 @@ enum class PortablePressureExportUnverifiableReason {
 	DEPENDENCY_OVERFLOW,
 }
 
+/**
+ * Concurrent-state or storage failure permitting retry of the Pressure transfer.
+ */
 enum class PortablePressureTransferRetryableReason {
 	CONCURRENT_STATE_CHANGE,
 	STORAGE_UNAVAILABLE,

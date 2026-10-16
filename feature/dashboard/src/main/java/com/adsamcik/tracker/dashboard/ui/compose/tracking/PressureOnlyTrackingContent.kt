@@ -96,7 +96,9 @@ internal fun PressureOnlyTrackingCard(pressure: DashboardLivePressureValue) {
 				style = MaterialTheme.typography.bodySmall,
 				color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
 			)
-			if (metrics != null) PressureDetails(metrics)
+			if (metrics != null) {
+				PressureDetails(metrics)
+			}
 		}
 	}
 }

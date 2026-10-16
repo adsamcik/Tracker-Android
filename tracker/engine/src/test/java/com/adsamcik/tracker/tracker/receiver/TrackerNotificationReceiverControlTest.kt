@@ -32,7 +32,7 @@ class TrackerNotificationReceiverControlTest {
     fun `timed out End finishes broadcast without issuing another Stop`() = runTest {
         mockkObject(TrackerServiceApi)
         try {
-            val receiver = spyk(TrackerNotificationReceiver())
+            val receiver = createReceiver()
             receiver.applicationScope = this
             every { receiver.goAsync() } returns pendingResult
             val intent = actionIntent(TrackerNotificationReceiver.STOP_TRACKING_ACTION)
@@ -62,7 +62,7 @@ class TrackerNotificationReceiverControlTest {
     fun `unavailable Turn off does not issue an unscoped second command`() = runTest {
         mockkObject(TrackerServiceApi)
         try {
-            val receiver = spyk(TrackerNotificationReceiver())
+            val receiver = createReceiver()
             receiver.applicationScope = this
             every { receiver.goAsync() } returns pendingResult
             coEvery { TrackerServiceApi.turnOffTrackingAndAwait(context, any()) } returns
@@ -77,6 +77,18 @@ class TrackerNotificationReceiverControlTest {
         } finally {
             unmockkObject(TrackerServiceApi)
         }
+    }
+
+    private fun createReceiver(): TrackerNotificationReceiver {
+        val receiver = spyk(TrackerNotificationReceiver())
+        // The generated Hilt base appears only on transformed Android classpaths. These tests
+        // supply their dependencies directly and exercise the receiver's real control actions.
+        generateSequence<Class<*>>(receiver.javaClass) { it.superclass }
+            .firstOrNull { it.simpleName == "Hilt_TrackerNotificationReceiver" }
+            ?.getDeclaredField("injected")
+            ?.apply { isAccessible = true }
+            ?.setBoolean(receiver, true)
+        return receiver
     }
 
     private fun actionIntent(action: Int): Intent = mockk {

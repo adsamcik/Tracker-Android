@@ -43,6 +43,8 @@ class ImportedCellMigration27To28Test {
 	}
 
 	@Test
+	// One migration, persist and production-reopen sequence proves Cell deletion authority survives intact.
+	@Suppress("LongMethod")
 	fun importedCellTablesAreAdditiveAndDurableAcrossProductionReopen() {
 		helper.createDatabase(DATABASE, 27).close()
 		helper.runMigrationsAndValidate(DATABASE, 28, true, MIGRATION_27_28).use { database ->

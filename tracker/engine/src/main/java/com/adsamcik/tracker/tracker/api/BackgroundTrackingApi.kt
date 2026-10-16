@@ -47,6 +47,8 @@ import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import com.adsamcik.tracker.tracker.source.runtime.SharedStepSourceController
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
+import com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterSetupResult
 import com.adsamcik.tracker.tracker.service.ForegroundSourceCapabilities
 import com.adsamcik.tracker.tracker.service.acceptedForegroundSources
 import com.adsamcik.tracker.tracker.service.configuredForegroundSources
@@ -88,6 +90,8 @@ import kotlinx.coroutines.withContext
 /**
  * Hilt EntryPoint for accessing dependencies from BackgroundTrackingApi singleton
  */
+// One Hilt dependency bridge for BackgroundTrackingApi; these accessors contain no control logic.
+@Suppress("TooManyFunctions")
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface BackgroundTrackingApiEntryPoint {
@@ -100,9 +104,13 @@ interface BackgroundTrackingApiEntryPoint {
 	fun automaticControlRecoveryScheduler(): AutomaticControlRecoveryScheduler
 	fun trackingStartupGate(): TrackingStartupGate
 	fun trackingRolloutStateStore(): RoomTrackingRolloutStateStore
+	/** Provides the shared writer preparation used before enabling selected sources. */
 	fun chosenSourceWriterSetup(): ChosenSourceWriterSetup
+	/** Provides the current readiness snapshot for session, automatic and all-day purposes. */
 	fun currentTrackingPurposeAvailabilityReader(): CurrentTrackingPurposeAvailabilityReader
+	/** Provides the owner that applies saved source choices to purpose lifetimes. */
 	fun trackingPurposeSettingsReconciler(): TrackingPurposeSettingsReconciler
+	/** Provides the observable purpose status used by product surfaces. */
 	fun trackingPurposeAvailabilityReader(): TrackingPurposeAvailabilityReader
 }
 
@@ -325,23 +333,8 @@ object BackgroundTrackingApi {
 	): ActivityAutomationDeliveryResult {
 		val authority = activityAutomationAuthority
 		val params = cachedParamsSnapshot()
-		if (!authority.isCoherent || params.sourcePolicyRevision != authority.activePolicyRevision) {
-			return ActivityAutomationDeliveryResult.RETRY
-		}
-		val availabilityReader = try {
-			getEntryPoint(context).currentTrackingPurposeAvailabilityReader()
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (_: Exception) {
-			return ActivityAutomationDeliveryResult.RETRY
-		}
-		val currentRevision = availabilityReader.authorityRevision.value
-		if (
-			!currentRevision.isAvailable ||
-			currentRevision.policyRevision != authority.activePolicyRevision
-		) {
-			return ActivityAutomationDeliveryResult.RETRY
-		}
+		val availabilityReader = coherentAutomaticAvailabilityReader(context, authority, params)
+			?: return ActivityAutomationDeliveryResult.RETRY
 		// The API's Flow collector can lag the source-owned publication on a cold callback.
 		val currentAvailability = availabilityReader.availability.value
 		val publishedControl = currentAvailability.automaticControl
@@ -351,15 +344,35 @@ object BackgroundTrackingApi {
 				else -> ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
 			}
 		}
-		val controlCurrent = try {
-			availabilityReader.isCurrent(publishedControl.identity)
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (_: Exception) {
-			return ActivityAutomationDeliveryResult.RETRY
+		return availabilityReader.handleAuthorizedActivityEvidence(context, evidence, controlConsentEpoch,
+			currentAutomationEpoch, startContext, requestAutomaticStart, params, authority,
+			currentAvailability, publishedControl)
+	}
+
+	private fun coherentAutomaticAvailabilityReader(
+		context: Context, authority: ActivityAutomationAuthoritySnapshot, params: TrackingParamsState,
+	): CurrentTrackingPurposeAvailabilityReader? {
+		if (!authority.isCoherent || params.sourcePolicyRevision != authority.activePolicyRevision) {
+			return null
 		}
+		val reader = runCatchingNonCancellation {
+			getEntryPoint(context).currentTrackingPurposeAvailabilityReader()
+		}.getOrNull() ?: return null
+		val currentRevision = reader.authorityRevision.value
+		return reader.takeIf { currentRevision.isAvailable &&
+			currentRevision.policyRevision == authority.activePolicyRevision }
+	}
+
+	// Preserve one captured publication while validating its original CONTROL authority.
+	private suspend fun CurrentTrackingPurposeAvailabilityReader.currentDurableActivityDisposition(
+		authority: ActivityAutomationAuthoritySnapshot, currentAvailability: CurrentTrackingPurposeAvailability,
+		publishedControl: AutomaticTrackingOperationalAvailability.Ready, controlConsentEpoch: Long,
+		currentAutomationEpoch: Long, evidence: ActivityAutomationDeliveryEnvelope,
+	): ActivityAutomationDeliveryResult? {
+		val controlCurrent = runCatchingNonCancellation { isCurrent(publishedControl.identity) }
+			.getOrElse { return ActivityAutomationDeliveryResult.RETRY }
 		if (!controlCurrent) return ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
-		durableActivityAuthorityDisposition(
+		return durableActivityAuthorityDisposition(
 			paramsInitialized = authority.paramsInitialized,
 			activePolicyRevision = authority.activePolicyRevision,
 			paramsPolicyRevision = authority.paramsPolicyRevision,
@@ -373,21 +386,29 @@ object BackgroundTrackingApi {
 			effectControlConsentEpoch = controlConsentEpoch,
 			currentAutomationEpoch = currentAutomationEpoch,
 			effectAutomationEpoch = evidence.automationEpoch,
-		)?.let { return it }
-		var setupPending = false
-		if (startContext == ActivityAutomationStartContext.FRESH_TRANSITION_CALLBACK && !TrackerServiceApi.hasLiveCapture(context)) {
-			val deadline = activityTransitionCallbackEnqueueDeadlineElapsedRealtimeNanos(
-				evidence.observedElapsedRealtimeNanos, evidence.receivedElapsedRealtimeNanos)
-			val remaining = deadline - android.os.SystemClock.elapsedRealtimeNanos()
-			if (remaining <= 0L) return ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
-			val setup = withTimeoutOrNull(remaining / 1_000_000L) {
-				getEntryPoint(context).chosenSourceWriterSetup().ensure(configuredForegroundSources(params))
-			} ?: return ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
-			setupPending = setup.pendingSources.isNotEmpty()
-			if (android.os.SystemClock.elapsedRealtimeNanos() >= deadline) return ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
-			// Setup cannot extend the original callback, CONTROL lease, policy or epoch authority.
-			if (!availabilityReader.isCurrent(publishedControl.identity)) return ActivityAutomationDeliveryResult.RETRY
-		}
+		)
+	}
+
+	private suspend fun prepareAutomaticSourceWriters(
+		context: Context, evidence: ActivityAutomationDeliveryEnvelope, params: TrackingParamsState,
+	): ChosenSourceWriterSetupResult? {
+		val deadline = activityTransitionCallbackEnqueueDeadlineElapsedRealtimeNanos(
+			evidence.observedElapsedRealtimeNanos, evidence.receivedElapsedRealtimeNanos)
+		val remaining = deadline - android.os.SystemClock.elapsedRealtimeNanos()
+		if (remaining <= 0L) return null
+		val setup = withTimeoutOrNull(remaining / 1_000_000L) {
+			getEntryPoint(context).chosenSourceWriterSetup().ensure(configuredForegroundSources(params))
+		} ?: return null
+		return setup.takeIf { android.os.SystemClock.elapsedRealtimeNanos() < deadline }
+	}
+
+	// Keep the captured event and preferences explicit; no mutable automation context is introduced.
+	@Suppress("LongParameterList")
+	private suspend fun dispatchPreparedDurableActivityEvidence(
+		context: Context, evidence: ActivityAutomationDeliveryEnvelope, startContext: ActivityAutomationStartContext,
+		params: TrackingParamsState, authority: ActivityAutomationAuthoritySnapshot, setupPending: Boolean,
+		requestAutomaticStart: suspend (AutomaticTrackingStartTrigger) -> ActivityAutomationDeliveryResult,
+	): ActivityAutomationDeliveryResult {
 		val rollout = getEntryPoint(context).trackingRolloutStateStore().load()
 		val startPlan = activityAutomaticStartPlan(
 			context.applicationContext,
@@ -395,7 +416,8 @@ object BackgroundTrackingApi {
 			rollout,
 		)
 		if (startPlan.captureSourceMask == 0L) {
-			return if (setupPending) ActivityAutomationDeliveryResult.RETRY else ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
+			return if (setupPending) ActivityAutomationDeliveryResult.RETRY else
+				ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
 		}
 		val automaticTrigger = evidence.toAutomaticTrackingStartTrigger(
 			startContext = startContext,
@@ -421,6 +443,31 @@ object BackgroundTrackingApi {
 				requestAutomaticStart,
 			)
 		}
+	}
+
+	// Reuse the same publication and callback deadline throughout authorization, setup and dispatch.
+	@Suppress("LongParameterList")
+	private suspend fun CurrentTrackingPurposeAvailabilityReader.handleAuthorizedActivityEvidence(
+		context: Context, evidence: ActivityAutomationDeliveryEnvelope, controlConsentEpoch: Long,
+		currentAutomationEpoch: Long, startContext: ActivityAutomationStartContext,
+		requestAutomaticStart: suspend (AutomaticTrackingStartTrigger) -> ActivityAutomationDeliveryResult,
+		params: TrackingParamsState, authority: ActivityAutomationAuthoritySnapshot,
+		currentAvailability: CurrentTrackingPurposeAvailability,
+		publishedControl: AutomaticTrackingOperationalAvailability.Ready,
+	): ActivityAutomationDeliveryResult {
+		currentDurableActivityDisposition(authority, currentAvailability, publishedControl,
+			controlConsentEpoch, currentAutomationEpoch, evidence)?.let { return it }
+		var setupPending = false
+		if (startContext == ActivityAutomationStartContext.FRESH_TRANSITION_CALLBACK &&
+			!TrackerServiceApi.hasLiveCapture(context)) {
+			val setup = prepareAutomaticSourceWriters(context, evidence, params)
+				?: return ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
+			setupPending = setup.pendingSources.isNotEmpty()
+			// Setup cannot extend the original callback, CONTROL lease, policy or epoch authority.
+			if (!isCurrent(publishedControl.identity)) return ActivityAutomationDeliveryResult.RETRY
+		}
+		return dispatchPreparedDurableActivityEvidence(context, evidence, startContext, params,
+			authority, setupPending, requestAutomaticStart)
 	}
 
 	/**
@@ -526,7 +573,8 @@ object BackgroundTrackingApi {
 			} catch (cancelled: CancellationException) {
 				recoveryCompletion?.cancel(cancelled)
 				throw cancelled
-			} catch (failure: Exception) {
+			} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+				// Arrange automatic-control recovery before the same mutation failure reaches its isolated caller.
 				if (recoveryCompletion == null) getEntryPoint(context).automaticControlRecoveryScheduler().enqueue()
 				throw failure
 			} finally {
@@ -677,7 +725,7 @@ object BackgroundTrackingApi {
 				if (!paramsInitialized ||
 					params.transitionDetectionEnabled != previousParams.transitionDetectionEnabled
 				) {
-					handleTransitionPreferenceChange(params.transitionDetectionEnabled)
+					handleTransitionPreferenceChange()
 				}
 				paramsInitialized = params.sourcePolicyRevision != null
 				publishActivityAutomationAuthority()
@@ -871,7 +919,7 @@ object BackgroundTrackingApi {
 		publishActivityAutomationAuthority()
 	}
 
-	private fun handleTransitionPreferenceChange(enabled: Boolean) {
+	private fun handleTransitionPreferenceChange() {
 		val context = appContext ?: return
 		if (isActive) {
 			if (getEntryPoint(context).trackingStartupGate().permitsNewCollection) {
@@ -977,6 +1025,9 @@ internal fun <T> Flow<T>.retryingTrackingSettingsObservation(
 	onFailure: suspend (Throwable) -> Unit,
 	waitBeforeRetry: suspend () -> Unit,
 ): Flow<T> = retryWhen { error, _ ->
+	if (error is CancellationException) {
+		throw error
+	}
 	currentCoroutineContext().ensureActive()
 	onFailure(error)
 	waitBeforeRetry()
@@ -1097,40 +1148,15 @@ internal suspend fun runAutomaticControlContainmentAttempt(
 	startImmediateCleanup: () -> Deferred<AutomaticControlRecoveryResult>,
 	establishRetryOwnership: () -> Unit,
 ): AutomaticControlContainmentAttemptResult {
-	var cleanupFailure: Exception? = null
-	val cleanup = try {
-		startImmediateCleanup()
-	} catch (cancellation: CancellationException) {
-		throw cancellation
-	} catch (error: Exception) {
-		cleanupFailure = error
-		null
-	}
-
-	var retryOwnershipFailure: Exception? = null
-	val retryOwnershipEstablished = try {
-		establishRetryOwnership()
-		true
-	} catch (cancellation: CancellationException) {
-		throw cancellation
-	} catch (error: Exception) {
-		retryOwnershipFailure = error
-		false
-	}
-
-	val cleanupResult = try {
-		cleanup?.await()
-	} catch (cancellation: CancellationException) {
-		throw cancellation
-	} catch (error: Exception) {
-		cleanupFailure = error
-		null
-	}
+	val cleanup = runCatchingNonCancellation { startImmediateCleanup() }
+	val retryOwnership = runCatchingNonCancellation { establishRetryOwnership() }
+	val cleanupResult = runCatchingNonCancellation { cleanup.getOrNull()?.await() }
 	return AutomaticControlContainmentAttemptResult(
-		cleanupResult = cleanupResult,
-		retryOwnershipEstablished = retryOwnershipEstablished,
-		cleanupFailure = cleanupFailure,
-		retryOwnershipFailure = retryOwnershipFailure,
+		cleanupResult = cleanupResult.getOrNull(),
+		retryOwnershipEstablished = retryOwnership.isSuccess,
+		// The shared helper captures only Exception and always propagates cancellation.
+		cleanupFailure = (cleanupResult.exceptionOrNull() ?: cleanup.exceptionOrNull()) as Exception?,
+		retryOwnershipFailure = retryOwnership.exceptionOrNull() as Exception?,
 	)
 }
 

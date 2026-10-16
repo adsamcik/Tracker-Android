@@ -37,63 +37,8 @@ internal class FakeSourceCallerDemandDispatcher(
 			request.manifest.logicalTrackingId,
 			request.manifest.manifestRevision,
 		)
-		val sessionLeaseOwner = database.sourceProjectionStateDao()
-			.lease("tracking-session-coordinator")
-			?.ownerToken
-			?: error("Session lease is missing during caller acceptance")
-		val identities = request.bindings.mapTo(linkedSetOf()) { binding ->
-			val source = TrackingSource.fromStableCode(binding.sourceKind)
-			val purpose = when (binding.purpose) {
-				SourceBrokerPurpose.SESSION_CAPTURE -> TrackingPurpose.SESSION_CAPTURE
-				"CONTROL" -> TrackingPurpose.CONTROL
-				else -> error("Unsupported test binding purpose ${binding.purpose}")
-			}
-			SourceCallerDemandIdentity(
-				purposeLeaseIdentity = TrackingPurposeLeaseIdentity(
-					sourcePurpose = source.forPurpose(purpose),
-					policyRevision = request.manifest.sourcePolicyRevision,
-					consentEpoch = binding.consentEpoch,
-					collectedDataEpoch = 0L,
-					rolloutRevision = request.manifest.rolloutRevision,
-					executionRevision = request.lifecycleLeaseGeneration,
-					ownerCasToken = if (purpose == TrackingPurpose.SESSION_CAPTURE) {
-						sessionLeaseOwner
-					} else {
-						"test-source-caller"
-					},
-				),
-				manifestIdentity = manifestIdentity.takeIf {
-					purpose == TrackingPurpose.SESSION_CAPTURE
-				},
-			)
-		}
-		val receipt = SourceCallerAcceptanceReceipt(
-			reference = SourceCallerReplayReference(
-				if (request.mutation == SessionDemandMutation.AUTHORITY_ONLY ||
-					request.manifest.changeReason == "PROVIDER_STEPS_JOIN") {
-					"test:${request.manifest.logicalTrackingId}:" +
-						"${request.manifest.manifestRevision}:authority:${java.util.UUID.randomUUID()}"
-				} else {
-					"test:${request.manifest.logicalTrackingId}:${request.manifest.manifestRevision}"
-				},
-			),
-			permittedDemandIdentities = identities,
-		)
-		check(repository.insertIfAbsent(
-			receipt.reference,
-			StoredSourceCallerAuthority(
-				origin = when {
-					request.startOrigin == SessionStartOrigin.RECOVERY ->
-						StoredSourceCallerOrigin.RECOVERY
-					request.sessionMode == SessionMode.MANUAL -> StoredSourceCallerOrigin.MANUAL
-					request.sessionMode == SessionMode.AUTOMATIC -> StoredSourceCallerOrigin.AUTOMATIC
-					else -> error("Unsupported legacy test session")
-				},
-				purpose = TrackingPurpose.SESSION_CAPTURE,
-				permittedDemandIdentities = identities,
-			),
-			request.wallTimeMs,
-		))
+		val identities = currentCallerIdentities(request, manifestIdentity)
+		val receipt = acceptSessionCaller(request, identities)
 		val demands = broker.buildSessionDemands(
 			logicalTrackingId = request.manifest.logicalTrackingId,
 			serviceRunId = request.manifest.serviceRunId,
@@ -131,6 +76,74 @@ internal class FakeSourceCallerDemandDispatcher(
 		return SessionSourceDemandDispatchResult.Permitted(receipt)
 	}
 
+	private suspend fun currentCallerIdentities(
+		request: SessionSourceDemandDispatchRequest, manifestIdentity: SourceCallerManifestIdentity,
+	): Set<SourceCallerDemandIdentity> {
+		val sessionLeaseOwner = database.sourceProjectionStateDao()
+			.lease("tracking-session-coordinator")
+			?.ownerToken
+			?: error("Session lease is missing during caller acceptance")
+		return request.bindings.mapTo(linkedSetOf()) { binding ->
+			val source = TrackingSource.fromStableCode(binding.sourceKind)
+			val purpose = when (binding.purpose) {
+				SourceBrokerPurpose.SESSION_CAPTURE -> TrackingPurpose.SESSION_CAPTURE
+				"CONTROL" -> TrackingPurpose.CONTROL
+				else -> error("Unsupported test binding purpose ${binding.purpose}")
+			}
+			SourceCallerDemandIdentity(
+				purposeLeaseIdentity = TrackingPurposeLeaseIdentity(
+					sourcePurpose = source.forPurpose(purpose),
+					policyRevision = request.manifest.sourcePolicyRevision,
+					consentEpoch = binding.consentEpoch,
+					collectedDataEpoch = 0L,
+					rolloutRevision = request.manifest.rolloutRevision,
+					executionRevision = request.lifecycleLeaseGeneration,
+					ownerCasToken = if (purpose == TrackingPurpose.SESSION_CAPTURE) {
+						sessionLeaseOwner
+					} else {
+						"test-source-caller"
+					},
+				),
+				manifestIdentity = manifestIdentity.takeIf {
+					purpose == TrackingPurpose.SESSION_CAPTURE
+				},
+			)
+		}
+	}
+
+	private suspend fun acceptSessionCaller(
+		request: SessionSourceDemandDispatchRequest, identities: Set<SourceCallerDemandIdentity>,
+	): SourceCallerAcceptanceReceipt {
+		val receipt = SourceCallerAcceptanceReceipt(
+			reference = SourceCallerReplayReference(
+				if (request.mutation == SessionDemandMutation.AUTHORITY_ONLY ||
+					request.manifest.changeReason == "PROVIDER_STEPS_JOIN") {
+					"test:${request.manifest.logicalTrackingId}:" +
+						"${request.manifest.manifestRevision}:authority:${java.util.UUID.randomUUID()}"
+				} else {
+					"test:${request.manifest.logicalTrackingId}:${request.manifest.manifestRevision}"
+				},
+			),
+			permittedDemandIdentities = identities,
+		)
+		check(repository.insertIfAbsent(
+			receipt.reference,
+			StoredSourceCallerAuthority(
+				origin = when {
+					request.startOrigin == SessionStartOrigin.RECOVERY ->
+						StoredSourceCallerOrigin.RECOVERY
+					request.sessionMode == SessionMode.MANUAL -> StoredSourceCallerOrigin.MANUAL
+					request.sessionMode == SessionMode.AUTOMATIC -> StoredSourceCallerOrigin.AUTOMATIC
+					else -> error("Unsupported legacy test session")
+				},
+				purpose = TrackingPurpose.SESSION_CAPTURE,
+				permittedDemandIdentities = identities,
+			),
+			request.wallTimeMs,
+		))
+		return receipt
+	}
+
 	override suspend fun replayPreparedSession(
 		manifestIdentity: SourceCallerManifestIdentity,
 		reference: SourceCallerReplayReference,
@@ -143,7 +156,8 @@ internal class FakeSourceCallerDemandDispatcher(
 				SourceCallerRejectionReason.REPLAY_KIND_REQUIRES_FRESH_ACCEPTANCE,
 			),
 		)
-	} else when (val loaded = repository.load(reference)) {
+	} else {
+		when (val loaded = repository.load(reference)) {
 		is StoredSourceCallerAuthorityLoadResult.Available ->
 			SourceCallerGuardResult.Permitted(
 				SourceCallerAcceptanceReceipt(reference, loaded.authority.permittedDemandIdentities),
@@ -154,6 +168,7 @@ internal class FakeSourceCallerDemandDispatcher(
 		-> SourceCallerGuardResult.Rejected(
 			SourceCallerGuardRejection(SourceCallerRejectionReason.REPLAY_AUTHORITY_UNAVAILABLE),
 		)
+	}
 	}
 
 	override suspend fun authenticatePreparedSession(

@@ -37,6 +37,8 @@ class ImportedPressureMaintenanceMigration27To28Test {
 	}
 
 	@Test
+	// One migrated snapshot checks empty Pressure maintenance authority, exact links and legacy-compatible shape.
+	@Suppress("LongMethod")
 	fun importedPressureMaintenanceAuthorityIsAdditive() {
 		helper.createDatabase(DATABASE, 27).close()
 		helper.runMigrationsAndValidate(DATABASE, 28, true, MIGRATION_27_28).use { database ->

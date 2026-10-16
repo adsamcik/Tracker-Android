@@ -63,29 +63,20 @@ internal object SQLiteDatabaseCopyLockProvider : DatabaseCopyLockProvider {
 		)
 		try {
 			var locked = false
-			repeat(3) {
+			repeat(CHECKPOINT_LOCK_ATTEMPTS) {
 				if (!locked) {
-					// Compare on the same primary connection. A pooled read connection has its
-					// own data_version counter and cannot prove the checkpoint-to-lock gap.
-					database.beginTransaction()
-					val before = try {
-						database.rawQuery("PRAGMA data_version", null).use { cursor -> cursor.moveToFirst(); cursor.getLong(0) }
-					} finally { database.endTransaction() }
-					val checkpointed = database.rawQuery("PRAGMA wal_checkpoint(FULL)", emptyArray()).use { cursor ->
-						cursor.moveToFirst() && cursor.getInt(0) == 0 && cursor.getLong(1) == cursor.getLong(2)
-					}
-					if (checkpointed) {
-						database.beginTransaction()
-						val after = database.rawQuery("PRAGMA data_version", null).use { cursor -> cursor.moveToFirst(); cursor.getLong(0) }
-						locked = before == after
-						if (!locked) database.endTransaction()
-					}
+					locked = checkpointAndLock(database)
 				}
 			}
 			check(locked) { "Database changed while preparing its backup snapshot" }
 		} catch (exception: Exception) {
-			try { if (database.inTransaction()) database.endTransaction() }
-			catch (cleanup: Exception) { exception.addSuppressed(cleanup) }
+			try { if (database.inTransaction()) {
+				database.endTransaction()
+			} }
+			catch (
+				// Transaction cleanup failures remain attached to the original snapshot failure.
+				@Suppress("TooGenericExceptionCaught") cleanup: Exception
+			) { exception.addSuppressed(cleanup) }
 			finally { database.close() }
 			throw exception
 		}
@@ -97,4 +88,31 @@ internal object SQLiteDatabaseCopyLockProvider : DatabaseCopyLockProvider {
 			}
 		}
 	}
+
+	private fun checkpointAndLock(database: SQLiteDatabase): Boolean {
+		// Compare on the same primary connection. A pooled read connection has its
+		// own data_version counter and cannot prove the checkpoint-to-lock gap.
+		database.beginTransaction()
+		val before = try {
+			database.rawQuery("PRAGMA data_version", null).use { cursor ->
+	                            cursor.moveToFirst(); cursor.getLong(0) }
+		} finally { database.endTransaction() }
+		val checkpointed = database.rawQuery("PRAGMA wal_checkpoint(FULL)", emptyArray()).use { cursor ->
+			cursor.moveToFirst() && cursor.getInt(0) == 0 && cursor.getLong(1) == cursor.getLong(2)
+		}
+		var locked = false
+		if (checkpointed) {
+			database.beginTransaction()
+			val after = database.rawQuery("PRAGMA data_version", null).use { cursor ->
+	                            cursor.moveToFirst(); cursor.getLong(0) }
+			locked = before == after
+			if (!locked) {
+				database.endTransaction()
+			}
+		}
+		return locked
+	}
+
 }
+
+private const val CHECKPOINT_LOCK_ATTEMPTS = 3

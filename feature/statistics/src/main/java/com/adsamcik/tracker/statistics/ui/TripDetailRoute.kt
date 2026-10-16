@@ -1,3 +1,6 @@
+// One detail route owns its finite private presentation components and formatting helpers.
+@file:Suppress("TooManyFunctions")
+
 package com.adsamcik.tracker.statistics.ui
 
 import androidx.activity.compose.BackHandler
@@ -98,6 +101,8 @@ private const val METERS_PER_MILE = 1609.344
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+// This finite Compose declaration keeps loading, errors and source-specific action bindings together.
+@Suppress("CyclomaticComplexMethod", "LongMethod")
 fun TripDetailRoute(
 	tripId: Long,
 	onBack: () -> Unit,
@@ -329,6 +334,8 @@ internal fun ImportedStepsOverview(
 }
 
 @Composable
+// The finite saved-source overview and metric layout stay together without a presentation-only state carrier.
+@Suppress("CyclomaticComplexMethod", "ReturnCount", "LongMethod")
 private fun TripOverview(
 	trip: TripSummary,
 	steps: TripDetailStepsState,
@@ -439,7 +446,8 @@ private fun TripOverview(
 		insights.maxSpeedMps.formatSpeed(settings.lengthSystem)
 	}
 	val paceText = remember(trip.distance.raw, trip.hasMeasuredDistance, trip.duration.raw, settings.lengthSystem) {
-		if (trip.hasMeasuredDistance) formatPace(trip.distance.raw.toDouble(), trip.duration.raw, settings.lengthSystem) else "--"
+		if (trip.hasMeasuredDistance) formatPace(trip.distance.raw.toDouble(), trip.duration.raw,
+            settings.lengthSystem) else "--"
 	}
 	val elevationGainText = remember(insights.elevationGainM, settings.lengthSystem) {
 		insights.elevationGainM.formatElevation(settings.lengthSystem)

@@ -29,7 +29,9 @@ internal class RoomExportPortablePressure @Inject constructor(
 		val snapshot = try {
 			reader.read(request)
 		} catch (cancelled: CancellationException) {
-			if (!currentCoroutineContext().isActive) throw cancelled
+			if (!currentCoroutineContext().isActive) {
+				throw cancelled
+			}
 			return@withContext ExportPortablePressureResult.RetryableFailure(
 				PortablePressureTransferRetryableReason.STORAGE_UNAVAILABLE,
 			)
@@ -63,11 +65,20 @@ internal class RoomExportPortablePressure @Inject constructor(
 				}
 				currentCoroutineContext().ensureActive()
 				when (val current = readSelected(request)) {
-					is PortablePressureSnapshot.Outcome -> if (current.result is ExportPortablePressureResult.RetryableFailure) current.result
-						else ExportPortablePressureResult.RetryableFailure(PortablePressureTransferRetryableReason.CONCURRENT_STATE_CHANGE)
+					is PortablePressureSnapshot.Outcome ->
+                        if (current.result is ExportPortablePressureResult.RetryableFailure) {
+						current.result
+					}
+						else {
+						ExportPortablePressureResult.RetryableFailure(PortablePressureTransferRetryableReason.CONCURRENT_STATE_CHANGE)
+					}
 					is PortablePressureSnapshot.Ready -> if (current == selected)
+						{
 						ExportPortablePressureResult.Exported(selected.entries.size)
-						else ExportPortablePressureResult.RetryableFailure(PortablePressureTransferRetryableReason.CONCURRENT_STATE_CHANGE)
+					}
+						else {
+						ExportPortablePressureResult.RetryableFailure(PortablePressureTransferRetryableReason.CONCURRENT_STATE_CHANGE)
+					}
 				}
 			}
 		}

@@ -2,7 +2,7 @@ package com.adsamcik.tracker.app.settings
 
 import android.content.Context
 import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
-import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsState
@@ -39,7 +39,7 @@ class MapSettingsViewModelTest {
     private val mapSettingsRepository: MapSettingsRepository = mockk()
     private val onlineMapTilesRepository: OnlineMapTilesRepository = mockk()
     private val context: Context = mockk(relaxed = true)
-    private val dispatchers: DispatchersProvider = mockk(relaxed = true)
+    private val dispatchers = TestDispatchersProvider(testDispatcher)
     private val preferences: Preferences = mockk(relaxed = true)
     private val skiInfrastructureManager: SkiInfrastructureManager = mockk(relaxed = true)
     private val tempDir = File(System.getProperty("java.io.tmpdir"), "map-settings-test-${System.nanoTime()}")

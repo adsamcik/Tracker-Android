@@ -4,6 +4,8 @@ import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionProtec
 import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionRunMarker
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
+import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiRunV1
+import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiObservationV1
 import com.adsamcik.tracker.stats.api.repository.PortableWifiIdentityKind
 import com.adsamcik.tracker.stats.api.repository.PortableWifiOpaqueIdentity
 import java.security.MessageDigest
@@ -68,62 +70,8 @@ internal object WifiSelectedDeletionAuthorityFactory {
 				}
 			}
 		}.groupBy { it.third.identity.value }
-		runsByIdentity.forEach { (runIdentity, versions) ->
-			val scopes = versions.map { it.second.deletionScopeDigest.value }.distinct()
-			require(scopes.size == 1)
-			val scope = scopes.single()
-			markers += marker(
-				entry.identity.value,
-				WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
-				WifiSelectedDeletionProtectedIdentityEntity.KIND_RUN,
-				runIdentity,
-				entry.identity.value,
-				runIdentity,
-				scope,
-				null,
-				null,
-				versions.map { (revision, run) -> revision to run.contentChecksum.value },
-				collectedDataEpoch,
-			)
-			markers += marker(
-				entry.identity.value,
-				WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
-				WifiSelectedDeletionProtectedIdentityEntity.KIND_DELETION_SCOPE,
-				scope,
-				entry.identity.value,
-				runIdentity,
-				scope,
-				null,
-				null,
-				versions.map { (revision, run) -> revision to run.contentChecksum.value },
-				collectedDataEpoch,
-			)
-		}
-		observationsByIdentity.forEach { (observationIdentity, versions) ->
-			val runIdentities = versions.map { it.second.identity.value }.distinct()
-			require(runIdentities.size == 1)
-			val observations = versions.map { it.third }
-			val aggregateOwnerIdentities = observations.map {
-				it.aggregateOwnerIdentity?.value
-			}.distinct()
-			require(aggregateOwnerIdentities.size == 1)
-			val latestObservation = observations.maxBy { it.semanticRevision }
-			markers += marker(
-				entry.identity.value,
-				WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
-				WifiSelectedDeletionProtectedIdentityEntity.KIND_OBSERVATION,
-				observationIdentity,
-				entry.identity.value,
-				runIdentities.single(),
-				null,
-				aggregateOwnerIdentities.single(),
-				latestObservation.aggregateOwnerSemanticRevision,
-				versions.map { (revision, _, observation) ->
-					revision to "${observation.semanticRevision}:${observation.contentChecksum.value}"
-				},
-				collectedDataEpoch,
-			)
-		}
+		appendImportedRunMarkers(entry.identity.value, runsByIdentity, collectedDataEpoch, markers)
+		appendImportedObservationMarkers(entry.identity.value, observationsByIdentity, collectedDataEpoch, markers)
 		return WifiSelectedDeletionAuthority(
 			selectionIdentity = entry.identity.value,
 			startTimeMs = entry.startTimeMs,
@@ -162,6 +110,103 @@ internal object WifiSelectedDeletionAuthorityFactory {
 			listOf(1L to entry.contentChecksum.value),
 			collectedDataEpoch,
 		)
+		appendLocalRunMarkers(entry, collectedDataEpoch, markers)
+		appendLocalObservationMarkers(entry, audit, collectedDataEpoch, markers)
+		return WifiSelectedDeletionAuthority(
+			selectionIdentity = entry.identity.value,
+			startTimeMs = entry.startTimeMs,
+			endTimeMs = entry.endTimeMs,
+			protectedIdentities = markers.sortedWith(PROTECTED_ORDER),
+			runMarkers = entry.runs.map { run ->
+				WifiSelectedDeletionRunMarker(
+					run.identity.value,
+					entry.identity.value,
+					run.deletionScopeDigest.value,
+					collectedDataEpoch,
+					1L,
+					deletedAtMs,
+				)
+			},
+		)
+	}
+
+	private fun appendImportedRunMarkers(
+		entryIdentity: String,
+		runsByIdentity: Map<String, List<Pair<Long, PortableCapturedWifiRunV1>>>,
+		collectedDataEpoch: Long,
+		markers: MutableList<WifiSelectedDeletionProtectedIdentityEntity>,
+	) {
+		runsByIdentity.forEach { (runIdentity, versions) ->
+			val scopes = versions.map { it.second.deletionScopeDigest.value }.distinct()
+			require(scopes.size == 1)
+			val scope = scopes.single()
+			markers += marker(
+				entryIdentity,
+				WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+				WifiSelectedDeletionProtectedIdentityEntity.KIND_RUN,
+				runIdentity,
+				entryIdentity,
+				runIdentity,
+				scope,
+				null,
+				null,
+				versions.map { (revision, run) -> revision to run.contentChecksum.value },
+				collectedDataEpoch,
+			)
+			markers += marker(
+				entryIdentity,
+				WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+				WifiSelectedDeletionProtectedIdentityEntity.KIND_DELETION_SCOPE,
+				scope,
+				entryIdentity,
+				runIdentity,
+				scope,
+				null,
+				null,
+				versions.map { (revision, run) -> revision to run.contentChecksum.value },
+				collectedDataEpoch,
+			)
+		}
+	}
+
+	private fun appendImportedObservationMarkers(
+		entryIdentity: String,
+		observationsByIdentity: Map<String, List<Triple<Long, PortableCapturedWifiRunV1, PortableCapturedWifiObservationV1>>>,
+		collectedDataEpoch: Long,
+		markers: MutableList<WifiSelectedDeletionProtectedIdentityEntity>,
+	) {
+		observationsByIdentity.forEach { (observationIdentity, versions) ->
+			val runIdentities = versions.map { it.second.identity.value }.distinct()
+			require(runIdentities.size == 1)
+			val observations = versions.map { it.third }
+			val aggregateOwnerIdentities = observations.map {
+				it.aggregateOwnerIdentity?.value
+			}.distinct()
+			require(aggregateOwnerIdentities.size == 1)
+			val latestObservation = observations.maxBy { it.semanticRevision }
+			markers += marker(
+				entryIdentity,
+				WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+				WifiSelectedDeletionProtectedIdentityEntity.KIND_OBSERVATION,
+				observationIdentity,
+				entryIdentity,
+				runIdentities.single(),
+				null,
+				aggregateOwnerIdentities.single(),
+				latestObservation.aggregateOwnerSemanticRevision,
+				versions.map { (revision, _, observation) ->
+					revision to "${observation.semanticRevision}:${observation.contentChecksum.value}"
+				},
+				collectedDataEpoch,
+			)
+		}
+	}
+
+	private fun appendLocalRunMarkers(
+		entry: PortableCapturedWifiEntryV1,
+		collectedDataEpoch: Long,
+		markers: MutableList<WifiSelectedDeletionProtectedIdentityEntity>,
+	) {
 		entry.runs.forEach { run ->
 			markers += marker(
 				entry.identity.value,
@@ -190,6 +235,14 @@ internal object WifiSelectedDeletionAuthorityFactory {
 				collectedDataEpoch,
 			)
 		}
+	}
+
+	private fun appendLocalObservationMarkers(
+		entry: PortableCapturedWifiEntryV1,
+		audit: WifiCapturedAudit,
+		collectedDataEpoch: Long,
+		markers: MutableList<WifiSelectedDeletionProtectedIdentityEntity>,
+	) {
 		audit.lineages.forEach { lineage ->
 			val latest = lineage.revisions.last()
 			val runIdentity = PortableWifiOpaqueIdentity.derive(
@@ -216,22 +269,6 @@ internal object WifiSelectedDeletionAuthorityFactory {
 			)
 			require(latest.collectedDataEpoch == collectedDataEpoch)
 		}
-		return WifiSelectedDeletionAuthority(
-			selectionIdentity = entry.identity.value,
-			startTimeMs = entry.startTimeMs,
-			endTimeMs = entry.endTimeMs,
-			protectedIdentities = markers.sortedWith(PROTECTED_ORDER),
-			runMarkers = entry.runs.map { run ->
-				WifiSelectedDeletionRunMarker(
-					run.identity.value,
-					entry.identity.value,
-					run.deletionScopeDigest.value,
-					collectedDataEpoch,
-					1L,
-					deletedAtMs,
-				)
-			},
-		)
 	}
 
 	@Suppress("LongParameterList")

@@ -73,18 +73,25 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 	override suspend fun deleteSelectedSession(sessionSegmentId: Long): StepsSessionDeletionResult =
 		deleteSelectedSessionInternal(sessionSegmentId, null)
 
-	override suspend fun deleteSelectedSession(sessionSegmentId: Long, expectedCollectedDataEpoch: Long): StepsSessionDeletionResult =
+	override suspend fun deleteSelectedSession(sessionSegmentId: Long,
+        expectedCollectedDataEpoch: Long): StepsSessionDeletionResult =
 		deleteSelectedSessionInternal(sessionSegmentId, expectedCollectedDataEpoch)
 
-	private suspend fun deleteSelectedSessionInternal(sessionSegmentId: Long, expectedEpoch: Long?): StepsSessionDeletionResult {
+	private suspend fun deleteSelectedSessionInternal(
+		sessionSegmentId: Long,
+		expectedEpoch: Long?,
+	): StepsSessionDeletionResult {
 		if (sessionSegmentId <= 0L) {
 			return unsupported(StepsSessionDeletionUnsupportedReason.INVALID_SEGMENT_ID)
 		}
 		val deletedAtMs = wallTimeMsProvider().coerceAtLeast(0L)
 		var requestLiveDrainAfterDelete = true
 		val result = try {
-			if (expectedEpoch != null && database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch)
+			if (expectedEpoch != null &&
+				database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch
+			) {
 				return unsupported(StepsSessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
+			}
 			val preReadSegment = database.sessionSegmentDao().getById(sessionSegmentId)
 				?: return StepsSessionDeletionResult.NotFound
 			if (preReadSegment.source == SegmentSource.PORTABLE_STEPS_IMPORT) {
@@ -95,47 +102,12 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 					beforeMutation = beforeMutation,
 				).delete(sessionSegmentId, deletedAtMs, expectedEpoch)
 			} else {
-				if (preReadHasActiveOwner(preReadSegment)) {
-					return StepsSessionDeletionResult.BlockedActive
-				}
-				val expectedScope = when (val preflight = selectedScope(preReadSegment)) {
-					is SelectedScopePreflight.Ready -> preflight.scope
-					is SelectedScopePreflight.Unsupported -> return unsupported(preflight.reason)
-					SelectedScopePreflight.LegacyUnverifiable ->
-						return StepsSessionDeletionResult.LegacyUnverifiable
-				}
-				val lockCoordinator = DailySummaryAggregator(
-					dailySummaryDao = database.dailySummaryDao(),
-					sessionSegmentDao = database.sessionSegmentDao(),
-					zoneId = expectedScope.zoneId,
-				)
-				lockCoordinator.withDayLocks(expectedScope.affectedDays) { lockedDays ->
-					afterDayLocksAcquired()
-					database.withTransaction {
-						if (expectedEpoch != null && database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch)
-							return@withTransaction unsupported(StepsSessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
-						val segment = database.sessionSegmentDao().getById(sessionSegmentId)
-							?: throw ConcurrentDeletionStateException()
-						val actualScope = (selectedScope(segment) as? SelectedScopePreflight.Ready)?.scope
-							?: throw ConcurrentDeletionStateException()
-						if (actualScope != expectedScope) {
-							throw ConcurrentDeletionStateException()
-						}
-						deleteInTransaction(
-							scope = actualScope,
-							deletedAtMs = deletedAtMs,
-							lockedDays = lockedDays,
-						)
-					}
-				}
+				deleteLocalSelectedSession(preReadSegment, sessionSegmentId, deletedAtMs, expectedEpoch)
 			}
 		} catch (cancellation: CancellationException) {
 			throw cancellation
 		} catch (malformedEntity: IllegalArgumentException) {
-			if (!malformedEntity.originatesFromSelectedScopeRoomEntity()) {
-				throw malformedEntity
-			}
-			unsupported(StepsSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH)
+			malformedSelectedScopeOutcome(malformedEntity)
 		} catch (_: ConcurrentDeletionStateException) {
 			StepsSessionDeletionResult.RetryableFailure(
 				StepsSessionDeletionRetryableReason.CONCURRENT_STATE_CHANGE,
@@ -146,6 +118,69 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 			)
 		}
 
+		publishCommittedDeletion(result, requestLiveDrainAfterDelete)
+		return result
+	}
+
+	private suspend fun deleteLocalSelectedSession(
+		preReadSegment: SessionSegment,
+		sessionSegmentId: Long,
+		deletedAtMs: Long,
+		expectedEpoch: Long?,
+	): StepsSessionDeletionResult {
+		if (preReadHasActiveOwner(preReadSegment)) {
+			return StepsSessionDeletionResult.BlockedActive
+		}
+		val expectedScope = when (val preflight = selectedScope(preReadSegment)) {
+			is SelectedScopePreflight.Ready -> preflight.scope
+			is SelectedScopePreflight.Unsupported -> return unsupported(preflight.reason)
+			SelectedScopePreflight.LegacyUnverifiable ->
+				return StepsSessionDeletionResult.LegacyUnverifiable
+		}
+		val lockCoordinator = DailySummaryAggregator(
+			dailySummaryDao = database.dailySummaryDao(),
+			sessionSegmentDao = database.sessionSegmentDao(),
+			zoneId = expectedScope.zoneId,
+		)
+		return lockCoordinator.withDayLocks(expectedScope.affectedDays) { lockedDays ->
+			afterDayLocksAcquired()
+			database.withTransaction {
+				if (expectedEpoch != null &&
+					database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch
+				) {
+					return@withTransaction unsupported(StepsSessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
+				}
+				val actualScope = rereadSelectedScope(sessionSegmentId, expectedScope)
+				deleteInTransaction(
+					scope = actualScope,
+					deletedAtMs = deletedAtMs,
+					lockedDays = lockedDays,
+				)
+			}
+		}
+	}
+
+	private suspend fun rereadSelectedScope(
+		sessionSegmentId: Long,
+		expectedScope: SelectedScope,
+	): SelectedScope {
+		val segment = database.sessionSegmentDao().getById(sessionSegmentId)
+			?: throw ConcurrentDeletionStateException()
+		val actualScope = (selectedScope(segment) as? SelectedScopePreflight.Ready)?.scope
+		return actualScope?.takeIf { it == expectedScope } ?: throw ConcurrentDeletionStateException()
+	}
+
+	private fun malformedSelectedScopeOutcome(malformedEntity: IllegalArgumentException): StepsSessionDeletionResult {
+		if (!malformedEntity.originatesFromSelectedScopeRoomEntity()) {
+			throw malformedEntity
+		}
+		return unsupported(StepsSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH)
+	}
+
+	private fun publishCommittedDeletion(
+		result: StepsSessionDeletionResult,
+		requestLiveDrainAfterDelete: Boolean,
+	) {
 		if (result == StepsSessionDeletionResult.Deleted) {
 			// The Room transaction is already committed. Dirty consumers must never observe a write
 			// that can still roll back.
@@ -157,7 +192,6 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 				requestStepsDrain()
 			}
 		}
-		return result
 	}
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount", "ThrowsCount")

@@ -40,7 +40,9 @@ internal fun ImportedCellProductEvaluation.toPublicCellEntry(
 
 @Suppress("CyclomaticComplexMethod", "LongMethod")
 private fun ImportedCellProductEvaluation.Readable.toReadablePublicEntry(): CellHistoryEntry {
-	if (entryDeleted) return publicShell(CellHistoryProductState.DELETED, CellHistoryCause.DELETED)
+	if (entryDeleted) {
+		return publicShell(CellHistoryProductState.DELETED, CellHistoryCause.DELETED)
+	}
 	if (retentionLimited) {
 		return publicShell(CellHistoryProductState.UNAVAILABLE, CellHistoryCause.RETENTION_LIMIT)
 	}
@@ -68,7 +70,9 @@ private fun ImportedCellProductEvaluation.Readable.toReadablePublicEntry(): Cell
 	}
 
 	val causes = linkedSetOf<CellHistoryCause>()
-	if (deletedRunIdentities.isNotEmpty()) causes += CellHistoryCause.DELETED
+	if (deletedRunIdentities.isNotEmpty()) {
+		causes += CellHistoryCause.DELETED
+	}
 	if (visibleRuns.any { it.captureCoverage == PortableCellCaptureCoverage.NOT_CAPTURED }) {
 		causes += CellHistoryCause.SOURCE_NOT_CAPTURED
 	}
@@ -78,7 +82,9 @@ private fun ImportedCellProductEvaluation.Readable.toReadablePublicEntry(): Cell
 		}) {
 		causes += CellHistoryCause.ACQUISITION_INCOMPLETE
 	}
-	if (visibleRuns.any { it.retentionLoss }) causes += CellHistoryCause.RETENTION_LIMIT
+	if (visibleRuns.any { it.retentionLoss }) {
+		causes += CellHistoryCause.RETENTION_LIMIT
+	}
 	if (visibleRuns.flatMap { it.observations }.any {
 			it.childCompleteness == PortableCellChildCompleteness.PARTIAL
 		}) {
@@ -92,8 +98,16 @@ private fun ImportedCellProductEvaluation.Readable.toReadablePublicEntry(): Cell
 		startTime = EpochMs(entry.startTimeMs),
 		endTime = EpochMs(entry.endTimeMs),
 		storedZoneIds = observations.mapTo(linkedSetOf(), CellHistoryObservation::storedZoneId),
-		state = if (causes.isEmpty()) CellHistoryProductState.READY else CellHistoryProductState.PARTIAL,
-		coverage = if (causes.isEmpty()) CellHistoryCoverage.COMPLETE else CellHistoryCoverage.PARTIAL,
+		state = if (causes.isEmpty()) {
+			CellHistoryProductState.READY
+		} else {
+			CellHistoryProductState.PARTIAL
+		},
+		coverage = if (causes.isEmpty()) {
+			CellHistoryCoverage.COMPLETE
+		} else {
+			CellHistoryCoverage.PARTIAL
+		},
 		observations = observations,
 		causes = causes,
 		origin = CellHistoryOrigin.Imported(selection),
@@ -112,7 +126,9 @@ internal fun PortableCapturedCellObservationV1.toPublicObservation(): CellHistor
 	).fold(0, Math::addExact)
 	val technologies = linkedMapOf<CellHistoryTechnology, Int>()
 	fun include(technology: CellHistoryTechnology, count: Int) {
-		if (count > 0) technologies[technology] = count
+		if (count > 0) {
+			technologies[technology] = count
+		}
 	}
 	include(CellHistoryTechnology.GSM, gsmCount)
 	include(CellHistoryTechnology.CDMA, cdmaCount)

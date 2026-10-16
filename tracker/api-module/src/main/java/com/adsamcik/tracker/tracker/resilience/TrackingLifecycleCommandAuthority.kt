@@ -93,17 +93,22 @@ data class TrackingLifecycleCommandState(
 		) to TrackingStartCommand(next)
 	}
 
+	/**
+	 * Issues a new START generation and saves the exact selection for one-use permission continuation.
+	 */
 	fun issueManualStart(selection: ManualTrackingStartSelection): TrackingLifecycleCommandState {
 		val (next, command) = issueStart()
 		return next.copy(pendingManualStart = ManualTrackingStartContinuation(command, selection))
 	}
 
+	/** Checks that the generation and selection still identify the latest unopposed manual Start. */
 	fun isPendingManualStart(generation: Long, selection: ManualTrackingStartSelection): Boolean {
 		val pending = pendingManualStart ?: return false
 		return pending.command.generation == generation && pending.selection == selection &&
 			lastGeneration == generation && resolveStart(pending.command) == TrackingStartCommandDisposition.Allowed
 	}
 
+	/** Records user-stop recovery debt while preserving a stronger explicit all-source Off receipt. */
 	fun observeUserExit(exitId: String): TrackingLifecycleCommandState {
 		require(exitId.isNotBlank())
 		// Android's later process-exit report must not turn an explicit all-source stop
@@ -112,28 +117,50 @@ data class TrackingLifecycleCommandState(
 			com.adsamcik.tracker.tracker.api.TRACKING_TURN_OFF_EXIT_PREFIX,
 		) == true && !exitId.startsWith(
 			com.adsamcik.tracker.tracker.api.TRACKING_TURN_OFF_EXIT_PREFIX,
-		)) return this
-		return if (handledUserExitId == exitId) this else copy(
+		)) {
+			return this
+		}
+		return if (handledUserExitId == exitId) {
+			this
+		} else {
+			copy(
 			lastGeneration = nextGeneration(),
 			handledUserExitId = exitId, collectionResumeRequired = true, pendingManualStart = null,
 			pendingCollectionStartGeneration = null,
 		)
+		}
 	}
 
-	fun resumeCollection(expectedExitId: String, boundary: TrackingCollectionResumeBoundary): TrackingLifecycleCommandState =
+	/**
+	 * Clears only the matching stopped-collection receipt and records its boot/elapsed/UTC resume
+	 * boundary.
+	 */
+	fun resumeCollection(expectedExitId: String,
+        boundary: TrackingCollectionResumeBoundary): TrackingLifecycleCommandState =
 		if (handledUserExitId == expectedExitId && collectionResumeRequired) {
-			copy(collectionResumeRequired = false, collectionResumeBoundary = boundary, pendingCollectionStartGeneration = null)
-		} else this
+			copy(collectionResumeRequired = false, collectionResumeBoundary = boundary,
+                pendingCollectionStartGeneration =
+                null)
+		} else {
+			this
+		}
 
 	/** Reservation preserves Off, its exit receipt and the last accepted resume boundary. */
+	// The pending resume belongs to this complete stopped-state and exact accepted Start tuple.
+	@Suppress("ComplexCondition")
 	fun prepareCollectionResumeForStart(
 		expectedExitId: String,
 		command: TrackingStartCommand,
 	): TrackingLifecycleCommandState = if (handledUserExitId == expectedExitId && collectionResumeRequired &&
 		command.generation == lastGeneration && command.generation == latestStartGeneration &&
 		resolveStart(command) == TrackingStartCommandDisposition.Allowed
-	) copy(pendingCollectionStartGeneration = command.generation) else this
+	) {
+		copy(pendingCollectionStartGeneration = command.generation)
+	} else {
+		this
+	}
 
+	/** Checks whether this exact manual START still owns the pending transition from Off. */
 	fun isPendingCollectionStart(command: TrackingStartCommand): Boolean = collectionResumeRequired &&
 		pendingCollectionStartGeneration == command.generation && command.generation == lastGeneration &&
 		command.generation == latestStartGeneration && resolveStart(command) == TrackingStartCommandDisposition.Allowed
@@ -197,7 +224,9 @@ data class TrackingLifecycleCommandState(
 		}
 		return if (command.generation > latestAcceptedStartGeneration) {
 			copy(latestAcceptedStartGeneration = command.generation)
-		} else this
+		} else {
+			this
+		}
 	}
 
 	fun isCurrent(command: TrackingStopCommand): Boolean =
@@ -288,6 +317,7 @@ interface TrackingLifecycleCommandAuthority {
 	val pendingCollectionResumeExitId: String? get() = null
 	val collectionResumeBoundary: TrackingCollectionResumeBoundary? get() = null
 	val pendingManualStart: ManualTrackingStartContinuation? get() = null
+	/** Checks whether this exact manual START still owns the pending transition from Off. */
 	fun isPendingCollectionStart(command: TrackingStartCommand): Boolean = false
 	/** Exact revocation never alters Off or a newer manual request. */
 	suspend fun cancelPendingCollectionStart(generation: Long): Boolean = false
@@ -304,7 +334,9 @@ interface TrackingLifecycleCommandAuthority {
 		selection: ManualTrackingStartSelection,
 	): TrackingStartCommand? = null
 
+	/** Revokes only the matching manual continuation; a newer Start is preserved. */
 	suspend fun cancelManualStart(generation: Long): Boolean = false
+	/** Persists a user-stop receipt so process recovery cannot silently resume collection. */
 	suspend fun recordUserRequestedExit(exitId: String): Boolean = false
 	/** Holds the command gate from durable Off through the all-source Room fence and STOP reservation. */
 	suspend fun reserveTurnOff(
@@ -320,6 +352,7 @@ interface TrackingLifecycleCommandAuthority {
 		exitId: String,
 		closeOwners: suspend () -> Boolean,
 	): Boolean? = null
+	/** Acknowledges only the matching user-exit receipt; unsupported implementations return false. */
 	suspend fun resumeCollectionAfterUserExit(expectedExitId: String): Boolean = false
 
 	/** Reserve the exact manual attempt before entering the non-reentrant startup/lifecycle lock. */
@@ -449,7 +482,9 @@ interface TrackingLifecycleCommandAuthority {
 		command: TrackingStopCommand,
 		action: suspend () -> TrackingStopActionResult<T>,
 	): LockedTrackingStopResult<T> {
-		if (!isStopActionable(command)) return LockedTrackingStopResult.Superseded
+		if (!isStopActionable(command)) {
+			return LockedTrackingStopResult.Superseded
+		}
 		return when (val result = action()) {
 			is TrackingStopActionResult.StillActionable ->
 				LockedTrackingStopResult.StillActionable(result.value)
@@ -463,6 +498,7 @@ interface TrackingLifecycleCommandAuthority {
 	suspend fun markStopHandled(command: TrackingStopCommand): Boolean
 }
 
+/** Durable Off receipt and exact STOP command reserved after all source demands have been fenced. */
 data class TrackingTurnOffReservation(
 	val exitId: String,
 	val stop: TrackingStopCommand,

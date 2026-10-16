@@ -1,6 +1,16 @@
 package com.adsamcik.tracker.stats.api.repository
 
+import kotlinx.serialization.Serializable
+
+/**
+ * Distinguishes on-device readings from portable imported data without changing their measured
+ * times.
+ */
+@Serializable
 enum class AmbientCellOrigin { LOCAL_DEVICE, PORTABLE_IMPORT }
+/**
+ * Current source availability presented separately from retained history and coverage.
+ */
 enum class AmbientCellAvailability {
 	DISABLED,
 	UNSUPPORTED,
@@ -8,9 +18,20 @@ enum class AmbientCellAvailability {
 	OS_LIMITED,
 	AVAILABLE,
 }
+/**
+ * Whether the saved Cell fact can verify its represented coverage.
+ */
+@Serializable
 enum class AmbientCellCoverage { COMPLETE, UNVERIFIABLE }
+/**
+ * Whether represented subscription children are complete, partial or unobservable.
+ */
+@Serializable
 enum class AmbientCellSubscriptionCompleteness { COMPLETE, PARTIAL, UNKNOWN }
 
+/**
+ * Half-open UTC millisecond selection, nonempty origin filter and fact limit from 1 to 4096.
+ */
 data class AmbientCellReadRequest(
 	val fromInclusiveMs: Long,
 	val toExclusiveMs: Long,
@@ -24,6 +45,10 @@ data class AmbientCellReadRequest(
 	}
 }
 
+/**
+ * Exact saved local day/zone selection with a nonempty origin filter and fact limit from 1 to
+ * 4096.
+ */
 data class AmbientCellDayReadRequest(
 	val structuralEpochDay: Long,
 	val storedZoneId: String,
@@ -37,6 +62,11 @@ data class AmbientCellDayReadRequest(
 	}
 }
 
+/**
+ * Nonnegative observed tower counts by radio technology; their sum is the represented observation
+ * count.
+ */
+@Serializable
 data class AmbientCellTechnologyMix(
 	val gsmCount: Int,
 	val cdmaCount: Int,
@@ -54,6 +84,11 @@ data class AmbientCellTechnologyMix(
 		get() = gsmCount + cdmaCount + wcdmaCount + tdscdmaCount + lteCount + nrCount
 }
 
+/**
+ * Nonnegative counts of Android signal-quality bins, including separate unavailable and
+ * none/unknown values.
+ */
+@Serializable
 data class AmbientCellQualityDistribution(
 	val unknownCount: Int,
 	val noneOrUnknownCount: Int,
@@ -78,6 +113,10 @@ data class AmbientCellQualityDistribution(
 			greatCount
 }
 
+/**
+ * One all-day Cell summary revision with UTC millisecond uncertainty bounds, saved local day/zone
+ * and available tower details.
+ */
 @Suppress("LongParameterList")
 data class AmbientCellFact(
 	val identity: String,
@@ -111,6 +150,10 @@ data class AmbientCellFact(
 	}
 }
 
+/**
+ * Saved Cell coverage gap with original identity, UTC millisecond bounds, local day/zone and
+ * reason.
+ */
 data class AmbientCellGap(
 	val identity: String,
 	val origin: AmbientCellOrigin,
@@ -127,18 +170,42 @@ data class AmbientCellGap(
 	}
 }
 
+/**
+ * Retained Cell facts and gaps with current availability, or explicit dependency/storage failure.
+ */
 sealed interface AmbientCellReadResult {
+	/**
+	 * Saved facts and explicit timed gaps with the separately reported current source availability.
+	 */
 	data class Snapshot(
 		val facts: List<AmbientCellFact>,
 		val gaps: List<AmbientCellGap>,
 		val availability: AmbientCellAvailability,
 	) : AmbientCellReadResult
+	/**
+	 * A required saved-data dependency exceeds the bounded read budget; a truncated prefix is not a
+	 * complete result.
+	 */
 	data object DependencyOverflow : AmbientCellReadResult
+	/**
+	 * The saved-data snapshot could not be read; this is distinct from an empty or measured-zero
+	 * result.
+	 */
 	data object StorageUnavailable : AmbientCellReadResult
 }
 
+/**
+ * Read-only all-day Cell access independent of sessions and optional Location enrichment.
+ */
 interface AmbientCellRepository {
+	/**
+	 * Reads the bounded UTC millisecond range for the selected Cell origins, preserving saved gaps
+	 * and availability.
+	 */
 	suspend fun read(request: AmbientCellReadRequest): AmbientCellReadResult
+	/**
+	 * Reads one exact saved Cell local day/zone with the selected origins and finite fact bound.
+	 */
 	suspend fun readDay(request: AmbientCellDayReadRequest): AmbientCellReadResult
 }
 

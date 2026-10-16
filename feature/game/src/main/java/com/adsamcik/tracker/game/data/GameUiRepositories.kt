@@ -91,7 +91,9 @@ internal class RoomExplorationProgressRepository @Inject constructor(
 
 internal fun AchievementProgressEntity.toProductProgress(): AchievementProgress? {
 	val metric = MetricKey.fromStorageKey(metricKey) ?: return null
-	if (!AchievementMetricQualification.isTrustedPersistedProgress(metric, this)) return null
+	if (!AchievementMetricQualification.isTrustedPersistedProgress(metric, this)) {
+		return null
+	}
 	return AchievementProgress(
 		metric = metric,
 		lastTierIndex = lastTierIndex,

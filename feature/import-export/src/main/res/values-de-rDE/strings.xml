@@ -40,4 +40,23 @@
     <string name="format_database">Datenbanksicherung (ZIP)</string>
     <string name="settings_import_summary">Daten aus unterstützten Typen (%1$s) und Archiven (%2$s) importieren. Datenbankimporte führen kompatible Zeilen zusammen; sie ersetzen keine vorhandenen Daten.</string>
     <string name="settings_import_title">Importieren</string>
+    <string name="export_radio_sensitivity_title">Netzwerkdetails exportieren?</string>
+    <string name="export_wifi_sensitivity_message">Diese Datei enthält gespeicherte WLAN-Namen und Zugangspunkt-IDs.</string>
+    <string name="export_cell_sensitivity_message">Diese Datei enthält gespeicherte Mobilfunkmast-IDs und Signalmessungen.</string>
+    <string name="export_radio_no_data">Keine gespeicherten Daten für diese Quelle</string>
+    <string name="export_include_complete_sessions">Vollständige Sitzungen einschließen</string>
+    <string name="import_location_conflict_title">Gespeicherte Punkte ersetzen?</string>
+    <string name="import_location_replace">Punkte aus der Datei verwenden</string>
+    <string name="import_location_keep">Gespeicherte Punkte behalten</string>
+    <string name="export_backup_review_title">Geplante Sicherungen prüfen</string>
+    <string name="export_backup_review_summary">Pausiert, bis du die aktualisierte Datensicherung geprüft hast.</string>
+    <string name="export_backup_review_message">Diese Zeitpläne sichern jetzt alle gespeicherten Trackingdaten und die zur Wiederherstellung benötigten Dateien. Einstellungen sind ausgeschlossen. Diese Zeitpläne fortsetzen?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Sicherungen fortsetzen</string>
+    <string name="import_backup_replace_title">Datensicherung wiederherstellen?</string>
+    <string name="import_backup_replace_message">Gespeicherte Daten durch diese Sicherung ersetzen? Deine Einstellungen bleiben unverändert. Tracking bleibt ausgeschaltet, bis du es wieder aktivierst.</string>
+    <string name="import_backup_restore">Daten ersetzen</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d Punkt in dieser Datei unterscheidet sich von der gespeicherten Kopie. Wähle, welchen du behalten möchtest. Andere Punkte werden wie gewohnt importiert.</item>
+        <item quantity="other">%d Punkte in dieser Datei unterscheiden sich von ihren gespeicherten Kopien. Wähle, welche du behalten möchtest. Andere Punkte werden wie gewohnt importiert.</item>
+    </plurals>
 </resources>

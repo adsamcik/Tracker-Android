@@ -68,6 +68,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import javax.inject.Singleton
 
+// One stats repository binding list; all members are abstract Hilt declarations.
+@Suppress("TooManyFunctions")
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class StatsDataModule {
@@ -77,18 +79,21 @@ abstract class StatsDataModule {
         impl: com.adsamcik.tracker.stats.data.repository.SavedLocationLiveUpdateSignal,
     ): com.adsamcik.tracker.stats.api.repository.SavedLocationLiveUpdates
 
+	/** Binds the saved-point archive reader/writer used by exact Location file transfers. */
 	@Binds
 	@Singleton
 	abstract fun bindLocationFileArchiveRepository(
 		impl: com.adsamcik.tracker.stats.data.repository.RoomLocationFileArchiveRepository,
 	): com.adsamcik.tracker.stats.api.repository.LocationFileArchiveRepository
 
+	/** Shares the Room annotation repository with paged session browsing. */
 	@Binds
 	@Singleton
 	abstract fun bindPagedSessionOrganizationRepository(
 		impl: com.adsamcik.tracker.stats.data.repository.RoomSessionOrganizationRepository,
 	): com.adsamcik.tracker.stats.api.repository.PagedSessionOrganizationRepository
 
+	/** Shares the Room annotation repository with session metadata reads and edits. */
 	@Binds
 	@Singleton
 	abstract fun bindSessionOrganizationRepository(
@@ -183,28 +188,7 @@ abstract class StatsDataModule {
 		impl: RoomAchievementEvaluationTransactionRunner,
 	): AchievementEvaluationTransactionRunner
 
-	/**
-	 * Companion holds [Provides] functions that need explicit construction
-	 * â€” primarily the durable [MetricDirtyTracker] wrapper which can't use
-	 * constructor-injection because it composes a [DefaultMetricDirtyTracker]
-	 * with a [PersistentDirtyState] and the app-scoped [CoroutineScope].
-	 */
-	companion object {
 
-		/**
-		 * Provides the file-backed [PersistentDirtyState] used by
-		 * [DurableMetricDirtyTracker]. Stored in `context.filesDir/
-		 * metric_dirty_persistence.txt`, a single tiny file that survives
-		 * process death so AchievementWorker can recover dirty bits the OS
-		 * killed mid-tracking.
-		 */
-		@Provides
-		@Singleton
-		fun providePersistentDirtyState(
-			@ApplicationContext context: Context,
-			@IoDispatcher ioDispatcher: CoroutineDispatcher,
-		): PersistentDirtyState = DefaultPersistentDirtyState(context.filesDir, ioDispatcher)
-	}
 }
 
 /** Keeps the first history facade binding separate from the established stats repository module. */
@@ -302,6 +286,20 @@ internal abstract class WifiHistoryDataModule {
 @Module
 @InstallIn(SingletonComponent::class)
 internal object DurableMetricDirtyTrackerModule {
+
+	/**
+	 * Provides the file-backed [PersistentDirtyState] used by
+	 * [DurableMetricDirtyTracker]. Stored in `context.filesDir/
+	 * metric_dirty_persistence.txt`, a single tiny file that survives
+	 * process death so AchievementWorker can recover dirty bits the OS
+	 * killed mid-tracking.
+	 */
+	@Provides
+	@Singleton
+	fun providePersistentDirtyState(
+		@ApplicationContext context: Context,
+		@IoDispatcher ioDispatcher: CoroutineDispatcher,
+	): PersistentDirtyState = DefaultPersistentDirtyState(context.filesDir, ioDispatcher)
 
 	/**
 	 * The app-wide [MetricDirtyTracker] singleton. Wraps the in-memory

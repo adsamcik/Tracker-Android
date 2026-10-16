@@ -98,6 +98,7 @@ import com.adsamcik.tracker.tracker.source.control.acquisitionProfile
 import com.adsamcik.tracker.tracker.source.model.SourceDemand
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
+import com.adsamcik.tracker.tracker.source.runtime.AmbientLocationPurposeOwner
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomaticStartActionRepository
 import com.adsamcik.tracker.tracker.worker.HistoricalTrajectoryReconstructionWorker
 import dagger.hilt.android.AndroidEntryPoint
@@ -196,7 +197,7 @@ internal class TrackerService : CoreService() {
 	lateinit var backgroundLocationHost: BackgroundLocationHost
 
 	@Inject
-	lateinit var ambientLocationPurposeOwner: Provider<com.adsamcik.tracker.tracker.source.runtime.AmbientLocationPurposeOwner>
+	lateinit var ambientLocationPurposeOwner: Provider<AmbientLocationPurposeOwner>
 
 	@Inject
 	lateinit var trackingRolloutStateStore: RoomTrackingRolloutStateStore
@@ -266,25 +267,7 @@ internal class TrackerService : CoreService() {
 			activeServiceGeneration = serviceGeneration
 		}
 
-		TrackerRuntimeStopDispatcher.register(this) { command ->
-			check(Looper.myLooper() == Looper.getMainLooper()) {
-				"Tracker stop ownership must be acknowledged on the main thread"
-			}
-			if (!trackingLifecycleCommandAuthority.isStopActionable(command)) {
-				false
-			} else if (!preparedStartRuntime.applyStarted) {
-				// A providerless/claimed-only shell does not own the durable Room lifecycle. Stop the
-				// Android shell locally and let the inactive handler finalize the exact stored run.
-				if (!backgroundLocationHost.hasActiveSources) requestGracefulStop(reason = command.reason)
-				false
-			} else {
-				requestGracefulStop(
-					reason = command.reason,
-					externalCommand = command,
-				)
-				true
-			}
-		}
+		registerRuntimeStopDispatcher()
 
 		powerManager = getSystemServiceTyped(Context.POWER_SERVICE)
 		wakeLock = powerManager.newWakeLock(
@@ -293,39 +276,7 @@ internal class TrackerService : CoreService() {
 		)
 
 		sessionPresentationLifecycle = SessionPresentationLifecycle(appDatabase)
-		orchestrator = TrackingOrchestrator(
-			controller = controller,
-			signalProcessors = signalProcessors,
-			domainEventRepository = domainEventRepository,
-			dispatchers = dispatchers,
-			appDatabase = appDatabase,
-			trackingParamsRepository = trackingParamsRepository,
-			trackingRolloutStateStore = trackingRolloutStateStore,
-			persistenceLifecycleLease = persistenceLifecycleLease,
-			runtimeTierAdjuster = { requestedTier ->
-				val preserveRequestedFidelity = sessionInfo?.isInitiatedByUser == true ||
-					com.adsamcik.tracker.tracker.api.BackgroundTrackingApi.cachedParams.preset ==
-					TrackingPreset.HIGH_ACCURACY
-				if (preserveRequestedFidelity) requestedTier else batteryAwarePolicy.adjustForBattery(requestedTier)
-			},
-			onDailySummaryWritten = {
-				metricDirtyTracker.markDirty(
-					com.adsamcik.tracker.stats.api.metric.MetricKeys.TABLE_DAILY_SUMMARY
-				)
-			},
-			onSourcePlanInputsChanged = { settings, demands ->
-				val rollout = sessionRolloutState
-				val foregroundReady = rollout == null || prepareForegroundForSourcePlan(settings, rollout)
-				val reconfigured = if (foregroundReady) {
-					reconfigureSourceSession(sourcePlanInputs(settings, demands))
-				} else {
-					null
-				}
-				if (reconfigured == null || reconfigured is SourceSessionReconfigureOutcome.Rejected) {
-					requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
-				}
-			},
-		)
+		orchestrator = createOrchestrator()
 		createCycleDispatcher()
 		backgroundLocationHost.attach(this) {
 			launch {
@@ -374,7 +325,8 @@ internal class TrackerService : CoreService() {
 					locationMotionScope(setOf(LocationMotionPurpose.BACKGROUND))) { hostedSources ->
 					synchronized(preparedStartOwnershipMonitor) {
 						TrackerNotificationChannels.ensureTrackingChannel(this@TrackerService)
-						ensureForegroundStarted(activeForegroundRequirements?.acceptedSources.orEmpty() + hostedSources, stopServiceOnFailure = false,
+						ensureForegroundStarted(activeForegroundRequirements?.acceptedSources.orEmpty() + hostedSources,
+                            stopServiceOnFailure = false,
 							backgroundOnly = sessionInfo == null && !startSingleFlight.get())
 					}
 				}
@@ -382,7 +334,8 @@ internal class TrackerService : CoreService() {
 					controller.updateServiceRunning(true)
 					reconcileLocationMotionScope()
 					observeCollectionMotionPolicy()
-				} else if (sessionInfo == null && !backgroundLocationHost.hasActiveSources && !startSingleFlight.get()) {
+				} else if (sessionInfo == null && !backgroundLocationHost.hasActiveSources &&
+                    !startSingleFlight.get()) {
 					stopSelfResult(startId)
 				}
 			}
@@ -604,7 +557,8 @@ internal class TrackerService : CoreService() {
 														false
 													}
 													if (enqueued) {
-														preparedStartRuntime = preparedStartRuntime.copy(platformOwned = true)
+														preparedStartRuntime = preparedStartRuntime.copy(platformOwned =
+                                                            true)
 													} else {
 														startSingleFlight.compareAndSet(false, true)
 													}
@@ -621,7 +575,8 @@ internal class TrackerService : CoreService() {
 									}
 									if (rebase == null) {
 										if (preparedStartRuntime.platformOwned) return@startupWork
-										withPreparedStartOwnership(effectiveToken, effectiveCommand) { startSingleFlight.compareAndSet(false, true) }
+										withPreparedStartOwnership(effectiveToken,
+                                            effectiveCommand) { startSingleFlight.compareAndSet(false, true) }
 										rejectPreparedStart(
 											effectiveToken,
 											effectiveCommand,
@@ -640,7 +595,8 @@ internal class TrackerService : CoreService() {
 											return@startupWork
 										}
 										AndroidRedeliveryRebaseResult.EnqueueFailed -> {
-											withPreparedStartOwnership(effectiveToken, effectiveCommand) { startSingleFlight.compareAndSet(false, true) }
+											withPreparedStartOwnership(effectiveToken,
+                                                effectiveCommand) { startSingleFlight.compareAndSet(false, true) }
 											rejectPreparedStart(
 												effectiveToken,
 												effectiveCommand,
@@ -650,7 +606,8 @@ internal class TrackerService : CoreService() {
 											return@startupWork
 										}
 										AndroidRedeliveryRebaseResult.Stale -> {
-											withPreparedStartOwnership(effectiveToken, effectiveCommand) { startSingleFlight.compareAndSet(false, true) }
+											withPreparedStartOwnership(effectiveToken,
+                                                effectiveCommand) { startSingleFlight.compareAndSet(false, true) }
 											rejectPreparedStart(
 												effectiveToken,
 												effectiveCommand,
@@ -660,7 +617,8 @@ internal class TrackerService : CoreService() {
 											return@startupWork
 										}
 										is AndroidRedeliveryRebaseResult.BlockedByStop -> {
-											withPreparedStartOwnership(effectiveToken, effectiveCommand) { startSingleFlight.compareAndSet(false, true) }
+											withPreparedStartOwnership(effectiveToken,
+                                                effectiveCommand) { startSingleFlight.compareAndSet(false, true) }
 											requestGracefulStop(
 												startId = startId,
 												reason = rebase.stop.reason,
@@ -721,16 +679,19 @@ internal class TrackerService : CoreService() {
 								trackingStartRequestCoordinator.acceptForeground(claimed, effectiveCommand) {
 									withPreparedStartOwnership(effectiveToken, effectiveCommand) {
 										if (gracefulStopRequested) return@withPreparedStartOwnership false
-										this@TrackerService.sessionInfo = TrackerSessionInfo(claimed.claim.isUserInitiated)
+										this@TrackerService.sessionInfo =
+                                            TrackerSessionInfo(claimed.claim.isUserInitiated)
 										activeSessionDescriptor = claimed.descriptor
 										sessionStartOrigin = claimed.claim.startOrigin
-										ensureForegroundStarted(claimed.claim.acceptedSources, stopServiceOnFailure = false) &&
+										ensureForegroundStarted(claimed.claim.acceptedSources, stopServiceOnFailure =
+                                            false) &&
 											foregroundPromotionMatches(
 												sdkInt = Build.VERSION.SDK_INT,
 												captureSources = claimed.claim.acceptedSources,
 												hostedSources = backgroundLocationHost.hostedSources,
 												desiredCaptureMask = claimed.claim.desiredForegroundCapabilityFlags,
-												appliedSources = activeForegroundRequirements?.acceptedSources.orEmpty(),
+												appliedSources =
+                                                    activeForegroundRequirements?.acceptedSources.orEmpty(),
 												appliedMask = activeForegroundServiceType?.toLong() ?: 0L,
 											)
 									} == true
@@ -784,12 +745,7 @@ internal class TrackerService : CoreService() {
 					} catch (cancelled: CancellationException) {
 						// This cleanup belongs to the registered child: Clear joins its physical
 						// shell release before closing the data generation.
-						try {
-							retireCancelledPreparedStart(effectiveToken, effectiveCommand, startId)
-						} catch (cleanup: Exception) {
-							cancelled.addSuppressed(cleanup)
-						}
-						throw cancelled
+						rethrowAfterPreparedStartCleanup(cancelled, effectiveToken, effectiveCommand, startId)
 					} finally {
 						cancelPendingPreparedCollectionStart(effectiveCommand)
 					}
@@ -798,17 +754,29 @@ internal class TrackerService : CoreService() {
 			} catch (cancelled: CancellationException) {
 				// Covers cancellation before Ready work was registered. A completed inner cleanup
 				// is harmless here; exact matching never releases a successor delivery.
-				try {
-					retireCancelledPreparedStart(effectiveToken, effectiveCommand, startId)
-				} catch (cleanup: Exception) {
-					cancelled.addSuppressed(cleanup)
-				}
-				throw cancelled
+				rethrowAfterPreparedStartCleanup(cancelled, effectiveToken, effectiveCommand, startId)
 			} finally {
 				cancelPendingPreparedCollectionStart(effectiveCommand)
 			}
 		}
 		return START_REDELIVER_INTENT
+	}
+
+	private suspend fun rethrowAfterPreparedStartCleanup(
+		cancelled: CancellationException,
+		token: PreparedTrackingStartToken,
+		command: TrackingStartCommand,
+		startId: Int,
+	): Nothing {
+		try {
+			retireCancelledPreparedStart(token, command, startId)
+		} catch (
+			// Cancellation must preserve its original cause after exact-start shell cleanup.
+			@Suppress("TooGenericExceptionCaught") cleanup: Exception
+		) {
+			cancelled.addSuppressed(cleanup)
+		}
+		throw cancelled
 	}
 
 	private suspend fun awaitTrackingStartupBefore(deadlineElapsedRealtimeNanos: Long): Boolean {
@@ -826,7 +794,8 @@ internal class TrackerService : CoreService() {
 	}
 
 	/** Stops the providerless foreground shell without forcing Room through a closed startup gate. */
-	private fun abandonPreparedStartShell(token: PreparedTrackingStartToken, command: TrackingStartCommand, startId: Int) {
+	private fun abandonPreparedStartShell(token: PreparedTrackingStartToken, command: TrackingStartCommand,
+        startId: Int) {
 		TrackerDiagnosticLog.failure(
 			TrackerDiagnosticFailureCode.TRACKING_PREPARED_SHELL_STOPPED,
 			TrackingDiagnosticFailureReason.TIMEOUT,
@@ -844,7 +813,7 @@ internal class TrackerService : CoreService() {
 	}
 
 	/** Exact synchronous ownership updates; never hold this monitor over suspending work. */
-	private inline fun <T> withPreparedStartOwnership(
+	private fun <T> withPreparedStartOwnership(
 		token: PreparedTrackingStartToken,
 		command: TrackingStartCommand,
 		operation: () -> T,
@@ -869,7 +838,8 @@ internal class TrackerService : CoreService() {
 		preparedStartRuntime = PreparedStartRuntimeState()
 		startSingleFlight.set(false)
 		if (backgroundLocationHost.hasActiveSources) {
-			ensureForegroundStarted(backgroundLocationHost.hostedSources, stopServiceOnFailure = false, backgroundOnly = true)
+			ensureForegroundStarted(backgroundLocationHost.hostedSources, stopServiceOnFailure = false, backgroundOnly =
+                true)
 		} else {
 			if (foregroundStarted) stopForeground(STOP_FOREGROUND_REMOVE)
 			foregroundStarted = false
@@ -992,7 +962,8 @@ internal class TrackerService : CoreService() {
 				trackingLifecycleCommandAuthority.resolveStart(startCommand) ==
 					com.adsamcik.tracker.tracker.resilience.TrackingStartCommandDisposition.Allowed
 			if (gracefulStopRequested ||
-				(trackingLifecycleCommandAuthority.latestCommandGeneration() != startCommandGeneration && !acceptedContinuation)) {
+				(trackingLifecycleCommandAuthority.latestCommandGeneration() != startCommandGeneration &&
+                    !acceptedContinuation)) {
 				return@withPreparedStartOwnership
 			}
 			TrackerDiagnosticLog.info(
@@ -1034,7 +1005,8 @@ internal class TrackerService : CoreService() {
 				val preparedToken = preparedTrackingStart.claim.token
 				val preparedCommand = TrackingStartCommand(startCommandGeneration)
 				suspend fun compensatePreparedStart(failureCode: String) {
-					if (withPreparedStartOwnership(preparedToken, preparedCommand) { !preparedStartRuntime.applied } != true) return
+					if (withPreparedStartOwnership(preparedToken,
+                        preparedCommand) { !preparedStartRuntime.applied } != true) return
 					trackingStartRequestCoordinator.compensate(
 						preparedTrackingStart.claim.token,
 						TrackingStartCommand(startCommandGeneration),
@@ -1052,7 +1024,8 @@ internal class TrackerService : CoreService() {
 						waitTimeoutMillis = PREVIOUS_TEARDOWN_WAIT_TIMEOUT_MILLIS,
 					) {
 						recoverIncompleteTeardown(previousServiceTeardown)
-						if (withPreparedStartOwnership(preparedToken, preparedCommand) { !gracefulStopRequested } != true) return@runAfter
+						if (withPreparedStartOwnership(preparedToken,
+                            preparedCommand) { !gracefulStopRequested } != true) return@runAfter
 						if (!saveActiveSession(provisionalDescriptor)) return@runAfter
 
 						// Resolve semantic source plans before starting the event-owned session runtimes.
@@ -1372,38 +1345,152 @@ internal class TrackerService : CoreService() {
 			}
 			while (isActive) {
 				delay(MOTION_POLICY_TICK_MILLIS)
-				try {
-					// Reuse the existing low-frequency policy tick. Android normally terminates the
-					// process on runtime-permission revocation; this closes the documented edge case
-					// where it does not, without adding a wakeup source or hidden API dependency.
-					runtimePermissionReconciler.reconcile(
-						RuntimePermissionSnapshot.capture(this@TrackerService),
-					)
-				} catch (cancelled: CancellationException) {
-					throw cancelled
-				} catch (failure: Exception) {
-					TrackerDiagnosticLog.failure(
-						TrackerDiagnosticFailureCode
-							.TRACKING_RUNTIME_PERMISSION_RECONCILIATION_FAILED,
-						TrackingDiagnosticFailureReason.PERMISSION_RECONCILIATION_FAILURE,
-					)
-				}
-				reconcileLocationMotionScope()
-				refreshBackgroundLocationPlan()
-				// Re-evaluate current power/thermal inputs as well as pending provider work.
-				// The source-session fingerprint keeps an unchanged tick a no-op.
-				val policyOutcome = if (sessionInfo != null && !gracefulStopRequested) {
-					reconfigureSourceSession(
-						sourcePlanInputs(trackingParamsRepository.data.first(), orchestrator.currentSourceDemands()),
-					)
-				} else null
-				if (policyOutcome is SourceSessionReconfigureOutcome.Rejected) {
-					requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
-				}
-				collectionMotionController.tick(SystemClock.elapsedRealtimeNanos())
+				reconcileCollectionMotionTick()
 			}
 		}
 	}
+
+	private fun registerRuntimeStopDispatcher() {
+		TrackerRuntimeStopDispatcher.register(this) { command ->
+			check(Looper.myLooper() == Looper.getMainLooper()) {
+				"Tracker stop ownership must be acknowledged on the main thread"
+			}
+			if (!trackingLifecycleCommandAuthority.isStopActionable(command)) {
+				false
+			} else if (!preparedStartRuntime.applyStarted) {
+				// A providerless/claimed-only shell does not own the durable Room lifecycle. Stop the
+				// Android shell locally and let the inactive handler finalize the exact stored run.
+				if (!backgroundLocationHost.hasActiveSources) requestGracefulStop(reason = command.reason)
+				false
+			} else {
+				requestGracefulStop(
+					reason = command.reason,
+					externalCommand = command,
+				)
+				true
+			}
+		}
+	}
+
+	private fun createOrchestrator(): TrackingOrchestrator = TrackingOrchestrator(
+		controller = controller,
+		signalProcessors = signalProcessors,
+		domainEventRepository = domainEventRepository,
+		dispatchers = dispatchers,
+		appDatabase = appDatabase,
+		trackingParamsRepository = trackingParamsRepository,
+		trackingRolloutStateStore = trackingRolloutStateStore,
+		persistenceLifecycleLease = persistenceLifecycleLease,
+		runtimeTierAdjuster = { requestedTier ->
+			val preserveRequestedFidelity = sessionInfo?.isInitiatedByUser == true ||
+				com.adsamcik.tracker.tracker.api.BackgroundTrackingApi.cachedParams.preset ==
+				TrackingPreset.HIGH_ACCURACY
+			if (preserveRequestedFidelity) requestedTier else batteryAwarePolicy.adjustForBattery(requestedTier)
+		},
+		onDailySummaryWritten = {
+			metricDirtyTracker.markDirty(
+				com.adsamcik.tracker.stats.api.metric.MetricKeys.TABLE_DAILY_SUMMARY
+			)
+		},
+		onSourcePlanInputsChanged = { settings, demands ->
+			val rollout = sessionRolloutState
+			val foregroundReady = rollout == null || prepareForegroundForSourcePlan(settings, rollout)
+			val reconfigured = if (foregroundReady) {
+				reconfigureSourceSession(sourcePlanInputs(settings, demands))
+			} else {
+				null
+			}
+			if (reconfigured == null || reconfigured is SourceSessionReconfigureOutcome.Rejected) {
+				requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
+			}
+		},
+	)
+
+	private suspend fun reconcileCollectionMotionTick() {
+		try {
+			// Reuse the existing low-frequency policy tick. Android normally terminates the
+			// process on runtime-permission revocation; this closes the documented edge case
+			// where it does not, without adding a wakeup source or hidden API dependency.
+			runtimePermissionReconciler.reconcile(
+				RuntimePermissionSnapshot.capture(this@TrackerService),
+			)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (failure: Exception) {
+			TrackerDiagnosticLog.failure(
+				TrackerDiagnosticFailureCode
+					.TRACKING_RUNTIME_PERMISSION_RECONCILIATION_FAILED,
+				TrackingDiagnosticFailureReason.PERMISSION_RECONCILIATION_FAILURE,
+			)
+		}
+		reconcileLocationMotionScope()
+		refreshBackgroundLocationPlan()
+		// Re-evaluate current power/thermal inputs as well as pending provider work.
+		// The source-session fingerprint keeps an unchanged tick a no-op.
+		val policyOutcome = if (sessionInfo != null && !gracefulStopRequested) {
+			reconfigureSourceSession(
+				sourcePlanInputs(trackingParamsRepository.data.first(), orchestrator.currentSourceDemands()),
+			)
+		} else null
+		if (policyOutcome is SourceSessionReconfigureOutcome.Rejected) {
+			requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
+		}
+		collectionMotionController.tick(SystemClock.elapsedRealtimeNanos())
+	}
+
+	private fun currentSourceConstraints(
+		packageManager: PackageManager,
+		permissionCapabilities: com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilities,
+		foreground: ForegroundServiceRequirements?,
+		startOrigin: SessionStartOrigin,
+	): Map<SourceKind, SourceConstraint> {
+		val locationStartLegal = isLocationSourceLegalForStartOrigin(
+			sdkInt = Build.VERSION.SDK_INT,
+			startOrigin = startOrigin,
+			hasForegroundLocationPermission = hasLocationPermission,
+			hasBackgroundLocationPermission = hasBackgroundLocationPermission,
+		)
+		val locationFeature = packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION)
+		val wifiFeature = packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI)
+		val cellFeature = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) ||
+			(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+				packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS))
+		return mapOf(
+			SourceKind.LOCATION to SourceConstraint(
+				hardwareAvailable = locationFeature,
+				permissionGranted = hasLocationPermission,
+				foregroundCapabilityLegal = foreground?.accepts(SourceKind.LOCATION) == true,
+				backgroundStartLegal = locationStartLegal,
+			),
+			SourceKind.ACTIVITY to SourceConstraint(
+				hardwareAvailable = Assist.isPlayServicesAvailable(this),
+				permissionGranted = hasActivityPermission,
+				foregroundCapabilityLegal = foreground?.accepts(SourceKind.ACTIVITY) == true,
+			),
+			SourceKind.STEPS to SourceConstraint(
+				hardwareAvailable = hasStepCounterSensor,
+				permissionGranted = hasActivityPermission,
+				foregroundCapabilityLegal = foreground?.accepts(SourceKind.STEPS) == true,
+			),
+			SourceKind.PRESSURE to SourceConstraint(
+				hardwareAvailable = hasPressureSensor,
+				foregroundCapabilityLegal = foreground?.accepts(SourceKind.PRESSURE) == true,
+			),
+			SourceKind.WIFI to SourceConstraint(
+				hardwareAvailable = wifiFeature,
+				permissionGranted = permissionCapabilities.hasWifiScanPermissions,
+				foregroundCapabilityLegal = foreground?.accepts(SourceKind.WIFI) == true,
+			),
+			SourceKind.CELL to SourceConstraint(
+				hardwareAvailable = cellFeature,
+				permissionGranted = hasCellScanPermission,
+				foregroundCapabilityLegal = foreground?.accepts(SourceKind.CELL) == true,
+			),
+		)
+	}
+
+	private fun SourceConstraint.acceptsLiveSource(): Boolean =
+		foregroundCapabilityLegal && permissionGranted && hardwareAvailable && backgroundStartLegal
 
 	private fun locationMotionScope(purposes: Set<LocationMotionPurpose>): LocationMotionScope {
 		if (locationScopeStartedNanos == 0L) locationScopeStartedNanos = SystemClock.elapsedRealtimeNanos()
@@ -1412,7 +1499,6 @@ internal class TrackerService : CoreService() {
 	}
 
 	private fun updateLiveTrackingShortcut(active: Boolean) {
-		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1) return
 		Shortcuts.updateShortcut(this, ShortcutData(Shortcuts.TRACKING_ID,
 			if (active) R.string.shortcut_end_session else R.string.shortcut_start_tracking,
 			if (active) R.string.shortcut_end_session_long else R.string.shortcut_start_tracking_long,
@@ -1423,15 +1509,36 @@ internal class TrackerService : CoreService() {
 
 	private suspend fun reconcileLocationMotionScope() {
 		val purposes = mutableSetOf<LocationMotionPurpose>()
-		if (backgroundLocationHost.active.value != null && hasLocationPermission) purposes += LocationMotionPurpose.BACKGROUND
+		if (backgroundLocationHost.active.value != null && hasLocationPermission) {
+			purposes += LocationMotionPurpose.BACKGROUND
+		}
 		val descriptor = activeSessionDescriptor
 		val rollout = sessionRolloutState
-		if (descriptor != null && rollout != null && sessionInfo != null && !gracefulStopRequested && hasLocationPermission) {
-			val settings = trackingParamsRepository.data.first()
-			if (SourceKind.LOCATION in resolveActiveSessionOwnership(rollout, settings, descriptor).enabledEventSources
-			) purposes += LocationMotionPurpose.CAPTURE
-		}
+		addCaptureLocationMotionPurpose(purposes, descriptor, rollout)
 		locationMotionAssistanceOwner.reconcile(purposes.takeIf { it.isNotEmpty() }?.let(::locationMotionScope))
+		settleFallbackCollectionMotionScope(purposes, descriptor)
+	}
+
+	private suspend fun addCaptureLocationMotionPurpose(
+		purposes: MutableSet<LocationMotionPurpose>,
+		descriptor: ActiveTrackingSessionDescriptor?,
+		rollout: TrackingRolloutState?,
+	) {
+		if (descriptor != null && rollout != null && hasLiveLocationMotionCapture()) {
+			val settings = trackingParamsRepository.data.first()
+			if (SourceKind.LOCATION in resolveActiveSessionOwnership(rollout, settings, descriptor).enabledEventSources) {
+				purposes += LocationMotionPurpose.CAPTURE
+			}
+		}
+	}
+
+	private fun hasLiveLocationMotionCapture(): Boolean =
+		sessionInfo != null && !gracefulStopRequested && hasLocationPermission
+
+	private fun settleFallbackCollectionMotionScope(
+		purposes: Set<LocationMotionPurpose>,
+		descriptor: ActiveTrackingSessionDescriptor?,
+	) {
 		if (purposes.isNotEmpty()) {
 			fallbackMotionScopeId = null
 		} else if ((descriptor != null && sessionInfo != null && !gracefulStopRequested) ||
@@ -1457,7 +1564,8 @@ internal class TrackerService : CoreService() {
 		} else if (backgroundLocationHost.hasActiveSources) {
 			synchronized(preparedStartOwnershipMonitor) {
 				if (sessionInfo == null && !startSingleFlight.get() && preparedStartRuntime.token == null) {
-					ensureForegroundStarted(backgroundLocationHost.hostedSources, stopServiceOnFailure = false, backgroundOnly = true)
+					ensureForegroundStarted(backgroundLocationHost.hostedSources, stopServiceOnFailure = false,
+                        backgroundOnly = true)
 				}
 			}
 		}
@@ -1492,7 +1600,8 @@ internal class TrackerService : CoreService() {
 			orchestrator.resetMetadata(keepCollectionHost = backgroundLocationHost.hasActiveSources)
 			updateLiveTrackingShortcut(active = false)
 			val cleared = synchronized(preparedStartOwnershipMonitor) {
-				if (preparedStartRuntime.token != retiring.token || preparedStartRuntime.command != retiring.command) false else {
+				if (preparedStartRuntime.token != retiring.token ||
+                    preparedStartRuntime.command != retiring.command) false else {
 					sessionInfo = null
 					activeSessionDescriptor = null
 					sessionRolloutState = null
@@ -1509,7 +1618,8 @@ internal class TrackerService : CoreService() {
 			val leaseCurrent = backgroundLocationHost.isCurrentLeaseValid()
 			val hosted = synchronized(preparedStartOwnershipMonitor) {
 				if (preparedStartRuntime.token != null || startSingleFlight.get()) null else {
-					leaseCurrent && ensureForegroundStarted(backgroundLocationHost.hostedSources, stopServiceOnFailure = false, backgroundOnly = true)
+					leaseCurrent && ensureForegroundStarted(backgroundLocationHost.hostedSources, stopServiceOnFailure =
+                        false, backgroundOnly = true)
 				}
 			} ?: return@runAfter
 			if (hosted) {
@@ -1611,12 +1721,22 @@ internal class TrackerService : CoreService() {
 		} ?: return outcome
 		val persisted = sourceSession.persistedDescriptorForActiveSession(reference)
 			?: return sourceCallerDescriptorRejection("SOURCE_CALLER_DESCRIPTOR_MISSING")
-		val published = synchronized(preparedStartOwnershipMonitor) {
-			val current = activeSessionDescriptor
-			if (current == null || current.logicalTrackingId != persisted.logicalTrackingId || current.serviceRunId != persisted.serviceRunId) false
-			else { activeSessionDescriptor = persisted; true }
-		}
+		val published = publishReconfiguredSourceDescriptor(persisted)
 		return if (published) outcome else sourceCallerDescriptorRejection("SOURCE_CALLER_DESCRIPTOR_SUPERSEDED")
+	}
+
+	private fun publishReconfiguredSourceDescriptor(
+		persisted: ActiveTrackingSessionDescriptor,
+	): Boolean = synchronized(preparedStartOwnershipMonitor) {
+		val current = activeSessionDescriptor
+		if (current == null || current.logicalTrackingId != persisted.logicalTrackingId ||
+			current.serviceRunId != persisted.serviceRunId
+		) {
+			false
+		} else {
+			activeSessionDescriptor = persisted
+			true
+		}
 	}
 
 	private fun sourceCallerDescriptorRejection(code: String) =
@@ -1674,27 +1794,48 @@ internal class TrackerService : CoreService() {
 		}
 
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-			if (!backgroundOnly && foregroundStarted && activeForegroundRequirements == requirements &&
-				foregroundIsStartupShell == startupShell
-			) return@synchronized true
-			val notification = if (backgroundOnly) TrackerNotificationManager.getBackgroundCollectionForegroundNotification(this, combinedSources) else foregroundNotification(
-				requirements,
-				notificationIsUserInitiatedHint,
-				startupShell,
-			)
-			return@synchronized if (tryStartForeground(notification, type = null)) {
-				foregroundStarted = true
-				foregroundIsStartupShell = startupShell
-				activeForegroundServiceType = null
-				activeForegroundRequirements = requirements
-				onForegroundServiceTypeChanged()
-				true
-			} else {
-				onForegroundStartFailed(stopServiceOnFailure)
-				false
-			}
+			startLegacyForeground(requirements, combinedSources, stopServiceOnFailure,
+				notificationIsUserInitiatedHint, startupShell, backgroundOnly)
+		} else {
+			startTypedForeground(requirements, combinedSources, stopServiceOnFailure,
+				notificationIsUserInitiatedHint, startupShell, backgroundOnly)
 		}
+	}
 
+	private fun startLegacyForeground(
+		requirements: ForegroundServiceRequirements,
+		combinedSources: Set<SourceKind>,
+		stopServiceOnFailure: Boolean,
+		notificationIsUserInitiatedHint: Boolean?,
+		startupShell: Boolean,
+		backgroundOnly: Boolean,
+	): Boolean {
+		if (!backgroundOnly && foregroundStarted && activeForegroundRequirements == requirements &&
+			foregroundIsStartupShell == startupShell
+		) {
+			return true
+		}
+		val notification = if (backgroundOnly) {
+			TrackerNotificationManager.getBackgroundCollectionForegroundNotification(this, combinedSources)
+		} else {
+			foregroundNotification(requirements, notificationIsUserInitiatedHint, startupShell)
+		}
+		return if (tryStartForeground(notification, type = null)) {
+			recordForegroundPromotion(null, requirements, startupShell)
+		} else {
+			onForegroundStartFailed(stopServiceOnFailure)
+			false
+		}
+	}
+
+	private fun startTypedForeground(
+		requirements: ForegroundServiceRequirements,
+		combinedSources: Set<SourceKind>,
+		stopServiceOnFailure: Boolean,
+		notificationIsUserInitiatedHint: Boolean?,
+		startupShell: Boolean,
+		backgroundOnly: Boolean,
+	): Boolean {
 		val candidates = foregroundServiceTypeCandidates(
 			sdkInt = Build.VERSION.SDK_INT,
 			acceptedSources = combinedSources,
@@ -1702,34 +1843,45 @@ internal class TrackerService : CoreService() {
 		val preferredType = candidates.firstOrNull()
 		if (preferredType == null && candidates.isEmpty()) {
 			onForegroundStartFailed(stopServiceOnFailure)
-			return@synchronized false
+			return false
 		}
-		if (
-			!backgroundOnly && foregroundStarted &&
-			activeForegroundServiceType == preferredType &&
-			activeForegroundRequirements == requirements &&
-			foregroundIsStartupShell == startupShell
-		) {
-			return@synchronized true
+		if (hasMatchingTypedForeground(backgroundOnly, preferredType, requirements, startupShell)) {
+			return true
 		}
 
-		val notification = if (backgroundOnly) TrackerNotificationManager.getBackgroundCollectionForegroundNotification(this, combinedSources) else foregroundNotification(
-			requirements,
-			notificationIsUserInitiatedHint,
-			startupShell,
-		)
+		val notification = if (backgroundOnly) {
+			TrackerNotificationManager.getBackgroundCollectionForegroundNotification(this, combinedSources)
+		} else {
+			foregroundNotification(requirements, notificationIsUserInitiatedHint, startupShell)
+		}
 		for (type in candidates) {
 			if (tryStartForeground(notification, type)) {
-				foregroundStarted = true
-				foregroundIsStartupShell = startupShell
-				activeForegroundServiceType = type
-				activeForegroundRequirements = requirements
-				onForegroundServiceTypeChanged()
-				return@synchronized true
+				return recordForegroundPromotion(type, requirements, startupShell)
 			}
 		}
 		onForegroundStartFailed(stopServiceOnFailure)
-		return@synchronized false
+		return false
+	}
+
+	private fun hasMatchingTypedForeground(
+		backgroundOnly: Boolean,
+		preferredType: Int?,
+		requirements: ForegroundServiceRequirements,
+		startupShell: Boolean,
+	): Boolean = !backgroundOnly && foregroundStarted && activeForegroundServiceType == preferredType &&
+		activeForegroundRequirements == requirements && foregroundIsStartupShell == startupShell
+
+	private fun recordForegroundPromotion(
+		type: Int?,
+		requirements: ForegroundServiceRequirements,
+		startupShell: Boolean,
+	): Boolean {
+		foregroundStarted = true
+		foregroundIsStartupShell = startupShell
+		activeForegroundServiceType = type
+		activeForegroundRequirements = requirements
+		onForegroundServiceTypeChanged()
+		return true
 	}
 
 	private fun foregroundNotification(
@@ -1853,7 +2005,9 @@ internal class TrackerService : CoreService() {
 		synchronized(preparedStartOwnershipMonitor) {
 			if (externalCommand != null &&
 				!trackingLifecycleCommandAuthority.isStopActionable(externalCommand)
-			) return
+			) {
+				return
+			}
 			if (gracefulStopRequested) {
 				if (externalCommand != null) {
 					handleRepeatedExternalStopRequest(startId, reason, externalCommand)
@@ -1888,55 +2042,60 @@ internal class TrackerService : CoreService() {
 			activeSessionDescriptor = stopCandidate
 			liveTeardownJob = launch {
 				initializationJob?.join()
-				// Keep the stop candidate durable until teardown completes.  An unexpected kill in this
+				// Keep the stop candidate durable until teardown completes. An unexpected kill in this
 				// interval must not be interpreted as a user-session crash eligible for restart.
-				val ready = completeDurableStopBeforeForegroundRelease(
-					isCurrent = { gracefulStopRequested && stopRequestGeneration == stopGeneration },
-					persistStopCandidate = {
-						stopCandidate == null || saveActiveSession(
-							stopCandidate,
-							requireLifecycleState = true,
-						)
-					},
-					retireSources = {
-						if (!preparedStartRuntime.applyStarted) {
-							true
-						} else {
-							val outcome = sourceSession.stop(
-								reason = stopReason.name,
-								preserveLogicalSession = false,
-								factualCutoff = activeExternalStop?.cutoff,
-							)
-							outcome.requestCapturedActivityProjectionOnSettlement(
-								sourcePipelineRecovery::requestActivityCapturedFactDrain,
-							)
-							outcome == SourceSessionStopOutcome.Stopped ||
-								outcome == SourceSessionStopOutcome.NotActive
-						}
-					},
-					onFailure = { attempt, _ ->
-						if (attempt == 1L || attempt % PERSISTENT_TEARDOWN_LOG_EVERY_ATTEMPTS == 0L) {
-							TrackerDiagnosticLog.trackingProviderTeardownFailed(
-								TrackingDiagnosticFailureReason.PROVIDER_FAILURE,
-								attempt,
-							)
-						}
-					},
-				)
-				if (!ready) return@launch
-				durableStopReadyGeneration = stopGeneration
-				val stopAfterStartId = startId ?: latestDeliveredStartId.takeIf { it > 0 }
-				if (backgroundLocationHost.hasActiveSources && sessionInfo != null) {
-					finishLiveSessionKeepingBackground()
+				if (!completeDurableLiveStop(stopGeneration, stopCandidate)) {
 					return@launch
 				}
-				val currentExternalStop = activeExternalStop?.command
-				if (currentExternalStop == null) {
-					if (stopAfterStartId == null) stopSelf() else stopSelfResult(stopAfterStartId)
-				} else {
-					completeExternalStopDelivery(currentExternalStop, stopAfterStartId)
-				}
+				durableStopReadyGeneration = stopGeneration
+				releaseStoppedService(startId)
 			}
+		}
+	}
+
+	private suspend fun completeDurableLiveStop(
+		stopGeneration: Long,
+		stopCandidate: ActiveTrackingSessionDescriptor?,
+	): Boolean = completeDurableStopBeforeForegroundRelease(
+		isCurrent = { gracefulStopRequested && stopRequestGeneration == stopGeneration },
+		persistStopCandidate = {
+			stopCandidate == null || saveActiveSession(stopCandidate, requireLifecycleState = true)
+		},
+		retireSources = { retireStartedSourcesAtStop() },
+		onFailure = { attempt, _ ->
+			if (attempt == 1L || attempt % PERSISTENT_TEARDOWN_LOG_EVERY_ATTEMPTS == 0L) {
+				TrackerDiagnosticLog.trackingProviderTeardownFailed(
+					TrackingDiagnosticFailureReason.PROVIDER_FAILURE,
+					attempt,
+				)
+			}
+		},
+	)
+
+	private suspend fun retireStartedSourcesAtStop(): Boolean {
+		if (!preparedStartRuntime.applyStarted) return true
+		val outcome = sourceSession.stop(
+			reason = stopReason.name,
+			preserveLogicalSession = false,
+			factualCutoff = activeExternalStop?.cutoff,
+		)
+		outcome.requestCapturedActivityProjectionOnSettlement(
+			sourcePipelineRecovery::requestActivityCapturedFactDrain,
+		)
+		return outcome == SourceSessionStopOutcome.Stopped || outcome == SourceSessionStopOutcome.NotActive
+	}
+
+	private suspend fun releaseStoppedService(startId: Int?) {
+		val stopAfterStartId = startId ?: latestDeliveredStartId.takeIf { it > 0 }
+		if (backgroundLocationHost.hasActiveSources && sessionInfo != null) {
+			finishLiveSessionKeepingBackground()
+			return
+		}
+		val currentExternalStop = activeExternalStop?.command
+		if (currentExternalStop == null) {
+			if (stopAfterStartId == null) stopSelf() else stopSelfResult(stopAfterStartId)
+		} else {
+			completeExternalStopDelivery(currentExternalStop, stopAfterStartId)
 		}
 	}
 
@@ -2085,42 +2244,63 @@ internal class TrackerService : CoreService() {
 		val expected = synchronized(preparedStartOwnershipMonitor) {
 			val current = activeSessionDescriptor
 			if (current == null || current.logicalTrackingId != descriptor.logicalTrackingId ||
-				current.serviceRunId != descriptor.serviceRunId) return false
+				current.serviceRunId != descriptor.serviceRunId
+			) {
+				return false
+			}
 			preparedStartRuntime to current
 		}
-		when (val result = activeTrackingSessionStore.mergeServiceDescriptor(descriptor)) {
+		return when (val result = activeTrackingSessionStore.mergeServiceDescriptor(descriptor)) {
 			is ActiveTrackingSessionStoreResult.Failure -> {
 				TrackerDiagnosticLog.failure(
 					TrackerDiagnosticFailureCode.TRACKING_SESSION_STORE_FAILED,
 					TrackingDiagnosticFailureReason.STORAGE_UNAVAILABLE,
 				)
-				return false
+				false
 			}
-			is ActiveTrackingSessionStoreResult.Success -> {
-				val persisted = result.descriptor
-				?.takeIf {
-					it.logicalTrackingId == descriptor.logicalTrackingId &&
-						it.serviceRunId == descriptor.serviceRunId &&
-						(!requireLifecycleState ||
-							(it.lifecycleState == descriptor.lifecycleState &&
-								it.lifecycleRevision >= descriptor.lifecycleRevision))
-				}
-				if (persisted == null) {
-					TrackerDiagnosticLog.failure(
-						TrackerDiagnosticFailureCode.TRACKING_SESSION_STORE_FAILED,
-						TrackingDiagnosticFailureReason.INTERNAL_INVARIANT,
-					)
-					return false
-				} else {
-					return synchronized(preparedStartOwnershipMonitor) {
-						if (preparedStartRuntime.token != expected.first.token ||
-							preparedStartRuntime.command != expected.first.command || activeSessionDescriptor != expected.second) false
-						else { activeSessionDescriptor = persisted; true }
-					}
-				}
+			is ActiveTrackingSessionStoreResult.Success -> publishSavedServiceDescriptor(
+				expected,
+				result.descriptor,
+				descriptor,
+				requireLifecycleState,
+			)
+		}
+	}
+
+	private fun publishSavedServiceDescriptor(
+		expected: Pair<PreparedStartRuntimeState, ActiveTrackingSessionDescriptor>,
+		stored: ActiveTrackingSessionDescriptor?,
+		requested: ActiveTrackingSessionDescriptor,
+		requireLifecycleState: Boolean,
+	): Boolean {
+		val persisted = stored?.takeIf { it.matchesSavedServiceDescriptor(requested, requireLifecycleState) }
+		if (persisted == null) {
+			TrackerDiagnosticLog.failure(
+				TrackerDiagnosticFailureCode.TRACKING_SESSION_STORE_FAILED,
+				TrackingDiagnosticFailureReason.INTERNAL_INVARIANT,
+			)
+			return false
+		}
+		return synchronized(preparedStartOwnershipMonitor) {
+			if (preparedStartRuntime.token != expected.first.token ||
+				preparedStartRuntime.command != expected.first.command ||
+				activeSessionDescriptor != expected.second
+			) {
+				false
+			} else {
+				activeSessionDescriptor = persisted
+				true
 			}
 		}
 	}
+
+	private fun ActiveTrackingSessionDescriptor.matchesSavedServiceDescriptor(
+		requested: ActiveTrackingSessionDescriptor,
+		requireLifecycleState: Boolean,
+	): Boolean = logicalTrackingId == requested.logicalTrackingId &&
+		serviceRunId == requested.serviceRunId &&
+		(!requireLifecycleState ||
+			(lifecycleState == requested.lifecycleState && lifecycleRevision >= requested.lifecycleRevision))
 
 	override fun onDestroy() {
 		pendingBackgroundRetirement = backgroundLocationHost.detachAll(this)
@@ -2420,49 +2600,7 @@ internal class TrackerService : CoreService() {
 			}
 		}.orEmpty()
 		val startOrigin = sessionStartOrigin ?: SessionStartOrigin.POLICY_RECONCILIATION
-		val locationStartLegal = isLocationSourceLegalForStartOrigin(
-			sdkInt = Build.VERSION.SDK_INT,
-			startOrigin = startOrigin,
-			hasForegroundLocationPermission = hasLocationPermission,
-			hasBackgroundLocationPermission = hasBackgroundLocationPermission,
-		)
-		val locationFeature = packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION)
-		val wifiFeature = packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI)
-		val cellFeature = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) ||
-			(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-				packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS))
-		val constraints = mapOf(
-			SourceKind.LOCATION to SourceConstraint(
-				hardwareAvailable = locationFeature,
-				permissionGranted = hasLocationPermission,
-				foregroundCapabilityLegal = foreground?.accepts(SourceKind.LOCATION) == true,
-				backgroundStartLegal = locationStartLegal,
-			),
-			SourceKind.ACTIVITY to SourceConstraint(
-				hardwareAvailable = Assist.isPlayServicesAvailable(this),
-				permissionGranted = hasActivityPermission,
-				foregroundCapabilityLegal = foreground?.accepts(SourceKind.ACTIVITY) == true,
-			),
-			SourceKind.STEPS to SourceConstraint(
-				hardwareAvailable = hasStepCounterSensor,
-				permissionGranted = hasActivityPermission,
-				foregroundCapabilityLegal = foreground?.accepts(SourceKind.STEPS) == true,
-			),
-			SourceKind.PRESSURE to SourceConstraint(
-				hardwareAvailable = hasPressureSensor,
-				foregroundCapabilityLegal = foreground?.accepts(SourceKind.PRESSURE) == true,
-			),
-			SourceKind.WIFI to SourceConstraint(
-				hardwareAvailable = wifiFeature,
-				permissionGranted = permissionCapabilities.hasWifiScanPermissions,
-				foregroundCapabilityLegal = foreground?.accepts(SourceKind.WIFI) == true,
-			),
-			SourceKind.CELL to SourceConstraint(
-				hardwareAvailable = cellFeature,
-				permissionGranted = hasCellScanPermission,
-				foregroundCapabilityLegal = foreground?.accepts(SourceKind.CELL) == true,
-			),
-		)
+		val constraints = currentSourceConstraints(packageManager, permissionCapabilities, foreground, startOrigin)
 		return SourceSessionPlanInputs(
 			settings = settings,
 			environment = SourcePlanEnvironment(
@@ -2470,10 +2608,7 @@ internal class TrackerService : CoreService() {
 				preciseLocationAvailable = permissionCapabilities.hasPreciseLocation,
 				subscriptionIds = emptySet(),
 				liveSources = liveSources.filterTo(linkedSetOf()) { source ->
-					constraints[source]?.let {
-						it.foregroundCapabilityLegal && it.permissionGranted && it.hardwareAvailable &&
-							it.backgroundStartLegal
-					} == true
+					constraints[source]?.acceptsLiveSource() == true
 				},
 			),
 			resolutionContext = PlanResolutionContext(
@@ -2485,10 +2620,8 @@ internal class TrackerService : CoreService() {
 					powerManager.currentThermalStatus >= PowerManager.THERMAL_STATUS_SEVERE,
 				motionProfile = collectionMotionController.policy.value.acquisitionProfile,
 				locationProfileLevel = settings.locationBalanceLevel,
-				locationLiveFocus = SourceKind.LOCATION in liveSources && constraints[SourceKind.LOCATION]?.let {
-					it.foregroundCapabilityLegal && it.permissionGranted && it.hardwareAvailable &&
-						it.backgroundStartLegal
-				} == true,
+				locationLiveFocus = SourceKind.LOCATION in liveSources &&
+					constraints[SourceKind.LOCATION]?.acceptsLiveSource() == true,
 			),
 			demands = demands,
 			clockDomainId = bootClockDomainProvider.current(),

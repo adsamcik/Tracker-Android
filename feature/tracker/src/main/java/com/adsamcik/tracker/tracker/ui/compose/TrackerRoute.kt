@@ -80,7 +80,8 @@ fun TrackerRoute(
     onOpenMap: () -> Unit = {},
     onOpenGame: (() -> Unit)? = null,
     onSessionDetailClick: ((Long) -> Unit)? = null,
-    contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp),
+    contentPadding: androidx.compose.foundation.layout.PaddingValues =
+        androidx.compose.foundation.layout.PaddingValues(0.dp),
     viewModel: TrackerRouteViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -161,7 +162,8 @@ fun TrackerRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     
     // Observe tracking state via injected controller (replaces TrackerService static access)
-    val isTracking by controller.hasLiveCaptureFlow.collectAsStateWithLifecycle(initialValue = controller.hasLiveCapture)
+    val isTracking by controller.hasLiveCaptureFlow.collectAsStateWithLifecycle(initialValue =
+        controller.hasLiveCapture)
     
     // Observe lock state via injected manager (replaces TrackerLocker static access)
     val isLocked by lockManager.isLockedFlow.collectAsStateWithLifecycle()
@@ -179,7 +181,8 @@ fun TrackerRoute(
     val pathPoints by controller.pathPointsFlow.collectAsStateWithLifecycle()
     val recentTrips by viewModel.recentTrips.collectAsStateWithLifecycle()
     val stepsToday by viewModel.stepsToday.collectAsStateWithLifecycle()
-    val trackingParams by trackingParamsRepository.data.collectAsStateWithLifecycle(initialValue = TrackingParamsState())
+    val trackingParams by trackingParamsRepository.data.collectAsStateWithLifecycle(initialValue =
+        TrackingParamsState())
 
     val noAvailableCaptureSourceMessage = stringResource(R.string.error_nothing_to_track)
     val openSettingsActionLabel = stringResource(
@@ -194,6 +197,40 @@ fun TrackerRoute(
 
     LaunchedEffect(trackingParams.sourcePolicyRevision, hasLocationPermission) {
         manualStartReadiness = TrackerServiceApi.readManualTrackingStartReadiness(context)
+    }
+
+    suspend fun repairManualLocationServices(
+        result: ManualTrackingStartResult.RepairRequired,
+        requestVersion: Long,
+    ): Boolean {
+        val action = snackbarHostState.showSnackbar(
+            message = context.getString(
+                R.string.manual_tracking_location_services_required,
+            ),
+            actionLabel = context.getString(
+                com.adsamcik.tracker.shared.utils.R.string
+                    .permission_denied_settings_action,
+            ),
+        )
+        if (requestVersion != manualStartRequestVersion) {
+            cancelPendingManualStart(result.continuationGeneration)
+            return false
+        }
+        if (action == SnackbarResult.ActionPerformed) {
+            pendingLocationServicesRepair = true
+            if (!ManualTrackingStartRepairNavigation
+                    .openLocationServicesSettings(context)
+            ) {
+                pendingLocationServicesRepair = false
+                cancelPendingManualStart(result.continuationGeneration)
+                snackbarHostState.showSnackbar(
+                    context.getString(
+                        R.string.notification_tracking_start_failed_title,
+                    ),
+                )
+            }
+        } else cancelPendingManualStart(result.continuationGeneration)
+        return true
     }
 
     fun requestManualStart(continuationGeneration: Long? = null): Job {
@@ -212,33 +249,7 @@ fun TrackerRoute(
                     pendingManualStartGeneration = result.continuationGeneration
                     when (result.prerequisite) {
                         ManualTrackingStartPrerequisite.LOCATION_SERVICES -> {
-                            val action = snackbarHostState.showSnackbar(
-                                message = context.getString(
-                                    R.string.manual_tracking_location_services_required,
-                                ),
-                                actionLabel = context.getString(
-                                    com.adsamcik.tracker.shared.utils.R.string
-                                        .permission_denied_settings_action,
-                                ),
-                            )
-                            if (requestVersion != manualStartRequestVersion) {
-                                cancelPendingManualStart(result.continuationGeneration)
-                                return@launch
-                            }
-                            if (action == SnackbarResult.ActionPerformed) {
-                                pendingLocationServicesRepair = true
-                                if (!ManualTrackingStartRepairNavigation
-                                        .openLocationServicesSettings(context)
-                                ) {
-                                    pendingLocationServicesRepair = false
-                                    cancelPendingManualStart(result.continuationGeneration)
-                                    snackbarHostState.showSnackbar(
-                                        context.getString(
-                                            R.string.notification_tracking_start_failed_title,
-                                        ),
-                                    )
-                                }
-                            } else cancelPendingManualStart(result.continuationGeneration)
+                            if (!repairManualLocationServices(result, requestVersion)) return@launch
                         }
                         else -> manualStartPermissionRequest = result.prerequisite
                     }

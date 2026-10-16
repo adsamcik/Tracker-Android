@@ -55,6 +55,9 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// One real WorkManager/Room fixture follows retention schedule ownership, cancellation confirmation and
+// exact recovery finishers.
+@Suppress("LargeClass")
 class RetentionWorkSchedulerTest {
 	private lateinit var context: Application
 	private lateinit var database: AppDatabase
@@ -525,6 +528,9 @@ class RetentionWorkSchedulerTest {
 		}
 
 	@Test
+	// Keep one running settlement, confirmed cancellation and its exact replacement finisher assertions
+	// together.
+	@Suppress("LongMethod")
 	fun `disable preserves an exact one shot finisher for an active floor settlement`() = runTest {
 		val requestId = UUID.randomUUID()
 		val plan = RetentionFloorDestructivePlan(
@@ -701,6 +707,9 @@ class RetentionWorkSchedulerTest {
 	}
 
 	@Test
+	// Keep the paused stale recovery and newer disabled preference interleaving together with its scheduling
+	// assertions.
+	@Suppress("LongMethod")
 	fun `concurrent stale recovery cannot undo a newer disabled preference`() = runTest {
 		val retentionConfigStore = mockk<RetentionConfigStore>()
 		var enabled = true
@@ -712,7 +721,11 @@ class RetentionWorkSchedulerTest {
 			firstArg<suspend (ExactApprovedRetentionConfigRead) -> Unit>().invoke(
 				approvedConfiguration(
 				enabled = enabled,
-				revision = if (enabled) 7L else 8L,
+				revision = if (enabled) {
+					7L
+				} else {
+					8L
+				},
 				),
 			)
 		}
@@ -745,7 +758,11 @@ class RetentionWorkSchedulerTest {
 				getWorkInfosForUniqueWorkFlow(RetentionPipelineWorker.WORK_NAME)
 			} answers {
 				flowOf(
-					if (periodicState == null) emptyList() else listOf(periodicInfo),
+					if (periodicState == null) {
+						emptyList()
+					} else {
+						listOf(periodicInfo)
+					},
 				)
 			}
 			every {

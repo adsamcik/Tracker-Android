@@ -74,11 +74,15 @@ class RoomTruncateImportedActivityRetention internal constructor(
 			?: unverifiable(ImportedActivityProductFailure.SOURCE_EVIDENCE_STATE_MISSING)
 		if (state.revision < 0L || state.collectedDataEpoch < 0L || state.updatedAtMs < 0L ||
 			state.retainedFromMs?.let { it < 0L } == true
-		) unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		) {
+			unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		}
 		if (state.collectedDataEpoch != request.expectedCollectedDataEpoch ||
 			state.revision != request.expectedSourceEvidenceRevision ||
 			state.retainedFromMs != request.retainedFromMs
-		) blocked(ImportedActivityRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		) {
+			blocked(ImportedActivityRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		}
 		if (request.retainedAtMs < state.updatedAtMs) {
 			blocked(ImportedActivityRetentionBlockedReason.STALE_REQUEST)
 		}
@@ -135,11 +139,15 @@ class RoomTruncateImportedActivityRetention internal constructor(
 							nextTotals.entries,
 							nextTotals.markers,
 						)
-					) unverifiable(ImportedActivityProductFailure.DEPENDENCY_OVERFLOW)
+					) {
+						unverifiable(ImportedActivityProductFailure.DEPENDENCY_OVERFLOW)
+					}
 					if (authenticated.markers.any {
 							!selectedProtectedIdentities.add(it.protectedIdentity)
 						}
-					) unverifiable(ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT)
+					) {
+						unverifiable(ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT)
+					}
 					selections += authenticated
 					totals = nextTotals
 					checkpoint(ImportedActivityRetentionCheckpoint.LINEAGE_AUTHENTICATED)
@@ -150,16 +158,22 @@ class RoomTruncateImportedActivityRetention internal constructor(
 			is ImportedActivityRetentionVisitResult.Unverifiable -> unverifiable(visitResult.reason)
 			is ImportedActivityRetentionVisitResult.Complete -> if (
 				visitResult.retainedCount.toLong() != retainedReceiptCount
-			) unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+			) {
+				unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+			}
 		}
-		if (selections.isEmpty()) return TruncateImportedActivityRetentionResult.NoChange
+		if (selections.isEmpty()) {
+			return TruncateImportedActivityRetentionResult.NoChange
+		}
 		if (!limits.canRetainAuthority(
 				retainedReceiptCount,
 				retainedIdentityCount,
 				totals.entries,
 				totals.markers,
 			)
-		) unverifiable(ImportedActivityProductFailure.DEPENDENCY_OVERFLOW)
+		) {
+			unverifiable(ImportedActivityProductFailure.DEPENDENCY_OVERFLOW)
+		}
 
 		selections.chunked(SQLITE_BIND_BATCH).forEach { batch ->
 			dao.insertRetentionReceipts(batch.map { it.receipt })
@@ -187,7 +201,9 @@ class RoomTruncateImportedActivityRetention internal constructor(
 			published.retainedFromMs != state.retainedFromMs ||
 			published.revision != nextStateRevision ||
 			published.updatedAtMs != request.retainedAtMs
-		) blocked(ImportedActivityRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		) {
+			blocked(ImportedActivityRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		}
 		selections.map { it.receipt }.chunked(ImportedActivityDao.HISTORY_EVALUATION_BATCH_SIZE)
 			.forEach { receipts ->
 				when (stored { database.authenticateImportedActivityRetentionBatch(published, receipts) }) {
@@ -236,7 +252,9 @@ class RoomTruncateImportedActivityRetention internal constructor(
 			zones.size > remaining.maximumZoneRows ||
 			windows.size > remaining.maximumWindowRows ||
 			fragments.size > remaining.maximumFragmentRows
-		) unverifiable(ImportedActivityProductFailure.DEPENDENCY_OVERFLOW)
+		) {
+			unverifiable(ImportedActivityProductFailure.DEPENDENCY_OVERFLOW)
+		}
 		val entryDeletions = stored { dao.entryDeletionsForHistory(identities) }
 		val entryDeletionReceipts = stored { dao.entryDeletionReceipts(identities) }
 		if (entryDeletions.isNotEmpty() || entryDeletionReceipts.isNotEmpty()) {
@@ -253,24 +271,8 @@ class RoomTruncateImportedActivityRetention internal constructor(
 				scopeIdentityDigests = scopes,
 			)
 		}
-		if (runDeletions.distinctBy { it.runIdentity }.size != runDeletions.size ||
-			sourceFences.distinctBy { it.scopeIdentityDigest }.size != sourceFences.size ||
-			runDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-			runDeletions.any { it.generation != 1L } ||
-			sourceFences.any {
-				it.collectedDataEpoch != state.collectedDataEpoch || it.fenceGeneration != 1L
-			}
-		) unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
-		val latestDurableTime = listOf(
-			state.updatedAtMs,
-			headers.maxOfOrNull { it.receivedAtMs } ?: 0L,
-			receipts.maxOfOrNull { it.receivedAtMs } ?: 0L,
-			runDeletions.maxOfOrNull { it.deletedAtMs } ?: 0L,
-			sourceFences.maxOfOrNull { it.deletedAtMs } ?: 0L,
-		).maxOrNull() ?: 0L
-		if (request.retainedAtMs < latestDurableTime) {
-			blocked(ImportedActivityRetentionBlockedReason.STALE_REQUEST)
-		}
+		requireRetentionDeletionShape(runDeletions, sourceFences, state.collectedDataEpoch)
+		requireFreshRetentionRequest(state, headers, receipts, runDeletions, sourceFences, request.retainedAtMs)
 
 		val lineage = try {
 			ImportedActivityLineageAuthenticator.authenticate(
@@ -287,13 +289,7 @@ class RoomTruncateImportedActivityRetention internal constructor(
 		} catch (failure: ImportedActivityLineageFailure) {
 			unverifiable(failure.reason.toRetentionProductFailure())
 		}
-		val latest = lineage.revisions.lastOrNull()
-			?: unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
-		if (latest.entry != evaluation.entry ||
-			latest.header.importRevision != evaluation.candidate.importRevision ||
-			latest.header.contentChecksum != evaluation.candidate.contentChecksum ||
-			lineage.revisions.none { it.entry.crossesRetentionBoundary(request.retainedFromMs) }
-		) unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		val latest = requireSelectedRetentionRevision(lineage, evaluation, request.retainedFromMs)
 		val markers = retainedMarkers(latest.entry)
 		val entryRunIds = latest.entry.runs.mapTo(hashSetOf()) { it.identity.value }
 		val entryScopes = latest.entry.runs.mapTo(hashSetOf()) { it.deletionScopeDigest.value }
@@ -346,9 +342,66 @@ class RoomTruncateImportedActivityRetention internal constructor(
 		return ImportedActivityRetentionSelection(retainedReceipt, markers)
 	}
 
-	private suspend fun authenticateSelectedOwnerColumns(
-		selection: ImportedActivityRetentionAuthenticatedRows,
+	private fun requireRetentionDeletionShape(
+		runDeletions: List<ImportedActivityDeletionGenerationEntity>,
+		sourceFences: List<SourceDeletionFenceEntity>,
+		collectedDataEpoch: Long,
 	) {
+		if (runDeletions.distinctBy { it.runIdentity }.size != runDeletions.size ||
+			sourceFences.distinctBy { it.scopeIdentityDigest }.size != sourceFences.size
+		) {
+			unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		if (runDeletions.any { it.collectedDataEpoch != collectedDataEpoch } ||
+			runDeletions.any { it.generation != 1L } ||
+			sourceFences.any {
+				it.collectedDataEpoch != collectedDataEpoch || it.fenceGeneration != 1L
+			}
+		) {
+			unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+	}
+
+	private fun requireFreshRetentionRequest(
+		state: SourceEvidenceState,
+		headers: List<ImportedActivityEntryRevisionEntity>,
+		receipts: List<ImportedActivityReceiptEntity>,
+		runDeletions: List<ImportedActivityDeletionGenerationEntity>,
+		sourceFences: List<SourceDeletionFenceEntity>,
+		retainedAtMs: Long,
+	) {
+		val latestDurableTime = listOf(
+			state.updatedAtMs,
+			headers.maxOfOrNull { it.receivedAtMs } ?: 0L,
+			receipts.maxOfOrNull { it.receivedAtMs } ?: 0L,
+			runDeletions.maxOfOrNull { it.deletedAtMs } ?: 0L,
+			sourceFences.maxOfOrNull { it.deletedAtMs } ?: 0L,
+		).maxOrNull() ?: 0L
+		if (retainedAtMs < latestDurableTime) {
+			blocked(ImportedActivityRetentionBlockedReason.STALE_REQUEST)
+		}
+	}
+
+	private fun requireSelectedRetentionRevision(
+		lineage: AuthenticatedImportedActivityLineage,
+		evaluation: ImportedActivityProductEvaluation.Readable,
+		retainedFromMs: Long,
+	): AuthenticatedImportedActivityRevision {
+		val latest = lineage.revisions.lastOrNull()
+			?: unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		if (latest.entry != evaluation.entry ||
+			latest.header.importRevision != evaluation.candidate.importRevision ||
+			latest.header.contentChecksum != evaluation.candidate.contentChecksum ||
+			lineage.revisions.none { it.entry.crossesRetentionBoundary(retainedFromMs) }
+		) {
+			unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		return latest
+	}
+
+	private fun expectedRetentionOwnerCounts(
+		selection: ImportedActivityRetentionAuthenticatedRows,
+	): Map<OwnerKey, Long> {
 		val expected = linkedMapOf<OwnerKey, Long>()
 		fun include(kind: String, identity: String, count: Long = 1L) {
 			val key = OwnerKey(kind, identity, null, null, null)
@@ -376,7 +429,15 @@ class RoomTruncateImportedActivityRetention internal constructor(
 			include("FRAGMENT_WINDOW_OWNER", it.windowIdentity)
 		}
 		selection.runDeletions.forEach { include("RUN_DELETION", it.runIdentity) }
-		selection.sourceFences.forEach { fence ->
+		includeRetentionSourceFenceCounts(expected, selection.sourceFences)
+		return expected
+	}
+
+	private fun includeRetentionSourceFenceCounts(
+		expected: MutableMap<OwnerKey, Long>,
+		sourceFences: List<SourceDeletionFenceEntity>,
+	) {
+		sourceFences.forEach { fence ->
 			val key = OwnerKey(
 				"SOURCE_DELETION_SCOPE",
 				fence.scopeIdentityDigest,
@@ -386,6 +447,12 @@ class RoomTruncateImportedActivityRetention internal constructor(
 			)
 			expected[key] = Math.addExact(expected[key] ?: 0L, 1L)
 		}
+	}
+
+	private suspend fun authenticateSelectedOwnerColumns(
+		selection: ImportedActivityRetentionAuthenticatedRows,
+	) {
+		val expected = expectedRetentionOwnerCounts(selection)
 		val identities = selection.markers.map { it.protectedIdentity }
 		if (identities.distinct().size != identities.size) {
 			unverifiable(ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT)
@@ -612,7 +679,9 @@ internal fun ImportedActivityRetentionLimits.canRetainAuthority(
 ): Boolean {
 	if (retainedReceiptCount < 0L || retainedIdentityCount < 0L ||
 		addedReceiptCount < 0 || addedIdentityCount < 0
-	) return false
+	) {
+		return false
+	}
 	return try {
 		Math.addExact(retainedReceiptCount, addedReceiptCount.toLong()) <=
 			minOf(maximumEntries, ActivityCapturedPortableFormatV1.MAX_ENTRIES).toLong() &&

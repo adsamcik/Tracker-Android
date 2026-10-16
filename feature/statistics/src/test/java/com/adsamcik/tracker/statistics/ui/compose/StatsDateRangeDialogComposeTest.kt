@@ -142,8 +142,11 @@ class StatsDateRangeDialogComposeTest {
 		var cleared = 0
 		showRange(start, end, { firstMs, lastMs -> confirmed = firstMs to lastMs }, { cleared++ })
 		val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-		val caption = if (first == last) formatter.format(first) else
+		val caption = if (first == last) {
+			formatter.format(first)
+		} else {
 			"${formatter.format(first)} → ${formatter.format(last)}"
+		}
 		composeTestRule.onNodeWithText(caption).assertIsDisplayed()
 		composeTestRule.onNodeWithText(okText()).performClick()
 		assertEquals(start to end, confirmed)

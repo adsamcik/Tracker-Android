@@ -44,16 +44,7 @@ class ShortcutActivity : ComponentActivity() {
 
 	private suspend fun onActionReceived(action: ShortcutAction) {
 		when (action) {
-			ShortcutAction.START_COLLECTION -> {
-				val result = TrackerServiceApi.requestManualTrackingStart(this)
-				if (result != ManualTrackingStartResult.ENQUEUED) {
-					openDashboardForRepair(when (result) {
-						is ManualTrackingStartResult.RepairRequired -> result.continuationGeneration
-						is ManualTrackingStartResult.SetupPending -> result.continuationGeneration
-						else -> null
-					})
-				}
-			}
+			ShortcutAction.START_COLLECTION -> startTracking()
 			ShortcutAction.STOP_COLLECTION -> {
 				if (withTimeoutOrNull(STOP_ACTION_TIMEOUT_MS) {
 					TrackerServiceApi.stopServiceAndAwaitQuiescence(this@ShortcutActivity)
@@ -70,6 +61,17 @@ class ShortcutActivity : ComponentActivity() {
 					TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING -> Unit
 				}
 			}
+		}
+	}
+
+	private suspend fun startTracking() {
+		val result = TrackerServiceApi.requestManualTrackingStart(this)
+		if (result != ManualTrackingStartResult.ENQUEUED) {
+			openDashboardForRepair(when (result) {
+				is ManualTrackingStartResult.RepairRequired -> result.continuationGeneration
+				is ManualTrackingStartResult.SetupPending -> result.continuationGeneration
+				else -> null
+			})
 		}
 	}
 

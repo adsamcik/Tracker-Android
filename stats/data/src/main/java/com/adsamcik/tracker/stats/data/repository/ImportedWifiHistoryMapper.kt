@@ -3,8 +3,10 @@ package com.adsamcik.tracker.stats.data.repository
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductFailure
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiObservationV1
+import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiRunV1
 import com.adsamcik.tracker.stats.api.repository.PortableWifiAcquisitionCompleteness
 import com.adsamcik.tracker.stats.api.repository.PortableWifiCaptureCoverage
+import com.adsamcik.tracker.stats.api.repository.PortableWifiOpaqueIdentity
 import com.adsamcik.tracker.stats.api.repository.PortableWifiResultCompleteness
 import com.adsamcik.tracker.stats.api.repository.PortableWifiRunAvailability
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryAvailability
@@ -71,70 +73,28 @@ internal fun ImportedWifiProductEvaluation.authenticatedStructuralRuns(
 
 private fun ImportedWifiProductEvaluation.Readable.readablePublicEntry(): WifiHistoryEntry {
 	val visibleRuns = entry.runs.filterNot { it.identity in deletedRunIdentities }
-	if (visibleRuns.isEmpty()) return deleted()
+	if (visibleRuns.isEmpty()) {
+		return deleted()
+	}
 	val retained = retainedObservationIdentities
 	val visibleObservations = visibleRuns.flatMap { run ->
 		run.observations.filter { it.identity in retained }
 	}
 	if (visibleObservations.isEmpty()) {
-		val causes = linkedSetOf<WifiHistoryCause>()
-		if (deletedRunIdentities.isNotEmpty()) causes += WifiHistoryCause.DELETED
-		if (retentionLimited || visibleRuns.any { it.retentionLoss }) {
-			causes += WifiHistoryCause.RETENTION_LIMIT
-		}
-		if (visibleRuns.any { it.captureCoverage == PortableWifiCaptureCoverage.NOT_CAPTURED }) {
-			causes += WifiHistoryCause.SOURCE_NOT_CAPTURED
-		}
-		if (visibleRuns.any {
-				it.captureCoverage == PortableWifiCaptureCoverage.PARTIAL_RUN ||
-					it.acquisitionCompleteness != PortableWifiAcquisitionCompleteness.COMPLETE ||
-					it.hasUnresolvedProviderRange
-			}
-		) causes += WifiHistoryCause.ACQUISITION_INCOMPLETE
-		if (visibleRuns.any {
-				it.captureCoverage != PortableWifiCaptureCoverage.NOT_CAPTURED &&
-					it.availability == PortableWifiRunAvailability.NO_RETAINED_OBSERVATION
-			}
-		) causes += WifiHistoryCause.NO_QUALIFIED_FACTS
-		if (causes.isEmpty()) causes += WifiHistoryCause.PROVIDER_UNAVAILABLE
-		return emptyReadableShell(
-			state = if (causes == setOf(WifiHistoryCause.RETENTION_LIMIT) ||
-				causes == setOf(WifiHistoryCause.SOURCE_NOT_CAPTURED)
-			) {
-				WifiHistoryProductState.UNAVAILABLE
-			} else {
-				WifiHistoryProductState.MISSING
-			},
-			causes = causes,
-			storedZoneIds = visibleRuns.flatMapTo(linkedSetOf()) { it.storedZoneIds },
-		)
+		return emptyObservationEntry(visibleRuns)
 	}
 
-	val causes = linkedSetOf<WifiHistoryCause>()
-	if (deletedRunIdentities.isNotEmpty()) causes += WifiHistoryCause.DELETED
-	if (visibleRuns.any { it.captureCoverage == PortableWifiCaptureCoverage.NOT_CAPTURED }) {
-		causes += WifiHistoryCause.SOURCE_NOT_CAPTURED
+	val causes = visibleObservationCauses(visibleRuns, visibleObservations, retained)
+	val state = if (causes.isEmpty()) {
+		WifiHistoryProductState.READY
+	} else {
+		WifiHistoryProductState.PARTIAL
 	}
-	if (visibleRuns.any {
-			it.captureCoverage == PortableWifiCaptureCoverage.PARTIAL_RUN ||
-				it.acquisitionCompleteness != PortableWifiAcquisitionCompleteness.COMPLETE ||
-				it.hasUnresolvedProviderRange
-		}
-	) causes += WifiHistoryCause.ACQUISITION_INCOMPLETE
-	if (visibleRuns.any { run ->
-			run.captureCoverage != PortableWifiCaptureCoverage.NOT_CAPTURED &&
-				run.observations.none { it.identity in retained }
-		}
-	) causes += WifiHistoryCause.NO_QUALIFIED_FACTS
-	if (retentionLimited || visibleRuns.any { it.retentionLoss }) {
-		causes += WifiHistoryCause.RETENTION_LIMIT
+	val coverage = if (causes.isEmpty()) {
+		WifiHistoryCoverage.COMPLETE
+	} else {
+		WifiHistoryCoverage.PARTIAL
 	}
-	if (visibleObservations.any {
-			it.resultCompleteness == PortableWifiResultCompleteness.PARTIAL
-		}
-	) causes += WifiHistoryCause.RESULT_SET_PARTIAL
-	val state = if (causes.isEmpty()) WifiHistoryProductState.READY else WifiHistoryProductState.PARTIAL
-	val coverage = if (causes.isEmpty()) WifiHistoryCoverage.COMPLETE else WifiHistoryCoverage.PARTIAL
 	return WifiHistoryEntry(
 		key = importedKey(candidate.identity.value),
 		startTime = EpochMs(entry.startTimeMs),
@@ -148,6 +108,91 @@ private fun ImportedWifiProductEvaluation.Readable.readablePublicEntry(): WifiHi
 		importedSelection = candidate.selection,
 	)
 }
+
+private fun ImportedWifiProductEvaluation.Readable.emptyObservationEntry(
+	visibleRuns: List<PortableCapturedWifiRunV1>,
+): WifiHistoryEntry {
+	val causes = emptyObservationCauses(visibleRuns)
+	return emptyReadableShell(
+		state = if (causes == setOf(WifiHistoryCause.RETENTION_LIMIT) ||
+			causes == setOf(WifiHistoryCause.SOURCE_NOT_CAPTURED)
+		) {
+			WifiHistoryProductState.UNAVAILABLE
+		} else {
+			WifiHistoryProductState.MISSING
+		},
+		causes = causes,
+		storedZoneIds = visibleRuns.flatMapTo(linkedSetOf()) { it.storedZoneIds },
+	)
+}
+
+private fun ImportedWifiProductEvaluation.Readable.emptyObservationCauses(
+	visibleRuns: List<PortableCapturedWifiRunV1>,
+): Set<WifiHistoryCause> {
+	val causes = linkedSetOf<WifiHistoryCause>()
+	if (deletedRunIdentities.isNotEmpty()) {
+		causes += WifiHistoryCause.DELETED
+	}
+	if (retentionLimited || visibleRuns.any { it.retentionLoss }) {
+		causes += WifiHistoryCause.RETENTION_LIMIT
+	}
+	if (visibleRuns.any { it.captureCoverage == PortableWifiCaptureCoverage.NOT_CAPTURED }) {
+		causes += WifiHistoryCause.SOURCE_NOT_CAPTURED
+	}
+	if (visibleRuns.any { it.hasIncompleteAcquisition() }) {
+		causes += WifiHistoryCause.ACQUISITION_INCOMPLETE
+	}
+	if (visibleRuns.any {
+			it.captureCoverage != PortableWifiCaptureCoverage.NOT_CAPTURED &&
+				it.availability == PortableWifiRunAvailability.NO_RETAINED_OBSERVATION
+		}
+	) {
+		causes += WifiHistoryCause.NO_QUALIFIED_FACTS
+	}
+	if (causes.isEmpty()) {
+		causes += WifiHistoryCause.PROVIDER_UNAVAILABLE
+	}
+	return causes
+}
+
+private fun ImportedWifiProductEvaluation.Readable.visibleObservationCauses(
+	visibleRuns: List<PortableCapturedWifiRunV1>,
+	visibleObservations: List<PortableCapturedWifiObservationV1>,
+	retained: Set<PortableWifiOpaqueIdentity>,
+): Set<WifiHistoryCause> {
+	val causes = linkedSetOf<WifiHistoryCause>()
+	if (deletedRunIdentities.isNotEmpty()) {
+		causes += WifiHistoryCause.DELETED
+	}
+	if (visibleRuns.any { it.captureCoverage == PortableWifiCaptureCoverage.NOT_CAPTURED }) {
+		causes += WifiHistoryCause.SOURCE_NOT_CAPTURED
+	}
+	if (visibleRuns.any { it.hasIncompleteAcquisition() }) {
+		causes += WifiHistoryCause.ACQUISITION_INCOMPLETE
+	}
+	if (visibleRuns.any { run ->
+			run.captureCoverage != PortableWifiCaptureCoverage.NOT_CAPTURED &&
+				run.observations.none { it.identity in retained }
+		}
+	) {
+		causes += WifiHistoryCause.NO_QUALIFIED_FACTS
+	}
+	if (retentionLimited || visibleRuns.any { it.retentionLoss }) {
+		causes += WifiHistoryCause.RETENTION_LIMIT
+	}
+	if (visibleObservations.any {
+			it.resultCompleteness == PortableWifiResultCompleteness.PARTIAL
+		}
+	) {
+		causes += WifiHistoryCause.RESULT_SET_PARTIAL
+	}
+	return causes
+}
+
+private fun PortableCapturedWifiRunV1.hasIncompleteAcquisition(): Boolean =
+	captureCoverage == PortableWifiCaptureCoverage.PARTIAL_RUN ||
+		acquisitionCompleteness != PortableWifiAcquisitionCompleteness.COMPLETE ||
+		hasUnresolvedProviderRange
 
 private fun ImportedWifiProductEvaluation.Readable.emptyReadableShell(
 	state: WifiHistoryProductState,
@@ -173,7 +218,9 @@ internal fun PortableCapturedWifiObservationV1.toPublicObservation(): WifiHistor
 	)
 	val bands = linkedMapOf<WifiHistoryBand, Int>()
 	fun add(band: WifiHistoryBand, count: Int) {
-		if (count > 0) bands[band] = count
+		if (count > 0) {
+			bands[band] = count
+		}
 	}
 	add(WifiHistoryBand.TWO_POINT_FOUR_GHZ, twoPointFourGhzCount)
 	add(WifiHistoryBand.FIVE_GHZ, fiveGhzCount)

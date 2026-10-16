@@ -46,7 +46,7 @@ internal class FusedMiniGameLocationSource @Inject constructor(
 				minimumDisplacementMeters = request.minUpdateDistanceMeters,
 				highAccuracy = request.priority == Priority.PRIORITY_HIGH_ACCURACY,
 				maximumAgeMillis = if (request.intervalMillis >= 2_500L) 5_000L
-					else maxOf(1_000L, request.intervalMillis * 2L),
+					else maxOf(MINIMUM_SAMPLE_MAXIMUM_AGE_MS, request.intervalMillis * 2L),
 				cancelOnAppBackground = false,
 			),
 		).mapNotNull { location ->
@@ -66,3 +66,5 @@ internal class FusedMiniGameLocationSource @Inject constructor(
 		const val MINI_GAME_LOCATION_TAG = "mini-game-location"
 	}
 }
+
+private const val MINIMUM_SAMPLE_MAXIMUM_AGE_MS = 1_000L

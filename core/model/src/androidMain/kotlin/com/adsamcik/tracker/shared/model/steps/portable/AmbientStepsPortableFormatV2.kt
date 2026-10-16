@@ -10,6 +10,10 @@ object AmbientStepsPortableFormatV2 {
 	const val MAX_DAYS: Int = AmbientStepsPortableFormatV1.MAX_DAYS
 }
 
+/**
+ * Pairs a stored civil-day product with one exact count-domain root per retained fact; preserves source
+ * identities across imports.
+ */
 data class PortableAmbientStepsDayV2(
 	val product: PortableAmbientStepsDayV1,
 	val countDomainGraph: PortableCountDomainGraphV2,
@@ -32,6 +36,7 @@ data class PortableAmbientStepsDayV2(
 	}
 }
 
+/** Ordered all-day Steps archive with count-domain evidence; fact, gap and owner lineages remain unique across days. */
 data class PortableAmbientStepsArchiveV2(
 	val format: String = AmbientStepsPortableFormatV2.FORMAT,
 	val schemaVersion: Int = AmbientStepsPortableFormatV2.SCHEMA_VERSION,
@@ -56,7 +61,9 @@ data class PortableAmbientStepsArchiveV2(
 		require(contentChecksum == AmbientStepsPortableV2Integrity.archiveChecksum(days))
 	}
 
+	/** Orders supplied day records before computing the v2 archive membership checksum. */
 	companion object {
+		/** Sorts days canonically and validates unique facts, gaps and owner lineages before returning the archive. */
 		fun create(days: List<PortableAmbientStepsDayV2>): PortableAmbientStepsArchiveV2 {
 			val ordered = days.sortedWith(PORTABLE_AMBIENT_STEPS_DAY_V2_ORDER)
 			return PortableAmbientStepsArchiveV2(
@@ -78,7 +85,12 @@ val PORTABLE_AMBIENT_STEPS_DAY_V2_ORDER: Comparator<PortableAmbientStepsDayV2> =
 		.thenBy { it.product.storedZoneId }
 		.thenBy { it.product.identity.value }
 
+/** Hashes day product checksums together with their exact count-domain graphs. */
 object AmbientStepsPortableV2Integrity {
+	/**
+	 * Hashes ordered day identities and product/graph checksums; no export timestamp or destination receipt is
+	 * included.
+	 */
 	fun archiveChecksum(days: List<PortableAmbientStepsDayV2>): AmbientStepsPortableDigest =
 		AmbientStepsPortableIntegrity.digest(
 			"tracker-portable-ambient-steps-archive-v2",

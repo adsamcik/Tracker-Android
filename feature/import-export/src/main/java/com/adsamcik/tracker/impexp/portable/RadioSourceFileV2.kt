@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.impexp.portable
 
+import kotlinx.serialization.Required
+import kotlinx.serialization.Serializable
 import com.adsamcik.tracker.shared.base.database.PortableCapturedCellEntryV1
 import com.adsamcik.tracker.shared.base.database.data.PortableRadioChildIntegrity
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientCellArchiveV1
@@ -21,8 +23,11 @@ internal object RadioSourceFileV2 {
 	const val MAX_CHILDREN = 262_144
 }
 
+@Serializable
 internal data class WifiSourceFileV2(
+	@Required
 	val format: String = RadioSourceFileV2.WIFI_FORMAT,
+	@Required
 	val schemaVersion: Int = RadioSourceFileV2.VERSION,
 	val selectedFromMs: Long?,
 	val selectedToExclusiveMs: Long?,
@@ -58,8 +63,11 @@ internal data class WifiSourceFileV2(
 	}
 }
 
+@Serializable
 internal data class CellSourceFileV2(
+	@Required
 	val format: String = RadioSourceFileV2.CELL_FORMAT,
+	@Required
 	val schemaVersion: Int = RadioSourceFileV2.VERSION,
 	val selectedFromMs: Long?,
 	val selectedToExclusiveMs: Long?,
@@ -95,6 +103,7 @@ internal data class CellSourceFileV2(
 	}
 }
 
+@Serializable
 internal data class WifiSessionFileV2(
 	val entry: PortableCapturedWifiEntryV1,
 	val children: List<WifiSessionChildV2>,
@@ -123,6 +132,7 @@ internal data class WifiSessionFileV2(
 	}
 }
 
+@Serializable
 internal data class CellSessionFileV2(
 	val entry: PortableCapturedCellEntryV1,
 	val children: List<CellSessionChildV2>,
@@ -151,6 +161,7 @@ internal data class CellSessionFileV2(
 	}
 }
 
+@Serializable
 internal data class WifiSessionChildV2(
 	val entryIdentity: String,
 	val runIdentity: String,
@@ -172,6 +183,7 @@ internal data class WifiSessionChildV2(
 	override fun toString(): String = "WifiSessionChildV2"
 }
 
+@Serializable
 internal data class WifiBackgroundChildV2(
 	val factIdentity: String,
 	val semanticRevision: Long,
@@ -191,6 +203,7 @@ internal data class WifiBackgroundChildV2(
 	override fun toString(): String = "WifiBackgroundChildV2"
 }
 
+@Serializable
 internal data class CellSessionChildV2(
 	val entryIdentity: String,
 	val runIdentity: String,
@@ -212,6 +225,7 @@ internal data class CellSessionChildV2(
 	override fun toString(): String = "CellSessionChildV2"
 }
 
+@Serializable
 internal data class CellBackgroundChildV2(
 	val factIdentity: String,
 	val semanticRevision: Long,
@@ -237,7 +251,8 @@ private fun requireWifiChild(
 	signal: Int, checksum: String,
 ) {
 	requireChildBase(identities, revision, itemIndex, providerNanos, wallMs, uncertaintyMs)
-	require(bssid?.length?.let { it <= 128 } != false && ssid?.length?.let { it <= 128 } != false)
+	require(bssid?.length?.let { it <= MAX_WIFI_IDENTITY_LENGTH } != false &&
+		ssid?.length?.let { it <= MAX_WIFI_IDENTITY_LENGTH } != false)
 	require(frequency > 0 && signal in -200..100)
 	require(checksum == radioChildDigest("wifi", identities, listOf(revision, itemIndex,
 		providerNanos, wallMs, uncertaintyMs, bssid, ssid, frequency, signal)))
@@ -249,7 +264,8 @@ private fun requireCellChild(
 	registered: Boolean, signal: Int?, checksum: String,
 ) {
 	requireChildBase(identities, revision, itemIndex, providerNanos, wallMs, uncertaintyMs)
-	require(tower?.length?.let { it <= 256 } != false && radioType.isNotBlank() && radioType.length <= 32)
+	require(tower?.length?.let { it <= MAX_CELL_TOWER_IDENTITY_LENGTH } != false &&
+		radioType.isNotBlank() && radioType.length <= MAX_CELL_RADIO_TYPE_LENGTH)
 	require(CellHistoryTechnology.entries.any { it.name == radioType })
 	require(signal?.let { it in -200..100 } != false)
 	require(checksum == radioChildDigest("cell", identities, listOf(revision, itemIndex,
@@ -277,3 +293,7 @@ internal fun radioChildFitsCoverage(wallMs: Long, uncertaintyMs: Long,
 		wallMs <= Long.MAX_VALUE - uncertaintyMs && wallMs + uncertaintyMs <= latestPossibleMs
 
 private val DIGEST = Regex("[0-9a-f]{64}")
+
+private const val MAX_WIFI_IDENTITY_LENGTH = 128
+private const val MAX_CELL_TOWER_IDENTITY_LENGTH = 256
+private const val MAX_CELL_RADIO_TYPE_LENGTH = 32

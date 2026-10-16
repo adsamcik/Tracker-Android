@@ -25,53 +25,67 @@ internal object CellHistoryOriginComposer {
 			localPortableEntriesByIdentity.values,
 		) ?: throw ImportedCellHistoryCompositionFailure()
 		val publicImported = imported.mapNotNull { evaluation ->
-			if (!evaluation.candidate.hasSafePublicShell()) {
-				throw ImportedCellHistoryCompositionFailure()
-			}
-			val collidesWithLocalEntry = evaluation.candidate.identity in localCollisionIdentities
-			val exactLocal = localPortableEntriesByIdentity[evaluation.candidate.identity]
-			val ownershipConflict = when (evaluation) {
-				is ImportedCellProductEvaluation.Readable -> !ownership.tryInclude(evaluation.entry)
-				is ImportedCellProductEvaluation.Unverifiable -> false
-			}
-			if (!ownershipConflict && collidesWithLocalEntry &&
-				evaluation is ImportedCellProductEvaluation.Readable &&
-				evaluation.isReExportable && exactLocal != null &&
-				PortableCellOriginComparison.areExactFullV1Duplicates(
-					exactLocal,
-					evaluation.entry,
-				) &&
-				evaluation.candidate.identity in visibleLocalEntryIdentities
-			) {
-				null
-			} else {
-				val originConflict = ownershipConflict || (
-					collidesWithLocalEntry && when (evaluation) {
-						is ImportedCellProductEvaluation.Readable -> exactLocal != evaluation.entry
-						is ImportedCellProductEvaluation.Unverifiable -> true
-					}
-				)
-				try {
-					evaluation.toPublicCellEntry(
-						overrideFailure = CellHistoryCause.ORIGIN_IDENTITY_CONFLICT
-							.takeIf { originConflict },
-					)
-				} catch (_: ArithmeticException) {
-					evaluation.toPublicCellEntry(
-						overrideFailure = CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
-					)
-				} catch (_: RuntimeException) {
-					evaluation.toPublicCellEntry(
-						overrideFailure = CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
-					)
-				}
-			}
+			composeImportedEntry(evaluation, localCollisionIdentities, visibleLocalEntryIdentities,
+				localPortableEntriesByIdentity, ownership)
 		}
 		return (live + publicImported).sortedWith(
 			compareByDescending<CellHistoryEntry> { it.startTime.raw }
 				.thenByDescending { it.endTime.raw }
 				.thenBy { it.origin != CellHistoryOrigin.Local },
 		).take(limit)
+	}
+
+	private fun composeImportedEntry(
+		evaluation: ImportedCellProductEvaluation,
+		localCollisionIdentities: Set<String>,
+		visibleLocalEntryIdentities: Set<String>,
+		localPortableEntriesByIdentity: Map<String, PortableCapturedCellEntryV1>,
+		ownership: PortableCellOpaqueOwnershipVerifier,
+	): CellHistoryEntry? {
+		if (!evaluation.candidate.hasSafePublicShell()) {
+			throw ImportedCellHistoryCompositionFailure()
+		}
+		val collidesWithLocalEntry = evaluation.candidate.identity in localCollisionIdentities
+		val exactLocal = localPortableEntriesByIdentity[evaluation.candidate.identity]
+		val ownershipConflict = when (evaluation) {
+			is ImportedCellProductEvaluation.Readable -> !ownership.tryInclude(evaluation.entry)
+			is ImportedCellProductEvaluation.Unverifiable -> false
+		}
+		return if (isExactLocalDuplicate(evaluation, ownershipConflict, collidesWithLocalEntry,
+			exactLocal, visibleLocalEntryIdentities)) {
+			null
+		} else {
+			val originConflict = ownershipConflict || (
+				collidesWithLocalEntry && when (evaluation) {
+					is ImportedCellProductEvaluation.Readable -> exactLocal != evaluation.entry
+					is ImportedCellProductEvaluation.Unverifiable -> true
+				}
+			)
+			publicEntry(evaluation, originConflict)
+		}
+	}
+
+	private fun isExactLocalDuplicate(
+		evaluation: ImportedCellProductEvaluation,
+		ownershipConflict: Boolean,
+		collidesWithLocalEntry: Boolean,
+		exactLocal: PortableCapturedCellEntryV1?,
+		visibleLocalEntryIdentities: Set<String>,
+	): Boolean = !ownershipConflict && collidesWithLocalEntry &&
+		evaluation is ImportedCellProductEvaluation.Readable &&
+		evaluation.isReExportable && exactLocal != null &&
+		PortableCellOriginComparison.areExactFullV1Duplicates(exactLocal, evaluation.entry) &&
+		evaluation.candidate.identity in visibleLocalEntryIdentities
+
+	private fun publicEntry(evaluation: ImportedCellProductEvaluation,
+		originConflict: Boolean): CellHistoryEntry = try {
+		evaluation.toPublicCellEntry(
+			overrideFailure = CellHistoryCause.ORIGIN_IDENTITY_CONFLICT.takeIf { originConflict },
+		)
+	} catch (_: ArithmeticException) {
+		evaluation.toPublicCellEntry(overrideFailure = CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+	} catch (_: RuntimeException) {
+		evaluation.toPublicCellEntry(overrideFailure = CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
 	}
 }
 

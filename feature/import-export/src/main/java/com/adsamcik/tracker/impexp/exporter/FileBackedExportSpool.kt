@@ -13,9 +13,9 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
 internal data class FileBackedExportSpoolLimits(
-	val maximumFileCount: Int = 16,
-	val maximumTotalBytes: Long = 256L * 1_024L * 1_024L,
-	val maximumAgeMs: Long = 24L * 60L * 60L * 1_000L,
+	val maximumFileCount: Int = DEFAULT_MAXIMUM_SPOOL_FILE_COUNT,
+	val maximumTotalBytes: Long = DEFAULT_MAXIMUM_SPOOL_TOTAL_BYTES,
+	val maximumAgeMs: Long = DEFAULT_MAXIMUM_SPOOL_AGE_MS,
 ) {
 	init {
 		require(maximumFileCount > 0)
@@ -56,7 +56,9 @@ internal class FileBackedExportSpool(
 			throw IOException("Portable export spool directory is not owned cache storage")
 		}
 		val createdAtMs = nowMs()
-		if (createdAtMs < 0L) throw IOException("Portable export spool clock is invalid")
+		if (createdAtMs < 0L) {
+			throw IOException("Portable export spool clock is invalid")
+		}
 		backingFile = synchronized(ACTIVE_LOCK) {
 			sweepAndReserve(directory, maximumBytes, limits, createdAtMs)
 			val name = OWNED_FILE_PREFIX +
@@ -119,8 +121,12 @@ internal class FileBackedExportSpool(
 				caller.ensureActive()
 				val read = input.read(buffer)
 				caller.ensureActive()
-				if (read < 0) break
-				if (read == 0) continue
+				if (read < 0) {
+					break
+				}
+				if (read == 0) {
+					continue
+				}
 				destination.write(buffer, 0, read)
 				caller.ensureActive()
 			}
@@ -129,7 +135,9 @@ internal class FileBackedExportSpool(
 
 	override fun close() {
 		synchronized(ACTIVE_LOCK) {
-			if (closed) return
+			if (closed) {
+				return
+			}
 			closed = true
 			ACTIVE_FILES.remove(backingFile.canonicalPath)
 			if (backingFile.exists() && !backingFile.delete()) {
@@ -197,25 +205,55 @@ internal class FileBackedExportSpool(
 			nowMs: Long,
 		) {
 			val active = ACTIVE_FILES.values.filter { it.directoryPath == directory.canonicalPath }
+			val activeBytes = checkActiveCapacity(active, requestedBytes, limits)
+			val retained = retainedInactiveFiles(directory, nowMs, limits.maximumAgeMs)
+			evictUntilCapacityAvailable(retained, active.size, activeBytes, requestedBytes, limits)
+		}
+
+		private fun checkActiveCapacity(
+			active: List<ActiveSpool>,
+			requestedBytes: Long,
+			limits: FileBackedExportSpoolLimits,
+		): Long {
 			if (active.size >= limits.maximumFileCount) {
 				throw IOException("Portable export spool active-file bound is exhausted")
 			}
-			val activeBytes = active.fold(0L) { total, spool ->
-				try {
-					Math.addExact(total, spool.reservedBytes)
-				} catch (_: ArithmeticException) {
-					throw IOException("Portable export spool active-byte count overflow")
-				}
-			}
+			val activeBytes = activeReservedBytes(active)
 			if (activeBytes > limits.maximumTotalBytes - requestedBytes) {
 				throw IOException("Portable export spool active-byte bound is exhausted")
 			}
+			return activeBytes
+		}
+
+		private fun activeReservedBytes(active: List<ActiveSpool>): Long = active.fold(0L) { total, spool ->
+			try {
+				Math.addExact(total, spool.reservedBytes)
+			} catch (_: ArithmeticException) {
+				throw IOException("Portable export spool active-byte count overflow")
+			}
+		}
+
+		private fun retainedInactiveFiles(
+			directory: File,
+			nowMs: Long,
+			maximumAgeMs: Long,
+		): MutableList<OwnedSpoolFile> {
 			val inactive = directory.listFiles()?.mapNotNull { candidate ->
-				ownedInactiveFile(directory, candidate, nowMs, limits.maximumAgeMs)
+				ownedInactiveFile(directory, candidate, nowMs, maximumAgeMs)
 			} ?: throw IOException("Unable to inspect portable export spool directory")
 			val retained = inactive.filterNot(OwnedSpoolFile::expired).toMutableList()
 			inactive.filter(OwnedSpoolFile::expired).forEach { deleteOwned(it.file) }
 			retained.sortWith(compareBy(OwnedSpoolFile::createdAtMs).thenBy { it.file.name })
+			return retained
+		}
+
+		private fun evictUntilCapacityAvailable(
+			retained: MutableList<OwnedSpoolFile>,
+			activeCount: Int,
+			activeBytes: Long,
+			requestedBytes: Long,
+			limits: FileBackedExportSpoolLimits,
+		) {
 			var retainedBytes = retained.fold(0L) { total, owned ->
 				try {
 					Math.addExact(total, owned.sizeBytes)
@@ -224,7 +262,7 @@ internal class FileBackedExportSpool(
 				}
 			}
 			while (
-				active.size + retained.size + 1 > limits.maximumFileCount ||
+				activeCount + retained.size + 1 > limits.maximumFileCount ||
 				retainedBytes > limits.maximumTotalBytes - activeBytes - requestedBytes
 			) {
 				if (retained.isEmpty()) {
@@ -243,30 +281,45 @@ internal class FileBackedExportSpool(
 			maximumAgeMs: Long,
 		): OwnedSpoolFile? {
 			val match = OWNED_FILE.matchEntire(candidate.name)
-			if (match == null && !LEGACY_OWNED_FILE.matches(candidate.name)) return null
+			if (match == null && !LEGACY_OWNED_FILE.matches(candidate.name)) {
+				return null
+			}
+			val canonical = ownedInactivePath(directory, candidate) ?: return null
+			val modifiedAtMs = canonical.lastModified()
+			val createdAtMs = match?.groupValues?.get(1)?.toLongOrNull()
+				?: modifiedAtMs.takeIf { it > 0L }
+				?: return null
+			return OwnedSpoolFile(
+				canonical,
+				createdAtMs,
+				canonical.length(),
+				isAbandonedSpoolExpired(createdAtMs, modifiedAtMs, nowMs, maximumAgeMs),
+			)
+		}
+
+		private fun ownedInactivePath(directory: File, candidate: File): File? {
 			val canonical = try {
 				candidate.canonicalFile
 			} catch (_: IOException) {
 				return null
 			}
-			if (canonical.parentFile != directory || !canonical.isFile ||
-				ACTIVE_FILES.containsKey(canonical.path)
-			) return null
-			val modifiedAtMs = canonical.lastModified()
-			val createdAtMs = match?.groupValues?.get(1)?.toLongOrNull()
-				?: modifiedAtMs.takeIf { it > 0L }
-				?: return null
+			return canonical.takeIf {
+				it.parentFile == directory && it.isFile && !ACTIVE_FILES.containsKey(it.path)
+			}
+		}
+
+		private fun isAbandonedSpoolExpired(
+			createdAtMs: Long,
+			modifiedAtMs: Long,
+			nowMs: Long,
+			maximumAgeMs: Long,
+		): Boolean {
 			val invalidFuture = (createdAtMs > nowMs &&
 				createdAtMs - nowMs > FUTURE_CLOCK_TOLERANCE_MS ||
 				modifiedAtMs > nowMs &&
 				modifiedAtMs - nowMs > FUTURE_CLOCK_TOLERANCE_MS)
 			val oldestTimestamp = minOf(createdAtMs, modifiedAtMs.takeIf { it > 0L } ?: createdAtMs)
-			return OwnedSpoolFile(
-				canonical,
-				createdAtMs,
-				canonical.length(),
-				invalidFuture || nowMs - oldestTimestamp > maximumAgeMs,
-			)
+			return invalidFuture || nowMs - oldestTimestamp > maximumAgeMs
 		}
 
 		private class FileBackedExportEncodedSizeException(
@@ -287,3 +340,7 @@ internal class FileBackedExportSpool(
 		val expired: Boolean,
 	)
 }
+
+private const val DEFAULT_MAXIMUM_SPOOL_FILE_COUNT = 16
+private const val DEFAULT_MAXIMUM_SPOOL_TOTAL_BYTES = 256L * 1_024L * 1_024L
+private const val DEFAULT_MAXIMUM_SPOOL_AGE_MS = 24L * 60L * 60L * 1_000L

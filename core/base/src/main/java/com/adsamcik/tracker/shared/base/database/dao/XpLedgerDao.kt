@@ -14,14 +14,29 @@ interface XpLedgerDao : BaseDao<XpLedgerEntity> {
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertOrIgnore(entry: XpLedgerEntity): Long
 
-	@Query("SELECT * FROM xp_ledger WHERE source = 'SESSION' AND source_id IS NOT NULL AND id > :afterId ORDER BY id LIMIT :limit")
+	/**
+	 * Reads `xp_ledger` rows. Query conditions include `source = 'SESSION'`, `id > :afterId`. Orders
+	 * by `id`. Returns at most `limit` rows.
+	 */
+	@Query(("SELECT * FROM xp_ledger WHERE source = 'SESSION' AND source_id IS NOT NULL AND id > :afterId " +
+        "ORDER BY id LIMIT :limit"))
 	suspend fun sessionEffectPage(afterId: Long, limit: Int): List<XpLedgerEntity>
 
+	/**
+	 * Reads `xp_ledger` rows. Query conditions include `source = 'SESSION'`, `source_id =
+	 * :segmentId`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query("SELECT * FROM xp_ledger WHERE source = 'SESSION' AND source_id = :segmentId LIMIT 1")
 	suspend fun sessionEffect(segmentId: Long): XpLedgerEntity?
 
+	/**
+	 * Updates `xp_ledger` rows matching the supplied scope. Query conditions include `source =
+	 * 'SESSION'`, `source_id = :segmentId`, `source_revision < :revision`. Returns the affected row
+	 * count.
+	 */
 	@Query("UPDATE xp_ledger SET amount = :amount, source_key = :key, source_revision = :revision " +
-		"WHERE source = 'SESSION' AND source_id = :segmentId AND (source_revision IS NULL OR source_revision < :revision)")
+		("WHERE source = 'SESSION' AND source_id = :segmentId AND (source_revision IS NULL OR " +
+            "source_revision < :revision)"))
 	suspend fun replaceSessionEffect(segmentId: Long, key: String, revision: Long, amount: Int): Int
 
 	@Query("SELECT COALESCE(SUM(amount), 0) FROM xp_ledger")
@@ -43,9 +58,17 @@ interface XpLedgerDao : BaseDao<XpLedgerEntity> {
 	)
 	fun getXpBetween(fromInclusive: Long, untilExclusive: Long): Long
 
+	/**
+	 * Reads `xp_ledger` rows. Query conditions include `amount > 0`. Orders by `earned_at DESC`.
+	 * Returns at most `limit` rows.
+	 */
 	@Query("SELECT * FROM xp_ledger WHERE amount > 0 ORDER BY earned_at DESC LIMIT :limit")
 	suspend fun getRecent(limit: Int): List<XpLedgerEntity>
 
+	/**
+	 * Reads `xp_ledger` rows. Query conditions include `source = :source`, `source_key = :sourceKey`.
+	 * Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"""
 		SELECT * FROM xp_ledger
@@ -55,6 +78,11 @@ interface XpLedgerDao : BaseDao<XpLedgerEntity> {
 	)
 	suspend fun getRevisionedEffect(source: String, sourceKey: String): XpLedgerEntity?
 
+	/**
+	 * Updates `xp_ledger` rows matching the supplied scope. Query conditions include `source =
+	 * :source`, `source_key = :sourceKey`, `source_revision < :sourceRevision`. Returns the affected
+	 * row count.
+	 */
 	@Query(
 		"""
 		UPDATE xp_ledger
@@ -94,38 +122,42 @@ interface XpLedgerDao : BaseDao<XpLedgerEntity> {
 		require(earnedAt >= 0L) { "Earned time must not be negative" }
 
 		val current = getRevisionedEffect(STEPS_GOAL_SOURCE, effectKey)
-		if (current != null) {
+		return if (current != null) {
 			// A legacy recording ID belongs to a different award path. Neither a replay nor
 			// a newer goal revision may replace that row under a coincidentally shared key.
-			if (current.sourceId != null) return false
+			if (current.sourceId != null) {
+				return false
+			}
 			val currentRevision = checkNotNull(current.sourceRevision) {
 				"Revisioned Steps goal effect is missing its revision"
 			}
-			if (currentRevision > effectRevision) return false
+			if (currentRevision > effectRevision) {
+				return false
+			}
 			if (currentRevision == effectRevision) {
 				// Replaying this exact receipt is a no-op; changing its payload requires a
 				// higher revision so a same-revision callback cannot revive retracted XP.
 				return current.amount == amount &&
 					current.earnedAt == earnedAt
 			}
-			return updateRevisionedEffect(
+			updateRevisionedEffect(
 				source = STEPS_GOAL_SOURCE,
 				sourceKey = effectKey,
 				sourceRevision = effectRevision,
 				amount = amount,
 				earnedAt = earnedAt,
 			) == 1
+		} else {
+			insertOrIgnore(
+				XpLedgerEntity(
+					amount = amount,
+					source = STEPS_GOAL_SOURCE,
+					sourceKey = effectKey,
+					sourceRevision = effectRevision,
+					earnedAt = earnedAt,
+				),
+			) != -1L
 		}
-
-		return insertOrIgnore(
-			XpLedgerEntity(
-				amount = amount,
-				source = STEPS_GOAL_SOURCE,
-				sourceKey = effectKey,
-				sourceRevision = effectRevision,
-				earnedAt = earnedAt,
-			),
-		) != -1L
 	}
 	/** Highest total XP earned within any single LOCAL calendar day. */
 	@Query(

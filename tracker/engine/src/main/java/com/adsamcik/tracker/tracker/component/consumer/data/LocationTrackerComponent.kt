@@ -172,6 +172,46 @@ internal class LocationTrackerComponent(
 		return null
 	}
 
+	// The full optional-field equality tuple defines a repeated platform measurement.
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod")
+	private fun Location.isSameMeasurementAs(previous: Location): Boolean {
+		// Providers can repeat their last fix. Persisting it adds I/O and storage without adding
+		// information, and can distort downstream duration/sample-rate calculations.
+		if (this.latitude != previous.latitude ||
+			this.longitude != previous.longitude ||
+			this.hasAccuracy() != previous.hasAccuracy() ||
+			(this.hasAccuracy() && this.accuracy != previous.accuracy) ||
+			this.speed != previous.speed ||
+			this.bearing != previous.bearing ||
+			this.hasAltitude() != previous.hasAltitude() ||
+			(this.hasAltitude() && this.altitude != previous.altitude)
+		) {
+			return false
+		}
+
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+			if (this.hasVerticalAccuracy() != previous.hasVerticalAccuracy() ||
+				(this.hasVerticalAccuracy() &&
+					this.verticalAccuracyMeters != previous.verticalAccuracyMeters) ||
+				this.hasSpeedAccuracy() != previous.hasSpeedAccuracy() ||
+				(this.hasSpeedAccuracy() &&
+					this.speedAccuracyMetersPerSecond != previous.speedAccuracyMetersPerSecond)
+			) {
+				return false
+			}
+		}
+
+		return true
+	}
+
+	private fun LocationCanonicalCurationContext.hasCurrentContract(): Boolean =
+		curationVersion == PROTECTED_LOCATION_CANONICAL_CURATION_VERSION &&
+			altitudeModelVersion == AltitudeContractVersions.MODEL_VERSION &&
+			altitudeEstimatorVersion == AltitudeContractVersions.ESTIMATOR_VERSION &&
+			altitudeCalibrationVersion == AltitudeContractVersions.CALIBRATION_VERSION
+
+	// Keep provider-quality, chronology and duplicate rejection precedence explicit.
+	@Suppress("ReturnCount")
 	private fun locationRejection(
 		location: Location,
 		requiredAccuracyMeters: Float,
@@ -182,41 +222,33 @@ internal class LocationTrackerComponent(
 			@Suppress("DEPRECATION")
 			location.isFromMockProvider
 		}
-		if (isMock) return REJECTION_MOCK
-		if (location.hasAccuracy() && location.accuracy > requiredAccuracyMeters) return REJECTION_INSUFFICIENT_ACCURACY
+		if (isMock) {
+			return REJECTION_MOCK
+		}
+		if (location.hasAccuracy() && location.accuracy > requiredAccuracyMeters) {
+			return REJECTION_INSUFFICIENT_ACCURACY
+		}
 
 		val previous = lastAcceptedLocation ?: return null
-		val currentElapsed = location.elapsedRealtimeNanos
-		val previousElapsed = previous.elapsedRealtimeNanos
-		if (currentElapsed > 0L && previousElapsed > 0L) {
-			if (currentElapsed <= previousElapsed) return REJECTION_NON_MONOTONIC_TIME
-		} else if (location.time <= previous.time) {
+		if (location.isNotNewerThan(previous)) {
 			return REJECTION_NON_MONOTONIC_TIME
 		}
 
-		// Providers can repeat their last fix. Persisting it adds I/O and storage without adding
-		// information, and can distort downstream duration/sample-rate calculations.
-		if (location.latitude != previous.latitude ||
-			location.longitude != previous.longitude ||
-			location.hasAccuracy() != previous.hasAccuracy() ||
-			(location.hasAccuracy() && location.accuracy != previous.accuracy) ||
-			location.speed != previous.speed ||
-			location.bearing != previous.bearing ||
-			location.hasAltitude() != previous.hasAltitude() ||
-			(location.hasAltitude() && location.altitude != previous.altitude)
-		) return null
-
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-			if (location.hasVerticalAccuracy() != previous.hasVerticalAccuracy() ||
-				(location.hasVerticalAccuracy() &&
-					location.verticalAccuracyMeters != previous.verticalAccuracyMeters) ||
-				location.hasSpeedAccuracy() != previous.hasSpeedAccuracy() ||
-				(location.hasSpeedAccuracy() &&
-					location.speedAccuracyMetersPerSecond != previous.speedAccuracyMetersPerSecond)
-			) return null
+		return if (location.isSameMeasurementAs(previous)) {
+			REJECTION_DUPLICATE
+		} else {
+			null
 		}
+	}
 
-		return REJECTION_DUPLICATE
+	private fun Location.isNotNewerThan(previous: Location): Boolean {
+		val currentElapsed = elapsedRealtimeNanos
+		val previousElapsed = previous.elapsedRealtimeNanos
+		return if (currentElapsed > 0L && previousElapsed > 0L) {
+			currentElapsed <= previousElapsed
+		} else {
+			time <= previous.time
+		}
 	}
 
 	override suspend fun onDataUpdated(
@@ -226,15 +258,7 @@ internal class LocationTrackerComponent(
 		val canonicalCuration = cycle.locationCanonicalCuration
 		if (canonicalCuration != null) {
 			restoreCanonicalState(canonicalCuration.stateBefore)
-			if (
-				canonicalCuration.curationVersion !=
-				PROTECTED_LOCATION_CANONICAL_CURATION_VERSION ||
-				canonicalCuration.altitudeModelVersion != AltitudeContractVersions.MODEL_VERSION ||
-				canonicalCuration.altitudeEstimatorVersion !=
-				AltitudeContractVersions.ESTIMATOR_VERSION ||
-				canonicalCuration.altitudeCalibrationVersion !=
-				AltitudeContractVersions.CALIBRATION_VERSION
-			) {
+			if (!canonicalCuration.hasCurrentContract()) {
 				completeCanonicalCuration(
 					canonicalCuration,
 					REJECTION_CURATION_CONTRACT_MISMATCH,

@@ -75,6 +75,8 @@ internal class TestLiveAmbientRetentionAuthorityReader(
 			expectedApprovalRevision == approvalRevision
 	}
 
+	// Keep the selected source retention row beside the exact live grant returned by this test fixture.
+	@Suppress("LongMethod")
 	suspend fun installCurrent(
 		database: AppDatabase,
 		source: TrackingSourceComponent,

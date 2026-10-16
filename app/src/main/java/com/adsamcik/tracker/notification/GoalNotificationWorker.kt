@@ -55,18 +55,7 @@ class GoalNotificationWorker @AssistedInject constructor(
         }
         val stepsToday = when (val steps = progress.stepsToday) {
             is QualifiedStepCount.Ready -> steps.value
-            is QualifiedStepCount.Unavailable -> return when (steps.reason) {
-                QualifiedStepCountUnavailableReason.MATERIALIZING,
-                QualifiedStepCountUnavailableReason.STORAGE_UNAVAILABLE,
-                -> Result.retry()
-                QualifiedStepCountUnavailableReason.MISSING,
-                QualifiedStepCountUnavailableReason.NOT_CAPTURED,
-                QualifiedStepCountUnavailableReason.DISABLED,
-                QualifiedStepCountUnavailableReason.PARTIAL_CAPTURE,
-                QualifiedStepCountUnavailableReason.SOURCE_EVIDENCE_UNAVAILABLE,
-                QualifiedStepCountUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
-                -> Result.success()
-            }
+            is QualifiedStepCount.Unavailable -> return steps.reason.workResult()
         }
 
         val ratio = requireNotNull(progress.progress)
@@ -91,10 +80,20 @@ class GoalNotificationWorker @AssistedInject constructor(
         return Result.success()
     }
 
-    private fun sendNotification(
-        threshold: Int,
-        remaining: Int,
-    ): Boolean {
+    private fun QualifiedStepCountUnavailableReason.workResult(): Result = when (this) {
+        QualifiedStepCountUnavailableReason.MATERIALIZING,
+        QualifiedStepCountUnavailableReason.STORAGE_UNAVAILABLE,
+        -> Result.retry()
+        QualifiedStepCountUnavailableReason.MISSING,
+        QualifiedStepCountUnavailableReason.NOT_CAPTURED,
+        QualifiedStepCountUnavailableReason.DISABLED,
+        QualifiedStepCountUnavailableReason.PARTIAL_CAPTURE,
+        QualifiedStepCountUnavailableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+        QualifiedStepCountUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
+        -> Result.success()
+    }
+
+    private fun canPostNotifications(): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val perm = ContextCompat.checkSelfPermission(
                 appContext,
@@ -102,6 +101,14 @@ class GoalNotificationWorker @AssistedInject constructor(
             )
             if (perm != PackageManager.PERMISSION_GRANTED) return false
         }
+        return true
+    }
+
+    private fun sendNotification(
+        threshold: Int,
+        remaining: Int,
+    ): Boolean {
+        if (!canPostNotifications()) return false
 
         val channelId = appContext.getString(com.adsamcik.tracker.shared.base.R.string.channel_goals_id)
 

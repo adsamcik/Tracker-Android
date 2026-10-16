@@ -34,6 +34,11 @@ interface ActivityAutomaticStartActionDao {
 		collectedDataEpoch: Long,
 	): ActivityAutomaticStartActionEntity?
 
+	/**
+	 * Updates `activity_automatic_start_action` rows matching the supplied scope. Query conditions
+	 * include `trigger_id = :triggerId`, `status IN ('RESERVED', 'RETRYABLE')`, `collected_data_epoch
+	 * = :collectedDataEpoch`. Returns the affected row count.
+	 */
 	@Query(
 		"UPDATE activity_automatic_start_action SET status = 'START_REQUESTED', " +
 			"start_requested_at_ms = :requestedAtMs, terminal_at_ms = NULL, terminal_reason = NULL " +
@@ -46,6 +51,11 @@ interface ActivityAutomaticStartActionDao {
 		requestedAtMs: Long,
 	): Int
 
+	/**
+	 * Updates `activity_automatic_start_action` rows matching the supplied scope. Query conditions
+	 * include `trigger_id = :triggerId`, `status = 'START_REQUESTED'`, `collected_data_epoch =
+	 * :collectedDataEpoch`. Returns the affected row count.
+	 */
 	@Query(
 		"UPDATE activity_automatic_start_action SET status = 'RETRYABLE', " +
 			"start_requested_at_ms = NULL " +
@@ -75,6 +85,12 @@ interface ActivityAutomaticStartActionDao {
 		acceptedAtMs: Long,
 	): Int
 
+	/**
+	 * Updates `activity_automatic_start_action` rows matching the supplied scope. Query conditions
+	 * include `trigger_id = :triggerId`, `collected_data_epoch = :collectedDataEpoch`, `status =
+	 * 'LIFECYCLE_INTENT_ACCEPTED'`, `accepted_logical_tracking_id = :logicalTrackingId`. Returns the
+	 * affected row count.
+	 */
 	@Query(
 		"UPDATE activity_automatic_start_action SET accepted_intent_revision = :newIntentRevision " +
 			"WHERE trigger_id = :triggerId AND collected_data_epoch = :collectedDataEpoch " +
@@ -90,6 +106,11 @@ interface ActivityAutomaticStartActionDao {
 		newIntentRevision: Long,
 	): Int
 
+	/**
+	 * Updates `activity_automatic_start_action` rows matching the supplied scope. Query conditions
+	 * include `trigger_id = :triggerId`, `collected_data_epoch = :collectedDataEpoch`, `status IN
+	 * ('RESERVED', 'RETRYABLE', 'START_REQUESTED')`. Returns the affected row count.
+	 */
 	@Query(
 		"UPDATE activity_automatic_start_action SET status = 'TERMINAL', " +
 			"terminal_at_ms = :terminalAtMs, terminal_reason = :reason " +
@@ -120,6 +141,11 @@ interface ActivityAutomaticStartActionDao {
 		reason: String,
 	): Int
 
+	/**
+	 * Updates `activity_automatic_start_action` rows matching the supplied scope. Query conditions
+	 * include `slot_id = 1`, `status IN ('RESERVED', 'RETRYABLE', 'START_REQUESTED')`. Returns the
+	 * affected row count.
+	 */
 	@Query(
 		"UPDATE activity_automatic_start_action SET status = 'TERMINAL', " +
 			"terminal_at_ms = :terminalAtMs, terminal_reason = :reason " +

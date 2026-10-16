@@ -2,6 +2,7 @@
 
 package com.adsamcik.tracker.shared.base.database
 
+import com.adsamcik.tracker.shared.base.database.dao.TrackingHistoryReadDao
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
@@ -37,6 +38,10 @@ import java.security.MessageDigest
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
+/**
+ * Optional exact evidence/fact/writer lineage constraints with the original policy, consent, data
+ * epoch and run identity.
+ */
 data class PressureFactProofExpectation(
 	val evidenceIdentity: String,
 	val sourcePolicyRevision: Long,
@@ -78,6 +83,10 @@ data class PressureFactProofExpectation(
 	}
 }
 
+/**
+ * Exceeded bounds, incomplete lineage, current-fact mismatch or missing/invalid immutable source
+ * authority.
+ */
 enum class PressureFactProofFailure {
 	BOUND_EXCEEDED,
 	LINEAGE_INCOMPLETE,
@@ -86,15 +95,31 @@ enum class PressureFactProofFailure {
 	INTEGRITY_MISMATCH,
 }
 
+/**
+ * Verified native Pressure admission authority or its exact qualification failure.
+ */
 sealed interface PressureWalCaptureProof {
+	/**
+	 * Original Pressure capture authority has been verified within the bounded source snapshot.
+	 */
 	data class Authenticated internal constructor(
 		internal val authority: PressureCaptureAuthorityIdentity,
 	) : PressureWalCaptureProof
 
+	/**
+	 * Original source evidence failed the stated immutable-authority or hierarchy validation.
+	 */
 	data class Rejected(val reason: PressureFactProofFailure) : PressureWalCaptureProof
 }
 
+/**
+ * Verified original and current Pressure correction lineage, or a named validation failure.
+ */
 sealed interface PressureFactLineageProof {
+	/**
+	 * Complete verified correction lineage with the current head and separately selected original
+	 * revision.
+	 */
 	data class Authenticated(
 		val current: PressureFactRevisionEntity,
 		val revisions: List<PressureFactRevisionEntity>,
@@ -106,16 +131,29 @@ sealed interface PressureFactLineageProof {
 		}
 	}
 
+	/**
+	 * Original source evidence failed the stated immutable-authority or hierarchy validation.
+	 */
 	data class Rejected(val reason: PressureFactProofFailure) : PressureFactLineageProof
 }
 
+/**
+ * Checks immutable Pressure admission and fact-correction lineage against one bounded source
+ * snapshot.
+ */
 object PressureFactProofAuthenticator {
+	/**
+	 * Verifies original Pressure admission authority against the bounded snapshot and optional exact
+	 * lineage expectation.
+	 */
 	fun authenticateWal(
 		wal: SourceEventWalEntity,
 		snapshot: PressureFactProofSnapshot,
 		expectation: PressureFactProofExpectation? = null,
 	): PressureWalCaptureProof {
-		if (snapshot.overflow) return rejectedWal(PressureFactProofFailure.BOUND_EXCEEDED)
+		if (snapshot.overflow) {
+			return rejectedWal(PressureFactProofFailure.BOUND_EXCEEDED)
+		}
 		val authentication = PressureWalCarrierAuthenticator.authenticate(wal)
 			as? PressureWalCarrierAuthentication.Authenticated
 			?: return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
@@ -125,6 +163,10 @@ object PressureFactProofAuthenticator {
 		return authenticateAuthority(wal, authentication.carrier.payload, snapshot)
 	}
 
+	/**
+	 * Verifies complete original Pressure correction revisions and current head, retaining the
+	 * selected historical revision separately.
+	 */
 	fun authenticateLineage(
 		revisions: List<PressureFactRevisionEntity>,
 		snapshot: PressureFactProofSnapshot,
@@ -153,6 +195,14 @@ object PressureFactProofAuthenticator {
 			return stored
 		}
 
+		return authenticateExternalLineageAuthority(stored, snapshot, expectation)
+	}
+
+	private fun authenticateExternalLineageAuthority(
+		stored: PressureFactLineageProof.Authenticated,
+		snapshot: PressureFactProofSnapshot,
+		expectation: PressureFactProofExpectation?,
+	): PressureFactLineageProof {
 		var stableAuthority: PressureCaptureAuthorityIdentity? = null
 		for (fact in stored.revisions) {
 			val wal = snapshot.walByEventId.getValue(fact.sourceEventId)
@@ -196,61 +246,85 @@ object PressureFactProofAuthenticator {
 			return rejectedLineage(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
 		}
 		val ordered = revisions.sortedBy(PressureFactRevisionEntity::semanticRevision)
-		if (ordered.first().semanticRevision != 1L ||
-			ordered.map(PressureFactRevisionEntity::semanticRevision) !=
-			(1L..ordered.size.toLong()).toList() ||
-			ordered.map(PressureFactRevisionEntity::sourceAdmissionOrdinal).distinct().size !=
-			ordered.size ||
-			ordered.map(PressureFactRevisionEntity::sourceEventId).distinct().size != ordered.size
-		) {
+		if (!ordered.hasCompletePressureRevisionSequence()) {
 			return rejectedLineage(PressureFactProofFailure.LINEAGE_INCOMPLETE)
 		}
+		return when (val proof = authenticateStoredSequence(ordered, walByEventId, bindingsByManifestRevision)) {
+			is PressureWalCaptureProof.Authenticated -> selectStoredRevision(ordered, proof.authority, expectation)
+			is PressureWalCaptureProof.Rejected -> rejectedLineage(proof.reason)
+		}
+	}
 
+	private fun List<PressureFactRevisionEntity>.hasCompletePressureRevisionSequence(): Boolean =
+		first().semanticRevision == 1L &&
+			map(PressureFactRevisionEntity::semanticRevision) == (1L..size.toLong()).toList() &&
+			map(PressureFactRevisionEntity::sourceAdmissionOrdinal).distinct().size == size &&
+			map(PressureFactRevisionEntity::sourceEventId).distinct().size == size
+
+	// Stop at the first missing carrier or rejected saved authority before accepting a correction sequence.
+	@Suppress("ReturnCount")
+	private fun authenticateStoredSequence(
+		ordered: List<PressureFactRevisionEntity>,
+		walByEventId: Map<String, SourceEventWalEntity>,
+		bindingsByManifestRevision: Map<Long, SessionManifestSourceEntity>,
+	): PressureWalCaptureProof {
 		var previousFact: PressureFactRevisionEntity? = null
 		var previousWal: SourceEventWalEntity? = null
 		var stableAuthority: PressureCaptureAuthorityIdentity? = null
 		for (fact in ordered) {
 			if (!fact.matchesStableLineageOwner(ordered.first())) {
-				return rejectedLineage(PressureFactProofFailure.LINEAGE_INCOMPLETE)
+				return rejectedWal(PressureFactProofFailure.LINEAGE_INCOMPLETE)
 			}
 			val wal = walByEventId[fact.sourceEventId]
-				?: return rejectedLineage(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
+				?: return rejectedWal(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
 			val binding = bindingsByManifestRevision[fact.manifestRevision]
-				?: return rejectedLineage(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
-			if (!binding.isExactPressureFactWriter() ||
-				fact.writerProjectionId != binding.writerProjectionId ||
-				fact.writerProjectionVersion != binding.writerProjectionVersion ||
-				fact.writerBindingGeneration != binding.writerBindingGeneration ||
-				!PressureWalCarrierAuthenticator.authenticates(fact, wal, binding)
-			) {
-				return rejectedLineage(PressureFactProofFailure.INTEGRITY_MISMATCH)
+				?: return rejectedWal(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
+			val authority = when (val proof = authenticateStoredFactCarrier(fact, wal, binding)) {
+				is PressureWalCaptureProof.Authenticated -> proof.authority
+				is PressureWalCaptureProof.Rejected -> return proof
 			}
-			val authority = wal.storedPressureCaptureAuthority(binding)
-				?: return rejectedLineage(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
 			if (stableAuthority?.let { it != authority } == true) {
-				return rejectedLineage(PressureFactProofFailure.LINEAGE_INCOMPLETE)
+				return rejectedWal(PressureFactProofFailure.LINEAGE_INCOMPLETE)
 			}
 			// Original sensor-clock order is stable even when saved UTC timestamps repeat or jump.
 			val priorFact = previousFact
 			val priorWal = previousWal
-			if (priorFact != null && priorWal != null && (
-					fact.sourceAdmissionOrdinal <= priorFact.sourceAdmissionOrdinal ||
-						wal.admissionOrdinal <= priorWal.admissionOrdinal ||
-						wal.sourceSequence <= priorWal.sourceSequence ||
-						requireNotNull(wal.observedIntervalStartNanos) <=
-						requireNotNull(priorWal.observedIntervalStartNanos) ||
-						wal.observedElapsedNanos <= priorWal.observedElapsedNanos ||
-						wal.receivedElapsedNanos <= priorWal.receivedElapsedNanos
-					)
-			) {
-				return rejectedLineage(PressureFactProofFailure.LINEAGE_INCOMPLETE)
+			if (hasRegressedPressureSourceOrder(fact, wal, priorFact, priorWal)) {
+				return rejectedWal(PressureFactProofFailure.LINEAGE_INCOMPLETE)
 			}
 			stableAuthority = authority
 			previousFact = fact
 			previousWal = wal
 		}
+		return PressureWalCaptureProof.Authenticated(requireNotNull(stableAuthority))
+	}
+
+	private fun authenticateStoredFactCarrier(
+		fact: PressureFactRevisionEntity,
+		wal: SourceEventWalEntity,
+		binding: SessionManifestSourceEntity,
+	): PressureWalCaptureProof {
+		if (!binding.isExactPressureFactWriter() ||
+			fact.writerProjectionId != binding.writerProjectionId ||
+			fact.writerProjectionVersion != binding.writerProjectionVersion ||
+			fact.writerBindingGeneration != binding.writerBindingGeneration
+		) {
+			return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
+		}
+		if (!PressureWalCarrierAuthenticator.authenticates(fact, wal, binding)) {
+			return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
+		}
+		val authority = wal.storedPressureCaptureAuthority(binding)
+			?: return rejectedWal(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
+		return PressureWalCaptureProof.Authenticated(authority)
+	}
+
+	private fun selectStoredRevision(
+		ordered: List<PressureFactRevisionEntity>,
+		authority: PressureCaptureAuthorityIdentity,
+		expectation: PressureFactProofExpectation?,
+	): PressureFactLineageProof {
 		val current = ordered.last()
-		val authority = requireNotNull(stableAuthority)
 		val selected = expectation?.let { expected ->
 			ordered.singleOrNull { revision -> revision.matches(expected) }
 				?: return rejectedLineage(PressureFactProofFailure.CURRENT_FACT_MISMATCH)
@@ -263,6 +337,22 @@ object PressureFactProofAuthenticator {
 		}
 		return PressureFactLineageProof.Authenticated(current, ordered, selected)
 	}
+
+	private fun hasRegressedPressureSourceOrder(
+		fact: PressureFactRevisionEntity,
+		wal: SourceEventWalEntity,
+		priorFact: PressureFactRevisionEntity?,
+		priorWal: SourceEventWalEntity?,
+	): Boolean =
+		priorFact != null && priorWal != null && (
+			fact.sourceAdmissionOrdinal <= priorFact.sourceAdmissionOrdinal ||
+			wal.admissionOrdinal <= priorWal.admissionOrdinal ||
+			wal.sourceSequence <= priorWal.sourceSequence ||
+			requireNotNull(wal.observedIntervalStartNanos) <=
+			requireNotNull(priorWal.observedIntervalStartNanos) ||
+			wal.observedElapsedNanos <= priorWal.observedElapsedNanos ||
+			wal.receivedElapsedNanos <= priorWal.receivedElapsedNanos
+		)
 
 	@Suppress("CyclomaticComplexMethod", "ComplexCondition", "ReturnCount")
 	private fun authenticateAuthority(
@@ -316,7 +406,9 @@ object PressureFactProofAuthenticator {
 					].orEmpty(),
 				)
 			}
-		) return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
+		) {
+			return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
+		}
 		val manifestIndex = manifests.indexOfFirst { it.manifestRevision == manifestRevision }
 		if (manifestIndex < 0) {
 			return rejectedWal(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
@@ -398,7 +490,9 @@ object PressureFactProofAuthenticator {
 		val demandIds = authorization.authorizedMembers.mapNotNull(SourceAuthorizationEntity::demandId)
 		if (demandIds.size != authorization.authorizedMembers.size ||
 			demandIds.distinct().size != demandIds.size
-		) return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
+		) {
+			return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
+		}
 		val demands = demandIds.mapNotNull(snapshot.demands::get)
 		if (demands.size != demandIds.size) {
 			return rejectedWal(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
@@ -431,7 +525,9 @@ object PressureFactProofAuthenticator {
 			authorization.effectiveBootId != wal.clockDomainId ||
 			recomputed?.sortedBy(SourceAuthorizationEntity::memberId) !=
 			exactRows.sortedBy(SourceAuthorizationEntity::memberId)
-		) return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
+		) {
+			return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
+		}
 
 		val observedStart = payload.windowStartElapsedRealtimeNanos
 		val observedEnd = payload.windowEndElapsedRealtimeNanos
@@ -494,7 +590,9 @@ object PressureFactProofAuthenticator {
 					payload,
 				)
 			}
-		) return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
+		) {
+			return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
+		}
 
 		val segmentId = run.sessionSegmentId
 			?: return rejectedWal(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
@@ -502,7 +600,9 @@ object PressureFactProofAuthenticator {
 			?: return rejectedWal(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
 		if (segment.logicalTrackingId != logicalTrackingId ||
 			segment.serviceRunId != serviceRunId
-		) return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
+		) {
+			return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
+		}
 		val appliedAt = maxOf(
 			providerStart,
 			authorization.effectiveElapsedRealtimeNanos,
@@ -523,7 +623,9 @@ object PressureFactProofAuthenticator {
 				appliedAtElapsedNanos = appliedAt,
 				observedStartNanos = observedStart,
 			)
-		) return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
+		) {
+			return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
+		}
 
 		return PressureWalCaptureProof.Authenticated(
 			PressureCaptureAuthorityIdentity(
@@ -551,6 +653,10 @@ object PressureFactProofAuthenticator {
 	}
 }
 
+/**
+ * Loads bounded immutable Pressure dependencies and saved session cutoffs; missing or excessive
+ * dependencies remain explicit.
+ */
 suspend fun AppDatabase.loadPressureFactProofSnapshot(
 	facts: List<PressureFactRevisionEntity>,
 	walByEventId: Map<String, SourceEventWalEntity>,
@@ -572,10 +678,7 @@ suspend fun AppDatabase.loadPressureFactProofSnapshot(
 	val factDao = pressureFactRevisionDao()
 	val runs = readDao.serviceRuns(serviceRunIds)
 	val sessions = sourceSessionDao().sessions(logicalTrackingIds)
-	val manifests = if (serviceRunIds.isEmpty()) emptyList() else
-		readDao.manifests(serviceRunIds, limits.maximumManifests + 1)
-	val sources = if (serviceRunIds.isEmpty()) emptyList() else
-		readDao.manifestSources(serviceRunIds, limits.maximumManifestSources + 1)
+	val (manifests, sources) = readDao.loadPressureManifestRows(serviceRunIds, limits)
 	val planHeaders = loadPressureProofChunks(
 		configurationRevisions,
 		limits.maximumPlans,
@@ -624,21 +727,17 @@ suspend fun AppDatabase.loadPressureFactProofSnapshot(
 		limits.maximumStartActions,
 	) { ids, limit -> factDao.proofStartActions(PRESSURE_SOURCE, ids, limit) }
 	val segmentIds = runs.mapNotNull(SourceServiceRunEntity::sessionSegmentId).distinct()
-	val segments = if (segmentIds.isEmpty()) emptyList() else readDao.segments(segmentIds)
+	val segments = if (segmentIds.isEmpty()) {
+		emptyList()
+	} else {
+		readDao.segments(segmentIds)
+	}
 	val overflow = sourceOverflow ||
-		facts.size > limits.maximumFactRevisions ||
-		wals.size > limits.maximumFactRevisions ||
-		runs.size > limits.maximumRuns ||
-		sessions.size > limits.maximumSessions ||
-		manifests.size > limits.maximumManifests ||
-		sources.size > limits.maximumManifestSources ||
-		policies.size > limits.maximumPolicies ||
-		consents.size > limits.maximumConsents ||
-		segments.size > limits.maximumRuns ||
-		planHeaders.overflow || desiredPlans.overflow || providers.overflow ||
-		currentProviderRows.size > limits.maximumProviders ||
-		retiringProviderRows.size > limits.maximumProviders ||
-		currentProviders.size > limits.maximumProviders ||
+		limits.hasPressureCaptureRowOverflow(facts, wals, runs, sessions, manifests, sources) ||
+		limits.hasPressureContextRowOverflow(policies, consents, segments) ||
+		limits.hasPressureAcquisitionRowOverflow(
+			planHeaders, desiredPlans, providers, currentProviderRows, retiringProviderRows, currentProviders,
+		) ||
 		authorizations.overflow || demands.overflow || actions.overflow
 	return PressureFactProofSnapshot(
 		walByEventId = walByEventId,
@@ -670,6 +769,56 @@ suspend fun AppDatabase.loadPressureFactProofSnapshot(
 	)
 }
 
+private suspend fun TrackingHistoryReadDao.loadPressureManifestRows(
+	serviceRunIds: List<String>,
+	limits: PressureFactProofLimits,
+): Pair<List<SessionManifestVersionEntity>, List<SessionManifestSourceEntity>> {
+	val manifests = if (serviceRunIds.isEmpty()) {
+		emptyList()
+	} else {
+		manifests(serviceRunIds, limits.maximumManifests + 1)
+	}
+	val sources = if (serviceRunIds.isEmpty()) {
+		emptyList()
+	} else {
+		manifestSources(serviceRunIds, limits.maximumManifestSources + 1)
+	}
+	return manifests to sources
+}
+
+private fun PressureFactProofLimits.hasPressureCaptureRowOverflow(
+	facts: List<PressureFactRevisionEntity>,
+	wals: List<SourceEventWalEntity>,
+	runs: List<SourceServiceRunEntity>,
+	sessions: List<LogicalTrackingSessionEntity>,
+	manifests: List<SessionManifestVersionEntity>,
+	sources: List<SessionManifestSourceEntity>,
+): Boolean = facts.size > maximumFactRevisions || wals.size > maximumFactRevisions ||
+	runs.size > maximumRuns || sessions.size > maximumSessions ||
+	manifests.size > maximumManifests || sources.size > maximumManifestSources
+
+private fun PressureFactProofLimits.hasPressureContextRowOverflow(
+	policies: List<SourcePolicyEntity>,
+	consents: List<SourceConsentEpochEntity>,
+	segments: List<SessionSegment>,
+): Boolean = policies.size > maximumPolicies || consents.size > maximumConsents ||
+	segments.size > maximumRuns
+
+private fun PressureFactProofLimits.hasPressureAcquisitionRowOverflow(
+	planHeaders: PressureProofRows<AcquisitionPlanRevisionEntity>,
+	desiredPlans: PressureProofRows<SourceDesiredPlanEntity>,
+	providers: PressureProofRows<ProviderRegistrationGenerationEntity>,
+	currentProviderRows: List<ProviderRegistrationGenerationEntity>,
+	retiringProviderRows: List<ProviderRegistrationGenerationEntity>,
+	currentProviders: List<ProviderRegistrationGenerationEntity>,
+): Boolean = planHeaders.overflow || desiredPlans.overflow || providers.overflow ||
+	currentProviderRows.size > maximumProviders || retiringProviderRows.size > maximumProviders ||
+	currentProviders.size > maximumProviders
+
+/**
+ * One read snapshot of original WAL, run, manifest, policy, provider, authorization and writer
+ * dependencies with overflow stated.
+ */
 @Suppress("LongParameterList")
 data class PressureFactProofSnapshot(
 	val walByEventId: Map<String, SourceEventWalEntity>,
@@ -693,11 +842,18 @@ data class PressureFactProofSnapshot(
 	val savedSessionCutoffs: Map<String, SavedSessionCutoff> = emptyMap(),
 )
 
+/**
+ * Logical tracking identity and exact manifest revision used to select original source membership.
+ */
 data class PressureFactManifestKey(
 	val logicalTrackingId: String,
 	val manifestRevision: Long,
 )
 
+/**
+ * Finite fact, run, session, manifest, policy, provider and authorization counts for Pressure
+ * source verification.
+ */
 data class PressureFactProofLimits(
 	val maximumFactRevisions: Int = MAX_PRESSURE_FACT_PROOF_REVISIONS,
 	val maximumRuns: Int = 64,
@@ -794,7 +950,9 @@ private object StoredPressurePlanIntegrity {
 		if (!desired.enabled ||
 			effectiveSamplePeriodMicros < desired.hardwareSamplePeriodMicros ||
 			effectiveMaximumReportLatencyMicros < 0
-		) return false
+		) {
+			return false
+		}
 		return effectiveMaximumReportLatencyMicros == desired.maximumReportLatencyMicros ||
 			(desired.maximumReportLatencyMicros > 0 &&
 				effectiveMaximumReportLatencyMicros == 0)
@@ -816,6 +974,8 @@ private object StoredPressurePlanIntegrity {
 		}
 }
 
+// Compares the immutable lineage-owner tuple field by field; no authority is loaded here.
+@Suppress("CyclomaticComplexMethod")
 private fun PressureFactRevisionEntity.matchesStableLineageOwner(
 	first: PressureFactRevisionEntity,
 ): Boolean =
@@ -833,6 +993,8 @@ private fun PressureFactRevisionEntity.matchesStableLineageOwner(
 		clockDomainId == first.clockDomainId &&
 		wallTimeUncertaintyMs == first.wallTimeUncertaintyMs
 
+// One optional-filter schema correspondence.
+@Suppress("CyclomaticComplexMethod")
 private fun PressureFactRevisionEntity.matches(expectation: PressureFactProofExpectation): Boolean =
 	sourceEventId == expectation.evidenceIdentity &&
 		sourcePolicyRevision == expectation.sourcePolicyRevision &&
@@ -856,6 +1018,8 @@ private fun SourceEventWalEntity.matches(expectation: PressureFactProofExpectati
 		serviceRunId == expectation.serviceRunId &&
 		expectation.sourceAdmissionOrdinal?.let { admissionOrdinal == it } != false
 
+// Project the complete nullable stored authority tuple without splitting its fields.
+@Suppress("CyclomaticComplexMethod", "ReturnCount")
 private fun SourceEventWalEntity.storedPressureCaptureAuthority(
 	binding: SessionManifestSourceEntity,
 ): PressureCaptureAuthorityIdentity? {
@@ -896,6 +1060,8 @@ private fun SourceEventWalEntity.storedPressureCaptureAuthority(
 	)
 }
 
+// One immutable writer-binding tuple, including the existing generation-code correspondence.
+@Suppress("CyclomaticComplexMethod")
 private fun SessionManifestSourceEntity.isExactPressureFactWriter(): Boolean =
 	sourceKind == PRESSURE_SOURCE &&
 		purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
@@ -909,7 +1075,8 @@ private fun SessionManifestSourceEntity.isExactPressureFactWriter(): Boolean =
 		writerProjectionVersion == SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION &&
 		SourceWriterGenerationContract.captureModeMaskForKnownBinding(writerBindingGeneration ?: -1L) != null
 
-@Suppress("ComplexCondition")
+// Compare one saved provider-registration tuple with the supplied WAL and bounds.
+@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 private fun ProviderRegistrationGenerationEntity.authenticates(
 	wal: SourceEventWalEntity,
 	providerStart: Long,
@@ -963,7 +1130,6 @@ private fun SourceConsentEpochEntity.authenticates(
 		effectiveElapsedRealtimeNanos <= observedStart &&
 		effectiveWallTimeMs >= 0L
 
-@Suppress("ComplexCondition")
 private fun SourceDemandEntity.authenticatesPressureAuthority(
 	wal: SourceEventWalEntity,
 	binding: SessionManifestSourceEntity,
@@ -984,24 +1150,39 @@ private fun SourceDemandEntity.authenticatesPressureAuthority(
 	val retirementShape = (retireBootId == null) == (retireElapsedRealtimeNanos == null) &&
 		(retireElapsedRealtimeNanos == null || retireBootId != wal.clockDomainId ||
 			wal.observedElapsedNanos < retireElapsedRealtimeNanos)
+	return hasPressureAdmission(
+		wal, binding, authorizationEffectiveElapsedNanos, authorizationEndNanos, retirementShape,
+	) && acceptsPressureQuality(
+		plan, payload, floor, maximumWindowNanos, providerDeliveryLatencyMs, providerItemMaximumAgeMs,
+	)
+}
+
+private fun SourceDemandEntity.hasPressureAdmission(
+	wal: SourceEventWalEntity,
+	binding: SessionManifestSourceEntity,
+	authorizationEffectiveElapsedNanos: Long,
+	authorizationEndNanos: Long,
+	retirementShape: Boolean,
+): Boolean {
 	return sourceKind == PRESSURE_SOURCE &&
 		status in VALID_DEMAND_STATES &&
 		purpose in PRESSURE_AUTHORITY_PURPOSES &&
 		requestedBootId == wal.clockDomainId &&
 		requestedElapsedRealtimeNanos <= authorizationEffectiveElapsedNanos &&
 		retirementShape &&
-		(purpose != SourceBrokerPurpose.SESSION_CAPTURE || (
-			persistenceEligible &&
-				logicalTrackingId == wal.logicalTrackingId &&
-				serviceRunId == wal.serviceRunId &&
-				manifestRevision == wal.sessionManifestRevision &&
-				lifecycleLeaseGeneration == wal.lifecycleLeaseGeneration &&
-				sourcePolicyRevision == wal.sourcePolicyRevision &&
-				consentEpoch == wal.captureConsentEpoch &&
-				qosCode == binding.qosCode
-			)) &&
-		authorizationEndNanos > wal.observedElapsedNanos &&
-		plan.hardwareSamplePeriodMicros <= floor.maximumSamplePeriodMicros &&
+		(purpose != SourceBrokerPurpose.SESSION_CAPTURE || matchesPressureCaptureIdentity(wal, binding)) &&
+		authorizationEndNanos > wal.observedElapsedNanos
+}
+
+private fun SourceDemandEntity.acceptsPressureQuality(
+	plan: StoredPressurePlan,
+	payload: PressureWalPayload,
+	floor: PressureDemandFloor,
+	maximumWindowNanos: Long,
+	providerDeliveryLatencyMs: Long,
+	providerItemMaximumAgeMs: Long,
+): Boolean =
+	plan.hardwareSamplePeriodMicros <= floor.maximumSamplePeriodMicros &&
 		plan.maximumReportLatencyMicros <= floor.maximumReportLatencyMicros &&
 		plan.aggregationWindowMs <= floor.maximumAggregationWindowMs &&
 		providerItemMaximumAgeMs <= maximumAgeMs &&
@@ -1009,7 +1190,19 @@ private fun SourceDemandEntity.authenticatesPressureAuthority(
 		payload.effectiveSamplePeriodMicros <= floor.maximumSamplePeriodMicros &&
 		payload.effectiveMaximumReportLatencyMicros <= floor.maximumReportLatencyMicros &&
 		payload.targetWindowDurationNanos <= maximumWindowNanos
-}
+
+private fun SourceDemandEntity.matchesPressureCaptureIdentity(
+	wal: SourceEventWalEntity,
+	binding: SessionManifestSourceEntity,
+): Boolean =
+	persistenceEligible &&
+		logicalTrackingId == wal.logicalTrackingId &&
+		serviceRunId == wal.serviceRunId &&
+		manifestRevision == wal.sessionManifestRevision &&
+		lifecycleLeaseGeneration == wal.lifecycleLeaseGeneration &&
+		sourcePolicyRevision == wal.sourcePolicyRevision &&
+		consentEpoch == wal.captureConsentEpoch &&
+		qosCode == binding.qosCode
 
 private fun SourceDemandEntity.pressureDemandFloor(): PressureDemandFloor? {
 	val match = PRESSURE_DEMAND_FLOOR.matchEntire(minimumAcquisitionSpec) ?: return null
@@ -1032,7 +1225,8 @@ private data class PressureDemandFloor(
 	val maximumAggregationWindowMs: Long,
 )
 
-@Suppress("ComplexCondition")
+// Compare one saved acknowledgement tuple with the supplied run, manifest and bounds.
+@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 private fun LifecycleDesiredActionEntity.authenticates(
 	wal: SourceEventWalEntity,
 	run: SourceServiceRunEntity,
@@ -1075,12 +1269,16 @@ private suspend fun <K, V> loadPressureProofChunks(
 	maximumRows: Int,
 	load: suspend (List<K>, Int) -> List<V>,
 ): PressureProofRows<V> {
-	if (keys.isEmpty()) return PressureProofRows(emptyList(), overflow = false)
+	if (keys.isEmpty()) {
+		return PressureProofRows(emptyList(), overflow = false)
+	}
 	val rows = mutableListOf<V>()
 	for (chunk in keys.chunked(PRESSURE_PROOF_QUERY_BATCH_SIZE)) {
 		currentCoroutineContext().ensureActive()
 		val remaining = maximumRows - rows.size
-		if (remaining <= 0) return PressureProofRows(rows, overflow = true)
+		if (remaining <= 0) {
+			return PressureProofRows(rows, overflow = true)
+		}
 		val page = load(chunk, remaining + 1)
 		if (page.size > remaining) {
 			rows += page.take(remaining)

@@ -12,12 +12,16 @@ internal suspend fun AppDatabase.nativePortableOwnerSeeds(
 	maximumOwners: Int,
 ): List<SessionSegment> {
 	val owners = linkedSetOf<String>()
-	for (batch in identities.chunked(256)) {
+	for (batch in identities.chunked(OWNER_IDENTITY_QUERY_BATCH_SIZE)) {
 		currentCoroutineContext().ensureActive()
 		owners += nativePortableOwnershipDao().ownerLogicalIds(sourceKind, batch.distinct(), maximumOwners + 1)
-		if (owners.size > maximumOwners) throw NativePortableOwnerBudgetExceeded()
+		if (owners.size > maximumOwners) {
+			throw NativePortableOwnerBudgetExceeded()
+		}
 	}
-	if (owners.isEmpty()) return emptyList()
+	if (owners.isEmpty()) {
+		return emptyList()
+	}
 	val seeds = nativePortableOwnershipDao().ownerSeeds(owners.toList(), maximumOwners + 1)
 	if (seeds.size != owners.size || seeds.map { it.logicalTrackingId }.toSet() != owners) {
 		throw NativePortableOwnerMembershipInvalid()
@@ -27,3 +31,5 @@ internal suspend fun AppDatabase.nativePortableOwnerSeeds(
 
 internal class NativePortableOwnerBudgetExceeded : RuntimeException(null, null, false, false)
 internal class NativePortableOwnerMembershipInvalid : RuntimeException(null, null, false, false)
+
+private const val OWNER_IDENTITY_QUERY_BATCH_SIZE = 256

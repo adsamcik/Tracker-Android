@@ -6,7 +6,11 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
 interface CellHistoryRepository {
 	/** Resolves one repository-issued opaque selection without exposing its backing identity. */
 	suspend fun detail(selection: CellHistoryEntrySelection): CellHistoryQuery =
-		if (selection is ImportedCellHistorySelection) imported(selection) else CellHistoryQuery.NotFound
+		if (selection is ImportedCellHistorySelection) {
+			imported(selection)
+		} else {
+			CellHistoryQuery.NotFound
+		}
 
 	/** Resolves the complete logical replacement group containing one physical presentation row. */
 	suspend fun session(segmentId: Long): CellHistoryQuery
@@ -23,13 +27,33 @@ interface CellHistoryRepository {
 		CellHistoryRangePage.Unavailable(CellHistoryRangeUnavailableReason.UNSUPPORTED_BY_IMPLEMENTATION)
 }
 
+/**
+ * Exact Cell lookup outcome, distinguishing an existing saved product from no matching entry.
+ */
 sealed interface CellHistoryQuery {
+	/**
+	 * No matching saved source entry or selection remains.
+	 */
 	data object NotFound : CellHistoryQuery
+	/**
+	 * Contains the selected saved source product; its payload preserves current qualification and
+	 * coverage.
+	 */
 	data class Found(val entry: CellHistoryEntry) : CellHistoryQuery
 }
 
+/**
+ * Recent Cell entries or a page-wide integrity failure.
+ */
 sealed interface CellHistoryPage {
+	/**
+	 * Saved source entries whose individual states retain coverage and qualification.
+	 */
 	data class Available(val entries: List<CellHistoryEntry>) : CellHistoryPage
+	/**
+	 * The stored source or scope failed integrity qualification; this outcome does not expose a
+	 * measured count.
+	 */
 	data class Failed(val cause: CellHistoryCause) : CellHistoryPage {
 		init {
 			require(cause.isIntegrityFailure)
@@ -37,7 +61,13 @@ sealed interface CellHistoryPage {
 	}
 }
 
+/**
+ * Selects Cell history by half-open UTC wall time or inclusive saved structural calendar days.
+ */
 sealed interface CellHistoryRangeScope {
+	/**
+	 * Nonempty half-open UTC millisecond selection bounded to the supported history interval.
+	 */
 	data class WallTime(
 		val fromInclusive: EpochMs,
 		val toExclusive: EpochMs,
@@ -49,6 +79,9 @@ sealed interface CellHistoryRangeScope {
 		}
 	}
 
+	/**
+	 * Inclusive bounded local calendar epoch-day range interpreted using retained saved zones.
+	 */
 	data class StructuralDays(
 		val firstEpochDay: Long,
 		val lastEpochDayInclusive: Long,
@@ -64,6 +97,9 @@ sealed interface CellHistoryRangeScope {
 /** Opaque immutable snapshot continuation. Only the repository that issued it may interpret it. */
 interface CellHistoryRangeContinuation
 
+/**
+ * Bounded Cell page request with an optional continuation issued for the same source range.
+ */
 data class CellHistoryRangeRequest(
 	val scope: CellHistoryRangeScope,
 	val limit: Int,
@@ -73,11 +109,17 @@ data class CellHistoryRangeRequest(
 		require(limit in 1..MAX_CELL_RANGE_PAGE_SIZE)
 	}
 
+	/**
+	 * Maximum number of logical Cell entries returned by one range page.
+	 */
 	companion object {
 		const val MAX_CELL_RANGE_PAGE_SIZE = 100
 	}
 }
 
+/**
+ * Local calendar epoch day and saved zone used to allocate the Cell entry.
+ */
 data class CellHistoryStructuralDay(
 	val epochDay: Long,
 	val storedZoneId: String,
@@ -87,6 +129,9 @@ data class CellHistoryStructuralDay(
 	}
 }
 
+/**
+ * Whether saved-day membership is exact, ambiguous, partial or unavailable.
+ */
 enum class CellHistoryStructuralDayCompleteness {
 	EXACT,
 	AMBIGUOUS,
@@ -94,6 +139,9 @@ enum class CellHistoryStructuralDayCompleteness {
 	UNAVAILABLE,
 }
 
+/**
+ * One Cell entry with its saved-day membership and allocation completeness.
+ */
 data class CellHistoryRangeEntry(
 	val entry: CellHistoryEntry,
 	val structuralDays: Set<CellHistoryStructuralDay>,
@@ -110,7 +158,13 @@ data class CellHistoryRangeEntry(
 	}
 }
 
+/**
+ * Bounded Cell range entries and continuation, or an explicit unavailable/integrity result.
+ */
 sealed interface CellHistoryRangePage {
+	/**
+	 * Bounded saved entries and an optional source-issued continuation; null ends the range.
+	 */
 	data class Available(
 		val entries: List<CellHistoryRangeEntry>,
 		val continuation: CellHistoryRangeContinuation?,
@@ -120,10 +174,18 @@ sealed interface CellHistoryRangePage {
 		}
 	}
 
+	/**
+	 * The requested data or authority is unavailable; any named reason preserves the original failure
+	 * cause.
+	 */
 	data class Unavailable(
 		val reason: CellHistoryRangeUnavailableReason,
 	) : CellHistoryRangePage
 
+	/**
+	 * The stored source or scope failed integrity qualification; this outcome does not expose a
+	 * measured count.
+	 */
 	data class Failed(val cause: CellHistoryCause) : CellHistoryRangePage {
 		init {
 			require(cause.isIntegrityFailure)
@@ -131,11 +193,18 @@ sealed interface CellHistoryRangePage {
 	}
 }
 
+/**
+ * Unsupported range capability or invalid continuation preventing a Cell history page.
+ */
 enum class CellHistoryRangeUnavailableReason {
 	UNSUPPORTED_BY_IMPLEMENTATION,
 	INVALID_CONTINUATION,
 }
 
+/**
+ * Exact source selection, UTC millisecond action time and optional expected data epoch for
+ * deleting Cell history.
+ */
 data class DeleteCellHistoryRequest(
 	val selection: CellHistoryEntrySelection,
 	val requestedAtMs: Long,
@@ -147,11 +216,26 @@ data class DeleteCellHistoryRequest(
 	}
 }
 
+/**
+ * Deletes the local or imported Cell scope selected by the saved-data reader.
+ */
 interface DeleteCellHistory {
+	/**
+	 * Deletes the exact local/imported selection after rechecking its source scope, current epoch and
+	 * live/retention boundaries.
+	 */
 	suspend fun delete(request: DeleteCellHistoryRequest): DeleteCellHistoryResult
 }
 
+/**
+ * Selected Cell deletion outcome, separating removed counts, prior deletion, missing data and
+ * failures.
+ */
 sealed interface DeleteCellHistoryResult {
+	/**
+	 * The exact selected source scope was removed; any counts report the original scope that was
+	 * fenced.
+	 */
 	data class Deleted(
 		val deletedLogicalEntryCount: Int,
 		val deletedPhysicalRunCount: Int,
@@ -163,15 +247,35 @@ sealed interface DeleteCellHistoryResult {
 		}
 	}
 
+	/**
+	 * The exact selected source scope was previously deleted and remains fenced against replay.
+	 */
 	data object AlreadyDeleted : DeleteCellHistoryResult
+	/**
+	 * No matching saved source entry or selection remains.
+	 */
 	data object NotFound : DeleteCellHistoryResult
+	/**
+	 * Current capture, selection or privacy state prevents the requested source mutation.
+	 */
 	data class Blocked(val reason: CellHistoryDeletionBlockedReason) : DeleteCellHistoryResult
+	/**
+	 * The source cannot verify the complete selected scope or stored lineage needed by this
+	 * operation.
+	 */
 	data class Unverifiable(val reason: CellHistoryDeletionUnverifiableReason) :
 		DeleteCellHistoryResult
+	/**
+	 * A transient storage or concurrent-state failure prevents completion and permits retry.
+	 */
 	data class RetryableFailure(val reason: CellHistoryDeletionRetryableReason) :
 		DeleteCellHistoryResult
 }
 
+/**
+ * Active capture, stale selection/epoch, retention or incomplete capture/deletion scope that
+ * prevents selected erasure.
+ */
 enum class CellHistoryDeletionBlockedReason {
 	ACTIVE_CAPTURE,
 	STALE_SELECTION,
@@ -181,6 +285,10 @@ enum class CellHistoryDeletionBlockedReason {
 	PARTIAL_DELETION_STATE,
 }
 
+/**
+ * Unverifiable selection, hierarchy, writer/fact evidence or day repair preventing a complete Cell
+ * deletion.
+ */
 enum class CellHistoryDeletionUnverifiableReason {
 	SOURCE_EVIDENCE_STATE_MISSING,
 	SELECTION_LOOKUP_BUDGET_EXCEEDED,
@@ -192,6 +300,9 @@ enum class CellHistoryDeletionUnverifiableReason {
 	DAY_REPAIR_UNAVAILABLE,
 }
 
+/**
+ * Concurrent-state or storage failures that allow retrying selected Cell deletion.
+ */
 enum class CellHistoryDeletionRetryableReason {
 	CONCURRENT_STATE_CHANGE,
 	STORAGE_UNAVAILABLE,
@@ -223,13 +334,24 @@ value class LocalCellHistoryIdentity(val value: String) {
 	override fun toString(): String = "LocalCellHistoryIdentity"
 }
 
+/**
+ * Opaque local Cell history identity; imported selections use separately verified revision and
+ * checksum values.
+ */
 data class LocalCellHistorySelection(
 	val identity: LocalCellHistoryIdentity,
 ) : CellHistoryEntrySelection
 
 /** Proven presentation origin. Neither form grants mutation or live capture authority. */
 sealed interface CellHistoryOrigin {
+	/**
+	 * Selects or labels native saved data without borrowing imported revision authority.
+	 */
 	data object Local : CellHistoryOrigin
+	/**
+	 * Carries the source-issued imported identity/revision selection separately from native recording
+	 * authority.
+	 */
 	data class Imported(val selection: ImportedCellHistorySelection) : CellHistoryOrigin
 }
 
@@ -254,6 +376,10 @@ data class ImportedCellHistorySelection(
 	}
 }
 
+/**
+ * Lowercase SHA-256 content digest for the imported Cell selection; it grants no recording
+ * permission.
+ */
 @JvmInline
 value class ImportedCellHistoryDigest(val value: String) {
 	init {
@@ -263,6 +389,10 @@ value class ImportedCellHistoryDigest(val value: String) {
 	override fun toString(): String = "ImportedCellHistoryDigest"
 }
 
+/**
+ * Cell presentation state retaining partial data and distinguishing missing/deleted/unverifiable
+ * data from a failed read.
+ */
 enum class CellHistoryProductState {
 	MATERIALIZING,
 	PARTIAL,
@@ -273,12 +403,31 @@ enum class CellHistoryProductState {
 	UNVERIFIABLE,
 	FAILED,
 }
+/**
+ * Amount of selected Cell scope represented by retained observations, including unknown coverage.
+ */
 enum class CellHistoryCoverage { NONE, PARTIAL, COMPLETE, UNKNOWN }
+/**
+ * Availability discriminator attached to a retained Cell observation.
+ */
 enum class CellHistoryAvailability { AVAILABLE }
+/**
+ * Explicitly unknown subscription grouping; tower readings do not identify the user's SIM.
+ */
 enum class CellHistorySubscriptionGrouping { UNKNOWN }
+/**
+ * Whether all represented Cell children qualified or some were rejected.
+ */
 enum class CellHistoryChildCompleteness { COMPLETE, PARTIAL }
+/**
+ * Provider-reported tower radio technology, including legacy and current cellular standards.
+ */
 enum class CellHistoryTechnology { GSM, CDMA, WCDMA, TDSCDMA, LTE, NR }
 
+/**
+ * Concrete provider, coverage, retention and integrity causes for Cell presentation; failures are
+ * flagged separately.
+ */
 enum class CellHistoryCause(val isIntegrityFailure: Boolean = false) {
 	SESSION_ACTIVE,
 	MATERIALIZATION_BEHIND,
@@ -416,6 +565,9 @@ data class CellObservedTower(
 	override fun toString(): String = "CellObservedTower"
 }
 
+/**
+ * Counts of original Android signal-quality bins; these are not inferred dBm measurements.
+ */
 data class CellHistorySignalQuality(
 	val unknownCount: Int,
 	val noneOrUnknownCount: Int,

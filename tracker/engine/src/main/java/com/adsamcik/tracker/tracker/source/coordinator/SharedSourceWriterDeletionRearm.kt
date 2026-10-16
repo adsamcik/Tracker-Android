@@ -6,6 +6,9 @@ import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOpera
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.liveSourceProjectionActivationOrdinal
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+import com.adsamcik.tracker.shared.base.time.Clock
+import com.adsamcik.tracker.shared.base.time.SystemClock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -15,7 +18,13 @@ class SharedSourceWriterDeletionRearm @Inject internal constructor(
 	private val database: AppDatabase,
 	private val lifecycleStore: CollectedDataLifecycleStore,
 	private val stepsRearm: StepsWriterDeletionRearm,
+	private val bootClockDomainProvider: BootClockDomainProvider,
+	private val clock: Clock = SystemClock,
 ) {
+	/**
+	 * Rearms shared writer ownership only after this full-clear receipt and data epoch agree; updatedAtMs
+	 * is UTC milliseconds.
+	 */
 	suspend fun rearmAfterFullDeletion(
 		operationId: String,
 		targetCollectedDataEpoch: Long,
@@ -93,15 +102,12 @@ class SharedSourceWriterDeletionRearm @Inject internal constructor(
 			}
 			return
 		}
-		val recognized = when (owner.ownerGeneration) {
-			1L -> spec.initialOwner != null && owner.owner == spec.initialOwner
-			2L, 4L -> owner.owner == spec.candidateOwner
-			3L, 5L -> owner.owner == spec.containedOwner
-			else -> false
-		}
+		val recognized = owner.hasKnownDeletedCaptureOwner(spec)
 		// Unknown authority is preserved as source-local repair debt; it grants no rollout.
 		if (!recognized || (owner.ownerGeneration == FINAL_OWNER_GENERATION &&
-			owner.owner == spec.candidateOwner)) return
+			owner.owner == spec.candidateOwner)) {
+			return
+		}
 		check(dao.resetKnownCaptureOwnerAfterFullDeletion(
 			sourceKind = spec.source.stableCode,
 			destination = spec.destination,
@@ -117,8 +123,11 @@ class SharedSourceWriterDeletionRearm @Inject internal constructor(
 		// These are fixed existing source authority/payload tables, not a generic cleanup registry.
 		val sql = "SELECT " + EMPTY_AFTER_CLEAR_TABLES.joinToString(" OR ") {
 			"EXISTS(SELECT 1 FROM $it LIMIT 1)"
-		}
-		return database.openHelper.writableDatabase.query(sql).use { cursor ->
+		} + " OR EXISTS(SELECT 1 FROM source_coordinator_lease " +
+			"WHERE boot_id = ? AND expires_elapsed_realtime_nanos > ? LIMIT 1)"
+		// Released and prior-boot leases preserve generations but cannot authorize work.
+		return database.openHelper.writableDatabase.query(sql,
+			arrayOf<Any>(bootClockDomainProvider.current(), clock.elapsedRealtimeNanos())).use { cursor ->
 			check(cursor.moveToFirst())
 			cursor.getInt(0) != 0
 		}
@@ -130,7 +139,7 @@ class SharedSourceWriterDeletionRearm @Inject internal constructor(
 			"source_event_wal", "pending_signal", "source_product_projection_lane",
 			"source_projection_registration", "source_projection_checkpoint",
 			"source_projection_failure", "source_projection_join_state",
-			"source_projection_outbox", "source_coordinator_lease",
+			"source_projection_outbox",
 			"legacy_v27_projection_drain", "legacy_v27_projection_target",
 			"logical_tracking_session", "source_service_run", "session_manifest_version",
 			"session_manifest_source", "session_lifecycle_intent_version",
@@ -151,3 +160,17 @@ class SharedSourceWriterDeletionRearm @Inject internal constructor(
 		)
 	}
 }
+
+private const val INITIAL_CAPTURE_WRITER_GENERATION = 1L
+private const val LEGACY_CANDIDATE_WRITER_GENERATION = 2L
+private const val LEGACY_CONTAINED_WRITER_GENERATION = 3L
+private const val SHARED_CANDIDATE_WRITER_GENERATION = 4L
+private const val SHARED_CONTAINED_WRITER_GENERATION = 5L
+
+private fun SourceDestinationOwnerEntity.hasKnownDeletedCaptureOwner(spec: SourceWriterTransitionSpec): Boolean =
+	when (ownerGeneration) {
+		INITIAL_CAPTURE_WRITER_GENERATION -> spec.initialOwner != null && owner == spec.initialOwner
+		LEGACY_CANDIDATE_WRITER_GENERATION, SHARED_CANDIDATE_WRITER_GENERATION -> owner == spec.candidateOwner
+		LEGACY_CONTAINED_WRITER_GENERATION, SHARED_CONTAINED_WRITER_GENERATION -> owner == spec.containedOwner
+		else -> false
+	}

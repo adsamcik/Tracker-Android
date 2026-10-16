@@ -117,7 +117,7 @@ internal class CellWalQualificationAdapter @Inject constructor(
 		}
 		val carrier = when (val result = CellWalCarrierAuthenticator.authenticate(wal)) {
 			is CellWalCarrierAuthentication.Authenticated -> result.carrier
-			is CellWalCarrierAuthentication.Rejected -> return@withTransaction rejected(result.reason.toAdapterRejection())
+			is CellWalCarrierAuthentication.Rejected -> return@withTransaction rejected(result.reason.toCellAdapterRejection())
 		}
 		val registration = database.sourceBrokerDao().registration(CELL_SOURCE, wal.registrationGeneration)
 			?: return@withTransaction rejected(CellWalAdapterRejection.MISSING_REGISTRATION)
@@ -135,8 +135,12 @@ internal class CellWalQualificationAdapter @Inject constructor(
 				?: member
 		}
 		val results = members.map { member -> qualifyGroup(eventId, wal, classify, member, items) }
-		if (results.singleOrNull() is CellWalAdapterResult.Evaluated) results.single()
-		else CellWalAdapterResult.Groups(results)
+		if (results.singleOrNull() is CellWalAdapterResult.Evaluated) {
+			results.single()
+		}
+		else {
+			CellWalAdapterResult.Groups(results)
+		}
 	}
 
 	@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount")
@@ -152,7 +156,7 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			CellWalCarrierAuthenticator.authenticate(wal)) {
 			is CellWalCarrierAuthentication.Authenticated -> authentication.carrier
 			is CellWalCarrierAuthentication.Rejected ->
-				return rejected(authentication.reason.toAdapterRejection())
+				return rejected(authentication.reason.toCellAdapterRejection())
 		}
 		val sequenceRow = walDao.getBySourceSequence(
 			CELL_SOURCE,
@@ -176,6 +180,8 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			deliveryIdentity.value,
 			MAX_EXPECTED_DELIVERY_UNITS + 1,
 		).singleOrNull()
+		// The saved delivery witness must match every WAL identity field as one tuple.
+		@Suppress("ComplexCondition")
 		if (completeDelivery == null || completeDelivery.eventId != wal.eventId ||
 			completeDelivery.admissionOrdinal != wal.admissionOrdinal ||
 			completeDelivery.deliveryUnitIndex != wal.deliveryUnitIndex ||
@@ -200,8 +206,14 @@ internal class CellWalQualificationAdapter @Inject constructor(
 		val manifestRevision = historicalMember?.manifestRevision ?: wal.sessionManifestRevision
 		val historicalManifest = if (historicalMember != null && logicalTrackingId != null && manifestRevision != null) {
 			database.sourceSessionDao().manifest(logicalTrackingId, manifestRevision)
-		} else null
-		val configRevision = if (historicalMember != null) historicalManifest?.acquisitionPlanRevision else wal.configRevision
+		} else {
+			null
+		}
+		val configRevision = if (historicalMember != null) {
+			historicalManifest?.acquisitionPlanRevision
+		} else {
+			wal.configRevision
+		}
 		val policyRevision = historicalMember?.sourcePolicyRevision ?: wal.sourcePolicyRevision
 		val consentEpoch = historicalMember?.consentEpoch ?: wal.captureConsentEpoch
 		val leaseGeneration = historicalMember?.lifecycleLeaseGeneration ?: wal.lifecycleLeaseGeneration
@@ -211,6 +223,8 @@ internal class CellWalQualificationAdapter @Inject constructor(
 		val purposeMask = historicalMember?.purposeEligibilityMask ?: wal.authorizationPurposeEligibilityMask
 		val wallTime = wal.wallTimeMs
 		val wallUncertainty = wal.wallTimeUncertaintyMs
+		// All required saved capture-binding fields must be present together.
+		@Suppress("ComplexCondition")
 		if (configRevision == null || policyRevision == null || consentEpoch == null ||
 			manifestRevision == null || leaseGeneration == null || logicalTrackingId == null ||
 			serviceRunId == null || physicalFingerprint == null || authorizationRevision == null ||
@@ -243,11 +257,19 @@ internal class CellWalQualificationAdapter @Inject constructor(
 		val plan = runCatching { planCodec.decode(desiredPlan.payload) as? CellPlan }.getOrNull()
 		val reencodedPlan = plan?.let { runCatching { planCodec.encode(it) }.getOrNull() }
 		if (desiredPlan.payloadVersion != PLAN_PAYLOAD_VERSION ||
-			desiredPlan.revision != configRevision || desiredPlan.sourceKind != CELL_SOURCE ||
-			plan == null || !plan.hasSupportedHistoricalShape() || plan.revision != configRevision ||
-			reencodedPlan == null || !reencodedPlan.bytes.contentEquals(desiredPlan.payload) ||
-			reencodedPlan.checksum != desiredPlan.payloadChecksum ||
-			plan.physicalConfigurationFingerprint() != physicalFingerprint ||
+			desiredPlan.revision != configRevision || desiredPlan.sourceKind != CELL_SOURCE
+		) {
+			return rejected(CellWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
+		}
+		if (plan == null || !plan.hasSupportedHistoricalShape() || plan.revision != configRevision) {
+			return rejected(CellWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
+		}
+		if (reencodedPlan == null || !reencodedPlan.bytes.contentEquals(desiredPlan.payload) ||
+			reencodedPlan.checksum != desiredPlan.payloadChecksum
+		) {
+			return rejected(CellWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
+		}
+		if (plan.physicalConfigurationFingerprint() != physicalFingerprint ||
 			planHeader.sourcePolicyRevision != policyRevision
 		) {
 			return rejected(CellWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
@@ -263,7 +285,9 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			val end = saved.retiredElapsedRealtimeNanos ?: Long.MAX_VALUE
 			authenticatedCarrier.payload.observations.mapNotNull { it.providerTimestampNanos }
 				.filter { it >= acceptedStart && it < end && it <= wal.receivedElapsedNanos }
-		} else null
+		} else {
+			null
+		}
 		if (providerTimes?.isEmpty() == true) {
 			return rejected(CellWalAdapterRejection.REGISTRATION_MISMATCH)
 		}
@@ -305,13 +329,15 @@ internal class CellWalQualificationAdapter @Inject constructor(
 		if (registration.ownerScope != EXPECTED_OWNER_SCOPE ||
 			registration.providerResidency !=
 			ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND
-		) return rejected(CellWalAdapterRejection.REGISTRATION_MISMATCH)
+		) {
+			return rejected(CellWalAdapterRejection.REGISTRATION_MISMATCH)
+		}
 
 		val authorization = brokerDao.authorizationRevision(
 			CELL_SOURCE,
 			wal.registrationGeneration,
 			authorizationRevision,
-		).toSnapshotOrNull()
+		).toCellAdapterSnapshotOrNull()
 			?: return rejected(CellWalAdapterRejection.MISSING_AUTHORIZATION)
 		val captureMember = authorization.authorizedMembers.singleOrNull { member ->
 			member.purpose == SourceBrokerPurpose.SESSION_CAPTURE && member.persistenceEligible &&
@@ -335,10 +361,16 @@ internal class CellWalQualificationAdapter @Inject constructor(
 		}.getOrNull()
 		if (demandIds.distinct().size != authorization.authorizedMembers.size ||
 			demands.size != authorization.authorizedMembers.size ||
-			recomputedAuthorization?.sortedBy { it.memberId } != authorization.members.sortedBy { it.memberId } ||
-			captureMember == null || authorization.isDenied ||
-			authorization.authorizationFingerprint != authorizationFingerprint ||
-			authorization.purposeEligibilityMask != purposeMask ||
+			recomputedAuthorization?.sortedBy { it.memberId } != authorization.members.sortedBy { it.memberId }
+		) {
+			return rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
+		}
+		if (captureMember == null || authorization.isDenied ||
+			authorization.authorizationFingerprint != authorizationFingerprint
+		) {
+			return rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
+		}
+		if (authorization.purposeEligibilityMask != purposeMask ||
 			authorization.purposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
 			authorization.effectiveBootId != wal.clockDomainId
 		) {
@@ -352,7 +384,7 @@ internal class CellWalQualificationAdapter @Inject constructor(
 		val nextAuthorization = if (nextAuthorizationRows.isEmpty()) {
 			null
 		} else {
-			nextAuthorizationRows.toSnapshotOrNull()
+			nextAuthorizationRows.toCellAdapterSnapshotOrNull()
 				?: return rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
 		}
 		val callbackAuthorizationEnd = when {
@@ -366,7 +398,9 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			purposeItems.cellPurposeWindow(authenticatedCarrier.payload,
 				requireNotNull(captureMember.demandId), registrationEnd) as? CellPurposeItems.Qualified
 				?: return rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
-		} else null
+		} else {
+			null
+		}
 		val authorizationEnd = qualifiedPurpose?.continuousUntilNanos ?: callbackAuthorizationEnd
 
 		val policyDao = database.sourcePolicyDao()
@@ -429,7 +463,9 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			return rejected(CellWalAdapterRejection.MANIFEST_TIMELINE_UNVERIFIABLE)
 		}
 		val manifestIndex = manifests.indexOfFirst { it.manifestRevision == manifestRevision }
-		if (manifestIndex < 0) return rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
+		if (manifestIndex < 0) {
+			return rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
+		}
 		val manifest = manifests[manifestIndex]
 		val manifestSources = allManifestSources.filter { source ->
 			source.logicalTrackingId == logicalTrackingId && source.manifestRevision == manifestRevision
@@ -456,12 +492,15 @@ internal class CellWalQualificationAdapter @Inject constructor(
 		val manifestEnd = manifests.getOrNull(manifestIndex + 1)?.effectiveElapsedRealtimeNanos
 			?: minOf(sessionEnd, registrationEnd, authorizationEnd)
 		if (manifest.logicalTrackingId != logicalTrackingId || manifest.serviceRunId != serviceRunId ||
-			manifest.sourcePolicyRevision != policyRevision ||
-			manifest.acquisitionPlanRevision != configRevision ||
-			manifest.effectiveBootId != wal.clockDomainId ||
-			cellManifestSource == null ||
-			cellManifestSource.consentEpoch != consentEpoch ||
-			cellManifestSource.qosCode != policy.qosCode || SourceKind.CELL !in capturedSources
+			manifest.sourcePolicyRevision != policyRevision || manifest.acquisitionPlanRevision != configRevision
+		) {
+			return rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
+		}
+		if (manifest.effectiveBootId != wal.clockDomainId || cellManifestSource == null) {
+			return rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
+		}
+		if (cellManifestSource.consentEpoch != consentEpoch || cellManifestSource.qosCode != policy.qosCode ||
+			SourceKind.CELL !in capturedSources
 		) {
 			return rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
 		}
@@ -470,7 +509,9 @@ internal class CellWalQualificationAdapter @Inject constructor(
 
 		val segmentId = run.sessionSegmentId
 		val segment = segmentId?.let { database.sessionSegmentDao().getById(it) }
-		if (segment == null) return rejected(CellWalAdapterRejection.MISSING_SEGMENT)
+		if (segment == null) {
+			return rejected(CellWalAdapterRejection.MISSING_SEGMENT)
+		}
 		if (segment.logicalTrackingId != logicalTrackingId || segment.serviceRunId != serviceRunId) {
 			return rejected(CellWalAdapterRejection.SEGMENT_MISMATCH)
 		}
@@ -558,7 +599,7 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			is CellWalCarrierAuthentication.Authenticated ->
 				requireNotNull(authentication.carrier.childQualification)
 			is CellWalCarrierAuthentication.Rejected ->
-				return rejected(authentication.reason.toAdapterRejection())
+				return rejected(authentication.reason.toCellAdapterRejection())
 		}
 		if (qualification.providerWallInterval?.let { wallInterval ->
 				evidenceState.retainedFromMs?.let { wallInterval.first < it } == true
@@ -593,50 +634,8 @@ internal class CellWalQualificationAdapter @Inject constructor(
 				maximumObservationAgeNanos = maximumAgeNanos,
 			)
 		}.getOrNull() ?: return rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
-		val evidence = CellWalObservationEvidence(
-			sourceEventId = eventId,
-			sourceKind = SourceKind.CELL,
-			sourceAdmissionOrdinal = wal.admissionOrdinal,
-			walIntegrityIdentity = wal.integrityIdentity,
-			providerDedupKey = wal.providerDedupKey,
-			sourceDeliveryIdentity = deliveryIdentity,
-			payloadChecksum = wal.payloadChecksum,
-			deliveryUnitIndex = requireNotNull(wal.deliveryUnitIndex),
-			deliveryUnitCount = requireNotNull(wal.deliveryUnitCount),
-			logicalTrackingId = authority.logicalTrackingId,
-			serviceRunId = authority.serviceRunId,
-			sourceInstanceId = authority.sourceInstanceId,
-			registrationGeneration = wal.registrationGeneration,
-			configurationRevision = configRevision,
-			physicalConfigurationFingerprint = physicalFingerprint,
-			authorizationRevision = authorizationRevision,
-			authorizationFingerprint = authorizationFingerprint,
-			purposeEligibilityMask = purposeMask,
-			sourceSequence = wal.sourceSequence,
-			sourcePolicyRevision = policyRevision,
-			captureConsentEpoch = consentEpoch,
-			sessionManifestRevision = manifestRevision,
-			lifecycleLeaseGeneration = leaseGeneration,
-			capturedCollectedDataEpoch = wal.capturedCollectedDataEpoch,
-			activityAutomationEpoch = wal.activityAutomationEpoch,
-			planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
-			clock = CellDurableClockEvidence(
-				clockDomainId = wal.clockDomainId,
-				observedIntervalStartElapsedRealtimeNanos = observedStart,
-				observedElapsedRealtimeNanos = wal.observedElapsedNanos,
-				receivedElapsedRealtimeNanos = wal.receivedElapsedNanos,
-				observedWallTimeMs = wallTime,
-				wallTimeUncertaintyMs = wallUncertainty,
-			),
-			receivedWallTimeMs = wal.receivedWallTimeMs,
-			acquiredAtMs = wal.acquiredAtMs,
-			qualityFlags = wal.qualityFlags,
-			qualityConfidence = wal.qualityConfidence,
-			payloadVersion = wal.payloadVersion,
-			payloadBytes = wal.payload.toList(),
-			createdAtMs = wal.createdAtMs,
-			capturedAuthority = authority,
-			originalWal = wal.takeIf { historicalMember != null },
+		val evidence = wal.toQualifiedCellObservationEvidence(
+			eventId, deliveryIdentity, authority, observedStart, wallTime, wallUncertainty, historicalMember != null,
 		)
 		return CellWalAdapterResult.Evaluated(
 			classify(
@@ -651,49 +650,11 @@ internal class CellWalQualificationAdapter @Inject constructor(
 		)
 	}
 
-	private fun CellWalCarrierFailure.toAdapterRejection(): CellWalAdapterRejection = when (this) {
-		CellWalCarrierFailure.WRONG_SOURCE -> CellWalAdapterRejection.WRONG_SOURCE
-		CellWalCarrierFailure.PAYLOAD_INTEGRITY_MISMATCH,
-		CellWalCarrierFailure.WAL_INTEGRITY_MISMATCH ->
-			CellWalAdapterRejection.WAL_INTEGRITY_MISMATCH
-		CellWalCarrierFailure.UNSUPPORTED_PAYLOAD_VERSION,
-		CellWalCarrierFailure.PAYLOAD_TOO_LARGE,
-		CellWalCarrierFailure.PAYLOAD_DECODE_FAILED,
-		CellWalCarrierFailure.NON_CANONICAL_PAYLOAD ->
-			CellWalAdapterRejection.PAYLOAD_MISMATCH
-		CellWalCarrierFailure.DELIVERY_IDENTITY_MISMATCH ->
-			CellWalAdapterRejection.DELIVERY_IDENTITY_MISMATCH
-		CellWalCarrierFailure.INCOMPLETE_CAPTURE_BINDING ->
-			CellWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING
-		CellWalCarrierFailure.NON_CAPTURE_PURPOSE,
-		CellWalCarrierFailure.PROVIDER_DEDUP_KEY_PRESENT,
-		CellWalCarrierFailure.ACTIVITY_AUTOMATION_PRESENT,
-		CellWalCarrierFailure.MALFORMED_PROVIDER_ENVELOPE,
-		CellWalCarrierFailure.EMPTY_PROVIDER_DELIVERY,
-		CellWalCarrierFailure.TOO_MANY_CHILDREN,
-		CellWalCarrierFailure.IDENTITY_BEARING_CHILD,
-		CellWalCarrierFailure.INVALID_PROVIDER_TIME,
-		CellWalCarrierFailure.NON_CANONICAL_CHILD_ORDER,
-		CellWalCarrierFailure.PROVIDER_TIMELINE_MISMATCH ->
-			CellWalAdapterRejection.MALFORMED_PRODUCER_DELIVERY
-		CellWalCarrierFailure.STRUCTURAL_DAY_MISMATCH ->
-			CellWalAdapterRejection.STRUCTURAL_DAY_UNVERIFIABLE
-		CellWalCarrierFailure.CAPTURE_AUTHORITY_MISMATCH,
-		CellWalCarrierFailure.FACT_LINKAGE_MISMATCH,
-		CellWalCarrierFailure.FACT_SEMANTICS_MISMATCH ->
-			CellWalAdapterRejection.WAL_INTEGRITY_MISMATCH
-	}
-
-	private fun List<com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity>
-		.toSnapshotOrNull(): SourceAuthorizationSnapshot? =
-		runCatching { toAuthorizationSnapshotOrNull() }.getOrNull()
-
 	private companion object {
 		const val PLAN_PAYLOAD_VERSION = 1
 		const val MAX_MANIFESTS_PER_RUN = 256
 		const val MAX_MANIFEST_SOURCE_ROWS = 4_096
 		const val MAX_EXPECTED_DELIVERY_UNITS = 1
-		const val NANOS_PER_MILLISECOND = 1_000_000L
 		val CELL_SOURCE = SourceKind.CELL.stableCode
 		val EXPECTED_OWNER_SCOPE = "source-broker:$CELL_SOURCE"
 	}
@@ -713,12 +674,108 @@ private fun CellPlan.hasSupportedHistoricalShape(): Boolean =
 		backoff.multiplier >= 1.0
 
 private fun CellPlan.maximumObservationAgeNanos(): Long =
-	if (maximumAcceptableCachedAgeMs > Long.MAX_VALUE / 1_000_000L) {
+	if (maximumAcceptableCachedAgeMs > Long.MAX_VALUE / NANOS_PER_MILLISECOND) {
 		Long.MAX_VALUE
 	} else {
-		maximumAcceptableCachedAgeMs * 1_000_000L
+		maximumAcceptableCachedAgeMs * NANOS_PER_MILLISECOND
 	}
 
 private fun rejected(reason: CellWalAdapterRejection) = CellWalAdapterResult.Rejected(reason)
 
 private const val MAX_CELL_SUBSCRIPTIONS = 10_000
+
+private const val NANOS_PER_MILLISECOND = 1_000_000L
+
+private fun CellWalCarrierFailure.toCellAdapterRejection(): CellWalAdapterRejection = when (this) {
+	CellWalCarrierFailure.WRONG_SOURCE -> CellWalAdapterRejection.WRONG_SOURCE
+	CellWalCarrierFailure.PAYLOAD_INTEGRITY_MISMATCH,
+	CellWalCarrierFailure.WAL_INTEGRITY_MISMATCH ->
+		CellWalAdapterRejection.WAL_INTEGRITY_MISMATCH
+	CellWalCarrierFailure.UNSUPPORTED_PAYLOAD_VERSION,
+	CellWalCarrierFailure.PAYLOAD_TOO_LARGE,
+	CellWalCarrierFailure.PAYLOAD_DECODE_FAILED,
+	CellWalCarrierFailure.NON_CANONICAL_PAYLOAD ->
+		CellWalAdapterRejection.PAYLOAD_MISMATCH
+	CellWalCarrierFailure.DELIVERY_IDENTITY_MISMATCH ->
+		CellWalAdapterRejection.DELIVERY_IDENTITY_MISMATCH
+	CellWalCarrierFailure.INCOMPLETE_CAPTURE_BINDING ->
+		CellWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING
+	CellWalCarrierFailure.NON_CAPTURE_PURPOSE,
+	CellWalCarrierFailure.PROVIDER_DEDUP_KEY_PRESENT,
+	CellWalCarrierFailure.ACTIVITY_AUTOMATION_PRESENT,
+	CellWalCarrierFailure.MALFORMED_PROVIDER_ENVELOPE,
+	CellWalCarrierFailure.EMPTY_PROVIDER_DELIVERY,
+	CellWalCarrierFailure.TOO_MANY_CHILDREN,
+	CellWalCarrierFailure.IDENTITY_BEARING_CHILD,
+	CellWalCarrierFailure.INVALID_PROVIDER_TIME,
+	CellWalCarrierFailure.NON_CANONICAL_CHILD_ORDER,
+	CellWalCarrierFailure.PROVIDER_TIMELINE_MISMATCH ->
+		CellWalAdapterRejection.MALFORMED_PRODUCER_DELIVERY
+	CellWalCarrierFailure.STRUCTURAL_DAY_MISMATCH ->
+		CellWalAdapterRejection.STRUCTURAL_DAY_UNVERIFIABLE
+	CellWalCarrierFailure.CAPTURE_AUTHORITY_MISMATCH,
+	CellWalCarrierFailure.FACT_LINKAGE_MISMATCH,
+	CellWalCarrierFailure.FACT_SEMANTICS_MISMATCH ->
+		CellWalAdapterRejection.WAL_INTEGRITY_MISMATCH
+}
+
+private fun List<com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity>
+	.toCellAdapterSnapshotOrNull(): SourceAuthorizationSnapshot? =
+	runCatching { toAuthorizationSnapshotOrNull() }.getOrNull()
+
+// Keep the original WAL identity, qualified authority and complete clock inputs together.
+@Suppress("LongParameterList")
+private fun SourceEventWalEntity.toQualifiedCellObservationEvidence(
+	eventId: SourceEventId,
+	deliveryIdentity: SourceDeliveryIdentity,
+	authority: CellCaptureAuthority,
+	observedStart: Long,
+	wallTime: Long,
+	wallUncertainty: Long,
+	fromHistoricalMember: Boolean,
+): CellWalObservationEvidence =
+	CellWalObservationEvidence(
+		sourceEventId = eventId,
+		sourceKind = SourceKind.CELL,
+		sourceAdmissionOrdinal = admissionOrdinal,
+		walIntegrityIdentity = integrityIdentity,
+		providerDedupKey = providerDedupKey,
+		sourceDeliveryIdentity = deliveryIdentity,
+		payloadChecksum = payloadChecksum,
+		deliveryUnitIndex = requireNotNull(deliveryUnitIndex),
+		deliveryUnitCount = requireNotNull(deliveryUnitCount),
+		logicalTrackingId = authority.logicalTrackingId,
+		serviceRunId = authority.serviceRunId,
+		sourceInstanceId = authority.sourceInstanceId,
+		registrationGeneration = registrationGeneration,
+		configurationRevision = authority.configurationRevision,
+		physicalConfigurationFingerprint = authority.physicalConfigurationFingerprint,
+		authorizationRevision = authority.authorizationRevision,
+		authorizationFingerprint = authority.authorizationFingerprint,
+		purposeEligibilityMask = authority.purposeEligibilityMask,
+		sourceSequence = sourceSequence,
+		sourcePolicyRevision = authority.sourcePolicyRevision,
+		captureConsentEpoch = authority.captureConsentEpoch,
+		sessionManifestRevision = authority.sessionManifestRevision,
+		lifecycleLeaseGeneration = authority.lifecycleLeaseGeneration,
+		capturedCollectedDataEpoch = capturedCollectedDataEpoch,
+		activityAutomationEpoch = activityAutomationEpoch,
+		planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
+		clock = CellDurableClockEvidence(
+			clockDomainId = clockDomainId,
+			observedIntervalStartElapsedRealtimeNanos = observedStart,
+			observedElapsedRealtimeNanos = observedElapsedNanos,
+			receivedElapsedRealtimeNanos = receivedElapsedNanos,
+			observedWallTimeMs = wallTime,
+			wallTimeUncertaintyMs = wallUncertainty,
+		),
+		receivedWallTimeMs = receivedWallTimeMs,
+		acquiredAtMs = acquiredAtMs,
+		qualityFlags = qualityFlags,
+		qualityConfidence = qualityConfidence,
+		payloadVersion = payloadVersion,
+		payloadBytes = payload.toList(),
+		createdAtMs = createdAtMs,
+		capturedAuthority = authority,
+		originalWal = takeIf { fromHistoricalMember },
+	)

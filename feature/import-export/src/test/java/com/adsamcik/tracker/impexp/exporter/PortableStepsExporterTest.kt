@@ -48,6 +48,8 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// Range and exact exports share one staged-copy contract, including format fallback, rechecks and spool cleanup.
+@Suppress("LargeClass")
 class PortableStepsExporterTest {
 	@Test
 	fun `range export writes canonical portable entry without reading Location`() = runTest {
@@ -517,7 +519,11 @@ class PortableStepsExporterTest {
 		val output = ByteArrayOutputStream()
 		val exporter = exactExporter { _, sink ->
 			calls++
-			val selected = entry(if (calls == 1) 12L else 19L).withExplicitUnprovenCountDomain()
+			val selected = entry(if (calls == 1) {
+				12L
+			} else {
+				19L
+			}).withExplicitUnprovenCountDomain()
 			sink.emit(PortableStepsArchiveV2.create(listOf(selected)))
 			ExportPortableStepsResult.Exported(1)
 		}

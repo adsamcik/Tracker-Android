@@ -46,7 +46,6 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
-import com.adsamcik.tracker.shared.preferences.tracking.SourcePurpose
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.DetectedActivityType
@@ -87,6 +86,7 @@ import com.adsamcik.tracker.tracker.source.runtime.encodeSensorRuntimeCheckpoint
 import io.kotest.matchers.shouldBe
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.every
 import io.mockk.coEvery
 import io.mockk.mockk
 import io.mockk.verify
@@ -114,6 +114,7 @@ class RoomDurableSourceIngressTest {
 	private var testPolicyRevision = 0L
 	private var testCaptureEpoch = 0L
 	private var testAmbientEpoch = 0L
+	private var testControlEpoch = 0L
 
 	@Before
 	fun setUp() = runTest {
@@ -131,27 +132,23 @@ class RoomDurableSourceIngressTest {
 		val policy = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("boot", 40L, 40L)
 		}
-		val initial = policy.bootstrapFromLegacy(TrackingParamsState(legacySettingsMigrationCompleted = true))
-		val ambient = policy.setNonCaptureConsent(
-			expectedPolicyRevision = initial.revision,
-			source = TrackingSourceComponent.ACTIVITY,
-			purpose = SourcePurpose.AMBIENT_PRODUCT,
-			eligible = true,
-			persistenceEligible = true,
-			reason = "TEST_AMBIENT_ELIGIBILITY",
+		val initial = policy.bootstrapFromLegacy(
+			TrackingParamsState(legacySettingsMigrationCompleted = true, autoTrackingMode = 1),
 		)
-		testPolicyRevision = ambient.revision
-		testCaptureEpoch = requireNotNull(ambient[TrackingSourceComponent.ACTIVITY].captureConsentEpoch)
-		testAmbientEpoch = requireNotNull(ambient[TrackingSourceComponent.ACTIVITY].ambientConsentEpoch)
+		testPolicyRevision = initial.revision
+		testCaptureEpoch = requireNotNull(initial[TrackingSourceComponent.ACTIVITY].captureConsentEpoch)
+		testControlEpoch = requireNotNull(initial[TrackingSourceComponent.ACTIVITY].controlConsentEpoch)
+		testAmbientEpoch = requireNotNull(initial[TrackingSourceComponent.STEPS].ambientConsentEpoch)
 		installSession()
 		installCaptureLane(SourceKind.ACTIVITY)
 		installCaptureLane(SourceKind.STEPS)
 		RoomTrackingRolloutStateStore(database, TEST_EXECUTABLE_LANE_CATALOG).save(
 			TrackingRolloutState.eventCanonical(
 				sources = setOf(SourceKind.ACTIVITY, SourceKind.STEPS),
-				captureModes = setOf(SourceKind.ACTIVITY, SourceKind.STEPS).associateWith {
-					CaptureReachabilityMode.entries.toSet()
-				},
+				captureModes = mapOf(
+					SourceKind.ACTIVITY to ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS_V1.captureModes,
+					SourceKind.STEPS to CaptureReachabilityMode.entries.toSet(),
+				),
 			),
 			updatedAtMs = 1L,
 		)
@@ -205,7 +202,7 @@ class RoomDurableSourceIngressTest {
 		database.sourceProjectionStateDao().fenceProductLaneCaptureAdmission(
 			sourceKind = SourceKind.ACTIVITY.stableCode,
 			bindingGeneration = 1L,
-			projectionId = "ingress-test-activity",
+			projectionId = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
 			projectionVersion = 1,
 			cutoffOrdinal = 0L,
 			updatedAtMs = 150L,
@@ -242,7 +239,7 @@ class RoomDurableSourceIngressTest {
 		database.sourceProjectionStateDao().fenceProductLaneCaptureAdmission(
 			sourceKind = SourceKind.ACTIVITY.stableCode,
 			bindingGeneration = 1L,
-			projectionId = "ingress-test-activity",
+			projectionId = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
 			projectionVersion = 1,
 			cutoffOrdinal = first.admissionOrdinal,
 			updatedAtMs = 150L,
@@ -358,6 +355,226 @@ class RoomDurableSourceIngressTest {
 	}
 
 	@Test
+	fun `atomic Steps checkpoint admits the marked final count at exact End after quality change once`() = runTest {
+		val evidence = retiringStepCandidate(startNanos = 90L, endNanos = 100L, markRecordingOrigin = true)
+		val settings = TrackingParamsState(legacySettingsMigrationCompleted = true, autoTrackingMode = 1)
+		val changed = RoomSourcePolicyRepository(database) { SourcePolicyEffectiveTime("boot", 80L, 80L) }
+			.replaceCaptureSettings(testPolicyRevision,
+				settings.copy(minTimeSeconds = settings.minTimeSeconds + 1), "TEST_MARKED_ATOMIC_CUTOFF_QUALITY")
+		(changed.revision > testPolicyRevision) shouldBe true
+		changed[TrackingSourceComponent.STEPS].captureConsentEpoch shouldBe evidence.captureConsentEpoch
+		val checkpoint = stepCheckpoint(providerSequenceThrough = 2L)
+
+		val admitted = subject.admit(evidence, checkpoint).shouldBeInstanceOf<AdmissionResult.Admitted>()
+		val duplicate = subject.admit(evidence, checkpoint).shouldBeInstanceOf<AdmissionResult.Duplicate>()
+
+		duplicate.existingAdmissionOrdinal shouldBe admitted.admissionOrdinal
+		database.sourceEventWalDao().countAll() shouldBe 1L
+		val state = requireNotNull(database.sourceRuntimeStateDao().get(SourceKind.STEPS.stableCode, STEP_OWNER_SCOPE))
+		state.lastAdmissionOrdinal shouldBe admitted.admissionOrdinal
+		state.lastProviderSequence shouldBe 2L
+		val saved = requireNotNull(database.sourceEventWalDao().getByEventId(admitted.eventId.value))
+		saved.authorizationRevision shouldBe evidence.authorizationRevision
+		saved.sessionManifestRevision shouldBe evidence.sessionManifestRevision
+		saved.lifecycleLeaseGeneration shouldBe evidence.lifecycleLeaseGeneration
+	}
+
+	@Test
+	fun `atomic Steps checkpoint rejects a final window after End without saving checkpoint`() = runTest {
+		val evidence = retiringStepCandidate(startNanos = 90L, endNanos = 101L, markRecordingOrigin = true)
+
+		subject.admit(evidence, stepCheckpoint(providerSequenceThrough = 2L)) shouldBe
+			AdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_SOURCE_POLICY)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRuntimeStateDao().get(SourceKind.STEPS.stableCode, STEP_OWNER_SCOPE) shouldBe null
+	}
+
+	@Test
+	fun `atomic Steps checkpoint rejects revoked capture at exact End without saving checkpoint`() = runTest {
+		val evidence = retiringStepCandidate(startNanos = 90L, endNanos = 100L, markRecordingOrigin = true)
+		val settings = TrackingParamsState(legacySettingsMigrationCompleted = true, autoTrackingMode = 1)
+		RoomSourcePolicyRepository(database) { SourcePolicyEffectiveTime("boot", 100L, 100L) }
+			.replaceCaptureSettings(testPolicyRevision, settings.copy(
+				stepsEnabled = false, ambientStepsEnabled = false,
+				sourceCollectionSettings = settings.sourceCollectionSettings.copy(steps = SourceCollectionFrequency.OFF),
+			), "TEST_MARKED_ATOMIC_CUTOFF_REVOKE")
+
+		subject.admit(evidence, stepCheckpoint(providerSequenceThrough = 2L)) shouldBe
+			AdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_SOURCE_POLICY)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRuntimeStateDao().get(SourceKind.STEPS.stableCode, STEP_OWNER_SCOPE) shouldBe null
+	}
+
+	@Test
+	fun `atomic Steps checkpoint rejects unmarked origin after quality change without saving checkpoint`() = runTest {
+		val evidence = retiringStepCandidate(startNanos = 90L, endNanos = 100L)
+		val settings = TrackingParamsState(legacySettingsMigrationCompleted = true, autoTrackingMode = 1)
+		val changed = RoomSourcePolicyRepository(database) { SourcePolicyEffectiveTime("boot", 80L, 80L) }
+			.replaceCaptureSettings(testPolicyRevision,
+				settings.copy(minTimeSeconds = settings.minTimeSeconds + 1), "TEST_UNMARKED_ATOMIC_CUTOFF_QUALITY")
+		(changed.revision > testPolicyRevision) shouldBe true
+		changed[TrackingSourceComponent.STEPS].captureConsentEpoch shouldBe evidence.captureConsentEpoch
+
+		subject.admit(evidence, stepCheckpoint(providerSequenceThrough = 2L)) shouldBe
+			AdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_SOURCE_POLICY)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRuntimeStateDao().get(SourceKind.STEPS.stableCode, STEP_OWNER_SCOPE) shouldBe null
+	}
+
+	@Test
+	fun `atomic final Steps window survives physical retirement at the same End timestamp once`() = runTest {
+		val original = retiringStepCandidate(startNanos = 90L, endNanos = 100L, markRecordingOrigin = true)
+		val evidence = original.copy(payload = original.payload.copy(
+			firstCumulativeCount = 100L, lastCumulativeCount = 104L, deltaCount = 4L))
+		val settings = TrackingParamsState(legacySettingsMigrationCompleted = true, autoTrackingMode = 1)
+		val changed = RoomSourcePolicyRepository(database) { SourcePolicyEffectiveTime("boot", 80L, 80L) }
+			.replaceCaptureSettings(testPolicyRevision,
+				settings.copy(minTimeSeconds = settings.minTimeSeconds + 1), "TEST_PHYSICAL_END_QUALITY")
+		(changed.revision > testPolicyRevision) shouldBe true
+		changed[TrackingSourceComponent.STEPS].captureConsentEpoch shouldBe evidence.captureConsentEpoch
+		retireStepPhysicalRegistrationAt(100L)
+		database.sourceBrokerDao().registrationAtObservedTime(SourceKind.STEPS.stableCode,
+			1L, "step-instance", "boot", "step-physical-config", 100L) shouldBe null
+		val checkpoint = stepCheckpoint(providerSequenceThrough = 2L)
+
+		val admitted = subject.admit(evidence, checkpoint).shouldBeInstanceOf<AdmissionResult.Admitted>()
+		val duplicate = subject.admit(evidence, checkpoint).shouldBeInstanceOf<AdmissionResult.Duplicate>()
+
+		duplicate.existingAdmissionOrdinal shouldBe admitted.admissionOrdinal
+		database.sourceEventWalDao().countAll() shouldBe 1L
+		val state = requireNotNull(database.sourceRuntimeStateDao().get(SourceKind.STEPS.stableCode, STEP_OWNER_SCOPE))
+		state.lastAdmissionOrdinal shouldBe admitted.admissionOrdinal
+		state.lastProviderSequence shouldBe 2L
+		val saved = requireNotNull(database.sourceEventWalDao().getByEventId(admitted.eventId.value))
+		saved.authorizationRevision shouldBe evidence.authorizationRevision
+		saved.sessionManifestRevision shouldBe evidence.sessionManifestRevision
+		saved.lifecycleLeaseGeneration shouldBe evidence.lifecycleLeaseGeneration
+		DefaultSourcePayloadCodec().decode(SourceKind.STEPS, saved.payloadVersion, saved.payload)
+			.shouldBeInstanceOf<StepCounterWindowPayload>().deltaCount shouldBe 4L
+	}
+
+	@Test
+	fun `atomic Steps recovery rejects a physical registration already retired before End`() = runTest {
+		val evidence = retiringStepCandidate(startNanos = 90L, endNanos = 100L, markRecordingOrigin = true)
+		retireStepPhysicalRegistrationAt(99L)
+
+		subject.admit(evidence, stepCheckpoint(providerSequenceThrough = 2L)) shouldBe
+			AdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_REGISTRATION_GENERATION)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRuntimeStateDao().get(SourceKind.STEPS.stableCode, STEP_OWNER_SCOPE) shouldBe null
+		database.sourceRegistrationStateDao().get(SourceKind.STEPS.stableCode, STEP_OWNER_SCOPE)
+			?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `atomic Steps recovery cannot admit a later window after physical retirement at End`() = runTest {
+		val evidence = retiringStepCandidate(startNanos = 90L, endNanos = 101L, markRecordingOrigin = true)
+		retireStepPhysicalRegistrationAt(100L)
+
+		subject.admit(evidence, stepCheckpoint(providerSequenceThrough = 2L)) shouldBe
+			AdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_REGISTRATION_GENERATION)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRuntimeStateDao().get(SourceKind.STEPS.stableCode, STEP_OWNER_SCOPE) shouldBe null
+		database.sourceRegistrationStateDao().get(SourceKind.STEPS.stableCode, STEP_OWNER_SCOPE)
+			?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `atomic Steps recovery cannot borrow revoked capture at physical End`() = runTest {
+		val evidence = retiringStepCandidate(startNanos = 90L, endNanos = 100L, markRecordingOrigin = true)
+		val settings = TrackingParamsState(legacySettingsMigrationCompleted = true, autoTrackingMode = 1)
+		RoomSourcePolicyRepository(database) { SourcePolicyEffectiveTime("boot", 100L, 100L) }
+			.replaceCaptureSettings(testPolicyRevision, settings.copy(
+				stepsEnabled = false, ambientStepsEnabled = false,
+				sourceCollectionSettings = settings.sourceCollectionSettings.copy(steps = SourceCollectionFrequency.OFF),
+			), "TEST_PHYSICAL_END_REVOKE")
+		retireStepPhysicalRegistrationAt(100L)
+
+		subject.admit(evidence, stepCheckpoint(providerSequenceThrough = 2L)) shouldBe
+			AdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_REGISTRATION_GENERATION)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRuntimeStateDao().get(SourceKind.STEPS.stableCode, STEP_OWNER_SCOPE) shouldBe null
+		database.sourceRegistrationStateDao().get(SourceKind.STEPS.stableCode, STEP_OWNER_SCOPE)
+			?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `atomic Steps recovery requires a marked recording even without a quality change`() = runTest {
+		val evidence = retiringStepCandidate(startNanos = 90L, endNanos = 100L)
+		retireStepPhysicalRegistrationAt(100L)
+
+		subject.admit(evidence, stepCheckpoint(providerSequenceThrough = 2L)) shouldBe
+			AdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_REGISTRATION_GENERATION)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRuntimeStateDao().get(SourceKind.STEPS.stableCode, STEP_OWNER_SCOPE) shouldBe null
+		database.sourceRegistrationStateDao().get(SourceKind.STEPS.stableCode, STEP_OWNER_SCOPE)
+			?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `atomic physical End recovery does not admit an ambient-only Steps window`() = runTest {
+		installStepRegistrationGeneration()
+		retireStepPhysicalRegistrationAt(100L)
+
+		subject.admit(stepCandidate(startNanos = 90L, endNanos = 100L),
+			stepCheckpoint(providerSequenceThrough = 2L)) shouldBe
+			AdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_REGISTRATION_GENERATION)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRuntimeStateDao().get(SourceKind.STEPS.stableCode, STEP_OWNER_SCOPE) shouldBe null
+		database.sourceRegistrationStateDao().get(SourceKind.STEPS.stableCode, STEP_OWNER_SCOPE)
+			?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `Steps retiring cutoff cannot admit a window ending after End`() = runTest {
+		val evidence = retiringStepCandidate(startNanos = 90L, endNanos = 101L)
+		val observedWindow = delivery(evidence).copy(units = listOf(SourceDeliveryUnit(
+			unitIndex = 0,
+			evidence = evidence,
+			observedIntervalStartElapsedRealtimeNanos = evidence.payload.windowStartElapsedRealtimeNanos,
+		)))
+
+		subject.admit(observedWindow) shouldBe DeliveryAdmissionResult.SessionCutoff(100L)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(SourceKind.STEPS.stableCode, STEP_OWNER_SCOPE)
+			?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `Steps exact cutoff cannot borrow capture consent after revoke`() = runTest {
+		val evidence = retiringStepCandidate(startNanos = 100L, endNanos = 100L)
+		val settings = TrackingParamsState(legacySettingsMigrationCompleted = true, autoTrackingMode = 1)
+		RoomSourcePolicyRepository(database) { SourcePolicyEffectiveTime("boot", 100L, 100L) }
+			.replaceCaptureSettings(testPolicyRevision, settings.copy(
+				stepsEnabled = false, ambientStepsEnabled = false,
+				sourceCollectionSettings = settings.sourceCollectionSettings.copy(steps = SourceCollectionFrequency.OFF),
+			), "TEST_STEPS_CUTOFF_REVOKE")
+
+		subject.admit(delivery(evidence)) shouldBe
+			DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_SOURCE_POLICY)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(SourceKind.STEPS.stableCode, STEP_OWNER_SCOPE)
+			?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `unmarked Steps cutoff cannot borrow a later quality policy`() = runTest {
+		val evidence = retiringStepCandidate(startNanos = 100L, endNanos = 100L)
+		val settings = TrackingParamsState(legacySettingsMigrationCompleted = true, autoTrackingMode = 1)
+		val changed = RoomSourcePolicyRepository(database) { SourcePolicyEffectiveTime("boot", 80L, 80L) }
+			.replaceCaptureSettings(testPolicyRevision,
+				settings.copy(minTimeSeconds = settings.minTimeSeconds + 1), "TEST_UNMARKED_CUTOFF_QUALITY")
+		(changed.revision > testPolicyRevision) shouldBe true
+		changed[TrackingSourceComponent.STEPS].captureConsentEpoch shouldBe evidence.captureConsentEpoch
+
+		subject.admit(delivery(evidence)) shouldBe
+			DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_SOURCE_POLICY)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(SourceKind.STEPS.stableCode, STEP_OWNER_SCOPE)
+			?.nextSequence shouldBe 0L
+	}
+
+	@Test
 	fun `exact duplicate retry heals a missing sensor checkpoint with the existing ordinal`() = runTest {
 		installStepRegistrationGeneration()
 		val evidence = stepCandidate(
@@ -435,6 +652,11 @@ class RoomDurableSourceIngressTest {
 		val covered = assembledStepCandidate(authorization, token, sequence = 1L)
 		val first = subject.admit(baseline).shouldBeInstanceOf<AdmissionResult.Admitted>()
 		val last = subject.admit(covered).shouldBeInstanceOf<AdmissionResult.Admitted>()
+		listOf(first to baseline, last to covered).forEach { (admission, original) ->
+			val wal = requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(admission.admissionOrdinal))
+			wal.observedIntervalStartNanos shouldBe original.payload.windowStartElapsedRealtimeNanos
+			wal.observedElapsedNanos shouldBe original.payload.windowEndElapsedRealtimeNanos
+		}
 		database.stepFactRevisionDao().writerAdmission(StepsSessionFactProjectionLane.WRITER_ID,
 			StepsSessionFactProjectionLane.WRITER_VERSION, last.admissionOrdinal) shouldBe null
 
@@ -470,6 +692,9 @@ class RoomDurableSourceIngressTest {
 			ExecutableSourceLaneCatalog(), Provider { startupGate })
 		reopened.admit(baseline).shouldBeInstanceOf<AdmissionResult.Duplicate>().existingAdmissionOrdinal shouldBe first.admissionOrdinal
 		reopened.admit(covered).shouldBeInstanceOf<AdmissionResult.Duplicate>().existingAdmissionOrdinal shouldBe last.admissionOrdinal
+		val changedWindow = covered.copy(payload = covered.payload.copy(
+			windowStartElapsedRealtimeNanos = covered.payload.windowStartElapsedRealtimeNanos + 1L))
+		reopened.admit(changedWindow) shouldBe AdmissionResult.PermanentFailure(AdmissionFailureCode.IDENTITY_COLLISION, last.eventId)
 		StepsSessionFactProjectionLane(database, reopened).drainCanonicalThrough(last.admissionOrdinal) shouldBe
 			StepsSessionFactDrainResult.Complete(last.admissionOrdinal, factsInserted = 0, eventsValidated = 0)
 		database.sourceEventWalDao().countAll() shouldBe 2L
@@ -1095,6 +1320,8 @@ class RoomDurableSourceIngressTest {
 	}
 
 	@Test
+	// Matching and unrelated admissions must reach the same sealing barrier.
+	@Suppress("LongMethod")
 	fun `capture admission seal retains exact matching WAL high water`() = runTest {
 		listOf(
 			"capture-seal-first" to candidate(sequence = 0L),
@@ -1184,6 +1411,7 @@ class RoomDurableSourceIngressTest {
 	@Suppress("LongMethod")
 	fun `Activity adapter settles provider and authorization filtered siblings after real Room admission`() = runTest {
 		val recovery = mockk<SourcePipelineRecovery>()
+		every { recovery.requestActivityCapturedFactDrain() } returns Unit
 		val motion = mockk<CollectionMotionController>(relaxed = true)
 		val automationEpochAuthority = mockk<ActivityAutomationEpochAuthority>()
 		coEvery { automationEpochAuthority.epochForCallbackAdmission() } returnsMany
@@ -1194,7 +1422,7 @@ class RoomDurableSourceIngressTest {
 		)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_demand SET maximum_age_ms = 0 " +
-				"WHERE demand_id IN ('ambient-demand', 'session-demand')",
+				"WHERE demand_id IN ('control-sibling-demand', 'session-demand')",
 		)
 		val adapter = RoomActivityRecognitionEventIngress(
 			ActivitySourceDeliveryFactory(),
@@ -1239,6 +1467,9 @@ class RoomDurableSourceIngressTest {
 		persisted.authorizationRevision shouldBe 1L
 		persisted.logicalTrackingId shouldBe TEST_SESSION_ID
 		persisted.activityAutomationEpoch shouldBe 17L
+		// Session permission does not invent an applied physical configuration for this callback.
+		persisted.configRevision shouldBe null
+		persisted.planAttribution shouldBe PlanAttribution.RECEIVE_TIME_ONLY.ordinal
 		(subject.committedBatch(0L, 1).single().evidence.payload as ActivityRecognitionPayload)
 			.confidencePercent shouldBe 1
 
@@ -1888,7 +2119,7 @@ class RoomDurableSourceIngressTest {
 	fun `observation older than every authorized demand maximum age is not persisted`() = runTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_demand SET maximum_age_ms = 0 " +
-				"WHERE demand_id IN ('ambient-demand', 'session-demand')",
+				"WHERE demand_id IN ('control-sibling-demand', 'session-demand')",
 		)
 
 		val result = subject.admit(
@@ -1905,7 +2136,7 @@ class RoomDurableSourceIngressTest {
 	}
 
 	@Test
-	fun `stale session member cannot borrow fresher ambient eligibility`() = runTest {
+	fun `stale session member cannot borrow fresher control eligibility`() = runTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_demand SET maximum_age_ms = 0 WHERE demand_id = 'session-demand'",
 		)
@@ -1919,7 +2150,7 @@ class RoomDurableSourceIngressTest {
 		event.serviceRunId shouldBe null
 		event.sourcePolicyRevision shouldBe null
 		event.captureConsentEpoch shouldBe null
-		event.registrationPurposeEligibilityMask shouldBe SourceBrokerPurpose.MASK_AMBIENT_PRODUCT
+		event.registrationPurposeEligibilityMask shouldBe SourceBrokerPurpose.MASK_CONTROL_AUTOSTART
 		event.planAttribution shouldBe PlanAttribution.RECEIVE_TIME_ONLY
 	}
 
@@ -1927,7 +2158,7 @@ class RoomDurableSourceIngressTest {
 	fun `delivery persists fresh units while omitting stale units`() = runTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_demand SET maximum_age_ms = 0 " +
-				"WHERE demand_id IN ('ambient-demand', 'session-demand')",
+				"WHERE demand_id IN ('control-sibling-demand', 'session-demand')",
 		)
 		val delivery = delivery(
 			candidate(sequence = 1L, observedElapsedNanos = 100L, receivedElapsedNanos = 101L),
@@ -1945,7 +2176,7 @@ class RoomDurableSourceIngressTest {
 	fun `delivery with no freshness qualified unit is not persisted`() = runTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_demand SET maximum_age_ms = 0 " +
-				"WHERE demand_id IN ('ambient-demand', 'session-demand')",
+				"WHERE demand_id IN ('control-sibling-demand', 'session-demand')",
 		)
 		val delivery = delivery(
 			candidate(sequence = 1L, observedElapsedNanos = 100L, receivedElapsedNanos = 101L),
@@ -2026,8 +2257,8 @@ class RoomDurableSourceIngressTest {
 	}
 
 	@Test
-	fun `capture revocation atomically removes capture while retaining authorized ambient ingress`() = runTest {
-		val settings = TrackingParamsState(legacySettingsMigrationCompleted = true)
+	fun `capture revocation atomically removes capture while retaining authorized control ingress`() = runTest {
+		val settings = TrackingParamsState(legacySettingsMigrationCompleted = true, autoTrackingMode = 1)
 		val policy = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("boot", 100L, 100L)
 		}
@@ -2049,7 +2280,7 @@ class RoomDurableSourceIngressTest {
 			reason = "TEST_REVOKE",
 		)
 		val fenced = database.sourceBrokerDao().latestAuthorization(SourceKind.ACTIVITY.stableCode, 1L)
-		fenced.map { it.purpose } shouldBe listOf(SourceBrokerPurpose.AMBIENT_PRODUCT)
+		fenced.map { it.purpose } shouldBe listOf(SourceBrokerPurpose.CONTROL_AUTOSTART)
 		fenced.single().effectiveElapsedRealtimeNanos shouldBe 100L
 		database.sourceBrokerDao().demandHistory("session:$TEST_SESSION_ID").single().status shouldBe
 			SourceDemandEntity.STATUS_RETIRING
@@ -2100,6 +2331,53 @@ class RoomDurableSourceIngressTest {
 		payloadVersion = 1,
 		payload = ActivityTransitionPayload(activityType, 1, 100L),
 	)
+
+	private suspend fun retireStepPhysicalRegistrationAt(elapsedNanos: Long) {
+		database.sourceBrokerDao().finishRegistration(
+			sourceKind = SourceKind.STEPS.stableCode,
+			registrationGeneration = 1L,
+			sourceInstanceId = "step-instance",
+			status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+			retiredAtMs = elapsedNanos,
+			retiredElapsedRealtimeNanos = elapsedNanos,
+			failureCode = "TEST_EXACT_PHYSICAL_END",
+		) shouldBe 1
+	}
+
+	/** Existing Steps fixture with the exact durable End fence and denied successor authorization. */
+	private suspend fun retiringStepCandidate(
+		startNanos: Long,
+		endNanos: Long,
+		markRecordingOrigin: Boolean = false,
+	): SourceEvidenceCandidate<StepCounterWindowPayload> {
+		val authorization = installStepSessionCaptureGeneration(markRecordingOrigin = markRecordingOrigin)
+		val sessions = database.sourceSessionDao()
+		val session = requireNotNull(sessions.session(TEST_SESSION_ID))
+		sessions.updateSession(session.copy(state = "STOPPING", cutoffAtMs = 100L,
+			cutoffElapsedNanos = 100L, lifecycleLeaseGeneration = 8L)) shouldBe 1
+		val run = requireNotNull(sessions.serviceRun(TEST_RUN_ID))
+		val recordingRun = if (markRecordingOrigin) {
+			run.copy(startDeliveryToken = "step-atomic-cutoff-start", startCommandGeneration = 1L,
+				preparedManifestRevision = 1L, preparedIntentRevision = 1L)
+		} else {
+			run
+		}
+		sessions.updateServiceRun(recordingRun.copy(state = "STOPPING", leaseGeneration = 8L)) shouldBe 1
+		val broker = database.sourceBrokerDao()
+		broker.markConsumerRetiring("session:$TEST_SESSION_ID", "boot", 100L, 100L)
+		broker.insertAuthorizations(SourceBrokerAuthorization.rows(SourceKind.STEPS.stableCode,
+			1L, 3L, emptyList(), "boot", 100L, 100L))
+		return stepCandidate(startNanos, endNanos).copy(
+			authorizationRevision = authorization.authorizationRevision,
+			registrationPurposeEligibilityMask = authorization.purposeMask,
+			registrationEligibilityFingerprint = authorization.fingerprint,
+			planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
+			sourcePolicyRevision = authorization.policyRevision,
+			captureConsentEpoch = authorization.captureConsentEpoch,
+			sessionManifestRevision = authorization.manifestRevision,
+			lifecycleLeaseGeneration = 7L,
+		)
+	}
 
 	private fun stepCandidate(
 		startNanos: Long,
@@ -2319,17 +2597,17 @@ class RoomDurableSourceIngressTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(
 				SourceDemandEntity(
-					demandId = "ambient-demand",
+					demandId = "control-sibling-demand",
 					consumerId = "app:test",
 					sourceKind = SourceKind.ACTIVITY.stableCode,
-					purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+					purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
 					logicalTrackingId = null,
 					serviceRunId = null,
 					manifestRevision = null,
 					lifecycleLeaseGeneration = null,
 					sourcePolicyRevision = testPolicyRevision,
-					consentEpoch = testAmbientEpoch,
-					persistenceEligible = true,
+					consentEpoch = testControlEpoch,
+					persistenceEligible = false,
 					qosCode = 2,
 					maximumAgeMs = 30_000L,
 					desiredLatencyMs = 15_000L,
@@ -2406,15 +2684,15 @@ class RoomDurableSourceIngressTest {
 					sourceKind = SourceKind.ACTIVITY.stableCode,
 					registrationGeneration = 1L,
 					authorizationRevision = 1L,
-					memberId = "demand:ambient-demand",
+					memberId = "demand:control-sibling-demand",
 					authorizationFingerprint = TEST_ELIGIBILITY_FINGERPRINT,
 					purposeEligibilityMask = TEST_ELIGIBILITY_MASK,
-					demandId = "ambient-demand",
+					demandId = "control-sibling-demand",
 					consumerId = "app:test",
-					purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+					purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
 					sourcePolicyRevision = testPolicyRevision,
-					consentEpoch = testAmbientEpoch,
-					persistenceEligible = true,
+					consentEpoch = testControlEpoch,
+					persistenceEligible = false,
 					effectiveBootId = "boot",
 					effectiveElapsedRealtimeNanos = 0L,
 					effectiveWallTimeMs = 0L,
@@ -2451,10 +2729,29 @@ class RoomDurableSourceIngressTest {
 	private suspend fun installCaptureLane(
 		source: SourceKind,
 		bindingGeneration: Long = 1L,
-		projectionId: String = "ingress-test-${source.name.lowercase()}",
-		captureModeMask: Long = 7L,
+		projectionId: String = if (source == SourceKind.ACTIVITY) {
+			SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID
+		} else {
+			"ingress-test-${source.name.lowercase()}"
+		},
+		captureModeMask: Long = if (source == SourceKind.ACTIVITY) {
+			1L
+		} else {
+			7L
+		},
 		productStage: String = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
 	) {
+		if (source == SourceKind.ACTIVITY &&
+			projectionId == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID
+		) {
+			database.sourceDestinationOwnerDao().insertIfAbsent(SourceDestinationOwnerEntity(
+				sourceKind = source.stableCode,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
+				owner = SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS,
+				ownerGeneration = 2L,
+				updatedAtMs = 1L,
+			))
+		}
 		database.sourceProjectionStateDao().installProductLane(
 			SourceProductProjectionLaneEntity(
 				sourceKind = source.stableCode,
@@ -2642,6 +2939,7 @@ class RoomDurableSourceIngressTest {
 	@Suppress("LongMethod")
 	private suspend fun installStepSessionCaptureGeneration(
 		binding: ExecutableSourceLaneBinding? = null,
+		markRecordingOrigin: Boolean = false,
 	): StepSessionAuthorization {
 		installStepRegistrationGeneration()
 		database.sourceBrokerDao().markConsumerRetiring(
@@ -2671,6 +2969,7 @@ class RoomDurableSourceIngressTest {
 			writerProjectionId = binding?.projectionId ?: "ingress-test-steps",
 			writerProjectionVersion = binding?.projectionVersion ?: 1,
 			writerBindingGeneration = binding?.bindingGeneration ?: 1L,
+			stepsRecordingManifestRevision = manifestRevision.takeIf { markRecordingOrigin },
 		)
 		val unsignedManifest = SessionManifestVersionEntity(
 			logicalTrackingId = TEST_SESSION_ID,
@@ -2749,6 +3048,13 @@ class RoomDurableSourceIngressTest {
 	}
 
 	private suspend fun installFinalStepsAssemblyFixture(): StepSessionAuthorization {
+		database.sourceDestinationOwnerDao().insertIfAbsent(SourceDestinationOwnerEntity(
+			sourceKind = SourceKind.STEPS.stableCode,
+			destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+			owner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+			ownerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+			updatedAtMs = 1L,
+		))
 		StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
 			com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState.ValidV2
 		val owner = requireNotNull(database.sourceDestinationOwnerDao().get(SourceKind.STEPS.stableCode,
@@ -2761,8 +3067,11 @@ class RoomDurableSourceIngressTest {
 			arrayOf<Any>(SourceKind.STEPS.stableCode))
 		installCaptureLane(SourceKind.STEPS, binding.bindingGeneration, binding.projectionId, binding.captureModeMask)
 		val catalog = ExecutableSourceLaneCatalog()
+		val currentRollout = requireNotNull(database.trackingRolloutStateDao().get())
 		RoomTrackingRolloutStateStore(database, catalog).save(TrackingRolloutState.eventCanonical(
-			sources = setOf(SourceKind.STEPS), captureModes = mapOf(SourceKind.STEPS to binding.captureModes)), 60L)
+			sources = setOf(SourceKind.STEPS),
+			revision = currentRollout.revision + 1L,
+			captureModes = mapOf(SourceKind.STEPS to binding.captureModes)), 60L)
 		subject = RoomDurableSourceIngress(database, lifecycle, DefaultSourcePayloadCodec(), catalog, Provider { startupGate })
 		return installStepSessionCaptureGeneration(binding)
 	}
@@ -2787,7 +3096,11 @@ class RoomDurableSourceIngressTest {
 			payloadVersion = STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION,
 			payload = candidate.payload.copy(firstCumulativeCount = 10L, lastCumulativeCount = 10L + 3L * sequence,
 				deltaCount = 3L * sequence, firstProviderSequence = 0L, lastProviderSequence = sequence,
-				boundaryKind = if (sequence == 0L) StepBoundaryKind.BASELINE else StepBoundaryKind.COVERED,
+				boundaryKind = if (sequence == 0L) {
+					StepBoundaryKind.BASELINE
+				} else {
+					StepBoundaryKind.COVERED
+				},
 				counterEpochGeneration = 1L))
 	}
 
@@ -2815,7 +3128,7 @@ class RoomDurableSourceIngressTest {
 	private companion object {
 		const val TEST_SESSION_ID = "session"
 		const val TEST_RUN_ID = "run"
-		const val TEST_ELIGIBILITY_FINGERPRINT = "test-ambient-and-session"
+		const val TEST_ELIGIBILITY_FINGERPRINT = "test-control-and-session"
 		const val CONTROL_ONLY_FINGERPRINT = "test-control-only"
 		const val STEP_ELIGIBILITY_FINGERPRINT =
 			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -2823,16 +3136,10 @@ class RoomDurableSourceIngressTest {
 		const val CONTROL_PHYSICAL_CONFIG = "control-physical-config"
 		val SOURCE_OWNER_SCOPE = "source-broker:${SourceKind.ACTIVITY.stableCode}"
 		val STEP_OWNER_SCOPE = "source-broker:${SourceKind.STEPS.stableCode}"
-		const val TEST_ELIGIBILITY_MASK = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT or
+		const val TEST_ELIGIBILITY_MASK = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART or
 			SourceBrokerPurpose.MASK_SESSION_CAPTURE
 		val TEST_EXECUTABLE_LANE_CATALOG = ExecutableSourceLaneCatalog.explicit(
-			ExecutableSourceLaneBinding(
-				source = SourceKind.ACTIVITY,
-				bindingGeneration = 1L,
-				projectionId = "ingress-test-activity",
-				projectionVersion = 1,
-				captureModes = CaptureReachabilityMode.entries.toSet(),
-			),
+			ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS_V1,
 			ExecutableSourceLaneBinding(
 				source = SourceKind.STEPS,
 				bindingGeneration = 1L,

@@ -376,11 +376,19 @@ class DashboardViewModelHistoryTest {
 		val trackerStateReader = mockk<TrackerStateReader>()
 		every { trackerStateReader.isServiceRunningFlow } returns collectionHost
 		val sessionInfo = MutableStateFlow<TrackerSessionInfo?>(
-			if (isTracking.value) TrackerSessionInfo(true) else null,
+			if (isTracking.value) {
+				TrackerSessionInfo(true)
+			} else {
+				null
+			},
 		)
 		backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
 			isTracking.collect { active ->
-				sessionInfo.value = if (active) TrackerSessionInfo(true) else null
+				sessionInfo.value = if (active) {
+					TrackerSessionInfo(true)
+				} else {
+					null
+				}
 			}
 		}
 		every { trackerStateReader.sessionInfoFlow } returns sessionInfo

@@ -207,7 +207,9 @@ internal suspend fun List<QualifiedSessionStepsWindow>.withCountDomainCompatibil
 	facts: List<QualifiedAmbientStepsFact>,
 	query: StepsCountDomainCompatibilityQuery,
 ): List<QualifiedSessionStepsWindow> {
-	if (isEmpty()) return emptyList()
+	if (isEmpty()) {
+		return emptyList()
+	}
 	val requests = map { it.countDomainCompatibilityRequest(facts) }
 	val results = query.compare(requests)
 	if (results.size != size) {
@@ -246,6 +248,8 @@ private fun QualifiedSessionStepsWindow.withCountDomainCompatibility(
 )
 
 /** Pure composition over integrity-qualified, latest-effective source facts and session evidence. */
+// Keep the ordered source integrity failures explicit before exposing any count.
+@Suppress("ReturnCount")
 internal fun composeAmbientStepsDay(
 	day: AmbientStepsDayIdentity,
 	facts: List<QualifiedAmbientStepsFact>,
@@ -254,32 +258,17 @@ internal fun composeAmbientStepsDay(
 	sourceCauses: Set<AmbientStepsDayCause> = emptySet(),
 ): AmbientStepsDayProduct {
 	val origins = facts.mapTo(linkedSetOf(), QualifiedAmbientStepsFact::origin)
-	val containedSessions = sessions.filter {
-		it.startTimeMs >= day.startTimeMs && it.endTimeMs <= day.endTimeMs &&
-			it.storedZoneId == day.storedZoneId
-	}.sortedWith(compareBy(QualifiedSessionStepsWindow::startTimeMs, QualifiedSessionStepsWindow::serviceRunId))
+	val containedSessions = containedSessionsForDay(day, sessions)
 	val outsideSession = containedSessions.size != sessions.size
 	if (facts.any { it.day != day }) {
-		val unavailable = AmbientStepsNumericValue.Unavailable(
-			setOf(AmbientStepsDayCause.AMBIENT_DAY_AUTHORITY_MISMATCH),
-		)
-		return AmbientStepsDayProduct(day, unavailable, containedSessions, unavailable, origins)
+		return unavailableAmbientDay(day, containedSessions, origins,
+			AmbientStepsDayCause.AMBIENT_DAY_AUTHORITY_MISMATCH)
 	}
 	val factsByPortableIdentity = facts.groupBy(QualifiedAmbientStepsFact::portableIdentity)
-	val conflictingPortableIdentity = factsByPortableIdentity.values.any { group ->
-			group.drop(1).any { candidate ->
-				candidate.day != group.first().day ||
-					candidate.startTimeMs != group.first().startTimeMs ||
-					candidate.endTimeMs != group.first().endTimeMs ||
-					candidate.stepCount != group.first().stepCount ||
-					candidate.contentChecksum != group.first().contentChecksum
-			}
-		}
+	val conflictingPortableIdentity = hasConflictingPortableIdentity(factsByPortableIdentity)
 	if (conflictingPortableIdentity) {
-		val unavailable = AmbientStepsNumericValue.Unavailable(
-			setOf(AmbientStepsDayCause.AMBIENT_ORIGIN_IDENTITY_CONFLICT),
-		)
-		return AmbientStepsDayProduct(day, unavailable, containedSessions, unavailable, origins)
+		return unavailableAmbientDay(day, containedSessions, origins,
+			AmbientStepsDayCause.AMBIENT_ORIGIN_IDENTITY_CONFLICT)
 	}
 	val orderedFacts = factsByPortableIdentity.values.map { group ->
 		group.firstOrNull { it.origin == QualifiedAmbientStepsFactOrigin.LOCAL_PROVIDER } ?: group.first()
@@ -287,110 +276,164 @@ internal fun composeAmbientStepsDay(
 		compareBy(QualifiedAmbientStepsFact::startTimeMs, QualifiedAmbientStepsFact::logicalFactId),
 	)
 	if (orderedFacts.isEmpty()) {
-		val totalCauses = buildSet {
-			if (AmbientStepsDayCause.AMBIENT_IMPORTED_DELETED !in sourceCauses &&
-				AmbientStepsDayCause.AMBIENT_IMPORTED_RETAINED !in sourceCauses
-			) add(AmbientStepsDayCause.NO_AMBIENT_FACT)
-			addAll(sourceCauses)
-			if (gaps.any { it.endTimeMs > day.startTimeMs && it.startTimeMs < day.endTimeMs }) {
-				add(AmbientStepsDayCause.AMBIENT_GAP)
-			}
-		}
-		val total = AmbientStepsNumericValue.Unavailable(totalCauses)
-		val between = AmbientStepsNumericValue.Unavailable(buildSet {
-			addAll(totalCauses)
-			if (outsideSession) add(AmbientStepsDayCause.SESSION_OUTSIDE_DAY)
-		})
-		return AmbientStepsDayProduct(day, total, containedSessions, between, origins)
+		return emptyAmbientDay(day, gaps, containedSessions, sourceCauses, origins, outsideSession)
 	}
-	val authorityDomains = orderedFacts.mapTo(linkedSetOf()) { fact ->
-		when (fact.origin) {
-			QualifiedAmbientStepsFactOrigin.LOCAL_PROVIDER -> {
-				val provenance = requireNotNull(fact.provenance)
-				AmbientStepsAuthorityDomain.Native(
-					provenance.provider,
-					provenance.sourceInstanceId,
-				)
-			}
-			QualifiedAmbientStepsFactOrigin.PORTABLE_IMPORT ->
-				requireNotNull(fact.importedProvenance).let { provenance ->
-					AmbientStepsAuthorityDomain.Portable(
-						provenance.archiveIdentity,
-						provenance.dayIdentity,
-						provenance.dayImportRevision,
-					)
-				}
-		}
-	}
+	val authorityDomains = orderedFacts.mapTo(linkedSetOf(), QualifiedAmbientStepsFact::authorityDomain)
 	if (authorityDomains.size != 1) {
-		val unavailable = AmbientStepsNumericValue.Unavailable(
-			setOf(AmbientStepsDayCause.AMBIENT_ORIGIN_IDENTITY_CONFLICT),
-		)
-		return AmbientStepsDayProduct(day, unavailable, containedSessions, unavailable, origins)
+		return unavailableAmbientDay(day, containedSessions, origins,
+			AmbientStepsDayCause.AMBIENT_ORIGIN_IDENTITY_CONFLICT)
 	}
 	if (orderedFacts.zipWithNext().any { (left, right) -> right.startTimeMs < left.endTimeMs }) {
-		val unavailable = AmbientStepsNumericValue.Unavailable(setOf(AmbientStepsDayCause.AMBIENT_FACT_OVERLAP))
-		return AmbientStepsDayProduct(day, unavailable, containedSessions, unavailable, origins)
+		return unavailableAmbientDay(day, containedSessions, origins, AmbientStepsDayCause.AMBIENT_FACT_OVERLAP)
 	}
-	var ambientTotal = 0L
-	for (fact in orderedFacts) {
-		if (fact.stepCount > Long.MAX_VALUE - ambientTotal) {
-			val unavailable = AmbientStepsNumericValue.Unavailable(
-				setOf(AmbientStepsDayCause.AMBIENT_COUNT_OVERFLOW),
-			)
-			return AmbientStepsDayProduct(day, unavailable, containedSessions, unavailable, origins)
-		}
-		ambientTotal += fact.stepCount
-	}
-	val effectiveGap = gaps.any { it.endTimeMs > day.startTimeMs && it.startTimeMs < day.endTimeMs }
-	val continuousCoverage = orderedFacts.first().startTimeMs == day.startTimeMs &&
-		orderedFacts.last().endTimeMs == day.endTimeMs &&
-		orderedFacts.zipWithNext().all { (left, right) -> left.endTimeMs == right.startTimeMs }
-	val totalCauses = buildSet {
-		addAll(sourceCauses)
-		if (!continuousCoverage) add(AmbientStepsDayCause.AMBIENT_COVERAGE_PARTIAL)
-		if (effectiveGap) add(AmbientStepsDayCause.AMBIENT_GAP)
-	}
+	val ambientTotal = checkedAmbientTotal(orderedFacts)
+		?: return unavailableAmbientDay(day, containedSessions, origins, AmbientStepsDayCause.AMBIENT_COUNT_OVERFLOW)
+	val totalCauses = ambientCoverageCauses(day, orderedFacts, gaps, sourceCauses)
 	val total = if (totalCauses.isEmpty()) {
 		AmbientStepsNumericValue.Exact(ambientTotal)
 	} else {
 		AmbientStepsNumericValue.Partial(ambientTotal, totalCauses)
 	}
+	val between = composeBetweenSessionSteps(ambientTotal, totalCauses, outsideSession, containedSessions, facts)
+	return AmbientStepsDayProduct(day, total, containedSessions, between, origins)
+}
+
+private fun containedSessionsForDay(
+	day: AmbientStepsDayIdentity,
+	sessions: List<QualifiedSessionStepsWindow>,
+): List<QualifiedSessionStepsWindow> = sessions.filter {
+	it.startTimeMs >= day.startTimeMs && it.endTimeMs <= day.endTimeMs &&
+		it.storedZoneId == day.storedZoneId
+}.sortedWith(compareBy(QualifiedSessionStepsWindow::startTimeMs, QualifiedSessionStepsWindow::serviceRunId))
+
+private fun hasConflictingPortableIdentity(
+	factsByPortableIdentity: Map<String, List<QualifiedAmbientStepsFact>>,
+): Boolean = factsByPortableIdentity.values.any { group ->
+	group.drop(1).any { candidate ->
+		candidate.day != group.first().day ||
+			candidate.startTimeMs != group.first().startTimeMs ||
+			candidate.endTimeMs != group.first().endTimeMs ||
+			candidate.stepCount != group.first().stepCount ||
+			candidate.contentChecksum != group.first().contentChecksum
+	}
+}
+
+private fun emptyAmbientDay(
+	day: AmbientStepsDayIdentity,
+	gaps: List<EffectiveAmbientStepsGap>,
+	containedSessions: List<QualifiedSessionStepsWindow>,
+	sourceCauses: Set<AmbientStepsDayCause>,
+	origins: Set<QualifiedAmbientStepsFactOrigin>,
+	outsideSession: Boolean,
+): AmbientStepsDayProduct {
+	val totalCauses = buildSet {
+		if (AmbientStepsDayCause.AMBIENT_IMPORTED_DELETED !in sourceCauses &&
+			AmbientStepsDayCause.AMBIENT_IMPORTED_RETAINED !in sourceCauses
+		) {
+			add(AmbientStepsDayCause.NO_AMBIENT_FACT)
+		}
+		addAll(sourceCauses)
+		if (gaps.any { it.endTimeMs > day.startTimeMs && it.startTimeMs < day.endTimeMs }) {
+			add(AmbientStepsDayCause.AMBIENT_GAP)
+		}
+	}
+	val total = AmbientStepsNumericValue.Unavailable(totalCauses)
+	val between = AmbientStepsNumericValue.Unavailable(buildSet {
+		addAll(totalCauses)
+		if (outsideSession) {
+			add(AmbientStepsDayCause.SESSION_OUTSIDE_DAY)
+		}
+	})
+	return AmbientStepsDayProduct(day, total, containedSessions, between, origins)
+}
+
+private fun QualifiedAmbientStepsFact.authorityDomain(): AmbientStepsAuthorityDomain =
+	when (origin) {
+		QualifiedAmbientStepsFactOrigin.LOCAL_PROVIDER -> {
+			val sourceProvenance = requireNotNull(provenance)
+			AmbientStepsAuthorityDomain.Native(
+				sourceProvenance.provider,
+				sourceProvenance.sourceInstanceId,
+			)
+		}
+		QualifiedAmbientStepsFactOrigin.PORTABLE_IMPORT ->
+			requireNotNull(importedProvenance).let { provenance ->
+				AmbientStepsAuthorityDomain.Portable(
+					provenance.archiveIdentity,
+					provenance.dayIdentity,
+					provenance.dayImportRevision,
+				)
+			}
+	}
+
+private fun checkedAmbientTotal(facts: List<QualifiedAmbientStepsFact>): Long? {
+	var total = 0L
+	for (fact in facts) {
+		if (fact.stepCount > Long.MAX_VALUE - total) {
+			return null
+		}
+		total += fact.stepCount
+	}
+	return total
+}
+
+private fun ambientCoverageCauses(
+	day: AmbientStepsDayIdentity,
+	orderedFacts: List<QualifiedAmbientStepsFact>,
+	gaps: List<EffectiveAmbientStepsGap>,
+	sourceCauses: Set<AmbientStepsDayCause>,
+): Set<AmbientStepsDayCause> {
+	val effectiveGap = gaps.any { it.endTimeMs > day.startTimeMs && it.startTimeMs < day.endTimeMs }
+	val continuousCoverage = orderedFacts.first().startTimeMs == day.startTimeMs &&
+		orderedFacts.last().endTimeMs == day.endTimeMs &&
+		orderedFacts.zipWithNext().all { (left, right) -> left.endTimeMs == right.startTimeMs }
+	return buildSet {
+		addAll(sourceCauses)
+		if (!continuousCoverage) {
+			add(AmbientStepsDayCause.AMBIENT_COVERAGE_PARTIAL)
+		}
+		if (effectiveGap) {
+			add(AmbientStepsDayCause.AMBIENT_GAP)
+		}
+	}
+}
+
+private fun composeBetweenSessionSteps(
+	ambientTotal: Long,
+	totalCauses: Set<AmbientStepsDayCause>,
+	outsideSession: Boolean,
+	containedSessions: List<QualifiedSessionStepsWindow>,
+	facts: List<QualifiedAmbientStepsFact>,
+): AmbientStepsNumericValue {
 	val betweenCauses = linkedSetOf<AmbientStepsDayCause>()
-	if (total !is AmbientStepsNumericValue.Exact) betweenCauses += totalCauses
-	if (outsideSession) betweenCauses += AmbientStepsDayCause.SESSION_OUTSIDE_DAY
+	if (totalCauses.isNotEmpty()) {
+		betweenCauses += totalCauses
+	}
+	if (outsideSession) {
+		betweenCauses += AmbientStepsDayCause.SESSION_OUTSIDE_DAY
+	}
 	if (containedSessions.zipWithNext().any { (left, right) -> right.startTimeMs < left.endTimeMs }) {
 		betweenCauses += AmbientStepsDayCause.SESSION_OVERLAP
 	}
+	val inSessionTotal = sumCompatibleSessionSteps(containedSessions, facts, betweenCauses)
+	if (inSessionTotal > ambientTotal) {
+		betweenCauses += AmbientStepsDayCause.SESSION_COUNT_EXCEEDS_AMBIENT_TOTAL
+	}
+	return if (betweenCauses.isEmpty()) {
+		AmbientStepsNumericValue.Exact(ambientTotal - inSessionTotal)
+	} else {
+		AmbientStepsNumericValue.Unavailable(betweenCauses)
+	}
+}
+
+private fun sumCompatibleSessionSteps(
+	containedSessions: List<QualifiedSessionStepsWindow>,
+	facts: List<QualifiedAmbientStepsFact>,
+	betweenCauses: MutableSet<AmbientStepsDayCause>,
+): Long {
 	var inSessionTotal = 0L
 	for (session in containedSessions) {
-		val compatible = when (session.compatibility) {
-			StepsCountDomainCompatibilityResult.ExactCompatible ->
-				facts.filter { it.isAuthenticatedBy(session.exactCompatibleAmbientOwners) }
-					.sortedWith(
-						compareBy(
-							QualifiedAmbientStepsFact::startTimeMs,
-							QualifiedAmbientStepsFact::logicalFactId,
-						),
-					)
-			StepsCountDomainCompatibilityResult.Conflict -> {
-				betweenCauses += AmbientStepsDayCause.SESSION_COUNT_DOMAIN_CONFLICT
-				continue
-			}
-			StepsCountDomainCompatibilityResult.Unproven -> {
-				betweenCauses +=
-					AmbientStepsDayCause.SESSION_PROVIDER_COMPATIBILITY_UNPROVEN
-				continue
-			}
-			StepsCountDomainCompatibilityResult.Deleted -> {
-				betweenCauses += AmbientStepsDayCause.SESSION_COUNT_DOMAIN_DELETED
-				continue
-			}
-			StepsCountDomainCompatibilityResult.Unverifiable -> {
-				betweenCauses += AmbientStepsDayCause.SESSION_COUNT_DOMAIN_UNVERIFIABLE
-				continue
-			}
-		}
+		val compatible = compatibleSessionFacts(session, facts, betweenCauses) ?: continue
 		val sessionCount = session.stepCount
 		if (sessionCount == null) {
 			betweenCauses += AmbientStepsDayCause.SESSION_VALUE_UNAVAILABLE
@@ -406,13 +449,49 @@ internal fun composeAmbientStepsDay(
 		}
 		inSessionTotal += sessionCount
 	}
-	if (inSessionTotal > ambientTotal) betweenCauses += AmbientStepsDayCause.SESSION_COUNT_EXCEEDS_AMBIENT_TOTAL
-	val between = if (betweenCauses.isEmpty()) {
-		AmbientStepsNumericValue.Exact(ambientTotal - inSessionTotal)
-	} else {
-		AmbientStepsNumericValue.Unavailable(betweenCauses)
+	return inSessionTotal
+}
+
+private fun compatibleSessionFacts(
+	session: QualifiedSessionStepsWindow,
+	facts: List<QualifiedAmbientStepsFact>,
+	betweenCauses: MutableSet<AmbientStepsDayCause>,
+): List<QualifiedAmbientStepsFact>? = when (session.compatibility) {
+	StepsCountDomainCompatibilityResult.ExactCompatible ->
+		facts.filter { it.isAuthenticatedBy(session.exactCompatibleAmbientOwners) }
+			.sortedWith(
+				compareBy(
+					QualifiedAmbientStepsFact::startTimeMs,
+					QualifiedAmbientStepsFact::logicalFactId,
+				),
+			)
+	StepsCountDomainCompatibilityResult.Conflict -> {
+		betweenCauses += AmbientStepsDayCause.SESSION_COUNT_DOMAIN_CONFLICT
+		null
 	}
-	return AmbientStepsDayProduct(day, total, containedSessions, between, origins)
+	StepsCountDomainCompatibilityResult.Unproven -> {
+		betweenCauses +=
+			AmbientStepsDayCause.SESSION_PROVIDER_COMPATIBILITY_UNPROVEN
+		null
+	}
+	StepsCountDomainCompatibilityResult.Deleted -> {
+		betweenCauses += AmbientStepsDayCause.SESSION_COUNT_DOMAIN_DELETED
+		null
+	}
+	StepsCountDomainCompatibilityResult.Unverifiable -> {
+		betweenCauses += AmbientStepsDayCause.SESSION_COUNT_DOMAIN_UNVERIFIABLE
+		null
+	}
+}
+
+private fun unavailableAmbientDay(
+	day: AmbientStepsDayIdentity,
+	containedSessions: List<QualifiedSessionStepsWindow>,
+	origins: Set<QualifiedAmbientStepsFactOrigin>,
+	cause: AmbientStepsDayCause,
+): AmbientStepsDayProduct {
+	val unavailable = AmbientStepsNumericValue.Unavailable(setOf(cause))
+	return AmbientStepsDayProduct(day, unavailable, containedSessions, unavailable, origins)
 }
 
 private sealed interface AmbientStepsAuthorityDomain {
@@ -431,10 +510,16 @@ private sealed interface AmbientStepsAuthorityDomain {
 private fun List<QualifiedAmbientStepsFact>.covers(startTimeMs: Long, endTimeMs: Long): Boolean {
 	var coveredThrough = startTimeMs
 	for (fact in this) {
-		if (fact.endTimeMs <= coveredThrough) continue
-		if (fact.startTimeMs > coveredThrough) return false
+		if (fact.endTimeMs <= coveredThrough) {
+			continue
+		}
+		if (fact.startTimeMs > coveredThrough) {
+			return false
+		}
 		coveredThrough = fact.endTimeMs
-		if (coveredThrough >= endTimeMs) return true
+		if (coveredThrough >= endTimeMs) {
+			return true
+		}
 	}
 	return false
 }
@@ -443,7 +528,9 @@ private fun QualifiedAmbientStepsFact.isAuthenticatedBy(
 	owners: List<StepsCountDomainOwnerReference>,
 ): Boolean {
 	val owner = countDomainOwner ?: return false
-	if (owner !in owners) return false
+	if (owner !in owners) {
+		return false
+	}
 	return when (origin) {
 		QualifiedAmbientStepsFactOrigin.LOCAL_PROVIDER ->
 			owner.origin == StepsCountDomainOwnerOrigin.NATIVE

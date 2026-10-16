@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.cancellation.CancellationException
 
+/** Reasons an event cannot use the supplied bounded operation scope. */
 enum class TrackingDiagnosticScopeRejectionReason {
 	RECORDER_MISMATCH,
 	SOURCE_MISMATCH,
@@ -17,11 +18,14 @@ enum class TrackingDiagnosticScopeRejectionReason {
 	PRIVACY_REJECTED,
 }
 
+/** Separates storage outcomes from events rejected before storage is attempted. */
 sealed interface TrackingDiagnosticRecordResult {
+	/** The event passed scope checks; the storage result reports persistence, aggregation or failure. */
 	data class Storage(
 		val result: TrackingDiagnosticStorageResult,
 	) : TrackingDiagnosticRecordResult
 
+	/** The event was refused by scope or privacy checks before a storage attempt. */
 	data class Rejected(
 		val reason: TrackingDiagnosticScopeRejectionReason,
 	) : TrackingDiagnosticRecordResult
@@ -49,6 +53,7 @@ class TrackingDiagnosticRecorder private constructor(
 	private val scopeOpaqueFactory: ScopeOpaqueFactory,
 	private val recordedEventProbe: (RecordedTrackingDiagnosticEvent) -> Unit,
 ) {
+	/** Creates a fresh in-memory scope bound to this recorder, source, purpose and operation. */
 	fun beginOperation(
 		source: TrackingDiagnosticSource,
 		purpose: TrackingDiagnosticPurpose,
@@ -62,6 +67,7 @@ class TrackingDiagnosticRecorder private constructor(
 		operationScope = scopeOpaqueFactory.create(),
 	)
 
+	/** Consumes one scope event and records only its encoded diagnostic shape; cancellation invalidates the scope. */
 	@Suppress("SwallowedException", "TooGenericExceptionCaught")
 	suspend fun record(
 		scope: OperationScope,
@@ -118,6 +124,7 @@ class TrackingDiagnosticRecorder private constructor(
 		}
 	}
 
+	/** Recorder-owned scope for one source, purpose and operation; expires after five minutes or sixteen events. */
 	class OperationScope private constructor(
 		private val owner: TrackingDiagnosticRecorder,
 		private val source: TrackingDiagnosticSource,
@@ -131,6 +138,8 @@ class TrackingDiagnosticRecorder private constructor(
 
 		@Synchronized
 		@JvmSynthetic
+		// Keep the ordered scope guards and first rejection before changing its event count.
+		@Suppress("ReturnCount")
 		internal fun consume(
 			owner: TrackingDiagnosticRecorder,
 			event: TrackingDiagnosticEventRequest,
@@ -180,7 +189,9 @@ class TrackingDiagnosticRecorder private constructor(
 				)
 			}
 			eventCount += 1
-			if (event.lifecycle == TrackingDiagnosticEventLifecycle.TERMINAL) active = false
+			if (event.lifecycle == TrackingDiagnosticEventLifecycle.TERMINAL) {
+				active = false
+			}
 			return ScopeConsumption.Accepted(
 				eventCount = eventCount,
 				elapsedNanos = elapsedNanos,
@@ -196,6 +207,7 @@ class TrackingDiagnosticRecorder private constructor(
 
 		override fun toString(): String = "TrackingDiagnosticOperationScope(opaque)"
 
+		/** Creates scopes through the owning recorder without exposing scope correlation to callers. */
 		companion object {
 			@JvmSynthetic
 			internal fun create(
@@ -235,6 +247,7 @@ class TrackingDiagnosticRecorder private constructor(
 		) : ScopeConsumption
 	}
 
+	/** Constructs local recorders and test fixtures; operation correlation remains recorder-owned. */
 	companion object {
 		private const val MAX_EVENTS_PER_SCOPE = 16
 		private val MAX_SCOPE_LIFETIME_NANOS = TimeUnit.MINUTES.toNanos(5L)

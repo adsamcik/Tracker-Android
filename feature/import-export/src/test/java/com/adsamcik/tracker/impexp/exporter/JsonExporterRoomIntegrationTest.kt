@@ -100,6 +100,9 @@ class JsonExporterRoomIntegrationTest {
 		times shouldBe listOf(base + 30_000L)
 	}
 
+	// Keep persisted mixed-source fixtures and one exported JSON payload together to verify its exact range and
+	// fields.
+	@Suppress("LongMethod")
 	@Test
 	fun `Room json export keeps location data but omits unqualified session Steps`() = runTest {
 		val dispatcher = StandardTestDispatcher(testScheduler)

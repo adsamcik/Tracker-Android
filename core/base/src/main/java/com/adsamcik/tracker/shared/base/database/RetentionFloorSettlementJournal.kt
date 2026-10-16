@@ -1,11 +1,16 @@
 package com.adsamcik.tracker.shared.base.database
 
+import com.adsamcik.tracker.shared.base.database.dao.CollectedDataDeletionOperationDao
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
 import com.adsamcik.tracker.shared.base.database.data.RetentionWorkExecutionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.hasReachedRetentionPhase
 
+/**
+ * Durable retention operation with requested/settled UTC millisecond floor, exact data epoch,
+ * execution ownership and phase.
+ */
 data class RetentionFloorSettlementOperation(
 	val operationId: String,
 	val requestedRetainedFromMs: Long,
@@ -36,6 +41,10 @@ data class RetentionFloorSettlementOperation(
 		activeSourceKeys.forEach { require(it.isNotBlank() && SOURCE_KEY.matches(it)) }
 	}
 
+	/**
+	 * Checks whether the saved operation has reached the named durable phase in the defined retention
+	 * ordering.
+	 */
 	fun hasReached(expectedPhase: String): Boolean = entity().hasReachedRetentionPhase(expectedPhase)
 
 	private fun entity() = CollectedDataDeletionOperationEntity(
@@ -58,6 +67,10 @@ data class RetentionFloorSettlementOperation(
 	}
 }
 
+/**
+ * Original worker-specific deletion cutoffs; UTC milliseconds are distinct from the daily-summary
+ * calendar epoch-day cutoff.
+ */
 data class RetentionFloorDestructivePlan(
 	val workerKind: String,
 	val requestedAtMs: Long,
@@ -107,12 +120,16 @@ data class RetentionFloorDestructivePlan(
 		encodeNullable(operationalRetentionCutoffMs),
 	).joinToString(PLAN_SEPARATOR)
 
+	/**
+	 * Supported executor kinds and original destructive-plan encoding/legacy construction.
+	 */
 	companion object {
 		const val WORKER_RETENTION_PIPELINE = "RETENTION_PIPELINE"
 		const val WORKER_DATA_RETENTION = "DATA_RETENTION"
 		const val WORKER_LEGACY = "LEGACY"
 
 		private const val PLAN_VERSION = "2"
+		private const val ENCODED_PLAN_FIELD_COUNT = 11
 		private const val PLAN_SEPARATOR = "|"
 		private const val NULL_VALUE = "-"
 		internal val WORKER_KINDS = setOf(
@@ -123,27 +140,35 @@ data class RetentionFloorDestructivePlan(
 
 		internal fun decode(encoded: String): RetentionFloorDestructivePlan {
 			val values = encoded.split(PLAN_SEPARATOR)
-			require(values.size == 11 && values[0] in setOf("1", PLAN_VERSION)) {
+			require(values.size == ENCODED_PLAN_FIELD_COUNT && values[0] in setOf("1", PLAN_VERSION)) {
 				"Unsupported retention destructive plan"
 			}
+			val fields = values.iterator()
+			val version = fields.next()
 			return RetentionFloorDestructivePlan(
-				workerKind = values[1],
-				requestedAtMs = values[2].toLong(),
-				requestedRetainedFromMs = if (values[0] == "1") {
-					values[3].toLong()
-				} else {
-					decodeNullable(values[3])
+				workerKind = fields.next(),
+				requestedAtMs = fields.next().toLong(),
+				requestedRetainedFromMs = fields.next().let { value ->
+					if (version == "1") {
+						value.toLong()
+					} else {
+						decodeNullable(value)
+					}
 				},
-				rawRetentionCutoffMs = decodeNullable(values[4]),
-				sourceEventRetentionCutoffMs = decodeNullable(values[5]),
-				wifiCellRetentionCutoffMs = decodeNullable(values[6]),
-				tripRetentionCutoffMs = decodeNullable(values[7]),
-				dailySummaryRetentionCutoffDay = decodeNullable(values[8]),
-				explorationRetentionCutoffMs = decodeNullable(values[9]),
-				operationalRetentionCutoffMs = decodeNullable(values[10]),
+				rawRetentionCutoffMs = decodeNullable(fields.next()),
+				sourceEventRetentionCutoffMs = decodeNullable(fields.next()),
+				wifiCellRetentionCutoffMs = decodeNullable(fields.next()),
+				tripRetentionCutoffMs = decodeNullable(fields.next()),
+				dailySummaryRetentionCutoffDay = decodeNullable(fields.next()),
+				explorationRetentionCutoffMs = decodeNullable(fields.next()),
+				operationalRetentionCutoffMs = decodeNullable(fields.next()),
 			)
 		}
 
+		/**
+		 * Creates the legacy raw/source-event floor plan; other source/product cutoffs remain
+		 * unspecified.
+		 */
 		fun legacy(
 			requestedAtMs: Long,
 			requestedRetainedFromMs: Long,
@@ -165,6 +190,9 @@ data class RetentionFloorDestructivePlan(
 			value.takeUnless { it == NULL_VALUE }?.toLong()
 	}
 
+	/**
+	 * Checks whether the worker kind can execute this exact retained destructive plan.
+	 */
 	fun canBeExecutedBy(executorWorkerKind: String): Boolean = when (executorWorkerKind) {
 		WORKER_RETENTION_PIPELINE -> true
 		WORKER_DATA_RETENTION -> workerKind in setOf(WORKER_DATA_RETENTION, WORKER_LEGACY)
@@ -184,10 +212,16 @@ data class RetentionFloorDestructivePlan(
 		).isNotEmpty()
 }
 
+/**
+ * Returns the active durable retention operation, or null when no settlement is in progress.
+ */
 suspend fun AppDatabase.activeRetentionFloorSettlement():
 	RetentionFloorSettlementOperation? =
 	collectedDataDeletionOperationDao().activeRetentionFloorSettlement()?.toRetentionOperation()
 
+/**
+ * Loads and validates the saved retention operation by identity, or returns null when absent.
+ */
 suspend fun AppDatabase.retentionFloorSettlement(
 	operationId: String,
 ): RetentionFloorSettlementOperation? {
@@ -201,6 +235,10 @@ suspend fun AppDatabase.retentionFloorSettlement(
 	}
 }
 
+/**
+ * Resolves the exact operation/epoch to active, completed, missing or full-clear-superseded state
+ * atomically.
+ */
 suspend fun AppDatabase.retentionFloorSettlementDisposition(
 	operationId: String,
 	expectedCollectedDataEpoch: Long,
@@ -231,6 +269,10 @@ suspend fun AppDatabase.retentionFloorSettlementDisposition(
 	}
 }
 
+/**
+ * Resolves the operation under this exact work receipt, retaining incompatible-worker and
+ * another-execution ownership debt.
+ */
 suspend fun AppDatabase.retentionFloorSettlementForExecution(
 	execution: RetentionWorkExecutionReceipt,
 	expectedOperationId: String? = null,
@@ -241,15 +283,25 @@ suspend fun AppDatabase.retentionFloorSettlementForExecution(
 	if (expectedOperationId != null && active?.operationId != expectedOperationId) {
 		return@withTransaction RetentionFloorOperationLookupResult.Available(null)
 	}
-	var operation = active?.toRetentionOperation()
+	val operation = active?.toRetentionOperation()
 		?: dao.latestRetentionFloorSettlementForExecution(execution.executionId)
 			?.toRetentionOperation()
 		?: return@withTransaction RetentionFloorOperationLookupResult.Available(null)
+	qualifySelectedRetentionOperation(dao, active, operation, execution, expectedOperationId)
+}
+
+private suspend fun AppDatabase.qualifySelectedRetentionOperation(
+	dao: CollectedDataDeletionOperationDao,
+	active: CollectedDataDeletionOperationEntity?,
+	operation: RetentionFloorSettlementOperation,
+	execution: RetentionWorkExecutionReceipt,
+	expectedOperationId: String?,
+): RetentionFloorOperationLookupResult {
 	if (expectedOperationId != null && operation.operationId != expectedOperationId) {
-		return@withTransaction RetentionFloorOperationLookupResult.Available(null)
+		return RetentionFloorOperationLookupResult.Available(null)
 	}
 	if (!operation.destructivePlan.canBeExecutedBy(execution.workerKind)) {
-		return@withTransaction RetentionFloorOperationLookupResult.IncompatibleExecutor(
+		return RetentionFloorOperationLookupResult.IncompatibleExecutor(
 			RetentionFloorExecutorDebt(
 				operationId = operation.operationId,
 				planWorkerKind = operation.destructivePlan.workerKind,
@@ -258,37 +310,51 @@ suspend fun AppDatabase.retentionFloorSettlementForExecution(
 		)
 	}
 	if (active != null && operation.workExecutionId != execution.executionId) {
-		val ownerReceipt = retentionWorkExecutionReceiptDao().get(operation.workExecutionId)
-			?: retentionWorkExecutionReceiptDao().latest(operation.workExecutionId)
-		if (
-			ownerReceipt != null && ownerReceipt.state in setOf(
-				com.adsamcik.tracker.shared.base.database.data
-					.RetentionWorkExecutionReceiptEntity.STATE_OPEN,
-				com.adsamcik.tracker.shared.base.database.data
-					.RetentionWorkExecutionReceiptEntity.STATE_CANCELLATION_REQUESTED,
-			) &&
-			ownerReceipt.executionId != execution.executionId
-		) {
-			return@withTransaction RetentionFloorOperationLookupResult.ExecutionOwned(
-				RetentionFloorExecutionOwnerDebt(
-					operationId = operation.operationId,
-					ownerExecutionId = ownerReceipt.executionId,
-					requestedExecutionId = execution.executionId,
-				),
-			)
-		}
-		check(
-			dao.claimActiveRetentionExecution(
-				operationId = operation.operationId,
-				expectedWorkExecutionId = active.retentionWorkExecutionId,
-				newWorkExecutionId = execution.executionId,
-			) == 1,
-		) { "Unable to claim compatible retention execution debt" }
-		operation = requireNotNull(dao.get(operation.operationId)).toRetentionOperation()
+		return claimRetentionExecution(dao, operation, active, execution)
 	}
-	RetentionFloorOperationLookupResult.Available(operation)
+	return RetentionFloorOperationLookupResult.Available(operation)
 }
 
+private suspend fun AppDatabase.claimRetentionExecution(
+	dao: CollectedDataDeletionOperationDao,
+	operation: RetentionFloorSettlementOperation,
+	active: CollectedDataDeletionOperationEntity,
+	execution: RetentionWorkExecutionReceipt,
+): RetentionFloorOperationLookupResult {
+	val ownerReceipt = retentionWorkExecutionReceiptDao().get(operation.workExecutionId)
+		?: retentionWorkExecutionReceiptDao().latest(operation.workExecutionId)
+	if (
+		ownerReceipt != null && ownerReceipt.state in setOf(
+			com.adsamcik.tracker.shared.base.database.data
+				.RetentionWorkExecutionReceiptEntity.STATE_OPEN,
+			com.adsamcik.tracker.shared.base.database.data
+				.RetentionWorkExecutionReceiptEntity.STATE_CANCELLATION_REQUESTED,
+		) &&
+		ownerReceipt.executionId != execution.executionId
+	) {
+		return RetentionFloorOperationLookupResult.ExecutionOwned(
+			RetentionFloorExecutionOwnerDebt(
+				operationId = operation.operationId,
+				ownerExecutionId = ownerReceipt.executionId,
+				requestedExecutionId = execution.executionId,
+			),
+		)
+	}
+	check(
+		dao.claimActiveRetentionExecution(
+			operationId = operation.operationId,
+			expectedWorkExecutionId = active.retentionWorkExecutionId,
+			newWorkExecutionId = execution.executionId,
+		) == 1,
+	) { "Unable to claim compatible retention execution debt" }
+	val claimed = requireNotNull(dao.get(operation.operationId)).toRetentionOperation()
+	return RetentionFloorOperationLookupResult.Available(claimed)
+}
+
+/**
+ * Atomically creates or resumes the exact retention operation, epoch, original cutoffs and
+ * work-execution ownership.
+ */
 suspend fun AppDatabase.prepareOrResumeRetentionFloorSettlement(
 	operationId: String,
 	requestedRetainedFromMs: Long,
@@ -309,23 +375,7 @@ suspend fun AppDatabase.prepareOrResumeRetentionFloorSettlement(
 	require(destructivePlan.requestedAtMs == requestedAtMs)
 	require(destructivePlan.requestedRetainedFromMs == requestedRetainedFromMs)
 	val dao = collectedDataDeletionOperationDao()
-	val execution = retentionWorkExecutionReceiptDao().get(workExecutionId)
-	if (execution == null) {
-		check(
-			destructivePlan.workerKind == RetentionFloorDestructivePlan.WORKER_LEGACY &&
-				workExecutionId == operationId,
-		) { "Retention-floor preparation requires its durable work execution" }
-	} else {
-		check(execution.state == RetentionWorkExecutionReceiptEntity.STATE_OPEN) {
-			"Retention-floor preparation requires an OPEN work execution"
-		}
-		check(destructivePlan.canBeExecutedBy(execution.workerKind)) {
-			"Retention-floor preparation worker kind changed"
-		}
-		check(execution.destructivePlan == destructivePlan.encode()) {
-			"Retention-floor preparation requires the attached destructive plan"
-		}
-	}
+	requireRetentionPreparationExecution(workExecutionId, operationId, destructivePlan)
 	dao.activeRetentionFloorSettlement()?.let { active ->
 		val operation = active.toRetentionOperation()
 		check(operation.workExecutionId == workExecutionId) {
@@ -375,6 +425,34 @@ suspend fun AppDatabase.prepareOrResumeRetentionFloorSettlement(
 	prepared.toRetentionOperation()
 }
 
+private suspend fun AppDatabase.requireRetentionPreparationExecution(
+	workExecutionId: String,
+	operationId: String,
+	destructivePlan: RetentionFloorDestructivePlan,
+) {
+	val execution = retentionWorkExecutionReceiptDao().get(workExecutionId)
+	if (execution == null) {
+		check(
+			destructivePlan.workerKind == RetentionFloorDestructivePlan.WORKER_LEGACY &&
+				workExecutionId == operationId,
+		) { "Retention-floor preparation requires its durable work execution" }
+	} else {
+		check(execution.state == RetentionWorkExecutionReceiptEntity.STATE_OPEN) {
+			"Retention-floor preparation requires an OPEN work execution"
+		}
+		check(destructivePlan.canBeExecutedBy(execution.workerKind)) {
+			"Retention-floor preparation worker kind changed"
+		}
+		check(execution.destructivePlan == destructivePlan.encode()) {
+			"Retention-floor preparation requires the attached destructive plan"
+		}
+	}
+}
+
+/**
+ * Atomically advances only the expected saved operation phase and original authority with UTC
+ * millisecond update time.
+ */
 suspend fun AppDatabase.advanceRetentionFloorSettlementPhase(
 	operation: RetentionFloorSettlementOperation,
 	expectedPhase: String,
@@ -406,6 +484,10 @@ suspend fun AppDatabase.advanceRetentionFloorSettlementPhase(
 	requireNotNull(dao.get(operation.operationId)).toRetentionOperation()
 }
 
+/**
+ * Records the original operation's reissued active-source keys without allowing a different
+ * execution to claim it.
+ */
 suspend fun AppDatabase.commitRetentionFloorAuthorityReissued(
 	operation: RetentionFloorSettlementOperation,
 	activeSourceKeys: Set<String>,
@@ -449,6 +531,10 @@ suspend fun AppDatabase.commitRetentionFloorAuthorityReissued(
 	requireNotNull(dao.get(operation.operationId)).toRetentionOperation()
 }
 
+/**
+ * Atomically publishes the settled UTC millisecond floor and room-guard phase under the original
+ * retention operation.
+ */
 suspend fun AppDatabase.commitRetentionFloorRoomGuard(
 	operation: RetentionFloorSettlementOperation,
 	settledRetainedFromMs: Long,
@@ -574,11 +660,28 @@ private fun CollectedDataDeletionOperationEntity.toRetentionOperation():
 }
 
 private fun decodeActiveSourceKeys(encoded: String): Set<String> =
-	if (encoded.isEmpty()) emptySet() else encoded.split(',').toSet()
+	if (encoded.isEmpty()) {
+		emptySet()
+	} else {
+		encoded.split(',').toSet()
+	}
 
+/**
+ * Whether a saved retention operation is active, completed, absent or superseded by a full-data
+ * clear.
+ */
 sealed interface RetentionFloorSettlementDisposition {
+	/**
+	 * The exact original retention operation is still active.
+	 */
 	data object Active : RetentionFloorSettlementDisposition
+	/**
+	 * The exact original retention operation has durably reached its completed phase.
+	 */
 	data object Completed : RetentionFloorSettlementDisposition
+	/**
+	 * A full-data deletion changed the epoch and superseded the original retention operation.
+	 */
 	data class SupersededByFullDeletion(
 		val collectedDataEpoch: Long,
 	) : RetentionFloorSettlementDisposition {
@@ -586,23 +689,44 @@ sealed interface RetentionFloorSettlementDisposition {
 			require(collectedDataEpoch >= 0L)
 		}
 	}
+	/**
+	 * No original retention operation exists for the selected identity/epoch.
+	 */
 	data object Missing : RetentionFloorSettlementDisposition
 }
 
+/**
+ * Execution-owned retention lookup, distinguishing compatible work from another executor or
+ * another execution owner.
+ */
 sealed interface RetentionFloorOperationLookupResult {
+	/**
+	 * The executor may use the matched operation; null means no owned settlement operation exists.
+	 */
 	data class Available(
 		val operation: RetentionFloorSettlementOperation?,
 	) : RetentionFloorOperationLookupResult
 
+	/**
+	 * The saved destructive plan belongs to a different worker kind; its remaining work is retained
+	 * as debt.
+	 */
 	data class IncompatibleExecutor(
 		val debt: RetentionFloorExecutorDebt,
 	) : RetentionFloorOperationLookupResult
 
+	/**
+	 * Another exact work execution owns the saved operation and must settle it before a handoff.
+	 */
 	data class ExecutionOwned(
 		val debt: RetentionFloorExecutionOwnerDebt,
 	) : RetentionFloorOperationLookupResult
 }
 
+/**
+ * Saved plan/worker-kind mismatch that prevents this executor from completing the retention
+ * operation.
+ */
 data class RetentionFloorExecutorDebt(
 	val operationId: String,
 	val planWorkerKind: String,
@@ -616,6 +740,9 @@ data class RetentionFloorExecutorDebt(
 	}
 }
 
+/**
+ * Saved execution ownership that prevents another work attempt from claiming the operation.
+ */
 data class RetentionFloorExecutionOwnerDebt(
 	val operationId: String,
 	val ownerExecutionId: String,

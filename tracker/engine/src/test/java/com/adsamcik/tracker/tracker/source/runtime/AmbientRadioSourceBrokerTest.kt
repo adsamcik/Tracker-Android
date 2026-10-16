@@ -45,9 +45,13 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /** Room-backed broker/authority contract. Execution remains deferred to final convergence. */
+// One Room radio-authority fixture keeps exact admission, compensation and cold retirement checks comparable.
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class AmbientRadioSourceBrokerTest {
 	private lateinit var database: AppDatabase
 	private lateinit var policyRepository: RoomSourcePolicyRepository
@@ -70,10 +74,18 @@ class AmbientRadioSourceBrokerTest {
 			database.sourceDestinationOwnerDao().insertIfAbsent(
 				SourceDestinationOwnerEntity(
 					sourceKind = binding.source.stableCode,
-					destination = if (wifi) SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI
-						else SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
-					owner = if (wifi) SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS
-						else SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS,
+					destination = if (wifi) {
+						SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI
+					}
+						else {
+						SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL
+					},
+					owner = if (wifi) {
+						SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS
+					}
+						else {
+						SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS
+					},
 					ownerGeneration = SourceWriterGenerationContract.canonicalOwnerGeneration(binding.bindingGeneration),
 					updatedAtMs = 1L,
 				),
@@ -100,6 +112,9 @@ class AmbientRadioSourceBrokerTest {
 		database.close()
 	}
 
+	// Follow all-day Wi-Fi admission into provider authorization, then prove unchosen Cell cannot disturb that
+	// source.
+	@Suppress("LongMethod")
 	@Test
 	fun `all-day Wi-Fi admits its exact authority without an ambient capture mode or session`() = runTest {
         policyRepository.replaceCaptureSettings(1, TrackingParamsState(legacySettingsMigrationCompleted = true,
@@ -502,6 +517,9 @@ class AmbientRadioSourceBrokerTest {
 		)
 	}
 
+	// Follow one partially retired Wi-Fi demand through compensation retries to verify exact, idempotent authority
+	// cleanup.
+	@Suppress("LongMethod")
 	@Test
 	fun `partial radio compensation retry retires exact caller authority idempotently`() = runTest {
 		val policy = grant(TrackingSourceComponent.WIFI)
@@ -613,6 +631,8 @@ class AmbientRadioSourceBrokerTest {
 		)
 	}
 
+	// Follow accepted Wi-Fi demand into rejected caller preparation and verify its exact demand and authority retire.
+	@Suppress("LongMethod")
 	@Test
 	fun `rejected Wi-Fi caller preparation retires exact radio authority atomically`() = runTest {
 		val policy = grant(TrackingSourceComponent.WIFI)
@@ -681,6 +701,9 @@ class AmbientRadioSourceBrokerTest {
 		assertEquals(2L, revoked.reconciliationAttempt)
 	}
 
+	// Follow rejected Wi-Fi cleanup through provider denial while preserving the independent Activity control
+	// authority.
+	@Suppress("LongMethod")
 	@Test
 	fun `rejected Wi-Fi cleanup preserves authentic authority owned by another purpose`() = runTest {
 		val policy = grant(TrackingSourceComponent.WIFI)
@@ -779,6 +802,8 @@ class AmbientRadioSourceBrokerTest {
 		)
 	}
 
+	// Follow accepted Cell demand into rejected caller preparation and verify its exact demand and authority retire.
+	@Suppress("LongMethod")
 	@Test
 	fun `rejected Cell caller preparation retires exact radio authority atomically`() = runTest {
 		val policy = grant(TrackingSourceComponent.CELL)
@@ -847,6 +872,8 @@ class AmbientRadioSourceBrokerTest {
 		assertEquals(2L, revoked.reconciliationAttempt)
 	}
 
+	// Follow rejected Cell cleanup through provider denial while preserving accepted authority for the other lease.
+	@Suppress("LongMethod")
 	@Test
 	fun `rejected Cell cleanup preserves authentic authority for another lease`() = runTest {
 		val policy = grant(TrackingSourceComponent.CELL)
@@ -944,6 +971,9 @@ class AmbientRadioSourceBrokerTest {
 		)
 	}
 
+	// Follow stale Wi-Fi ownership through successor installation and rejected cleanup without retiring the
+	// successor.
+	@Suppress("LongMethod")
 	@Test
 	fun `rejected stale Wi-Fi caller cannot retire a durable successor`() = runTest {
 		val policy = grant(TrackingSourceComponent.WIFI)
@@ -1047,6 +1077,8 @@ class AmbientRadioSourceBrokerTest {
 		)
 	}
 
+	// Keep the newer active Cell attempt beside the rejected older attempt to prove its demand and authority survive.
+	@Suppress("LongMethod")
 	@Test
 	fun `rejected stale Cell attempt cannot retire its newer active attempt`() = runTest {
 		val policy = grant(TrackingSourceComponent.CELL)
@@ -1120,6 +1152,9 @@ class AmbientRadioSourceBrokerTest {
 		)
 	}
 
+	// Follow partial Cell cleanup and its retry to verify idempotence while unrelated accepted authority remains
+	// valid.
+	@Suppress("LongMethod")
 	@Test
 	fun `rejected Cell caller retry preserves unrelated authority idempotently`() = runTest {
 		val policy = grant(TrackingSourceComponent.CELL)
@@ -1232,6 +1267,9 @@ class AmbientRadioSourceBrokerTest {
 		assertEquals(2L, revoked.reconciliationAttempt)
 	}
 
+	// Open retention settlement after the saved snapshot, then verify caller and Wi-Fi writes are rejected
+	// atomically.
+	@Suppress("LongMethod")
 	@Test
 	fun `settlement journal opened after snapshot rejects caller and radio writes atomically`() =
 		runTest {
@@ -1336,18 +1374,8 @@ class AmbientRadioSourceBrokerTest {
 		val prepared = preparedPurposeOwnerAuthority(identity, reference)
 
 		val active = withRetentionFloorSettlementOperation("retention-floor-radio-reissue") {
-			val snapshot = requireNotNull(
-				broker.captureLiveAmbientRetentionSnapshot(
-					source = SourceKind.WIFI,
-					sourcePolicyRevision = policy.revision,
-					ambientConsentEpoch = consent,
-					collectedDataEpoch = 3L,
-					currentBootId = "boot-1",
-					currentElapsedRealtimeNanos = 100L,
-					currentWallTimeMs = 100L,
-					expectedRetainedFromMs = null,
-				),
-			)
+			val snapshot = retentionSnapshot(SourceKind.WIFI, policy.revision, consent, 100L)
+
 			assertIs<AmbientRadioDemandResult.Active>(
 				broker.replaceAmbientWifiDemand(
 					consumerId = "app:ambient:wifi",
@@ -1370,6 +1398,8 @@ class AmbientRadioSourceBrokerTest {
 		)
 	}
 
+	// Follow one saved Wi-Fi retirement plan through a new broker to verify cleanup without an in-memory lease.
+	@Suppress("LongMethod")
 	@Test
 	fun `cold start retires exact Room reconstructed Wi-Fi authority without an in-memory lease`() =
 		runTest {
@@ -1448,6 +1478,8 @@ class AmbientRadioSourceBrokerTest {
 			)
 		}
 
+	// Follow one saved Cell retirement plan through a new broker to verify cleanup without an in-memory lease.
+	@Suppress("LongMethod")
 	@Test
 	fun `cold start retires exact Room reconstructed Cell authority without an in-memory lease`() =
 		runTest {
@@ -1523,6 +1555,9 @@ class AmbientRadioSourceBrokerTest {
 			)
 		}
 
+	// Follow a saved Wi-Fi retirement plan through successor installation to prove cold cleanup preserves that
+	// successor.
+	@Suppress("LongMethod")
 	@Test
 	fun `stale reconstructed Wi-Fi lease cannot retire a durable successor`() = runTest {
 		val policy = grant(TrackingSourceComponent.WIFI)

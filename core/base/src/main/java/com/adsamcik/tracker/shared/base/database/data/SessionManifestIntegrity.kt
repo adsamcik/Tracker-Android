@@ -18,7 +18,11 @@ object SessionManifestIntegrity {
 		val hasStepsRecordingOrigins = sources.any { it.stepsRecordingManifestRevision != null }
 		val canonical = encode(
 			listOf(
-				if (hasStepsRecordingOrigins) "session-manifest-v3" else FORMAT,
+				if (hasStepsRecordingOrigins) {
+					"session-manifest-v3"
+				} else {
+					FORMAT
+				},
 				manifest.logicalTrackingId,
 				manifest.manifestRevision,
 				manifest.serviceRunId,
@@ -47,7 +51,11 @@ object SessionManifestIntegrity {
 						source.writerProjectionVersion,
 						source.writerBindingGeneration,
 					).let { values ->
-						if (hasStepsRecordingOrigins) values + source.stepsRecordingManifestRevision else values
+						if (hasStepsRecordingOrigins) {
+							values + source.stepsRecordingManifestRevision
+						} else {
+							values
+						}
 					}
 				},
 			),
@@ -134,10 +142,14 @@ object SessionManifestIntegrity {
 		run: SourceServiceRunEntity,
 		manifests: Collection<SessionManifestVersionEntity>,
 	): Boolean {
-		if (run.bootId.isBlank()) return false
+		if (run.bootId.isBlank()) {
+			return false
+		}
 		val prepared = manifests.singleOrNull { it.manifestRevision == run.preparedManifestRevision }
 			?: return false
-		if (prepared.effectiveBootId.isBlank()) return false
+		if (prepared.effectiveBootId.isBlank()) {
+			return false
+		}
 		return hasValidServiceRunTimeline(run.copy(bootId = prepared.effectiveBootId), manifests)
 	}
 
@@ -213,31 +225,34 @@ object SessionManifestIntegrity {
 		else -> null
 	}
 
-	private fun sourceIdentity(source: SessionManifestSourceEntity): String = encode(
-		listOf(
-			source.logicalTrackingId,
-			source.manifestRevision,
-			source.purpose,
-			source.sourceKind,
-			source.consentEpoch,
-			source.persistenceEligible,
-			source.qosCode,
-			source.outputDestination,
-			source.writerOwner,
-			source.writerOwnerGeneration,
-			source.writerProjectionId,
-			source.writerProjectionVersion,
-			source.writerBindingGeneration,
-		),
-	)
 
-	private fun encode(value: Any?): String {
-		val tagged = when (value) {
-			null -> "N"
-			is Iterable<*> -> "L${value.count()}:" + value.joinToString(separator = "") { item -> encode(item) }
-			is Array<*> -> "L${value.size}:" + value.joinToString(separator = "") { item -> encode(item) }
-			else -> "S${value}"
-		}
-		return "${tagged.length}:$tagged"
+}
+
+// Private canonical value encoding used by the manifest checksum and source ordering.
+private fun sourceIdentity(source: SessionManifestSourceEntity): String = encode(
+	listOf(
+		source.logicalTrackingId,
+		source.manifestRevision,
+		source.purpose,
+		source.sourceKind,
+		source.consentEpoch,
+		source.persistenceEligible,
+		source.qosCode,
+		source.outputDestination,
+		source.writerOwner,
+		source.writerOwnerGeneration,
+		source.writerProjectionId,
+		source.writerProjectionVersion,
+		source.writerBindingGeneration,
+	),
+)
+
+private fun encode(value: Any?): String {
+	val tagged = when (value) {
+		null -> "N"
+		is Iterable<*> -> "L${value.count()}:" + value.joinToString(separator = "") { item -> encode(item) }
+		is Array<*> -> "L${value.size}:" + value.joinToString(separator = "") { item -> encode(item) }
+		else -> "S${value}"
 	}
+	return "${tagged.length}:$tagged"
 }

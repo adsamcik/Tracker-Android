@@ -30,6 +30,7 @@ internal class DistanceInVehicleNotificationComponent : TrackerNotificationCompo
 			savedLocation: SavedLocationSummaryRead
 	): String {
         // The native saved product has no mode-attributed distance; a raw counter is not a measured zero.
-        return context.getString(R.string.distance_invehicle_value, context.getString(R.string.tracker_steps_value_unavailable))
+        return context.getString(R.string.distance_invehicle_value,
+            context.getString(R.string.tracker_steps_value_unavailable))
     }
 }

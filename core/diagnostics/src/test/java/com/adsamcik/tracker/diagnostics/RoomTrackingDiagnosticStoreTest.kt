@@ -270,7 +270,9 @@ class RoomTrackingDiagnosticStoreTest {
 		val cancellingStore = store(
 			policy = testPolicy(globalRateLimit = 1, perSourceRateLimit = 1),
 			transactionCheckpoint = {
-				if (cancel) throw CancellationException("cancel append")
+				if (cancel) {
+					throw CancellationException("cancel append")
+				}
 			},
 		)
 
@@ -400,6 +402,8 @@ class RoomTrackingDiagnosticStoreTest {
 	}
 
 	@Test
+	// Keep the explicit forbidden-field matrix and raw-row privacy assertions in one case.
+	@Suppress("CyclomaticComplexMethod", "LongMethod")
 	fun `raw schema and rows cannot correlate process or operation instances`() = runTest {
 		val store = store()
 		store.append(recordedEvent(scopeSeed = 7L, processSeed = 11L)) shouldBe
@@ -465,7 +469,9 @@ class RoomTrackingDiagnosticStoreTest {
 		raw.query("SELECT * FROM $EVENT_TABLE ORDER BY event_id").use { cursor ->
 			while (cursor.moveToNext()) {
 				repeat(cursor.columnCount) { column ->
-					if (!cursor.isNull(column)) rawValues += cursor.getString(column)
+					if (!cursor.isNull(column)) {
+						rawValues += cursor.getString(column)
+					}
 				}
 			}
 		}

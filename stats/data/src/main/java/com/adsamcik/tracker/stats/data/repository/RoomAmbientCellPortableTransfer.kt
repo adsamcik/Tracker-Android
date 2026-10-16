@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthor
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellFactEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellGapEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
@@ -38,6 +39,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.ensureActive
 
 @Singleton
+// One source transfer owner keeps its snapshot, portable identities, import transaction
+// and receipt lifetime together.
+@Suppress("TooManyFunctions")
 internal class RoomAmbientCellPortableTransfer internal constructor(
 	private val database: AppDatabase,
 	private val repository: RoomAmbientCellRepository,
@@ -80,6 +84,8 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 		val archive: PortableAmbientCellArchiveV1? = null,
 	)
 
+	// Keep snapshot, empty-data and bounded-dependency failures before constructing one export archive.
+	@Suppress("ReturnCount")
 	private suspend fun prepareExportInTransaction(
 		request: ExportPortableAmbientCellRequest,
 	): PreparedExport {
@@ -99,58 +105,25 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 			AmbientCellReadResult.StorageUnavailable ->
 				return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
 		}
+		return prepareSnapshotExport(request, snapshot)
+	}
+
+	// Keep ordered empty-data and bounded source-read failures before archive construction.
+	@Suppress("ReturnCount")
+	private suspend fun prepareSnapshotExport(
+		request: ExportPortableAmbientCellRequest,
+		snapshot: AmbientCellReadResult.Snapshot,
+	): PreparedExport {
 		if (snapshot.facts.isEmpty() && snapshot.gaps.isEmpty()) {
 			return PreparedExport(ExportPortableAmbientCellResult.NoData)
 		}
-		val localFactIds = snapshot.facts.filter {
-			it.origin == AmbientCellOrigin.LOCAL_DEVICE
-		}.map { it.identity }
-		val localFacts = if (localFactIds.isEmpty()) emptyList() else {
-			database.ambientCellFactDao().effectiveLocalLineages(
-				localFactIds,
-				AmbientCellPortableFormatV1.MAX_FACTS + 1,
-			).map { row ->
-				AmbientCellPortableIntegrity.createFact(
-					row.toApiFact() ?: return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable),
-				)
-			}
-		}
-		val importedFactIds = snapshot.facts
-			.filter { it.origin == AmbientCellOrigin.PORTABLE_IMPORT }
-			.map { it.identity }
-		val importedFacts = if (importedFactIds.isEmpty()) emptyList() else {
-			loadFactRevisions(database.ambientCellFactDao(), importedFactIds)
-				.map(ImportedAmbientCellFactEntity::toPortableFact)
-		}
-		val localLatest = localFacts.groupBy(PortableAmbientCellFactV1::identity)
-		val importedLatest = importedFacts.groupBy(PortableAmbientCellFactV1::identity)
-		if (localLatest.keys != localFactIds.toSet() ||
-			importedLatest.keys != importedFactIds.toSet() ||
-			snapshot.facts.any { fact ->
-				val lineage = when (fact.origin) {
-					AmbientCellOrigin.LOCAL_DEVICE -> localLatest[fact.identity]
-					AmbientCellOrigin.PORTABLE_IMPORT -> importedLatest[fact.identity]
-				}
-				lineage?.lastOrNull()?.semanticRevision != fact.semanticRevision
-			}
-		) return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
-		val portableFacts = localFacts + importedFacts
+		val portableFacts = loadSnapshotFactRevisions(snapshot)
+			?: return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
 		if (portableFacts.size > AmbientCellPortableFormatV1.MAX_FACTS) {
 			return PreparedExport(ExportPortableAmbientCellResult.DependencyOverflow)
 		}
-		val localGaps = snapshot.gaps.filter { it.origin == AmbientCellOrigin.LOCAL_DEVICE }
-			.map(AmbientCellPortableIntegrity::createGap)
-		val importedGapIds = snapshot.gaps
-			.filter { it.origin == AmbientCellOrigin.PORTABLE_IMPORT }
-			.map { it.identity }
-		val importedGaps = if (importedGapIds.isEmpty()) emptyList() else {
-			loadGaps(database.ambientCellFactDao(), importedGapIds)
-				.map(ImportedAmbientCellGapEntity::toPortableGap)
-		}
-		if (importedGaps.map(PortableAmbientCellGapV1::identity).toSet() !=
-			importedGapIds.toSet()
-		) return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
-		val portableGaps = localGaps + importedGaps
+		val portableGaps = loadSnapshotGaps(snapshot)
+			?: return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
 		if (portableGaps.size > AmbientCellPortableFormatV1.MAX_GAPS) {
 			return PreparedExport(ExportPortableAmbientCellResult.DependencyOverflow)
 		}
@@ -177,52 +150,170 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 		)
 	}
 
+	private suspend fun loadSnapshotFactRevisions(
+		snapshot: AmbientCellReadResult.Snapshot,
+	): List<PortableAmbientCellFactV1>? {
+		val localFactIds = snapshot.facts.filter {
+			it.origin == AmbientCellOrigin.LOCAL_DEVICE
+		}.map { it.identity }
+		val localFacts = if (localFactIds.isEmpty()) {
+			emptyList()
+		} else {
+			database.ambientCellFactDao().effectiveLocalLineages(
+				localFactIds,
+				AmbientCellPortableFormatV1.MAX_FACTS + 1,
+			).map { row ->
+				AmbientCellPortableIntegrity.createFact(
+					row.toApiFact() ?: return null,
+				)
+			}
+		}
+		val importedFactIds = snapshot.facts
+			.filter { it.origin == AmbientCellOrigin.PORTABLE_IMPORT }
+			.map { it.identity }
+		val importedFacts = if (importedFactIds.isEmpty()) {
+			emptyList()
+		} else {
+			loadFactRevisions(database.ambientCellFactDao(), importedFactIds)
+				.map(ImportedAmbientCellFactEntity::toPortableFact)
+		}
+		val localLatest = localFacts.groupBy(PortableAmbientCellFactV1::identity)
+		val importedLatest = importedFacts.groupBy(PortableAmbientCellFactV1::identity)
+		if (localLatest.keys != localFactIds.toSet() ||
+			importedLatest.keys != importedFactIds.toSet() ||
+			snapshot.facts.any { fact ->
+				val lineage = when (fact.origin) {
+					AmbientCellOrigin.LOCAL_DEVICE -> localLatest[fact.identity]
+					AmbientCellOrigin.PORTABLE_IMPORT -> importedLatest[fact.identity]
+				}
+				lineage?.lastOrNull()?.semanticRevision != fact.semanticRevision
+			}
+		) {
+			return null
+		}
+		return localFacts + importedFacts
+	}
+
+	private suspend fun loadSnapshotGaps(
+		snapshot: AmbientCellReadResult.Snapshot,
+	): List<PortableAmbientCellGapV1>? {
+		val localGaps = snapshot.gaps.filter { it.origin == AmbientCellOrigin.LOCAL_DEVICE }
+			.map(AmbientCellPortableIntegrity::createGap)
+		val importedGapIds = snapshot.gaps
+			.filter { it.origin == AmbientCellOrigin.PORTABLE_IMPORT }
+			.map { it.identity }
+		val importedGaps = if (importedGapIds.isEmpty()) {
+			emptyList()
+		} else {
+			loadGaps(database.ambientCellFactDao(), importedGapIds)
+				.map(ImportedAmbientCellGapEntity::toPortableGap)
+		}
+		if (importedGaps.map(PortableAmbientCellGapV1::identity).toSet() !=
+			importedGapIds.toSet()
+		) {
+			return null
+		}
+		return localGaps + importedGaps
+	}
+
+	// Keep authority, per-archive failure and merged-identity conflict exits in their original read order.
+	@Suppress("ReturnCount")
 	private suspend fun prepareSelectedArchives(identities: Set<String>): PreparedExport {
-		require(identities.isNotEmpty() && identities.size <= 4_096)
-		val state = database.sourceEvidenceStateDao().get()
+		require(identities.isNotEmpty() && identities.size <= MAX_SELECTED_ARCHIVES)
+		val state = selectedExportState()
 			?: return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
-		if (database.collectedDataDeletionOperationDao().activeRetentionFloorSettlement() != null)
-			return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
 		val dao = database.ambientCellFactDao()
-		val authority = dao.latestRetentionAuthority(AmbientCellRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT)
-		if (authority == null || !AmbientCellRetentionAuthorityIntegrity.isAuthentic(authority) ||
-			!authority.isActive || !state.acceptsRetainedEpoch(authority.collectedDataEpoch) ||
-			authority.retainedFromMs != state.retainedFromMs)
-			return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
 		val facts = mutableListOf<PortableAmbientCellFactV1>()
 		val gaps = mutableListOf<PortableAmbientCellGapV1>()
 		for (identity in identities.sorted()) {
 			kotlinx.coroutines.currentCoroutineContext().ensureActive()
-			if (dao.importTombstone(identity) != null)
-				return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
-			val rows = dao.importedForArchive(identity, AmbientCellPortableFormatV1.MAX_FACTS + 1)
-			val gapRows = dao.importedGapsForArchive(identity, AmbientCellPortableFormatV1.MAX_GAPS + 1)
-			if (rows.size > AmbientCellPortableFormatV1.MAX_FACTS || gapRows.size > AmbientCellPortableFormatV1.MAX_GAPS ||
-				rows.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) } ||
-				gapRows.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) })
-				return PreparedExport(ExportPortableAmbientCellResult.DependencyOverflow)
-			val archive = AmbientCellPortableIntegrity.createArchive(identity,
-				rows.map(ImportedAmbientCellFactEntity::toPortableFact), gapRows.map(ImportedAmbientCellGapEntity::toPortableGap))
-			val receipts = dao.retainedImportReceipts(listOf(identity), 4_097)
-			if (receipts.isEmpty() || receipts.size > 4_096 || receipts.any {
-				it.archiveChecksum != archive.contentChecksum || !state.acceptsRetainedEpoch(it.collectedDataEpoch) } ||
-				state.retainedFromMs?.let { floor -> archive.facts.any { it.coverageStartTimeMs < floor } ||
-					archive.gaps.any { it.startTimeMs < floor } } == true)
-				return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
+			val prepared = prepareSelectedArchive(identity, dao, state)
+			val archive = prepared.archive ?: return prepared
 			facts += archive.facts; gaps += archive.gaps
 			if (facts.size > AmbientCellPortableFormatV1.MAX_FACTS || gaps.size > AmbientCellPortableFormatV1.MAX_GAPS)
+				{
 				return PreparedExport(ExportPortableAmbientCellResult.DependencyOverflow)
+			}
 		}
 		val factGroups = facts.groupBy { it.identity to it.semanticRevision }
 		val gapGroups = gaps.groupBy { it.identity }
 		if (factGroups.values.any { it.distinct().size != 1 } || gapGroups.values.any { it.distinct().size != 1 })
+			{
 			return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
+		}
 		val archive = AmbientCellPortableIntegrity.createArchive(
 			AmbientCellPortableIntegrity.opaqueIdentity("selected-archives", identities.sorted().joinToString("\u001f")),
 			factGroups.values.map { it.first() }, gapGroups.values.map { it.first() })
 		return PreparedExport(ExportPortableAmbientCellResult.Exported(archive.facts.size, archive.gaps.size), archive)
 	}
 
+	// A selected export uses the same saved epoch, settled retention floor and active import authority.
+	@Suppress("ReturnCount")
+	private suspend fun selectedExportState(): SourceEvidenceState? {
+		val state = database.sourceEvidenceStateDao().get()
+			?: return null
+		if (database.collectedDataDeletionOperationDao().activeRetentionFloorSettlement() != null)
+			{
+			return null
+		}
+		val dao = database.ambientCellFactDao()
+		val authority = dao.latestRetentionAuthority(AmbientCellRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT)
+		if (authority == null || !AmbientCellRetentionAuthorityIntegrity.isAuthentic(authority) ||
+			!authority.isActive
+		) {
+			return null
+		}
+		if (!state.acceptsRetainedEpoch(authority.collectedDataEpoch) ||
+			authority.retainedFromMs != state.retainedFromMs
+		) {
+			return null
+		}
+		return state
+	}
+
+	// Keep one archive tombstone, row bounds, receipt and retention checks together before export.
+	@Suppress("ReturnCount")
+	private suspend fun prepareSelectedArchive(
+		identity: String,
+		dao: AmbientCellFactDao,
+		state: SourceEvidenceState,
+	): PreparedExport {
+		if (dao.importTombstone(identity) != null)
+			{
+			return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
+		}
+		val rows = dao.importedForArchive(identity, AmbientCellPortableFormatV1.MAX_FACTS + 1)
+		val gapRows = dao.importedGapsForArchive(identity, AmbientCellPortableFormatV1.MAX_GAPS + 1)
+		if (hasUnsupportedSelectedRows(rows, gapRows, state))
+			{
+			return PreparedExport(ExportPortableAmbientCellResult.DependencyOverflow)
+		}
+		val archive = AmbientCellPortableIntegrity.createArchive(identity,
+			rows.map(ImportedAmbientCellFactEntity::toPortableFact), gapRows.map(ImportedAmbientCellGapEntity::toPortableGap))
+		val receipts = dao.retainedImportReceipts(listOf(identity), MAX_IMPORT_RECEIPTS_PER_ARCHIVE + 1)
+		if (receipts.isEmpty() || receipts.size > MAX_IMPORT_RECEIPTS_PER_ARCHIVE || receipts.any {
+			it.archiveChecksum != archive.contentChecksum || !state.acceptsRetainedEpoch(it.collectedDataEpoch)
+		}) {
+			return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
+		}
+		if (state.retainedFromMs?.let { floor ->
+			archive.facts.any { it.coverageStartTimeMs < floor } ||
+				archive.gaps.any { it.startTimeMs < floor }
+		} == true) {
+			return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
+		}
+		return PreparedExport(ExportPortableAmbientCellResult.Exported(archive.facts.size, archive.gaps.size), archive)
+	}
+
+
+	private fun hasUnsupportedSelectedRows(
+		rows: List<ImportedAmbientCellFactEntity>,
+		gapRows: List<ImportedAmbientCellGapEntity>,
+		state: SourceEvidenceState,
+	): Boolean = rows.size > AmbientCellPortableFormatV1.MAX_FACTS ||
+		gapRows.size > AmbientCellPortableFormatV1.MAX_GAPS ||
+		rows.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) } ||
+		gapRows.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) }
 
 	override suspend fun importArchive(
 		request: ImportPortableAmbientCellRequest,
@@ -239,11 +330,43 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 		}
 	}
 
+	// Each ordered readiness or replay/history/membership failure exits before the sole import write phase.
+	@Suppress("ReturnCount")
 	private suspend fun importInTransaction(
 		request: ImportPortableAmbientCellRequest,
 	): ImportPortableAmbientCellResult {
 		val evidence = database.sourceEvidenceStateDao().get()
 			?: return ImportPortableAmbientCellResult.StorageUnavailable
+		importWindowFailure(request, evidence)?.let { return it }
+		val dao = database.ambientCellFactDao()
+		val retention = readImportRetention(request, evidence, dao)
+			?: return ImportPortableAmbientCellResult.RetentionAuthorityUnavailable
+		replayOrReceiptFailure(request, dao)?.let { return it }
+		val duplicateRevisions = mutableSetOf<Pair<String, Long>>()
+		factHistoryFailure(request, dao, duplicateRevisions)?.let { return it }
+		val duplicateGapIds = mutableSetOf<String>()
+		gapHistoryFailure(request, dao, duplicateGapIds)?.let { return it }
+		archiveMembershipFailure(request, dao)?.let { return it }
+		return persistImport(request, dao, retention, duplicateRevisions, duplicateGapIds)
+	}
+
+	private suspend fun readImportRetention(
+		request: ImportPortableAmbientCellRequest,
+		evidence: SourceEvidenceState,
+		dao: AmbientCellFactDao,
+	): AmbientCellRetentionAuthorityEntity? = dao.latestRetentionAuthority(
+		AmbientCellRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
+	)?.takeIf {
+		AmbientCellRetentionAuthorityIntegrity.isAuthentic(it) &&
+			it.isActive &&
+			it.collectedDataEpoch == request.expectedCollectedDataEpoch &&
+			it.retainedFromMs == evidence.retainedFromMs
+	}
+
+	private fun importWindowFailure(
+		request: ImportPortableAmbientCellRequest,
+		evidence: SourceEvidenceState,
+	): ImportPortableAmbientCellResult? {
 		if (evidence.collectedDataEpoch != request.expectedCollectedDataEpoch) {
 			return ImportPortableAmbientCellResult.CollectedDataEpochChanged
 		}
@@ -252,7 +375,9 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 			} || request.archive.gaps.any {
 				it.endTimeMs > request.receipt.receivedAtMs
 			}
-		) return ImportPortableAmbientCellResult.InvalidReceipt
+		) {
+			return ImportPortableAmbientCellResult.InvalidReceipt
+		}
 		if (evidence.retainedFromMs?.let { floor ->
 				request.archive.facts.any { fact -> fact.coverageStartTimeMs < floor } ||
 					request.archive.gaps.any { gap -> gap.startTimeMs < floor }
@@ -260,50 +385,42 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 		) {
 			return ImportPortableAmbientCellResult.RetentionBoundary
 		}
-		val dao = database.ambientCellFactDao()
-		val retention = dao.latestRetentionAuthority(
-			AmbientCellRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
-		)?.takeIf {
-			AmbientCellRetentionAuthorityIntegrity.isAuthentic(it) &&
-				it.isActive &&
-				it.collectedDataEpoch == request.expectedCollectedDataEpoch &&
-				it.retainedFromMs == evidence.retainedFromMs
-		} ?: return ImportPortableAmbientCellResult.RetentionAuthorityUnavailable
+		return null
+	}
+
+	// Keep tombstone, replay-footprint and exact prior-receipt outcomes in their original precedence.
+	@Suppress("ReturnCount")
+	private suspend fun replayOrReceiptFailure(
+		request: ImportPortableAmbientCellRequest,
+		dao: AmbientCellFactDao,
+	): ImportPortableAmbientCellResult? {
 		dao.importTombstone(request.archive.archiveId)?.let { tombstone ->
 			if (tombstone.effectChecksum !=
 				AmbientCellFactIntegrity.importTombstoneChecksum(tombstone)
-			) return ImportPortableAmbientCellResult.StorageUnavailable
+			) {
+				return ImportPortableAmbientCellResult.StorageUnavailable
+			}
 			return ImportPortableAmbientCellResult.DeletedArchive
 		}
 		val footprintStates = mutableListOf<CellReplayFootprintState>()
 		footprintStates += dao.footprintState(
-				AmbientCellReplayFootprintEntity.KIND_ARCHIVE_SCOPE,
-				request.archive.archiveId,
-				0L,
-			)
+			AmbientCellReplayFootprintEntity.KIND_ARCHIVE_SCOPE, request.archive.archiveId, 0L,
+		)
 		request.archive.facts.forEach { fact ->
 			footprintStates += dao.footprintState(
-					AmbientCellReplayFootprintEntity.KIND_FACT_IDENTITY,
-					fact.identity,
-					fact.semanticRevision,
-				)
+				AmbientCellReplayFootprintEntity.KIND_FACT_IDENTITY, fact.identity, fact.semanticRevision,
+			)
 			footprintStates += dao.footprintState(
-					AmbientCellReplayFootprintEntity.KIND_FACT_EFFECT,
-					fact.effectChecksum,
-					0L,
-				)
+				AmbientCellReplayFootprintEntity.KIND_FACT_EFFECT, fact.effectChecksum, 0L,
+			)
 		}
 		request.archive.gaps.forEach { gap ->
 			footprintStates += dao.footprintState(
-					AmbientCellReplayFootprintEntity.KIND_GAP_IDENTITY,
-					gap.identity,
-					0L,
-				)
+				AmbientCellReplayFootprintEntity.KIND_GAP_IDENTITY, gap.identity, 0L,
+			)
 			footprintStates += dao.footprintState(
-					AmbientCellReplayFootprintEntity.KIND_GAP_EFFECT,
-					gap.effectChecksum,
-					0L,
-				)
+				AmbientCellReplayFootprintEntity.KIND_GAP_EFFECT, gap.effectChecksum, 0L,
+			)
 		}
 		if (CellReplayFootprintState.CORRUPT in footprintStates) {
 			return ImportPortableAmbientCellResult.StorageUnavailable
@@ -313,16 +430,36 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 		}
 		val priorReceipt = dao.importReceipt(request.receipt.jobId, request.receipt.entryKey)
 		if (priorReceipt != null) {
-			return if (
-				priorReceipt.archiveId == request.archive.archiveId &&
-				priorReceipt.archiveChecksum == request.archive.contentChecksum &&
-				priorReceipt.sourceName == request.receipt.sourceName &&
-				priorReceipt.receivedAtMs == request.receipt.receivedAtMs &&
-				priorReceipt.collectedDataEpoch == request.expectedCollectedDataEpoch
-			) {
-				ImportPortableAmbientCellResult.Duplicate
-			} else ImportPortableAmbientCellResult.ReceiptConflict
+			return priorReceipt.replayOutcome(request)
 		}
+		return null
+	}
+
+	private fun ImportedAmbientCellReceiptEntity.replayOutcome(
+		request: ImportPortableAmbientCellRequest,
+	): ImportPortableAmbientCellResult {
+		// One job/entry replay must match the complete saved archive and receipt tuple.
+		@Suppress("ComplexCondition")
+		return if (
+			archiveId == request.archive.archiveId &&
+			archiveChecksum == request.archive.contentChecksum &&
+			sourceName == request.receipt.sourceName &&
+			receivedAtMs == request.receipt.receivedAtMs &&
+			collectedDataEpoch == request.expectedCollectedDataEpoch
+		) {
+			ImportPortableAmbientCellResult.Duplicate
+		} else {
+			ImportPortableAmbientCellResult.ReceiptConflict
+		}
+	}
+
+	// Keep bound, epoch, revision and duplicate-conflict exits beside the ordered lineage comparisons.
+	@Suppress("ReturnCount")
+	private suspend fun factHistoryFailure(
+		request: ImportPortableAmbientCellRequest,
+		dao: AmbientCellFactDao,
+		duplicateRevisions: MutableSet<Pair<String, Long>>,
+	): ImportPortableAmbientCellResult? {
 		val histories = loadFactRevisions(
 			dao,
 			request.archive.facts.map { it.identity },
@@ -331,41 +468,74 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 			return ImportPortableAmbientCellResult.DependencyOverflow
 		}
 		val historiesByFact = histories.groupBy(ImportedAmbientCellFactEntity::factId)
-		val duplicateRevisions = mutableSetOf<Pair<String, Long>>()
 		for ((factId, lineage) in request.archive.facts.groupBy { it.identity }) {
 			val history = historiesByFact[factId].orEmpty()
-			if (history.any {
-					it.collectedDataEpoch != request.expectedCollectedDataEpoch
-				}
-			) return ImportPortableAmbientCellResult.StorageUnavailable
-			if (history.withIndex().any { (index, revision) ->
-					revision.semanticRevision != index.toLong() + 1L
-				}
-			) return ImportPortableAmbientCellResult.ReceiptConflict
-			var latestRevision = history.lastOrNull()?.semanticRevision ?: 0L
-			for (fact in lineage.sortedBy { it.semanticRevision }) {
-				val sameRevision = history.singleOrNull {
-					it.semanticRevision == fact.semanticRevision
-				}
-				if (sameRevision != null) {
-					if (sameRevision.contentChecksum != fact.contentChecksum ||
-						sameRevision.portableEffectChecksum != fact.effectChecksum
-					) return ImportPortableAmbientCellResult.ReceiptConflict
-					duplicateRevisions += fact.identity to fact.semanticRevision
-					continue
-				}
-				if (fact.semanticRevision != latestRevision + 1L ||
-					fact.supersedesSemanticRevision != latestRevision.takeIf { it > 0L }
-				) return ImportPortableAmbientCellResult.ReceiptConflict
-				latestRevision = fact.semanticRevision
-			}
+			factLineageFailure(lineage, history, request.expectedCollectedDataEpoch, duplicateRevisions)
+				?.let { return it }
 		}
+		return null
+	}
+
+	private fun factLineageFailure(
+		lineage: List<PortableAmbientCellFactV1>,
+		history: List<ImportedAmbientCellFactEntity>,
+		expectedCollectedDataEpoch: Long,
+		duplicateRevisions: MutableSet<Pair<String, Long>>,
+	): ImportPortableAmbientCellResult? {
+		if (history.any {
+				it.collectedDataEpoch != expectedCollectedDataEpoch
+			}
+		) {
+			return ImportPortableAmbientCellResult.StorageUnavailable
+		}
+		if (history.withIndex().any { (index, revision) ->
+				revision.semanticRevision != index.toLong() + 1L
+			}
+		) {
+			return ImportPortableAmbientCellResult.ReceiptConflict
+		}
+		return incomingFactRevisionFailure(lineage, history, duplicateRevisions)
+	}
+
+	private fun incomingFactRevisionFailure(
+		lineage: List<PortableAmbientCellFactV1>,
+		history: List<ImportedAmbientCellFactEntity>,
+		duplicateRevisions: MutableSet<Pair<String, Long>>,
+	): ImportPortableAmbientCellResult? {
+		var latestRevision = history.lastOrNull()?.semanticRevision ?: 0L
+		for (fact in lineage.sortedBy { it.semanticRevision }) {
+			val sameRevision = history.singleOrNull {
+				it.semanticRevision == fact.semanticRevision
+			}
+			if (sameRevision != null) {
+				if (sameRevision.contentChecksum != fact.contentChecksum ||
+					sameRevision.portableEffectChecksum != fact.effectChecksum
+				) {
+					return ImportPortableAmbientCellResult.ReceiptConflict
+				}
+				duplicateRevisions += fact.identity to fact.semanticRevision
+				continue
+			}
+			if (fact.semanticRevision != latestRevision + 1L ||
+				fact.supersedesSemanticRevision != latestRevision.takeIf { it > 0L }
+			) {
+				return ImportPortableAmbientCellResult.ReceiptConflict
+			}
+			latestRevision = fact.semanticRevision
+		}
+		return null
+	}
+
+	private suspend fun gapHistoryFailure(
+		request: ImportPortableAmbientCellRequest,
+		dao: AmbientCellFactDao,
+		duplicateGapIds: MutableSet<String>,
+	): ImportPortableAmbientCellResult? {
 		val storedGapIdentities = loadGaps(dao, request.archive.gaps.map { it.identity })
 		if (storedGapIdentities.size > AmbientCellPortableFormatV1.MAX_GAPS) {
 			return ImportPortableAmbientCellResult.DependencyOverflow
 		}
 		val storedGapsById = storedGapIdentities.associateBy { it.gapId }
-		val duplicateGapIds = mutableSetOf<String>()
 		for (gap in request.archive.gaps) {
 			val stored = storedGapsById[gap.identity] ?: continue
 			if (stored.contentChecksum != gap.contentChecksum ||
@@ -375,6 +545,15 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 			}
 			duplicateGapIds += gap.identity
 		}
+		return null
+	}
+
+	// One bounded archive comparison keeps fact/gap overflow and conflicting membership exits in order.
+	@Suppress("ReturnCount")
+	private suspend fun archiveMembershipFailure(
+		request: ImportPortableAmbientCellRequest,
+		dao: AmbientCellFactDao,
+	): ImportPortableAmbientCellResult? {
 		val existing = dao.importedForArchive(
 			request.archive.archiveId,
 			AmbientCellPortableFormatV1.MAX_FACTS + 1,
@@ -396,7 +575,9 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 						requested.effectChecksum == stored.portableEffectChecksum
 				} != true
 			}
-		) return ImportPortableAmbientCellResult.ReceiptConflict
+		) {
+			return ImportPortableAmbientCellResult.ReceiptConflict
+		}
 		val requestedGaps = request.archive.gaps.associateBy { it.identity }
 		if (existingGaps.any { stored ->
 				requestedGaps[stored.gapId]?.let { requested ->
@@ -407,50 +588,26 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 		) {
 			return ImportPortableAmbientCellResult.ReceiptConflict
 		}
+		return null
+	}
+
+	private suspend fun persistImport(
+		request: ImportPortableAmbientCellRequest,
+		dao: AmbientCellFactDao,
+		retention: AmbientCellRetentionAuthorityEntity,
+		duplicateRevisions: Set<Pair<String, Long>>,
+		duplicateGapIds: Set<String>,
+	): ImportPortableAmbientCellResult {
 		request.archive.facts.forEach { fact ->
-			if (fact.identity to fact.semanticRevision in duplicateRevisions) return@forEach
-			val technology = fact.technologyMix
-			val quality = fact.qualityDistribution
-			dao.insertImportedFact(
-				ImportedAmbientCellFactEntity(
-					archiveId = request.archive.archiveId,
-					factId = fact.identity,
-					semanticRevision = fact.semanticRevision,
-					supersedesSemanticRevision = fact.supersedesSemanticRevision,
-					contentChecksum = fact.contentChecksum,
-					portableEffectChecksum = fact.effectChecksum,
-					portableOrigin = fact.origin.name,
-					coverageStartTimeMs = fact.coverageStartTimeMs,
-					observedTimeMs = fact.observedTimeMs,
-					latestPossibleTimeMs = fact.latestPossibleTimeMs,
-					storedZoneId = fact.storedZoneId,
-					structuralEpochDay = fact.structuralEpochDay,
-					coverageCompleteness = fact.coverage.name,
-					subscriptionCompleteness = fact.subscriptionCompleteness.name,
-					observationCount = fact.observationCount,
-					registeredObservationCount = fact.registeredObservationCount,
-					gsmCount = technology.gsmCount,
-					cdmaCount = technology.cdmaCount,
-					wcdmaCount = technology.wcdmaCount,
-					tdscdmaCount = technology.tdscdmaCount,
-					lteCount = technology.lteCount,
-					nrCount = technology.nrCount,
-					qualityUnknownCount = quality.unknownCount,
-					qualityNoneOrUnknownCount = quality.noneOrUnknownCount,
-					qualityPoorCount = quality.poorCount,
-					qualityModerateCount = quality.moderateCount,
-					qualityGoodCount = quality.goodCount,
-					qualityGreatCount = quality.greatCount,
-					retentionPolicyId = retention.opaquePolicyId,
-					retentionApprovalRevision = retention.approvalRevision,
-					collectedDataEpoch = request.expectedCollectedDataEpoch,
-					importDeletionGeneration = 0L,
-					receivedAtMs = request.receipt.receivedAtMs,
-				),
-			)
+			if (fact.identity to fact.semanticRevision in duplicateRevisions) {
+				return@forEach
+			}
+			dao.insertImportedFact(importedFact(fact, request, retention))
 		}
 		request.archive.gaps.forEach { gap ->
-			if (gap.identity in duplicateGapIds) return@forEach
+			if (gap.identity in duplicateGapIds) {
+				return@forEach
+			}
 			dao.insertImportedGap(
 				ImportedAmbientCellGapEntity(
 					request.archive.archiveId,
@@ -484,45 +641,92 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 		}
 	}
 
-	private fun ImportPortableAmbientCellRequest.toReceipt() =
-		ImportedAmbientCellReceiptEntity(
-			receipt.jobId,
-			receipt.entryKey,
-			receipt.sourceName,
-			archive.archiveId,
-			archive.contentChecksum,
-			expectedCollectedDataEpoch,
-			receipt.receivedAtMs,
-		)
+}
 
-	private suspend fun loadFactRevisions(
-		dao: AmbientCellFactDao,
-		factIds: List<String>,
-	): List<ImportedAmbientCellFactEntity> = buildList {
-		factIds.distinct().chunked(SQLITE_ID_CHUNK_SIZE).forEach { chunk ->
-			addAll(dao.importedFactRevisions(chunk, MAX_IMPORTED_CELL_REVISIONS + 1 - size))
-			if (size > MAX_IMPORTED_CELL_REVISIONS) return@buildList
+private fun importedFact(
+	fact: PortableAmbientCellFactV1,
+	request: ImportPortableAmbientCellRequest,
+	retention: AmbientCellRetentionAuthorityEntity,
+): ImportedAmbientCellFactEntity {
+	val technology = fact.technologyMix
+	val quality = fact.qualityDistribution
+	return ImportedAmbientCellFactEntity(
+		archiveId = request.archive.archiveId,
+		factId = fact.identity,
+		semanticRevision = fact.semanticRevision,
+		supersedesSemanticRevision = fact.supersedesSemanticRevision,
+		contentChecksum = fact.contentChecksum,
+		portableEffectChecksum = fact.effectChecksum,
+		portableOrigin = fact.origin.name,
+		coverageStartTimeMs = fact.coverageStartTimeMs,
+		observedTimeMs = fact.observedTimeMs,
+		latestPossibleTimeMs = fact.latestPossibleTimeMs,
+		storedZoneId = fact.storedZoneId,
+		structuralEpochDay = fact.structuralEpochDay,
+		coverageCompleteness = fact.coverage.name,
+		subscriptionCompleteness = fact.subscriptionCompleteness.name,
+		observationCount = fact.observationCount,
+		registeredObservationCount = fact.registeredObservationCount,
+		gsmCount = technology.gsmCount,
+		cdmaCount = technology.cdmaCount,
+		wcdmaCount = technology.wcdmaCount,
+		tdscdmaCount = technology.tdscdmaCount,
+		lteCount = technology.lteCount,
+		nrCount = technology.nrCount,
+		qualityUnknownCount = quality.unknownCount,
+		qualityNoneOrUnknownCount = quality.noneOrUnknownCount,
+		qualityPoorCount = quality.poorCount,
+		qualityModerateCount = quality.moderateCount,
+		qualityGoodCount = quality.goodCount,
+		qualityGreatCount = quality.greatCount,
+		retentionPolicyId = retention.opaquePolicyId,
+		retentionApprovalRevision = retention.approvalRevision,
+		collectedDataEpoch = request.expectedCollectedDataEpoch,
+		importDeletionGeneration = 0L,
+		receivedAtMs = request.receipt.receivedAtMs,
+	)
+}
+
+private suspend fun loadGaps(
+	dao: AmbientCellFactDao,
+	gapIds: List<String>,
+): List<ImportedAmbientCellGapEntity> = buildList {
+	gapIds.distinct().chunked(SQLITE_ID_CHUNK_SIZE).forEach { chunk ->
+		addAll(dao.importedGapsByIds(
+			chunk,
+			AmbientCellPortableFormatV1.MAX_GAPS + 1 - size,
+		))
+		if (size > AmbientCellPortableFormatV1.MAX_GAPS) {
+			return@buildList
 		}
-	}
-
-	private suspend fun loadGaps(
-		dao: AmbientCellFactDao,
-		gapIds: List<String>,
-	): List<ImportedAmbientCellGapEntity> = buildList {
-		gapIds.distinct().chunked(SQLITE_ID_CHUNK_SIZE).forEach { chunk ->
-			addAll(dao.importedGapsByIds(
-				chunk,
-				AmbientCellPortableFormatV1.MAX_GAPS + 1 - size,
-			))
-			if (size > AmbientCellPortableFormatV1.MAX_GAPS) return@buildList
-		}
-	}
-
-	private companion object {
-		const val MAX_IMPORTED_CELL_REVISIONS = 65_536
-		const val SQLITE_ID_CHUNK_SIZE = 400
 	}
 }
+
+private fun ImportPortableAmbientCellRequest.toReceipt() =
+	ImportedAmbientCellReceiptEntity(
+		receipt.jobId,
+		receipt.entryKey,
+		receipt.sourceName,
+		archive.archiveId,
+		archive.contentChecksum,
+		expectedCollectedDataEpoch,
+		receipt.receivedAtMs,
+	)
+
+private suspend fun loadFactRevisions(
+	dao: AmbientCellFactDao,
+	factIds: List<String>,
+): List<ImportedAmbientCellFactEntity> = buildList {
+	factIds.distinct().chunked(SQLITE_ID_CHUNK_SIZE).forEach { chunk ->
+		addAll(dao.importedFactRevisions(chunk, MAX_IMPORTED_CELL_REVISIONS + 1 - size))
+		if (size > MAX_IMPORTED_CELL_REVISIONS) {
+			return@buildList
+		}
+	}
+}
+
+private const val MAX_IMPORTED_CELL_REVISIONS = 65_536
+private const val SQLITE_ID_CHUNK_SIZE = 400
 
 private suspend fun AmbientCellFactDao.footprintState(
 	kind: String,
@@ -591,3 +795,7 @@ private fun ImportedAmbientCellGapEntity.toPortableGap() = PortableAmbientCellGa
 	storedZoneId,
 	reason,
 )
+
+private const val MAX_SELECTED_ARCHIVES = 4_096
+
+private const val MAX_IMPORT_RECEIPTS_PER_ARCHIVE = 4_096

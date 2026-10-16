@@ -1,6 +1,10 @@
 package com.adsamcik.tracker.tracker.source.ambient.steps
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.content.ContextCompat
 import com.google.android.gms.fitness.FitnessLocal
 import com.google.android.gms.fitness.data.LocalDataType
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -52,9 +56,19 @@ internal class LocalRecordingAmbientStepsProviderBackend internal constructor(
 		@ApplicationContext context: Context,
 	) : this(
 		subscribe = {
-			FitnessLocal.getLocalRecordingClient(context)
-				.subscribe(LocalDataType.TYPE_STEP_COUNT_DELTA)
-				.await()
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+				ContextCompat.checkSelfPermission(context, Manifest.permission.ACTIVITY_RECOGNITION) !=
+				PackageManager.PERMISSION_GRANTED
+			) {
+				throw SecurityException("Local Recording Steps permission is unavailable")
+			}
+			try {
+				FitnessLocal.getLocalRecordingClient(context)
+					.subscribe(LocalDataType.TYPE_STEP_COUNT_DELTA)
+					.await()
+			} catch (denied: SecurityException) {
+				throw SecurityException("Local Recording Steps permission was revoked", denied)
+			}
 		},
 		unsubscribe = {
 			FitnessLocal.getLocalRecordingClient(context)

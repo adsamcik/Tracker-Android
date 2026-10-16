@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.deletion
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryTotals
 import com.adsamcik.tracker.shared.base.database.dao.ScopedStepFactState
+import com.adsamcik.tracker.shared.base.database.dao.StepsFactCandidateState
 import com.adsamcik.tracker.shared.base.database.dao.TrackingHistoryReadDao
 import com.adsamcik.tracker.shared.base.database.dao.hasValidStepsFactCandidateState
 import com.adsamcik.tracker.shared.base.database.dao.visitStepsFactCandidateStatesByRun
@@ -101,9 +102,11 @@ internal class StepsDailySummaryRepairComposer(
 		val sortedDays = epochDays.distinct().sorted()
 		val sortedDaySet = sortedDays.toSet()
 		if (sortedDays.isEmpty() || dailySummaries.any { it.dateEpochDay !in sortedDaySet } ||
-			dailySummaries.map(DailySummaryEntity::dateEpochDay).distinct().size != dailySummaries.size ||
-			excludedSegmentIds.isEmpty() || excludedSegmentIds.any { segmentId -> segmentId <= 0L }
+			dailySummaries.map(DailySummaryEntity::dateEpochDay).distinct().size != dailySummaries.size
 		) {
+			return unverifiable()
+		}
+		if (excludedSegmentIds.isEmpty() || excludedSegmentIds.any { segmentId -> segmentId <= 0L }) {
 			return unverifiable()
 		}
 		val zoneByDay = linkedMapOf<Long, ZoneId>()
@@ -226,7 +229,9 @@ internal class StepsDailySummaryRepairComposer(
 		lastEpochDayInclusive: Long,
 		retainedFromMs: Long?,
 	): StepsRetainedDayAuthorityDiscovery {
-		if (retainedFromMs?.let { it < 0L } == true) return StepsRetainedDayAuthorityDiscovery.Unverifiable
+		if (retainedFromMs?.let { it < 0L } == true) {
+			return StepsRetainedDayAuthorityDiscovery.Unverifiable
+		}
 		val span = try {
 			Math.subtractExact(lastEpochDayInclusive, firstEpochDay)
 		} catch (_: ArithmeticException) {
@@ -275,7 +280,9 @@ internal class StepsDailySummaryRepairComposer(
 			if (manifestBatch.size > MAX_MANIFESTS_PER_QUERY_BATCH ||
 				sourceBatch.size > MAX_SOURCES_PER_QUERY_BATCH ||
 				completenessBatch.size > MAX_COMPLETENESS_PER_QUERY_BATCH
-			) return StepsRetainedDayAuthorityDiscovery.Unverifiable
+			) {
+				return StepsRetainedDayAuthorityDiscovery.Unverifiable
+			}
 			manifests += manifestBatch
 			sources += sourceBatch
 			completeness += completenessBatch
@@ -299,7 +306,9 @@ internal class StepsDailySummaryRepairComposer(
 					sourcesByManifest[ManifestKey(manifest.logicalTrackingId, manifest.manifestRevision)]
 						.orEmpty().any { source -> source.isPersistedSessionSteps() }
 				}
-			if (!hasCandidateEvidence) continue
+			if (!hasCandidateEvidence) {
+				continue
+			}
 			if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, ordered)) {
 				return StepsRetainedDayAuthorityDiscovery.Unverifiable
 			}
@@ -331,7 +340,9 @@ internal class StepsDailySummaryRepairComposer(
 						lastEpochDayInclusive = lastEpochDayInclusive,
 						retainedFromMs = retainedFromMs,
 						zoneByDay = zoneByDay,
-					)) return StepsRetainedDayAuthorityDiscovery.Unverifiable
+					)) {
+						return StepsRetainedDayAuthorityDiscovery.Unverifiable
+					}
 				}
 			}
 		}
@@ -361,11 +372,15 @@ internal class StepsDailySummaryRepairComposer(
 						retainedFromMs = retainedFromMs,
 						zoneByDay = zoneByDay,
 					)
-				if (!valid) validFacts = false
+				if (!valid) {
+					validFacts = false
+				}
 				valid
 			}
 		}
-		if (!visited || !validFacts) return StepsRetainedDayAuthorityDiscovery.Unverifiable
+		if (!visited || !validFacts) {
+			return StepsRetainedDayAuthorityDiscovery.Unverifiable
+		}
 		return StepsRetainedDayAuthorityDiscovery.Ready(zoneByDay)
 	}
 
@@ -467,7 +482,8 @@ internal class StepsDailySummaryRepairComposer(
 			accumulator, excludedSegmentIds,
 		) ?: return unverifiable()
 		val discoveredSourceRuns = if (discoverSourceRuns) {
-			(allSourceRunCandidates(queryBounds, factRunIds - imported.runIds) ?: return unverifiable()).filterNot { run ->
+			(allSourceRunCandidates(queryBounds, factRunIds - imported.runIds) ?:
+                return unverifiable()).filterNot { run ->
 				run.sessionSegmentId in excludedSegmentIds
 			}
 		} else {
@@ -499,7 +515,8 @@ internal class StepsDailySummaryRepairComposer(
 			return unverifiable()
 		}
 		val importedSegments = imported.segments.filterNot { it.id in excludedSegmentIds }
-		val segments = (presentationSegments.filterNot { it.source == SegmentSource.PORTABLE_STEPS_IMPORT } + sourceOwnedSegments)
+		val segments =
+            (presentationSegments.filterNot { it.source == SegmentSource.PORTABLE_STEPS_IMPORT } + sourceOwnedSegments)
 			.distinctBy(SessionSegment::id)
 			.sortedWith(compareBy<SessionSegment>(SessionSegment::startTimeMs).thenBy(SessionSegment::id))
 		if (segments.isEmpty() && unboundRuns.isEmpty() && importedSegments.isEmpty()) {
@@ -616,7 +633,9 @@ internal class StepsDailySummaryRepairComposer(
 		val materializingEpochDays = if (hasMaterializingSegment) {
 			discoverMaterializingDisplayDays(materializingRuns.values.toList(), zoneByDay, queryBounds)
 				?: return unverifiable()
-		} else emptySet()
+		} else {
+			emptySet()
+		}
 		val accumulatedDays = accumulator.results() ?: return unverifiable()
 		return StepsDayRepairPreflight.Ready(
 			accumulatedDays.map { day ->
@@ -665,63 +684,106 @@ internal class StepsDailySummaryRepairComposer(
 		}
 		val orderedWindows = windows.entries.sortedBy { it.value.fromMs }
 		val affected = linkedSetOf<Long>()
-		fun addWindow(startMs: Long, endMs: Long): Boolean {
-			if (endMs < startMs) return false
-			if (affected.size == windows.size) return true
-			var low = 0
-			var high = orderedWindows.size
-			while (low < high) {
-				val middle = (low + high) / 2
-				if (orderedWindows[middle].value.toMs <= startMs) low = middle + 1 else high = middle
-			}
-			for (index in low until orderedWindows.size) {
-				val (day, bounds) = orderedWindows[index]
-				if (if (endMs == startMs) bounds.fromMs > startMs else bounds.fromMs >= endMs) break
-				affected += day
-			}
-			return true
-		}
 		for (run in runs) {
 			val completedAtMs = run.completedAtMs
 			if (completedAtMs != null) {
-				if (!addWindow(run.startedAtMs, completedAtMs)) return null
+				if (!affected.addMaterializingDisplayWindow(run.startedAtMs, completedAtMs, orderedWindows)) {
+					return null
+				}
 			} else if (run.startedAtMs < queryBounds.toMs) {
-				if (!addWindow(run.startedAtMs, queryBounds.toMs)) return null
+				if (!affected.addMaterializingDisplayWindow(run.startedAtMs, queryBounds.toMs, orderedWindows)) {
+					return null
+				}
 			}
 			// A known run outside this requested window can still own wall-regressed facts below.
 		}
 		var valid = true
-		val visited = database.trackingHistoryReadDao().visitStepsFactCandidateStatesByRun(runs) { runId, _, candidate ->
-			val scope = candidate.scopeCarrier
-			val state = candidate.state
-			if (!hasValidStepsFactCandidateState(candidate) || scope == null || state == null || scope.serviceRunId != runId) {
-				valid = false
-				false
-			} else if (state.operation != StepFactRevisionEntity.OPERATION_UPSERT) {
-				true
+		val visited = database.trackingHistoryReadDao()
+			.visitStepsFactCandidateStatesByRun(runs) { runId, _, candidate ->
+				valid = affected.addMaterializingFactDisplayWindow(runId, candidate, windows.keys, orderedWindows)
+				valid
+			}
+		return affected.takeIf { visited && valid }
+	}
+
+	private fun MutableSet<Long>.addMaterializingFactDisplayWindow(
+		runId: String,
+		candidate: StepsFactCandidateState,
+		windowDays: Set<Long>,
+		orderedWindows: List<Map.Entry<Long, StepsNumericReadQueryBounds>>,
+	): Boolean {
+		val scope = candidate.scopeCarrier
+		val state = candidate.state
+		if (!hasValidStepsFactCandidateState(candidate) || scope == null || state == null ||
+			scope.serviceRunId != runId
+		) {
+			return false
+		}
+		return state.operation != StepFactRevisionEntity.OPERATION_UPSERT ||
+			addMaterializingFactEnvelope(scope, windowDays, orderedWindows)
+	}
+
+	private fun MutableSet<Long>.addMaterializingFactEnvelope(
+		scope: StepFactRevisionEntity,
+		windowDays: Set<Long>,
+		orderedWindows: List<Map.Entry<Long, StepsNumericReadQueryBounds>>,
+	): Boolean {
+		val start = scope.intervalStartTimeMs
+		val end = scope.intervalEndTimeMs
+		val uncertainty = scope.wallTimeUncertaintyMs
+		if (start == null || end == null || uncertainty == null) {
+			addAll(windowDays)
+			return true
+		}
+		if (uncertainty < 0L || end < start) {
+			return false
+		}
+		val envelope = try {
+			Math.subtractExact(start, uncertainty) to Math.addExact(end, uncertainty)
+		} catch (_: ArithmeticException) {
+			null
+		}
+		return if (envelope == null) {
+			addAll(windowDays)
+			true
+		} else {
+			addMaterializingDisplayWindow(envelope.first, envelope.second, orderedWindows)
+		}
+	}
+
+	private fun MutableSet<Long>.addMaterializingDisplayWindow(
+		startMs: Long,
+		endMs: Long,
+		orderedWindows: List<Map.Entry<Long, StepsNumericReadQueryBounds>>,
+	): Boolean {
+		if (endMs < startMs) {
+			return false
+		}
+		if (size == orderedWindows.size) {
+			return true
+		}
+		var low = 0
+		var high = orderedWindows.size
+		while (low < high) {
+			val middle = (low + high) / 2
+			if (orderedWindows[middle].value.toMs <= startMs) {
+				low = middle + 1
 			} else {
-				val start = scope.intervalStartTimeMs
-				val end = scope.intervalEndTimeMs
-				val uncertainty = scope.wallTimeUncertaintyMs
-				if (start == null || end == null || uncertainty == null) {
-					affected += windows.keys
-					true
-				} else if (uncertainty < 0L || end < start) {
-					valid = false
-					false
-				} else {
-					val envelope = try {
-						Math.subtractExact(start, uncertainty) to Math.addExact(end, uncertainty)
-					} catch (_: ArithmeticException) {
-						null
-					}
-					if (envelope == null) affected += windows.keys
-					else valid = addWindow(envelope.first, envelope.second)
-					valid
-				}
+				high = middle
 			}
 		}
-		return affected.takeIf { visited && valid }
+		for (index in low until orderedWindows.size) {
+			val (day, bounds) = orderedWindows[index]
+			if (if (endMs == startMs) {
+				bounds.fromMs > startMs
+			} else {
+				bounds.fromMs >= endMs
+			}) {
+				break
+			}
+			add(day)
+		}
+		return true
 	}
 
 	private suspend fun sourceRepairSegments(
@@ -751,7 +813,9 @@ internal class StepsDailySummaryRepairComposer(
 				return null
 			}
 			rawRowCount += page.size
-			if (rawRowCount > MAX_SOURCE_METADATA_ROWS) return null
+			if (rawRowCount > MAX_SOURCE_METADATA_ROWS) {
+				return null
+			}
 			rows += page.filterNot { segment -> segment.id in excludedSegmentIds }
 			previousRaw = page.lastOrNull() ?: previousRaw
 			afterStartTimeMs = page.lastOrNull()?.startTimeMs
@@ -784,7 +848,9 @@ internal class StepsDailySummaryRepairComposer(
 				return null
 			}
 			rows += page
-			if (rows.size > MAX_SOURCE_METADATA_ROWS) return null
+			if (rows.size > MAX_SOURCE_METADATA_ROWS) {
+				return null
+			}
 			afterStartedAtMs = page.lastOrNull()?.startedAtMs
 			afterServiceRunId = page.lastOrNull()?.serviceRunId
 			pageSize = page.size
@@ -816,7 +882,9 @@ internal class StepsDailySummaryRepairComposer(
 					return null
 				}
 			}
-			if (runsById.size > MAX_SOURCE_METADATA_ROWS) return null
+			if (runsById.size > MAX_SOURCE_METADATA_ROWS) {
+				return null
+			}
 		}
 		return runsById.values.toList()
 	}
@@ -840,7 +908,9 @@ internal class StepsDailySummaryRepairComposer(
 				return null
 			}
 			rows += page
-			if (rows.size > MAX_SOURCE_METADATA_ROWS) return null
+			if (rows.size > MAX_SOURCE_METADATA_ROWS) {
+				return null
+			}
 			afterServiceRunId = page.lastOrNull()
 			pageSize = page.size
 		} while (pageSize == READ_PAGE_SIZE)
@@ -1421,7 +1491,9 @@ internal class StepsDailySummaryRepairComposer(
 	): Boolean {
 		if (!retainedRead &&
 			snapshot.evidenceState?.retainedFromMs?.let { retained -> run.startedAtMs < retained } == true
-		) return false
+		) {
+			return false
+		}
 		if (!validUnboundMaterializingLifecycle(logicalSession, run)) {
 			return false
 		}

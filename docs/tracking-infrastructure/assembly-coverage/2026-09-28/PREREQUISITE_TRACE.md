@@ -1,5 +1,8 @@
 # Assembly coverage trace — 2026-09-28
 
+> Historical September28 snapshot. The [October16 source assembly freeze](../../convergence/2026-10-16/ASSEMBLY_FREEZE.md) supersedes the missing-implementation verdict below and links the current independent all-25 trace. Host/device acceptance is recorded separately; this historical evidence is preserved.
+
+
 **IMPLEMENTATION_ONLY.** This is a static check of the twenty-five dependencies of
 `WI-ASSEMBLY-GATE-001` in `WORK_ITEMS.json`, against the current candidate and its authored
 test source. The registry is a historical scope list, not a live verdict. No test has been

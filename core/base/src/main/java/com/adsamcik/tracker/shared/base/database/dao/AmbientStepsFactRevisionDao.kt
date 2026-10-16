@@ -9,6 +9,10 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEn
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsNativeReplayFootprintEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
 
+/**
+ * Saved civil-day identity and exact UTC bounds, plus the latest measured provider window end for
+ * paging.
+ */
 data class AmbientStepsStructuralDayRow(
 	@ColumnInfo(name = "structural_epoch_day") val structuralEpochDay: Long,
 	@ColumnInfo(name = "stored_zone_id") val storedZoneId: String,
@@ -20,11 +24,20 @@ data class AmbientStepsStructuralDayRow(
 /** Narrow append-only storage boundary for system-provider Ambient Steps aggregates. */
 @Dao
 interface AmbientStepsFactRevisionDao {
+	/**
+	 * Inserts [AmbientStepsNativeReplayFootprintEntity] rows. Conflicting primary or unique keys
+	 * replace the saved row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.REPLACE)
 	suspend fun replaceNativeReplayFootprints(
 		values: List<AmbientStepsNativeReplayFootprintEntity>,
 	)
 
+	/**
+	 * Reads `ambient_steps_native_replay_footprint` rows. Query conditions include
+	 * `protected_identity IN (:identities)`. Orders by `protected_identity`. Returns at most `limit`
+	 * rows.
+	 */
 	@Query(
 		"SELECT * FROM ambient_steps_native_replay_footprint " +
 			"WHERE protected_identity IN (:identities) ORDER BY protected_identity LIMIT :limit",
@@ -34,24 +47,43 @@ interface AmbientStepsFactRevisionDao {
 		limit: Int,
 	): List<AmbientStepsNativeReplayFootprintEntity>
 
+	/**
+	 * Reads `ambient_steps_native_replay_footprint` rows. Orders by `protected_identity`. Returns at
+	 * most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM ambient_steps_native_replay_footprint " +
 			"ORDER BY protected_identity LIMIT :limit",
 	)
 	suspend fun nativeReplayFootprintPage(limit: Int): List<AmbientStepsNativeReplayFootprintEntity>
 
+	/**
+	 * Counts rows in `ambient_steps_native_replay_footprint`.
+	 */
 	@Query("SELECT COUNT(*) FROM ambient_steps_native_replay_footprint")
 	suspend fun nativeReplayFootprintCount(): Long
 
+	/**
+	 * Inserts [AmbientStepsRetentionAuthorityEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertRetentionAuthority(entity: AmbientStepsRetentionAuthorityEntity)
 
+	/**
+	 * Reads `ambient_steps_retention_authority` rows. Query conditions include `scope = :scope`.
+	 * Orders by `approval_revision DESC`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM ambient_steps_retention_authority WHERE scope = :scope " +
 			"ORDER BY approval_revision DESC LIMIT 1",
 	)
 	suspend fun latestRetentionAuthority(scope: String): AmbientStepsRetentionAuthorityEntity?
 
+	/**
+	 * Reads `ambient_steps_retention_authority` rows. Query conditions include `scope = :scope`,
+	 * `opaque_policy_id = :opaquePolicyId`, `approval_revision = :approvalRevision`. Returns at most
+	 * 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM ambient_steps_retention_authority WHERE scope = :scope " +
 			"AND opaque_policy_id = :opaquePolicyId AND approval_revision = :approvalRevision " +
@@ -63,12 +95,22 @@ interface AmbientStepsFactRevisionDao {
 		approvalRevision: Long,
 	): AmbientStepsRetentionAuthorityEntity?
 
+	/**
+	 * Reads `ambient_steps_retention_authority` rows. Query conditions include `scope = :scope`.
+	 * Orders by `approval_revision DESC`.
+	 */
 	@Query(
 		"SELECT * FROM ambient_steps_retention_authority WHERE scope = :scope " +
 			"ORDER BY approval_revision DESC",
 	)
 	suspend fun retentionAuthorities(scope: String): List<AmbientStepsRetentionAuthorityEntity>
 
+	/**
+	 * Reads `ambient_steps_retention_authority` rows. Query conditions include `scope = :scope`,
+	 * `effective_boot_id = :bootId`, `effective_elapsed_realtime_nanos <=
+	 * :observedElapsedRealtimeNanos`. Orders by `effective_elapsed_realtime_nanos DESC,
+	 * approval_revision DESC`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM ambient_steps_retention_authority WHERE scope = :scope " +
 			"AND effective_boot_id = :bootId " +
@@ -81,15 +123,28 @@ interface AmbientStepsFactRevisionDao {
 		observedElapsedRealtimeNanos: Long,
 	): AmbientStepsRetentionAuthorityEntity?
 
+	/**
+	 * Returns the greatest `approval_revision` in `ambient_steps_retention_authority`. Query
+	 * conditions include `scope = :scope`. Returns 0 when no saved value exists.
+	 */
 	@Query(
 		"SELECT COALESCE(MAX(approval_revision), 0) FROM ambient_steps_retention_authority " +
 			"WHERE scope = :scope",
 	)
 	suspend fun maximumRetentionApprovalRevision(scope: String): Long
 
+	/**
+	 * Inserts [AmbientStepsFactRevisionEntity] rows. Existing conflicting rows remain unchanged. An
+	 * ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insert(entity: AmbientStepsFactRevisionEntity): Long
 
+	/**
+	 * Reads `ambient_steps_fact_revision` rows. Query conditions include `writer_id = :writerId`,
+	 * `writer_version = :writerVersion`, `logical_fact_id = :logicalFactId`. Orders by
+	 * `semantic_revision DESC`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM ambient_steps_fact_revision WHERE writer_id = :writerId " +
 			"AND writer_version = :writerVersion AND logical_fact_id = :logicalFactId " +
@@ -101,6 +156,11 @@ interface AmbientStepsFactRevisionDao {
 		logicalFactId: String,
 	): AmbientStepsFactRevisionEntity?
 
+	/**
+	 * Reads `ambient_steps_fact_revision` rows. Query conditions include `writer_id = :writerId`,
+	 * `writer_version = :writerVersion`, `logical_fact_id = :logicalFactId`. Orders by
+	 * `semantic_revision ASC`.
+	 */
 	@Query(
 		"SELECT * FROM ambient_steps_fact_revision WHERE writer_id = :writerId " +
 			"AND writer_version = :writerVersion AND logical_fact_id = :logicalFactId " +
@@ -272,6 +332,12 @@ interface AmbientStepsFactRevisionDao {
 		limit: Int,
 	): List<AmbientStepsStructuralDayRow>
 
+	/**
+	 * Reads `ambient_steps_fact_revision` rows. Query conditions include `fact.writer_id =
+	 * :writerId`, `fact.writer_version = :writerVersion`, `fact.operation =
+	 * '${AmbientStepsFactRevisionEntity.OPERATION_UPSERT}'`. Orders by `structural_epoch_day,
+	 * stored_zone_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"WITH effective_fact AS (SELECT fact.* FROM ambient_steps_fact_revision AS fact " +
 			"WHERE fact.writer_id = :writerId AND fact.writer_version = :writerVersion " +
@@ -350,9 +416,16 @@ interface AmbientStepsFactRevisionDao {
 		limit: Int,
 	): List<AmbientStepsFactRevisionEntity>
 
+	/**
+	 * Counts rows in `ambient_steps_fact_revision`.
+	 */
 	@Query("SELECT COUNT(*) FROM ambient_steps_fact_revision")
 	suspend fun countAll(): Long
 
+	/**
+	 * Counts rows in `ambient_steps_fact_revision`. Query conditions include `operation =
+	 * '${AmbientStepsFactRevisionEntity.OPERATION_UPSERT}'`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM ambient_steps_fact_revision WHERE " +
 			"operation = '${AmbientStepsFactRevisionEntity.OPERATION_UPSERT}'",
@@ -377,6 +450,9 @@ interface AmbientStepsFactRevisionDao {
 	@Query("DELETE FROM ambient_steps_fact_revision")
 	fun deleteAll()
 
+	/**
+	 * Deletes `ambient_steps_retention_authority` rows.
+	 */
 	@Query("DELETE FROM ambient_steps_retention_authority")
 	fun deleteAllRetentionAuthorities()
 }

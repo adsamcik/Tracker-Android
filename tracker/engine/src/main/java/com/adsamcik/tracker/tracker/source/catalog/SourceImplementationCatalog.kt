@@ -17,7 +17,14 @@ internal fun interface SourceAcquisitionRevisionFactory {
 	): AcquisitionPlanRevision
 }
 
+/**
+ * Builds a complete immutable acquisition revision from accepted settings and the current environment.
+ */
 fun interface SourceAcquisitionPlanFactory {
+	/**
+	 * Builds plans for the supplied revision and UTC creation time in milliseconds; it does not register
+	 * providers.
+	 */
 	fun create(
 		settings: TrackingParamsState,
 		revision: Long,
@@ -26,10 +33,18 @@ fun interface SourceAcquisitionPlanFactory {
 	): AcquisitionPlanRevision
 }
 
+/**
+ * Selects one source’s plan from the shared acquisition revision so all sources use the same policy
+ * inputs.
+ */
 class SourceAcquisitionPlanProvider internal constructor(
 	private val source: SourceKind,
 	private val revisionFactory: SourceAcquisitionRevisionFactory,
 ) {
+	/**
+	 * Builds plans for the supplied revision and UTC creation time in milliseconds; it does not register
+	 * providers.
+	 */
 	fun create(
 		settings: TrackingParamsState,
 		revision: Long,
@@ -43,6 +58,10 @@ class SourceAcquisitionPlanProvider internal constructor(
 	).plans.getValue(source)
 }
 
+/**
+ * Catalog entry linking one canonical source to its runtime kind, plan builder and purpose-specific
+ * products.
+ */
 data class SourceImplementation(
 	val source: TrackingSource,
 	val runtimeSource: SourceKind,
@@ -57,6 +76,7 @@ data class SourceImplementation(
 		})
 	}
 
+	/** Looks up the declared source-purpose contract; lookup creates no collection demand. */
 	fun binding(purpose: TrackingPurpose): SourcePurposeBinding =
 		purposeBindings.getValue(purpose)
 }
@@ -70,24 +90,33 @@ interface SourceImplementationCatalog : SourceAcquisitionPlanFactory {
 	val implementations: Set<SourceImplementation>
 	val bindings: Set<SourcePurposeBinding>
 
+	/** Looks up the canonical source’s plan and purpose contracts without activating any runtime. */
 	fun implementation(source: TrackingSource): SourceImplementation
 
+	/** Looks up the canonical source’s plan and purpose contracts without activating any runtime. */
 	fun implementation(source: SourceKind): SourceImplementation =
 		implementation(source.toCanonicalTrackingSource())
 
+	/** Looks up the declared source-purpose contract; lookup creates no collection demand. */
 	fun binding(
 		source: TrackingSource,
 		purpose: TrackingPurpose,
 	): SourcePurposeBinding = implementation(source).binding(purpose)
 
+	/** Looks up the declared source-purpose contract; lookup creates no collection demand. */
 	fun binding(
 		source: SourceKind,
 		purpose: TrackingPurpose,
 	): SourcePurposeBinding = implementation(source).binding(purpose)
 
+	/** Looks up the declared source-purpose contract; lookup creates no collection demand. */
 	fun binding(key: SourcePurposeKey): SourcePurposeBinding =
 		binding(key.source, key.purpose)
 
+	/**
+	 * Reads capability for a supported source-purpose pair, or reports that the catalog does not support
+	 * it.
+	 */
 	suspend fun availability(request: SourceAvailabilityRequest): SourceCatalogAvailability =
 		when (val binding = binding(request.source, request.purpose)) {
 			is SourcePurposeBinding.Executable -> SourceCatalogAvailability.Executable(

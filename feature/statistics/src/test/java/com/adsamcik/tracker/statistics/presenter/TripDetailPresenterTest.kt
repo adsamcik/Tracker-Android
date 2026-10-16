@@ -643,7 +643,11 @@ class TripDetailPresenterTest {
 	) = StepsHistory(
 		count = count,
 		availability = availability,
-		evidence = if (count == 0L) HistoryEvidence.ACTIVE else HistoryEvidence.RECORDED,
+		evidence = if (count == 0L) {
+			HistoryEvidence.ACTIVE
+		} else {
+			HistoryEvidence.RECORDED
+		},
 		productState = HistoryProductState.READY,
 		coverage = StepsHistoryCoverage.COMPLETE,
 	)
@@ -660,7 +664,11 @@ class TripDetailPresenterTest {
 	private fun legacyUnverifiableSteps(count: Long?) = StepsHistory(
 		count = count,
 		availability = HistoryAvailability.UNAVAILABLE,
-		evidence = if (count == null) HistoryEvidence.NONE else HistoryEvidence.RECORDED,
+		evidence = if (count == null) {
+			HistoryEvidence.NONE
+		} else {
+			HistoryEvidence.RECORDED
+		},
 		productState = HistoryProductState.DEGRADED,
 		coverage = StepsHistoryCoverage.UNKNOWN,
 		causes = setOf(

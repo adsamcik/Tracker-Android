@@ -4,9 +4,11 @@ import android.app.Application
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.data.LengthUnit
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
 import com.adsamcik.tracker.shared.base.database.dao.LocationPurposeDao
 import com.adsamcik.tracker.shared.base.database.data.*
 import com.adsamcik.tracker.shared.model.AltitudeDatum
@@ -39,7 +41,7 @@ class SavedLocationSummaryReaderRoomTest {
     private lateinit var reader: SavedLocationSummaryReader
     private var ordinal = 0L
 
-    @Before fun setup() = runBlocking {
+    @Before fun setup(): Unit = runBlocking {
         database = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>())
         database.sourceEvidenceStateDao().ensure()
         database.sourcePolicyDao().insertPolicies(listOf(policy()))
@@ -52,7 +54,7 @@ class SavedLocationSummaryReaderRoomTest {
     }
     @After fun close() = database.close()
 
-    @Test fun `saved session totals survive quality End and retry generations with original point identities`() = runBlocking {
+    @Test fun `saved session totals survive quality End and retry generations with original point identities`(): Unit = runBlocking {
         val selected = session("historical")
         val first = point(2_000, 0, 1, capture = selected)
         val second = point(3_000, 100_000, 2, capture = selected)
@@ -71,7 +73,7 @@ class SavedLocationSummaryReaderRoomTest {
     }
 
 
-    @Test fun `non-finite distance preserves saved points without an average or resumable prefix`() = runBlocking {
+    @Test fun `non-finite distance preserves saved points without an average or resumable prefix`(): Unit = runBlocking {
         val selected = session("non-finite")
         point(2_000, 0, 1, capture = selected)
         val last = point(3_000, 100_000, 2, capture = selected)
@@ -105,7 +107,7 @@ class SavedLocationSummaryReaderRoomTest {
         Unit
     }
 
-    @Test fun `qualified saved window calculates average independently of sensor speed and stationary time`() = runBlocking {
+    @Test fun `qualified saved window calculates average independently of sensor speed and stationary time`(): Unit = runBlocking {
         point(2_000, 0, 1)
         point(3_000, 100_000, 2, speed = 999f)
         point(4_000, 100_000, 3, speed = 999f)
@@ -117,7 +119,7 @@ class SavedLocationSummaryReaderRoomTest {
         Unit
     }
 
-    @Test fun `empty and one-fix windows do not invent distance or zero`() = runBlocking {
+    @Test fun `empty and one-fix windows do not invent distance or zero`(): Unit = runBlocking {
         val window = HistoryObservationWindow(0, 10_000)
         assertNull(snapshot(reader.readWindow(window)).summary.distanceMeters)
         val point = point(2_000, 0, 1)
@@ -128,7 +130,7 @@ class SavedLocationSummaryReaderRoomTest {
         assertFalse(read.summary.partial)
     }
 
-    @Test fun `current correction changes native summaries and radio context without invalidating original grant`() = runBlocking {
+    @Test fun `current correction changes native summaries and radio context without invalidating original grant`(): Unit = runBlocking {
         val selected = session("correction")
         point(2_000, 0, 1, accuracy = 5f, capture = selected)
         val last = point(3_000, 100_000, 2, accuracy = 5f, capture = selected)
@@ -150,7 +152,7 @@ class SavedLocationSummaryReaderRoomTest {
         assertTrue(database.locationPointCorrectionDao().byIds(listOf(last.id)).isEmpty())
     }
 
-    @Test fun `edited measured time moves the saved window but does not fabricate a radio clock`() = runBlocking {
+    @Test fun `edited measured time moves the saved window but does not fabricate a radio clock`(): Unit = runBlocking {
         val value = point(2_000, 0, 1, accuracy = 5f)
         val receipt = requireNotNull(database.locationPurposeDao().receipt(value.id))
         database.locationPointCorrectionDao().replace(LocationPointCorrection.from(value.id, 0, 1,
@@ -164,7 +166,7 @@ class SavedLocationSummaryReaderRoomTest {
         }.isEmpty())
     }
 
-    @Test fun `ordinary all-day and older-session totals include saved imported and released points`() = runBlocking {
+    @Test fun `ordinary all-day and older-session totals include saved imported and released points`(): Unit = runBlocking {
         val first = point(2_000, 0, 1)
         val legacy = first.copy(id = 0, timeMs = 4_000, elapsedRealtimeNanos = 0, lonE7 = 300_000,
             sourceSignalId = null, sourceEventId = null, clockDomainId = null, bootClockDomainId = null)
@@ -182,7 +184,7 @@ class SavedLocationSummaryReaderRoomTest {
         assertTrue(day.partial) // No fabricated connection from a native clock to older wall-only points.
     }
 
-    @Test fun `completed recording reward uses saved current distance and ignores later annotation bounds`() = runBlocking {
+    @Test fun `completed recording reward uses saved current distance and ignores later annotation bounds`(): Unit = runBlocking {
         val selected = session("reward")
         point(2_000, 0, 1, capture = selected)
         val last = point(3_000, 100_000, 2, capture = selected)
@@ -205,7 +207,7 @@ class SavedLocationSummaryReaderRoomTest {
         assertIs<SavedSessionRewardRead.Removed>(rewards.read(selected.id))
     }
 
-    @Test fun `restored recording keeps its original reward identity through correction and empty source data`() = runBlocking {
+    @Test fun `restored recording keeps its original reward identity through correction and empty source data`(): Unit = runBlocking {
         val selected = session("restored-reward")
         point(2_000, 0, 1, capture = selected)
         val last = point(3_000, 100_000, 2, capture = selected)
@@ -239,7 +241,7 @@ class SavedLocationSummaryReaderRoomTest {
         assertEquals(SavedSessionRewardRead.Unavailable, rewards.read(selected.id))
     }
 
-    @Test fun `stationary coordinates without accuracy retain real zero and saved optional fields`() = runBlocking {
+    @Test fun `stationary coordinates without accuracy retain real zero and saved optional fields`(): Unit = runBlocking {
         point(2_000, 0, 1)
         val last = point(3_000, 0, 2, speed = 0f, altitude = -12f)
         val read = snapshot(reader.readWindow(HistoryObservationWindow(0, 10_000)))
@@ -259,7 +261,7 @@ class SavedLocationSummaryReaderRoomTest {
         assertTrue(database.withTransaction { RetainedLocationContextReader(database).qualifyInTransaction(receipts) }.points.isEmpty())
     }
 
-    @Test fun `invalid optional accuracy and speed are absent while usable coordinates remain measured`() = runBlocking {
+    @Test fun `invalid optional accuracy and speed are absent while usable coordinates remain measured`(): Unit = runBlocking {
         point(2_000, 0, 1)
         point(3_000, 100_000, 2, accuracy = -1f, speed = -1f, altitude = -12f)
         val read = snapshot(reader.readWindow(HistoryObservationWindow(0, 10_000)))
@@ -270,7 +272,7 @@ class SavedLocationSummaryReaderRoomTest {
         assertFalse(read.summary.partial)
     }
 
-    @Test fun `existing background History qualifies saved coordinates without accuracy`() = runBlocking {
+    @Test fun `existing background History qualifies saved coordinates without accuracy`(): Unit = runBlocking {
         val sample = point(2_000, 0, 1)
         val history = rangeReaderForRoomTest(database, ApplicationProvider.getApplicationContext<Application>())
         val read = assertIs<HistoryRangeRead.Page>(history.read(HistoryRangeRequest(HistoryRange(0, 10_000, "UTC",
@@ -282,7 +284,7 @@ class SavedLocationSummaryReaderRoomTest {
         assertTrue(read.problems.isEmpty())
     }
 
-    @Test fun `existing native History qualifies saved coordinates without accuracy`() = runBlocking {
+    @Test fun `existing native History qualifies saved coordinates without accuracy`(): Unit = runBlocking {
         val selected = session("history")
         val sample = point(2_000, 0, 1, capture = selected)
         val history = rangeReaderForRoomTest(database, ApplicationProvider.getApplicationContext<Application>())
@@ -295,7 +297,7 @@ class SavedLocationSummaryReaderRoomTest {
         assertTrue(read.problems.isEmpty())
     }
 
-    @Test fun `long live session pages past 4096 without losing its anchor or borrowing raw totals`() = runBlocking {
+    @Test fun `long live session pages past 4096 without losing its anchor or borrowing raw totals`(): Unit = runBlocking {
         withTimeout(90_000L) {
             val session = session("long")
             repeat(4_097) { index -> point(2_000L + index * 1_000L, index * 1_000, index + 1L, capture = session) }
@@ -311,7 +313,7 @@ class SavedLocationSummaryReaderRoomTest {
         }
     }
 
-    @Test fun `sequence jumps clock changes and long gaps never bridge sections`() = runBlocking {
+    @Test fun `sequence jumps clock changes and long gaps never bridge sections`(): Unit = runBlocking {
         point(2_000, 0, 1)
         point(3_000, 100_000, 2)
         point(4_000, 900_000, 4)
@@ -326,7 +328,7 @@ class SavedLocationSummaryReaderRoomTest {
         assertTrue(read.summary.partial)
     }
 
-    @Test fun `rejected middle point cannot join its valid neighbours or overwrite the original authority`() = runBlocking {
+    @Test fun `rejected middle point cannot join its valid neighbours or overwrite the original authority`(): Unit = runBlocking {
         point(2_000, 0, 1)
         val corrupt = point(3_000, 100_000, 2)
         point(4_000, 200_000, 3)
@@ -341,7 +343,59 @@ class SavedLocationSummaryReaderRoomTest {
         assertEquals(9_000_000, database.locationSampleDao().byIds(listOf(corrupt.id)).single().lonE7)
     }
 
-    @Test fun `exact session excludes coincident background and another run while window reads their own grants`() = runBlocking {
+    @Test fun `native session crossing midnight keeps selected-date metrics complete`(): Unit = runBlocking {
+        val date = LocalDate.of(2026, 10, 12)
+        val zone = ZoneId.of("UTC")
+        val from = date.atStartOfDay(zone).toInstant().toEpochMilli()
+        val to = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val selected = session("cross-midnight", from - 2_000, from + 3_000)
+        database.sessionSegmentDao().update(selected.copy(primaryActivity = 7))
+        point(from - 1_000, 0, 1, capture = selected)
+        point(from + 1_000, 100_000, 2, capture = selected)
+        point(from + 2_000, 200_000, 3, capture = selected)
+
+        val full = snapshot(reader.readSession(selected.id)).summary
+        assertEquals(3L, full.pointCount)
+        assertFalse(full.partial)
+        val window = snapshot(reader.readSessionWindow(selected.id, HistoryObservationWindow(from, to)))
+        assertEquals(2L, window.summary.pointCount)
+        assertEquals(distance(100_000, 200_000), window.summary.distanceMeters)
+        assertFalse(window.summary.partial)
+        assertNull(window.problem)
+
+        val metrics = SavedLocationMetricsReader(database, TestDispatchersProvider(Dispatchers.Unconfined))
+            .read(from, to - 1)
+        assertEquals(2L, metrics.pointCount)
+        assertEquals(window.summary.distanceMeters, metrics.distanceMeters)
+        assertEquals(requireNotNull(window.summary.distanceMeters), metrics.onFootDistanceMeters)
+        assertTrue(metrics.hasActivityDistances)
+        assertFalse(metrics.partial)
+    }
+
+    @Test fun `session window retains completeness only when its own prefix survives retention`(): Unit = runBlocking {
+        val selected = session("retained-window")
+        point(2_000, 0, 1, capture = selected)
+        point(3_000, 100_000, 2, capture = selected)
+        point(4_000, 200_000, 3, capture = selected)
+        val window = HistoryObservationWindow(3_000, 5_000)
+        database.sourceEvidenceStateDao().updateLifecycle(0, 2_500, 5_000)
+
+        val retained = snapshot(reader.readSessionWindow(selected.id, window)).summary
+        assertEquals(2L, retained.pointCount)
+        assertEquals(distance(100_000, 200_000), retained.distanceMeters)
+        assertFalse(retained.partial)
+        val full = snapshot(reader.readSession(selected.id)).summary
+        assertEquals(2L, full.pointCount)
+        assertTrue(full.partial)
+
+        database.sourceEvidenceStateDao().updateLifecycle(0, 3_500, 5_001)
+        val truncated = snapshot(reader.readSessionWindow(selected.id, window)).summary
+        assertEquals(1L, truncated.pointCount)
+        assertNull(truncated.distanceMeters)
+        assertTrue(truncated.partial)
+    }
+
+    @Test fun `exact session excludes coincident background and another run while window reads their own grants`(): Unit = runBlocking {
         val selected = session("selected")
         val foreign = session("foreign")
         point(2_000, 0, 1, capture = selected)
@@ -354,7 +408,7 @@ class SavedLocationSummaryReaderRoomTest {
         assertEquals(4L, snapshot(reader.readWindow(HistoryObservationWindow(0, 10_000))).summary.pointCount)
     }
 
-    @Test fun `End and later disabled policy keep retained original session readings without a physical owner`() = runBlocking {
+    @Test fun `End and later disabled policy keep retained original session readings without a physical owner`(): Unit = runBlocking {
         val selected = session("retained")
         point(2_000, 0, 1, capture = selected)
         point(3_000, 100_000, 2, capture = selected)
@@ -371,7 +425,7 @@ class SavedLocationSummaryReaderRoomTest {
         assertNull(database.sourceEventWalDao().getByEventId("event:1"))
     }
 
-    @Test fun `selected purpose erase preserves independently authorized background sibling`() = runBlocking {
+    @Test fun `selected purpose erase preserves independently authorized background sibling`(): Unit = runBlocking {
         val selected = session("erased")
         point(2_000, 0, 1, capture = selected, alsoBackground = true)
         point(3_000, 100_000, 2, capture = selected, alsoBackground = true)
@@ -386,7 +440,7 @@ class SavedLocationSummaryReaderRoomTest {
         assertEquals(2L, database.locationSampleDao().countAll())
     }
 
-    @Test fun `retention and full clear retract native values without inventing a measured zero`() = runBlocking {
+    @Test fun `retention and full clear retract native values without inventing a measured zero`(): Unit = runBlocking {
         point(2_000, 0, 1)
         point(3_000, 100_000, 2)
         database.sourceEvidenceStateDao().updateLifecycle(0, 2_500, 4_000)
@@ -402,7 +456,7 @@ class SavedLocationSummaryReaderRoomTest {
         assertEquals(2L, database.locationSampleDao().countAll())
     }
 
-    @Test fun `displayed DST day selects measured UTC fixes rather than delivery or session time`() = runBlocking {
+    @Test fun `displayed DST day selects measured UTC fixes rather than delivery or session time`(): Unit = runBlocking {
         val date = LocalDate.of(2026, 10, 25)
         val zone = ZoneId.of("Europe/Prague")
         val from = date.atStartOfDay(zone).toInstant().toEpochMilli()
@@ -419,7 +473,7 @@ class SavedLocationSummaryReaderRoomTest {
         assertTrue(read.summary.partial)
     }
 
-    @Test fun `many real run dependencies split qualification batches instead of dropping the window`() = runBlocking {
+    @Test fun `many real run dependencies split qualification batches instead of dropping the window`(): Unit = runBlocking {
         withTimeout(90_000L) {
             repeat(101) { index -> point(2_000L + index, index * 1_000, 1,
                 instance = "instance:$index", capture = session("session:$index")) }
@@ -430,11 +484,13 @@ class SavedLocationSummaryReaderRoomTest {
         }
     }
 
-    @Test fun `more than one exact manifest-key chunk keeps every named reading in a long run`() = runBlocking {
+    @Test fun `more than one exact manifest-key chunk keeps every named reading in a long run`(): Unit = runBlocking {
         val selected = session("many-manifests")
         repeat(129) { index ->
             val revision = index + 1L
-            if (revision > 1) namedManifest(selected, revision)
+            if (revision > 1) {
+                namedManifest(selected, revision)
+            }
             point(2_000L + index * 1_000L, index * 1_000, revision,
                 capture = selected, captureManifestRevision = revision)
         }
@@ -446,7 +502,7 @@ class SavedLocationSummaryReaderRoomTest {
         assertTrue(read.summary.qualificationGaps.isEmpty())
     }
 
-    @Test fun `missing or mismatched named manifest preserves valid sibling data without borrowing another run`() = runBlocking {
+    @Test fun `missing or mismatched named manifest preserves valid sibling data without borrowing another run`(): Unit = runBlocking {
         val selected = session("named-dependency")
         val valid = point(2_000, 0, 1, capture = selected)
         point(3_000, 100_000, 2, capture = selected, captureManifestRevision = 2)
@@ -464,14 +520,52 @@ class SavedLocationSummaryReaderRoomTest {
         assertEquals(2L, database.locationSampleDao().countAll())
     }
 
-    @Test fun `continuation storage failure keeps previously measured data with an honest partial state`() = runBlocking {
+    @Test fun `corrupt named manifest affects only its points and repaired data is requalified`(): Unit = runBlocking {
+        val selected = session("snapshot-manifest")
+        val first = point(2_000, 0, 1, capture = selected)
+        namedManifest(selected, 2)
+        val second = point(3_000, 100_000, 2, capture = selected, captureManifestRevision = 2)
+        namedManifest(selected, 3)
+        val named = requireNotNull(database.sourceSessionDao().manifestByServiceRunRevision(
+            requireNotNull(selected.serviceRunId), 2))
+        database.openHelper.writableDatabase.execSQL(
+            "UPDATE session_manifest_version SET manifest_checksum = ? " +
+                "WHERE logical_tracking_id = ? AND manifest_revision IN (2, 3)",
+            arrayOf<Any?>("corrupt", selected.logicalTrackingId))
+
+        val partial = snapshot(reader.readSession(selected.id))
+        assertEquals(1L, partial.summary.pointCount)
+        assertEquals(first.id, partial.summary.latestFix?.sampleId)
+        assertTrue(partial.summary.partial)
+        assertTrue(RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE in partial.summary.qualificationGaps)
+        assertNull(partial.problem)
+        assertEquals(setOf(first, second), database.locationSampleDao().byIds(listOf(first.id, second.id)).toSet())
+
+        database.openHelper.writableDatabase.execSQL(
+            "UPDATE session_manifest_version SET manifest_checksum = ? " +
+                "WHERE logical_tracking_id = ? AND manifest_revision = 2",
+            arrayOf<Any?>(named.manifestChecksum, selected.logicalTrackingId))
+        val restored = snapshot(reader.readSession(selected.id))
+        assertEquals(2L, restored.summary.pointCount)
+        assertEquals(second.id, restored.summary.latestFix?.sampleId)
+        assertEquals(distance(0, 100_000), requireNotNull(restored.summary.distanceMeters), 0.01)
+        assertFalse(restored.summary.partial)
+        assertTrue(restored.summary.qualificationGaps.isEmpty())
+        assertNull(restored.problem)
+        assertEquals("corrupt", database.sourceSessionDao().manifestByServiceRunRevision(
+            requireNotNull(selected.serviceRunId), 3)?.manifestChecksum)
+    }
+
+    @Test fun `continuation storage failure keeps previously measured data with an honest partial state`(): Unit = runBlocking {
         repeat(300) { index -> point(2_000L + index * 1_000L, 0, index + 1L) }
         val original = database.locationPurposeDao()
         val fault = object : LocationPurposeDao by original {
-            override suspend fun savedReceiptPageOverWindow(fromMs: Long, toMs: Long, afterTimeMs: Long?,
-                afterSampleId: Long?, limit: Int): List<LocationAcceptedReceiptEntity> {
-                if (afterTimeMs != null) throw SQLiteException("Fixture: second page unavailable")
-                return original.savedReceiptPageOverWindow(fromMs, toMs, afterTimeMs, afterSampleId, limit)
+            override suspend fun savedFileChunk(fromMs: Long, toMs: Long, afterTimeMs: Long?,
+                afterId: Long?, limit: Int): List<LocationPathSampleRow> {
+                if (afterTimeMs != null) {
+                    throw SQLiteException("Fixture: second page unavailable")
+                }
+                return original.savedFileChunk(fromMs, toMs, afterTimeMs, afterId, limit)
             }
         }
         val fixtureReader = readerWithPageFault(fault)
@@ -485,16 +579,18 @@ class SavedLocationSummaryReaderRoomTest {
         assertEquals(300L, database.locationSampleDao().countAll())
     }
 
-    @Test fun `continuation cancellation propagates instead of publishing a prefix or retrying`() = runBlocking {
+    @Test fun `continuation cancellation propagates instead of publishing a prefix or retrying`(): Unit = runBlocking {
         repeat(300) { index -> point(2_000L + index * 1_000L, 0, index + 1L) }
         val original = database.locationPurposeDao()
         var pages = 0
         val fault = object : LocationPurposeDao by original {
-            override suspend fun savedReceiptPageOverWindow(fromMs: Long, toMs: Long, afterTimeMs: Long?,
-                afterSampleId: Long?, limit: Int): List<LocationAcceptedReceiptEntity> {
+            override suspend fun savedFileChunk(fromMs: Long, toMs: Long, afterTimeMs: Long?,
+                afterId: Long?, limit: Int): List<LocationPathSampleRow> {
                 pages++
-                if (afterTimeMs != null) throw CancellationException("Fixture: cancelled second page")
-                return original.savedReceiptPageOverWindow(fromMs, toMs, afterTimeMs, afterSampleId, limit)
+                if (afterTimeMs != null) {
+                    throw CancellationException("Fixture: cancelled second page")
+                }
+                return original.savedFileChunk(fromMs, toMs, afterTimeMs, afterId, limit)
             }
         }
         val fixtureReader = readerWithPageFault(fault)
@@ -505,7 +601,7 @@ class SavedLocationSummaryReaderRoomTest {
         assertEquals(300L, database.locationSampleDao().countAll())
     }
 
-    @Test fun `missing session and closed storage remain typed without using raw session totals`() = runBlocking {
+    @Test fun `missing session and closed storage remain typed without using raw session totals`(): Unit = runBlocking {
         assertEquals(SavedLocationSummaryRead.NotFound, reader.readSession(999))
         database.close()
         assertEquals(HistoryProblemReason.STORAGE_UNAVAILABLE,
@@ -513,44 +609,14 @@ class SavedLocationSummaryReaderRoomTest {
     }
 
     /** Only the page-fault boundary is artificial; all qualification DAOs and the outer transaction are real Room. */
-    private fun readerWithPageFault(purpose: LocationPurposeDao): SavedLocationSummaryReader {
-        val handle = mockk<AppDatabase>()
-        every { handle.locationPurposeDao() } returns purpose
-        every { handle.sourceEvidenceStateDao() } returns database.sourceEvidenceStateDao()
-        every { handle.locationSampleDao() } returns database.locationSampleDao()
-        every { handle.sourcePolicyDao() } returns database.sourcePolicyDao()
-        every { handle.trackingHistoryReadDao() } returns database.trackingHistoryReadDao()
-        every { handle.sourceDeletionFenceDao() } returns database.sourceDeletionFenceDao()
-        return SavedLocationSummaryReader(handle, Dispatchers.Unconfined)
-    }
-    private suspend fun currentSnapshot(): TrackingHistoryReadSnapshot {
-        val state = requireNotNull(database.sourceEvidenceStateDao().get())
-        return TrackingHistoryReadSnapshot(state.collectedDataEpoch, state.revision)
-    }
+    private fun readerWithPageFault(purpose: LocationPurposeDao): SavedLocationSummaryReader =
+        savedSummaryReaderWithPageFault(database, purpose)
+    private suspend fun currentSnapshot(): TrackingHistoryReadSnapshot = savedSummarySnapshot(database)
     private fun snapshot(read: SavedLocationSummaryRead) = assertIs<SavedLocationSummaryRead.Snapshot>(read)
 
-    private suspend fun session(identity: String): SessionSegment {
-        val runId = "run:$identity"
-        database.sourceSessionDao().insertSession(LogicalTrackingSessionEntity(identity, "ACTIVE", 1, 1, 1,
-            "MANUAL_FOREGROUND_START", "boot", 1_000, 1, null, null, null, null, null,
-            sessionMode = "MANUAL", currentManifestRevision = 1, currentIntentRevision = 1,
-            currentServiceRunId = runId, lifecycleLeaseGeneration = 1, lifecycleBootId = "boot"))
-        val template = SessionSegment(startTimeMs = 1_000, endTimeMs = 5_000, distanceM = 9_000_000f,
-            steps = null, primaryActivity = null, activityConfidence = null, sampleCount = 2,
-            source = SegmentSource.USER_CREATED, inferenceVersion = null, createdAt = 1_000,
-            logicalTrackingId = identity, serviceRunId = runId)
-        val segment = template.copy(id = database.sessionSegmentDao().insert(template))
-        database.sourceSessionDao().insertServiceRun(SourceServiceRunEntity(runId, identity, "ACTIVE", 1, 1, 0,
-            1_000, 1, null, null, bootId = "boot", leaseGeneration = 1,
-            startOrigin = "MANUAL_FOREGROUND_START", runRevision = 1, startDeliveryToken = "start:$identity",
-            startCommandGeneration = 1, preparedManifestRevision = 1, preparedIntentRevision = 1, sessionSegmentId = segment.id))
-        val member = SessionManifestSourceEntity(identity, 1, 1, SourceBrokerPurpose.SESSION_CAPTURE, 0, true, 1)
-        val manifest = SessionManifestVersionEntity(identity, 1, runId, "MANUAL", 1, 1, 1,
-            "MANUAL_FOREGROUND_START", "boot", 1, 1_000, "UTC", null, "START", "")
-        database.sourceSessionDao().insertManifest(manifest.copy(manifestChecksum = SessionManifestIntegrity.compute(manifest, listOf(member))))
-        database.sourceSessionDao().insertManifestSources(listOf(member))
-        return segment
-    }
+    private suspend fun session(identity: String, startTimeMs: Long = 1_000L,
+        endTimeMs: Long = 5_000L): SessionSegment =
+        insertSavedSummarySession(database, identity, startTimeMs, endTimeMs)
 
     private suspend fun point(time: Long, longitude: Int, sequence: Long, capture: SessionSegment? = null,
         instance: String = "instance", clock: String = "boot", alsoBackground: Boolean = false,
@@ -590,15 +656,60 @@ class SavedLocationSummaryReaderRoomTest {
         return sample
     }
     private suspend fun namedManifest(session: SessionSegment, revision: Long,
-        serviceRunId: String = requireNotNull(session.serviceRunId)) {
-        val logicalId = requireNotNull(session.logicalTrackingId)
-        val member = SessionManifestSourceEntity(logicalId, revision, 1, SourceBrokerPurpose.SESSION_CAPTURE, 0, true, 1)
-        val manifest = SessionManifestVersionEntity(logicalId, revision, serviceRunId, "MANUAL", 1, 1, 1,
-            "POLICY_RECONCILIATION", "boot", revision, 1_000, "UTC", null, "POLICY_RECONCILIATION", "")
-        database.sourceSessionDao().insertManifest(manifest.copy(manifestChecksum = SessionManifestIntegrity.compute(manifest, listOf(member))))
-        database.sourceSessionDao().insertManifestSources(listOf(member))
-    }
+        serviceRunId: String = requireNotNull(session.serviceRunId)) =
+        insertSavedSummaryManifest(database, session, revision, serviceRunId)
     private fun policy() = SourcePolicyEntity(1, 1, true, 1, null, null, null,
         true, false, true, 0, null, 0, "boot", 0, 0, "USER")
     private fun distance(first: Int, second: Int) = Location.distance(0.0, first / 1e7, 0.0, second / 1e7, LengthUnit.Meter)
+}
+
+private fun savedSummaryReaderWithPageFault(database: AppDatabase,
+    purpose: LocationPurposeDao): SavedLocationSummaryReader {
+    val handle = mockk<AppDatabase>()
+    every { handle.locationPurposeDao() } returns purpose
+    every { handle.sourceEvidenceStateDao() } returns database.sourceEvidenceStateDao()
+    every { handle.locationSampleDao() } returns database.locationSampleDao()
+    every { handle.sourcePolicyDao() } returns database.sourcePolicyDao()
+    every { handle.trackingHistoryReadDao() } returns database.trackingHistoryReadDao()
+    every { handle.sourceDeletionFenceDao() } returns database.sourceDeletionFenceDao()
+    return SavedLocationSummaryReader(handle, Dispatchers.Unconfined)
+}
+
+private suspend fun savedSummarySnapshot(database: AppDatabase): TrackingHistoryReadSnapshot {
+    val state = requireNotNull(database.sourceEvidenceStateDao().get())
+    return TrackingHistoryReadSnapshot(state.collectedDataEpoch, state.revision)
+}
+
+private suspend fun insertSavedSummarySession(database: AppDatabase, identity: String,
+    startTimeMs: Long, endTimeMs: Long): SessionSegment {
+    val runId = "run:$identity"
+    database.sourceSessionDao().insertSession(LogicalTrackingSessionEntity(identity, "ACTIVE", 1, 1, 1,
+        "MANUAL_FOREGROUND_START", "boot", startTimeMs, 1, null, null, null, null, null,
+        sessionMode = "MANUAL", currentManifestRevision = 1, currentIntentRevision = 1,
+        currentServiceRunId = runId, lifecycleLeaseGeneration = 1, lifecycleBootId = "boot"))
+    val template = SessionSegment(startTimeMs = startTimeMs, endTimeMs = endTimeMs, distanceM = 9_000_000f,
+        steps = null, primaryActivity = null, activityConfidence = null, sampleCount = 2,
+        source = SegmentSource.USER_CREATED, inferenceVersion = null, createdAt = startTimeMs,
+        logicalTrackingId = identity, serviceRunId = runId)
+    val segment = template.copy(id = database.sessionSegmentDao().insert(template))
+    database.sourceSessionDao().insertServiceRun(SourceServiceRunEntity(runId, identity, "ACTIVE", 1, 1, 0,
+        startTimeMs, 1, null, null, bootId = "boot", leaseGeneration = 1,
+        startOrigin = "MANUAL_FOREGROUND_START", runRevision = 1, startDeliveryToken = "start:$identity",
+        startCommandGeneration = 1, preparedManifestRevision = 1, preparedIntentRevision = 1, sessionSegmentId = segment.id))
+    val member = SessionManifestSourceEntity(identity, 1, 1, SourceBrokerPurpose.SESSION_CAPTURE, 0, true, 1)
+    val manifest = SessionManifestVersionEntity(identity, 1, runId, "MANUAL", 1, 1, 1,
+        "MANUAL_FOREGROUND_START", "boot", 1, startTimeMs, "UTC", null, "START", "")
+    database.sourceSessionDao().insertManifest(manifest.copy(manifestChecksum = SessionManifestIntegrity.compute(manifest, listOf(member))))
+    database.sourceSessionDao().insertManifestSources(listOf(member))
+    return segment
+}
+
+private suspend fun insertSavedSummaryManifest(database: AppDatabase, session: SessionSegment,
+    revision: Long, serviceRunId: String) {
+    val logicalId = requireNotNull(session.logicalTrackingId)
+    val member = SessionManifestSourceEntity(logicalId, revision, 1, SourceBrokerPurpose.SESSION_CAPTURE, 0, true, 1)
+    val manifest = SessionManifestVersionEntity(logicalId, revision, serviceRunId, "MANUAL", 1, 1, 1,
+        "POLICY_RECONCILIATION", "boot", revision, 1_000, "UTC", null, "POLICY_RECONCILIATION", "")
+    database.sourceSessionDao().insertManifest(manifest.copy(manifestChecksum = SessionManifestIntegrity.compute(manifest, listOf(member))))
+    database.sourceSessionDao().insertManifestSources(listOf(member))
 }

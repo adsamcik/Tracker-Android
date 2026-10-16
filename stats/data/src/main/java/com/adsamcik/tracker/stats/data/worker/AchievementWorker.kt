@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.stats.api.AchievementDefinition
+import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKey
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
@@ -197,14 +198,20 @@ class AchievementWorker @AssistedInject constructor(
 				// Edits and deletion can lower current progress. Recompute the earned tier
 				// from this metric's existing rules rather than preserving an old unlock.
 				for ((metric, accum) in accumulators) {
-					val definitions = instances.asSequence().filter { it.rule.metric == metric }
-						.mapNotNull { it.attachment as? AchievementDefinition }.toList()
+					// Dirty pacing tables may select only the higher tiers of this metric.
+					// Replacing its saved progress requires every existing catalog tier.
+					val definitions = AchievementCatalog.byMetric(metric)
 					if (definitions.isEmpty()) continue
 					val currentTier = definitions.filter { definition ->
 						accum.lastValue >= definition.threshold && (definition.minimumActiveDays <= 1 ||
 							(snapshotValues[definition.pacingMetric]?.toLong()?.let(definition::isEligible) == true))
 					}.maxOfOrNull { it.tierIndex } ?: -1
-					if (currentTier < accum.lastTierIndex) {
+					val canRetractTier = definitions.none { definition ->
+						definition.tierIndex <= accum.lastTierIndex && accum.lastValue >= definition.threshold &&
+							definition.minimumActiveDays > 1 &&
+							definition.pacingMetric !in snapshotValues
+					}
+					if (currentTier < accum.lastTierIndex && canRetractTier) {
 						accum.lastTierIndex = currentTier
 						accum.lastUnlockedAt = null
 						accum.tierAdvanced = false
@@ -228,7 +235,7 @@ class AchievementWorker @AssistedInject constructor(
 				.toList()
 				if (updates.isNotEmpty()) {
 					requireReadyGeneration(startupGeneration)
-					dependencies.achievementDao.upsertAll(updates)
+					dependencies.achievementDao.replaceEvaluatedAll(updates)
 					wroteUpdates = true
 				}
 				completed = true

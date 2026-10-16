@@ -72,8 +72,10 @@ class MeasuredHistoryViewZoneComposeTest {
         val owner = mutableStateOf(first)
         val shown = mutableStateOf(true)
         rule.setContent {
-            if (shown.value) CompositionLocalProvider(LocalLifecycleOwner provides owner.value) {
+            if (shown.value) {
+                CompositionLocalProvider(LocalLifecycleOwner provides owner.value) {
                 Text(rememberMeasuredHistoryViewZone().id)
+            }
             }
         }
         rule.runOnIdle {

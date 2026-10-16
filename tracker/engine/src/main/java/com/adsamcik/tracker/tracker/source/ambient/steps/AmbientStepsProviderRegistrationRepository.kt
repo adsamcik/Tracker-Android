@@ -22,6 +22,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.hasExactAmbientStepsRetentionBinding
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+import com.adsamcik.tracker.tracker.source.runtime.LiveAmbientRetentionSnapshot
 import com.adsamcik.tracker.tracker.source.runtime.toSourceDemandContract
 import java.util.UUID
 import javax.inject.Inject
@@ -75,21 +76,9 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 			currentWallTimeMs = boundary.wallTimeMs,
 		)
 		return database.withTransaction {
-			val demands = requireEligibleDemands(provider, expectedDemandId, boundary)
-			check(demands == observedDemands) {
-				"Ambient Steps demand changed while retention authority was being acquired"
-			}
-			check(retentionSnapshot != null &&
-				sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
-				demands = demands,
-				expectedCollectedDataEpoch = lifecycle.epoch,
-				currentBootId = boundary.bootId,
-				currentElapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
-				currentWallTimeMs = boundary.wallTimeMs,
-				retentionSnapshot = retentionSnapshot,
-			)) {
-				"Ambient Steps retention authority changed before provider reservation"
-			}
+			val demands = revalidateReservationDemandsInTransaction(
+				provider, expectedDemandId, boundary, observedDemands, retentionSnapshot, lifecycle.epoch,
+			)
 			val brokerDao = database.sourceBrokerDao()
 			val authorizationFingerprint = SourceBrokerAuthorization.fingerprint(demands)
 			val stateDao = database.sourceRegistrationStateDao()
@@ -106,113 +95,170 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 				}
 			if (pending.isNotEmpty()) {
 				val reusable = pending.singleOrNull()?.takeIf { registration ->
-					registration.clockDomainId == clockDomainId &&
-						registration.collectedDataEpoch == lifecycle.epoch &&
-						registration.physicalConfigurationFingerprint == fingerprint &&
+					registration.matchesPendingBoundary(boundary, lifecycle.epoch, fingerprint) &&
 						brokerDao.latestAuthorization(SOURCE_KIND, registration.registrationGeneration)
 							.toAuthorizationSnapshotOrNull()
 							?.authorizationFingerprint == authorizationFingerprint
 				} ?: error("A different Ambient Steps provider reservation requires cleanup")
-				return@withTransaction AmbientStepsProviderRegistration(
-					provider = provider,
-					expectedDemandId = expectedDemandId,
-					state = stateForReservation(
-						current = current,
-						registration = reusable,
-						appliedRevision = demands.maxOf(SourceDemandEntity::sourcePolicyRevision),
-						updatedAtMs = boundary.wallTimeMs,
-					),
-					authorization = requireNotNull(
-						brokerDao.latestAuthorization(SOURCE_KIND, reusable.registrationGeneration)
-							.toAuthorizationSnapshotOrNull(),
-					),
-					requiresProviderAcceptance = true,
-					predecessorState = current,
-					providerRequestAtMs = reusable.reservedAtMs,
-					providerRequestElapsedRealtimeNanos = reusable.reservedElapsedRealtimeNanos,
+				return@withTransaction reusePendingRegistrationInTransaction(
+					provider, expectedDemandId, boundary, demands, current, reusable,
 				)
 			}
 
 			if (current != null && currentPhysical != null &&
-				current.clockDomainId == clockDomainId &&
-				current.collectedDataEpoch == lifecycle.epoch &&
-				currentPhysical.providerResidency ==
-					ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE &&
-				currentPhysical.providerProcessIncarnationId == null &&
-				currentPhysical.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE &&
-				currentPhysical.physicalConfigurationFingerprint == fingerprint
+				current.matchesActiveProvider(currentPhysical, boundary, lifecycle.epoch, fingerprint)
 			) {
-				val reused = current.copy(
-					appliedRevision = demands.maxOf(SourceDemandEntity::sourcePolicyRevision),
-					updatedAtMs = boundary.wallTimeMs,
-				)
-				stateDao.replace(reused)
-				val authorization = appendAuthorizationIfChanged(
-					registrationGeneration = reused.registrationGeneration,
-					demands = demands,
-					boundary = boundary,
-				)
-				return@withTransaction AmbientStepsProviderRegistration(
-					provider = provider,
-					expectedDemandId = expectedDemandId,
-					state = reused,
-					authorization = authorization,
-					requiresProviderAcceptance = false,
-					predecessorState = current,
-					providerRequestAtMs = requireNotNull(currentPhysical.acceptedAtMs),
-					providerRequestElapsedRealtimeNanos =
-						requireNotNull(currentPhysical.acceptedElapsedRealtimeNanos),
+				return@withTransaction reuseActiveRegistrationInTransaction(
+					provider, expectedDemandId, boundary, demands, current, currentPhysical,
 				)
 			}
 
-			val registrationGeneration = brokerDao.maximumRegistrationGeneration(SOURCE_KIND) + 1L
-			check(registrationGeneration > 0L) { "Ambient Steps registration generation exhausted" }
-			val next = nextState(
+			reserveNewRegistrationInTransaction(provider, expectedDemandId, boundary, demands, current, lifecycle.epoch)
+		}
+	}
+
+	private suspend fun revalidateReservationDemandsInTransaction(
+		provider: AmbientStepsProvider,
+		expectedDemandId: String,
+		boundary: AmbientStepsDemandBoundary,
+		observedDemands: List<SourceDemandEntity>,
+		retentionSnapshot: LiveAmbientRetentionSnapshot?,
+		collectedDataEpoch: Long,
+	): List<SourceDemandEntity> {
+		val demands = requireEligibleDemands(provider, expectedDemandId, boundary)
+		check(demands == observedDemands) {
+			"Ambient Steps demand changed while retention authority was being acquired"
+		}
+		check(retentionSnapshot != null &&
+			sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
+			demands = demands,
+			expectedCollectedDataEpoch = collectedDataEpoch,
+			currentBootId = boundary.bootId,
+			currentElapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
+			currentWallTimeMs = boundary.wallTimeMs,
+			retentionSnapshot = retentionSnapshot,
+		)) {
+			"Ambient Steps retention authority changed before provider reservation"
+		}
+		return demands
+	}
+
+	private suspend fun reuseActiveRegistrationInTransaction(
+		provider: AmbientStepsProvider,
+		expectedDemandId: String,
+		boundary: AmbientStepsDemandBoundary,
+		demands: List<SourceDemandEntity>,
+		current: SourceRegistrationStateEntity,
+		currentPhysical: ProviderRegistrationGenerationEntity,
+	): AmbientStepsProviderRegistration {
+		val reused = current.copy(
+			appliedRevision = demands.maxOf(SourceDemandEntity::sourcePolicyRevision),
+			updatedAtMs = boundary.wallTimeMs,
+		)
+		database.sourceRegistrationStateDao().replace(reused)
+		val authorization = database.appendAuthorizationIfChanged(
+			registrationGeneration = reused.registrationGeneration,
+			demands = demands,
+			boundary = boundary,
+		)
+		return AmbientStepsProviderRegistration(
+			provider = provider,
+			expectedDemandId = expectedDemandId,
+			state = reused,
+			authorization = authorization,
+			requiresProviderAcceptance = false,
+			predecessorState = current,
+			providerRequestAtMs = requireNotNull(currentPhysical.acceptedAtMs),
+			providerRequestElapsedRealtimeNanos =
+				requireNotNull(currentPhysical.acceptedElapsedRealtimeNanos),
+		)
+	}
+
+	private suspend fun reusePendingRegistrationInTransaction(
+		provider: AmbientStepsProvider,
+		expectedDemandId: String,
+		boundary: AmbientStepsDemandBoundary,
+		demands: List<SourceDemandEntity>,
+		current: SourceRegistrationStateEntity?,
+		reusable: ProviderRegistrationGenerationEntity,
+	): AmbientStepsProviderRegistration {
+		val brokerDao = database.sourceBrokerDao()
+		return AmbientStepsProviderRegistration(
+			provider = provider,
+			expectedDemandId = expectedDemandId,
+			state = stateForReservation(
 				current = current,
-				clockDomainId = clockDomainId,
-				collectedDataEpoch = lifecycle.epoch,
-				registrationGeneration = registrationGeneration,
+				registration = reusable,
 				appliedRevision = demands.maxOf(SourceDemandEntity::sourcePolicyRevision),
 				updatedAtMs = boundary.wallTimeMs,
-			)
-			brokerDao.insertRegistration(
-				ProviderRegistrationGenerationEntity(
-					sourceKind = SOURCE_KIND,
-					registrationGeneration = registrationGeneration,
-					sourceInstanceId = next.sourceInstanceId,
-					ownerScope = OWNER_SCOPE,
-					clockDomainId = clockDomainId,
-					physicalConfigurationFingerprint = fingerprint,
-					collectedDataEpoch = lifecycle.epoch,
-					providerResidency =
-						ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
-					providerProcessIncarnationId = null,
-					status = ProviderRegistrationGenerationEntity.STATUS_RESERVED,
-					reservedAtMs = boundary.wallTimeMs,
-					reservedElapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
-					acceptedAtMs = null,
-					acceptedElapsedRealtimeNanos = null,
-					retiredAtMs = null,
-					retiredElapsedRealtimeNanos = null,
-					failureCode = null,
-				),
-			)
-			val authorization = appendAuthorizationIfChanged(
+			),
+			authorization = requireNotNull(
+				brokerDao.latestAuthorization(SOURCE_KIND, reusable.registrationGeneration)
+					.toAuthorizationSnapshotOrNull(),
+			),
+			requiresProviderAcceptance = true,
+			predecessorState = current,
+			providerRequestAtMs = reusable.reservedAtMs,
+			providerRequestElapsedRealtimeNanos = reusable.reservedElapsedRealtimeNanos,
+		)
+	}
+
+	private suspend fun reserveNewRegistrationInTransaction(
+		provider: AmbientStepsProvider,
+		expectedDemandId: String,
+		boundary: AmbientStepsDemandBoundary,
+		demands: List<SourceDemandEntity>,
+		current: SourceRegistrationStateEntity?,
+		collectedDataEpoch: Long,
+	): AmbientStepsProviderRegistration {
+		val brokerDao = database.sourceBrokerDao()
+		val registrationGeneration = brokerDao.maximumRegistrationGeneration(SOURCE_KIND) + 1L
+		check(registrationGeneration > 0L) { "Ambient Steps registration generation exhausted" }
+		val next = nextState(
+			current = current,
+			clockDomainId = boundary.bootId,
+			collectedDataEpoch = collectedDataEpoch,
+			registrationGeneration = registrationGeneration,
+			appliedRevision = demands.maxOf(SourceDemandEntity::sourcePolicyRevision),
+			updatedAtMs = boundary.wallTimeMs,
+		)
+		brokerDao.insertRegistration(
+			ProviderRegistrationGenerationEntity(
+				sourceKind = SOURCE_KIND,
 				registrationGeneration = registrationGeneration,
-				demands = demands,
-				boundary = boundary,
-			)
-			AmbientStepsProviderRegistration(
-				provider = provider,
-				expectedDemandId = expectedDemandId,
-				state = next,
-				authorization = authorization,
-				requiresProviderAcceptance = true,
-				predecessorState = current,
-				providerRequestAtMs = boundary.wallTimeMs,
-				providerRequestElapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
-			)
-		}
+				sourceInstanceId = next.sourceInstanceId,
+				ownerScope = OWNER_SCOPE,
+				clockDomainId = boundary.bootId,
+				physicalConfigurationFingerprint = provider.physicalConfigurationFingerprint(),
+				collectedDataEpoch = collectedDataEpoch,
+				providerResidency =
+					ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+				providerProcessIncarnationId = null,
+				status = ProviderRegistrationGenerationEntity.STATUS_RESERVED,
+				reservedAtMs = boundary.wallTimeMs,
+				reservedElapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
+				acceptedAtMs = null,
+				acceptedElapsedRealtimeNanos = null,
+				retiredAtMs = null,
+				retiredElapsedRealtimeNanos = null,
+				failureCode = null,
+			),
+		)
+		val authorization = database.appendAuthorizationIfChanged(
+			registrationGeneration = registrationGeneration,
+			demands = demands,
+			boundary = boundary,
+		)
+		return AmbientStepsProviderRegistration(
+			provider = provider,
+			expectedDemandId = expectedDemandId,
+			state = next,
+			authorization = authorization,
+			requiresProviderAcceptance = true,
+			predecessorState = current,
+			providerRequestAtMs = boundary.wallTimeMs,
+			providerRequestElapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
+		)
 	}
 
 	/** Accepts only the exact still-current provider-specific demand captured by [registration]. */
@@ -244,51 +290,60 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 			currentWallTimeMs = registration.providerRequestAtMs,
 		)
 		return database.withTransaction {
-			val boundary = AmbientStepsDemandBoundary(
-				bootId = registration.state.clockDomainId,
-				elapsedRealtimeNanos = registration.providerRequestElapsedRealtimeNanos,
-				wallTimeMs = registration.providerRequestAtMs,
-			)
-			val demands = requireEligibleDemands(
-				registration.provider,
-				registration.expectedDemandId,
-				boundary,
-			)
-			check(demands == observedDemands) {
-				"Ambient Steps demand changed before provider acceptance"
-			}
-			check(
-				database.sourceEvidenceStateDao().get()?.collectedDataEpoch == lifecycle.epoch,
-			) {
-				"Collected-data epoch changed before Ambient Steps provider acceptance"
-			}
-			check(retentionSnapshot != null &&
-				sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
-				demands = demands,
-				expectedCollectedDataEpoch = lifecycle.epoch,
-				currentBootId = registration.state.clockDomainId,
-				currentElapsedRealtimeNanos =
-					registration.providerRequestElapsedRealtimeNanos,
-				currentWallTimeMs = registration.providerRequestAtMs,
-				retentionSnapshot = retentionSnapshot,
-			)) {
-				"Ambient Steps retention authority changed before provider acceptance"
-			}
-			check(
-				SourceBrokerAuthorization.fingerprint(demands) ==
-					registration.authorization.authorizationFingerprint,
-			) { "Ambient Steps demand changed during provider activation" }
-			database.sourceBrokerDao().acceptReservedReplacement(
-				reservedState = registration.state,
-				expectedPointerGeneration = registration.predecessorState?.registrationGeneration,
-				expectedPointerInstanceId = registration.predecessorState?.sourceInstanceId,
-				requiredAuthorizationFingerprint =
-					registration.authorization.authorizationFingerprint,
-				acceptedAtMs = registration.providerRequestAtMs,
-				acceptedElapsedRealtimeNanos =
-					registration.providerRequestElapsedRealtimeNanos,
-			)
+			acceptInTransaction(registration, observedDemands, retentionSnapshot, lifecycle.epoch)
 		}
+	}
+
+	private suspend fun acceptInTransaction(
+		registration: AmbientStepsProviderRegistration,
+		observedDemands: List<SourceDemandEntity>,
+		retentionSnapshot: LiveAmbientRetentionSnapshot?,
+		collectedDataEpoch: Long,
+	): ProviderRegistrationGenerationEntity? {
+		val boundary = AmbientStepsDemandBoundary(
+			bootId = registration.state.clockDomainId,
+			elapsedRealtimeNanos = registration.providerRequestElapsedRealtimeNanos,
+			wallTimeMs = registration.providerRequestAtMs,
+		)
+		val demands = requireEligibleDemands(
+			registration.provider,
+			registration.expectedDemandId,
+			boundary,
+		)
+		check(demands == observedDemands) {
+			"Ambient Steps demand changed before provider acceptance"
+		}
+		check(
+			database.sourceEvidenceStateDao().get()?.collectedDataEpoch == collectedDataEpoch,
+		) {
+			"Collected-data epoch changed before Ambient Steps provider acceptance"
+		}
+		check(retentionSnapshot != null &&
+			sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
+			demands = demands,
+			expectedCollectedDataEpoch = collectedDataEpoch,
+			currentBootId = registration.state.clockDomainId,
+			currentElapsedRealtimeNanos =
+				registration.providerRequestElapsedRealtimeNanos,
+			currentWallTimeMs = registration.providerRequestAtMs,
+			retentionSnapshot = retentionSnapshot,
+		)) {
+			"Ambient Steps retention authority changed before provider acceptance"
+		}
+		check(
+			SourceBrokerAuthorization.fingerprint(demands) ==
+				registration.authorization.authorizationFingerprint,
+		) { "Ambient Steps demand changed during provider activation" }
+		return database.sourceBrokerDao().acceptReservedReplacement(
+			reservedState = registration.state,
+			expectedPointerGeneration = registration.predecessorState?.registrationGeneration,
+			expectedPointerInstanceId = registration.predecessorState?.sourceInstanceId,
+			requiredAuthorizationFingerprint =
+				registration.authorization.authorizationFingerprint,
+			acceptedAtMs = registration.providerRequestAtMs,
+			acceptedElapsedRealtimeNanos =
+				registration.providerRequestElapsedRealtimeNanos,
+		)
 	}
 
 	suspend fun failUnaccepted(
@@ -319,7 +374,9 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 				physical.providerResidency !=
 					ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE ||
 				physical.status != ProviderRegistrationGenerationEntity.STATUS_RESERVED
-			) return@withTransaction false
+			) {
+				return@withTransaction false
+			}
 			database.sourceBrokerDao().finishRegistration(
 				sourceKind = SOURCE_KIND,
 				registrationGeneration = physical.registrationGeneration,
@@ -387,7 +444,9 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 				current.providerResidency !=
 					ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE ||
 				current.status != ProviderRegistrationGenerationEntity.STATUS_ACTIVE
-			) return@withTransaction null
+			) {
+				return@withTransaction null
+			}
 			check(
 				database.sourceBrokerDao().markRegistrationRetiring(
 					sourceKind = SOURCE_KIND,
@@ -414,7 +473,9 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 			current.providerResidency !=
 				ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE ||
 			current.status != ProviderRegistrationGenerationEntity.STATUS_RETIRING
-		) return@withTransaction false
+		) {
+			return@withTransaction false
+		}
 		database.sourceBrokerDao().completeRegistrationRetirement(
 			SOURCE_KIND,
 			current.registrationGeneration,
@@ -459,26 +520,7 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 				boundary.wallTimeMs,
 			),
 		) { "Ambient Steps policy or consent is not yet effective" }
-		val evidence = requireNotNull(database.sourceEvidenceStateDao().get()) {
-			"Ambient Steps evidence authority is unavailable"
-		}
-		val retention = requireNotNull(
-			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
-				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
-			),
-		) { "Ambient Steps retention authority is unavailable" }
-		check(AmbientStepsRetentionAuthorityIntegrity.isAuthentic(retention) && retention.isActive) {
-			"Ambient Steps retention authority is invalid or revoked"
-		}
-		check(
-			retention.sourcePolicyRevision == authority.currentPolicyRevision &&
-				retention.ambientConsentEpoch == consentEpoch &&
-				retention.collectedDataEpoch == evidence.collectedDataEpoch &&
-				retention.retainedFromMs == evidence.retainedFromMs &&
-				retention.effectiveBootId == boundary.bootId &&
-				retention.effectiveElapsedRealtimeNanos <= boundary.elapsedRealtimeNanos &&
-				retention.effectiveWallTimeMs <= boundary.wallTimeMs,
-		) { "Ambient Steps retention authority no longer matches policy or lifecycle" }
+		val retention = database.requireRetentionAuthorityAt(authority.currentPolicyRevision, consentEpoch, boundary)
 
 		val demands = SourceProviderPurposeScope.selectDemands(
 			SOURCE_KIND,
@@ -489,107 +531,153 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 			"Expected Ambient Steps demand is no longer active"
 		}
 		check(demands.all { demand ->
-			demand.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
-				demand.sourcePolicyRevision == authority.currentPolicyRevision &&
-				demand.consentEpoch == consentEpoch &&
-				demand.persistenceEligible &&
-				demand.requestedBootId == boundary.bootId &&
-				demand.requestedElapsedRealtimeNanos >=
-					retention.effectiveElapsedRealtimeNanos &&
-				demand.requestedElapsedRealtimeNanos <= boundary.elapsedRealtimeNanos &&
-				demand.requestedAtMs >= retention.effectiveWallTimeMs &&
-				demand.requestedAtMs <= boundary.wallTimeMs &&
-				demand.hasExactAmbientStepsRetentionBinding(retention) &&
-				demand.providerMatches(provider)
+			demand.authorizesProviderAt(provider, authority.currentPolicyRevision, consentEpoch, boundary, retention)
 		}) { "Ambient Steps demand does not authorize the selected provider" }
 		return demands
 	}
+}
 
-	private suspend fun appendAuthorizationIfChanged(
-		registrationGeneration: Long,
-		demands: List<SourceDemandEntity>,
-		boundary: AmbientStepsDemandBoundary,
-	): SourceAuthorizationSnapshot {
-		val dao = database.sourceBrokerDao()
-		val fingerprint = SourceBrokerAuthorization.fingerprint(demands)
-		val current = dao.latestAuthorization(SOURCE_KIND, registrationGeneration)
-			.toAuthorizationSnapshotOrNull()
-		if (current != null &&
-			current.authorizationFingerprint == fingerprint &&
-			current.effectiveBootId == boundary.bootId
-		) return current
-		val revision = dao.maximumAuthorizationRevision(SOURCE_KIND) + 1L
-		check(revision > 0L) { "Ambient Steps authorization revision exhausted" }
-		val rows = SourceBrokerAuthorization.rows(
-			sourceKind = SOURCE_KIND,
-			registrationGeneration = registrationGeneration,
-			authorizationRevision = revision,
-			demands = demands,
-			effectiveBootId = boundary.bootId,
-			effectiveElapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
-			effectiveWallTimeMs = boundary.wallTimeMs,
-		)
-		dao.insertAuthorizations(rows)
-		return requireNotNull(rows.toAuthorizationSnapshotOrNull())
-	}
+private val SOURCE_KIND = SourceKind.STEPS.stableCode
+private val OWNER_SCOPE = SourceProviderPurposeScope.exactOwnerScope(
+	SOURCE_KIND,
+	SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+)
 
-	private fun nextState(
-		current: SourceRegistrationStateEntity?,
-		clockDomainId: String,
-		collectedDataEpoch: Long,
-		registrationGeneration: Long,
-		appliedRevision: Long,
-		updatedAtMs: Long,
-	): SourceRegistrationStateEntity {
-		val continuesSequence = current != null &&
-			current.clockDomainId == clockDomainId &&
-			current.collectedDataEpoch == collectedDataEpoch
-		return SourceRegistrationStateEntity(
-			sourceKind = SOURCE_KIND,
-			ownerScope = OWNER_SCOPE,
-			sourceInstanceId = if (continuesSequence) {
-				requireNotNull(current).sourceInstanceId
-			} else {
-				UUID.randomUUID().toString()
-			},
-			clockDomainId = clockDomainId,
-			registrationGeneration = registrationGeneration,
-			nextSequence = if (continuesSequence) requireNotNull(current).nextSequence else 0L,
-			appliedRevision = appliedRevision,
-			collectedDataEpoch = collectedDataEpoch,
-			updatedAtMs = updatedAtMs,
-		)
-	}
-
-	private fun stateForReservation(
-		current: SourceRegistrationStateEntity?,
-		registration: ProviderRegistrationGenerationEntity,
-		appliedRevision: Long,
-		updatedAtMs: Long,
-	): SourceRegistrationStateEntity = SourceRegistrationStateEntity(
+private fun nextState(
+	current: SourceRegistrationStateEntity?,
+	clockDomainId: String,
+	collectedDataEpoch: Long,
+	registrationGeneration: Long,
+	appliedRevision: Long,
+	updatedAtMs: Long,
+): SourceRegistrationStateEntity {
+	val continuesSequence = current != null &&
+		current.clockDomainId == clockDomainId &&
+		current.collectedDataEpoch == collectedDataEpoch
+	return SourceRegistrationStateEntity(
 		sourceKind = SOURCE_KIND,
 		ownerScope = OWNER_SCOPE,
-		sourceInstanceId = registration.sourceInstanceId,
-		clockDomainId = registration.clockDomainId,
-		registrationGeneration = registration.registrationGeneration,
-		nextSequence = if (
-			current != null && current.sourceInstanceId == registration.sourceInstanceId &&
-				current.clockDomainId == registration.clockDomainId &&
-				current.collectedDataEpoch == registration.collectedDataEpoch
-		) current.nextSequence else 0L,
+		sourceInstanceId = if (continuesSequence) {
+			requireNotNull(current).sourceInstanceId
+		} else {
+			UUID.randomUUID().toString()
+		},
+		clockDomainId = clockDomainId,
+		registrationGeneration = registrationGeneration,
+		nextSequence = if (continuesSequence) {
+			requireNotNull(current).nextSequence
+		} else {
+			0L
+		},
 		appliedRevision = appliedRevision,
-		collectedDataEpoch = registration.collectedDataEpoch,
+		collectedDataEpoch = collectedDataEpoch,
 		updatedAtMs = updatedAtMs,
 	)
-
-	private companion object {
-		val SOURCE_KIND = SourceKind.STEPS.stableCode
-		val OWNER_SCOPE = SourceProviderPurposeScope.exactOwnerScope(
-			SOURCE_KIND,
-			SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
-		)
-	}
 }
+
+private fun stateForReservation(
+	current: SourceRegistrationStateEntity?,
+	registration: ProviderRegistrationGenerationEntity,
+	appliedRevision: Long,
+	updatedAtMs: Long,
+): SourceRegistrationStateEntity = SourceRegistrationStateEntity(
+	sourceKind = SOURCE_KIND,
+	ownerScope = OWNER_SCOPE,
+	sourceInstanceId = registration.sourceInstanceId,
+	clockDomainId = registration.clockDomainId,
+	registrationGeneration = registration.registrationGeneration,
+	nextSequence = if (
+		current != null && current.sourceInstanceId == registration.sourceInstanceId &&
+			current.clockDomainId == registration.clockDomainId &&
+			current.collectedDataEpoch == registration.collectedDataEpoch
+	) {
+		current.nextSequence
+	} else {
+		0L
+	},
+	appliedRevision = appliedRevision,
+	collectedDataEpoch = registration.collectedDataEpoch,
+	updatedAtMs = updatedAtMs,
+)
+
+private suspend fun AppDatabase.requireRetentionAuthorityAt(
+	policyRevision: Long,
+	consentEpoch: Long,
+	boundary: AmbientStepsDemandBoundary,
+): AmbientStepsRetentionAuthorityEntity {
+	val evidence = requireNotNull(sourceEvidenceStateDao().get()) {
+		"Ambient Steps evidence authority is unavailable"
+	}
+	val retention = requireNotNull(
+		ambientStepsFactRevisionDao().latestRetentionAuthority(
+			AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+		),
+	) { "Ambient Steps retention authority is unavailable" }
+	check(AmbientStepsRetentionAuthorityIntegrity.isAuthentic(retention) && retention.isActive) {
+		"Ambient Steps retention authority is invalid or revoked"
+	}
+	check(
+		retention.sourcePolicyRevision == policyRevision &&
+			retention.ambientConsentEpoch == consentEpoch &&
+			retention.collectedDataEpoch == evidence.collectedDataEpoch &&
+			retention.retainedFromMs == evidence.retainedFromMs &&
+			retention.effectiveBootId == boundary.bootId &&
+			retention.effectiveElapsedRealtimeNanos <= boundary.elapsedRealtimeNanos &&
+			retention.effectiveWallTimeMs <= boundary.wallTimeMs,
+	) { "Ambient Steps retention authority no longer matches policy or lifecycle" }
+
+	return retention
+}
+
+private suspend fun AppDatabase.appendAuthorizationIfChanged(
+	registrationGeneration: Long,
+	demands: List<SourceDemandEntity>,
+	boundary: AmbientStepsDemandBoundary,
+): SourceAuthorizationSnapshot {
+	val dao = sourceBrokerDao()
+	val fingerprint = SourceBrokerAuthorization.fingerprint(demands)
+	val current = dao.latestAuthorization(SOURCE_KIND, registrationGeneration)
+		.toAuthorizationSnapshotOrNull()
+	if (current != null &&
+		current.authorizationFingerprint == fingerprint &&
+		current.effectiveBootId == boundary.bootId
+	) {
+		return current
+	}
+	val revision = dao.maximumAuthorizationRevision(SOURCE_KIND) + 1L
+	check(revision > 0L) { "Ambient Steps authorization revision exhausted" }
+	val rows = SourceBrokerAuthorization.rows(
+		sourceKind = SOURCE_KIND,
+		registrationGeneration = registrationGeneration,
+		authorizationRevision = revision,
+		demands = demands,
+		effectiveBootId = boundary.bootId,
+		effectiveElapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
+		effectiveWallTimeMs = boundary.wallTimeMs,
+	)
+	dao.insertAuthorizations(rows)
+	return requireNotNull(rows.toAuthorizationSnapshotOrNull())
+}
+
+private fun ProviderRegistrationGenerationEntity.matchesPendingBoundary(
+	boundary: AmbientStepsDemandBoundary,
+	collectedDataEpoch: Long,
+	fingerprint: String,
+): Boolean = clockDomainId == boundary.bootId && this.collectedDataEpoch == collectedDataEpoch &&
+	physicalConfigurationFingerprint == fingerprint
+
+// Complete immutable current-pointer and accepted physical provider correspondence.
+@Suppress("ComplexCondition")
+private fun SourceRegistrationStateEntity.matchesActiveProvider(
+	physical: ProviderRegistrationGenerationEntity,
+	boundary: AmbientStepsDemandBoundary,
+	collectedDataEpoch: Long,
+	fingerprint: String,
+): Boolean = clockDomainId == boundary.bootId && this.collectedDataEpoch == collectedDataEpoch &&
+	physical.providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE &&
+	physical.providerProcessIncarnationId == null &&
+	physical.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE &&
+	physical.physicalConfigurationFingerprint == fingerprint
 
 internal fun AmbientStepsProvider.physicalConfigurationFingerprint(): String =
 	"ambient-steps-provider:v1:mechanism=$name"
@@ -599,7 +687,30 @@ internal fun ProviderRegistrationGenerationEntity.ambientStepsProviderOrNull(): 
 		provider.physicalConfigurationFingerprint() == physicalConfigurationFingerprint
 	}
 
-private fun SourceDemandEntity.providerMatches(provider: AmbientStepsProvider): Boolean {
+private fun SourceDemandEntity.authorizesProviderAt(
+	provider: AmbientStepsProvider,
+	policyRevision: Long,
+	consentEpoch: Long,
+	boundary: AmbientStepsDemandBoundary,
+	retention: AmbientStepsRetentionAuthorityEntity,
+): Boolean {
+	if (purpose != SourceBrokerPurpose.AMBIENT_PRODUCT || sourcePolicyRevision != policyRevision ||
+		this.consentEpoch != consentEpoch || !persistenceEligible
+	) {
+		return false
+	}
+	return requestedBootId == boundary.bootId && hasRequestWithin(retention, boundary) &&
+		hasExactAmbientStepsRetentionBinding(retention) && matchesProviderRegistration(provider)
+}
+
+private fun SourceDemandEntity.hasRequestWithin(
+	retention: AmbientStepsRetentionAuthorityEntity,
+	boundary: AmbientStepsDemandBoundary,
+): Boolean = requestedElapsedRealtimeNanos >= retention.effectiveElapsedRealtimeNanos &&
+	requestedElapsedRealtimeNanos <= boundary.elapsedRealtimeNanos &&
+	requestedAtMs >= retention.effectiveWallTimeMs && requestedAtMs <= boundary.wallTimeMs
+
+private fun SourceDemandEntity.matchesProviderRegistration(provider: AmbientStepsProvider): Boolean {
 	val floor = runCatching { toSourceDemandContract().floor as AmbientStepsAcquisitionFloor }
 		.getOrNull() ?: return false
 	return floor.mechanism == when (provider) {

@@ -16,25 +16,48 @@ object DatabaseBackupScope {
         "files/data-backup/legacy-database",
     )
 
+    /**
+     * Finds existing allowed data files and verifies app ownership; fails when the active Tracker database is
+     * absent.
+     */
     fun discover(context: Context): List<DatabaseBackupSource> {
         val active = context.getDatabasePath(ACTIVE_DATABASE_NAME)
-        if (!active.isFile) throw IOException("No saved Tracker data is available")
+        if (!active.isFile) {
+            throw IOException("No saved Tracker data is available")
+        }
         return allowedPaths.sorted().mapNotNull { path ->
-            if (path == "databases/$LEGACY_DATABASE_NAME" && File(context.filesDir, "data-backup/legacy-database").isFile) return@mapNotNull null
+            if (path == "databases/$LEGACY_DATABASE_NAME" && File(context.filesDir,
+                "data-backup/legacy-database").isFile) {
+                return@mapNotNull null
+            }
             val file = destination(context, path)
-            if (!file.exists()) return@mapNotNull null
-            val owner = if (path.startsWith("databases/")) context.getDatabasePath(ACTIVE_DATABASE_NAME).parentFile!!.canonicalFile
-                else context.filesDir.canonicalFile
-            if (!file.isFile || !file.canonicalFile.toPath().startsWith(owner.toPath())) throw IOException("Backup data file is unavailable")
+            if (!file.exists()) {
+                return@mapNotNull null
+            }
+            val owner = if (path.startsWith("databases/")) {
+                context.getDatabasePath(ACTIVE_DATABASE_NAME).parentFile!!.canonicalFile
+            }
+                else {
+                context.filesDir.canonicalFile
+            }
+            if (!file.isFile || !file.canonicalFile.toPath().startsWith(owner.toPath())) {
+                throw IOException("Backup data file is unavailable")
+            }
             DatabaseBackupSource(path, file, path.startsWith("databases/"))
         }
     }
 
+    /** Resolves an allowlisted archive path to its local database or durable-data destination. */
     fun destination(context: Context, path: String): File {
         require(path in allowedPaths)
-        return if (path.startsWith("databases/")) context.getDatabasePath(path.removePrefix("databases/"))
-        else File(context.filesDir, path.removePrefix("files/"))
+        return if (path.startsWith("databases/")) {
+            context.getDatabasePath(path.removePrefix("databases/"))
+        }
+        else {
+            File(context.filesDir, path.removePrefix("files/"))
+        }
     }
 }
 
+/** An allowed archive member, its local data file and whether copying requires a database lock. */
 data class DatabaseBackupSource(val archivePath: String, val file: File, val requiresDatabaseLock: Boolean)

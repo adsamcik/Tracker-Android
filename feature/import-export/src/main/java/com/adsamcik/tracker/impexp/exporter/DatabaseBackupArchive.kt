@@ -25,20 +25,31 @@ internal object DatabaseBackupArchive {
 			val databaseEntries = withDatabaseCopyLocks(databaseSources, copyLockProvider) {
 				databaseSources.map { source ->
 					caller.ensureActive()
-					writeDatabaseEntry(archive, source.file, caller, source.archivePath).copy(fileName = source.archivePath)
+					writeDatabaseEntry(archive, source.file, caller, source.archivePath).copy(fileName =
+                        source.archivePath)
 				}
 			}
 			// The entire database set represents the instant after the last lock was acquired.
 			// Release those locks before large immutable map/imported-file copies.
-			val entries = databaseEntries + sources.filterNot { it.requiresDatabaseLock }.sortedBy { it.archivePath }.map { source ->
-				caller.ensureActive()
-				writeDatabaseEntry(archive, source.file, caller, source.archivePath).copy(fileName = source.archivePath)
-			}
+			val entries =
+				databaseEntries + sources.filterNot { it.requiresDatabaseLock }
+					.sortedBy { it.archivePath }
+					.map { source ->
+						caller.ensureActive()
+						writeDatabaseEntry(archive, source.file, caller, source.archivePath).copy(
+							fileName = source.archivePath,
+						)
+					}
 			val manifest = buildString {
 				append("{\"format\":\"tracker-database-backup\",\"version\":2,\"scope\":\"data\",\"files\":[")
 				entries.forEachIndexed { index, entry ->
-					if (index > 0) append(',')
-					append("{\"path\":\"${escapeJson(entry.fileName)}\",\"sizeBytes\":${entry.sizeBytes},\"sha256\":\"${entry.sha256}\"}")
+					if (index > 0) {
+						append(',')
+					}
+					append(
+						"{\"path\":\"${escapeJson(entry.fileName)}\",\"sizeBytes\":${entry.sizeBytes}," +
+							"\"sha256\":\"${entry.sha256}\"}",
+					)
 				}
 				append("]}")
 			}
@@ -48,7 +59,8 @@ internal object DatabaseBackupArchive {
 			archive.closeEntry()
 		}
 		caller.ensureActive()
-		} catch (failure: Throwable) {
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Throwable) {
+			// Preserve the writer/close failure while applying the existing caller-cancellation precedence.
 			if (failure !is CancellationException) {
 				try { caller.ensureActive() } catch (cancelled: CancellationException) {
 					cancelled.addSuppressed(failure)
@@ -59,27 +71,34 @@ internal object DatabaseBackupArchive {
 		}
 	}
 
-	private suspend fun <T> withDatabaseCopyLocks(sources: List<DatabaseBackupSource>, provider: DatabaseCopyLockProvider,
-		operation: suspend () -> T): T {
+	private suspend fun <T> withDatabaseCopyLocks(
+		sources: List<DatabaseBackupSource>,
+		provider: DatabaseCopyLockProvider,
+		operation: suspend () -> T,
+	): T {
 		val locks = mutableListOf<Closeable>()
-		var primary: Throwable? = null
-		try {
+		return Closeable {
+			var cleanupFailure: Throwable? = null
+			locks.asReversed().forEach { lock ->
+				try {
+					lock.close()
+				} catch (@Suppress("TooGenericExceptionCaught") failure: Throwable) {
+					// An opaque lock close may throw Error; still release later locks before rethrowing.
+					val earlierFailure = cleanupFailure
+					if (earlierFailure == null) {
+						cleanupFailure = failure
+					} else {
+						earlierFailure.addSuppressed(failure)
+					}
+				}
+			}
+			cleanupFailure?.let { throw it }
+		}.use {
 			for (source in sources) {
 				currentCoroutineContext().ensureActive()
 				locks += provider.lock(source.file)
 			}
-			return operation()
-		} catch (failure: Throwable) { primary = failure; throw failure }
-		finally {
-			var cleanup: Throwable? = null
-			locks.asReversed().forEach { lock ->
-				try { lock.close() } catch (failure: Throwable) {
-					val original = primary
-					if (original != null) original.addSuppressed(failure)
-					else if (cleanup == null) cleanup = failure else cleanup!!.addSuppressed(failure)
-				}
-			}
-			if (primary == null && cleanup != null) throw cleanup!!
+			operation()
 		}
 	}
 
@@ -104,7 +123,8 @@ internal object DatabaseBackupArchive {
 				writeManifest(archive, entries, caller)
 			}
 			caller.ensureActive()
-		} catch (error: Throwable) {
+		} catch (@Suppress("TooGenericExceptionCaught") error: Throwable) {
+			// Preserve the writer/close failure while applying the existing caller-cancellation precedence.
 			if (error !is CancellationException) {
 				try {
 					caller.ensureActive()
@@ -134,7 +154,9 @@ internal object DatabaseBackupArchive {
 				caller.ensureActive()
 				val count = input.read(buffer)
 				caller.ensureActive()
-				if (count < 0) break
+				if (count < 0) {
+					break
+				}
 				checksum.update(buffer, 0, count)
 				sizeBytes = Math.addExact(sizeBytes, count.toLong())
 				archive.write(buffer, 0, count)
@@ -144,7 +166,12 @@ internal object DatabaseBackupArchive {
 		archive.closeEntry()
 		caller.ensureActive()
 		return DatabaseBackupEntry(
-			fileName = if (archivePath.startsWith(DATABASE_DIRECTORY) && archivePath == "$DATABASE_DIRECTORY${file.name}") file.name else archivePath,
+			fileName = if (archivePath.startsWith(DATABASE_DIRECTORY) &&
+                archivePath == "$DATABASE_DIRECTORY${file.name}") {
+				file.name
+			} else {
+				archivePath
+			},
 			sizeBytes = sizeBytes,
 			sha256 = checksum.digest().joinToString("") { "%02x".format(it) },
 		)
@@ -159,7 +186,9 @@ internal object DatabaseBackupArchive {
 		val manifest = buildString {
 			append("{\"format\":\"tracker-database-backup\",\"version\":1,\"databases\":[")
 			entries.forEachIndexed { index, entry ->
-				if (index > 0) append(',')
+				if (index > 0) {
+					append(',')
+				}
 				append(
 					"""{"file":"${escapeJson(entry.fileName)}","sizeBytes":${entry.sizeBytes},"sha256":"${entry.sha256}"}"""
 				)

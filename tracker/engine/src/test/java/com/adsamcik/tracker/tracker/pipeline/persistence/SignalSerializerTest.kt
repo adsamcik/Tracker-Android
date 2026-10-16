@@ -237,7 +237,10 @@ class SignalSerializerTest {
 	@Test
 	fun `unknown curated accuracy survives the existing pending signal envelope and checksum`() {
 		val original = createLocationOnlySignal().let { signal ->
-			signal.copy(location = signal.location.shouldNotBeNull().copy(horizontalAccuracyM = null))
+			signal.copy(
+				location = signal.location.shouldNotBeNull().copy(horizontalAccuracyM = null),
+				activityFresh = false,
+			)
 		}
 		val encoded = SignalSerializer.encode(original)
 		val locationJson = org.json.JSONObject(encoded.payloadJson).getJSONObject("payload").getJSONObject("loc")

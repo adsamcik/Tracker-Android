@@ -147,6 +147,8 @@ class WifiCapturedPortableFormatV1Test {
 	}
 
 	@Test
+	// Keep this complete immutable-record contract and its paired assertions together.
+	@Suppress("LongMethod")
 	fun `portable ownership accepts exact replay and rejects child kind or owner reuse`() {
 		val first = PortableWifiIntegrity.createEntry(
 			identity = identity(PortableWifiIdentityKind.LOGICAL_ENTRY, "owner-entry-a"),

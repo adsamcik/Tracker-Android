@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.PressureFactProofAuthenticator
 import com.adsamcik.tracker.shared.base.database.PressureFactProofFailure
 import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.PressureFactRetentionRevisionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -58,7 +59,9 @@ internal class PressureHistorySelector private constructor(
 		segmentIds: List<Long>,
 	): Map<Long, PressurePhysicalHistory> = database.withTransaction {
 		val distinctIds = segmentIds.distinct()
-		if (distinctIds.isEmpty()) return@withTransaction emptyMap()
+		if (distinctIds.isEmpty()) {
+			return@withTransaction emptyMap()
+		}
 		require(distinctIds.size <= PRESSURE_HISTORY_SEGMENT_BATCH_CAP) {
 			"At most $PRESSURE_HISTORY_SEGMENT_BATCH_CAP Pressure history rows may be selected"
 		}
@@ -79,7 +82,9 @@ internal class PressureHistorySelector private constructor(
 		segmentIds: List<Long>,
 	): List<PressureLogicalHistoryEntry> {
 		val distinctIds = segmentIds.distinct()
-		if (distinctIds.isEmpty()) return emptyList()
+		if (distinctIds.isEmpty()) {
+			return emptyList()
+		}
 		require(distinctIds.size <= PRESSURE_HISTORY_SEGMENT_BATCH_CAP) {
 			"At most $PRESSURE_HISTORY_SEGMENT_BATCH_CAP Pressure history rows may be selected"
 		}
@@ -159,6 +164,8 @@ internal class PressureHistorySelector private constructor(
 			requireSourceExhaustionAtLimit = true,
 		)
 
+	// Ordered membership/budget failures and exhausted-page completion share the same bounded traversal.
+	@Suppress("ReturnCount")
 	private suspend fun discoverRecentPressureOnlyInTransaction(
 		limit: Int,
 		mode: PressureOnlyDiscoveryMode,
@@ -173,7 +180,7 @@ internal class PressureHistorySelector private constructor(
 		var beforeLogicalRecencySegmentId: Long? = null
 		var scannedCandidateCount = 0
 
-		while (accepted.size < limit && scannedCandidateCount < candidateBudget) {
+		while (scannedCandidateCount < candidateBudget) {
 			currentCoroutineContext().ensureActive()
 			val remainingCandidateBudget = candidateBudget - scannedCandidateCount
 			val acceptedPageLimit = minOf(
@@ -182,57 +189,93 @@ internal class PressureHistorySelector private constructor(
 			)
 			val finalBudgetPage = remainingCandidateBudget <= PRESSURE_DISCOVERY_CANDIDATE_PAGE_SIZE
 			val candidateProbe = database.pressureFactRevisionDao().pressureLogicalHistoryCandidatePage(
-				limit = acceptedPageLimit + if (finalBudgetPage) 1 else 0,
+				limit = acceptedPageLimit + if (finalBudgetPage) {
+					1
+				} else {
+					0
+				},
 				beforeLogicalRecencyStartMs = beforeLogicalRecencyStartMs,
 				beforeLogicalRecencySegmentId = beforeLogicalRecencySegmentId,
 			)
 			val candidateBudgetExceeded = finalBudgetPage && candidateProbe.size > acceptedPageLimit
 			val candidates = candidateProbe.take(acceptedPageLimit)
-			if (candidates.isEmpty()) break
+			if (candidates.isEmpty()) {
+				return pressureOnlyContent(accepted, limit)
+			}
 			scannedCandidateCount += candidates.size
 			val seeds = candidates.map { it.segment }
 
-			val resolvedEntries = selectLogicalFromSeedsInTransaction(
-				seeds = seeds,
-				memberBudget = memberBudget,
-			)
-			if (resolvedEntries.any { entry ->
-				entry.physicalMembers.any { member ->
-					PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW in member.reasons
-				}
-			}) return PressureOnlyDiscoveryResult.Unavailable(
-				SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
-			)
-			val entriesByMemberId = buildMap {
-				resolvedEntries.forEach { entry ->
-					entry.physicalMembers.forEach { member -> put(member.segment.id, entry) }
-				}
-			}
-			seeds.forEach { seed ->
-				val entry = entriesByMemberId[seed.id] ?: return@forEach
-				if (
-					entry.identity is PressureHistoryEntryIdentity.Logical &&
-					entry.hasExactPressureOnlyIntent && (
-						mode == PressureOnlyDiscoveryMode.EXACT_INTENT || entry.isOrdinarilyDiscoverable
-					)
-				) {
-					accepted.putIfAbsent(entry.identity, entry)
-				}
-			}
-			if (candidateBudgetExceeded && (
-					requireSourceExhaustionAtLimit || accepted.size < limit
-				)
-			) return PressureOnlyDiscoveryResult.Unavailable(
+			appendEligiblePressureOnlyEntries(seeds, mode, memberBudget, accepted)?.let { return it }
+			if (isPressureOnlyScanIncomplete(candidateBudgetExceeded, requireSourceExhaustionAtLimit, accepted.size, limit)) {
+				return PressureOnlyDiscoveryResult.Unavailable(
 				SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
 			)
-			if (accepted.size >= limit) break
+			}
+			if (accepted.size >= limit) {
+				return pressureOnlyContent(accepted, limit)
+			}
 
 			val lastScanned = candidates.last()
 			beforeLogicalRecencyStartMs = lastScanned.logicalRecencyStartMs
 			beforeLogicalRecencySegmentId = lastScanned.logicalRecencySegmentId
-			if (candidates.size < acceptedPageLimit) break
+			if (candidates.size < acceptedPageLimit) {
+				return pressureOnlyContent(accepted, limit)
+			}
 		}
 
+		return pressureOnlyContent(accepted, limit)
+	}
+
+	private suspend fun appendEligiblePressureOnlyEntries(
+		seeds: List<SessionSegment>,
+		mode: PressureOnlyDiscoveryMode,
+		memberBudget: Int,
+		accepted: MutableMap<PressureHistoryEntryIdentity, PressureLogicalHistoryEntry>,
+	): PressureOnlyDiscoveryResult.Unavailable? {
+		val resolvedEntries = selectLogicalFromSeedsInTransaction(
+			seeds = seeds,
+			memberBudget = memberBudget,
+		)
+		if (resolvedEntries.any { entry ->
+			entry.physicalMembers.any { member ->
+				PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW in member.reasons
+			}
+		}) {
+			return PressureOnlyDiscoveryResult.Unavailable(
+			SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
+		)
+		}
+		val entriesByMemberId = buildMap {
+			resolvedEntries.forEach { entry ->
+				entry.physicalMembers.forEach { member -> put(member.segment.id, entry) }
+			}
+		}
+		seeds.forEach { seed ->
+			val entry = entriesByMemberId[seed.id] ?: return@forEach
+			if (
+				entry.canPublishPressureOnly(mode)
+			) {
+				accepted.putIfAbsent(entry.identity, entry)
+			}
+		}
+		return null
+	}
+
+	private fun PressureLogicalHistoryEntry.canPublishPressureOnly(mode: PressureOnlyDiscoveryMode): Boolean =
+		identity is PressureHistoryEntryIdentity.Logical && hasExactPressureOnlyIntent &&
+			(mode == PressureOnlyDiscoveryMode.EXACT_INTENT || isOrdinarilyDiscoverable)
+
+	private fun isPressureOnlyScanIncomplete(
+		candidateBudgetExceeded: Boolean,
+		requireSourceExhaustionAtLimit: Boolean,
+		acceptedCount: Int,
+		limit: Int,
+	): Boolean = candidateBudgetExceeded && (requireSourceExhaustionAtLimit || acceptedCount < limit)
+
+	private fun pressureOnlyContent(
+		accepted: Map<PressureHistoryEntryIdentity, PressureLogicalHistoryEntry>,
+		limit: Int,
+	): PressureOnlyDiscoveryResult.Content {
 		return PressureOnlyDiscoveryResult.Content(
 			accepted.values.sortedWith(compareByDescending<PressureLogicalHistoryEntry> { entry ->
 				entry.recencyMember.segment.startTimeMs
@@ -246,7 +289,9 @@ internal class PressureHistorySelector private constructor(
 		seeds: List<SessionSegment>,
 		memberBudget: Int = PRESSURE_HISTORY_SEGMENT_BATCH_CAP,
 	): List<PressureLogicalHistoryEntry> {
-		if (seeds.isEmpty()) return emptyList()
+		if (seeds.isEmpty()) {
+			return emptyList()
+		}
 		val expansion = expandPressureLogicalMembership(database, seeds, memberBudget)
 		val snapshot = loadPressureHistoryBatchSnapshot(
 			database = database,
@@ -265,7 +310,9 @@ internal class PressureHistorySelector private constructor(
 		segments: List<SessionSegment>,
 		memberBudget: Int = PRESSURE_HISTORY_SEGMENT_BATCH_CAP,
 	): List<PressurePhysicalHistory> {
-		if (segments.isEmpty()) return emptyList()
+		if (segments.isEmpty()) {
+			return emptyList()
+		}
 		val expansion = expandPressureLogicalMembership(database, segments, memberBudget)
 		val snapshot = loadPressureHistoryBatchSnapshot(
 			database = database,
@@ -278,23 +325,41 @@ internal class PressureHistorySelector private constructor(
 
 
 	/** Exact original Pressure lineages for measured browsing; the caller holds the snapshot transaction. */
-	internal suspend fun selectMeasuredWindowsInTransaction(keys: List<PressureMeasuredFactKey>): List<PressurePhysicalHistory> {
-		require(keys.size <= 100 && keys.distinct().size == keys.size &&
+	internal suspend fun selectMeasuredWindowsInTransaction(
+		keys: List<PressureMeasuredFactKey>,
+	): List<PressurePhysicalHistory> {
+		require(keys.size <= MAX_MEASURED_PRESSURE_KEYS && keys.distinct().size == keys.size &&
 			keys.map { Triple(it.writerId, it.writerVersion, it.factId) }.distinct().size == keys.size)
-		if (keys.isEmpty()) return emptyList()
+		if (keys.isEmpty()) {
+			return emptyList()
+		}
 		val facts = mutableListOf<PressureFactRevisionEntity>()
 		for (key in keys) {
 			currentCoroutineContext().ensureActive()
 			val remaining = 8_192 - facts.size
-			val lineage = database.pressureFactRevisionDao().revisionsForFact(key.writerId, key.writerVersion, key.factId, remaining + 1)
-			if (lineage.size > remaining) throw PressureHistoryPageDependencyOverflow(SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED)
+			val lineage = database.pressureFactRevisionDao().revisionsForFact(key.writerId, key.writerVersion,
+                key.factId,
+                remaining + 1)
+			if (lineage.size > remaining) {
+				throw PressureHistoryPageDependencyOverflow(SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED)
+			}
 			facts += lineage
 		}
 		val runIds = facts.map(PressureFactRevisionEntity::serviceRunId).distinct()
-		val runs = if (runIds.isEmpty()) emptyList() else database.trackingHistoryReadDao().serviceRuns(runIds)
+		val runs = if (runIds.isEmpty()) {
+			emptyList()
+		} else {
+			database.trackingHistoryReadDao().serviceRuns(runIds)
+		}
 		val segmentIds = runs.mapNotNull(SourceServiceRunEntity::sessionSegmentId).distinct()
-		val seeds = if (segmentIds.isEmpty()) emptyList() else database.trackingHistoryReadDao().segments(segmentIds)
-		if (seeds.isEmpty()) return emptyList()
+		val seeds = if (segmentIds.isEmpty()) {
+			emptyList()
+		} else {
+			database.trackingHistoryReadDao().segments(segmentIds)
+		}
+		if (seeds.isEmpty()) {
+			return emptyList()
+		}
 		val snapshot = loadPressureHistoryBatchSnapshot(database, seeds,
 			currentClockDomainId = currentClockDomainId(), selectedFacts = facts)
 		return selectManyWithSnapshot(seeds, snapshot, measuredOnly = true)
@@ -620,11 +685,7 @@ internal class PressureHistorySelector private constructor(
 				return providerUnavailable(segment, captureAuthority)
 			}
 		}
-		if (revisions.isNotEmpty() && targetOrdinal == null ||
-			targetOrdinal != null && revisions.any { fact ->
-				fact.sourceAdmissionOrdinal < lane.activationOrdinal ||
-					fact.sourceAdmissionOrdinal > targetOrdinal
-			}
+		if (!hasAdmittedPressureRevisions(revisions, targetOrdinal, lane)
 		) {
 			return failed(segment, captureAuthority, PressureHistoryReason.COMPLETENESS_INVALID)
 		}
@@ -662,21 +723,8 @@ internal class PressureHistorySelector private constructor(
 			val binding = pressureBindings[fact.manifestRevision]
 			val nextManifest = nextManifestByRevision[fact.manifestRevision]
 			if (manifest == null || binding == null ||
-				fact.logicalTrackingId != logicalTrackingId || fact.serviceRunId != serviceRunId ||
-				fact.purpose != SessionManifestPurposeCode.SESSION_CAPTURE ||
-				fact.sourcePolicyRevision != manifest.sourcePolicyRevision ||
-				fact.captureConsentEpoch != binding.consentEpoch ||
-				fact.writerProjectionId != lane.projectionId ||
-				fact.writerProjectionVersion != lane.projectionVersion ||
-				fact.writerBindingGeneration != lane.bindingGeneration ||
-				fact.clockDomainId != manifest.effectiveBootId ||
-				fact.windowStartElapsedRealtimeNanos < serviceRun.startedElapsedNanos ||
-				fact.windowStartElapsedRealtimeNanos < manifest.effectiveElapsedRealtimeNanos ||
-				nextManifest?.effectiveElapsedRealtimeNanos?.let { nextEffective ->
-					fact.windowStartElapsedRealtimeNanos >= nextEffective ||
-						fact.windowEndElapsedRealtimeNanos > nextEffective
-				} == true || lane.activatedRolloutRevision > manifest.rolloutRevision ||
-				!hasValidPressureFactIdentity(fact, binding)
+				!fact.matchesCapturedPressureScope(logicalTrackingId, serviceRunId, manifest, binding, lane) ||
+				!fact.hasPressureWindowAuthority(manifest, binding, lane, serviceRun, nextManifest)
 			) {
 				return failed(
 					segment,
@@ -718,11 +766,21 @@ internal class PressureHistorySelector private constructor(
 		if (snapshot.factProof.savedSessionCutoffs[logicalTrackingId]?.clockUnknown == true) {
 			reasons += PressureHistoryReason.STOP_INCOMPLETE
 		}
-		if (!captureCoveredWholeRun) reasons += PressureHistoryReason.CAPTURE_NOT_ENABLED_FOR_WHOLE_RUN
-		if (!serviceRunCompleted) reasons += PressureHistoryReason.SERVICE_RUN_ACTIVE
-		if (retentionCrossesSegment) reasons += PressureHistoryReason.RETENTION_CROSSES_SEGMENT
-		if (reportedRetentionTruncated) reasons += PressureHistoryReason.RETENTION_TRUNCATED
-		if (completeness.isEmpty()) reasons += PressureHistoryReason.COMPLETENESS_MISSING
+		if (!captureCoveredWholeRun) {
+			reasons += PressureHistoryReason.CAPTURE_NOT_ENABLED_FOR_WHOLE_RUN
+		}
+		if (!serviceRunCompleted) {
+			reasons += PressureHistoryReason.SERVICE_RUN_ACTIVE
+		}
+		if (retentionCrossesSegment) {
+			reasons += PressureHistoryReason.RETENTION_CROSSES_SEGMENT
+		}
+		if (reportedRetentionTruncated) {
+			reasons += PressureHistoryReason.RETENTION_TRUNCATED
+		}
+		if (completeness.isEmpty()) {
+			reasons += PressureHistoryReason.COMPLETENESS_MISSING
+		}
 		if (completeness.any { !it.appDrainComplete }) {
 			reasons += PressureHistoryReason.APP_DRAIN_INCOMPLETE
 		}
@@ -737,17 +795,21 @@ internal class PressureHistorySelector private constructor(
 		}
 		if (effectiveFacts.any {
 			it.qualification == PressureFactRevisionEntity.QUALIFICATION_PARTIAL
-		}) reasons += PressureHistoryReason.PARTIAL_FACT
-		if (targetOrdinal != null && revisions.isEmpty() &&
-			targetOrdinal >= lane.activationOrdinal &&
-			!retentionCrossesSegment && !retentionTruncated
+		}) {
+			reasons += PressureHistoryReason.PARTIAL_FACT
+		}
+		if (hasMissingAdmittedPressureFacts(targetOrdinal, revisions, lane, retentionCrossesSegment, retentionTruncated)
 		) {
 			reasons += PressureHistoryReason.FACTS_MISSING_FOR_ADMITTED_RUN
 		}
 
 		val laneCutoffOrdinal = lane.captureAdmissionCutoffOrdinal
-		val productTargetOrdinal = if (measuredOnly) effectiveFacts.maxOfOrNull(PressureFactRevisionEntity::sourceAdmissionOrdinal)
-			else targetOrdinal
+		val productTargetOrdinal = if (measuredOnly) {
+			effectiveFacts.maxOfOrNull(PressureFactRevisionEntity::sourceAdmissionOrdinal)
+		}
+			else {
+			targetOrdinal
+		}
 		val materialization = when {
 			productTargetOrdinal != null && productTargetOrdinal < lane.activationOrdinal -> {
 				reasons += PressureHistoryReason.TARGET_BEFORE_LANE_ACTIVATION
@@ -813,6 +875,72 @@ internal class PressureHistorySelector private constructor(
 		)
 	}
 
+	private fun hasAdmittedPressureRevisions(
+		revisions: List<PressureFactRevisionEntity>,
+		targetOrdinal: Long?,
+		lane: SourceProductProjectionLaneEntity,
+	): Boolean {
+		if (revisions.isNotEmpty() && targetOrdinal == null) {
+			return false
+		}
+		return targetOrdinal == null || revisions.none { fact ->
+			fact.sourceAdmissionOrdinal < lane.activationOrdinal || fact.sourceAdmissionOrdinal > targetOrdinal
+		}
+	}
+
+	private fun PressureFactRevisionEntity.matchesCapturedPressureScope(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		manifest: SessionManifestVersionEntity,
+		binding: SessionManifestSourceEntity,
+		lane: SourceProductProjectionLaneEntity,
+	): Boolean {
+		if (this.logicalTrackingId != logicalTrackingId || this.serviceRunId != serviceRunId ||
+			purpose != SessionManifestPurposeCode.SESSION_CAPTURE
+		) {
+			return false
+		}
+		if (sourcePolicyRevision != manifest.sourcePolicyRevision || captureConsentEpoch != binding.consentEpoch) {
+			return false
+		}
+		return writerProjectionId == lane.projectionId && writerProjectionVersion == lane.projectionVersion &&
+			writerBindingGeneration == lane.bindingGeneration && clockDomainId == manifest.effectiveBootId
+	}
+
+	private fun PressureFactRevisionEntity.hasPressureWindowAuthority(
+		manifest: SessionManifestVersionEntity,
+		binding: SessionManifestSourceEntity,
+		lane: SourceProductProjectionLaneEntity,
+		serviceRun: SourceServiceRunEntity,
+		nextManifest: SessionManifestVersionEntity?,
+	): Boolean {
+		if (windowStartElapsedRealtimeNanos < serviceRun.startedElapsedNanos ||
+			windowStartElapsedRealtimeNanos < manifest.effectiveElapsedRealtimeNanos
+		) {
+			return false
+		}
+		if (nextManifest?.effectiveElapsedRealtimeNanos?.let { nextEffective ->
+				windowStartElapsedRealtimeNanos >= nextEffective || windowEndElapsedRealtimeNanos > nextEffective
+			} == true
+		) {
+			return false
+		}
+		return lane.activatedRolloutRevision <= manifest.rolloutRevision && hasValidPressureFactIdentity(this, binding)
+	}
+
+	private fun hasMissingAdmittedPressureFacts(
+		targetOrdinal: Long?,
+		revisions: List<PressureFactRevisionEntity>,
+		lane: SourceProductProjectionLaneEntity,
+		retentionCrossesSegment: Boolean,
+		retentionTruncated: Boolean,
+	): Boolean {
+		if (targetOrdinal == null || revisions.isNotEmpty()) {
+			return false
+		}
+		return targetOrdinal >= lane.activationOrdinal && !retentionCrossesSegment && !retentionTruncated
+	}
+
 	private fun retentionTruncationState(
 		snapshot: PressureHistoryBatchSnapshot,
 		logicalTrackingId: String,
@@ -827,14 +955,45 @@ internal class PressureHistorySelector private constructor(
 			serviceRunId = serviceRunId,
 		)
 		val marker = snapshot.retentionTruncationFencesByDigest[digest]
-		// A retained leaf does not claim completeness of the removed recording prefix.
-		if (measuredOnly) {
-			if (marker == null) return PressureRetentionTruncationState.ABSENT
-			return if (retainedFromMs != null && PressureFactRevisionIntegrity.isRetentionTruncationFence(
-				fence = marker, logicalTrackingId = logicalTrackingId, serviceRunId = serviceRunId,
-				collectedDataEpoch = collectedDataEpoch)) PressureRetentionTruncationState.VALID
-			else PressureRetentionTruncationState.INVALID
+		return if (measuredOnly) {
+			measuredRetentionTruncationState(marker, logicalTrackingId, serviceRunId, collectedDataEpoch, retainedFromMs)
+		} else {
+			completeRetentionTruncationState(snapshot, marker, logicalTrackingId, serviceRunId, collectedDataEpoch,
+				retainedFromMs, retainedFacts)
 		}
+	}
+
+	private fun measuredRetentionTruncationState(
+		marker: SourceDeletionFenceEntity?,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		collectedDataEpoch: Long,
+		retainedFromMs: Long?,
+	): PressureRetentionTruncationState {
+		// A retained leaf does not claim completeness of the removed recording prefix.
+		if (marker == null) {
+			return PressureRetentionTruncationState.ABSENT
+		}
+		return if (retainedFromMs != null && PressureFactRevisionIntegrity.isRetentionTruncationFence(
+			fence = marker, logicalTrackingId = logicalTrackingId, serviceRunId = serviceRunId,
+			collectedDataEpoch = collectedDataEpoch)) {
+			PressureRetentionTruncationState.VALID
+		} else {
+			PressureRetentionTruncationState.INVALID
+		}
+	}
+
+	// Keep the already captured snapshot, identity, epoch and retained bounds explicit.
+	@Suppress("LongParameterList")
+	private fun completeRetentionTruncationState(
+		snapshot: PressureHistoryBatchSnapshot,
+		marker: SourceDeletionFenceEntity?,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		collectedDataEpoch: Long,
+		retainedFromMs: Long?,
+		retainedFacts: List<PressureFactRevisionEntity>,
+	): PressureRetentionTruncationState {
 		val authorities = snapshot.retentionAuthoritiesByRun[serviceRunId].orEmpty()
 		val revisionAuthorities =
 			snapshot.retentionRevisionAuthoritiesByRun[serviceRunId].orEmpty()
@@ -846,6 +1005,26 @@ internal class PressureHistorySelector private constructor(
 		) {
 			return PressureRetentionTruncationState.INVALID
 		}
+		return if (hasCompleteRetentionAuthority(authorities, revisionAuthorities, retainedFacts, marker,
+			logicalTrackingId, serviceRunId, collectedDataEpoch, retainedFromMs)) {
+			PressureRetentionTruncationState.VALID
+		} else {
+			PressureRetentionTruncationState.INVALID
+		}
+	}
+
+	// All inputs are the exact existing retained scope and its immutable authority sets.
+	@Suppress("LongParameterList")
+	private fun hasCompleteRetentionAuthority(
+		authorities: List<PressureFactRetentionAuthorityEntity>,
+		revisionAuthorities: List<PressureFactRetentionRevisionAuthorityEntity>,
+		retainedFacts: List<PressureFactRevisionEntity>,
+		marker: SourceDeletionFenceEntity,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		collectedDataEpoch: Long,
+		retainedFromMs: Long,
+	): Boolean {
 		val retainedFactIds = retainedFacts.mapTo(hashSetOf(), PressureFactRevisionEntity::logicalFactId)
 		val revisionAuthoritiesByFact = revisionAuthorities.groupBy { authority ->
 			Triple(
@@ -854,7 +1033,7 @@ internal class PressureHistorySelector private constructor(
 				authority.logicalFactId,
 			)
 		}
-		return if (PressureFactRevisionIntegrity.isRetentionTruncationFence(
+		return PressureFactRevisionIntegrity.isRetentionTruncationFence(
 				fence = marker,
 				logicalTrackingId = logicalTrackingId,
 				serviceRunId = serviceRunId,
@@ -864,28 +1043,33 @@ internal class PressureHistorySelector private constructor(
 			authorities.size &&
 			authorities.none { it.logicalFactId in retainedFactIds } &&
 			authorities.all { authority ->
-				authority.hasValidStoredIntegrity() &&
-					authority.logicalTrackingId == logicalTrackingId &&
-					authority.serviceRunId == serviceRunId &&
-					authority.collectedDataEpoch == collectedDataEpoch &&
-					authority.retainedFromMs <= retainedFromMs &&
-					authority.retainedAtMs >= marker.deletedAtMs &&
-					authority.authenticatesRevisionAuthorities(
-						revisionAuthoritiesByFact[Triple(
-							authority.writerProjectionId,
-							authority.writerProjectionVersion,
-							authority.logicalFactId,
-						)].orEmpty(),
-					)
+				authority.matchesRetentionScope(logicalTrackingId, serviceRunId, collectedDataEpoch, retainedFromMs,
+					marker, revisionAuthoritiesByFact)
 			}
-		) {
-			PressureRetentionTruncationState.VALID
-		} else {
-			PressureRetentionTruncationState.INVALID
-		}
 	}
 
-	@Suppress("ComplexCondition")
+	private fun PressureFactRetentionAuthorityEntity.matchesRetentionScope(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		collectedDataEpoch: Long,
+		retainedFromMs: Long,
+		marker: SourceDeletionFenceEntity,
+		revisionAuthoritiesByFact: Map<Triple<String, Int, String>, List<PressureFactRetentionRevisionAuthorityEntity>>,
+	): Boolean {
+		if (!hasValidStoredIntegrity() || this.logicalTrackingId != logicalTrackingId ||
+			this.serviceRunId != serviceRunId || this.collectedDataEpoch != collectedDataEpoch
+		) {
+			return false
+		}
+		if (this.retainedFromMs > retainedFromMs || retainedAtMs < marker.deletedAtMs) {
+			return false
+		}
+		return authenticatesRevisionAuthorities(revisionAuthoritiesByFact[Triple(
+			writerProjectionId, writerProjectionVersion, logicalFactId,
+		)].orEmpty())
+	}
+
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 	private fun hasValidPressureCaptureAuthority(
 		policy: SourcePolicyEntity?,
 		consent: SourceConsentEpochEntity?,
@@ -909,10 +1093,14 @@ internal class PressureHistorySelector private constructor(
 		logicalTrackingId: String,
 		serviceRunId: String,
 	): Boolean {
-		if (rows.any { it.registrationGeneration == 0L } && rows.size != 1) return false
+		if (rows.any { it.registrationGeneration == 0L } && rows.size != 1) {
+			return false
+		}
 		if (rows.map(SourceSessionCompletenessEntity::registrationGeneration).distinct().size !=
 			rows.size
-		) return false
+		) {
+			return false
+		}
 		for (row in rows) {
 			val unresolvedStart = row.unresolvedSequenceStart
 			val unresolvedEnd = row.unresolvedSequenceEnd
@@ -927,14 +1115,18 @@ internal class PressureHistorySelector private constructor(
 				row.providerCoverage !in PROVIDER_COVERAGE_VALUES ||
 				row.stopStatus !in STOP_STATUS_VALUES ||
 				row.stopStatus == COMPLETE_STOP_STATUS && !row.appDrainComplete || row.updatedAtMs < 0L
-			) return false
+			) {
+				return false
+			}
 			if (row.registrationGeneration == 0L &&
 				(row.sourceInstanceId != UNAVAILABLE_PRESSURE_INSTANCE ||
 					row.lastAdmissionOrdinal != null || row.lastSourceSequence != null ||
 					unresolvedStart != null || unresolvedEnd != null || !row.appDrainComplete ||
 					row.providerCoverage != UNOBSERVABLE_PROVIDER_COVERAGE ||
 					row.stopStatus !in UNAVAILABLE_PRESSURE_STOP_STATUSES)
-			) return false
+			) {
+				return false
+			}
 			if (row.registrationGeneration > 0L && row.sourceInstanceId == UNAVAILABLE_PRESSURE_INSTANCE) {
 				return false
 			}
@@ -972,25 +1164,37 @@ internal class PressureHistorySelector private constructor(
 		else -> null
 	}
 
-	@Suppress("ComplexCondition")
+	// One immutable lane has a complete status-dependent scalar shape; no lane transition or query runs here.
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "ReturnCount")
 	private fun isValidHistoricalLane(lane: SourceProductProjectionLaneEntity): Boolean {
 		if (lane.sourceKind != SourceDestinationOwnerEntity.SOURCE_PRESSURE ||
-			lane.captureModeMask != SourceWriterGenerationContract.captureModeMaskForKnownBinding(lane.bindingGeneration) || lane.productStage !in VALID_PRODUCT_STAGES ||
+			lane.captureModeMask != SourceWriterGenerationContract.captureModeMaskForKnownBinding(lane.bindingGeneration) ||
+			lane.productStage !in VALID_PRODUCT_STAGES ||
 			lane.activatedRolloutRevision <= 0L || lane.activationOrdinal <= 0L ||
 			lane.installedAtMs < 0L || lane.updatedAtMs < lane.installedAtMs
-		) return false
+		) {
+			return false
+		}
 		val minimumCursor = lane.activationOrdinal - 1L
 		val cutoff = lane.captureAdmissionCutoffOrdinal
 		if (lane.contiguousAdmissionOrdinal < minimumCursor ||
 			cutoff != null && (cutoff < minimumCursor || lane.contiguousAdmissionOrdinal > cutoff)
-		) return false
-		if ((lane.terminalDisposition == null) != (lane.terminalAtMs == null)) return false
+		) {
+			return false
+		}
+		if ((lane.terminalDisposition == null) != (lane.terminalAtMs == null)) {
+			return false
+		}
 		return when (lane.status) {
 			SourceProductProjectionLaneEntity.STATUS_ACTIVE ->
 				lane.retentionRequired && lane.terminalDisposition == null
 			SourceProductProjectionLaneEntity.STATUS_RETIRED -> {
-				if (lane.retentionRequired) return false
-				if (lane.terminalDisposition == null) return cutoff == null
+				if (lane.retentionRequired) {
+					return false
+				}
+				if (lane.terminalDisposition == null) {
+					return cutoff == null
+				}
 				val terminalAtMs = lane.terminalAtMs ?: return false
 				lane.terminalDisposition ==
 					SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN &&
@@ -1133,61 +1337,79 @@ internal class PressureHistorySelector private constructor(
 	): PressureHistoryBatchSnapshot {
 		val failures = logicalMembershipFailures.toMutableMap()
 		segments.groupBy(SessionSegment::logicalTrackingId).forEach { (logicalTrackingId, members) ->
-			if (logicalTrackingId.isNullOrBlank() || logicalTrackingId in failures) return@forEach
-			val serviceRunIds = members.mapNotNull(SessionSegment::serviceRunId)
-			if (serviceRunIds.size != members.size || serviceRunIds.distinct().size != members.size) {
-				failures[logicalTrackingId] = PressureHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE
+			if (logicalTrackingId.isNullOrBlank() || logicalTrackingId in failures) {
 				return@forEach
 			}
-			val completeRunIds = serviceRuns.values.asSequence()
-				.filter { run -> run.logicalTrackingId == logicalTrackingId }
-				.map(SourceServiceRunEntity::serviceRunId)
-				.toSet()
-			if (completeRunIds != serviceRunIds.toSet()) {
-				failures[logicalTrackingId] = PressureHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE
-				return@forEach
-			}
-			val revisionsByRun = serviceRunIds.map { serviceRunId ->
-				manifestsByRun[serviceRunId].orEmpty()
-					.map(SessionManifestVersionEntity::manifestRevision)
-			}
-			val validUnion = if (measuredOnly) SessionManifestIntegrity.hasValidLogicalManifestRevisionSliceUnion(revisionsByRun)
-			else SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(revisionsByRun)
-			if (!validUnion) {
-				failures[logicalTrackingId] =
-					PressureHistoryReason.LOGICAL_MANIFEST_REVISION_UNION_INVALID
-				return@forEach
-			}
-			val manifestFailure = serviceRunIds.firstNotNullOfOrNull { serviceRunId ->
-				val run = serviceRuns[serviceRunId]
-				val manifests = manifestsByRun[serviceRunId].orEmpty()
-				when {
-					run == null || run.logicalTrackingId != logicalTrackingId ->
-						PressureHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE
-					manifests.any { manifest ->
-						manifest.logicalTrackingId != logicalTrackingId ||
-							manifest.serviceRunId != serviceRunId
-					} -> PressureHistoryReason.MANIFEST_MEMBERSHIP_MISMATCH
-					manifests.any { manifest ->
-						val sources = sourcesByManifest[
-							PressureManifestKey(logicalTrackingId, manifest.manifestRevision)
-						].orEmpty()
-						!SessionManifestIntegrity.verify(manifest, sources) ||
-							!hasValidZone(manifest.zoneId)
-					} -> PressureHistoryReason.MANIFEST_INTEGRITY_FAILED
-					!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) ->
-						PressureHistoryReason.MANIFEST_INTEGRITY_FAILED
-					else -> null
-				}
-			}
-			if (manifestFailure != null) {
-				failures[logicalTrackingId] = manifestFailure
+			logicalManifestMembershipFailure(logicalTrackingId, members, measuredOnly)?.let { failure ->
+				failures[logicalTrackingId] = failure
 			}
 		}
-		return if (failures == logicalMembershipFailures) this else copy(
+		return if (failures == logicalMembershipFailures) {
+			this
+		} else {
+			copy(
 			logicalMembershipFailures = failures,
 		)
+		}
 	}
+
+	private fun PressureHistoryBatchSnapshot.logicalManifestMembershipFailure(
+		logicalTrackingId: String,
+		members: List<SessionSegment>,
+		measuredOnly: Boolean,
+	): PressureHistoryReason? {
+		val serviceRunIds = members.mapNotNull(SessionSegment::serviceRunId)
+		if (serviceRunIds.size != members.size || serviceRunIds.distinct().size != members.size) {
+			return PressureHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE
+		}
+		val completeRunIds = serviceRuns.values.asSequence()
+			.filter { run -> run.logicalTrackingId == logicalTrackingId }
+			.map(SourceServiceRunEntity::serviceRunId)
+			.toSet()
+		if (completeRunIds != serviceRunIds.toSet()) {
+			return PressureHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE
+		}
+		val revisionsByRun = serviceRunIds.map { serviceRunId ->
+			manifestsByRun[serviceRunId].orEmpty()
+				.map(SessionManifestVersionEntity::manifestRevision)
+		}
+		val validUnion = if (measuredOnly) {
+			SessionManifestIntegrity.hasValidLogicalManifestRevisionSliceUnion(revisionsByRun)
+		}
+		else {
+			SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(revisionsByRun)
+		}
+		if (!validUnion) {
+			return PressureHistoryReason.LOGICAL_MANIFEST_REVISION_UNION_INVALID
+		}
+		return firstManifestMembershipFailure(logicalTrackingId, serviceRunIds)
+	}
+
+	private fun PressureHistoryBatchSnapshot.firstManifestMembershipFailure(
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
+	): PressureHistoryReason? = serviceRunIds.firstNotNullOfOrNull { serviceRunId ->
+			val run = serviceRuns[serviceRunId]
+			val manifests = manifestsByRun[serviceRunId].orEmpty()
+			when {
+				run == null || run.logicalTrackingId != logicalTrackingId ->
+					PressureHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE
+				manifests.any { manifest ->
+					manifest.logicalTrackingId != logicalTrackingId ||
+						manifest.serviceRunId != serviceRunId
+				} -> PressureHistoryReason.MANIFEST_MEMBERSHIP_MISMATCH
+				manifests.any { manifest ->
+					val sources = sourcesByManifest[
+						PressureManifestKey(logicalTrackingId, manifest.manifestRevision)
+					].orEmpty()
+					!SessionManifestIntegrity.verify(manifest, sources) ||
+						!hasValidZone(manifest.zoneId)
+				} -> PressureHistoryReason.MANIFEST_INTEGRITY_FAILED
+				!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) ->
+					PressureHistoryReason.MANIFEST_INTEGRITY_FAILED
+				else -> null
+			}
+		}
 
 	private enum class PressureRetentionTruncationState { ABSENT, VALID, INVALID }
 
@@ -1256,4 +1478,7 @@ internal class PressureHistoryPageDependencyOverflow(
 	val reason: SourceAwareHistoryPageUnavailableReason,
 ) : IllegalStateException("Pressure history dependency budget exceeded: $reason")
 
-internal data class PressureMeasuredFactKey(val writerId: String, val writerVersion: Int, val factId: String, val revision: Long)
+internal data class PressureMeasuredFactKey(val writerId: String, val writerVersion: Int, val factId: String,
+    val revision: Long)
+
+private const val MAX_MEASURED_PRESSURE_KEYS = 100

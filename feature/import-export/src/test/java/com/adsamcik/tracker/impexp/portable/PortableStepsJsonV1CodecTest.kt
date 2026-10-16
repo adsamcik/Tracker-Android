@@ -36,6 +36,8 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// Canonical Steps v1 streaming, wire bounds and rejection cases share the same entry and stream fixtures.
+@Suppress("LargeClass")
 class PortableStepsJsonV1CodecTest {
 	@Test
 	fun `canonical bytes round trip replacement runs without materializing the document`() = runTest {

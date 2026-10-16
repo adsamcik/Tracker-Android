@@ -101,7 +101,9 @@ class SafeQueryBuilder private constructor(
      * Set inclusive time range (epoch milliseconds).
      */
     fun timeRange(from: Long?, to: Long?): SafeQueryBuilder = apply {
-        if (from != null && to != null) require(from <= to) { "from must be <= to" }
+        if (from != null && to != null) {
+            require(from <= to) { "from must be <= to" }
+        }
         timeFrom = from
         timeTo = to
     }
@@ -213,7 +215,11 @@ class SafeQueryBuilder private constructor(
 
         val extraCols = selectColumns.map { col ->
             val dbCol = table.resolveColumn(col)
-            if (dbCol != col) "$dbCol AS $col" else dbCol
+            if (dbCol != col) {
+                "$dbCol AS $col"
+            } else {
+                dbCol
+            }
         }
 
         val weightProjection = weightColumn?.let { col ->
@@ -303,7 +309,9 @@ class SafeQueryBuilder private constructor(
             add("lon")
             add("time")
             addAll(selectColumns)
-            if (weightColumn != null) add("weight")
+            if (weightColumn != null) {
+                add("weight")
+            }
         }.distinct()
         val sql = StringBuilder()
         val baseSelection = selection.toString()
@@ -317,7 +325,9 @@ class SafeQueryBuilder private constructor(
             sql.append(allCols.joinToString())
             sql.append(" FROM ")
             sql.append(table.fromSql)
-            if (selection.isNotEmpty()) sql.append(" WHERE ").append(selection)
+            if (selection.isNotEmpty()) {
+                sql.append(" WHERE ").append(selection)
+            }
             sql.append(" ORDER BY time_ms DESC LIMIT ").append(newestMax)
             sql.append(") ORDER BY time ASC")
         } else if (sampleMax != null) {
@@ -327,10 +337,16 @@ class SafeQueryBuilder private constructor(
             sql.append(table.fromSql)
             sql.append(" CROSS JOIN (SELECT MIN(id) AS min_id, MAX(id) AS max_id FROM ")
             sql.append(table.fromSql)
-            if (baseSelection.isNotEmpty()) sql.append(" WHERE ").append(baseSelection)
+            if (baseSelection.isNotEmpty()) {
+                sql.append(" WHERE ").append(baseSelection)
+            }
             sql.append(") AS sample_bounds")
-            if (baseSelection.isNotEmpty()) sql.append(" WHERE ").append(baseSelection).append(" AND ")
-            else sql.append(" WHERE ")
+            if (baseSelection.isNotEmpty()) {
+                sql.append(" WHERE ").append(baseSelection).append(" AND ")
+            }
+            else {
+                sql.append(" WHERE ")
+            }
             sql.append("(").append(table.tableName).append(".id - sample_bounds.min_id) % ")
             sql.append("MAX(1, ((sample_bounds.max_id - sample_bounds.min_id) / ?) + 1) = 0")
             sql.append(" ORDER BY time_ms ASC LIMIT ").append(sampleMax)
@@ -344,7 +360,9 @@ class SafeQueryBuilder private constructor(
             sql.append(allCols.joinToString())
             sql.append(" FROM ")
             sql.append(table.fromSql)
-            if (selection.isNotEmpty()) sql.append(" WHERE ").append(selection)
+            if (selection.isNotEmpty()) {
+                sql.append(" WHERE ").append(selection)
+            }
             sql.append(" ORDER BY time_ms ASC")
             limit?.let { sql.append(" LIMIT ").append(it) }
         }
@@ -353,7 +371,9 @@ class SafeQueryBuilder private constructor(
     }
 
     private fun appendClause(builder: StringBuilder, clause: String) {
-        if (builder.isNotEmpty()) builder.append(" AND ")
+        if (builder.isNotEmpty()) {
+            builder.append(" AND ")
+        }
         builder.append(clause)
     }
 
@@ -405,7 +425,12 @@ class SafeQueryBuilder private constructor(
         );
 
         /** Map public column name to actual DB column name. Identity if no mapping exists. */
-        val fromSql: String get() = if (this == LOCATION) "effective_location_sample AS location_sample" else tableName
+        val fromSql: String get() = if (this == LOCATION) {
+            "effective_location_sample AS location_sample"
+        } else {
+            tableName
+        }
+        /** Maps a public field through fixed SQL aliases; callers must restrict names to the table allowlist. */
         fun resolveColumn(publicName: String): String = columnMapping[publicName] ?: publicName
     }
 

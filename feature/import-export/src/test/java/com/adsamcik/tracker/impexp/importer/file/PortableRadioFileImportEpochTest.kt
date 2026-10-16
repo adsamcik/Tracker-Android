@@ -46,7 +46,7 @@ class PortableRadioFileImportEpochTest {
             .toByteArray()
         val source = mockk<RadioSourceImportEntryPoint>()
         val writer = mockk<ImportPortableAmbientWifi>()
-        every { source.backgroundWifi() } returns writer
+        every { source.importBackgroundWifi() } returns writer
         val epochs = mutableListOf<Long>()
         var currentEpoch = 1L
         val database = database { currentEpoch }
@@ -80,7 +80,7 @@ class PortableRadioFileImportEpochTest {
             .toByteArray()
         val source = mockk<RadioSourceImportEntryPoint>()
         val writer = mockk<ImportPortableAmbientCell>()
-        every { source.backgroundCell() } returns writer
+        every { source.importBackgroundCell() } returns writer
         var currentEpoch = 1L
         val database = database { currentEpoch }
         val epochs = mutableListOf<Long>()

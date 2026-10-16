@@ -70,8 +70,12 @@ class AmbientStepsImportRunnerTest {
 		var reads = 0
 		val subject = runner(importNext = {
 			reads++
-			if (reads == 1) AmbientStepsImportResult.Retryable(AmbientStepsImportRetryableReason.PROVIDER_READ_FAILED)
-			else AmbientStepsImportResult.Applied(AmbientStepsProviderReadWindow(20_000L, 30_000L), "saved-window", 1L, 3L)
+			if (reads == 1) {
+				AmbientStepsImportResult.Retryable(AmbientStepsImportRetryableReason.PROVIDER_READ_FAILED)
+			}
+			else {
+				AmbientStepsImportResult.Applied(AmbientStepsProviderReadWindow(20_000L, 30_000L), "saved-window", 1L, 3L)
+			}
 		})
 		subject.run() shouldBe AmbientStepsImportAttemptResult.RETRY
 		subject.run() shouldBe AmbientStepsImportAttemptResult.COMPLETE

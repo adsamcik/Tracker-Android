@@ -22,6 +22,8 @@ import kotlinx.coroutines.sync.withLock
  * Every callback uses the unbound durable sink. Room authorization, not a process-local session
  * sink, decides whether the same provider delivery may materialize capture, ambient, or both.
  */
+// These operations share one mutex and physical runtime; keep method-level algorithm checks active.
+@Suppress("TooManyFunctions")
 @Singleton
 class SharedWifiSourceController @Inject constructor(
 	private val physicalRuntime: WifiSourceRuntime,
@@ -54,34 +56,19 @@ class SharedWifiSourceController @Inject constructor(
 		sink: SourceEventSink,
 	): SourceStartResult {
 		@Suppress("UNUSED_VARIABLE") val sessionSinkCannotRelabelSharedEvidence = sink
-		if (!plan.enabled) return SourceStartResult.Started(disabledState(plan))
+		if (!plan.enabled) {
+			return SourceStartResult.Started(disabledState(plan))
+		}
 		val previousPlan = sessionPlan
 		val previousClaim = sessionClaim
-		sessionPlan = plan
-		sessionClaim = claim
-		val demands = try {
-			selectedDemands()
-		} catch (failure: Throwable) {
-			sessionPlan = previousPlan
-			sessionClaim = previousClaim
-			throw failure
-		}
-		if (demands.none { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) {
-			sessionPlan = previousPlan
-			sessionClaim = previousClaim
-			return SourceStartResult.Blocked(blockedState(plan))
-		}
 		return try {
-			val result = applyEffective(requireNotNull(effectivePlan(demands)), claim)
-			if (result is SourceApplyResult.Applied || result is SourceApplyResult.Degraded) {
-				sessionClaim = claim
-				ambientAttached = demands.any { it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT }
-			} else {
-				sessionPlan = previousPlan
-				sessionClaim = previousClaim
-			}
+			val result = applyEnabledPlanLocked(claim, plan)
+				?: return SourceStartResult.Blocked(blockedState(plan))
 			result.toStartResult()
-		} catch (failure: Throwable) {
+		} catch (
+			// Restore this owner's previous state before propagating the same failure.
+			@Suppress("TooGenericExceptionCaught") failure: Throwable
+		) {
 			sessionPlan = previousPlan
 			sessionClaim = previousClaim
 			throw failure
@@ -120,7 +107,9 @@ class SharedWifiSourceController @Inject constructor(
 				)
 				val acknowledgement = quiesceLocked(cutoff)
 				return if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) {
-					if (sessionClaim == claim) sessionClaim = null
+					if (sessionClaim == claim) {
+						sessionClaim = null
+					}
 					SourceApplyResult.Applied(disabledState(plan), stopAck = acknowledgement)
 				} else {
 					SourceApplyResult.Failed(
@@ -138,13 +127,25 @@ class SharedWifiSourceController @Inject constructor(
 				applyEffective(effective, claim = null)
 			}
 		}
+		return applyEnabledPlanLocked(claim, plan)
+			?: SourceApplyResult.Failed(blockedState(plan), retryable = false)
+	}
+
+	/** Null means no eligible capture demand; Start and reconfigure keep distinct rejection results. */
+	private suspend fun applyEnabledPlanLocked(
+		claim: SourceRuntimeClaim?,
+		plan: WifiPlan,
+	): SourceApplyResult? {
 		val previousPlan = sessionPlan
 		val previousClaim = sessionClaim
 		sessionPlan = plan
 		sessionClaim = claim
 		val demands = try {
 			selectedDemands()
-		} catch (failure: Throwable) {
+		} catch (
+			// Restore this owner's previous state before propagating the same failure.
+			@Suppress("TooGenericExceptionCaught") failure: Throwable
+		) {
 			sessionPlan = previousPlan
 			sessionClaim = previousClaim
 			throw failure
@@ -152,21 +153,22 @@ class SharedWifiSourceController @Inject constructor(
 		if (demands.none { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) {
 			sessionPlan = previousPlan
 			sessionClaim = previousClaim
-			return SourceApplyResult.Failed(blockedState(plan), retryable = false)
+			return null
 		}
 		return try {
-			applyEffective(requireNotNull(effectivePlan(demands)), claim).also { result ->
-				if (result is SourceApplyResult.Applied || result is SourceApplyResult.Degraded) {
-					sessionClaim = claim
-					ambientAttached = demands.any {
-						it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT
-					}
-				} else {
-					sessionPlan = previousPlan
-					sessionClaim = previousClaim
-				}
+			val result = applyEffective(requireNotNull(effectivePlan(demands)), claim)
+			if (result is SourceApplyResult.Applied || result is SourceApplyResult.Degraded) {
+				sessionClaim = claim
+				ambientAttached = demands.any { it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT }
+			} else {
+				sessionPlan = previousPlan
+				sessionClaim = previousClaim
 			}
-		} catch (failure: Throwable) {
+			result
+		} catch (
+			// Restore this owner's previous state before propagating the same failure.
+			@Suppress("TooGenericExceptionCaught") failure: Throwable
+		) {
 			sessionPlan = previousPlan
 			sessionClaim = previousClaim
 			throw failure
@@ -189,7 +191,10 @@ class SharedWifiSourceController @Inject constructor(
 		}
 		return try {
 			settleSessionCutoffLocked(cutoff)
-		} catch (failure: Throwable) {
+		} catch (
+			// Restore this owner's previous state before propagating the same failure.
+			@Suppress("TooGenericExceptionCaught") failure: Throwable
+		) {
 			sessionPlan = previousPlan
 			throw failure
 		}
@@ -203,7 +208,9 @@ class SharedWifiSourceController @Inject constructor(
 		val ambientPlan = effectivePlan(demands)
 		if (ambientPlan == null) {
 			return physicalRuntime.quiesce(cutoff).withSessionMembership(retiringClaim).also {
-				if (it.toOwnedShutdown() is OwnedSourceShutdown.Incomplete) sessionPlan = priorPlan
+				if (it.toOwnedShutdown() is OwnedSourceShutdown.Incomplete) {
+					sessionPlan = priorPlan
+				}
 			}
 		}
 		val refreshed = physicalRuntime.refreshShared(ambientPlan, unboundSink, claim = null)
@@ -222,7 +229,9 @@ class SharedWifiSourceController @Inject constructor(
 			stopped
 		}
 		return acknowledgement.withSessionMembership(retiringClaim).also {
-			if (it.toOwnedShutdown() is OwnedSourceShutdown.Incomplete) sessionPlan = priorPlan
+			if (it.toOwnedShutdown() is OwnedSourceShutdown.Incomplete) {
+				sessionPlan = priorPlan
+			}
 		}
 	}
 
@@ -231,21 +240,29 @@ class SharedWifiSourceController @Inject constructor(
 		cutoff: SessionCutoff,
 	): OwnedSourceShutdown = mutex.withLock {
 		require(claim.source == source)
-		if (sessionClaim != claim) return@withLock physicalRuntime.shutdownIfOwned(claim, cutoff)
+		if (sessionClaim != claim) {
+			return@withLock physicalRuntime.shutdownIfOwned(claim, cutoff)
+		}
 		quiesceLocked(cutoff).toOwnedShutdown().also { shutdown ->
-			if (shutdown is OwnedSourceShutdown.Released) sessionClaim = null
+			if (shutdown is OwnedSourceShutdown.Released) {
+				sessionClaim = null
+			}
 		}
 	}
 
 	/** Finishes only a resident no-CAP callback prefix; setup never starts a provider. */
 	internal suspend fun prepareSessionCaptureBoundary(deadlineElapsedRealtimeNanos: Long): Boolean {
 		val remainingMs = (deadlineElapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos()) / 1_000_000L
-		if (remainingMs <= 0L) return false
+		if (remainingMs <= 0L) {
+			return false
+		}
 		return withTimeoutOrNull(remainingMs) {
 			mutex.withLock {
 				if (sessionPlan != null || sessionClaim != null || sourceBroker.authorizationDemands(source).any {
 					it.purpose == SourceBrokerPurpose.SESSION_CAPTURE
-				}) return@withLock false
+				}) {
+					return@withLock false
+				}
 				physicalRuntime.prepareSessionCaptureBoundary(deadlineElapsedRealtimeNanos)
 			}
 		} == true
@@ -274,19 +291,26 @@ class SharedWifiSourceController @Inject constructor(
 				)
 			}
 		}
-		val result = applyEffective(effective, sessionClaim)
-		when (result) {
+		publishAmbientJoin(applyEffective(effective, sessionClaim), ambientDemand != null)
+	}
+
+	private fun publishAmbientJoin(
+		result: SourceApplyResult, ambientSelected: Boolean,
+	): AmbientWifiRuntimeJoinResult {
+		return when (result) {
 			is SourceApplyResult.Applied -> {
-				ambientAttached = ambientDemand != null
-				if (ambientDemand == null) {
+				ambientAttached = ambientSelected
+				if (!ambientSelected) {
 					AmbientWifiRuntimeJoinResult.Inactive(result.state.providerKeyOrNull())
-				} else AmbientWifiRuntimeJoinResult.Active(
+				} else {
+					AmbientWifiRuntimeJoinResult.Active(
 					result.state.sourceInstanceId,
 					result.state.registrationGeneration,
 				)
+				}
 			}
 			is SourceApplyResult.Degraded -> {
-				ambientAttached = ambientDemand != null
+				ambientAttached = ambientSelected
 				AmbientWifiRuntimeJoinResult.Degraded(
 					result.state.sourceInstanceId,
 					result.state.registrationGeneration,
@@ -306,13 +330,18 @@ class SharedWifiSourceController @Inject constructor(
 		}
 	}
 
+
 	internal suspend fun closeAmbientForCollectedDataDeletion(): Boolean = mutex.withLock {
 		val ambientDemand = selectedDemands().any {
 			it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT
 		}
-		if (ambientDemand) return@withLock false
+		if (ambientDemand) {
+			return@withLock false
+		}
 		ambientAttached = false
-		if (sessionPlan != null) return@withLock false
+		if (sessionPlan != null) {
+			return@withLock false
+		}
 		physicalRuntime.closeShared().toOwnedShutdown() is OwnedSourceShutdown.Released
 	}
 
@@ -324,7 +353,9 @@ class SharedWifiSourceController @Inject constructor(
 				SessionCutoff(retiringClaim.logicalTrackingId, now, System.currentTimeMillis(),
 					now + 3_000_000_000L),
 			)
-			if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) sessionClaim = null
+			if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) {
+				sessionClaim = null
+			}
 			return@withLock Unit
 		}
 		sessionPlan = null
@@ -357,7 +388,9 @@ class SharedWifiSourceController @Inject constructor(
 		}
 
 	private fun effectivePlan(demands: List<SourceDemandEntity>): WifiPlan? {
-		if (demands.isEmpty()) return null
+		if (demands.isEmpty()) {
+			return null
+		}
 		val capturePlan = sessionPlan
 		val ambient = demands.any { it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT }
 		val mode = when {

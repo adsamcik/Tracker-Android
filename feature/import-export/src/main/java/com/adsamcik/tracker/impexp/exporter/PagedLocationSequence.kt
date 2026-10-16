@@ -64,11 +64,17 @@ internal fun pagedLocationSequence(
 				if (!emittedAmbient) ambientAuthorityStamp = before
 				emittedAmbient = true
 			}
-			if (emittedAmbient) check(runBlocking { requireNotNull(locationPurposeDao).ambientExportAuthorityStamp() } == ambientAuthorityStamp) {
-				"Location export consent or retention changed"
+			if (emittedAmbient) {
+				check(
+					runBlocking { requireNotNull(locationPurposeDao).ambientExportAuthorityStamp() } ==
+						ambientAuthorityStamp,
+				) {
+					"Location export consent or retention changed"
+				}
 			}
 			buffer = path?.map { row -> row.sample.toModel().copy(
-				routeContinuityId = row.continuityId, routeSequence = row.continuitySequence, sessionless = row.ambientOnly,
+				routeContinuityId = row.continuityId, routeSequence = row.continuitySequence, sessionless =
+                    row.ambientOnly,
 			) } ?: chunk.map { it.toModel() }
 			index = 0
 			if (buffer.isEmpty()) {

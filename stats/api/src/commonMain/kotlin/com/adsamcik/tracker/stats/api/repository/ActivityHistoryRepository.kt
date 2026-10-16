@@ -14,15 +14,35 @@ interface ActivityHistoryRepository {
 	suspend fun range(request: ActivityHistoryRangeRequest): ActivityHistoryRangePage
 }
 
+/**
+ * Exact Activity lookup outcome, distinguishing an existing product entry from no matching entry.
+ */
 sealed interface ActivityHistoryQuery {
+	/**
+	 * No matching saved source entry or selection remains.
+	 */
 	data object NotFound : ActivityHistoryQuery
 
+	/**
+	 * Contains the selected saved source product; its payload preserves current qualification and
+	 * coverage.
+	 */
 	data class Found(val entry: ActivityHistoryEntry) : ActivityHistoryQuery
 }
 
+/**
+ * Recent Activity entries or an integrity failure that prevents presenting the page.
+ */
 sealed interface ActivityHistoryPage {
+	/**
+	 * Saved source entries whose individual states retain coverage and qualification.
+	 */
 	data class Available(val entries: List<ActivityHistoryEntry>) : ActivityHistoryPage
 
+	/**
+	 * The stored source or scope failed integrity qualification; this outcome does not expose a
+	 * measured count.
+	 */
 	data class Failed(val cause: ActivityHistoryCause) : ActivityHistoryPage {
 		init {
 			require(cause.isIntegrityFailure) { "A failed page requires an integrity cause" }
@@ -135,12 +155,19 @@ sealed interface ActivityHistorySelection {
 	val key: ActivityHistoryEntryKey
 	val origin: ActivityHistoryOrigin
 
+	/**
+	 * Selects or labels native saved data without borrowing imported revision authority.
+	 */
 	data class Local(
 		override val key: ActivityHistoryEntryKey,
 	) : ActivityHistorySelection {
 		override val origin: ActivityHistoryOrigin = ActivityHistoryOrigin.LOCAL
 	}
 
+	/**
+	 * Carries the source-issued imported identity/revision selection separately from native recording
+	 * authority.
+	 */
 	data class Imported(
 		val selected: ActivityImportedHistorySelection,
 	) : ActivityHistorySelection {
@@ -149,6 +176,10 @@ sealed interface ActivityHistorySelection {
 	}
 }
 
+/**
+ * Presentation state separating in-progress materialization, usable partial data, ready data and
+ * unavailable or failed reads.
+ */
 enum class ActivityHistoryProductState {
 	MATERIALIZING,
 	PARTIAL,
@@ -163,12 +194,19 @@ enum class ActivityHistoryOrigin {
 	IMPORTED,
 }
 
+/**
+ * How much of the selected Activity scope has retained qualified observations.
+ */
 enum class ActivityHistoryCoverage {
 	NONE,
 	PARTIAL,
 	COMPLETE,
 }
 
+/**
+ * Concrete capture, provider, retention and integrity causes; isIntegrityFailure marks failures
+ * that cannot expose a qualified number.
+ */
 enum class ActivityHistoryCause(val isIntegrityFailure: Boolean = false) {
 	SESSION_ACTIVE,
 	MATERIALIZATION_BEHIND,
@@ -245,6 +283,10 @@ data class ActivityHistoryEntry(
 	}
 }
 
+/**
+ * Nonnegative elapsed durations in nanoseconds, separating known active/inactive behavior, unknown
+ * activity and unobserved time.
+ */
 data class ActivityActiveTime(
 	val knownActiveDurationNanos: Long,
 	val knownInactiveDurationNanos: Long,
@@ -259,10 +301,18 @@ data class ActivityActiveTime(
 	}
 }
 
+/**
+ * Ordered Activity evidence carrying a saved zone and elapsed nanosecond duration, as a band or a
+ * genuine gap.
+ */
 sealed interface ActivityHistoryFragment {
 	val storedZoneId: String
 	val durationNanos: Long
 
+	/**
+	 * Observed Activity band retaining original wall-time uncertainty, elapsed nanosecond duration,
+	 * classification and confidence.
+	 */
 	data class Band(
 		override val storedZoneId: String,
 		val startTime: EpochMs,
@@ -300,6 +350,10 @@ sealed interface ActivityHistoryFragment {
 	}
 }
 
+/**
+ * Recognized activity classifications retained from the provider, including an explicit unknown
+ * classification.
+ */
 enum class ActivityHistoryType {
 	STILL,
 	WALKING,
@@ -311,15 +365,28 @@ enum class ActivityHistoryType {
 	UNKNOWN,
 }
 
+/**
+ * Whether the classification came from a transition, sampled refinement or sampled classification.
+ */
 enum class ActivityHistoryMechanism {
 	TRANSITION,
 	SAMPLED_REFINEMENT,
 	SAMPLED_CLASSIFICATION,
 }
 
+/**
+ * Transition evidence or the observed percent-confidence range of sampled classifications.
+ */
 sealed interface ActivityHistoryConfidence {
+	/**
+	 * Transition evidence has no sampled numeric confidence percentage.
+	 */
 	data object TransitionSignal : ActivityHistoryConfidence
 
+	/**
+	 * Minimum/maximum confidence percentages from 0 to 100 with the positive number of represented
+	 * sampled observations.
+	 */
 	data class Sampled(
 		val minimumPercent: Int,
 		val maximumPercent: Int,
@@ -333,12 +400,20 @@ sealed interface ActivityHistoryConfidence {
 	}
 }
 
+/**
+ * Relationship between wall-time anchors; a discontinuity does not invalidate the separately
+ * retained elapsed duration.
+ */
 enum class ActivityHistoryWallTimeContinuity {
 	SAME_ANCHOR,
 	CONSISTENT_WITHIN_UNCERTAINTY,
 	DISCONTINUITY_DETECTED,
 }
 
+/**
+ * Why a real interval lacks qualified Activity evidence, including provider, authorization and
+ * process discontinuities.
+ */
 enum class ActivityHistoryGapReason {
 	NO_QUALIFIED_EVIDENCE,
 	PROVIDER_DISCONTINUITY,

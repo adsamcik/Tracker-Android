@@ -1,13 +1,12 @@
 # Tracking Infrastructure Completion TODO
 
-Last updated: 2026-10-14
+Last updated: 2026-10-16
 
 [Current completion plan](convergence/2026-10-07/COMPLETION_PLAN.md) (2026-10-07) consolidates all outstanding work and is the
 current execution order. Complete the full scope, including source files and data-only backup/restore, before freezing. Preserve this ledger and its historical source receipts.
-All 25 full-chain prerequisites remain open; full convergence and integration are
-deferred. Scoped host verification is recorded in the dated sections below.
+**Implementation assembly and host verification are complete.** The [October 16 assembly freeze](convergence/2026-10-16/ASSEMBLY_FREEZE.md) records the all-25 source trace and preserved drafts; the [final host result](convergence/2026-10-16/FINAL_HOST_RESULT.json) records passing APK/Hilt, ciUnitTest, ciCheck, lint, schema/migration and SQLite checks: 15,667 tests, zero failures/errors and seven existing skips. Fresh final evidence review has no remaining findings; authorized local integration is being completed. The user explicitly deferred device testing on October 16. Historical unchecked rows below retain their original checkpoint status.
 
-## Current continuation
+## Historical continuation notes
 
 The latest user answer requires **all remaining implementation, including source files and data-only backup/restore, before the assembly freeze**. The earlier transfer deferral is superseded. Production and regression source are assembled in the current candidate. The user explicitly requested build/storage convergence on 2026-10-14; see convergence/2026-10-14/BUILD_STORAGE_VERIFICATION.md. This does not declare the full feature assembly complete.
 

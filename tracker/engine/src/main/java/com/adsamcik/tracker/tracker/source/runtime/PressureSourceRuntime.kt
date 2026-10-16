@@ -286,11 +286,7 @@ class PressureSourceRuntime @Inject constructor(
 				return@withLock PressureProviderEraseSettlement.StaleLifecycle
 			}
 			val exactStoppingRetirement = hasExactObservedStoppingRetirement(activeRegistration)
-			if (!exactStoppingRetirement &&
-				activeRegistration.authorization.authorizedMembers.any { member ->
-					member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
-				}
-			) {
+			if (!exactStoppingRetirement && activeRegistration.hasSessionCaptureAuthorization()) {
 				return@withLock PressureProviderEraseSettlement.CaptureAuthorizationActive
 			}
 
@@ -326,10 +322,9 @@ class PressureSourceRuntime @Inject constructor(
 			(active.state.collectedDataEpoch != expectedCollectedDataEpoch ||
 				active.state.registrationGeneration != expectedRegistrationGeneration)
 		) return@withLock PressureProviderEraseVerification.StaleLifecycle
-		if (active?.authorization?.authorizedMembers?.any { member ->
-				member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
-			} == true
-		) return@withLock PressureProviderEraseVerification.CaptureAuthorizationActive
+		if (active?.hasSessionCaptureAuthorization() == true) {
+			return@withLock PressureProviderEraseVerification.CaptureAuthorizationActive
+		}
 		if (active != null || retirementIntent != null) {
 			return@withLock PressureProviderEraseVerification.ProviderRemovalFailed
 		}
@@ -344,6 +339,11 @@ class PressureSourceRuntime @Inject constructor(
 			PressureProviderEraseVerification.StaleLifecycle
 		}
 	}
+
+	private fun SourceRegistration.hasSessionCaptureAuthorization(): Boolean =
+		authorization.authorizedMembers.any { member ->
+			member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+		}
 
 	private fun hasExactObservedStoppingRetirement(
 		activeRegistration: SourceRegistration,

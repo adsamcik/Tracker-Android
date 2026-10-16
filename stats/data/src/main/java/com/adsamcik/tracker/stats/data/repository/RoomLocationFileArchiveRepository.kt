@@ -30,15 +30,24 @@ class RoomLocationFileArchiveRepository @Inject constructor(
 			}
 		}
 
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	internal suspend fun readInTransaction(request: LocationFileArchiveRequest): LocationFileArchiveRead {
-		if (database.activeRetentionFloorSettlement() != null) return LocationFileArchiveRead.StorageUnavailable
+		if (database.activeRetentionFloorSettlement() != null) {
+			return LocationFileArchiveRead.StorageUnavailable
+		}
 		val state = database.sourceEvidenceStateDao().get() ?: return LocationFileArchiveRead.StorageUnavailable
-		if (state.collectedDataEpoch != request.expectedCollectedDataEpoch) return LocationFileArchiveRead.DataChanged
+		if (state.collectedDataEpoch != request.expectedCollectedDataEpoch) {
+			return LocationFileArchiveRead.DataChanged
+		}
 		val dao = database.locationFileIdentityDao()
 		val archive = dao.archive(request.archiveIdentity) ?: return LocationFileArchiveRead.NotFound
-		if (!state.acceptsRetainedEpoch(archive.collectedDataEpoch)) return LocationFileArchiveRead.DataChanged
+		if (!state.acceptsRetainedEpoch(archive.collectedDataEpoch)) {
+			return LocationFileArchiveRead.DataChanged
+		}
 		val counts = dao.archivePointCounts(archive.identity, state.retainedFromMs)
-		if (counts.membershipCount != archive.pointCount) return LocationFileArchiveRead.IncompleteMembership
+		if (counts.membershipCount != archive.pointCount) {
+			return LocationFileArchiveRead.IncompleteMembership
+		}
 		return LocationFileArchiveRead.Found(archive.identity, archive.pointCount, counts.availableCount)
 	}
 }

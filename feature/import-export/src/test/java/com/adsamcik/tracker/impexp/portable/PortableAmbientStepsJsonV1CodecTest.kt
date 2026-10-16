@@ -226,6 +226,8 @@ class PortableAmbientStepsJsonV1CodecTest {
 		}
 	}
 
+	// One explicit day fixture verifies its fact and gap bounds in both codec directions before materialization.
+	@Suppress("LongMethod")
 	@Test
 	fun `per day fact and gap caps reject before archive materialization`() = runTest {
 		val date = LocalDate.of(2026, 1, 1)
@@ -498,7 +500,9 @@ private class CountingAmbientInputStream(
 	}
 
 	override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-		if (bytesRead == bytes.size) return -1
+		if (bytesRead == bytes.size) {
+			return -1
+		}
 		val count = minOf(length, bytes.size - bytesRead)
 		bytes.copyInto(buffer, offset, bytesRead, bytesRead + count)
 		bytesRead += count

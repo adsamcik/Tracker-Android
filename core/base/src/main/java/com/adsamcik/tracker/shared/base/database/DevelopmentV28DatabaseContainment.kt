@@ -1,18 +1,14 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.content.Context
-import android.database.sqlite.SQLiteCantOpenDatabaseException
+import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
-import android.database.sqlite.SQLiteDatabaseLockedException
-import android.database.sqlite.SQLiteDiskIOException
 import android.database.sqlite.SQLiteException
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import com.adsamcik.tracker.shared.base.database.legacy.ACTIVE_DATABASE_NAME
-import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
 import java.io.File
-import java.io.IOException
 
 /**
  * Pre-open classification for the stable active database file.
@@ -21,19 +17,48 @@ import java.io.IOException
  * carries this assembly's explicit marker and a small set of indispensable final schema sentinels.
  */
 sealed interface ActiveDatabasePreflightResult {
+	/**
+	 * No existing database file requires schema containment before creating the current Room
+	 * database.
+	 */
 	data object Fresh : ActiveDatabasePreflightResult
+	/**
+	 * The saved schema matches the recognized development v27 upgrade input.
+	 */
 	data object KnownDevelopmentV27 : ActiveDatabasePreflightResult
+	/**
+	 * The saved schema and final marker match the recognized complete v28 database.
+	 */
 	data object FinalV28 : ActiveDatabasePreflightResult
+	/**
+	 * The saved schema matches the recognized complete v29 database.
+	 */
 	data object FinalV29 : ActiveDatabasePreflightResult
+	/**
+	 * A transient concurrent-state, ownership or storage problem prevents completion and permits
+	 * retry.
+	 */
 	data class Retryable(val reason: ActiveDatabaseRetryableReason) : ActiveDatabasePreflightResult
+	/**
+	 * Changed or invalid scope/authority prevents the requested operation; the exact reason remains
+	 * explicit.
+	 */
 	data class Blocked(val reason: ActiveDatabaseBlockReason) : ActiveDatabasePreflightResult
 }
 
+/**
+ * Lock contention or temporary operational failure that permits retry without classifying the
+ * saved database as corrupt.
+ */
 enum class ActiveDatabaseRetryableReason(val failureCode: String) {
 	CONTENDED("ACTIVE_DATABASE_CONTENDED"),
 	OPERATIONALLY_UNAVAILABLE("ACTIVE_DATABASE_OPERATIONALLY_UNAVAILABLE"),
 }
 
+/**
+ * Unsupported or incomplete schema, invalid final marker or unreadable/failed upgrade state
+ * requiring preserved recovery.
+ */
 enum class ActiveDatabaseBlockReason(val failureCode: String) {
 	STALE_DEVELOPMENT_V28("STALE_DEVELOPMENT_V28"),
 	UNSUPPORTED_DATABASE_VERSION("UNSUPPORTED_DATABASE_VERSION"),
@@ -47,16 +72,27 @@ enum class ActiveDatabaseBlockReason(val failureCode: String) {
 	FINAL_V29_OPEN_VALIDATION_FAILED("FINAL_V29_OPEN_VALIDATION_FAILED"),
 }
 
+/**
+ * Carries the precise permanent database preflight/open block reason while preserving the original
+ * cause.
+ */
 class ActiveDatabaseOpenBlockedException(
 	val reason: ActiveDatabaseBlockReason,
 	cause: Throwable? = null,
 ) : IllegalStateException(reason.failureCode, cause)
 
+/**
+ * Carries a transient database contention/operational reason and optional original cause.
+ */
 class ActiveDatabaseOpenRetryableException(
 	val reason: ActiveDatabaseRetryableReason,
 	cause: Throwable? = null,
 ) : IllegalStateException(reason.failureCode, cause)
 
+/**
+ * Inspects the existing database file before Room opens it, distinguishing supported schemas from
+ * blocked and retryable states.
+ */
 class ActiveDatabasePreflight internal constructor(
 	private val databaseFile: File,
 ) {
@@ -65,6 +101,10 @@ class ActiveDatabasePreflight internal constructor(
 		databaseName: String = ACTIVE_DATABASE_NAME,
 	) : this(context.applicationContext.getDatabasePath(databaseName))
 
+	/**
+	 * Inspects the existing file before Room mutation and returns supported schema, transient
+	 * contention or a preserved-data block reason.
+	 */
 	fun inspect(): ActiveDatabasePreflightResult = try {
 		when {
 			!databaseFile.exists() -> ActiveDatabasePreflightResult.Fresh
@@ -76,10 +116,11 @@ class ActiveDatabasePreflight internal constructor(
 				SQLiteDatabase.OPEN_READONLY,
 			).use(::classify)
 		}
-	} catch (failure: Exception) {
+	} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+		// Classify framework/open failures without touching the preserved file; unknown failures still escape.
 		val retryableReason = failure.activeDatabaseRetryableReason()
 		when {
-			failure.isDatabaseCorruption() -> ActiveDatabasePreflightResult.Blocked(
+			failure.isActiveDatabaseCorruption() -> ActiveDatabasePreflightResult.Blocked(
 				ActiveDatabaseBlockReason.UNREADABLE_DATABASE,
 			)
 			retryableReason != null -> ActiveDatabasePreflightResult.Retryable(retryableReason)
@@ -96,144 +137,151 @@ class ActiveDatabasePreflight internal constructor(
 				ActiveDatabaseBlockReason.UNREADABLE_DATABASE,
 			)
 		}
-		val version = database.version
-		if (version == 0 && !database.hasApplicationTables()) {
-			return ActiveDatabasePreflightResult.Fresh
+		return classifyVersion(database, database.version)
+	}
+
+	private fun classifyVersion(database: SQLiteDatabase, version: Int): ActiveDatabasePreflightResult = when {
+		version == 0 && !database.hasApplicationTables() -> ActiveDatabasePreflightResult.Fresh
+		version != INITIAL_ACTIVE_DATABASE_VERSION && version != DEVELOPMENT_DATABASE_VERSION_V28 &&
+			version != DEVELOPMENT_DATABASE_VERSION_V29 && version != CURRENT_DATABASE_VERSION ->
+			ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.UNSUPPORTED_DATABASE_VERSION)
+		!BASELINE_TABLES.all(database::hasTable) ->
+			ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.UNRECOGNIZED_DATABASE_SCHEMA)
+		version == INITIAL_ACTIVE_DATABASE_VERSION -> ActiveDatabasePreflightResult.KnownDevelopmentV27
+		else -> classifyFinalVersion(database, version)
+	}
+
+	private fun classifyFinalVersion(database: SQLiteDatabase, version: Int): ActiveDatabasePreflightResult {
+		finalMarkerFailure(database)?.let { return it }
+		return when {
+			!FinalDatabaseSchemaChecks.hasV28(database, version) ->
+				ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA)
+			version == DEVELOPMENT_DATABASE_VERSION_V28 -> ActiveDatabasePreflightResult.FinalV28
+			!FinalDatabaseSchemaChecks.hasV29(database) ->
+				ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA)
+			else -> ActiveDatabasePreflightResult.FinalV29
 		}
-		if (version != INITIAL_ACTIVE_DATABASE_VERSION &&
-			version != 28 && version != 29 && version != CURRENT_DATABASE_VERSION
-		) {
-			return ActiveDatabasePreflightResult.Blocked(
-				ActiveDatabaseBlockReason.UNSUPPORTED_DATABASE_VERSION,
-			)
-		}
-		if (!BASELINE_TABLES.all(database::hasTable)) {
-			return ActiveDatabasePreflightResult.Blocked(
-				ActiveDatabaseBlockReason.UNRECOGNIZED_DATABASE_SCHEMA,
-			)
-		}
-		if (version == INITIAL_ACTIVE_DATABASE_VERSION) {
-			return ActiveDatabasePreflightResult.KnownDevelopmentV27
-		}
+	}
+
+	private fun finalMarkerFailure(database: SQLiteDatabase): ActiveDatabasePreflightResult? {
 		val markerState = try {
 			database.finalV28MarkerState()
-		} catch (failure: Exception) {
-			if (failure.isDatabaseCorruption()) {
-				return ActiveDatabasePreflightResult.Blocked(
-					ActiveDatabaseBlockReason.UNREADABLE_DATABASE,
-				)
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+			// Marker reads distinguish corruption, contention and invalid schema; unknown failures still escape.
+			if (failure.isActiveDatabaseCorruption()) {
+				return ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.UNREADABLE_DATABASE)
 			}
 			failure.activeDatabaseRetryableReason()?.let {
 				return ActiveDatabasePreflightResult.Retryable(it)
 			}
 			if (failure is SQLiteException) {
-				return ActiveDatabasePreflightResult.Blocked(
-					ActiveDatabaseBlockReason.INVALID_FINAL_V28_MARKER,
-				)
+				return ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.INVALID_FINAL_V28_MARKER)
 			}
 			throw failure
 		}
-		when (markerState) {
-			FinalV28MarkerState.MISSING ->
-				return ActiveDatabasePreflightResult.Blocked(
-					ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28,
-				)
-			FinalV28MarkerState.STALE ->
-				return ActiveDatabasePreflightResult.Blocked(
-					ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28,
-				)
+		return when (markerState) {
+			FinalV28MarkerState.MISSING, FinalV28MarkerState.STALE ->
+				ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28)
 			FinalV28MarkerState.INVALID ->
-				return ActiveDatabasePreflightResult.Blocked(
-					ActiveDatabaseBlockReason.INVALID_FINAL_V28_MARKER,
-				)
-			FinalV28MarkerState.VALID -> Unit
+				ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.INVALID_FINAL_V28_MARKER)
+			FinalV28MarkerState.VALID -> null
 		}
-		val lifecycleIndexes = if (version == 28) FINAL_V28_LIFECYCLE_PROOF_INDEXES else {
+	}
+}
+
+/** The existing final schema sentinels stay ordered by the data authority they protect. */
+private object FinalDatabaseSchemaChecks {
+	private val retainedFactTableColumns = listOf(
+		FINAL_V28_SOURCE_EVENT_RETENTION_PROOF_TABLE to FINAL_V28_SOURCE_EVENT_RETENTION_PROOF_COLUMNS,
+		FINAL_V28_SOURCE_EVENT_RETENTION_SCOPE_PROOF_TABLE to FINAL_V28_SOURCE_EVENT_RETENTION_SCOPE_PROOF_COLUMNS,
+		FINAL_V28_CAPTURED_RADIO_RETENTION_PROOF_TABLE to FINAL_V28_CAPTURED_RADIO_RETENTION_PROOF_COLUMNS,
+		FINAL_V28_PRESSURE_RETENTION_AUTHORITY_TABLE to FINAL_V28_PRESSURE_RETENTION_AUTHORITY_COLUMNS,
+		FINAL_V28_PRESSURE_RETENTION_REVISION_AUTHORITY_TABLE to FINAL_V28_PRESSURE_RETENTION_REVISION_AUTHORITY_COLUMNS,
+	)
+
+	fun hasV28(database: SQLiteDatabase, version: Int): Boolean {
+		val lifecycleIndexes = if (version == DEVELOPMENT_DATABASE_VERSION_V28) {
+			FINAL_V28_LIFECYCLE_PROOF_INDEXES
+		} else {
 			FINAL_V28_LIFECYCLE_PROOF_INDEXES.filterNot {
 				it.name == FINAL_V29_CAPTURED_RADIO_RETENTION_EVENT_INDEX.name
 			}
 		}
-		if (!FINAL_V28_REQUIRED_TABLES.all(database::hasTable) ||
-			!database.hasExactColumns(
-				FINAL_V28_SOURCE_EVENT_RETENTION_PROOF_TABLE,
-				FINAL_V28_SOURCE_EVENT_RETENTION_PROOF_COLUMNS,
-			) ||
-			!database.hasExactColumns(
-				FINAL_V28_SOURCE_EVENT_RETENTION_SCOPE_PROOF_TABLE,
-				FINAL_V28_SOURCE_EVENT_RETENTION_SCOPE_PROOF_COLUMNS,
-			) ||
-			!database.hasExactColumns(
-				FINAL_V28_CAPTURED_RADIO_RETENTION_PROOF_TABLE,
-				FINAL_V28_CAPTURED_RADIO_RETENTION_PROOF_COLUMNS,
-			) ||
-			!database.hasExactColumns(
-				FINAL_V28_PRESSURE_RETENTION_AUTHORITY_TABLE,
-				FINAL_V28_PRESSURE_RETENTION_AUTHORITY_COLUMNS,
-			) ||
-			!database.hasExactColumns(
-				FINAL_V28_PRESSURE_RETENTION_REVISION_AUTHORITY_TABLE,
-				FINAL_V28_PRESSURE_RETENTION_REVISION_AUTHORITY_COLUMNS,
-			) ||
-			!database.hasColumn(FINAL_V28_REQUIRED_COLUMN_TABLE, FINAL_V28_REQUIRED_COLUMN) ||
-			!database.hasColumn(
-				FINAL_V28_RADIO_RECEIPT_TABLE,
-				FINAL_V28_RADIO_RECEIPT_COLUMN,
-			) ||
-			!FINAL_V28_APPLIED_PLAN_COLUMNS.all(database::hasExactColumn) ||
-			!FINAL_V28_LOCATION_COLUMNS.all(database::hasExactColumn) ||
-			!FINAL_V28_LOCATION_INDEXES.all(database::hasExactIndex) ||
-			!FINAL_V28_RETENTION_JOURNAL_COLUMNS.all { column ->
-				database.hasColumn(FINAL_V28_RETENTION_JOURNAL_TABLE, column)
-			} ||
-			!FINAL_V28_EXECUTION_RECEIPT_COLUMNS.all { column ->
-				database.hasColumn(FINAL_V28_EXECUTION_RECEIPT_TABLE, column)
-			} ||
-			!FINAL_V28_CALLER_AUTHORITY_COLUMNS.all { column ->
-				database.hasColumn(FINAL_V28_CALLER_AUTHORITY_TABLE, column)
-			} ||
-			!FINAL_V28_LOCATION_DECISION_COLUMNS.all { column ->
-				database.hasColumn(FINAL_V28_LOCATION_DECISION_TABLE, column)
-			} ||
-			!FINAL_V28_STEPS_TABLE_COLUMNS.all { (table, columns) ->
-				database.hasExactColumns(table, columns)
-			} ||
-			!lifecycleIndexes.all(database::hasExactIndex) ||
-			!database.hasTrigger(FINAL_V28_PRESSURE_RETENTION_TRIGGER) ||
-			!FINAL_V28_STEPS_INDEXES.all(database::hasExactIndex) ||
-			!FINAL_V28_STEPS_TRIGGERS.all(database::hasTrigger) ||
-			!database.hasExactStepsCountDomainMarker() ||
-			!FINAL_V28_AUTHORITY_INDEXES.all(database::hasExactIndex) ||
-			!FINAL_V28_ORGANIZATION_COLUMNS.all(database::hasExactColumn) ||
-			!FINAL_V28_ORGANIZATION_INDEXES.all(database::hasExactIndex) ||
-			!database.hasTrigger(FinalV28TriggerSentinel("clear_organization_activity_label", "activity"))
-		) {
-			return ActiveDatabasePreflightResult.Blocked(
-				ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA,
-			)
-		}
-		if (version == 28) return ActiveDatabasePreflightResult.FinalV28
-		if (!FINAL_V29_ADDITIONAL_COLUMNS.all(database::hasExactColumn) ||
-			!FINAL_V29_LEGACY_PRESERVED_COLUMNS.all(database::hasExactColumn) ||
-			!FINAL_V29_LEGACY_PRESERVED_TABLE_COLUMNS.all { (table, names) -> database.hasExactColumns(table, names) } ||
-			!FINAL_V29_LEGACY_PRESERVED_INDEXES.all(database::hasExactIndex) ||
-			!database.hasExactIndex(FINAL_V29_CAPTURED_RADIO_RETENTION_EVENT_INDEX) ||
-			!FINAL_V29_NATIVE_PORTABLE_COLUMNS.all(database::hasExactColumn) ||
-			!database.hasExactColumns("native_portable_ownership", listOf("source_kind", "identity_kind", "opaque_identity", "raw_identity", "logical_tracking_id", "service_run_id")) ||
-			!FINAL_V29_NATIVE_PORTABLE_INDEXES.all(database::hasExactIndex) ||
-			!FINAL_V29_NATIVE_PORTABLE_TRIGGERS.all(database::hasTrigger) ||
-			!FINAL_V29_LOCATION_ARCHIVE_COLUMNS.all { (table, columns) -> database.hasExactColumns(table, columns) } ||
-			!FINAL_V29_LOCATION_ARCHIVE_INDEXES.all(database::hasExactIndex) ||
-			!FINAL_V29_RADIO_CHILD_COLUMNS.all { (table, columns) -> database.hasExactColumns(table, columns) } ||
-			!FINAL_V29_RADIO_CHILD_INDEXES.all(database::hasExactIndex) ||
-			!FINAL_V29_RADIO_MIRROR_TRIGGERS.all(database::hasTrigger)
-		) {
-			return ActiveDatabasePreflightResult.Blocked(
-				ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA,
-			)
-		}
-		return ActiveDatabasePreflightResult.FinalV29
+		return hasPayload(database) && hasFinalSchemaSourceBindings(database) && hasFinalSchemaLocation(database) &&
+			hasExecutionAndProducts(database, lifecycleIndexes) && hasAuthorityAndOrganization(database)
 	}
+
+	private fun hasPayload(database: SQLiteDatabase): Boolean =
+		FINAL_V28_REQUIRED_TABLES.all(database::hasTable) &&
+			retainedFactTableColumns.all { (table, columns) -> database.hasExactColumns(table, columns) }
+
+	private fun hasExecutionAndProducts(
+		database: SQLiteDatabase,
+		lifecycleIndexes: List<FinalV28IndexSentinel>,
+	): Boolean = hasExecutionColumns(database) && hasLifecycleAndStepsTables(database, lifecycleIndexes) &&
+		hasFinalSchemaStepsCountDomain(database)
+
+	private fun hasExecutionColumns(database: SQLiteDatabase): Boolean =
+		FINAL_V28_RETENTION_JOURNAL_COLUMNS.all { database.hasColumn(FINAL_V28_RETENTION_JOURNAL_TABLE, it) } &&
+			FINAL_V28_EXECUTION_RECEIPT_COLUMNS.all { database.hasColumn(FINAL_V28_EXECUTION_RECEIPT_TABLE, it) } &&
+			FINAL_V28_CALLER_AUTHORITY_COLUMNS.all { database.hasColumn(FINAL_V28_CALLER_AUTHORITY_TABLE, it) } &&
+			FINAL_V28_LOCATION_DECISION_COLUMNS.all { database.hasColumn(FINAL_V28_LOCATION_DECISION_TABLE, it) }
+
+	private fun hasLifecycleAndStepsTables(
+		database: SQLiteDatabase,
+		lifecycleIndexes: List<FinalV28IndexSentinel>,
+	): Boolean = FINAL_V28_STEPS_TABLE_COLUMNS.all { (table, columns) -> database.hasExactColumns(table, columns) } &&
+		lifecycleIndexes.all(database::hasExactIndex) && database.hasTrigger(FINAL_V28_PRESSURE_RETENTION_TRIGGER)
+
+	private fun hasAuthorityAndOrganization(database: SQLiteDatabase): Boolean =
+		FINAL_V28_AUTHORITY_INDEXES.all(database::hasExactIndex) &&
+			FINAL_V28_ORGANIZATION_COLUMNS.all(database::hasExactColumn) &&
+			FINAL_V28_ORGANIZATION_INDEXES.all(database::hasExactIndex) &&
+			database.hasTrigger(FinalV28TriggerSentinel("clear_organization_activity_label", "activity"))
+
+	fun hasV29(database: SQLiteDatabase): Boolean =
+		FINAL_V29_ADDITIONAL_COLUMNS.all(database::hasExactColumn) && hasLegacyDetails(database) &&
+			hasPortableMembership(database) && hasLocationArchives(database) && hasRadioDetails(database)
+
+	private fun hasLegacyDetails(database: SQLiteDatabase): Boolean =
+		FINAL_V29_LEGACY_PRESERVED_COLUMNS.all(database::hasExactColumn) &&
+			FINAL_V29_LEGACY_PRESERVED_TABLE_COLUMNS.all { (table, names) -> database.hasExactColumns(table, names) } &&
+			FINAL_V29_LEGACY_PRESERVED_INDEXES.all(database::hasExactIndex) &&
+			database.hasExactIndex(FINAL_V29_CAPTURED_RADIO_RETENTION_EVENT_INDEX)
+
+	private fun hasPortableMembership(database: SQLiteDatabase): Boolean =
+		FINAL_V29_NATIVE_PORTABLE_COLUMNS.all(database::hasExactColumn) &&
+			database.hasExactColumns(
+				"native_portable_ownership",
+				listOf("source_kind", "identity_kind", "opaque_identity", "raw_identity", "logical_tracking_id", "service_run_id"),
+			) && FINAL_V29_NATIVE_PORTABLE_INDEXES.all(database::hasExactIndex) &&
+			FINAL_V29_NATIVE_PORTABLE_TRIGGERS.all(database::hasTrigger)
+
+	private fun hasLocationArchives(database: SQLiteDatabase): Boolean =
+		FINAL_V29_LOCATION_ARCHIVE_COLUMNS.all { (table, columns) -> database.hasExactColumns(table, columns) } &&
+			FINAL_V29_LOCATION_ARCHIVE_INDEXES.all(database::hasExactIndex)
+
+	private fun hasRadioDetails(database: SQLiteDatabase): Boolean =
+		FINAL_V29_RADIO_CHILD_COLUMNS.all { (table, columns) -> database.hasExactColumns(table, columns) } &&
+			FINAL_V29_RADIO_CHILD_INDEXES.all(database::hasExactIndex) &&
+			FINAL_V29_RADIO_MIRROR_TRIGGERS.all(database::hasTrigger)
 }
+
+private fun hasFinalSchemaSourceBindings(database: SQLiteDatabase): Boolean =
+	database.hasColumn(FINAL_V28_REQUIRED_COLUMN_TABLE, FINAL_V28_REQUIRED_COLUMN) &&
+		database.hasColumn(FINAL_V28_RADIO_RECEIPT_TABLE, FINAL_V28_RADIO_RECEIPT_COLUMN) &&
+		FINAL_V28_APPLIED_PLAN_COLUMNS.all(database::hasExactColumn)
+
+private fun hasFinalSchemaLocation(database: SQLiteDatabase): Boolean =
+	FINAL_V28_LOCATION_COLUMNS.all(database::hasExactColumn) &&
+		FINAL_V28_LOCATION_INDEXES.all(database::hasExactIndex)
+
+private fun hasFinalSchemaStepsCountDomain(database: SQLiteDatabase): Boolean =
+	FINAL_V28_STEPS_INDEXES.all(database::hasExactIndex) &&
+		FINAL_V28_STEPS_TRIGGERS.all(database::hasTrigger) && database.hasExactStepsCountDomainMarker()
+
+private const val DEVELOPMENT_DATABASE_VERSION_V28 = 28
+private const val DEVELOPMENT_DATABASE_VERSION_V29 = 29
 
 internal class DevelopmentV28ContainmentOpenHelperFactory(
 	private val delegate: SupportSQLiteOpenHelper.Factory,
@@ -266,97 +314,25 @@ internal class DevelopmentV28ContainmentOpenHelperFactory(
 
 		@Synchronized
 		private fun open(block: () -> SupportSQLiteDatabase): SupportSQLiteDatabase {
-			val state = admittedState ?: inspect().also { result ->
-				if (result is ActiveDatabasePreflightResult.Blocked) {
-					throw ActiveDatabaseOpenBlockedException(result.reason)
-				}
-				if (result is ActiveDatabasePreflightResult.Retryable) {
-					throw ActiveDatabaseOpenRetryableException(result.reason)
-				}
-			}
+			val state = admittedState ?: inspect().requireAdmittedDatabaseState()
 			return try {
 				block().also { admittedState = state }
-			} catch (blocked: ActiveDatabaseOpenBlockedException) {
-				throw blocked
-			} catch (retryable: ActiveDatabaseOpenRetryableException) {
-				throw retryable
-			} catch (failure: Exception) {
-				if (failure.isDatabaseCorruption()) {
-					throw ActiveDatabaseOpenBlockedException(
-						ActiveDatabaseBlockReason.UNREADABLE_DATABASE,
-						failure,
-					)
-				}
-				failure.activeDatabaseRetryableReason()?.let { reason ->
-					throw ActiveDatabaseOpenRetryableException(reason, failure)
-				}
-				if (failure is DatabaseMigrationBackupException) throw failure
-				val reason = when (state) {
-					ActiveDatabasePreflightResult.KnownDevelopmentV27 ->
-						ActiveDatabaseBlockReason.DEVELOPMENT_V27_MIGRATION_VALIDATION_FAILED
-					ActiveDatabasePreflightResult.FinalV28 ->
-						ActiveDatabaseBlockReason.FINAL_V28_OPEN_VALIDATION_FAILED
-					ActiveDatabasePreflightResult.FinalV29 ->
-						ActiveDatabaseBlockReason.FINAL_V29_OPEN_VALIDATION_FAILED
-					else -> null
-				}
-				if (reason != null) throw ActiveDatabaseOpenBlockedException(reason, failure)
-				throw failure
+			} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+				// The Room open boundary publishes the existing retry/block reason and preserves unclassified failures.
+				throw failure.classifiedActiveDatabaseOpenFailure(state)
 			}
 		}
 	}
 }
 
-internal fun Throwable.activeDatabaseRetryableReason(): ActiveDatabaseRetryableReason? {
-	var current: Throwable? = this
-	while (current != null) {
-		if (current is SQLiteDatabaseLockedException) {
-			return ActiveDatabaseRetryableReason.CONTENDED
-		}
-		val className = current.javaClass.name
-		if (className in LOCK_EXCEPTION_CLASS_NAMES ||
-			className.endsWith("SQLiteDatabaseLockedException")
-		) {
-			return ActiveDatabaseRetryableReason.CONTENDED
-		}
-		val message = current.message?.lowercase().orEmpty()
-		val sqliteFailure = current is SQLiteException ||
-			(className.startsWith("org.sqlite.database.sqlite.SQLite") &&
-				className.endsWith("Exception"))
-		if (sqliteFailure && LOCK_MESSAGE_MARKERS.any(message::contains)) {
-			return ActiveDatabaseRetryableReason.CONTENDED
-		}
-		if (current is SQLiteCantOpenDatabaseException ||
-			current is SQLiteDiskIOException ||
-			current is IOException ||
-			current is SecurityException ||
-			className in OPERATIONAL_EXCEPTION_CLASS_NAMES ||
-			(sqliteFailure && OPERATIONAL_MESSAGE_MARKERS.any(message::contains))
-		) {
-			return ActiveDatabaseRetryableReason.OPERATIONALLY_UNAVAILABLE
-		}
-		current = current.cause
+private fun ActiveDatabasePreflightResult.requireAdmittedDatabaseState(): ActiveDatabasePreflightResult {
+	if (this is ActiveDatabasePreflightResult.Blocked) {
+		throw ActiveDatabaseOpenBlockedException(reason)
 	}
-	return null
-}
-
-private fun Throwable.isDatabaseCorruption(): Boolean {
-	var current: Throwable? = this
-	while (current != null) {
-		val className = current.javaClass.name
-		if (className in CORRUPTION_EXCEPTION_CLASS_NAMES ||
-			className.endsWith("SQLiteDatabaseCorruptException")
-		) {
-			return true
-		}
-		val message = current.message?.lowercase().orEmpty()
-		val sqliteFailure = current is SQLiteException ||
-			(className.startsWith("org.sqlite.database.sqlite.SQLite") &&
-				className.endsWith("Exception"))
-		if (sqliteFailure && CORRUPTION_MESSAGE_MARKERS.any(message::contains)) return true
-		current = current.cause
+	if (this is ActiveDatabasePreflightResult.Retryable) {
+		throw ActiveDatabaseOpenRetryableException(reason)
 	}
-	return false
+	return this
 }
 
 internal object FinalV28SchemaAssemblyRoomCallback : RoomDatabase.Callback() {
@@ -426,7 +402,9 @@ private fun SQLiteDatabase.hasColumn(table: String, column: String): Boolean =
 	rawQuery("PRAGMA table_info(`$table`)", null).use { cursor ->
 		val nameColumn = cursor.getColumnIndexOrThrow("name")
 		while (cursor.moveToNext()) {
-			if (cursor.getString(nameColumn) == column) return@use true
+			if (cursor.getString(nameColumn) == column) {
+				return@use true
+			}
 		}
 		false
 	}
@@ -441,17 +419,27 @@ private fun SQLiteDatabase.hasExactColumn(column: FinalV28ColumnSentinel): Boole
 		var found = false
 		while (cursor.moveToNext()) {
 			if (cursor.getString(nameColumn) == column.name) {
-				if (found ||
-					!cursor.getString(typeColumn).equals(column.type, ignoreCase = true) ||
-					(cursor.getInt(notNullColumn) != 0) != column.notNull ||
-					cursor.getInt(primaryKeyColumn) != column.primaryKeyPosition ||
-					(column.defaultValue != null && cursor.getString(defaultValueColumn) != column.defaultValue)
-				) return@use false
+				if (found || !cursor.matchesFinalSchemaColumn(
+						column, typeColumn, notNullColumn, primaryKeyColumn, defaultValueColumn,
+					)
+				) {
+					return@use false
+				}
 				found = true
 			}
 		}
 		found
 	}
+
+private fun Cursor.matchesFinalSchemaColumn(
+	column: FinalV28ColumnSentinel,
+	typeColumn: Int,
+	notNullColumn: Int,
+	primaryKeyColumn: Int,
+	defaultValueColumn: Int,
+): Boolean = getString(typeColumn).equals(column.type, ignoreCase = true) &&
+	(getInt(notNullColumn) != 0) == column.notNull && getInt(primaryKeyColumn) == column.primaryKeyPosition &&
+	(column.defaultValue == null || getString(defaultValueColumn) == column.defaultValue)
 
 private fun SQLiteDatabase.hasExactColumns(
 	table: String,
@@ -465,22 +453,10 @@ private fun SQLiteDatabase.hasExactColumns(
 }
 
 private fun SQLiteDatabase.hasExactIndex(index: FinalV28IndexSentinel): Boolean {
-	val exactDefinition = rawQuery("PRAGMA index_list(`${index.table}`)", null).use { cursor ->
-		val nameColumn = cursor.getColumnIndexOrThrow("name")
-		val uniqueColumn = cursor.getColumnIndexOrThrow("unique")
-		val partialColumn = cursor.getColumnIndexOrThrow("partial")
-		var found = false
-		while (cursor.moveToNext()) {
-			if (cursor.getString(nameColumn) == index.name) {
-				if (found || (cursor.getInt(uniqueColumn) != 0) != index.unique ||
-					cursor.getInt(partialColumn) != 0
-				) return@use false
-				found = true
-			}
-		}
-		found
+	val exactDefinition = hasExactIndexDefinition(index)
+	if (!exactDefinition) {
+		return false
 	}
-	if (!exactDefinition) return false
 	val actualColumns = rawQuery("PRAGMA index_xinfo(`${index.name}`)", null).use { cursor ->
 		val nameColumn = cursor.getColumnIndexOrThrow("name")
 		val descendingColumn = cursor.getColumnIndexOrThrow("desc")
@@ -490,7 +466,9 @@ private fun SQLiteDatabase.hasExactIndex(index: FinalV28IndexSentinel): Boolean 
 			while (cursor.moveToNext()) {
 				if (cursor.getInt(keyColumn) != 0) {
 					// Owned sentinel DDL uses default BINARY comparison, including identity keys.
-					if (cursor.getString(collationColumn) != "BINARY") return false
+					if (cursor.getString(collationColumn) != "BINARY") {
+						return false
+					}
 					add(
 						FinalV28IndexedColumn(
 							name = cursor.getString(nameColumn),
@@ -506,6 +484,25 @@ private fun SQLiteDatabase.hasExactIndex(index: FinalV28IndexSentinel): Boolean 
 	}
 }
 
+private fun SQLiteDatabase.hasExactIndexDefinition(index: FinalV28IndexSentinel): Boolean =
+	rawQuery("PRAGMA index_list(`${index.table}`)", null).use { cursor ->
+		val nameColumn = cursor.getColumnIndexOrThrow("name")
+		val uniqueColumn = cursor.getColumnIndexOrThrow("unique")
+		val partialColumn = cursor.getColumnIndexOrThrow("partial")
+		var found = false
+		while (cursor.moveToNext()) {
+			if (cursor.getString(nameColumn) == index.name) {
+				if (found || (cursor.getInt(uniqueColumn) != 0) != index.unique ||
+					cursor.getInt(partialColumn) != 0
+				) {
+					return@use false
+				}
+				found = true
+			}
+		}
+		found
+	}
+
 private fun SQLiteDatabase.hasTrigger(trigger: FinalV28TriggerSentinel): Boolean = rawQuery(
 	"SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ? AND tbl_name = ? LIMIT 1",
 	arrayOf(trigger.name, trigger.table),
@@ -520,7 +517,7 @@ private fun SQLiteDatabase.hasExactStepsCountDomainMarker(): Boolean = rawQuery(
 		cursor.getLong(0) == 1L &&
 		cursor.getLong(1) == 2L &&
 		cursor.getString(2) == "PROVIDER_COUNTER_EPOCH_V1" &&
-		cursor.getLong(3) == 1L &&
+		cursor.getLong(STEPS_MARKER_TERMINAL_UNPROVEN_COLUMN) == 1L &&
 		!cursor.moveToNext()
 }
 
@@ -528,7 +525,9 @@ private fun SQLiteDatabase.finalV28MarkerState(): FinalV28MarkerState = rawQuery
 	"SELECT identity_hash FROM room_master_table WHERE id = ?",
 	arrayOf(FINAL_V28_MARKER_ID.toString()),
 ).use { cursor ->
-	if (!cursor.moveToFirst()) return@use FinalV28MarkerState.MISSING
+	if (!cursor.moveToFirst()) {
+		return@use FinalV28MarkerState.MISSING
+	}
 	when (cursor.getString(0)) {
 		FINAL_V28_ASSEMBLY_ID -> FinalV28MarkerState.VALID
 		in STALE_FINAL_V28_ASSEMBLY_IDS -> FinalV28MarkerState.STALE
@@ -542,6 +541,8 @@ private enum class FinalV28MarkerState {
 	INVALID,
 	VALID,
 }
+
+private const val STEPS_MARKER_TERMINAL_UNPROVEN_COLUMN = 3
 
 internal const val FINAL_V28_MARKER_ID = -280_917
 internal const val FINAL_V28_ASSEMBLY_ID =
@@ -651,8 +652,10 @@ private val FINAL_V28_LOCATION_COLUMNS = listOf(
 private val FINAL_V28_LOCATION_INDEXES = listOf(
 	FinalV28IndexSentinel("location_file_identity", "idx_location_file_sample", listOf("sample_id"), true),
 	FinalV28IndexSentinel("location_accepted_receipt", "idx_location_receipt_event", listOf("source_event_id"), true),
-	FinalV28IndexSentinel("location_accepted_receipt", "idx_location_receipt_sequence", listOf("source_instance_id", "source_sequence"), true),
-	FinalV28IndexSentinel("location_sample_purpose_authority", "idx_location_purpose_authority", listOf("purpose", "authority_id", "sample_id"), false),
+	FinalV28IndexSentinel("location_accepted_receipt", "idx_location_receipt_sequence", listOf("source_instance_id",
+        "source_sequence"), true),
+	FinalV28IndexSentinel("location_sample_purpose_authority", "idx_location_purpose_authority", listOf("purpose",
+        "authority_id", "sample_id"), false),
 	FinalV28IndexSentinel("ambient_location_retention_authority", "idx_ambient_location_retention_effective",
 		listOf("scope", "effective_boot_id", "effective_elapsed_realtime_nanos", "approval_revision"), false),
 )
@@ -979,7 +982,8 @@ private val FINAL_V28_ORGANIZATION_COLUMNS = listOf(
 )
 private val FINAL_V28_ORGANIZATION_INDEXES = listOf(
 	FinalV28IndexSentinel("organization_annotation", "idx_organization_adapter", listOf("recording_adapter_key"), true),
-	FinalV28IndexSentinel("organization_annotation", "idx_organization_bounds", listOf("hidden", "start_time_ms", "end_time_ms"), false),
+	FinalV28IndexSentinel("organization_annotation", "idx_organization_bounds", listOf("hidden", "start_time_ms",
+        "end_time_ms"), false),
 	FinalV28IndexSentinel("organization_annotation", "idx_organization_end", listOf("end_time_ms"), false),
 )
 private val FINAL_V28_PRESSURE_RETENTION_TRIGGER = FinalV28TriggerSentinel(
@@ -1214,8 +1218,10 @@ private val FINAL_V29_NATIVE_PORTABLE_COLUMNS = listOf(
 	FinalV28ColumnSentinel("native_portable_ownership", "service_run_id", "TEXT", true, primaryKeyPosition = 5),
 )
 private val FINAL_V29_NATIVE_PORTABLE_INDEXES = listOf(
-	FinalV28IndexSentinel("native_portable_ownership", "idx_native_portable_owner_identity", listOf("source_kind", "opaque_identity", "logical_tracking_id"), false),
-	FinalV28IndexSentinel("native_portable_ownership", "idx_native_portable_owner_run", listOf("logical_tracking_id", "service_run_id"), false),
+	FinalV28IndexSentinel("native_portable_ownership", "idx_native_portable_owner_identity", listOf("source_kind",
+        "opaque_identity", "logical_tracking_id"), false),
+	FinalV28IndexSentinel("native_portable_ownership", "idx_native_portable_owner_run", listOf("logical_tracking_id",
+        "service_run_id"), false),
 )
 private val FINAL_V29_NATIVE_PORTABLE_TRIGGERS = listOf(
 	FinalV28TriggerSentinel("prune_native_portable_2_window", "activity_captured_window_revision"),
@@ -1225,14 +1231,17 @@ private val FINAL_V29_NATIVE_PORTABLE_TRIGGERS = listOf(
 )
 
 private val FINAL_V29_ADDITIONAL_COLUMNS = listOf(
-	FinalV28ColumnSentinel("session_manifest_source", "steps_recording_manifest_revision", "INTEGER", false, defaultValue = "NULL"),
+	FinalV28ColumnSentinel("session_manifest_source", "steps_recording_manifest_revision", "INTEGER", false,
+        defaultValue = "NULL"),
 	FinalV28ColumnSentinel("wifi_captured_fact_revision", "payload_version", "INTEGER", false, defaultValue = "NULL"),
 	FinalV28ColumnSentinel("ambient_wifi_fact_revision", "purpose_demand_id", "TEXT", false, defaultValue = "NULL"),
 	FinalV28ColumnSentinel("ambient_cell_fact_revision", "purpose_demand_id", "TEXT", false, defaultValue = "NULL"),
-	FinalV28ColumnSentinel("source_policy", "background_notification_host_enabled", "INTEGER", true, defaultValue = "0"),
+	FinalV28ColumnSentinel("source_policy", "background_notification_host_enabled", "INTEGER", true, defaultValue =
+        "0"),
 	FinalV28ColumnSentinel("location_accepted_receipt", "retained_proof_version", "INTEGER", true, defaultValue = "0"),
 	FinalV28ColumnSentinel("location_accepted_receipt", "retained_proof_checksum", "TEXT", true, defaultValue = "''"),
-	FinalV28ColumnSentinel("location_sample_purpose_authority", "retained_proof_checksum", "TEXT", true, defaultValue = "''"),
+	FinalV28ColumnSentinel("location_sample_purpose_authority", "retained_proof_checksum", "TEXT", true,
+        defaultValue = "''"),
 	FinalV28ColumnSentinel("organization_annotation", "imported_source_selection", "TEXT", false),
 	FinalV28ColumnSentinel("organization_annotation", "imported_activity_label", "TEXT", false),
 	FinalV28ColumnSentinel("location_file_archive", "identity", "TEXT", true, primaryKeyPosition = 1),
@@ -1247,12 +1256,15 @@ private val FINAL_V29_ADDITIONAL_COLUMNS = listOf(
 )
 
 private val FINAL_V29_LOCATION_ARCHIVE_COLUMNS = mapOf(
-	"location_file_archive" to listOf("identity", "source_format", "source_schema_version", "collected_data_epoch", "point_count"),
+	"location_file_archive" to listOf("identity", "source_format", "source_schema_version", "collected_data_epoch",
+        "point_count"),
 	"location_file_archive_point" to listOf("archive_identity", "ordinal", "portable_id", "sample_id"),
 )
 private val FINAL_V29_LOCATION_ARCHIVE_INDEXES = listOf(
-	FinalV28IndexSentinel("location_file_archive_point", "idx_location_archive_point_identity", listOf("archive_identity", "portable_id"), true),
-	FinalV28IndexSentinel("location_file_archive_point", "idx_location_archive_point_sample", listOf("sample_id"), false),
+	FinalV28IndexSentinel("location_file_archive_point", "idx_location_archive_point_identity",
+        listOf("archive_identity", "portable_id"), true),
+	FinalV28IndexSentinel("location_file_archive_point", "idx_location_archive_point_sample", listOf("sample_id"),
+        false),
 )
 
 private val FINAL_V29_LEGACY_STAMP_COLUMNS = listOf(
@@ -1290,14 +1302,20 @@ private val FINAL_V29_RADIO_CHILD_COLUMNS = mapOf(
 	) + FINAL_V29_LEGACY_STAMP_COLUMNS,
 )
 private val FINAL_V29_RADIO_CHILD_INDEXES = listOf(
-	FinalV28IndexSentinel("wifi_captured_child", "idx_wifi_captured_child_time", listOf("observed_wall_time_ms"), false),
-	FinalV28IndexSentinel("wifi_captured_child", "idx_wifi_captured_child_identity_time", listOf("bssid", "observed_wall_time_ms"), false),
-	FinalV28IndexSentinel("cell_captured_child", "idx_cell_captured_child_time", listOf("observed_wall_time_ms"), false),
-	FinalV28IndexSentinel("cell_captured_child", "idx_cell_captured_child_identity_time", listOf("tower_identity", "observed_wall_time_ms"), false),
+	FinalV28IndexSentinel("wifi_captured_child", "idx_wifi_captured_child_time", listOf("observed_wall_time_ms"),
+        false),
+	FinalV28IndexSentinel("wifi_captured_child", "idx_wifi_captured_child_identity_time", listOf("bssid",
+        "observed_wall_time_ms"), false),
+	FinalV28IndexSentinel("cell_captured_child", "idx_cell_captured_child_time", listOf("observed_wall_time_ms"),
+        false),
+	FinalV28IndexSentinel("cell_captured_child", "idx_cell_captured_child_identity_time", listOf("tower_identity",
+        "observed_wall_time_ms"), false),
 	FinalV28IndexSentinel("ambient_wifi_child", "idx_ambient_wifi_child_time", listOf("observed_wall_time_ms"), false),
-	FinalV28IndexSentinel("ambient_wifi_child", "idx_ambient_wifi_child_identity_time", listOf("bssid", "observed_wall_time_ms"), false),
+	FinalV28IndexSentinel("ambient_wifi_child", "idx_ambient_wifi_child_identity_time", listOf("bssid",
+        "observed_wall_time_ms"), false),
 	FinalV28IndexSentinel("ambient_cell_child", "idx_ambient_cell_child_time", listOf("observed_wall_time_ms"), false),
-	FinalV28IndexSentinel("ambient_cell_child", "idx_ambient_cell_child_identity_time", listOf("tower_identity", "observed_wall_time_ms"), false),
+	FinalV28IndexSentinel("ambient_cell_child", "idx_ambient_cell_child_identity_time", listOf("tower_identity",
+        "observed_wall_time_ms"), false),
 	FinalV28IndexSentinel("legacy_wifi_child", "idx_legacy_wifi_child_time", listOf("time_ms"), false),
 	FinalV28IndexSentinel("legacy_cell_child", "idx_legacy_cell_child_time", listOf("time_ms"), false),
 )
@@ -1335,49 +1353,6 @@ private data class FinalV28IndexedColumn(
 private data class FinalV28TriggerSentinel(
 	val name: String,
 	val table: String,
-)
-
-private val LOCK_EXCEPTION_CLASS_NAMES = setOf(
-	"android.database.sqlite.SQLiteBusyException",
-	"android.database.sqlite.SQLiteDatabaseLockedException",
-	"org.sqlite.database.sqlite.SQLiteDatabaseLockedException",
-	"org.sqlite.database.sqlite.SQLiteBusyException",
-)
-private val LOCK_MESSAGE_MARKERS = listOf(
-	"database is locked",
-	"database table is locked",
-	"sqlite_busy",
-	"sqlite_locked",
-)
-private val OPERATIONAL_EXCEPTION_CLASS_NAMES = setOf(
-	"android.database.sqlite.SQLiteCantOpenDatabaseException",
-	"android.database.sqlite.SQLiteDiskIOException",
-	"android.database.sqlite.SQLiteFullException",
-	"android.database.sqlite.SQLiteReadOnlyDatabaseException",
-	"org.sqlite.database.sqlite.SQLiteCantOpenDatabaseException",
-	"org.sqlite.database.sqlite.SQLiteDiskIOException",
-	"org.sqlite.database.sqlite.SQLiteFullException",
-	"org.sqlite.database.sqlite.SQLiteReadOnlyDatabaseException",
-)
-private val OPERATIONAL_MESSAGE_MARKERS = listOf(
-	"unable to open database file",
-	"disk i/o error",
-	"permission denied",
-	"readonly database",
-	"read-only database",
-	"temporarily unavailable",
-)
-private val CORRUPTION_EXCEPTION_CLASS_NAMES = setOf(
-	"android.database.sqlite.SQLiteDatabaseCorruptException",
-	"org.sqlite.database.sqlite.SQLiteDatabaseCorruptException",
-)
-private val CORRUPTION_MESSAGE_MARKERS = listOf(
-	"database disk image is malformed",
-	"file is not a database",
-	"not a database",
-	"malformed database schema",
-	"database corrupt",
-	"database corruption",
 )
 
 private val FINAL_V29_LEGACY_PRESERVED_COLUMNS = listOf(
@@ -1419,11 +1394,13 @@ private val FINAL_V29_LEGACY_PRESERVED_COLUMNS = listOf(
 	FinalV28ColumnSentinel("network_operator", "name", "TEXT", false),
 )
 private val FINAL_V29_LEGACY_PRESERVED_TABLE_COLUMNS = mapOf(
-	"legacy_rejected_tracker_session" to listOf("id", "start", "end", "user_initiated", "collections", "distance", "distance_on_foot", "distance_in_vehicle", "steps", "session_activity_id"),
+	"legacy_rejected_tracker_session" to listOf("id", "start", "end", "user_initiated", "collections", "distance",
+        "distance_on_foot", "distance_in_vehicle", "steps", "session_activity_id"),
 	"legacy_location_wifi_count" to listOf("id", "time", "count", "lat", "lon", "alt"),
 	"network_operator" to listOf("mcc", "mnc", "name"),
 )
 private val FINAL_V29_LEGACY_PRESERVED_INDEXES = listOf(
 	FinalV28IndexSentinel("legacy_location_wifi_count", "idx_legacy_location_wifi_count_time", listOf("time"), false),
-	FinalV28IndexSentinel("legacy_location_wifi_count", "idx_legacy_location_wifi_count_coords", listOf("lat", "lon"), false),
+	FinalV28IndexSentinel("legacy_location_wifi_count", "idx_legacy_location_wifi_count_coords", listOf("lat", "lon"),
+        false),
 )

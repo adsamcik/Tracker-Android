@@ -35,6 +35,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
+// One Room snapshot-reader fixture keeps saved Steps authority, partial coverage and replay checks together.
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class AmbientStepsPortableRoomReaderTest {
@@ -368,7 +370,11 @@ class AmbientStepsPortableRoomReaderTest {
 			),
 		)
 		val historicalPolicy = policy(HISTORICAL_POLICY, ACTIVE_CONSENT, true)
-		val currentPolicy = if (revoked) policy(CURRENT_POLICY, null, false) else historicalPolicy
+		val currentPolicy = if (revoked) {
+			policy(CURRENT_POLICY, null, false)
+		} else {
+			historicalPolicy
+		}
 		database.sourcePolicyDao().insertPolicies(listOf(historicalPolicy) +
 			listOfNotNull(currentPolicy.takeIf { it != historicalPolicy }))
 		database.sourcePolicyDao().insertConsentEpochs(
@@ -380,7 +386,11 @@ class AmbientStepsPortableRoomReaderTest {
 				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
 				currentPolicyRevision = currentPolicy.policyRevision,
 				legacySettingsFingerprint = null,
-				updatedAtMs = if (revoked) 2_000L else 0L,
+				updatedAtMs = if (revoked) {
+					2_000L
+				} else {
+					0L
+				},
 			),
 		)
 		database.ambientStepsFactRevisionDao().insertRetentionAuthority(
@@ -518,6 +528,9 @@ class AmbientStepsPortableRoomReaderTest {
 		return Fixture(fingerprint)
 	}
 
+	// Keep one active Steps backlog registration, authorization, registration state and cursor installation
+	// together.
+	@Suppress("LongMethod")
 	private suspend fun insertActiveBacklogCursor(
 		registrationGeneration: Long,
 		sourceInstanceId: String,
@@ -658,8 +671,16 @@ class AmbientStepsPortableRoomReaderTest {
 		controlConsentEpoch = null,
 		ambientConsentEpoch = consentEpoch,
 		effectiveBootId = BOOT_ID,
-		effectiveElapsedRealtimeNanos = if (eligible) 0L else 2_000_000_000L,
-		effectiveWallTimeMs = if (eligible) 0L else 2_000L,
+		effectiveElapsedRealtimeNanos = if (eligible) {
+			0L
+		} else {
+			2_000_000_000L
+		},
+		effectiveWallTimeMs = if (eligible) {
+			0L
+		} else {
+			2_000L
+		},
 		changeReason = "test",
 	)
 
@@ -672,8 +693,16 @@ class AmbientStepsPortableRoomReaderTest {
 			persistenceEligible = eligible,
 			policyRevision = policyRevision,
 			effectiveBootId = BOOT_ID,
-			effectiveElapsedRealtimeNanos = if (eligible) 0L else 2_000_000_000L,
-			effectiveWallTimeMs = if (eligible) 0L else 2_000L,
+			effectiveElapsedRealtimeNanos = if (eligible) {
+				0L
+			} else {
+				2_000_000_000L
+			},
+			effectiveWallTimeMs = if (eligible) {
+				0L
+			} else {
+				2_000L
+			},
 			changeReason = "test",
 		)
 

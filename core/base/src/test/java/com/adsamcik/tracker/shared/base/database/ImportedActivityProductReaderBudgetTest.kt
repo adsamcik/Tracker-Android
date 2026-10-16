@@ -277,6 +277,9 @@ class ImportedActivityProductReaderBudgetTest {
 		ImportedActivityProductReader(database).selectAllForSharedHistoryInTransaction(limits)
 	}
 
+	// Keep the complete portable Activity entry with its nested window, run and exact checksums visible
+	// together.
+	@Suppress("LongMethod")
 	private fun portableEntry(
 		fragments: List<PortableActivityFragmentV1> = listOf(
 			band(0L, 50L, 1_000L, 1_001L),

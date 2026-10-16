@@ -39,7 +39,9 @@ internal interface PassiveLocationReceiverEntryPoint {
 /** An explicit, non-exported PendingIntent entry point; URI fields identify only a candidate. */
 internal class PassiveLocationReceiver : BroadcastReceiver() {
 	override fun onReceive(context: Context, intent: Intent) {
-		if (intent.action != PassiveLocationIdentity.ACTION) return
+		if (intent.action != PassiveLocationIdentity.ACTION) {
+			return
+		}
 		val identity = PassiveLocationIdentity.fromUri(intent.data) ?: return
 		val receivedElapsedNanos = SystemClock.elapsedRealtimeNanos()
 		val receivedWallTimeMs = System.currentTimeMillis()
@@ -58,7 +60,9 @@ internal class PassiveLocationReceiver : BroadcastReceiver() {
 				withTimeoutOrNull(remainingMs) {
 					val gate = entry.trackingStartupGate()
 					if (gate.reconcileAdmission() !is TrackingAdmissionStartupResult.Ready ||
-						!gate.permitsNewCollection) return@withTimeoutOrNull
+						!gate.permitsNewCollection) {
+						return@withTimeoutOrNull
+					}
 					val decoded = intent.passiveLocations(identity.backend)
 					entry.admission().admit(identity, decoded,
 						receivedElapsedNanos, receivedWallTimeMs)
@@ -88,12 +92,16 @@ private fun Intent.passiveLocations(backend: LocationBackend): List<Location> = 
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && hasExtra(LocationManager.KEY_LOCATIONS)) {
 			val batch = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
 				getParcelableArrayExtra(LocationManager.KEY_LOCATIONS, Location::class.java)
-			} else getParcelableArrayExtra(LocationManager.KEY_LOCATIONS)
+			} else {
+				getParcelableArrayExtra(LocationManager.KEY_LOCATIONS)
+			}
 			batch?.filterIsInstance<Location>().orEmpty()
 		} else {
 			val single = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
 				getParcelableExtra(LocationManager.KEY_LOCATION_CHANGED, Location::class.java)
-			} else getParcelableExtra(LocationManager.KEY_LOCATION_CHANGED)
+			} else {
+				getParcelableExtra(LocationManager.KEY_LOCATION_CHANGED)
+			}
 			listOfNotNull(single)
 		}
 	}
@@ -114,10 +122,14 @@ internal class PassiveLocationDeliveryAdmission @Inject constructor(
 		receivedWallTimeMs: Long,
 	): PassiveLocationDeliveryOutcome {
 		currentCoroutineContext().ensureActive()
-		if (locations.isEmpty()) return PassiveLocationDeliveryOutcome(0, 0)
+		if (locations.isEmpty()) {
+			return PassiveLocationDeliveryOutcome(0, 0)
+		}
 		if (startup.reconcileAdmission() !is TrackingAdmissionStartupResult.Ready ||
 			!startup.permitsNewCollection || !permissionsAllowAdmission(device.snapshot())
-		) return PassiveLocationDeliveryOutcome(0, locations.size)
+		) {
+			return PassiveLocationDeliveryOutcome(0, locations.size)
+		}
 		// Normalize the entire delivery once: chunk boundaries must not change source ordering,
 		// exact duplicate removal, or the existing one-fix delivery identities.
 		val normalized = normalizeLocationBatch(locations.map(::Location))
@@ -129,37 +141,52 @@ internal class PassiveLocationDeliveryAdmission @Inject constructor(
 				// cancellation cannot leave an acknowledged prefix and an unsaved tail.
 				yield()
 				for (location in chunk) {
-					currentCoroutineContext().ensureActive()
-					if (!startup.permitsNewCollection || !permissionsAllowAdmission(device.snapshot())) {
+					if (admitLocation(identity, location, receivedElapsedNanos, receivedWallTimeMs, sink)) {
+						admitted++
+					} else {
 						unverified++
-						continue
-					}
-					val observed = location.qualifiedObservedElapsedRealtimeNanos(receivedElapsedNanos)
-					if (observed == null || !location.isValidLocationEvidence()) {
-						unverified++
-						continue
-					}
-					val admission = registrations.passiveLocationAdmissionAt(identity, observed)
-					if (admission == null || (admission.approximate && !device.snapshot().coarsePermission) ||
-						(!admission.approximate && !device.snapshot().finePermission) ||
-						startup.collectionResumeBoundary?.permitsObservation(identity.bootId, observed,
-							location.time.takeIf { it > 0L } ?: receivedWallTimeMs) == false
-					) {
-						unverified++
-						continue
-					}
-					val candidate = locationDeliveryCandidate(listOf(location), listOf(observed),
-						receivedElapsedNanos, receivedWallTimeMs, admission.attribution,
-						admission.approximate)
-					when (sink.admit(candidate)) {
-						is SourceDeliveryAdmissionHandoff.Durable,
-						is SourceDeliveryAdmissionHandoff.Duplicate -> admitted++
-						else -> unverified++
 					}
 				}
 			}
 			PassiveLocationDeliveryOutcome(admitted, unverified)
 		}
+	}
+
+	private suspend fun admitLocation(
+		identity: PassiveLocationIdentity, location: Location, receivedElapsedNanos: Long,
+		receivedWallTimeMs: Long, sink: SourceEventSink,
+	): Boolean {
+		currentCoroutineContext().ensureActive()
+		if (!startup.permitsNewCollection || !permissionsAllowAdmission(device.snapshot())) {
+			return false
+		}
+		val observed = location.qualifiedObservedElapsedRealtimeNanos(receivedElapsedNanos)
+		if (observed == null || !location.isValidLocationEvidence()) {
+			return false
+		}
+		val admission = qualifiedAdmission(identity, location, observed, receivedWallTimeMs) ?: return false
+		val candidate = locationDeliveryCandidate(listOf(location), listOf(observed),
+			receivedElapsedNanos, receivedWallTimeMs, admission.attribution, admission.approximate)
+		return when (sink.admit(candidate)) {
+			is SourceDeliveryAdmissionHandoff.Durable,
+			is SourceDeliveryAdmissionHandoff.Duplicate -> true
+			else -> false
+		}
+	}
+
+	private suspend fun qualifiedAdmission(
+		identity: PassiveLocationIdentity, location: Location, observed: Long, receivedWallTimeMs: Long,
+	): PassiveLocationAdmission? {
+		val admission = registrations.passiveLocationAdmissionAt(identity, observed) ?: return null
+		if ((admission.approximate && !device.snapshot().coarsePermission) ||
+			(!admission.approximate && !device.snapshot().finePermission)) {
+			return null
+		}
+		if (startup.collectionResumeBoundary?.permitsObservation(identity.bootId, observed,
+			location.time.takeIf { it > 0L } ?: receivedWallTimeMs) == false) {
+			return null
+		}
+		return admission
 	}
 
 	private fun permissionsAllowAdmission(state: LocationDeviceState): Boolean =

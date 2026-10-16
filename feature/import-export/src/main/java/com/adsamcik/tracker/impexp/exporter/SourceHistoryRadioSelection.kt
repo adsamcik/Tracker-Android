@@ -1,11 +1,32 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import androidx.room.withTransaction
-import com.adsamcik.tracker.impexp.portable.*
-import com.adsamcik.tracker.shared.base.database.*
+import com.adsamcik.tracker.impexp.portable.CellSessionFileV2
+import com.adsamcik.tracker.impexp.portable.RadioSourceFileFormatException
+import com.adsamcik.tracker.impexp.portable.RadioSourceFileJsonV2Codec
+import com.adsamcik.tracker.impexp.portable.RadioSourceFileV2
+import com.adsamcik.tracker.impexp.portable.WifiSessionFileV2
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedCellRequest
+import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedCellResult
+import com.adsamcik.tracker.shared.base.database.ImportedCellProductEvaluation
+import com.adsamcik.tracker.shared.base.database.ImportedCellProductReader
+import com.adsamcik.tracker.shared.base.database.PortableCapturedCellEntryV1
+import com.adsamcik.tracker.shared.base.database.PortableCellIdentityKind
+import com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity
 import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiDao
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
-import com.adsamcik.tracker.stats.api.repository.*
+import com.adsamcik.tracker.stats.api.repository.CellHistoryEntrySelection
+import com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiRequest
+import com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiResult
+import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.ImportedCellHistorySelection
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
+import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
+import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
+import com.adsamcik.tracker.stats.api.repository.PortableWifiIdentityKind
+import com.adsamcik.tracker.stats.api.repository.PortableWifiOpaqueIdentity
+import com.adsamcik.tracker.stats.api.repository.WifiHistorySelection
 import java.io.OutputStream
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -25,7 +46,9 @@ internal suspend fun writeSelectedWifiFile(source: WifiSourceExportEntryPoint, s
         }
         is WifiHistorySelection.Imported -> {
             val selected = selection.selected
-            val value = source.importedWifiEvaluator().selectIdentityInTransaction(selected.key) as? ImportedWifiProductEvaluation.Readable
+            val value =
+                source.importedWifiEvaluator()
+                    .selectIdentityInTransaction(selected.key) as? ImportedWifiProductEvaluation.Readable
                 ?: throw RadioSourceFileFormatException("Selected Wi-Fi data is unavailable")
             check(value.isReExportable && value.candidate.importRevision == selected.importRevision &&
                 value.entry.contentChecksum.value == selected.contentChecksum)
@@ -54,8 +77,12 @@ internal suspend fun writeSelectedCellFile(source: CellSourceExportEntryPoint, s
             CellSessionFileV2(saved, PortableCellSourceExporter().localChildren(database, logical, saved))
         }
         is ImportedCellHistorySelection -> {
-            val value = ImportedCellProductReader(database).selectIdentityInTransaction(PortableCellOpaqueIdentity(selection.identity.value))
-                as? ImportedCellProductEvaluation.Readable ?: throw RadioSourceFileFormatException("Selected Cell data is unavailable")
+            val value =
+                ImportedCellProductReader(database).selectIdentityInTransaction(
+                    PortableCellOpaqueIdentity(selection.identity.value)
+                )
+                as? ImportedCellProductEvaluation.Readable ?:
+                    throw RadioSourceFileFormatException("Selected Cell data is unavailable")
             check(value.isReExportable && value.candidate.importRevision == selection.importRevision &&
                 value.entry.contentChecksum.value == selection.contentChecksum.value)
             val children = database.importedRadioChildDao().cellSessionChildren(selection.identity.value,
@@ -71,24 +98,39 @@ internal suspend fun writeSelectedCellFile(source: CellSourceExportEntryPoint, s
     ExportResult.Success(value.entry.runs.sumOf { it.observations.size })
 }
 
-private suspend fun selectedNativeRadioLogicalId(database: AppDatabase, source: HistorySource, identity: String): String {
+private suspend fun selectedNativeRadioLogicalId(database: AppDatabase, source: HistorySource,
+    identity: String): String {
     var after: String? = null
     var count = 0L
     while (true) {
         currentCoroutineContext().ensureActive()
-        val page = if (source == HistorySource.WIFI) database.wifiCapturedFactDao().completedExportCandidateIdsPage(
-            SourceDestinationOwnerEntity.SOURCE_WIFI, null, null, after, 100)
-        else database.cellCapturedFactDao().completedExportCandidateIdsPage(SourceDestinationOwnerEntity.SOURCE_CELL, null, null, after, 100)
-        check(page.size <= 100 && page.zipWithNext().all { (a, b) -> a < b } &&
+        val page = if (source == HistorySource.WIFI) {
+            database.wifiCapturedFactDao().completedExportCandidateIdsPage(
+            SourceDestinationOwnerEntity.SOURCE_WIFI, null, null, after, RADIO_SELECTION_PAGE_SIZE)
+        }
+        else {
+            database.cellCapturedFactDao().completedExportCandidateIdsPage(
+                SourceDestinationOwnerEntity.SOURCE_CELL, null, null, after, RADIO_SELECTION_PAGE_SIZE
+            )
+        }
+        check(page.size <= RADIO_SELECTION_PAGE_SIZE && page.zipWithNext().all { (a, b) -> a < b } &&
             (after == null || page.all { it > requireNotNull(after) }))
         count = Math.addExact(count, page.size.toLong())
         check(count <= ImportedWifiDao.MAX_GLOBAL_AUTHORITY_ROWS)
         page.firstOrNull { logical ->
-            val actual = if (source == HistorySource.WIFI) PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.LOGICAL_ENTRY, logical).value
-            else PortableCellOpaqueIdentity.derive(PortableCellIdentityKind.LOGICAL_ENTRY, logical).value
+            val actual = if (source == HistorySource.WIFI) {
+                PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.LOGICAL_ENTRY, logical).value
+            }
+            else {
+                PortableCellOpaqueIdentity.derive(PortableCellIdentityKind.LOGICAL_ENTRY, logical).value
+            }
             actual == identity
         }?.let { return it }
-        if (page.size < 100) throw RadioSourceFileFormatException("Selected recording is unavailable")
+        if (page.size < RADIO_SELECTION_PAGE_SIZE) {
+            throw RadioSourceFileFormatException("Selected recording is unavailable")
+        }
         after = page.last()
     }
 }
+
+private const val RADIO_SELECTION_PAGE_SIZE = 100

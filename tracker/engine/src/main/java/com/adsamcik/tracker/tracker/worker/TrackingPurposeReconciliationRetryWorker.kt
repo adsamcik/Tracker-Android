@@ -22,6 +22,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 
+/**
+ * Schedules one unique WorkManager retry for unresolved source-purpose settings, preserving bounded
+ * backoff.
+ */
 @Singleton
 class TrackingPurposeReconciliationWorkScheduler @Inject constructor(
 	@ApplicationContext private val context: Context,
@@ -59,6 +63,9 @@ class TrackingPurposeReconciliationWorkScheduler @Inject constructor(
 	}
 }
 
+/**
+ * Retries current source-purpose settings after a transient failure; cancellation remains cancellation.
+ */
 @HiltWorker
 class TrackingPurposeReconciliationRetryWorker @AssistedInject constructor(
 	@Assisted context: Context,

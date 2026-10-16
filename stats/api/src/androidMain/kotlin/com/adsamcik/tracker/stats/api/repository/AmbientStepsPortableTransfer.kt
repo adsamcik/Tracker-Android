@@ -5,6 +5,10 @@ import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableForm
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableOpaqueIdentity
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV1
 
+/**
+ * Half-open UTC millisecond range for all-day Steps export, or a bounded exact set of imported day
+ * identities.
+ */
 data class ExportPortableAmbientStepsRequest(
 	val fromInclusiveMs: Long,
 	val toExclusiveMs: Long,
@@ -20,6 +24,10 @@ data class ExportPortableAmbientStepsRequest(
 	}
 }
 
+/**
+ * Receives a complete all-day Steps archive; emitting does not acquire a sensor or recording
+ * permission.
+ */
 fun interface PortableAmbientStepsArchiveSink {
 	/** Receives one complete archive only after its bounded Room snapshot has closed. */
 	suspend fun emit(archive: PortableAmbientStepsArchiveV1)
@@ -72,6 +80,10 @@ data class PortableAmbientStepsImportMetadata(
 	}
 }
 
+/**
+ * Decoded all-day Steps archive, bounded decoder metadata and file receipt tied to the expected
+ * collected-data epoch.
+ */
 data class ImportPortableAmbientStepsRequest(
 	val archive: PortableAmbientStepsArchiveV1,
 	val receipt: PortableAmbientStepsImportReceipt,
@@ -85,12 +97,23 @@ data class ImportPortableAmbientStepsRequest(
 
 /** Portable-origin admission never creates provider, session, consent, WAL, or writer authority. */
 interface ImportPortableAmbientSteps {
+	/**
+	 * Admits the complete decoded Steps archive and file provenance under its original data epoch
+	 * without creating native recording permission.
+	 */
 	suspend fun importArchive(
 		request: ImportPortableAmbientStepsRequest,
 	): ImportPortableAmbientStepsResult
 }
 
+/**
+ * Admission outcome for an imported all-day Steps archive, with counts separate from rejection and
+ * retry states.
+ */
 sealed interface ImportPortableAmbientStepsResult {
+	/**
+	 * Reports the imported archive identity and saved day revisions, facts and gaps.
+	 */
 	data class Applied(
 		val archiveIdentity: AmbientStepsPortableOpaqueIdentity,
 		val appendedDayRevisionCount: Int,
@@ -106,6 +129,9 @@ sealed interface ImportPortableAmbientStepsResult {
 		}
 	}
 
+	/**
+	 * The same archive is already represented by the reported imported days.
+	 */
 	data class Duplicate(
 		val archiveIdentity: AmbientStepsPortableOpaqueIdentity,
 		val dayCount: Int,
@@ -115,19 +141,32 @@ sealed interface ImportPortableAmbientStepsResult {
 		}
 	}
 
+	/**
+	 * The stated lifecycle, selection or privacy boundary prevents this operation from continuing.
+	 */
 	data class Blocked(
 		val reason: PortableAmbientStepsImportBlockedReason,
 	) : ImportPortableAmbientStepsResult
 
+	/**
+	 * The required stored scope or source lineage could not be verified for this operation.
+	 */
 	data class Unverifiable(
 		val reason: PortableAmbientStepsImportUnverifiableReason,
 	) : ImportPortableAmbientStepsResult
 
+	/**
+	 * A temporary storage or concurrent-state failure prevents completion and allows a retry.
+	 */
 	data class RetryableFailure(
 		val reason: PortableAmbientStepsTransferRetryableReason,
 	) : ImportPortableAmbientStepsResult
 }
 
+/**
+ * Existing deletion, retention, identity, correction or data-epoch boundaries that prohibit
+ * archive admission.
+ */
 enum class PortableAmbientStepsImportBlockedReason {
 	COLLECTED_DATA_EPOCH_CHANGED,
 	RETENTION_POLICY_UNAVAILABLE,
@@ -141,6 +180,10 @@ enum class PortableAmbientStepsImportBlockedReason {
 	CORRECTION_CONFLICT,
 }
 
+/**
+ * Invalid archive/metadata or insufficient stored evidence and bounds to verify the imported Steps
+ * lineage.
+ */
 enum class PortableAmbientStepsImportUnverifiableReason {
 	ARCHIVE_INVALID,
 	METADATA_MISMATCH,
@@ -150,6 +193,10 @@ enum class PortableAmbientStepsImportUnverifiableReason {
 	REVISION_OVERFLOW,
 }
 
+/**
+ * Exact imported day identity and expected data epoch, with a nonnegative UTC millisecond deletion
+ * time.
+ */
 data class DeleteImportedAmbientStepsDayRequest(
 	val dayIdentity: AmbientStepsPortableOpaqueIdentity,
 	val expectedCollectedDataEpoch: Long,
@@ -161,36 +208,72 @@ data class DeleteImportedAmbientStepsDayRequest(
 	}
 }
 
+/**
+ * Removes the saved imported correction lineage for one selected Steps day.
+ */
 interface DeleteImportedAmbientStepsDay {
+	/**
+	 * Removes and replay-fences the selected imported day lineage after rechecking the expected data
+	 * epoch.
+	 */
 	suspend fun deleteDay(
 		request: DeleteImportedAmbientStepsDayRequest,
 	): DeleteImportedAmbientStepsDayResult
 }
 
+/**
+ * Outcome of deleting one imported Steps day, distinguishing prior deletion, retention and missing
+ * data.
+ */
 sealed interface DeleteImportedAmbientStepsDayResult {
+	/**
+	 * The selected imported day correction lineage was removed; reports its revision count.
+	 */
 	data class Deleted(val removedRevisionCount: Int) : DeleteImportedAmbientStepsDayResult {
 		init {
 			require(removedRevisionCount > 0)
 		}
 	}
 
+	/**
+	 * The selected imported day is already deleted and remains replay-fenced.
+	 */
 	data object AlreadyDeleted : DeleteImportedAmbientStepsDayResult
+	/**
+	 * Retention already removed the selected imported day rather than an explicit user deletion.
+	 */
 	data object Retained : DeleteImportedAmbientStepsDayResult
+	/**
+	 * No saved imported day or corresponding deletion/retention outcome matches the selection.
+	 */
 	data object NotFound : DeleteImportedAmbientStepsDayResult
 
+	/**
+	 * The stated lifecycle, selection or privacy boundary prevents this operation from continuing.
+	 */
 	data class Blocked(
 		val reason: ImportedAmbientStepsMutationBlockedReason,
 	) : DeleteImportedAmbientStepsDayResult
 
+	/**
+	 * The required stored scope or source lineage could not be verified for this operation.
+	 */
 	data class Unverifiable(
 		val reason: ImportedAmbientStepsMutationUnverifiableReason,
 	) : DeleteImportedAmbientStepsDayResult
 
+	/**
+	 * A temporary storage or concurrent-state failure prevents completion and allows a retry.
+	 */
 	data class RetryableFailure(
 		val reason: PortableAmbientStepsTransferRetryableReason,
 	) : DeleteImportedAmbientStepsDayResult
 }
 
+/**
+ * Published UTC millisecond retention floor and expected data epoch; maintenance time cannot
+ * precede the floor.
+ */
 data class TruncateImportedAmbientStepsRetentionRequest(
 	val retainedFromMs: Long,
 	val expectedCollectedDataEpoch: Long,
@@ -203,6 +286,10 @@ data class TruncateImportedAmbientStepsRetentionRequest(
 	}
 }
 
+/**
+ * Removes imported Steps correction lineages affected by the published retention floor in bounded
+ * calls.
+ */
 interface TruncateImportedAmbientStepsRetention {
 	/** Removes at most one complete correction lineage per call. */
 	suspend fun truncateNext(
@@ -210,7 +297,14 @@ interface TruncateImportedAmbientStepsRetention {
 	): TruncateImportedAmbientStepsRetentionResult
 }
 
+/**
+ * Outcome of one retention batch; Complete means no further affected imported Steps lineage
+ * remains.
+ */
 sealed interface TruncateImportedAmbientStepsRetentionResult {
+	/**
+	 * One affected imported correction lineage was removed; more work may remain.
+	 */
 	data class Retained(val removedRevisionCount: Int) :
 		TruncateImportedAmbientStepsRetentionResult {
 		init {
@@ -218,21 +312,37 @@ sealed interface TruncateImportedAmbientStepsRetentionResult {
 		}
 	}
 
+	/**
+	 * No further imported Steps correction lineage is affected by the requested retention floor.
+	 */
 	data object Complete : TruncateImportedAmbientStepsRetentionResult
 
+	/**
+	 * The stated lifecycle, selection or privacy boundary prevents this operation from continuing.
+	 */
 	data class Blocked(
 		val reason: ImportedAmbientStepsMutationBlockedReason,
 	) : TruncateImportedAmbientStepsRetentionResult
 
+	/**
+	 * The required stored scope or source lineage could not be verified for this operation.
+	 */
 	data class Unverifiable(
 		val reason: ImportedAmbientStepsMutationUnverifiableReason,
 	) : TruncateImportedAmbientStepsRetentionResult
 
+	/**
+	 * A temporary storage or concurrent-state failure prevents completion and allows a retry.
+	 */
 	data class RetryableFailure(
 		val reason: PortableAmbientStepsTransferRetryableReason,
 	) : TruncateImportedAmbientStepsRetentionResult
 }
 
+/**
+ * Data-epoch, retention, consent or pending source-deletion changes that prevent this imported
+ * Steps mutation.
+ */
 enum class ImportedAmbientStepsMutationBlockedReason {
 	COLLECTED_DATA_EPOCH_CHANGED,
 	RETENTION_FLOOR_CHANGED,
@@ -240,12 +350,20 @@ enum class ImportedAmbientStepsMutationBlockedReason {
 	SOURCE_DELETION_PENDING,
 }
 
+/**
+ * Missing source state, invalid stored lineage or exceeded dependencies that prevent a complete
+ * imported mutation.
+ */
 enum class ImportedAmbientStepsMutationUnverifiableReason {
 	SOURCE_EVIDENCE_STATE_MISSING,
 	STORED_EVIDENCE_UNVERIFIABLE,
 	DEPENDENCY_OVERFLOW,
 }
 
+/**
+ * Expected data and revoked-consent epochs, plus the UTC millisecond time for the imported source
+ * erase.
+ */
 data class DeleteImportedAmbientStepsAfterConsentResetRequest(
 	val expectedCollectedDataEpoch: Long,
 	val expectedRevokedConsentEpoch: Long,
@@ -258,6 +376,9 @@ data class DeleteImportedAmbientStepsAfterConsentResetRequest(
 	}
 }
 
+/**
+ * Fences and removes imported Steps correction lineages after the specified source consent reset.
+ */
 interface DeleteImportedAmbientStepsAfterConsentReset {
 	/** Fences and removes at most one imported correction lineage per call. */
 	suspend fun deleteNext(
@@ -265,7 +386,14 @@ interface DeleteImportedAmbientStepsAfterConsentReset {
 	): DeleteImportedAmbientStepsAfterConsentResetResult
 }
 
+/**
+ * Outcome of one consent-reset erase batch, distinguishing progress from complete, blocked and
+ * retry states.
+ */
 sealed interface DeleteImportedAmbientStepsAfterConsentResetResult {
+	/**
+	 * One imported correction lineage was fenced and removed; reports the removed revision count.
+	 */
 	data class Deleted(val removedRevisionCount: Int) :
 		DeleteImportedAmbientStepsAfterConsentResetResult {
 		init {
@@ -273,22 +401,40 @@ sealed interface DeleteImportedAmbientStepsAfterConsentResetResult {
 		}
 	}
 
+	/**
+	 * No further imported Steps correction lineage remains to erase for the consent reset.
+	 */
 	data object Complete : DeleteImportedAmbientStepsAfterConsentResetResult
 
+	/**
+	 * The stated lifecycle, selection or privacy boundary prevents this operation from continuing.
+	 */
 	data class Blocked(
 		val reason: ImportedAmbientStepsMutationBlockedReason,
 	) : DeleteImportedAmbientStepsAfterConsentResetResult
 
+	/**
+	 * The required stored scope or source lineage could not be verified for this operation.
+	 */
 	data class Unverifiable(
 		val reason: ImportedAmbientStepsMutationUnverifiableReason,
 	) : DeleteImportedAmbientStepsAfterConsentResetResult
 
+	/**
+	 * A temporary storage or concurrent-state failure prevents completion and allows a retry.
+	 */
 	data class RetryableFailure(
 		val reason: PortableAmbientStepsTransferRetryableReason,
 	) : DeleteImportedAmbientStepsAfterConsentResetResult
 }
 
+/**
+ * Complete archive export counts, empty selection or an explicit qualification/storage failure.
+ */
 sealed interface ExportPortableAmbientStepsResult {
+	/**
+	 * A complete all-day Steps archive was emitted with the reported day, fact and gap counts.
+	 */
 	data class Exported(
 		val dayCount: Int,
 		val factCount: Int,
@@ -301,17 +447,30 @@ sealed interface ExportPortableAmbientStepsResult {
 		}
 	}
 
+	/**
+	 * The requested all-day Steps selection contains no exportable archive data.
+	 */
 	data object NoData : ExportPortableAmbientStepsResult
 
+	/**
+	 * The required stored scope or source lineage could not be verified for this operation.
+	 */
 	data class Unverifiable(
 		val reason: PortableAmbientStepsExportUnverifiableReason,
 	) : ExportPortableAmbientStepsResult
 
+	/**
+	 * A temporary storage or concurrent-state failure prevents completion and allows a retry.
+	 */
 	data class RetryableFailure(
 		val reason: PortableAmbientStepsExportRetryableReason,
 	) : ExportPortableAmbientStepsResult
 }
 
+/**
+ * Unavailable count-domain or source evidence, maintenance, deletion or size bounds that prevent a
+ * complete archive.
+ */
 enum class PortableAmbientStepsExportUnverifiableReason {
 	COUNT_DOMAIN_GRAPH_UNAVAILABLE,
 	SOURCE_AUTHORITY_UNAVAILABLE,
@@ -324,8 +483,15 @@ enum class PortableAmbientStepsExportUnverifiableReason {
 	IMPORTED_DAY_RETAINED,
 }
 
+/**
+ * Storage failure that prevents preparing the all-day Steps archive and may be retried.
+ */
 enum class PortableAmbientStepsExportRetryableReason { STORAGE_UNAVAILABLE }
 
+/**
+ * Concurrent-state or storage failure that permits retrying the all-day Steps transfer or
+ * mutation.
+ */
 enum class PortableAmbientStepsTransferRetryableReason {
 	CONCURRENT_STATE_CHANGE,
 	STORAGE_UNAVAILABLE,

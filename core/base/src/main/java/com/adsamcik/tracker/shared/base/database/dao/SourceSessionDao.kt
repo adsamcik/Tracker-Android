@@ -23,11 +23,22 @@ import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessE
 import com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity.RawSourceRunRetirement
 
+// Keep the SourceSessionDao SQL contract together; query text accounts for this declaration's size.
+@Suppress("LargeClass")
 @Dao
 interface SourceSessionDao {
+	/**
+	 * Inserts [SourceRunRetirementEntity] rows. Existing conflicting rows remain unchanged. An
+	 * ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertRunRetirementIntent(entity: SourceRunRetirementEntity): Long
 
+	/**
+	 * Reads `source_run_retirement` rows. Query conditions include `logical_tracking_id =
+	 * :logicalTrackingId`, `service_run_id = :serviceRunId`, `source_kind = :sourceKind`. Orders by
+	 * `registration_generation DESC`.
+	 */
 	@Query(
 		"SELECT * FROM source_run_retirement WHERE logical_tracking_id = :logicalTrackingId " +
 			"AND service_run_id = :serviceRunId AND source_kind = :sourceKind " +
@@ -39,6 +50,12 @@ interface SourceSessionDao {
 		sourceKind: Int,
 	): List<SourceRunRetirementEntity>
 
+	/**
+	 * Reads `source_run_retirement` rows. Query conditions include `logical_tracking_id =
+	 * :logicalTrackingId`, `service_run_id = :serviceRunId`, `source_kind = :sourceKind`. Orders by
+	 * `registration_generation DESC, source_instance_id, action_id, rowid`. Returns at most `limit`
+	 * rows.
+	 */
 	@Query(
 		"SELECT " + RAW_RUN_RETIREMENT_PROJECTION + " FROM source_run_retirement WHERE " +
 			"((typeof(logical_tracking_id) = 'text' AND logical_tracking_id = :logicalTrackingId) " +
@@ -56,6 +73,12 @@ interface SourceSessionDao {
 		limit: Int,
 	): List<RawSourceRunRetirement>
 
+	/**
+	 * Reads `source_run_retirement` rows. Query conditions include `logical_tracking_id =
+	 * :logicalTrackingId`, `service_run_id = :serviceRunId`, `source_kind = :sourceKind`,
+	 * `source_instance_id = :sourceInstanceId`. Returns at most 1 row. Returns null when no row
+	 * matches.
+	 */
 	@Query(
 		"SELECT * FROM source_run_retirement WHERE logical_tracking_id = :logicalTrackingId " +
 			"AND service_run_id = :serviceRunId AND source_kind = :sourceKind " +
@@ -70,6 +93,12 @@ interface SourceSessionDao {
 		registrationGeneration: Long,
 	): SourceRunRetirementEntity?
 
+	/**
+	 * Reads `source_run_retirement` rows. Query conditions include `logical_tracking_id =
+	 * :logicalTrackingId`, `service_run_id = :serviceRunId`, `source_kind = :sourceKind`,
+	 * `source_instance_id = :sourceInstanceId`. Orders by `registration_generation DESC,
+	 * source_instance_id, action_id, rowid`. Returns at most 2 rows.
+	 */
 	@Query(
 		"SELECT " + RAW_RUN_RETIREMENT_PROJECTION + " FROM source_run_retirement WHERE " +
 			"((typeof(logical_tracking_id) = 'text' AND logical_tracking_id = :logicalTrackingId) " +
@@ -93,6 +122,9 @@ interface SourceSessionDao {
 		registrationGeneration: Long,
 	): List<RawSourceRunRetirement>
 
+	/**
+	 * Updates existing [SourceRunRetirementEntity] rows by primary key.
+	 */
 	@Update
 	suspend fun updateRunRetirement(entity: SourceRunRetirementEntity): Int
 	@Insert(onConflict = OnConflictStrategy.ABORT)
@@ -195,6 +227,10 @@ interface SourceSessionDao {
 		manifestRevision: Long,
 	): SessionManifestVersionEntity?
 
+	/**
+	 * Reads `session_manifest_version` rows. Query conditions include `service_run_id =
+	 * :serviceRunId`, `manifest_revision IN (:manifestRevisions)`. Orders by `manifest_revision ASC`.
+	 */
 	@Query(
 		"SELECT * FROM session_manifest_version WHERE service_run_id = :serviceRunId " +
 			"AND manifest_revision IN (:manifestRevisions) ORDER BY manifest_revision ASC",
@@ -204,6 +240,11 @@ interface SourceSessionDao {
 		manifestRevisions: List<Long>,
 	): List<SessionManifestVersionEntity>
 
+	/**
+	 * Reads `session_manifest_version` rows. Query conditions include `service_run_id =
+	 * :serviceRunId`, `manifest_revision IN (:manifestRevisions)`. Orders by `manifest_revision,
+	 * logical_tracking_id, rowid`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT " + RAW_MANIFEST_VERSION_PROJECTION + " FROM session_manifest_version WHERE " +
 			"((typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId) " +
@@ -245,6 +286,11 @@ interface SourceSessionDao {
 		limit: Int,
 	): List<RawSessionManifestVersion>
 
+	/**
+	 * Reads `session_manifest_version` rows. Query conditions include `service_run_id =
+	 * :serviceRunId`, `manifest_revision = :manifestRevision`. Orders by `manifest_revision,
+	 * logical_tracking_id, rowid`. Returns at most 2 rows.
+	 */
 	@Query(
 		"SELECT " + RAW_MANIFEST_VERSION_PROJECTION + " FROM session_manifest_version WHERE " +
 			"((typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId) " +
@@ -283,6 +329,11 @@ interface SourceSessionDao {
 		manifestRevision: Long,
 	): List<SessionManifestSourceEntity>
 
+	/**
+	 * Reads `session_manifest_source` rows. Query conditions include `logical_tracking_id =
+	 * :logicalTrackingId`, `manifest_revision = :manifestRevision`. Orders by `purpose, source_kind,
+	 * rowid`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT " + RAW_MANIFEST_SOURCE_PROJECTION + " FROM session_manifest_source WHERE " +
 			"((typeof(logical_tracking_id) = 'text' AND logical_tracking_id = :logicalTrackingId) " +
@@ -297,6 +348,11 @@ interface SourceSessionDao {
 		limit: Int,
 	): List<RawSessionManifestSource>
 
+	/**
+	 * Reads `session_manifest_source` rows. Query conditions include `logical_tracking_id =
+	 * :logicalTrackingId`, `manifest_revision IN (:manifestRevisions)`. Orders by `manifest_revision,
+	 * purpose, source_kind, rowid`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT " + RAW_MANIFEST_SOURCE_PROJECTION + " FROM session_manifest_source " +
 			"WHERE ((typeof(logical_tracking_id) = 'text' " +
@@ -351,6 +407,11 @@ interface SourceSessionDao {
 		intentRevision: Long,
 	): SessionLifecycleIntentVersionEntity?
 
+	/**
+	 * Reads `session_lifecycle_intent_version` rows. Query conditions include `logical_tracking_id =
+	 * :logicalTrackingId`, `manifest_revision = :manifestRevision`. Orders by `intent_revision ASC`.
+	 * Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM session_lifecycle_intent_version " +
 			"WHERE logical_tracking_id = :logicalTrackingId " +
@@ -362,6 +423,11 @@ interface SourceSessionDao {
 		limit: Int,
 	): List<SessionLifecycleIntentVersionEntity>
 
+	/**
+	 * Reads `session_lifecycle_intent_version` rows. Query conditions include `logical_tracking_id =
+	 * :logicalTrackingId`, `manifest_revision = :manifestRevision`. Orders by `intent_revision,
+	 * rowid`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT " + RAW_LIFECYCLE_INTENT_PROJECTION +
 			" FROM session_lifecycle_intent_version WHERE " +
@@ -391,6 +457,10 @@ interface SourceSessionDao {
 	@Update
 	suspend fun updateLifecycleAction(entity: LifecycleDesiredActionEntity): Int
 
+	/**
+	 * Deletes `lifecycle_desired_action` rows matching the supplied scope. Query conditions include
+	 * `action_id IN (:actionIds)`. Returns the affected row count.
+	 */
 	@Query("DELETE FROM lifecycle_desired_action WHERE action_id IN (:actionIds)")
 	suspend fun deleteLifecycleActions(actionIds: Collection<String>): Int
 
@@ -418,6 +488,11 @@ interface SourceSessionDao {
 	)
 	suspend fun lifecycleActions(logicalTrackingId: String): List<LifecycleDesiredActionEntity>
 
+	/**
+	 * Reads `lifecycle_desired_action` rows. Query conditions include `logical_tracking_id =
+	 * :logicalTrackingId`, `service_run_id = :serviceRunId`. Orders by `action_revision ASC`. Returns
+	 * at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM lifecycle_desired_action WHERE logical_tracking_id = :logicalTrackingId " +
 			"AND service_run_id = :serviceRunId ORDER BY action_revision ASC LIMIT :limit",
@@ -498,25 +573,44 @@ interface SourceSessionDao {
 	)
 	suspend fun maximumActionRevision(logicalTrackingId: String): Long
 
+	/**
+	 * Inserts [SourceServiceRunEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertServiceRunRow(entity: SourceServiceRunEntity)
 
+	/**
+	 * Inserts [NativePortableOwnershipEntity] rows. Existing conflicting rows remain unchanged.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertPortableOwners(owners: List<NativePortableOwnershipEntity>)
 
+	/**
+	 * Inserts a service run and its portable identity ownership in one transaction; a conflicting run
+	 * key aborts the insertion.
+	 */
 	@Transaction
 	suspend fun insertServiceRun(entity: SourceServiceRunEntity) {
 		insertServiceRunRow(entity)
 		insertPortableOwners(NativePortableOwnership.run(entity.logicalTrackingId, entity.serviceRunId))
 	}
 
+	/**
+	 * Updates existing [SourceServiceRunEntity] rows by primary key. Returns the affected row count.
+	 */
 	@Update
 	suspend fun updateServiceRunRow(entity: SourceServiceRunEntity): Int
 
+	/**
+	 * Updates an existing service run and its portable identity ownership atomically; returns the
+	 * affected run count.
+	 */
 	@Transaction
 	suspend fun updateServiceRun(entity: SourceServiceRunEntity): Int {
 		val updated = updateServiceRunRow(entity)
-		if (updated != 0) insertPortableOwners(NativePortableOwnership.run(entity.logicalTrackingId, entity.serviceRunId))
+		if (updated != 0) {
+			insertPortableOwners(NativePortableOwnership.run(entity.logicalTrackingId, entity.serviceRunId))
+		}
 		return updated
 	}
 
@@ -614,6 +708,11 @@ interface SourceSessionDao {
 		serviceRunId: String,
 	): List<SourceSessionCompletenessEntity>
 
+	/**
+	 * Reads `source_session_completeness` rows. Query conditions include `service_run_id =
+	 * :serviceRunId`, `source_kind = :sourceKind`. Orders by `registration_generation,
+	 * source_instance_id, rowid`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT " + RAW_COMPLETENESS_PROJECTION + " FROM source_session_completeness WHERE " +
 			"((typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId) " +
@@ -629,6 +728,11 @@ interface SourceSessionDao {
 		limit: Int,
 	): List<RawSourceSessionCompleteness>
 
+	/**
+	 * Reads `source_session_completeness` rows. Query conditions include `service_run_id =
+	 * :serviceRunId`. Orders by `source_kind, registration_generation, source_instance_id, rowid`.
+	 * Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT " + RAW_COMPLETENESS_PROJECTION + " FROM source_session_completeness WHERE " +
 			"((typeof(service_run_id) = 'text' AND service_run_id = :serviceRunId) " +
@@ -695,28 +799,76 @@ interface SourceSessionDao {
 		""")
 	suspend fun hasProviderJoinPublishedEvidence(logicalTrackingId: String, serviceRunId: String): Boolean
 
-	@Query("DELETE FROM source_session_completeness WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId")
+	/**
+	 * Deletes `source_session_completeness` rows matching the supplied scope. Query conditions
+	 * include `logical_tracking_id = :logicalTrackingId`, `service_run_id = :serviceRunId`. Returns
+	 * the affected row count.
+	 */
+	@Query(("DELETE FROM source_session_completeness WHERE logical_tracking_id = :logicalTrackingId AND " +
+        "service_run_id = :serviceRunId"))
 	suspend fun deleteUnpublishedJoinCompleteness(logicalTrackingId: String, serviceRunId: String): Int
 
-	@Query("DELETE FROM lifecycle_desired_action WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId")
+	/**
+	 * Deletes `lifecycle_desired_action` rows matching the supplied scope. Query conditions include
+	 * `logical_tracking_id = :logicalTrackingId`, `service_run_id = :serviceRunId`. Returns the
+	 * affected row count.
+	 */
+	@Query(("DELETE FROM lifecycle_desired_action WHERE logical_tracking_id = :logicalTrackingId AND " +
+        "service_run_id = :serviceRunId"))
 	suspend fun deleteUnpublishedJoinActions(logicalTrackingId: String, serviceRunId: String): Int
 
-	@Query("DELETE FROM source_run_retirement WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId")
+	/**
+	 * Deletes `source_run_retirement` rows matching the supplied scope. Query conditions include
+	 * `logical_tracking_id = :logicalTrackingId`, `service_run_id = :serviceRunId`. Returns the
+	 * affected row count.
+	 */
+	@Query(("DELETE FROM source_run_retirement WHERE logical_tracking_id = :logicalTrackingId AND " +
+        "service_run_id = :serviceRunId"))
 	suspend fun deleteUnpublishedJoinRetirements(logicalTrackingId: String, serviceRunId: String): Int
 
-	@Query("DELETE FROM native_portable_ownership WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId")
+	/**
+	 * Deletes `native_portable_ownership` rows matching the supplied scope. Query conditions include
+	 * `logical_tracking_id = :logicalTrackingId`, `service_run_id = :serviceRunId`. Returns the
+	 * affected row count.
+	 */
+	@Query(("DELETE FROM native_portable_ownership WHERE logical_tracking_id = :logicalTrackingId AND " +
+        "service_run_id = :serviceRunId"))
 	suspend fun deleteUnpublishedJoinOwnership(logicalTrackingId: String, serviceRunId: String): Int
 
-	@Query("DELETE FROM source_service_run WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId")
+	/**
+	 * Deletes `source_service_run` rows matching the supplied scope. Query conditions include
+	 * `logical_tracking_id = :logicalTrackingId`, `service_run_id = :serviceRunId`. Returns the
+	 * affected row count.
+	 */
+	@Query(("DELETE FROM source_service_run WHERE logical_tracking_id = :logicalTrackingId AND " +
+        "service_run_id = :serviceRunId"))
 	suspend fun deleteUnpublishedJoinRun(logicalTrackingId: String, serviceRunId: String): Int
 
-	@Query("DELETE FROM session_lifecycle_intent_version WHERE logical_tracking_id = :logicalTrackingId AND manifest_revision = :manifestRevision")
+	/**
+	 * Deletes `session_lifecycle_intent_version` rows matching the supplied scope. Query conditions
+	 * include `logical_tracking_id = :logicalTrackingId`, `manifest_revision = :manifestRevision`.
+	 * Returns the affected row count.
+	 */
+	@Query(("DELETE FROM session_lifecycle_intent_version WHERE logical_tracking_id = :logicalTrackingId " +
+        "AND manifest_revision = :manifestRevision"))
 	suspend fun deleteUnpublishedJoinIntents(logicalTrackingId: String, manifestRevision: Long): Int
 
-	@Query("DELETE FROM session_manifest_source WHERE logical_tracking_id = :logicalTrackingId AND manifest_revision = :manifestRevision")
+	/**
+	 * Deletes `session_manifest_source` rows matching the supplied scope. Query conditions include
+	 * `logical_tracking_id = :logicalTrackingId`, `manifest_revision = :manifestRevision`. Returns
+	 * the affected row count.
+	 */
+	@Query(("DELETE FROM session_manifest_source WHERE logical_tracking_id = :logicalTrackingId AND " +
+        "manifest_revision = :manifestRevision"))
 	suspend fun deleteUnpublishedJoinBindings(logicalTrackingId: String, manifestRevision: Long): Int
 
-	@Query("DELETE FROM session_manifest_version WHERE logical_tracking_id = :logicalTrackingId AND manifest_revision = :manifestRevision")
+	/**
+	 * Deletes `session_manifest_version` rows matching the supplied scope. Query conditions include
+	 * `logical_tracking_id = :logicalTrackingId`, `manifest_revision = :manifestRevision`. Returns
+	 * the affected row count.
+	 */
+	@Query(("DELETE FROM session_manifest_version WHERE logical_tracking_id = :logicalTrackingId AND " +
+        "manifest_revision = :manifestRevision"))
 	suspend fun deleteUnpublishedJoinManifest(logicalTrackingId: String, manifestRevision: Long): Int
 
 	@Query("DELETE FROM source_service_run")

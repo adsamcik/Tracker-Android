@@ -42,4 +42,25 @@
     <string name="format_database">Kopia zapasowa bazy danych (ZIP)</string>
     <string name="settings_import_summary">Importuj dane z obsługiwanych typów (%1$s) i archiwów (%2$s). Importy baz danych scalają zgodne wiersze; nie zastępują istniejących danych.</string>
     <string name="settings_import_title">Import</string>
+    <string name="export_radio_sensitivity_title">Wyeksportować szczegóły sieci?</string>
+    <string name="export_wifi_sensitivity_message">Ten plik zawiera zapisane nazwy Wi-Fi i identyfikatory punktów dostępu.</string>
+    <string name="export_cell_sensitivity_message">Ten plik zawiera zapisane identyfikatory stacji bazowych i pomiary sygnału.</string>
+    <string name="export_radio_no_data">Brak zapisanych danych dla tego źródła</string>
+    <string name="export_include_complete_sessions">Uwzględnij całe sesje</string>
+    <string name="import_location_conflict_title">Zastąpić zapisane punkty?</string>
+    <string name="import_location_replace">Użyj punktów z pliku</string>
+    <string name="import_location_keep">Zachowaj zapisane punkty</string>
+    <string name="export_backup_review_title">Sprawdź zaplanowane kopie zapasowe</string>
+    <string name="export_backup_review_summary">Wstrzymano do sprawdzenia zaktualizowanej kopii danych.</string>
+    <string name="export_backup_review_message">Te harmonogramy tworzą teraz kopie wszystkich zapisanych danych śledzenia i plików potrzebnych do ich przywrócenia. Ustawienia są pomijane. Wznowić te harmonogramy?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Wznów kopie zapasowe</string>
+    <string name="import_backup_replace_title">Przywrócić kopię danych?</string>
+    <string name="import_backup_replace_message">Zastąpić zapisane dane tą kopią zapasową? Ustawienia pozostaną bez zmian. Śledzenie będzie wyłączone do czasu jego wznowienia.</string>
+    <string name="import_backup_restore">Zastąp dane</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d punkt w tym pliku różni się od zapisanej kopii. Wybierz, który zachować. Pozostałe punkty zostaną zaimportowane jak zwykle.</item>
+        <item quantity="few">%d punkty w tym pliku różnią się od zapisanych kopii. Wybierz, które zachować. Pozostałe punkty zostaną zaimportowane jak zwykle.</item>
+        <item quantity="many">%d punktów w tym pliku różni się od zapisanych kopii. Wybierz, które zachować. Pozostałe punkty zostaną zaimportowane jak zwykle.</item>
+        <item quantity="other">%d punktów w tym pliku różni się od zapisanych kopii. Wybierz, które zachować. Pozostałe punkty zostaną zaimportowane jak zwykle.</item>
+    </plurals>
 </resources>

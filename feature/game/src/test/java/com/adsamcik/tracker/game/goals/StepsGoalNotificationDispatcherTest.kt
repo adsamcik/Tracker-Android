@@ -128,14 +128,26 @@ class StepsGoalNotificationDispatcherTest {
 			StepsGoalEffectEntity.STATE_READY_INCOMPLETE
 		},
 		unavailableReason = null,
-		qualifiedSteps = if (complete) 4_500L else 3_500L,
+		qualifiedSteps = if (complete) {
+			4_500L
+		} else {
+			3_500L
+		},
 		sourceAuthorityDigest = "a".repeat(64),
 		sourceEvidenceRevision = 1L,
 		effectRevision = 1L,
 		completionPointsMicros = 40_000_000L,
 		completionXp = 50,
-		desiredPointsMicros = if (complete) 40_000_000L else 0L,
-		desiredXp = if (complete) 50 else 0,
+		desiredPointsMicros = if (complete) {
+			40_000_000L
+		} else {
+			0L
+		},
+		desiredXp = if (complete) {
+			50
+		} else {
+			0
+		},
 		firstCompletedAtMs = 100L.takeIf { complete },
 		pointsAppliedRevision = 0L,
 		xpAppliedRevision = 0L,

@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.source.projection
 
+import android.Manifest
 import android.app.Application
 import android.content.Context
 import android.content.ContextWrapper
@@ -30,6 +31,8 @@ import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
 import com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult
 import com.adsamcik.tracker.tracker.api.TrackingSource
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
+import com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterSetupResult
+import com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterStatus
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -40,6 +43,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
+import io.mockk.spyk
 import io.mockk.unmockkObject
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
@@ -58,7 +62,7 @@ import org.robolectric.annotation.Config
  * source authority, Android hardware, action storage and Android enqueue remain fixtures.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28])
+@Config(sdk = [34])
 class ColdActivityAutomationOutboxTest {
 	private lateinit var context: Context
 	private val database = mockk<AppDatabase>()
@@ -72,7 +76,9 @@ class ColdActivityAutomationOutboxTest {
 	private val revision = MutableStateFlow(TrackingPurposeAuthorityRevision.UNAVAILABLE)
 	private lateinit var dispatcher: ActivityAutomationOutboxDispatcher
 	private var pending = true
-	private var callbackTime = 1_200L
+	private var observedTime = 0L
+	private var receivedTime = 0L
+	private var callbackTime = 0L
 	private val requests = mutableListOf<AutomaticTrackingStartTrigger>()
 	private val identity = TrackingPurposeLeaseIdentity(
 		source = TrackingSource.ACTIVITY,
@@ -86,21 +92,26 @@ class ColdActivityAutomationOutboxTest {
 	)
 
 	@Before
+	// Keep the cold automatic-start fixture wiring and its single monotonic receiver/API clock setup together.
+	@Suppress("LongMethod")
 	fun setUp() {
 		BackgroundTrackingApi.shutdown()
 		val application = ApplicationProvider.getApplicationContext<Application>()
+		org.robolectric.Shadows.shadowOf(application).grantPermissions(Manifest.permission.ACTIVITY_RECOGNITION)
 		val sensors = mockk<SensorManager>()
-		val devicePackageManager = mockk<PackageManager>()
+		val devicePackageManager = spyk(application.packageManager)
 		every { sensors.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) } returns mockk<Sensor>()
 		every { sensors.getDefaultSensor(Sensor.TYPE_PRESSURE) } returns null
-		every { devicePackageManager.hasSystemFeature(any()) } answers {
-			arg<String>(0) == PackageManager.FEATURE_SENSOR_STEP_COUNTER
-		}
+		every { devicePackageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER) } returns true
 		context = object : ContextWrapper(application) {
 			override fun getApplicationContext(): Context = this
 			override fun getPackageManager(): PackageManager = devicePackageManager
 			override fun getSystemService(name: String): Any? =
-				if (name == Context.SENSOR_SERVICE) sensors else super.getSystemService(name)
+				if (name == Context.SENSOR_SERVICE) {
+					sensors
+				} else {
+					super.getSystemService(name)
+				}
 		}
 		mockkObject(Assist, TrackerServiceApi)
 		every { Assist.isPlayServicesAvailable(any()) } returns true
@@ -112,7 +123,11 @@ class ColdActivityAutomationOutboxTest {
 		}
 		every { database.sourceProjectionStateDao() } returns dao
 		coEvery { dao.pendingOutbox(any(), any(), any(), any()) } answers {
-			if (pending) listOf(effect()) else emptyList()
+			if (pending) {
+				listOf(effect())
+			} else {
+				emptyList()
+			}
 		}
 		coEvery { dao.failure(any(), any(), any()) } returns null
 		coEvery { dao.deleteFailure(any(), any(), any()) } returns 0
@@ -127,6 +142,8 @@ class ColdActivityAutomationOutboxTest {
 		every { entryPoint.currentTrackingPurposeAvailabilityReader() } returns reader
 		every { entryPoint.lockManager().isLocked } returns false
 		every { entryPoint.trackerStateReader().sessionInfoFlow } returns MutableStateFlow(null)
+		coEvery { entryPoint.chosenSourceWriterSetup().ensure(setOf(SourceKind.STEPS)) } returns
+			ChosenSourceWriterSetupResult(mapOf(SourceKind.STEPS to ChosenSourceWriterStatus.READY))
 		coEvery { entryPoint.trackingRolloutStateStore().load() } returns TrackingRolloutState.eventCanonical(
 			sources = setOf(SourceKind.STEPS),
 			controlSources = setOf(SourceKind.ACTIVITY),
@@ -140,13 +157,29 @@ class ColdActivityAutomationOutboxTest {
 			ActivityAutomaticStartRequestAuthorization.Authorized(action)
 		coEvery { actions.validateForService(any()) } returns ActivityAutomaticStartServiceValidation.Valid(action)
 		coEvery { actions.markReservedReplayExpired(any(), any(), any(), any()) } returns true
-		dispatcher = ActivityAutomationOutboxDispatcher(
-			database,
-			validator,
-			BackgroundTrackingActivityAutomationEffectConsumer(context, actions),
-			retention,
-		)
+		val realConsumer = BackgroundTrackingActivityAutomationEffectConsumer(context, actions)
+		val consumer = object : ActivityAutomationEffectConsumer by realConsumer {
+			override suspend fun deliver(
+				effectStableId: String,
+				evidence: com.adsamcik.tracker.tracker.api.ActivityAutomationDeliveryEnvelope,
+				controlConsentEpoch: Long,
+				automationEpoch: Long,
+				startContext: com.adsamcik.tracker.tracker.api.ActivityAutomationStartContext,
+				expectedCommandGeneration: Long?,
+			): com.adsamcik.tracker.tracker.api.ActivityAutomationDeliveryResult = try {
+				realConsumer.deliver(effectStableId, evidence, controlConsentEpoch, automationEpoch,
+					startContext, expectedCommandGeneration)
+			} catch (fixtureFailure: io.mockk.MockKException) {
+				// Invalid mocks are fixture failures, never valid provider recovery debt.
+				throw AssertionError("Incomplete automatic-start fixture: ${fixtureFailure.message}", fixtureFailure)
+			}
+		}
+		dispatcher = ActivityAutomationOutboxDispatcher(database, validator, consumer, retention)
 		setCacheField("entryPoint", entryPoint)
+		// The same monotonic domain drives the receiver permit and the API preparation deadline.
+		observedTime = android.os.SystemClock.elapsedRealtimeNanos()
+		receivedTime = observedTime + 100L
+		callbackTime = receivedTime + 100L
 	}
 
 	@After
@@ -172,7 +205,7 @@ class ColdActivityAutomationOutboxTest {
 		// No API availability collector ran: its cached eligibility and publication remain defaults.
 		drain() shouldBe 0
 		requests.size shouldBe 1
-		requests.single().requestedCaptureSourceMask shouldBe 1L shl (SourceKind.STEPS.stableCode - 1)
+		requests.single().requestedCaptureSourceMask shouldBe (1L shl (SourceKind.STEPS.stableCode - 1))
 		requests.single().intendedCaptureSourceMask shouldBe requests.single().requestedCaptureSourceMask
 		requests.single().sourcePolicyRevision shouldBe 3L
 		requests.single().automationEpoch shouldBe 17L
@@ -283,7 +316,8 @@ class ColdActivityAutomationOutboxTest {
 		drain() shouldBe 0
 		publishCoherentSettings()
 		publishReady()
-		callbackTime = 7_000_001_100L
+		callbackTime = com.adsamcik.tracker.tracker.api
+			.activityTransitionCallbackEnqueueDeadlineElapsedRealtimeNanos(observedTime, receivedTime) + 1L
 		drain() shouldBe 0
 		pending shouldBe false
 		requests shouldBe emptyList()
@@ -391,8 +425,8 @@ class ColdActivityAutomationOutboxTest {
 				output.writeInt(90)
 				output.writeInt(ActivityTransitionType.ENTER.value)
 				output.writeUTF("boot")
-				output.writeLong(1_000L)
-				output.writeLong(1_100L)
+				output.writeLong(observedTime)
+				output.writeLong(receivedTime)
 				output.writeLong(1L)
 				output.writeLong(2L)
 				output.writeUTF("authorization")

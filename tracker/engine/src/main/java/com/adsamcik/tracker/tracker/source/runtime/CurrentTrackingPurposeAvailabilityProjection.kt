@@ -100,15 +100,22 @@ internal class CurrentTrackingPurposeAvailabilityProjection @Inject constructor(
 		CurrentTrackingPurposeAvailability.SAFE_DEFAULT,
 	)
 
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	override suspend fun isCurrent(identity: TrackingPurposeLeaseIdentity): Boolean {
 		val registeredExecution =
 			executionRevisionRegistry.revisions.value[identity.sourcePurpose] ?: 0L
-		if (registeredExecution != identity.executionRevision) return false
+		if (registeredExecution != identity.executionRevision) {
+			return false
+		}
 		val observedAuthority = authorityState.value.currentAuthorities(
 			executionRevisionRegistry.revisions.value,
 		)[identity.sourcePurpose] ?: return false
-		if (!identity.matchesAuthority(observedAuthority)) return false
-		if (!publishedReader.availability.value.containsOperational(identity)) return false
+		if (!identity.matchesAuthority(observedAuthority)) {
+			return false
+		}
+		if (!publishedReader.availability.value.containsOperational(identity)) {
+			return false
+		}
 		val exactMatches = exactAuthorityReader.read(identity.sourcePurpose, registeredExecution)
 			?.toAuthorityVector()
 			?.let(identity::matchesAuthority) == true

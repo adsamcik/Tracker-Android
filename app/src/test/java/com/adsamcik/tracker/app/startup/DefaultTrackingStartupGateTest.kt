@@ -95,6 +95,8 @@ class ApplicationStartupRecoveryResolverTest {
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
+// One admission lifecycle covers startup, Stop and deletion races with the shared gate and barrier fixture.
+@Suppress("LargeClass")
 class DefaultTrackingStartupGateTest {
 	private val storage = mockk<LegacyDatabaseUpgradeCoordinator>()
 	private val collectedDataDeletionService = mockk<CollectedDataDeletionService> {
@@ -117,13 +119,29 @@ class DefaultTrackingStartupGateTest {
 	private val deletionBarrier = TrackingStartupDeletionBarrier()
 	private val gate = DefaultTrackingStartupGate(
 		storage,
-		collectedDataDeletionService,
+		Provider { collectedDataDeletionService },
 		resolver,
 		lifecycleAuthority,
-		inactiveStopHandler,
+		Provider { inactiveStopHandler },
 		Provider { sourceRecovery },
 		deletionBarrier,
 	)
+
+	@Test
+	fun `constructing startup authority does not resolve services that depend on that authority`() {
+		var serviceReads = 0
+		val deferredGate = DefaultTrackingStartupGate(
+			storage,
+			Provider { serviceReads += 1; collectedDataDeletionService },
+			resolver,
+			lifecycleAuthority,
+			Provider { serviceReads += 1; inactiveStopHandler },
+			Provider { sourceRecovery },
+			deletionBarrier,
+		)
+		deferredGate.isReady shouldBe false
+		serviceReads shouldBe 0
+	}
 
 	@Test
 	fun `runtime ready publications wake cold setup and same generation handled Stop recovery`() = runTest {
@@ -248,8 +266,8 @@ class DefaultTrackingStartupGateTest {
 		)) {
 			coEvery { storage.ensureReady(false) } returns
 				LegacyDatabaseStartupResult.ActiveDatabaseBlocked(reason)
-			val blockedGate = DefaultTrackingStartupGate(storage, collectedDataDeletionService,
-				resolver, lifecycleAuthority, inactiveStopHandler, Provider { sourceRecovery }, deletionBarrier)
+			val blockedGate = DefaultTrackingStartupGate(storage, Provider { collectedDataDeletionService },
+				resolver, lifecycleAuthority, Provider { inactiveStopHandler }, Provider { sourceRecovery }, deletionBarrier)
 			blockedGate.reconcile() shouldBe TrackingStartupResult.Blocked(
 				TrackingStartupStage.STORAGE, reason.failureCode,
 				databaseContainment = TrackingDatabaseContainment(

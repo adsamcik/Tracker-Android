@@ -54,6 +54,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
+// One real source-fact lookup fixture keeps original receipts and deletion precedence comparable.
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SourceFactQueryRepositoryRoomTest {
@@ -253,6 +255,8 @@ class SourceFactQueryRepositoryRoomTest {
 			SourceFactLookupResult.Failed(SourceProofReason.INTEGRITY_FAILURE)
 	}
 
+	// Keep one retained lineage and its exact/stale selections together to verify the production lookup precedence.
+	@Suppress("LongMethod")
 	@Test
 	fun `production Pressure lookup resolves exact retained lineage before missing fact and presentation`() =
 		runTest {
@@ -963,6 +967,9 @@ class SourceFactQueryRepositoryRoomTest {
 		sourceRevision = 9L,
 	)
 
+	// Keep one queryable Location fixture with its saved observation, decision, sample and exact canonical
+	// receipt together.
+	@Suppress("LongMethod")
 	private suspend fun installQueryableLocation(
 		includeWal: Boolean = true,
 		includeReceipt: Boolean = true,
@@ -977,8 +984,12 @@ class SourceFactQueryRepositoryRoomTest {
 		}
 		database.locationObservationDao().insert(observation())
 		database.locationObservationDecisionDao().insert(listOf(storedDecision))
-		if (storedSample != null) database.locationSampleDao().insert(storedSample)
-		if (!includeReceipt) return
+		if (storedSample != null) {
+			database.locationSampleDao().insert(storedSample)
+		}
+		if (!includeReceipt) {
+			return
+		}
 
 		val persistedObservation = requireNotNull(
 			database.locationObservationDao().getBySourceEventId(EVENT_ID),
@@ -1046,7 +1057,11 @@ class SourceFactQueryRepositoryRoomTest {
 	private fun sourceRun(completedAtMs: Long?) = SourceServiceRunEntity(
 		serviceRunId = "run",
 		logicalTrackingId = "logical",
-		state = if (completedAtMs == null) "ACTIVE" else "COMPLETED",
+		state = if (completedAtMs == null) {
+			"ACTIVE"
+		} else {
+			"COMPLETED"
+		},
 		desiredPlanRevision = 1L,
 		rolloutRevision = 1L,
 		foregroundCapabilityFlags = 0L,

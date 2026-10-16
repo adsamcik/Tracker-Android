@@ -26,7 +26,7 @@ class HistoricalTrajectoryReconstructionRunnerTest {
 	private lateinit var database: AppDatabase
 
 	@Before
-	fun setUp() = runBlocking {
+	fun setUp(): Unit = runBlocking {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState())
@@ -40,7 +40,7 @@ class HistoricalTrajectoryReconstructionRunnerTest {
 	}
 
 	@Test
-	fun `legacy step intervals cannot influence or link trajectory reconstruction`() = runBlocking {
+	fun `legacy step intervals cannot influence or link trajectory reconstruction`(): Unit = runBlocking {
 		database.locationObservationDao().insert(locationObservation())
 		val runner = HistoricalTrajectoryReconstructionRunner(database)
 		val baseline = runner.reconstruct(session())
@@ -81,7 +81,7 @@ class HistoricalTrajectoryReconstructionRunnerTest {
 	}
 
 	@Test
-	fun `step influenced v1 run does not suppress location activity composition`() = runBlocking {
+	fun `step influenced v1 run does not suppress location activity composition`(): Unit = runBlocking {
 		val runner = HistoricalTrajectoryReconstructionRunner(database)
 		database.trackerStateEventDao().insert(
 			trackerStateEvent(TrackerStateEvent.START, SESSION_START_ELAPSED_NANOS, SESSION_START_WALL_MS),

@@ -101,7 +101,11 @@ class ShadowValidationTest {
 		activityDao = mockk(relaxed = true)
 		pendingSignalDao = mockk(relaxed = true)
 		sourceDestinationOwnerDao = mockk(relaxed = true)
-		coEvery { sourceDestinationOwnerDao.get(any(), any()) } returns SourceDestinationOwnerEntity(
+		coEvery { sourceDestinationOwnerDao.get(any(), any()) } returns null
+		coEvery { sourceDestinationOwnerDao.get(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+		) } returns SourceDestinationOwnerEntity(
 			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 			destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
 			owner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,

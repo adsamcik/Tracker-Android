@@ -42,12 +42,7 @@ internal class StepsGoalDecisionReconciler @Inject constructor(
 		observedAtMs: Long,
 	): StepsGoalDecisionReconcileResult {
 		require(observedAtMs >= 0L)
-		require(settings.dailyStepGoal > 0 && settings.weeklyStepGoal > 0)
-		require(
-			settings.weeklyProgressDailyLimit.isFinite() &&
-				settings.weeklyProgressDailyLimit > 0f &&
-				settings.weeklyProgressDailyLimit <= 1f,
-		)
+		settings.requireValidStepGoals()
 		val requests = decisionRequests(authority)
 		val sourceRead = try {
 			source.readDecisionBatch(requests)
@@ -62,56 +57,68 @@ internal class StepsGoalDecisionReconciler @Inject constructor(
 				StepsGoalDecisionRetryableReason.STORAGE_UNAVAILABLE,
 			)
 		}
-		if (snapshot.windows.map(StepsNumericDecisionWindow::request) != requests ||
-			snapshot.windows.any { window ->
-				(window.summary as? StepsNumericSummary.Unverifiable)?.reason ==
-					StepsNumericUnverifiableReason.STORAGE_UNAVAILABLE
-			}
-		) {
+		if (snapshot.hasUnavailableDecisionWindows(requests)) {
 			return retryable(StepsGoalDecisionRetryableReason.STORAGE_UNAVAILABLE)
 		}
 		val expectedGeneration = startupGate.currentGeneration
 		return try {
-			startupGate.withReadyGenerationOperation(expectedGeneration) {
-				withContext(dispatchers.io) {
-					database.withTransaction {
-						if (database.sourceEvidenceStateDao().get()?.revision !=
-							snapshot.sourceEvidenceRevision
-						) {
-							return@withTransaction retryable(
-								StepsGoalDecisionRetryableReason.SOURCE_CHANGED,
-							)
-						}
-						val daily = recordDaily(
-							window = snapshot.windows[DAILY_WINDOW_INDEX],
-							authority = authority,
-							settings = settings,
-							sourceEvidenceRevision = snapshot.sourceEvidenceRevision,
-							observedAtMs = observedAtMs,
-						)
-						val weekly = recordWeekly(
-							window = snapshot.windows[WEEKLY_WINDOW_INDEX],
-							authority = authority,
-							settings = settings,
-							sourceEvidenceRevision = snapshot.sourceEvidenceRevision,
-							observedAtMs = observedAtMs,
-						)
-						if (daily.invalidatesDailyAchievementAuthority()) {
-							database.achievementProgressDao().markQualifiedStepsMaterializing(
-								sourceEvidenceRevision = snapshot.sourceEvidenceRevision,
-								updatedAtMs = observedAtMs,
-							)
-						}
-						StepsGoalDecisionReconcileResult.Applied(daily, weekly)
-					}
-				}
-			} ?: retryable(StepsGoalDecisionRetryableReason.STARTUP_GENERATION_CHANGED)
+			commitAcceptedDecision(snapshot, authority, settings, observedAtMs, expectedGeneration)
 		} catch (cancellation: CancellationException) {
 			throw cancellation
 		} catch (_: Exception) {
 			retryable(StepsGoalDecisionRetryableReason.STORAGE_UNAVAILABLE)
 		}
 	}
+
+	private fun StepsNumericDecisionBatch.Snapshot.hasUnavailableDecisionWindows(
+		requests: List<StepsNumericSummaryRequest>,
+	): Boolean = windows.map(StepsNumericDecisionWindow::request) != requests ||
+		windows.any { window ->
+			(window.summary as? StepsNumericSummary.Unverifiable)?.reason ==
+				StepsNumericUnverifiableReason.STORAGE_UNAVAILABLE
+		}
+
+	private suspend fun commitAcceptedDecision(
+		snapshot: StepsNumericDecisionBatch.Snapshot,
+		authority: StepsCalendarAuthority,
+		settings: GoalsSettingsState,
+		observedAtMs: Long,
+		expectedGeneration: Long,
+	): StepsGoalDecisionReconcileResult =
+	startupGate.withReadyGenerationOperation(expectedGeneration) {
+		withContext(dispatchers.io) {
+			database.withTransaction {
+				if (database.sourceEvidenceStateDao().get()?.revision !=
+					snapshot.sourceEvidenceRevision
+				) {
+					return@withTransaction retryable(
+						StepsGoalDecisionRetryableReason.SOURCE_CHANGED,
+					)
+				}
+				val daily = recordDaily(
+					window = snapshot.windows[DAILY_WINDOW_INDEX],
+					authority = authority,
+					settings = settings,
+					sourceEvidenceRevision = snapshot.sourceEvidenceRevision,
+					observedAtMs = observedAtMs,
+				)
+				val weekly = recordWeekly(
+					window = snapshot.windows[WEEKLY_WINDOW_INDEX],
+					authority = authority,
+					settings = settings,
+					sourceEvidenceRevision = snapshot.sourceEvidenceRevision,
+					observedAtMs = observedAtMs,
+				)
+				if (daily.invalidatesDailyAchievementAuthority()) {
+					database.achievementProgressDao().markQualifiedStepsMaterializing(
+						sourceEvidenceRevision = snapshot.sourceEvidenceRevision,
+						updatedAtMs = observedAtMs,
+					)
+				}
+				StepsGoalDecisionReconcileResult.Applied(daily, weekly)
+			}
+		}
+	} ?: retryable(StepsGoalDecisionRetryableReason.STARTUP_GENERATION_CHANGED)
 
 	private fun StepsGoalPeriodDecisionWriteResult.invalidatesDailyAchievementAuthority(): Boolean =
 		this == StepsGoalPeriodDecisionWriteResult.INSERTED ||
@@ -222,8 +229,14 @@ internal class StepsGoalDecisionReconciler @Inject constructor(
 			completionXp = desiredXp,
 			desiredPointsMicros = if (complete) {
 				Math.multiplyExact(targetSteps.toLong(), POINTS_MICROS_PER_TARGET_STEP)
-			} else 0L,
-			desiredXp = if (complete) desiredXp else 0,
+			} else {
+				0L
+			},
+			desiredXp = if (complete) {
+				desiredXp
+			} else {
+				0
+			},
 			firstCompletedAtMs = observedAtMs.takeIf { complete },
 			pointsAppliedRevision = 0L,
 			xpAppliedRevision = 0L,
@@ -289,4 +302,13 @@ internal enum class StepsGoalDecisionRetryableReason {
 	STORAGE_UNAVAILABLE,
 	SOURCE_CHANGED,
 	STARTUP_GENERATION_CHANGED,
+}
+
+private fun GoalsSettingsState.requireValidStepGoals() {
+	require(dailyStepGoal > 0 && weeklyStepGoal > 0)
+	require(
+		weeklyProgressDailyLimit.isFinite() &&
+			weeklyProgressDailyLimit > 0f &&
+			weeklyProgressDailyLimit <= 1f,
+	)
 }

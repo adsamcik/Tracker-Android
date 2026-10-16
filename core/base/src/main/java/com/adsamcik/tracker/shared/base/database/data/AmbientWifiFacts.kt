@@ -181,6 +181,10 @@ data class AmbientWifiFactRevisionEntity(
 		}
 	}
 
+	/**
+	 * Stable persisted codes, including `WRITER_ID`, `WRITER_VERSION`, `FACT_KIND_AGGREGATE`, and any
+	 * identity-bound record factories.
+	 */
 	companion object {
 		const val WRITER_ID = "ambient-wifi-facts"
 		const val WRITER_VERSION = 1
@@ -193,6 +197,10 @@ data class AmbientWifiFactRevisionEntity(
 	}
 }
 
+/**
+ * Latest effective all-day Wi-Fi revision under one writer/fact identity; it does not contain
+ * network measurements.
+ */
 @Entity(
 	tableName = "ambient_wifi_fact_cursor",
 	primaryKeys = ["writer_id", "writer_version", "logical_fact_id"],
@@ -223,6 +231,10 @@ data class AmbientWifiFactCursorEntity(
 	}
 }
 
+/**
+ * Original all-day Wi-Fi collection gap with source/purpose epochs and elapsed/UTC coverage
+ * bounds.
+ */
 @Entity(
 	tableName = "ambient_wifi_gap",
 	primaryKeys = ["gap_id"],
@@ -269,6 +281,11 @@ data class AmbientWifiGapEntity(
 		require(effectChecksum == AmbientWifiFactIntegrity.gapChecksum(this))
 	}
 
+	/**
+	 * Stable persisted codes, including `REASON_CLOCK_UNVERIFIABLE`,
+	 * `REASON_PROVIDER_COMPLETENESS_UNVERIFIABLE`, `REASON_STORAGE_DISCONTINUITY`, and any
+	 * identity-bound record factories.
+	 */
 	companion object {
 		const val REASON_CLOCK_UNVERIFIABLE = "CLOCK_UNVERIFIABLE"
 		const val REASON_PROVIDER_COMPLETENESS_UNVERIFIABLE =
@@ -282,6 +299,9 @@ data class AmbientWifiGapEntity(
 	}
 }
 
+/**
+ * Payload-free Wi-Fi fact deletion marker preserving identity, data epoch and deletion generation.
+ */
 @Entity(
 	tableName = "ambient_wifi_deletion_marker",
 	primaryKeys = ["collected_data_epoch", "deletion_generation"],
@@ -381,6 +401,9 @@ data class ImportedAmbientWifiFactEntity(
 	}
 }
 
+/**
+ * Imported Wi-Fi gap with original archive membership, bounds and cause plus its local data epoch.
+ */
 @Entity(
 	tableName = "imported_ambient_wifi_gap",
 	primaryKeys = ["archive_id", "gap_id"],
@@ -433,6 +456,9 @@ data class ImportedAmbientWifiGapEntity(
 	}
 }
 
+/**
+ * Durable receipt linking an import job and source file to the original Wi-Fi archive identity.
+ */
 @Entity(
 	tableName = "imported_ambient_wifi_receipt",
 	primaryKeys = ["import_job_id", "import_entry_key"],
@@ -457,6 +483,10 @@ data class ImportedAmbientWifiReceiptEntity(
 	}
 }
 
+/**
+ * Payload-free imported Wi-Fi deletion fence preventing the original archive from reappearing on
+ * replay.
+ */
 @Entity(
 	tableName = "imported_ambient_wifi_tombstone",
 	primaryKeys = ["archive_id"],
@@ -475,6 +505,10 @@ data class ImportedAmbientWifiTombstoneEntity(
 	}
 }
 
+/**
+ * Payload-free original Wi-Fi delivery ownership retained for replay comparisons after payload
+ * cleanup.
+ */
 @Entity(
 	tableName = "ambient_wifi_replay_footprint",
 	primaryKeys = ["footprint_kind", "identity_digest", "semantic_revision"],
@@ -500,6 +534,10 @@ data class AmbientWifiReplayFootprintEntity(
 		require(AmbientWifiAuthorityIntegrity.isDigest(effectChecksum))
 	}
 
+	/**
+	 * Stable persisted codes, including `KIND_LOCAL_FACT`, `KIND_LOCAL_GAP`, `KIND_FACT_IDENTITY`,
+	 * and any identity-bound record factories.
+	 */
 	companion object {
 		const val KIND_LOCAL_FACT = "LOCAL_FACT"
 		const val KIND_LOCAL_GAP = "LOCAL_GAP"
@@ -520,7 +558,16 @@ data class AmbientWifiReplayFootprintEntity(
 	}
 }
 
+/**
+ * Stable Wi-Fi fact/gap/deletion identities and digests for native and imported stored values.
+ */
+// Wi-Fi fact, gap and deletion identities share the same source-owned canonical digest contract.
+@Suppress("TooManyFunctions")
 object AmbientWifiFactIntegrity {
+	/**
+	 * Builds a payload-free replay footprint binding the source delivery to its original purpose,
+	 * epochs and owner.
+	 */
 	fun createReplayFootprint(
 		footprintKind: String,
 		identityDigest: String,
@@ -546,6 +593,9 @@ object AmbientWifiFactIntegrity {
 			),
 		)
 
+	/**
+	 * Hashes the replay footprint's original source identity and lifecycle values.
+	 */
 	fun replayFootprintChecksum(value: AmbientWifiReplayFootprintEntity): String =
 		replayFootprintChecksum(
 			value.footprintKind,
@@ -574,20 +624,36 @@ object AmbientWifiFactIntegrity {
 			recordedAtMs,
 		)
 
+	/**
+	 * Checks the supplied record's stored checksum against its canonical fields.
+	 */
 	fun isAuthentic(value: AmbientWifiDeletionMarkerEntity): Boolean =
 		value.effectChecksum == deletionChecksum(value)
 
+	/**
+	 * Checks the supplied record's stored checksum against its canonical fields.
+	 */
 	fun isAuthentic(value: AmbientWifiReplayFootprintEntity): Boolean =
 		value.effectChecksum == replayFootprintChecksum(value)
 
+	/**
+	 * Checks the supplied record's stored checksum against its canonical fields.
+	 */
 	fun isAuthentic(value: ImportedAmbientWifiFactEntity): Boolean =
 		value.portableEffectChecksum == importedFactEffectChecksum(value) &&
 			value.contentChecksum == importedFactContentChecksum(value)
 
+	/**
+	 * Checks the supplied record's stored checksum against its canonical fields.
+	 */
 	fun isAuthentic(value: ImportedAmbientWifiGapEntity): Boolean =
 		value.portableEffectChecksum == importedGapEffectChecksum(value) &&
 			value.contentChecksum == importedGapContentChecksum(value)
 
+	/**
+	 * Hashes the original imported measurement content independently of its local storage/import
+	 * effect.
+	 */
 	fun importedFactContentChecksum(value: ImportedAmbientWifiFactEntity): String =
 		AmbientWifiAuthorityIntegrity.digest(
 			"ambient-wifi-portable-fact-v1",
@@ -595,6 +661,10 @@ object AmbientWifiFactIntegrity {
 			value.portableEffectChecksum,
 		)
 
+	/**
+	 * Hashes the original imported gap bounds and cause independently of its local storage/import
+	 * effect.
+	 */
 	fun importedGapContentChecksum(value: ImportedAmbientWifiGapEntity): String =
 		AmbientWifiAuthorityIntegrity.digest(
 			"ambient-wifi-portable-gap-v1",
@@ -602,6 +672,10 @@ object AmbientWifiFactIntegrity {
 			value.portableEffectChecksum,
 		)
 
+	/**
+	 * Hashes the imported measurement's local ownership, epoch and revision together with its content
+	 * digest.
+	 */
 	fun importedFactEffectChecksum(value: ImportedAmbientWifiFactEntity): String =
 		AmbientWifiAuthorityIntegrity.digest(
 			"ambient-wifi-portable-fact-effect-v1",
@@ -624,6 +698,9 @@ object AmbientWifiFactIntegrity {
 			value.supersedesSemanticRevision,
 		)
 
+	/**
+	 * Hashes the imported gap's local ownership, epoch and revision together with its content digest.
+	 */
 	fun importedGapEffectChecksum(value: ImportedAmbientWifiGapEntity): String =
 		AmbientWifiAuthorityIntegrity.digest(
 			"ambient-wifi-portable-gap-effect-v1",
@@ -635,6 +712,10 @@ object AmbientWifiFactIntegrity {
 			value.reason,
 		)
 
+	/**
+	 * Derives the all-day Wi-Fi fact identity from its original delivery, consent/data/deletion
+	 * epochs and optional exact demand ID.
+	 */
 	fun logicalFactId(
 		sourceDeliveryIdentity: String,
 		ambientConsentEpoch: Long,
@@ -649,6 +730,9 @@ object AmbientWifiFactIntegrity {
 			ambientConsentEpoch, collectedDataEpoch, scopeDeletionGeneration, purposeDemandId)
 	}
 
+	/**
+	 * Builds a stable mutation key from the logical fact identity, semantic revision and operation.
+	 */
 	fun mutationId(logicalFactId: String, semanticRevision: Long): String =
 		AmbientWifiAuthorityIntegrity.digest(
 			"ambient-wifi-mutation-v1",
@@ -656,6 +740,10 @@ object AmbientWifiFactIntegrity {
 			semanticRevision,
 		)
 
+	/**
+	 * Computes the deterministic digest of the persisted revision values, excluding its stored
+	 * digest.
+	 */
 	fun effectChecksum(value: AmbientWifiFactRevisionEntity): String =
 		AmbientWifiAuthorityIntegrity.digest(
 			"ambient-wifi-effect-v1",
@@ -716,6 +804,9 @@ object AmbientWifiFactIntegrity {
 			} ?: legacy
 		}
 
+	/**
+	 * Hashes the original deleted fact identity, data epoch, deletion generation and erase time.
+	 */
 	fun deletionChecksum(value: AmbientWifiDeletionMarkerEntity): String =
 		deletionChecksum(
 			value.collectedDataEpoch,
@@ -725,6 +816,10 @@ object AmbientWifiFactIntegrity {
 			value.deletedAtMs,
 		)
 
+	/**
+	 * Builds a payload-free deletion marker and digest for the selected logical fact, data epoch and
+	 * deletion generation.
+	 */
 	fun createDeletionMarker(
 		collectedDataEpoch: Long,
 		deletionGeneration: Long,
@@ -762,6 +857,10 @@ object AmbientWifiFactIntegrity {
 			deletedAtMs,
 		)
 
+	/**
+	 * Builds a stored collection-gap record with its original clock/coverage boundary and
+	 * deterministic digest.
+	 */
 	fun createGap(
 		gapId: String,
 		reason: String,
@@ -807,6 +906,9 @@ object AmbientWifiFactIntegrity {
 		),
 	)
 
+	/**
+	 * Hashes the saved gap identity, original bounds, reason and lifecycle metadata.
+	 */
 	fun gapChecksum(value: AmbientWifiGapEntity): String = gapChecksum(
 		value.gapId,
 		value.reason,
@@ -854,6 +956,9 @@ object AmbientWifiFactIntegrity {
 		createdAtMs,
 	)
 
+	/**
+	 * Hashes the imported identity's deletion epoch and boundary for replay checks.
+	 */
 	fun importTombstoneChecksum(value: ImportedAmbientWifiTombstoneEntity): String =
 		importTombstoneChecksum(
 			value.archiveId,
@@ -862,6 +967,10 @@ object AmbientWifiFactIntegrity {
 			value.deletedAtMs,
 		)
 
+	/**
+	 * Builds the original imported identity's deletion fence and checksum without retaining
+	 * observation payloads.
+	 */
 	fun createImportTombstone(
 		archiveId: String,
 		collectedDataEpoch: Long,

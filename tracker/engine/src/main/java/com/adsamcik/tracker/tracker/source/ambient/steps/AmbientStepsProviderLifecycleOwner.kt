@@ -105,16 +105,7 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 			provider = null,
 			reason = AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
 		)
-		val demand = try {
-			reconcileDemand(boundary, lease)
-		} catch (cancelled: kotlinx.coroutines.CancellationException) {
-			kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-				reconcileRegistration(unavailable, boundary)
-			}
-			throw cancelled
-		} catch (_: RuntimeException) {
-			unavailable
-		}
+		val demand = reconcileDemandUnderHeldLease(boundary, lease, unavailable)
 		return try {
 			reconcileRegistration(demand, boundary).also { result ->
 				if (demand is AmbientStepsDemandReconciliation.DemandReady &&
@@ -132,7 +123,8 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 				}
 			}
 			throw cancelled
-		} catch (failure: RuntimeException) {
+		} catch (@Suppress("TooGenericExceptionCaught") failure: RuntimeException) {
+			// Retire this accepted Steps demand before propagating the same registration failure.
 			if (demand is AmbientStepsDemandReconciliation.DemandReady) {
 				kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
 					retireDemand(boundary, lease)
@@ -140,6 +132,21 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 			}
 			throw failure
 		}
+	}
+
+	private suspend fun reconcileDemandUnderHeldLease(
+		boundary: AmbientStepsDemandBoundary,
+		lease: AmbientReconciliationLease,
+		unavailable: AmbientStepsDemandReconciliation.PolicyBlocked,
+	): AmbientStepsDemandReconciliation = try {
+		reconcileDemand(boundary, lease)
+	} catch (cancelled: kotlinx.coroutines.CancellationException) {
+		kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+			reconcileRegistration(unavailable, boundary)
+		}
+		throw cancelled
+	} catch (_: RuntimeException) {
+		unavailable
 	}
 
 	internal suspend fun reconcileForRetentionFloor(

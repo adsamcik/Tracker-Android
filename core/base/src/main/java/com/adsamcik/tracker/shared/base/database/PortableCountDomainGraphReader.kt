@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.shared.base.database
 
+import com.adsamcik.tracker.shared.base.database.dao.StepsCountDomainReceiptDao
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainCompletenessMarkerEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptEntity
@@ -16,6 +17,10 @@ import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOwner
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainReceiptV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainRootV2
 
+/**
+ * Exact product/owner revision and effect digest from which a portable count-domain graph is
+ * reconstructed.
+ */
 data class PortableCountDomainRootSeed(
 	val containerIdentity: String,
 	val productIdentity: String,
@@ -25,10 +30,30 @@ data class PortableCountDomainRootSeed(
 	val ownerEffectChecksum: String,
 )
 
+/**
+ * Complete reconstructed graph, unproven lineage, invalid evidence or a bounded dependency
+ * overflow.
+ */
 sealed interface PortableCountDomainGraphRead {
+	/**
+	 * Contains the complete prepared source hierarchy or verified saved authority for this exact
+	 * read.
+	 */
 	data class Ready(val graph: PortableCountDomainGraphV2) : PortableCountDomainGraphRead
+	/**
+	 * Stored ownership does not provide enough original count-domain evidence for exact
+	 * compatibility.
+	 */
 	data object Unproven : PortableCountDomainGraphRead
+	/**
+	 * The stored scope or original source lineage could not be verified; this is not an empty or
+	 * measured-zero result.
+	 */
 	data object Unverifiable : PortableCountDomainGraphRead
+	/**
+	 * The complete source scope exceeds its finite dependency bound; a truncated prefix is not
+	 * treated as complete.
+	 */
 	data object Overflow : PortableCountDomainGraphRead
 }
 
@@ -36,8 +61,14 @@ sealed interface PortableCountDomainGraphRead {
  * Bounded native graph extraction. Callers own the surrounding stable Room read transaction.
  */
 class PortableCountDomainGraphReader(private val database: AppDatabase) {
+	/**
+	 * Reconstructs the bounded original receipt/owner graph from exact root seeds, preserving
+	 * unproven and overflow outcomes.
+	 */
 	suspend fun read(roots: List<PortableCountDomainRootSeed>): PortableCountDomainGraphRead {
-		if (roots.isEmpty()) return PortableCountDomainGraphRead.Unproven
+		if (roots.isEmpty()) {
+			return PortableCountDomainGraphRead.Unproven
+		}
 		if (roots.size > PortableCountDomainFormatV2.MAX_ROOTS) {
 			return PortableCountDomainGraphRead.Overflow
 		}
@@ -72,6 +103,15 @@ class PortableCountDomainGraphReader(private val database: AppDatabase) {
 		if (owners.size > PortableCountDomainFormatV2.MAX_OWNER_REVISIONS) {
 			return PortableCountDomainGraphRead.Overflow
 		}
+		rootAuthenticationFailure(seeds, owners, lineageKeys)?.let { return it }
+		return readGraphDependencies(seeds, owners, dao)
+	}
+
+	private fun rootAuthenticationFailure(
+		seeds: List<PortableCountDomainRootSeed>,
+		owners: List<StepsCountDomainOwnerRevisionEntity>,
+		lineageKeys: List<Pair<String, String>>,
+	): PortableCountDomainGraphRead? {
 		val ownersByLineage = owners.groupBy(::ownerKindKey)
 		if (ownersByLineage.keys != lineageKeys.toSet()) {
 			return PortableCountDomainGraphRead.Unproven
@@ -81,8 +121,18 @@ class PortableCountDomainGraphReader(private val database: AppDatabase) {
 				?: return PortableCountDomainGraphRead.Unproven
 			if (latest.ownerRevision != seed.ownerRevision ||
 				latest.ownerEffectChecksum != seed.ownerEffectChecksum
-			) return PortableCountDomainGraphRead.Unverifiable
+			) {
+				return PortableCountDomainGraphRead.Unverifiable
+			}
 		}
+		return null
+	}
+
+	private suspend fun readGraphDependencies(
+		seeds: List<PortableCountDomainRootSeed>,
+		owners: List<StepsCountDomainOwnerRevisionEntity>,
+		dao: StepsCountDomainReceiptDao,
+	): PortableCountDomainGraphRead {
 		val receiptIdentities = owners.mapNotNull { it.receiptIdentity }.distinct()
 		val receipts = receiptIdentities.chunked(QUERY_BATCH).flatMap { identities ->
 			dao.receipts(identities, PortableCountDomainFormatV2.MAX_RECEIPTS + 1)

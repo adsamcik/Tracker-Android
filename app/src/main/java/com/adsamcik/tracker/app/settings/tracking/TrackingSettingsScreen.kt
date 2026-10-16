@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.app.settings.tracking
 
+import com.adsamcik.tracker.app.background.BackgroundReliabilitySettingsEntry
+
 import android.Manifest
 import android.content.Intent
 import android.net.Uri
@@ -98,7 +100,8 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
 	val context = LocalContext.current
 	var permissionDenied by remember { mutableStateOf(false) }
 	val permissionSnackbar = remember { SnackbarHostState() }
-	val locationAccessLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+	val locationAccessLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
 		trackingVm.onLocationPermissionResult()
 		permissionDenied = !trackingVm.uiState.value.permissionCapabilities.hasForegroundLocation
 	}
@@ -120,12 +123,16 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
 		trackingVm.locationPermissionEvents.collect { request ->
 			if (!trackingVm.isCurrentLocationPermissionRequest(request) ||
 				!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
-			) return@collect
+			) {
+				return@collect
+			}
 			when (request.kind) {
 				LocationSettingsPermissionKind.MOTION -> {
 					if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
 						!trackingVm.uiState.value.activityPermissionGranted
-					) motionAssistanceLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+					) {
+						motionAssistanceLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+					}
 				}
 				LocationSettingsPermissionKind.FOREGROUND_LOCATION,
 				LocationSettingsPermissionKind.LOCATION -> {
@@ -239,15 +246,14 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
         uiState = uiState,
         onTurnOffTracking = trackingVm::turnOffTracking,
         onRetrySourceRecovery = trackingVm::retrySourcePolicyReconciliation,
-        onPresetSelected = { trackingVm.applyPreset(it) },
 		onBalanceSelected = trackingVm::adoptBalanceProfile,
 		onSourceBalanceSelected = trackingVm::setSourceBalanceOverride,
         onAutoTrackingModeChanged = { mode ->
             trackingVm.setAutoTrackingMode(mode) {
                 val current = trackingVm.uiState.value
-                if (mode > 0 && current.automaticControlAvailability.isOperational &&
-                    !current.activityPermissionGranted &&
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                val needsActivityPermission = mode > 0 &&
+                    current.automaticControlAvailability.isOperational && !current.activityPermissionGranted
+                if (needsActivityPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
                     lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
                 ) {
                     pendingAutoTrackingMode = mode
@@ -287,7 +293,7 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
         },
 		onStepsProviderPermission = {
 			if (trackingVm.isSavedSourceSelected(TrackingSourceComponent.STEPS)) {
-			val current = trackingVm.uiState.value
+				val current = trackingVm.uiState.value
 			val reason = current.ambientSourceAvailability.getValue(AmbientTrackingSource.STEPS).reason
 			if (current.shouldRequestStepsMotionPermission(
 					Build.VERSION.SDK_INT, lifecycleOwner.lifecycle.currentState, context.hasActivityPermission,
@@ -323,7 +329,9 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
 					} catch (_: LinkageError) {
 						trackingVm.refreshStepsProviderPermissionState()
 					}
-				} else trackingVm.refreshStepsProviderPermissionState()
+				} else {
+					trackingVm.refreshStepsProviderPermissionState()
+				}
 			}
 			}
 		},
@@ -383,7 +391,6 @@ internal fun TrackingSettingsContent(
     uiState: TrackingSettingsUiState,
     onTurnOffTracking: () -> Unit = {},
     onRetrySourceRecovery: () -> Unit = {},
-    onPresetSelected: (TrackingPreset) -> Unit = {},
 	onBalanceSelected: (Int) -> Unit = {},
 	onSourceBalanceSelected: (TrackingSourceComponent, Int?) -> Unit = { _, _ -> },
     onAutoTrackingModeChanged: (Int) -> Unit = {},
@@ -419,7 +426,9 @@ internal fun TrackingSettingsContent(
     val locale = LocalConfiguration.current.locales[0]
     val meterAbbreviation = stringResource(com.adsamcik.tracker.shared.preferences.R.string.meter_abbr)
     val secondAbbreviation = stringResource(com.adsamcik.tracker.shared.base.R.string.second_short)
-    if (!uiState.isLoaded) return
+    if (!uiState.isLoaded) {
+        return
+    }
     if (!uiState.sourcePolicyAvailable) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().testTag("trackingSettingsUnavailable"),
@@ -456,7 +465,8 @@ internal fun TrackingSettingsContent(
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onErrorContainer,
                             )
-                            TextButton(onClick = onRetrySourceRecovery, modifier = Modifier.testTag("trackingSourceRecoveryRetry")) {
+                            TextButton(onClick = onRetrySourceRecovery, modifier =
+                                Modifier.testTag("trackingSourceRecoveryRetry")) {
                                 Text(stringResource(com.adsamcik.tracker.R.string.settings_save_retry))
                             }
                         }
@@ -483,7 +493,8 @@ internal fun TrackingSettingsContent(
             .testTag("trackingSettingsList"),
         contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
     ) {
-        if (uiState.settingsSaveFailed) item {
+        if (uiState.settingsSaveFailed) {
+            item {
             Card(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
                     .testTag("trackingSettingsSaveFailure"),
@@ -492,13 +503,16 @@ internal fun TrackingSettingsContent(
                 Column(Modifier.padding(16.dp)) {
                     Text(stringResource(com.adsamcik.tracker.R.string.settings_changes_not_saved),
                         color = MaterialTheme.colorScheme.onErrorContainer)
-                    TextButton(onClick = onRetrySettingsSave, modifier = Modifier.testTag("trackingSettingsSaveRetry")) {
+                    TextButton(onClick = onRetrySettingsSave, modifier =
+                        Modifier.testTag("trackingSettingsSaveRetry")) {
                         Text(stringResource(com.adsamcik.tracker.R.string.settings_save_retry))
                     }
                 }
             }
         }
-        if (uiState.sourcePolicyReconciliationDebt != null) item {
+        }
+        if (uiState.sourcePolicyReconciliationDebt != null) {
+            item {
             Card(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
                     .testTag("trackingSourceRecoveryFailure"),
@@ -507,14 +521,17 @@ internal fun TrackingSettingsContent(
                 Column(Modifier.padding(16.dp)) {
                     Text(stringResource(com.adsamcik.tracker.R.string.settings_choices_not_applied),
                         color = MaterialTheme.colorScheme.onErrorContainer)
-                    TextButton(onClick = onRetrySourceRecovery, modifier = Modifier.testTag("trackingSourceRecoveryRetry")) {
+                    TextButton(onClick = onRetrySourceRecovery, modifier =
+                        Modifier.testTag("trackingSourceRecoveryRetry")) {
                         Text(stringResource(com.adsamcik.tracker.R.string.settings_save_retry))
                     }
                 }
             }
         }
+        }
         // Changes reconcile into the active source flow; status below reports any blockers.
-        if (uiState.trackingActive) item {
+        if (uiState.trackingActive) {
+            item {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -539,6 +556,7 @@ internal fun TrackingSettingsContent(
                     )
                 }
             }
+        }
         }
 
         // --- Start & stop ---
@@ -587,7 +605,8 @@ internal fun TrackingSettingsContent(
             item {
                 SwitchSettingsItemWithHelp(
                     title = stringResource(com.adsamcik.tracker.R.string.settings_transition_detection_friendly_title),
-                    subtitle = stringResource(com.adsamcik.tracker.R.string.settings_transition_detection_friendly_summary),
+                    subtitle =
+                        stringResource(com.adsamcik.tracker.R.string.settings_transition_detection_friendly_summary),
                     checked = uiState.transitionDetectionEnabled,
                     onCheckedChange = onTransitionDetectionChanged,
                     helpTextRes = com.adsamcik.tracker.tracker.R.string.help_transition_detection,
@@ -597,7 +616,7 @@ internal fun TrackingSettingsContent(
 
         // Battery optimization and vendor restrictions affect both automatic and manual trips.
         item {
-            com.adsamcik.tracker.app.background.BackgroundReliabilitySettingsEntry(
+            BackgroundReliabilitySettingsEntry(
                 modifier = Modifier.padding(vertical = 8.dp),
             )
         }
@@ -671,20 +690,24 @@ internal fun TrackingSettingsContent(
 					onSourceBalanceSelected = onSourceBalanceSelected,
                 )
             }
-            if (uiState.balanceProfileVersion == null) item {
+            if (uiState.balanceProfileVersion == null) {
+                item {
                 SettingsGroupCard(modifier = Modifier.padding(top = 8.dp)) {
                     SettingsItem(
                         title = stringResource(com.adsamcik.tracker.R.string.settings_advanced_source_controls_title),
-                        subtitle = stringResource(com.adsamcik.tracker.R.string.settings_advanced_source_controls_summary),
+                        subtitle =
+                            stringResource(com.adsamcik.tracker.R.string.settings_advanced_source_controls_summary),
                         icon = Icons.Default.Tune,
                         onClick = { onAdvancedSourceControlsChanged(true) },
                     )
                 }
             }
+            }
         }
 
         // These parameters only control location requests/filtering, not other source cadences.
-        if (uiState.advancedSourceControlsEnabled && uiState.locationEnabled && uiState.locationProfileVersion == null) {
+        if (uiState.advancedSourceControlsEnabled && uiState.locationEnabled &&
+            uiState.locationProfileVersion == null) {
             item {
                 SectionHeader(
                     stringResource(com.adsamcik.tracker.R.string.settings_tracking_section_detail),
@@ -694,7 +717,8 @@ internal fun TrackingSettingsContent(
             item {
                 SettingsGroupCard {
                     SliderSettingsItemWithHelp(
-                        title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_min_distance_title),
+                        title =
+                            stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_min_distance_title),
                         value = uiState.minDistance.toFloat(),
                         valueRange = 0f..200f,
                         steps = 19,
@@ -717,7 +741,10 @@ internal fun TrackingSettingsContent(
                     )
                     SettingsRowDivider()
                     SliderSettingsItemWithHelp(
-                        title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_required_accuracy_title),
+                        title =
+                            stringResource(
+                                com.adsamcik.tracker.tracker.R.string.settings_tracking_required_accuracy_title
+                            ),
                         value = uiState.requiredAccuracy.toFloat(),
                         valueRange = 10f..200f,
                         steps = 18,
@@ -792,14 +819,16 @@ internal fun TrackingSettingsContent(
             SettingsGroupCard {
                 SwitchSettingsItem(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_styled_title),
-                    subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_styled_summary),
+                    subtitle =
+                        stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_styled_summary),
                     checked = uiState.notificationStyled,
                     onCheckedChange = onNotificationStyledChanged,
                 )
                 SettingsRowDivider()
                 SettingsItem(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_customize_title),
-                    subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_customize_summary),
+                    subtitle =
+                        stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_customize_summary),
                     icon = Icons.Default.Notifications,
                     onClick = onNotificationCustomize,
                 )
@@ -809,6 +838,8 @@ internal fun TrackingSettingsContent(
 }
 
 @Composable
+// Keep the six selected-source controls and their matching permission/status labels in one declaration.
+@Suppress("CyclomaticComplexMethod", "LongMethod")
 private fun SimpleDataSourceSettings(
     uiState: TrackingSettingsUiState,
     onLocationEnabledChanged: (Boolean) -> Unit,
@@ -839,7 +870,9 @@ private fun SimpleDataSourceSettings(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_activity_enabled_title),
             subtitle = sourceSummaryWithOptionalStatus(
                 summaryRes = com.adsamcik.tracker.R.string.settings_activity_source_summary,
-                statusRes = if (uiState.activityPermissionGranted) null else {
+                statusRes = if (uiState.activityPermissionGranted) {
+                    null
+                } else {
                     com.adsamcik.tracker.R.string.settings_activity_permission_required
                 },
             ),
@@ -862,7 +895,9 @@ private fun SimpleDataSourceSettings(
                     } else {
                         ambientOperationalSummary(availability)
                     }
-                } else "",
+                } else {
+                    ""
+                },
             iconRes = com.adsamcik.tracker.R.drawable.ic_tracking_source_steps,
             checked = uiState.stepsEnabled,
             onCheckedChange = onStepsEnabledChanged,
@@ -875,7 +910,9 @@ private fun SimpleDataSourceSettings(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_barometer_enabled_title),
             subtitle = sourceSummaryWithOptionalStatus(
                 summaryRes = com.adsamcik.tracker.R.string.settings_barometer_source_summary,
-                statusRes = if (uiState.barometerAvailable) null else {
+                statusRes = if (uiState.barometerAvailable) {
+                    null
+                } else {
                     com.adsamcik.tracker.R.string.settings_barometer_unavailable
                 },
             ),
@@ -890,7 +927,9 @@ private fun SimpleDataSourceSettings(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_enabled_title),
             subtitle = sourceSummaryWithOptionalStatus(
                 summaryRes = com.adsamcik.tracker.R.string.settings_wifi_source_summary,
-                statusRes = if (uiState.wifiPermissionGranted) null else {
+                statusRes = if (uiState.wifiPermissionGranted) {
+                    null
+                } else {
                     com.adsamcik.tracker.R.string.settings_wifi_permission_required
                 },
             ),
@@ -907,7 +946,9 @@ private fun SimpleDataSourceSettings(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_cell_enabled_title),
             subtitle = sourceSummaryWithOptionalStatus(
                 summaryRes = com.adsamcik.tracker.R.string.settings_cell_source_summary,
-                statusRes = if (uiState.cellPermissionGranted) null else {
+                statusRes = if (uiState.cellPermissionGranted) {
+                    null
+                } else {
                     com.adsamcik.tracker.R.string.settings_cell_permission_required
                 },
             ),
@@ -928,25 +969,30 @@ internal fun SourcePermissionRepair(
 	onPermission: (TrackingSourceComponent) -> Unit,
 	testTag: String = "sourcePermission-${source.name.lowercase()}",
 ) {
-	if (!required) return
+	if (!required) {
+		return
+	}
 	TextButton(onClick = { onPermission(source) }, modifier = Modifier.testTag(testTag)) {
 		Text(stringResource(com.adsamcik.tracker.R.string.settings_location_allow_access))
 	}
 }
 
 @Composable
+// Keep the finite Steps permission-repair states with their button, accessible name and error label.
+@Suppress("CyclomaticComplexMethod")
 private fun StepsProviderPermissionRepair(
 	uiState: TrackingSettingsUiState,
 	onClick: () -> Unit,
 ) {
 	val reason = uiState.ambientSourceAvailability.getValue(AmbientTrackingSource.STEPS).reason
-	val motionRepair = !uiState.activityPermissionGranted && (uiState.stepCounterAvailable ||
-		reason == AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED)
+	val motionRepair = uiState.needsStepsMotionPermission(uiState.activityPermissionGranted)
 	if (!uiState.stepsEnabled || (!motionRepair && reason !in setOf(
 		AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED,
 		AmbientSourceUnavailableReason.HEALTH_CONNECT_STEPS_PERMISSION_REQUIRED,
 		AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL,
-	))) return
+	))) {
+		return
+	}
 	val label = stringResource(when {
 		motionRepair ->
 			com.adsamcik.tracker.R.string.setup_perm_grant_steps_content_description
@@ -957,7 +1003,11 @@ private fun StepsProviderPermissionRepair(
 	TextButton(
 		onClick = onClick,
 		modifier = Modifier
-			.testTag(if (motionRepair) "stepsMotionRepair" else "stepsHealthConnectRepair")
+			.testTag(if (motionRepair) {
+				"stepsMotionRepair"
+			} else {
+				"stepsHealthConnectRepair"
+			})
 			.semantics { contentDescription = label },
 	) {
 		Text(label)
@@ -966,10 +1016,16 @@ private fun StepsProviderPermissionRepair(
 		Text(
 			text = stringResource(if (motionRepair) {
 				com.adsamcik.tracker.R.string.settings_ambient_steps_health_connect_probe_failed
-			} else com.adsamcik.tracker.R.string.settings_steps_health_connect_repair_failed),
+			} else {
+				com.adsamcik.tracker.R.string.settings_steps_health_connect_repair_failed
+			}),
 			style = MaterialTheme.typography.bodySmall,
 			color = MaterialTheme.colorScheme.error,
-			modifier = Modifier.testTag(if (motionRepair) "stepsMotionRepairError" else "stepsHealthConnectRepairError"),
+			modifier = Modifier.testTag(if (motionRepair) {
+				"stepsMotionRepairError"
+			} else {
+				"stepsHealthConnectRepairError"
+			}),
 		)
 	}
 }
@@ -979,10 +1035,18 @@ internal fun TrackingSettingsUiState.shouldRequestStepsMotionPermission(
 	sdkInt: Int,
 	lifecycleState: Lifecycle.State,
 	motionPermissionGranted: Boolean,
-): Boolean = stepsEnabled && !motionPermissionGranted &&
-	(stepCounterAvailable || ambientSourceAvailability.getValue(AmbientTrackingSource.STEPS).reason ==
-		AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED) &&
+): Boolean = stepsEnabled && needsStepsMotionPermission(motionPermissionGranted) &&
 	sdkInt >= Build.VERSION_CODES.Q && lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
+
+/** Repair the chosen system provider without requiring an unrelated direct-sensor grant first. */
+private fun TrackingSettingsUiState.needsStepsMotionPermission(
+	motionPermissionGranted: Boolean,
+): Boolean {
+	val reason = ambientSourceAvailability.getValue(AmbientTrackingSource.STEPS).reason
+	return !motionPermissionGranted &&
+		reason != AmbientSourceUnavailableReason.HEALTH_CONNECT_STEPS_PERMISSION_REQUIRED &&
+		(stepCounterAvailable || reason == AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED)
+}
 
 @Composable
 private fun TrackingTurnOffSetting(
@@ -1222,8 +1286,12 @@ private fun AutoTrackingModeOptionRow(
         modifier = modifier
             .fillMaxWidth()
             .background(
-                if (selected) MaterialTheme.colorScheme.secondaryContainer
-                else MaterialTheme.colorScheme.surfaceContainer,
+                if (selected) {
+                    MaterialTheme.colorScheme.secondaryContainer
+                }
+                else {
+                    MaterialTheme.colorScheme.surfaceContainer
+                },
             )
             .selectable(
                 selected = selected,

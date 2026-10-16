@@ -49,7 +49,7 @@ class RoomStepsRetainedMetricsRepositoryRoomTest {
 	private lateinit var repository: RoomStepsRetainedMetricsRepository
 
 	@Before
-	fun setUp() = runBlocking {
+	fun setUp(): Unit = runBlocking {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
@@ -58,7 +58,9 @@ class RoomStepsRetainedMetricsRepositoryRoomTest {
 
 	@After
 	fun tearDown() {
-		if (::database.isInitialized && database.isOpen) database.close()
+		if (::database.isInitialized && database.isOpen) {
+			database.close()
+		}
 	}
 
 	@Test

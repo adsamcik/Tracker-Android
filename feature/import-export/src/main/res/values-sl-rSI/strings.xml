@@ -42,4 +42,25 @@
     <string name="format_database">Varnostna kopija zbirke podatkov (ZIP)</string>
     <string name="settings_import_summary">Uvozite podatke iz podprtih vrst (%1$s) in arhivov (%2$s). Uvoz zbirk podatkov združi združljive vrstice; ne zamenja obstoječih podatkov.</string>
     <string name="settings_import_title">Uvoz</string>
+    <string name="export_radio_sensitivity_title">Izvozi podrobnosti omrežij?</string>
+    <string name="export_wifi_sensitivity_message">Ta datoteka vsebuje shranjena imena Wi-Fi in ID-je dostopnih točk.</string>
+    <string name="export_cell_sensitivity_message">Ta datoteka vsebuje shranjene ID-je baznih postaj in meritve signala.</string>
+    <string name="export_radio_no_data">Za ta vir ni shranjenih podatkov</string>
+    <string name="export_include_complete_sessions">Vključi celotne seje</string>
+    <string name="import_location_conflict_title">Zamenja shranjene točke?</string>
+    <string name="import_location_replace">Uporabi točke iz datoteke</string>
+    <string name="import_location_keep">Ohrani shranjene točke</string>
+    <string name="export_backup_review_title">Preglej načrtovane varnostne kopije</string>
+    <string name="export_backup_review_summary">Začasno ustavljeno do pregleda posodobljene varnostne kopije podatkov.</string>
+    <string name="export_backup_review_message">Ti urniki zdaj varnostno kopirajo vse shranjene podatke sledenja in datoteke, potrebne za obnovitev. Nastavitve niso vključene. Nadaljuje te urnike?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Nadaljuj varnostno kopiranje</string>
+    <string name="import_backup_replace_title">Obnovi varnostno kopijo podatkov?</string>
+    <string name="import_backup_replace_message">Zamenja shranjene podatke s to varnostno kopijo? Vaše nastavitve ostanejo enake. Sledenje bo izklopljeno, dokler ga znova ne vključite.</string>
+    <string name="import_backup_restore">Zamenjaj podatke</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d točka v tej datoteki se razlikuje od shranjene kopije. Izberite, katero želite ohraniti. Druge točke bodo uvožene kot običajno.</item>
+        <item quantity="two">%d točki v tej datoteki se razlikujeta od shranjenih kopij. Izberite, kateri želite ohraniti. Druge točke bodo uvožene kot običajno.</item>
+        <item quantity="few">%d točke v tej datoteki se razlikujejo od shranjenih kopij. Izberite, katere želite ohraniti. Druge točke bodo uvožene kot običajno.</item>
+        <item quantity="other">%d točk v tej datoteki se razlikuje od shranjenih kopij. Izberite, katere želite ohraniti. Druge točke bodo uvožene kot običajno.</item>
+    </plurals>
 </resources>

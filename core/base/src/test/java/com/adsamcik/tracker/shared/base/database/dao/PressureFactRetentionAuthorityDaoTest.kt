@@ -36,7 +36,9 @@ class PressureFactRetentionAuthorityDaoTest {
 			val origin = cursor.getColumnIndexOrThrow("origin")
 			buildList {
 				while (cursor.moveToNext()) {
-					if (cursor.getString(origin) == "pk") add(cursor.getString(name))
+					if (cursor.getString(origin) == "pk") {
+						add(cursor.getString(name))
+					}
 				}
 			}.single()
 		}

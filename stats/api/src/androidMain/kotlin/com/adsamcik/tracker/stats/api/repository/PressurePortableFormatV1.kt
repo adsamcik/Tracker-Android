@@ -49,10 +49,20 @@ val PORTABLE_PRESSURE_RUN_ORDER =
 val PORTABLE_PRESSURE_ENTRY_ORDER =
 	com.adsamcik.tracker.shared.model.pressure.portable.PORTABLE_PRESSURE_ENTRY_ORDER
 
+/**
+ * API facade for canonical Pressure file checksums supplied by the shared wire model.
+ */
 object PortablePressureIntegrity {
+	/**
+	 * Recomputes canonical content for the supplied Pressure window using the shared wire model.
+	 */
 	fun expectedWindowChecksum(window: PortablePressureWindowV1): PortablePressureDigest =
 		ModelIntegrity.expectedWindowChecksum(window)
 
+	/**
+	 * Computes canonical Pressure entry content from its identity, UTC millisecond bounds and ordered
+	 * runs.
+	 */
 	fun entryChecksum(
 		identity: PortablePressureOpaqueIdentity,
 		startTimeMs: Long,
@@ -60,6 +70,10 @@ object PortablePressureIntegrity {
 		runs: List<PortablePressureRunV1>,
 	): PortablePressureDigest = ModelIntegrity.entryChecksum(identity, startTimeMs, endTimeMs, runs)
 
+	/**
+	 * Recomputes canonical content for the complete supplied Pressure entry using the shared wire
+	 * model.
+	 */
 	fun expectedEntryChecksum(entry: PortablePressureEntryV1): PortablePressureDigest =
 		ModelIntegrity.expectedEntryChecksum(entry)
 }

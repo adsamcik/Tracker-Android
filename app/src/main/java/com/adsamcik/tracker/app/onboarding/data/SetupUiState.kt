@@ -8,6 +8,7 @@ import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsCapability
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsPermission
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProvider
 
+/** The setup stage that failed, preserving choices for the matching retry. */
 enum class SetupCompletionError { SETTINGS, RETENTION }
 
 /**

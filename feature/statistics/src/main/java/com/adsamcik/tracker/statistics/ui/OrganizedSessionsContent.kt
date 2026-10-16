@@ -26,39 +26,63 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
+// Keep the saved-session list loading, error, continuation and stale-row presentation together.
+@Suppress("CyclomaticComplexMethod")
 internal fun OrganizedSessionsContent(read: SessionOrganizationRead?, selectedDay: LocalDate?,
 	onOpen: (OrganizedSession) -> Unit, onShowAll: () -> Unit,
 	pages: LazyPagingItems<OrganizedSession>, modifier: Modifier = Modifier) {
 	Column(modifier.padding(horizontal = 16.dp)) {
-		if (selectedDay != null) Row {
+		if (selectedDay != null) {
+			Row {
 			Text(selectedDay.format(DateTimeFormatter.ofLocalizedDate(java.time.format.FormatStyle.MEDIUM)))
 			TextButton(onClick = onShowAll) { Text(stringResource(R.string.organization_show_all)) }
+		}
 		}
 		when (read) {
 			null -> CircularProgressIndicator()
 			SessionOrganizationRead.Unavailable -> Text(stringResource(R.string.organization_unavailable))
 			is SessionOrganizationRead.Content -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-				if (pages.itemCount == 0 && pages.loadState.refresh is LoadState.Loading) item { CircularProgressIndicator() }
-				if (pages.itemCount == 0 && pages.loadState.refresh is LoadState.NotLoading) item { Text(stringResource(R.string.organization_empty)) }
-				items(count = pages.itemCount, key = { index -> pages.peek(index)?.id?.toString() ?: "loading:$index" }) { index ->
+				if (pages.itemCount == 0 && pages.loadState.refresh is LoadState.Loading) {
+					item { CircularProgressIndicator() }
+				}
+				if (pages.itemCount == 0 && pages.loadState.refresh is LoadState.NotLoading) {
+					item { Text(stringResource(R.string.organization_empty)) }
+				}
+				items(count = pages.itemCount, key = { index -> pages.peek(index)?.id?.toString() ?:
+                    "loading:$index" }) { index ->
 					val session = pages[index] ?: return@items
-					if (session.collectedDataEpoch != read.collectedDataEpoch) return@items
+					if (session.collectedDataEpoch != read.collectedDataEpoch) {
+						return@items
+					}
 					Card(onClick = { onOpen(session) }, modifier = Modifier.fillMaxWidth()) {
 						Column(Modifier.padding(16.dp)) {
 							Text(session.name ?: stringResource(R.string.organization_unnamed))
 							Text(organizationTimeLabel(session))
 							session.activityLabelName?.let { Text(it) }
-							if (session.isActive) Text(stringResource(R.string.organization_active))
-							if (session.timeUncertain) Text(stringResource(R.string.organization_time_uncertain))
-							if (selectedDay != null && session.fromMs?.let { it < selectedDay.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() } == true)
+							if (session.isActive) {
+								Text(stringResource(R.string.organization_active))
+							}
+							if (session.timeUncertain) {
+								Text(stringResource(R.string.organization_time_uncertain))
+							}
+							if (selectedDay != null &&
+								session.fromMs?.let {
+									it < selectedDay.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+								} == true
+							) {
 								Text(stringResource(R.string.organization_continued))
+							}
 						}
 					}
 				}
-				if (pages.loadState.append is LoadState.Loading) item { CircularProgressIndicator() }
-				if (pages.loadState.refresh is LoadState.Error || pages.loadState.append is LoadState.Error) item {
+				if (pages.loadState.append is LoadState.Loading) {
+					item { CircularProgressIndicator() }
+				}
+				if (pages.loadState.refresh is LoadState.Error || pages.loadState.append is LoadState.Error) {
+					item {
 					Text(stringResource(R.string.organization_unavailable))
 					TextButton(onClick = pages::retry) { Text(stringResource(R.string.organization_retry)) }
+				}
 				}
 			}
 		}

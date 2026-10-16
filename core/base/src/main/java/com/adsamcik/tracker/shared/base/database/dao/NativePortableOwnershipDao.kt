@@ -6,6 +6,12 @@ import androidx.room.Query
 /** Metadata-only reverse lookup. A matching row is never sufficient to return a measurement. */
 @Dao
 interface NativePortableOwnershipDao {
+	/**
+	 * Reads distinct `owner.logical_tracking_id` values from `native_portable_ownership`. Query
+	 * conditions include `owner.source_kind = :sourceKind`, `owner.opaque_identity IN (:identities)`,
+	 * `source.source_kind = :sourceKind`, `source.purpose = 'SESSION_CAPTURE'`. Orders by
+	 * `owner.logical_tracking_id`. Returns at most `limit` rows.
+	 */
 	@Query("""
 		SELECT DISTINCT owner.logical_tracking_id
 		FROM native_portable_ownership owner
@@ -36,8 +42,12 @@ interface NativePortableOwnershipDao {
 		  WHERE seed.logical_tracking_id = segment.logical_tracking_id)
 		ORDER BY segment.logical_tracking_id LIMIT :limit
 	""")
-	suspend fun ownerSeeds(logicalIds: List<String>, limit: Int): List<com.adsamcik.tracker.shared.base.database.data.SessionSegment>
+	suspend fun ownerSeeds(logicalIds: List<String>,
+        limit: Int): List<com.adsamcik.tracker.shared.base.database.data.SessionSegment>
 
+	/**
+	 * Deletes `native_portable_ownership` rows.
+	 */
 	@Query("DELETE FROM native_portable_ownership")
 	fun deleteAll()
 }

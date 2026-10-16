@@ -26,6 +26,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
+/**
+ * Nonempty half-open UTC millisecond selection for a complete all-day Steps archive snapshot.
+ */
 data class AmbientStepsPortableReadRequest(
 	val fromInclusiveMs: Long,
 	val toExclusiveMs: Long,
@@ -36,15 +39,34 @@ data class AmbientStepsPortableReadRequest(
 	}
 }
 
+/**
+ * Prepared all-day Steps archive, empty selection or a typed failure to verify complete source
+ * data.
+ */
 sealed interface AmbientStepsPortableSnapshot {
+	/**
+	 * Contains the prepared all-day Steps archive and, for v2 reads, its verified original
+	 * count-domain graph.
+	 */
 	data class Ready(
 		val archive: PortableAmbientStepsArchiveV1,
 		val authenticatedArchive: PortableAmbientStepsArchiveV2? = null,
 	) : AmbientStepsPortableSnapshot
+	/**
+	 * The selected saved source scope contains no exportable product data.
+	 */
 	data object NoData : AmbientStepsPortableSnapshot
+	/**
+	 * The stored scope or original source lineage could not be verified; this is not an empty or
+	 * measured-zero result.
+	 */
 	data class Unverifiable(val reason: AmbientStepsPortableReadFailure) : AmbientStepsPortableSnapshot
 }
 
+/**
+ * Count-domain, source, retention, deletion, materialization or dependency problem preventing a
+ * complete Steps snapshot.
+ */
 enum class AmbientStepsPortableReadFailure {
 	COUNT_DOMAIN_GRAPH_UNAVAILABLE,
 	SOURCE_AUTHORITY_UNAVAILABLE,
@@ -80,6 +102,9 @@ internal data class AmbientStepsPortableReadLimits(
  * Room transaction, while only minimized portable values escape that snapshot.
  */
 class AmbientStepsPortableRoomReader(private val database: AppDatabase) {
+	/**
+	 * Reads one bounded complete all-day Steps v1 snapshot without requiring a count-domain graph.
+	 */
 	suspend fun read(request: AmbientStepsPortableReadRequest): AmbientStepsPortableSnapshot = read(
 		request,
 		AmbientStepsPortableReadLimits(),
@@ -87,6 +112,9 @@ class AmbientStepsPortableRoomReader(private val database: AppDatabase) {
 		includeCountDomainGraph = false,
 	)
 
+	/**
+	 * Reads one bounded complete all-day Steps snapshot including its verified v2 count-domain graph.
+	 */
 	suspend fun readV2(request: AmbientStepsPortableReadRequest): AmbientStepsPortableSnapshot = read(
 		request,
 		AmbientStepsPortableReadLimits(),
@@ -172,7 +200,9 @@ class AmbientStepsPortableRoomReader(private val database: AppDatabase) {
 				it.operation == AmbientStepsFactRevisionEntity.OPERATION_UPSERT
 			}
 		}
-		if (effectiveFacts.isEmpty()) return AmbientStepsPortableSnapshot.NoData
+		if (effectiveFacts.isEmpty()) {
+			return AmbientStepsPortableSnapshot.NoData
+		}
 		val retainedFromMs = evidence.retainedFromMs
 		if (retainedFromMs != null && effectiveFacts.any {
 			requireNotNull(it.windowStartTimeMs) < retainedFromMs
@@ -185,7 +215,9 @@ class AmbientStepsPortableRoomReader(private val database: AppDatabase) {
 			requireNotNull(fact.windowEndTimeMs) > request.fromInclusiveMs &&
 				requireNotNull(fact.windowStartTimeMs) < request.toExclusiveMs
 		}
-		if (overlappingFacts.isEmpty()) return AmbientStepsPortableSnapshot.NoData
+		if (overlappingFacts.isEmpty()) {
+			return AmbientStepsPortableSnapshot.NoData
+		}
 		val selectedKeys = overlappingFacts.mapTo(linkedSetOf()) { it.dayKey() }
 		requirePortableBound(selectedKeys.size <= limits.maximumDays)
 		val selectedFacts = effectiveFacts.filter { it.dayKey() in selectedKeys }
@@ -298,21 +330,16 @@ private fun AmbientStepsImportGapEntity.subtractCoveredFacts(
 	maximumParts: Int,
 ): List<AmbientStepsPortableEffectiveGap> {
 	requirePortableBound(maximumParts >= 0)
-	if (gapEndTimeMs == gapStartTimeMs) return emptyList()
-	val coverage = facts.asSequence().filter { fact ->
-		fact.provider == provider && fact.sourceInstanceId == sourceInstanceId &&
-			fact.registrationGeneration == registrationGeneration &&
-			fact.collectedDataEpoch == collectedDataEpoch &&
-			requireNotNull(fact.windowEndTimeMs) > gapStartTimeMs &&
-			requireNotNull(fact.windowStartTimeMs) < gapEndTimeMs
-	}.map { fact ->
-		maxOf(gapStartTimeMs, requireNotNull(fact.windowStartTimeMs)) to
-			minOf(gapEndTimeMs, requireNotNull(fact.windowEndTimeMs))
-	}.sortedBy(Pair<Long, Long>::first).toList()
+	if (gapEndTimeMs == gapStartTimeMs) {
+		return emptyList()
+	}
+	val coverage = coveredFactIntervals(facts)
 	val result = mutableListOf<AmbientStepsPortableEffectiveGap>()
 	var remainingStart = gapStartTimeMs
 	coverage.forEach { (start, end) ->
-		if (end <= remainingStart) return@forEach
+		if (end <= remainingStart) {
+			return@forEach
+		}
 		if (start > remainingStart) {
 			requirePortableBound(result.size < maximumParts)
 			result += AmbientStepsPortableEffectiveGap(
@@ -336,13 +363,29 @@ private fun AmbientStepsImportGapEntity.subtractCoveredFacts(
 	return result
 }
 
+private fun AmbientStepsImportGapEntity.coveredFactIntervals(
+	facts: List<AmbientStepsFactRevisionEntity>,
+): List<Pair<Long, Long>> =
+	facts.asSequence().filter { fact ->
+		fact.provider == provider && fact.sourceInstanceId == sourceInstanceId &&
+			fact.registrationGeneration == registrationGeneration &&
+			fact.collectedDataEpoch == collectedDataEpoch &&
+			requireNotNull(fact.windowEndTimeMs) > gapStartTimeMs &&
+			requireNotNull(fact.windowStartTimeMs) < gapEndTimeMs
+	}.map { fact ->
+		maxOf(gapStartTimeMs, requireNotNull(fact.windowStartTimeMs)) to
+			minOf(gapEndTimeMs, requireNotNull(fact.windowEndTimeMs))
+	}.sortedBy(Pair<Long, Long>::first).toList()
+
 private fun AmbientStepsPortableEffectiveGap.clipTo(
 	day: AmbientStepsPortableDayKey,
 	retainedFromMs: Long?,
 ): PortableAmbientStepsGapV1? {
 	val start = maxOf(startTimeMs, day.startTimeMs, retainedFromMs ?: day.startTimeMs)
 	val end = minOf(endTimeMs, day.endTimeMs)
-	if (end <= start) return null
+	if (end <= start) {
+		return null
+	}
 	val identity = AmbientStepsPortableOpaqueIdentity.derive(
 		AmbientStepsPortableIdentityKind.GAP,
 		"$localGapId|$start|$end",
@@ -380,11 +423,7 @@ private fun AmbientStepsPortableDayKey.toPortableDay(
 	val entireDayAccountedFor = coverageIntervals.covers(startTimeMs, endTimeMs)
 	val completelyCoveredByFacts = !pendingPrefix && gaps.isEmpty() && retainedBoundary == null &&
 		facts.map { it.intervalStartTimeMs to it.intervalEndTimeMs }.covers(startTimeMs, endTimeMs)
-	val causes = buildList {
-		if (gaps.isNotEmpty()) add(PortableAmbientStepsPartialCause.EXPLICIT_GAP)
-		if (retainedBoundary != null) add(PortableAmbientStepsPartialCause.RETENTION)
-		if (!entireDayAccountedFor || pendingPrefix) add(PortableAmbientStepsPartialCause.OUTSIDE_AUTHORITY)
-	}.distinct().sortedBy { it.ordinal }
+	val causes = portableDayPartialCauses(gaps, retainedBoundary, entireDayAccountedFor, pendingPrefix)
 	val total = facts.fold(0L) { sum, fact -> Math.addExact(sum, fact.stepCount) }
 	val identity = AmbientStepsPortableOpaqueIdentity.derive(
 		AmbientStepsPortableIdentityKind.DAY,
@@ -409,17 +448,42 @@ private fun AmbientStepsPortableDayKey.toPortableDay(
 	)
 }
 
+private fun portableDayPartialCauses(
+	gaps: List<PortableAmbientStepsGapV1>,
+	retainedBoundary: Long?,
+	entireDayAccountedFor: Boolean,
+	pendingPrefix: Boolean,
+): List<PortableAmbientStepsPartialCause> = buildList {
+	if (gaps.isNotEmpty()) {
+		add(PortableAmbientStepsPartialCause.EXPLICIT_GAP)
+	}
+	if (retainedBoundary != null) {
+		add(PortableAmbientStepsPartialCause.RETENTION)
+	}
+	if (!entireDayAccountedFor || pendingPrefix) {
+		add(PortableAmbientStepsPartialCause.OUTSIDE_AUTHORITY)
+	}
+}.distinct().sortedBy { it.ordinal }
+
 private fun List<Pair<Long, Long>>.covers(startTimeMs: Long, endTimeMs: Long): Boolean {
 	var coveredThrough = startTimeMs
 	for ((start, end) in this) {
-		if (end <= coveredThrough) continue
-		if (start > coveredThrough) return false
+		if (end <= coveredThrough) {
+			continue
+		}
+		if (start > coveredThrough) {
+			return false
+		}
 		coveredThrough = maxOf(coveredThrough, end)
-		if (coveredThrough >= endTimeMs) return true
+		if (coveredThrough >= endTimeMs) {
+			return true
+		}
 	}
 	return false
 }
 
+// Fixed saved gap-code conversion, including the existing unknown-code failure.
+@Suppress("CyclomaticComplexMethod")
 private fun String.toPortableGapReason(): PortableAmbientStepsGapReason = when (this) {
 	AmbientStepsImportGapEntity.REASON_PROVIDER_NO_EVIDENCE ->
 		PortableAmbientStepsGapReason.PROVIDER_NO_EVIDENCE
@@ -439,7 +503,9 @@ private fun String.toPortableGapReason(): PortableAmbientStepsGapReason = when (
 }
 
 private fun requirePortableBound(condition: Boolean) {
-	if (!condition) throw AmbientStepsPortableLimitExceeded()
+	if (!condition) {
+		throw AmbientStepsPortableLimitExceeded()
+	}
 }
 
 private class AmbientStepsPortableLimitExceeded : IllegalStateException()

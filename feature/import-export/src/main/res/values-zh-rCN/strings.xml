@@ -40,4 +40,22 @@
     <string name="format_database">数据库备份（ZIP）</string>
     <string name="settings_import_summary">从支持的类型（%1$s）和归档文件（%2$s）导入数据。数据库导入会合并兼容行，不会替换现有数据。</string>
     <string name="settings_import_title">导入</string>
+    <string name="export_radio_sensitivity_title">导出网络详情？</string>
+    <string name="export_wifi_sensitivity_message">此文件包含已保存的 Wi-Fi 名称和接入点 ID。</string>
+    <string name="export_cell_sensitivity_message">此文件包含已保存的基站 ID 和信号测量数据。</string>
+    <string name="export_radio_no_data">此数据源没有已保存的数据</string>
+    <string name="export_include_complete_sessions">包含完整会话</string>
+    <string name="import_location_conflict_title">替换已保存的点？</string>
+    <string name="import_location_replace">使用文件中的点</string>
+    <string name="import_location_keep">保留已保存的点</string>
+    <string name="export_backup_review_title">检查定时备份</string>
+    <string name="export_backup_review_summary">已暂停，请先检查更新后的数据备份。</string>
+    <string name="export_backup_review_message">这些计划现在会备份所有已保存的跟踪数据及恢复所需的文件，不包含设置。要恢复这些计划吗？\n\n%1$s</string>
+    <string name="export_backup_review_resume">恢复备份</string>
+    <string name="import_backup_replace_title">恢复数据备份？</string>
+    <string name="import_backup_replace_message">用此备份替换已保存的数据？您的设置保持不变。跟踪将关闭，直到您重新启用。</string>
+    <string name="import_backup_restore">替换数据</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="other">此文件中有 %d 个点与已保存的副本不同。请选择要保留的版本。其他点将正常导入。</item>
+    </plurals>
 </resources>

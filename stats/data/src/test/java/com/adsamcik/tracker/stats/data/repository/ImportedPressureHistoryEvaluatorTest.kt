@@ -401,6 +401,8 @@ class ImportedPressureHistoryEvaluatorTest {
 		queries.none { it.isLocalPressureSelectorRead() } shouldBe true
 	}
 
+	// Keep the cross-page recency collision and observed export together to verify rejection before materialization.
+	@Suppress("LongMethod")
 	@Test
 	fun `retained collision across export continuation rejects before local or imported detail`() =
 		runTest {
@@ -558,6 +560,8 @@ class ImportedPressureHistoryEvaluatorTest {
 		page.entries.single().recency.newestMemberStartTimeMs shouldBe 3_000L
 	}
 
+	// Follow the same retained entries across database reopen and limit-one continuation to preserve recency order.
+	@Suppress("LongMethod")
 	@Test
 	fun `retained recency keyset survives reopen and limit one continuation`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Application>()

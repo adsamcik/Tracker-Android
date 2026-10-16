@@ -1,5 +1,10 @@
 package com.adsamcik.tracker.map.ui
 
+import com.adsamcik.tracker.map.export.MapShareCaptureRequest
+import com.adsamcik.tracker.map.export.MapSnapshotRenderer
+import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
+import com.adsamcik.tracker.shared.base.data.ImportedDataFilesRevision
+
 import com.adsamcik.tracker.tracker.controller.hasLiveCapture
 import com.adsamcik.tracker.tracker.controller.hasLiveCaptureFlow
 import android.os.StrictMode
@@ -201,7 +206,7 @@ fun MapScreen(
     bottomPaddingPx: Int = 0,
     isLocationPermissionGranted: Boolean = false,
     topInsetPadding: Dp = 0.dp,
-    shareCaptureRequest: com.adsamcik.tracker.map.export.MapShareCaptureRequest? = null,
+    shareCaptureRequest: MapShareCaptureRequest? = null,
     onShareCaptureStarted: () -> Unit = {},
     onShareCaptureFinished: (success: Boolean) -> Unit = {},
 ) {
@@ -241,7 +246,7 @@ fun MapScreen(
     }
     val customPath by prefs.observeString(basemapPathKey, "")
         .collectAsState(initial = "")
-    val importedFilesRevision by com.adsamcik.tracker.shared.base.data.ImportedDataFilesRevision.revisions.collectAsState()
+    val importedFilesRevision by ImportedDataFilesRevision.revisions.collectAsState()
 
     var defaultBasemapPath by remember {
         // Start null and let the IO-bound LaunchedEffect below populate this via
@@ -316,7 +321,7 @@ fun MapScreen(
     val density = LocalDensity.current
     val bottomPaddingDp = with(density) { bottomPaddingPx.toDp() }
     val sheetVisibility = state.sheet.visibility
-    val shouldBlockMapGestures = sheetVisibility == com.adsamcik.tracker.map.presentation.udf.SheetVisibility.Expanded
+    val shouldBlockMapGestures = sheetVisibility == SheetVisibility.Expanded
     val hasUserLocation = remember(state.overlays) {
         derivedStateOf { state.overlays.any { it is MapOverlayState.UserMarker } }
     }
@@ -523,7 +528,7 @@ fun MapScreen(
         val outputSize = request.resolution.resolveOutputSizePx(aspectRatio)
         val success = try {
             store.mapImageShareHelper.renderAndShare(appContext, request.startupGeneration) {
-                com.adsamcik.tracker.map.export.MapSnapshotRenderer.render(
+                MapSnapshotRenderer.render(
                     context = appContext,
                     baseStyle = resolvedStyle,
                     cameraPosition = cameraState.position,

@@ -62,6 +62,8 @@ internal data class TrackingDiagnosticEventEntity(
 	val occurrenceCountBucket: String,
 )
 
+// One diagnostic-event table contract; storage policy and transactions live in the store.
+@Suppress("TooManyFunctions")
 @Dao
 internal interface TrackingDiagnosticDao {
 	@Insert

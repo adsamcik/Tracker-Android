@@ -191,8 +191,12 @@ class ZipArchiveExtractorTest {
 			})
 			assertFailsWith<CancellationException> {
 				withContext(copyJob) {
-					if (classify) cancelling.classifyForMergeImport(mockContext, mockFile(archive))
-					else cancelling.extract(mockContext, mockFile(archive), { true }) { consumed = true }
+					if (classify) {
+						cancelling.classifyForMergeImport(mockContext, mockFile(archive))
+					}
+					else {
+						cancelling.extract(mockContext, mockFile(archive), { true }) { consumed = true }
+					}
 				}
 			}
 			reads shouldBe 1
@@ -219,7 +223,9 @@ class ZipArchiveExtractorTest {
 		private var closed = false
 
 		override fun close() {
-			if (closed) return
+			if (closed) {
+				return
+			}
 			closed = true
 			try {
 				super.close()
@@ -382,7 +388,9 @@ class ZipArchiveExtractorTest {
 			var created = 0
 			val lazyExtractor = ZipArchiveExtractor(
 				tempFileFactory = { directory ->
-					if (created > 0) cachedFiles().shouldBeEmpty()
+					if (created > 0) {
+						cachedFiles().shouldBeEmpty()
+					}
 					created++
 					File.createTempFile("zip-entry-", ".tmp", directory)
 				},
@@ -446,7 +454,9 @@ class ZipArchiveExtractorTest {
 			val failingExtractor = ZipArchiveExtractor(
 				tempFileFactory = { importCacheDir ->
 					createdTempFiles++
-					if (createdTempFiles == 2) throw IOException("Simulated temp file failure")
+					if (createdTempFiles == 2) {
+						throw IOException("Simulated temp file failure")
+					}
 					File.createTempFile("zip-entry-", ".tmp", importCacheDir)
 				}
 			)
@@ -663,14 +673,22 @@ class ZipArchiveExtractorTest {
 		private var offset = 0
 
 		override fun read(): Int {
-			if (offset >= failAfterBytes) throw failure
-			if (offset >= bytes.size) return -1
+			if (offset >= failAfterBytes) {
+				throw failure
+			}
+			if (offset >= bytes.size) {
+				return -1
+			}
 			return bytes[offset++].toInt() and 0xff
 		}
 
 		override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-			if (this.offset >= failAfterBytes) throw failure
-			if (this.offset >= bytes.size) return -1
+			if (this.offset >= failAfterBytes) {
+				throw failure
+			}
+			if (this.offset >= bytes.size) {
+				return -1
+			}
 			val count = minOf(length, failAfterBytes - this.offset, bytes.size - this.offset)
 			bytes.copyInto(buffer, offset, this.offset, this.offset + count)
 			this.offset += count
@@ -687,13 +705,17 @@ class ZipArchiveExtractorTest {
 
 		override fun read(): Int {
 			val value = super.read()
-			if (value >= 0) record(1)
+			if (value >= 0) {
+				record(1)
+			}
 			return value
 		}
 
 		override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
 			val count = super.read(buffer, offset, length)
-			if (count > 0) record(count)
+			if (count > 0) {
+				record(count)
+			}
 			return count
 		}
 

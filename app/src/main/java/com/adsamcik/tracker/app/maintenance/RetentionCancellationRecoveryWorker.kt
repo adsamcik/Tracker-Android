@@ -10,6 +10,7 @@ import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
 
 @HiltWorker
+/** Retries durable retention cancellation debt through the existing scheduler. */
 class RetentionCancellationRecoveryWorker @AssistedInject constructor(
 	@Assisted appContext: Context,
 	@Assisted params: WorkerParameters,
@@ -31,6 +32,7 @@ class RetentionCancellationRecoveryWorker @AssistedInject constructor(
 		}
 	}
 
+	/** Stable identity shared by cancellation scheduling and recovery. */
 	companion object {
 		internal const val UNIQUE_WORK_NAME = "APP.RETENTION_CANCELLATION_RECOVERY"
 	}

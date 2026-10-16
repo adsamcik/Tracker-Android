@@ -128,19 +128,28 @@ class LocationSourceRuntime @Inject internal constructor(
 			stopUiOnlyLocked()
 			return@withLock false
 		}
-		val backend = when (application.plan.backend) {
+		applyUiBackendLocked(application.plan)
+	}
+
+	private suspend fun applyUiBackendLocked(plan: LocationPlan): Boolean {
+		val backend = when (plan.backend) {
 			LocationBackend.FUSED -> fusedBackend
 			LocationBackend.FRAMEWORK -> frameworkBackend
 		}
-		val effective = backend.resolvePlan(application.plan) ?: run {
+		val effective = backend.resolvePlan(plan) ?: run {
 			stopUiOnlyLocked()
-			return@withLock false
+			return false
 		}
 		if (uiOnlyAccepting && uiOnlyBackend === backend &&
 			uiOnlyPlan?.physicalConfigurationFingerprint() ==
-				effective.physicalConfigurationFingerprint()) return@withLock true
-		if (!stopUiOnlyLocked()) return@withLock false
-		if (!reconcilePendingRetirementLocked()) return@withLock false
+				effective.physicalConfigurationFingerprint()) return true
+		if (!stopUiOnlyLocked() || !reconcilePendingRetirementLocked()) return false
+		return startUiOnlyLocked(backend, effective)
+	}
+
+	private suspend fun startUiOnlyLocked(
+		backend: LocationSourceBackendController, effective: LocationPlan,
+	): Boolean {
 		val token = LocationCallbackToken()
 		uiOnlyBackend = backend
 		synchronized(callbackLock) {
@@ -168,14 +177,14 @@ class LocationSourceRuntime @Inject internal constructor(
 				uiOnlyAccepting = false
 				uiOnlyToken = null
 			}
-			return@withLock false
+			return false
 		}
 		if (outcome != LocationBackendStartOutcome.STARTED) {
 			stopUiOnlyLocked()
-			return@withLock false
+			return false
 		}
 		uiOnlyPlan = effective
-		true
+		return true
 	}
 
 	internal suspend fun stopUiOnly(): Boolean = lifecycleMutex.withLock { stopUiOnlyLocked() }
@@ -305,7 +314,8 @@ class LocationSourceRuntime @Inject internal constructor(
 				(stopped == null && retryOwnedRetirementLocked())
 			if (!cleanupComplete) {
 				return@withLock SourceApplyResult.Failed(
-					appliedState(source, plan.revision, null, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()),
+					appliedState(source, plan.revision, null, SourceApplyStatus.FAILED,
+                        SystemClock.elapsedRealtimeNanos()),
 					retryable = true,
 					stopAck = predecessorStopAck,
 				)
@@ -324,24 +334,12 @@ class LocationSourceRuntime @Inject internal constructor(
 		}
 		if (!plan.enabled) {
 			return@withLock SourceApplyResult.Applied(
-				appliedState(source, plan.revision, null, SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()),
+				appliedState(source, plan.revision, null, SourceApplyStatus.APPLIED,
+                    SystemClock.elapsedRealtimeNanos()),
 				stopAck = predecessorStopAck,
 			)
 		}
-		when (val result = startLocked(claim, plan, sink, maximumEvidenceAgeMs)) {
-			is SourceStartResult.Started -> SourceApplyResult.Applied(result.applied, predecessorStopAck)
-			is SourceStartResult.Degraded -> SourceApplyResult.Degraded(result.applied, predecessorStopAck)
-			is SourceStartResult.Blocked -> SourceApplyResult.Failed(
-				result.applied,
-				retryable = false,
-				stopAck = predecessorStopAck,
-			)
-			is SourceStartResult.Failed -> SourceApplyResult.Failed(
-				result.applied,
-				result.retryable,
-				predecessorStopAck,
-			)
-		}
+		startLocked(claim, plan, sink, maximumEvidenceAgeMs).toApplyResult(predecessorStopAck)
 	}
 
 	override suspend fun quiesce(cutoff: SessionCutoff): SourceStopAck = lifecycleMutex.withLock {
@@ -418,15 +416,8 @@ class LocationSourceRuntime @Inject internal constructor(
 			appDrainComplete = false,
 			status = SourceStopStatus.PROVIDER_FAILED,
 		)
+		closeCurrentPlanLocked()?.let { return@withLock it }
 		when {
-			currentPlan != null && (isAcceptingCallbacks() || hasUnretiredCallbackLane()) ->
-				shutdownLocked(null, RETIRE_REASON_RUNTIME_CLOSE)
-			currentPlan != null && !retryOwnedRetirementLocked() ->
-				terminalStopAck ?: unavailableAck(null).copy(
-					registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED,
-					appDrainComplete = false,
-					status = SourceStopStatus.PROVIDER_FAILED,
-				)
 			!reconcilePendingRetirementLocked() -> unavailableAck(null).copy(
 				registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED,
 				appDrainComplete = false,
@@ -439,6 +430,21 @@ class LocationSourceRuntime @Inject internal constructor(
 			)
 			else -> terminalStopAck ?: unavailableAck(null)
 		}
+	}
+
+	private suspend fun closeCurrentPlanLocked(): SourceStopAck? {
+		if (currentPlan == null) return null
+		if (isAcceptingCallbacks() || hasUnretiredCallbackLane()) {
+			return shutdownLocked(null, RETIRE_REASON_RUNTIME_CLOSE)
+		}
+		if (!retryOwnedRetirementLocked()) {
+			return terminalStopAck ?: unavailableAck(null).copy(
+				registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED,
+				appDrainComplete = false,
+				status = SourceStopStatus.PROVIDER_FAILED,
+			)
+		}
+		return null
 	}
 
 	override suspend fun close() {
@@ -613,7 +619,8 @@ class LocationSourceRuntime @Inject internal constructor(
 			appliedState(source, plan.revision, null, SourceApplyStatus.BLOCKED, SystemClock.elapsedRealtimeNanos())
 				.copy(degradedReasons = application.reasons),
 		)
-		val backend: LocationSourceBackendController = if (application.plan.passiveSystemDelivery) passiveBackend else when (application.plan.backend) {
+		val backend: LocationSourceBackendController =
+            if (application.plan.passiveSystemDelivery) passiveBackend else when (application.plan.backend) {
 			LocationBackend.FUSED -> fusedBackend
 			LocationBackend.FRAMEWORK -> frameworkBackend
 		}
@@ -724,7 +731,8 @@ class LocationSourceRuntime @Inject internal constructor(
 		if (!accepted) {
 			cleanupFailedStart(nextRegistration, backend, nextQueue, "REGISTRATION_ACCEPTANCE_STALE")
 			return SourceStartResult.Failed(
-				appliedState(source, plan.revision, nextRegistration, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()),
+				appliedState(source, plan.revision, nextRegistration, SourceApplyStatus.FAILED,
+                    SystemClock.elapsedRealtimeNanos()),
 				retryable = true,
 			)
 		}
@@ -781,6 +789,8 @@ class LocationSourceRuntime @Inject internal constructor(
 	}
 
 	/** Settle an orphaned PendingIntent before the same physical owner changes transport. */
+	// Ordered absence, reuse, unplanned-reservation and conflicting-owner outcomes precede removal.
+	@Suppress("ReturnCount")
 	private suspend fun settleSystemLocationBeforePlanLocked(next: LocationPlan?): Boolean {
 		val rows = runCatchingNonCancellation { registrations.systemLocationRegistrations() }
 			.getOrNull() ?: return false
@@ -791,6 +801,12 @@ class LocationSourceRuntime @Inject internal constructor(
 		val identity = registrations.passiveLocationIdentity(row)
 		if (identity == null) return registrations.abandonUnplannedSystemLocationReservation(row)
 		if (passiveBackend.hasRetainedRegistration && !passiveBackend.retains(identity)) return false
+		return removeSystemLocationLocked(row, identity)
+	}
+
+	private suspend fun removeSystemLocationLocked(
+		row: ProviderRegistrationGenerationEntity, identity: PassiveLocationIdentity,
+	): Boolean {
 		val sameBoot = row.clockDomainId ==
 			runCatchingNonCancellation { registrations.currentBootId() }.getOrNull()
 		val token = if (sameBoot) registrations.beginSystemLocationRetirement(
@@ -1117,32 +1133,7 @@ class LocationSourceRuntime @Inject internal constructor(
 			RegistrationRemovalOutcome.FAILED,
 		)
 		if (token.providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE) {
-			if (fusedBackend.hasRetainedRegistration || frameworkBackend.hasRetainedRegistration) {
-				return LocationRetirementAttempt(LocationRetirementDurability.PENDING,
-					RegistrationRemovalOutcome.FAILED)
-			}
-			val row = runCatchingNonCancellation { registrations.systemLocationRegistrations() }
-				.getOrNull()?.singleOrNull { it.registrationGeneration == token.registrationGeneration &&
-					it.sourceInstanceId == token.sourceInstanceId.value }
-			val identity = row?.let { registrations.passiveLocationIdentity(it) }
-				?: return LocationRetirementAttempt(LocationRetirementDurability.PENDING,
-					RegistrationRemovalOutcome.FAILED)
-			if (passiveBackend.hasRetainedRegistration && !passiveBackend.retains(identity)) {
-				return LocationRetirementAttempt(LocationRetirementDurability.PENDING,
-					RegistrationRemovalOutcome.FAILED)
-			}
-			val removal = withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
-				passiveBackend.removeExact(identity)
-			} ?: RegistrationRemovalOutcome.FAILED
-			if (removal != RegistrationRemovalOutcome.REMOVED &&
-				removal != RegistrationRemovalOutcome.NOT_REGISTERED
-			) return LocationRetirementAttempt(LocationRetirementDurability.PENDING, removal)
-			val complete = withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
-				registrations.completeRetirement(token)
-			} == true
-			if (complete) pendingRetirementToken = null
-			return LocationRetirementAttempt(if (complete) LocationRetirementDurability.COMPLETE
-				else LocationRetirementDurability.PENDING, removal)
+			return removeSystemRetirementLocked(token)
 		}
 		val retainedBackends = knownRetainedBackends ?: retainedBackendsOrNull()
 			?: return LocationRetirementAttempt(
@@ -1183,6 +1174,41 @@ class LocationSourceRuntime @Inject internal constructor(
 		}
 	}
 
+	// Each failed exact-owner/removal check returns its original pending outcome before completion.
+	@Suppress("ReturnCount")
+	private suspend fun removeSystemRetirementLocked(
+		token: SourceRegistrationRetirementToken,
+	): LocationRetirementAttempt {
+		if (fusedBackend.hasRetainedRegistration || frameworkBackend.hasRetainedRegistration) {
+			return LocationRetirementAttempt(LocationRetirementDurability.PENDING,
+				RegistrationRemovalOutcome.FAILED)
+		}
+		val row = runCatchingNonCancellation { registrations.systemLocationRegistrations() }
+			.getOrNull()?.singleOrNull { it.registrationGeneration == token.registrationGeneration &&
+				it.sourceInstanceId == token.sourceInstanceId.value }
+		val identity = row?.let { registrations.passiveLocationIdentity(it) }
+			?: return LocationRetirementAttempt(LocationRetirementDurability.PENDING,
+				RegistrationRemovalOutcome.FAILED)
+		return removeExactSystemRetirementLocked(token, identity)
+	}
+
+	private suspend fun removeExactSystemRetirementLocked(
+		token: SourceRegistrationRetirementToken,
+		identity: PassiveLocationIdentity,
+	): LocationRetirementAttempt {
+		if (passiveBackend.hasRetainedRegistration && !passiveBackend.retains(identity)) {
+			return LocationRetirementAttempt(LocationRetirementDurability.PENDING,
+				RegistrationRemovalOutcome.FAILED)
+		}
+		val removal = withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
+			passiveBackend.removeExact(identity)
+		} ?: RegistrationRemovalOutcome.FAILED
+		if (removal != RegistrationRemovalOutcome.REMOVED &&
+			removal != RegistrationRemovalOutcome.NOT_REGISTERED
+		) return LocationRetirementAttempt(LocationRetirementDurability.PENDING, removal)
+		return completeSystemRetirementLocked(token, removal)
+	}
+
 	private fun retainedBackendsOrNull(): List<LocationSourceBackendController>? = runCatchingNonCancellation {
 		buildList {
 			if (fusedBackend.hasRetainedRegistration) add(fusedBackend)
@@ -1190,6 +1216,18 @@ class LocationSourceRuntime @Inject internal constructor(
 			if (passiveBackend.hasRetainedRegistration) add(passiveBackend)
 		}
 	}.getOrNull()
+
+	private suspend fun completeSystemRetirementLocked(
+		token: SourceRegistrationRetirementToken,
+		removal: RegistrationRemovalOutcome,
+	): LocationRetirementAttempt {
+		val complete = withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
+			registrations.completeRetirement(token)
+		} == true
+		if (complete) pendingRetirementToken = null
+		return LocationRetirementAttempt(if (complete) LocationRetirementDurability.COMPLETE
+			else LocationRetirementDurability.PENDING, removal)
+	}
 
 	private fun retainRetirementOwnership() {
 		synchronized(callbackLock) {
@@ -1234,7 +1272,8 @@ class LocationSourceRuntime @Inject internal constructor(
 		synchronized(callbackLock) {
 			val context = callbackContext
 			val pendingContext = callbackContextRefresh
-			if ((!acceptingCallbacks && pendingContext == null) || callbackToken !== callbackGeneration || context == null) return
+			if ((!acceptingCallbacks && pendingContext == null) || callbackToken !== callbackGeneration ||
+                context == null) return
 			locations.forEach { location -> uiEvents.tryEmit(UiLocationEvent.Fix(Location(location))) }
 			val callbackSequence = ++callbackEntrySequence
 			val outcome = queue?.offer(
@@ -1249,17 +1288,21 @@ class LocationSourceRuntime @Inject internal constructor(
 					pendingContext,
 				),
 			) ?: LocationLaneOffer.CLOSED
-			if (outcome != LocationLaneOffer.ACCEPTED) {
-				metrics.recordFailure(
-					callbackSequence,
-					classification = if (outcome == LocationLaneOffer.CAPACITY_EXHAUSTED) {
-						RuntimeGapClassification.CALLBACK_BUFFER_OVERFLOW
-					} else {
-						RuntimeGapClassification.ADMISSION_FAILED
-					},
-				)
-				callbackOfferFailureCoverage.record(callbackSequence..callbackSequence)
-			}
+			recordCallbackOfferFailure(outcome, callbackSequence)
+		}
+	}
+
+	private fun recordCallbackOfferFailure(outcome: LocationLaneOffer, callbackSequence: Long) {
+		if (outcome != LocationLaneOffer.ACCEPTED) {
+			metrics.recordFailure(
+				callbackSequence,
+				classification = if (outcome == LocationLaneOffer.CAPACITY_EXHAUSTED) {
+					RuntimeGapClassification.CALLBACK_BUFFER_OVERFLOW
+				} else {
+					RuntimeGapClassification.ADMISSION_FAILED
+				},
+			)
+			callbackOfferFailureCoverage.record(callbackSequence..callbackSequence)
 		}
 	}
 
@@ -1326,41 +1369,16 @@ class LocationSourceRuntime @Inject internal constructor(
 					attribution = batch.context.attribution,
 					approximate = batch.context.approximate,
 				)
-				when (val handoff = batch.context.sink.admit(delivery)) {
-					is SourceDeliveryAdmissionHandoff.Durable -> {
-						val lastOrdinal = handoff.admissionOrdinals.maxOrNull()
-						val sequence = handoff.lastSourceSequence?.takeIf { it >= 0L }
-						if (lastOrdinal != null && sequence != null) metrics.recordDurable(sequence, lastOrdinal)
-						else recordGapOnce()
-						return
-					}
-					is SourceDeliveryAdmissionHandoff.Duplicate -> {
-						val lastOrdinal = handoff.existingAdmissionOrdinals.maxOrNull()
-						val sequence = handoff.lastSourceSequence?.takeIf { it >= 0L }
-						if (lastOrdinal != null && sequence != null) metrics.recordDurable(sequence, lastOrdinal)
-						else recordGapOnce()
-						return
-					}
-					is SourceDeliveryAdmissionHandoff.SessionCutoff -> {
-						// Location does not reinterpret an already-composed atomic delivery here.
-						recordGapOnce()
-						return
-					}
-					is SourceDeliveryAdmissionHandoff.TerminalFailure -> {
-						if (handoff.code.recordsLocationAdmissionGap()) recordGapOnce()
-						return
-					}
-					is SourceDeliveryAdmissionHandoff.RetryableFailure -> {
-						val retryDelay = locationAdmissionRetryDelayMs(retryIndex)
-						if (retryDelay == null) {
-							recordGapOnce()
-							return
-						}
-						retryIndex++
-						// This is bounded in-process reconciliation, never a wake-reliable schedule.
-						delay(retryDelay)
-					}
+				val handoff = batch.context.sink.admit(delivery)
+				if (completeLocationAdmission(handoff, recordGapOnce)) return
+				val retryDelay = locationAdmissionRetryDelayMs(retryIndex)
+				if (retryDelay == null) {
+					recordGapOnce()
+					return
 				}
+				retryIndex++
+				// This is bounded in-process reconciliation, never a wake-reliable schedule.
+				delay(retryDelay)
 			}
 		} catch (cancelled: CancellationException) {
 			recordGapOnce()
@@ -1368,6 +1386,34 @@ class LocationSourceRuntime @Inject internal constructor(
 		} catch (_: Exception) {
 			recordGapOnce()
 		}
+	}
+
+	private fun completeLocationAdmission(
+		handoff: SourceDeliveryAdmissionHandoff, recordGapOnce: () -> Unit,
+	): Boolean {
+		when (handoff) {
+			is SourceDeliveryAdmissionHandoff.Durable ->
+				recordLocationAdmission(handoff.admissionOrdinals, handoff.lastSourceSequence, recordGapOnce)
+			is SourceDeliveryAdmissionHandoff.Duplicate ->
+				recordLocationAdmission(handoff.existingAdmissionOrdinals, handoff.lastSourceSequence, recordGapOnce)
+			is SourceDeliveryAdmissionHandoff.SessionCutoff -> {
+				// Location does not reinterpret an already-composed atomic delivery here.
+				recordGapOnce()
+			}
+			is SourceDeliveryAdmissionHandoff.TerminalFailure ->
+				if (handoff.code.recordsLocationAdmissionGap()) recordGapOnce()
+			is SourceDeliveryAdmissionHandoff.RetryableFailure -> return false
+		}
+		return true
+	}
+
+	private fun recordLocationAdmission(
+		ordinals: List<Long>, lastSourceSequence: Long?, recordGapOnce: () -> Unit,
+	) {
+		val lastOrdinal = ordinals.maxOrNull()
+		val sequence = lastSourceSequence?.takeIf { it >= 0L }
+		if (lastOrdinal != null && sequence != null) metrics.recordDurable(sequence, lastOrdinal)
+		else recordGapOnce()
 	}
 
 	private fun hasCurrentLocationPermission(): Boolean = permissionGate.allowsCurrentCallback()
@@ -1753,6 +1799,82 @@ internal fun locationDeliveryCandidate(
 	attribution: LocationDeliveryAttribution,
 	approximate: Boolean,
 ): SourceDeliveryCandidate {
+	requireQualifiedLocationDelivery(locations, observedTimes, receivedElapsedNanos)
+	val payloadVersion = if (locations.any { !it.hasAccuracy() }) {
+		LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
+	} else LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
+	return SourceDeliveryCandidate(
+		identity = sourceDeliveryIdentity(canonicalLocationDeliveryBytes(locations)),
+		units = locations.mapIndexed { index, location ->
+			locationDeliveryUnit(index, location, observedTimes[index], locations, receivedElapsedNanos,
+				receivedWallTimeMs, attribution, approximate, payloadVersion)
+		},
+	)
+}
+
+private fun locationDeliveryUnit(
+	index: Int, location: Location, observedNanos: Long, locations: List<Location>,
+	receivedElapsedNanos: Long, receivedWallTimeMs: Long, attribution: LocationDeliveryAttribution,
+	approximate: Boolean, payloadVersion: Int,
+): SourceDeliveryUnit {
+	val delayNanos = receivedElapsedNanos - observedNanos
+	val acquiredAtMs = location.time.takeIf { it > 0L }
+		?: (receivedWallTimeMs - delayNanos / LOCATION_NANOS_PER_MILLISECOND).coerceAtLeast(0L)
+	return SourceDeliveryUnit(
+		unitIndex = index,
+		evidence = SourceEvidenceCandidate(
+			providerDedupKey = null,
+			logicalTrackingId = null,
+			serviceRunId = null,
+			source = SourceKind.LOCATION,
+			sourceInstanceId = attribution.sourceInstanceId,
+			registrationGeneration = attribution.registrationGeneration,
+			physicalConfigurationFingerprint = attribution.physicalConfigurationFingerprint,
+			authorizationRevision = attribution.authorizationRevision,
+			registrationPurposeEligibilityMask = attribution.purposeEligibilityMask,
+			registrationEligibilityFingerprint = attribution.eligibilityFingerprint,
+			// The delivery ingress allocates the contiguous range inside its WAL transaction.
+			sourceSequence = 0L,
+			configRevision = attribution.configRevision,
+			planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
+			clockDomainId = attribution.clockDomainId,
+			observedElapsedRealtimeNanos = observedNanos,
+			receivedElapsedRealtimeNanos = receivedElapsedNanos,
+			receivedWallTimeMs = receivedWallTimeMs,
+			wallTimeMs = acquiredAtMs,
+			wallTimeUncertaintyMs = if (location.time > 0L) 0L else 1L,
+			capturedCollectedDataEpoch = attribution.collectedDataEpoch,
+			acquiredAtMs = acquiredAtMs,
+			locationSpeedAccuracyMetersPerSecond = location.speedAccuracyMetersPerSecond
+				.takeIf { location.hasSpeedAccuracy() && it.isFinite() && it >= 0f },
+			quality = SourceQuality(
+				flags = buildSet {
+					if (approximate) add(SourceQualityFlag.APPROXIMATE)
+					if (locations.size > 1 || delayNanos >= LOCATION_BATCHED_AFTER_NANOS) {
+						add(SourceQualityFlag.BATCHED)
+					}
+				},
+			),
+			payloadVersion = payloadVersion,
+			payload = LocationFixPayload(
+				latitudeDegrees = location.latitude,
+				longitudeDegrees = location.longitude,
+				horizontalAccuracyMeters = location.accuracy.takeIf { location.hasAccuracy() },
+				altitudeMeters = location.altitude.takeIf { location.hasAltitude() },
+				verticalAccuracyMeters = location.verticalAccuracyMeters
+					.takeIf { location.hasVerticalAccuracy() },
+				speedMetersPerSecond = location.speed.takeIf { location.hasSpeed() },
+				bearingDegrees = location.bearing.takeIf { location.hasBearing() },
+				provider = location.provider ?: "unknown",
+				isMock = location.isMockProviderEvidence(),
+			),
+		),
+	)
+}
+
+private fun requireQualifiedLocationDelivery(
+	locations: List<Location>, observedTimes: List<Long>, receivedElapsedNanos: Long,
+) {
 	require(locations.isNotEmpty())
 	require(observedTimes.size == locations.size)
 	require(locations.indices.all { index ->
@@ -1760,77 +1882,15 @@ internal fun locationDeliveryCandidate(
 			observedTimes[index] > 0L && observedTimes[index] <= receivedElapsedNanos &&
 			locations[index].isValidLocationEvidence()
 	}) { "Every location delivery unit must carry qualified provider evidence" }
-    val payloadVersion = if (locations.any { !it.hasAccuracy() }) {
-        LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
-    } else LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
-	return SourceDeliveryCandidate(
-		identity = sourceDeliveryIdentity(canonicalLocationDeliveryBytes(locations)),
-		units = locations.mapIndexed { index, location ->
-			val observedNanos = observedTimes[index]
-			val delayNanos = receivedElapsedNanos - observedNanos
-			val acquiredAtMs = location.time.takeIf { it > 0L }
-				?: (receivedWallTimeMs - delayNanos / LOCATION_NANOS_PER_MILLISECOND).coerceAtLeast(0L)
-			SourceDeliveryUnit(
-				unitIndex = index,
-				evidence = SourceEvidenceCandidate(
-					providerDedupKey = null,
-					logicalTrackingId = null,
-					serviceRunId = null,
-					source = SourceKind.LOCATION,
-					sourceInstanceId = attribution.sourceInstanceId,
-					registrationGeneration = attribution.registrationGeneration,
-					physicalConfigurationFingerprint = attribution.physicalConfigurationFingerprint,
-					authorizationRevision = attribution.authorizationRevision,
-					registrationPurposeEligibilityMask = attribution.purposeEligibilityMask,
-					registrationEligibilityFingerprint = attribution.eligibilityFingerprint,
-					// The delivery ingress allocates the contiguous range inside its WAL transaction.
-					sourceSequence = 0L,
-					configRevision = attribution.configRevision,
-					planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
-					clockDomainId = attribution.clockDomainId,
-					observedElapsedRealtimeNanos = observedNanos,
-					receivedElapsedRealtimeNanos = receivedElapsedNanos,
-					receivedWallTimeMs = receivedWallTimeMs,
-					wallTimeMs = acquiredAtMs,
-					wallTimeUncertaintyMs = if (location.time > 0L) 0L else 1L,
-					capturedCollectedDataEpoch = attribution.collectedDataEpoch,
-					acquiredAtMs = acquiredAtMs,
-					locationSpeedAccuracyMetersPerSecond = location.speedAccuracyMetersPerSecond
-						.takeIf { location.hasSpeedAccuracy() && it.isFinite() && it >= 0f },
-					quality = SourceQuality(
-						flags = buildSet {
-							if (approximate) add(SourceQualityFlag.APPROXIMATE)
-							if (locations.size > 1 || delayNanos >= LOCATION_BATCHED_AFTER_NANOS) {
-								add(SourceQualityFlag.BATCHED)
-							}
-						},
-					),
-					payloadVersion = payloadVersion,
-					payload = LocationFixPayload(
-						latitudeDegrees = location.latitude,
-						longitudeDegrees = location.longitude,
-						horizontalAccuracyMeters = location.accuracy.takeIf { location.hasAccuracy() },
-						altitudeMeters = location.altitude.takeIf { location.hasAltitude() },
-						verticalAccuracyMeters = location.verticalAccuracyMeters
-							.takeIf { location.hasVerticalAccuracy() },
-						speedMetersPerSecond = location.speed.takeIf { location.hasSpeed() },
-						bearingDegrees = location.bearing.takeIf { location.hasBearing() },
-						provider = location.provider ?: "unknown",
-						isMock = location.isMockProviderEvidence(),
-					),
-				),
-			)
-		},
-	)
 }
 
 private fun canonicalLocationDeliveryBytes(locations: List<Location>): ByteArray =
 	ByteArrayOutputStream().use { bytes ->
 		DataOutputStream(bytes).use { output ->
 			output.writeInt(LOCATION_DELIVERY_MAGIC)
-            val nullableAccuracy = locations.any { !it.hasAccuracy() }
+			val nullableAccuracy = locations.any { !it.hasAccuracy() }
 			output.writeInt(if (nullableAccuracy) LOCATION_OPTIONAL_ACCURACY_DELIVERY_VERSION
-                else LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION)
+				else LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION)
 			output.writeInt(locations.size)
 			locations.forEach { location ->
 				val providerBytes = (location.provider ?: "unknown").encodeToByteArray()
@@ -1840,8 +1900,8 @@ private fun canonicalLocationDeliveryBytes(locations: List<Location>): ByteArray
 				output.writeLong(location.time)
 				output.writeLong(java.lang.Double.doubleToRawLongBits(location.latitude))
 				output.writeLong(java.lang.Double.doubleToRawLongBits(location.longitude))
-                if (nullableAccuracy) output.writeOptionalFloat(location.hasAccuracy(), location.accuracy)
-                else output.writeInt(java.lang.Float.floatToRawIntBits(location.accuracy))
+				if (nullableAccuracy) output.writeOptionalFloat(location.hasAccuracy(), location.accuracy)
+				else output.writeInt(java.lang.Float.floatToRawIntBits(location.accuracy))
 				output.writeOptionalDouble(location.hasAltitude(), location.altitude)
 				output.writeOptionalFloat(location.hasVerticalAccuracy(), location.verticalAccuracyMeters)
 				output.writeOptionalFloat(location.hasSpeed(), location.speed)

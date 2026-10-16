@@ -10,6 +10,11 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 /** Exact-key access to durable, payload-free source deletion fences. */
 @Dao
 interface SourceDeletionFenceDao {
+	/**
+	 * Reads `source_deletion_fence` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `purpose = :purpose`, `scope_identity_digest IN (:scopeDigests)`. Orders by
+	 * `scope_identity_digest`. Returns at most `limit` rows.
+	 */
 	@Query("SELECT * FROM source_deletion_fence WHERE source_kind = :sourceKind AND purpose = :purpose " +
 		"AND scope_identity_digest IN (:scopeDigests) ORDER BY scope_identity_digest LIMIT :limit")
 	suspend fun contextFences(sourceKind: Int, purpose: String, scopeDigests: List<String>,

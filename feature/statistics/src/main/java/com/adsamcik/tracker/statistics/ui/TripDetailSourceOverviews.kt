@@ -55,6 +55,8 @@ private val sourceDetailDateTimeFormatter: DateTimeFormatter by lazy {
 
 /** Exact Activity-only selected detail built solely from retained Activity history. */
 @Composable
+// Keep this cohesive Compose declaration together; its operation and condition checks remain active.
+@Suppress("LongMethod")
 internal fun TripDetailActivityOverview(
 	activity: ActivityHistoryEntry,
 	intent: SourceOnlyHistoryIntent? = null,

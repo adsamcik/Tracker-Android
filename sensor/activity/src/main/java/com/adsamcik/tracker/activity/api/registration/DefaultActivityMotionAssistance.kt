@@ -5,6 +5,8 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.SourcePolicyDao
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
@@ -48,9 +50,7 @@ class DefaultActivityMotionAssistance @Inject constructor(
 	) = synchronized(monitor) {
 		val identity = snapshot.identity
 		if (authority == null || !snapshot.active || identity == null ||
-			identity.clockDomainId != authority.clockDomainId || identity.collectedDataEpoch != authority.collectedDataEpoch ||
-			ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE !in snapshot.owners ||
-			!snapshot.transitions.containsAll(transitions)
+			!identity.matchesMotionAuthority(authority, snapshot, transitions)
 		) {
 			active = null
 		} else if (active?.let {
@@ -64,82 +64,132 @@ class DefaultActivityMotionAssistance @Inject constructor(
 
 	/** Called at reservation, acknowledgement and delivery; a stored boolean is not host authority. */
 	internal suspend fun isAuthorityCurrent(authority: ActivityMotionAssistanceAuthority): Boolean {
-		if (!startupGateProvider.get().isReady || !startupGateProvider.get().permitsNewCollection || !context.hasActivityPermission ||
-			bootClockDomainProvider.current() != authority.clockDomainId ||
-			lifecycleStore.snapshot().epoch != authority.collectedDataEpoch
-		) return false
-		val policyDao = database.sourcePolicyDao()
-		val current = policyDao.authority() ?: return false
-		if (current.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE ||
-			current.currentPolicyRevision != authority.policyRevision
-		) return false
-		val location = policyDao.policyAtRevision(authority.policyRevision, LOCATION_SOURCE_KIND)
-			?: return false
-		if (!location.locationMotionAssistanceEnabled || location.balanceProfileVersion != 1 ||
-			(location.effectiveBootId == authority.clockDomainId &&
-				location.effectiveElapsedRealtimeNanos > authority.effectiveElapsedRealtimeNanos)
-		) return false
-		val purpose = when (authority.locationPurpose) {
-			LocationMotionPurpose.CAPTURE -> {
-				if (!location.enabled || !location.capturePersistenceEligible ||
-					location.captureConsentEpoch != authority.locationConsentEpoch
-				) return false
-				SourceBrokerPurpose.SESSION_CAPTURE
-			}
-			LocationMotionPurpose.BACKGROUND -> {
-				if (!location.ambientPersistenceEligible || location.locationBackgroundMode != 2 ||
-					location.ambientConsentEpoch != authority.locationConsentEpoch
-				) return false
-				SourceBrokerPurpose.AMBIENT_PRODUCT
-			}
+		if (isEnvironmentBlocked(authority)) {
+			return false
 		}
-		val consent = policyDao.latestConsentEpoch(LOCATION_SOURCE_KIND, purpose) ?: return false
-		return consent.eligible && consent.persistenceEligible &&
+		val policyDao = database.sourcePolicyDao()
+		val location = policyDao.currentMotionPolicy(authority) ?: return false
+		val purpose = location.motionConsentPurpose(authority) ?: return false
+		val consent = policyDao.latestConsentEpoch(LOCATION_SOURCE_KIND, purpose)
+		return consent != null && consent.eligible && consent.persistenceEligible &&
 			consent.epoch == authority.locationConsentEpoch &&
 			(consent.effectiveBootId != authority.clockDomainId ||
 				consent.effectiveElapsedRealtimeNanos <= authority.effectiveElapsedRealtimeNanos)
 	}
 
+	private suspend fun isEnvironmentBlocked(authority: ActivityMotionAssistanceAuthority): Boolean =
+		!startupGateProvider.get().isReady || !startupGateProvider.get().permitsNewCollection ||
+			!context.hasActivityPermission ||
+			bootClockDomainProvider.current() != authority.clockDomainId ||
+			lifecycleStore.snapshot().epoch != authority.collectedDataEpoch
+
+	private suspend fun SourcePolicyDao.currentMotionPolicy(
+		authority: ActivityMotionAssistanceAuthority,
+	): SourcePolicyEntity? {
+		val current = this.authority() ?: return null
+		if (current.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE ||
+			current.currentPolicyRevision != authority.policyRevision
+		) {
+			return null
+		}
+		val location = policyAtRevision(authority.policyRevision, LOCATION_SOURCE_KIND) ?: return null
+		return location.takeUnless {
+			!it.locationMotionAssistanceEnabled || it.balanceProfileVersion != 1 ||
+				(it.effectiveBootId == authority.clockDomainId &&
+					it.effectiveElapsedRealtimeNanos > authority.effectiveElapsedRealtimeNanos)
+		}
+	}
+
+	private fun SourcePolicyEntity.motionConsentPurpose(authority: ActivityMotionAssistanceAuthority): String? =
+		when (authority.locationPurpose) {
+			LocationMotionPurpose.CAPTURE ->
+				if (!enabled || !capturePersistenceEligible || captureConsentEpoch != authority.locationConsentEpoch) {
+					null
+				} else {
+					SourceBrokerPurpose.SESSION_CAPTURE
+				}
+			LocationMotionPurpose.BACKGROUND ->
+				if (!ambientPersistenceEligible || locationBackgroundMode != 2 ||
+					ambientConsentEpoch != authority.locationConsentEpoch
+				) {
+					null
+				} else {
+					SourceBrokerPurpose.AMBIENT_PRODUCT
+				}
+		}
+
 	/** No callback payload is persisted or sent to the legacy/automatic Activity flows. */
 	internal suspend fun publish(batch: ActivityRecognitionEvidenceBatch) {
 		val expected = synchronized(monitor) { active } ?: return
-		if (batch.registrationIdentity != expected.identity) return
-		val acceptedBoundary = database.withTransaction {
-			if (!isAuthorityCurrent(expected.authority)) return@withTransaction null
-			val registration = database.sourceBrokerDao().registration(
-				ACTIVITY_SOURCE_KIND, expected.identity.registrationGeneration,
-			) ?: return@withTransaction null
-			if (registration.status != ProviderRegistrationGenerationEntity.STATUS_ACTIVE ||
-				registration.sourceInstanceId != expected.identity.sourceInstanceId ||
-				registration.clockDomainId != expected.authority.clockDomainId ||
-				registration.collectedDataEpoch != expected.authority.collectedDataEpoch ||
-				registration.physicalConfigurationFingerprint != expected.identity.physicalConfigurationFingerprint
-			) return@withTransaction null
-			registration.acceptedElapsedRealtimeNanos
+		if (batch.registrationIdentity != expected.identity) {
+			return
 		}
+		val acceptedBoundary = readAcceptedBoundary(expected)
 		if (acceptedBoundary == null) {
-			synchronized(monitor) { if (active === expected) active = null }
+			synchronized(monitor) { if (active === expected) {
+				active = null
+			} }
 			return
 		}
 		synchronized(monitor) {
-			if (active !== expected) return
-			batch.transitions.take(MAX_TRANSITIONS_PER_CALLBACK).sortedBy { it.providerElapsedRealtimeNanos }
-				.forEach { event ->
-					val transition = ActivityTransitionData(event.activityType, event.transitionType)
-					val observed = event.providerElapsedRealtimeNanos
-					if (transition !in expected.transitions || !qualifiesMotionAssistanceTime(
-						observed, batch.receivedElapsedRealtimeNanos,
-						maxOf(acceptedBoundary, expected.authority.effectiveElapsedRealtimeNanos),
-					) || observed <= (expected.latestByTransition[transition] ?: -1L)
-					) return@forEach
-					expected.latestByTransition[transition] = observed
-					updates.tryEmit(ActivityMotionHint(
-						expected.authority, expected.identity, event.activityType, event.transitionType,
-						observed, batch.receivedElapsedRealtimeNanos,
-					))
-				}
+			if (active !== expected) {
+				return
+			}
+			publishAcceptedTransitions(expected, batch, acceptedBoundary)
 		}
 	}
+
+	private fun publishAcceptedTransitions(
+		expected: AcceptedAssistance,
+		batch: ActivityRecognitionEvidenceBatch,
+		acceptedBoundary: Long,
+	) {
+		batch.transitions.take(MAX_TRANSITIONS_PER_CALLBACK).sortedBy { it.providerElapsedRealtimeNanos }
+			.forEach { event ->
+				val transition = ActivityTransitionData(event.activityType, event.transitionType)
+				val observed = event.providerElapsedRealtimeNanos
+				if (transition !in expected.transitions || !qualifiesMotionAssistanceTime(
+					observed, batch.receivedElapsedRealtimeNanos,
+					maxOf(acceptedBoundary, expected.authority.effectiveElapsedRealtimeNanos),
+				) || observed <= (expected.latestByTransition[transition] ?: -1L)
+				) {
+					return@forEach
+				}
+				expected.latestByTransition[transition] = observed
+				updates.tryEmit(ActivityMotionHint(
+					expected.authority, expected.identity, event.activityType, event.transitionType,
+					observed, batch.receivedElapsedRealtimeNanos,
+				))
+			}
+	}
+
+	private fun ActivityRegistrationIdentity.matchesMotionAuthority(
+		authority: ActivityMotionAssistanceAuthority,
+		snapshot: ActivityRegistrationSnapshot,
+		transitions: Set<ActivityTransitionData>,
+	): Boolean = clockDomainId == authority.clockDomainId && collectedDataEpoch == authority.collectedDataEpoch &&
+		ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE in snapshot.owners &&
+		snapshot.transitions.containsAll(transitions)
+
+	private suspend fun readAcceptedBoundary(expected: AcceptedAssistance): Long? = database.withTransaction {
+		if (!isAuthorityCurrent(expected.authority)) {
+			return@withTransaction null
+		}
+		val registration = database.sourceBrokerDao().registration(
+			ACTIVITY_SOURCE_KIND, expected.identity.registrationGeneration,
+		) ?: return@withTransaction null
+		if (!registration.matchesAssistance(expected)) {
+			return@withTransaction null
+		}
+		registration.acceptedElapsedRealtimeNanos
+	}
+
+	private fun ProviderRegistrationGenerationEntity.matchesAssistance(expected: AcceptedAssistance): Boolean =
+		status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE &&
+			sourceInstanceId == expected.identity.sourceInstanceId &&
+			clockDomainId == expected.authority.clockDomainId &&
+			collectedDataEpoch == expected.authority.collectedDataEpoch &&
+			physicalConfigurationFingerprint == expected.identity.physicalConfigurationFingerprint
 
 	private data class AcceptedAssistance(
 		val authority: ActivityMotionAssistanceAuthority,
@@ -155,5 +205,7 @@ class DefaultActivityMotionAssistance @Inject constructor(
 	}
 }
 
+private const val MAX_MOTION_HINT_AGE_NANOS = 30_000_000_000L
+
 internal fun qualifiesMotionAssistanceTime(observed: Long, received: Long, effective: Long): Boolean =
-	observed >= effective && observed <= received && received - observed <= 30_000_000_000L
+	observed >= effective && observed <= received && received - observed <= MAX_MOTION_HINT_AGE_NANOS

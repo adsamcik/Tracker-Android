@@ -126,7 +126,11 @@ class PortableActivityExporterTest {
 		val output = ByteArrayOutputStream()
 		val exporter = exactExporter { _, sink ->
 			calls++
-			sink.emit(activityEnvelope(activityEntry(startTimeMs = if (calls == 1) 1_000L else 2_000L)))
+			sink.emit(activityEnvelope(activityEntry(startTimeMs = if (calls == 1) {
+				1_000L
+			} else {
+				2_000L
+			})))
 			ExportPortableCapturedActivityResult.Exported(1)
 		}
 

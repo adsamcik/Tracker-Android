@@ -1,0 +1,309 @@
+{
+  "reviewer": "/root/final_convergence_review59",
+  "at": "2026-10-16T00:27:24.9069933Z",
+  "status": "STATIC_COMBINED_REVIEW_COMPLETE_WITH_REVIEWED_107_REPAIR_HOST_AND_DEVICE_ACCEPTANCE_PENDING",
+  "head": "d570858cd645dbc7115c315dc02c872c00793812",
+  "worktree": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/tv1010",
+  "constraints": [
+    "Read only: no implementation/test edits, checks, validation, provider activation, delegation, commits or integration by this reviewer. Only this ignored receipt is written.",
+    "Active run59 source/docs/HEAD remain immutable. 107 is an ignored draft, not applied or executed.",
+    "Necessary implementation and local integration authorized; no routine design approval, remote publication, deployment, destructive unrelated cleanup or protected-original alteration.",
+    "Only highest stable already configured Android target; no AVD creation/clone or older API matrix."
+  ],
+  "originalUserMessages": [
+    "The MVP requires location/steps/wifi/cell tracking to work independently of any other active tracking but also have the capability to be enriched by whatever makes sense, eg. location enriches wifi + cell for map displays and so on.",
+    "All three where supported",
+    "Sessions will essentially ideally just be times of higher fidelity and help users organize data and perhaps designate sessions as activities trips and so on. Sessions can also be added manually afterwards.",
+    "Use a 5 step configuration for balance of power and performance and figure out the best system that can support it.",
+    "Users don't care about internal implementations, they care about data.",
+    "Please close all the remaining gaps and complete the implementation work on the feature, ensuring high maintainability of the end result, streamlined implementation and no overbulding or overdesigning for the need of the app.",
+    "Complete everything, including source files and backup/restore, before freezing",
+    "Can we migrate to kotlin json serializer?"
+  ],
+  "acceptedCorrections": [
+    "Independent sessionless ambient; one all-day Steps choice; supported on-device provider copies hourly plus enable/open, bounded attempts and honest windows/gaps.",
+    "Preserve available partial, sibling and retained data after quality, End and Off; erase/retention/epoch and late-callback fences remain. Valid coordinates survive missing optional accuracy/speed.",
+    "Actual local network/tower details; optional existing Location enrichment without acquiring Location; shared My location/game leases with explicit quality/freshness overrides.",
+    "Measured UTC timestamps grouped by displayed local day; optional overlapping session annotations; Timeline/Calendar share measured history; exact details/export/delete selections.",
+    "One Wi-Fi and one Cell file, selected readings plus optional complete sessions, overlap deduplication, legacy versions, no deletion by omission.",
+    "User-edited Location conflicts offer one Keep/Replace choice; one current correction supplies every reader. Data-only logical backup excludes preferences/schedules, preserves local choices and uses existing databases without restart.",
+    "Only main released. Launcher widget removed. Declined seasonal period lookup remains unavailable; longest trips grouped by start date."
+  ],
+  "findings": [
+    {
+      "id": "P2_PERIOD_LOCATION_FALSE_PARTIAL",
+      "originalLocation": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReader.kt:105-122",
+      "consequence": "A native session spanning the selected dates counts all its membership while paging only the selected effective times; its intentional excluded points and pre-window retention cutoff incorrectly mark complete period distance Partial. The flag reaches SavedLocationMetricsReader and visible SessionStatsSnapshot.distanceIsPartial.",
+      "resolution": "Reviewed draft107 adds optional measured bounds to the existing membership sentinel and makes retention-prefix comparison relative to the selected window. Same purpose/logical/run/segment ownership; effective corrected times; null/null preserves full/live callers. Two focused real Room cases reach actual period/on-foot metrics and preserve genuine within-window retention loss.",
+      "manifest": "build/verification-20261014/period-location-completeness-future107/MANIFEST.json",
+      "manifestSha256": "2180508740112365253211eb8b7cad291c2df1958ed5423df5904db6eb4b2983",
+      "review": "All seven exact edits, complete new cases and existing native fixture inspected. All three active bases, before files and drafts match manifest hashes. No schema/entity/owner/cache/scope/framework/waiver change; original 28 test bodies remain unchanged. Source finding resolved once applied; compilation/tests still required."
+    }
+  ],
+  "noAdditionalConcreteFindings": true,
+  "scopeLimits": "This is an independent risk-based trace of current connected seams and selected changes, not a claim to have read every line of all 1227 dirty files or prove every hardware outcome. No speculative enhancements or new architecture are recommended.",
+  "inspectedConclusions": [
+    "Kotlin serialization replaces the radio codec with generated typed serializers; real Gson serializeNulls legacy scalar-owner format, checksum/value constructors, bounded token/byte limits, cancellation and source/output failures are preserved. Gson remains for unrelated formats and legacy test fixtures; no blanket parser catch added.",
+    "Shared setup prepares chosen writers and separate Activity CONTROL; automatic failure is isolated before healthy all-day reconciliation; canonical source rollback retains destination-owner handoff/CAS. Existing source observer retries reconciliation debt.",
+    "Passive Location commits original per-fix identities atomically in existing WAL, then publishes hints. Rejected session outcomes preserve independently qualified ambient siblings. UI requests share the owner and raise physical quality without granting saved tracking authority.",
+    "Retained readers consult original recording grants rather than current selection; exact erase and retention remain separate. Effective Location correction view is used by saved summaries, measured history and file reads.",
+    "Dashboard Steps/Pressure preserve exact existing detail selections; Timeline/Calendar/session contents share measured rows with local dates and expandable labels; source-owned deletion uses original exact IDs and epoch.",
+    "Backup stages and validates an app-owned copy, then logically reimports rows into existing Room connections behind stop/quiescence and a durable recovery journal. Current local settings are reissued transactionally, so archived data cannot replace settings.",
+    "Source-layout test repairs retain the semantic ordering/CAS/startup checks and operation/transfer negative cases, without assertion or quality-gate weakening."
+  ],
+  "authorityPreservation": {
+    "datedScope": "Handover ASSEMBLY_MANIFEST/QUARANTINE explicitly protect the original detached checkout and frozen copies, and forbid wholesale draft application. Candidate code may be maintained from coherent current implementations.",
+    "inspectedCandidateDelta": "DatabaseImportCollisionTest has only required braces around the pre-existing VIEW/TRIGGER conditional; no test assertion/behavior change. Original protected copies were not edited by this reviewer.",
+    "preservedInventory": "Current INPUT_DISPOSITIONS records original refs/drafts/transport artifacts; I inspected the scope/disposition, not every preserved artifact byte independently."
+  },
+  "actualEvidence": {
+    "app59": {
+      "reportRoot": "app/build/test-results/testDebugUnitTest",
+      "xmlFilesRead": 166,
+      "tests": 1009,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 2,
+      "skips": [
+        "OwnedTransferFilesTest.full clear revokes and removes files inside recognized independent share directories",
+        "OwnedTransferFilesTest.full clear revokes and removes an app-owned shared file"
+      ],
+      "latestXmlUtc": "2026-10-16T00:21:35.2080629Z",
+      "limit": "App host suite only; full ciUnitTest/ciCheck/combined final input not yet accepted."
+    },
+    "full59": "Running at receipt time. Parent reports no failure so far; final outcome and stable-input receipt pending.",
+    "device": "Parent discovery found no connected ADB device, configured AVD or installed system image. No Android/provider/rendered UI/battery evidence. User was asked to connect a debugging phone."
+  },
+  "remaining": [
+    "Apply107 only after run59 closes and its frozen-input capture completes.",
+    "Compile/execute new Room cases and rerun affected required full gates on the combined input; use valid unchanged evidence, no redundant source review.",
+    "Review final host evidence and actual device evidence separately.",
+    "Local dev/v10 integration remains parent-owned and subject to actual completion/verification; no remote publication."
+  ],
+  "sourcePins": [
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-16/ASSEMBLY_FREEZE.md",
+      "sha256": "6ea7316c2c6adea9549077b71470183650e002e9bdc2482e4a3d11e20ec7ae1c"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-16/FINAL_SOURCE_INPUT.json",
+      "sha256": "0bcf5e1e28f9224d2da0ea5c9a466897f92a17b1733840e70a73d35b881ee30b"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-16/SOURCE_ASSEMBLY_REVIEW.md",
+      "sha256": "17dd71e0037d552865b6069957d052cfd4e434024b37be58e5ff47af24897c14"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-16/INPUT_DISPOSITIONS.json",
+      "sha256": "c1f457e0fc2990797b331a70df683b66d974ffc0c9139a44bd7b5406ce2f0e1c"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/ChosenSourceWriterSetup.kt",
+      "sha256": "1ed787611fcbd37089705509b8528a4b7d69dafa3d94cdd4d3feeda983fe640c"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStore.kt",
+      "sha256": "183073dbd8ccfabd57d9a5a519dcc96290b8bb43fcce78ca47a5cf6e2ff56711"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourceSpecificWriterTransitionCoordinators.kt",
+      "sha256": "8bc887f50a84cb1a51b4296a3abc2c9090664f336624a627b75474d29add0546"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/TrackingPurposePublicationRuntime.kt",
+      "sha256": "b5d7fa8195e1d56bbb571d9580a6c9ed97fcdf178958e81149c5d9bdf51592c5"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApi.kt",
+      "sha256": "0b3342053ccb852678b0ae0da95309e5ed59d0352e09fb8bd7fed325da7c23df"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePlanResolver.kt",
+      "sha256": "70927174ccf487837e317dc4f14d387214c1d4e4d8af0aaa0eb28a9bbdce4e3a"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/AmbientLocationPurposeOwner.kt",
+      "sha256": "a05e2ce554e0d19bcf3cd9fe68dc08f44339a45a3ecb0c9ac1143807288e6784"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedUiLocationProvider.kt",
+      "sha256": "38b3e3c0462fe738602b6227156ac98b4fef3974b29b5b8ed8f8a740b48a66f5"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedLocationSourceController.kt",
+      "sha256": "b47bf112ff4c8ee8bd56d8ba49bd7d3058f80c7d1ef65ebeeb74e181baac89f5"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationReceiver.kt",
+      "sha256": "fc4d236306d1568196acdee4902b553d529f00b14855938721490cd6fd549191"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceEventSink.kt",
+      "sha256": "ad4dbc34fb668eea6a58c34d863f24c8885ea285e6a206450942e202a60d81fe"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceIngress.kt",
+      "sha256": "80432ad0a8f870cabdc1ea3f44cb971da31fe7c7bb541e3edb59f76908cfbc33"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservationQualifier.kt",
+      "sha256": "86b274690facab0db2ac20f6b80e2b6fedc1684f015eedd4be2f996e432d55f2"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+      "sha256": "26291a3afdfd37ae20d7238536cddba01ce4bc0af64e8c65fd307ae4570de24b"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/AmbientStepsImportRunner.kt",
+      "sha256": "797a52414bd75b2523f15abb010f860cb809d430af686e4ec2a85898d33984ab"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/worker/AmbientStepsImportWorker.kt",
+      "sha256": "c339191f05936bb93ba6aca5a7eb58a4359b1a6a2a2fcf317967e6bc58bcc920"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinator.kt",
+      "sha256": "3fee394aa1cfd479d60d0a8546135fc3c30624a0e53298c70a6e143a47a74a24"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationPurposeQualification.kt",
+      "sha256": "9d75487a3d61a2dbda2a16cd6a3307b08e0c33f06d4d54bc5257d14d05edc1d8"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+      "sha256": "058b2c4aaa704c1eaa88ca8d477fab2c77292edad8730462b27994e05376771c"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReader.kt",
+      "sha256": "07676f7293636236a80d4653b17ba8cb8ddfec43b202b95b0dd987f796f2864f"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationMetricsReader.kt",
+      "sha256": "c1bfd74a706db7c45b5810eacd6302c2c1893b26d16b2d4edc27659039e69287"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReader.kt",
+      "sha256": "c9916cdd6f166ab50c782492ef8cf0bc647e11808c1f745f1a427df09c5af053"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedRadioCountsReader.kt",
+      "sha256": "d21006885797ddbe64d725aa25452ebfc55ffc12e6bfb55a0c448f3cadad0371"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultSessionStatsRepository.kt",
+      "sha256": "a492f942d13aa99c21b0f3455abfbeb6009a3d1942463c351257e0f68b9a0f3a"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWindowedMetricsProvider.kt",
+      "sha256": "ea7d0d99cae7cea14d0e94651499ed4f886a670f55092fa72bd0f1b7b4d79601"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredCapturedRadioHistoryReader.kt",
+      "sha256": "dc5ed1318479f3b10c14621304d7406e9ab3daf92426bf16fee29efb86e87921"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt",
+      "sha256": "65a479162426a72bd76524e7e33ca4ea80f796c4f98280e1878f0a013a4cf702"
+    },
+    {
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/data/DashboardHistoryRepository.kt",
+      "sha256": "8c422d404495942d254467b3cf2053b487439c8edcc922e4acdeaac75277e253"
+    },
+    {
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/cards/RecentTripsCard.kt",
+      "sha256": "8b2b50d46095cb91b1176ee6342ff5eb8125ea20521ecae62e8bdd35d8903868"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/SourceHistoryDetailActions.kt",
+      "sha256": "dd2a61dd486664c133653f6f1daf980cfd6ff22ba1501ab628ca93c053d28433"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/HistoryRoute.kt",
+      "sha256": "cb8238aecccef7c5822f646f6fefcee3b381c224b58a6f4934b8e476e1ee92f7"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/MeasuredHistoryContent.kt",
+      "sha256": "7d33c7403435f8f3d180576439a1a88e55959b135151fbdecfaa93cc7624285b"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/SessionContentsContent.kt",
+      "sha256": "b37e769a776218fdb1896ed638b65d0a49952abba59f46abd972dfaf22568dc5"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/settings/DefaultDataBackupRestore.kt",
+      "sha256": "b1c01e99803d7225b04bf9ac78f1b02b00de8bb4f814c71dee7cab78c95077ec"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/backup/LogicalDataBackupImporter.kt",
+      "sha256": "5457208f6e5f6eb8216248b9213b83274198c762bc90af7f24bcc69842a264e8"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/backup/DataBackupArchiveReader.kt",
+      "sha256": "4822134b6af755a91a158b3f70985a32dd49619e71c94f37e0e49d61e6f84dd0"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/DatabaseBackupScope.kt",
+      "sha256": "50ed24fdaa8090e98eb9538ab5d9876a4bc0f42d0af1bf3c895269773f9c6b6e"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/DatabaseBackupArchive.kt",
+      "sha256": "2b5ed4ce0ebf339c9cfbe7163c0cedd687c666ca129cf1acb14f26cb9f28e956"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/DatabaseExporter.kt",
+      "sha256": "e680af8c23d99a1bf14face4b40ce5c2b871617381b2d45f3ff7334353d302a9"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/LocationFileExporter.kt",
+      "sha256": "6cf3b0412f83af68382ca7dc3ae757d9f3bd6d70d2e031ab51e1548c71b5bfd1"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/LocationFileImport.kt",
+      "sha256": "c12e5d96f936499e570c2dc1c672e004d9accc7732e8d2cf9d3a2839342c045f"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/portable/RadioSourceFileJsonV2Codec.kt",
+      "sha256": "0a5a72b9eff37b12fa452dd60e11aa70b05512d9cda00d83b28381f28cd0f10f"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/portable/RadioSourceFileV2.kt",
+      "sha256": "cc9c04928e130682200a3dfaf45fa50eb5c569c8a943032728247b00f128ec55"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/portable/RadioSourceFileSerializationCompatibilityTest.kt",
+      "sha256": "e68282850ec9eb360cac770f5819cb8d6b825dac3d52d30a14c928515463a3dd"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/architecture/ArchitecturalFitnessTest.kt",
+      "sha256": "88608bc7326a6f1435f7e62b73dfd7b4f27a33f458b75c4a75f94336ea0d6ef8"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PortableStepsSourceStructureTest.kt",
+      "sha256": "2324835811480e03b028921c5aee917ab9932767b62010f5c764d479597add75"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt",
+      "sha256": "7b5079b51b26116c3f16364677aad96a9af0be56acfdd197c5ceec109086b4c1"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LocationPointCorrection.kt",
+      "sha256": "5f6c82a4336d17693854864ddb9cba56936caf735f046fa6bca4b96860298831"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SessionSegmentDao.kt",
+      "sha256": "8efa17fbda484957dc4fb1c15a76f038f88b1dec1d66b1d99ab0d9348625c60c"
+    },
+    {
+      "path": "docs/tracking-infrastructure/handover/2026-09-15/ASSEMBLY_MANIFEST.md",
+      "sha256": "3bbb84566dae125f2f3c780e782bc3888032e79e5cc769ccb4df3166a03335dc"
+    },
+    {
+      "path": "docs/tracking-infrastructure/handover/2026-09-15/QUARANTINE.md",
+      "sha256": "70769a3e497dffca8cb090454b6e0296c5dc4b7185513266d749e951b8f65254"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/DatabaseImportCollisionTest.kt",
+      "sha256": "9254fbd2cdc5e8cf9f4a194becd489d299acf1d2bb1dff828596349fd01c9baa"
+    }
+  ]
+}

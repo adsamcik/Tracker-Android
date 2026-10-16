@@ -56,6 +56,10 @@ data class ImportedPressureEntryRevisionEntity(
 		ImportedPressureIdentity.requireProvenance(importJobId, importEntryKey, importSourceName)
 	}
 
+	/**
+	 * Stable persisted codes, including `SOURCE_FORMAT`, `SOURCE_SCHEMA_VERSION`, and any
+	 * identity-bound record factories.
+	 */
 	companion object {
 		const val SOURCE_FORMAT = "tracker-portable-pressure"
 		const val SOURCE_SCHEMA_VERSION = 1
@@ -144,7 +148,15 @@ data class ImportedPressureEntryDeletionEntity(
 		)
 	}
 
+	/**
+	 * Factories and canonical digests binding this record to its original identity, revision and
+	 * lifecycle fields.
+	 */
 	companion object {
+		/**
+		 * Builds the imported Pressure entry-deletion witness with its original identity, deleted import
+		 * revision, data epoch and UTC erase time.
+		 */
 		fun create(
 			entryIdentity: String,
 			collectedDataEpoch: Long,
@@ -250,9 +262,16 @@ data class ImportedPressureRunEntity(
 			require(coverage == COVERAGE_PARTIAL)
 			require(availability in RETENTION_LOSS_AVAILABILITIES)
 		}
-		if (coverage == COVERAGE_COMPLETE) require(capturedForWholeRun && !retentionLoss)
+		if (coverage == COVERAGE_COMPLETE) {
+			require(capturedForWholeRun && !retentionLoss)
+		}
 	}
 
+	/**
+	 * Stable persisted codes, including `AVAILABILITY_RETAINED`,
+	 * `AVAILABILITY_NO_RETAINED_OBSERVATION`, `AVAILABILITY_DISABLED`, and any identity-bound record
+	 * factories.
+	 */
 	companion object {
 		const val AVAILABILITY_RETAINED = "RETAINED"
 		const val AVAILABILITY_NO_RETAINED_OBSERVATION = "NO_RETAINED_OBSERVATION"
@@ -373,7 +392,11 @@ data class ImportedPressureWindowEntity(
 		ZoneId.of(storedZoneId)
 		val samplePeriodNanos = effectiveSamplePeriodMicros.toLong() * NANOS_PER_MICROSECOND
 		val expectedFromPlan = targetWindowDurationNanos / samplePeriodNanos +
-			if (targetWindowDurationNanos % samplePeriodNanos == 0L) 0L else 1L
+			if (targetWindowDurationNanos % samplePeriodNanos == 0L) {
+				0L
+			} else {
+				1L
+			}
 		require(expectedFromPlan.coerceAtLeast(1L) == expectedSampleCount.toLong())
 		if (sampleCount == 1) {
 			require(firstHectopascals == latestHectopascals)
@@ -387,7 +410,11 @@ data class ImportedPressureWindowEntity(
 			require(observedDurationNanos > 0L)
 			require(maximumInterSampleGapNanos in 1L..observedDurationNanos)
 			requireNotNull(slopeHectopascalsPerSecond)
-			if (sumSquaredDeviations > 0.0) requireNotNull(rSquared) else require(rSquared == null)
+			if (sumSquaredDeviations > 0.0) {
+				requireNotNull(rSquared)
+			} else {
+				require(rSquared == null)
+			}
 		}
 		val requiredObservedDuration = saturatedMultiply(
 			expectedSampleCount.toLong() - 1L,
@@ -400,6 +427,10 @@ data class ImportedPressureWindowEntity(
 		require((qualification == "COMPLETE") == complete)
 	}
 
+	/**
+	 * Stable persisted codes, including `MAX_ZONE_ID_LENGTH`, `NANOS_PER_MICROSECOND`,
+	 * `NANOS_PER_MILLISECOND`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val MAX_ZONE_ID_LENGTH = 128
 		private const val NANOS_PER_MICROSECOND = 1_000L
@@ -409,7 +440,11 @@ data class ImportedPressureWindowEntity(
 		private val QUALIFICATIONS = setOf("COMPLETE", "PARTIAL")
 
 		private fun saturatedMultiply(first: Long, second: Long): Long =
-			if (first == 0L || second <= Long.MAX_VALUE / first) first * second else Long.MAX_VALUE
+			if (first == 0L || second <= Long.MAX_VALUE / first) {
+				first * second
+			} else {
+				Long.MAX_VALUE
+			}
 	}
 }
 
@@ -433,7 +468,15 @@ data class ImportedPressureDeletionGenerationEntity(
 		require(effectChecksum == checksum(runIdentity, collectedDataEpoch, generation, deletedAtMs))
 	}
 
+	/**
+	 * Factories and canonical digests binding this record to its original identity, revision and
+	 * lifecycle fields.
+	 */
 	companion object {
+		/**
+		 * Builds the imported Pressure run-deletion record with its original scope, data epoch,
+		 * generation and UTC erase time.
+		 */
 		fun create(
 			runIdentity: String,
 			collectedDataEpoch: Long,
@@ -528,6 +571,10 @@ data class ImportedPressureRetentionReceiptEntity(
 		require(effectChecksum == checksum(this))
 	}
 
+	/**
+	 * Checks the supplied original Pressure ownership/lineage metadata against this retained record's
+	 * saved values and digest.
+	 */
 	fun authenticates(markers: List<ImportedPressureRetainedIdentityEntity>): Boolean =
 		markers.size == protectedIdentityCount &&
 			markers.all { it.entryIdentity == entryIdentity } &&
@@ -536,7 +583,15 @@ data class ImportedPressureRetentionReceiptEntity(
 			markers.any { it.identityKind == ImportedPressureRetainedIdentityEntity.RUN_SCOPE } &&
 			protectedIdentitySetChecksum == checksumProtectedIdentities(markers)
 
+	/**
+	 * Factories and canonical digests binding this record to its original identity, revision and
+	 * lifecycle fields.
+	 */
 	companion object {
+		/**
+		 * Builds payload-free retained Pressure lineage metadata from original import revisions, UTC
+		 * bounds, row counts and canonical ownership/deletion sets.
+		 */
 		@Suppress("LongParameterList")
 		fun create(
 			entryIdentity: String,
@@ -618,6 +673,10 @@ data class ImportedPressureRetentionReceiptEntity(
 			)
 		}
 
+		/**
+		 * Hashes the canonically ordered protected identities, including their stored owner and deletion
+		 * metadata.
+		 */
 		fun checksumProtectedIdentities(
 			values: List<ImportedPressureRetainedIdentityEntity>,
 		): String {
@@ -633,6 +692,9 @@ data class ImportedPressureRetentionReceiptEntity(
 			)
 		}
 
+		/**
+		 * Hashes canonically ordered run-deletion records with their original scopes and revisions.
+		 */
 		fun checksumRunDeletions(
 			values: List<ImportedPressureDeletionGenerationEntity>,
 		): String {
@@ -652,6 +714,9 @@ data class ImportedPressureRetentionReceiptEntity(
 			)
 		}
 
+		/**
+		 * Hashes original import revisions and their ownership dependencies into one lineage digest.
+		 */
 		fun lineageAuthorityChecksum(
 			headers: List<ImportedPressureEntryRevisionEntity>,
 			receipts: List<ImportedPressureReceiptEntity>,
@@ -801,6 +866,10 @@ data class ImportedPressureRetainedIdentityEntity(
 		require((identityKind == ENTRY) == (protectedIdentity == entryIdentity))
 	}
 
+	/**
+	 * Stable persisted codes, including `ENTRY`, `RUN_SCOPE`, `WINDOW`, and any identity-bound record
+	 * factories.
+	 */
 	companion object {
 		const val ENTRY = "ENTRY"
 		const val RUN_SCOPE = "RUN_SCOPE"
@@ -855,12 +924,19 @@ data class ImportedPressureIdentityFenceEntity(
 		require(effectChecksum == checksum(this))
 	}
 
+	/**
+	 * Compares the original entry/run ownership fields of two identity-fence records.
+	 */
 	fun hasSameOwner(
 		kind: String,
 		entry: String,
 		run: String?,
 	): Boolean = identityKind == kind && entryIdentity == entry && runIdentity == run
 
+	/**
+	 * Stable persisted codes, including `ENTRY`, `RUN`, `WINDOW`, and any identity-bound record
+	 * factories.
+	 */
 	companion object {
 		const val ENTRY = "ENTRY"
 		const val RUN = "RUN"
@@ -878,6 +954,10 @@ data class ImportedPressureIdentityFenceEntity(
 			REASON_FULL_CLEAR,
 		)
 
+		/**
+		 * Builds the first identity-fence generation with original entry/run ownership, data epoch and
+		 * erase reason.
+		 */
 		fun create(
 			protectedIdentity: String,
 			identityKind: String,
@@ -907,6 +987,9 @@ data class ImportedPressureIdentityFenceEntity(
 			),
 		)
 
+		/**
+		 * Hashes the canonical identity-fence set for retained lineage and deletion comparisons.
+		 */
 		fun checksumSet(values: List<ImportedPressureIdentityFenceEntity>): String {
 			require(values.size <= ImportedPressureMaintenanceBounds.MAX_SOURCE_IDENTITY_FENCES)
 			require(values.map { it.protectedIdentity }.distinct().size == values.size)
@@ -1010,7 +1093,10 @@ data class ImportedPressureSourceEraseEntity(
 			SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE ->
 				require(legacyWriteFenceGeneration >= 2L)
 			SourceDestinationOwnerEntity.OWNER_CONTAINED_PRESSURE_SESSION_FACTS ->
-				require(legacyWriteFenceGeneration >= 3L && legacyWriteFenceGeneration % 2L == 1L)
+				require(
+					legacyWriteFenceGeneration >= FIRST_CONTAINED_PRESSURE_WRITE_FENCE_GENERATION &&
+						legacyWriteFenceGeneration % 2L == 1L,
+				)
 			null -> Unit
 		}
 		listOf(
@@ -1028,7 +1114,9 @@ data class ImportedPressureSourceEraseEntity(
 		).forEach { require(it >= 0) }
 		if (localFactRevisionCount > 0 || localWalEventCount > 0 || legacySampleCount > 0 ||
 			providerRegistrationGeneration != null
-		) require(legacyWriteFenceGeneration > 0L)
+		) {
+			require(legacyWriteFenceGeneration > 0L)
+		}
 		listOf(
 			localScopeSetChecksum,
 			legacySampleSetChecksum,
@@ -1040,9 +1128,17 @@ data class ImportedPressureSourceEraseEntity(
 		require(effectChecksum == checksum(this))
 	}
 
+	/**
+	 * Stable persisted codes, including `SINGLETON_ID`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val SINGLETON_ID = 1
+		private const val FIRST_CONTAINED_PRESSURE_WRITE_FENCE_GENERATION = 3L
 
+		/**
+		 * Builds the source erase witness after validating legacy-sample counts and write-fence
+		 * metadata, preserving canonical ownership/deletion digests.
+		 */
 		@Suppress("LongParameterList")
 		fun create(
 			collectedDataEpoch: Long,
@@ -1118,6 +1214,9 @@ data class ImportedPressureSourceEraseEntity(
 		)
 		}
 
+		/**
+		 * Hashes the canonical native source-deletion fence set for the erase witness.
+		 */
 		fun checksumLocalFences(values: List<SourceDeletionFenceEntity>): String {
 			require(values.size <= ImportedPressureMaintenanceBounds.MAX_SOURCE_LOCAL_FENCES)
 			require(values.map { it.scopeIdentityDigest }.distinct().size == values.size)
@@ -1140,6 +1239,9 @@ data class ImportedPressureSourceEraseEntity(
 			)
 		}
 
+		/**
+		 * Hashes the canonical imported-entry deletion set for the erase witness.
+		 */
 		fun checksumEntryDeletions(
 			values: List<ImportedPressureEntryDeletionEntity>,
 		): String {
@@ -1159,6 +1261,9 @@ data class ImportedPressureSourceEraseEntity(
 			)
 		}
 
+		/**
+		 * Hashes the canonical legacy-sample witnesses retained by source erasure.
+		 */
 		fun checksumLegacySamples(
 			values: List<ImportedPressureSourceEraseWitnessEntity>,
 		): String {
@@ -1232,7 +1337,9 @@ data class ImportedPressureSourceEraseEntity(
 				add(sourceEvidenceRevision)
 				add(erasedAtMs)
 				add(providerRegistrationGeneration ?: "NONE")
-				if (legacyWriteFenceOwner != null) add(legacyWriteFenceOwner)
+				if (legacyWriteFenceOwner != null) {
+					add(legacyWriteFenceOwner)
+				}
 				add(legacyWriteFenceGeneration)
 			}
 			return ImportedPressureIdentity.digest(
@@ -1299,6 +1406,10 @@ data class ImportedPressureSourceEraseWitnessEntity(
 		require(effectChecksum == checksum(this))
 	}
 
+	/**
+	 * Stable persisted codes, including `LOCAL_SCOPE`, `LEGACY_SAMPLE`, `ENTRY_DELETION`, and any
+	 * identity-bound record factories.
+	 */
 	companion object {
 		const val LOCAL_SCOPE = "LOCAL_SCOPE"
 		const val LEGACY_SAMPLE = "LEGACY_SAMPLE"
@@ -1313,29 +1424,44 @@ data class ImportedPressureSourceEraseWitnessEntity(
 			IDENTITY_FENCE,
 		)
 
+		/**
+		 * Builds a payload-free witness for one original native source-deletion fence.
+		 */
 		fun local(fence: SourceDeletionFenceEntity) = create(
 			LOCAL_SCOPE,
 			fence.scopeIdentityDigest,
 			fence.effectChecksum,
 		)
 
+		/**
+		 * Builds a payload-free witness for one original imported-entry deletion.
+		 */
 		fun entry(deletion: ImportedPressureEntryDeletionEntity) = create(
 			ENTRY_DELETION,
 			deletion.entryIdentity,
 			deletion.effectChecksum,
 		)
 
+		/**
+		 * Builds a payload-free witness for one original legacy Pressure sample.
+		 */
 		fun legacy(
 			identity: String,
 			authorityChecksum: String,
 		) = create(LEGACY_SAMPLE, identity, authorityChecksum)
 
+		/**
+		 * Builds a payload-free witness for one original imported run-deletion generation.
+		 */
 		fun run(deletion: ImportedPressureDeletionGenerationEntity) = create(
 			RUN_DELETION,
 			deletion.runIdentity,
 			deletion.effectChecksum,
 		)
 
+		/**
+		 * Builds a payload-free witness for one original imported identity fence.
+		 */
 		fun identity(fence: ImportedPressureIdentityFenceEntity) = create(
 			IDENTITY_FENCE,
 			fence.protectedIdentity,

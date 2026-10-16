@@ -279,8 +279,16 @@ class ImportedActivityRetentionTemporalSchemaTest {
 				endTimeMs = cursor.getLong(2),
 				receivedAtMs = cursor.getLong(3),
 				latestMemberStartTimeMs =
-					if (cursor.isNull(4)) null else cursor.getLong(4),
-				latestMemberIdentity = if (cursor.isNull(5)) null else cursor.getString(5),
+					if (cursor.isNull(4)) {
+						null
+					} else {
+						cursor.getLong(4)
+					},
+				latestMemberIdentity = if (cursor.isNull(5)) {
+					null
+				} else {
+					cursor.getString(5)
+				},
 				rangeCount = cursor.getInt(6),
 				rangePayload = cursor.getString(7),
 				coverageComplete = cursor.getInt(8),

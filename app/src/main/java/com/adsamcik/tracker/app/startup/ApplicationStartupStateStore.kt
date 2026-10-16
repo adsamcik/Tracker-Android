@@ -28,7 +28,9 @@ internal class ApplicationStartupStateStore(
 	@Synchronized
 	fun beginGeneration(generation: Long) {
 		val current = mutableSnapshots.value
-		if (generation <= current.generation) return
+		if (generation <= current.generation) {
+			return
+		}
 		mutableSnapshots.value = ApplicationStartupSnapshot(
 			generation = generation,
 			revision = current.revision + 1L,
@@ -42,7 +44,9 @@ internal class ApplicationStartupStateStore(
 		result: TrackingStartupResult,
 	): Boolean {
 		val current = mutableSnapshots.value
-		if (generation != current.generation) return false
+		if (generation != current.generation) {
+			return false
+		}
 		mutableSnapshots.value = current.copy(
 			revision = current.revision + 1L,
 			result = result,

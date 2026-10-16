@@ -13,3 +13,13 @@ internal fun measuredHistoryPosition(candidate: MeasuredHistoryCandidate): Histo
             candidate.kind in setOf("captured_cell", "ambient_cell") -> "native_cell"
             else -> candidate.kind.lowercase(Locale.ROOT)
         }, candidate.physicalIdentity ?: candidate.identity)
+
+/** The same bounded native capture candidate shape is required before all three source readers. */
+internal fun requireNativeCapturedCandidates(
+    keys: List<MeasuredHistoryCandidate>,
+    kind: String,
+    maximum: Int,
+) {
+    require(keys.size <= maximum &&
+        keys.all { it.kind == kind && it.origin == "LOCAL" && it.purpose == "CAPTURE" })
+}

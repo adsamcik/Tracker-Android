@@ -106,7 +106,11 @@ class IncrementalExportTest {
 		isCompleted: Boolean = true,
 		timeUncertain: Boolean = false,
 	) = OrganizationSessionRow(
-		localId = if (key == null) "manual" else null,
+		localId = if (key == null) {
+			"manual"
+		} else {
+			null
+		},
 		adapterKey = key,
 		revision = 1L,
 		name = null,

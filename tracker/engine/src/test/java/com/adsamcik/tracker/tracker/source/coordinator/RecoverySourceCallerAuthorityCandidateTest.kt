@@ -81,6 +81,8 @@ class RecoverySourceCallerAuthorityCandidateTest {
 	}
 
 	@Test
+	// Keep this complete contract scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `completed restart suspension retains its exact current caller authority`() {
 		val fixture = fixture()
 		val reason = "ANDROID_RESTART"
@@ -168,6 +170,8 @@ class RecoverySourceCallerAuthorityCandidateTest {
 		}
 	}
 
+	// Keep the mutually authenticated session, run, manifest and lifecycle intent together as one fixture.
+	@Suppress("LongMethod")
 	private fun fixture(): Fixture {
 		val bindings = listOf(
 			SessionManifestSourceEntity(

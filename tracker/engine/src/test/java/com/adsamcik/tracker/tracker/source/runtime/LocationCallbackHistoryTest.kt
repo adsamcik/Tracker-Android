@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
-import android.location.Location
+import com.adsamcik.tracker.testing.fake.FakeLocationSource
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import io.mockk.mockk
 import org.junit.Assert.assertEquals
@@ -20,7 +20,7 @@ class LocationCallbackHistoryTest {
 			minimumObservedElapsedRealtimeNanos = 80), 80)
 		val batch = batch(refreshed, 20, 70, 90)
 		assertEquals(listOf(20L, 70L, 90L), partitionLocationContexts(batch).groups.values.flatten()
-			.map(Location::getElapsedRealtimeNanos))
+			.map({ it.elapsedRealtimeNanos }))
 		assertEquals(10L, refreshed.single().minimumObservedElapsedRealtimeNanos)
 	}
 
@@ -32,9 +32,9 @@ class LocationCallbackHistoryTest {
 		val partition = partitionLocationContexts(batch(history, 30, 59, 60, 90))
 		assertEquals(0, partition.unattributedCount)
 		assertEquals(listOf(30L, 59L), partition.groups.entries.single {
-			it.key.attribution.authorizationRevision == 1L }.value.map(Location::getElapsedRealtimeNanos))
+			it.key.attribution.authorizationRevision == 1L }.value.map({ it.elapsedRealtimeNanos }))
 		assertEquals(listOf(60L, 90L), partition.groups.entries.single {
-			it.key.attribution.authorizationRevision == 2L }.value.map(Location::getElapsedRealtimeNanos))
+			it.key.attribution.authorizationRevision == 2L }.value.map({ it.elapsedRealtimeNanos }))
 	}
 
 	@Test
@@ -53,14 +53,14 @@ class LocationCallbackHistoryTest {
 		assertTrue(history.size <= 64)
 		val partition = partitionLocationContexts(batch(history, 3, 69, 70).copy(collectionBoundary = 1))
 		assertEquals(1, partition.unattributedCount)
-		assertEquals(listOf(69L, 70L), partition.groups.values.flatten().map(Location::getElapsedRealtimeNanos))
+		assertEquals(listOf(69L, 70L), partition.groups.values.flatten().map({ it.elapsedRealtimeNanos }))
 	}
 
 	@Test
 	fun `pre-registration backlog is excluded without a false admission gap`() {
 		val partition = partitionLocationContexts(batch(listOf(context(1, 30)), 10, 20, 50))
 		assertEquals(0, partition.unattributedCount)
-		assertEquals(listOf(50L), partition.groups.values.flatten().map(Location::getElapsedRealtimeNanos))
+		assertEquals(listOf(50L), partition.groups.values.flatten().map({ it.elapsedRealtimeNanos }))
 	}
 
 	@Test(expected = IllegalArgumentException::class)
@@ -72,12 +72,16 @@ class LocationCallbackHistoryTest {
 
 	private fun context(revision: Long, since: Long) = LocationCallbackContext(
 		LocationDeliveryAttribution(SourceInstanceId("location"), 1, "physical", revision,
-			if (revision == 1L) 2 else 3, "authority-$revision", revision, "boot", 1),
+			if (revision == 1L) {
+				2
+			} else {
+				3
+			}, "authority-$revision", revision, "boot", 1),
 		false, mockk(relaxed = true), since, maximumEvidenceAgeNanos = 120,
 	)
 
 	private fun batch(contexts: List<LocationCallbackContext>, vararg observed: Long) = RawLocationBatch(
-		observed.map { time -> Location("gps").apply {
+		observed.map { time -> FakeLocationSource.createLocation(50.0, 14.0, accuracy = 5f, time = 0L, provider = "gps").apply {
 			latitude = 50.0; longitude = 14.0; accuracy = 5f; elapsedRealtimeNanos = time
 		} }, 100, 100, 1, contexts.last(), contexts, contexts.first().minimumObservedElapsedRealtimeNanos,
 	)

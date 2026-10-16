@@ -106,7 +106,8 @@ internal fun SessionOverviewCard(
                 appendLine("Updates: ${session.collections}")
                 appendLine("Started: $sessionAge")
                 if (session.distanceOnFootInM > 0) {
-                    appendLine("On foot: ${resources.formatDistance(session.distanceOnFootInM, 1, settings.lengthSystem)}")
+                    appendLine("On foot: ${resources.formatDistance(session.distanceOnFootInM,
+                        1, settings.lengthSystem)}")
                 }
                 if (session.distanceInVehicleInM > 0) {
                     appendLine("In vehicle: ${resources.formatDistance(session.distanceInVehicleInM, 1, settings.lengthSystem)}")
@@ -123,7 +124,8 @@ internal fun SessionOverviewCard(
                 onLongClickLabel = stringResource(R.string.tracker_copy_session_summary),
                 onLongClick = {
                     val sessionSummary = generateSummary()
-                    copyToClipboard(context, haptics, context.getString(R.string.tracker_session_card_title), sessionSummary)
+                    copyToClipboard(context, haptics,
+                        context.getString(R.string.tracker_session_card_title), sessionSummary)
                     scope.launch {
                         snackbarHostState.showSnackbar(
                             message = context.getString(R.string.tracker_session_summary_copied),

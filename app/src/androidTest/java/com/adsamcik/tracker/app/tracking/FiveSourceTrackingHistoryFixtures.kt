@@ -83,6 +83,8 @@ internal data class WifiAssemblyEntry(
 	val newestRunIdentity: PortableWifiOpaqueIdentity,
 )
 
+// Keep the exact native Steps membership, signed manifest and linked segment in one ordered fixture.
+@Suppress("LongMethod")
 internal suspend fun seedExactNativeStepsMembership(
 	database: AppDatabase,
 	startMs: Long,
@@ -235,6 +237,8 @@ internal suspend fun seedExactNativeStepsMembership(
 		)
 	}
 
+// Keep the two-run Wi-Fi history fixture and its matching observation identities together.
+@Suppress("LongMethod")
 internal fun wifiAssemblyEntry(
 	logicalId: String,
 	olderStartMs: Long,
@@ -393,6 +397,8 @@ private fun cellRun(
 	)
 }
 
+// Keep the complete Cell observation beside the checksum over those exact fields.
+@Suppress("LongMethod")
 private fun cellObservation(
 	localId: String,
 	startMs: Long,
@@ -475,7 +481,7 @@ internal fun activityAssemblyEntry(
 	newestStartMs: Long,
 ): PortableActivityEntryV1 {
 	val runs = listOf(olderStartMs, newestStartMs).mapIndexed { index, startMs ->
-		activityRun(logicalId, index, startMs)
+		activityRun(index, startMs)
 	}.sortedWith(
 		compareBy<PortableActivityRunV1>({ it.startTimeMs }, { it.endTimeMs }, { it.identity.value }),
 	)
@@ -496,20 +502,33 @@ internal fun activityAssemblyEntry(
 	)
 }
 
+// Keep one Activity run with its nested band, window and matching checksums together.
+@Suppress("LongMethod")
 private fun activityRun(
-	logicalId: Char,
 	index: Int,
 	startMs: Long,
 ): PortableActivityRunV1 {
 	val identity = PortableActivityOpaqueIdentity(
-		(if (index == 0) 'b' else 'c').toString().repeat(64),
+		(if (index == 0) {
+			'b'
+		} else {
+			'c'
+		}).toString().repeat(64),
 	)
 	val scope = PortableActivityDeletionScopeDigest(
-		(if (index == 0) 'd' else 'e').toString().repeat(64),
+		(if (index == 0) {
+			'd'
+		} else {
+			'e'
+		}).toString().repeat(64),
 	)
 	val zones = listOf(PortableActivityZoneEpochV1(startMs, "UTC"))
 	val windowIdentity = PortableActivityOpaqueIdentity(
-		(if (index == 0) '4' else '5').toString().repeat(64),
+		(if (index == 0) {
+			'4'
+		} else {
+			'5'
+		}).toString().repeat(64),
 	)
 	val fragment = PortableActivityFragmentV1.Band(
 		startOffsetNanos = 0L,
@@ -840,15 +859,21 @@ private fun cellDigest(
 
 private fun DataOutputStream.writeCellString(value: String?) {
 	writeBoolean(value != null)
-	if (value != null) writeUTF(value)
+	if (value != null) {
+		writeUTF(value)
+	}
 }
 
 private fun DataOutputStream.writeNullableLong(value: Long?) {
 	writeBoolean(value != null)
-	if (value != null) writeLong(value)
+	if (value != null) {
+		writeLong(value)
+	}
 }
 
 private fun DataOutputStream.writeNullableDouble(value: Double?) {
 	writeBoolean(value != null)
-	if (value != null) writeDouble(value)
+	if (value != null) {
+		writeDouble(value)
+	}
 }

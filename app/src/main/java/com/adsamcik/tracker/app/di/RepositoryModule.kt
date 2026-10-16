@@ -71,6 +71,8 @@ abstract class RepositoryModule {
 		impl: DefaultGameRepository,
 	): GameRepository
 
+	// Keep the application settings, source-policy and retention owners in one DI composition.
+	@Suppress("TooManyFunctions")
 	companion object {
 		/**
 		 * Provides TrackerSettingsRepository.
@@ -124,6 +126,7 @@ abstract class RepositoryModule {
 
 		@Provides
 		@Singleton
+		/** Composes durable settings with source-policy, retention and all-day Steps reconciliation. */
 		fun provideAuthoritativeTrackingParamsRepository(
 			@ApplicationContext context: Context,
 			dispatchers: DispatchersProvider,
@@ -158,16 +161,19 @@ abstract class RepositoryModule {
 		)
 
 		@Provides
+		/** Exposes the authoritative settings instance to every source and screen. */
 		fun provideTrackingParamsRepository(
 			repository: AuthoritativeTrackingParamsRepository,
 		): TrackingParamsRepository = repository
 
 		@Provides
+		/** Reuses authoritative settings reconciliation instead of creating a second policy owner. */
 		fun provideSourcePolicyRevisionReconciliationCoordinator(
 			repository: AuthoritativeTrackingParamsRepository,
 		): SourcePolicyRevisionReconciliationCoordinator = repository
 
 		@Provides
+		/** Reuses the settings bootstrap that prepares source authority before collection. */
 		fun provideSourcePolicyAuthorityBootstrapCoordinator(
 			repository: AuthoritativeTrackingParamsRepository,
 		): SourcePolicyAuthorityBootstrapCoordinator = repository
@@ -200,6 +206,7 @@ abstract class RepositoryModule {
 
 		@Provides
 		@Singleton
+		/** Composes local retention approval with source policies, deletion lifecycle and passive Location. */
 		fun provideRetentionAuthorityProducer(
 			database: AppDatabase,
 			sourcePolicyRepository: SourcePolicyRepository,
@@ -221,12 +228,14 @@ abstract class RepositoryModule {
 		)
 
 		@Provides
+		/** Shares the retention producer’s passive Location reconciliation. */
 		fun provideLocationPassiveRetentionAuthority(
 			producer: RetentionAuthorityProducer,
 		): LocationPassiveRetentionAuthority = producer
 
 		@Provides
 		@Singleton
+		/** Shares serialized retention mutation ownership across Room and DataStore. */
 		fun provideRetentionAuthorityOperationLease(
 			@ApplicationScope applicationScope: CoroutineScope,
 		): RetentionAuthorityOperationLease =

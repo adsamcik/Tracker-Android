@@ -15,7 +15,6 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.metric.MetricKey
-import com.adsamcik.tracker.stats.api.repository.AchievementRepository
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.repository.UnconsumedEvent
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
@@ -33,7 +32,6 @@ class GameDomainEventConsumer @Inject constructor(
 	private val achievementEvaluationScheduler: AchievementEvaluationScheduler,
 	private val progressionRepository: PlayerProgressionRepository,
 	private val trackingStartupGate: TrackingStartupGate,
-	private val achievementRepository: AchievementRepository,
 	private val achievementProgressDao: AchievementProgressDao,
 	@ApplicationContext private val context: Context,
 ) {
@@ -60,23 +58,31 @@ class GameDomainEventConsumer @Inject constructor(
 				while (index < batch.size && batch[index].event is DomainEvent.AchievementUnlocked) {
 					index += 1
 				}
-				val achievementRun = batch.subList(firstIndex, index)
-					.map { requireNotNull(it.event as? DomainEvent.AchievementUnlocked) }
-				if (!handleAchievementRun(achievementRun, expectedGeneration)) return false
-				for (achievementEvent in batch.subList(firstIndex, index)) {
-					if (!acknowledgeEvent(achievementEvent, expectedGeneration)) return false
-				}
+				if (!processAchievementEvents(batch.subList(firstIndex, index), expectedGeneration)) return false
 				continue
 			}
-			val handled = try {
-				handleEvent(unconsumed.event, expectedGeneration)
-			} catch (cancellation: CancellationException) {
-				throw cancellation
-			} catch (_: Exception) {
-				return false
-			}
-			if (!handled || !acknowledgeEvent(unconsumed, expectedGeneration)) return false
+			if (!processOrdinaryEvent(unconsumed, expectedGeneration)) return false
 			index += 1
+		}
+		return true
+	}
+
+	private suspend fun processOrdinaryEvent(unconsumed: UnconsumedEvent, expectedGeneration: Long): Boolean {
+		val handled = try {
+			handleEvent(unconsumed.event, expectedGeneration)
+		} catch (cancellation: CancellationException) {
+			throw cancellation
+		} catch (_: Exception) {
+			return false
+		}
+		return handled && acknowledgeEvent(unconsumed, expectedGeneration)
+	}
+
+	private suspend fun processAchievementEvents(events: List<UnconsumedEvent>, expectedGeneration: Long): Boolean {
+		val run = events.map { requireNotNull(it.event as? DomainEvent.AchievementUnlocked) }
+		if (!handleAchievementRun(run, expectedGeneration)) return false
+		for (event in events) {
+			if (!acknowledgeEvent(event, expectedGeneration)) return false
 		}
 		return true
 	}
@@ -90,31 +96,11 @@ class GameDomainEventConsumer @Inject constructor(
 			// Qualified reconcilers use this same lease for row/outbox replacement. Keeping the
 			// bounded authority read and notification delivery together prevents a correction from
 			// interleaving after authorization but before user-visible delivery.
-			val authority = AchievementNotificationBatchAuthority(
-				byAchievementId = achievementRepository.getAllSnapshots().filter { it.isUnlocked }.associate {
-					it.id to AchievementNotificationAuthority(it.tier.name, it.metric)
-				},
-				qualifiedByMetric = achievementProgressDao.getQualifiedStepsAchievementRows()
-					.mapNotNull { row ->
-						MetricKey.fromStorageKey(row.metricKey)?.let { metric -> metric to row }
-					}
-					.toMap(),
-			)
+			val progressByMetric = achievementProgressDao.getAll().mapNotNull { row ->
+				MetricKey.fromStorageKey(row.metricKey)?.let { metric -> metric to row }
+			}.toMap()
 			for (event in events) {
-				val genericAuthority = authority.byAchievementId[event.achievementId]
-				val metric = genericAuthority?.metric ?: AchievementCatalog.byId(event.achievementId)?.metric
-				val authorized = if (metric != null &&
-					AchievementMetricQualification.requiresQualifiedStepsAuthority(metric)
-				) {
-					isCurrentQualifiedStepsUnlock(
-						event,
-						metric,
-						authority.qualifiedByMetric,
-					)
-				} else {
-					genericAuthority?.tier == event.tier
-				}
-				if (authorized) onAchievementUnlocked(event)
+				if (isAuthorizedAchievement(event, progressByMetric)) onAchievementUnlocked(event)
 			}
 			true
 		} ?: false
@@ -122,6 +108,26 @@ class GameDomainEventConsumer @Inject constructor(
 		throw cancellation
 	} catch (_: Exception) {
 		false
+	}
+
+	private fun isAuthorizedAchievement(
+		event: DomainEvent.AchievementUnlocked,
+		progressByMetric: Map<MetricKey, AchievementProgressEntity>,
+	): Boolean {
+		val definition = AchievementCatalog.byId(event.achievementId) ?: return false
+		if (definition.tier.name != event.tier) return false
+		val metric = definition.metric
+		return if (AchievementMetricQualification.requiresQualifiedStepsAuthority(metric)) {
+			isCurrentQualifiedStepsUnlock(event, metric, progressByMetric)
+		} else {
+			val row = progressByMetric[metric]
+			// Live unlocks can precede progress persistence. A later recomputation may retract
+			// that tier; an older row cannot veto a fresh event. Equal milliseconds keep the
+			// event eligible because these wall-clock fields cannot order same-ms writes.
+			AchievementMetricQualification.isTrustedPersistedProgress(metric, row) &&
+				(row == null || row.lastTierIndex >= definition.tierIndex ||
+					row.updatedAt <= event.timestampMs.raw)
+		}
 	}
 
 	private suspend fun acknowledgeEvent(
@@ -184,6 +190,7 @@ class GameDomainEventConsumer @Inject constructor(
 		} ?: false
 	}
 
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	private fun isCurrentQualifiedStepsUnlock(
 		event: DomainEvent.AchievementUnlocked,
 		metric: MetricKey,
@@ -194,12 +201,21 @@ class GameDomainEventConsumer @Inject constructor(
 		val definition = AchievementCatalog.byId(event.achievementId) ?: return false
 		if (definition.metric != metric || definition.tier.name != event.tier) return false
 		val row = qualifiedByMetric[metric] ?: return false
-		return row.authorityKind == AchievementProgressEntity.AUTHORITY_QUALIFIED_STEPS_V1 &&
-			row.authorityState == AchievementProgressEntity.AUTHORITY_STATE_READY &&
-			row.authorityRevision == expectedRevision &&
-			row.authorityDigest == expectedDigest &&
-			row.lastTierIndex >= definition.tierIndex &&
-			row.qualifiedNotificationClaimedTierIndex?.let { it >= definition.tierIndex } == true
+		return row.authorizesQualifiedUnlock(expectedRevision, expectedDigest, definition.tierIndex)
+	}
+
+	private fun AchievementProgressEntity.authorizesQualifiedUnlock(
+		expectedRevision: Long,
+		expectedDigest: String,
+		tierIndex: Int,
+	): Boolean {
+		if (authorityKind != AchievementProgressEntity.AUTHORITY_QUALIFIED_STEPS_V1 ||
+			authorityState != AchievementProgressEntity.AUTHORITY_STATE_READY ||
+			authorityRevision != expectedRevision || authorityDigest != expectedDigest
+		) {
+			return false
+		}
+		return lastTierIndex >= tierIndex && qualifiedNotificationClaimedTierIndex?.let { it >= tierIndex } == true
 	}
 
 	private fun onAchievementUnlocked(event: DomainEvent.AchievementUnlocked) {
@@ -243,13 +259,4 @@ class GameDomainEventConsumer @Inject constructor(
 		}
 	}
 
-	private data class AchievementNotificationAuthority(
-		val tier: String,
-		val metric: MetricKey,
-	)
-
-	private data class AchievementNotificationBatchAuthority(
-		val byAchievementId: Map<String, AchievementNotificationAuthority>,
-		val qualifiedByMetric: Map<MetricKey, AchievementProgressEntity>,
-	)
 }

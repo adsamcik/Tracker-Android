@@ -1,7 +1,9 @@
 package com.adsamcik.tracker.shared.base.database
 
+import com.adsamcik.tracker.shared.base.database.dao.SourceProjectionStateDao
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventRetentionProofCandidateRow
+import com.adsamcik.tracker.shared.base.database.dao.SourceEventWalDao
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -12,22 +14,36 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
+/**
+ * Invalid retained source proof or maintenance overflow that prevents pruning source processing
+ * evidence.
+ */
 enum class SourceEventStoragePruneBlockedReason {
 	STORED_EVIDENCE_UNVERIFIABLE,
 	MAINTENANCE_OVERFLOW,
 }
 
+/**
+ * Independent source pruning outcome; removed counts can survive another source's blocked
+ * maintenance.
+ */
 sealed interface SourceEventStorageSourcePruneOutcome {
 	val sourceKind: Int
 	val walEventsDeleted: Int
 	val deliveredEffectsDeleted: Int
 
+	/**
+	 * Reports the rows removed or changed by this exact verified source operation.
+	 */
 	data class Applied(
 		override val sourceKind: Int,
 		override val walEventsDeleted: Int,
 		override val deliveredEffectsDeleted: Int,
 	) : SourceEventStorageSourcePruneOutcome
 
+	/**
+	 * No saved payload in this source scope required removal for the requested cutoff.
+	 */
 	data class NoChange(
 		override val sourceKind: Int,
 	) : SourceEventStorageSourcePruneOutcome {
@@ -35,6 +51,10 @@ sealed interface SourceEventStorageSourcePruneOutcome {
 		override val deliveredEffectsDeleted: Int = 0
 	}
 
+	/**
+	 * This source could not finish proof maintenance; reports any rows already pruned before its
+	 * named block.
+	 */
 	data class Blocked(
 		override val sourceKind: Int,
 		val reason: SourceEventStoragePruneBlockedReason,
@@ -43,12 +63,19 @@ sealed interface SourceEventStorageSourcePruneOutcome {
 	) : SourceEventStorageSourcePruneOutcome
 }
 
+/**
+ * Aggregate removed WAL/effect counts with each source's completion or deferred proof-maintenance
+ * debt.
+ */
 sealed interface SourceEventStoragePruneResult {
 	val walEventsDeleted: Int
 	val deliveredEffectsDeleted: Int
 	val orphanedDeliveredEffectsDeleted: Int
 	val sourceOutcomes: List<SourceEventStorageSourcePruneOutcome>
 
+	/**
+	 * The bounded prune completed with aggregate removed counts and independent source outcomes.
+	 */
 	data class Complete(
 		override val walEventsDeleted: Int,
 		override val deliveredEffectsDeleted: Int,
@@ -56,6 +83,10 @@ sealed interface SourceEventStoragePruneResult {
 		override val sourceOutcomes: List<SourceEventStorageSourcePruneOutcome> = emptyList(),
 	) : SourceEventStoragePruneResult
 
+	/**
+	 * Reports completed source pruning while retaining the exact blocked-source proof-maintenance
+	 * debt.
+	 */
 	data class Deferred(
 		override val walEventsDeleted: Int,
 		override val deliveredEffectsDeleted: Int,
@@ -71,11 +102,18 @@ sealed interface SourceEventStoragePruneResult {
 }
 
 internal sealed interface SourceEventStoragePruneBatchResult {
+	/**
+	 * Reports the rows removed or changed by this exact verified source operation.
+	 */
 	data class Applied(
 		val walEventsDeleted: Int,
 		val deliveredEffectsDeleted: Int,
 	) : SourceEventStoragePruneBatchResult
 
+	/**
+	 * Changed or invalid scope/authority prevents the requested operation; the exact reason remains
+	 * explicit.
+	 */
 	data class Blocked(
 		val reason: SourceEventStoragePruneBlockedReason,
 	) : SourceEventStoragePruneBatchResult
@@ -229,84 +267,17 @@ internal suspend fun AppDatabase.pruneSourceEventStorageBeforeWithSourceOperatio
 	val outcomes = mutableListOf<SourceEventStorageSourcePruneOutcome>()
 	for (sourceKind in sourceKinds) {
 		currentCoroutineContext().ensureActive()
-		var sourceWalDeleted = 0
-		var sourceEffectsDeleted = 0
-		var blockedReason: SourceEventStoragePruneBlockedReason? = null
-		while (true) {
-			currentCoroutineContext().ensureActive()
-			val batch = try {
-				withTransaction {
-					verifyCollectedDataAccess()
-					try {
-						val result = pruneSourceBatch(
-							sourceKind,
-							sourceEventStorageGlobalSafeOrdinal(),
-							createdBeforeMs,
-							batchSize,
-						)
-						when (result) {
-							is SourceEventStoragePruneBatchResult.Applied -> {
-								sourceEventRetentionProofDao().deleteProofsWithLiveWal(sourceKind)
-								sourceEventRetentionProofDao().trimSourceToNewest(
-									sourceKind,
-									maximumRetentionProofsPerSource,
-								)
-								result
-							}
-							is SourceEventStoragePruneBatchResult.Blocked ->
-								throw SourceEventStoragePruneBlockedException(result.reason)
-						}
-					} finally {
-						verifyCollectedDataAccess()
-					}
-				}
-			} catch (blocked: SourceEventStoragePruneBlockedException) {
-				blockedReason = blocked.reason
-				break
-			}
-			sourceWalDeleted = Math.addExact(sourceWalDeleted, batch.walEventsDeleted)
-			sourceEffectsDeleted =
-				Math.addExact(sourceEffectsDeleted, batch.deliveredEffectsDeleted)
-			if (batch.walEventsDeleted == 0 && batch.deliveredEffectsDeleted == 0) break
-		}
-		val outcome = blockedReason?.let { reason ->
-			SourceEventStorageSourcePruneOutcome.Blocked(
-				sourceKind = sourceKind,
-				reason = reason,
-				walEventsDeleted = sourceWalDeleted,
-				deliveredEffectsDeleted = sourceEffectsDeleted,
-			)
-		} ?: if (sourceWalDeleted == 0 && sourceEffectsDeleted == 0) {
-			SourceEventStorageSourcePruneOutcome.NoChange(sourceKind)
-		} else {
-			SourceEventStorageSourcePruneOutcome.Applied(
-				sourceKind = sourceKind,
-				walEventsDeleted = sourceWalDeleted,
-				deliveredEffectsDeleted = sourceEffectsDeleted,
-			)
-		}
+		val outcome = pruneOneSourceEventStorage(
+			sourceKind, createdBeforeMs, batchSize, verifyCollectedDataAccess,
+			maximumRetentionProofsPerSource, pruneSourceBatch,
+		)
 		outcomes += outcome
 		afterSource(outcome)
 	}
 
-	var orphanedEffectsDeleted = 0
-	while (true) {
-		currentCoroutineContext().ensureActive()
-		val deleted = withTransaction {
-			verifyCollectedDataAccess()
-			try {
-				sourceProjectionStateDao().deleteOrphanedDeliveredOutboxBatch(
-					safeOrdinal = sourceEventStorageGlobalSafeOrdinal(),
-					deliveredBeforeMs = createdBeforeMs,
-					limit = batchSize,
-				)
-			} finally {
-				verifyCollectedDataAccess()
-			}
-		}
-		orphanedEffectsDeleted = Math.addExact(orphanedEffectsDeleted, deleted)
-		if (deleted == 0) break
-	}
+	val orphanedEffectsDeleted = pruneOrphanedDeliveredSourceEffects(
+		createdBeforeMs, batchSize, verifyCollectedDataAccess,
+	)
 
 	val sourceOutcomes = outcomes.toList()
 	val walDeleted = sourceOutcomes.fold(0) { total, outcome ->
@@ -334,6 +305,119 @@ internal suspend fun AppDatabase.pruneSourceEventStorageBeforeWithSourceOperatio
 			sourceDebt = sourceDebt,
 		)
 	}
+}
+
+private suspend fun AppDatabase.pruneOneSourceEventStorage(
+	sourceKind: Int,
+	createdBeforeMs: Long,
+	batchSize: Int,
+	verifyCollectedDataAccess: suspend () -> Unit,
+	maximumRetentionProofsPerSource: Int,
+	pruneSourceBatch: SourceEventStorageBatchPruner,
+): SourceEventStorageSourcePruneOutcome {
+	var sourceWalDeleted = 0
+	var sourceEffectsDeleted = 0
+	var blockedReason: SourceEventStoragePruneBlockedReason? = null
+	while (true) {
+		currentCoroutineContext().ensureActive()
+		val batch = try {
+			pruneSourceEventStorageTransaction(
+				sourceKind, createdBeforeMs, batchSize, verifyCollectedDataAccess,
+				maximumRetentionProofsPerSource, pruneSourceBatch,
+			)
+		} catch (blocked: SourceEventStoragePruneBlockedException) {
+			blockedReason = blocked.reason
+			break
+		}
+		sourceWalDeleted = Math.addExact(sourceWalDeleted, batch.walEventsDeleted)
+		sourceEffectsDeleted =
+			Math.addExact(sourceEffectsDeleted, batch.deliveredEffectsDeleted)
+		if (batch.walEventsDeleted == 0 && batch.deliveredEffectsDeleted == 0) break
+	}
+	return sourceEventStoragePruneOutcome(sourceKind, blockedReason, sourceWalDeleted, sourceEffectsDeleted)
+}
+
+private fun sourceEventStoragePruneOutcome(
+	sourceKind: Int,
+	blockedReason: SourceEventStoragePruneBlockedReason?,
+	sourceWalDeleted: Int,
+	sourceEffectsDeleted: Int,
+): SourceEventStorageSourcePruneOutcome {
+	return blockedReason?.let { reason ->
+		SourceEventStorageSourcePruneOutcome.Blocked(
+			sourceKind = sourceKind,
+			reason = reason,
+			walEventsDeleted = sourceWalDeleted,
+			deliveredEffectsDeleted = sourceEffectsDeleted,
+		)
+	} ?: if (sourceWalDeleted == 0 && sourceEffectsDeleted == 0) {
+		SourceEventStorageSourcePruneOutcome.NoChange(sourceKind)
+	} else {
+		SourceEventStorageSourcePruneOutcome.Applied(
+			sourceKind = sourceKind,
+			walEventsDeleted = sourceWalDeleted,
+			deliveredEffectsDeleted = sourceEffectsDeleted,
+		)
+	}
+}
+
+private suspend fun AppDatabase.pruneSourceEventStorageTransaction(
+	sourceKind: Int,
+	createdBeforeMs: Long,
+	batchSize: Int,
+	verifyCollectedDataAccess: suspend () -> Unit,
+	maximumRetentionProofsPerSource: Int,
+	pruneSourceBatch: SourceEventStorageBatchPruner,
+): SourceEventStoragePruneBatchResult.Applied = withTransaction {
+	verifyCollectedDataAccess()
+	try {
+		val result = pruneSourceBatch(
+			sourceKind,
+			sourceEventStorageGlobalSafeOrdinal(),
+			createdBeforeMs,
+			batchSize,
+		)
+		when (result) {
+			is SourceEventStoragePruneBatchResult.Applied -> {
+				sourceEventRetentionProofDao().deleteProofsWithLiveWal(sourceKind)
+				sourceEventRetentionProofDao().trimSourceToNewest(
+					sourceKind,
+					maximumRetentionProofsPerSource,
+				)
+				result
+			}
+			is SourceEventStoragePruneBatchResult.Blocked ->
+				throw SourceEventStoragePruneBlockedException(result.reason)
+		}
+	} finally {
+		verifyCollectedDataAccess()
+	}
+}
+
+private suspend fun AppDatabase.pruneOrphanedDeliveredSourceEffects(
+	createdBeforeMs: Long,
+	batchSize: Int,
+	verifyCollectedDataAccess: suspend () -> Unit,
+): Int {
+	var orphanedEffectsDeleted = 0
+	while (true) {
+		currentCoroutineContext().ensureActive()
+		val deleted = withTransaction {
+			verifyCollectedDataAccess()
+			try {
+				sourceProjectionStateDao().deleteOrphanedDeliveredOutboxBatch(
+					safeOrdinal = sourceEventStorageGlobalSafeOrdinal(),
+					deliveredBeforeMs = createdBeforeMs,
+					limit = batchSize,
+				)
+			} finally {
+				verifyCollectedDataAccess()
+			}
+		}
+		orphanedEffectsDeleted = Math.addExact(orphanedEffectsDeleted, deleted)
+		if (deleted == 0) break
+	}
+	return orphanedEffectsDeleted
 }
 
 private suspend fun AppDatabase.sourceEventStorageGlobalSafeOrdinal(): Long {
@@ -366,17 +450,7 @@ private suspend fun AppDatabase.pruneSourceEventStorageBatch(
 	val sourceSafeOrdinal = minOf(
 		globalSafeOrdinal,
 		projectionDao.minimumRequiredProductLaneCheckpoint(sourceKind) ?: globalSafeOrdinal,
-		when (sourceKind) {
-			SourceDestinationOwnerEntity.SOURCE_WIFI -> projectionDao.requiredProjectionCheckpoint(
-				AmbientWifiFactRevisionEntity.WRITER_ID,
-				AmbientWifiFactRevisionEntity.WRITER_VERSION,
-			)
-			SourceDestinationOwnerEntity.SOURCE_CELL -> projectionDao.requiredProjectionCheckpoint(
-				AmbientCellFactRevisionEntity.WRITER_ID,
-				AmbientCellFactRevisionEntity.WRITER_VERSION,
-			)
-			else -> null
-		} ?: globalSafeOrdinal,
+		requiredAmbientProjectionCheckpoint(projectionDao, sourceKind) ?: globalSafeOrdinal,
 	)
 	if (sourceSafeOrdinal <= 0L) return SourceEventStoragePruneBatchResult.Applied(0, 0)
 	val sourceEffects = projectionDao.deleteDeliveredOutboxForSourceBatch(
@@ -386,82 +460,102 @@ private suspend fun AppDatabase.pruneSourceEventStorageBatch(
 		limit = batchSize,
 	)
 	val walDao = sourceEventWalDao()
-	val sourceWal = if (sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS) {
-		var candidateCount = 0
-		when (
-			val result = StepsCountDomainStore(this).pruneSessionWalForStorage(
-				safeOrdinal = sourceSafeOrdinal,
-				createdBeforeMs = createdBeforeMs,
-				limit = batchSize,
-				beforeWalDeletion = { totalCandidateCount, currentCandidates ->
-					candidateCount = totalCandidateCount
-					requireRetentionProofs(sourceKind, currentCandidates)
-				},
-			)
-		) {
-			is StepsCountDomainMaintenanceResult.Applied -> {
-				if (result.walEventsDeleted != candidateCount) {
-					return SourceEventStoragePruneBatchResult.Blocked(
-						SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
-					)
-				}
-				result.walEventsDeleted
-			}
-			StepsCountDomainMaintenanceResult.SchemaUnavailable -> {
-				val candidates = walDao.retentionProofCandidatesForProjectedSourceBatch(
-					sourceKind = sourceKind,
-					safeOrdinal = sourceSafeOrdinal,
-					createdBeforeMs = createdBeforeMs,
-					limit = batchSize,
-				)
-				requireRetentionProofs(sourceKind, candidates)
-				val deleted = walDao.deleteProjectedSourceBatch(
-					sourceKind = sourceKind,
-					safeOrdinal = sourceSafeOrdinal,
-					createdBeforeMs = createdBeforeMs,
-					limit = batchSize,
-				)
-				if (deleted != candidates.size) {
-					return SourceEventStoragePruneBatchResult.Blocked(
-						SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
-					)
-				}
-				deleted
-			}
-			StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable ->
-				return SourceEventStoragePruneBatchResult.Blocked(
+	val walResult = if (sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS) {
+		pruneStepsSourceWal(walDao, sourceKind, sourceSafeOrdinal, createdBeforeMs, batchSize)
+	} else {
+		pruneProjectedSourceWal(walDao, sourceKind, sourceSafeOrdinal, createdBeforeMs, batchSize)
+	}
+	return when (walResult) {
+		is SourceEventStoragePruneBatchResult.Applied -> SourceEventStoragePruneBatchResult.Applied(
+			walEventsDeleted = walResult.walEventsDeleted,
+			deliveredEffectsDeleted = sourceEffects,
+		)
+		is SourceEventStoragePruneBatchResult.Blocked -> walResult
+	}
+}
+
+private suspend fun requiredAmbientProjectionCheckpoint(
+	projectionDao: SourceProjectionStateDao,
+	sourceKind: Int,
+): Long? = when (sourceKind) {
+	SourceDestinationOwnerEntity.SOURCE_WIFI -> projectionDao.requiredProjectionCheckpoint(
+		AmbientWifiFactRevisionEntity.WRITER_ID,
+		AmbientWifiFactRevisionEntity.WRITER_VERSION,
+	)
+	SourceDestinationOwnerEntity.SOURCE_CELL -> projectionDao.requiredProjectionCheckpoint(
+		AmbientCellFactRevisionEntity.WRITER_ID,
+		AmbientCellFactRevisionEntity.WRITER_VERSION,
+	)
+	else -> null
+}
+
+private suspend fun AppDatabase.pruneStepsSourceWal(
+	walDao: SourceEventWalDao,
+	sourceKind: Int,
+	sourceSafeOrdinal: Long,
+	createdBeforeMs: Long,
+	batchSize: Int,
+): SourceEventStoragePruneBatchResult {
+	var candidateCount = 0
+	return when (
+		val result = StepsCountDomainStore(this).pruneSessionWalForStorage(
+			safeOrdinal = sourceSafeOrdinal,
+			createdBeforeMs = createdBeforeMs,
+			limit = batchSize,
+			beforeWalDeletion = { totalCandidateCount, currentCandidates ->
+				candidateCount = totalCandidateCount
+				requireRetentionProofs(sourceKind, currentCandidates)
+			},
+		)
+	) {
+		is StepsCountDomainMaintenanceResult.Applied -> {
+			if (result.walEventsDeleted != candidateCount) {
+				SourceEventStoragePruneBatchResult.Blocked(
 					SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
 				)
-			StepsCountDomainMaintenanceResult.Overflow ->
-				return SourceEventStoragePruneBatchResult.Blocked(
-					SourceEventStoragePruneBlockedReason.MAINTENANCE_OVERFLOW,
-				)
+			} else {
+				SourceEventStoragePruneBatchResult.Applied(result.walEventsDeleted, 0)
+			}
 		}
-	} else {
-		val candidates = walDao.retentionProofCandidatesForProjectedSourceBatch(
-			sourceKind = sourceKind,
-			safeOrdinal = sourceSafeOrdinal,
-			createdBeforeMs = createdBeforeMs,
-			limit = batchSize,
-		)
-		requireRetentionProofs(sourceKind, candidates)
-		val deleted = walDao.deleteProjectedSourceBatch(
-			sourceKind = sourceKind,
-			safeOrdinal = sourceSafeOrdinal,
-			createdBeforeMs = createdBeforeMs,
-			limit = batchSize,
-		)
-		if (deleted != candidates.size) {
-			return SourceEventStoragePruneBatchResult.Blocked(
+		StepsCountDomainMaintenanceResult.SchemaUnavailable ->
+			pruneProjectedSourceWal(walDao, sourceKind, sourceSafeOrdinal, createdBeforeMs, batchSize)
+		StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable ->
+			SourceEventStoragePruneBatchResult.Blocked(
 				SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
 			)
-		}
-		deleted
+		StepsCountDomainMaintenanceResult.Overflow ->
+			SourceEventStoragePruneBatchResult.Blocked(
+				SourceEventStoragePruneBlockedReason.MAINTENANCE_OVERFLOW,
+			)
 	}
-	return SourceEventStoragePruneBatchResult.Applied(
-		walEventsDeleted = sourceWal,
-		deliveredEffectsDeleted = sourceEffects,
+}
+
+private suspend fun AppDatabase.pruneProjectedSourceWal(
+	walDao: SourceEventWalDao,
+	sourceKind: Int,
+	sourceSafeOrdinal: Long,
+	createdBeforeMs: Long,
+	batchSize: Int,
+): SourceEventStoragePruneBatchResult {
+	val candidates = walDao.retentionProofCandidatesForProjectedSourceBatch(
+		sourceKind = sourceKind,
+		safeOrdinal = sourceSafeOrdinal,
+		createdBeforeMs = createdBeforeMs,
+		limit = batchSize,
 	)
+	requireRetentionProofs(sourceKind, candidates)
+	val deleted = walDao.deleteProjectedSourceBatch(
+		sourceKind = sourceKind,
+		safeOrdinal = sourceSafeOrdinal,
+		createdBeforeMs = createdBeforeMs,
+		limit = batchSize,
+	)
+	if (deleted != candidates.size) {
+		return SourceEventStoragePruneBatchResult.Blocked(
+			SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+	}
+	return SourceEventStoragePruneBatchResult.Applied(deleted, 0)
 }
 
 private suspend fun AppDatabase.requireRetentionProofs(
@@ -469,12 +563,21 @@ private suspend fun AppDatabase.requireRetentionProofs(
 	candidates: List<SourceEventRetentionProofCandidateRow>,
 ) {
 	if (candidates.isEmpty()) return
+	val receipts = loadAuthenticatedRetentionProofs(expectedSourceKind, candidates)
+	insertVerifiedRetentionProofs(receipts)
+	persistRetainedCaptureScopeProofs(receipts)
+}
+
+private suspend fun AppDatabase.loadAuthenticatedRetentionProofs(
+	expectedSourceKind: Int,
+	candidates: List<SourceEventRetentionProofCandidateRow>,
+): List<SourceEventRetentionProofEntity> {
 	if (candidates.any { it.sourceKind != expectedSourceKind }) {
 		throw SourceEventStoragePruneBlockedException(
 			SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
 		)
 	}
-	val receipts = try {
+	return try {
 		candidates.map { candidate ->
 			val wal = sourceEventWalDao().getByEventId(candidate.eventId)
 			requireNotNull(wal)
@@ -485,6 +588,11 @@ private suspend fun AppDatabase.requireRetentionProofs(
 			SourceEventStoragePruneBlockedReason.STORED_EVIDENCE_UNVERIFIABLE,
 		)
 	}
+}
+
+private suspend fun AppDatabase.insertVerifiedRetentionProofs(
+	receipts: List<SourceEventRetentionProofEntity>,
+) {
 	val insertions = sourceEventRetentionProofDao().insertAll(receipts)
 	if (insertions.size != receipts.size) {
 		throw SourceEventStoragePruneBlockedException(
@@ -502,6 +610,11 @@ private suspend fun AppDatabase.requireRetentionProofs(
 			}
 		}
 	}
+}
+
+private suspend fun AppDatabase.persistRetainedCaptureScopeProofs(
+	receipts: List<SourceEventRetentionProofEntity>,
+) {
 	try {
 		receipts.forEach { receipt ->
 			if (receipt.sourceKind in RETAINED_CAPTURE_SCOPE_SOURCE_KINDS &&
@@ -546,6 +659,8 @@ private suspend fun AppDatabase.persistSourceEventRetentionScopeProof(
 	require(persisted.advance(eventProof) == persisted)
 }
 
+// Compares the complete saved candidate/WAL tuple and the existing deterministic WAL digest.
+@Suppress("CyclomaticComplexMethod")
 internal fun SourceEventRetentionProofCandidateRow.authenticatesRetentionWal(
 	wal: SourceEventWalEntity,
 ): Boolean = sourceKind == wal.sourceKind &&

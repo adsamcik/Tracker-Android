@@ -112,7 +112,7 @@ class PreparedCallerAuthorityDescriptorRebindTest {
 			.descriptor shouldBe expected
 
 		val changedDebt = requireNotNull(original.catalogReconfigurationDebt).copy(
-			deferredSourceMask = 2L,
+			requestedPlanCreatedAtMs = requireNotNull(original.catalogReconfigurationDebt).requestedPlanCreatedAtMs + 1L,
 		)
 		val conflicting = expected.copy(catalogReconfigurationDebt = changedDebt)
 		val losingStore = RecordingStore(original, raceCurrent = conflicting)
@@ -212,7 +212,9 @@ class PreparedCallerAuthorityDescriptorRebindTest {
 				current = raced
 				raceCurrent = null
 			}
-			if (current == expected) current = replacement
+			if (current == expected) {
+				current = replacement
+			}
 			return ActiveTrackingSessionStoreResult.Success(current)
 		}
 

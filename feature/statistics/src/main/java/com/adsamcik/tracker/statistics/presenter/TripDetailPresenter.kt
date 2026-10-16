@@ -8,6 +8,7 @@ import com.adsamcik.tracker.stats.api.repository.TripSummary
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -56,47 +57,53 @@ class TripDetailPresenter @Inject constructor(
 							}
 						},
 						ifRight = { trip ->
-							var latestState: TripDetailState = TripDetailState.Loaded(
-								trip = trip,
-								steps = TripDetailStepsState.Materializing,
-								sourcePresentation = TripDetailSourcePresentation.Resolving,
-							)
-							emit(latestState)
-							try {
-								trackingHistoryRepository.observeLiveSession(event.tripId).collect { snapshot ->
-									latestState = when (val session = snapshot.session) {
-										SessionHistoryQuery.NotFound -> TripDetailState.NotFound(event.tripId)
-										is SessionHistoryQuery.Unavailable -> TripDetailState.Loaded(
-											trip = trip,
-											steps = TripDetailStepsState.Failed,
-											sourcePresentation = TripDetailSourcePresentation.Unavailable(
-												reason = session.reason,
-												source = session.source,
-											),
-										)
-										is SessionHistoryQuery.Found -> {
-											TripDetailState.Loaded(
-												trip = trip,
-												steps = session.history.steps.toTripDetailStepsState(),
-												sourcePresentation = snapshot
-													.toTripDetailSourcePresentation(),
-											)
-										}
-									}
-									emit(latestState)
-								}
-							} catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
-								if (error is CancellationException) throw error
-								val failedState = (latestState as? TripDetailState.Loaded)?.copy(
-									steps = TripDetailStepsState.Failed,
-									sourcePresentation = TripDetailSourcePresentation.Failed,
-								) ?: latestState
-								emit(failedState)
-							}
+							collectLiveTrip(event.tripId, trip)
 						},
 					)
 				}
 			}
+		}
+	}
+
+	private suspend fun FlowCollector<TripDetailState>.collectLiveTrip(tripId: Long, trip: TripSummary) {
+		var latestState: TripDetailState = TripDetailState.Loaded(
+			trip = trip,
+			steps = TripDetailStepsState.Materializing,
+			sourcePresentation = TripDetailSourcePresentation.Resolving,
+		)
+		emit(latestState)
+		try {
+			trackingHistoryRepository.observeLiveSession(tripId).collect { snapshot ->
+				latestState = when (val session = snapshot.session) {
+					SessionHistoryQuery.NotFound -> TripDetailState.NotFound(tripId)
+					is SessionHistoryQuery.Unavailable -> TripDetailState.Loaded(
+						trip = trip,
+						steps = TripDetailStepsState.Failed,
+						sourcePresentation = TripDetailSourcePresentation.Unavailable(
+							reason = session.reason,
+							source = session.source,
+						),
+					)
+					is SessionHistoryQuery.Found -> {
+						TripDetailState.Loaded(
+							trip = trip,
+							steps = session.history.steps.toTripDetailStepsState(),
+							sourcePresentation = snapshot
+								.toTripDetailSourcePresentation(),
+						)
+					}
+				}
+				emit(latestState)
+			}
+		} catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
+			if (error is CancellationException) {
+				throw error
+			}
+			val failedState = (latestState as? TripDetailState.Loaded)?.copy(
+				steps = TripDetailStepsState.Failed,
+				sourcePresentation = TripDetailSourcePresentation.Failed,
+			) ?: latestState
+			emit(failedState)
 		}
 	}
 }

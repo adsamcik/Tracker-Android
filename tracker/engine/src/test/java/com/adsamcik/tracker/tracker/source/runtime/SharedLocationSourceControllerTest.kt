@@ -477,10 +477,22 @@ class SharedLocationSourceControllerTest {
 	}
 
 	private fun demand(capture: Boolean) = SourceDemandEntity(
-		demandId = if (capture) "capture" else "background",
-		consumerId = if (capture) "session:logical" else "ambient:location",
+		demandId = if (capture) {
+			"capture"
+		} else {
+			"background"
+		},
+		consumerId = if (capture) {
+			"session:logical"
+		} else {
+			"ambient:location"
+		},
 		sourceKind = SourceKind.LOCATION.stableCode,
-		purpose = if (capture) SourceBrokerPurpose.SESSION_CAPTURE else SourceBrokerPurpose.AMBIENT_PRODUCT,
+		purpose = if (capture) {
+			SourceBrokerPurpose.SESSION_CAPTURE
+		} else {
+			SourceBrokerPurpose.AMBIENT_PRODUCT
+		},
 		logicalTrackingId = "logical".takeIf { capture }, serviceRunId = "run".takeIf { capture },
 		manifestRevision = 1L.takeIf { capture }, lifecycleLeaseGeneration = 1L.takeIf { capture },
 		sourcePolicyRevision = 2L, consentEpoch = 3L, persistenceEligible = true, qosCode = 2,

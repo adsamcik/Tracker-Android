@@ -1,6 +1,10 @@
 package com.adsamcik.tracker.statistics.fragment
 
+import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.utils.style.compose.TerrainCardShape
+
 import android.content.Context
+import android.content.res.Resources
 import androidx.annotation.StringRes
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -265,7 +269,8 @@ private fun EmptyState(onStartTracking: () -> Unit) {
 
 @Composable
 private fun ErrorState(onRetry: () -> Unit) {
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment =
+        Alignment.CenterHorizontally) {
         // Using module-specific generic error string
         Text(
             text = stringResource(R.string.stats_error_generic), 
@@ -275,7 +280,8 @@ private fun ErrorState(onRetry: () -> Unit) {
         Spacer(Modifier.height(16.dp))
         Button(
             onClick = onRetry,
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary)
         ) { 
             Text(stringResource(R.string.action_retry)) 
         }
@@ -437,7 +443,10 @@ private fun ContentState(
                 if (index == 0) {
                     DateHeader(System.currentTimeMillis())
                 }
-                TripRow(Trip(id = index.toLong(), startTimeMs = 0, endTimeMs = 0, distanceM = 0f, steps = null, primaryActivity = null, activityConfidence = null, sampleCount = 0, source = com.adsamcik.tracker.shared.model.SegmentSource.USER_CREATED, createdAt = 0))
+                TripRow(Trip(id = index.toLong(), startTimeMs = 0, endTimeMs = 0, distanceM = 0f,
+                    steps = null, primaryActivity = null, activityConfidence = null,
+                        sampleCount = 0, source =
+                            SegmentSource.USER_CREATED, createdAt = 0))
             }
         }
 
@@ -643,19 +652,7 @@ private fun SparseStatsSummaryCard(
     val settings = remember { TrackerSettingsQuick.snapshot(context) }
     val totalDistanceM = remember(weeklyBars) { weeklyBars.sumOf { it.distanceM.toDouble() }.toFloat() }
     val summaryBars = remember(weeklyBars, weeklyStepsSummary, showStepsValues) {
-        val ready = weeklyStepsSummary as? StepsDailyDisplay.Snapshot
-        val hasSavedSteps = ready?.days?.any { it.value.savedCount() != null } == true
-        if (ready == null || !showStepsValues && !hasSavedSteps) weeklyBars else {
-            val structuralBarsByDay = weeklyBars.associateBy { it.epochDay }
-            val dayFormatter = DateTimeFormatter.ofPattern("EEE")
-            ready.days.map { day ->
-                structuralBarsByDay[day.epochDay] ?: DayBar(
-                    dayLabel = LocalDate.ofEpochDay(day.epochDay).format(dayFormatter),
-                    distanceM = 0f,
-                    epochDay = day.epochDay,
-                )
-            }
-        }
+        sparseSummaryBars(weeklyBars, weeklyStepsSummary, showStepsValues)
     }
     val qualifiedStepsByEpochDay = remember(weeklyStepsSummary) {
         (weeklyStepsSummary as? StepsDailyDisplay.Snapshot)
@@ -667,15 +664,7 @@ private fun SparseStatsSummaryCard(
         sparseSummaryActiveDayCount(summaryBars, weeklyStepsSummary)
     }
     val distanceText = remember(totalDistanceM, weeklyBars, settings) {
-        if (weeklyBars.none { it.hasMeasuredDistance }) "—" else {
-        val measured = resources.formatDistance(
-            totalDistanceM,
-            digits = if (totalDistanceM >= 1000f) 1 else 2,
-            unit = settings.lengthSystem,
-        )
-        if (weeklyBars.any { it.distanceIsPartial || !it.hasMeasuredDistance && it.hasNonStepTrackedActivity })
-            resources.getString(R.string.stats_recorded_partial_value, measured) else measured
-        }
+        sparseDistanceText(resources, weeklyBars, totalDistanceM, settings.lengthSystem)
     }
 
     GlassCard(
@@ -722,11 +711,7 @@ private fun SparseStatsSummaryCard(
                 }
                 SummaryMetricCard(
                     label = stringResource(R.string.stats_steps),
-                    value = if (visibleSessionCount == 0 || showStepsValues ||
-                        (weeklyStepsSummary as? StepsDailyDisplay.Snapshot)?.days?.any {
-                            it.value.savedCount() != null ||
-                                (it.value as? StepsDailyDisplayValue.Unavailable)?.reason == StepsNumericUnverifiableReason.PARTIAL_CAPTURE
-                        } == true
+                    value = if (showSparseStepsValue(visibleSessionCount, showStepsValues, weeklyStepsSummary)
                     ) weeklyStepsSummary.summaryValueText()
                     else stringResource(R.string.stats_metric_not_available_short),
                     modifier = Modifier.weight(1f).testTag("stats_summary_steps"),
@@ -768,24 +753,70 @@ private fun SparseStatsSummaryCard(
     }
 }
 
+private fun sparseDistanceText(
+    resources: Resources,
+    weeklyBars: List<DayBar>,
+    totalDistanceM: Float,
+    lengthSystem: LengthSystem,
+): String {
+    if (weeklyBars.none { it.hasMeasuredDistance }) {
+        return "—"
+    }
+    val measured = resources.formatDistance(
+        totalDistanceM,
+        digits = if (totalDistanceM >= 1000f) { 1 } else { 2 },
+        unit = lengthSystem,
+    )
+    return if (weeklyBars.any { it.distanceIsPartial || !it.hasMeasuredDistance && it.hasNonStepTrackedActivity }) {
+        resources.getString(R.string.stats_recorded_partial_value, measured)
+    } else {
+        measured
+    }
+}
+
+private fun sparseSummaryBars(
+    weeklyBars: List<DayBar>,
+    weeklyStepsSummary: StepsDailyDisplay,
+    showStepsValues: Boolean,
+): List<DayBar> {
+    val ready = weeklyStepsSummary as? StepsDailyDisplay.Snapshot
+    val hasSavedSteps = ready?.days?.any { it.value.savedCount() != null } == true
+    return if (ready == null || !showStepsValues && !hasSavedSteps) weeklyBars else {
+        val structuralBarsByDay = weeklyBars.associateBy { it.epochDay }
+        val dayFormatter = DateTimeFormatter.ofPattern("EEE")
+        ready.days.map { day ->
+            structuralBarsByDay[day.epochDay] ?: DayBar(
+                dayLabel = LocalDate.ofEpochDay(day.epochDay).format(dayFormatter),
+                distanceM = 0f,
+                epochDay = day.epochDay,
+            )
+        }
+    }
+}
+
+private fun showSparseStepsValue(
+    visibleSessionCount: Int,
+    showStepsValues: Boolean,
+    weeklyStepsSummary: StepsDailyDisplay,
+): Boolean = visibleSessionCount == 0 || showStepsValues ||
+    (weeklyStepsSummary as? StepsDailyDisplay.Snapshot)?.days?.any {
+        it.value.savedCount() != null ||
+            (it.value as? StepsDailyDisplayValue.Unavailable)?.reason ==
+                StepsNumericUnverifiableReason.PARTIAL_CAPTURE
+    } == true
+
+private fun checkedStepsSummaryTotal(counts: List<Long>): Long? = counts.fold<Long, Long?>(0L) { sum, count ->
+    if (sum == null || count > Long.MAX_VALUE - sum) null else sum + count
+}
+
 @Composable
 private fun StepsDailyDisplay.summaryValueText(): String = when (this) {
     is StepsDailyDisplay.Snapshot -> {
         val counts = days.mapNotNull { it.value.savedCount() }
-        val total = counts.fold<Long, Long?>(0L) { sum, count ->
-            if (sum == null || count > Long.MAX_VALUE - sum) null else sum + count
-        }
+        val total = checkedStepsSummaryTotal(counts)
         when {
             counts.isEmpty() || total == null -> {
-                if (days.any { it.value == StepsDailyDisplayValue.Materializing }) {
-                    stringResource(R.string.history_value_materializing)
-                } else if (days.all {
-                    (it.value as? StepsDailyDisplayValue.Unavailable)?.reason == StepsNumericUnverifiableReason.NOT_CAPTURED
-                }) stringResource(R.string.history_value_not_captured)
-                else if (days.any {
-                    (it.value as? StepsDailyDisplayValue.Unavailable)?.reason == StepsNumericUnverifiableReason.PARTIAL_CAPTURE
-                }) stringResource(R.string.history_value_partial)
-                else stringResource(R.string.history_value_unavailable)
+                missingSummaryValueText()
             }
             days.all { it.value is StepsDailyDisplayValue.Complete } -> total.formatReadable()
             else -> stringResource(R.string.steps_daily_recorded_count, total.formatReadable())
@@ -794,6 +825,20 @@ private fun StepsDailyDisplay.summaryValueText(): String = when (this) {
     StepsDailyDisplay.Materializing -> stringResource(R.string.history_value_materializing)
     StepsDailyDisplay.StorageUnavailable -> stringResource(R.string.history_value_unavailable)
 }
+
+@Composable
+private fun StepsDailyDisplay.Snapshot.missingSummaryValueText(): String =
+    if (days.any { it.value == StepsDailyDisplayValue.Materializing }) {
+        stringResource(R.string.history_value_materializing)
+    } else if (days.all {
+        (it.value as? StepsDailyDisplayValue.Unavailable)?.reason ==
+            StepsNumericUnverifiableReason.NOT_CAPTURED
+    }) stringResource(R.string.history_value_not_captured)
+    else if (days.any {
+        (it.value as? StepsDailyDisplayValue.Unavailable)?.reason ==
+            StepsNumericUnverifiableReason.PARTIAL_CAPTURE
+    }) stringResource(R.string.history_value_partial)
+    else stringResource(R.string.history_value_unavailable)
 
 private fun StepsDailyDisplayValue.savedCount(): Long? = when (this) {
     is StepsDailyDisplayValue.Complete -> count
@@ -1001,7 +1046,8 @@ internal fun TripRow(
                 digits = if (trip.distanceM >= 1000f) 1 else 2,
                 unit = settings.lengthSystem
             )
-            if (trip.distanceIsPartial) resources.getString(R.string.stats_recorded_partial_value, measured) else measured
+            if (trip.distanceIsPartial) resources.getString(R.string.stats_recorded_partial_value,
+                measured) else measured
         } else null
     }
     
@@ -1083,7 +1129,7 @@ internal fun TripRow(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(com.adsamcik.tracker.shared.utils.style.compose.TerrainCardShape)
+            .clip(TerrainCardShape)
             .then(
                 if (onClick != null || onViewOnMap != null || onDelete != null) {
                     Modifier.tripRowClickable(
@@ -1101,7 +1147,7 @@ internal fun TripRow(
     ) {
         GlassCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = com.adsamcik.tracker.shared.utils.style.compose.TerrainCardShape
+            shape = TerrainCardShape
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

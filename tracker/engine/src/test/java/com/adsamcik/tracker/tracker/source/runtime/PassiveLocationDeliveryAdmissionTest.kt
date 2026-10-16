@@ -175,7 +175,9 @@ class PassiveLocationDeliveryAdmissionTest {
 	fun `permission revoked after a full work chunk fences every later original`() = runTest {
 		val fixture = AdmissionFixture()
 		fixture.ingress.afterAdmission = { _, count ->
-			if (count == 64) fixture.backgroundPermission = false
+			if (count == 64) {
+				fixture.backgroundPermission = false
+			}
 		}
 
 		val outcome = fixture.subject.admit(identity, (1L..129L).map(::fix), 1_000L, 1_000L)
@@ -192,7 +194,9 @@ class PassiveLocationDeliveryAdmissionTest {
 	fun `collection stop after a full work chunk fences every later original`() = runTest {
 		val fixture = AdmissionFixture()
 		fixture.ingress.afterAdmission = { _, count ->
-			if (count == 64) fixture.collectionAllowed = false
+			if (count == 64) {
+				fixture.collectionAllowed = false
+			}
 		}
 
 		val outcome = fixture.subject.admit(identity, (1L..129L).map(::fix), 1_000L, 1_000L)
@@ -207,7 +211,9 @@ class PassiveLocationDeliveryAdmissionTest {
 	fun `ingress cancellation rolls back the whole handoff without publishing hints`() = runTest {
 		val fixture = AdmissionFixture()
 		fixture.ingress.beforeAdmission = { _, attempt ->
-			if (attempt == 65) throw CancellationException("receiver cancelled")
+			if (attempt == 65) {
+				throw CancellationException("receiver cancelled")
+			}
 		}
 		var returned = false
 		val job = launch {
@@ -234,7 +240,9 @@ class PassiveLocationDeliveryAdmissionTest {
 		val fixture = AdmissionFixture()
 		var parent: Job? = null
 		fixture.ingress.afterAdmission = { _, count ->
-			if (count == 64) parent?.cancel(CancellationException("receiver stopped"))
+			if (count == 64) {
+				parent?.cancel(CancellationException("receiver stopped"))
+			}
 		}
 		val job = launch {
 			parent = currentCoroutineContext().job
@@ -259,8 +267,12 @@ class PassiveLocationDeliveryAdmissionTest {
 		val fixture = AdmissionFixture()
 		fixture.ingress.beforeAdmission = { _, attempt ->
 			assertTrue(fixture.ingress.events.isEmpty())
-			if (attempt == 65 || attempt == 129) fixture.verifyNoHints()
-			if (attempt == 65) delay(6_000L)
+			if (attempt == 65 || attempt == 129) {
+				fixture.verifyNoHints()
+			}
+			if (attempt == 65) {
+				delay(6_000L)
+			}
 		}
 
 		val outcome = withTimeoutOrNull(5_000L) {
@@ -285,8 +297,12 @@ class PassiveLocationDeliveryAdmissionTest {
 	fun `retryable storage failure rolls back staged fixes and leaves a complete retry possible`() = runTest {
 		val fixture = AdmissionFixture()
 		fixture.ingress.admissionResult = { attempt ->
-			if (attempt == 65) DeliveryAdmissionResult.RetryableFailure(AdmissionFailureCode.STORAGE_UNAVAILABLE)
-			else null
+			if (attempt == 65) {
+				DeliveryAdmissionResult.RetryableFailure(AdmissionFailureCode.STORAGE_UNAVAILABLE)
+			}
+			else {
+				null
+			}
 		}
 		val failure = try {
 			fixture.subject.admit(identity, (1L..129L).map(::fix), 1_000L, 1_000L)
@@ -307,8 +323,12 @@ class PassiveLocationDeliveryAdmissionTest {
 	fun `permanently rejected original does not discard valid siblings in the same commit`() = runTest {
 		val fixture = AdmissionFixture()
 		fixture.ingress.admissionResult = { attempt ->
-			if (attempt == 65) DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_REGISTRATION_GENERATION)
-			else null
+			if (attempt == 65) {
+				DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_REGISTRATION_GENERATION)
+			}
+			else {
+				null
+			}
 		}
 		val originals = (1L..129L).map(::fix)
 		val outcome = fixture.subject.admit(identity, originals, 1_000L, 1_000L)
@@ -386,12 +406,18 @@ class PassiveLocationDeliveryAdmissionTest {
 			admissionResult(attempts.size)?.let { return it }
 			val existing = admissionEvents[delivery.identity.value]
 			val eventId = existing ?: SourceEventId("point:${delivery.identity.value}")
-			if (existing == null) admissionEvents[delivery.identity.value] = eventId
+			if (existing == null) {
+				admissionEvents[delivery.identity.value] = eventId
+			}
 			val ordinal = admissionEvents.keys.indexOf(delivery.identity.value).toLong() + 1L
 			val unit = DeliveryAdmissionResult.AdmittedUnit(0, eventId, ordinal, ordinal)
 			afterAdmission(delivery, admissionEvents.size)
-			return if (existing == null) DeliveryAdmissionResult.Admitted(listOf(unit))
-				else DeliveryAdmissionResult.Duplicate(listOf(unit))
+			return if (existing == null) {
+				DeliveryAdmissionResult.Admitted(listOf(unit))
+			}
+				else {
+				DeliveryAdmissionResult.Duplicate(listOf(unit))
+			}
 		}
 
 		override suspend fun admit(candidate: SourceEvidenceCandidate<*>): AdmissionResult =

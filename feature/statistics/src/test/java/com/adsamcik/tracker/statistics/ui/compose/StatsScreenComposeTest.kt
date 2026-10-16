@@ -58,6 +58,8 @@ import java.time.LocalDate
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// One StatsScreen contract spans paging, retained Steps and collector visibility under the same Compose rule.
+@Suppress("LargeClass")
 class StatsScreenComposeTest {
 
 	@get:Rule
@@ -789,7 +791,11 @@ class StatsScreenComposeTest {
 		val largeCount = Int.MAX_VALUE.toLong() + 8L
 		val summaries = MutableStateFlow<StepsDailyDisplay>(
 			testDisplayReady(List(7) { index ->
-				StepsNumericDay(today - 6L + index, if (index == 6) largeCount else 0L)
+				StepsNumericDay(today - 6L + index, if (index == 6) {
+					largeCount
+				} else {
+					0L
+				})
 			}),
 		)
 		var openedTrip: Long? = null

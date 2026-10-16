@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
+/** Whether the exact retention configuration has no approval, is staged, is approved or is invalid. */
 enum class RetentionPolicyApprovalStatus {
 	UNAPPROVED,
 	PENDING,
@@ -22,6 +23,7 @@ enum class RetentionPolicyApprovalStatus {
 	INVALID,
 }
 
+/** Stable retention configuration identity and checksums used to bind destructive local operations. */
 data class ApprovedRetentionPolicy(
 	val configurationGeneration: Long,
 	val revision: Long,
@@ -32,7 +34,7 @@ data class ApprovedRetentionPolicy(
 	init {
 		require(configurationGeneration > 0L)
 		require(revision > 0L)
-		require(opaquePolicyId.isNotBlank() && opaquePolicyId.length <= 256)
+		require(opaquePolicyId.isNotBlank() && opaquePolicyId.length <= MAX_OPAQUE_POLICY_ID_LENGTH)
 		require(DIGEST.matches(configurationChecksum))
 		require(DIGEST.matches(integrityChecksum))
 	}
@@ -42,6 +44,7 @@ data class ApprovedRetentionPolicy(
 	}
 }
 
+/** Stable retention configuration identity and checksums used to bind destructive local operations. */
 internal fun ApprovedRetentionPolicy.hasAuthenticChecksum(
 	status: RetentionPolicyApprovalStatus,
 ): Boolean = integrityChecksum == RetentionPolicyApprovalIntegrity.checksum(
@@ -52,6 +55,7 @@ internal fun ApprovedRetentionPolicy.hasAuthenticChecksum(
 	configurationChecksum = configurationChecksum,
 )
 
+/** Stable retention configuration identity and checksums used to bind destructive local operations. */
 internal fun ApprovedRetentionPolicy.hasSameStableIdentity(
 	other: ApprovedRetentionPolicy,
 ): Boolean =
@@ -60,30 +64,39 @@ internal fun ApprovedRetentionPolicy.hasSameStableIdentity(
 		opaquePolicyId == other.opaquePolicyId &&
 		configurationChecksum == other.configurationChecksum
 
+/** Stable retention configuration identity and checksums used to bind destructive local operations. */
 internal fun ApprovedRetentionPolicy.approvalMutationIdentity(): String =
 	"retention-approval-v1:$configurationGeneration:$revision:$opaquePolicyId:$configurationChecksum"
 
+/** Exact policy staged for a change and whether preparation/approval is still needed. */
 data class RetentionPolicyStage(
 	val policy: ApprovedRetentionPolicy,
 	val approvalRequired: Boolean,
 )
 
+/** Completed approval for current configuration or the reason it cannot be used. */
 sealed interface ApprovedRetentionPolicyRead {
+	/** The matching intact policy and, for candidates, its current approval status. */
 	data class Available(val policy: ApprovedRetentionPolicy) : ApprovedRetentionPolicyRead
+	/** No matching usable policy was found; the reason remains explicit. */
 	data class Unavailable(val reason: ApprovedRetentionPolicyUnavailableReason) :
 		ApprovedRetentionPolicyRead
 }
 
+/** A current or pending policy candidate that may still require approval. */
 sealed interface RetentionPolicyCandidateRead {
+	/** The matching intact policy and, for candidates, its current approval status. */
 	data class Available(
 		val policy: ApprovedRetentionPolicy,
 		val status: RetentionPolicyApprovalStatus,
 	) : RetentionPolicyCandidateRead
 
+	/** No matching usable policy was found; the reason remains explicit. */
 	data class Unavailable(val reason: ApprovedRetentionPolicyUnavailableReason) :
 		RetentionPolicyCandidateRead
 }
 
+/** Distinguishes missing, pending, superseded and damaged approval records. */
 enum class ApprovedRetentionPolicyUnavailableReason {
 	NOT_APPROVED,
 	PENDING_APPROVAL,
@@ -153,7 +166,7 @@ internal class RetentionPolicyApprovalStore(
 				val generation = storedGeneration + 1L
 				val revision = storedRevision + 1L
 				val opaquePolicyId = nextOpaquePolicyId()
-				require(opaquePolicyId.isNotBlank() && opaquePolicyId.length <= 256)
+				require(opaquePolicyId.isNotBlank() && opaquePolicyId.length <= MAX_OPAQUE_POLICY_ID_LENGTH)
 				val newPending = RetentionPolicyApprovalRecord.create(
 					status = RetentionPolicyApprovalStatus.PENDING,
 					configurationGeneration = generation,
@@ -291,6 +304,8 @@ internal class RetentionPolicyApprovalStore(
 			stringPreferencesKey("pending_configuration_checksum")
 		val PENDING_INTEGRITY_CHECKSUM_KEY = stringPreferencesKey("pending_integrity_checksum")
 
+		// Project the two saved approval slots and their fixed invalid-field mask together.
+		@Suppress("CyclomaticComplexMethod")
 		fun Preferences.toStoredApprovals(): StoredRetentionPolicyApprovals {
 			val primary = toRecordOrNull(
 				GENERATION_KEY,
@@ -345,6 +360,8 @@ internal class RetentionPolicyApprovalStore(
 			)
 		}
 
+		// Preserve the ordered missing-field exits for this one saved record.
+		@Suppress("ReturnCount")
 		fun Preferences.toRecordOrNull(
 			generationKey: androidx.datastore.preferences.core.Preferences.Key<Long>,
 			revisionKey: androidx.datastore.preferences.core.Preferences.Key<Long>,
@@ -481,10 +498,16 @@ internal object RetentionPolicyApprovalIntegrity {
 	private fun digest(vararg values: Any?): String {
 		val canonical = values.joinToString(separator = "") { value ->
 			val text = value?.toString()
-			if (text == null) "-1:" else "${text.length}:$text"
+			if (text == null) {
+				"-1:"
+			} else {
+				"${text.length}:$text"
+			}
 		}
 		return MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray(Charsets.UTF_8))
 			.joinToString(separator = "") { byte -> "%02x".format(byte) }
 	}
 }
+
+private const val MAX_OPAQUE_POLICY_ID_LENGTH = 256

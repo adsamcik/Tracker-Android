@@ -36,7 +36,9 @@ internal class PortableAmbientStepsJsonV2Codec {
 		val result = produce(
 			PortableAmbientStepsArchiveV2Sink { candidate ->
 				currentCoroutineContext().ensureActive()
-				if (archive != null) ambientFail("Ambient Steps v2 emitted multiple archives")
+				if (archive != null) {
+					ambientFail("Ambient Steps v2 emitted multiple archives")
+				}
 				archive = PortableAmbientStepsArchiveV2(
 					candidate.format,
 					candidate.schemaVersion,
@@ -51,12 +53,16 @@ internal class PortableAmbientStepsJsonV2Codec {
 				if (result.dayCount != value.days.size ||
 					result.factCount != value.days.sumOf { it.product.facts.size } ||
 					result.gapCount != value.days.sumOf { it.product.gaps.size }
-				) ambientFail("Ambient Steps v2 result count does not match its archive")
+				) {
+					ambientFail("Ambient Steps v2 result count does not match its archive")
+				}
 				write(outputStream, value)
 				result
 			}
 			else -> {
-				if (archive != null) ambientFail("Ambient Steps v2 emitted data for failure")
+				if (archive != null) {
+					ambientFail("Ambient Steps v2 emitted data for failure")
+				}
 				result
 			}
 		}
@@ -96,49 +102,68 @@ internal class PortableAmbientStepsJsonV2Codec {
 			),
 		).apply { isLenient = false }
 		return try {
-			reader.beginObject()
-			var format: String? = null
-			var schemaVersion: Int? = null
-			var checksum: String? = null
-			var days: List<PortableAmbientStepsDayV2>? = null
-			val fields = hashSetOf<String>()
-			while (reader.hasNext()) {
-				val name = reader.nextName()
-				if (!fields.add(name)) ambientFail("Duplicate Ambient Steps v2 field $name")
-				when (name) {
-					"format" -> format = reader.nextString()
-					"schemaVersion" -> schemaVersion = reader.exactAmbientV2Int(name)
-					"contentChecksum" -> checksum = reader.nextString()
-					"days" -> days = reader.readV2Days()
-					else -> ambientFail("Unknown Ambient Steps v2 field $name")
-				}
-			}
-			reader.endObject()
-			if (reader.peek() != JsonToken.END_DOCUMENT) ambientFail("Trailing Ambient Steps content")
-			val archive = PortableAmbientStepsArchiveV2(
-				format = format ?: ambientFail("Missing Ambient Steps v2 format"),
-				schemaVersion = schemaVersion ?: ambientFail("Missing Ambient Steps v2 version"),
-				contentChecksum = AmbientStepsPortableDigest(
-					checksum ?: ambientFail("Missing Ambient Steps v2 checksum"),
-				),
-				days = days ?: ambientFail("Missing Ambient Steps v2 days"),
-			)
+			val archive = readArchive(reader)
 			PortableAmbientStepsDecodedArchiveV2(archive, archive.metadata(bytes.size.toLong()))
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (failure: PortableAmbientStepsFormatException) {
 			throw failure
 		} catch (failure: PortableJsonTokenLimitException) {
-			throw PortableAmbientStepsFormatException(
+			ambientFail(
 				"Ambient Steps v2 token exceeds its lexical bound",
 				failure,
 			)
 		} catch (failure: IOException) {
-			throw PortableAmbientStepsFormatException("Invalid Ambient Steps v2 JSON", failure)
-		} catch (failure: Exception) {
-			throw PortableAmbientStepsFormatException("Invalid Ambient Steps v2 document", failure)
+			ambientFail("Invalid Ambient Steps v2 JSON", failure)
+		} catch (failure: IllegalArgumentException) {
+			ambientFail("Invalid Ambient Steps v2 document", failure)
+		} catch (failure: IllegalStateException) {
+			ambientFail("Invalid Ambient Steps v2 document", failure)
+		} catch (failure: ArithmeticException) {
+			ambientFail("Invalid Ambient Steps v2 document", failure)
 		}
 	}
+
+	private suspend fun readArchive(reader: JsonReader): PortableAmbientStepsArchiveV2 {
+		reader.beginObject()
+		var format: String? = null
+		var schemaVersion: Int? = null
+		var checksum: String? = null
+		var days: List<PortableAmbientStepsDayV2>? = null
+		val fields = hashSetOf<String>()
+		while (reader.hasNext()) {
+			val name = reader.nextName()
+			if (!fields.add(name)) {
+				ambientFail("Duplicate Ambient Steps v2 field $name")
+			}
+			when (name) {
+				"format" -> format = reader.nextString()
+				"schemaVersion" -> schemaVersion = reader.exactAmbientV2Int(name)
+				"contentChecksum" -> checksum = reader.nextString()
+				"days" -> days = reader.readV2Days()
+				else -> ambientFail("Unknown Ambient Steps v2 field $name")
+			}
+		}
+		reader.endObject()
+		if (reader.peek() != JsonToken.END_DOCUMENT) {
+			ambientFail("Trailing Ambient Steps content")
+		}
+		return assembleArchive(format, schemaVersion, checksum, days)
+	}
+
+	private fun assembleArchive(
+		format: String?,
+		schemaVersion: Int?,
+		checksum: String?,
+		days: List<PortableAmbientStepsDayV2>?,
+	): PortableAmbientStepsArchiveV2 = PortableAmbientStepsArchiveV2(
+			format = format ?: ambientFail("Missing Ambient Steps v2 format"),
+			schemaVersion = schemaVersion ?: ambientFail("Missing Ambient Steps v2 version"),
+			contentChecksum = AmbientStepsPortableDigest(
+				checksum ?: ambientFail("Missing Ambient Steps v2 checksum"),
+			),
+			days = days ?: ambientFail("Missing Ambient Steps v2 days"),
+		)
 
 	private suspend fun write(outputStream: OutputStream, archive: PortableAmbientStepsArchiveV2) {
 		val products = archive.days.associateWith { encodeV1Day(it) }
@@ -167,7 +192,9 @@ internal class PortableAmbientStepsJsonV2Codec {
 	}
 
 	private suspend fun JsonReader.readV2Days(): List<PortableAmbientStepsDayV2> {
-		if (peek() != JsonToken.BEGIN_ARRAY) ambientFail("Ambient Steps v2 days must be an array")
+		if (peek() != JsonToken.BEGIN_ARRAY) {
+			ambientFail("Ambient Steps v2 days must be an array")
+		}
 		beginArray()
 		val result = mutableListOf<PortableAmbientStepsDayV2>()
 		while (hasNext()) {
@@ -175,32 +202,38 @@ internal class PortableAmbientStepsJsonV2Codec {
 			if (result.size >= AmbientStepsPortableFormatV2.MAX_DAYS) {
 				ambientFail("Ambient Steps v2 day count exceeds its bound")
 			}
-			beginObject()
-			var product: com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV1? =
-				null
-			var graph: com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2? =
-				null
-			val fields = hashSetOf<String>()
-			while (hasNext()) {
-				val name = nextName()
-				if (!fields.add(name)) ambientFail("Duplicate Ambient Steps v2 day field $name")
-				when (name) {
-					"productV1" -> product = decodeV1Day(nextString())
-					"countDomainGraph" -> graph = PortableCountDomainJsonV2.read(this)
-					else -> ambientFail("Unknown Ambient Steps v2 day field $name")
-				}
-			}
-			endObject()
-			if (fields != setOf("productV1", "countDomainGraph")) {
-				ambientFail("Ambient Steps v2 day is incomplete")
-			}
-			result += PortableAmbientStepsDayV2(
-				product ?: ambientFail("Ambient Steps v2 day product is missing"),
-				graph ?: ambientFail("Ambient Steps v2 day graph is missing"),
-			)
+			result += readV2Day()
 		}
 		endArray()
 		return result
+	}
+
+	private suspend fun JsonReader.readV2Day(): PortableAmbientStepsDayV2 {
+		beginObject()
+		var product: com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV1? =
+			null
+		var graph: com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2? =
+			null
+		val fields = hashSetOf<String>()
+		while (hasNext()) {
+			val name = nextName()
+			if (!fields.add(name)) {
+				ambientFail("Duplicate Ambient Steps v2 day field $name")
+			}
+			when (name) {
+				"productV1" -> product = decodeV1Day(nextString())
+				"countDomainGraph" -> graph = PortableCountDomainJsonV2.read(this)
+				else -> ambientFail("Unknown Ambient Steps v2 day field $name")
+			}
+		}
+		endObject()
+		if (fields != setOf("productV1", "countDomainGraph")) {
+			ambientFail("Ambient Steps v2 day is incomplete")
+		}
+		return PortableAmbientStepsDayV2(
+			product ?: ambientFail("Ambient Steps v2 day product is missing"),
+			graph ?: ambientFail("Ambient Steps v2 day graph is missing"),
+		)
 	}
 
 	private suspend fun encodeV1Day(day: PortableAmbientStepsDayV2): String {
@@ -285,7 +318,9 @@ private class PortableV2BoundedAmbientOutputStream(
 }
 
 private fun JsonReader.exactAmbientV2Int(name: String): Int {
-	if (peek() != JsonToken.NUMBER) ambientFail("Ambient field $name must be an integer")
+	if (peek() != JsonToken.NUMBER) {
+		ambientFail("Ambient field $name must be an integer")
+	}
 	val token = nextString()
 	if (!AMBIENT_V2_INTEGER_TOKEN.matches(token)) {
 		ambientFail("Ambient field $name must be an integer")
@@ -293,7 +328,7 @@ private fun JsonReader.exactAmbientV2Int(name: String): Int {
 	return token.toIntOrNull() ?: ambientFail("Ambient field $name is out of range")
 }
 
-private fun ambientFail(message: String): Nothing =
-	throw PortableAmbientStepsFormatException(message)
+private fun ambientFail(message: String, cause: Throwable? = null): Nothing =
+	throw PortableAmbientStepsFormatException(message, cause)
 
 private val AMBIENT_V2_INTEGER_TOKEN = Regex("-?(0|[1-9][0-9]*)")

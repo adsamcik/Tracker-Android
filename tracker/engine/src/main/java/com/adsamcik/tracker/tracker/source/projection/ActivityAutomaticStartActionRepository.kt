@@ -179,51 +179,7 @@ class ActivityAutomaticStartActionRepository @Inject constructor(
 			return ActivityAutomaticStartRequestAuthorization.Rejected("TRACKING_STARTUP_NOT_READY")
 		}
 		val result = database.withTransaction {
-			val state = database.sourceEvidenceStateDao().get()
-			if (state?.collectedDataEpoch != trigger.collectedDataEpoch) {
-				return@withTransaction ActivityAutomaticStartRequestAuthorization.Rejected(
-					"STALE_COLLECTED_DATA_EPOCH",
-				)
-			}
-			val action = database.activityAutomaticStartActionDao().action(trigger.triggerId)
-				?: return@withTransaction ActivityAutomaticStartRequestAuthorization.Rejected(
-					"AUTOMATIC_START_RESERVATION_MISSING",
-				)
-			if (!action.matches(trigger)) {
-				return@withTransaction ActivityAutomaticStartRequestAuthorization.Rejected(
-					"AUTOMATIC_START_ENVELOPE_MISMATCH",
-				)
-			}
-			currentControlAuthorityFailure(action)?.let { reason ->
-				return@withTransaction ActivityAutomaticStartRequestAuthorization.Rejected(reason)
-			}
-			when (action.status) {
-				ActivityAutomaticStartActionEntity.STATUS_RESERVED,
-				ActivityAutomaticStartActionEntity.STATUS_RETRYABLE,
-				-> {
-					if (database.activityAutomaticStartActionDao().markStartRequested(
-						trigger.triggerId,
-						trigger.collectedDataEpoch,
-						requestedAtMs,
-					) != 1
-					) {
-						return@withTransaction ActivityAutomaticStartRequestAuthorization.Rejected(
-							"AUTOMATIC_START_CAS_LOST",
-						)
-					}
-					ActivityAutomaticStartRequestAuthorization.Authorized(
-						action.copy(
-							status = ActivityAutomaticStartActionEntity.STATUS_START_REQUESTED,
-							startRequestedAtMs = requestedAtMs,
-						),
-					)
-				}
-				ActivityAutomaticStartActionEntity.STATUS_START_REQUESTED ->
-					ActivityAutomaticStartRequestAuthorization.Authorized(action)
-				else -> ActivityAutomaticStartRequestAuthorization.Rejected(
-					"AUTOMATIC_START_NOT_REQUESTABLE_${action.status}",
-				)
-			}
+			authorizeStartInTransaction(trigger, requestedAtMs)
 		}
 		if (result is ActivityAutomaticStartRequestAuthorization.Authorized &&
 			(!startupGate.isReady || startupGate.currentGeneration != startupGeneration)
@@ -234,6 +190,70 @@ class ActivityAutomaticStartActionRepository @Inject constructor(
 			)
 		}
 		return result
+	}
+
+	private suspend fun authorizeStartInTransaction(
+		trigger: AutomaticTrackingStartTrigger,
+		requestedAtMs: Long,
+	): ActivityAutomaticStartRequestAuthorization {
+		val state = database.sourceEvidenceStateDao().get()
+		return if (state?.collectedDataEpoch != trigger.collectedDataEpoch) {
+			ActivityAutomaticStartRequestAuthorization.Rejected("STALE_COLLECTED_DATA_EPOCH")
+		} else {
+			authorizeSavedAction(trigger, requestedAtMs)
+		}
+	}
+
+	private suspend fun authorizeSavedAction(
+		trigger: AutomaticTrackingStartTrigger,
+		requestedAtMs: Long,
+	): ActivityAutomaticStartRequestAuthorization {
+		val action = database.activityAutomaticStartActionDao().action(trigger.triggerId)
+			?: return ActivityAutomaticStartRequestAuthorization.Rejected("AUTOMATIC_START_RESERVATION_MISSING")
+		val failure = if (!action.matches(trigger)) {
+			"AUTOMATIC_START_ENVELOPE_MISMATCH"
+		} else {
+			currentControlAuthorityFailure(action)
+		}
+		return if (failure != null) {
+			ActivityAutomaticStartRequestAuthorization.Rejected(failure)
+		} else {
+			requestAuthorizedAction(action, trigger, requestedAtMs)
+		}
+	}
+
+	private suspend fun requestAuthorizedAction(
+		action: ActivityAutomaticStartActionEntity,
+		trigger: AutomaticTrackingStartTrigger,
+		requestedAtMs: Long,
+	): ActivityAutomaticStartRequestAuthorization {
+		return when (action.status) {
+			ActivityAutomaticStartActionEntity.STATUS_RESERVED,
+			ActivityAutomaticStartActionEntity.STATUS_RETRYABLE,
+			-> {
+				if (database.activityAutomaticStartActionDao().markStartRequested(
+					trigger.triggerId,
+					trigger.collectedDataEpoch,
+					requestedAtMs,
+				) != 1
+				) {
+					return ActivityAutomaticStartRequestAuthorization.Rejected(
+						"AUTOMATIC_START_CAS_LOST",
+					)
+				}
+				ActivityAutomaticStartRequestAuthorization.Authorized(
+					action.copy(
+						status = ActivityAutomaticStartActionEntity.STATUS_START_REQUESTED,
+						startRequestedAtMs = requestedAtMs,
+					),
+				)
+			}
+			ActivityAutomaticStartActionEntity.STATUS_START_REQUESTED ->
+				ActivityAutomaticStartRequestAuthorization.Authorized(action)
+			else -> ActivityAutomaticStartRequestAuthorization.Rejected(
+				"AUTOMATIC_START_NOT_REQUESTABLE_${action.status}",
+			)
+		}
 	}
 
 	internal suspend fun markExternalStartRetryable(

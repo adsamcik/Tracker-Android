@@ -52,7 +52,7 @@ class AutomaticStartCommandFenceTest {
     fun restoreEntryPoint() { field.set(TrackerServiceApi, previousEntryPoint) }
 
     @Test
-    fun `callback captured before End cannot reserve Start after that End is handled`() = runBlocking {
+    fun `callback captured before End cannot reserve Start after that End is handled`(): Unit = runBlocking {
         val captured = commands.latestCommandGeneration()
         val stop = requireNotNull(commands.reserveStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 2_000L))
         commands.markStopHandled(stop) shouldBe true
@@ -61,7 +61,7 @@ class AutomaticStartCommandFenceTest {
     }
 
     @Test
-    fun `callback captured before Off cannot reserve Start after collection is stopped`() = runBlocking {
+    fun `callback captured before Off cannot reserve Start after collection is stopped`(): Unit = runBlocking {
         val captured = commands.latestCommandGeneration()
         commands.recordUserRequestedExit("off") shouldBe true
         val afterOff = commands.latestCommandGeneration()
@@ -71,7 +71,7 @@ class AutomaticStartCommandFenceTest {
     }
 
     @Test
-    fun `callback captured before another Start cannot replace the newer Start`() = runBlocking {
+    fun `callback captured before another Start cannot replace the newer Start`(): Unit = runBlocking {
         val captured = commands.latestCommandGeneration()
         val newer = requireNotNull(commands.reserveStart())
         rejectCaptured(captured)
@@ -79,7 +79,7 @@ class AutomaticStartCommandFenceTest {
     }
 
     @Test
-    fun `automatic compatibility API cannot invent a missing original callback generation`() = runBlocking {
+    fun `automatic compatibility API cannot invent a missing original callback generation`(): Unit = runBlocking {
         TrackerServiceApi.startService(context, false, automaticTrigger = mockk()) shouldBe false
         TrackerServiceApi.startServiceAndAwaitEnqueueResult(context, false,
             automaticTrigger = mockk()) shouldBe TrackingStartDispatchResult.Terminal("AUTOMATIC_START_CONTEXT_MISSING")

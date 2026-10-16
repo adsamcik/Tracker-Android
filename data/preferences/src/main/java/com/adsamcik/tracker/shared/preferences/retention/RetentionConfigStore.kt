@@ -102,6 +102,7 @@ class RetentionConfigStore(
     suspend fun resetToDefaultsForDebug(): RetentionPolicyStage =
         update { RetentionConfigState() }
 
+    /** Stages, prepares and publishes a retention edit, preserving the exact generation through approval. */
     suspend fun updateWithApproval(
         block: RetentionConfigState.() -> RetentionConfigState,
         prepare: suspend (RetentionPolicyStage) -> RetentionConfigurationApprovalResult,
@@ -139,26 +140,32 @@ class RetentionConfigStore(
                 proposed.toProto()
             }
             val approved = approve(stage)
-            val exactApproval = when (approved) {
-                is RetentionConfigurationApprovalResult.Approved ->
-                    approved.takeIf {
-                        it.policy.hasAuthenticChecksum(RetentionPolicyApprovalStatus.APPROVED) &&
-                            it.policy.hasSameStableIdentity(stage.policy)
-                    }
-                is RetentionConfigurationApprovalResult.AlreadyApproved ->
-                    approved.takeIf {
-                        it.policy.hasAuthenticChecksum(RetentionPolicyApprovalStatus.APPROVED) &&
-                            it.policy.hasSameStableIdentity(stage.policy)
-                    }
-                is RetentionConfigurationApprovalResult.Prepared -> null
-                is RetentionConfigurationApprovalResult.Unavailable -> approved
-            } ?: RetentionConfigurationApprovalResult.Unavailable(
-                RetentionAuthorityUnavailableReason.STALE_CONFIGURATION_GENERATION,
-            )
+            val exactApproval = exactApprovalFor(stage, approved)
             RetentionConfigApplyResult(stage, published = true, exactApproval)
         }
     }
 
+    private fun exactApprovalFor(
+        stage: RetentionPolicyStage,
+        approved: RetentionConfigurationApprovalResult,
+    ): RetentionConfigurationApprovalResult = when (approved) {
+        is RetentionConfigurationApprovalResult.Approved ->
+            approved.takeIf {
+                it.policy.hasAuthenticChecksum(RetentionPolicyApprovalStatus.APPROVED) &&
+                    it.policy.hasSameStableIdentity(stage.policy)
+            }
+        is RetentionConfigurationApprovalResult.AlreadyApproved ->
+            approved.takeIf {
+                it.policy.hasAuthenticChecksum(RetentionPolicyApprovalStatus.APPROVED) &&
+                    it.policy.hasSameStableIdentity(stage.policy)
+            }
+        is RetentionConfigurationApprovalResult.Prepared -> null
+        is RetentionConfigurationApprovalResult.Unavailable -> approved
+    } ?: RetentionConfigurationApprovalResult.Unavailable(
+        RetentionAuthorityUnavailableReason.STALE_CONFIGURATION_GENERATION,
+    )
+
+    /** Reads the approval matching current settings after legacy preferences migrate. */
     suspend fun currentApprovedPolicy(): ApprovedRetentionPolicyRead =
         withContext(ioDispatcher) {
             val current = ensureDataSettingsMigrated().toDomain()
@@ -278,12 +285,14 @@ class RetentionConfigStore(
             }
         }
 
+    /** Reads the candidate corresponding to current saved retention settings. */
     suspend fun currentPolicyCandidate(): RetentionPolicyCandidateRead =
         withContext(ioDispatcher) {
             val current = ensureDataSettingsMigrated().toDomain()
             policyApprovalStore.candidate(current)
         }
 
+    /** Reads a staged configuration waiting for preparation or approval. */
     suspend fun pendingPolicyCandidate(): RetentionPolicyCandidateRead =
         withContext(ioDispatcher) {
             val current = ensureDataSettingsMigrated().toDomain()
@@ -303,6 +312,7 @@ class RetentionConfigStore(
             }
         }
 
+    /** Publishes only the still-current staged policy, returning null when superseded. */
     suspend fun markPolicyApproved(expected: ApprovedRetentionPolicy): ApprovedRetentionPolicy? =
         policyApprovalStore.markApproved(expected)
 
@@ -371,46 +381,56 @@ class RetentionConfigStore(
         }
 }
 
+/** The staged configuration was superseded before approval publication. */
 class ConcurrentRetentionConfigurationMutationException : IllegalStateException(
     "Retention configuration changed while its pending approval was staged",
 )
 
+/** Staged policy, publication acknowledgement and final approval outcome of one settings change. */
 data class RetentionConfigApplyResult(
     val stage: RetentionPolicyStage,
     val published: Boolean,
     val approval: RetentionConfigurationApprovalResult,
 )
 
+/** Current configuration paired with its exact approval, or an explicit pending, invalid or unavailable state. */
 sealed interface ExactApprovedRetentionConfigRead {
+    /** The current configuration matches a completed, intact approval. */
     data class Approved(
         val configuration: RetentionConfigState,
         val policy: ApprovedRetentionPolicy,
     ) : ExactApprovedRetentionConfigRead
 
+    /** The current configuration has a staged approval that is not yet complete. */
     data class Pending(
         val configuration: RetentionConfigState,
         val policy: ApprovedRetentionPolicy,
     ) : ExactApprovedRetentionConfigRead
 
+    /** Stored configuration or approval fails its identity, integrity or state checks. */
     data class Invalid(
         val reason: ExactApprovedRetentionConfigInvalidReason,
     ) : ExactApprovedRetentionConfigRead
 
+    /** No exact usable approval could be read. */
     data class Unavailable(
         val reason: ExactApprovedRetentionConfigUnavailableReason,
     ) : ExactApprovedRetentionConfigRead
 }
 
+/** The immutable policy and configuration admitted for one serialized destructive operation. */
 data class ApprovedRetentionOperation(
     val configuration: RetentionConfigState,
     val policy: ApprovedRetentionPolicy,
 ) {
+    /** Checks that an admitted operation still refers to the expected stable policy identity. */
     fun requireIdentity(expected: ApprovedRetentionPolicy = policy) {
         check(policy.hasSameStableIdentity(expected)) {
             "Destructive retention approval identity changed inside an admitted operation"
         }
     }
 
+    /** Builds a stable floor-operation identity from the exact policy and UTC millisecond cutoff/request time. */
     fun retentionFloorOperationId(
 		requestedRetainedFromMs: Long,
 		requestedAtMs: Long,
@@ -426,12 +446,15 @@ data class ApprovedRetentionOperation(
     }
 }
 
+/** Result of an operation admitted only under an exact approved policy. */
 sealed interface ExactApprovedRetentionOperationResult<out T> {
+    /** Returns both the admitted policy and the completed operation value. */
     data class Completed<T>(
         val admission: ApprovedRetentionOperation,
         val value: T,
     ) : ExactApprovedRetentionOperationResult<T>
 
+    /** The operation did not run because exact approval was unavailable. */
     data class Rejected(
         val authority: ExactApprovedRetentionConfigRead,
     ) : ExactApprovedRetentionOperationResult<Nothing> {
@@ -441,12 +464,14 @@ sealed interface ExactApprovedRetentionOperationResult<out T> {
     }
 }
 
+/** Reasons a stored policy cannot safely authorize destructive retention. */
 enum class ExactApprovedRetentionConfigInvalidReason {
     CONFIGURATION_MISMATCH,
     APPROVAL_INTEGRITY_MISMATCH,
     APPROVAL_STATE_INVALID,
 }
 
+/** Distinguishes missing approval from operational storage failure. */
 enum class ExactApprovedRetentionConfigUnavailableReason {
     NOT_APPROVED,
     STORAGE_UNAVAILABLE,

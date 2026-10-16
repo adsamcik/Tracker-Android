@@ -100,6 +100,8 @@ class FiveSourceTrackingHistoryAssemblyTest {
 		resetDatabase()
 	}
 
+	// Keep the imported revisions and the resulting production-graph page assertions in one assembly scenario.
+	@Suppress("LongMethod")
 	@Test
 	fun productionGraphComposesCurrentFiveSourcesWithAuthenticatedRecencyAndFinalLimit() = runTest {
 		seedExactNativeStepsMembership(database, fixtureTime(1_000L))
@@ -394,6 +396,8 @@ class FiveSourceTrackingHistoryAssemblyTest {
 		)
 	}
 
+	// Keep the corrupt recency setup, blocked read and checkpoint assertions in one scenario.
+	@Suppress("LongMethod")
 	@Test
 	fun duplicatePressureRecencyAuthorityFailsBeforePressureSelectorOrDetailReads() = runTest {
 		val first = pressureRecencyCollisionEntry(
@@ -487,6 +491,8 @@ class FiveSourceTrackingHistoryAssemblyTest {
 		)
 	}
 
+	// Keep the live collection, invalidation and resource cleanup together to verify one subscription.
+	@Suppress("LongMethod")
 	@Test
 	fun lifecycleDesiredActionInvalidationRereadsOneActiveRepositoryCollection() = runTest {
 		val observation = historyIntegrationObserver.startObservation()

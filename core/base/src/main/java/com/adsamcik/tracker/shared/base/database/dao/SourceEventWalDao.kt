@@ -9,6 +9,8 @@ import androidx.room.Transaction
 import com.adsamcik.tracker.shared.base.database.V28_MIGRATION_TERMINAL_RUN_SQL
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 
+// Keep the SourceEventWalDao SQL contract together; query text accounts for this declaration's size.
+@Suppress("LargeClass")
 @Dao
 interface SourceEventWalDao {
 	/**
@@ -39,6 +41,11 @@ interface SourceEventWalDao {
 		return insertAbortingOnUnexpectedConflict(entity)
 	}
 
+	/**
+	 * Reports whether a row exists within the query scope. Query conditions include `admissionOrdinal
+	 * > 0`, `admission_ordinal = :admissionOrdinal`, `event_id = :eventId`, `source_kind =
+	 * :sourceKind`.
+	 */
 	@Query(
 		"SELECT EXISTS(SELECT 1 FROM source_event_wal WHERE " +
 			"(:admissionOrdinal > 0 AND admission_ordinal = :admissionOrdinal) OR " +
@@ -67,6 +74,9 @@ interface SourceEventWalDao {
 		deliveryUnitIndex: Int?,
 	): Boolean
 
+	/**
+	 * Inserts [SourceEventWalEntity] rows. A conflicting key aborts the insert.
+	 */
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertAbortingOnUnexpectedConflict(entity: SourceEventWalEntity): Long
 
@@ -76,9 +86,17 @@ interface SourceEventWalDao {
 	@Query("SELECT * FROM source_event_wal WHERE event_id = :eventId LIMIT 1")
 	suspend fun getByEventId(eventId: String): SourceEventWalEntity?
 
+	/**
+	 * Reads `source_event_wal` rows. Query conditions include `admission_ordinal =
+	 * :admissionOrdinal`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query("SELECT * FROM source_event_wal WHERE admission_ordinal = :admissionOrdinal LIMIT 1")
 	suspend fun getByAdmissionOrdinal(admissionOrdinal: Long): SourceEventWalEntity?
 
+	/**
+	 * Reads `source_event_wal` rows. Query conditions include `admission_ordinal =
+	 * :admissionOrdinal`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM source_event_wal WHERE admission_ordinal = :admissionOrdinal " +
 			"AND LENGTH(payload) <= :maximumPayloadBytes LIMIT 1",
@@ -725,6 +743,12 @@ interface SourceEventWalDao {
 		limit: Int,
 	): List<SourceEventContinuityRow>
 
+	/**
+	 * Reads `source_event_wal` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `source_instance_id = :sourceInstanceId`, `registration_generation = :registrationGeneration`,
+	 * `admission_ordinal <= :throughOrdinal`. Orders by `admission_ordinal DESC`. Returns at most 1
+	 * row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT event_id, admission_ordinal, source_kind, source_instance_id, " +
 			"registration_generation, source_sequence, logical_tracking_id, service_run_id " +
@@ -810,6 +834,10 @@ interface SourceEventWalDao {
 		limit: Int,
 	): List<SourceEventWalEntity>
 
+	/**
+	 * Deletes `source_event_wal` rows matching the supplied scope. Query conditions include
+	 * `source_kind = 2`, `admission_ordinal IN (:ordinals)`. Returns the affected row count.
+	 */
 	@Query(
 		"DELETE FROM source_event_wal WHERE source_kind = 2 " +
 			"AND (authorization_purpose_eligibility_mask & 3) != 0 " +
@@ -1075,6 +1103,9 @@ data class SourceEventRetentionProofCandidateRow(
 	@ColumnInfo(name = "wal_integrity_identity") val walIntegrityIdentity: String,
 )
 
+/**
+ * Payload-free source event sequence and recorded clock metadata used to check continuity.
+ */
 data class SourceEventContinuityRow(
 	@ColumnInfo(name = "event_id") val eventId: String,
 	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,

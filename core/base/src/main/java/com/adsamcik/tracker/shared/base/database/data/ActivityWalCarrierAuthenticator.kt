@@ -10,16 +10,27 @@ import java.io.DataOutputStream
 const val ACTIVITY_WAL_PAYLOAD_VERSION = 1
 const val MAX_ACTIVITY_WAL_PAYLOAD_BYTES = 64
 
+/**
+ * Original Activity provider payload: a transition or recognition reading with its available
+ * provider time.
+ */
 sealed interface ActivityWalPayload {
 	val activityType: Int
 	val providerElapsedRealtimeNanos: Long?
 
+	/**
+	 * One provider Activity enter/exit event at an elapsed-realtime timestamp in nanoseconds.
+	 */
 	data class Transition(
 		override val activityType: Int,
 		val transitionType: Int,
 		override val providerElapsedRealtimeNanos: Long,
 	) : ActivityWalPayload
 
+	/**
+	 * One provider Activity classification with confidence in percent and an optional
+	 * elapsed-realtime timestamp.
+	 */
 	data class Recognition(
 		override val activityType: Int,
 		val confidencePercent: Int,
@@ -27,7 +38,14 @@ sealed interface ActivityWalPayload {
 	) : ActivityWalPayload
 }
 
+/**
+ * Bounded binary Activity encoding shared by stored carriers and their readers.
+ */
 object ActivityWalPayloadCodec {
+	/**
+	 * Serializes Activity payload values into the supported deterministic binary layout; nullable
+	 * measurements keep their absence.
+	 */
 	fun encode(payload: ActivityWalPayload): ByteArray =
 		ByteArrayOutputStream().use { buffer ->
 			DataOutputStream(buffer).use { output ->
@@ -59,6 +77,10 @@ object ActivityWalPayloadCodec {
 			buffer.toByteArray()
 		}
 
+	/**
+	 * Decodes a bounded supported Activity payload and requires exact canonical bytes; malformed data
+	 * is rejected through the declared result type.
+	 */
 	fun decodeCanonical(payloadVersion: Int, bytes: ByteArray): ActivityWalPayload? =
 		runCatching {
 			require(payloadVersion == ACTIVITY_WAL_PAYLOAD_VERSION)
@@ -74,7 +96,11 @@ object ActivityWalPayloadCodec {
 						activityType = input.readInt(),
 						confidencePercent = input.readInt(),
 						providerElapsedRealtimeNanos =
-							if (input.readBoolean()) input.readLong() else null,
+							if (input.readBoolean()) {
+								input.readLong()
+							} else {
+								null
+							},
 					)
 					else -> error("Unsupported Activity WAL payload")
 				}
@@ -86,6 +112,9 @@ object ActivityWalPayloadCodec {
 		}.getOrNull()
 }
 
+/**
+ * Specific reasons original Activity carrier or revision comparisons can fail.
+ */
 enum class ActivityWalCarrierFailure {
 	WRONG_SOURCE,
 	UNSUPPORTED_PAYLOAD_VERSION,
@@ -98,19 +127,39 @@ enum class ActivityWalCarrierFailure {
 	FACT_SEMANTICS_MISMATCH,
 }
 
+/**
+ * Decoded Activity payload after the original carrier envelope and recorded binding checks pass.
+ */
 data class AuthenticatedActivityWalCarrier internal constructor(
 	val payload: ActivityWalPayload,
 )
 
+/**
+ * Typed original-carrier comparison result; rejection retains a precise cause.
+ */
 sealed interface ActivityWalCarrierAuthentication {
+	/**
+	 * Successful original-carrier comparison containing its checked, decoded measurement payload.
+	 */
 	data class Authenticated(
 		val carrier: AuthenticatedActivityWalCarrier,
 	) : ActivityWalCarrierAuthentication
 
+	/**
+	 * Specific rejected decode, carrier or per-purpose qualification outcome; it carries no accepted
+	 * payload.
+	 */
 	data class Rejected(val reason: ActivityWalCarrierFailure) : ActivityWalCarrierAuthentication
 }
 
+/**
+ * Compares original Activity carriers with saved capture metadata and revision evidence.
+ */
 object ActivityWalCarrierAuthenticator {
+	/**
+	 * Checks the original Activity WAL checksum, provider envelope, supported payload and recorded
+	 * capture binding; reports the exact rejection cause.
+	 */
 	@Suppress("ComplexCondition", "ReturnCount")
 	fun authenticate(wal: SourceEventWalEntity): ActivityWalCarrierAuthentication {
 		if (wal.sourceKind != SourceDestinationOwnerEntity.SOURCE_ACTIVITY) {
@@ -130,25 +179,7 @@ object ActivityWalCarrierAuthenticator {
 		if (!wal.hasCompleteSessionCaptureBinding()) {
 			return rejected(ActivityWalCarrierFailure.INCOMPLETE_CAPTURE_AUTHORITY)
 		}
-		if (
-			wal.providerDedupKey != null ||
-			wal.deliveryIdentity?.let(SOURCE_WAL_SHA_256::matches) != true ||
-			wal.deliveryUnitIndex?.let { it >= 0 } != true ||
-			wal.deliveryUnitCount?.let { count ->
-				count > 0 && requireNotNull(wal.deliveryUnitIndex) < count
-			} != true ||
-			wal.sourceSequence < 0L ||
-			wal.observedIntervalStartNanos != wal.observedElapsedNanos ||
-			wal.observedElapsedNanos < 0L ||
-			wal.receivedElapsedNanos < wal.observedElapsedNanos ||
-			wal.receivedWallTimeMs?.let { it < 0L } == true ||
-			wal.wallTimeMs?.let { it >= 0L } != true ||
-			wal.wallTimeUncertaintyMs?.let { it >= 0L } != true ||
-			wal.acquiredAtMs != wal.wallTimeMs ||
-			wal.createdAtMs < 0L ||
-			wal.activityAutomationEpoch?.let { it < 0L } == true ||
-			!wal.hasCanonicalQuality()
-		) {
+		if (hasMalformedActivityProviderEnvelope(wal)) {
 			return rejected(ActivityWalCarrierFailure.MALFORMED_PROVIDER_ENVELOPE)
 		}
 		val payload = ActivityWalPayloadCodec.decodeCanonical(wal.payloadVersion, wal.payload)
@@ -161,6 +192,10 @@ object ActivityWalCarrierAuthenticator {
 		)
 	}
 
+	/**
+	 * Checks the saved Activity revision against its original WAL carrier, ownership, measured values
+	 * and supplied child/count-domain evidence.
+	 */
 	fun authenticate(
 		revision: ActivityCapturedWindowRevisionEntity,
 		evidence: ActivityCapturedEvidenceEntity,
@@ -170,28 +205,7 @@ object ActivityWalCarrierAuthenticator {
 		if (authentication !is ActivityWalCarrierAuthentication.Authenticated) {
 			return authentication
 		}
-		if (
-			evidence.sourceEventId != wal.eventId ||
-			evidence.sourceAdmissionOrdinal != wal.admissionOrdinal ||
-			evidence.sourceSequence != wal.sourceSequence ||
-			evidence.providerElapsedRealtimeNanos != wal.observedElapsedNanos ||
-			evidence.receivedElapsedRealtimeNanos != wal.receivedElapsedNanos ||
-			revision.logicalTrackingId != wal.logicalTrackingId ||
-			revision.serviceRunId != wal.serviceRunId ||
-			revision.sourceInstanceId != wal.sourceInstanceId ||
-			revision.registrationGeneration != wal.registrationGeneration ||
-			revision.configurationRevision != wal.configRevision ||
-			revision.physicalConfigurationFingerprint != wal.physicalConfigurationFingerprint ||
-			revision.authorizationRevision != wal.authorizationRevision ||
-			revision.authorizationFingerprint != wal.authorizationFingerprint ||
-			revision.purposeEligibilityMask != wal.authorizationPurposeEligibilityMask ||
-			revision.sourcePolicyRevision != wal.sourcePolicyRevision ||
-			revision.captureConsentEpoch != wal.captureConsentEpoch ||
-			revision.manifestRevision != wal.sessionManifestRevision ||
-			revision.lifecycleLeaseGeneration != wal.lifecycleLeaseGeneration ||
-			revision.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
-			revision.clockDomainId != wal.clockDomainId
-		) {
+		if (hasMismatchedActivityFactLinkage(revision, evidence, wal)) {
 			return rejected(ActivityWalCarrierFailure.FACT_LINKAGE_MISMATCH)
 		}
 		if (
@@ -208,6 +222,10 @@ object ActivityWalCarrierAuthenticator {
 		return authentication
 	}
 
+	/**
+	 * Returns whether the saved Activity fact and supplied original carrier pass the complete carrier
+	 * comparison.
+	 */
 	fun authenticates(
 		revision: ActivityCapturedWindowRevisionEntity,
 		evidence: ActivityCapturedEvidenceEntity,
@@ -216,6 +234,59 @@ object ActivityWalCarrierAuthenticator {
 		authenticate(revision, evidence, wal) is ActivityWalCarrierAuthentication.Authenticated
 }
 
+// One original provider-envelope shape; preserve every nullable field and comparison together.
+@Suppress("CyclomaticComplexMethod", "ComplexCondition")
+private fun hasMalformedActivityProviderEnvelope(
+	wal: SourceEventWalEntity,
+): Boolean =
+	wal.providerDedupKey != null ||
+	wal.deliveryIdentity?.let(SOURCE_WAL_SHA_256::matches) != true ||
+	wal.deliveryUnitIndex?.let { it >= 0 } != true ||
+	wal.deliveryUnitCount?.let { count ->
+		count > 0 && requireNotNull(wal.deliveryUnitIndex) < count
+	} != true ||
+	wal.sourceSequence < 0L ||
+	wal.observedIntervalStartNanos != wal.observedElapsedNanos ||
+	wal.observedElapsedNanos < 0L ||
+	wal.receivedElapsedNanos < wal.observedElapsedNanos ||
+	wal.receivedWallTimeMs?.let { it < 0L } == true ||
+	wal.wallTimeMs?.let { it >= 0L } != true ||
+	wal.wallTimeUncertaintyMs?.let { it >= 0L } != true ||
+	wal.acquiredAtMs != wal.wallTimeMs ||
+	wal.createdAtMs < 0L ||
+	wal.activityAutomationEpoch?.let { it < 0L } == true ||
+	!wal.hasCanonicalQuality()
+
+// One complete saved revision/evidence/carrier field correspondence, with no reads or transitions.
+@Suppress("CyclomaticComplexMethod", "ComplexCondition")
+private fun hasMismatchedActivityFactLinkage(
+	revision: ActivityCapturedWindowRevisionEntity,
+	evidence: ActivityCapturedEvidenceEntity,
+	wal: SourceEventWalEntity,
+): Boolean =
+	evidence.sourceEventId != wal.eventId ||
+	evidence.sourceAdmissionOrdinal != wal.admissionOrdinal ||
+	evidence.sourceSequence != wal.sourceSequence ||
+	evidence.providerElapsedRealtimeNanos != wal.observedElapsedNanos ||
+	evidence.receivedElapsedRealtimeNanos != wal.receivedElapsedNanos ||
+	revision.logicalTrackingId != wal.logicalTrackingId ||
+	revision.serviceRunId != wal.serviceRunId ||
+	revision.sourceInstanceId != wal.sourceInstanceId ||
+	revision.registrationGeneration != wal.registrationGeneration ||
+	revision.configurationRevision != wal.configRevision ||
+	revision.physicalConfigurationFingerprint != wal.physicalConfigurationFingerprint ||
+	revision.authorizationRevision != wal.authorizationRevision ||
+	revision.authorizationFingerprint != wal.authorizationFingerprint ||
+	revision.purposeEligibilityMask != wal.authorizationPurposeEligibilityMask ||
+	revision.sourcePolicyRevision != wal.sourcePolicyRevision ||
+	revision.captureConsentEpoch != wal.captureConsentEpoch ||
+	revision.manifestRevision != wal.sessionManifestRevision ||
+	revision.lifecycleLeaseGeneration != wal.lifecycleLeaseGeneration ||
+	revision.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
+	revision.clockDomainId != wal.clockDomainId
+
+// This is one field correspondence between the exact saved evidence and its original payload.
+@Suppress("CyclomaticComplexMethod")
 private fun ActivityCapturedEvidenceEntity.matches(payload: ActivityWalPayload): Boolean =
 	when (payload) {
 		is ActivityWalPayload.Transition ->

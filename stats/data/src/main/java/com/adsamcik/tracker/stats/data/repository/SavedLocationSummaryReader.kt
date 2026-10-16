@@ -4,8 +4,16 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
 import com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
-import com.adsamcik.tracker.stats.api.repository.*
+import com.adsamcik.tracker.stats.api.repository.HistoryObservationWindow
+import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+import com.adsamcik.tracker.stats.api.repository.RadioLocationContextGap
+import com.adsamcik.tracker.stats.api.repository.SavedLocationFix
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummary
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummarySelection
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -44,14 +52,23 @@ internal class SavedLocationSummaryReader @Inject constructor(
         while (true) {
             currentCoroutineContext().ensureActive()
             val page = database.trackingHistoryReadDao().logicalEntryServiceRunPage(listOf(logicalId),
-                POINT_PAGE_SIZE, if (after == null) null else logicalId, afterStarted, after)
+                POINT_PAGE_SIZE, if (after == null) {
+                    null
+                } else {
+                    logicalId
+                }, afterStarted, after)
             runs += page.map { it.serviceRunId }
-            if (page.size < POINT_PAGE_SIZE) break
+            if (page.size < POINT_PAGE_SIZE) {
+                break
+            }
             after = page.last().serviceRunId
             afterStarted = page.last().startedAtMs
         }
-        if (runs.isEmpty()) return@read SavedLocationSummaryRead.Snapshot(
-            SavedLocationSummarySelection.LogicalSession(logicalId), snapshot, SavedLocationSummary(0, null, null, false))
+        if (runs.isEmpty()) {
+            return@read SavedLocationSummaryRead.Snapshot(
+            SavedLocationSummarySelection.LogicalSession(logicalId), snapshot, SavedLocationSummary(0,
+                null, null, false))
+        }
         val result = readPages(SavedLocationSummarySelection.LogicalSession(logicalId), snapshot,
             scopeMatches = { (it as? RadioContextScope.Session)?.owner?.logicalTrackingId == logicalId },
             nextPage = { cursor ->
@@ -68,7 +85,9 @@ internal class SavedLocationSummaryReader @Inject constructor(
         if (result is SavedLocationSummaryRead.Snapshot &&
             database.sourceEvidenceStateDao().get()?.retainedFromMs?.let { session.startedAtMs < it } == true) {
             result.copy(summary = result.summary.copy(partial = true))
-        } else result
+        } else {
+            result
+        }
     }
 
     /** The caller must own the same transaction and source-evidence snapshot as its other products. */
@@ -81,37 +100,57 @@ internal class SavedLocationSummaryReader @Inject constructor(
         val logicalId = segment.logicalTrackingId
         val runId = segment.serviceRunId
         if (logicalId.isNullOrBlank() || runId.isNullOrBlank()) {
-            return readPages(SavedLocationSummarySelection.Session(segmentId), snapshot,
-                scopeMatches = { false }, onState = onState, nextPage = { after ->
-                    database.locationPurposeDao().savedLegacyTripPointPage(maxOf(segment.startTimeMs,
-                        window?.fromInclusiveMs ?: 0L), minOf(segment.endTimeMs,
-                        window?.toExclusiveMs?.minus(1L) ?: Long.MAX_VALUE), after?.timeMs, after?.sampleId, POINT_PAGE_SIZE)
-                        .map { SavedLocationCandidate(null, it.sample.timeMs, it) }
-                })
+            return readLegacySessionInTransaction(segmentId, segment, snapshot, window, onState)
         }
-        val candidates = database.locationPurposeDao().savedSessionCandidateCount(logicalId, runId, segmentId)
-        if (candidates < 0L) return SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+        val candidates = database.locationPurposeDao().savedSessionCandidateCount(logicalId, runId, segmentId,
+            window?.fromInclusiveMs, window?.toExclusiveMs?.minus(1L))
+        if (candidates < 0L) {
+            return SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+        }
         val missingPrefix = database.sourceEvidenceStateDao().get()?.retainedFromMs?.let {
-            segment.startTimeMs < it
+            maxOf(segment.startTimeMs, window?.fromInclusiveMs ?: segment.startTimeMs) < it
         } == true
         val read = readPages(SavedLocationSummarySelection.Session(segmentId), snapshot, onState = onState,
-            scopeMatches = { scope -> (scope as? RadioContextScope.Session)?.owner?.let {
-                it.sessionSegmentId == segmentId && it.logicalTrackingId == logicalId && it.serviceRunId == runId
-            } == true }, nextPage = { after ->
-                val rows = database.locationPurposeDao().savedLogicalTripPointPage(logicalId, listOf(runId),
-                    after?.timeMs, after?.sampleId, POINT_PAGE_SIZE,
-                    window?.fromInclusiveMs ?: 0L, window?.toExclusiveMs?.minus(1L) ?: Long.MAX_VALUE)
-                val ids = rows.map { it.sample.id }
-                val receipts = database.locationPurposeDao().contextReceiptsForSamples(ids, ids.size + 1)
-                if (ids.distinct().size != ids.size || receipts.map { it.sampleId }.toSet() != ids.toSet() || receipts.size != ids.size) {
-                    throw InvalidSavedLocationPage()
-                }
-                val byId = receipts.associateBy { it.sampleId }
-                rows.map { row -> SavedLocationCandidate(requireNotNull(byId[row.sample.id]), row.sample.timeMs) }
+            scopeMatches = { it.matchesSavedSummarySession(segmentId, logicalId, runId) }, nextPage = { after ->
+                sessionCandidatePage(logicalId, runId, window, after)
             })
-        return if (read is SavedLocationSummaryRead.Snapshot && (missingPrefix || candidates > read.summary.pointCount)) {
+        return if (read is SavedLocationSummaryRead.Snapshot && (missingPrefix ||
+            candidates > read.summary.pointCount)) {
             read.copy(summary = read.summary.copy(partial = true))
-        } else read
+        } else {
+            read
+        }
+    }
+
+    private suspend fun readLegacySessionInTransaction(
+        segmentId: Long, segment: SessionSegment, snapshot: TrackingHistoryReadSnapshot,
+        window: HistoryObservationWindow?,
+        onState: ((SavedTripDistanceState, SavedLocationPosition?) -> Unit)?,
+    ): SavedLocationSummaryRead {
+        return readPages(SavedLocationSummarySelection.Session(segmentId), snapshot,
+            scopeMatches = { false }, onState = onState, nextPage = { after ->
+                database.locationPurposeDao().savedLegacyTripPointPage(maxOf(segment.startTimeMs,
+                    window?.fromInclusiveMs ?: 0L), minOf(segment.endTimeMs,
+                    window?.toExclusiveMs?.minus(1L) ?: Long.MAX_VALUE), after?.timeMs,
+                        after?.sampleId, POINT_PAGE_SIZE)
+                    .map { SavedLocationCandidate(null, it.sample.timeMs, it) }
+            })
+    }
+
+    private suspend fun sessionCandidatePage(
+        logicalId: String, runId: String, window: HistoryObservationWindow?, after: SavedLocationPosition?,
+    ): List<SavedLocationCandidate> {
+        val rows = database.locationPurposeDao().savedLogicalTripPointPage(logicalId, listOf(runId),
+            after?.timeMs, after?.sampleId, POINT_PAGE_SIZE,
+            window?.fromInclusiveMs ?: 0L, window?.toExclusiveMs?.minus(1L) ?: Long.MAX_VALUE)
+        val ids = rows.map { it.sample.id }
+        val receipts = database.locationPurposeDao().contextReceiptsForSamples(ids, ids.size + 1)
+        if (ids.distinct().size != ids.size ||
+            receipts.map { it.sampleId }.toSet() != ids.toSet() || receipts.size != ids.size) {
+            throw InvalidSavedLocationPage()
+        }
+        val byId = receipts.associateBy { it.sampleId }
+        return rows.map { row -> SavedLocationCandidate(requireNotNull(byId[row.sample.id]), row.sample.timeMs) }
     }
 
     /** Native, imported and older saved data use the same current measured-date window. */
@@ -134,16 +173,21 @@ internal class SavedLocationSummaryReader @Inject constructor(
                 rows.map { SavedLocationCandidate(byId[it.sample.id], it.sample.timeMs, it) }
             })
 
-    private suspend fun read(block: suspend (TrackingHistoryReadSnapshot) -> SavedLocationSummaryRead): SavedLocationSummaryRead =
+    private suspend fun read(block: suspend (TrackingHistoryReadSnapshot) ->
+        SavedLocationSummaryRead): SavedLocationSummaryRead =
         withContext(io) {
             currentCoroutineContext().ensureActive()
-            if (!database.isOpen) return@withContext SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
+            if (!database.isOpen) {
+                return@withContext SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
+            }
             try {
                 database.withTransaction {
                     val state = database.sourceEvidenceStateDao().get()
                     if (state == null || !state.hasValidRangeShape()) {
                         SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
-                    } else block(TrackingHistoryReadSnapshot(state.collectedDataEpoch, state.revision))
+                    } else {
+                        block(TrackingHistoryReadSnapshot(state.collectedDataEpoch, state.revision))
+                    }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -163,80 +207,124 @@ internal class SavedLocationSummaryReader @Inject constructor(
         val accumulator = SavedTripDistanceAccumulator()
         var count = 0L
         var latest: SavedLocationFix? = null
-        var after: SavedLocationPosition? = null
         var partial = false
         var processed: SavedLocationPosition? = null
         val gaps = linkedSetOf<RadioLocationContextGap>()
         fun result(problem: HistoryProblemReason? = null): SavedLocationSummaryRead.Snapshot {
             val measuredMeters = accumulator.measuredMeters
-            val meters = measuredMeters?.takeIf { it.isFinite() }
-            val read = SavedLocationSummaryRead.Snapshot(selection, snapshot,
-                SavedLocationSummary(count, latest, meters,
-                    partial || accumulator.hasDisconnectedSections || gaps.isNotEmpty() || problem != null, gaps.toSet(),
-                    accumulator.movingAverageSpeedMetersPerSecond.takeIf { meters != null }), problem)
+            val read = savedLocationSummary(selection, snapshot, accumulator, count, latest, partial, gaps, problem)
             // Preserve the saved-point snapshot, but never resume an invalid numerical prefix.
-            if (measuredMeters?.isFinite() != false) onState?.invoke(accumulator.snapshotState(), processed)
+            if (measuredMeters?.isFinite() != false) {
+                onState?.invoke(accumulator.snapshotState(), processed)
+            }
             return read
         }
-        try {
+        return try {
             val state = database.sourceEvidenceStateDao().get()
-            if (state == null || !state.hasValidRangeShape() ||
-                state.collectedDataEpoch != snapshot.collectedDataEpoch || state.revision != snapshot.sourceEvidenceRevision) {
+            if (!state.matchesSavedSummarySnapshot(snapshot)) {
                 return SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
             }
-            while (true) {
-                currentCoroutineContext().ensureActive()
-                val page = nextPage(after)
-                if (page.size > POINT_PAGE_SIZE || page.zipWithNext().any { (left, right) -> left.position >= right.position } ||
-                    after?.let { cursor -> page.firstOrNull()?.position?.let { it <= cursor } } == true) {
-                    throw InvalidSavedLocationPage()
-                }
-                if (page.isEmpty()) return result()
-                val qualified = qualifyCandidatesInTransaction(page.mapNotNull { it.receipt }, scopeMatches)
-                val accepted = qualified.samples
-                val pageProblem = qualified.problem
-                gaps += qualified.gaps
-                for (candidate in page) {
-                    currentCoroutineContext().ensureActive()
+            val terminalProblem = readQualifiedSavedPages(scopeMatches, nextPage, accumulator,
+                onQualified = { gaps += it.gaps },
+                onCandidate = { candidate, row ->
                     processed = candidate.position
-                    val row = accepted[candidate.position.sampleId]
-                    val compatibility = candidate.compatibility?.takeIf { candidate.receipt == null }
-                    if (row == null && compatibility == null) {
-                        accumulator.breakContinuity()
-                        onPoint?.invoke(null)
-                        onGap?.invoke(candidate.timeMs)
-                        partial = true
-                        continue
-                    }
-                    val sample = row?.sample ?: requireNotNull(compatibility).sample
-                    val path = if (row == null) requireNotNull(compatibility) else LocationPathSampleRow(sample,
-                        if (sample.clockDomainId == null) null else row.receipt.sourceInstanceId +
-                            ":" + row.receipt.registrationGeneration,
-                        row.receipt.sourceSequence, row.scope is RadioContextScope.Ambient)
-                    accumulator.add(path)
-                    onPoint?.invoke(path)
-                    val fix = sample.toSavedFix(row?.receipt?.wallTimeUncertaintyMs ?: 0L)
+                    val fix = appendSavedCandidate(candidate, row, accumulator, onPoint, onGap)
                     if (fix == null) {
-                        onGap?.invoke(sample.timeMs)
                         partial = true
                     } else {
                         count = Math.addExact(count, 1L)
                         latest = fix
                     }
-                }
-                if (pageProblem != null) return result(pageProblem)
-                if (accumulator.measuredMeters?.isFinite() == false) {
-                    return result(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
-                }
-                after = page.last().position
-                if (page.size < POINT_PAGE_SIZE) return result()
-            }
+                })
+            result(terminalProblem)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: android.database.sqlite.SQLiteException) {
-            return result(HistoryProblemReason.STORAGE_UNAVAILABLE)
+            result(HistoryProblemReason.STORAGE_UNAVAILABLE)
         } catch (_: RuntimeException) {
-            return result(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+            result(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+        }
+    }
+
+    private suspend fun readQualifiedSavedPages(
+        scopeMatches: (RadioContextScope) -> Boolean,
+        nextPage: suspend (SavedLocationPosition?) -> List<SavedLocationCandidate>,
+        accumulator: SavedTripDistanceAccumulator,
+        onQualified: (SavedLocationQualifiedPage) -> Unit,
+        onCandidate: (SavedLocationCandidate, QualifiedRetainedLocationSample?) -> Unit,
+    ): HistoryProblemReason? {
+        var after: SavedLocationPosition? = null
+        while (true) {
+            currentCoroutineContext().ensureActive()
+            val page = nextPage(after)
+            requireOrderedPage(page, after)
+            if (page.isEmpty()) {
+                return null
+            }
+            val qualified = qualifyCandidatesInTransaction(page.mapNotNull { it.receipt }, scopeMatches)
+            val accepted = qualified.samples
+            onQualified(qualified)
+            for (candidate in page) {
+                currentCoroutineContext().ensureActive()
+                onCandidate(candidate, accepted[candidate.position.sampleId])
+            }
+            val problem = accumulator.savedPageProblem(qualified.problem)
+            if (problem != null) {
+                return problem
+            }
+            after = page.last().position
+            if (page.size < POINT_PAGE_SIZE) {
+                return null
+            }
+        }
+    }
+
+    private fun appendSavedCandidate(
+        candidate: SavedLocationCandidate, row: QualifiedRetainedLocationSample?,
+        accumulator: SavedTripDistanceAccumulator, onPoint: ((LocationPathSampleRow?) -> Unit)?,
+        onGap: ((Long) -> Unit)?,
+    ): SavedLocationFix? {
+        val path = savedPath(candidate, row)
+        if (path == null) {
+            accumulator.breakContinuity()
+            onPoint?.invoke(null)
+            onGap?.invoke(candidate.timeMs)
+            return null
+        }
+        val sample = path.sample
+        accumulator.add(path)
+        onPoint?.invoke(path)
+        val fix = sample.toSavedFix(row?.receipt?.wallTimeUncertaintyMs ?: 0L)
+        if (fix == null) {
+            onGap?.invoke(sample.timeMs)
+        }
+        return fix
+    }
+
+    private fun requireOrderedPage(page: List<SavedLocationCandidate>, after: SavedLocationPosition?) {
+        if (page.size > POINT_PAGE_SIZE || page.zipWithNext().any { (left, right) ->
+            left.position >= right.position } ||
+            after?.let { cursor -> page.firstOrNull()?.position?.let { it <= cursor } } == true) {
+            throw InvalidSavedLocationPage()
+        }
+    }
+
+    private fun savedPath(candidate: SavedLocationCandidate, row: QualifiedRetainedLocationSample?):
+        LocationPathSampleRow? {
+        val compatibility = candidate.compatibility?.takeIf { candidate.receipt == null }
+        if (row == null && compatibility == null) {
+            return null
+        }
+        val sample = row?.sample ?: requireNotNull(compatibility).sample
+        return if (row == null) {
+            requireNotNull(compatibility)
+        } else {
+            LocationPathSampleRow(sample,
+                if (sample.clockDomainId == null) {
+                    null
+                } else {
+                    row.receipt.sourceInstanceId + ":" + row.receipt.registrationGeneration
+                }, row.receipt.sourceSequence, row.scope is RadioContextScope.Ambient)
         }
     }
 
@@ -256,8 +344,12 @@ internal class SavedLocationSummaryReader @Inject constructor(
             } else {
                 gaps += read.gaps
                 read.samples.filter { scopeMatches(it.scope) }.forEach { accepted.putIfAbsent(it.sample.id, it) }
-                if (read.historyProblem != null) problem = read.historyProblem
-                if (RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT in read.gaps) problem = HistoryProblemReason.DEPENDENCY_OVERFLOW
+                if (read.historyProblem != null) {
+                    problem = read.historyProblem
+                }
+                if (RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT in read.gaps) {
+                    problem = HistoryProblemReason.DEPENDENCY_OVERFLOW
+                }
             }
         }
         qualify(receipts)
@@ -267,6 +359,30 @@ internal class SavedLocationSummaryReader @Inject constructor(
     private class InvalidSavedLocationPage : IllegalStateException("Invalid saved Location page")
     private companion object { const val POINT_PAGE_SIZE = 256 }
 }
+
+// Project the same captured summary values without a second mutable accumulation object.
+@Suppress("LongParameterList")
+internal fun savedLocationSummary(
+    selection: SavedLocationSummarySelection, snapshot: TrackingHistoryReadSnapshot,
+    accumulator: SavedTripDistanceAccumulator, count: Long, latest: SavedLocationFix?, partial: Boolean,
+    gaps: Set<RadioLocationContextGap>, problem: HistoryProblemReason?,
+): SavedLocationSummaryRead.Snapshot {
+    val meters = accumulator.measuredMeters?.takeIf { it.isFinite() }
+    return SavedLocationSummaryRead.Snapshot(selection, snapshot,
+        SavedLocationSummary(count, latest, meters,
+            partial || accumulator.hasDisconnectedSections || gaps.isNotEmpty() || problem != null,
+            gaps.toSet(), accumulator.movingAverageSpeedMetersPerSecond.takeIf { meters != null }), problem)
+}
+
+private fun com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState?.matchesSavedSummarySnapshot(
+    snapshot: TrackingHistoryReadSnapshot,
+): Boolean = this != null && hasValidRangeShape() && collectedDataEpoch == snapshot.collectedDataEpoch &&
+    revision == snapshot.sourceEvidenceRevision
+
+private fun SavedTripDistanceAccumulator.savedPageProblem(
+    qualifiedProblem: HistoryProblemReason?,
+): HistoryProblemReason? =
+    qualifiedProblem ?: HistoryProblemReason.INTEGRITY_UNAVAILABLE.takeIf { measuredMeters?.isFinite() == false }
 
 private data class SavedLocationCandidate(val receipt: LocationAcceptedReceiptEntity?, val timeMs: Long,
     val compatibility: LocationPathSampleRow? = null) {
@@ -278,9 +394,12 @@ internal data class SavedLocationPosition(val timeMs: Long, val sampleId: Long) 
         ?: sampleId.compareTo(other.sampleId)
 }
 
-internal fun QualifiedRetainedLocationSample.toSavedFix(): SavedLocationFix? = sample.toSavedFix(receipt.wallTimeUncertaintyMs)
+internal fun QualifiedRetainedLocationSample.toSavedFix(): SavedLocationFix? =
+    sample.toSavedFix(receipt.wallTimeUncertaintyMs)
 
-private fun com.adsamcik.tracker.shared.base.database.data.LocationSample.toSavedFix(uncertainty: Long): SavedLocationFix? {
+private fun com.adsamcik.tracker.shared.base.database.data.LocationSample.toSavedFix(
+    uncertainty: Long,
+): SavedLocationFix? {
     val latitude = latE7?.takeIf { it in -900_000_000..900_000_000 } ?: return null
     val longitude = lonE7?.takeIf { it in -1_800_000_000..1_800_000_000 } ?: return null
     return SavedLocationFix(id, timeMs, uncertainty, latitude, longitude,
@@ -292,3 +411,8 @@ private fun Float?.validNonNegative(): Float? = this?.takeIf { it.isFinite() && 
 
 internal data class SavedLocationQualifiedPage(val samples: Map<Long, QualifiedRetainedLocationSample>,
     val gaps: Set<RadioLocationContextGap>, val problem: HistoryProblemReason?)
+
+private fun RadioContextScope.matchesSavedSummarySession(segmentId: Long, logicalId: String, runId: String): Boolean {
+    val owner = (this as? RadioContextScope.Session)?.owner ?: return false
+    return owner.sessionSegmentId == segmentId && owner.logicalTrackingId == logicalId && owner.serviceRunId == runId
+}

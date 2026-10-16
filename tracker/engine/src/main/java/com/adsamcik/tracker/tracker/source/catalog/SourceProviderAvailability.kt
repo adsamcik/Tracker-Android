@@ -33,10 +33,16 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Reads current permission and platform capability without creating demand or starting a provider. */
 fun interface SourceProviderAvailabilityReader {
+	/**
+	 * Checks the requested source, purpose, acquisition plan and execution tier without acquiring the
+	 * source.
+	 */
 	suspend fun read(request: SourceAvailabilityRequest): SourceProviderAvailability
 }
 
+/** Execution context used to evaluate Android background and foreground acquisition restrictions. */
 enum class SourceAvailabilityTier {
 	SESSION_ALREADY_FOREGROUND,
 	MANUAL_FOREGROUND_START,
@@ -44,6 +50,9 @@ enum class SourceAvailabilityTier {
 	AMBIENT_REGISTRATION,
 }
 
+/**
+ * Capability request for one source-purpose pair; the acquisition plan must describe that same source.
+ */
 data class SourceAvailabilityRequest(
 	val source: SourceKind,
 	val purpose: TrackingPurpose,
@@ -55,24 +64,31 @@ data class SourceAvailabilityRequest(
 	}
 }
 
+/** An exact runtime or system Steps grant needed before this provider can be used. */
 sealed interface SourceProviderPermission {
+	/** The Android runtime grant required by the requested tracking source. */
 	data class RuntimePermission(val source: SourceKind) : SourceProviderPermission
+	/** The Health Connect or local recording grant required for system Steps import. */
 	data class AmbientStepsPermissionGrant(
 		val permission: AmbientStepsPermission,
 	) : SourceProviderPermission
 }
 
+/** Capability evidence retained for explaining a provider limitation or effective fallback. */
 sealed interface SourceProviderAvailabilityEvidence {
+	/** Source-specific reasons collected from the runtime prerequisite evaluation. */
 	data class Runtime(
 		val source: SourceKind,
 		val reasons: Set<SourceDegradedReason>,
 	) : SourceProviderAvailabilityEvidence
 
+	/** The independently probed availability of Health Connect and local recording providers. */
 	data class AmbientSteps(
 		val healthConnect: HealthConnectAmbientStepsAvailability,
 		val localRecording: LocalRecordingAmbientStepsAvailability,
 	) : SourceProviderAvailabilityEvidence
 
+	/** The requested and effective Location backends plus the reasons for using a fallback. */
 	data class Location(
 		val requestedBackend: LocationBackend,
 		val effectiveBackend: LocationBackend,
@@ -80,16 +96,25 @@ sealed interface SourceProviderAvailabilityEvidence {
 	) : SourceProviderAvailabilityEvidence
 }
 
+/**
+ * Capability outcome for one source-purpose request; an available result alone grants no acquisition
+ * authority.
+ */
 sealed interface SourceProviderAvailability {
+	/** The requested plan is usable, with optional degradation reasons for presentation. */
 	data class Available(
 		val degradedReasons: Set<SourceDegradedReason> = emptySet(),
 	) : SourceProviderAvailability
 
+	/**
+	 * A reduced effective plan is usable, with evidence explaining how it differs from the requested plan.
+	 */
 	data class Degraded(
 		val effectivePlan: SourcePlan,
 		val evidence: SourceProviderAvailabilityEvidence,
 	) : SourceProviderAvailability
 
+	/** Acquisition needs these nonempty permission grants before it can be attempted. */
 	data class PermissionRequired(
 		val permissions: Set<SourceProviderPermission>,
 	) : SourceProviderAvailability {
@@ -98,28 +123,37 @@ sealed interface SourceProviderAvailability {
 		}
 	}
 
+	/** The required platform provider or service cannot currently be used. */
 	data class ProviderUnavailable(
 		val evidence: SourceProviderAvailabilityEvidence,
 	) : SourceProviderAvailability
 
+	/**
+	 * Android execution restrictions prevent this acquisition tier despite the source being present.
+	 */
 	data class OsLimited(
 		val evidence: SourceProviderAvailabilityEvidence,
 	) : SourceProviderAvailability
 
+	/** The device lacks usable hardware for this source. */
 	data class HardwareUnavailable(
 		val evidence: SourceProviderAvailabilityEvidence,
 	) : SourceProviderAvailability
 
+	/** The current rollout or purpose contract deliberately prevents acquisition. */
 	data class Contained(
 		val reason: TrackingDecisionContainmentReason,
 	) : SourceProviderAvailability
 }
 
+/** Separates supported provider-capability outcomes from unsupported source-purpose contracts. */
 sealed interface SourceCatalogAvailability {
+	/** The catalog supports this pair; provider availability still determines whether it can run. */
 	data class Executable(
 		val availability: SourceProviderAvailability,
 	) : SourceCatalogAvailability
 
+	/** The catalog has no executable contract for this source-purpose pair. */
 	data class Unsupported(
 		val source: TrackingSource,
 		val purpose: TrackingPurpose,
@@ -127,15 +161,26 @@ sealed interface SourceCatalogAvailability {
 	) : SourceCatalogAvailability
 }
 
+/**
+ * Current motion permission and Play services availability used by Activity capture and automatic
+ * triggers.
+ */
 data class ActivityRecognitionSourceState(
 	val permissionGranted: Boolean,
 	val providerAvailable: Boolean,
 )
 
+/** Supplies an Activity capability snapshot without registering recognition callbacks. */
 fun interface ActivityRecognitionSourceStateProvider {
+	/**
+	 * Reads current motion permission and provider availability without starting Activity recognition.
+	 */
 	fun snapshot(): ActivityRecognitionSourceState
 }
 
+/**
+ * Reads Android motion permission and Play services presence for the shared Activity capability check.
+ */
 @Singleton
 class AndroidActivityRecognitionSourceStateProvider @Inject constructor(
 	@ApplicationContext private val context: Context,
@@ -164,41 +209,37 @@ internal class DefaultSourceProviderAvailabilityReaderFactory(
 	override fun create(
 		source: TrackingSource,
 		purpose: TrackingPurpose,
-	): SourceProviderAvailabilityReader {
-		return when {
-			source == TrackingSource.ACTIVITY && purpose == TrackingPurpose.CONTROL ->
-				ActivitySessionSourceProviderAvailabilityReader(activityRecognitionSourceStateProvider)
-			source == TrackingSource.LOCATION && purpose == TrackingPurpose.AMBIENT_PRODUCT ->
-				containedAvailability(
-					TrackingDecisionContainmentReason.EXPANDED_AMBIENT_LOCATION_UNAVAILABLE,
-				)
-			source == TrackingSource.STEPS && purpose == TrackingPurpose.AMBIENT_PRODUCT ->
-				SourceProviderAvailabilityReader { _ ->
-					ambientStepsCapabilityResolver.resolve().toSourceProviderAvailability()
-				}
-			source == TrackingSource.LOCATION ->
-				LocationSourceProviderAvailabilityReader(
-					locationDeviceStateProvider,
-					locationPrerequisiteEvaluator,
-				)
-			source == TrackingSource.ACTIVITY && purpose == TrackingPurpose.SESSION_CAPTURE ->
-				ActivitySessionSourceProviderAvailabilityReader(activityRecognitionSourceStateProvider)
-			source == TrackingSource.STEPS && purpose == TrackingPurpose.SESSION_CAPTURE ->
-				StepsSessionSourceProviderAvailabilityReader(
-					activityRecognitionSourceStateProvider,
-					sensorSourceStateProvider,
-				)
-			source == TrackingSource.PRESSURE ->
-				SensorSourceProviderAvailabilityReader(
-					SourceKind.PRESSURE,
-					sensorSourceStateProvider,
-				)
-			source == TrackingSource.WIFI ->
-				WifiSourceProviderAvailabilityReader(connectivityDeviceStateProvider)
-			source == TrackingSource.CELL ->
-				CellSourceProviderAvailabilityReader(connectivityDeviceStateProvider)
-			else -> error("No availability reader for $source ${purpose.stableName}")
+	): SourceProviderAvailabilityReader = when (source) {
+		TrackingSource.LOCATION -> locationAvailability(purpose)
+		TrackingSource.ACTIVITY -> if (
+			purpose == TrackingPurpose.CONTROL || purpose == TrackingPurpose.SESSION_CAPTURE
+		) {
+			ActivitySessionSourceProviderAvailabilityReader(activityRecognitionSourceStateProvider)
+		} else {
+			error("No availability reader for $source ${purpose.stableName}")
 		}
+		TrackingSource.STEPS -> stepsAvailability(purpose)
+		TrackingSource.PRESSURE -> SensorSourceProviderAvailabilityReader(SourceKind.PRESSURE, sensorSourceStateProvider)
+		TrackingSource.WIFI -> WifiSourceProviderAvailabilityReader(connectivityDeviceStateProvider)
+		TrackingSource.CELL -> CellSourceProviderAvailabilityReader(connectivityDeviceStateProvider)
+	}
+
+	private fun locationAvailability(purpose: TrackingPurpose): SourceProviderAvailabilityReader =
+		if (purpose == TrackingPurpose.AMBIENT_PRODUCT) {
+			containedAvailability(TrackingDecisionContainmentReason.EXPANDED_AMBIENT_LOCATION_UNAVAILABLE)
+		} else {
+			LocationSourceProviderAvailabilityReader(locationDeviceStateProvider, locationPrerequisiteEvaluator)
+		}
+
+	private fun stepsAvailability(purpose: TrackingPurpose): SourceProviderAvailabilityReader = when (purpose) {
+		TrackingPurpose.AMBIENT_PRODUCT -> SourceProviderAvailabilityReader { _ ->
+			ambientStepsCapabilityResolver.resolve().toSourceProviderAvailability()
+		}
+		TrackingPurpose.SESSION_CAPTURE -> StepsSessionSourceProviderAvailabilityReader(
+			activityRecognitionSourceStateProvider,
+			sensorSourceStateProvider,
+		)
+		else -> error("No availability reader for ${TrackingSource.STEPS} ${purpose.stableName}")
 	}
 }
 

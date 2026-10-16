@@ -35,6 +35,8 @@ import kotlinx.coroutines.ensureActive
  * local privacy evaluator. This adapter never converts either origin into the other's authority.
  */
 @Singleton
+// One Pressure transfer snapshot shares native/imported ownership qualification and typed wire projections.
+@Suppress("TooManyFunctions")
 internal class PortablePressureRoomReader @Inject constructor(
 	private val database: AppDatabase,
 	private val selector: PressureHistorySelector,
@@ -80,7 +82,9 @@ internal class PortablePressureRoomReader @Inject constructor(
 		fun addEntry(entry: PortablePressureEntryV1) {
 			val previous = entries[entry.identity]
 			if (previous != null) {
-				if (previous != entry) abort(PortablePressureExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY)
+				if (previous != entry) {
+					abort(PortablePressureExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY)
+				}
 				return
 			}
 			runCount += entry.runs.size
@@ -92,6 +96,15 @@ internal class PortablePressureRoomReader @Inject constructor(
 			}
 			entries[entry.identity] = entry
 		}
+		appendSelectedNativeEntries(request, ::addEntry)
+		appendSelectedImportedEntries(request, ::addEntry)
+		return portableSnapshot(entries.values)
+	}
+
+	private suspend fun appendSelectedNativeEntries(
+		request: ExportSelectedPortablePressureRequest,
+		addEntry: (PortablePressureEntryV1) -> Unit,
+	) {
 		for (selectedIds in request.nativeSegmentIds.distinct().chunked(CANDIDATE_PAGE_SIZE)) {
 			currentCoroutineContext().ensureActive()
 			val seeds = database.trackingHistoryReadDao().segments(selectedIds)
@@ -105,14 +118,21 @@ internal class PortablePressureRoomReader @Inject constructor(
 				currentCoroutineContext().ensureActive()
 				val entry = logical.singleOrNull { group -> group.physicalMembers.any { it.segment.id == seed.id } }
 					?: abort(PortablePressureExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
-				portableEntry(entry)?.let(::addEntry)
+				portableEntry(entry)?.let(addEntry)
 			}
 		}
+	}
+
+	private suspend fun appendSelectedImportedEntries(
+		request: ExportSelectedPortablePressureRequest,
+		addEntry: (PortablePressureEntryV1) -> Unit,
+	) {
 		for (selectedIds in request.importedEntryIdentities.distinct().chunked(CANDIDATE_PAGE_SIZE)) {
 			currentCoroutineContext().ensureActive()
 			val candidates = database.importedPressureDao().selectedHistoryCandidates(selectedIds.map { it.value })
 			val byIdentity = candidates.groupBy { it.identity }
-			if (byIdentity.keys != selectedIds.mapTo(hashSetOf()) { it.value } || byIdentity.values.any { it.size != 1 }) {
+			if (byIdentity.keys != selectedIds.mapTo(hashSetOf()) { it.value } ||
+                byIdentity.values.any { it.size != 1 }) {
 				abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
 			}
 			for (candidate in candidates) {
@@ -120,20 +140,33 @@ internal class PortablePressureRoomReader @Inject constructor(
 				when (val evaluation = importedEvaluator.evaluateCandidateInTransaction(candidate)) {
 					is ImportedPressureHistoryEvaluation.Readable -> {
 						requireCompatibleNativeOwner(evaluation)
-						if (!evaluation.isReExportable) abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+						if (!evaluation.isReExportable) {
+							abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+						}
 						addEntry(evaluation.latest.entry)
 					}
-					is ImportedPressureHistoryEvaluation.Retained -> abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
-					is ImportedPressureHistoryEvaluation.Unverifiable -> abort(
-						if (evaluation.reason == ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW)
-							PortablePressureExportUnverifiableReason.DEPENDENCY_OVERFLOW
-						else PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+					is ImportedPressureHistoryEvaluation.Retained ->
+                        abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+					is ImportedPressureHistoryEvaluation.Unverifiable ->
+						abort(evaluation.reason.exportFailureReason())
 				}
 			}
 		}
-		return if (entries.isEmpty()) PortablePressureSnapshot.Outcome(ExportPortablePressureResult.NoEntries)
-			else PortablePressureSnapshot.Ready(entries.values.sortedWith(PORTABLE_PRESSURE_ENTRY_ORDER))
 	}
+
+	private fun ImportedPressureHistoryFailure.exportFailureReason(): PortablePressureExportUnverifiableReason =
+		if (this == ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW) {
+			PortablePressureExportUnverifiableReason.DEPENDENCY_OVERFLOW
+		} else {
+			PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE
+		}
+
+	private fun portableSnapshot(entries: Collection<PortablePressureEntryV1>): PortablePressureSnapshot =
+		if (entries.isEmpty()) {
+			PortablePressureSnapshot.Outcome(ExportPortablePressureResult.NoEntries)
+		} else {
+			PortablePressureSnapshot.Ready(entries.sortedWith(PORTABLE_PRESSURE_ENTRY_ORDER))
+		}
 
 	private suspend fun composeWithOriginalHeaders(
 		physical: List<PressurePhysicalHistory>,
@@ -146,96 +179,8 @@ internal class PortablePressureRoomReader @Inject constructor(
 	private suspend fun readInTransaction(
 		request: ExportPortablePressureRequest,
 	): PortablePressureSnapshot {
-		val imported = when (
-			val selection = importedEvaluator.selectForExportInTransaction(request)
-		) {
-			is ImportedPressureHistorySelection.Available -> selection.evaluations
-			is ImportedPressureHistorySelection.Unverifiable -> abort(
-				when (selection.reason) {
-					ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW ->
-						PortablePressureExportUnverifiableReason.DEPENDENCY_OVERFLOW
-					else -> PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE
-				},
-			)
-		}
-		val importedEntries = imported.mapNotNull { evaluation ->
-			when (evaluation) {
-				is ImportedPressureHistoryEvaluation.Readable -> {
-					requireCompatibleNativeOwner(evaluation)
-					if (evaluation.isReExportable) evaluation.latest.entry else null
-				}
-				is ImportedPressureHistoryEvaluation.Retained -> null
-				is ImportedPressureHistoryEvaluation.Unverifiable -> abort(
-					when (evaluation.reason) {
-						ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW ->
-							PortablePressureExportUnverifiableReason.DEPENDENCY_OVERFLOW
-						else -> PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE
-					},
-				)
-			}
-		}
-		val entries = mutableListOf<PortablePressureEntryV1>()
-		val exportedLogicalIds = hashSetOf<String>()
-		var beforeRecencyStartMs: Long? = null
-		var beforeRecencySegmentId: Long? = null
-		var candidateCount = 0
-		var runCount = 0
-		var windowCount = 0
-
-		while (true) {
-			currentCoroutineContext().ensureActive()
-			val remaining = PressurePortableFormatV1.MAX_ENTRIES - candidateCount
-			val pageLimit = minOf(CANDIDATE_PAGE_SIZE, remaining + 1)
-			val page = database.pressureFactRevisionDao().portablePressureLogicalHistoryCandidatePage(
-				fromInclusiveMs = request.fromInclusiveMs,
-				toExclusiveMs = request.toExclusiveMs,
-				limit = pageLimit,
-				beforeLogicalRecencyStartMs = beforeRecencyStartMs,
-				beforeLogicalRecencySegmentId = beforeRecencySegmentId,
-			)
-			if (page.isEmpty()) break
-			if (page.size > remaining) abort(PortablePressureExportUnverifiableReason.DEPENDENCY_OVERFLOW)
-			validateCandidatePage(page, beforeRecencyStartMs, beforeRecencySegmentId)
-			candidateCount += page.size
-
-			val physical = selector.selectManyInTransaction(
-				segments = page.map { it.segment },
-				memberBudget = CANDIDATE_PAGE_SIZE * PressurePortableFormatV1.MAX_RUNS_PER_ENTRY,
-			)
-			val logicalById = composeWithOriginalHeaders(physical).mapNotNull { entry ->
-				(entry.identity as? PressureHistoryEntryIdentity.Logical)?.let { identity ->
-					identity.logicalTrackingId to entry
-				}
-			}.toMap()
-
-			page.forEach { candidate ->
-				currentCoroutineContext().ensureActive()
-				val logicalId = candidate.segment.logicalTrackingId
-					?.takeIf(String::isNotBlank)
-					?: abort(PortablePressureExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
-				if (!exportedLogicalIds.add(logicalId)) {
-					abort(PortablePressureExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
-				}
-				val logical = logicalById[logicalId]
-					?: abort(PortablePressureExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
-				portableEntry(logical)?.let { entry ->
-					runCount += entry.runs.size
-					windowCount += entry.runs.sumOf { it.windows.size }
-					if (runCount > PressurePortableFormatV1.MAX_TOTAL_RUNS ||
-						windowCount > PressurePortableFormatV1.MAX_TOTAL_WINDOWS
-					) {
-						abort(PortablePressureExportUnverifiableReason.DEPENDENCY_OVERFLOW)
-					}
-					entries += entry
-				}
-			}
-
-			val last = page.last()
-			beforeRecencyStartMs = last.logicalRecencyStartMs
-			beforeRecencySegmentId = last.logicalRecencySegmentId
-			if (page.size < pageLimit) break
-		}
-
+		val importedEntries = readImportedEntries(request)
+		val entries = readNativeEntries(request)
 		val localByIdentity = entries.associateBy { it.identity }
 		importedEntries.forEach { importedEntry ->
 			val local = localByIdentity[importedEntry.identity]
@@ -253,10 +198,115 @@ internal class PortablePressureRoomReader @Inject constructor(
 			abort(PortablePressureExportUnverifiableReason.DEPENDENCY_OVERFLOW)
 		}
 
-		if (entries.isEmpty()) {
-			return PortablePressureSnapshot.Outcome(ExportPortablePressureResult.NoEntries)
+		return portableSnapshot(entries)
+	}
+
+	private suspend fun readImportedEntries(
+		request: ExportPortablePressureRequest,
+	): List<PortablePressureEntryV1> {
+		val imported = when (
+			val selection = importedEvaluator.selectForExportInTransaction(request)
+		) {
+			is ImportedPressureHistorySelection.Available -> selection.evaluations
+			is ImportedPressureHistorySelection.Unverifiable -> abort(selection.reason.exportFailureReason())
 		}
-		return PortablePressureSnapshot.Ready(entries.sortedWith(PORTABLE_PRESSURE_ENTRY_ORDER))
+		return imported.mapNotNull { evaluation ->
+			when (evaluation) {
+				is ImportedPressureHistoryEvaluation.Readable -> {
+					requireCompatibleNativeOwner(evaluation)
+					if (evaluation.isReExportable) {
+						evaluation.latest.entry
+					} else {
+						null
+					}
+				}
+				is ImportedPressureHistoryEvaluation.Retained -> null
+				is ImportedPressureHistoryEvaluation.Unverifiable -> abort(evaluation.reason.exportFailureReason())
+			}
+		}
+	}
+
+	private suspend fun readNativeEntries(
+		request: ExportPortablePressureRequest,
+	): MutableList<PortablePressureEntryV1> {
+		val entries = mutableListOf<PortablePressureEntryV1>()
+		val exportedLogicalIds = hashSetOf<String>()
+		var beforeRecencyStartMs: Long? = null
+		var beforeRecencySegmentId: Long? = null
+		var candidateCount = 0
+		var runCount = 0
+		var windowCount = 0
+		fun addEntry(entry: PortablePressureEntryV1) {
+			runCount += entry.runs.size
+			windowCount += entry.runs.sumOf { it.windows.size }
+			if (runCount > PressurePortableFormatV1.MAX_TOTAL_RUNS ||
+				windowCount > PressurePortableFormatV1.MAX_TOTAL_WINDOWS
+			) {
+				abort(PortablePressureExportUnverifiableReason.DEPENDENCY_OVERFLOW)
+			}
+			entries += entry
+		}
+
+		while (true) {
+			currentCoroutineContext().ensureActive()
+			val remaining = PressurePortableFormatV1.MAX_ENTRIES - candidateCount
+			val pageLimit = minOf(CANDIDATE_PAGE_SIZE, remaining + 1)
+			val page = database.pressureFactRevisionDao().portablePressureLogicalHistoryCandidatePage(
+				fromInclusiveMs = request.fromInclusiveMs,
+				toExclusiveMs = request.toExclusiveMs,
+				limit = pageLimit,
+				beforeLogicalRecencyStartMs = beforeRecencyStartMs,
+				beforeLogicalRecencySegmentId = beforeRecencySegmentId,
+			)
+			if (page.isEmpty()) {
+				break
+			}
+			if (page.size > remaining) {
+				abort(PortablePressureExportUnverifiableReason.DEPENDENCY_OVERFLOW)
+			}
+			validateCandidatePage(page, beforeRecencyStartMs, beforeRecencySegmentId)
+			candidateCount += page.size
+
+			appendNativeCandidatePage(page, exportedLogicalIds, ::addEntry)
+
+			val last = page.last()
+			beforeRecencyStartMs = last.logicalRecencyStartMs
+			beforeRecencySegmentId = last.logicalRecencySegmentId
+			if (page.size < pageLimit) {
+				break
+			}
+		}
+
+		return entries
+	}
+
+	private suspend fun appendNativeCandidatePage(
+		page: List<com.adsamcik.tracker.shared.base.database.dao.PressureLogicalHistoryCandidate>,
+		exportedLogicalIds: MutableSet<String>,
+		addEntry: (PortablePressureEntryV1) -> Unit,
+	) {
+		val physical = selector.selectManyInTransaction(
+			segments = page.map { it.segment },
+			memberBudget = CANDIDATE_PAGE_SIZE * PressurePortableFormatV1.MAX_RUNS_PER_ENTRY,
+		)
+		val logicalById = composeWithOriginalHeaders(physical).mapNotNull { entry ->
+			(entry.identity as? PressureHistoryEntryIdentity.Logical)?.let { identity ->
+				identity.logicalTrackingId to entry
+			}
+		}.toMap()
+
+		page.forEach { candidate ->
+			currentCoroutineContext().ensureActive()
+			val logicalId = candidate.segment.logicalTrackingId
+				?.takeIf(String::isNotBlank)
+				?: abort(PortablePressureExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			if (!exportedLogicalIds.add(logicalId)) {
+				abort(PortablePressureExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			}
+			val logical = logicalById[logicalId]
+				?: abort(PortablePressureExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			portableEntry(logical)?.let(addEntry)
+		}
 	}
 
 	/** Complete exact owners are comparison inputs; they never widen a selected output. */
@@ -287,6 +337,22 @@ internal class PortablePressureRoomReader @Inject constructor(
 		evaluation: ImportedPressureHistoryEvaluation.Readable,
 	) {
 		val imported = evaluation.latest.entry
+		val owners = readNativeOwnersForComparison(imported)
+		for (owner in owners) {
+			val identity = (owner.identity as? PressureHistoryEntryIdentity.Logical)
+				?: abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+			val ownerId = PortablePressureOpaqueIdentity.derive(
+				PortablePressureIdentityKind.LOGICAL_ENTRY, identity.logicalTrackingId)
+			if (ownerId != imported.identity || !evaluation.isReExportable ||
+				portableEntryForComparison(owner) != imported) {
+				abort(PortablePressureExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY)
+			}
+		}
+	}
+
+	private suspend fun readNativeOwnersForComparison(
+		imported: PortablePressureEntryV1,
+	): List<PressureLogicalHistoryEntry> {
 		val keys = sequence {
 			yield(imported.identity.value)
 			for (run in imported.runs) {
@@ -294,7 +360,7 @@ internal class PortablePressureRoomReader @Inject constructor(
 				for (window in run.windows) yield(window.identity.value)
 			}
 		}
-		val owners = try {
+		return try {
 			nativeEntriesForComparisonInTransaction(keys)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -310,16 +376,6 @@ internal class PortablePressureRoomReader @Inject constructor(
 			})
 		} catch (_: RuntimeException) {
 			abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
-		}
-		for (owner in owners) {
-			val identity = (owner.identity as? PressureHistoryEntryIdentity.Logical)
-				?: abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
-			val ownerId = PortablePressureOpaqueIdentity.derive(
-				PortablePressureIdentityKind.LOGICAL_ENTRY, identity.logicalTrackingId)
-			if (ownerId != imported.identity || !evaluation.isReExportable ||
-				portableEntryForComparison(owner) != imported) {
-				abort(PortablePressureExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY)
-			}
 		}
 	}
 
@@ -343,8 +399,12 @@ internal class PortablePressureRoomReader @Inject constructor(
 		}?.let { failed -> abort(failed.exportFailureReason()) }
 
 		val runs = entry.physicalMembers.map(::portableRun).sortedWith(PORTABLE_PRESSURE_RUN_ORDER)
-		if (runs.none { it.windows.isNotEmpty() || it.retentionLoss }) return null
-		if (entry.originalClosedBounds == null) abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		if (runs.none { it.windows.isNotEmpty() || it.retentionLoss }) {
+			return null
+		}
+		if (entry.originalClosedBounds == null) {
+			abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		}
 		return portableValue {
 			PortablePressureEntryV1.create(
 				identity = PortablePressureOpaqueIdentity.derive(
@@ -391,7 +451,8 @@ internal class PortablePressureRoomReader @Inject constructor(
 			PortablePressureWindowV1.create(
 				identity = PortablePressureOpaqueIdentity.derive(
 					PortablePressureIdentityKind.WINDOW,
-					factIdentity(window),
+					com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership.pressureWindowIdentity(
+						window.writerProjectionId, window.writerProjectionVersion, window.logicalFactId),
 				),
 				intervalStartTimeMs = window.intervalStartTimeMs,
 				intervalEndTimeMs = window.intervalEndTimeMs,
@@ -471,30 +532,23 @@ internal class PortablePressureRoomReader @Inject constructor(
 		else -> PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE
 	}
 
-	private fun factIdentity(window: PressureHistoryWindow): String = buildString {
-		append(window.writerProjectionId.length)
-		append(':')
-		append(window.writerProjectionId)
-		append(':')
-		append(window.writerProjectionVersion)
-		append(':')
-		append(window.logicalFactId.length)
-		append(':')
-		append(window.logicalFactId)
-	}
-
 	private fun validateCandidatePage(
 		page: List<com.adsamcik.tracker.shared.base.database.dao.PressureLogicalHistoryCandidate>,
 		beforeStartMs: Long?,
 		beforeSegmentId: Long?,
 	) {
 		val cursors = buildList {
-			if (beforeStartMs != null && beforeSegmentId != null) add(beforeStartMs to beforeSegmentId)
+			if (beforeStartMs != null && beforeSegmentId != null) {
+				add(beforeStartMs to beforeSegmentId)
+			}
 			addAll(page.map { it.logicalRecencyStartMs to it.logicalRecencySegmentId })
 		}
 		if (page.any { candidate ->
 			candidate.logicalRecencyStartMs < 0L || candidate.logicalRecencySegmentId <= 0L
-		} || cursors.zipWithNext().any { (left, right) ->
+		}) {
+			abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		}
+		if (cursors.zipWithNext().any { (left, right) ->
 			right.first > left.first || right.first == left.first && right.second >= left.second
 		}) {
 			abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)

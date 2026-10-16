@@ -87,6 +87,9 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)
+// One durable full-clear fixture follows the same deletion journal, provider fences and startup barrier
+// through failure and recovery.
+@Suppress("LargeClass")
 class CollectedDataDeletionServiceTest {
 	private lateinit var context: Application
 	private lateinit var markerFile: File
@@ -874,6 +877,9 @@ class CollectedDataDeletionServiceTest {
 		}
 
 	@Test
+	// Keep the committed database-clear debt and successful authority-only startup retry in one causal
+	// scenario.
+	@Suppress("LongMethod")
 	fun `startup retry bootstraps authority after DATABASE_CLEARED without provider activation`() =
 		runTest {
 			val events = mutableListOf<String>()
@@ -1563,6 +1569,9 @@ class CollectedDataDeletionServiceTest {
 		markerFile.exists() shouldBe false
 	}
 
+	// Keep the deletion-service fixture wiring and its matching lifecycle, provider-fence and
+	// durable-operation callbacks together.
+	@Suppress("LongMethod")
 	private fun createService(
 		traceboxDataDeletion: suspend () -> Boolean = { true },
 		trackingDiagnosticDataDeletion: suspend () -> Boolean = { true },
@@ -1679,6 +1688,7 @@ class CollectedDataDeletionServiceTest {
 		val policyRepository = RoomSourcePolicyRepository(database, effectiveTimeProvider = timeProvider)
 		policyRepository.bootstrapFromLegacy(
 			TrackingParamsState(
+				stepsEnabled = ambientStepsEnabled,
 				ambientStepsEnabled = ambientStepsEnabled,
 				legacySettingsMigrationCompleted = true,
 			),

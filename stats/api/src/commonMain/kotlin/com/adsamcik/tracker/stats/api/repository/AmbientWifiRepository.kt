@@ -1,6 +1,16 @@
 package com.adsamcik.tracker.stats.api.repository
 
+import kotlinx.serialization.Serializable
+
+/**
+ * Distinguishes on-device readings from portable imported data without changing their measured
+ * times.
+ */
+@Serializable
 enum class AmbientWifiOrigin { LOCAL_DEVICE, PORTABLE_IMPORT }
+/**
+ * Current source availability presented separately from retained history and coverage.
+ */
 enum class AmbientWifiAvailability {
 	DISABLED,
 	UNSUPPORTED,
@@ -8,8 +18,15 @@ enum class AmbientWifiAvailability {
 	OS_LIMITED,
 	AVAILABLE,
 }
+/**
+ * Whether the saved Wi-Fi fact can verify its represented coverage.
+ */
+@Serializable
 enum class AmbientWifiCoverage { COMPLETE, UNVERIFIABLE }
 
+/**
+ * Half-open UTC millisecond selection, nonempty origin filter and fact limit from 1 to 4096.
+ */
 data class AmbientWifiReadRequest(
 	val fromInclusiveMs: Long,
 	val toExclusiveMs: Long,
@@ -23,6 +40,10 @@ data class AmbientWifiReadRequest(
 	}
 }
 
+/**
+ * Exact saved local day/zone selection with a nonempty origin filter and fact limit from 1 to
+ * 4096.
+ */
 data class AmbientWifiDayReadRequest(
 	val structuralEpochDay: Long,
 	val storedZoneId: String,
@@ -36,6 +57,10 @@ data class AmbientWifiDayReadRequest(
 	}
 }
 
+/**
+ * One all-day Wi-Fi summary revision with UTC millisecond uncertainty bounds, local day/zone, dBm
+ * signal and available network details.
+ */
 @Suppress("LongParameterList")
 data class AmbientWifiFact(
 	val identity: String,
@@ -75,6 +100,10 @@ data class AmbientWifiFact(
 	}
 }
 
+/**
+ * Saved Wi-Fi coverage gap with original identity, UTC millisecond bounds, local day/zone and
+ * reason.
+ */
 data class AmbientWifiGap(
 	val identity: String,
 	val origin: AmbientWifiOrigin,
@@ -91,19 +120,43 @@ data class AmbientWifiGap(
 	}
 }
 
+/**
+ * Retained Wi-Fi facts and gaps with current availability, or explicit dependency/storage failure.
+ */
 sealed interface AmbientWifiReadResult {
+	/**
+	 * Saved facts and explicit timed gaps with the separately reported current source availability.
+	 */
 	data class Snapshot(
 		val facts: List<AmbientWifiFact>,
 		val gaps: List<AmbientWifiGap>,
 		val availability: AmbientWifiAvailability,
 	) : AmbientWifiReadResult
 
+	/**
+	 * A required saved-data dependency exceeds the bounded read budget; a truncated prefix is not a
+	 * complete result.
+	 */
 	data object DependencyOverflow : AmbientWifiReadResult
+	/**
+	 * The saved-data snapshot could not be read; this is distinct from an empty or measured-zero
+	 * result.
+	 */
 	data object StorageUnavailable : AmbientWifiReadResult
 }
 
+/**
+ * Read-only all-day Wi-Fi access independent of sessions and optional Location enrichment.
+ */
 interface AmbientWifiRepository {
+	/**
+	 * Reads the bounded UTC millisecond range for the selected Wi-Fi origins, preserving saved gaps
+	 * and availability.
+	 */
 	suspend fun read(request: AmbientWifiReadRequest): AmbientWifiReadResult
+	/**
+	 * Reads one exact saved Wi-Fi local day/zone with the selected origins and finite fact bound.
+	 */
 	suspend fun readDay(request: AmbientWifiDayReadRequest): AmbientWifiReadResult
 }
 

@@ -68,6 +68,10 @@ class StepsSessionFactWriterTransitionCoordinator @Inject internal constructor(
 		}
 	}
 
+	/**
+	 * Rearms the Steps writer after the exact completed full-clear receipt; updatedAtMs is UTC
+	 * milliseconds.
+	 */
 	suspend fun rearmAfterFullDeletion(
 		operationId: String,
 		targetCollectedDataEpoch: Long,

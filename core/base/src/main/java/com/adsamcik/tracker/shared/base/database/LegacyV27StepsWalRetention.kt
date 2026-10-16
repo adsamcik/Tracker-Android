@@ -143,41 +143,59 @@ internal fun SupportSQLiteDatabase.authenticateLegacyV27StepsWalForCollectedData
 	) {
 		requireLegacyProjectionDrainCompletion(authority, targets)
 	}
+	requireLegacyFullClearWalPages(maximumRowId, authority)
+}
+
+private fun SupportSQLiteDatabase.requireLegacyFullClearWalPages(
+	maximumRowId: Long,
+	authority: LegacyV27StepsWalRetentionAuthority,
+) {
 	var afterRowId: Long? = null
 	while (true) {
 		val lowerBoundRowId = afterRowId
-		val page = query(
-			"SELECT rowid, admission_ordinal FROM source_event_wal " +
-				"WHERE (? IS NULL OR rowid > ?) AND rowid <= ? AND source_kind = ? " +
-				"AND (authorization_purpose_eligibility_mask = 0 OR " +
-				"typeof(authorization_purpose_eligibility_mask) != 'integer') " +
-				"ORDER BY rowid LIMIT $LEGACY_FULL_CLEAR_PAGE_SIZE",
-			arrayOf<Any?>(
-				lowerBoundRowId,
-				lowerBoundRowId,
-				maximumRowId,
-				SourceDestinationOwnerEntity.SOURCE_STEPS,
-			),
-		).use { cursor ->
-			buildList {
-				while (cursor.moveToNext()) {
-					val rowId = cursor.requiredLegacyLong(0)
-					val admissionOrdinal = cursor.requiredLegacyLong(1)
-					requireLegacy(
-						(lowerBoundRowId == null || rowId > lowerBoundRowId) &&
-							rowId <= maximumRowId,
-					)
-					requireLegacy(admissionOrdinal > 0L)
-					add(rowId to admissionOrdinal)
-				}
-			}
+		val page = legacyFullClearWalPage(lowerBoundRowId, maximumRowId)
+		if (page.isEmpty()) {
+			break
 		}
-		if (page.isEmpty()) break
 		page.forEach { (_, admissionOrdinal) ->
 			requireAuthenticatedLegacyV27StepsWal(admissionOrdinal, authority)
 		}
 		afterRowId = page.last().first
-		if (page.size < LEGACY_FULL_CLEAR_PAGE_SIZE) break
+		if (page.size < LEGACY_FULL_CLEAR_PAGE_SIZE) {
+			break
+		}
+	}
+}
+
+private fun SupportSQLiteDatabase.legacyFullClearWalPage(
+	lowerBoundRowId: Long?,
+	maximumRowId: Long,
+): List<Pair<Long, Long>> {
+	return query(
+		"SELECT rowid, admission_ordinal FROM source_event_wal " +
+			"WHERE (? IS NULL OR rowid > ?) AND rowid <= ? AND source_kind = ? " +
+			"AND (authorization_purpose_eligibility_mask = 0 OR " +
+			"typeof(authorization_purpose_eligibility_mask) != 'integer') " +
+			"ORDER BY rowid LIMIT $LEGACY_FULL_CLEAR_PAGE_SIZE",
+		arrayOf<Any?>(
+			lowerBoundRowId,
+			lowerBoundRowId,
+			maximumRowId,
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+		),
+	).use { cursor ->
+		buildList {
+			while (cursor.moveToNext()) {
+				val rowId = cursor.requiredLegacyLong(0)
+				val admissionOrdinal = cursor.requiredLegacyLong(1)
+				requireLegacy(
+					(lowerBoundRowId == null || rowId > lowerBoundRowId) &&
+						rowId <= maximumRowId,
+				)
+				requireLegacy(admissionOrdinal > 0L)
+				add(rowId to admissionOrdinal)
+			}
+		}
 	}
 }
 
@@ -301,21 +319,7 @@ internal fun SupportSQLiteDatabase.requireAuthenticatedLegacyV27StepsWal(
 		requireLegacy(logicalTrackingId?.isNotBlank() != false)
 		requireLegacy(serviceRunId?.isNotBlank() != false)
 		requireLegacy(cursor.nullableLegacyText("provider_dedup_key")?.isNotBlank() != false)
-		LEGACY_V28_NULL_WAL_COLUMNS.forEach { column ->
-			requireLegacy(cursor.isNull(cursor.getColumnIndexOrThrow(column)))
-		}
-		val integrityIdentity = cursor.requiredLegacyText("integrity_identity")
-		requireLegacy(
-			integrityIdentity == SourceEventWalEntity.LEGACY_CHECKSUM_VERIFIED ||
-				(integrityIdentity == SourceEventWalEntity.LEGACY_PENDING_CHECKSUM &&
-					authority.permitsPendingChecksum),
-		)
-		val payload = cursor.requiredLegacyBlob("payload")
-		val payloadChecksum = cursor.requiredLegacyText("payload_checksum")
-		requireLegacy(payload.isNotEmpty())
-		requireLegacy(payloadChecksum.matches(LOWERCASE_SHA_256))
-		requireLegacy(payload.sha256() == payloadChecksum)
-		requireLegacy(!cursor.moveToNext())
+		cursor.requireLegacyWalPayload(authority)
 
 		if (logicalTrackingId != null && serviceRunId != null) {
 			requireLegacyTerminalRun(logicalTrackingId, serviceRunId)
@@ -330,6 +334,26 @@ internal fun SupportSQLiteDatabase.requireAuthenticatedLegacyV27StepsWal(
 	}
 }
 
+private fun Cursor.requireLegacyWalPayload(authority: LegacyV27StepsWalRetentionAuthority) {
+	LEGACY_V28_NULL_WAL_COLUMNS.forEach { column ->
+		requireLegacy(isNull(getColumnIndexOrThrow(column)))
+	}
+	val integrityIdentity = requiredLegacyText("integrity_identity")
+	requireLegacy(
+		integrityIdentity == SourceEventWalEntity.LEGACY_CHECKSUM_VERIFIED ||
+			(integrityIdentity == SourceEventWalEntity.LEGACY_PENDING_CHECKSUM &&
+				authority.permitsPendingChecksum),
+	)
+	val payload = requiredLegacyBlob("payload")
+	val payloadChecksum = requiredLegacyText("payload_checksum")
+	requireLegacy(payload.isNotEmpty())
+	requireLegacy(payloadChecksum.matches(LOWERCASE_SHA_256))
+	requireLegacy(payload.sha256() == payloadChecksum)
+	requireLegacy(!moveToNext())
+}
+
+// This finite status table validates only the supplied immutable drain-row fields.
+@Suppress("CyclomaticComplexMethod")
 private fun requireLegacyDrainState(
 	authenticationMode: LegacyV27StepsWalAuthenticationMode,
 	status: String,
@@ -410,7 +434,9 @@ internal fun SupportSQLiteDatabase.deleteAuthenticatedLegacyV27StepsWal(
 	admissionOrdinals: List<Long>,
 	authority: LegacyV27StepsWalRetentionAuthority,
 ): Int {
-	if (admissionOrdinals.isEmpty()) return 0
+	if (admissionOrdinals.isEmpty()) {
+		return 0
+	}
 	requireLegacy(
 		authority.authenticationMode ==
 			LegacyV27StepsWalAuthenticationMode.ORDINARY_RETENTION,
@@ -661,23 +687,7 @@ private fun SupportSQLiteDatabase.requireLegacyProjectionDrainCompletion(
 		authority.status == LegacyV27ProjectionDrainEntity.STATUS_COMPLETE ||
 			authority.status == LegacyV27ProjectionDrainEntity.STATUS_COMPLETE_PARTIAL,
 	)
-	targets.forEach { target ->
-		val allowedDispositions =
-			requireNotNull(LEGACY_V27_SUPPORTED_PROJECTIONS[target.projectionId])
-		requireLegacy(target.lastCompletedOrdinal == target.requiredThroughOrdinal)
-		requireLegacy(target.disposition in allowedDispositions)
-		requireLegacy(target.completedAtMs != null && target.completedAtMs >= 0L)
-		requireLegacyProjectionRegistration(target)
-		if (target.projectionId == "event-tracking-frame" ||
-			target.projectionId == "location-domain"
-		) {
-			requireLegacy(
-				(target.initialRegistrationStatus == "ACTIVE") ==
-					(target.disposition !=
-						LegacyV27ProjectionTargetEntity.DISPOSITION_SUPPRESSED_UNREGISTERED_OUTPUT),
-			)
-		}
-	}
+	requireCompletedLegacyDrainTargets(targets)
 	val partial = targets.any { target ->
 		target.disposition in setOf(
 			LegacyV27ProjectionTargetEntity.DISPOSITION_BRIDGED_TYPED_FACTS_PARTIAL,
@@ -749,6 +759,28 @@ private fun SupportSQLiteDatabase.requireLegacyProjectionDrainCompletion(
 		eventFrame.failureCode == null
 }
 
+private fun SupportSQLiteDatabase.requireCompletedLegacyDrainTargets(
+	targets: List<LegacyDrainTarget>,
+) {
+	targets.forEach { target ->
+		val allowedDispositions =
+			requireNotNull(LEGACY_V27_SUPPORTED_PROJECTIONS[target.projectionId])
+		requireLegacy(target.lastCompletedOrdinal == target.requiredThroughOrdinal)
+		requireLegacy(target.disposition in allowedDispositions)
+		requireLegacy(target.completedAtMs != null && target.completedAtMs >= 0L)
+		requireLegacyProjectionRegistration(target)
+		if (target.projectionId == "event-tracking-frame" ||
+			target.projectionId == "location-domain"
+		) {
+			requireLegacy(
+				(target.initialRegistrationStatus == "ACTIVE") ==
+					(target.disposition !=
+						LegacyV27ProjectionTargetEntity.DISPOSITION_SUPPRESSED_UNREGISTERED_OUTPUT),
+			)
+		}
+	}
+}
+
 private fun SupportSQLiteDatabase.requireLegacyProjectionRegistration(
 	target: LegacyDrainTarget,
 ) {
@@ -797,6 +829,8 @@ private fun SupportSQLiteDatabase.requireLegacyProjectionRegistrationForFullClea
 	}
 }
 
+// One bounded terminal-run lookup checks its complete saved scalar/null shape; no timeline or live-state walk.
+@Suppress("CyclomaticComplexMethod")
 private fun SupportSQLiteDatabase.requireLegacyTerminalRun(
 	logicalTrackingId: String,
 	serviceRunId: String,
@@ -1009,7 +1043,9 @@ private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256")
 	.joinToString(separator = "") { byte -> "%02x".format(byte) }
 
 private fun requireLegacy(condition: Boolean) {
-	if (!condition) legacyFailure()
+	if (!condition) {
+		legacyFailure()
+	}
 }
 
 private fun legacyFailure(): Nothing =

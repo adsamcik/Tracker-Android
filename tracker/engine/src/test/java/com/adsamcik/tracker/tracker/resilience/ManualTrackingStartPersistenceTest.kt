@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.resilience
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.process.ProcessIncarnationIdProvider
 import com.adsamcik.tracker.tracker.api.ManualTrackingStartSelection
 import com.adsamcik.tracker.tracker.api.TRACKING_TURN_OFF_EXIT_PREFIX
 import com.adsamcik.tracker.tracker.api.TrackingCaptureSource
@@ -20,7 +21,10 @@ import org.robolectric.annotation.Config
 class ManualTrackingStartPersistenceTest {
 	private val context: Context = ApplicationProvider.getApplicationContext()
 	private val selection = ManualTrackingStartSelection(mapOf(TrackingCaptureSource.WIFI to 2L))
-	private fun authority() = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+	private val processIncarnationIdProvider = ProcessIncarnationIdProvider()
+	private fun authority() = SharedPreferencesTrackingLifecycleCommandAuthority(
+		context, Dispatchers.IO, processIncarnationIdProvider = processIncarnationIdProvider,
+	)
 
 	@Before
 	fun clearStore() {
@@ -28,7 +32,7 @@ class ManualTrackingStartPersistenceTest {
 	}
 
 	@Test
-	fun `original Start survives recreation and its consumption survives another recreation`() = runBlocking {
+	fun `original Start survives same-process store recreation and consumption stays durable`(): Unit = runBlocking {
 		val first = authority()
 		val request = requireNotNull(first.reserveManualStartIfGeneration(0L, selection))
 		val reopened = authority()
@@ -39,7 +43,17 @@ class ManualTrackingStartPersistenceTest {
 	}
 
 	@Test
-	fun `concurrent permission callbacks consume the original Start once`() = runBlocking {
+	fun `a pending permission repair cannot resume Start in a different process`(): Unit = runBlocking {
+		val request = requireNotNull(authority().reserveManualStartIfGeneration(0L, selection))
+		val newProcess = SharedPreferencesTrackingLifecycleCommandAuthority(
+			context, Dispatchers.IO, processIncarnationIdProvider = ProcessIncarnationIdProvider(),
+		)
+		newProcess.pendingManualStart shouldBe null
+		newProcess.consumeManualStart(request.command.generation, selection) shouldBe null
+	}
+
+	@Test
+	fun `concurrent permission callbacks consume the original Start once`(): Unit = runBlocking {
 		val store = authority()
 		val request = requireNotNull(store.reserveManualStartIfGeneration(0L, selection))
 		val callbacks = List(8) { async { store.consumeManualStart(request.command.generation, selection) } }
@@ -48,7 +62,7 @@ class ManualTrackingStartPersistenceTest {
 	}
 
 	@Test
-	fun `handled End still prevents permission callback after process recreation`() = runBlocking {
+	fun `handled End still prevents permission callback after process recreation`(): Unit = runBlocking {
 		val store = authority()
 		val request = requireNotNull(store.reserveManualStartIfGeneration(0L, selection))
 		val stop = requireNotNull(store.reserveStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 1L))
@@ -59,7 +73,7 @@ class ManualTrackingStartPersistenceTest {
 	}
 
 	@Test
-	fun `Off and observed user stop invalidate a pending Start durably`() = runBlocking {
+	fun `Off and observed user stop invalidate a pending Start durably`(): Unit = runBlocking {
 		for (exit in listOf(TRACKING_TURN_OFF_EXIT_PREFIX + "off", "user-requested:exit")) {
 			clearStore()
 			val store = authority()
@@ -74,7 +88,7 @@ class ManualTrackingStartPersistenceTest {
 	}
 
 	@Test
-	fun `a newer Start and its choices survive cancellation from the older permission dialog`() = runBlocking {
+	fun `a newer Start and its choices survive cancellation from the older permission dialog`(): Unit = runBlocking {
 		val store = authority()
 		val old = requireNotNull(store.reserveManualStartIfGeneration(0L, selection))
 		val newer = requireNotNull(store.reserveManualStartIfGeneration(old.command.generation, selection))
@@ -85,7 +99,7 @@ class ManualTrackingStartPersistenceTest {
 	}
 
 	@Test
-	fun `denied repair stays canceled when the app reopens`() = runBlocking {
+	fun `denied repair stays canceled when the app reopens`(): Unit = runBlocking {
 		val store = authority()
 		val request = requireNotNull(store.reserveManualStartIfGeneration(0L, selection))
 		store.cancelManualStart(request.command.generation) shouldBe true
@@ -93,7 +107,7 @@ class ManualTrackingStartPersistenceTest {
 	}
 
 	@Test
-	fun `Stop during preflight prevents a delayed reservation`() = runBlocking {
+	fun `Stop during preflight prevents a delayed reservation`(): Unit = runBlocking {
 		val store = authority()
 		val expected = store.latestCommandGeneration()
 		store.reserveStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 1L)

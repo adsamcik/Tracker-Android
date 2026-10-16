@@ -20,13 +20,21 @@ internal data class SourceExportDates(
 
 	/** Source coverage or a recorded gap is an interval; zero-length events use [contains]. */
 	fun overlaps(startMs: Long, endMs: Long): Boolean =
-		if (startMs == endMs) contains(startMs)
-		else startMs < toExclusiveMs && endMs > fromInclusiveMs
+		if (startMs == endMs) {
+			contains(startMs)
+		}
+		else {
+			startMs < toExclusiveMs && endMs > fromInclusiveMs
+		}
 
 	/** Captured run bounds and gaps end at [endMs], with no coverage after that instant. */
 	fun containsWholeInterval(startMs: Long, endMs: Long): Boolean =
 		startMs >= fromInclusiveMs &&
-			(if (startMs == endMs) contains(startMs) else endMs <= toExclusiveMs)
+			(if (startMs == endMs) {
+				contains(startMs)
+			} else {
+				endMs <= toExclusiveMs
+			})
 
 	/** A scan's latest possible instant is inclusive. */
 	fun containsWholePossibleTime(firstMs: Long, lastMs: Long): Boolean =

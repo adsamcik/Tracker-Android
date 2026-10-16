@@ -255,16 +255,21 @@ internal fun StatusAndQuickStatsCard(
 
                 TrackingStatsTab.ACTIVITY -> {
                     TrackingStatRow(
-                        first = if (trackingParams.activityEnabled) stringResource(R.string.tracker_activity_title) to activityText else null,
+                        first =
+                            if (trackingParams.activityEnabled)
+                                stringResource(R.string.tracker_activity_title) to activityText else null,
                         second = null,
-                        third = if (trackingParams.locationEnabled) stringResource(R.string.tracker_accuracy_label) to accuracyText else null,
+                        third =
+                            if (trackingParams.locationEnabled)
+                                stringResource(R.string.tracker_accuracy_label) to accuracyText else null,
                     )
                     Spacer(Modifier.height(12.dp))
                     TrackingTechnicalRow(
                         wifiText = wifiText,
                         cellText = cellText,
                         coordinatesText = fix?.let {
-                            "${Assist.coordinateToString(it.latitudeE7 / 10_000_000.0)}, ${Assist.coordinateToString(it.longitudeE7 / 10_000_000.0)}"
+                            "${Assist.coordinateToString(it.latitudeE7 / COORDINATE_E7_SCALE)}, " +
+                                "${Assist.coordinateToString(it.longitudeE7 / COORDINATE_E7_SCALE)}"
                         }
                     )
                 }
@@ -500,3 +505,5 @@ private fun PulseOnChange(
         content()
     }
 }
+
+private const val COORDINATE_E7_SCALE = 10_000_000.0

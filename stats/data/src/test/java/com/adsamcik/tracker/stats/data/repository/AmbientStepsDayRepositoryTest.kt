@@ -59,6 +59,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Suppress("LargeClass") // Shared daily data compares partial display with strict numeric results.
 class AmbientStepsDayRepositoryTest {
 	private lateinit var database: AppDatabase
 	private lateinit var repository: AmbientStepsDayRepository
@@ -283,8 +284,8 @@ class AmbientStepsDayRepositoryTest {
 	@Test
 	fun `a native day from a stale data epoch never becomes a display count`() = runTest {
 		val fingerprint = seedPublicAuthority()
-		database.ambientStepsFactRevisionDao().insert(signed(fact(9L, authorizationFingerprint = fingerprint)
-			.copy(collectedDataEpoch = 6L)))
+		database.ambientStepsFactRevisionDao().insert(fact(9L, authorizationFingerprint = fingerprint,
+			collectedDataEpoch = 6L))
 		val day = (displayRepository().readDisplay(StepsNumericSummaryRequest(0L, 0L, "UTC")) as
 			StepsDailyDisplay.Snapshot).days.single()
 		day.value shouldBe StepsDailyDisplayValue.Unavailable(
@@ -305,9 +306,11 @@ class AmbientStepsDayRepositoryTest {
 
 	@Test
 	fun `display retention preserves only the qualified saved suffix as recorded Steps`() = runTest {
-		seedAuthority(stateCursor = cursorWithGap().copy(segmentStartTimeMs = 1_000L),
+		val fingerprint = seedPublicAuthority(
+			stateCursor = cursorWithGap().copy(segmentStartTimeMs = 1_000L),
 			evidenceState = SourceEvidenceState(collectedDataEpoch = 7L, retainedFromMs = GAP_START))
-		database.ambientStepsFactRevisionDao().insert(fact(10L, GAP_START, DAY_END, continuitySegmentGeneration = 2L))
+		database.ambientStepsFactRevisionDao().insert(fact(10L, GAP_START, DAY_END,
+			continuitySegmentGeneration = 2L, authorizationFingerprint = fingerprint))
 		database.ambientStepsImportStateDao().insertGap(gap(1L, 0L))
 		val value = (displayRepository().readDisplay(StepsNumericSummaryRequest(0L, 0L, "UTC")) as
 			StepsDailyDisplay.Snapshot).days.single().value
@@ -849,11 +852,11 @@ class AmbientStepsDayRepositoryTest {
 	@Test
 	fun `ongoing overlapping provider windows remain nonnumeric with their actual cause`() = runTest {
 		val fingerprint = seedPublicAuthority(cursor().copy(
-			importedThroughTimeMs = 2_000L, lastObservedAtMs = 2_000L, updatedAtMs = 2_000L,
+			importedThroughTimeMs = 3_000L, lastObservedAtMs = 3_000L, updatedAtMs = 3_000L,
 		))
-		database.ambientStepsFactRevisionDao().insert(fact(4L, 0L, 1_000L,
+		database.ambientStepsFactRevisionDao().insert(fact(4L, 0L, 2_000L,
 			authorizationFingerprint = fingerprint))
-		database.ambientStepsFactRevisionDao().insert(fact(6L, 500L, 2_000L,
+		database.ambientStepsFactRevisionDao().insert(fact(6L, 1_000L, 3_000L,
 			authorizationFingerprint = fingerprint))
 
 		val read = historyRepository().readRange(stepsRange()) as AmbientStepsHistoryRead.Snapshot
@@ -1192,6 +1195,9 @@ class AmbientStepsDayRepositoryTest {
 		)
 	}
 
+	// Keep one daily Steps authority fixture with its original/current authorizations, retained floor and
+	// exact import cursor together.
+	@Suppress("LongMethod")
 	private suspend fun seedAuthority(
 		stateCursor: AmbientStepsImportCursorEntity = cursor(),
 		evidenceState: SourceEvidenceState = SourceEvidenceState(collectedDataEpoch = 7L),
@@ -1268,6 +1274,7 @@ class AmbientStepsDayRepositoryTest {
 
 	private suspend fun seedPublicAuthority(
 		stateCursor: AmbientStepsImportCursorEntity = cursor(),
+		evidenceState: SourceEvidenceState = SourceEvidenceState(collectedDataEpoch = 7L),
 	): String {
 		val demand = SourceDemandEntity(
 			demandId = "ambient-1",
@@ -1298,6 +1305,7 @@ class AmbientStepsDayRepositoryTest {
 		val fingerprint = SourceBrokerAuthorization.fingerprint(listOf(demand))
 		seedAuthority(
 			stateCursor = stateCursor.copy(authorizationFingerprint = fingerprint),
+			evidenceState = evidenceState,
 			initialAuthorizationFingerprint = fingerprint,
 		)
 		return fingerprint
@@ -1505,11 +1513,12 @@ class AmbientStepsDayRepositoryTest {
 		authorizationRevision: Long = 1L,
 		authorizationFingerprint: String = "a".repeat(64),
 		sourcePolicyRevision: Long = 1L,
+		collectedDataEpoch: Long = 7L,
 	): AmbientStepsFactRevisionEntity {
 		val dayStartTimeMs = epochDay * DAY_END
 		val dayEndTimeMs = dayStartTimeMs + DAY_END
 		val logicalFactId = AmbientStepsFactIntegrity.logicalFactId(
-			PROVIDER, 1L, continuitySegmentGeneration, SOURCE_INSTANCE, startTimeMs, epochDay, "UTC", 7L,
+			PROVIDER, 1L, continuitySegmentGeneration, SOURCE_INSTANCE, startTimeMs, epochDay, "UTC", collectedDataEpoch,
 		)
 		return signed(
 			AmbientStepsFactRevisionEntity(
@@ -1540,7 +1549,7 @@ class AmbientStepsDayRepositoryTest {
 				purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
 				sourcePolicyRevision = sourcePolicyRevision,
 				ambientConsentEpoch = 1L,
-				collectedDataEpoch = 7L,
+				collectedDataEpoch = collectedDataEpoch,
 				scopeDeletionGeneration = 0L,
 				effectChecksum = "0".repeat(64),
 				appliedAtMs = endTimeMs,

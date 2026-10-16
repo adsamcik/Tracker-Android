@@ -20,6 +20,7 @@ import com.adsamcik.tracker.activity.api.registration.DefaultActivityMotionAssis
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class ActivityRecognitionModule {
+	/** Shares transient Location motion assistance through the existing Activity registration arbiter. */
 	@Binds
 	@Singleton
 	abstract fun bindMotionAssistance(impl: DefaultActivityMotionAssistance): ActivityMotionAssistance

@@ -23,9 +23,23 @@ interface WifiHistoryRepository {
 	suspend fun structuralDays(request: WifiHistoryRangeRequest): WifiHistoryStructuralDayPage
 }
 
+/**
+ * Exact Wi-Fi lookup outcome, distinguishing an existing product entry from a missing selection.
+ */
 sealed interface WifiHistoryQuery {
+	/**
+	 * No matching saved source entry or selection remains.
+	 */
 	data object NotFound : WifiHistoryQuery
+	/**
+	 * Contains the selected saved source product; its payload preserves current qualification and
+	 * coverage.
+	 */
 	data class Found(val entry: WifiHistoryEntry) : WifiHistoryQuery
+	/**
+	 * The stored source or scope failed integrity qualification; this outcome does not expose a
+	 * measured count.
+	 */
 	data class Failed(val cause: WifiHistoryCause) : WifiHistoryQuery {
 		init {
 			require(cause.isIntegrityFailure)
@@ -33,8 +47,18 @@ sealed interface WifiHistoryQuery {
 	}
 }
 
+/**
+ * Recent Wi-Fi entries or an explicit integrity failure affecting the page.
+ */
 sealed interface WifiHistoryPage {
+	/**
+	 * Saved source entries whose individual states retain coverage and qualification.
+	 */
 	data class Available(val entries: List<WifiHistoryEntry>) : WifiHistoryPage
+	/**
+	 * The stored source or scope failed integrity qualification; this outcome does not expose a
+	 * measured count.
+	 */
 	data class Failed(val cause: WifiHistoryCause) : WifiHistoryPage {
 		init {
 			require(cause.isIntegrityFailure)
@@ -42,6 +66,10 @@ sealed interface WifiHistoryPage {
 	}
 }
 
+/**
+ * Half-open UTC millisecond Wi-Fi range, bounded page size and optional source-issued
+ * continuation.
+ */
 data class WifiHistoryRangeRequest(
 	val fromInclusive: EpochMs,
 	val toExclusive: EpochMs,
@@ -55,21 +83,34 @@ data class WifiHistoryRangeRequest(
 	}
 }
 
+/**
+ * Nonblank bounded source cursor; its opaque value is validated by the issuing History repository.
+ */
 @JvmInline
 value class WifiHistoryRangeContinuation(val value: String) {
 	init {
-		require(value.isNotBlank() && value.length <= 1_024)
+		require(value.isNotBlank() && value.length <= MAX_WIFI_CONTINUATION_LENGTH)
 	}
 
 	override fun toString(): String = "WifiHistoryRangeContinuation"
 }
 
+/**
+ * Bounded Wi-Fi entries and continuation, or a page-wide integrity failure.
+ */
 sealed interface WifiHistoryRangePage {
+	/**
+	 * Bounded saved entries and an optional source-issued continuation; null ends the range.
+	 */
 	data class Available(
 		val entries: List<WifiHistoryEntry>,
 		val continuation: WifiHistoryRangeContinuation?,
 	) : WifiHistoryRangePage
 
+	/**
+	 * The stored source or scope failed integrity qualification; this outcome does not expose a
+	 * measured count.
+	 */
 	data class Failed(val cause: WifiHistoryCause) : WifiHistoryRangePage {
 		init {
 			require(cause.isIntegrityFailure)
@@ -77,12 +118,22 @@ sealed interface WifiHistoryRangePage {
 	}
 }
 
+/**
+ * Saved local-day Wi-Fi memberships or an explicit failure of structural allocation.
+ */
 sealed interface WifiHistoryStructuralDayPage {
+	/**
+	 * Bounded saved entries and an optional source-issued continuation; null ends the range.
+	 */
 	data class Available(
 		val days: List<WifiHistoryStructuralDay>,
 		val continuation: WifiHistoryRangeContinuation?,
 	) : WifiHistoryStructuralDayPage
 
+	/**
+	 * The stored source or scope failed integrity qualification; this outcome does not expose a
+	 * measured count.
+	 */
 	data class Failed(val cause: WifiHistoryCause) : WifiHistoryStructuralDayPage {
 		init {
 			require(cause.isIntegrityFailure)
@@ -90,6 +141,9 @@ sealed interface WifiHistoryStructuralDayPage {
 	}
 }
 
+/**
+ * Saved local calendar date/zone and the Wi-Fi entry memberships allocated to it.
+ */
 data class WifiHistoryStructuralDay(
 	val epochDay: Long,
 	val storedZoneId: String,
@@ -101,11 +155,17 @@ data class WifiHistoryStructuralDay(
 	}
 }
 
+/**
+ * One Wi-Fi entry with the certainty of its allocation to the saved local day.
+ */
 data class WifiHistoryStructuralDayMembership(
 	val entry: WifiHistoryEntry,
 	val allocation: WifiHistoryDayAllocation,
 )
 
+/**
+ * Whether an entry's saved local-day allocation is exact, partial or unavailable.
+ */
 enum class WifiHistoryDayAllocation {
 	EXACT,
 	PARTIAL,
@@ -156,25 +216,60 @@ data class WifiImportedHistorySelection(
 	override fun toString(): String = "WifiImportedHistorySelection"
 }
 
+/**
+ * Exact local or imported Wi-Fi selection; a display identity alone is not imported revision
+ * authority.
+ */
 sealed interface WifiHistorySelection {
 	val origin: WifiHistoryOrigin
 
+	/**
+	 * Selects or labels native saved data without borrowing imported revision authority.
+	 */
 	data class Local(val key: WifiLocalHistorySelectionKey) : WifiHistorySelection {
 		override val origin: WifiHistoryOrigin = WifiHistoryOrigin.LOCAL
 	}
 
+	/**
+	 * Carries the source-issued imported identity/revision selection separately from native recording
+	 * authority.
+	 */
 	data class Imported(val selected: WifiImportedHistorySelection) : WifiHistorySelection {
 		override val origin: WifiHistoryOrigin = WifiHistoryOrigin.IMPORTED
 	}
 }
 
+/**
+ * Whether the displayed Wi-Fi entry came from local capture or a portable import.
+ */
 enum class WifiHistoryOrigin { LOCAL, IMPORTED }
+/**
+ * Presentation state separating active materialization, usable partial/ready data and unavailable
+ * or failed Wi-Fi products.
+ */
 enum class WifiHistoryProductState { MATERIALIZING, PARTIAL, READY, UNAVAILABLE, MISSING, DELETED, FAILED }
+/**
+ * Amount of the selected Wi-Fi run represented by retained captured evidence.
+ */
 enum class WifiHistoryCoverage { NONE, PARTIAL, COMPLETE, UNKNOWN }
+/**
+ * Availability discriminator of a retained Wi-Fi observation.
+ */
 enum class WifiHistoryAvailability { AVAILABLE }
+/**
+ * Whether all submitted Wi-Fi results qualified or some were rejected.
+ */
 enum class WifiHistoryResultCompleteness { COMPLETE, PARTIAL }
+/**
+ * Frequency band classification retained from Wi-Fi observations, including unclassified
+ * frequencies.
+ */
 enum class WifiHistoryBand { TWO_POINT_FOUR_GHZ, FIVE_GHZ, SIX_GHZ, OTHER }
 
+/**
+ * Concrete capture, provider, retention and integrity causes; integrity failures are flagged
+ * separately.
+ */
 enum class WifiHistoryCause(val isIntegrityFailure: Boolean = false) {
 	SESSION_ACTIVE,
 	MATERIALIZATION_BEHIND,
@@ -315,6 +410,9 @@ data class WifiObservedNetwork(
 	override fun toString(): String = "WifiObservedNetwork"
 }
 
+/**
+ * Retained strongest, weakest and mean signal in dBm with the actual represented sample count.
+ */
 data class WifiHistorySignalQuality(
 	val strongestSignalDbm: Int,
 	val weakestSignalDbm: Int,
@@ -330,3 +428,5 @@ data class WifiHistorySignalQuality(
 }
 
 private val LOWERCASE_SHA_256 = Regex("[0-9a-f]{64}")
+
+private const val MAX_WIFI_CONTINUATION_LENGTH = 1_024

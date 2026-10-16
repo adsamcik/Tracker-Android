@@ -4,6 +4,7 @@ plugins {
     id("tracker.android.test")
     id("tracker.android.instrumented-test")
     alias(libs.plugins.kotlin.parcelize)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -55,6 +56,7 @@ dependencies {
     implementation(libs.google.play.services.location)
 
     // JSON
+    api(libs.kotlinx.serialization.core)
     implementation(libs.moshi)
     ksp(libs.moshi.kotlin.codegen)
 

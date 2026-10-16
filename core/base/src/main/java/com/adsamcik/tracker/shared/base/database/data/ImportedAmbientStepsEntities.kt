@@ -382,6 +382,10 @@ data class ImportedAmbientStepsDayFenceEntity(
 		require(effectChecksum == checksum(this))
 	}
 
+	/**
+	 * Stable persisted codes, including `FENCE_SELECTED_DELETE`, `FENCE_CONSENT_REVOKED`,
+	 * `FENCE_RETENTION`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val FENCE_SELECTED_DELETE = "SELECTED_DELETE"
 		const val FENCE_CONSENT_REVOKED = "CONSENT_REVOKED"
@@ -404,6 +408,10 @@ data class ImportedAmbientStepsDayFenceEntity(
 		private const val MAX_PROTECTED_IDENTITIES =
 			2 + MAX_ARCHIVES + MAX_FACT_ROWS + MAX_GAP_ROWS + MAX_RECEIPTS
 
+		/**
+		 * Builds the day fence with original calendar bounds, import-lineage counts and
+		 * protected-identity digests.
+		 */
 		fun create(
 			dayIdentity: String,
 			deletionScopeIdentity: String,
@@ -477,6 +485,10 @@ data class ImportedAmbientStepsDayFenceEntity(
 			)
 		}
 
+		/**
+		 * Copies an existing import fence into the supplied data epoch and recomputes its digest while
+		 * preserving original identities and erase boundaries.
+		 */
 		fun reepoch(
 			value: ImportedAmbientStepsDayFenceEntity,
 			collectedDataEpoch: Long,
@@ -563,6 +575,10 @@ data class ImportedAmbientStepsProtectedIdentityEntity(
 		require(identityKind in IDENTITY_KINDS)
 	}
 
+	/**
+	 * Stable persisted codes, including `ARCHIVE`, `DAY`, `FACT`, and any identity-bound record
+	 * factories.
+	 */
 	companion object {
 		const val ARCHIVE = "ARCHIVE"
 		const val DAY = "DAY"
@@ -610,9 +626,15 @@ data class ImportedAmbientStepsSourceFenceEntity(
 		))
 	}
 
+	/**
+	 * Stable persisted codes, including `SINGLETON_ID`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val SINGLETON_ID = 1
 
+		/**
+		 * Builds an unfinished source erase fence for the revoked consent and data epoch.
+		 */
 		fun create(
 			collectedDataEpoch: Long,
 			revokedConsentEpoch: Long,
@@ -636,6 +658,10 @@ data class ImportedAmbientStepsSourceFenceEntity(
 			),
 		)
 
+		/**
+		 * Marks the original source erase as completed, stores its completion time and clears any later
+		 * consent-reopen values.
+		 */
 		fun completed(
 			value: ImportedAmbientStepsSourceFenceEntity,
 			completedAtMs: Long,
@@ -646,6 +672,9 @@ data class ImportedAmbientStepsSourceFenceEntity(
 			reopenedAtMs = null,
 		)
 
+		/**
+		 * Keeps the completed erase witness and records the newer consent epoch and reopen time.
+		 */
 		fun reopened(
 			value: ImportedAmbientStepsSourceFenceEntity,
 			reopenedConsentEpoch: Long,
@@ -657,6 +686,10 @@ data class ImportedAmbientStepsSourceFenceEntity(
 			reopenedAtMs = reopenedAtMs,
 		)
 
+		/**
+		 * Copies an existing import fence into the supplied data epoch and recomputes its digest while
+		 * preserving original identities and erase boundaries.
+		 */
 		fun reepoch(
 			value: ImportedAmbientStepsSourceFenceEntity,
 			collectedDataEpoch: Long,
@@ -708,7 +741,11 @@ data class ImportedAmbientStepsSourceFenceEntity(
 				collectedDataEpoch,
 				revokedConsentEpoch,
 				deletedAtMs,
-				if (deletionCompleted) 1 else 0,
+				if (deletionCompleted) {
+					1
+				} else {
+					0
+				},
 				completedAtMs,
 				reopenedConsentEpoch,
 				reopenedAtMs,
@@ -717,11 +754,24 @@ data class ImportedAmbientStepsSourceFenceEntity(
 	}
 }
 
+/**
+ * Canonical import receipt, deletion-scope and partial-coverage encodings for stored Steps day
+ * records.
+ */
 object ImportedAmbientStepsIdentity {
+	private const val UNSIGNED_BYTE_MASK = 0xff
+	private const val HEXADECIMAL_RADIX = 16
 	private val DIGEST = Regex("sha256:[0-9a-f]{64}")
 
+	/**
+	 * Tests for a lowercase 64-character SHA-256 digest.
+	 */
 	fun isDigest(value: String): Boolean = DIGEST.matches(value)
 
+	/**
+	 * Requires nonblank import job, archive and source names within the portable format's
+	 * receipt-field length limits.
+	 */
 	fun requireReceipt(jobId: String, archiveKey: String, sourceName: String) {
 		listOf(jobId, archiveKey, sourceName).forEach { value ->
 			require(value.isNotBlank())
@@ -729,12 +779,18 @@ object ImportedAmbientStepsIdentity {
 		}
 	}
 
+	/**
+	 * Derives the stable imported-day deletion scope from its original opaque identity.
+	 */
 	fun deletionScope(dayIdentity: String): String =
 		AmbientStepsPortableOpaqueIdentity.derive(
 			AmbientStepsPortableIdentityKind.DELETION_SCOPE,
 			dayIdentity,
 		).value
 
+	/**
+	 * Derives a stable receipt identity from the original import job and entry/day identities.
+	 */
 	fun receipt(importJobId: String, archiveKey: String): String {
 		requireReceipt(importJobId, archiveKey, "receipt")
 		return digest(
@@ -743,16 +799,27 @@ object ImportedAmbientStepsIdentity {
 		)
 	}
 
+	/**
+	 * Encodes the canonical partial-coverage cause set for storage without inventing a numeric count.
+	 */
 	fun encodePartialCauses(causes: List<PortableAmbientStepsPartialCause>): String =
 		causes.distinct().sortedBy { it.ordinal }.joinToString(",") { it.name }
 
+	/**
+	 * Decodes persisted partial-coverage causes, rejecting unknown or noncanonical encodings.
+	 */
 	fun decodePartialCauses(value: String): List<PortableAmbientStepsPartialCause> {
-		if (value.isEmpty()) return emptyList()
+		if (value.isEmpty()) {
+			return emptyList()
+		}
 		val decoded = value.split(',').map(PortableAmbientStepsPartialCause::valueOf)
 		require(decoded == decoded.distinct().sortedBy { it.ordinal })
 		return decoded
 	}
 
+	/**
+	 * Hashes the canonical protected-identity set for replay/deletion comparisons.
+	 */
 	fun protectedIdentitySetChecksum(
 		values: List<ImportedAmbientStepsProtectedIdentityEntity>,
 	): String = digest(
@@ -766,6 +833,10 @@ object ImportedAmbientStepsIdentity {
 		).map { listOf(it.protectedIdentity, it.ownerDayIdentity, it.identityKind) },
 	)
 
+	/**
+	 * Hashes the namespaced, ordered canonical values with explicit null encoding for deterministic
+	 * stored identities.
+	 */
 	fun digest(namespace: String, values: List<Any?>): String {
 		val digest = MessageDigest.getInstance("SHA-256")
 		fun append(value: Any?) {
@@ -789,7 +860,7 @@ object ImportedAmbientStepsIdentity {
 		}
 		append(listOf(namespace, values))
 		return "sha256:" + digest.digest().joinToString("") { byte ->
-			(byte.toInt() and 0xff).toString(16).padStart(2, '0')
+			(byte.toInt() and UNSIGNED_BYTE_MASK).toString(HEXADECIMAL_RADIX).padStart(2, '0')
 		}
 	}
 }

@@ -1,5 +1,9 @@
 package com.adsamcik.tracker.shared.base.database
 
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.model.pressure.portable.PortablePressureIdentityKind
+import com.adsamcik.tracker.shared.model.pressure.portable.PortablePressureOpaqueIdentity
+
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership
 import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnershipEntity
@@ -20,6 +24,12 @@ internal fun createNativePortableOwnershipTable(db: SupportSQLiteDatabase) {
 		"ON native_portable_ownership(logical_tracking_id, service_run_id)")
 }
 
+/** Rebuilds derived ownership from restored source rows inside the caller's existing transaction. */
+fun AppDatabase.rebuildNativePortableOwnershipAfterDataRestore() {
+	check(inTransaction()) { "Ownership rebuild requires the data-restore transaction" }
+	rebuildNativePortableOwnership(openHelper.writableDatabase)
+}
+
 /** Complete rebuild, never a capped history probe. Called inside the migration transaction. */
 internal fun rebuildNativePortableOwnership(db: SupportSQLiteDatabase) {
 	db.execSQL("DELETE FROM native_portable_ownership")
@@ -32,10 +42,13 @@ internal fun rebuildNativePortableOwnership(db: SupportSQLiteDatabase) {
 		Triple("activity_captured_window_revision", "logical_window_id", NativePortableOwnership.ACTIVITY),
 		Triple("pressure_fact_revision", "logical_fact_id", NativePortableOwnership.PRESSURE),
 	).forEach { (table, window, source) ->
-		db.query("SELECT DISTINCT logical_tracking_id, service_run_id, $window FROM $table").use { cursor ->
+		db.query(("SELECT DISTINCT logical_tracking_id, service_run_id, $window, writer_projection_id, " +
+            "writer_projection_version FROM $table")).use { cursor ->
 			while (cursor.moveToNext()) {
 				insertNativePortableOwners(db, NativePortableOwnership.fact(
 					source, cursor.getString(0), cursor.getString(1), cursor.getString(2),
+					cursor.getString(CAPTURED_FACT_WRITER_PROJECTION_ID_COLUMN),
+					cursor.getInt(CAPTURED_FACT_WRITER_PROJECTION_VERSION_COLUMN),
 				))
 			}
 		}
@@ -57,7 +70,11 @@ internal fun installNativePortableOwnershipDeletionTriggers(db: SupportSQLiteDat
 		Triple("activity_captured_window_revision", "logical_window_id", NativePortableOwnership.ACTIVITY),
 		Triple("pressure_fact_revision", "logical_fact_id", NativePortableOwnership.PRESSURE),
 	).forEach { (table, window, source) ->
-		val kind = if (source == NativePortableOwnership.ACTIVITY) "CAPTURE_WINDOW" else "WINDOW"
+		val kind = if (source == NativePortableOwnership.ACTIVITY) {
+			"CAPTURE_WINDOW"
+		} else {
+			"WINDOW"
+		}
 		db.execSQL("""
 			CREATE TRIGGER IF NOT EXISTS prune_native_portable_${source}_window
 			AFTER DELETE ON $table BEGIN
@@ -99,3 +116,70 @@ private fun pruneUnsupportedNativeRunOwners(logical: String, run: String): Strin
 	    WHERE native_portable_ownership.source_kind = 4
 	      AND remaining.logical_tracking_id = $logical AND remaining.service_run_id = $run);
 """.trimIndent()
+
+/** Normalizes old development Pressure lookup hashes from exact stored writer rows only. */
+internal fun normalizeNativePressureWindowOwnership(db: SupportSQLiteDatabase) {
+	val ownedTransaction = !db.inTransaction()
+	if (ownedTransaction) {
+		db.beginTransaction()
+	}
+	try {
+		var afterRowId = 0L
+		while (true) {
+			val rows = db.query("SELECT rowid, raw_identity, logical_tracking_id, service_run_id, opaque_identity " +
+				("FROM native_portable_ownership NOT INDEXED WHERE rowid > ? AND source_kind = 4 AND " +
+                    "identity_kind = 'WINDOW' ") +
+				"ORDER BY rowid LIMIT 64", arrayOf<Any?>(afterRowId)).use { cursor ->
+				buildList { while (cursor.moveToNext()) add(PressureLookupRow(cursor.getLong(0),
+					cursor.getString(1), cursor.getString(2), cursor.getString(3), cursor.getString(4))) }
+			}
+			if (rows.isEmpty()) {
+				break
+			}
+			for (row in rows) {
+				normalizeNativePressureWindowOwner(db, row)
+			}
+			afterRowId = rows.last().rowId
+		}
+		if (ownedTransaction) {
+			db.setTransactionSuccessful()
+		}
+	} finally {
+		if (ownedTransaction) {
+			db.endTransaction()
+		}
+	}
+}
+
+private fun normalizeNativePressureWindowOwner(db: SupportSQLiteDatabase, row: PressureLookupRow) {
+	// Unsupported source rows keep their existing source-level unavailable result.
+	// A supported fact proves its actual writer; lookup metadata grants no writer identity.
+	val writer = db.query("SELECT DISTINCT writer_projection_id, writer_projection_version " +
+		("FROM pressure_fact_revision WHERE service_run_id = ? AND logical_tracking_id = ? AND " +
+                        "logical_fact_id = ? ") +
+		"AND writer_projection_id = ? AND writer_projection_version = ? LIMIT 2",
+		arrayOf<Any?>(row.runId, row.logicalId, row.factId,
+			SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION)).use { cursor ->
+		if (!cursor.moveToFirst()) {
+			null
+		} else {
+			cursor.getString(0) to cursor.getInt(1)
+		}
+	} ?: return
+	val expected =
+                    PortablePressureOpaqueIdentity.derive(
+		PortablePressureIdentityKind.WINDOW,
+		NativePortableOwnership.pressureWindowIdentity(writer.first, writer.second, row.factId)).value
+	if (expected != row.opaqueIdentity) {
+		db.execSQL(
+		"UPDATE native_portable_ownership SET opaque_identity=? WHERE rowid=?",
+		arrayOf<Any?>(expected, row.rowId))
+	}
+}
+
+private const val CAPTURED_FACT_WRITER_PROJECTION_ID_COLUMN = 3
+private const val CAPTURED_FACT_WRITER_PROJECTION_VERSION_COLUMN = 4
+
+private data class PressureLookupRow(val rowId: Long, val factId: String, val logicalId: String,
+	val runId: String, val opaqueIdentity: String)

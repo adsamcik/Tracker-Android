@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.ingress
 
 import android.app.Application
+import android.os.SystemClock
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
@@ -12,12 +13,17 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.MAX_CELL_WAL_CHILDREN
+import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication
+import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthenticator
+import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_CELL_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellReplayFootprintEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
@@ -27,8 +33,6 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
-import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
-import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
@@ -38,6 +42,7 @@ import com.adsamcik.tracker.tracker.source.model.CellMode
 import com.adsamcik.tracker.tracker.source.model.CellPlan
 import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
 import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
+import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.RetryBackoff
@@ -49,6 +54,17 @@ import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.runtime.SourceDeliveryAdmissionHandoff
+import com.adsamcik.tracker.tracker.source.runtime.AndroidCellSourceBackend
+import com.adsamcik.tracker.tracker.source.runtime.AndroidConnectivityDeviceStateProvider
+import com.adsamcik.tracker.tracker.source.runtime.CellBackendObservation
+import com.adsamcik.tracker.tracker.source.runtime.CellBackendSnapshot
+import com.adsamcik.tracker.tracker.source.runtime.CellDeviceState
+import com.adsamcik.tracker.tracker.source.runtime.CoalescingSourceWakeupScheduler
+import com.adsamcik.tracker.tracker.source.runtime.SourceRegistration
+import com.adsamcik.tracker.tracker.source.runtime.SourceRegistrationRepository
+import com.adsamcik.tracker.tracker.source.runtime.SourceRegistrationRetirementToken
+import com.adsamcik.tracker.tracker.source.runtime.SourceStartResult
+import com.adsamcik.tracker.tracker.source.runtime.testRadioActiveRequestAllowance
 import com.adsamcik.tracker.tracker.source.runtime.AmbientCellRuntimeJoinResult
 import com.adsamcik.tracker.tracker.source.runtime.CellSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.SharedCellSourceController
@@ -70,19 +86,25 @@ import io.mockk.mockk
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import javax.inject.Provider
+import java.time.Duration
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowSystemClock
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Suppress("LargeClass") // One real Room chain connects Cell delivery, persistence and readers.
 class CellDurableSourceIngressTest {
 	private lateinit var database: AppDatabase
 	private lateinit var ingress: RoomDurableSourceIngress
@@ -104,7 +126,7 @@ class CellDurableSourceIngressTest {
 		RoomTrackingRolloutStateStore(database, CELL_EXECUTABLE_LANE_CATALOG).save(
 			TrackingRolloutState.eventCanonical(
 				sources = setOf(SourceKind.CELL),
-				captureModes = mapOf(SourceKind.CELL to setOf(CaptureReachabilityMode.AMBIENT)),
+				captureModes = mapOf(SourceKind.CELL to ExecutableSourceLaneCatalog.CELL_SESSION_FACTS_V1.captureModes),
 			),
 			updatedAtMs = 1L,
 		)
@@ -193,6 +215,42 @@ class CellDurableSourceIngressTest {
 		projector.project(ordinal).shouldBeInstanceOf<AmbientCellProjectionResult.Duplicate>()
 	}
 
+	@Test
+	fun `maximum Cell background delivery replays exactly and rejects excess stored children`() = runTest {
+		installAmbientCellProduct()
+		val observations = List(MAX_CELL_WAL_CHILDREN) { index ->
+			CellObservationEvidence("tower-$index", "LTE", true, -91, PROVIDER_TIMESTAMP_NANOS)
+		}
+		val ordinal = ingress.admit(cellDeliveryCandidate(
+			1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 110L,
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION, observationZoneId = "UTC",
+			observationsOverride = observations,
+		)).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>().units.single().admissionOrdinal
+		val projector = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
+		val written = projector.project(ordinal).shouldBeInstanceOf<AmbientCellProjectionResult.FactWritten>()
+		val fact = database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).single().fact
+		fact.logicalFactId shouldBe written.logicalFactId
+		fact.observationCount shouldBe MAX_CELL_WAL_CHILDREN
+		val childDao = database.radioObservationChildDao()
+		val children = childDao.cellBackgroundChildren(fact.writerId, fact.writerVersion,
+			fact.logicalFactId, fact.semanticRevision, MAX_CELL_WAL_CHILDREN + 1)
+		children.size shouldBe MAX_CELL_WAL_CHILDREN
+		children.map { it.itemIndex } shouldBe observations.indices.toList()
+		children.map { it.towerIdentity } shouldBe observations.map { it.identifierToken }
+		projector.project(ordinal) shouldBe AmbientCellProjectionResult.Duplicate(fact.logicalFactId)
+		database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).single().fact shouldBe fact
+		childDao.cellBackgroundChildren(fact.writerId, fact.writerVersion,
+			fact.logicalFactId, fact.semanticRevision, MAX_CELL_WAL_CHILDREN + 1) shouldBe children
+
+		childDao.insertCellBackground(listOf(children.last().copy(itemIndex = MAX_CELL_WAL_CHILDREN)))
+		projector.project(ordinal) shouldBe AmbientCellProjectionResult.Unverifiable(
+			AmbientCellProjectionUnverifiableReason.WRITE_CONFLICT,
+		)
+	}
+
+	// Keep one multi-group delivery through rollback, retry, duplicate replay and child-loss detection.
+	@Suppress("LongMethod")
 	@Test
 	fun `one Cell delivery saves every background group and replay retains exact tower details`() = runTest {
 		installAmbientCellProduct()
@@ -524,14 +582,17 @@ class CellDurableSourceIngressTest {
 	}
 
 	@Test
-	fun `ambient Cell rejects provider acceptance after the observation wall time`() = runTest {
+	fun `ambient Cell rejects provider acceptance after the measured reading`() = runTest {
+		installAmbientCellProduct()
 		val ordinal = DurableSourceEventSinkFactory(ingress).unbound.admit(
-			cellDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 110L),
+			cellDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 110L,
+				payloadVersion = LEGACY_CELL_WAL_PAYLOAD_VERSION, observationZoneId = "UTC"),
 		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>().admissionOrdinals.single()
 		val wal = requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(ordinal))
 		database.openHelper.writableDatabase.execSQL(
-			"UPDATE provider_registration_generation SET accepted_at_ms = ? WHERE source_kind = ? AND registration_generation = 1",
-			arrayOf<Any?>(requireNotNull(wal.wallTimeMs) + 1L, SourceKind.CELL.stableCode),
+			"UPDATE provider_registration_generation SET accepted_elapsed_realtime_nanos = ? " +
+				"WHERE source_kind = ? AND registration_generation = 1",
+			arrayOf<Any?>(wal.observedElapsedNanos + 1L, SourceKind.CELL.stableCode),
 		)
 
 		val result = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
@@ -585,7 +646,8 @@ class CellDurableSourceIngressTest {
 
 	@Test
 	fun `ambient Cell reconstructs authorization from immutable demand members`() = runTest {
-		val admitted = DurableSourceEventSinkFactory(ingress).unbound.admit(cellDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 110L))
+		val admitted = DurableSourceEventSinkFactory(ingress).unbound.admit(cellDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 110L,
+				payloadVersion = LEGACY_CELL_WAL_PAYLOAD_VERSION, observationZoneId = "UTC"))
 			.shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
 		val ordinal = admitted.admissionOrdinals.single()
 		database.openHelper.writableDatabase.execSQL(
@@ -644,7 +706,43 @@ class CellDurableSourceIngressTest {
 			?.providerProcessIncarnationId shouldBe "cell-process-after"
 	}
 
+	@OptIn(ExperimentalCoroutinesApi::class)
 	@Test
+	fun `real passive Cell callback saves usable all-day data without a session`() = runTest {
+		installAmbientCellProduct()
+		val plan = CellPlan(1L, CellMode.OBSERVE_CHANGES, 120_000L, 60_000L, emptySet(),
+			RetryBackoff(30_000L, 1_800_000L))
+		val (runtime, callback) = passiveCellRuntime(backgroundScope, plan)
+		runtime.start(plan, DurableSourceEventSinkFactory(ingress).unbound)
+			.shouldBeInstanceOf<SourceStartResult.Started>()
+		ShadowSystemClock.advanceBy(Duration.ofMillis(100L))
+		val observed = SystemClock.elapsedRealtimeNanos() - 1_000_000L
+		callback()(CellBackendSnapshot(null, listOf(
+			CellBackendObservation("tower-native", "LTE", true, -91, observed))))
+		runCurrent()
+
+		val wal = database.sourceEventWalDao().eventsAfter(0L, 10).single()
+		wal.configRevision shouldBe plan.revision
+		wal.planAttribution shouldBe PlanAttribution.RECEIVE_TIME_ONLY.ordinal
+		wal.logicalTrackingId shouldBe null
+		wal.serviceRunId shouldBe null
+		CellWalCarrierAuthenticator.authenticate(wal)
+			.shouldBeInstanceOf<CellWalCarrierAuthentication.Authenticated>()
+		val result = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(wal.admissionOrdinal)
+		result.shouldBeInstanceOf<AmbientCellProjectionResult.FactWritten>()
+		val fact = database.ambientCellFactDao().effectiveLocalOverWindow(
+			requireNotNull(wal.wallTimeMs) - 1L, requireNotNull(wal.wallTimeMs) + 1L, 10).single().fact
+		fact.observationCount shouldBe 1
+		database.radioObservationChildDao().cellBackgroundChildren(fact.writerId, fact.writerVersion,
+			fact.logicalFactId, fact.semanticRevision, 10).single().towerIdentity shouldBe "tower-native"
+		runtime.close()
+	}
+
+	@Test
+	// Keep one Cell owner through durable admission, duplicate replay, projection and later deletion
+	// protection.
+	@Suppress("LongMethod")
 	fun `shared Cell controller drives real WAL projector and Room reader`() = runTest {
 		installAmbientCellProduct()
 		val physical = mockk<CellSourceRuntime>()
@@ -862,6 +960,42 @@ class CellDurableSourceIngressTest {
 			)
 	}
 
+	private suspend fun passiveCellRuntime(
+		scope: CoroutineScope, plan: CellPlan,
+	): Pair<CellSourceRuntime, () -> ((CellBackendSnapshot) -> Unit)> {
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET physical_configuration_fingerprint = ? " +
+				"WHERE source_kind = ? AND registration_generation = 1",
+			arrayOf<Any?>(plan.physicalConfigurationFingerprint(), SourceKind.CELL.stableCode))
+		val state = requireNotNull(database.sourceRegistrationStateDao().get(SourceKind.CELL.stableCode, CELL_OWNER_SCOPE))
+		val physical = requireNotNull(database.sourceBrokerDao().registration(SourceKind.CELL.stableCode, 1L))
+		val authorization = requireNotNull(database.sourceBrokerDao().latestAuthorization(SourceKind.CELL.stableCode, 1L)
+			.toAuthorizationSnapshotOrNull())
+		val registration = SourceRegistration(CELL_OWNER_SCOPE, state, physical.physicalConfigurationFingerprint,
+			authorization, requiresProviderAcceptance = false,
+			providerAcceptedElapsedRealtimeNanos = physical.acceptedElapsedRealtimeNanos)
+		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
+		coEvery { registrations.begin(any(), any(), any(), any(), any()) } returns registration
+		coEvery { registrations.pendingRetirements(SourceKind.CELL) } returns emptyList()
+		coEvery { registrations.beginRetirement(any(), any(), any(), any()) } answers {
+			SourceRegistrationRetirementToken(SourceKind.CELL, SourceInstanceId(state.sourceInstanceId),
+				state.registrationGeneration, "cell-process-before", thirdArg(), arg(3), secondArg())
+		}
+		coEvery { registrations.completeRetirement(any()) } returns true
+		val backend = mockk<AndroidCellSourceBackend>(relaxed = true)
+		var callback: ((CellBackendSnapshot) -> Unit)? = null
+		every { backend.start(any(), any()) } answers { callback = secondArg(); true }
+		every { backend.stop() } returns true
+		every { backend.hasRetainedRegistrations } returns false
+		val stateProvider = mockk<AndroidConnectivityDeviceStateProvider>()
+		every { stateProvider.cell() } returns CellDeviceState(true, true, true, true)
+		val runtime = CellSourceRuntime(scope, registrations, backend, stateProvider,
+			mockk<CoalescingSourceWakeupScheduler>(relaxed = true), testRadioActiveRequestAllowance())
+		return runtime to { requireNotNull(callback) }
+	}
+
+	// Keep the matching ambient Cell policy, consent, retention and accepted owner setup together.
+	@Suppress("LongMethod")
 	private suspend fun installAmbientCellProduct() {
 		database.sourcePolicyDao().ensureAuthority(
 			SourcePolicyAuthorityEntity(
@@ -942,6 +1076,8 @@ class CellDurableSourceIngressTest {
 		)
 	}
 
+	// Keep one Cell delivery identity beside the exact evidence and atomic-ingress unit it describes.
+	@Suppress("LongMethod")
 	private fun cellDeliveryCandidate(
 		registrationGeneration: Long,
 		authorizationRevision: Long,
@@ -1017,13 +1153,19 @@ class CellDurableSourceIngressTest {
 	}
 
 	private suspend fun installCellCaptureLane() {
+		database.sourceDestinationOwnerDao().insertIfAbsent(SourceDestinationOwnerEntity(
+			sourceKind = SourceKind.CELL.stableCode,
+			destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+			owner = SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS,
+			ownerGeneration = 2L, updatedAtMs = 1L,
+		))
 		database.sourceProjectionStateDao().installProductLane(
 			SourceProductProjectionLaneEntity(
 				sourceKind = SourceKind.CELL.stableCode,
 				bindingGeneration = 1L,
 				projectionId = CELL_PROJECTION_ID,
 				projectionVersion = 1,
-				captureModeMask = CaptureReachabilityMode.AMBIENT.mask,
+				captureModeMask = ExecutableSourceLaneCatalog.CELL_SESSION_FACTS_V1.captureModeMask,
 				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
 				activatedRolloutRevision = 1L,
 				activationOrdinal = 1L,
@@ -1041,7 +1183,7 @@ class CellDurableSourceIngressTest {
 			listOf(
 				SourceDemandEntity(
 					demandId = CELL_DEMAND_ID,
-					consumerId = "app:cell-ingress-test",
+					consumerId = "app:ambient:cell",
 					sourceKind = SourceKind.CELL.stableCode,
 					purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
 					logicalTrackingId = null,
@@ -1166,16 +1308,10 @@ class CellDurableSourceIngressTest {
 		const val CELL_DEMAND_ID = "cell-ambient-demand"
 		const val FIRST_PHYSICAL_CONFIGURATION = "cell-physical-before"
 		const val SECOND_PHYSICAL_CONFIGURATION = "cell-physical-after"
-		const val CELL_PROJECTION_ID = "cell-ingress-test"
+		const val CELL_PROJECTION_ID = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID
 		val CELL_OWNER_SCOPE = "source-broker:${SourceKind.CELL.stableCode}"
 		val CELL_EXECUTABLE_LANE_CATALOG = ExecutableSourceLaneCatalog.explicit(
-			ExecutableSourceLaneBinding(
-				source = SourceKind.CELL,
-				bindingGeneration = 1L,
-				projectionId = CELL_PROJECTION_ID,
-				projectionVersion = 1,
-				captureModes = setOf(CaptureReachabilityMode.AMBIENT),
-			),
+			ExecutableSourceLaneCatalog.CELL_SESSION_FACTS_V1,
 		)
 	}
 }

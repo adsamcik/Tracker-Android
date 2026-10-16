@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
 import com.adsamcik.tracker.shared.base.database.data.SkiSegmentType
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -2799,7 +2800,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 				registrationGeneration = 1L,
 				physicalConfigurationFingerprint = "steps-config",
 				authorizationRevision = 1L,
-				registrationPurposeEligibilityMask = 1L,
+				registrationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 				registrationEligibilityFingerprint = "steps-capture",
 				sourceSequence = ordinal,
 				configRevision = 1L,

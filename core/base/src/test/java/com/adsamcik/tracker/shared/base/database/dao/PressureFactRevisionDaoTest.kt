@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base.database.dao
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.deleteAllCollectedDataForTesting
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import io.kotest.assertions.throwables.shouldThrow
@@ -80,6 +81,31 @@ class PressureFactRevisionDaoTest {
 		}
 	}
 
+
+	@Test
+	fun openingAnExistingDatabaseRepairsOldPressureWindowKeysFromItsStoredWriter() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Application>()
+		val name = "pressure-existing-window-owner"
+		context.deleteDatabase(name)
+		val fact = revision()
+		val key = com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership.pressure(fact).last()
+		try {
+			val existing = AppDatabase.fileBuilder(context, name).allowMainThreadQueries().build()
+			try {
+				existing.pressureFactRevisionDao().insert(fact)
+				existing.openHelper.writableDatabase.execSQL(
+					"UPDATE native_portable_ownership SET opaque_identity=? WHERE source_kind=4 AND identity_kind='WINDOW'",
+					arrayOf("a".repeat(64)))
+			} finally { existing.close() }
+			val reopened = AppDatabase.fileBuilder(context, name).allowMainThreadQueries().build()
+			try {
+				reopened.nativePortableOwnershipDao().ownerLogicalIds(4, listOf(key.opaqueIdentity), 2) shouldBe
+					listOf(fact.logicalTrackingId)
+				reopened.pressureFactRevisionDao().latest(fact.writerProjectionId, fact.writerProjectionVersion,
+					fact.logicalFactId) shouldBe fact
+			} finally { reopened.close() }
+		} finally { context.deleteDatabase(name) }
+	}
 	@Test
 	fun rejectedRevisionNeverCreatesPortableOwnershipForItsDifferentRawOwner() = runTest {
 		val stored = revision()

@@ -64,6 +64,8 @@ class ImportedCellEntityTest {
 	}
 
 	@Test
+	// Keep the complete deleted-identity set beside its receipt and tamper checks to make ownership visible.
+	@Suppress("LongMethod")
 	fun `deleted identity footprint and receipt authenticate owner shape and set checksum`() {
 		val entryDeletion = ImportedCellEntryDeletionEntity.create(
 			digest('1'),

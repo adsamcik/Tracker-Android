@@ -61,6 +61,8 @@ class LegacyV26ImportTest {
 			.commit()
 	}
 
+	// Keep one fresh database open and its writer, trigger and empty-history assertions together.
+	@Suppress("LongMethod")
 	@Test
 	fun `clean install creates only the active database`() {
 		val raw = openActive()

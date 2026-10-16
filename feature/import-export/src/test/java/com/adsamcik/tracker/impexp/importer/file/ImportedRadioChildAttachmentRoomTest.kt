@@ -181,14 +181,20 @@ class ImportedRadioChildAttachmentRoomTest {
 			"session_mode" to "MANUAL", "start_time_ms" to 900, "end_time_ms" to 1_100,
 			"collected_data_epoch" to 0, "import_job_id" to "job", "import_entry_key" to "entry",
 			"import_source_name" to "fixture.tracker$source", "received_at_ms" to 2_000)
-		if (source == "cell") entry["subscription_grouping"] = "UNKNOWN"
+		if (source == "cell") {
+			entry["subscription_grouping"] = "UNKNOWN"
+		}
 		insert("imported_${source}_entry_revision", entry)
 		val run = mutableMapOf<String, Any?>("entry_identity" to ENTRY, "entry_import_revision" to 1,
 			"identity" to RUN, "deletion_scope_digest" to CHECKSUM, "content_checksum" to CHECKSUM,
 			"start_time_ms" to 900, "end_time_ms" to 1_100, "capture_coverage" to "WHOLE_RUN",
 			"availability" to "RETAINED", "acquisition_completeness" to "COMPLETE",
 			"retention_loss" to 0, "collected_data_epoch" to 0, "scope_deletion_generation" to 0)
-		if (source == "wifi") run["has_unresolved_provider_range"] = 0 else run["subscription_grouping"] = "UNKNOWN"
+		if (source == "wifi") {
+			run["has_unresolved_provider_range"] = 0
+		} else {
+			run["subscription_grouping"] = "UNKNOWN"
+		}
 		insert("imported_${source}_run", run)
 		val observation = mutableMapOf<String, Any?>("entry_identity" to ENTRY, "entry_import_revision" to 1,
 			"run_identity" to RUN, "identity" to OBSERVATION, "semantic_revision" to 1,
@@ -197,16 +203,20 @@ class ImportedRadioChildAttachmentRoomTest {
 			"coverage_start_time_ms" to 900, "observed_time_ms" to 1_000,
 			"latest_possible_time_ms" to 1_100, "wall_time_uncertainty_ms" to 100, "stored_zone_id" to "UTC")
 		observation.putAll(summary(source, 1))
-		if (source == "wifi") observation.putAll(mapOf("availability" to "AVAILABLE", "result_completeness" to "COMPLETE",
+		if (source == "wifi") {
+			observation.putAll(mapOf("availability" to "AVAILABLE", "result_completeness" to "COMPLETE",
 			"submitted_result_count" to 1, "accepted_result_count" to 1, "stale_result_count" to 0,
 			"clock_unverifiable_result_count" to 0, "malformed_result_count" to 0,
 			"source_quality_flags" to 0, "source_quality_confidence" to null))
-		else observation.putAll(mapOf("child_completeness" to "COMPLETE", "subscription_grouping" to "UNKNOWN",
+		}
+		else {
+			observation.putAll(mapOf("child_completeness" to "COMPLETE", "subscription_grouping" to "UNKNOWN",
 			"submitted_child_count" to 1, "accepted_child_count" to 1, "stale_child_count" to 0,
 			"future_time_child_count" to 0, "missing_time_child_count" to 0, "clock_unverifiable_child_count" to 0,
 			"authority_mismatch_child_count" to 0, "unsupported_technology_child_count" to 0,
 			"weak_observation_count" to 0, "known_quality_observation_count" to 0, "all_known_quality_is_weak" to 0,
 			"quality_flags" to 0, "quality_confidence" to null))
+		}
 		insert("imported_${source}_observation", observation)
 	}
 
@@ -218,18 +228,24 @@ class ImportedRadioChildAttachmentRoomTest {
 			"coverage_completeness" to "COMPLETE", "retention_policy_id" to "test-policy", "retention_approval_revision" to 1,
 			"collected_data_epoch" to 0, "import_deletion_generation" to 0, "received_at_ms" to 2_000)
 		fact.putAll(summary(source, count))
-		if (source == "cell") fact["subscription_completeness"] = "UNKNOWN"
+		if (source == "cell") {
+			fact["subscription_completeness"] = "UNKNOWN"
+		}
 		insert("imported_ambient_${source}_fact", fact)
 	}
 
-	private fun summary(source: String, count: Int): Map<String, Any?> = if (source == "wifi") mapOf(
+	private fun summary(source: String, count: Int): Map<String, Any?> = if (source == "wifi") {
+		mapOf(
 		"observation_count" to count, "two_point_four_ghz_count" to count, "five_ghz_count" to 0,
 		"six_ghz_count" to 0, "other_band_count" to 0, "strongest_signal_dbm" to -60,
 		"weakest_signal_dbm" to -60, "mean_signal_dbm" to -60.0)
-	else mapOf("observation_count" to count, "registered_observation_count" to count,
+	}
+	else {
+		mapOf("observation_count" to count, "registered_observation_count" to count,
 		"gsm_count" to 0, "cdma_count" to 0, "wcdma_count" to 0, "tdscdma_count" to 0, "lte_count" to count, "nr_count" to 0,
 		"quality_unknown_count" to count, "quality_none_or_unknown_count" to 0, "quality_poor_count" to 0,
 		"quality_moderate_count" to 0, "quality_good_count" to 0, "quality_great_count" to 0)
+	}
 
 	private fun insert(table: String, values: Map<String, Any?>) {
 		val content = ContentValues().apply { values.forEach { (key, value) -> when (value) {

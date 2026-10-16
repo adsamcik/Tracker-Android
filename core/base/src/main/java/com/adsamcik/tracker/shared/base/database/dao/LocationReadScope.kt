@@ -33,7 +33,8 @@ object LocationReadScope {
 		WHERE i.sample_id = location_sample.id AND i.imported = 1) THEN 'IMPORTED'
 		WHEN EXISTS (SELECT 1 FROM location_accepted_receipt r WHERE r.sample_id = location_sample.id)
 		THEN 'LOCAL' ELSE 'LEGACY' END"""
-	const val CAPTURE_OR_LEGACY = "(NOT EXISTS (SELECT 1 FROM location_accepted_receipt lr WHERE lr.sample_id = location_sample.id) OR EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id AND lp.purpose = 'SESSION_CAPTURE'))"
+	const val CAPTURE_OR_LEGACY =
+        "(NOT EXISTS (SELECT 1 FROM location_accepted_receipt lr WHERE lr.sample_id = location_sample.id) OR EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id AND lp.purpose = 'SESSION_CAPTURE'))"
 	// Historical visibility follows the exact grant saved with each point. A later
 	// source toggle or live-retention revoke stops new acquisition, not old reads.
 	const val AMBIENT = """EXISTS (

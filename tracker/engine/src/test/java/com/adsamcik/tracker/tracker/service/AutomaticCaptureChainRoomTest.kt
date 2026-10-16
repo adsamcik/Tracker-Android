@@ -14,6 +14,7 @@ import android.hardware.SensorEventListener2
 import android.hardware.SensorManager
 import android.os.SystemClock
 import androidx.datastore.core.DataStoreFactory
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionType
@@ -52,11 +53,13 @@ import com.adsamcik.tracker.tracker.source.model.StepsPlan
 import com.adsamcik.tracker.tracker.source.projection.*
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecovery
 import com.adsamcik.tracker.tracker.source.runtime.*
+import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.spyk
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
 import java.io.File
@@ -67,11 +70,14 @@ import java.util.UUID
 import javax.inject.Provider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
@@ -87,8 +93,12 @@ import org.robolectric.shadows.ShadowSystemClock
  * startup readiness, protected Location setup (unselected in these cases), legacy setup quiescence and foreground enqueue/promotion are controlled fixtures, not device proof.
  * No Start API, preparation/claim/acceptance, source runtime, writer or saved product is mocked.
  */
+// One composed Room capture fixture keeps automatic/manual Start, quality continuity and End/Off checks
+// comparable.
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@OptIn(ExperimentalCoroutinesApi::class)
 class AutomaticCaptureChainRoomTest {
     private lateinit var context: Context
     private lateinit var database: AppDatabase
@@ -114,6 +124,7 @@ class AutomaticCaptureChainRoomTest {
     private lateinit var authorityRevisionState: MutableStateFlow<TrackingPurposeAuthorityRevision>
     private lateinit var controlIdentity: TrackingPurposeLeaseIdentity
     private lateinit var sharedSteps: SharedStepSourceController
+    private lateinit var callers: SourceCallerDemandDispatcher
     private var flushObservation: Pair<Float, Long>? = null
     private val listeners = mutableListOf<SensorEventListener>()
     private val removedListeners = mutableListOf<SensorEventListener>()
@@ -121,18 +132,18 @@ class AutomaticCaptureChainRoomTest {
     private val apiEntryPointField = TrackerServiceApi::class.java.getDeclaredField("cachedEntryPoint")
         .apply { isAccessible = true }
     private var previousApiEntryPoint: Any? = null
-    private var previousBackgroundDispatchers: Any? = null
     private lateinit var descriptorFile: File
 
     @Before
     @Suppress("LongMethod") // One composed fixture; production components retain their own boundaries.
-    fun setUp() = runBlocking {
+    fun setUp(): Unit = runBlocking {
+        Dispatchers.setMain(Dispatchers.IO)
         BackgroundTrackingApi.shutdown()
         val application = ApplicationProvider.getApplicationContext<Application>()
         scopeJob = SupervisorJob()
         actorScope = CoroutineScope(scopeJob + Dispatchers.IO)
         val sensors = mockk<SensorManager>()
-        val packageManager = mockk<PackageManager>()
+        val packageManager = spyk(application.packageManager)
         sensor = mockk<Sensor> {
             every { type } returns Sensor.TYPE_STEP_COUNTER
             every { stringType } returns "android.sensor.step_counter"
@@ -168,10 +179,18 @@ class AutomaticCaptureChainRoomTest {
             override fun getApplicationContext(): Context = this
             override fun getPackageManager(): PackageManager = packageManager
             override fun getSystemService(name: String): Any? =
-                if (name == Context.SENSOR_SERVICE) sensors else super.getSystemService(name)
+                if (name == Context.SENSOR_SERVICE) {
+                    sensors
+                } else {
+                    super.getSystemService(name)
+                }
             override fun checkPermission(permission: String, pid: Int, uid: Int): Int =
-                if (permission == Manifest.permission.ACTIVITY_RECOGNITION) PackageManager.PERMISSION_GRANTED
-                else PackageManager.PERMISSION_DENIED
+                if (permission == Manifest.permission.ACTIVITY_RECOGNITION) {
+                    PackageManager.PERMISSION_GRANTED
+                }
+                else {
+                    PackageManager.PERMISSION_DENIED
+                }
             override fun checkSelfPermission(permission: String): Int = checkPermission(permission, 0, 0)
             override fun startForegroundService(service: Intent): ComponentName {
                 enqueued += Intent(service)
@@ -254,7 +273,7 @@ class AutomaticCaptureChainRoomTest {
             boot, Provider { gate })
         val receipts = RoomSourceCallerAcceptedAuthorityRepository(database)
         val broker = SourceBroker(database, rollout)
-        val callers = GuardedSourceCallerDemandDispatcher(authority,
+        callers = GuardedSourceCallerDemandDispatcher(authority,
             ExactSourceCallerGuard(authority, receipts, Provider { gate }), broker, receipts)
         val controlDemand = callers.dispatchAutomaticControl(AutomaticControlDemandDispatchRequest(
             controlIdentity, "fixture-control", BOOT, SystemClock.elapsedRealtimeNanos(), System.currentTimeMillis(),
@@ -344,9 +363,6 @@ class AutomaticCaptureChainRoomTest {
         }
         setBackgroundField("entryPoint", backgroundEntryPoint)
         setBackgroundField("appContext", context)
-        previousBackgroundDispatchers = BackgroundTrackingApi::class.java.getDeclaredField("dispatchers")
-            .apply { isAccessible = true }.get(BackgroundTrackingApi)
-        setBackgroundField("dispatchers", TestDispatchersProvider(Dispatchers.IO))
         setBackgroundField("cachedParams", settings)
         setBackgroundField("paramsInitialized", true)
         setBackgroundField("activeSourcePolicyRevision", policy.revision)
@@ -359,18 +375,21 @@ class AutomaticCaptureChainRoomTest {
     }
 
     @After
-    fun tearDown() = runBlocking {
-        apiEntryPointField.set(TrackerServiceApi, previousApiEntryPoint)
-        BackgroundTrackingApi.shutdown()
-        scopeJob.cancelAndJoin()
-        setBackgroundField("dispatchers", previousBackgroundDispatchers)
-        descriptorFile.delete()
-        database.close()
-        unmockkObject(Assist)
+    fun tearDown(): Unit = runBlocking {
+        try {
+            apiEntryPointField.set(TrackerServiceApi, previousApiEntryPoint)
+            BackgroundTrackingApi.shutdown()
+            scopeJob.cancelAndJoin()
+            descriptorFile.delete()
+            database.close()
+        } finally {
+            Dispatchers.resetMain()
+            unmockkObject(Assist)
+        }
     }
 
     @Test
-    fun `first delivered pre End transition cannot restart even with the current callback generation`() = runBlocking {
+    fun `first delivered pre End transition cannot restart even with the current callback generation`(): Unit = runBlocking {
         advanceClock(1L)
         val observedBeforeEnd = SystemClock.elapsedRealtimeNanos()
         advanceClock(1L)
@@ -378,7 +397,7 @@ class AutomaticCaptureChainRoomTest {
         commands.markStopHandled(stop) shouldBe true
         // Delivery happened after End. Its generation is current, but the evidence is old.
         val receipt = activityIngress.admit(callback(observedBeforeEnd))
-        receipt.isDurable shouldBe true
+        withClue("Activity ingress receipt: $receipt") { receipt.isDurable shouldBe true }
         receipt.admittedCount shouldBe 1
         commands.latestCommandGeneration() shouldBe stop.generation
         enqueued shouldBe emptyList()
@@ -391,7 +410,7 @@ class AutomaticCaptureChainRoomTest {
     }
 
     @Test
-    fun `post End transition reaches real prepared accepted Steps capture and End retires that owner`() = runBlocking {
+    fun `post End transition reaches real prepared accepted Steps capture and End retires that owner`(): Unit = runBlocking {
         val ended = endCommand()
         commands.markStopHandled(ended) shouldBe true
         val capture = startChosenStepsAfterEnd(ended.generation)
@@ -414,7 +433,7 @@ class AutomaticCaptureChainRoomTest {
     }
 
     @Test
-    fun `Off fences a late transition and preserves the independently saved Steps product`() = runBlocking {
+    fun `Off fences a late transition and preserves the independently saved Steps product`(): Unit = runBlocking {
         val ended = endCommand()
         commands.markStopHandled(ended) shouldBe true
         val capture = startChosenStepsAfterEnd(ended.generation)
@@ -425,6 +444,19 @@ class AutomaticCaptureChainRoomTest {
             SourceSessionStopCutoff(stop.requestedAtEpochMs, requireNotNull(stop.requestedElapsedRealtimeNanos), BOOT)) shouldBe
             SourceSessionStopOutcome.Stopped
         commands.markStopHandled(stop) shouldBe true
+        // This fixture controls the sensor:activity owner, including its provider removal acknowledgement.
+        database.sourceBrokerDao().activeDemands(SourceKind.ACTIVITY.stableCode).single().status shouldBe
+            SourceDemandEntity.STATUS_RETIRING
+        callers.retireAutomaticControl("fixture-control", SourceKind.ACTIVITY, BOOT,
+            requireNotNull(stop.requestedElapsedRealtimeNanos), stop.requestedAtEpochMs, 60_000L, 0L)
+            .shouldBeInstanceOf<GuardedPurposeDemandResult.Applied<Unit>>()
+        database.withTransaction {
+            database.sourceBrokerDao().markRegistrationRetiring(SourceKind.ACTIVITY.stableCode,
+                controlRegistration.registrationGeneration, controlRegistration.sourceInstanceId,
+                stop.requestedAtEpochMs, requireNotNull(stop.requestedElapsedRealtimeNanos), "USER_OFF") shouldBe 1
+            database.sourceBrokerDao().completeRegistrationRetirement(SourceKind.ACTIVITY.stableCode,
+                controlRegistration.registrationGeneration, controlRegistration.sourceInstanceId) shouldBe 1
+        }
         database.sourceBrokerDao().activeDemands(SourceKind.ACTIVITY.stableCode) shouldBe emptyList()
         database.sourceBrokerDao().activeDemands(SourceKind.STEPS.stableCode) shouldBe emptyList()
         removedListeners.size shouldBe 1
@@ -443,7 +475,7 @@ class AutomaticCaptureChainRoomTest {
     }
 
     @Test
-    fun `quality changes preserve one real counter and original demand through fresh operation leases`() = runBlocking {
+    fun `quality changes preserve one real counter and original demand through fresh operation leases`(): Unit = runBlocking {
         val ended = endCommand()
         commands.markStopHandled(ended) shouldBe true
         val capture = startChosenStepsAfterEnd(ended.generation)
@@ -488,10 +520,12 @@ class AutomaticCaptureChainRoomTest {
         latest.authority.permittedDemandIdentities.single { it.purposeLeaseIdentity.source == CollectionSource.STEPS }
             .purposeLeaseIdentity.executionRevision shouldBe run.leaseGeneration
         val stop = endCommand()
-        withTimeout(5_000L) {
-            sourceSession.stop("EXPLICIT_REQUEST", false, SourceSessionStopCutoff(stop.requestedAtEpochMs,
-                requireNotNull(stop.requestedElapsedRealtimeNanos), BOOT))
-        } shouldBe SourceSessionStopOutcome.Stopped
+        val stopCutoff = SourceSessionStopCutoff(stop.requestedAtEpochMs,
+            requireNotNull(stop.requestedElapsedRealtimeNanos), BOOT)
+        val stopped = withTimeout(5_000L) {
+            sourceSession.stop("EXPLICIT_REQUEST", false, stopCutoff)
+        }
+        assertSessionStopped(capture, stopped, stopCutoff)
         removedListeners shouldBe listOf(listener)
         RoomSourceCallerAcceptedAuthorityRepository(database).load(originalReference) shouldBe
             StoredSourceCallerAuthorityLoadResult.Retired
@@ -500,7 +534,32 @@ class AutomaticCaptureChainRoomTest {
     }
 
     @Test
-    fun `generic reconfigure cannot adopt the old recording without the fresh coordinator path`() = runBlocking {
+    fun `quality continuation cannot lend End authority to an unaccepted recording lease`(): Unit = runBlocking {
+        val ended = endCommand()
+        commands.markStopHandled(ended) shouldBe true
+        val capture = startChosenStepsAfterEnd(ended.generation)
+        recordFiveSteps(capture)
+        reconfigureQuality(4)
+        val ordinal = requireNotNull(database.sourceEventWalDao().maximumAdmissionOrdinal())
+        val original = requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(ordinal))
+        val changed = original.copy(lifecycleLeaseGeneration = 9_876L)
+        database.openHelper.writableDatabase.execSQL(
+            "UPDATE source_event_wal SET lifecycle_lease_generation = ?, integrity_identity = ? WHERE admission_ordinal = ?",
+            arrayOf<Any?>(changed.lifecycleLeaseGeneration, changed.calculatedIntegrityIdentity(), ordinal))
+        val stop = endCommand()
+        val stopped = withTimeout(5_000L) {
+            sourceSession.stop("EXPLICIT_REQUEST", false, SourceSessionStopCutoff(stop.requestedAtEpochMs,
+                requireNotNull(stop.requestedElapsedRealtimeNanos), BOOT))
+        }
+        stopped shouldBe SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.DRAIN_PENDING)
+        database.sourceSessionDao().session(capture.logicalTrackingId)?.state shouldBe SessionLifecycleState.STOPPING.name
+        removedListeners.size shouldBe 1
+        savedSteps(capture) shouldBe 5L
+        assertNoActivityCapture()
+    }
+
+    @Test
+    fun `generic reconfigure cannot adopt the old recording without the fresh coordinator path`(): Unit = runBlocking {
         val ended = endCommand()
         commands.markStopHandled(ended) shouldBe true
         val capture = startChosenStepsAfterEnd(ended.generation)
@@ -521,7 +580,7 @@ class AutomaticCaptureChainRoomTest {
     }
 
     @Test
-    fun `counter reset starts a new Steps origin and never converts the new absolute count to steps`() = runBlocking {
+    fun `counter reset starts a new Steps origin and never converts the new absolute count to steps`(): Unit = runBlocking {
         val ended = endCommand()
         commands.markStopHandled(ended) shouldBe true
         val capture = startChosenStepsAfterEnd(ended.generation)
@@ -548,7 +607,7 @@ class AutomaticCaptureChainRoomTest {
     }
 
     @Test
-    fun `quality change final flush keeps exact End increment once and rejects a later counter`() = runBlocking {
+    fun `quality change final flush keeps exact End increment once and rejects a later counter`(): Unit = runBlocking {
         val ended = endCommand()
         commands.markStopHandled(ended) shouldBe true
         val capture = startChosenStepsAfterEnd(ended.generation)
@@ -557,10 +616,12 @@ class AutomaticCaptureChainRoomTest {
         val listener = listeners.single()
         val stop = endCommand()
         flushObservation = 104f to requireNotNull(stop.requestedElapsedRealtimeNanos)
-        withTimeout(5_000L) {
-            sourceSession.stop("EXPLICIT_REQUEST", false, SourceSessionStopCutoff(stop.requestedAtEpochMs,
-                requireNotNull(stop.requestedElapsedRealtimeNanos), BOOT))
-        } shouldBe SourceSessionStopOutcome.Stopped
+        val stopCutoff = SourceSessionStopCutoff(stop.requestedAtEpochMs,
+            requireNotNull(stop.requestedElapsedRealtimeNanos), BOOT)
+        val stopped = withTimeout(5_000L) {
+            sourceSession.stop("EXPLICIT_REQUEST", false, stopCutoff)
+        }
+        assertSessionStopped(capture, stopped, stopCutoff)
         savedSteps(capture) shouldBe 4L
         val before = database.sourceEventWalDao().maximumAdmissionOrdinal()
         listener.onSensorChanged(stepEventAt(104f, requireNotNull(stop.requestedElapsedRealtimeNanos)))
@@ -572,7 +633,7 @@ class AutomaticCaptureChainRoomTest {
     }
 
     @Test
-    fun `Off after quality change retires the original recording without erasing saved steps`() = runBlocking {
+    fun `Off after quality change retires the original recording without erasing saved steps`(): Unit = runBlocking {
         val ended = endCommand()
         commands.markStopHandled(ended) shouldBe true
         val capture = startChosenStepsAfterEnd(ended.generation)
@@ -582,10 +643,12 @@ class AutomaticCaptureChainRoomTest {
         val origin = currentStepsDemand(capture)
         val listener = listeners.single()
         val off = requireNotNull(turnOff.reserveAndFence(null))
-        withTimeout(5_000L) {
-            sourceSession.stop("USER_OFF", false, SourceSessionStopCutoff(off.stop.requestedAtEpochMs,
-                requireNotNull(off.stop.requestedElapsedRealtimeNanos), BOOT))
-        } shouldBe SourceSessionStopOutcome.Stopped
+        val stopCutoff = SourceSessionStopCutoff(off.stop.requestedAtEpochMs,
+            requireNotNull(off.stop.requestedElapsedRealtimeNanos), BOOT)
+        val stopped = withTimeout(5_000L) {
+            sourceSession.stop("USER_OFF", false, stopCutoff)
+        }
+        assertSessionStopped(capture, stopped, stopCutoff)
         commands.markStopHandled(off.stop) shouldBe true
         database.sourceBrokerDao().activeDemands(SourceKind.STEPS.stableCode) shouldBe emptyList()
         RoomSourceCallerAcceptedAuthorityRepository(database).load(
@@ -600,7 +663,7 @@ class AutomaticCaptureChainRoomTest {
     }
 
     @Test
-    fun `unchanged manual Start survives actual quality policy lag and Off until service accepts it`() = runBlocking {
+    fun `unchanged manual Start survives actual quality policy lag and Off until service accepts it`(): Unit = runBlocking {
         commands.recordUserRequestedExit(TRACKING_TURN_OFF_EXIT_PREFIX + "quality-pending") shouldBe true
         val original = paramsState.value
         val selection = requireNotNull((policies.currentState() as? SourcePolicyAuthorityState.Active)).snapshot.manualStartSelection()
@@ -638,7 +701,7 @@ class AutomaticCaptureChainRoomTest {
     }
 
     @Test
-    fun `actual source consent change while quality setup is pending cancels original manual Start`() = runBlocking {
+    fun `actual source consent change while quality setup is pending cancels original manual Start`(): Unit = runBlocking {
         val original = paramsState.value
         val snapshot = (policies.currentState() as SourcePolicyAuthorityState.Active).snapshot
         val continuation = requireNotNull(commands.reserveManualStartIfGeneration(commands.latestCommandGeneration(), snapshot.manualStartSelection()))
@@ -658,7 +721,7 @@ class AutomaticCaptureChainRoomTest {
     }
 
     @Test
-    fun `raw source choices changing before Room policy cannot continue an old Start`() = runBlocking {
+    fun `raw source choices changing before Room policy cannot continue an old Start`(): Unit = runBlocking {
         val original = paramsState.value
         val snapshot = (policies.currentState() as SourcePolicyAuthorityState.Active).snapshot
         val continuation = requireNotNull(commands.reserveManualStartIfGeneration(commands.latestCommandGeneration(), snapshot.manualStartSelection()))
@@ -677,7 +740,7 @@ class AutomaticCaptureChainRoomTest {
     }
 
     @Test
-    fun `real End supersedes quality pending manual Start without new command or provider work`() = runBlocking {
+    fun `real End supersedes quality pending manual Start without new command or provider work`(): Unit = runBlocking {
         val original = paramsState.value
         val snapshot = (policies.currentState() as SourcePolicyAuthorityState.Active).snapshot
         val continuation = requireNotNull(commands.reserveManualStartIfGeneration(commands.latestCommandGeneration(), snapshot.manualStartSelection()))
@@ -696,7 +759,7 @@ class AutomaticCaptureChainRoomTest {
     }
 
     @Test
-    fun `new manual Start keeps a real healthy Steps sibling when Location setup has repair debt`() = runBlocking {
+    fun `new manual Start keeps a real healthy Steps sibling when Location setup has repair debt`(): Unit = runBlocking {
         val original = paramsState.value
         val selected = original.copy(locationEnabled = true,
             sourceCollectionSettings = original.sourceCollectionSettings.copy(location = SourceCollectionFrequency.BALANCED))
@@ -769,7 +832,7 @@ class AutomaticCaptureChainRoomTest {
     private suspend fun startChosenStepsAfterEnd(endGeneration: Long): SessionStartResult.Started {
         advanceClock(1L)
         val receipt = activityIngress.admit(callback(SystemClock.elapsedRealtimeNanos()))
-        receipt.isDurable shouldBe true
+        withClue("Activity ingress receipt: $receipt") { receipt.isDurable shouldBe true }
         receipt.admittedCount shouldBe 1
         commands.latestCommandGeneration() shouldBe endGeneration + 1L
         val delivered = database.sourceEventWalDao().eventsAfter(0L, 10).single()
@@ -807,6 +870,57 @@ class AutomaticCaptureChainRoomTest {
         active.single { it.sourceKind == SourceKind.ACTIVITY.stableCode }.persistenceEligible shouldBe false
         assertNoActivityCapture()
         return started
+    }
+
+    private suspend fun assertSessionStopped(
+        capture: SessionStartResult.Started,
+        outcome: SourceSessionStopOutcome,
+        requested: SourceSessionStopCutoff,
+    ) {
+        if (outcome == SourceSessionStopOutcome.Stopped) {
+            return
+        }
+        val clue = database.withTransaction {
+            val sessions = database.sourceSessionDao()
+            val projections = database.sourceProjectionStateDao()
+            val session = sessions.session(capture.logicalTrackingId)
+            val run = sessions.serviceRun(capture.serviceRunId)
+            val completeness = sessions.rawSourceCompletenessForServiceRun(capture.serviceRunId,
+                SourceKind.STEPS.stableCode, END_DIAGNOSTIC_ROW_LIMIT).map { raw ->
+                raw.validatedOrNull()?.let { row ->
+                    "generation=${row.registrationGeneration}, status=${row.stopStatus}, " +
+                        "coverage=${row.providerCoverage}, ordinal=${row.lastAdmissionOrdinal}, " +
+                        "sequence=${row.lastSourceSequence}, appDrain=${row.appDrainComplete}"
+                } ?: "malformed completeness"
+            }
+            val retirements = sessions.rawRunRetirements(capture.logicalTrackingId, capture.serviceRunId,
+                SourceKind.STEPS.stableCode, END_DIAGNOSTIC_ROW_LIMIT).map { raw ->
+                raw.validatedOrNull()?.let { row ->
+                    "action=${row.actionId}, attempt=${row.attemptCount}, lease=${row.leaseGeneration}, " +
+                        "generation=${row.registrationGeneration}, state=${row.state}, " +
+                        "ordinal=${row.lastAdmissionOrdinal}, sequence=${row.lastSourceSequence}, " +
+                        "flush=${row.providerFlushOutcome}, removal=${row.registrationRemovalOutcome}"
+                } ?: "malformed retirement"
+            }
+            val lane = projections.latestProductLane(SourceKind.STEPS.stableCode)
+            val global = projections.checkpoint(ActivityAutomationProjection.ID, ActivityAutomationProjection.VERSION)
+            val manifest = session?.currentManifestRevision?.let { revision ->
+                sessions.manifest(capture.logicalTrackingId, revision)
+            }
+            "End=$outcome; requested=$requested; " +
+                "session=${session?.state}, cutoff=${session?.cutoffElapsedNanos}, " +
+                "frozen=${session?.finalAdmissionOrdinal}, failure=${session?.failureCode}; " +
+                "run=${run?.state}, delivery=${run?.androidDeliveryState}, lease=${run?.leaseGeneration}, " +
+                "runtime=${run?.runtimeAcknowledgement}, runtimeFailure=${run?.runtimeFailureCode}; " +
+                "manifest=${manifest?.manifestRevision}, plan=${manifest?.acquisitionPlanRevision}, " +
+                "policy=${manifest?.sourcePolicyRevision}; completeness=$completeness; retirements=$retirements; " +
+                "laneStatus=${lane?.status}, laneCursor=${lane?.contiguousAdmissionOrdinal}, " +
+                "laneBinding=${lane?.bindingGeneration}, laneCutoff=${lane?.captureAdmissionCutoffOrdinal}; " +
+                "globalCursor=${global?.contiguousAdmissionOrdinal}; " +
+                "walHighWater=${database.sourceEventWalDao().maximumAdmissionOrdinal()}; " +
+                "epoch=${database.sourceEvidenceStateDao().get()?.collectedDataEpoch}"
+        }
+        withClue(clue) { outcome shouldBe SourceSessionStopOutcome.Stopped }
     }
 
     private suspend fun recordFiveSteps(capture: SessionStartResult.Started) {
@@ -879,5 +993,8 @@ class AutomaticCaptureChainRoomTest {
             .set(BackgroundTrackingApi, value)
     }
 
-    private companion object { const val BOOT = "automatic-chain-boot" }
+    private companion object {
+        const val BOOT = "automatic-chain-boot"
+        const val END_DIAGNOSTIC_ROW_LIMIT = 8
+    }
 }

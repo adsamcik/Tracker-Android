@@ -56,18 +56,11 @@ class GpxExporter : Exporter {
 			streamLocations { sample ->
 				if (sample.latE7 != null && sample.lonE7 != null) {
 					val old = previous
-					val nativeBoundary = old != null && (old.routeContinuityId != null || sample.routeContinuityId != null) &&
-						(old.routeContinuityId != sample.routeContinuityId || old.routeSequence == null ||
-							sample.routeSequence != old.routeSequence?.plus(1) || sample.clockDomainId != old.clockDomainId ||
-							sample.elapsedRealtimeNanos <= old.elapsedRealtimeNanos ||
-							sample.elapsedRealtimeNanos - old.elapsedRealtimeNanos > 120_000_000_000L)
-					// Older and imported points have no native continuity key. A long or reversed
-					// wall-clock interval cannot truthfully be drawn as one continuous route.
-					val unkeyedBoundary = old != null && old.routeContinuityId == null &&
-						sample.routeContinuityId == null && (old.timeMs < 0L || sample.timeMs < 0L ||
-							sample.timeMs <= old.timeMs ||
-							sample.timeMs - old.timeMs > 120_000L || old.sessionless != sample.sessionless)
-					if (nativeBoundary || unkeyedBoundary) writer.write("</trkseg><trkseg>")
+					val nativeBoundary = nativeRouteBoundary(old, sample)
+					val unkeyedBoundary = unkeyedRouteBoundary(old, sample)
+					if (nativeBoundary || unkeyedBoundary) {
+						writer.write("</trkseg><trkseg>")
+					}
 					writeTrackPoint(writer, sample)
 					previous = sample
 				}
@@ -80,6 +73,31 @@ class GpxExporter : Exporter {
 		}
 
 		return ExportResult.Success
+	}
+
+	private fun nativeRouteBoundary(old: LocationSample?, sample: LocationSample): Boolean {
+		if (old == null || (old.routeContinuityId == null && sample.routeContinuityId == null)) {
+			return false
+		}
+		if (old.routeContinuityId != sample.routeContinuityId || old.routeSequence == null ||
+			sample.routeSequence != old.routeSequence?.plus(1)) {
+			return true
+		}
+		return sample.clockDomainId != old.clockDomainId ||
+			sample.elapsedRealtimeNanos <= old.elapsedRealtimeNanos ||
+			sample.elapsedRealtimeNanos - old.elapsedRealtimeNanos > ROUTE_GAP_LIMIT_NANOS
+	}
+
+	// Older/imported points have no native key; keep their real time and purpose gaps.
+	private fun unkeyedRouteBoundary(old: LocationSample?, sample: LocationSample): Boolean {
+		if (old == null || old.routeContinuityId != null || sample.routeContinuityId != null) {
+			return false
+		}
+		if (old.timeMs < 0L || sample.timeMs < 0L) {
+			return true
+		}
+		return sample.timeMs <= old.timeMs || sample.timeMs - old.timeMs > ROUTE_GAP_LIMIT_MS ||
+			old.sessionless != sample.sessionless
 	}
 
 	private fun writeHeader(
@@ -160,3 +178,6 @@ class GpxExporter : Exporter {
 		.replace("\"", "&quot;")
 		.replace("'", "&apos;")
 }
+
+private const val ROUTE_GAP_LIMIT_NANOS = 120_000_000_000L
+private const val ROUTE_GAP_LIMIT_MS = 120_000L

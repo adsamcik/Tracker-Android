@@ -14,8 +14,10 @@ import com.adsamcik.tracker.shared.base.database.retentionWorkExecutionContinuat
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Coordinates durable worker execution receipts through the existing database operations. */
 @Singleton
 class RetentionWorkExecutionCoordinator @Inject constructor() {
+	/** Starts or resumes this exact WorkManager request and attempt, using UTC milliseconds. */
 	suspend fun begin(
 		database: AppDatabase,
 		workRequestId: String,
@@ -29,6 +31,7 @@ class RetentionWorkExecutionCoordinator @Inject constructor() {
 		startedAtMs,
 	)
 
+	/** Attaches the destructive plan to its owned execution receipt before mutations. */
 	suspend fun attachPlan(
 		database: AppDatabase,
 		receipt: RetentionWorkExecutionReceipt,
@@ -36,16 +39,35 @@ class RetentionWorkExecutionCoordinator @Inject constructor() {
 	): RetentionWorkExecutionPlanResult =
 		database.attachRetentionDestructivePlan(receipt, plan)
 
+	/** Checks that this execution still owns permission to continue after suspension. */
 	suspend fun continuation(
 		database: AppDatabase,
 		receipt: RetentionWorkExecutionReceipt,
 	): RetentionWorkExecutionContinuationResult =
 		database.retentionWorkExecutionContinuation(receipt)
 
+	/** Records completion of the exact receipt at the supplied UTC millisecond timestamp. */
 	suspend fun complete(
 		database: AppDatabase,
 		receipt: RetentionWorkExecutionReceipt,
 		completedAtMs: Long,
 	): RetentionWorkExecutionCompletionResult =
 		database.completeRetentionWorkExecution(receipt, completedAtMs)
+}
+
+/** Checks the execution receipt and reports the existing shared worker stop/defer outcomes. */
+internal suspend fun RetentionWorkExecutionCoordinator.requireExecutionContinuation(
+	database: AppDatabase,
+	execution: RetentionWorkExecutionReceipt,
+) {
+	when (continuation(database, execution)) {
+		RetentionWorkExecutionContinuationResult.Continue -> Unit
+		RetentionWorkExecutionContinuationResult.CancellationRequested,
+		RetentionWorkExecutionContinuationResult.AbandonedByCancellation,
+		RetentionWorkExecutionContinuationResult.SupersededByFullDeletion,
+		RetentionWorkExecutionContinuationResult.AlreadyCompleted,
+		-> throw RetentionExecutionStoppedException()
+		is RetentionWorkExecutionContinuationResult.Retryable ->
+			throw RetentionExecutionDeferredException()
+	}
 }

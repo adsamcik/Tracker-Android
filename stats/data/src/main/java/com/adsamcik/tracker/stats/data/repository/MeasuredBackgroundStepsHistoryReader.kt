@@ -20,6 +20,7 @@ import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsGapV1
 import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
@@ -31,19 +32,30 @@ internal data class MeasuredBackgroundStepsHistoryRead(
 )
 
 /** Original count windows and retained timed holes; caller owns the Room snapshot. */
+// One measured Steps reader keeps native/imported count windows and their SQL keyset projections together.
+@Suppress("TooManyFunctions")
 internal class MeasuredBackgroundStepsHistoryReader(private val database: AppDatabase) {
     suspend fun candidates(range: HistoryRange, after: HistoryPosition?): List<MeasuredHistoryCandidate> {
         val origins = range.origins.filter { it in setOf(HistoryOrigin.LOCAL, HistoryOrigin.IMPORTED) }
-        if (HistorySource.STEPS !in range.sources || HistoryPurpose.BACKGROUND !in range.purposes || origins.isEmpty()) return emptyList()
+        if (HistorySource.STEPS !in range.sources || HistoryPurpose.BACKGROUND !in range.purposes ||
+            origins.isEmpty()) {
+            return emptyList()
+        }
         val arguments = mutableListOf<Any>(range.fromInclusiveMs, range.toExclusiveMs).apply {
             addAll(origins.map { it.name }); add(range.toExclusiveMs); add(range.fromInclusiveMs)
         }
-        val seek = if (after == null) "" else """
+        val seek = if (after == null) {
+            ""
+        } else {
+            """
             AND (startTimeMs < ? OR (startTimeMs = ? AND
                 (lower(origin) || ':' || kind > ? OR (lower(origin) || ':' || kind = ? AND identity > ?))))
         """.trimIndent()
-        if (after != null) arguments.addAll(listOf(after.startTimeMs, after.startTimeMs,
+        }
+        if (after != null) {
+            arguments.addAll(listOf(after.startTimeMs, after.startTimeMs,
             after.originTag, after.originTag, after.stableId))
+        }
         val sql = """
             SELECT * FROM (${nativeFactsSql()} UNION ALL ${nativeGapsSql()}
                 UNION ALL ${importedSql(gaps = false)} UNION ALL ${importedSql(gaps = true)})
@@ -57,38 +69,60 @@ internal class MeasuredBackgroundStepsHistoryReader(private val database: AppDat
     }
 
     suspend fun qualify(keys: List<MeasuredHistoryCandidate>, range: HistoryRange): MeasuredBackgroundStepsHistoryRead {
-        require(keys.size <= 100 && keys.map(::measuredHistoryPosition).distinct().size == keys.size)
-        require(keys.all { it.kind in setOf("ambient_steps", "ambient_steps_gap", "imported_ambient_steps",
-            "imported_ambient_steps_gap") && it.purpose == "BACKGROUND" && it.origin in setOf("LOCAL", "IMPORTED") &&
-            (it.origin != "LOCAL" || it.rowId != null) && (it.origin != "IMPORTED" || it.writerId != null) })
+        requireStepsCandidates(keys)
         if (HistorySource.STEPS !in range.sources || HistoryPurpose.BACKGROUND !in range.purposes)
+            {
             return MeasuredBackgroundStepsHistoryRead(emptyMap(), emptySet())
+        }
         val selectedKeys = keys.filter { HistoryOrigin.valueOf(it.origin) in range.origins }
-        if (selectedKeys.isEmpty()) return MeasuredBackgroundStepsHistoryRead(emptyMap(), emptySet())
+        if (selectedKeys.isEmpty()) {
+            return MeasuredBackgroundStepsHistoryRead(emptyMap(), emptySet())
+        }
         val rows = linkedMapOf<HistoryPosition, UnifiedHistoryRow>()
         val problems = linkedSetOf<HistoryProblem>()
         val evidence = database.sourceEvidenceStateDao().get() ?: return MeasuredBackgroundStepsHistoryRead(
             emptyMap(), setOf(problem(HistoryProblemReason.INTEGRITY_UNAVAILABLE)))
         // Registration/day parents are independent; an invalid sibling cannot erase a valid count.
-        for ((_, selected) in selectedKeys.groupBy { if (it.origin == "LOCAL") "local:${it.rowId}" else "imported:${it.writerId}" }) {
+        for ((_, selected) in selectedKeys.groupBy { if (it.origin == "LOCAL") {
+            "local:${it.rowId}"
+        } else {
+            "imported:${it.writerId}"
+        } }) {
             currentCoroutineContext().ensureActive()
-            try {
-                val accepted = if (selected.first().origin == "LOCAL") isolatedNative(selected, evidence, range, problems)
-                    else imported(selected, evidence, range, problems)
-                rows.putAll(accepted)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: IllegalArgumentException) {
-                problems += problem(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
-            } catch (_: IllegalStateException) {
-                problems += problem(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
-            } catch (_: ArithmeticException) {
-                problems += problem(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
-            } catch (_: Exception) {
-                problems += problem(HistoryProblemReason.STORAGE_UNAVAILABLE)
-            }
+            appendParent(selected, evidence, range, rows, problems)
         }
         return MeasuredBackgroundStepsHistoryRead(rows, problems)
+    }
+
+    private fun requireStepsCandidates(keys: List<MeasuredHistoryCandidate>) {
+        require(keys.size <= MAX_MEASURED_STEPS_CANDIDATES &&
+            keys.map(::measuredHistoryPosition).distinct().size == keys.size)
+        require(keys.all { it.kind in setOf("ambient_steps", "ambient_steps_gap", "imported_ambient_steps",
+            "imported_ambient_steps_gap") && it.purpose == "BACKGROUND" && it.origin in setOf("LOCAL", "IMPORTED") &&
+            (it.origin != "LOCAL" || it.rowId != null) && (it.origin != "IMPORTED" || it.writerId != null) })
+    }
+
+    private suspend fun appendParent(
+        selected: List<MeasuredHistoryCandidate>,
+        evidence: SourceEvidenceState,
+        range: HistoryRange,
+        rows: MutableMap<HistoryPosition, UnifiedHistoryRow>,
+        problems: MutableSet<HistoryProblem>,
+    ) {
+        try {
+            val accepted = if (selected.first().origin == "LOCAL") {
+                isolatedNative(selected, evidence, range, problems)
+            }
+                else {
+                imported(selected, evidence, range, problems)
+            }
+            rows.putAll(accepted)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+            // One failed recording/day becomes a problem without hiding accepted siblings; cancellation escapes above.
+            problems += problem(failure.measuredStepsProblemReason())
+        }
     }
 
     /** At most 199 attempts for 100 original leaves; no result is borrowed from another source. */
@@ -98,14 +132,14 @@ internal class MeasuredBackgroundStepsHistoryReader(private val database: AppDat
             return native(keys, evidence, range, problems)
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (failure: Exception) {
+        } catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+            // Bounded leaf isolation preserves healthy counts and reports only failed leaves; cancellation escapes above.
             if (keys.size > 1) {
                 val midpoint = (keys.size + 1) / 2
                 return isolatedNative(keys.take(midpoint), evidence, range, problems) +
                     isolatedNative(keys.drop(midpoint), evidence, range, problems)
             }
-            problems += problem(if (failure is IllegalArgumentException || failure is IllegalStateException ||
-                failure is ArithmeticException) HistoryProblemReason.INTEGRITY_UNAVAILABLE else HistoryProblemReason.STORAGE_UNAVAILABLE)
+            problems += problem(failure.measuredStepsProblemReason())
             return emptyMap()
         }
     }
@@ -115,16 +149,24 @@ internal class MeasuredBackgroundStepsHistoryReader(private val database: AppDat
         val factKeys = keys.filter { it.kind == "ambient_steps" }
         val gapKeys = keys.filter { it.kind == "ambient_steps_gap" }
         val ids = factKeys.map { requireNotNull(it.factId) }
-        val facts = if (ids.isEmpty()) emptyList() else database.ambientStepsFactRevisionDao().latestEffectiveForIds(
+        val facts = if (ids.isEmpty()) {
+            emptyList()
+        } else {
+            database.ambientStepsFactRevisionDao().latestEffectiveForIds(
             AmbientStepsFactRevisionEntity.WRITER_ID, AmbientStepsFactRevisionEntity.WRITER_VERSION, ids, ids.size + 1)
+        }
         check(facts.size <= ids.size)
         val gaps = selectedNativeGaps(gapKeys)
-        val days = (facts.map { AmbientStepsDayIdentity(requireNotNull(it.structuralEpochDay), requireNotNull(it.storedZoneId),
+        val days = (facts.map { AmbientStepsDayIdentity(requireNotNull(it.structuralEpochDay),
+            requireNotNull(it.storedZoneId),
             requireNotNull(it.structuralDayStartTimeMs), requireNotNull(it.structuralDayEndTimeMs)) } +
             gaps.flatMap { gap -> listOf(dayContaining(gap.gapStartTimeMs, range.viewZoneId),
                 dayContaining(gap.gapEndTimeMs - 1L, range.viewZoneId)) }).distinct()
-        if (days.isEmpty()) return emptyMap()
-        val read = NativeAmbientStepsRangeReader(database).readSelected(AmbientStepsRequestedRange(days), evidence, facts, gaps)
+        if (days.isEmpty()) {
+            return emptyMap()
+        }
+        val read = NativeAmbientStepsRangeReader(database).readSelected(AmbientStepsRequestedRange(days),
+            evidence, facts, gaps)
         if (read !is NativeAmbientStepsRangeRead.Ready) {
             if (keys.size > 1) {
                 val midpoint = (keys.size + 1) / 2
@@ -132,24 +174,53 @@ internal class MeasuredBackgroundStepsHistoryReader(private val database: AppDat
                     isolatedNative(keys.drop(midpoint), evidence, range, problems)
             }
             problems += problem(if (read is NativeAmbientStepsRangeRead.DependencyOverflow)
-                HistoryProblemReason.DEPENDENCY_OVERFLOW else HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+                {
+                HistoryProblemReason.DEPENDENCY_OVERFLOW
+            } else {
+                HistoryProblemReason.INTEGRITY_UNAVAILABLE
+            })
             return emptyMap()
         }
-        if (read.unverifiableDays.isNotEmpty()) problems += problem(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+        if (read.unverifiableDays.isNotEmpty()) {
+            problems += problem(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+        }
         val accepted = linkedMapOf<HistoryPosition, UnifiedHistoryRow>()
-        for (fact in read.factsByDay.values.flatten()) {
-            val key = factKeys.singleOrNull { it.factId == fact.logicalFactId && it.factRevision == fact.correctionRevision } ?: continue
+        appendNativeCounts(read.factsByDay.values.flatten(), factKeys, range, accepted)
+        appendNativeGaps(read.qualifiedMeasuredGaps, gapKeys, range, accepted)
+        return accepted
+    }
+
+    private fun appendNativeCounts(
+        facts: List<QualifiedAmbientStepsFact>,
+        keys: List<MeasuredHistoryCandidate>,
+        range: HistoryRange,
+        accepted: MutableMap<HistoryPosition, UnifiedHistoryRow>,
+    ) {
+        for (fact in facts) {
+            val key = keys.singleOrNull { it.factId == fact.logicalFactId &&
+                it.factRevision == fact.correctionRevision } ?: continue
             check(key.identity == framed(fact.logicalFactId, fact.correctionRevision.toString()))
             check(key.startTimeMs == fact.startTimeMs && key.endTimeMs == fact.endTimeMs)
-            if (overlaps(key, range)) accepted[measuredHistoryPosition(key)] = countRow(key, fact.stepCount)
+            if (overlaps(key, range)) {
+                accepted[measuredHistoryPosition(key)] = countRow(key, fact.stepCount)
+            }
         }
-        for (gap in read.qualifiedMeasuredGaps) {
-            val key = gapKeys.singleOrNull { it.factId == gap.gapId && it.startTimeMs == gap.gapStartTimeMs &&
+    }
+
+    private fun appendNativeGaps(
+        gaps: List<AmbientStepsEffectiveGapInterval>,
+        keys: List<MeasuredHistoryCandidate>,
+        range: HistoryRange,
+        accepted: MutableMap<HistoryPosition, UnifiedHistoryRow>,
+    ) {
+        for (gap in gaps) {
+            val key = keys.singleOrNull { it.factId == gap.gapId && it.startTimeMs == gap.gapStartTimeMs &&
                 it.endTimeMs == gap.gapEndTimeMs } ?: continue
             check(key.identity == framed(gap.gapId, gap.gapStartTimeMs.toString(), gap.gapEndTimeMs.toString()))
-            if (overlaps(key, range)) accepted[measuredHistoryPosition(key)] = gapRow(key, gap.reason)
+            if (overlaps(key, range)) {
+                accepted[measuredHistoryPosition(key)] = gapRow(key, gap.reason)
+            }
         }
-        return accepted
     }
 
     private suspend fun imported(keys: List<MeasuredHistoryCandidate>, evidence: SourceEvidenceState,
@@ -164,32 +235,70 @@ internal class MeasuredBackgroundStepsHistoryReader(private val database: AppDat
             evidence, setOf(parent), selectedMeasurements = true)
         if (read !is ImportedAmbientStepsRangeRead.Ready) {
             problems += problem(if (read is ImportedAmbientStepsRangeRead.DependencyOverflow)
-                HistoryProblemReason.DEPENDENCY_OVERFLOW else HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+                {
+                HistoryProblemReason.DEPENDENCY_OVERFLOW
+            } else {
+                HistoryProblemReason.INTEGRITY_UNAVAILABLE
+            })
             return emptyMap()
         }
         val accepted = linkedMapOf<HistoryPosition, UnifiedHistoryRow>()
-        for (fact in read.factsByDay.values.flatten()) {
+        appendImportedCounts(parent, keys, read.factsByDay.values.flatten(), evidence.retainedFromMs, range, accepted)
+        appendImportedGaps(parent, header.importRevision, keys, read.measuredGapsByDay.values.flatten(),
+            evidence.retainedFromMs, range, accepted)
+        return accepted
+    }
+
+    private fun appendImportedCounts(
+        parent: String,
+        keys: List<MeasuredHistoryCandidate>,
+        facts: List<QualifiedAmbientStepsFact>,
+        retainedFromMs: Long?,
+        range: HistoryRange,
+        accepted: MutableMap<HistoryPosition, UnifiedHistoryRow>,
+    ) {
+        for (fact in facts) {
             val key = keys.singleOrNull { it.kind == "imported_ambient_steps" && it.factId == fact.logicalFactId &&
                 it.factRevision == fact.correctionRevision } ?: continue
             check(key.identity == framed(parent, fact.correctionRevision.toString(), fact.logicalFactId))
             check(key.startTimeMs == fact.startTimeMs && key.endTimeMs == fact.endTimeMs)
-            if (evidence.retainedFromMs?.let { fact.startTimeMs < it } != true && overlaps(key, range))
+            if (retainedFromMs?.let { fact.startTimeMs < it } != true && overlaps(key, range))
+                {
                 accepted[measuredHistoryPosition(key)] = countRow(key, fact.stepCount)
+            }
         }
-        for (gap in read.measuredGapsByDay.values.flatten()) {
-            val start = maxOf(gap.intervalStartTimeMs, evidence.retainedFromMs ?: gap.intervalStartTimeMs)
-            val key = keys.singleOrNull { it.kind == "imported_ambient_steps_gap" && it.factId == gap.identity.value &&
-                it.factRevision == header.importRevision } ?: continue
-            check(key.identity == framed(parent, header.importRevision.toString(), gap.identity.value))
-            check(key.startTimeMs == start && key.endTimeMs == gap.intervalEndTimeMs)
-            if (start < gap.intervalEndTimeMs && overlaps(key, range))
-                accepted[measuredHistoryPosition(key)] = gapRow(key, gap.reason.name)
-        }
-        return accepted
     }
 
-    private suspend fun selectedNativeGaps(keys: List<MeasuredHistoryCandidate>): List<AmbientStepsEffectiveGapInterval> {
-        if (keys.isEmpty()) return emptyList()
+    // Keep original parent, revision, keys, retained gaps and output explicit without a new authority carrier.
+    @Suppress("LongParameterList")
+    private fun appendImportedGaps(
+        parent: String,
+        revision: Long,
+        keys: List<MeasuredHistoryCandidate>,
+        gaps: List<PortableAmbientStepsGapV1>,
+        retainedFromMs: Long?,
+        range: HistoryRange,
+        accepted: MutableMap<HistoryPosition, UnifiedHistoryRow>,
+    ) {
+        for (gap in gaps) {
+            val start = maxOf(gap.intervalStartTimeMs, retainedFromMs ?: gap.intervalStartTimeMs)
+            val key = keys.singleOrNull { it.kind == "imported_ambient_steps_gap" && it.factId == gap.identity.value &&
+                it.factRevision == revision } ?: continue
+            check(key.identity == framed(parent, revision.toString(), gap.identity.value))
+            check(key.startTimeMs == start && key.endTimeMs == gap.intervalEndTimeMs)
+            if (start < gap.intervalEndTimeMs && overlaps(key, range))
+                {
+                accepted[measuredHistoryPosition(key)] = gapRow(key, gap.reason.name)
+            }
+        }
+    }
+
+    private suspend fun selectedNativeGaps(
+        keys: List<MeasuredHistoryCandidate>,
+    ): List<AmbientStepsEffectiveGapInterval> {
+        if (keys.isEmpty()) {
+            return emptyList()
+        }
         val ids = keys.map { requireNotNull(it.factId) }.distinct()
         val arguments = mutableListOf<Any>().apply { addAll(ids) }
         val exact = keys.joinToString(" OR ") { key ->
@@ -203,19 +312,30 @@ internal class MeasuredBackgroundStepsHistoryReader(private val database: AppDat
     }
 
     private fun countRow(key: MeasuredHistoryCandidate, count: Long) = row(key, HistoryMeasurement.Steps(StepsHistory(
-        count, if (key.origin == "IMPORTED") HistoryAvailability.RETAINED_IMPORTED else HistoryAvailability.AVAILABLE,
-        if (count == 0L) HistoryEvidence.ACTIVE else HistoryEvidence.RECORDED,
+        count, if (key.origin == "IMPORTED") {
+            HistoryAvailability.RETAINED_IMPORTED
+        } else {
+            HistoryAvailability.AVAILABLE
+        },
+        if (count == 0L) {
+            HistoryEvidence.ACTIVE
+        } else {
+            HistoryEvidence.RECORDED
+        },
         HistoryProductState.READY, StepsHistoryCoverage.COMPLETE)))
 
-    private fun gapRow(key: MeasuredHistoryCandidate, reason: String) = row(key, HistoryMeasurement.Gap(HistorySource.STEPS, reason))
+    private fun gapRow(key: MeasuredHistoryCandidate, reason: String) = row(key,
+        HistoryMeasurement.Gap(HistorySource.STEPS, reason))
     private fun row(key: MeasuredHistoryCandidate, measurement: HistoryMeasurement) = UnifiedHistoryRow(
-        measuredHistoryPosition(key), key.endTimeMs, setOf(HistoryOrigin.valueOf(key.origin)), HistoryPurpose.BACKGROUND,
+        measuredHistoryPosition(key), key.endTimeMs, setOf(HistoryOrigin.valueOf(key.origin)),
+            HistoryPurpose.BACKGROUND,
         sections = emptyList(), measurement = measurement)
     private fun overlaps(key: MeasuredHistoryCandidate, range: HistoryRange) =
         key.startTimeMs < range.toExclusiveMs && requireNotNull(key.endTimeMs) > range.fromInclusiveMs
     private fun problem(reason: HistoryProblemReason) = HistoryProblem(HistorySource.STEPS, reason)
     private fun framed(vararg values: String) = values.joinToString("") { "${it.length}:$it" }
-    private fun sqlFrame(vararg values: String) = values.joinToString(" || ") { "length(CAST($it AS TEXT)) || ':' || CAST($it AS TEXT)" }
+    private fun sqlFrame(vararg values: String) =
+        values.joinToString(" || ") { "length(CAST($it AS TEXT)) || ':' || CAST($it AS TEXT)" }
     private fun dayContaining(timeMs: Long, zoneId: String): AmbientStepsDayIdentity {
         val zone = ZoneId.of(zoneId)
         val date = Instant.ofEpochMilli(timeMs).atZone(zone).toLocalDate()
@@ -248,11 +368,27 @@ internal class MeasuredBackgroundStepsHistoryReader(private val database: AppDat
     """.trimIndent()
 
     private fun importedSql(gaps: Boolean): String {
-        val table = if (gaps) "imported_ambient_steps_gap" else "imported_ambient_steps_fact"
-        val id = if (gaps) "gap_identity" else "fact_identity"
-        val kind = if (gaps) "imported_ambient_steps_gap" else "imported_ambient_steps"
-        val start = if (gaps) "MAX(item.interval_start_time_ms, COALESCE((SELECT retained_from_ms FROM source_evidence_state WHERE id = 1), item.interval_start_time_ms))"
-            else "item.interval_start_time_ms"
+        val table = if (gaps) {
+            "imported_ambient_steps_gap"
+        } else {
+            "imported_ambient_steps_fact"
+        }
+        val id = if (gaps) {
+            "gap_identity"
+        } else {
+            "fact_identity"
+        }
+        val kind = if (gaps) {
+            "imported_ambient_steps_gap"
+        } else {
+            "imported_ambient_steps"
+        }
+        val start = if (gaps) {
+            "MAX(item.interval_start_time_ms, COALESCE((SELECT retained_from_ms FROM source_evidence_state WHERE id = 1), item.interval_start_time_ms))"
+        }
+            else {
+            "item.interval_start_time_ms"
+        }
         return """
             SELECT '$kind' AS kind, 'IMPORTED' AS origin, 'BACKGROUND' AS purpose,
                 ${sqlFrame("header.day_identity", "header.import_revision", "item.$id")} AS identity,
@@ -298,4 +434,13 @@ internal class MeasuredBackgroundStepsHistoryReader(private val database: AppDat
             > boundary.boundary_time_ms AND fact.window_end_time_ms > gap.gap_start_time_ms AND fact.window_start_time_ms <
             gap.gap_end_time_ms)
     """.trimIndent()
+}
+
+private const val MAX_MEASURED_STEPS_CANDIDATES = 100
+
+/** Both parent and isolated-leaf reads distinguish malformed evidence from storage failure. */
+private fun Exception.measuredStepsProblemReason(): HistoryProblemReason = when (this) {
+    is IllegalArgumentException, is IllegalStateException, is ArithmeticException ->
+        HistoryProblemReason.INTEGRITY_UNAVAILABLE
+    else -> HistoryProblemReason.STORAGE_UNAVAILABLE
 }

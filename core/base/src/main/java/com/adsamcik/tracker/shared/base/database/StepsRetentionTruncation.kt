@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.shared.base.database
 
+import com.adsamcik.tracker.shared.base.database.dao.StepsFactCandidateState
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.dao.StepsFactCandidateIdentity
 import com.adsamcik.tracker.shared.base.database.dao.hasValidStepsFactCandidateState
@@ -128,29 +129,7 @@ suspend fun AppDatabase.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(
 				}
 				.forEach { (writer, facts) ->
 					facts.chunked(RETENTION_FACT_DELETE_BATCH_SIZE).forEach { batch ->
-						val countDomainOwners = batch.map { fact ->
-							StepsCountDomainOwnerLookupKey(
-								ownerKind =
-									StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
-								ownerIdentity = StepsCountDomainReceiptIntegrity
-									.sessionFactOwnerIdentity(
-										fact.writerProjectionId,
-										fact.writerProjectionVersion,
-										fact.logicalFactId,
-									),
-								ownerRevision = fact.semanticRevision,
-							)
-						}
-						countDomainOwners.chunked(COUNT_DOMAIN_OWNER_BATCH_SIZE).forEach { owners ->
-							countDomainStore.withOwnerMaintenance { maintenance ->
-								check(
-									maintenance.removeOwners(owners).let { result ->
-										result is StepsCountDomainMaintenanceResult.Applied ||
-											result == StepsCountDomainMaintenanceResult.SchemaUnavailable
-									},
-								) { "Steps count-domain retention evidence could not be removed" }
-							}
-						}
+						removeStepsRetentionCountDomainOwners(countDomainStore, batch)
 						val deletedBatch = factDao.deleteAuthenticatedUpsertRevisions(
 							writerProjectionId = writer.first,
 							writerProjectionVersion = writer.second,
@@ -168,6 +147,35 @@ suspend fun AppDatabase.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(
 	val changed = deleted + pruneImportedStepsRetentionFloor(beforeMs, markedAtMs)
 	enqueueAllStepsGoalRepairs()
 	changed
+}
+
+private suspend fun removeStepsRetentionCountDomainOwners(
+	countDomainStore: StepsCountDomainStore,
+	batch: List<StepFactRevisionEntity>,
+) {
+	val countDomainOwners = batch.map { fact ->
+		StepsCountDomainOwnerLookupKey(
+			ownerKind =
+				StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
+			ownerIdentity = StepsCountDomainReceiptIntegrity
+				.sessionFactOwnerIdentity(
+					fact.writerProjectionId,
+					fact.writerProjectionVersion,
+					fact.logicalFactId,
+				),
+			ownerRevision = fact.semanticRevision,
+		)
+	}
+	countDomainOwners.chunked(COUNT_DOMAIN_OWNER_BATCH_SIZE).forEach { owners ->
+		countDomainStore.withOwnerMaintenance { maintenance ->
+			check(
+				maintenance.removeOwners(owners).let { result ->
+					result is StepsCountDomainMaintenanceResult.Applied ||
+						result == StepsCountDomainMaintenanceResult.SchemaUnavailable
+				},
+			) { "Steps count-domain retention evidence could not be removed" }
+		}
+	}
 }
 
 private suspend fun AppDatabase.requireCurrentCollectedDataEpoch(expectedEpoch: Long) {
@@ -212,31 +220,9 @@ private suspend fun AppDatabase.visitAuthenticatedRetentionRunBatches(
 		}
 		historyDao.visitStepsFactCandidateStatesByRun(builders.values.map { it.serviceRun }) {
 			serviceRunId, identity, candidate ->
-			val builder = builders.getValue(serviceRunId)
-			val scope = candidate.scopeCarrier
-			val state = candidate.state
-			if (!hasValidStepsFactCandidateState(candidate) || scope == null || state == null ||
-				scope.logicalTrackingId != builder.serviceRun.logicalTrackingId ||
-				scope.serviceRunId != builder.serviceRun.serviceRunId ||
-				scope.collectedDataEpoch != collectedDataEpoch ||
-				state.collectedDataEpoch != collectedDataEpoch ||
-				identity.writerProjectionVersion != scope.writerProjectionVersion.toLong()
-			) {
-				builder.hasInvalidCandidate = true
-				return@visitStepsFactCandidateStatesByRun true
-			}
-			builder.authenticatedFacts[identity] = scope
-			if (CanonicalRetentionBounds.stepsWindowCrossesFloor(
-					scope.intervalEndTimeMs,
-					beforeMs,
-				)
-			) {
-				builder.expiredFactIdentities += identity
-				if (state.operation == StepFactRevisionEntity.OPERATION_UPSERT) {
-					builder.requiresRetentionMarker = true
-				}
-			}
-			true
+			builders.getValue(serviceRunId).includeRetentionCandidate(
+				identity, candidate, collectedDataEpoch, beforeMs,
+			)
 		}
 		val affectedRuns = builders.values.map(AuthenticatedRetentionRunBuilder::validated)
 		visit(affectedRuns)
@@ -336,6 +322,44 @@ private class AuthenticatedRetentionRunBuilder(val serviceRun: SourceServiceRunE
 	val expiredFactIdentities = linkedSetOf<StepsFactCandidateIdentity>()
 	var hasInvalidCandidate = false
 	var requiresRetentionMarker = false
+
+	fun includeRetentionCandidate(
+		identity: StepsFactCandidateIdentity,
+		candidate: StepsFactCandidateState,
+		collectedDataEpoch: Long,
+		beforeMs: Long,
+	): Boolean {
+		val scope = candidate.scopeCarrier
+		val state = candidate.state
+		if (!hasValidStepsFactCandidateState(candidate) || scope == null || state == null ||
+			scope.hasMismatchedRetentionScope(identity, state, collectedDataEpoch)
+		) {
+			hasInvalidCandidate = true
+			return true
+		}
+		authenticatedFacts[identity] = scope
+		if (CanonicalRetentionBounds.stepsWindowCrossesFloor(
+				scope.intervalEndTimeMs,
+				beforeMs,
+			)
+		) {
+			expiredFactIdentities += identity
+			if (state.operation == StepFactRevisionEntity.OPERATION_UPSERT) {
+				requiresRetentionMarker = true
+			}
+		}
+		return true
+	}
+
+	private fun StepFactRevisionEntity.hasMismatchedRetentionScope(
+		identity: StepsFactCandidateIdentity,
+		state: StepFactRevisionEntity,
+		collectedDataEpoch: Long,
+	): Boolean = logicalTrackingId != serviceRun.logicalTrackingId ||
+		serviceRunId != serviceRun.serviceRunId ||
+		this.collectedDataEpoch != collectedDataEpoch ||
+		state.collectedDataEpoch != collectedDataEpoch ||
+		identity.writerProjectionVersion != writerProjectionVersion.toLong()
 
 	fun validated(): AuthenticatedRetentionRun {
 		check(!hasInvalidCandidate) {

@@ -96,11 +96,14 @@ class ImportWorker @AssistedInject constructor(
 			is TrackingStartupResult.Ready -> Unit
 			is TrackingStartupResult.RetryableFailure -> return Result.retry()
 			is TrackingStartupResult.Blocked -> {
-				showErrorNotification("Import unavailable until tracking data recovery is complete.", allowBeforeReady = true)
+				showErrorNotification("Import unavailable until tracking data recovery is complete.", allowBeforeReady =
+                    true)
 				return Result.failure()
 			}
 		}
-		if (!isReadyGeneration()) return Result.success()
+		if (!trackingStartupGate.isImportGenerationReady(startupGeneration)) {
+			return Result.success()
+		}
 		if (!isCurrentDataEpoch()) {
 			showErrorNotification(context.getString(R.string.import_cleared_error))
 			return Result.failure()
@@ -112,7 +115,9 @@ class ImportWorker @AssistedInject constructor(
 
 	private suspend fun runAdmittedImport(file: DocumentFile): Result {
 		database = databaseProvider.get()
-		if (!isReadyGeneration()) return Result.success()
+		if (!trackingStartupGate.isImportGenerationReady(startupGeneration)) {
+			return Result.success()
+		}
 		importJobRunner = ImportJobRunner(
 			receiptStore = RoomImportReceiptStore(database),
 			verifyCollectedDataAccess = ::requireCurrentImportAuthority,
@@ -125,15 +130,10 @@ class ImportWorker @AssistedInject constructor(
 		)
 
 		return try {
-			val fileName = file.name ?: throw IOException("Missing import file name")
-			if (file.extension.equals(SessionBundleManifestCodecV1.EXTENSION, ignoreCase = true)) {
-				SessionBundleStager().stageSource(context, file).use { source ->
-					importPickedFile(source.document, fileName)
-				}
-			} else importPickedFile(file, fileName)
+			importSourceDocument(file)
 		} catch (e: CancellationException) {
 			throw e
-		} catch (_: StartupGenerationChangedException) {
+		} catch (_: ImportWorkerStartupGenerationChangedException) {
 			Result.success()
 		} catch (_: ImportDataEpochChangedException) {
 			showErrorNotification(context.getString(R.string.import_cleared_error))
@@ -153,6 +153,17 @@ class ImportWorker @AssistedInject constructor(
 		}
 	}
 
+	private suspend fun importSourceDocument(file: DocumentFile): Result {
+		val fileName = file.name ?: throw IOException("Missing import file name")
+		return if (file.extension.equals(SessionBundleManifestCodecV1.EXTENSION, ignoreCase = true)) {
+			SessionBundleStager().stageSource(context, file).use { source ->
+				importPickedFile(source.document, fileName)
+			}
+		} else {
+			importPickedFile(file, fileName)
+		}
+	}
+
 	/** Session job identity and dispatch use the same owned copy; ordinary source imports retain their flow. */
 	private suspend fun importPickedFile(file: DocumentFile, fileName: String): Result {
 		val importContext = currentCoroutineContext()
@@ -161,7 +172,7 @@ class ImportWorker @AssistedInject constructor(
 		}
 		requireCurrentImportAuthority()
 		if (!importJobRunner.start(jobId, fileName, file.length())) {
-			showNotification(buildNotificationText(ImportResult(skippedCount = 1)), false)
+			showNotification(context.buildNotificationText(ImportResult(skippedCount = 1)), false)
 			return Result.success()
 		}
 		val result = handleFile(file, jobId)
@@ -171,7 +182,7 @@ class ImportWorker @AssistedInject constructor(
 	}
 
 	private fun finishImport(importResult: ImportResult): Result {
-		showNotification(buildNotificationText(importResult), false)
+		showNotification(context.buildNotificationText(importResult), false)
 		if (importResult.failedCount > 0) {
 			showErrorNotification(
 				importResult.errors.singleOrNull()
@@ -187,40 +198,17 @@ class ImportWorker @AssistedInject constructor(
 		return importWorkerResult(importResult)
 	}
 
-    private fun buildNotificationText(result: ImportResult): String {
-        val successCount = result.successCount
-        return if (result.skippedCount > 0) {
-            context.getString(
-                R.string.import_notification_finished_with_skipped,
-                successCount,
-                result.skippedCount
-            )
-        } else {
-            context.resources.getQuantityString(
-                R.plurals.import_notification_finished,
-                successCount,
-                successCount
-            )
-        }
-    }
-
-    private fun createNotification(text: String, inProgress: Boolean): Notification =
-        NotificationCompat.Builder(
-            context,
-            context.getString(com.adsamcik.tracker.shared.base.R.string.channel_other_id)
-        )
-            .setSmallIcon(com.adsamcik.tracker.shared.base.R.drawable.ic_signals)
-            .setOngoing(inProgress)
-            .setContentTitle(text)
-            .build()
-
     @AnyThread
     private fun showNotification(text: String, inProgress: Boolean) {
         runCatchingCancellable {
-            val notification = createNotification(text, inProgress)
-            if (startupGeneration < 0L) notificationManager.notify(NOTIFICATION_ID, notification)
-            else trackingStartupGate.withRetainedDataGeneration(startupGeneration) {
+            val notification = context.createNotification(text, inProgress)
+            if (startupGeneration < 0L) {
                 notificationManager.notify(NOTIFICATION_ID, notification)
+            }
+            else {
+                trackingStartupGate.withRetainedDataGeneration(startupGeneration) {
+                notificationManager.notify(NOTIFICATION_ID, notification)
+            }
             }
         }.getOrNull()
     }
@@ -228,11 +216,14 @@ class ImportWorker @AssistedInject constructor(
     @AnyThread
     private fun showErrorNotification(text: String, allowBeforeReady: Boolean = false) {
         runCatchingCancellable {
-            val notification = createNotification(text, false)
-            if (allowBeforeReady || startupGeneration < 0L)
+            val notification = context.createNotification(text, false)
+            if (allowBeforeReady || startupGeneration < 0L) {
                 notificationManager.notify(NOTIFICATION_ERROR_BASE_ID + errorCount++, notification)
-            else trackingStartupGate.withRetainedDataGeneration(startupGeneration) {
+            }
+            else {
+                trackingStartupGate.withRetainedDataGeneration(startupGeneration) {
                 notificationManager.notify(NOTIFICATION_ERROR_BASE_ID + errorCount++, notification)
+            }
             }
         }.getOrNull()
     }
@@ -295,17 +286,6 @@ class ImportWorker @AssistedInject constructor(
         }
     }
 
-	private fun importerFor(stream: FileImportStream): FileImport? =
-		importerForFileName(stream.fileName)
-
-	private fun isImportableEntry(entry: ArchiveEntryMetadata): Boolean =
-		importerForFileName(entry.fileName) != null
-
-	private fun importerForFileName(fileName: String): FileImport? =
-		FormatRegistry.importerForExtension(
-			fileName.substringAfterLast('.', "").lowercase(Locale.ROOT),
-		)
-
     @WorkerThread
     private suspend fun import(
         stream: FileImportStream,
@@ -317,7 +297,7 @@ class ImportWorker @AssistedInject constructor(
         )
 
         return runCatchingCancellable {
-			requireReadyGeneration()
+			trackingStartupGate.requireImportGenerationReady(startupGeneration)
             try {
                 import.import(context, database, stream)
             } catch (e: SQLiteCantOpenDatabaseException) {
@@ -333,29 +313,10 @@ class ImportWorker @AssistedInject constructor(
     }
 
     private suspend fun handleFile(file: DocumentFile, jobId: String): ImportResult {
-		requireReadyGeneration()
+		trackingStartupGate.requireImportGenerationReady(startupGeneration)
         val extension = file.extension?.lowercase(Locale.ROOT)
 		if (extension == SessionBundleManifestCodecV1.EXTENSION) {
-			return try { SessionBundleStager().stage(context, file).use { bundle ->
-				var prepared: PreparedSessionBundleMetadata? = null
-				requireCurrentImportAuthority()
-				importJobRunner.importSessionBundle(jobId, bundle,
-					transactionModeForChild = { child -> importerFor(child)?.transactionMode
-						?: throw InvalidSessionBundle("Unsupported session source file") },
-					importChild = ::tryImport,
-					importMetadata = {
-						requireCurrentImportAuthority()
-						SessionBundleMetadataImport.publish(database, jobId, originalDataEpoch,
-							System.currentTimeMillis(), checkNotNull(prepared))
-							.also { requireCurrentImportAuthority() }
-					}, prepareMetadata = {
-						requireCurrentImportAuthority()
-						prepared = SessionBundleMetadataImport.prepare(context, bundle)
-						requireCurrentImportAuthority()
-					})
-			} } catch (failure: SQLiteException) {
-				throw IOException("Session import storage is temporarily unavailable", failure)
-			}
+			return importSessionBundle(file, jobId)
 		}
         val extractor = import.activeArchiveExtractorList
             .find { it.supportedExtensions.contains(extension) }
@@ -363,37 +324,59 @@ class ImportWorker @AssistedInject constructor(
         return if (extractor != null) {
             extract(file, extractor, jobId)
         } else {
-            val fileName = file.name ?: throw IOException("Missing import file name")
-            file.openInputStream(context)?.use { inputStream ->
-                importJobRunner.importSingle(
-                    jobId = jobId,
-                    stream = FileImportStream(
-                        fileName = fileName,
-                        receiptKey = DIRECT_ENTRY_KEY,
-                        streamProvider = { inputStream },
-                    ).also { stream -> inputData.locationFileReview()?.let(stream::withLocationReview) },
+            importSingleFile(file, jobId)
+        }
+    }
+
+	private suspend fun importSessionBundle(file: DocumentFile, jobId: String): ImportResult {
+		return try { SessionBundleStager().stage(context, file).use { bundle ->
+			var prepared: PreparedSessionBundleMetadata? = null
+			requireCurrentImportAuthority()
+			importJobRunner.importSessionBundle(jobId, bundle,
+				transactionModeForChild = { child -> importerFor(child)?.transactionMode
+					?: throw InvalidSessionBundle("Unsupported session source file") },
+				importChild = ::tryImport,
+				importMetadata = {
+					requireCurrentImportAuthority()
+					SessionBundleMetadataImport.publish(database, jobId, originalDataEpoch,
+						System.currentTimeMillis(), checkNotNull(prepared))
+						.also { requireCurrentImportAuthority() }
+				}, prepareMetadata = {
+					requireCurrentImportAuthority()
+					prepared = SessionBundleMetadataImport.prepare(context, bundle)
+					requireCurrentImportAuthority()
+				})
+		} } catch (failure: SQLiteException) {
+			throw IOException("Session import storage is temporarily unavailable", failure)
+		}
+	}
+
+	private suspend fun importSingleFile(file: DocumentFile, jobId: String): ImportResult {
+    val fileName = file.name ?: throw IOException("Missing import file name")
+    return file.openInputStream(context)?.use { inputStream ->
+        importJobRunner.importSingle(
+            jobId = jobId,
+            stream = FileImportStream(
+                fileName = fileName,
+                receiptKey = DIRECT_ENTRY_KEY,
+                streamProvider = { inputStream },
+            ).also { stream -> inputData.locationFileReview()?.let(stream::withLocationReview) },
 					transactionMode = FormatRegistry.importerForExtension(
 						fileName.substringAfterLast('.', "").lowercase(Locale.ROOT),
 					)?.transactionMode ?: ImportTransactionMode.WORKER_MANAGED,
-                    importEntry = ::tryImport,
-                )
-            } ?: throw IOException("Failed to open ${fileName}")
-        }
-    }
+            importEntry = ::tryImport,
+        )
+    } ?: throw IOException("Failed to open ${fileName}")
+	}
 
 	private suspend fun isCurrentDataEpoch(): Boolean =
 		collectedDataLifecycleStore.snapshot().epoch == originalDataEpoch
 
-	private fun isReadyGeneration(): Boolean =
-		trackingStartupGate.withRetainedDataGeneration(startupGeneration) { true } == true
-
-	private fun requireReadyGeneration() {
-		if (!isReadyGeneration()) throw StartupGenerationChangedException
-	}
-
 	private suspend fun requireCurrentImportAuthority() {
-		requireReadyGeneration()
-		if (!isCurrentDataEpoch()) throw ImportDataEpochChangedException
+		trackingStartupGate.requireImportGenerationReady(startupGeneration)
+		if (!isCurrentDataEpoch()) {
+			throw ImportDataEpochChangedException
+		}
 	}
 
     companion object {
@@ -404,7 +387,6 @@ class ImportWorker @AssistedInject constructor(
         private const val DIRECT_ENTRY_KEY: String = "direct-source-v1"
     }
 
-	private object StartupGenerationChangedException : RuntimeException()
 	private object ImportDataEpochChangedException : RuntimeException()
 
 }
@@ -431,8 +413,11 @@ internal fun importWorkerResult(result: ImportResult): ListenableWorker.Result =
 		ListenableWorker.Result.success()
 	}
 
+// Fixed format-to-existing-size-limit mapping; unknown extensions retain the existing default.
+@Suppress("CyclomaticComplexMethod")
 internal fun importSourceReadLimit(extension: String?): Long = when {
-	extension.equals(SessionBundleManifestCodecV1.EXTENSION, ignoreCase = true) -> SessionBundleManifestCodecV1.MAX_ARCHIVE_BYTES
+	extension.equals(SessionBundleManifestCodecV1.EXTENSION, ignoreCase = true) ->
+        SessionBundleManifestCodecV1.MAX_ARCHIVE_BYTES
 	extension.equals("zip", ignoreCase = true) -> ZipArchiveExtractor.MAX_COMPRESSED_INPUT_BYTES
 	extension.equals(PortableStepsFileImport.EXTENSION, ignoreCase = true) ->
 		PortableStepsFileImport.MAX_FILE_BYTES
@@ -449,3 +434,59 @@ internal fun importSourceReadLimit(extension: String?): Long = when {
 		com.adsamcik.tracker.impexp.portable.LocationFileJsonV1.MAX_FILE_BYTES
 	else -> Long.MAX_VALUE
 }
+
+private fun Context.buildNotificationText(result: ImportResult): String {
+    val successCount = result.successCount
+    return if (result.skippedCount > 0) {
+        this.getString(
+            R.string.import_notification_finished_with_skipped,
+            successCount,
+            result.skippedCount
+        )
+    } else {
+        this.resources.getQuantityString(
+            R.plurals.import_notification_finished,
+            successCount,
+            successCount
+        )
+    }
+}
+
+
+private fun Context.createNotification(text: String, inProgress: Boolean): Notification =
+    NotificationCompat.Builder(
+        this,
+        this.getString(com.adsamcik.tracker.shared.base.R.string.channel_other_id)
+    )
+        .setSmallIcon(com.adsamcik.tracker.shared.base.R.drawable.ic_signals)
+        .setOngoing(inProgress)
+        .setContentTitle(text)
+        .build()
+
+
+private fun importerFor(stream: FileImportStream): FileImport? =
+	importerForFileName(stream.fileName)
+
+
+private fun isImportableEntry(entry: ArchiveEntryMetadata): Boolean =
+	importerForFileName(entry.fileName) != null
+
+
+private fun importerForFileName(fileName: String): FileImport? =
+	FormatRegistry.importerForExtension(
+		fileName.substringAfterLast('.', "").lowercase(Locale.ROOT),
+	)
+
+
+private fun TrackingStartupGate.isImportGenerationReady(generation: Long): Boolean =
+	withRetainedDataGeneration(generation) { true } == true
+
+
+private fun TrackingStartupGate.requireImportGenerationReady(generation: Long) {
+	if (!isImportGenerationReady(generation)) {
+		throw ImportWorkerStartupGenerationChangedException
+	}
+}
+
+
+private object ImportWorkerStartupGenerationChangedException : RuntimeException()

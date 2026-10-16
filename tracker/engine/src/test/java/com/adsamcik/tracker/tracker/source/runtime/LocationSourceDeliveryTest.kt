@@ -312,7 +312,9 @@ class LocationSourceDeliveryTest {
 			provider = source.provider ?: "test",
 		).apply {
 			elapsedRealtimeNanos = source.elapsedRealtimeNanos
-			if (source.isMockProviderEvidence()) isMock = true
+			if (source.isMockProviderEvidence()) {
+				isMock = true
+			}
 		}
 
 	private fun deviceState(

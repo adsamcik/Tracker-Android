@@ -40,4 +40,23 @@
     <string name="format_database">Databasesikkerhedskopi (ZIP)</string>
     <string name="settings_import_summary">Importér data fra understøttede typer (%1$s) og arkiver (%2$s). Databaseimporter fletter kompatible rækker; de erstatter ikke eksisterende data.</string>
     <string name="settings_import_title">Importér</string>
+    <string name="export_radio_sensitivity_title">Eksportér netværksoplysninger?</string>
+    <string name="export_wifi_sensitivity_message">Denne fil indeholder gemte Wi-Fi-navne og adgangspunkters ID\'er.</string>
+    <string name="export_cell_sensitivity_message">Denne fil indeholder gemte mobilmasters ID\'er og signalmålinger.</string>
+    <string name="export_radio_no_data">Ingen gemte data for denne kilde</string>
+    <string name="export_include_complete_sessions">Medtag hele sessioner</string>
+    <string name="import_location_conflict_title">Erstat gemte punkter?</string>
+    <string name="import_location_replace">Brug filens punkter</string>
+    <string name="import_location_keep">Behold gemte punkter</string>
+    <string name="export_backup_review_title">Gennemgå planlagte sikkerhedskopier</string>
+    <string name="export_backup_review_summary">Sat på pause, indtil du har gennemgået den opdaterede datasikkerhedskopi.</string>
+    <string name="export_backup_review_message">Disse planer sikkerhedskopierer nu alle gemte sporingsdata og de filer, der kræves for at gendanne dem. Indstillinger medtages ikke. Genoptag disse planer?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Genoptag sikkerhedskopiering</string>
+    <string name="import_backup_replace_title">Gendan datasikkerhedskopi?</string>
+    <string name="import_backup_replace_message">Erstat gemte data med denne sikkerhedskopi? Dine indstillinger forbliver de samme. Sporing er slået fra, indtil du genoptager den.</string>
+    <string name="import_backup_restore">Erstat data</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d punkt i denne fil er forskelligt fra den gemte kopi. Vælg, hvilket du vil beholde. Andre punkter importeres som normalt.</item>
+        <item quantity="other">%d punkter i denne fil er forskellige fra deres gemte kopier. Vælg, hvilke du vil beholde. Andre punkter importeres som normalt.</item>
+    </plurals>
 </resources>

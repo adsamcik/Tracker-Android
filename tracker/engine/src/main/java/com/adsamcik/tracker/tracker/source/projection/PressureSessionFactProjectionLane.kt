@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLan
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
@@ -467,7 +468,8 @@ class PressureSessionFactProjectionLane private constructor(
 		val binding = executableLaneCatalog.bindingFor(lane) ?: return false
 		return binding.source == SourceKind.PRESSURE && binding.projectionId == WRITER_ID &&
 			binding.projectionVersion == WRITER_VERSION &&
-			SourceWriterGenerationContract.captureModeMaskForKnownBinding(binding.bindingGeneration) == binding.captureModeMask &&
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(binding.bindingGeneration) ==
+				binding.captureModeMask &&
 			lane.productStage in EXECUTABLE_STAGES &&
 			lane.activatedRolloutRevision > 0L &&
 			lane.activationOrdinal > 0L &&
@@ -510,6 +512,29 @@ class PressureSessionFactProjectionLane private constructor(
 	private suspend fun insertOrVerifyExactReplay(
 		candidate: PressureFactRevisionEntity,
 	): PressureFactAdmission {
+		requireNoRetainedIdentity(candidate)
+		val dao = database.pressureFactRevisionDao()
+		if (dao.insert(candidate) != INSERT_IGNORED) {
+			return PressureFactAdmission.INSERTED
+		}
+		val replay = dao.replay(
+			candidate.writerProjectionId,
+			candidate.writerProjectionVersion,
+			candidate.logicalFactId,
+			candidate.semanticRevision,
+			candidate.mutationId,
+			candidate.sourceAdmissionOrdinal,
+		)
+		if (replay == candidate) {
+			return PressureFactAdmission.EXACT_REPLAY
+		}
+		throw PressureSessionFactIdentityCollisionException(
+			admissionOrdinal = candidate.sourceAdmissionOrdinal,
+			failureCode = "PRESSURE_IDENTITY_COLLISION",
+		)
+	}
+
+	private suspend fun requireNoRetainedIdentity(candidate: PressureFactRevisionEntity) {
 		val retainedByFact = database.pressureFactRetentionAuthorityDao().get(
 			candidate.writerProjectionId,
 			candidate.writerProjectionVersion,
@@ -554,57 +579,54 @@ class PressureSessionFactProjectionLane private constructor(
 				))
 			}
 		}
+		requireNoRetainedLineage(retainedLineageKeys, candidate.sourceAdmissionOrdinal)
+	}
+
+	private suspend fun requireNoRetainedLineage(
+		retainedLineageKeys: Set<Triple<String, Int, String>>,
+		admissionOrdinal: Long,
+	) {
 		if (retainedLineageKeys.size > 1) {
 			throw PressureSessionFactIdentityCollisionException(
-				admissionOrdinal = candidate.sourceAdmissionOrdinal,
+				admissionOrdinal = admissionOrdinal,
 				failureCode = "PRESSURE_RETENTION_AUTHORITY_COLLISION",
 			)
 		}
 		if (retainedLineageKeys.isNotEmpty()) {
 			val (writerId, writerVersion, factId) = retainedLineageKeys.single()
-			val retentionAuthority = database.pressureFactRetentionAuthorityDao().get(
-				writerId,
-				writerVersion,
-				factId,
-			)
-			val revisionAuthorities = revisionDao.forLineage(
-				writerId,
-				writerVersion,
-				factId,
-				MAX_PRESSURE_RETENTION_REVISION_AUTHORITIES + 1,
-			)
-			if (retentionAuthority == null ||
-				!retentionAuthority.authenticatesRevisionAuthorities(revisionAuthorities)
-			) {
-				throw PressureSessionFactIdentityCollisionException(
-					admissionOrdinal = candidate.sourceAdmissionOrdinal,
-					failureCode = "PRESSURE_RETENTION_AUTHORITY_CORRUPT",
-				)
-			}
+			requireAuthenticRetainedLineage(writerId, writerVersion, factId, admissionOrdinal)
 			throw PressureSessionFactIdentityCollisionException(
-				admissionOrdinal = candidate.sourceAdmissionOrdinal,
+				admissionOrdinal = admissionOrdinal,
 				failureCode = "PRESSURE_RETENTION_RESURRECTION_REJECTED",
 			)
 		}
-		val dao = database.pressureFactRevisionDao()
-		if (dao.insert(candidate) != INSERT_IGNORED) {
-			return PressureFactAdmission.INSERTED
-		}
-		val replay = dao.replay(
-			candidate.writerProjectionId,
-			candidate.writerProjectionVersion,
-			candidate.logicalFactId,
-			candidate.semanticRevision,
-			candidate.mutationId,
-			candidate.sourceAdmissionOrdinal,
+	}
+
+	private suspend fun requireAuthenticRetainedLineage(
+		writerId: String,
+		writerVersion: Int,
+		factId: String,
+		admissionOrdinal: Long,
+	) {
+		val retentionAuthority = database.pressureFactRetentionAuthorityDao().get(
+			writerId,
+			writerVersion,
+			factId,
 		)
-		if (replay == candidate) {
-			return PressureFactAdmission.EXACT_REPLAY
-		}
-		throw PressureSessionFactIdentityCollisionException(
-			admissionOrdinal = candidate.sourceAdmissionOrdinal,
-			failureCode = "PRESSURE_IDENTITY_COLLISION",
+		val revisionAuthorities = database.pressureFactRetentionRevisionAuthorityDao().forLineage(
+			writerId,
+			writerVersion,
+			factId,
+			MAX_PRESSURE_RETENTION_REVISION_AUTHORITIES + 1,
 		)
+		if (retentionAuthority == null ||
+			!retentionAuthority.authenticatesRevisionAuthorities(revisionAuthorities)
+		) {
+			throw PressureSessionFactIdentityCollisionException(
+				admissionOrdinal = admissionOrdinal,
+				failureCode = "PRESSURE_RETENTION_AUTHORITY_CORRUPT",
+			)
+		}
 	}
 
 	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod")
@@ -620,15 +642,13 @@ class PressureSessionFactProjectionLane private constructor(
 			evidence.registrationPurposeEligibilityMask and
 			SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
 			evidence.logicalTrackingId == null ||
-			evidence.serviceRunId == null
+			evidence.serviceRunId == null ||
+			sessionScopeIsDeleted(evidence.logicalTrackingId.value, evidence.serviceRunId.value)
 		) {
 			return null
 		}
 		val logicalTrackingId = evidence.logicalTrackingId.value
 		val serviceRunId = evidence.serviceRunId.value
-		if (sessionScopeIsDeleted(logicalTrackingId, serviceRunId)) {
-			return null
-		}
 
 		fun poison(code: String): Nothing = throw PressureSessionFactPoisonException(
 			admissionOrdinal,
@@ -848,20 +868,7 @@ class PressureSessionFactProjectionLane private constructor(
 			admissionOrdinal,
 			code,
 		)
-		val executableBinding = binding.writerBindingGeneration?.let { generation ->
-			executableLaneCatalog.bindingFor(
-				source = SourceKind.PRESSURE,
-				bindingGeneration = generation,
-				projectionId = binding.writerProjectionId,
-				projectionVersion = binding.writerProjectionVersion,
-			)
-		} ?: poison("PRESSURE_MANIFEST_PROJECTION_MISMATCH")
-		if (executableBinding.source != SourceKind.PRESSURE || executableBinding.projectionId != WRITER_ID ||
-			executableBinding.projectionVersion != WRITER_VERSION ||
-			SourceWriterGenerationContract.captureModeMaskForKnownBinding(executableBinding.bindingGeneration) != executableBinding.captureModeMask
-		) {
-			poison("PRESSURE_MANIFEST_PROJECTION_MISMATCH")
-		}
+		val executableBinding = executablePressureBinding(binding, admissionOrdinal)
 		val mode = when (sessionMode) {
 			"MANUAL" -> CaptureReachabilityMode.MANUAL_SESSION_CAPTURE
 			"AUTOMATIC" -> CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE
@@ -871,6 +878,31 @@ class PressureSessionFactProjectionLane private constructor(
 			poison("PRESSURE_MANIFEST_CAPTURE_MODE_MISMATCH")
 		}
 	}
+
+	private fun executablePressureBinding(
+		binding: SessionManifestSourceEntity,
+		admissionOrdinal: Long,
+	): ExecutableSourceLaneBinding {
+		fun poison(): Nothing = throw PressureSessionFactPoisonException(
+			admissionOrdinal, "PRESSURE_MANIFEST_PROJECTION_MISMATCH",
+		)
+		val executableBinding = binding.writerBindingGeneration?.let { generation ->
+			executableLaneCatalog.bindingFor(
+				source = SourceKind.PRESSURE,
+				bindingGeneration = generation,
+				projectionId = binding.writerProjectionId,
+				projectionVersion = binding.writerProjectionVersion,
+			)
+		} ?: poison()
+		if (!executableBinding.isPressureProjection()) {
+			poison()
+		}
+		return executableBinding
+	}
+
+	private fun ExecutableSourceLaneBinding.isPressureProjection(): Boolean =
+		source == SourceKind.PRESSURE && projectionId == WRITER_ID && projectionVersion == WRITER_VERSION &&
+		SourceWriterGenerationContract.captureModeMaskForKnownBinding(bindingGeneration) == captureModeMask
 
 	private suspend fun sessionScopeIsDeleted(
 		logicalTrackingId: String,

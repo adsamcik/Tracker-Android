@@ -50,6 +50,12 @@ data class SourceEventRetentionScopeProofEntity(
 	@ColumnInfo(name = "effect_checksum")
 	val effectChecksum: String,
 ) {
+	/**
+	 * Checks the record's stored identity, value constraints and deterministic digest before using
+	 * retained metadata.
+	 */
+	// Checks a complete immutable retained-scope record and its deterministic identities.
+	@Suppress("CyclomaticComplexMethod")
 	fun hasValidStoredIntegrity(): Boolean =
 		sourceKind in SUPPORTED_SOURCE_KINDS &&
 			purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
@@ -70,6 +76,10 @@ data class SourceEventRetentionScopeProofEntity(
 			retainedEventAuthorityChecksum.matches(SHA_256_HEX) &&
 			effectChecksum == calculatedEffectChecksum()
 
+	/**
+	 * Returns the original session/run scope only when this retained record's capture metadata and
+	 * digest are valid; otherwise returns null.
+	 */
 	fun authenticatedCaptureScope(
 		expectedSourceKind: Int,
 		expectedCollectedDataEpoch: Long,
@@ -79,7 +89,9 @@ data class SourceEventRetentionScopeProofEntity(
 			sourceKind != expectedSourceKind ||
 			collectedDataEpoch != expectedCollectedDataEpoch ||
 			retainedEventHighWaterOrdinal <= expectedDeletedSourceEventHighWaterOrdinal
-		) return null
+		) {
+			return null
+		}
 		return RetainedCaptureScopeIdentity(
 			sourceKind = sourceKind,
 			logicalTrackingId = logicalTrackingId,
@@ -90,21 +102,35 @@ data class SourceEventRetentionScopeProofEntity(
 		).takeIf { it.isCanonicalFor(expectedSourceKind, expectedCollectedDataEpoch) }
 	}
 
+	/**
+	 * Checks that the retained event is inside this exact source/session/run scope and matches its
+	 * original policy, consent and data epoch.
+	 */
 	fun authenticatesRetainedEvent(eventProof: SourceEventRetentionProofEntity): Boolean {
-		if (!hasValidStoredIntegrity() || !eventProof.hasValidStoredIntegrity()) return false
+		if (!hasValidStoredIntegrity() || !eventProof.hasValidStoredIntegrity()) {
+			return false
+		}
 		val candidate = runCatching { create(eventProof) }.getOrNull() ?: return false
 		if (!sameScopeAuthority(candidate) ||
 			retainedEventHighWaterOrdinal < candidate.retainedEventHighWaterOrdinal
-		) return false
+		) {
+			return false
+		}
 		return retainedEventHighWaterOrdinal != candidate.retainedEventHighWaterOrdinal ||
 			retainedEventAuthorityChecksum == candidate.retainedEventAuthorityChecksum
 	}
 
+	/**
+	 * Extends the retained scope's monotonic admission/sequence bounds with a matching retained event
+	 * and recomputes its digest.
+	 */
 	fun advance(eventProof: SourceEventRetentionProofEntity): SourceEventRetentionScopeProofEntity {
 		require(hasValidStoredIntegrity())
 		val candidate = create(eventProof)
 		require(sameScopeAuthority(candidate))
-		if (candidate.retainedEventHighWaterOrdinal < retainedEventHighWaterOrdinal) return this
+		if (candidate.retainedEventHighWaterOrdinal < retainedEventHighWaterOrdinal) {
+			return this
+		}
 		if (candidate.retainedEventHighWaterOrdinal == retainedEventHighWaterOrdinal) {
 			require(
 				retainedEventAuthorityChecksum == candidate.retainedEventAuthorityChecksum,
@@ -125,6 +151,9 @@ data class SourceEventRetentionScopeProofEntity(
 			scopeDeletionGeneration == other.scopeDeletionGeneration &&
 			logicalRunScopeDigest == other.logicalRunScopeDigest
 
+	/**
+	 * Recomputes the digest from this record's persisted values for replay and corruption checks.
+	 */
 	fun calculatedEffectChecksum(): String = checksum(
 		CONTRACT,
 		sourceKind,
@@ -140,6 +169,9 @@ data class SourceEventRetentionScopeProofEntity(
 		retainedEventAuthorityChecksum,
 	)
 
+	/**
+	 * Stable persisted codes, including `CONTRACT`, and any identity-bound record factories.
+	 */
 	companion object {
 		private const val CONTRACT = "source-event-retention-scope-proof-v1"
 		private val SHA_256_HEX = Regex("[0-9a-f]{64}")
@@ -148,6 +180,10 @@ data class SourceEventRetentionScopeProofEntity(
 			SourceDestinationOwnerEntity.SOURCE_CELL,
 		)
 
+		/**
+		 * Builds a session-run scope witness from a valid retained event with explicit session-capture
+		 * membership.
+		 */
 		fun create(
 			eventProof: SourceEventRetentionProofEntity,
 		): SourceEventRetentionScopeProofEntity {
@@ -176,7 +212,11 @@ data class SourceEventRetentionScopeProofEntity(
 		private fun checksum(vararg values: Any?): String {
 			val canonical = values.joinToString(separator = "") { value ->
 				val text = value?.toString()
-				if (text == null) "-1:" else "${text.length}:$text"
+				if (text == null) {
+					"-1:"
+				} else {
+					"${text.length}:$text"
+				}
 			}
 			return MessageDigest.getInstance("SHA-256")
 				.digest(canonical.toByteArray(Charsets.UTF_8))

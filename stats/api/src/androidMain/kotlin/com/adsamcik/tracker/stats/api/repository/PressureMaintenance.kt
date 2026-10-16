@@ -22,12 +22,22 @@ data class TruncateImportedPressureRetentionRequest(
  * Pressure facts, source WAL, or session segments needed by source-local authentication.
  */
 interface TruncateImportedPressureRetention {
+	/**
+	 * Compacts imported Pressure affected by the already-published floor while rechecking source
+	 * revision and data epoch.
+	 */
 	suspend fun truncate(
 		request: TruncateImportedPressureRetentionRequest,
 	): TruncateImportedPressureRetentionResult
 }
 
+/**
+ * Outcome of compacting imported Pressure below the published floor, including removed row counts.
+ */
 sealed interface TruncateImportedPressureRetentionResult {
+	/**
+	 * Reports the number of imported entries and revision/run/window rows removed by retention.
+	 */
 	data class Truncated(
 		val entryCount: Int,
 		val revisionCount: Int,
@@ -42,26 +52,45 @@ sealed interface TruncateImportedPressureRetentionResult {
 		}
 	}
 
+	/**
+	 * No imported Pressure rows require compaction for the requested published floor.
+	 */
 	data object NoChange : TruncateImportedPressureRetentionResult
 
+	/**
+	 * The stated lifecycle, selection or privacy boundary prevents this operation from continuing.
+	 */
 	data class Blocked(
 		val reason: ImportedPressureRetentionBlockedReason,
 	) : TruncateImportedPressureRetentionResult
 
+	/**
+	 * The required stored scope or source lineage could not be verified for this operation.
+	 */
 	data class Unverifiable(
 		val reason: ImportedPressureMaintenanceUnverifiableReason,
 	) : TruncateImportedPressureRetentionResult
 
+	/**
+	 * A temporary storage or concurrent-state failure prevents completion and allows a retry.
+	 */
 	data class RetryableFailure(
 		val reason: PortablePressureTransferRetryableReason,
 	) : TruncateImportedPressureRetentionResult
 }
 
+/**
+ * Changed source evidence or stale published-retention request that prevents imported compaction.
+ */
 enum class ImportedPressureRetentionBlockedReason {
 	SOURCE_EVIDENCE_AUTHORITY_CHANGED,
 	STALE_REQUEST,
 }
 
+/**
+ * Missing or inconsistent imported lineage, partial maintenance state or exceeded dependency/value
+ * bounds.
+ */
 enum class ImportedPressureMaintenanceUnverifiableReason {
 	SOURCE_EVIDENCE_STATE_MISSING,
 	STORED_EVIDENCE_UNVERIFIABLE,
@@ -99,10 +128,21 @@ data class ErasePressureSourceRequest(
  * A whole-database clear is not a substitute for this source-specific privacy operation.
  */
 interface ErasePressureSource {
+	/**
+	 * Erases Pressure payload under the exact source lifecycle request after settling its
+	 * writer/provider barrier.
+	 */
 	suspend fun erase(request: ErasePressureSourceRequest): ErasePressureSourceResult
 }
 
+/**
+ * Outcome of source-specific Pressure erasure with separate local, legacy and imported payload
+ * counts.
+ */
 sealed interface ErasePressureSourceResult {
+	/**
+	 * Reports removed native, legacy and imported Pressure payload rows and fenced native runs.
+	 */
 	data class Erased(
 		val localFactRevisionCount: Int,
 		val localWalEventCount: Int,
@@ -127,21 +167,37 @@ sealed interface ErasePressureSourceResult {
 		}
 	}
 
+	/**
+	 * Pressure source payload is already absent or erased.
+	 */
 	data object AlreadyErased : ErasePressureSourceResult
 
+	/**
+	 * The stated lifecycle, selection or privacy boundary prevents this operation from continuing.
+	 */
 	data class Blocked(
 		val reason: PressureSourceEraseBlockedReason,
 	) : ErasePressureSourceResult
 
+	/**
+	 * The required stored scope or source lineage could not be verified for this operation.
+	 */
 	data class Unverifiable(
 		val reason: ImportedPressureMaintenanceUnverifiableReason,
 	) : ErasePressureSourceResult
 
+	/**
+	 * A temporary storage or concurrent-state failure prevents completion and allows a retry.
+	 */
 	data class RetryableFailure(
 		val reason: PressureSourceEraseRetryableReason,
 	) : ErasePressureSourceResult
 }
 
+/**
+ * Active capture, changed lifecycle/destination or stale policy/erase authority preventing
+ * Pressure erasure.
+ */
 enum class PressureSourceEraseBlockedReason {
 	SOURCE_EVIDENCE_AUTHORITY_CHANGED,
 	POLICY_AUTHORITY_UNAVAILABLE,
@@ -153,6 +209,9 @@ enum class PressureSourceEraseBlockedReason {
 	STALE_REQUEST,
 }
 
+/**
+ * Temporary callback-drain, concurrent-state or storage failures while erasing Pressure.
+ */
 enum class PressureSourceEraseRetryableReason {
 	CALLBACK_DRAIN_UNAVAILABLE,
 	STORAGE_UNAVAILABLE,
@@ -180,7 +239,15 @@ interface PressureSourceEraseBarrier {
 	): PressureSourceEraseBarrierVerification
 }
 
+/**
+ * Result of settling the physical Pressure provider and pending legacy writer before source
+ * erasure.
+ */
 sealed interface PressureSourceEraseBarrierResult {
+	/**
+	 * No registered local Pressure provider remains; the token still carries the settled writer
+	 * fence.
+	 */
 	data class NoLocalProvider(
 		val token: PressureSourceEraseBarrierToken,
 	) : PressureSourceEraseBarrierResult {
@@ -189,6 +256,9 @@ sealed interface PressureSourceEraseBarrierResult {
 		}
 	}
 
+	/**
+	 * The registered Pressure provider and pending writer are settled for the returned exact token.
+	 */
 	data class Established(
 		val token: PressureSourceEraseBarrierToken,
 	) : PressureSourceEraseBarrierResult {
@@ -197,15 +267,25 @@ sealed interface PressureSourceEraseBarrierResult {
 		}
 	}
 
+	/**
+	 * The stated lifecycle, selection or privacy boundary prevents this operation from continuing.
+	 */
 	data class Blocked(
 		val reason: PressureSourceEraseBarrierBlockedReason,
 	) : PressureSourceEraseBarrierResult
 
+	/**
+	 * The provider cannot yet be settled or verified; retry after the stated transient failure.
+	 */
 	data class Retryable(
 		val reason: PressureSourceEraseBarrierRetryableReason,
 	) : PressureSourceEraseBarrierResult
 }
 
+/**
+ * Exact data epoch, optional provider generation and durable writer fence to recheck inside the
+ * erase transaction.
+ */
 data class PressureSourceEraseBarrierToken(
 	val collectedDataEpoch: Long,
 	val providerRegistrationGeneration: Long?,
@@ -222,42 +302,72 @@ data class PressureSourceEraseBarrierToken(
 				require(legacyWriteFenceGeneration >= 2L)
 			PressureSourceEraseFenceOwner.CONTAINED_PRESSURE_SESSION_FACTS ->
 				require(
-					legacyWriteFenceGeneration >= 3L &&
+					legacyWriteFenceGeneration >= MIN_CONTAINED_PRESSURE_FENCE_GENERATION &&
 						legacyWriteFenceGeneration % 2L == 1L,
 				)
 		}
 	}
 }
 
+/**
+ * Persisted discriminator for the legacy sample writer or contained session-fact writer that owns
+ * the erase fence.
+ */
 enum class PressureSourceEraseFenceOwner(val storageValue: String) {
 	LEGACY_PRESSURE_SAMPLE("LEGACY_PRESSURE_SAMPLE"),
 	CONTAINED_PRESSURE_SESSION_FACTS("CONTAINED_PRESSURE_SESSION_FACTS"),
 	;
 
+	/**
+	 * Decodes persisted Pressure writer-fence ownership values.
+	 */
 	companion object {
+		/**
+		 * Returns the matching persisted writer-fence owner, or null for an unknown storage value.
+		 */
 		fun fromStorageValue(value: String): PressureSourceEraseFenceOwner? =
 			entries.singleOrNull { it.storageValue == value }
 	}
 }
 
+/**
+ * Result of rechecking the settled provider and writer-fence token while erasure is in progress.
+ */
 sealed interface PressureSourceEraseBarrierVerification {
+	/**
+	 * The current provider/writer state still matches the settled erase token.
+	 */
 	data object Verified : PressureSourceEraseBarrierVerification
 
+	/**
+	 * The stated lifecycle, selection or privacy boundary prevents this operation from continuing.
+	 */
 	data class Blocked(
 		val reason: PressureSourceEraseBarrierBlockedReason,
 	) : PressureSourceEraseBarrierVerification
 
+	/**
+	 * The provider cannot yet be settled or verified; retry after the stated transient failure.
+	 */
 	data class Retryable(
 		val reason: PressureSourceEraseBarrierRetryableReason,
 	) : PressureSourceEraseBarrierVerification
 }
 
+/**
+ * Capture still active or lifecycle changed, so the Pressure erase barrier cannot be accepted.
+ */
 enum class PressureSourceEraseBarrierBlockedReason {
 	CAPTURE_AUTHORIZATION_ACTIVE,
 	STALE_LIFECYCLE,
 }
 
+/**
+ * Provider-removal or callback-drain failures that allow retrying the Pressure erase barrier.
+ */
 enum class PressureSourceEraseBarrierRetryableReason {
 	CALLBACK_DRAIN_TIMED_OUT,
 	PROVIDER_REMOVAL_FAILED,
 }
+
+private const val MIN_CONTAINED_PRESSURE_FENCE_GENERATION = 3L

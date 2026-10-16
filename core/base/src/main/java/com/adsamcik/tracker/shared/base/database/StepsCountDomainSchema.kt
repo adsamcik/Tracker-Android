@@ -1,13 +1,32 @@
 package com.adsamcik.tracker.shared.base.database
 
+import android.database.Cursor
 import android.database.sqlite.SQLiteException
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainSchemaMarkerEntity
 
+/**
+ * Inspected count-domain schema state, distinguishing absent/fresh Room scaffold, recognized v2
+ * and incompatible storage.
+ */
 sealed interface StepsCountDomainSchemaState {
+	/**
+	 * Count-domain tables and markers are absent from the inspected database.
+	 */
 	data object Absent : StepsCountDomainSchemaState
+	/**
+	 * Room created the known fresh table scaffold, which still needs the count-domain installation
+	 * marker/guards.
+	 */
 	data object FreshRoomScaffold : StepsCountDomainSchemaState
+	/**
+	 * The inspected table/marker/guard shape matches the complete supported v2 count-domain schema.
+	 */
 	data object ValidV2 : StepsCountDomainSchemaState
+	/**
+	 * The existing count-domain storage has an unknown or conflicting schema shape and must be
+	 * preserved.
+	 */
 	data object Incompatible : StepsCountDomainSchemaState
 }
 
@@ -344,6 +363,26 @@ object StepsCountDomainSchema {
 		requireTriggers: Boolean,
 		authorityNamespace: AuthorityNamespace,
 	): Boolean {
+		if (!hasExactV2Namespace(requireTriggers, authorityNamespace)) {
+			return false
+		}
+		if (!hasExactV2TablesAndIndexes()) {
+			return false
+		}
+
+		val markerRows = authenticatedSchemaMarkers() ?: return false
+		return if (requireMarker) {
+			markerRows == listOf(EXPECTED_MARKER)
+		} else {
+			markerRows.isEmpty()
+		}
+	}
+
+
+	private fun SupportSQLiteDatabase.hasExactV2Namespace(
+		requireTriggers: Boolean,
+		authorityNamespace: AuthorityNamespace,
+	): Boolean {
 		val expectedPermanentTriggers = if (requireTriggers) {
 			EXPECTED_TRIGGERS
 		} else {
@@ -359,7 +398,9 @@ object StepsCountDomainSchema {
 		val expectedTriggers =
 			expectedPermanentTriggers +
 				authorityRoomInvalidationTriggers.map(RoomInvalidationTrigger::trigger)
-		if (!authorityNamespace.triggers.hasExactDistinctElements(expectedTriggers)) return false
+		if (!authorityNamespace.triggers.hasExactDistinctElements(expectedTriggers)) {
+			return false
+		}
 		val expectedObjects = if (requireTriggers) {
 			EXPECTED_VALID_NAMED_OBJECTS
 		} else {
@@ -372,25 +413,17 @@ object StepsCountDomainSchema {
 				table = room.trigger.table,
 			)
 		}
-		if (!authorityNamespace.objects.hasExactDistinctElements(expectedObjects)) return false
-		if (EXPECTED_TABLE_SQL.any { (table, expected) ->
-				tableSql(table).normalizedSql() != expected
-			}
-		) return false
-		if (EXPECTED_TABLES.any { (table, expected) -> tableColumns(table) != expected }) return false
-		if (foreignKeys(OWNER_TABLE) != EXPECTED_OWNER_FOREIGN_KEYS) return false
-		if (foreignKeys(COMPLETENESS_MARKER_TABLE) != EXPECTED_COMPLETENESS_FOREIGN_KEYS) return false
-		if (!tableSql(OWNER_TABLE).hasDeferredForeignKey()) return false
-		if (!tableSql(COMPLETENESS_MARKER_TABLE).hasDeferredForeignKey()) return false
-		if (attachedIndexes() != EXPECTED_ALL_INDEXES) return false
-
-		val markerRows = authenticatedSchemaMarkers() ?: return false
-		return if (requireMarker) {
-			markerRows == listOf(EXPECTED_MARKER)
-		} else {
-			markerRows.isEmpty()
-		}
+		return authorityNamespace.objects.hasExactDistinctElements(expectedObjects)
 	}
+
+	private fun SupportSQLiteDatabase.hasExactV2TablesAndIndexes(): Boolean =
+		EXPECTED_TABLE_SQL.all { (table, expected) -> tableSql(table).normalizedSql() == expected } &&
+			EXPECTED_TABLES.all { (table, expected) -> tableColumns(table) == expected } &&
+			foreignKeys(OWNER_TABLE) == EXPECTED_OWNER_FOREIGN_KEYS &&
+			foreignKeys(COMPLETENESS_MARKER_TABLE) == EXPECTED_COMPLETENESS_FOREIGN_KEYS &&
+			tableSql(OWNER_TABLE).hasDeferredForeignKey() &&
+			tableSql(COMPLETENESS_MARKER_TABLE).hasDeferredForeignKey() &&
+			attachedIndexes() == EXPECTED_ALL_INDEXES
 
 	private fun SupportSQLiteDatabase.authenticatedSchemaMarkers(): List<SchemaMarker>? =
 		query(
@@ -400,41 +433,47 @@ object StepsCountDomainSchema {
 			val markers = mutableListOf<SchemaMarker>()
 			var valid = true
 			while (cursor.moveToNext()) {
-				if (
-					cursor.getType(0) != android.database.Cursor.FIELD_TYPE_INTEGER ||
-					cursor.getType(1) != android.database.Cursor.FIELD_TYPE_INTEGER ||
-					cursor.getType(2) != android.database.Cursor.FIELD_TYPE_STRING ||
-					cursor.getType(3) != android.database.Cursor.FIELD_TYPE_INTEGER
-				) {
+				val marker = cursor.authenticatedSchemaMarker()
+				if (marker == null) {
 					valid = false
 					break
 				}
-				val id = cursor.getLong(0)
-				val contractVersion = cursor.getLong(1)
-				val terminalUnproven = cursor.getLong(3)
-				if (
-					id !in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() ||
-					contractVersion !in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() ||
-					terminalUnproven !in 0L..1L
-				) {
-					valid = false
-					break
-				}
-				val tokenSemantics = cursor.getString(2)
-					?.takeIf(String::isNotBlank)
-				if (tokenSemantics == null) {
-					valid = false
-					break
-				}
-				markers += SchemaMarker(
-					id = id.toInt(),
-					contractVersion = contractVersion.toInt(),
-					tokenSemantics = tokenSemantics,
-					terminalUnproven = terminalUnproven.toInt(),
-				)
+				markers += marker
 			}
 			markers.takeIf { valid }
 		}
+
+	private fun android.database.Cursor.authenticatedSchemaMarker(): SchemaMarker? {
+		if (
+			getType(0) != android.database.Cursor.FIELD_TYPE_INTEGER ||
+			getType(1) != android.database.Cursor.FIELD_TYPE_INTEGER ||
+			getType(2) != android.database.Cursor.FIELD_TYPE_STRING ||
+			getType(MARKER_TERMINAL_UNPROVEN_COLUMN) != android.database.Cursor.FIELD_TYPE_INTEGER
+		) {
+			return null
+		}
+		val id = getLong(0)
+		val contractVersion = getLong(1)
+		val terminalUnproven = getLong(MARKER_TERMINAL_UNPROVEN_COLUMN)
+		if (
+			id !in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() ||
+			contractVersion !in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() ||
+			terminalUnproven !in 0L..1L
+		) {
+			return null
+		}
+		val tokenSemantics = getString(2)
+			?.takeIf(String::isNotBlank)
+		if (tokenSemantics == null) {
+			return null
+		}
+		return SchemaMarker(
+			id = id.toInt(),
+			contractVersion = contractVersion.toInt(),
+			tokenSemantics = tokenSemantics,
+			terminalUnproven = terminalUnproven.toInt(),
+		)
+	}
 
 	private fun SupportSQLiteDatabase.authorityNamespace(): AuthorityNamespace? {
 		val triggerScan = authenticatedAuthorityTriggers() ?: return null
@@ -466,7 +505,24 @@ object StepsCountDomainSchema {
 				}
 			}
 		}
-		val tempShadows = query(
+		val tempShadows = temporaryAuthorityShadows()
+		val objects = mainObjects + tempShadows + triggers.map { trigger ->
+			SchemaNamedObject(
+				catalog = trigger.catalog,
+				type = "trigger",
+				name = trigger.name,
+				table = trigger.table,
+			)
+		}
+		return AuthorityNamespace(
+			objects = objects,
+			triggers = triggers,
+			roomInvalidationTriggers = triggerScan.roomInvalidationTriggers,
+		)
+	}
+
+	private fun SupportSQLiteDatabase.temporaryAuthorityShadows(): List<SchemaNamedObject> =
+		query(
 			"SELECT type, name, tbl_name FROM sqlite_temp_master " +
 				"WHERE type != 'trigger' AND (" +
 				"name COLLATE NOCASE IN (?, ?, ?, ?, ?) " +
@@ -486,20 +542,6 @@ object StepsCountDomainSchema {
 				}
 			}
 		}
-		val objects = mainObjects + tempShadows + triggers.map { trigger ->
-			SchemaNamedObject(
-				catalog = trigger.catalog,
-				type = "trigger",
-				name = trigger.name,
-				table = trigger.table,
-			)
-		}
-		return AuthorityNamespace(
-			objects = objects,
-			triggers = triggers,
-			roomInvalidationTriggers = triggerScan.roomInvalidationTriggers,
-		)
-	}
 
 	private fun SupportSQLiteDatabase.tableColumns(table: String): List<SchemaColumn> =
 		query("PRAGMA $MAIN_CATALOG.table_info(`$table`)").use { cursor ->
@@ -601,17 +643,88 @@ object StepsCountDomainSchema {
 			"SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ? LIMIT 1",
 			arrayOf(name),
 		).use { cursor ->
-			if (!cursor.moveToFirst() || cursor.isNull(0)) null else cursor.getString(0)
+			if (!cursor.moveToFirst() || cursor.isNull(0)) {
+				null
+			} else {
+				cursor.getString(0)
+			}
 		}
 
 	@Suppress("ReturnCount")
 	private fun SupportSQLiteDatabase.authenticatedAuthorityTriggers(): AuthenticatedTriggerScan? {
+		val definitions = storedTriggerDefinitions() ?: return null
+		val targets = triggerTargetSnapshot(definitions) ?: return null
 		val authorityTriggers = mutableListOf<SchemaTrigger>()
 		val roomInvalidationTriggers = mutableListOf<RoomInvalidationTrigger>()
 		val catalogNames = mutableSetOf<Pair<String, String>>()
 		val expectedIdentities = mutableSetOf<String>()
+		for (stored in definitions) {
+			val (trigger, roomInvalidation) = stored.resolveAuthenticatedTrigger(targets) ?: return null
+			if (trigger.belongsToAuthorityNamespace(roomInvalidation)) {
+				if (!stored.registerDistinctAuthorityName(catalogNames, expectedIdentities)) {
+					return null
+				}
+				roomInvalidation?.let(roomInvalidationTriggers::add)
+				if (roomInvalidation == null || trigger.table in AUTHORITY_TABLE_NAMES) {
+					authorityTriggers += trigger
+				}
+			}
+		}
+		return AuthenticatedTriggerScan(authorityTriggers, roomInvalidationTriggers)
+	}
+
+	private fun SchemaTrigger.belongsToAuthorityNamespace(roomInvalidation: RoomInvalidationTrigger?): Boolean =
+		targetCatalog == MAIN_CATALOG && table in AUTHORITY_TABLE_NAMES ||
+			name.startsWithAsciiIgnoreCase(AUTHORITY_TRIGGER_PREFIX) || roomInvalidation != null
+
+	private fun StoredTriggerDefinition.registerDistinctAuthorityName(
+		catalogNames: MutableSet<Pair<String, String>>,
+		expectedIdentities: MutableSet<String>,
+	): Boolean {
+		val catalogName = catalog.mapAsciiLowercaseToUppercase() to
+			name.mapAsciiLowercaseToUppercase()
+		if (!catalogNames.add(catalogName)) {
+			return false
+		}
+		EXPECTED_TRIGGER_NAMES.singleOrNull { expected ->
+			name.equalsAsciiIgnoreCase(expected)
+		}?.let {
+			if (!expectedIdentities.add(it)) {
+				return false
+			}
+		}
+		return true
+	}
+
+	private fun StoredTriggerDefinition.resolveAuthenticatedTrigger(
+		targets: TriggerTargetSnapshot,
+	): Pair<SchemaTrigger, RoomInvalidationTrigger?>? {
+		val resolvedTarget = targets.resolve(catalog, definition.target) ?: return null
+		val canonicalTarget = if (resolvedTarget.catalog == MAIN_CATALOG) {
+			resolvedTarget.table.canonicalAuthorityTableName()
+		} else {
+			resolvedTarget.table
+		}
+		val trigger = SchemaTrigger(
+			catalog = catalog,
+			name = name,
+			targetCatalog = resolvedTarget.catalog,
+			table = canonicalTarget,
+			sql = sql,
+		)
+		val roomInvalidation = if (
+			name.startsWithAsciiIgnoreCase(ROOM_INVALIDATION_TRIGGER_PREFIX)
+		) {
+			trigger.authenticatedRoomInvalidationTriggerOrNull() ?: return null
+		} else {
+			null
+		}
+		return trigger to roomInvalidation
+	}
+
+	private fun SupportSQLiteDatabase.storedTriggerDefinitions(): List<StoredTriggerDefinition>? {
 		// writable_schema can forge tbl_name, so every bounded complete definition authenticates it.
-		query(
+		return query(
 			"SELECT catalog, name, tbl_name, sql FROM (" +
 				"SELECT '$MAIN_CATALOG' AS catalog, name, tbl_name, sql " +
 				"FROM sqlite_master WHERE type = 'trigger' " +
@@ -620,97 +733,114 @@ object StepsCountDomainSchema {
 				"FROM sqlite_temp_master WHERE type = 'trigger') " +
 				"LIMIT ${MAX_TRIGGER_COUNT + 1}",
 		).use { cursor ->
-			var triggerCount = 0
-			while (cursor.moveToNext()) {
-				triggerCount += 1
-				if (triggerCount > MAX_TRIGGER_COUNT ||
-					cursor.isNull(1) ||
-					cursor.isNull(2) ||
-					cursor.isNull(3)
-				) return null
-				val catalog = cursor.getString(0)
-				val name = cursor.getString(1)
-				val storedTable = cursor.getString(2)
-				if (name.length > MAX_SQL_TOKEN_LENGTH ||
-					storedTable.length > MAX_SQL_TOKEN_LENGTH
-				) return null
-				val sql = cursor.getString(3).normalizedSql() ?: return null
-				val definition = sql.completeTriggerOrNull() ?: return null
-				if (!name.equalsAsciiIgnoreCase(definition.name.table) ||
-					!storedTable.equalsAsciiIgnoreCase(definition.target.table) ||
-					definition.name.schema?.equalsAsciiIgnoreCase(catalog) == false
-				) return null
-				val resolvedTarget = resolveTriggerTarget(catalog, definition.target)
-					?: return null
-				val canonicalTarget = if (resolvedTarget.catalog == MAIN_CATALOG) {
-					resolvedTarget.table.canonicalAuthorityTableName()
-				} else {
-					resolvedTarget.table
-				}
-				val trigger = SchemaTrigger(
-					catalog = catalog,
-					name = name,
-					targetCatalog = resolvedTarget.catalog,
-					table = canonicalTarget,
-					sql = sql,
-				)
-				val roomInvalidation = if (
-					name.startsWithAsciiIgnoreCase(ROOM_INVALIDATION_TRIGGER_PREFIX)
-				) {
-					trigger.authenticatedRoomInvalidationTriggerOrNull() ?: return null
-				} else {
-					null
-				}
-				if (
-					resolvedTarget.catalog == MAIN_CATALOG &&
-					canonicalTarget in AUTHORITY_TABLE_NAMES ||
-					name.startsWithAsciiIgnoreCase(AUTHORITY_TRIGGER_PREFIX) ||
-					roomInvalidation != null
-				) {
-					val catalogName = catalog.mapAsciiLowercaseToUppercase() to
-						name.mapAsciiLowercaseToUppercase()
-					if (!catalogNames.add(catalogName)) return null
-					EXPECTED_TRIGGER_NAMES.singleOrNull { expected ->
-						name.equalsAsciiIgnoreCase(expected)
-					}?.let {
-						if (!expectedIdentities.add(it)) return null
+			buildList {
+				while (cursor.moveToNext()) {
+					if (size >= MAX_TRIGGER_COUNT) {
+						return null
 					}
-					roomInvalidation?.let(roomInvalidationTriggers::add)
-					if (roomInvalidation == null || canonicalTarget in AUTHORITY_TABLE_NAMES) {
-						authorityTriggers += trigger
-					}
+					add(cursor.authenticatedStoredTrigger() ?: return null)
 				}
 			}
 		}
-		return AuthenticatedTriggerScan(authorityTriggers, roomInvalidationTriggers)
 	}
 
-	private fun SupportSQLiteDatabase.resolveTriggerTarget(
+	// Stop at the first missing, overlong or malformed stored definition before constructing an admitted row.
+	@Suppress("ReturnCount")
+	private fun android.database.Cursor.authenticatedStoredTrigger(): StoredTriggerDefinition? {
+		if (isNull(1) || isNull(2) || isNull(STORED_TRIGGER_SQL_COLUMN)) {
+			return null
+		}
+		val catalog = getString(0)
+		val name = getString(1)
+		val storedTable = getString(2)
+		if (name.length > MAX_SQL_TOKEN_LENGTH || storedTable.length > MAX_SQL_TOKEN_LENGTH) {
+			return null
+		}
+		val sql = getString(STORED_TRIGGER_SQL_COLUMN).normalizedSql() ?: return null
+		val definition = sql.completeTriggerOrNull() ?: return null
+		if (!definition.matchesStoredCatalogNames(catalog, name, storedTable)) {
+			return null
+		}
+		return StoredTriggerDefinition(catalog, name, sql, definition)
+	}
+
+	private fun ParsedTriggerDefinition.matchesStoredCatalogNames(
+		catalog: String,
+		storedName: String,
+		storedTable: String,
+	): Boolean = storedName.equalsAsciiIgnoreCase(name.table) &&
+		storedTable.equalsAsciiIgnoreCase(target.table) && name.schema?.equalsAsciiIgnoreCase(catalog) != false
+
+	/** Fresh per-inspection lookup; observing more tables does not add one query per trigger. */
+	private fun SupportSQLiteDatabase.triggerTargetSnapshot(
+		definitions: List<StoredTriggerDefinition>,
+	): TriggerTargetSnapshot? {
+		val catalogs = if (definitions.any { it.catalog == TEMP_CATALOG }) {
+			databaseCatalogs() ?: return null
+		} else {
+			listOf(DatabaseCatalog(0, MAIN_CATALOG))
+		}
+		val names = definitions.map { it.definition.target.table }.distinct()
+		val countsByCatalog = catalogs.associate { catalog ->
+			val counts = mutableMapOf<String, Int>()
+			if (names.isNotEmpty()) {
+				val schemaTable = if (catalog.name.equalsAsciiIgnoreCase(TEMP_CATALOG)) {
+					"sqlite_temp_master"
+				} else {
+					"${catalog.name.sqlQuotedIdentifier()}.sqlite_master"
+				}
+				val placeholders = List(names.size) { "?" }.joinToString()
+				query(
+					"SELECT name FROM $schemaTable WHERE type IN ('table', 'view') " +
+						"AND name COLLATE NOCASE IN ($placeholders)",
+					names.toTypedArray(),
+				).use { cursor ->
+					while (cursor.moveToNext()) {
+						val key = cursor.getString(0).mapAsciiLowercaseToUppercase()
+						counts[key] = (counts.getOrDefault(key, 0) + 1).coerceAtMost(2)
+					}
+				}
+			}
+			catalog.name.mapAsciiLowercaseToUppercase() to counts
+		}
+		return TriggerTargetSnapshot(catalogs, countsByCatalog)
+	}
+
+	private fun TriggerTargetSnapshot.resolve(
 		triggerCatalog: String,
 		target: QualifiedSqlIdentifier,
+	): ResolvedTriggerTarget? = when (triggerCatalog) {
+		MAIN_CATALOG -> resolvePermanentTarget(target)
+		TEMP_CATALOG -> resolveTemporaryTarget(target)
+		else -> null
+	}
+
+	private fun TriggerTargetSnapshot.resolvePermanentTarget(
+		target: QualifiedSqlIdentifier,
 	): ResolvedTriggerTarget? {
-		if (triggerCatalog == MAIN_CATALOG) {
-			if (target.schema != null &&
-				!target.schema.equalsAsciiIgnoreCase(MAIN_CATALOG)
-			) return null
-			return when (schemaObjectExistsInCatalog(MAIN_CATALOG, target.table)) {
-				true -> ResolvedTriggerTarget(MAIN_CATALOG, target.table)
-				false, null -> null
-			}
+		if (target.schema != null && !target.schema.equalsAsciiIgnoreCase(MAIN_CATALOG)) {
+			return null
 		}
-		if (triggerCatalog != TEMP_CATALOG) return null
-		val catalogs = databaseCatalogs() ?: return null
+		return when (exists(MAIN_CATALOG, target.table)) {
+			true -> ResolvedTriggerTarget(MAIN_CATALOG, target.table)
+			false, null -> null
+		}
+	}
+
+	// Qualified TEMP targets return immediately; unqualified targets follow SQLite catalog precedence.
+	@Suppress("ReturnCount")
+	private fun TriggerTargetSnapshot.resolveTemporaryTarget(
+		target: QualifiedSqlIdentifier,
+	): ResolvedTriggerTarget? {
 		target.schema?.let { requested ->
-			val catalog = catalogs.singleOrNull { candidate ->
-				requested.equalsAsciiIgnoreCase(candidate.name)
-			} ?: return null
-			return when (schemaObjectExistsInCatalog(catalog.name, target.table)) {
+			val catalog = catalogs.singleOrNull { requested.equalsAsciiIgnoreCase(it.name) } ?: return null
+			return when (exists(catalog.name, target.table)) {
 				true -> ResolvedTriggerTarget(catalog.name, target.table)
 				false, null -> null
 			}
 		}
 		for (catalog in catalogs.sqliteSchemaLookupOrder()) {
-			when (schemaObjectExistsInCatalog(catalog.name, target.table)) {
+			when (exists(catalog.name, target.table)) {
 				true -> return ResolvedTriggerTarget(catalog.name, target.table)
 				false -> Unit
 				null -> return null
@@ -719,6 +849,14 @@ object StepsCountDomainSchema {
 		return null
 	}
 
+	private fun TriggerTargetSnapshot.exists(catalog: String, name: String): Boolean? =
+		when (countsByCatalog[catalog.mapAsciiLowercaseToUppercase()]?.get(name.mapAsciiLowercaseToUppercase()) ?: 0) {
+			0 -> false
+			1 -> true
+			else -> null
+		}
+
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	private fun SchemaTrigger.authenticatedRoomInvalidationTriggerOrNull():
 		RoomInvalidationTrigger? {
 		if (catalog != TEMP_CATALOG ||
@@ -738,7 +876,9 @@ object StepsCountDomainSchema {
 			"CREATE TEMP $expectedBody",
 			"CREATE $expectedBody",
 		).mapNotNull { candidate -> candidate.normalizedSql() }
-		if (sql !in expectedSql) return null
+		if (sql !in expectedSql) {
+			return null
+		}
 		return RoomInvalidationTrigger(this, operation, tableId)
 	}
 
@@ -746,7 +886,17 @@ object StepsCountDomainSchema {
 		database: SupportSQLiteDatabase,
 	): Boolean {
 		val logState = database.roomInvalidationLogState()
-		if (isEmpty()) return logState != RoomInvalidationLogState.INCOMPATIBLE
+		if (isEmpty()) {
+			return logState != RoomInvalidationLogState.INCOMPATIBLE
+		}
+		val tableIds = authenticatedRoomInvalidationTableIds() ?: return false
+		if (logState != RoomInvalidationLogState.EXACT) {
+			return false
+		}
+		return database.hasExactRoomInvalidationRows(tableIds)
+	}
+
+	private fun List<RoomInvalidationTrigger>.authenticatedRoomInvalidationTableIds(): List<Int>? {
 		val groups = groupBy { trigger -> trigger.trigger.table }
 		if (groups.any { (_, triggers) ->
 				triggers.map(RoomInvalidationTrigger::operation).toSet() !=
@@ -754,45 +904,70 @@ object StepsCountDomainSchema {
 					triggers.map(RoomInvalidationTrigger::tableId).distinct().size != 1
 			}
 		) {
-			return false
+			return null
 		}
 		val tableIds = groups.values.map { triggers -> triggers.first().tableId }
-		if (tableIds.distinct().size != tableIds.size) return false
-		if (logState != RoomInvalidationLogState.EXACT) return false
+		if (tableIds.distinct().size != tableIds.size) {
+			return null
+		}
+		return tableIds
+	}
+
+	private fun SupportSQLiteDatabase.hasExactRoomInvalidationRows(tableIds: List<Int>): Boolean {
 		val placeholders = List(tableIds.size) { "?" }.joinToString()
-		var valid = true
-		val storedRows = database.query(
+		val storedRows = query(
 			"SELECT table_id, invalidated FROM $TEMP_CATALOG.$ROOM_INVALIDATION_LOG_TABLE " +
 				"WHERE table_id IN ($placeholders) ORDER BY table_id LIMIT ${tableIds.size + 1}",
 			tableIds.toTypedArray(),
-		).use { cursor ->
-			mutableMapOf<Int, Int>().apply {
-				while (cursor.moveToNext()) {
-					if (
-						cursor.getType(0) != android.database.Cursor.FIELD_TYPE_INTEGER ||
-						cursor.getType(1) != android.database.Cursor.FIELD_TYPE_INTEGER
-					) {
-						valid = false
-						break
-					}
-					val tableId = cursor.getLong(0)
-					val invalidated = cursor.getLong(1)
-					if (
-						tableId !in 0L..Int.MAX_VALUE.toLong() ||
-						invalidated !in 0L..1L ||
-						put(tableId.toInt(), invalidated.toInt()) != null
-					) {
-						valid = false
-						break
-					}
-				}
+		).use { cursor -> cursor.roomInvalidationRowsOrNull() }
+		return storedRows != null && storedRows.keys == tableIds.toSet()
+	}
+
+	private fun Cursor.roomInvalidationRowsOrNull(): Map<Int, Int>? {
+		val storedRows = mutableMapOf<Int, Int>()
+		while (moveToNext()) {
+			if (getType(0) != Cursor.FIELD_TYPE_INTEGER || getType(1) != Cursor.FIELD_TYPE_INTEGER) {
+				return null
+			}
+			val tableId = getLong(0)
+			val invalidated = getLong(1)
+			if (tableId !in 0L..Int.MAX_VALUE.toLong() || invalidated !in 0L..1L ||
+				storedRows.put(tableId.toInt(), invalidated.toInt()) != null
+			) {
+				return null
 			}
 		}
-		return valid && storedRows.keys == tableIds.toSet()
+		return storedRows
 	}
 
 	private fun SupportSQLiteDatabase.roomInvalidationLogState(): RoomInvalidationLogState {
-		val objects = query(
+		val objects = roomInvalidationObjects()
+		if (objects.isEmpty()) {
+			return RoomInvalidationLogState.ABSENT
+		}
+		val exactTable = objects.singleOrNull()?.hasExactRoomLogShape() == true
+		if (!exactTable) {
+			return RoomInvalidationLogState.INCOMPATIBLE
+		}
+		val exactColumns = hasExactRoomInvalidationColumns()
+		val exactRows = exactColumns && !query(
+			"SELECT 1 FROM $TEMP_CATALOG.$ROOM_INVALIDATION_LOG_TABLE WHERE " +
+				"typeof(table_id) != 'integer' OR table_id < 0 OR " +
+				"typeof(invalidated) != 'integer' OR invalidated NOT IN (0, 1) LIMIT 1",
+		).use { cursor -> cursor.moveToFirst() }
+		return if (exactRows) {
+			RoomInvalidationLogState.EXACT
+		} else {
+			RoomInvalidationLogState.INCOMPATIBLE
+		}
+	}
+
+	private fun RoomInvalidationLogObject.hasExactRoomLogShape(): Boolean =
+		catalog == TEMP_CATALOG && type == "table" && name == ROOM_INVALIDATION_LOG_TABLE &&
+			table == ROOM_INVALIDATION_LOG_TABLE && sql != null && sql in ROOM_INVALIDATION_LOG_SQL
+
+	private fun SupportSQLiteDatabase.roomInvalidationObjects(): List<RoomInvalidationLogObject> =
+		query(
 			"SELECT catalog, type, name, tbl_name, sql FROM (" +
 				"SELECT '$MAIN_CATALOG' AS catalog, type, name, tbl_name, sql FROM sqlite_master " +
 				"UNION ALL " +
@@ -808,25 +983,20 @@ object StepsCountDomainSchema {
 							catalog = cursor.getString(0),
 							type = cursor.getString(1),
 							name = cursor.getString(2),
-							table = cursor.getString(3),
-							sql = if (cursor.isNull(4)) null else cursor.getString(4).normalizedSql(),
+							table = cursor.getString(ROOM_LOG_OBJECT_TABLE_COLUMN),
+							sql = if (cursor.isNull(ROOM_LOG_OBJECT_SQL_COLUMN)) {
+								null
+							} else {
+								cursor.getString(ROOM_LOG_OBJECT_SQL_COLUMN).normalizedSql()
+							},
 						),
 					)
 				}
 			}
 		}
-		if (objects.isEmpty()) return RoomInvalidationLogState.ABSENT
-		val exactTable = objects.singleOrNull()?.let { candidate ->
-			candidate.catalog == TEMP_CATALOG &&
-				candidate.type == "table" &&
-				candidate.name == ROOM_INVALIDATION_LOG_TABLE &&
-				candidate.table == ROOM_INVALIDATION_LOG_TABLE &&
-				candidate.sql != null &&
-				candidate.sql in ROOM_INVALIDATION_LOG_SQL
-		} == true
-		if (!exactTable) return RoomInvalidationLogState.INCOMPATIBLE
-		val exactColumns =
-			query("PRAGMA $TEMP_CATALOG.table_info(`$ROOM_INVALIDATION_LOG_TABLE`)").use { cursor ->
+
+	private fun SupportSQLiteDatabase.hasExactRoomInvalidationColumns(): Boolean =
+		query("PRAGMA $TEMP_CATALOG.table_info(`$ROOM_INVALIDATION_LOG_TABLE`)").use { cursor ->
 			val columns = buildList {
 				while (cursor.moveToNext()) {
 					add(
@@ -838,7 +1008,11 @@ object StepsCountDomainSchema {
 							primaryKeyPosition =
 								cursor.getInt(cursor.getColumnIndexOrThrow("pk")),
 							defaultValue = cursor.getColumnIndexOrThrow("dflt_value").let { index ->
-								if (cursor.isNull(index)) null else cursor.getString(index)
+								if (cursor.isNull(index)) {
+									null
+								} else {
+									cursor.getString(index)
+								}
 							},
 						),
 					)
@@ -846,17 +1020,7 @@ object StepsCountDomainSchema {
 			}
 			columns == ROOM_INVALIDATION_LOG_COLUMNS
 		}
-		val exactRows = exactColumns && !query(
-			"SELECT 1 FROM $TEMP_CATALOG.$ROOM_INVALIDATION_LOG_TABLE WHERE " +
-				"typeof(table_id) != 'integer' OR table_id < 0 OR " +
-				"typeof(invalidated) != 'integer' OR invalidated NOT IN (0, 1) LIMIT 1",
-		).use { cursor -> cursor.moveToFirst() }
-		return if (exactRows) {
-			RoomInvalidationLogState.EXACT
-		} else {
-			RoomInvalidationLogState.INCOMPATIBLE
-		}
-	}
+
 
 	private fun SupportSQLiteDatabase.databaseCatalogs(): List<DatabaseCatalog>? =
 		query("PRAGMA database_list").use { cursor ->
@@ -867,10 +1031,14 @@ object StepsCountDomainSchema {
 				while (cursor.moveToNext()) {
 					val sequence = cursor.getInt(sequenceIndex)
 					val name = cursor.getString(nameIndex)
-					if (sequence < 0 || !sequences.add(sequence) ||
-						name.isEmpty() || name.length > MAX_SQL_TOKEN_LENGTH ||
+					if (sequence < 0 || !sequences.add(sequence)) {
+						return null
+					}
+					if (name.isEmpty() || name.length > MAX_SQL_TOKEN_LENGTH ||
 						this.any { existing -> name.equalsAsciiIgnoreCase(existing.name) }
-					) return null
+					) {
+						return null
+					}
 					add(DatabaseCatalog(sequence, name))
 				}
 			}
@@ -889,26 +1057,6 @@ object StepsCountDomainSchema {
 		return listOfNotNull(temporary, main) + attached
 	}
 
-	private fun SupportSQLiteDatabase.schemaObjectExistsInCatalog(
-		catalog: String,
-		name: String,
-	): Boolean? {
-		val schemaTable = if (catalog.equalsAsciiIgnoreCase(TEMP_CATALOG)) {
-			"sqlite_temp_master"
-		} else {
-			"${catalog.sqlQuotedIdentifier()}.sqlite_master"
-		}
-		return query(
-			"SELECT name FROM $schemaTable WHERE type IN ('table', 'view') " +
-				"AND name = ? COLLATE NOCASE LIMIT 2",
-			arrayOf(name),
-		).use { cursor ->
-			if (!cursor.moveToFirst()) return@use false
-			val storedName = cursor.getString(0)
-			if (cursor.moveToNext() || !storedName.equalsAsciiIgnoreCase(name)) null else true
-		}
-	}
-
 	private fun String.sqlQuotedIdentifier(): String = "\"${replace("\"", "\"\"")}\""
 
 	private fun <T> List<T>.hasExactDistinctElements(expected: Set<T>): Boolean =
@@ -919,7 +1067,11 @@ object StepsCountDomainSchema {
 			"SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
 			arrayOf(name),
 		).use { cursor ->
-			if (!cursor.moveToFirst() || cursor.isNull(0)) null else cursor.getString(0)
+			if (!cursor.moveToFirst() || cursor.isNull(0)) {
+				null
+			} else {
+				cursor.getString(0)
+			}
 		}
 
 	private fun String?.hasDeferredForeignKey(): Boolean =
@@ -927,14 +1079,20 @@ object StepsCountDomainSchema {
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private fun String?.normalizedSql(): SqlCanonical? {
-		if (this == null || length > MAX_SQL_LENGTH) return null
+		if (this == null || length > MAX_SQL_LENGTH) {
+			return null
+		}
 		val tokens = mutableListOf<SqlToken>()
 		var offset = 0
 		var trailingComment = false
 		fun appendToken(kind: SqlTokenKind, endExclusive: Int): Boolean {
-			if (endExclusive <= offset || tokens.size >= MAX_SQL_TOKEN_COUNT) return false
+			if (endExclusive <= offset || tokens.size >= MAX_SQL_TOKEN_COUNT) {
+				return false
+			}
 			val text = substring(offset, endExclusive)
-			if (text.length > MAX_SQL_TOKEN_LENGTH) return false
+			if (text.length > MAX_SQL_TOKEN_LENGTH) {
+				return false
+			}
 			tokens += SqlToken(kind, text)
 			trailingComment = false
 			offset = endExclusive
@@ -945,29 +1103,41 @@ object StepsCountDomainSchema {
 			when {
 				current.isSqliteWhitespace() -> offset += 1
 				startsSqlLineComment(offset) -> {
-					if (tokens.isNotEmpty()) trailingComment = true
+					if (tokens.isNotEmpty()) {
+						trailingComment = true
+					}
 					offset = sqlLineCommentEnd(offset)
 				}
 				startsSqlBlockComment(offset) -> {
-					if (tokens.isNotEmpty()) trailingComment = true
+					if (tokens.isNotEmpty()) {
+						trailingComment = true
+					}
 					offset = sqlBlockCommentEnd(offset) ?: return null
 				}
 				(current == 'x' || current == 'X') && getOrNull(offset + 1) == '\'' -> {
 					val endExclusive = sqlBlobLiteralEnd(offset) ?: return null
-					if (!appendToken(SqlTokenKind.BLOB_LITERAL, endExclusive)) return null
+					if (!appendToken(SqlTokenKind.BLOB_LITERAL, endExclusive)) {
+						return null
+					}
 				}
 				current == '\'' -> {
 					val endExclusive = quotedSqlTokenEnd(offset, current) ?: return null
-					if (!appendToken(SqlTokenKind.STRING_LITERAL, endExclusive)) return null
+					if (!appendToken(SqlTokenKind.STRING_LITERAL, endExclusive)) {
+						return null
+					}
 				}
 				current.isSqlIdentifierQuote() -> {
 					val endExclusive = quotedSqlTokenEnd(offset, current) ?: return null
-					if (!appendToken(SqlTokenKind.QUOTED_IDENTIFIER, endExclusive)) return null
+					if (!appendToken(SqlTokenKind.QUOTED_IDENTIFIER, endExclusive)) {
+						return null
+					}
 				}
 				current.isAsciiDigit() ||
 					(current == '.' && getOrNull(offset + 1)?.isAsciiDigit() == true) -> {
 					val endExclusive = sqlNumericLiteralEnd(offset) ?: return null
-					if (!appendToken(SqlTokenKind.NUMERIC_LITERAL, endExclusive)) return null
+					if (!appendToken(SqlTokenKind.NUMERIC_LITERAL, endExclusive)) {
+						return null
+					}
 				}
 				current.isSqlBareIdentifierStart() -> {
 					val start = offset
@@ -977,7 +1147,9 @@ object StepsCountDomainSchema {
 					val text = substring(start, offset)
 					if (text.length > MAX_SQL_TOKEN_LENGTH ||
 						tokens.size >= MAX_SQL_TOKEN_COUNT
-					) return null
+					) {
+						return null
+					}
 					val keyword = text.mapAsciiLowercaseToUppercase()
 						.takeIf(SQLITE_DDL_KEYWORDS::contains)
 					tokens += if (keyword == null) {
@@ -990,9 +1162,13 @@ object StepsCountDomainSchema {
 				else -> {
 					val operator = sqlOperatorAt(offset)
 					if (operator != null) {
-						if (!appendToken(SqlTokenKind.OPERATOR, offset + operator.length)) return null
+						if (!appendToken(SqlTokenKind.OPERATOR, offset + operator.length)) {
+							return null
+						}
 					} else if (current in SQLITE_PUNCTUATION) {
-						if (!appendToken(SqlTokenKind.PUNCTUATION, offset + 1)) return null
+						if (!appendToken(SqlTokenKind.PUNCTUATION, offset + 1)) {
+							return null
+						}
 					} else {
 						return null
 					}
@@ -1006,7 +1182,11 @@ object StepsCountDomainSchema {
 	}
 
 	private fun String.quotedSqlTokenEnd(start: Int, opener: Char): Int? {
-		val closer = if (opener == '[') ']' else opener
+		val closer = if (opener == '[') {
+			']'
+		} else {
+			opener
+		}
 		var offset = start + 1
 		while (offset < length) {
 			if (this[offset] != closer) {
@@ -1026,15 +1206,18 @@ object StepsCountDomainSchema {
 		var offset = start + 2
 		var digitCount = 0
 		while (offset < length && this[offset] != '\'') {
-			if (!this[offset].isAsciiHexDigit()) return null
+			if (!this[offset].isAsciiHexDigit()) {
+				return null
+			}
 			digitCount += 1
 			offset += 1
 		}
-		if (offset >= length || digitCount % 2 != 0) return null
+		if (offset >= length || digitCount % 2 != 0) {
+			return null
+		}
 		return offset + 1
 	}
 
-	@Suppress("ReturnCount")
 	private fun String.sqlNumericLiteralEnd(start: Int): Int? {
 		var offset = start
 		if (getOrNull(offset) == '0' &&
@@ -1045,6 +1228,11 @@ object StepsCountDomainSchema {
 			while (getOrNull(offset)?.isAsciiHexDigit() == true) offset += 1
 			return offset.takeIf { it > digitsStart }
 		}
+		return decimalSqlNumericLiteralEnd(start)
+	}
+
+	private fun String.decimalSqlNumericLiteralEnd(start: Int): Int? {
+		var offset = start
 		var digitCount = 0
 		while (getOrNull(offset)?.isAsciiDigit() == true) {
 			digitCount += 1
@@ -1057,13 +1245,24 @@ object StepsCountDomainSchema {
 				offset += 1
 			}
 		}
-		if (digitCount == 0) return null
+		if (digitCount == 0) {
+			return null
+		}
+		return sqlExponentEnd(offset)
+	}
+
+	private fun String.sqlExponentEnd(start: Int): Int? {
+		var offset = start
 		if (getOrNull(offset) == 'e' || getOrNull(offset) == 'E') {
 			offset += 1
-			if (getOrNull(offset) == '+' || getOrNull(offset) == '-') offset += 1
+			if (getOrNull(offset) == '+' || getOrNull(offset) == '-') {
+				offset += 1
+			}
 			val exponentStart = offset
 			while (getOrNull(offset)?.isAsciiDigit() == true) offset += 1
-			if (offset == exponentStart) return null
+			if (offset == exponentStart) {
+				return null
+			}
 		}
 		return offset
 	}
@@ -1073,7 +1272,11 @@ object StepsCountDomainSchema {
 
 	private fun String.sqlLineCommentEnd(start: Int): Int {
 		val newline = indexOf('\n', startIndex = start + 2)
-		return if (newline < 0) length else newline
+		return if (newline < 0) {
+			length
+		} else {
+			newline
+		}
 	}
 
 	private fun String.startsSqlBlockComment(offset: Int): Boolean =
@@ -1081,27 +1284,37 @@ object StepsCountDomainSchema {
 
 	private fun String.sqlBlockCommentEnd(start: Int): Int? {
 		val closer = indexOf("*/", startIndex = start + 2)
-		return if (closer < 0) null else closer + 2
+		return if (closer < 0) {
+			null
+		} else {
+			closer + 2
+		}
 	}
 
 	private fun List<SqlToken>.withoutCreateIfNotExists(): List<SqlToken> {
-		val objectKeywordIndex = when {
-			getOrNull(0)?.keyword != "CREATE" -> return this
-			getOrNull(1)?.keyword in setOf("TABLE", "INDEX", "TRIGGER") -> 1
-			getOrNull(1)?.keyword == "UNIQUE" && getOrNull(2)?.keyword == "INDEX" -> 2
-			getOrNull(1)?.keyword in setOf("TEMP", "TEMPORARY") &&
-				getOrNull(2)?.keyword == "TRIGGER" -> 2
-			else -> return this
-		}
+		val objectKeywordIndex = createObjectKeywordIndex() ?: return this
 		val optionalClauseStart = objectKeywordIndex + 1
 		if (getOrNull(optionalClauseStart)?.keyword != "IF" ||
 			getOrNull(optionalClauseStart + 1)?.keyword != "NOT" ||
 			getOrNull(optionalClauseStart + 2)?.keyword != "EXISTS"
-		) return this
+		) {
+			return this
+		}
 		return filterIndexed { index, _ ->
 			index !in optionalClauseStart..optionalClauseStart + 2
 		}
 	}
+
+	private fun List<SqlToken>.createObjectKeywordIndex(): Int? =
+		when {
+			getOrNull(0)?.keyword != "CREATE" -> null
+			getOrNull(1)?.keyword in setOf("TABLE", "INDEX", "TRIGGER") -> 1
+			getOrNull(1)?.keyword == "UNIQUE" && getOrNull(2)?.keyword == "INDEX" -> 2
+			getOrNull(1)?.keyword in setOf("TEMP", "TEMPORARY") &&
+				getOrNull(2)?.keyword == "TRIGGER" -> 2
+			else -> null
+		}
+
 
 	private fun List<SqlToken>.withoutSingleTrailingSemicolon(): List<SqlToken> =
 		if (lastOrNull()?.isPunctuation(";") == true &&
@@ -1127,7 +1340,11 @@ object StepsCountDomainSchema {
 		length >= prefix.length && substring(0, prefix.length).equalsAsciiIgnoreCase(prefix)
 
 	private fun Char.asciiUppercase(): Char =
-		if (this in 'a'..'z') (code - 32).toChar() else this
+		if (this in 'a'..'z') {
+			(code - ASCII_LOWERCASE_TO_UPPERCASE_OFFSET).toChar()
+		} else {
+			this
+		}
 
 	private fun Char.isSqlIdentifierQuote(): Boolean = this == '"' || this == '`' || this == '['
 
@@ -1135,7 +1352,7 @@ object StepsCountDomainSchema {
 		this == ' ' || this == '\t' || this == '\n' || this == '\u000c' || this == '\r'
 
 	private fun Char.isSqlBareIdentifierStart(): Boolean =
-		this in 'a'..'z' || this in 'A'..'Z' || this == '_' || code >= 0x80
+		this in 'a'..'z' || this in 'A'..'Z' || this == '_' || code >= SQLITE_NON_ASCII_IDENTIFIER_MIN_CODE
 
 	private fun Char.isSqlBareIdentifierPart(): Boolean =
 		isSqlBareIdentifierStart() || isAsciiDigit() || this == '$'
@@ -1168,37 +1385,44 @@ object StepsCountDomainSchema {
 				tokens[offset].identifierOrNull() == ROOM_INVALIDATION_TABLE_ID_COLUMN &&
 					tokens.getOrNull(offset + 1)?.text == "="
 			}
-			if (tableIdOffsets.size != 1) return null
-			val token = tokens.getOrNull(tableIdOffsets.single() + 2) ?: return null
-			if (token.kind != SqlTokenKind.NUMERIC_LITERAL ||
-				token.text.isEmpty() ||
-				token.text.any { character -> !character.isAsciiDigit() } ||
-				(token.text.length > 1 && token.text.startsWith('0'))
-			) {
+			if (tableIdOffsets.size != 1) {
 				return null
 			}
-			return token.text.toIntOrNull()?.takeIf { it >= 0 }
+			val token = tokens.getOrNull(tableIdOffsets.single() + 2) ?: return null
+			return token.canonicalNonnegativeIntOrNull()
 		}
 
 		@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 		fun completeTriggerOrNull(): ParsedTriggerDefinition? {
-			if (hasTrailingComment) return null
+			if (hasTrailingComment) {
+				return null
+			}
 			var offset = 0
 			fun consumeKeyword(keyword: String): Boolean {
-				if (tokens.getOrNull(offset)?.keyword != keyword) return false
+				if (tokens.getOrNull(offset)?.keyword != keyword) {
+					return false
+				}
 				offset += 1
 				return true
 			}
-			if (!consumeKeyword("CREATE")) return null
-			if (tokens.getOrNull(offset)?.keyword in setOf("TEMP", "TEMPORARY")) offset += 1
-			if (!consumeKeyword("TRIGGER")) return null
+			if (!consumeKeyword("CREATE")) {
+				return null
+			}
+			if (tokens.getOrNull(offset)?.keyword in setOf("TEMP", "TEMPORARY")) {
+				offset += 1
+			}
+			if (!consumeKeyword("TRIGGER")) {
+				return null
+			}
 			val triggerName = tokens.qualifiedIdentifierAt(offset) ?: return null
 			offset = triggerName.nextOffset
 			when (tokens.getOrNull(offset)?.keyword) {
 				"BEFORE", "AFTER" -> offset += 1
 				"INSTEAD" -> {
 					offset += 1
-					if (!consumeKeyword("OF")) return null
+					if (!consumeKeyword("OF")) {
+						return null
+					}
 				}
 			}
 			when (tokens.getOrNull(offset)?.keyword) {
@@ -1217,12 +1441,16 @@ object StepsCountDomainSchema {
 				}
 				else -> return null
 			}
-			if (!consumeKeyword("ON")) return null
+			if (!consumeKeyword("ON")) {
+				return null
+			}
 			val target = tokens.qualifiedIdentifierAt(offset) ?: return null
 			offset = target.nextOffset
 			if (tokens.getOrNull(offset)?.keyword == "FOR") {
 				offset += 1
-				if (!consumeKeyword("EACH") || !consumeKeyword("ROW")) return null
+				if (!consumeKeyword("EACH") || !consumeKeyword("ROW")) {
+					return null
+				}
 			}
 			if (tokens.getOrNull(offset)?.keyword == "WHEN") {
 				offset += 1
@@ -1233,7 +1461,9 @@ object StepsCountDomainSchema {
 					when {
 						token.isPunctuation("(") -> parentheses += 1
 						token.isPunctuation(")") -> {
-							if (parentheses == 0) return null
+							if (parentheses == 0) {
+								return null
+							}
 							parentheses -= 1
 						}
 						token.isPunctuation(";") && parentheses == 0 -> return null
@@ -1241,9 +1471,13 @@ object StepsCountDomainSchema {
 					}
 					offset += 1
 				}
-				if (offset == expressionStart || parentheses != 0) return null
+				if (offset == expressionStart || parentheses != 0) {
+					return null
+				}
 			}
-			if (!consumeKeyword("BEGIN")) return null
+			if (!consumeKeyword("BEGIN")) {
+				return null
+			}
 
 			val bodyStart = offset
 			var parentheses = 0
@@ -1258,7 +1492,9 @@ object StepsCountDomainSchema {
 						hasBodyToken = true
 					}
 					token.isPunctuation(")") -> {
-						if (parentheses == 0) return null
+						if (parentheses == 0) {
+							return null
+						}
 						parentheses -= 1
 						hasBodyToken = true
 					}
@@ -1268,16 +1504,22 @@ object StepsCountDomainSchema {
 					}
 					token.keyword == "END" -> {
 						blockDepth -= 1
-						if (blockDepth < 0) return null
+						if (blockDepth < 0) {
+							return null
+						}
 						if (blockDepth == 0) {
 							if (parentheses != 0 || offset == bodyStart ||
 								!hasBodyToken || !hasStatementTerminator
-							) return null
+							) {
+								return null
+							}
 							offset += 1
 							if (tokens.getOrNull(offset)?.isPunctuation(";") == true) {
 								offset += 1
 							}
-							if (offset != tokens.size) return null
+							if (offset != tokens.size) {
+								return null
+							}
 							return ParsedTriggerDefinition(
 								name = triggerName.identifier,
 								target = target.identifier,
@@ -1305,6 +1547,18 @@ object StepsCountDomainSchema {
 		fun isPunctuation(expected: String): Boolean =
 			kind == SqlTokenKind.PUNCTUATION && text == expected
 
+		fun canonicalNonnegativeIntOrNull(): Int? {
+			if (kind != SqlTokenKind.NUMERIC_LITERAL || text.isEmpty()) {
+				return null
+			}
+			if (text.any { character -> !character.isAsciiDigit() } ||
+				(text.length > 1 && text.startsWith('0'))
+			) {
+				return null
+			}
+			return text.toIntOrNull()?.takeIf { it >= 0 }
+		}
+
 		fun identifierOrNull(): String? = when (kind) {
 			SqlTokenKind.IDENTIFIER, SqlTokenKind.KEYWORD -> text
 			SqlTokenKind.QUOTED_IDENTIFIER -> quotedIdentifierContentOrNull()
@@ -1312,10 +1566,18 @@ object StepsCountDomainSchema {
 		}
 
 		private fun quotedIdentifierContentOrNull(): String? {
-			if (text.length < 2) return null
+			if (text.length < 2) {
+				return null
+			}
 			val opener = text.first()
-			val closer = if (opener == '[') ']' else opener
-			if (text.last() != closer) return null
+			val closer = if (opener == '[') {
+				']'
+			} else {
+				opener
+			}
+			if (text.last() != closer) {
+				return null
+			}
 			return text.substring(1, text.lastIndex)
 				.replace("$closer$closer", closer.toString())
 		}
@@ -1444,6 +1706,18 @@ object StepsCountDomainSchema {
 	private data class ParsedTriggerDefinition(
 		val name: QualifiedSqlIdentifier,
 		val target: QualifiedSqlIdentifier,
+	)
+
+	private data class StoredTriggerDefinition(
+		val catalog: String,
+		val name: String,
+		val sql: SqlCanonical,
+		val definition: ParsedTriggerDefinition,
+	)
+
+	private data class TriggerTargetSnapshot(
+		val catalogs: List<DatabaseCatalog>,
+		val countsByCatalog: Map<String, Map<String, Int>>,
 	)
 
 	private data class ResolvedTriggerTarget(
@@ -1776,6 +2050,12 @@ object StepsCountDomainSchema {
 			SchemaNamedObject(trigger.catalog, "trigger", trigger.name, trigger.table)
 		}
 
+	private const val MARKER_TERMINAL_UNPROVEN_COLUMN = 3
+	private const val STORED_TRIGGER_SQL_COLUMN = 3
+	private const val ROOM_LOG_OBJECT_TABLE_COLUMN = 3
+	private const val ROOM_LOG_OBJECT_SQL_COLUMN = 4
+	private const val ASCII_LOWERCASE_TO_UPPERCASE_OFFSET = 32
+	private const val SQLITE_NON_ASCII_IDENTIFIER_MIN_CODE = 0x80
 	private const val MAX_SQL_LENGTH = 65_536
 	private const val MAX_SQL_TOKEN_COUNT = 4_096
 	private const val MAX_SQL_TOKEN_LENGTH = 16_384

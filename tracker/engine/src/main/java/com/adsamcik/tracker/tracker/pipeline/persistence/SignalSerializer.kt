@@ -515,6 +515,7 @@ internal object SignalSerializer {
 	// endregion
 
 	// region JSONObject → Signal helpers
+	@Suppress("CyclomaticComplexMethod") // Keep this fixed field or enum projection together.
 	private fun JSONObject.toLocationSignal() = LocationSignal(
 		coordinate = CoordinateE7(
 			lat = LatE7(getInt("lat")),

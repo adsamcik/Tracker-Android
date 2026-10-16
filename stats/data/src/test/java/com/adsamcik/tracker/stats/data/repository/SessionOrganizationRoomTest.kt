@@ -169,8 +169,12 @@ class SessionOrganizationRoomTest {
 		val ids = mutableListOf<OrganizationSessionId>()
 		var key: Int? = null
 		do {
-			val params = if (key == null) PagingSource.LoadParams.Refresh<Int>(null, 50, false)
-				else PagingSource.LoadParams.Append(key!!, 50, false)
+			val params = if (key == null) {
+				PagingSource.LoadParams.Refresh<Int>(null, 50, false)
+			}
+				else {
+				PagingSource.LoadParams.Append(key!!, 50, false)
+			}
 			val page = source.load(params) as PagingSource.LoadResult.Page<Int, OrganizedSession>
 			ids += page.data.map { it.id }
 			key = page.nextKey

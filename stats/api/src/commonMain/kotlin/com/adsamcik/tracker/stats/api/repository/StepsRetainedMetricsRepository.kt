@@ -14,6 +14,9 @@ interface StepsRetainedMetricsRepository {
 
 /** One coherent retained-domain decision, or unavailable local storage. */
 sealed interface StepsRetainedMetricsDecision {
+	/**
+	 * Lifetime/best-day result bound to the current source revision and its exact result digest.
+	 */
 	data class Snapshot(
 		val sourceEvidenceRevision: Long,
 		val result: StepsRetainedMetrics,
@@ -26,8 +29,15 @@ sealed interface StepsRetainedMetricsDecision {
 		}
 	}
 
+	/**
+	 * The saved-data snapshot could not be read; this is distinct from an empty or measured-zero
+	 * result.
+	 */
 	data object StorageUnavailable : StepsRetainedMetricsDecision
 
+	/**
+	 * Canonical digest pattern for the retained Steps metric decision.
+	 */
 	companion object {
 		private val SHA_256_HEX = Regex("[0-9a-f]{64}")
 	}

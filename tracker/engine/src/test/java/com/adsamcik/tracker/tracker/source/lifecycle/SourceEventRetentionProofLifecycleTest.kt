@@ -33,9 +33,14 @@ import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.location.LocationWalQualificationAdapter
 import com.adsamcik.tracker.tracker.source.wifi.WifiWalQualificationAdapter
+import com.adsamcik.tracker.tracker.source.wifi.WifiWalAdapterResult
+import com.adsamcik.tracker.tracker.source.wifi.WifiWalAdapterRejection
+import com.adsamcik.tracker.tracker.source.cell.CellWalAdapterResult
+import com.adsamcik.tracker.tracker.source.cell.CellWalAdapterRejection
 import io.kotest.matchers.shouldBe
 import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.mockk
+import io.mockk.coEvery
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
@@ -55,6 +60,9 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// One Room lifecycle-proof fixture follows saved source evidence through recording, materialization,
+// retention and deletion precedence.
+@Suppress("LargeClass")
 class SourceEventRetentionProofLifecycleTest {
 	private lateinit var database: AppDatabase
 	private lateinit var factory: DefaultSourceLifecycleProofAdapterFactory
@@ -65,14 +73,17 @@ class SourceEventRetentionProofLifecycleTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 7L))
-		cellQualifier = mockk(relaxed = true)
+		cellQualifier = mockk()
+		coEvery { cellQualifier.qualify(any()) } returns CellWalAdapterResult.Rejected(CellWalAdapterRejection.MISSING_EVENT)
+		val wifiQualifier = mockk<WifiWalQualificationAdapter>()
+		coEvery { wifiQualifier.qualify(any()) } returns WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.MISSING_EVENT)
 		factory = DefaultSourceLifecycleProofAdapterFactory(
 			database = database,
 			payloadCodec = mockk<SourcePayloadCodec>(relaxed = true),
 			planCodec = mockk<SourcePlanCodec>(relaxed = true),
 			locationQualifier = mockk<LocationWalQualificationAdapter>(relaxed = true),
 			activityQualifier = mockk<ActivityCapturedWalAdmissionAdapter>(relaxed = true),
-			wifiQualifier = mockk<WifiWalQualificationAdapter>(relaxed = true),
+			wifiQualifier = wifiQualifier,
 			cellQualifier = cellQualifier,
 			bootClockDomainProvider = BootClockDomainProvider { "boot-current" },
 		)
@@ -312,6 +323,8 @@ class SourceEventRetentionProofLifecycleTest {
 			}
 		}
 
+	// Keep one three-revision retention lineage and its intermediate-WAL lifecycle assertions together.
+	@Suppress("LongMethod")
 	@Test
 	fun `three revision Pressure retention resolves intermediate WAL above floor at every lifecycle stage`() =
 		runTest {
@@ -362,6 +375,7 @@ class SourceEventRetentionProofLifecycleTest {
 				pressureWalRetainedCarrier().copy(
 					admissionOrdinal = intermediate.sourceAdmissionOrdinal,
 					eventId = intermediate.sourceEventId,
+					sourceSequence = 2L,
 					acquiredAtMs = intermediate.intervalEndTimeMs,
 					createdAtMs = intermediate.intervalEndTimeMs,
 					wallTimeMs = intermediate.intervalStartTimeMs,
@@ -680,6 +694,9 @@ class SourceEventRetentionProofLifecycleTest {
 		)
 	}
 
+	// Keep the complete immutable captured-radio retention proof fixture and its exact source-specific
+	// checksum together.
+	@Suppress("LongMethod")
 	private fun capturedRadioRetentionProof(
 		sourceKind: Int,
 	): CapturedRadioFactRetentionProofEntity {

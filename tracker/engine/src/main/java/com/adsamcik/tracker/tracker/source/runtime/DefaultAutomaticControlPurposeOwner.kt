@@ -58,10 +58,21 @@ internal class DefaultAutomaticControlPurposeOwner @Inject constructor(
 			!state.providerAvailable -> AutomaticTrackingUnavailableReason.PROVIDER_UNAVAILABLE
 			else -> null
 		}
-		if (blocked != null) return@withLock unavailableAfterRetirement(lease, blocked)
-		if (retentionMaintenance.pruneDue()) return@withLock unavailableAfterRetirement(
+		if (blocked != null) {
+			return@withLock unavailableAfterRetirement(lease, blocked)
+		}
+		if (retentionMaintenance.pruneDue()) {
+			return@withLock unavailableAfterRetirement(
 			lease, AutomaticTrackingUnavailableReason.REGISTRATION_PENDING,
 		)
+		}
+		activateControl(lease, params.autoTrackingMode)
+	}
+
+	private suspend fun activateControl(
+		lease: AutomaticControlReconciliationLease,
+		autoTrackingMode: Int,
+	): AutomaticTrackingOperationalAvailability {
 		// Suppression is stamped before registration; locked/power-saving callbacks cannot start.
 		epochAuthority.currentForValidation()
 		val frequency = Preferences(context).fetchIntStringKey(
@@ -72,26 +83,36 @@ internal class DefaultAutomaticControlPurposeOwner @Inject constructor(
 			enabled = true,
 			useTransitionApi = true,
 			continuousIntervalSeconds = frequency,
-			transitions = automaticStartTransitions(params.autoTrackingMode),
+			transitions = automaticStartTransitions(autoTrackingMode),
 			// This is private in-flight authority. Public Ready is published only after acceptance.
 			controlAvailability = AutomaticTrackingOperationalAvailability.Ready(lease.identity),
 		)
-		if (registration.acceptedControl()) AutomaticTrackingOperationalAvailability.Ready(lease.identity)
-		else unavailableAfterRetirement(lease, registration.unavailableReason())
+		return if (registration.acceptedControl()) {
+			AutomaticTrackingOperationalAvailability.Ready(lease.identity)
+		}
+		else {
+			unavailableAfterRetirement(lease, registration.unavailableReason())
+		}
 	}
 
 	override suspend fun compensate(lease: AutomaticControlReconciliationLease): Boolean = mutex.withLock {
 		// A delayed loser cannot retire a newer purpose activation.
-		if (ownedIdentity != null && ownedIdentity != lease.identity) return@withLock true
+		if (ownedIdentity != null && ownedIdentity != lease.identity) {
+			return@withLock true
+		}
 		val retired = retire(lease.identity)
-		if (retired) ownedIdentity = null
+		if (retired) {
+			ownedIdentity = null
+		}
 		retired
 	}
 
 	/** Cold recovery has no process-local lease, but the system may retain the old request. */
 	internal suspend fun retireWhenUnowned(): Boolean = mutex.withLock {
 		// A timed-out cleanup may acquire the mutex after a successor has already activated.
-		if (ownedIdentity != null) return@withLock false
+		if (ownedIdentity != null) {
+			return@withLock false
+		}
 		retire(null)
 	}
 
@@ -134,5 +155,7 @@ internal fun automaticStartTransitions(requiredActivityId: Int): Set<ActivityTra
 		add(ActivityTransitionData(DetectedActivityType.RUNNING, ActivityTransitionType.ENTER))
 		add(ActivityTransitionData(DetectedActivityType.WALKING, ActivityTransitionType.ENTER))
 	}
-	if (isNotEmpty()) add(ActivityTransitionData(DetectedActivityType.STILL, ActivityTransitionType.ENTER))
+	if (isNotEmpty()) {
+		add(ActivityTransitionData(DetectedActivityType.STILL, ActivityTransitionType.ENTER))
+	}
 }

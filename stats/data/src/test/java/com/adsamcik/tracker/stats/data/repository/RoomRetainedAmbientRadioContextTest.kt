@@ -39,7 +39,9 @@ class RoomRetainedAmbientRadioContextTest {
         assertEquals(savedCell.logicalFactId, cellStatus.facts.single().identity)
         assertEquals(1L, wifiStatus.facts.single().semanticRevision)
         assertEquals(1L, cellStatus.facts.single().semanticRevision)
-        assertEquals(savedWifi.coverageStartTimeMs, wifiStatus.facts.single().coverageStartTimeMs)
+        // Saved coverage includes its real timestamp uncertainty; measurement times remain unchanged.
+        assertEquals(savedWifi.coverageStartTimeMs - savedWifi.wallTimeUncertaintyMs,
+            wifiStatus.facts.single().coverageStartTimeMs)
         assertEquals(savedCell.observedWallTimeMs, cellStatus.facts.single().observedTimeMs)
         assertTrue(wifiStatus.qualificationGaps.isEmpty()); assertTrue(cellStatus.qualificationGaps.isEmpty())
         assertEquals(0L, database.locationSampleDao().countAll())
@@ -186,7 +188,11 @@ class RoomRetainedAmbientRadioContextTest {
         for (source in RadioContextSource.entries) {
             val result = read(source)
             assertEquals(1, result.observations.size)
-            assertEquals(if (source == RadioContextSource.WIFI) "wifi" else "cell", result.observations.single().sourceEventId)
+            assertEquals(if (source == RadioContextSource.WIFI) {
+                "wifi"
+            } else {
+                "cell"
+            }, result.observations.single().sourceEventId)
             assertTrue(result.gaps.any { it.reason == RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE })
         }
     }
@@ -415,10 +421,14 @@ class RoomRetainedAmbientRadioContextTest {
         database.sourceBrokerDao().insertDemands(listOf(demand))
         database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(source, 1, 1,
             listOf(demand), "boot", 0, 0))
-        if (source == WIFI) database.ambientWifiFactDao().insertRetentionAuthority(AmbientWifiRetentionAuthorityIntegrity.create(
+        if (source == WIFI) {
+            database.ambientWifiFactDao().insertRetentionAuthority(AmbientWifiRetentionAuthorityIntegrity.create(
             "LIVE_AMBIENT", 1, "ACTIVE", "retention", 1, 0, 0, "boot", 0, 0))
-        else database.ambientCellFactDao().insertRetentionAuthority(AmbientCellRetentionAuthorityIntegrity.create(
+        }
+        else {
+            database.ambientCellFactDao().insertRetentionAuthority(AmbientCellRetentionAuthorityIntegrity.create(
             "LIVE_AMBIENT", 1, "ACTIVE", "retention", 1, 0, 0, "boot", 0, 0))
+        }
     }
 
     private fun demand(source: Int, purpose: String = SourceBrokerPurpose.AMBIENT_PRODUCT) = SourceDemandEntity(

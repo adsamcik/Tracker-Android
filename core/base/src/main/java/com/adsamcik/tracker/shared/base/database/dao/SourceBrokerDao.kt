@@ -25,6 +25,10 @@ data class PriorProcessRegistrationReconciliationResult(
 		get() = failedReservations + retiredActiveRegistrations + completedRetirements
 }
 
+/**
+ * Greatest saved admission ordinal and source sequence for the selected run; both values are
+ * nonnegative.
+ */
 data class SourceRunAdmissionHighWaterRow(
 	@ColumnInfo(name = "last_admission_ordinal") val lastAdmissionOrdinal: Long,
 	@ColumnInfo(name = "last_source_sequence") val lastSourceSequence: Long,
@@ -35,8 +39,16 @@ data class SourceRunAdmissionHighWaterRow(
 	}
 }
 
+// Keep the SourceBrokerDao SQL contract together; query text accounts for this declaration's size.
+@Suppress("LargeClass")
 @Dao
 interface SourceBrokerDao {
+	/**
+	 * Returns the greatest `admission_ordinal` in `source_event_wal`. Query conditions include
+	 * `source_kind = :sourceKind`, `source_instance_id = :sourceInstanceId`, `registration_generation
+	 * = :registrationGeneration`, `logical_tracking_id = :logicalTrackingId`. Returns 0 when no saved
+	 * value exists.
+	 */
 	@Query(
 		"""
 		SELECT
@@ -59,6 +71,11 @@ interface SourceBrokerDao {
 		serviceRunId: String,
 		capturePurposeMask: Long,
 	): SourceRunAdmissionHighWaterRow
+	/**
+	 * Reads `source_capture_admission_barrier` rows. Query conditions include `source_kind =
+	 * :sourceKind`, `registration_generation = :registrationGeneration`. Returns null when no row
+	 * matches.
+	 */
 	@Query(
 		"SELECT * FROM source_capture_admission_barrier " +
 			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration",
@@ -68,6 +85,13 @@ interface SourceBrokerDao {
 		registrationGeneration: Long,
 	): SourceCaptureAdmissionBarrierEntity?
 
+	/**
+	 * Writes `source_capture_admission_barrier` rows using the SQL conflict policy. Query conditions
+	 * include `registration.source_kind = :sourceKind`, `registration.registration_generation =
+	 * :registrationGeneration`, `registration.source_instance_id = :sourceInstanceId`,
+	 * `registration.capture_callback_barrier_authorization_revision >=
+	 * :throughAuthorizationRevision`.
+	 */
 	@Query(
 		"""
 		INSERT INTO source_capture_admission_barrier (
@@ -164,6 +188,11 @@ interface SourceBrokerDao {
 	)
 	suspend fun demandHistory(consumerId: String): List<SourceDemandEntity>
 
+	/**
+	 * Reads `source_demand` rows. Query conditions include `consumer_id = :consumerId`,
+	 * `service_run_id = :serviceRunId`, `manifest_revision = :manifestRevision`. Orders by
+	 * `lifecycle_lease_generation, source_kind, purpose, demand_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_demand WHERE consumer_id = :consumerId " +
 			"AND service_run_id = :serviceRunId AND manifest_revision = :manifestRevision " +
@@ -176,6 +205,10 @@ interface SourceBrokerDao {
 		limit: Int,
 	): List<SourceDemandEntity>
 
+	/**
+	 * Reads distinct `source_caller_authority_reference` values from `source_demand`. Query
+	 * conditions include `consumer_id = :consumerId`.
+	 */
 	@Query(
 		"SELECT DISTINCT source_caller_authority_reference FROM source_demand " +
 			"WHERE consumer_id = :consumerId AND source_caller_authority_reference IS NOT NULL",
@@ -199,6 +232,11 @@ interface SourceBrokerDao {
 		leaseGeneration: Long,
 	): Int
 
+	/**
+	 * Updates `source_demand` rows matching the supplied scope. Query conditions include `consumer_id
+	 * = :consumerId`, `service_run_id = :serviceRunId`, `manifest_revision = :manifestRevision`,
+	 * `lifecycle_lease_generation = :leaseGeneration`. Returns the affected row count.
+	 */
 	@Query(
 		"UPDATE source_demand SET status = 'ACTIVE' " +
 			"WHERE consumer_id = :consumerId AND service_run_id = :serviceRunId " +
@@ -214,6 +252,11 @@ interface SourceBrokerDao {
 		demandIds: Collection<String>,
 	): Int
 
+	/**
+	 * Updates `source_demand` rows matching the supplied scope. Query conditions include `consumer_id
+	 * = :consumerId`, `service_run_id = :serviceRunId`, `manifest_revision = :manifestRevision`,
+	 * `lifecycle_lease_generation = :leaseGeneration`. Returns the affected row count.
+	 */
 	@Query(
 		"UPDATE source_demand SET status = 'RETIRED', retire_boot_id = :bootId, " +
 			"retire_elapsed_realtime_nanos = :elapsedRealtimeNanos, retired_at_ms = :wallTimeMs " +
@@ -233,6 +276,10 @@ interface SourceBrokerDao {
 		wallTimeMs: Long,
 	): Int
 
+	/**
+	 * Updates `source_demand` rows matching the supplied scope. Query conditions include `consumer_id
+	 * = :consumerId`, `status IN ('ACTIVE', 'BLOCKED')`. Returns the affected row count.
+	 */
 	@Query(
 		"UPDATE source_demand SET status = CASE WHEN status = 'BLOCKED' THEN 'RETIRED' " +
 			"ELSE 'RETIRING' END, retire_boot_id = :bootId, " +
@@ -246,6 +293,11 @@ interface SourceBrokerDao {
 		wallTimeMs: Long,
 	): Int
 
+	/**
+	 * Updates `source_demand` rows matching the supplied scope. Query conditions include `source_kind
+	 * = :sourceKind`, `purpose IN (:purposes)`, `status IN ('ACTIVE', 'BLOCKED')`. Returns the
+	 * affected row count.
+	 */
 	@Query(
 		"UPDATE source_demand SET status = CASE WHEN status = 'BLOCKED' THEN 'RETIRED' " +
 			"ELSE 'RETIRING' END, retire_boot_id = :bootId, " +
@@ -348,6 +400,10 @@ interface SourceBrokerDao {
 		retiredElapsedRealtimeNanos: Long,
 	): Boolean
 
+	/**
+	 * Counts distinct `registration_generation` in `source_authorization`. Query conditions include
+	 * `source_kind = :sourceKind`, `authorization_revision = :authorizationRevision`.
+	 */
 	@Query(
 		"SELECT COUNT(DISTINCT registration_generation) FROM source_authorization " +
 			"WHERE source_kind = :sourceKind AND authorization_revision = :authorizationRevision",
@@ -357,6 +413,11 @@ interface SourceBrokerDao {
 		authorizationRevision: Long,
 	): Int
 
+	/**
+	 * Returns the greatest `authorization_revision` in `source_authorization`. Query conditions
+	 * include `source_kind = :sourceKind`, `registration_generation < :registrationGeneration`.
+	 * Returns 0 when no saved value exists.
+	 */
 	@Query(
 		"SELECT COALESCE(MAX(authorization_revision), 0) FROM source_authorization " +
 			"WHERE source_kind = :sourceKind AND registration_generation < :registrationGeneration",
@@ -366,6 +427,11 @@ interface SourceBrokerDao {
 		registrationGeneration: Long,
 	): Long
 
+	/**
+	 * Returns the smallest `authorization_revision` in `source_authorization`. Query conditions
+	 * include `source_kind = :sourceKind`, `registration_generation > :registrationGeneration`.
+	 * Returns 0 when no saved value exists.
+	 */
 	@Query(
 		"SELECT COALESCE(MIN(authorization_revision), 0) FROM source_authorization " +
 			"WHERE source_kind = :sourceKind AND registration_generation > :registrationGeneration",
@@ -500,6 +566,12 @@ interface SourceBrokerDao {
 	)
 	suspend fun maximumRadioSessionCaptureAuthorizationRevision(sourceKind: Int, registrationGeneration: Long): Long
 
+	/**
+	 * Reads `source_authorization` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `source_kind IN (${SourceDestinationOwnerEntity.SOURCE_WIFI},
+	 * ${SourceDestinationOwnerEntity.SOURCE_CELL})`, `registration_generation =
+	 * :registrationGeneration`. Orders by `member_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind AND source_kind IN " +
 			"(${SourceDestinationOwnerEntity.SOURCE_WIFI}, ${SourceDestinationOwnerEntity.SOURCE_CELL}) " +
@@ -507,7 +579,8 @@ interface SourceBrokerDao {
 			"(SELECT MAX(authorization_revision) FROM source_authorization WHERE source_kind = :sourceKind " +
 			"AND registration_generation = :registrationGeneration) ORDER BY member_id LIMIT :limit",
 	)
-	suspend fun latestRadioAuthorizationBounded(sourceKind: Int, registrationGeneration: Long, limit: Int): List<SourceAuthorizationEntity>
+	suspend fun latestRadioAuthorizationBounded(sourceKind: Int, registrationGeneration: Long,
+        limit: Int): List<SourceAuthorizationEntity>
 
 	/** Published only after the runtime has drained the finite prefix before this no-CAP snapshot. */
 	@Query(
@@ -600,6 +673,11 @@ interface SourceBrokerDao {
 		observedElapsedRealtimeNanos: Long,
 	): List<SourceAuthorizationEntity>
 
+	/**
+	 * Reads `source_authorization` rows. Query conditions include `source_kind = :sourceKind`,
+	 * `registration_generation = :registrationGeneration`, `effective_boot_id = :bootId`. Orders by
+	 * `member_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
 			"AND registration_generation = :registrationGeneration AND effective_boot_id = :bootId " +
@@ -621,6 +699,11 @@ interface SourceBrokerDao {
 	@Query("SELECT COALESCE(MAX(authorization_revision), 0) FROM source_authorization WHERE source_kind = :sourceKind")
 	suspend fun maximumAuthorizationRevision(sourceKind: Int): Long
 
+	/**
+	 * Reads `provider_registration_generation` rows. Query conditions include `source_kind =
+	 * :sourceKind`, `status IN ('RESERVED', 'ACTIVE')`. Orders by `registration_generation DESC`.
+	 * Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
 			"AND collected_data_epoch = (SELECT collected_data_epoch FROM source_evidence_state WHERE id=1) " +
@@ -628,6 +711,10 @@ interface SourceBrokerDao {
 	)
 	suspend fun currentPhysicalRegistration(sourceKind: Int): ProviderRegistrationGenerationEntity?
 
+	/**
+	 * Reads `provider_registration_generation` rows. Query conditions include `source_kind =
+	 * :sourceKind`, `status IN ('ACTIVE', 'RESERVED')`. Orders by `registration_generation`.
+	 */
 	@Query(
 		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
 			"AND collected_data_epoch = (SELECT collected_data_epoch FROM source_evidence_state WHERE id=1) " +
@@ -690,6 +777,11 @@ interface SourceBrokerDao {
 		"ORDER BY registration_generation LIMIT :limit")
 	suspend fun nonterminalSystemLocationRegistrations(limit: Int): List<ProviderRegistrationGenerationEntity>
 
+	/**
+	 * Updates `provider_registration_generation` rows matching the supplied scope. Query conditions
+	 * include `source_kind = 1`, `registration_generation = :generation`, `source_instance_id =
+	 * :instanceId`, `provider_residency = 'SYSTEM_REARMABLE'`. Returns the affected row count.
+	 */
 	@Query("UPDATE provider_registration_generation SET status = 'RETIRING', " +
 		"retired_at_ms = COALESCE(retired_at_ms, :retiredAtMs), " +
 		"retired_elapsed_realtime_nanos = COALESCE(retired_elapsed_realtime_nanos, :retiredElapsedNanos), " +
@@ -702,6 +794,11 @@ interface SourceBrokerDao {
 		reason: String,
 	): Int
 
+	/**
+	 * Updates `provider_registration_generation` rows matching the supplied scope. Query conditions
+	 * include `source_kind = 1`, `registration_generation = :generation`, `source_instance_id =
+	 * :instanceId`, `provider_residency = 'SYSTEM_REARMABLE'`. Returns the affected row count.
+	 */
 	@Query("UPDATE provider_registration_generation SET status = 'RETIRED' " +
 		"WHERE source_kind = 1 AND registration_generation = :generation " +
 		"AND source_instance_id = :instanceId AND provider_residency = 'SYSTEM_REARMABLE' " +
@@ -711,6 +808,11 @@ interface SourceBrokerDao {
 		generation: Long, instanceId: String, retiredAtMs: Long, retiredElapsedNanos: Long,
 	): Int
 
+	/**
+	 * Updates `provider_registration_generation` rows matching the supplied scope. Query conditions
+	 * include `source_kind = 1`, `registration_generation = :generation`, `source_instance_id =
+	 * :instanceId`, `provider_residency = 'SYSTEM_REARMABLE'`. Returns the affected row count.
+	 */
 	@Query("UPDATE provider_registration_generation SET status = 'FAILED', " +
 		"retired_at_ms = :failedAtMs, retired_elapsed_realtime_nanos = :failedElapsedNanos, " +
 		"failure_code = :reason WHERE source_kind = 1 AND registration_generation = :generation " +

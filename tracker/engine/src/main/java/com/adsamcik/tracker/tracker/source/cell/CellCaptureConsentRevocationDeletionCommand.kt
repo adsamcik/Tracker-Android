@@ -8,6 +8,9 @@ import com.adsamcik.tracker.shared.base.database.CellCapturedSourceDeletionResul
 import com.adsamcik.tracker.shared.base.database.deleteCapturedCellFactsAfterConsentReset
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.tracker.source.runtime.CellCaptureDeletionBarrierBlockedReason
 import com.adsamcik.tracker.tracker.source.runtime.CellCaptureDeletionBarrierResult
@@ -67,6 +70,14 @@ internal class CellCaptureConsentRevocationDeletionCommand @Inject constructor(
 	suspend fun delete(
 		request: CellCaptureConsentRevocationDeletionRequest,
 	): CellCaptureConsentRevocationDeletionResult {
+		return preflightFailure(request)
+			?: callbackBarrierFailure(request)
+			?: deleteCapturedFacts(request)
+	}
+
+	private suspend fun preflightFailure(
+		request: CellCaptureConsentRevocationDeletionRequest,
+	): CellCaptureConsentRevocationDeletionResult? {
 		val preflight = try {
 			preflight(request)
 		} catch (cancelled: CancellationException) {
@@ -83,7 +94,12 @@ internal class CellCaptureConsentRevocationDeletionCommand @Inject constructor(
 		if (preflight != null) {
 			return CellCaptureConsentRevocationDeletionResult.Blocked(preflight)
 		}
+		return null
+	}
 
+	private suspend fun callbackBarrierFailure(
+		request: CellCaptureConsentRevocationDeletionRequest,
+	): CellCaptureConsentRevocationDeletionResult? {
 		val barrierResult = try {
 			runtime.establishCaptureDeletionBarrier(request.expectedCollectedDataEpoch)
 		} catch (cancelled: CancellationException) {
@@ -111,7 +127,12 @@ internal class CellCaptureConsentRevocationDeletionCommand @Inject constructor(
 					barrier.reason.toDeletionBlockedReason(),
 				)
 		}
+		return null
+	}
 
+	private suspend fun deleteCapturedFacts(
+		request: CellCaptureConsentRevocationDeletionRequest,
+	): CellCaptureConsentRevocationDeletionResult {
 		val result = try {
 			database.deleteCapturedCellFactsAfterConsentReset(
 				expectedCollectedDataEpoch = request.expectedCollectedDataEpoch,
@@ -146,11 +167,12 @@ internal class CellCaptureConsentRevocationDeletionCommand @Inject constructor(
 		request: CellCaptureConsentRevocationDeletionRequest,
 	): CellCapturedSourceDeletionBlockedReason? = database.withTransaction {
 		val evidence = database.sourceEvidenceStateDao().get()
-		if (evidence == null ||
-			evidence.collectedDataEpoch != request.expectedCollectedDataEpoch ||
-			evidence.deletedSourceEventHighWaterOrdinal !=
-				request.expectedDeletedSourceEventHighWaterOrdinal
-		) return@withTransaction CellCapturedSourceDeletionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED
+		if (!evidence.matchesCellCaptureDeletionLifecycle(
+				request.expectedCollectedDataEpoch, request.expectedDeletedSourceEventHighWaterOrdinal,
+			)
+		) {
+			return@withTransaction CellCapturedSourceDeletionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED
+		}
 
 		val policyDao = database.sourcePolicyDao()
 		val authority = policyDao.authority()?.takeIf { current ->
@@ -160,21 +182,36 @@ internal class CellCaptureConsentRevocationDeletionCommand @Inject constructor(
 		val consent = policyDao.latestConsentEpoch(CELL_SOURCE, CAPTURE_PURPOSE)
 		if (policy == null || consent == null ||
 			consent.epoch != request.expectedRevokedConsentEpoch
-		) return@withTransaction CellCapturedSourceDeletionBlockedReason.POLICY_AUTHORITY_UNAVAILABLE
-		if (policy.capturePersistenceEligible || policy.captureConsentEpoch != null ||
-			consent.eligible || consent.persistenceEligible ||
-			consent.policyRevision > policy.policyRevision
-		) return@withTransaction CellCapturedSourceDeletionBlockedReason.CAPTURE_CONSENT_STILL_ELIGIBLE
+		) {
+			return@withTransaction CellCapturedSourceDeletionBlockedReason.POLICY_AUTHORITY_UNAVAILABLE
+		}
+		if (policy.hasEligibleCellCaptureConsent(consent)
+		) {
+			return@withTransaction CellCapturedSourceDeletionBlockedReason.CAPTURE_CONSENT_STILL_ELIGIBLE
+		}
 		// Sibling ingress advances the shared evidence heartbeat, not capture deletion authority.
 		if (request.deletedAtMs < maxOf(
 				authority.updatedAtMs,
 				policy.effectiveWallTimeMs,
 				consent.effectiveWallTimeMs,
 			)
-		) return@withTransaction CellCapturedSourceDeletionBlockedReason.STALE_REQUEST
+		) {
+			return@withTransaction CellCapturedSourceDeletionBlockedReason.STALE_REQUEST
+		}
 		null
 	}
 }
+
+private fun SourceEvidenceState?.matchesCellCaptureDeletionLifecycle(
+	expectedEpoch: Long,
+	expectedHighWaterOrdinal: Long,
+): Boolean = this != null && collectedDataEpoch == expectedEpoch &&
+	deletedSourceEventHighWaterOrdinal == expectedHighWaterOrdinal
+
+private fun SourcePolicyEntity.hasEligibleCellCaptureConsent(
+	consent: SourceConsentEpochEntity,
+): Boolean = capturePersistenceEligible || captureConsentEpoch != null || consent.eligible ||
+	consent.persistenceEligible || consent.policyRevision > policyRevision
 
 private fun CellCaptureDeletionBarrierBlockedReason.toDeletionBlockedReason() = when (this) {
 	CellCaptureDeletionBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,

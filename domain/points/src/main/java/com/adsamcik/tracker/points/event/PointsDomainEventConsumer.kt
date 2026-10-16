@@ -1,5 +1,10 @@
 package com.adsamcik.tracker.points.event
 
+import com.adsamcik.tracker.points.database.PointsDatabase
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+
 import android.content.Context
 import androidx.work.Constraints
 import androidx.work.Data
@@ -23,16 +28,16 @@ import javax.inject.Singleton
 class PointsDomainEventConsumer @Inject constructor(
 	private val domainEventRepository: DomainEventRepository,
 	@ApplicationContext private val context: Context,
-	private val appDatabaseProvider: javax.inject.Provider<com.adsamcik.tracker.shared.base.database.AppDatabase>,
-	private val pointsDatabaseProvider: javax.inject.Provider<com.adsamcik.tracker.points.database.PointsDatabase>,
-	private val trackingStartupGate: com.adsamcik.tracker.shared.base.startup.TrackingStartupGate,
+	private val appDatabaseProvider: javax.inject.Provider<AppDatabase>,
+	private val pointsDatabaseProvider: javax.inject.Provider<PointsDatabase>,
+	private val trackingStartupGate: TrackingStartupGate,
 ) {
 	// Single-flight guard so concurrent triggers can't double-handle the same events.
 	private val processMutex = Mutex()
 
 	/** Process any unconsumed events for the points module. */
 	suspend fun processUnconsumed() = processMutex.withLock {
-		if (trackingStartupGate.reconcile() !is com.adsamcik.tracker.shared.base.startup.TrackingStartupResult.Ready) return@withLock
+		if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready) return@withLock
 		while (true) {
 			val generation = trackingStartupGate.currentGeneration
 			val more = trackingStartupGate.withReadyGenerationOperation(generation) {
@@ -57,28 +62,36 @@ class PointsDomainEventConsumer @Inject constructor(
 
     /** Requeue existing revisioned receipts in finite pages without holding deletion for the full history. */
     suspend fun reconcileSessionEffects() = processMutex.withLock {
-        if (trackingStartupGate.reconcile() !is com.adsamcik.tracker.shared.base.startup.TrackingStartupResult.Ready) return@withLock
+        if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready) return@withLock
         val generation = trackingStartupGate.currentGeneration
         var after = 0
         while (true) {
             val page = trackingStartupGate.withReadyGenerationOperation(generation) {
                 val state = appDatabaseProvider.get().sourceEvidenceStateDao().get()
                     ?: return@withReadyGenerationOperation emptyList()
-                val rows = pointsDatabaseProvider.get().pointsAwardedDao().sessionEffectPage(after, 100)
+                val rows = pointsDatabaseProvider.get().pointsAwardedDao()
+                    .sessionEffectPage(after, SESSION_EFFECT_PAGE_SIZE)
                 for (row in rows) {
-                    val parts = row.effectKey?.split(':').orEmpty()
-                    val originalEpoch = parts.getOrNull(1)?.toLongOrNull()
-                    if (parts.size == 3 && parts[0] == "recording" && originalEpoch != null &&
-                        state.acceptsRetainedEpoch(originalEpoch)) {
-                        parts[2].toLongOrNull()?.takeIf { it > 0 }?.let { enqueue(it, state.collectedDataEpoch) }
-                    }
+                    enqueueRetainedSessionEffect(row.effectKey, state)
                 }
                 rows
             } ?: return@withLock
-            if (page.size < 100) return@withLock
+            if (page.size < SESSION_EFFECT_PAGE_SIZE) return@withLock
             after = page.last().id
         }
     }
+    private fun enqueueRetainedSessionEffect(
+        effectKey: String?,
+        state: com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState,
+    ) {
+        val parts = effectKey?.split(':').orEmpty()
+        val originalEpoch = parts.getOrNull(1)?.toLongOrNull()
+        if (parts.size == RECORDING_EFFECT_PART_COUNT && parts[0] == "recording" && originalEpoch != null &&
+            state.acceptsRetainedEpoch(originalEpoch)) {
+            parts[2].toLongOrNull()?.takeIf { it > 0 }?.let { enqueue(it, state.collectedDataEpoch) }
+        }
+    }
+
 	private suspend fun handleEvent(event: DomainEvent) {
 		when (event) {
 			is DomainEvent.SessionEnded -> onSessionEnded(event)
@@ -131,3 +144,7 @@ class PointsDomainEventConsumer @Inject constructor(
 		private fun uniqueWorkName(sessionId: Long): String = "$POINTS_WORK_TAG-$sessionId"
 	}
 }
+
+private const val SESSION_EFFECT_PAGE_SIZE = 100
+
+private const val RECORDING_EFFECT_PART_COUNT = 3

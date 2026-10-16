@@ -116,6 +116,8 @@ class PreparedStartCancellationReleaseTest {
 		verify(exactly = 0) { service.stopSelfResult(any()) }
 	}
 
+	// Keep both competing threads and latch deadlines together to prove final release cannot erase successor state.
+	@Suppress("LongMethod")
 	@Test
 	fun `actual final match and shell release cannot interleave with successor adoption`() {
 		val finalMatchEntered = CountDownLatch(1)
@@ -162,8 +164,12 @@ class PreparedStartCancellationReleaseTest {
 			while (System.nanoTime() < deadline) {
 				val state = bean.getThreadInfo(competing.id)
 				if (state?.threadState == Thread.State.BLOCKED &&
-					state.lockInfo?.identityHashCode == System.identityHashCode(monitor)) break
-				if (successorInstalled.count == 0L) break
+					state.lockInfo?.identityHashCode == System.identityHashCode(monitor)) {
+					break
+				}
+				if (successorInstalled.count == 0L) {
+					break
+				}
 				Thread.yield()
 			}
 			val blocked = bean.getThreadInfo(competing.id)
@@ -195,14 +201,14 @@ class PreparedStartCancellationReleaseTest {
 		every { service.backgroundLocationHost.hostedSources } returns setOf(SourceKind.WIFI)
 		writeField(service, "foregroundStarted", true)
 		every {
-			service["ensureForegroundStarted"](setOf(SourceKind.WIFI), false, null, false, true)
+			promoteBackground(service, setOf(SourceKind.WIFI))
 		} returns true
 		coEvery { service.trackingStartRequestCoordinator.compensate(token, command, "START_DELIVERY_CANCELLED") } returns Unit
 		retire(service)
 		readRuntime(service) shouldBe PreparedStartRuntimeState()
 		readField(service, "foregroundStarted") shouldBe true
 		verify(exactly = 1) {
-			service["ensureForegroundStarted"](setOf(SourceKind.WIFI), false, null, false, true)
+			promoteBackground(service, setOf(SourceKind.WIFI))
 		}
 		verify(exactly = 0) { service.stopSelfResult(any()) }
 		verify(exactly = 0) { service.stopForeground(any<Int>()) }
@@ -236,6 +242,12 @@ class PreparedStartCancellationReleaseTest {
 	private fun writeRuntime(service: TrackerService, runtime: PreparedStartRuntimeState) {
 		writeField(service, "preparedStartRuntime", runtime)
 	}
+
+	private fun promoteBackground(service: TrackerService, sources: Set<SourceKind>): Boolean =
+		TrackerService::class.java.getDeclaredMethod("ensureForegroundStarted",
+			Set::class.java, Boolean::class.javaPrimitiveType, Boolean::class.javaObjectType,
+			Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
+			.apply { isAccessible = true }.invoke(service, sources, false, null, false, true) as Boolean
 
 	private fun writeField(service: TrackerService, name: String, value: Any?) {
 		TrackerService::class.java.getDeclaredField(name).apply { isAccessible = true }.set(service, value)

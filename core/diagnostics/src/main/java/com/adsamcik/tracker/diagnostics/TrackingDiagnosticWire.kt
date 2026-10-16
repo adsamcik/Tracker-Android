@@ -77,7 +77,7 @@ private fun encodeHex(bytes: ByteArray): String {
 	val encoded = CharArray(bytes.size * 2)
 	bytes.forEachIndexed { index, byte ->
 		val value = byte.toInt() and BYTE_MASK
-		encoded[index * 2] = HEX[value ushr 4]
+		encoded[index * 2] = HEX[value ushr BITS_PER_HEX_DIGIT]
 		encoded[index * 2 + 1] = HEX[value and 0x0f]
 	}
 	return String(encoded)
@@ -241,3 +241,5 @@ private fun TrackingDiagnosticResult.toSeverity(): TrackingDiagnosticSeverity = 
 	-> TrackingDiagnosticSeverity.WARNING
 	else -> TrackingDiagnosticSeverity.INFO
 }
+
+private const val BITS_PER_HEX_DIGIT = 4

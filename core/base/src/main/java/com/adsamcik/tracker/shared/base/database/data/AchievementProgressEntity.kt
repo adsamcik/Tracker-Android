@@ -31,6 +31,10 @@ data class AchievementProgressEntity(
 		}
 	}
 
+	/**
+	 * Stable persisted codes, including `AUTHORITY_QUALIFIED_STEPS_V1`, `AUTHORITY_STATE_READY`,
+	 * `AUTHORITY_STATE_MATERIALIZING`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val AUTHORITY_QUALIFIED_STEPS_V1 = "QUALIFIED_STEPS_V1"
 		const val AUTHORITY_STATE_READY = "READY"

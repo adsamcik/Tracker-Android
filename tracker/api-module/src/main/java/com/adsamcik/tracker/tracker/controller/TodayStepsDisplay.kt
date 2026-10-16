@@ -36,6 +36,10 @@ class TodayStepsDisplay(
     /** Rebind the displayed date and reschedule midnight after a clock or time-zone change. */
     fun refresh() { refreshes.tryEmit(Unit) }
 
+    /**
+     * Observes saved Steps for the current local day and refreshes the day after midnight or an explicit
+     * wake-up.
+     */
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observe(): Flow<StepsDailyDisplay> = refreshes.onStart { emit(Unit) }
         .flatMapLatest {
@@ -53,11 +57,17 @@ class TodayStepsDisplay(
                     .map { display ->
                         if (display is StepsDailyDisplay.Snapshot &&
                             display.days.singleOrNull()?.epochDay != request.firstEpochDay
-                        ) StepsDailyDisplay.StorageUnavailable else display
+                        ) {
+                            StepsDailyDisplay.StorageUnavailable
+                        } else {
+                            display
+                        }
                     }
                     .onStart { emit(StepsDailyDisplay.Materializing) }
                     .catch { error ->
-                        if (error is CancellationException) throw error
+                        if (error is CancellationException) {
+                            throw error
+                        }
                         emit(StepsDailyDisplay.StorageUnavailable)
                     }
             }
@@ -72,10 +82,15 @@ fun StepsDailyDisplay.showTodaySteps(participating: Boolean): Boolean = particip
                 StepsNumericUnverifiableReason.PARTIAL_CAPTURE
     }
 
+/**
+ * Formats a saved daily count or its recorded-so-far, waiting or unavailable state without inventing zero.
+ */
+@Suppress("CyclomaticComplexMethod") // Keep this fixed field or enum projection together.
 fun StepsDailyDisplay.formatTodaySteps(context: Context, format: (Long) -> String): String = when (this) {
     is StepsDailyDisplay.Snapshot -> when (val value = days.singleOrNull()?.value) {
         is StepsDailyDisplayValue.Complete -> format(value.count)
-        is StepsDailyDisplayValue.Recorded -> context.getString(R.string.tracker_steps_today_recorded, format(value.count))
+        is StepsDailyDisplayValue.Recorded -> context.getString(R.string.tracker_steps_today_recorded,
+            format(value.count))
         StepsDailyDisplayValue.Materializing -> context.getString(R.string.tracker_steps_today_waiting)
         is StepsDailyDisplayValue.Unavailable -> context.getString(when (value.reason) {
             StepsNumericUnverifiableReason.NOT_CAPTURED -> R.string.tracker_steps_today_missing

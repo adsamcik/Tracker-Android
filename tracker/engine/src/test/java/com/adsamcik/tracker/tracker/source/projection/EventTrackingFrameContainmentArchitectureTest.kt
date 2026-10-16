@@ -40,7 +40,7 @@ class EventTrackingFrameContainmentArchitectureTest {
 	}
 
 	@Test
-	fun `only activity automation is bound as a live production projection`() {
+	fun `live production projections contain only source owned automation and background radio`() {
 		val module = projectRoot.resolve(
 			"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/SourcePipelineModule.kt",
 		).readText()
@@ -49,7 +49,11 @@ class EventTrackingFrameContainmentArchitectureTest {
 			.map { it.groupValues[1] }
 			.toList()
 
-		assertEquals(listOf("provideActivityAutomationProjection"), projectionProviders)
+		assertEquals(listOf(
+			"provideActivityAutomationProjection",
+			"provideAmbientWifiProjection",
+			"provideAmbientCellProjection",
+		), projectionProviders)
 		assertFalse("provideEventTrackingFrameProjection" in module)
 		assertFalse("provideLocationDomainProjection" in module)
 		assertFalse("provideExplicitTrackingJoinProjection" in module)

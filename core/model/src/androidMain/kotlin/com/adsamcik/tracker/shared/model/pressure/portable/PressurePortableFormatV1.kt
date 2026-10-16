@@ -22,6 +22,7 @@ object PressurePortableFormatV1 {
 	const val MAX_IMPORT_RECEIPT_FIELD_LENGTH: Int = 4_096
 }
 
+/** Separates logical entry, physical run and Pressure-window identity namespaces during transfer. */
 enum class PortablePressureIdentityKind { LOGICAL_ENTRY, PHYSICAL_RUN, WINDOW }
 
 /** Kind-namespaced hash; local logical, run, and fact identifiers never cross this boundary. */
@@ -31,7 +32,9 @@ value class PortablePressureOpaqueIdentity(val value: String) {
 		require(SHA_256_VALUE.matches(value))
 	}
 
+	/** Derives portable identities using a separate namespace for each local identity kind. */
 	companion object {
+		/** Derives a deterministic kind-specific identity from a bounded local key without exporting that key. */
 		fun derive(
 			kind: PortablePressureIdentityKind,
 			localIdentity: String,
@@ -48,6 +51,7 @@ value class PortablePressureOpaqueIdentity(val value: String) {
 	}
 }
 
+/** Canonical content checksum in sha256-prefixed lowercase hexadecimal; it checks consistency, not file authorship. */
 @JvmInline
 value class PortablePressureDigest(val value: String) {
 	init {
@@ -55,6 +59,7 @@ value class PortablePressureDigest(val value: String) {
 	}
 }
 
+/** Whether retained Pressure windows exist or recording was disabled, erased or unavailable. */
 enum class PortablePressureAvailability {
 	RETAINED,
 	NO_RETAINED_OBSERVATION,
@@ -63,9 +68,13 @@ enum class PortablePressureAvailability {
 	UNAVAILABLE,
 }
 
+/** Retained interval coverage; UNKNOWN preserves unavailable coverage evidence instead of implying completeness. */
 enum class PortablePressureCoverage { NONE, COMPLETE, PARTIAL, UNKNOWN }
+/** Original sensor-reported quality category, including unknown or unreliable accuracy. */
 enum class PortablePressureSensorAccuracy { UNKNOWN, UNRELIABLE, LOW, MEDIUM, HIGH }
+/** Whether the measured Pressure window closed at its target duration or a source boundary. */
 enum class PortablePressureWindowClosure { TARGET_ELAPSED, SOURCE_BOUNDARY }
+/** Whether the closed window meets its planned sample count, cadence and duration requirements. */
 enum class PortablePressureWindowQualification { COMPLETE, PARTIAL }
 
 /** One direct Pressure window. It deliberately has no elevation, ascent, or coordinates. */
@@ -102,7 +111,7 @@ data class PortablePressureWindowV1(
 		require(intervalStartTimeMs >= 0L && intervalEndTimeMs >= intervalStartTimeMs)
 		require(wallTimeUncertaintyMs >= 0L)
 		require(observedDurationNanos >= 0L)
-		require((intervalEndTimeMs - intervalStartTimeMs) == observedDurationNanos / 1_000_000L)
+		require((intervalEndTimeMs - intervalStartTimeMs) == observedDurationNanos / NANOS_PER_MILLISECOND)
 		require(sampleCount > 0 && expectedSampleCount > 0)
 		require(meanHectopascals.isFinite() && meanHectopascals > 0.0)
 		require(sumSquaredDeviations.isFinite() && sumSquaredDeviations >= 0.0)
@@ -122,7 +131,11 @@ data class PortablePressureWindowV1(
 		requireValidZone(zoneId)
 		val samplePeriodNanos = effectiveSamplePeriodMicros.toLong() * 1_000L
 		val expectedFromPlan = (targetWindowDurationNanos / samplePeriodNanos) +
-			if (targetWindowDurationNanos % samplePeriodNanos == 0L) 0L else 1L
+			if (targetWindowDurationNanos % samplePeriodNanos == 0L) {
+				0L
+			} else {
+				1L
+			}
 		require(expectedFromPlan.coerceAtLeast(1L) == expectedSampleCount.toLong())
 		if (sampleCount == 1) {
 			require(firstHectopascals == latestHectopascals)
@@ -136,7 +149,11 @@ data class PortablePressureWindowV1(
 			require(observedDurationNanos > 0L)
 			require(maximumInterSampleGapNanos in 1L..observedDurationNanos)
 			requireNotNull(slopeHectopascalsPerSecond)
-			if (sumSquaredDeviations > 0.0) requireNotNull(rSquared) else require(rSquared == null)
+			if (sumSquaredDeviations > 0.0) {
+				requireNotNull(rSquared)
+			} else {
+				require(rSquared == null)
+			}
 		}
 		val requiredObservedDuration = saturatedMultiply(
 			expectedSampleCount.toLong() - 1L,
@@ -152,12 +169,21 @@ data class PortablePressureWindowV1(
 	}
 
 	val sampleVarianceHectopascalsSquared: Double?
-		get() = if (sampleCount > 1) sumSquaredDeviations / (sampleCount - 1) else null
+		get() = if (sampleCount > 1) {
+			sumSquaredDeviations / (sampleCount - 1)
+		} else {
+			null
+		}
 
 	val actualToExpectedSampleRatio: Double
 		get() = sampleCount.toDouble() / expectedSampleCount
 
+	/** Constructs validated direct Pressure windows and computes their canonical content checksum. */
 	companion object {
+		/**
+		 * Builds a measured Pressure window with its canonical checksum; pressure is in hectopascals and
+		 * optional regression values remain null.
+		 */
 		@Suppress("LongParameterList")
 		fun create(
 			identity: PortablePressureOpaqueIdentity,
@@ -294,7 +320,12 @@ data class PortablePressureEntryV1(
 		require(PortablePressureIntegrity.expectedEntryChecksum(this) == contentChecksum)
 	}
 
+	/** Constructs a bounded logical entry whose UTC-millisecond bounds match its supplied run members. */
 	companion object {
+		/**
+		 * Builds a logical entry from already ordered physical runs and computes the checksum for that exact
+		 * membership.
+		 */
 		fun create(
 			identity: PortablePressureOpaqueIdentity,
 			startTimeMs: Long,
@@ -326,6 +357,13 @@ val PORTABLE_PRESSURE_ENTRY_ORDER: Comparator<PortablePressureEntryV1> =
 
 /** Canonical v1 checksums exclude export time and local database/provider identifiers. */
 object PortablePressureIntegrity {
+	private const val UNSIGNED_BYTE_MASK = 0xff
+	private const val HEX_RADIX = 16
+
+	/**
+	 * Recomputes content consistency from the window’s exact measurements, UTC milliseconds and monotonic
+	 * nanosecond durations.
+	 */
 	fun expectedWindowChecksum(window: PortablePressureWindowV1): PortablePressureDigest = digest(
 		WINDOW_NAMESPACE,
 		windowValues(
@@ -342,6 +380,7 @@ object PortablePressureIntegrity {
 		),
 	)
 
+	/** Hashes an entry’s ordered run membership and window checksums; excludes export time and destination metadata. */
 	fun entryChecksum(
 		identity: PortablePressureOpaqueIdentity,
 		startTimeMs: Long,
@@ -370,6 +409,7 @@ object PortablePressureIntegrity {
 		),
 	)
 
+	/** Recomputes the entry checksum from its retained run and window membership. */
 	fun expectedEntryChecksum(entry: PortablePressureEntryV1): PortablePressureDigest =
 		entryChecksum(entry.identity, entry.startTimeMs, entry.endTimeMs, entry.runs)
 
@@ -378,7 +418,7 @@ object PortablePressureIntegrity {
 		val digest = MessageDigest.getInstance("SHA-256")
 		digest.appendCanonical(listOf(namespace, values))
 		return PortablePressureDigest("sha256:" + digest.digest().joinToString("") { byte ->
-			(byte.toInt() and 0xff).toString(16).padStart(2, '0')
+			(byte.toInt() and UNSIGNED_BYTE_MASK).toString(HEX_RADIX).padStart(2, '0')
 		})
 	}
 
@@ -386,7 +426,11 @@ object PortablePressureIntegrity {
 	private fun MessageDigest.appendCanonical(value: Any?) {
 		when (value) {
 			null -> appendUtf8("N;")
-			is Boolean -> appendUtf8(if (value) "B1;" else "B0;")
+			is Boolean -> appendUtf8(if (value) {
+				"B1;"
+			} else {
+				"B0;"
+			})
 			is Int -> appendUtf8("I$value;")
 			is Long -> appendUtf8("I$value;")
 			is Float -> appendUtf8("F${value.toRawBits()};")
@@ -456,8 +500,13 @@ private fun requireValidZone(zoneId: String) {
 }
 
 private fun saturatedMultiply(first: Long, second: Long): Long =
-	if (first == 0L || second <= Long.MAX_VALUE / first) first * second else Long.MAX_VALUE
+	if (first == 0L || second <= Long.MAX_VALUE / first) {
+		first * second
+	} else {
+		Long.MAX_VALUE
+	}
 
+private const val NANOS_PER_MILLISECOND = 1_000_000L
 private const val WINDOW_NAMESPACE = "tracker-portable-pressure-window-v1"
 private const val ENTRY_NAMESPACE = "tracker-portable-pressure-entry-v1"
 private val SHA_256_VALUE = Regex("sha256:[0-9a-f]{64}")

@@ -91,101 +91,118 @@ internal class PortableAmbientStepsExporter(
 	internal suspend fun exportSession(context: Context, request: ExportPortableAmbientStepsRequest,
 		outputStream: OutputStream, selectedDayIdentities: Set<String>? = null): ExportResult {
 		val backend = backendProvider(context)
-		val selectedRequest = request.copy(selectedDayIdentities = selectedDayIdentities?.toSet() ?: request.selectedDayIdentities)
-		val sourceResult: ExportPortableAmbientStepsResult = try {
-			val v2Result = FileBackedExportSpool(
-				context,
-				"portable-ambient-steps-v2-",
-				v2MaximumBytes,
-			).use { spool ->
-				val staged = spool.stage { spoolOutput ->
-					codec.encode(spoolOutput) { sink ->
-						if (selectedDayIdentities == null) backend.exportV2(origin, selectedRequest, sink) else {
-							var selected: PortableAmbientStepsArchiveV2? = null
-							val result = backend.exportV2(origin, selectedRequest) { archive ->
-								val days = archive.days.filter { it.product.identity.value in selectedDayIdentities }
-								if (days.map { it.product.identity.value }.toSet() != selectedDayIdentities)
-									throw PortableAmbientStepsFormatException("Selected Steps data is unavailable")
-								selected = PortableAmbientStepsArchiveV2.create(days)
-								sink.emit(requireNotNull(selected))
-							}
-							if (result is ExportPortableAmbientStepsResult.Exported) requireNotNull(selected).let { archive ->
-								ExportPortableAmbientStepsResult.Exported(archive.days.size,
-									archive.days.sumOf { it.product.facts.size }, archive.days.sumOf { it.product.gaps.size })
-							} else result
-						}
-					}
-				}
-				when (staged) {
-					is FileBackedExportStage.Complete -> {
-						if (staged.value is ExportPortableAmbientStepsResult.Exported) {
-							if (spool.byteCount == 0L) {
-								throw PortableAmbientStepsFormatException(
-									"Successful Ambient Steps v2 export wrote no bytes",
-								)
-							}
-							spool.copyTo(outputStream)
-						}
-						staged.value
-					}
-					FileBackedExportStage.EncodedSizeExceeded -> null
-				}
-			}
-			if (
-				v2Result == null ||
-				v2Result is ExportPortableAmbientStepsResult.Unverifiable &&
-					v2Result.reason ==
-					PortableAmbientStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE
-			) {
-				FileBackedExportSpool(
-					context,
-					"portable-ambient-steps-v1-",
-					v1MaximumBytes,
-				).use { spool ->
-					val staged = spool.stage { spoolOutput ->
-						legacyCodec.encode(spoolOutput) { sink ->
-							if (selectedDayIdentities == null) backend.export(origin, selectedRequest, sink) else {
-								var selected: PortableAmbientStepsArchiveV1? = null
-								val result = backend.export(origin, selectedRequest) { archive ->
-									val days = archive.days.filter { it.identity.value in selectedDayIdentities }
-									if (days.map { it.identity.value }.toSet() != selectedDayIdentities)
-										throw PortableAmbientStepsFormatException("Selected Steps data is unavailable")
-									selected = PortableAmbientStepsArchiveV1.create(days)
-									sink.emit(requireNotNull(selected))
-								}
-								if (result is ExportPortableAmbientStepsResult.Exported) requireNotNull(selected).let { archive ->
-									ExportPortableAmbientStepsResult.Exported(archive.days.size,
-										archive.days.sumOf { it.facts.size }, archive.days.sumOf { it.gaps.size })
-								} else result
-							}
-						}
-					}
-					when (staged) {
-						is FileBackedExportStage.Complete -> {
-							if (staged.value is ExportPortableAmbientStepsResult.Exported) {
-								spool.copyTo(outputStream)
-							}
-							staged.value
-						}
-						FileBackedExportStage.EncodedSizeExceeded ->
-							return ExportResult.Error(
-								LocalizedString(
-									R.string.export_error_portable_ambient_steps_write,
-								),
-							)
-					}
-				}
+		val selectedRequest = request.copy(selectedDayIdentities = selectedDayIdentities?.toSet() ?:
+			request.selectedDayIdentities)
+		val sourceResult = try {
+			val v2Result = exportV2File(context, backend, selectedRequest, selectedDayIdentities, outputStream)
+			if (v2Result == null || v2Result is ExportPortableAmbientStepsResult.Unverifiable &&
+				v2Result.reason == PortableAmbientStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE) {
+				exportV1File(context, backend, selectedRequest, selectedDayIdentities, outputStream)
+					?: return ExportResult.Error(LocalizedString(R.string.export_error_portable_ambient_steps_write))
 			} else {
 				requireNotNull(v2Result)
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: PortableAmbientStepsFormatException) {
-			return ExportResult.Error(
-				LocalizedString(R.string.export_error_portable_ambient_steps_write),
-			)
+			return ExportResult.Error(LocalizedString(R.string.export_error_portable_ambient_steps_write))
 		}
 		return sourceResult.toExportResult()
+	}
+
+	private suspend fun exportV2File(
+		context: Context, backend: AmbientStepsPortableSourceBackend, selectedRequest: ExportPortableAmbientStepsRequest,
+		selectedDayIdentities: Set<String>?, output: OutputStream,
+	): ExportPortableAmbientStepsResult? =
+		FileBackedExportSpool(context, "portable-ambient-steps-v2-", v2MaximumBytes).use { spool ->
+			spool.stageAndCopy(output, requireBytes = true) { destination ->
+				codec.encode(destination) { sink ->
+					exportSelectedV2(backend, selectedRequest, selectedDayIdentities, sink)
+				}
+			}
+		}
+
+	private suspend fun exportSelectedV2(
+		backend: AmbientStepsPortableSourceBackend, selectedRequest: ExportPortableAmbientStepsRequest,
+		selectedDayIdentities: Set<String>?,
+		sink: com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsArchiveV2Sink,
+	): ExportPortableAmbientStepsResult =
+		if (selectedDayIdentities == null) {
+			backend.exportV2(origin, selectedRequest, sink)
+		} else {
+			var selected: PortableAmbientStepsArchiveV2? = null
+			val result = backend.exportV2(origin, selectedRequest) { archive ->
+				val days = archive.days.filter { it.product.identity.value in selectedDayIdentities }
+				if (days.map { it.product.identity.value }.toSet() != selectedDayIdentities) {
+					throw PortableAmbientStepsFormatException("Selected Steps data is unavailable")
+				}
+				selected = PortableAmbientStepsArchiveV2.create(days)
+				sink.emit(requireNotNull(selected))
+			}
+			if (result is ExportPortableAmbientStepsResult.Exported) {
+				requireNotNull(selected).let { archive ->
+				ExportPortableAmbientStepsResult.Exported(archive.days.size,
+					archive.days.sumOf { it.product.facts.size },
+                                        archive.days.sumOf { it.product.gaps.size })
+			}
+			} else {
+				result
+			}
+		}
+
+	private suspend fun exportV1File(
+		context: Context, backend: AmbientStepsPortableSourceBackend, selectedRequest: ExportPortableAmbientStepsRequest,
+		selectedDayIdentities: Set<String>?, output: OutputStream,
+	): ExportPortableAmbientStepsResult? =
+		FileBackedExportSpool(context, "portable-ambient-steps-v1-", v1MaximumBytes).use { spool ->
+			spool.stageAndCopy(output, requireBytes = false) { destination ->
+				legacyCodec.encode(destination) { sink ->
+					exportSelectedV1(backend, selectedRequest, selectedDayIdentities, sink)
+				}
+			}
+		}
+
+	private suspend fun exportSelectedV1(
+		backend: AmbientStepsPortableSourceBackend, selectedRequest: ExportPortableAmbientStepsRequest,
+		selectedDayIdentities: Set<String>?,
+		sink: com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsArchiveSink,
+	): ExportPortableAmbientStepsResult =
+		if (selectedDayIdentities == null) {
+			backend.export(origin, selectedRequest, sink)
+		} else {
+			var selected: PortableAmbientStepsArchiveV1? = null
+			val result = backend.export(origin, selectedRequest) { archive ->
+				val days = archive.days.filter { it.identity.value in selectedDayIdentities }
+				if (days.map { it.identity.value }.toSet() != selectedDayIdentities) {
+					throw PortableAmbientStepsFormatException("Selected Steps data is unavailable")
+				}
+				selected = PortableAmbientStepsArchiveV1.create(days)
+				sink.emit(requireNotNull(selected))
+			}
+			if (result is ExportPortableAmbientStepsResult.Exported) {
+				requireNotNull(selected).let { archive ->
+				ExportPortableAmbientStepsResult.Exported(archive.days.size,
+					archive.days.sumOf { it.facts.size }, archive.days.sumOf { it.gaps.size })
+			}
+			} else {
+				result
+			}
+		}
+
+	private suspend fun FileBackedExportSpool.stageAndCopy(
+		output: OutputStream, requireBytes: Boolean,
+		encode: suspend (OutputStream) -> ExportPortableAmbientStepsResult,
+	): ExportPortableAmbientStepsResult? = when (val staged = stage { encode(it) }) {
+		is FileBackedExportStage.Complete -> {
+			if (staged.value is ExportPortableAmbientStepsResult.Exported) {
+				if (requireBytes && byteCount == 0L) {
+					throw PortableAmbientStepsFormatException("Successful Ambient Steps v2 export wrote no bytes")
+				}
+				copyTo(output)
+			}
+			staged.value
+		}
+		FileBackedExportStage.EncodedSizeExceeded -> null
 	}
 
 	private fun ExportPortableAmbientStepsResult.toExportResult(): ExportResult = when (this) {
@@ -207,6 +224,10 @@ internal class PortableAmbientStepsExporter(
 }
 
 private fun LongRange.toAmbientScope(): AmbientStepsPortableFileScope.Range {
-	val exclusiveEnd = if (last == Long.MAX_VALUE) Long.MAX_VALUE else last + 1L
+	val exclusiveEnd = if (last == Long.MAX_VALUE) {
+		Long.MAX_VALUE
+	} else {
+		last + 1L
+	}
 	return AmbientStepsPortableFileScope.Range(first, exclusiveEnd)
 }

@@ -4,6 +4,10 @@ import java.security.MessageDigest
 
 /** The existing lifecycle byte contract, shared without changing command authority. */
 object SessionLifecycleIntegrity {
+    /**
+     * Computes the deterministic stored digest from the supplied identity, revision and value
+     * fields.
+     */
     fun checksum(vararg parts: Any?): String {
         val canonical = parts.joinToString(separator = "\u001f") { part ->
             when (part) {
@@ -17,7 +21,8 @@ object SessionLifecycleIntegrity {
     }
 
     /** A retry has a FINALIZED predecessor and cannot supply the original cutoff clock. */
-    @Suppress("ComplexCondition")
+    // One immutable Stop/predecessor/session tuple; every identity and cutoff field stays explicit.
+    @Suppress("ComplexCondition", "CyclomaticComplexMethod")
     fun authenticatesOriginalStop(
         stop: SessionLifecycleIntentVersionEntity,
         predecessor: SessionLifecycleIntentVersionEntity,
@@ -41,10 +46,14 @@ object SessionLifecycleIntegrity {
             stop.desiredState, stop.stopReason, stop.requestBootId, stop.requestedElapsedRealtimeNanos,
             stop.stopDeadlineElapsedRealtimeNanos)
 
+    // The two persisted Active checksum shapes retain their exact field and null requirements.
+    @Suppress("ComplexCondition", "CyclomaticComplexMethod")
     private fun authenticatesActive(intent: SessionLifecycleIntentVersionEntity): Boolean {
         if (intent.requestBootId.isBlank() || intent.intentRevision <= 0L || intent.manifestRevision <= 0L ||
             intent.requestedElapsedRealtimeNanos < 0L || intent.requestedWallTimeMs < 0L ||
-            intent.stopDeadlineBootId != null || intent.stopDeadlineElapsedRealtimeNanos != null) return false
+            intent.stopDeadlineBootId != null || intent.stopDeadlineElapsedRealtimeNanos != null) {
+            return false
+        }
         return if (intent.stopReason == null) {
             intent.intentChecksum == checksum(intent.logicalTrackingId, intent.intentRevision,
                 intent.manifestRevision, intent.desiredState, intent.startOrigin, intent.requestBootId,

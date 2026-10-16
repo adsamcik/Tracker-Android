@@ -40,4 +40,22 @@
     <string name="format_database">データベースバックアップ（ZIP）</string>
     <string name="settings_import_summary">対応する形式（%1$s）とアーカイブ（%2$s）からデータをインポートします。データベースのインポートは互換性のある行を統合し、既存データを置き換えません。</string>
     <string name="settings_import_title">インポート</string>
+    <string name="export_radio_sensitivity_title">ネットワークの詳細をエクスポートしますか？</string>
+    <string name="export_wifi_sensitivity_message">このファイルには保存済みのWi-Fi名とアクセスポイントIDが含まれます。</string>
+    <string name="export_cell_sensitivity_message">このファイルには保存済みの基地局IDと信号測定値が含まれます。</string>
+    <string name="export_radio_no_data">このデータソースの保存データはありません</string>
+    <string name="export_include_complete_sessions">セッション全体を含める</string>
+    <string name="import_location_conflict_title">保存済みの地点を置き換えますか？</string>
+    <string name="import_location_replace">ファイル内の地点を使う</string>
+    <string name="import_location_keep">保存済みの地点を残す</string>
+    <string name="export_backup_review_title">定期バックアップを確認</string>
+    <string name="export_backup_review_summary">更新されたデータバックアップを確認するまで一時停止しています。</string>
+    <string name="export_backup_review_message">これらのスケジュールでは、保存済みの追跡データすべてと復元に必要なファイルをバックアップします。設定は含まれません。スケジュールを再開しますか？\n\n%1$s</string>
+    <string name="export_backup_review_resume">バックアップを再開</string>
+    <string name="import_backup_replace_title">データバックアップを復元しますか？</string>
+    <string name="import_backup_replace_message">保存済みのデータをこのバックアップで置き換えますか？設定は変わりません。再開するまで追跡はオフになります。</string>
+    <string name="import_backup_restore">データを置き換える</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="other">このファイル内の%d地点が保存済みのコピーと異なります。どちらを残すか選んでください。他の地点は通常どおりインポートされます。</item>
+    </plurals>
 </resources>

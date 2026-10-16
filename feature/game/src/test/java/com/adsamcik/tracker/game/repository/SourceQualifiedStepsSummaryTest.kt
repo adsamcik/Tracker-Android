@@ -181,7 +181,11 @@ class SourceQualifiedStepsSummaryTest {
 		val results = mutableListOf<StepsSummaryData>()
 		backgroundScope.launch { summaryFlow(repository).collect(results::add) }
 		runCurrent()
-		repository.emitDays { request, _ -> if (request.dayCount == 1) 42L else 84L }
+		repository.emitDays { request, _ -> if (request.dayCount == 1) {
+			42L
+		} else {
+			84L
+		} }
 		runCurrent()
 		results.last().stepsToday shouldBe QualifiedStepCount.Ready(42)
 		results.last().stepsWeek shouldBe QualifiedStepCount.Ready(252)
@@ -481,7 +485,11 @@ private fun activePolicyState(
 		SourcePolicy(
 			source = source,
 			enabled = enabled,
-			qos = if (enabled) SourceQos.BALANCED else SourceQos.OFF,
+			qos = if (enabled) {
+				SourceQos.BALANCED
+			} else {
+				SourceQos.OFF
+			},
 			locationMinTimeSeconds = 30.takeIf { source == TrackingSourceComponent.LOCATION },
 			locationMinDistanceMeters = 20.takeIf { source == TrackingSourceComponent.LOCATION },
 			locationRequiredAccuracyMeters = 50.takeIf { source == TrackingSourceComponent.LOCATION },

@@ -352,6 +352,9 @@ class RetainedLocationPurposeLifecycleRoomTest {
         reader.qualifyInTransaction(listOf(receipt))
     }
 
+    // Keep one saved Location point and its original session/background purpose receipts together in their
+    // Room installation order.
+    @Suppress("LongMethod")
     private suspend fun installJoinedPoint(sealed: Boolean = true): LocationAcceptedReceiptEntity {
         database.sourcePolicyDao().insertPolicies(listOf(policy()))
         database.sourcePolicyDao().insertConsentEpochs(listOf(consent(SourceBrokerPurpose.SESSION_CAPTURE),
@@ -398,7 +401,11 @@ class RetainedLocationPurposeLifecycleRoomTest {
             "delivery", 0, 1, SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID,
             SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION, 1, "physical", 1,
             "authorization", BOOT, BOOT, 10, 11, 1_000, 1_010, 10, 0)
-        val receipt = if (sealed) LocationAcceptedReceiptIntegrity.seal(initialReceipt) else initialReceipt
+        val receipt = if (sealed) {
+            LocationAcceptedReceiptIntegrity.seal(initialReceipt)
+        } else {
+            initialReceipt
+        }
         database.locationPurposeDao().insertReceiptIfAbsent(receipt)
         val purposes = listOf(
             LocationSamplePurposeAuthorityEntity(id, SourceBrokerPurpose.SESSION_CAPTURE, RUN,
@@ -406,7 +413,11 @@ class RetainedLocationPurposeLifecycleRoomTest {
             LocationSamplePurposeAuthorityEntity(id, SourceBrokerPurpose.AMBIENT_PRODUCT, "ambient",
                 1, 0, 10, 11, null, null, null, null, null, "ambient", "retention", 1, 0, null))
         for (purpose in purposes) database.locationPurposeDao().insertPurposeIfAbsent(
-            if (sealed) LocationAcceptedReceiptIntegrity.seal(purpose, receipt) else purpose)
+            if (sealed) {
+                LocationAcceptedReceiptIntegrity.seal(purpose, receipt)
+            } else {
+                purpose
+            })
         return receipt
     }
 

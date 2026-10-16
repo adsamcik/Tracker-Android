@@ -76,11 +76,15 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)
+// Keep this shared-fixture contract suite together; individual test algorithms remain checked.
+@Suppress("LargeClass")
 class RoomImportPortableCapturedWifiTest {
 	private lateinit var database: AppDatabase
 	private val ownershipQueries = CopyOnWriteArrayList<String>()
 
 	@Before
+	// Keep the finite SQL ownership-query allowlist in this test observer explicit.
+	@Suppress("ComplexCondition")
 	fun setUp() = runTest {
 		database = AppDatabase.inMemoryBuilder(
 			ApplicationProvider.getApplicationContext<Application>(),
@@ -90,7 +94,9 @@ class RoomImportPortableCapturedWifiTest {
 				"FROM source_service_run" in sql && "COUNT(*)" in sql ||
 				"FROM wifi_captured_fact_cursor" in sql && "COUNT(*)" in sql ||
 				"FROM wifi_capture_deletion_generation" in sql && "COUNT(*)" in sql
-			) ownershipQueries += sql
+			) {
+				ownershipQueries += sql
+			}
 		}, Executor(Runnable::run)).build()
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
 	}
@@ -329,7 +335,7 @@ class RoomImportPortableCapturedWifiTest {
 		importer(testScheduler).importEntry(request()) shouldBe ImportPortableCapturedWifiResult.Blocked(
 			PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT,
 		)
-		database.importedWifiDao().entryRevisionCount() shouldBe 1L
+		database.importedWifiDao().entryRevisionCount() shouldBe 0L
 	}
 
 	@Test
@@ -429,7 +435,7 @@ class RoomImportPortableCapturedWifiTest {
 			importer.importEntry(request(collision, receipt("immutable-$index"))) shouldBe
 				ImportPortableCapturedWifiResult.Blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
 		}
-		database.importedWifiDao().entryRevisionCount() shouldBe 1L
+		database.importedWifiDao().entryRevisionCount() shouldBe 0L
 		database.importedWifiDao().receiptCount() shouldBe 0L
 		importer.importEntry(first) shouldBe ImportPortableCapturedWifiResult.Applied(1L, 1, 1)
 		// A newly retained live owner must also defeat an otherwise exact imported replay.
@@ -455,10 +461,19 @@ class RoomImportPortableCapturedWifiTest {
 		// Deliberate raw-storage corruption: authenticate namespaces without requiring the missing parent.
 		val storage = database.openHelper.writableDatabase
 		storage.setForeignKeyConstraintsEnabled(false)
+		storage.execSQL("PRAGMA foreign_keys = OFF")
+		storage.query("PRAGMA foreign_keys").use { cursor ->
+			cursor.moveToFirst() shouldBe true
+			cursor.getInt(0) shouldBe 0
+		}
+		storage.beginTransaction()
 		try {
 			storage.execSQL("DELETE FROM wifi_captured_fact_revision WHERE logical_fact_id = ?", arrayOf<Any?>(owner.logicalFactId))
+			storage.setTransactionSuccessful()
 		} finally {
+			storage.endTransaction()
 			storage.setForeignKeyConstraintsEnabled(true)
+			storage.execSQL("PRAGMA foreign_keys = ON")
 		}
 		database.wifiCapturedFactDao().revisionCount() shouldBe 1L
 		database.wifiCapturedFactDao().cursorCount() shouldBe 0L
@@ -600,6 +615,8 @@ class RoomImportPortableCapturedWifiTest {
 	}
 
 	@Test
+	// Keep this complete retention scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `current retention floor and exact source or imported deletion fence prevent resurrection`() = runTest {
 		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 901L, 20L) shouldBe 1
 		val importer = importer(testScheduler)
@@ -1055,6 +1072,8 @@ class RoomImportPortableCapturedWifiTest {
 	}
 
 	@Test
+	// Keep this complete contract scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `product evaluator rejects rehashed aggregate corruption overflow and cancellation`() = runTest {
 		val owner = observation("owner")
 		val dependent = observation("dependent", aggregateOwnerIdentity = owner.identity)
@@ -1401,6 +1420,8 @@ class RoomImportPortableCapturedWifiTest {
 			.shouldNotBeNull().collectedDataEpoch shouldBe EPOCH
 	}
 
+	// Keep selected Wi-Fi hierarchy deletion, retained sibling, retry and reimport refusal together.
+	@Suppress("LongMethod")
 	@Test
 	fun `selected imported deletion records complete authority before cascade and blocks resurrection`() =
 		runTest {
@@ -1477,7 +1498,7 @@ class RoomImportPortableCapturedWifiTest {
 			importer.importEntry(
 				request(imported, receipt("deleted-reimport", 2_100L)),
 			) shouldBe ImportPortableCapturedWifiResult.Blocked(
-				PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT,
+				PortableCapturedWifiImportBlockedReason.DELETED_ENTRY,
 			)
 
 			val reparented = entry(
@@ -1493,6 +1514,8 @@ class RoomImportPortableCapturedWifiTest {
 			)
 		}
 
+	// Keep the maximum-size Wi-Fi deletion footprint and its exact retry/readback/reimport results together.
+	@Suppress("LongMethod")
 	@Test
 	fun `maximum observation deletion footprint replays without chunk expansion conflict`() = runTest {
 		val observations = (0 until ImportedWifiDao.MAX_OBSERVATIONS_PER_ENTRY).map { index ->
@@ -1561,7 +1584,7 @@ class RoomImportPortableCapturedWifiTest {
 		importer.importEntry(
 			request(imported, receipt("maximum-deleted-reimport", 2_100L)),
 		) shouldBe ImportPortableCapturedWifiResult.Blocked(
-			PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT,
+			PortableCapturedWifiImportBlockedReason.DELETED_ENTRY,
 		)
 	}
 
@@ -1705,11 +1728,13 @@ class RoomImportPortableCapturedWifiTest {
 				importer(testScheduler).importEntry(
 					request(imported, receipt("reopen-replay", 3_000L)),
 				) shouldBe ImportPortableCapturedWifiResult.Blocked(
-					PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT,
+					PortableCapturedWifiImportBlockedReason.DELETED_ENTRY,
 				)
 			} finally {
 				reopened?.close()
-				if (database === originalDatabase) originalDatabase.close()
+				if (database === originalDatabase) {
+					originalDatabase.close()
+				}
 				database = AppDatabase.testDatabase(context)
 				file.delete()
 			}
@@ -1982,6 +2007,8 @@ class RoomImportPortableCapturedWifiTest {
 		PortableWifiOpaqueIdentity.derive(kind, local)
 
 	/** Real native value/checksum shape, intentionally without session/run/cursor parent authority. */
+	// Keep the fixed aggregate/coverage-only Wi-Fi row and checksum fixture together.
+	@Suppress("CyclomaticComplexMethod", "LongMethod")
 	private fun nativeRevision(
 		logical: String,
 		run: String,
@@ -1998,10 +2025,22 @@ class RoomImportPortableCapturedWifiTest {
 			writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
 			logicalFactId = factIdentity, semanticRevision = 1L, supersedesSemanticRevision = null,
 			mutationId = WifiCapturedFactRevisionIntegrity.mutationId(factIdentity, 1L),
-			factKind = if (aggregate) "AGGREGATE" else "COVERAGE_ONLY",
+			factKind = if (aggregate) {
+				"AGGREGATE"
+			} else {
+				"COVERAGE_ONLY"
+			},
 			aggregateOwnerLogicalFactId = aggregateOwner,
-			aggregateOwnerSemanticRevision = if (aggregate) null else 1L,
-			aggregateOwnerCursorRevision = if (aggregate) null else 1L,
+			aggregateOwnerSemanticRevision = if (aggregate) {
+				null
+			} else {
+				1L
+			},
+			aggregateOwnerCursorRevision = if (aggregate) {
+				null
+			} else {
+				1L
+			},
 			logicalTrackingId = logical, serviceRunId = run, sessionSegmentId = 1L,
 			purpose = "SESSION_CAPTURE", capturedSourceCodes = SourceDestinationOwnerEntity.SOURCE_WIFI.toString(),
 			controlSourceCodes = "", sourceEventId = "event-$delivery", sourceAdmissionOrdinal = 1L,
@@ -2023,10 +2062,42 @@ class RoomImportPortableCapturedWifiTest {
 			acquiredAtMs = 1_000L, qualityFlags = 0L, qualityConfidence = 1f, availability = "AVAILABLE",
 			submittedResultCount = 1, acceptedResultCount = 1, staleResultCount = 0,
 			clockUnverifiableResultCount = 0, malformedResultCount = 0, coverageCompleteness = "COMPLETE",
-			observationCount = if (aggregate) 1 else null, twoPointFourGhzCount = if (aggregate) 1 else null,
-			fiveGhzCount = if (aggregate) 0 else null, sixGhzCount = if (aggregate) 0 else null,
-			otherBandCount = if (aggregate) 0 else null, strongestSignalDbm = if (aggregate) -50 else null,
-			weakestSignalDbm = if (aggregate) -50 else null, signalSumDbm = if (aggregate) -50L else null,
+			observationCount = if (aggregate) {
+				1
+			} else {
+				null
+			}, twoPointFourGhzCount = if (aggregate) {
+				1
+			} else {
+				null
+			},
+			fiveGhzCount = if (aggregate) {
+				0
+			} else {
+				null
+			}, sixGhzCount = if (aggregate) {
+				0
+			} else {
+				null
+			},
+			otherBandCount = if (aggregate) {
+				0
+			} else {
+				null
+			}, strongestSignalDbm = if (aggregate) {
+				-50
+			} else {
+				null
+			},
+			weakestSignalDbm = if (aggregate) {
+				-50
+			} else {
+				null
+			}, signalSumDbm = if (aggregate) {
+				-50L
+			} else {
+				null
+			},
 			effectChecksum = "0".repeat(64), appliedAtMs = 1_000L,
 		)
 		return unsigned.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(unsigned))

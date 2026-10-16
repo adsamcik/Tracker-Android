@@ -82,7 +82,9 @@ internal class PortableActivityExporter(
 				ActivityCapturedPortableFormatV1.MAX_FILE_BYTES).use { spool ->
 				val digest = MessageDigest.getInstance("SHA-256")
 				val result = spool.write { encode(DigestOutputStream(it, digest)) }
-				if (result !is ExportPortableCapturedActivityResult.Exported) return@use result
+				if (result !is ExportPortableCapturedActivityResult.Exported) {
+					return@use result
+				}
 				val expectedHash = digest.digest()
 				verifyContents(result, expectedHash, encode)?.let { return@use it }
 				spool.copyTo(outputStream)
@@ -153,6 +155,10 @@ internal class PortableActivityExporter(
 
 private fun LongRange.toPortableRequest(): ExportPortableCapturedActivityRequest {
 	require(first >= 0L && !isEmpty())
-	val exclusiveEnd = if (last == Long.MAX_VALUE) Long.MAX_VALUE else Math.addExact(last, 1L)
+	val exclusiveEnd = if (last == Long.MAX_VALUE) {
+		Long.MAX_VALUE
+	} else {
+		Math.addExact(last, 1L)
+	}
 	return ExportPortableCapturedActivityRequest(first, exclusiveEnd)
 }

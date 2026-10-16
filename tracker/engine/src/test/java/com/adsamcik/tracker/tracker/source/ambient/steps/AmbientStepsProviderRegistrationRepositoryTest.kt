@@ -70,8 +70,7 @@ class AmbientStepsProviderRegistrationRepositoryTest {
 		}
 		val policy = policyRepository.bootstrapFromLegacy(
 			TrackingParamsState(
-				stepsEnabled = false,
-				ambientStepsEnabled = true,
+				stepsEnabled = true,
 				legacySettingsMigrationCompleted = true,
 			),
 		)

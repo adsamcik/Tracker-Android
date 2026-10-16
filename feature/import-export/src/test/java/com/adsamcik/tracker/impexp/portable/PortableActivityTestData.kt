@@ -22,6 +22,9 @@ internal fun activityEnvelope(vararg entries: PortableActivityEntryV1): Portable
 	)
 }
 
+// Keep the complete portable Activity entry fixture with its matching window, run, zone and field-ordered
+// checksums together.
+@Suppress("LongMethod")
 internal fun activityEntry(
 	seed: String = "entry",
 	startTimeMs: Long = 1_000L,

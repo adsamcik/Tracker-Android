@@ -93,6 +93,8 @@ class StepsCountDomainCompatibilityQueryTest {
 	}
 
 	@Test
+	// Keep this complete contract scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `missing deleted corrupt and stale ownership fail closed`() {
 		val sessionFact = evidence(StepsCountDomainOwnerKind.SESSION_FACT, '5', 'a')
 		val completeness = evidence(
@@ -269,6 +271,9 @@ class StepsCountDomainCompatibilityQueryTest {
 			},
 		)
 
+	// Keep one count-domain evidence fixture with its matching owner kind, coverage, receipt, owner row and
+	// public reference together.
+	@Suppress("LongMethod")
 	private fun evidence(
 		kind: StepsCountDomainOwnerKind,
 		identityDigit: Char,
@@ -299,7 +304,11 @@ class StepsCountDomainCompatibilityQueryTest {
 		)
 		val effect = identityDigit.toString().repeat(64)
 		val scopeIdentity =
-			if (kind == StepsCountDomainOwnerKind.AMBIENT_FACT) opaque('a') else opaque('e')
+			if (kind == StepsCountDomainOwnerKind.AMBIENT_FACT) {
+				opaque('a')
+			} else {
+				opaque('e')
+			}
 		val marker = if (kind == StepsCountDomainOwnerKind.SESSION_COMPLETENESS) {
 			completenessMarker(ownerIdentity)
 		} else {

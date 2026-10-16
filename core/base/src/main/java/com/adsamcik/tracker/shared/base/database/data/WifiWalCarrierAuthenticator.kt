@@ -14,6 +14,10 @@ const val LEGACY_WIFI_WAL_PAYLOAD_VERSION = 5
 const val MAX_WIFI_WAL_PAYLOAD_BYTES = 32_768
 private const val MAX_LEGACY_WIFI_WAL_PAYLOAD_BYTES = 2_048
 
+/**
+ * One original network reading with available identifier/name, MHz frequency, dBm signal and
+ * optional provider time.
+ */
 data class WifiWalPayloadObservation(
 	val identifierToken: String,
 	val frequencyMhz: Int,
@@ -24,6 +28,9 @@ data class WifiWalPayloadObservation(
 	override fun toString(): String = "WifiWalPayloadObservation"
 }
 
+/**
+ * One original Wi-Fi delivery with network readings and its scan/refresh metadata.
+ */
 data class WifiWalPayload(
 	val observations: List<WifiWalPayloadObservation>,
 	val platformTimestampMs: Long?,
@@ -37,15 +44,24 @@ data class WifiWalPayload(
 	}
 }
 
+/**
+ * Immutable Wi-Fi payload bytes together with their deterministic checksum.
+ */
 data class EncodedWifiWalPayload internal constructor(
 	val bytes: List<Byte>,
 	val checksum: String,
 ) {
+	/**
+	 * Returns an independent byte-array copy of the encoded payload.
+	 */
 	fun toByteArray(): ByteArray = bytes.toByteArray()
 
 	override fun toString(): String = "EncodedWifiWalPayload"
 }
 
+/**
+ * Supported-version, payload-bound and canonical-format Wi-Fi decode failure causes.
+ */
 enum class WifiWalPayloadDecodeFailure {
 	UNSUPPORTED_PAYLOAD_VERSION,
 	PAYLOAD_TOO_LARGE,
@@ -53,11 +69,25 @@ enum class WifiWalPayloadDecodeFailure {
 	NON_CANONICAL_PAYLOAD,
 }
 
+/**
+ * Decoded Wi-Fi payload or a specific format rejection; decoding alone grants no collection
+ * permission.
+ */
 sealed interface WifiWalPayloadDecodeResult {
+	/**
+	 * Supported canonical payload returned after bounded binary decoding.
+	 */
 	data class Decoded(val payload: WifiWalPayload) : WifiWalPayloadDecodeResult
+	/**
+	 * Specific rejected decode, carrier or per-purpose qualification outcome; it carries no accepted
+	 * payload.
+	 */
 	data class Rejected(val reason: WifiWalPayloadDecodeFailure) : WifiWalPayloadDecodeResult
 }
 
+/**
+ * Reports whether the payload version is within the supported legacy-to-current Wi-Fi range.
+ */
 fun isSupportedWifiWalPayloadVersion(payloadVersion: Int): Boolean =
 	payloadVersion in LEGACY_WIFI_WAL_PAYLOAD_VERSION..WIFI_WAL_PAYLOAD_VERSION
 
@@ -68,7 +98,14 @@ private fun wifiPayloadLimit(payloadVersion: Int): Int =
 		MAX_WIFI_WAL_PAYLOAD_BYTES
 	}
 
+/**
+ * Bounded binary Wi-Fi encoding preserving legacy summary inputs and current network details.
+ */
 object WifiWalPayloadCodec {
+	/**
+	 * Serializes Wi-Fi payload values into the supported deterministic binary layout; nullable
+	 * measurements keep their absence.
+	 */
 	fun encode(
 		payload: WifiWalPayload,
 		payloadVersion: Int = WIFI_WAL_PAYLOAD_VERSION,
@@ -102,6 +139,12 @@ object WifiWalPayloadCodec {
 		return EncodedWifiWalPayload(bytes.toList(), bytes.sha256())
 	}
 
+	/**
+	 * Decodes a bounded supported Wi-Fi payload and requires exact canonical bytes; malformed data is
+	 * rejected through the declared result type.
+	 */
+	// Keep each bounded format failure distinct at this public decode result boundary.
+	@Suppress("ReturnCount")
 	fun decodeCanonical(
 		payloadVersion: Int,
 		bytes: ByteArray,
@@ -117,31 +160,7 @@ object WifiWalPayloadCodec {
 			)
 		}
 		val payload = runCatching {
-			DataInputStream(ByteArrayInputStream(bytes)).use { input ->
-				require(input.readInt() == TYPE_WIFI_RESULTS)
-				val count = input.readInt()
-				require(count in 0..MAX_WIFI_WAL_CHILDREN)
-				val observations = List(count) {
-					WifiWalPayloadObservation(
-						identifierToken = input.readUTF(),
-						frequencyMhz = input.readInt(),
-						signalLevelDbm = input.readInt(),
-						providerTimestampNanos = input.readNullableLong(),
-						networkName = if (payloadVersion == WIFI_WAL_PAYLOAD_VERSION &&
-							input.readBoolean()) input.readUTF() else null,
-					)
-				}
-				val platformTimestampMs = input.readNullableLong()
-				val resultAgeMs = input.readNullableLong()
-				val zoneId = input.readUTF()
-				require(input.available() == 0)
-				WifiWalPayload(
-					observations = observations,
-					platformTimestampMs = platformTimestampMs,
-					resultAgeMs = resultAgeMs,
-					observationZoneId = zoneId,
-				)
-			}
+			readPayload(payloadVersion, bytes)
 		}.getOrElse {
 			return WifiWalPayloadDecodeResult.Rejected(
 				WifiWalPayloadDecodeFailure.MALFORMED_PAYLOAD,
@@ -160,8 +179,42 @@ object WifiWalPayloadCodec {
 			)
 		}
 	}
+
+	private fun readPayload(payloadVersion: Int, bytes: ByteArray): WifiWalPayload =
+		DataInputStream(ByteArrayInputStream(bytes)).use { input ->
+			require(input.readInt() == TYPE_WIFI_RESULTS)
+			val count = input.readInt()
+			require(count in 0..MAX_WIFI_WAL_CHILDREN)
+			val observations = List(count) {
+				WifiWalPayloadObservation(
+					identifierToken = input.readUTF(),
+					frequencyMhz = input.readInt(),
+					signalLevelDbm = input.readInt(),
+					providerTimestampNanos = input.readNullableLong(),
+					networkName = if (payloadVersion == WIFI_WAL_PAYLOAD_VERSION &&
+						input.readBoolean()) {
+						input.readUTF()
+					} else {
+						null
+					},
+				)
+			}
+			val platformTimestampMs = input.readNullableLong()
+			val resultAgeMs = input.readNullableLong()
+			val zoneId = input.readUTF()
+			require(input.available() == 0)
+			WifiWalPayload(
+				observations = observations,
+				platformTimestampMs = platformTimestampMs,
+				resultAgeMs = resultAgeMs,
+				observationZoneId = zoneId,
+			)
+		}
 }
 
+/**
+ * Half-open provider or authority acceptance interval measured in elapsed-realtime nanoseconds.
+ */
 data class WifiWalProviderInterval(
 	val startInclusiveNanos: Long,
 	val endExclusiveNanos: Long,
@@ -171,10 +224,17 @@ data class WifiWalProviderInterval(
 		require(endExclusiveNanos > startInclusiveNanos)
 	}
 
+	/**
+	 * Tests membership in this half-open elapsed-realtime interval, in nanoseconds.
+	 */
 	operator fun contains(value: Long): Boolean =
 		value >= startInclusiveNanos && value < endExclusiveNanos
 }
 
+/**
+ * Original Wi-Fi source/session/policy/consent/data ownership and provider-time bounds used to
+ * qualify each reading.
+ */
 @Suppress("LongParameterList")
 data class WifiWalCaptureAuthority(
 	val logicalTrackingId: String,
@@ -200,6 +260,9 @@ data class WifiWalCaptureAuthority(
 	val resultContract: String,
 )
 
+/**
+ * Per-reading Wi-Fi acceptance outcome independent of other readings in the delivery.
+ */
 enum class WifiWalChildDisposition {
 	ACCEPTED,
 	STALE,
@@ -207,6 +270,9 @@ enum class WifiWalChildDisposition {
 	MALFORMED,
 }
 
+/**
+ * Qualified Wi-Fi band counts and signal statistics without retaining network identifiers.
+ */
 data class WifiWalIdentityFreeAggregate(
 	val observationCount: Int,
 	val twoPointFourGhzCount: Int,
@@ -218,6 +284,10 @@ data class WifiWalIdentityFreeAggregate(
 	val signalSumDbm: Long,
 )
 
+/**
+ * Qualified/rejected Wi-Fi item counts, optional measured bounds and aggregate; complete means
+ * every submitted item qualified.
+ */
 data class WifiWalCoverage(
 	val submittedResultCount: Int,
 	val acceptedResultCount: Int,
@@ -238,6 +308,9 @@ data class WifiWalCoverage(
 		}
 }
 
+/**
+ * Specific original Wi-Fi envelope, payload, time, child and revision comparison failures.
+ */
 enum class WifiWalCarrierFailure {
 	WRONG_SOURCE,
 	UNSUPPORTED_PAYLOAD_VERSION,
@@ -262,22 +335,40 @@ enum class WifiWalCarrierFailure {
 	CHILD_EVIDENCE_MISMATCH,
 }
 
+/**
+ * Original decoded Wi-Fi delivery after envelope checks, with optional per-purpose measured
+ * coverage.
+ */
 data class AuthenticatedWifiWalCarrier internal constructor(
 	val deliveryIdentity: String,
 	val payload: WifiWalPayload,
 	val coverage: WifiWalCoverage?,
 )
 
+/**
+ * Typed Wi-Fi carrier comparison result with the exact rejection cause.
+ */
 sealed interface WifiWalCarrierAuthentication {
+	/**
+	 * Successful original-carrier comparison containing its checked, decoded measurement payload.
+	 */
 	data class Authenticated(
 		val carrier: AuthenticatedWifiWalCarrier,
 	) : WifiWalCarrierAuthentication
 
+	/**
+	 * Specific rejected decode, carrier or per-purpose qualification outcome; it carries no accepted
+	 * payload.
+	 */
 	data class Rejected(val reason: WifiWalCarrierFailure) : WifiWalCarrierAuthentication
 }
 
 /** Exact Wi-Fi WAL predicate shared by projection, history, lifecycle, and exact proof reads. */
 object WifiWalCarrierAuthenticator {
+	/**
+	 * Checks the original Wi-Fi WAL checksum, provider envelope, supported payload and recorded
+	 * capture binding; reports the exact rejection cause.
+	 */
 	@Suppress("CyclomaticComplexMethod", "ComplexCondition", "ReturnCount")
 	fun authenticate(
 		wal: SourceEventWalEntity,
@@ -294,10 +385,14 @@ object WifiWalCarrierAuthenticator {
 		}
 		if (!LOWERCASE_SHA_256.matches(wal.payloadChecksum) ||
 			wal.payloadChecksum != wal.calculatedPayloadChecksum()
-		) return rejected(WifiWalCarrierFailure.PAYLOAD_INTEGRITY_MISMATCH)
+		) {
+			return rejected(WifiWalCarrierFailure.PAYLOAD_INTEGRITY_MISMATCH)
+		}
 		if (!LOWERCASE_SHA_256.matches(wal.integrityIdentity) ||
 			wal.integrityIdentity != wal.calculatedIntegrityIdentity()
-		) return rejected(WifiWalCarrierFailure.WAL_INTEGRITY_MISMATCH)
+		) {
+			return rejected(WifiWalCarrierFailure.WAL_INTEGRITY_MISMATCH)
+		}
 		if (wal.payloadVersion != WIFI_WAL_PAYLOAD_VERSION && !wal.hasCompleteCaptureBinding()) {
 			return rejected(WifiWalCarrierFailure.INCOMPLETE_CAPTURE_BINDING)
 		}
@@ -325,7 +420,9 @@ object WifiWalCarrierAuthenticator {
 		}
 		if (payload.resultAgeMs != null ||
 			payload.observations.any { it.providerTimestampNanos?.let { time -> time <= 0L } != false }
-		) return rejected(WifiWalCarrierFailure.INVALID_PROVIDER_TIME)
+		) {
+			return rejected(WifiWalCarrierFailure.INVALID_PROVIDER_TIME)
+		}
 		if (payload.observations != payload.observations.sortedWith(WIFI_WAL_OBSERVATION_ORDER)) {
 			return rejected(WifiWalCarrierFailure.NON_CANONICAL_CHILD_ORDER)
 		}
@@ -337,7 +434,9 @@ object WifiWalCarrierAuthenticator {
 		if (providerTimes.minOrNull() != wal.observedIntervalStartNanos ||
 			latest != wal.observedElapsedNanos ||
 			payload.platformTimestampMs != requireNotNull(latest) / NANOS_PER_MILLISECOND
-		) return rejected(WifiWalCarrierFailure.PROVIDER_TIMELINE_MISMATCH)
+		) {
+			return rejected(WifiWalCarrierFailure.PROVIDER_TIMELINE_MISMATCH)
+		}
 		val deliveryIdentity = canonicalWifiProviderDeliveryIdentity(
 			wal.clockDomainId,
 			payload.observations,
@@ -358,13 +457,21 @@ object WifiWalCarrierAuthenticator {
 		)
 	}
 
+	/**
+	 * Checks the saved Wi-Fi revision against its original WAL carrier, ownership, measured values
+	 * and supplied child/count-domain evidence.
+	 */
+	// Keep original-carrier, owner and missing-coverage failures in their existing order.
+	@Suppress("ReturnCount")
 	fun authenticate(
 		fact: WifiCapturedFactRevisionEntity,
 		wal: SourceEventWalEntity,
 		children: List<WifiCapturedChildEntity>? = null,
 	): WifiWalCarrierAuthentication {
 		val authenticated = authenticate(wal)
-		if (authenticated !is WifiWalCarrierAuthentication.Authenticated) return authenticated
+		if (authenticated !is WifiWalCarrierAuthentication.Authenticated) {
+			return authenticated
+		}
 		val authority = fact.captureAuthority()
 		if (!wal.matches(authority, authenticated.carrier.payload)) {
 			return rejected(WifiWalCarrierFailure.CAPTURE_AUTHORITY_MISMATCH)
@@ -374,10 +481,22 @@ object WifiWalCarrierAuthenticator {
 				return rejected(WifiWalCarrierFailure.CHILD_EVIDENCE_MISMATCH)
 			}
 			children.map(WifiCapturedChildEntity::itemIndex).toSet()
-		} else null
+		} else {
+			null
+		}
 		val coverage = qualify(wal, authenticated.carrier.payload, authority, selectedIndexes)
 			?: return rejected(WifiWalCarrierFailure.FACT_SEMANTICS_MISMATCH)
 		val carrier = authenticated.carrier.copy(coverage = coverage)
+		return authenticateFactProjection(fact, wal, carrier)
+	}
+
+	// These saved-fact checks preserve their distinct linkage, semantics and integrity rejections.
+	@Suppress("ReturnCount")
+	private fun authenticateFactProjection(
+		fact: WifiCapturedFactRevisionEntity,
+		wal: SourceEventWalEntity,
+		carrier: AuthenticatedWifiWalCarrier,
+	): WifiWalCarrierAuthentication {
 		if (!fact.hasExactWalLink(wal, carrier)) {
 			return rejected(WifiWalCarrierFailure.FACT_LINKAGE_MISMATCH)
 		}
@@ -386,19 +505,29 @@ object WifiWalCarrierAuthenticator {
 		}
 		if (fact.factKind == WifiCapturedFactRevisionEntity.FACT_KIND_AGGREGATE &&
 			!authenticatesAggregate(fact, carrier)
-		) return rejected(WifiWalCarrierFailure.FACT_SEMANTICS_MISMATCH)
+		) {
+			return rejected(WifiWalCarrierFailure.FACT_SEMANTICS_MISMATCH)
+		}
 		if (!WifiCapturedFactRevisionIntegrity.hasValidEffectChecksum(fact)) {
 			return rejected(WifiWalCarrierFailure.FACT_INTEGRITY_MISMATCH)
 		}
 		return WifiWalCarrierAuthentication.Authenticated(carrier)
 	}
 
+	/**
+	 * Returns whether the saved Wi-Fi fact and supplied original carrier pass the complete carrier
+	 * comparison.
+	 */
 	fun authenticates(
 		fact: WifiCapturedFactRevisionEntity,
 		wal: SourceEventWalEntity,
 		children: List<WifiCapturedChildEntity>? = null,
 	): Boolean = authenticate(fact, wal, children) is WifiWalCarrierAuthentication.Authenticated
 
+	/**
+	 * Checks that aggregate values and original owner revision match the qualified Wi-Fi carrier and
+	 * any dependent coverage-only fact.
+	 */
 	fun authenticatesAggregate(
 		aggregateFact: WifiCapturedFactRevisionEntity,
 		carrier: AuthenticatedWifiWalCarrier,
@@ -414,25 +543,15 @@ object WifiWalCarrierAuthenticator {
 					dependentFact.aggregateOwnerCursorRevision ==
 					aggregateFact.semanticRevision)) &&
 			aggregateFact.captureAuthorityKey() == dependentFact.captureAuthorityKey() &&
-			aggregateFact.observationCount == aggregate.observationCount &&
-			aggregateFact.twoPointFourGhzCount == aggregate.twoPointFourGhzCount &&
-			aggregateFact.fiveGhzCount == aggregate.fiveGhzCount &&
-			aggregateFact.sixGhzCount == aggregate.sixGhzCount &&
-			aggregateFact.otherBandCount == aggregate.otherBandCount &&
-			aggregateFact.strongestSignalDbm == aggregate.strongestSignalDbm &&
-			aggregateFact.weakestSignalDbm == aggregate.weakestSignalDbm &&
-			aggregateFact.signalSumDbm == aggregate.signalSumDbm
+			aggregateFact.matchesAggregate(aggregate)
 	}
 
-	private fun qualify(
+	private fun qualifyChildDispositions(
 		wal: SourceEventWalEntity,
 		payload: WifiWalPayload,
 		authority: WifiWalCaptureAuthority,
-		selectedIndexes: Set<Int>? = null,
-	): WifiWalCoverage? {
-		if (authority.maximumObservationAgeNanos < 0L ||
-			authority.resultContract != WIFI_RESULT_CONTRACT
-		) return null
+		selectedIndexes: Set<Int>?,
+	): List<WifiWalChildDisposition> {
 		val dispositions = payload.observations.mapIndexed { index, observation ->
 			val providerTime = requireNotNull(observation.providerTimestampNanos)
 			when {
@@ -450,6 +569,23 @@ object WifiWalCarrierAuthenticator {
 				else -> WifiWalChildDisposition.ACCEPTED
 			}
 		}
+		return dispositions
+	}
+
+	// Missing or nonrepresentable measured time remains unknown at each original ordered exit.
+	@Suppress("ReturnCount")
+	private fun qualify(
+		wal: SourceEventWalEntity,
+		payload: WifiWalPayload,
+		authority: WifiWalCaptureAuthority,
+		selectedIndexes: Set<Int>? = null,
+	): WifiWalCoverage? {
+		if (authority.maximumObservationAgeNanos < 0L ||
+			authority.resultContract != WIFI_RESULT_CONTRACT
+		) {
+			return null
+		}
+		val dispositions = qualifyChildDispositions(wal, payload, authority, selectedIndexes)
 		val accepted = payload.observations.zip(dispositions)
 			.filter { it.second == WifiWalChildDisposition.ACCEPTED }
 			.map(Pair<WifiWalPayloadObservation, WifiWalChildDisposition>::first)
@@ -473,16 +609,24 @@ object WifiWalCarrierAuthenticator {
 		val coverageStart = requireNotNull(acceptedTimes.minOrNull())
 		val coverageEnd = requireNotNull(acceptedTimes.maxOrNull())
 		val ageNanos = wal.observedElapsedNanos - coverageEnd
-		if (ageNanos < 0L) return null
+		if (ageNanos < 0L) {
+			return null
+		}
 		val wall = wal.wallTimeMs ?: return null
 		val baseUncertainty = wal.wallTimeUncertaintyMs ?: return null
 		val ageMs = ageNanos / NANOS_PER_MILLISECOND
-		if (wall < ageMs) return null
+		if (wall < ageMs) {
+			return null
+		}
 		val observedWall = wall - ageMs
 		val uncertainty = runCatching {
 			Math.addExact(
 				baseUncertainty,
-				if (ageNanos % NANOS_PER_MILLISECOND == 0L) 0L else 1L,
+				if (ageNanos % NANOS_PER_MILLISECOND == 0L) {
+					0L
+				} else {
+					1L
+				},
 			)
 		}.getOrNull() ?: return null
 		val aggregate = accepted.toAggregate()
@@ -502,6 +646,10 @@ object WifiWalCarrierAuthenticator {
 	}
 }
 
+/**
+ * Hashes the clock domain and canonically sorted measured Wi-Fi readings into a delivery identity;
+ * timestamps must exist.
+ */
 fun canonicalWifiProviderDeliveryIdentity(
 	clockDomainId: String,
 	observations: List<WifiWalPayloadObservation>,
@@ -514,7 +662,11 @@ fun canonicalWifiProviderDeliveryIdentity(
 		require(observations.all { it.identifierToken.isEmpty() && it.networkName == null })
 	}
 	val canonical = buildString {
-		append(if (payloadVersion == LEGACY_WIFI_WAL_PAYLOAD_VERSION) "wifi-v1|" else "wifi-v2|")
+		append(if (payloadVersion == LEGACY_WIFI_WAL_PAYLOAD_VERSION) {
+			"wifi-v1|"
+		} else {
+			"wifi-v2|"
+		})
 		append(clockDomainId.length)
 		append(':')
 		append(clockDomainId)
@@ -549,7 +701,9 @@ private fun WifiWalPayloadDecodeFailure.toCarrierFailure(): WifiWalCarrierFailur
 	WifiWalPayloadDecodeFailure.NON_CANONICAL_PAYLOAD -> WifiWalCarrierFailure.NON_CANONICAL_PAYLOAD
 }
 
-@Suppress("ComplexCondition")
+// Keep the complete capture-header nullability and purpose contract together.
+// Separating its fields would hide the schema being checked.
+@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 private fun SourceEventWalEntity.hasCompleteCaptureBinding(): Boolean =
 	logicalTrackingId?.isNotBlank() == true &&
 		serviceRunId?.isNotBlank() == true &&
@@ -570,7 +724,8 @@ private fun SourceEventWalEntity.hasCompleteCaptureBinding(): Boolean =
 		capturedCollectedDataEpoch >= 0L &&
 		clockDomainId.isNotBlank()
 
-@Suppress("ComplexCondition")
+// One callback wire schema with a necessary version branch.
+@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 private fun SourceEventWalEntity.hasCanonicalProducerEnvelope(): Boolean =
 	admissionOrdinal > 0L &&
 		providerDedupKey == null &&
@@ -578,8 +733,12 @@ private fun SourceEventWalEntity.hasCanonicalProducerEnvelope(): Boolean =
 		deliveryUnitIndex == 0 &&
 		deliveryUnitCount == 1 &&
 		sourceSequence >= 0L &&
-		(if (payloadVersion == WIFI_WAL_PAYLOAD_VERSION) hasCanonicalPerReadingBinding() else
-			planAttribution == CAPTURED_REGISTRATION_PLAN_ATTRIBUTION) &&
+		(if (payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
+			hasCanonicalPerReadingBinding()
+		} else
+			{
+			planAttribution == CAPTURED_REGISTRATION_PLAN_ATTRIBUTION
+		}) &&
 		activityAutomationEpoch == null &&
 		observedIntervalStartNanos?.let { it > 0L } == true &&
 		observedElapsedNanos >= requireNotNull(observedIntervalStartNanos) &&
@@ -594,8 +753,9 @@ private fun SourceEventWalEntity.hasCanonicalProducerEnvelope(): Boolean =
 		qualityFlags == 0L &&
 		qualityConfidence == null
 
-@Suppress("ComplexCondition")
 /** v6 retains the real callback header independently of historical capture purposes. */
+// Keep the two persisted header shapes and their fixed nullability requirements together.
+@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 private fun SourceEventWalEntity.hasCanonicalPerReadingBinding(): Boolean {
 	if (sourceInstanceId.isBlank() || registrationGeneration <= 0L ||
 		configRevision?.let { it > 0L } == false || physicalConfigurationFingerprint.isNullOrBlank() ||
@@ -603,15 +763,20 @@ private fun SourceEventWalEntity.hasCanonicalPerReadingBinding(): Boolean {
 		authorizationFingerprint?.let(LOWERCASE_SHA_256::matches) != true ||
 		authorizationPurposeEligibilityMask and SourceBrokerPurpose.ALL_MASK != authorizationPurposeEligibilityMask ||
 		capturedCollectedDataEpoch < 0L || clockDomainId.isBlank()
-	) return false
+	) {
+		return false
+	}
 	return if (authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L) {
 		hasCompleteCaptureBinding() && planAttribution == CAPTURED_REGISTRATION_PLAN_ATTRIBUTION
-	} else listOf(logicalTrackingId, serviceRunId, sourcePolicyRevision, captureConsentEpoch,
+	} else {
+		listOf(logicalTrackingId, serviceRunId, sourcePolicyRevision, captureConsentEpoch,
 		sessionManifestRevision, lifecycleLeaseGeneration).all { it == null } &&
 		configRevision?.let { it > 0L } == true && planAttribution == RECEIVE_TIME_ONLY_PLAN_ATTRIBUTION
+	}
 }
 
-@Suppress("ComplexCondition")
+// This is a complete cross-type tuple comparison.
+@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 private fun SourceEventWalEntity.matches(
 	authority: WifiWalCaptureAuthority,
 	payload: WifiWalPayload,
@@ -622,8 +787,10 @@ private fun SourceEventWalEntity.matches(
 		authorizationRevision == authority.authorizationRevision &&
 		authorizationFingerprint == authority.authorizationFingerprint &&
 		authorizationPurposeEligibilityMask == authority.purposeEligibilityMask &&
-		sourcePolicyRevision == authority.sourcePolicyRevision && captureConsentEpoch == authority.captureConsentEpoch &&
-		sessionManifestRevision == authority.manifestRevision && lifecycleLeaseGeneration == authority.lifecycleLeaseGeneration)) &&
+		sourcePolicyRevision == authority.sourcePolicyRevision &&
+            captureConsentEpoch == authority.captureConsentEpoch &&
+		sessionManifestRevision == authority.manifestRevision &&
+            lifecycleLeaseGeneration == authority.lifecycleLeaseGeneration)) &&
 		sourceInstanceId == authority.sourceInstanceId && registrationGeneration == authority.registrationGeneration &&
 		physicalConfigurationFingerprint == authority.physicalConfigurationFingerprint &&
 		capturedCollectedDataEpoch == authority.collectedDataEpoch && clockDomainId == authority.clockDomainId &&
@@ -662,7 +829,8 @@ private fun WifiCapturedFactRevisionEntity.captureAuthority() = WifiWalCaptureAu
 	resultContract = resultContract,
 )
 
-@Suppress("ComplexCondition", "LongMethod")
+// Already deliberately retained as one long structural comparison.
+@Suppress("ComplexCondition", "LongMethod", "CyclomaticComplexMethod")
 private fun WifiCapturedFactRevisionEntity.hasExactWalLink(
 	wal: SourceEventWalEntity,
 	carrier: AuthenticatedWifiWalCarrier,
@@ -702,7 +870,9 @@ private fun WifiCapturedFactRevisionEntity.hasExactWalLink(
 		qualityFlags == wal.qualityFlags &&
 		qualityConfidence == wal.qualityConfidence
 
-@Suppress("ComplexCondition")
+// One persisted coverage representation correspondence; null rejection belongs with the exact values that
+// follow so an unavailable derived field cannot be filled from another observation.
+@Suppress("ComplexCondition", "CyclomaticComplexMethod", "ReturnCount")
 private fun WifiCapturedFactRevisionEntity.matchesCoverage(
 	carrier: AuthenticatedWifiWalCarrier,
 ): Boolean {
@@ -768,42 +938,87 @@ private fun List<WifiCapturedChildEntity>.authenticateFor(
 ): Boolean {
 	if (isEmpty() || size != fact.acceptedResultCount || size > MAX_WIFI_WAL_CHILDREN ||
 		map(WifiCapturedChildEntity::itemIndex).distinct().size != size
-	) return false
+	) {
+		return false
+	}
 	val wallAnchor = wal.wallTimeMs ?: return false
 	val uncertaintyAnchor = wal.wallTimeUncertaintyMs ?: return false
 	return all { child ->
 		val observation = payload.observations.getOrNull(child.itemIndex) ?: return@all false
-		val providerNanos = observation.providerTimestampNanos ?: return@all false
-		val ageNanos = wal.observedElapsedNanos - providerNanos
-		if (ageNanos < 0L || child.writerProjectionId != fact.writerProjectionId ||
-			child.writerProjectionVersion != fact.writerProjectionVersion ||
-			child.logicalFactId != fact.logicalFactId ||
-			child.semanticRevision != fact.semanticRevision
-		) return@all false
-		val wall = runCatching { Math.subtractExact(wallAnchor, ageNanos / NANOS_PER_MILLISECOND) }
-			.getOrNull() ?: return@all false
-		val uncertainty = runCatching {
-			Math.addExact(uncertaintyAnchor,
-				if (ageNanos % NANOS_PER_MILLISECOND == 0L) 0L else 1L)
-		}.getOrNull() ?: return@all false
-		val expectedBssid = observation.identifierToken.takeIf(String::isNotEmpty)
-		val owner = RadioChildOwner(
-			RadioChildPurpose.SESSION, fact.writerProjectionId,
-			fact.writerProjectionVersion, fact.logicalFactId, fact.semanticRevision,
-			child.itemIndex,
-		)
-		child.providerTimestampNanos == providerNanos && child.observedWallTimeMs == wall &&
-			child.wallTimeUncertaintyMs == uncertainty && child.bssid == expectedBssid &&
-			child.ssid == observation.networkName &&
-			child.frequencyMhz == observation.frequencyMhz &&
-			child.signalDbm == observation.signalLevelDbm &&
-			child.contentChecksum == RadioObservationChildIntegrity.wifi(WifiChildChecksumInput(
-				owner, providerNanos, wall, uncertainty, expectedBssid,
-				observation.networkName, observation.frequencyMhz,
-				observation.signalLevelDbm,
-			))
+		child.authenticatesObservation(fact, wal, observation, wallAnchor, uncertaintyAnchor)
 	}
 }
+
+// One saved child rejects missing provider time, mismatched ownership and nonrepresentable clock values.
+@Suppress("ReturnCount")
+private fun WifiCapturedChildEntity.authenticatesObservation(
+	fact: WifiCapturedFactRevisionEntity,
+	wal: SourceEventWalEntity,
+	observation: WifiWalPayloadObservation,
+	wallAnchor: Long,
+	uncertaintyAnchor: Long,
+): Boolean {
+	val child = this
+	val providerNanos = observation.providerTimestampNanos ?: return false
+	val ageNanos = wal.observedElapsedNanos - providerNanos
+	// Compare the saved age and four owner fields as one mismatch guard.
+	@Suppress("ComplexCondition")
+	if (ageNanos < 0L || child.writerProjectionId != fact.writerProjectionId ||
+		child.writerProjectionVersion != fact.writerProjectionVersion ||
+		child.logicalFactId != fact.logicalFactId ||
+		child.semanticRevision != fact.semanticRevision
+	) {
+		return false
+	}
+	val wall = runCatching { Math.subtractExact(wallAnchor, ageNanos / NANOS_PER_MILLISECOND) }
+		.getOrNull() ?: return false
+	val uncertainty = runCatching {
+		Math.addExact(uncertaintyAnchor,
+			if (ageNanos % NANOS_PER_MILLISECOND == 0L) {
+				0L
+			} else {
+				1L
+			})
+	}.getOrNull() ?: return false
+	return matchesMeasuredObservation(fact, observation, providerNanos, wall, uncertainty)
+}
+
+private fun WifiCapturedChildEntity.matchesMeasuredObservation(
+	fact: WifiCapturedFactRevisionEntity,
+	observation: WifiWalPayloadObservation,
+	providerNanos: Long,
+	wall: Long,
+	uncertainty: Long,
+): Boolean {
+	val child = this
+	val expectedBssid = observation.identifierToken.takeIf(String::isNotEmpty)
+	val owner = RadioChildOwner(
+		RadioChildPurpose.SESSION, fact.writerProjectionId,
+		fact.writerProjectionVersion, fact.logicalFactId, fact.semanticRevision,
+		child.itemIndex,
+	)
+	return child.providerTimestampNanos == providerNanos && child.observedWallTimeMs == wall &&
+		child.wallTimeUncertaintyMs == uncertainty && child.bssid == expectedBssid &&
+		child.ssid == observation.networkName &&
+		child.frequencyMhz == observation.frequencyMhz &&
+		child.signalDbm == observation.signalLevelDbm &&
+		child.contentChecksum == RadioObservationChildIntegrity.wifi(WifiChildChecksumInput(
+			owner, providerNanos, wall, uncertainty, expectedBssid,
+			observation.networkName, observation.frequencyMhz,
+			observation.signalLevelDbm,
+		))
+}
+
+/** Compares measured aggregate values after ownership and integrity have been authenticated. */
+private fun WifiCapturedFactRevisionEntity.matchesAggregate(aggregate: WifiWalIdentityFreeAggregate): Boolean =
+	observationCount == aggregate.observationCount &&
+		twoPointFourGhzCount == aggregate.twoPointFourGhzCount &&
+		fiveGhzCount == aggregate.fiveGhzCount &&
+		sixGhzCount == aggregate.sixGhzCount &&
+		otherBandCount == aggregate.otherBandCount &&
+		strongestSignalDbm == aggregate.strongestSignalDbm &&
+		weakestSignalDbm == aggregate.weakestSignalDbm &&
+		signalSumDbm == aggregate.signalSumDbm
 
 private fun List<WifiWalPayloadObservation>.toAggregate(): WifiWalIdentityFreeAggregate {
 	val frequencies = groupingBy { observation -> wifiBand(observation.frequencyMhz) }.eachCount()
@@ -829,10 +1044,16 @@ private fun wifiBand(frequencyMhz: Int): WifiBand = when (frequencyMhz) {
 
 private fun DataOutputStream.writeNullableLong(value: Long?) {
 	writeBoolean(value != null)
-	if (value != null) writeLong(value)
+	if (value != null) {
+		writeLong(value)
+	}
 }
 
-private fun DataInputStream.readNullableLong(): Long? = if (readBoolean()) readLong() else null
+private fun DataInputStream.readNullableLong(): Long? = if (readBoolean()) {
+	readLong()
+} else {
+	null
+}
 
 private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256")
 	.digest(this)

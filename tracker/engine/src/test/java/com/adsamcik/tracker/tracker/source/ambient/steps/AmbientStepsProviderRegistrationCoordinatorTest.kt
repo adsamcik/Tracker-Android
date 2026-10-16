@@ -30,6 +30,8 @@ import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -39,7 +41,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [34], shadows = [AmbientStepsProviderCleanupStoreTest.HostAtomicFile::class])
 class AmbientStepsProviderRegistrationCoordinatorTest {
 	private lateinit var database: AppDatabase
 	private lateinit var broker: SourceBroker
@@ -85,8 +87,7 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 			SourcePolicyEffectiveTime(BOOT_ID, policyElapsed++, policyElapsed)
 		}.bootstrapFromLegacy(
 			TrackingParamsState(
-				stepsEnabled = false,
-				ambientStepsEnabled = true,
+				stepsEnabled = true,
 				legacySettingsMigrationCompleted = true,
 			),
 		)
@@ -126,7 +127,7 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 			statusAtProviderCall = registrations.pendingReservations().single().status
 		}
 
-		val result = subject.reconcile(demand, boundary(110L))
+		val result = withContext(Dispatchers.IO) { subject.reconcile(demand, boundary(110L)) }
 
 		val active = result as AmbientStepsProviderRegistrationResult.Active
 		active.provider shouldBe AmbientStepsProvider.LOCAL_RECORDING_STEPS
@@ -191,7 +192,10 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 			boundary(130L),
 		)
 
-		(result is AmbientStepsProviderRegistrationResult.Failed) shouldBe true
+		result shouldBe AmbientStepsProviderRegistrationResult.Degraded(
+			selectedProvider = null, activeRegistrationGeneration = null,
+			failure = AmbientStepsProviderRegistrationFailure.PROVIDER_REMOVAL_FAILED, retryable = true,
+		)
 		testScheduler.currentTime shouldBe 30_000L
 		registrations.pendingRetirements().size shouldBe 1
 		cleanupStore.read().pending shouldBe setOf(AmbientStepsProvider.LOCAL_RECORDING_STEPS)
@@ -211,7 +215,7 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 			)
 		}
 
-		val result = subject.reconcile(demand, boundary(110L))
+		val result = withContext(Dispatchers.IO) { subject.reconcile(demand, boundary(110L)) }
 
 		result shouldBe AmbientStepsProviderRegistrationResult.Failed(
 			selectedProvider = AmbientStepsProvider.LOCAL_RECORDING_STEPS,
@@ -241,10 +245,12 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 			events += "local-removed"
 		}
 
-		val result = subject.reconcile(
-			ready(AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS, 200L),
-			boundary(210L),
-		)
+		val result = withContext(Dispatchers.IO) {
+			subject.reconcile(
+				ready(AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS, 200L),
+				boundary(210L),
+			)
+		}
 
 		(result as AmbientStepsProviderRegistrationResult.Active).provider shouldBe
 			AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS
@@ -583,13 +589,17 @@ private class FakeAmbientStepsProviderBackend(
 	override suspend fun ensureActive() {
 		ensureCalls += 1
 		onEnsure()
-		if (failEnsure) error("provider activation failed")
+		if (failEnsure) {
+			error("provider activation failed")
+		}
 	}
 
 	override suspend fun remove() {
 		removeCalls += 1
 		onRemove()
-		if (failRemove) error("provider removal failed")
+		if (failRemove) {
+			error("provider removal failed")
+		}
 	}
 }
 

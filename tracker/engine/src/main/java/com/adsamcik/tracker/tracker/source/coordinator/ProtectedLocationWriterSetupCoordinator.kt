@@ -3,8 +3,10 @@ package com.adsamcik.tracker.tracker.source.coordinator
 import androidx.room.withTransaction
 import androidx.sqlite.db.SimpleSQLiteQuery
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.SourceEventContinuityRow
 import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.liveSourceProjectionActivationOrdinal
@@ -42,114 +44,191 @@ internal class ProtectedLocationWriterSetupCoordinator @Inject constructor(
 		require(updatedAtMs >= 0L)
 		var needsDrain = false
 		val result = boundary.run(source, phase) { lease ->
-			val ready = database.withTransaction {
-				boundary.requireLease(lease)
-				val current = currentRollout()
-				val active = activeLane()
-				if (isFinalReady(active, current)) SourceWriterTransitionResult.AlreadyApplied(
-					source, phase, current.revision, 1L, null) else null
+			val ready = database.withTransaction { readyFinalWriter(lease) }
+			if (ready != null) {
+				return@run ready
 			}
-			if (ready != null) return@run ready
 			persistenceLease.tryWithOfflineLocationRecovery {
 				persistence.get().withLocationWriterSetupQuiesced {
 					database.withTransaction {
-						boundary.requireLease(lease)
-						boundary.requireLocationSetupIdle()
-						requirePermanentOwner()
-						if (!catalog.owns(finalBinding) || database.sourceProjectionStateDao().registration(
-							finalBinding.projectionId, finalBinding.projectionVersion) != null) {
-							boundary.refuse(SourceWriterTransitionBlocker.GLOBAL_WRITER_COLLISION)
-						}
-						var current = currentRollout()
-						var active = activeLane()
-						var recoveryAfterOrdinal: Long
-						if (active != null) {
-							if (catalog.bindingFor(active) != originalBinding ||
-								active.terminalDisposition != null || active.terminalAtMs != null) {
-								boundary.refuse(SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
-							}
-							if (active.captureAdmissionCutoffOrdinal == null) {
-								val contained = RoomTrackingRolloutStateStore(database, catalog).beginLaneContainment(
-									originalBinding, nextRevision(current.revision), updatedAtMs)
-								current = contained.rollout; active = contained.lane
-							}
-							val cutoff = requireNotNull(active.captureAdmissionCutoffOrdinal)
-							if (active.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW) {
-								requireNoCaptureInShadow(active.activationOrdinal - 1L, cutoff)
-								recoveryAfterOrdinal = active.activationOrdinal - 1L
-								if (active.contiguousAdmissionOrdinal < cutoff) {
-									check(database.sourceProjectionStateDao().advanceProductLaneCursor(source.stableCode,
-										originalBinding.bindingGeneration, originalBinding.projectionId, originalBinding.projectionVersion,
-										active.contiguousAdmissionOrdinal, cutoff, updatedAtMs) == 1)
-								}
-							} else if (active.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL) {
-								if (active.contiguousAdmissionOrdinal != cutoff) {
-									needsDrain = true
-									return@withTransaction SourceWriterTransitionResult.Blocked(source, phase,
-										SourceWriterTransitionBlocker.ROLLBACK_CURSOR_BEHIND)
-								}
-								recoveryAfterOrdinal = cutoff
-							} else boundary.refuse(SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
-							current = RoomTrackingRolloutStateStore(database, catalog)
-								.finishLaneRetirement(originalBinding, cutoff, updatedAtMs)
-						} else {
-							val latest = database.sourceProjectionStateDao().latestProductLane(source.stableCode)
-							if (latest == null) {
-								requireFreshOrCompletedClear()
-								recoveryAfterOrdinal = database.sourceEvidenceStateDao().get()?.deletedSourceEventHighWaterOrdinal ?: 0L
-							} else {
-								val cutoff = latest.captureAdmissionCutoffOrdinal
-								if (catalog.bindingFor(latest) != originalBinding || latest.status != SourceProductProjectionLaneEntity.STATUS_RETIRED ||
-									latest.terminalDisposition != SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN ||
-									latest.terminalAtMs == null || cutoff == null || latest.contiguousAdmissionOrdinal != cutoff) {
-									boundary.refuse(SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
-								}
-								recoveryAfterOrdinal = if (latest.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW) {
-									requireNoCaptureInShadow(latest.activationOrdinal - 1L, cutoff)
-									latest.activationOrdinal - 1L
-								} else if (latest.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL) cutoff
-								else boundary.refuse(SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
-							}
-						}
-						if (current.sourceOwners.getValue(source) != SourceOwner.CONTAINED ||
-							current.productProjectionStages.getValue(source) != ProductProjectionStage.LEGACY_CANONICAL ||
-							current.captureModeMasks.getValue(source) != 0L) boundary.refuse(SourceWriterTransitionBlocker.ROLLOUT_NOT_CONTAINED)
-						val highWater = database.liveSourceProjectionActivationOrdinal() - 1L
-						val pendingAmbient = firstPendingAmbientAfter(recoveryAfterOrdinal, highWater)
-						boundary.requireLease(lease)
-						val activation = pendingAmbient ?: Math.addExact(highWater, 1L)
-						val revision = nextRevision(current.revision)
-						val updated = current.copy(revision = revision,
-							sourceOwners = current.sourceOwners + (source to SourceOwner.EVENT),
-							productProjectionStages = current.productProjectionStages + (source to ProductProjectionStage.EVENT_CANONICAL),
-							captureModeMasks = current.captureModeMasks + (source to finalBinding.captureModeMask))
-						val lane = SourceProductProjectionLaneEntity(sourceKind = source.stableCode,
-							bindingGeneration = finalBinding.bindingGeneration, projectionId = finalBinding.projectionId,
-							projectionVersion = finalBinding.projectionVersion, captureModeMask = finalBinding.captureModeMask,
-							productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
-							activatedRolloutRevision = revision, activationOrdinal = activation,
-							contiguousAdmissionOrdinal = activation - 1L, retentionRequired = true,
-							status = SourceProductProjectionLaneEntity.STATUS_ACTIVE, installedAtMs = updatedAtMs, updatedAtMs = updatedAtMs)
-						database.sourceProjectionStateDao().installProductLane(lane)
-						database.trackingRolloutStateDao().save(updated.toEntity(updatedAtMs))
-						if (!isFinalReady(lane, updated)) boundary.refuse(SourceWriterTransitionBlocker.POSTCONDITION_FAILED)
-						needsDrain = pendingAmbient != null
-						SourceWriterTransitionResult.Applied(source, phase, revision, 1L, null)
+						prepareFinalWriterInTransaction(lease, updatedAtMs) { needsDrain = it }
 					}
-				} ?: SourceWriterTransitionResult.Blocked(source, phase, SourceWriterTransitionBlocker.LEGACY_WRITER_NOT_QUIESCENT)
+				} ?: SourceWriterTransitionResult.Blocked(source, phase,
+					SourceWriterTransitionBlocker.LEGACY_WRITER_NOT_QUIESCENT)
 			} ?: SourceWriterTransitionResult.Busy(source, phase)
 		}
 		// Release the offline and coordinator permits before the existing recovery writer acquires them.
-		if (needsDrain) recovery.get().requestProtectedLocationCanonicalDrain()
+		if (needsDrain) {
+			recovery.get().requestProtectedLocationCanonicalDrain()
+		}
 		return result
+	}
+
+	private suspend fun readyFinalWriter(lease: LifecycleLeaseToken): SourceWriterTransitionResult? {
+		boundary.requireLease(lease)
+		val current = currentRollout()
+		val active = activeLane()
+		return if (isFinalReady(active, current)) {
+			SourceWriterTransitionResult.AlreadyApplied(source, phase, current.revision, 1L, null)
+		} else {
+			null
+		}
+	}
+
+	private suspend fun prepareFinalWriterInTransaction(
+		lease: LifecycleLeaseToken,
+		updatedAtMs: Long,
+		recordNeedsDrain: (Boolean) -> Unit,
+	): SourceWriterTransitionResult {
+		boundary.requireLease(lease)
+		boundary.requireLocationSetupIdle()
+		requirePermanentOwner()
+		if (!catalog.owns(finalBinding) || database.sourceProjectionStateDao().registration(
+			finalBinding.projectionId, finalBinding.projectionVersion) != null) {
+			boundary.refuse(SourceWriterTransitionBlocker.GLOBAL_WRITER_COLLISION)
+		}
+		var current = currentRollout()
+		val active = activeLane()
+		val recoveryAfterOrdinal: Long
+		if (active != null) {
+			val retired = retireActiveOriginal(current, active, updatedAtMs, recordNeedsDrain)
+				?: return SourceWriterTransitionResult.Blocked(source, phase,
+					SourceWriterTransitionBlocker.ROLLBACK_CURSOR_BEHIND)
+			current = retired.first
+			recoveryAfterOrdinal = retired.second
+		} else {
+			recoveryAfterOrdinal = retiredRecoveryCursor()
+		}
+		return activateFinalWriter(current, recoveryAfterOrdinal, updatedAtMs, lease, recordNeedsDrain)
+	}
+
+	private suspend fun retireActiveOriginal(
+		initial: TrackingRolloutState,
+		original: SourceProductProjectionLaneEntity,
+		updatedAtMs: Long,
+		recordNeedsDrain: (Boolean) -> Unit,
+	): Pair<TrackingRolloutState, Long>? {
+		var current = initial
+		var active = original
+		if (catalog.bindingFor(active) != originalBinding ||
+			active.terminalDisposition != null || active.terminalAtMs != null) {
+			boundary.refuse(SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
+		}
+		if (active.captureAdmissionCutoffOrdinal == null) {
+			val contained = RoomTrackingRolloutStateStore(database, catalog).beginLaneContainment(
+				originalBinding, nextRevision(current.revision), updatedAtMs)
+			current = contained.rollout; active = contained.lane
+		}
+		val cutoff = requireNotNull(active.captureAdmissionCutoffOrdinal)
+		val recoveryAfterOrdinal = when (active.productStage) {
+			SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW -> settleShadowOriginal(active, cutoff, updatedAtMs)
+			SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL -> {
+				if (active.contiguousAdmissionOrdinal != cutoff) {
+					recordNeedsDrain(true)
+					return null
+				}
+				cutoff
+			}
+			else -> boundary.refuse(SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
+		}
+		current = RoomTrackingRolloutStateStore(database, catalog)
+			.finishLaneRetirement(originalBinding, cutoff, updatedAtMs)
+		return current to recoveryAfterOrdinal
+	}
+
+	private suspend fun settleShadowOriginal(
+		active: SourceProductProjectionLaneEntity,
+		cutoff: Long,
+		updatedAtMs: Long,
+	): Long {
+		requireNoCaptureInShadow(active.activationOrdinal - 1L, cutoff)
+		val recoveryAfterOrdinal = active.activationOrdinal - 1L
+		if (active.contiguousAdmissionOrdinal < cutoff) {
+			check(database.sourceProjectionStateDao().advanceProductLaneCursor(source.stableCode,
+				originalBinding.bindingGeneration, originalBinding.projectionId, originalBinding.projectionVersion,
+				active.contiguousAdmissionOrdinal, cutoff, updatedAtMs) == 1)
+		}
+		return recoveryAfterOrdinal
+	}
+
+	private suspend fun retiredRecoveryCursor(): Long {
+		val latest = database.sourceProjectionStateDao().latestProductLane(source.stableCode)
+		if (latest == null) {
+			requireFreshOrCompletedClear()
+			return database.sourceEvidenceStateDao().get()?.deletedSourceEventHighWaterOrdinal ?: 0L
+		}
+		val cutoff = latest.captureAdmissionCutoffOrdinal
+		if (!latest.isSettledOriginalLocationBinding(catalog, originalBinding)) {
+			boundary.refuse(SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
+		}
+		val settledCutoff = requireNotNull(cutoff)
+		return when (latest.productStage) {
+			SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW -> {
+				requireNoCaptureInShadow(latest.activationOrdinal - 1L, settledCutoff)
+				latest.activationOrdinal - 1L
+			}
+			SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL -> settledCutoff
+			else -> boundary.refuse(SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
+		}
+	}
+
+	private suspend fun activateFinalWriter(
+		current: TrackingRolloutState,
+		recoveryAfterOrdinal: Long,
+		updatedAtMs: Long,
+		lease: LifecycleLeaseToken,
+		recordNeedsDrain: (Boolean) -> Unit,
+	): SourceWriterTransitionResult {
+		if (current.sourceOwners.getValue(source) != SourceOwner.CONTAINED ||
+			current.productProjectionStages.getValue(source) != ProductProjectionStage.LEGACY_CANONICAL ||
+			current.captureModeMasks.getValue(source) != 0L) {
+			boundary.refuse(SourceWriterTransitionBlocker.ROLLOUT_NOT_CONTAINED)
+		}
+		val highWater = database.liveSourceProjectionActivationOrdinal() - 1L
+		val pendingAmbient = firstPendingAmbientAfter(recoveryAfterOrdinal, highWater)
+		boundary.requireLease(lease)
+		val activation = pendingAmbient ?: Math.addExact(highWater, 1L)
+		val revision = nextRevision(current.revision)
+		val updated = current.copy(
+			revision = revision,
+			sourceOwners = current.sourceOwners + (source to SourceOwner.EVENT),
+			productProjectionStages =
+				current.productProjectionStages + (source to ProductProjectionStage.EVENT_CANONICAL),
+			captureModeMasks = current.captureModeMasks + (source to finalBinding.captureModeMask),
+		)
+		val lane = SourceProductProjectionLaneEntity(
+			sourceKind = source.stableCode,
+			bindingGeneration = finalBinding.bindingGeneration,
+			projectionId = finalBinding.projectionId,
+			projectionVersion = finalBinding.projectionVersion,
+			captureModeMask = finalBinding.captureModeMask,
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			activatedRolloutRevision = revision,
+			activationOrdinal = activation,
+			contiguousAdmissionOrdinal = activation - 1L,
+			retentionRequired = true,
+			status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+			installedAtMs = updatedAtMs,
+			updatedAtMs = updatedAtMs,
+		)
+		database.sourceProjectionStateDao().installProductLane(lane)
+		database.trackingRolloutStateDao().save(updated.toEntity(updatedAtMs))
+		if (!isFinalReady(lane, updated)) {
+			boundary.refuse(SourceWriterTransitionBlocker.POSTCONDITION_FAILED)
+		}
+		recordNeedsDrain(pendingAmbient != null)
+		return SourceWriterTransitionResult.Applied(source, phase, revision, 1L, null)
 	}
 
 	private suspend fun currentRollout(): TrackingRolloutState = database.trackingRolloutStateDao().get()
 		?.decodeCurrentModelOrNull() ?: boundary.refuse(SourceWriterTransitionBlocker.ROLLOUT_MISSING_OR_UNREADABLE)
 
 	private suspend fun activeLane(): SourceProductProjectionLaneEntity? {
-		val active = database.sourceProjectionStateDao().allActiveProductLanes().filter { it.sourceKind == source.stableCode }
-		if (active.size > 1) boundary.refuse(SourceWriterTransitionBlocker.MULTIPLE_ACTIVE_LANES)
+		val active =
+            database.sourceProjectionStateDao().allActiveProductLanes().filter { it.sourceKind == source.stableCode }
+		if (active.size > 1) {
+			boundary.refuse(SourceWriterTransitionBlocker.MULTIPLE_ACTIVE_LANES)
+		}
 		return active.singleOrNull()
 	}
 
@@ -165,26 +244,30 @@ internal class ProtectedLocationWriterSetupCoordinator @Inject constructor(
 	private suspend fun isFinalReady(lane: SourceProductProjectionLaneEntity?, rollout: TrackingRolloutState): Boolean {
 		val current = lane ?: return false
 		return current.matches(finalBinding, ProductProjectionStage.EVENT_CANONICAL, rollout.revision) &&
-			current.captureAdmissionCutoffOrdinal == null && current.terminalDisposition == null && current.terminalAtMs == null &&
+			current.captureAdmissionCutoffOrdinal == null && current.terminalDisposition == null &&
+                current.terminalAtMs == null &&
 			current.isCanonicalCaptureAuthorizedBy(database, rollout, catalog) &&
-			database.sourceProjectionStateDao().registration(finalBinding.projectionId, finalBinding.projectionVersion) == null
+			database.sourceProjectionStateDao().registration(finalBinding.projectionId,
+                finalBinding.projectionVersion) == null
 	}
 
 	private suspend fun requireFreshOrCompletedClear() {
-		val evidence = database.sourceEvidenceStateDao().get() ?: boundary.refuse(SourceWriterTransitionBlocker.FULL_DELETION_PROOF_UNAVAILABLE)
+		val evidence = database.sourceEvidenceStateDao().get() ?:
+            boundary.refuse(SourceWriterTransitionBlocker.FULL_DELETION_PROOF_UNAVAILABLE)
 		val previousNative = database.query(SimpleSQLiteQuery("""
 			SELECT EXISTS(SELECT 1 FROM location_observation_decision WHERE writer_projection_id IS NOT NULL)
 			OR EXISTS(SELECT 1 FROM location_sample_purpose_authority WHERE purpose = 'SESSION_CAPTURE')
 		""".trimIndent())).use { it.moveToFirst() && it.getInt(0) != 0 }
-		if (previousNative) boundary.refuse(SourceWriterTransitionBlocker.ACTIVE_LANE_MISSING)
-		if (evidence.collectedDataEpoch == 0L) return
-		val clear = database.collectedDataDeletionOperationDao().completedFullDeletionAfter(evidence.collectedDataEpoch - 1L)
+		if (previousNative) {
+			boundary.refuse(SourceWriterTransitionBlocker.ACTIVE_LANE_MISSING)
+		}
+		if (evidence.collectedDataEpoch == 0L) {
+			return
+		}
+		val clear =
+            database.collectedDataDeletionOperationDao().completedFullDeletionAfter(evidence.collectedDataEpoch - 1L)
 			?: boundary.refuse(SourceWriterTransitionBlocker.FULL_DELETION_PROOF_UNAVAILABLE)
-		val retainedFromMs = evidence.retainedFromMs
-		if (clear.targetCollectedDataEpoch != evidence.collectedDataEpoch ||
-			clear.phase != CollectedDataDeletionOperationEntity.PHASE_WRITERS_REARMED ||
-			clear.retentionWorkExecutionId != null || clear.retentionDestructivePlan != null ||
-			clear.retainedFromMs?.let { retainedFromMs == null || retainedFromMs < it } == true) {
+		if (!clear.isRearmedLocationClearFor(evidence)) {
 			boundary.refuse(SourceWriterTransitionBlocker.FULL_DELETION_PROOF_UNAVAILABLE)
 		}
 	}
@@ -198,40 +281,61 @@ internal class ProtectedLocationWriterSetupCoordinator @Inject constructor(
 			ON p.sample_id = r.sample_id WHERE r.source_admission_ordinal > ? AND r.source_admission_ordinal <= ?
 			AND p.purpose = 'SESSION_CAPTURE')
 		""".trimIndent(), arrayOf(after, through, after, through))).use { it.moveToFirst() && it.getInt(0) != 0 }
-		if (products) boundary.refuse(SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
+		if (products) {
+			boundary.refuse(SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
+		}
 		val deletedThrough = database.sourceEvidenceStateDao().get()?.deletedSourceEventHighWaterOrdinal ?: 0L
 		var cursor = maxOf(after, minOf(through, deletedThrough))
 		while (cursor < through) {
 			currentCoroutineContext().ensureActive()
 			val page = database.sourceEventWalDao().continuityEventsAfterThrough(cursor, through, 64)
-			if (page.isEmpty()) boundary.refuse(SourceWriterTransitionBlocker.SHADOW_CURSOR_BEHIND)
-			for (row in page) {
-				if (row.admissionOrdinal != Math.addExact(cursor, 1L)) {
-					boundary.refuse(SourceWriterTransitionBlocker.SHADOW_CURSOR_BEHIND)
-				}
-				cursor = row.admissionOrdinal
-				if (row.sourceKind != source.stableCode) continue
-				val wal = database.sourceEventWalDao().boundedPayloadByEventId(row.eventId,
-					LocationWalQualificationAdapter.MAX_LOCATION_PAYLOAD_BYTES)
-				if (wal == null || !wal.hasQualifiedIntegrity() ||
-					wal.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L) {
-					boundary.refuse(SourceWriterTransitionBlocker.SHADOW_CURSOR_BEHIND)
-				}
+			if (page.isEmpty()) {
+				boundary.refuse(SourceWriterTransitionBlocker.SHADOW_CURSOR_BEHIND)
 			}
+			cursor = requireUncapturedShadowPage(page, cursor)
 			yield()
 		}
+	}
+
+	private suspend fun requireUncapturedShadowPage(
+		page: List<SourceEventContinuityRow>,
+		afterOrdinal: Long,
+	): Long {
+		var cursor = afterOrdinal
+		for (row in page) {
+			if (row.admissionOrdinal != Math.addExact(cursor, 1L)) {
+				boundary.refuse(SourceWriterTransitionBlocker.SHADOW_CURSOR_BEHIND)
+			}
+			cursor = row.admissionOrdinal
+			if (row.sourceKind != source.stableCode) {
+				continue
+			}
+			val wal = database.sourceEventWalDao().boundedPayloadByEventId(row.eventId,
+				LocationWalQualificationAdapter.MAX_LOCATION_PAYLOAD_BYTES)
+			if (wal == null || !wal.hasQualifiedIntegrity() ||
+				wal.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L) {
+				boundary.refuse(SourceWriterTransitionBlocker.SHADOW_CURSOR_BEHIND)
+			}
+		}
+		return cursor
 	}
 
 	private suspend fun firstPendingAmbientAfter(after: Long, through: Long): Long? {
 		var cursor = after
 		while (cursor < through) {
 			currentCoroutineContext().ensureActive()
-			val page = database.sourceEventWalDao().sourceProjectionCandidatesAfterThrough(source.stableCode, cursor, through, 64)
-			if (page.isEmpty()) break
+			val page = database.sourceEventWalDao().sourceProjectionCandidatesAfterThrough(source.stableCode, cursor,
+                through, 64)
+			if (page.isEmpty()) {
+				break
+			}
 			for (row in page) {
-				if (row.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_AMBIENT_PRODUCT == 0L) continue
+				if (row.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_AMBIENT_PRODUCT == 0L) {
+					continue
+				}
 				val original = qualifier.get().qualifyAmbient(SourceEventId(row.eventId))
-				if (original is LocationAmbientQualification.Qualified && database.readLocationAmbientReceipt(original.command) == null) {
+				if (original is LocationAmbientQualification.Qualified &&
+                    database.readLocationAmbientReceipt(original.command) == null) {
 					return row.admissionOrdinal
 				}
 			}
@@ -240,6 +344,28 @@ internal class ProtectedLocationWriterSetupCoordinator @Inject constructor(
 		return null
 	}
 
-	private fun nextRevision(current: Long): Long = if (current < Long.MAX_VALUE) current + 1L
-		else boundary.refuse(SourceWriterTransitionBlocker.REVISION_EXHAUSTED)
+	private fun nextRevision(current: Long): Long = if (current < Long.MAX_VALUE) {
+		current + 1L
+	}
+		else {
+		boundary.refuse(SourceWriterTransitionBlocker.REVISION_EXHAUSTED)
+	}
 }
+
+private fun SourceProductProjectionLaneEntity.isSettledOriginalLocationBinding(
+	catalog: ExecutableSourceLaneCatalog,
+	originalBinding: ExecutableSourceLaneBinding,
+): Boolean = catalog.bindingFor(this) == originalBinding &&
+	status == SourceProductProjectionLaneEntity.STATUS_RETIRED &&
+	terminalDisposition == SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN &&
+	terminalAtMs != null && captureAdmissionCutoffOrdinal != null &&
+	contiguousAdmissionOrdinal == captureAdmissionCutoffOrdinal
+
+private fun CollectedDataDeletionOperationEntity.isRearmedLocationClearFor(evidence: SourceEvidenceState): Boolean {
+	val retainedFloor = evidence.retainedFromMs
+	return targetCollectedDataEpoch == evidence.collectedDataEpoch &&
+		phase == CollectedDataDeletionOperationEntity.PHASE_WRITERS_REARMED &&
+		retentionWorkExecutionId == null && retentionDestructivePlan == null &&
+		retainedFromMs?.let { retainedFloor == null || retainedFloor < it } != true
+}
+

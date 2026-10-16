@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -341,74 +342,84 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		val groups = linkedMapOf<ActivityProjectionWindowKey, ActivityProjectionWindowAccumulator>()
 		var validated = 0
 		for (event in preflight) {
-			when (val admission = adapter.admit(SourceEventId(event.eventId))) {
-				is ActivityCapturedWalAdmissionResult.Admitted -> {
-					val candidateAuthority = admission.acquisitionAuthority.captureAuthority
-					if (candidateAuthority.logicalTrackingId != authority.logicalTrackingId) {
-						return terminalFailure(
-							lane,
-							originalCursor,
-							event.admissionOrdinal,
-							"ACTIVITY_TERMINAL_SESSION_AUTHORITY_INTERLEAVED",
-						)
-					}
-					val key = ActivityProjectionWindowKey(
-						candidateAuthority,
-						admission.acquisitionAuthority.historicalConfiguration.desiredPlanPayloadVersion,
-						admission.acquisitionAuthority.historicalConfiguration.desiredPlanPayloadChecksum,
-						admission.settledWindow,
-					)
-					groups.getOrPut(key) {
-						ActivityProjectionWindowAccumulator(event.admissionOrdinal)
-					}.observations += admission.observation
-					validated++
-				}
-				is ActivityCapturedWalAdmissionResult.Rejected -> when (admission.reason) {
-					ActivityCapturedWalAdmissionRejection.CONTROL_ONLY -> validated++
-					ActivityCapturedWalAdmissionRejection.DESTINATION_OWNER_MISMATCH ->
-						throw ActivityLaneAuthorityChangedException(
-							"ACTIVITY_DESTINATION_OWNER_CHANGED",
-						)
-					ActivityCapturedWalAdmissionRejection.DELETED_EVIDENCE,
-					ActivityCapturedWalAdmissionRejection.RETAINED_EVIDENCE,
-					-> throw ActivityLaneAuthorityChangedException(
-						"ACTIVITY_TERMINAL_RUN_EVIDENCE_REDACTED",
-					)
-					else -> return terminalFailure(
-						lane,
-						originalCursor,
-						event.admissionOrdinal,
-						admission.reason.failureCode(),
-					)
-				}
-				is ActivityCapturedWalAdmissionResult.Unavailable ->
-					return if (admission.reason ==
-						ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW
-					) {
-						advanceCursor(lane, skippedThrough)
-						ActivityProjectionPass.Deferred(
-							skippedThrough,
-							event.admissionOrdinal,
-							admission.reason.name,
-						)
-					} else {
-						terminalFailure(
-							lane,
-							originalCursor,
-							event.admissionOrdinal,
-							admission.reason.name,
-						)
-					}
-				is ActivityCapturedWalAdmissionResult.ObservationRejected ->
-					return terminalFailure(
-						lane,
-						originalCursor,
-						event.admissionOrdinal,
-						"ACTIVITY_OBSERVATION_${admission.reason.name}",
-					)
-			}
+			admitTerminalEvent(lane, originalCursor, skippedThrough, event, authority, groups)?.let { return it }
+			validated++
 		}
+		return projectTerminalWindows(lane, originalCursor, finalOrdinal, preflight, groups, validated)
+	}
 
+	private suspend fun admitTerminalEvent(
+		lane: SourceProductProjectionLaneEntity,
+		originalCursor: Long,
+		skippedThrough: Long,
+		event: SourceProjectionEventIdentityRow,
+		authority: ActivityCaptureAuthority,
+		groups: MutableMap<ActivityProjectionWindowKey, ActivityProjectionWindowAccumulator>,
+	): ActivityProjectionPass? {
+		return when (val admission = adapter.admit(SourceEventId(event.eventId))) {
+			is ActivityCapturedWalAdmissionResult.Admitted -> {
+				val candidateAuthority = admission.acquisitionAuthority.captureAuthority
+				if (candidateAuthority.logicalTrackingId != authority.logicalTrackingId) {
+					return terminalFailure(lane, originalCursor, event.admissionOrdinal,
+						"ACTIVITY_TERMINAL_SESSION_AUTHORITY_INTERLEAVED")
+				}
+				val key = ActivityProjectionWindowKey(
+					candidateAuthority,
+					admission.acquisitionAuthority.historicalConfiguration.desiredPlanPayloadVersion,
+					admission.acquisitionAuthority.historicalConfiguration.desiredPlanPayloadChecksum,
+					admission.settledWindow,
+				)
+				groups.getOrPut(key) {
+					ActivityProjectionWindowAccumulator(event.admissionOrdinal)
+				}.observations += admission.observation
+				null
+			}
+			is ActivityCapturedWalAdmissionResult.Rejected ->
+				rejectedTerminalEvent(lane, originalCursor, event.admissionOrdinal, admission.reason)
+			is ActivityCapturedWalAdmissionResult.Unavailable ->
+				unavailableTerminalEvent(lane, originalCursor, skippedThrough, event.admissionOrdinal, admission.reason)
+			is ActivityCapturedWalAdmissionResult.ObservationRejected -> terminalFailure(
+				lane, originalCursor, event.admissionOrdinal, "ACTIVITY_OBSERVATION_${admission.reason.name}",
+			)
+		}
+	}
+
+	private suspend fun rejectedTerminalEvent(
+		lane: SourceProductProjectionLaneEntity,
+		originalCursor: Long,
+		admissionOrdinal: Long,
+		reason: ActivityCapturedWalAdmissionRejection,
+	): ActivityProjectionPass? = when (reason) {
+		ActivityCapturedWalAdmissionRejection.CONTROL_ONLY -> null
+		ActivityCapturedWalAdmissionRejection.DESTINATION_OWNER_MISMATCH ->
+			throw ActivityLaneAuthorityChangedException("ACTIVITY_DESTINATION_OWNER_CHANGED")
+		ActivityCapturedWalAdmissionRejection.DELETED_EVIDENCE,
+		ActivityCapturedWalAdmissionRejection.RETAINED_EVIDENCE,
+		-> throw ActivityLaneAuthorityChangedException("ACTIVITY_TERMINAL_RUN_EVIDENCE_REDACTED")
+		else -> terminalFailure(lane, originalCursor, admissionOrdinal, reason.failureCode())
+	}
+
+	private suspend fun unavailableTerminalEvent(
+		lane: SourceProductProjectionLaneEntity,
+		originalCursor: Long,
+		skippedThrough: Long,
+		admissionOrdinal: Long,
+		reason: ActivityCapturedWalAdmissionUnavailable,
+	): ActivityProjectionPass = if (reason == ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW) {
+		advanceCursor(lane, skippedThrough)
+		ActivityProjectionPass.Deferred(skippedThrough, admissionOrdinal, reason.name)
+	} else {
+		terminalFailure(lane, originalCursor, admissionOrdinal, reason.name)
+	}
+
+	private suspend fun projectTerminalWindows(
+		lane: SourceProductProjectionLaneEntity,
+		originalCursor: Long,
+		finalOrdinal: Long,
+		preflight: List<SourceProjectionEventIdentityRow>,
+		groups: Map<ActivityProjectionWindowKey, ActivityProjectionWindowAccumulator>,
+		validated: Int,
+	): ActivityProjectionPass {
 		val windows = groups.map { (key, group) ->
 			val interval = key.settledWindow.interval
 			val coalesced = ActivityCapturedFactCoalescer.coalesce(
@@ -436,6 +447,16 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 			}
 			ActivityProjectedWindow(group.originAdmissionOrdinal, window)
 		}
+		val applied = applyTerminalWindows(windows)
+		val projectionDao = database.sourceProjectionStateDao()
+		preflight.forEach { event ->
+			projectionDao.deleteFailure(WRITER_ID, WRITER_VERSION, event.admissionOrdinal)
+		}
+		advanceCursor(lane, finalOrdinal)
+		return ActivityProjectionPass.Applied(finalOrdinal, applied, validated)
+	}
+
+	private suspend fun applyTerminalWindows(windows: List<ActivityProjectedWindow>): Int {
 		var applied = 0
 		for (projected in windows) {
 			when (val written = writer.write(ActivityCapturedWriteCommand.Captured(projected.window))) {
@@ -456,12 +477,7 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 				}
 			}
 		}
-		val projectionDao = database.sourceProjectionStateDao()
-		preflight.forEach { event ->
-			projectionDao.deleteFailure(WRITER_ID, WRITER_VERSION, event.admissionOrdinal)
-		}
-		advanceCursor(lane, finalOrdinal)
-		return ActivityProjectionPass.Applied(finalOrdinal, applied, validated)
+		return applied
 	}
 
 	private suspend fun projectionPage(
@@ -507,7 +523,11 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		return ActivityCapturedFactDrainResult.Failed(
 			cursor,
 			admissionOrdinal,
-			if (persisted) code else "FAILURE_AUDIT_UNAVAILABLE",
+			if (persisted) {
+				code
+			} else {
+				"FAILURE_AUDIT_UNAVAILABLE"
+			},
 			terminal = persisted && terminal,
 		)
 	}
@@ -532,6 +552,7 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		return failure
 	}
 
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	private suspend fun resolveLane(): ActivityLaneResolution {
 		val active = database.sourceProjectionStateDao().allActiveProductLanes()
 			.filter { it.sourceKind == SourceKind.ACTIVITY.stableCode }
@@ -543,12 +564,11 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		}
 		val lane = active.single()
 		val binding = executableLaneCatalog.bindingFor(lane)
-		if (binding == null || binding.source != SourceKind.ACTIVITY ||
-			SourceWriterGenerationContract.captureModeMaskForKnownBinding(binding.bindingGeneration) != binding.captureModeMask ||
-			binding.projectionId != WRITER_ID || binding.projectionVersion != WRITER_VERSION
-		) return ActivityLaneResolution.Inactive(
+		if (binding == null || !binding.isCapturedActivityBinding()) {
+			return ActivityLaneResolution.Inactive(
 			ActivityCapturedLaneInactiveReason.BINARY_BINDING_NOT_ENABLED,
 		)
+		}
 		if (!lane.hasExecutableActivityShape()) {
 			return ActivityLaneResolution.Inactive(ActivityCapturedLaneInactiveReason.LANE_NOT_CANONICAL)
 		}
@@ -561,11 +581,17 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		)
 		if (owner?.owner != SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS ||
 			owner.ownerGeneration != SourceWriterGenerationContract.canonicalOwnerGeneration(lane.bindingGeneration)
-		) return ActivityLaneResolution.Inactive(
+		) {
+			return ActivityLaneResolution.Inactive(
 			ActivityCapturedLaneInactiveReason.DESTINATION_NOT_OWNED,
 		)
+		}
 		return ActivityLaneResolution.Ready(lane)
 	}
+
+	private fun ExecutableSourceLaneBinding.isCapturedActivityBinding(): Boolean = source == SourceKind.ACTIVITY &&
+		SourceWriterGenerationContract.captureModeMaskForKnownBinding(bindingGeneration) == captureModeMask &&
+		projectionId == WRITER_ID && projectionVersion == WRITER_VERSION
 
 	private suspend fun requireExactLane(
 		expected: SourceProductProjectionLaneEntity,
@@ -574,7 +600,9 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		val current = resolveLane()
 		if (current !is ActivityLaneResolution.Ready ||
 			!current.lane.hasSameActivityExecutionBinding(expected)
-		) throw ActivityLaneAuthorityChangedException("ACTIVITY_LANE_BINDING_CHANGED")
+		) {
+			throw ActivityLaneAuthorityChangedException("ACTIVITY_LANE_BINDING_CHANGED")
+		}
 		if (current.lane.contiguousAdmissionOrdinal != expectedCursor) {
 			throw ActivityLaneAuthorityChangedException("ACTIVITY_LANE_CURSOR_CHANGED")
 		}
@@ -589,10 +617,14 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		admissionOrdinal: Long,
 		evidenceState: SourceEvidenceState,
 	): Boolean {
-		if (admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal) return true
+		if (admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal) {
+			return true
+		}
 		val raw = database.sourceEventWalDao()
 			.projectionEligibilityByAdmissionOrdinal(admissionOrdinal) ?: return true
-		if (raw.sourceKind != SourceKind.ACTIVITY.stableCode) return true
+		if (raw.sourceKind != SourceKind.ACTIVITY.stableCode) {
+			return true
+		}
 		return raw.isLifecycleRejected(evidenceState) || raw.isDeletedScope()
 	}
 
@@ -608,7 +640,11 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 	private fun SourceEventProjectionEligibilityRow.earliestPossibleWallTimeMs(): Long? {
 		val wallTime = wallTimeMs?.takeIf { it >= 0L } ?: return null
 		val uncertainty = wallTimeUncertaintyMs?.takeIf { it >= 0L } ?: return null
-		return if (uncertainty >= wallTime) 0L else wallTime - uncertainty
+		return if (uncertainty >= wallTime) {
+			0L
+		} else {
+			wallTime - uncertainty
+		}
 	}
 
 	private suspend fun SourceEventProjectionEligibilityRow.isDeletedScope(): Boolean {
@@ -631,7 +667,9 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		lane: SourceProductProjectionLaneEntity,
 		throughOrdinal: Long,
 	) {
-		if (throughOrdinal == lane.contiguousAdmissionOrdinal) return
+		if (throughOrdinal == lane.contiguousAdmissionOrdinal) {
+			return
+		}
 		check(database.sourceProjectionStateDao().advanceExactProductLaneCursor(
 			sourceKind = lane.sourceKind,
 			bindingGeneration = lane.bindingGeneration,
@@ -754,6 +792,8 @@ internal fun List<SourceProjectionEventIdentityRow>.firstOverflowOrdinal(maximum
 private fun ActivityCapturedWalAdmissionRejection.failureCode(): String =
 	"ACTIVITY_WAL_${name}"
 
+// Keep this fixed saved-row relationship together; this performs no query or traversal.
+@Suppress("CyclomaticComplexMethod")
 private fun SourceProductProjectionLaneEntity.hasExecutableActivityShape(): Boolean =
 	sourceKind == SourceKind.ACTIVITY.stableCode &&
 		SourceWriterGenerationContract.captureModeMaskForKnownBinding(bindingGeneration) != null &&

@@ -53,11 +53,18 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// One Activity Room fixture owns the same retained lineage, replacement, retention, erase and typed-export
+// journeys.
+@Suppress("LargeClass")
 class ActivityCapturedFactMaintenanceTest {
 	private var fixtureWriterGeneration = 1L
 	private var fixtureSessionMode = "MANUAL"
 	private val fixtureStartOrigin get() = if (fixtureSessionMode == "AUTOMATIC")
-		"AUTOMATIC_BACKGROUND_START" else "MANUAL_FOREGROUND_START"
+		{
+		"AUTOMATIC_BACKGROUND_START"
+	} else {
+		"MANUAL_FOREGROUND_START"
+	}
 	private lateinit var database: AppDatabase
 
 	@Before
@@ -1723,7 +1730,11 @@ class ActivityCapturedFactMaintenanceTest {
 			authorizationFingerprint = authorizationFingerprint,
 			sourceSequence = sourceSequence,
 			configRevision = 1L,
-			planAttribution = if (captureAttributed) 0 else 2,
+			planAttribution = if (captureAttributed) {
+				0
+			} else {
+				2
+			},
 			clockDomainId = BOOT_ID,
 			observedElapsedNanos = observedElapsedNanos,
 			observedIntervalStartNanos = observedIntervalStartNanos,
@@ -1985,6 +1996,9 @@ class ActivityCapturedFactMaintenanceTest {
 		database.activityCapturedFactDao().revisionCount() shouldBe 1L
 	}
 
+	// Keep the dependent Activity session, manifest, plan, provider and fact seed in its real Room setup
+	// order.
+	@Suppress("LongMethod")
 	private suspend fun seedCapturedActivity(
 		retainedFromMs: Long? = null,
 		semanticRevisions: Int = 1,
@@ -2039,17 +2053,29 @@ class ActivityCapturedFactMaintenanceTest {
 		database.installOriginalStopFixture(logicalSession(), unsignedManifest)
 		database.sourceSessionDao().insertLifecycleActions(listOf(captureStartAction()))
 		val policies = mutableListOf(historicalPolicy())
-		if (revokedCapture) policies += revokedPolicy()
+		if (revokedCapture) {
+			policies += revokedPolicy()
+		}
 		database.sourcePolicyDao().insertPolicies(policies)
 		val consents = mutableListOf(historicalConsent())
-		if (revokedCapture) consents += revokedConsent()
+		if (revokedCapture) {
+			consents += revokedConsent()
+		}
 		database.sourcePolicyDao().insertConsentEpochs(consents)
 		database.sourcePolicyDao().ensureAuthority(
 			SourcePolicyAuthorityEntity(
 				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
-				currentPolicyRevision = if (revokedCapture) 2L else 1L,
+				currentPolicyRevision = if (revokedCapture) {
+					2L
+				} else {
+					1L
+				},
 				legacySettingsFingerprint = null,
-				updatedAtMs = if (revokedCapture) 4_000L else 1_000L,
+				updatedAtMs = if (revokedCapture) {
+					4_000L
+				} else {
+					1_000L
+				},
 			),
 		)
 		database.sourcePlanStateDao().insertRevision(
@@ -2082,10 +2108,16 @@ class ActivityCapturedFactMaintenanceTest {
 			retireElapsedRealtimeNanos = null,
 			retiredAtMs = null,
 		)
-		val sharedControl = if (providerActive) activeControl else historicalControl
+		val sharedControl = if (providerActive) {
+			activeControl
+		} else {
+			historicalControl
+		}
 		val authorizationDemands = buildList {
 			add(historicalCapture)
-			if (sharedControlAuthorization) add(sharedControl)
+			if (sharedControlAuthorization) {
+				add(sharedControl)
+			}
 		}
 		database.sourceBrokerDao().insertDemands(authorizationDemands)
 		database.sourceBrokerDao().insertAuthorizations(
@@ -2104,7 +2136,11 @@ class ActivityCapturedFactMaintenanceTest {
 			authorizationRows(
 				registrationGeneration = 1L,
 				authorizationRevision = 2L,
-				demands = if (providerActive) listOf(activeControl) else emptyList(),
+				demands = if (providerActive) {
+					listOf(activeControl)
+				} else {
+					emptyList()
+				},
 				effectiveElapsedNanos = 500L,
 				effectiveWallTimeMs = 3_000L,
 			),
@@ -2145,6 +2181,8 @@ class ActivityCapturedFactMaintenanceTest {
 		)) shouldBe 1
 	}
 
+	// Keep one live replacement segment, run, manifest and session pointer installation together.
+	@Suppress("LongMethod")
 	private suspend fun installLiveReplacement() {
 		val sessionDao = database.sourceSessionDao()
 		val replacementSegmentId = database.sessionSegmentDao().insert(
@@ -2208,6 +2246,8 @@ class ActivityCapturedFactMaintenanceTest {
 		)) shouldBe 1
 	}
 
+	// Keep one terminal replacement and its optional Activity capture authority/completeness setup together.
+	@Suppress("LongMethod")
 	private suspend fun installTerminalReplacement(capturesActivity: Boolean) {
 		val sessionDao = database.sourceSessionDao()
 		val replacementSegmentId = database.sessionSegmentDao().insert(
@@ -2432,6 +2472,10 @@ class ActivityCapturedFactMaintenanceTest {
 		)
 	}
 
+	// Keep one Activity revision with its matching band/gap fragments, evidence and checksum visible as a
+	// complete fixture.
+	// Keep the fixed gap-only, complete and partial Activity revision row variants together.
+	@Suppress("LongMethod", "CyclomaticComplexMethod")
 	private fun persistedRevision(
 		segmentId: Long,
 		semanticRevision: Long,
@@ -2458,7 +2502,11 @@ class ActivityCapturedFactMaintenanceTest {
 				gapFragment(logicalWindowId, semanticRevision, 1, 300L, 400L),
 			)
 		}
-		val evidence = if (gapOnly) emptyList() else listOf(evidence(logicalWindowId, semanticRevision))
+		val evidence = if (gapOnly) {
+			emptyList()
+		} else {
+			listOf(evidence(logicalWindowId, semanticRevision))
+		}
 		val unsigned = ActivityCapturedWindowRevisionEntity(
 			writerProjectionId = WRITER_ID,
 			writerProjectionVersion = WRITER_VERSION,
@@ -2487,18 +2535,40 @@ class ActivityCapturedFactMaintenanceTest {
 			clockDomainId = BOOT_ID,
 			storedZoneId = "Europe/Prague",
 			providerAcceptanceStartNanos = 100L,
-			providerAcceptanceEndNanos = if (providerActive) Long.MAX_VALUE else 1_000L,
+			providerAcceptanceEndNanos = if (providerActive) {
+				Long.MAX_VALUE
+			} else {
+				1_000L
+			},
 			authorizationEffectStartNanos = 150L,
 			authorizationEffectEndNanos = Long.MAX_VALUE,
 			sessionRunEffectStartNanos = 100L,
 			sessionRunEffectEndNanos = sessionRunEffectEndNanos,
 			windowStartElapsedRealtimeNanos = 200L,
 			windowEndElapsedRealtimeNanos = 400L,
-			coverage = if (gapOnly) "NONE" else if (complete) "COMPLETE" else "PARTIAL",
-			knownActiveDurationNanos = if (gapOnly) 0L else if (complete) 200L else 100L,
+			coverage = if (gapOnly) {
+				"NONE"
+			} else if (complete) {
+				"COMPLETE"
+			} else {
+				"PARTIAL"
+			},
+			knownActiveDurationNanos = if (gapOnly) {
+				0L
+			} else if (complete) {
+				200L
+			} else {
+				100L
+			},
 			knownInactiveDurationNanos = 0L,
 			unknownActivityDurationNanos = 0L,
-			unobservedDurationNanos = if (gapOnly) 200L else if (complete) 0L else 100L,
+			unobservedDurationNanos = if (gapOnly) {
+				200L
+			} else if (complete) {
+				0L
+			} else {
+				100L
+			},
 			exactDuplicateCount = 0,
 			semanticDuplicateCount = 0,
 			unchangedEvidenceCount = 0,
@@ -2718,8 +2788,16 @@ class ActivityCapturedFactMaintenanceTest {
 		controlConsentEpoch = 0L.takeIf { enabled },
 		ambientConsentEpoch = null,
 		effectiveBootId = BOOT_ID,
-		effectiveElapsedRealtimeNanos = if (revision == 1L) 100L else 600L,
-		effectiveWallTimeMs = if (revision == 1L) 1_000L else 4_000L,
+		effectiveElapsedRealtimeNanos = if (revision == 1L) {
+			100L
+		} else {
+			600L
+		},
+		effectiveWallTimeMs = if (revision == 1L) {
+			1_000L
+		} else {
+			4_000L
+		},
 		changeReason = "TEST",
 	)
 
@@ -2766,8 +2844,12 @@ class ActivityCapturedFactMaintenanceTest {
 		collectedDataEpoch = 0L,
 		providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
 		providerProcessIncarnationId = "process-1",
-		status = if (active) ProviderRegistrationGenerationEntity.STATUS_ACTIVE else
-			ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+		status = if (active) {
+			ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+		} else
+			{
+			ProviderRegistrationGenerationEntity.STATUS_RETIRED
+		},
 		reservedAtMs = reservedAtMs,
 		reservedElapsedRealtimeNanos = reservedElapsedNanos,
 		acceptedAtMs = acceptedAtMs,
@@ -3009,7 +3091,11 @@ class ActivityCapturedFactMaintenanceTest {
 			"0",
 			BOOT_ID,
 			"100",
-			(if (providerActive) Long.MAX_VALUE else 1_000L).toString(),
+			(if (providerActive) {
+				Long.MAX_VALUE
+			} else {
+				1_000L
+			}).toString(),
 			"150",
 			Long.MAX_VALUE.toString(),
 			"100",

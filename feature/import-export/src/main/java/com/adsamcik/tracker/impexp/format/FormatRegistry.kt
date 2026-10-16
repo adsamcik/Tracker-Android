@@ -102,6 +102,8 @@ object FormatRegistry {
 
 	// ── built-in registration ───────────────────────────────────────────
 
+	// Keep the fixed built-in format catalogue and its registration order together.
+	@Suppress("LongMethod")
 	private fun registerBuiltInFormats() {
 		register(
 			descriptor = FormatDescriptor(

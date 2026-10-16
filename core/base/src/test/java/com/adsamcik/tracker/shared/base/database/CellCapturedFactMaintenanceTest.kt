@@ -8,12 +8,21 @@ import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEnt
 import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity.Companion.FACT_KIND_AGGREGATE
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity.Companion.FACT_KIND_COVERAGE_ONLY
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity.Companion.PLAN_ATTRIBUTION_CAPTURED_REGISTRATION
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity.Companion.AVAILABILITY_AVAILABLE
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity.Companion.SUBSCRIPTION_COMPLETENESS_UNKNOWN
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity.Companion.CHILD_COMPLETENESS_COMPLETE
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity.Companion.CHILD_COMPLETENESS_PARTIAL
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedChildEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.CapturedRadioFactRetentionProofEntity
 import com.adsamcik.tracker.shared.base.database.data.CellProviderDeliveryIdentityFact
 import com.adsamcik.tracker.shared.base.database.data.CELL_REFRESH_OUTCOME_CALLBACK
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_CELL_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.dao.CellCapturedFactDao
+import com.adsamcik.tracker.shared.base.database.data.CellWalIdentityFreeAggregate
 import com.adsamcik.tracker.shared.base.database.data.CellWalPayload
 import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadCodec
 import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadObservation
@@ -64,14 +73,25 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// One Cell Room fixture owns the same captured owner/dependent lineage across retention, source erase and
+// typed export.
+@Suppress("LargeClass")
 class CellCapturedFactMaintenanceTest {
     private var captureProfileLevel: Int? = null
     private var fixtureQosCode = QOS_CODE
-    private val fixtureMaximumAgeMs get() = if (captureProfileLevel == null) MAXIMUM_ACCEPTABLE_CACHED_AGE_MS else 600_000L
+    private val fixtureMaximumAgeMs get() = if (captureProfileLevel == null) {
+        MAXIMUM_ACCEPTABLE_CACHED_AGE_MS
+    } else {
+        600_000L
+    }
 	private var fixtureWriterGeneration = 1L
 	private var fixtureSessionMode = "MANUAL"
 	private val fixtureStartOrigin get() = if (fixtureSessionMode == "AUTOMATIC")
-		"AUTOMATIC_BACKGROUND_START" else "MANUAL_FOREGROUND_START"
+		{
+		"AUTOMATIC_BACKGROUND_START"
+	} else {
+		"MANUAL_FOREGROUND_START"
+	}
 	private lateinit var database: AppDatabase
 
 	@Before
@@ -532,6 +552,8 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	// Payload, WAL and fact are rehashed together to prove the original delivery identity still wins.
+	@Suppress("LongMethod")
 	fun `self rehashed provider semantics cannot retain an old delivery identity`() = runTest {
 		val original = seedCapturedCell(
 			retainedFromMs = 1_000L,
@@ -688,6 +710,8 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	// The original owner and later authorization must remain in one reuse-and-retention scenario.
+	@Suppress("LongMethod")
 	fun `coverage can reuse an independently authenticated owner across authorizations`() = runTest {
 		val originalOwner = seedCapturedCell(
 			retainedFromMs = 1_000L,
@@ -966,6 +990,8 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	// Proof-only erase must install both fences while preserving Control and other-source receipts.
+	@Suppress("LongMethod")
 	fun `Cell WAL retention proof alone installs both fences and preserves unrelated receipts`() =
 		runTest {
 			seedCapturedCell(revokedCapture = true)
@@ -1729,6 +1755,8 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	// The same entry must survive local comparison, a second database and final reexport unchanged.
+	@Suppress("LongMethod")
 	fun `two database export import typed read and latest reexport preserve complete Cell v1`() = runTest {
 		val firstIngress = seedCapturedCell(
 			semanticRevisions = 2,
@@ -1992,7 +2020,9 @@ class CellCapturedFactMaintenanceTest {
 					) { checkpoint ->
 						if (checkpoint ==
 							CellCapturedSelectedDeletionCheckpoint.DELETION_FENCES_INSTALLED
-						) throw CancellationException("cancel selected Cell deletion")
+						) {
+							throw CancellationException("cancel selected Cell deletion")
+						}
 					}
 				}
 			}
@@ -2517,6 +2547,8 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	// Both rehashed ownership changes must be present before the same export is refused.
+	@Suppress("LongMethod")
 	fun `portable export finds a doubly rebound Cell WAL and fact behind zero settlement`() = runTest {
 		val initialFact = seedCapturedCell(withPortableExportState = true)
 		installCapturedReplacementRun()
@@ -2685,6 +2717,49 @@ class CellCapturedFactMaintenanceTest {
 		requireNotNull(emitted).runs.single { run ->
 			run.startTimeMs == REPLACEMENT_RUN_START_WALL_MS
 		}.availability shouldBe PortableCellRunAvailability.NO_RETAINED_OBSERVATION
+	}
+
+	@Test
+	fun `portable zero callback settlement accepts the current session demand identity`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		installCapturedReplacementRun(demandIdentity = ::currentPortableDemandId)
+		var emitted: PortableCapturedCellEntryV1? = null
+
+		val result = portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
+			emitted = it
+		}
+
+		(result is ExportPortableCapturedCellResult.Exported) shouldBe true
+		val replacement = requireNotNull(emitted).runs.single {
+			it.startTimeMs == REPLACEMENT_RUN_START_WALL_MS
+		}
+		replacement.captureCoverage shouldBe PortableCellCaptureCoverage.WHOLE_RUN
+		replacement.availability shouldBe PortableCellRunAvailability.NO_RETAINED_OBSERVATION
+		replacement.observations shouldBe emptyList()
+	}
+
+	@Test
+	fun `portable zero callback settlement rejects a current identity naming another run`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		installCapturedReplacementRun(demandIdentity = { demand ->
+			currentPortableDemandId(demand.copy(serviceRunId = "another-physical-run"))
+		})
+
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `portable zero callback settlement rejects a current identity naming another lease`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		installCapturedReplacementRun(demandIdentity = { demand ->
+			currentPortableDemandId(demand.copy(lifecycleLeaseGeneration = LEASE_GENERATION + 1L))
+		})
+
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
+		)
 	}
 
 	@Test
@@ -3433,6 +3508,9 @@ class CellCapturedFactMaintenanceTest {
 		(exportExpectingNoSink() is ExportPortableCapturedCellResult.Unverifiable) shouldBe true
 	}
 
+	// Keep the Cell source owner, policy, session, provider authorization and optional export seed in one
+	// setup sequence.
+	@Suppress("LongMethod")
 	private suspend fun seedCapturedCell(
 		retainedFromMs: Long? = null,
 		semanticRevisions: Int = 1,
@@ -3441,7 +3519,11 @@ class CellCapturedFactMaintenanceTest {
 		observedWallTimeMs: Long = OBSERVED_WALL_MS,
 		providerNanos: Long = OBSERVED_NANOS,
 		continuingOriginalProvider: Boolean = false,
-		sessionRunEffectEndNanos: Long = if (continuingOriginalProvider) SESSION_END_NANOS else REGISTRATION_END_NANOS,
+		sessionRunEffectEndNanos: Long = if (continuingOriginalProvider) {
+			SESSION_END_NANOS
+		} else {
+			REGISTRATION_END_NANOS
+		},
 		coverageSpanNanos: Long = 0L,
 		acceptedChildCount: Int? = null,
 		revokedCapture: Boolean = false,
@@ -3470,12 +3552,16 @@ class CellCapturedFactMaintenanceTest {
 		val demand = demand(directDemandActive)
 		database.sourceBrokerDao().insertDemands(listOf(demand))
 		database.sourceBrokerDao().insertRegistration(
-			if (continuingOriginalProvider) registration().copy(
+			if (continuingOriginalProvider) {
+				registration().copy(
 				status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
 				retiredAtMs = null,
 				retiredElapsedRealtimeNanos = null,
 				failureCode = null,
-			) else registration(),
+			)
+			} else {
+				registration()
+			},
 		)
 		val authorization = SourceBrokerAuthorization.rows(
 			sourceKind = CELL_SOURCE,
@@ -3491,12 +3577,28 @@ class CellCapturedFactMaintenanceTest {
 			deliveryIndex = 0,
 			observedWallTimeMs = observedWallTimeMs,
 			providerNanos = providerNanos,
-			providerAcceptanceEndNanos = if (continuingOriginalProvider) Long.MAX_VALUE else REGISTRATION_END_NANOS,
-			authorizationEffectEndNanos = if (continuingOriginalProvider) SESSION_END_NANOS else REGISTRATION_END_NANOS,
-			consentEffectEndNanos = if (continuingOriginalProvider) SESSION_END_NANOS else REGISTRATION_END_NANOS,
+			providerAcceptanceEndNanos = if (continuingOriginalProvider) {
+				Long.MAX_VALUE
+			} else {
+				REGISTRATION_END_NANOS
+			},
+			authorizationEffectEndNanos = if (continuingOriginalProvider) {
+				SESSION_END_NANOS
+			} else {
+				REGISTRATION_END_NANOS
+			},
+			consentEffectEndNanos = if (continuingOriginalProvider) {
+				SESSION_END_NANOS
+			} else {
+				REGISTRATION_END_NANOS
+			},
 			sessionRunEffectEndNanos = sessionRunEffectEndNanos,
 			coverageSpanNanos = coverageSpanNanos,
-			acceptedChildCount = acceptedChildCount ?: if (coverageSpanNanos == 0L) 1 else 2,
+			acceptedChildCount = acceptedChildCount ?: if (coverageSpanNanos == 0L) {
+				1
+			} else {
+				2
+			},
 			authorizationFingerprint = authorization.first().authorizationFingerprint,
 			semanticRevisions = semanticRevisions,
 			missingTimeChildCount = missingTimeChildCount,
@@ -3697,6 +3799,8 @@ class CellCapturedFactMaintenanceTest {
 		updatedAtMs = SESSION_END_WALL_MS,
 	)
 
+	// Keep one replacement run without Cell capture and its CONTROL manifest/session pointers together.
+	@Suppress("LongMethod")
 	private suspend fun installNonCellReplacementRun() {
 		closeInitialRunForReplacement()
 		val segmentId = database.sessionSegmentDao().insert(
@@ -3774,18 +3878,26 @@ class CellCapturedFactMaintenanceTest {
 		) shouldBe 1
 	}
 
+	// Keep the dependent captured replacement run, provider, demand, authorization and completeness setup in
+	// order.
+	@Suppress("LongMethod")
 	private suspend fun installCapturedReplacementRun(
 		unresolvedSequenceStart: Long? = null,
 		unresolvedSequenceEnd: Long? = null,
 		registrationGeneration: Long = REPLACEMENT_REGISTRATION_GENERATION,
 		sourceInstanceId: String = SOURCE_INSTANCE_ID,
-		stopStatus: String = if (unresolvedSequenceStart == null) "COMPLETE" else "TIMED_OUT",
+		stopStatus: String = if (unresolvedSequenceStart == null) {
+			"COMPLETE"
+		} else {
+			"TIMED_OUT"
+		},
 		appDrainComplete: Boolean = unresolvedSequenceStart == null,
 		includeDemand: Boolean = true,
 		includeRegistration: Boolean = true,
 		includeAuthorization: Boolean = true,
 		authorizationRevision: Long = SECOND_AUTHORIZATION_REVISION,
 		demandConsumerId: String = "session:$LOGICAL_TRACKING_ID",
+		demandIdentity: ((SourceDemandEntity) -> String)? = null,
 	) {
 		closeInitialRunForReplacement()
 		val segmentId = database.sessionSegmentDao().insert(
@@ -3849,8 +3961,12 @@ class CellCapturedFactMaintenanceTest {
 			unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(capture))),
 		)
 		database.sourceSessionDao().insertManifestSources(listOf(capture))
-		val replacementDemand = replacementDemand(demandConsumerId)
-		if (includeDemand) database.sourceBrokerDao().insertDemands(listOf(replacementDemand))
+		val replacementDemand = replacementDemand(demandConsumerId).let { demand ->
+			demandIdentity?.let { identity -> demand.copy(demandId = identity(demand)) } ?: demand
+		}
+		if (includeDemand) {
+			database.sourceBrokerDao().insertDemands(listOf(replacementDemand))
+		}
 		if (registrationGeneration > 0L && includeRegistration) {
 			database.sourceBrokerDao().insertRegistration(
 				registration(registrationGeneration, sourceInstanceId).copy(
@@ -3897,6 +4013,9 @@ class CellCapturedFactMaintenanceTest {
 		) shouldBe 1
 	}
 
+	// Keep the shared zero-callback replacement, continuing background authorization and exact retirement
+	// receipt together.
+	@Suppress("LongMethod")
 	private suspend fun installSharedZeroCallbackReplacement(
 		includeReceipt: Boolean = true,
 		includeClosingAuthorization: Boolean = true,
@@ -3937,18 +4056,25 @@ class CellCapturedFactMaintenanceTest {
 				"WHERE source_kind = ? AND registration_generation = ?",
 			arrayOf<Any?>(CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION),
 		)
-		if (includeClosingAuthorization) database.sourceBrokerDao().insertAuthorizations(
+		if (includeClosingAuthorization) {
+			database.sourceBrokerDao().insertAuthorizations(
 			SourceBrokerAuthorization.rows(
 				sourceKind = CELL_SOURCE,
 				registrationGeneration = REPLACEMENT_REGISTRATION_GENERATION,
 				authorizationRevision = CONTROL_AUTHORIZATION_REVISION,
-				demands = if (closingIncludesCapture) listOf(background, capture) else listOf(background),
+				demands = if (closingIncludesCapture) {
+					listOf(background, capture)
+				} else {
+					listOf(background)
+				},
 				effectiveBootId = BOOT_ID,
 				effectiveElapsedRealtimeNanos = closingElapsedNanos,
 				effectiveWallTimeMs = SESSION_END_WALL_MS,
 			),
 		)
-		if (includeReceipt) database.sourceSessionDao().insertRunRetirementIntent(
+		}
+		if (includeReceipt) {
+			database.sourceSessionDao().insertRunRetirementIntent(
 			SourceRunRetirementEntity(
 				logicalTrackingId = LOGICAL_TRACKING_ID,
 				serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
@@ -3976,6 +4102,7 @@ class CellCapturedFactMaintenanceTest {
 				updatedAtMs = SESSION_END_WALL_MS,
 			),
 		)
+		}
 	}
 
 	private suspend fun closeInitialRunForReplacement() = database.withTransaction {
@@ -4037,6 +4164,9 @@ class CellCapturedFactMaintenanceTest {
 		consumerId = consumerId,
 	)
 
+	// Keep one replacement Cell WAL with its original authorization, payload identity and saved admission
+	// ordinal together.
+	@Suppress("LongMethod")
 	private suspend fun insertReplacementCapturedWal(): Pair<SourceEventWalEntity, Long> {
 		val authorization = database.cellCapturedFactDao().maintenanceAuthorizationMembers(
 			CELL_SOURCE,
@@ -4099,6 +4229,8 @@ class CellCapturedFactMaintenanceTest {
 		return wal.copy(admissionOrdinal = admissionOrdinal) to admissionOrdinal
 	}
 
+	// Keep the replacement Cell fact copy, effect checksum and matching durable cursor installation together.
+	@Suppress("LongMethod")
 	private suspend fun insertReplacementCapturedFact(
 		template: CellCapturedFactRevisionEntity,
 		wal: SourceEventWalEntity,
@@ -4285,10 +4417,9 @@ class CellCapturedFactMaintenanceTest {
 		sessionRunEffectEndNanos: Long = REGISTRATION_END_NANOS,
 		persistProduct: Boolean = true,
 	): CellCapturedFactRevisionEntity {
-		require(
-			deliveryIndex in 0..9 && semanticRevisions in 1..2 && coverageSpanNanos >= 0L &&
-				acceptedChildCount > 0 && missingTimeChildCount >= 0 && staleChildCount >= 0 &&
-				providerNanos > 0L,
+		require(deliveryIndex in 0..9 && semanticRevisions in 1..2)
+		requireCellFixtureObservationShape(
+			coverageSpanNanos, acceptedChildCount, missingTimeChildCount, staleChildCount, providerNanos,
 		)
 		val exactAuthorizationFingerprint = authorizationFingerprint ?: requireNotNull(
 			database.cellCapturedFactDao().maintenanceAuthorizationMembers(
@@ -4301,27 +4432,56 @@ class CellCapturedFactMaintenanceTest {
 		val eventId = "cell-event-$deliveryIndex"
 		val coverageStartNanos = providerNanos - coverageSpanNanos
 		require(coverageStartNanos > 0L)
-		val observations = buildList {
-			repeat(staleChildCount) {
-				add(CellTestObservation(
-					radioType = radioType,
-					registered = registered,
-					signalLevelDbm = signalLevelDbm,
-					providerTimestampNanos = authorizationEffectStartNanos - 1L,
-				))
-			}
-			repeat(acceptedChildCount) { index ->
-				add(CellTestObservation(
-					radioType = radioType,
-					registered = registered,
-					signalLevelDbm = signalLevelDbm,
-					providerTimestampNanos = if (index == 0) coverageStartNanos else providerNanos,
-				))
-			}
-			repeat(missingTimeChildCount) {
-				add(CellTestObservation(radioType, registered, signalLevelDbm, null))
-			}
+		val observations = CellTestObservation(radioType, registered, signalLevelDbm, coverageStartNanos)
+			.fixtureObservations(acceptedChildCount, staleChildCount, missingTimeChildCount,
+				authorizationEffectStartNanos, providerNanos)
+		val wal = capturedCellFixtureWal(
+			eventId = eventId, deliveryIndex = deliveryIndex, observedWallTimeMs = observedWallTimeMs,
+			providerNanos = providerNanos, coverageStartNanos = coverageStartNanos, observations = observations,
+			exactAuthorizationFingerprint = exactAuthorizationFingerprint, sourceInstanceId = sourceInstanceId,
+			registrationGeneration = registrationGeneration, authorizationRevision = authorizationRevision,
+		)
+		val admissionOrdinal = database.sourceEventWalDao().insertIgnoringDuplicate(wal)
+		val logicalFactId = CellCapturedFactRevisionIntegrity.logicalFactId(
+			requireNotNull(wal.deliveryIdentity),
+			LOGICAL_TRACKING_ID,
+			SERVICE_RUN_ID,
+			SEGMENT_ID,
+			MANIFEST_REVISION,
+			0L,
+			0L,
+		)
+		val aggregate = cellFixtureAggregate(acceptedChildCount, registered, radioType, signalLevelDbm)
+			.takeIf { aggregateOwner == null }
+		val firstUnsigned = wal.capturedCellFixtureFact(
+			logicalFactId = logicalFactId, admissionOrdinal = admissionOrdinal,
+			aggregateOwner = aggregateOwner, aggregate = aggregate,
+			coverageSpanNanos = coverageSpanNanos, coverageStartNanos = coverageStartNanos,
+			acceptedChildCount = acceptedChildCount, staleChildCount = staleChildCount,
+			missingTimeChildCount = missingTimeChildCount, providerAcceptanceEndNanos = providerAcceptanceEndNanos,
+			authorizationEffectStartNanos = authorizationEffectStartNanos,
+			authorizationEffectEndNanos = authorizationEffectEndNanos,
+			consentEffectEndNanos = consentEffectEndNanos, sessionRunEffectEndNanos = sessionRunEffectEndNanos,
+		)
+		val first = firstUnsigned.copy(
+			effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(firstUnsigned),
+		)
+		val revisions = first.fixtureRevisions(semanticRevisions)
+		val dao = database.cellCapturedFactDao()
+		val latest = revisions.last()
+		if (persistProduct) {
+			dao.persistCellFixtureRevisions(revisions, latest)
 		}
+		return latest
+	}
+
+	// One complete provider delivery creates and seals its original WAL row.
+	@Suppress("LongParameterList")
+	private fun capturedCellFixtureWal(
+		eventId: String, deliveryIndex: Int, observedWallTimeMs: Long, providerNanos: Long,
+		coverageStartNanos: Long, observations: List<CellTestObservation>, exactAuthorizationFingerprint: String,
+		sourceInstanceId: String, registrationGeneration: Long, authorizationRevision: Long,
+	): SourceEventWalEntity {
 		val payload = cellPayload(observations)
 		val deliveryIdentity = canonicalCellProviderDeliveryIdentity(
 			BOOT_ID,
@@ -4370,198 +4530,212 @@ class CellCapturedFactMaintenanceTest {
 			payloadChecksum = payloadChecksum,
 			createdAtMs = observedWallTimeMs,
 		)
-		val wal = unsignedWal.copy(integrityIdentity = unsignedWal.calculatedIntegrityIdentity())
-		val admissionOrdinal = database.sourceEventWalDao().insertIgnoringDuplicate(wal)
-		val logicalFactId = CellCapturedFactRevisionIntegrity.logicalFactId(
-			deliveryIdentity,
-			LOGICAL_TRACKING_ID,
-			SERVICE_RUN_ID,
-			SEGMENT_ID,
-			MANIFEST_REVISION,
-			0L,
-			0L,
-		)
-		val firstUnsigned = CellCapturedFactRevisionEntity(
-			writerProjectionId = WRITER_ID,
-			writerProjectionVersion = WRITER_VERSION,
-			writerBindingGeneration = fixtureWriterGeneration,
-			writerOwnerGeneration = fixtureWriterGeneration * 2L,
-			logicalFactId = logicalFactId,
-			semanticRevision = 1L,
-			supersedesSemanticRevision = null,
-			mutationId = CellCapturedFactRevisionIntegrity.mutationId(logicalFactId, 1L),
-			factKind = if (aggregateOwner == null) {
-				CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE
+		return unsignedWal.copy(integrityIdentity = unsignedWal.calculatedIntegrityIdentity())
+	}
+
+	// The exact newly sealed WAL supplies the original event fields; the full row validates once.
+	@Suppress("LongParameterList")
+	private fun SourceEventWalEntity.capturedCellFixtureFact(
+		logicalFactId: String, admissionOrdinal: Long,
+		aggregateOwner: CellCapturedFactRevisionEntity?, aggregate: CellWalIdentityFreeAggregate?,
+		coverageSpanNanos: Long, coverageStartNanos: Long,
+		acceptedChildCount: Int, staleChildCount: Int, missingTimeChildCount: Int,
+		providerAcceptanceEndNanos: Long, authorizationEffectStartNanos: Long,
+		authorizationEffectEndNanos: Long, consentEffectEndNanos: Long, sessionRunEffectEndNanos: Long,
+	): CellCapturedFactRevisionEntity = CellCapturedFactRevisionEntity(
+		writerProjectionId = WRITER_ID, writerProjectionVersion = WRITER_VERSION,
+		writerBindingGeneration = fixtureWriterGeneration, writerOwnerGeneration = fixtureWriterGeneration * 2L,
+		logicalFactId = logicalFactId, semanticRevision = 1L, supersedesSemanticRevision = null,
+		mutationId = CellCapturedFactRevisionIntegrity.mutationId(logicalFactId, 1L),
+		factKind = if (aggregateOwner == null) { FACT_KIND_AGGREGATE } else { FACT_KIND_COVERAGE_ONLY },
+		aggregateOwnerLogicalFactId = aggregateOwner?.logicalFactId,
+		aggregateOwnerSemanticRevision = aggregateOwner?.semanticRevision,
+		logicalTrackingId = LOGICAL_TRACKING_ID, serviceRunId = SERVICE_RUN_ID, sessionSegmentId = SEGMENT_ID,
+		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+		sourceDeliveryIdentity = requireNotNull(deliveryIdentity), sourceEventId = eventId,
+		sourceAdmissionOrdinal = admissionOrdinal, walIntegrityIdentity = integrityIdentity,
+		payloadChecksum = payloadChecksum, deliveryUnitIndex = 0, deliveryUnitCount = 1,
+		sourceSequence = sourceSequence, planAttribution = PLAN_ATTRIBUTION_CAPTURED_REGISTRATION,
+		payloadVersion = LEGACY_CELL_WAL_PAYLOAD_VERSION, canonicalProviderSemanticsDigest = requireNotNull(deliveryIdentity),
+		sourceInstanceId = sourceInstanceId, registrationGeneration = registrationGeneration,
+		configurationRevision = PLAN_REVISION, physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
+		authorizationRevision = requireNotNull(authorizationRevision),
+		authorizationFingerprint = requireNotNull(authorizationFingerprint),
+		purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+		sourcePolicyRevision = POLICY_REVISION, captureConsentEpoch = CONSENT_EPOCH,
+		manifestRevision = MANIFEST_REVISION, lifecycleLeaseGeneration = LEASE_GENERATION,
+		collectedDataEpoch = 0L, scopeDeletionGeneration = 0L, clockDomainId = BOOT_ID, storedZoneId = ZONE_ID,
+		structuralEpochDay = structuralDay(
+			acquiredAtMs - coverageSpanNanos / NANOS_PER_MILLISECOND - WALL_UNCERTAINTY_MS,
+		),
+		providerAcceptanceStartNanos = REGISTRATION_START_NANOS, providerAcceptanceEndNanos = providerAcceptanceEndNanos,
+		authorizationEffectStartNanos = authorizationEffectStartNanos,
+		authorizationEffectEndNanos = authorizationEffectEndNanos,
+		consentEffectStartNanos = POLICY_START_NANOS, consentEffectEndNanos = consentEffectEndNanos,
+		sessionRunEffectStartNanos = RUN_START_NANOS, sessionRunEffectEndNanos = sessionRunEffectEndNanos,
+		deletionEffectStartNanos = RUN_START_NANOS, deletionEffectEndNanos = SESSION_END_NANOS,
+		maximumObservationAgeNanos = fixtureMaximumAgeMs * NANOS_PER_MILLISECOND,
+		observedIntervalStartNanos = requireNotNull(observedIntervalStartNanos), observedElapsedNanos = observedElapsedNanos,
+		receivedElapsedNanos = receivedElapsedNanos,
+		coverageIntervalStartNanos = coverageStartNanos, coverageIntervalEndNanos = observedElapsedNanos,
+		observedWallTimeMs = acquiredAtMs, wallTimeUncertaintyMs = WALL_UNCERTAINTY_MS,
+		acquiredAtMs = acquiredAtMs, createdAtMs = acquiredAtMs, qualityFlags = 0L, qualityConfidence = null,
+		availability = AVAILABILITY_AVAILABLE,
+		submittedChildCount = Math.addExact(Math.addExact(acceptedChildCount, staleChildCount), missingTimeChildCount),
+		acceptedChildCount = acceptedChildCount, staleChildCount = staleChildCount, futureTimeChildCount = 0,
+		missingTimeChildCount = missingTimeChildCount, clockUnverifiableChildCount = 0, authorityMismatchChildCount = 0,
+		unsupportedTechnologyChildCount = 0, subscriptionCompleteness = SUBSCRIPTION_COMPLETENESS_UNKNOWN,
+		childCompleteness = if (missingTimeChildCount == 0 && staleChildCount == 0) {
+			CHILD_COMPLETENESS_COMPLETE
+		} else {
+			CHILD_COMPLETENESS_PARTIAL
+		},
+		observationCount = aggregate?.observationCount, registeredObservationCount = aggregate?.registeredObservationCount,
+		gsmCount = aggregate?.gsmCount, cdmaCount = aggregate?.cdmaCount,
+		wcdmaCount = aggregate?.wcdmaCount, tdscdmaCount = aggregate?.tdscdmaCount,
+		lteCount = aggregate?.lteCount, nrCount = aggregate?.nrCount,
+		qualityUnknownCount = aggregate?.qualityUnknownCount,
+		qualityNoneOrUnknownCount = aggregate?.qualityNoneOrUnknownCount,
+		qualityPoorCount = aggregate?.qualityPoorCount, qualityModerateCount = aggregate?.qualityModerateCount,
+		qualityGoodCount = aggregate?.qualityGoodCount, qualityGreatCount = aggregate?.qualityGreatCount,
+		weakObservationCount = aggregate?.weakObservationCount,
+		knownQualityObservationCount = aggregate?.knownQualityObservationCount,
+		allKnownQualityIsWeak = aggregate?.allKnownQualityIsWeak, effectChecksum = ZERO_CHECKSUM, appliedAtMs = acquiredAtMs,
+	)
+
+	private fun requireCellFixtureObservationShape(
+		coverageSpanNanos: Long,
+		acceptedChildCount: Int,
+		missingTimeChildCount: Int,
+		staleChildCount: Int,
+		providerNanos: Long,
+	) {
+		require(coverageSpanNanos >= 0L && acceptedChildCount > 0 && missingTimeChildCount >= 0 &&
+			staleChildCount >= 0 && providerNanos > 0L)
+	}
+
+	private fun CellTestObservation.fixtureObservations(
+		acceptedChildCount: Int,
+		staleChildCount: Int,
+		missingTimeChildCount: Int,
+		authorizationEffectStartNanos: Long,
+		providerNanos: Long,
+	): List<CellTestObservation> = buildList {
+		repeat(staleChildCount) {
+			add(copy(providerTimestampNanos = authorizationEffectStartNanos - 1L))
+		}
+		repeat(acceptedChildCount) { index ->
+			add(copy(providerTimestampNanos = if (index == 0) {
+				providerTimestampNanos
 			} else {
-				CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY
-			},
-			aggregateOwnerLogicalFactId = aggregateOwner?.logicalFactId,
-			aggregateOwnerSemanticRevision = aggregateOwner?.semanticRevision,
-			logicalTrackingId = LOGICAL_TRACKING_ID,
-			serviceRunId = SERVICE_RUN_ID,
-			sessionSegmentId = SEGMENT_ID,
-			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
-			sourceDeliveryIdentity = deliveryIdentity,
-			sourceEventId = eventId,
-			sourceAdmissionOrdinal = admissionOrdinal,
-			walIntegrityIdentity = wal.integrityIdentity,
-			payloadChecksum = payloadChecksum,
-			deliveryUnitIndex = 0,
-			deliveryUnitCount = 1,
-			sourceSequence = deliveryIndex.toLong(),
-			planAttribution = CellCapturedFactRevisionEntity.PLAN_ATTRIBUTION_CAPTURED_REGISTRATION,
-			payloadVersion = LEGACY_CELL_WAL_PAYLOAD_VERSION,
-			canonicalProviderSemanticsDigest = deliveryIdentity,
-			sourceInstanceId = sourceInstanceId,
-			registrationGeneration = registrationGeneration,
-			configurationRevision = PLAN_REVISION,
-			physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
-			authorizationRevision = authorizationRevision,
-			authorizationFingerprint = exactAuthorizationFingerprint,
-			purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-			sourcePolicyRevision = POLICY_REVISION,
-			captureConsentEpoch = CONSENT_EPOCH,
-			manifestRevision = MANIFEST_REVISION,
-			lifecycleLeaseGeneration = LEASE_GENERATION,
-			collectedDataEpoch = 0L,
-			scopeDeletionGeneration = 0L,
-			clockDomainId = BOOT_ID,
-			storedZoneId = ZONE_ID,
-			structuralEpochDay = structuralDay(
-				observedWallTimeMs - coverageSpanNanos / NANOS_PER_MILLISECOND - WALL_UNCERTAINTY_MS,
-			),
-			providerAcceptanceStartNanos = REGISTRATION_START_NANOS,
-			providerAcceptanceEndNanos = providerAcceptanceEndNanos,
-			authorizationEffectStartNanos = authorizationEffectStartNanos,
-			authorizationEffectEndNanos = authorizationEffectEndNanos,
-			consentEffectStartNanos = POLICY_START_NANOS,
-			consentEffectEndNanos = consentEffectEndNanos,
-			sessionRunEffectStartNanos = RUN_START_NANOS,
-			sessionRunEffectEndNanos = sessionRunEffectEndNanos,
-			deletionEffectStartNanos = RUN_START_NANOS,
-			deletionEffectEndNanos = SESSION_END_NANOS,
-			maximumObservationAgeNanos = fixtureMaximumAgeMs * NANOS_PER_MILLISECOND,
-			observedIntervalStartNanos = observedIntervalStartNanos,
-			observedElapsedNanos = providerNanos,
-			receivedElapsedNanos = providerNanos + 1L,
-			coverageIntervalStartNanos = coverageStartNanos,
-			coverageIntervalEndNanos = providerNanos,
-			observedWallTimeMs = observedWallTimeMs,
-			wallTimeUncertaintyMs = WALL_UNCERTAINTY_MS,
-			acquiredAtMs = observedWallTimeMs,
-			createdAtMs = observedWallTimeMs,
-			qualityFlags = 0L,
-			qualityConfidence = null,
-			availability = CellCapturedFactRevisionEntity.AVAILABILITY_AVAILABLE,
-			submittedChildCount = Math.addExact(
-				Math.addExact(acceptedChildCount, staleChildCount),
-				missingTimeChildCount,
-			),
-			acceptedChildCount = acceptedChildCount,
-			staleChildCount = staleChildCount,
-			futureTimeChildCount = 0,
-			missingTimeChildCount = missingTimeChildCount,
-			clockUnverifiableChildCount = 0,
-			authorityMismatchChildCount = 0,
-			unsupportedTechnologyChildCount = 0,
-			subscriptionCompleteness =
-				CellCapturedFactRevisionEntity.SUBSCRIPTION_COMPLETENESS_UNKNOWN,
-			childCompleteness = if (missingTimeChildCount == 0 && staleChildCount == 0) {
-				CellCapturedFactRevisionEntity.CHILD_COMPLETENESS_COMPLETE
+				providerNanos
+			}))
+		}
+		repeat(missingTimeChildCount) {
+			add(copy(providerTimestampNanos = null))
+		}
+	}
+
+	private fun cellFixtureAggregate(
+		acceptedChildCount: Int,
+		registered: Boolean,
+		radioType: String,
+		signalLevelDbm: Int?,
+	): CellWalIdentityFreeAggregate {
+		val technologyCounts = listOf(CELL_TECHNOLOGY_GSM, CELL_TECHNOLOGY_CDMA, CELL_TECHNOLOGY_WCDMA,
+			CELL_TECHNOLOGY_TDSCDMA, CELL_TECHNOLOGY_LTE, CELL_TECHNOLOGY_NR).associateWith { technology ->
+			if (radioType.equals(technology, ignoreCase = true)) {
+				acceptedChildCount
 			} else {
-				CellCapturedFactRevisionEntity.CHILD_COMPLETENESS_PARTIAL
-			},
-			observationCount = acceptedChildCount.takeIf { aggregateOwner == null },
-			registeredObservationCount = (if (registered) acceptedChildCount else 0)
-				.takeIf { aggregateOwner == null },
-			gsmCount = (if (radioType.equals(CELL_TECHNOLOGY_GSM, ignoreCase = true)) {
-				acceptedChildCount
-			} else 0).takeIf { aggregateOwner == null },
-			cdmaCount = (if (radioType.equals(CELL_TECHNOLOGY_CDMA, ignoreCase = true)) {
-				acceptedChildCount
-			} else 0).takeIf { aggregateOwner == null },
-			wcdmaCount = (if (radioType.equals(CELL_TECHNOLOGY_WCDMA, ignoreCase = true)) {
-				acceptedChildCount
-			} else 0).takeIf { aggregateOwner == null },
-			tdscdmaCount = (if (radioType.equals(CELL_TECHNOLOGY_TDSCDMA, ignoreCase = true)) {
-				acceptedChildCount
-			} else 0).takeIf { aggregateOwner == null },
-			lteCount = (if (radioType.equals(CELL_TECHNOLOGY_LTE, ignoreCase = true)) {
-				acceptedChildCount
-			} else 0).takeIf { aggregateOwner == null },
-			nrCount = (if (radioType.equals(CELL_TECHNOLOGY_NR, ignoreCase = true)) {
-				acceptedChildCount
-			} else 0).takeIf { aggregateOwner == null },
-			qualityUnknownCount = (if (signalLevelDbm == null || signalLevelDbm == Int.MAX_VALUE) {
-				acceptedChildCount
-			} else 0).takeIf { aggregateOwner == null },
-			qualityNoneOrUnknownCount = (if (signalLevelDbm != null && signalLevelDbm <= -120) {
-				acceptedChildCount
-			} else 0).takeIf { aggregateOwner == null },
-			qualityPoorCount = (if (signalLevelDbm != null && signalLevelDbm in -119..-110) {
-				acceptedChildCount
-			} else 0).takeIf { aggregateOwner == null },
-			qualityModerateCount = (if (signalLevelDbm != null && signalLevelDbm in -109..-100) {
-				acceptedChildCount
-			} else 0).takeIf { aggregateOwner == null },
-			qualityGoodCount = (if (signalLevelDbm != null && signalLevelDbm in -99..-90) {
-				acceptedChildCount
-			} else 0).takeIf { aggregateOwner == null },
-			qualityGreatCount = (if (signalLevelDbm != null && signalLevelDbm > -90 &&
-				signalLevelDbm != Int.MAX_VALUE) acceptedChildCount else 0).takeIf { aggregateOwner == null },
-			weakObservationCount = (if (signalLevelDbm != null && signalLevelDbm <= -110) {
-				acceptedChildCount
-			} else 0).takeIf { aggregateOwner == null },
-			knownQualityObservationCount = (if (signalLevelDbm == null || signalLevelDbm == Int.MAX_VALUE) {
 				0
-			} else acceptedChildCount).takeIf { aggregateOwner == null },
-			allKnownQualityIsWeak = (signalLevelDbm != null && signalLevelDbm != Int.MAX_VALUE &&
-				signalLevelDbm <= -110).takeIf { aggregateOwner == null },
-			effectChecksum = ZERO_CHECKSUM,
-			appliedAtMs = observedWallTimeMs,
-		)
-		val first = firstUnsigned.copy(
-			effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(firstUnsigned),
-		)
-		val revisions = buildList {
-			add(first)
-			if (semanticRevisions == 2) {
-				val secondUnsigned = first.copy(
-					semanticRevision = 2L,
-					supersedesSemanticRevision = 1L,
-					mutationId = CellCapturedFactRevisionIntegrity.mutationId(logicalFactId, 2L),
-					effectChecksum = ZERO_CHECKSUM,
-				)
-				add(secondUnsigned.copy(
-					effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(secondUnsigned),
-				))
 			}
 		}
-		val dao = database.cellCapturedFactDao()
-		val latest = revisions.last()
-		if (persistProduct) {
-			revisions.forEach { revision -> dao.insertRevision(revision) }
-			dao.insertCursor(
-				CellCapturedFactCursorEntity(
-					writerProjectionId = WRITER_ID,
-					writerProjectionVersion = WRITER_VERSION,
-					logicalFactId = latest.logicalFactId,
-					logicalTrackingId = latest.logicalTrackingId,
-					serviceRunId = latest.serviceRunId,
-					sessionSegmentId = latest.sessionSegmentId,
-					writerOwnerGeneration = latest.writerOwnerGeneration,
-					collectedDataEpoch = latest.collectedDataEpoch,
-					scopeDeletionGeneration = latest.scopeDeletionGeneration,
-					latestSemanticRevision = latest.semanticRevision,
-					latestMutationId = latest.mutationId,
-					latestEffectChecksum = latest.effectChecksum,
-					latestSourceAdmissionOrdinal = latest.sourceAdmissionOrdinal,
-					cursorRevision = latest.semanticRevision,
-					updatedAtMs = latest.appliedAtMs,
-				),
-			)
+		val quality = fixtureCellSignalQuality(signalLevelDbm)
+		val qualityCounts = listOf("unknown", "none", "poor", "moderate", "good", "great").associateWith {
+			if (it == quality) {
+				acceptedChildCount
+			} else {
+				0
+			}
 		}
-		return latest
+		val unknown = qualityCounts.getValue("unknown")
+		val weak = qualityCounts.getValue("none") + qualityCounts.getValue("poor")
+		val known = acceptedChildCount - unknown
+		return CellWalIdentityFreeAggregate(
+			observationCount = acceptedChildCount,
+			registeredObservationCount = if (registered) {
+				acceptedChildCount
+			} else {
+				0
+			},
+			gsmCount = technologyCounts.getValue(CELL_TECHNOLOGY_GSM),
+			cdmaCount = technologyCounts.getValue(CELL_TECHNOLOGY_CDMA),
+			wcdmaCount = technologyCounts.getValue(CELL_TECHNOLOGY_WCDMA),
+			tdscdmaCount = technologyCounts.getValue(CELL_TECHNOLOGY_TDSCDMA),
+			lteCount = technologyCounts.getValue(CELL_TECHNOLOGY_LTE),
+			nrCount = technologyCounts.getValue(CELL_TECHNOLOGY_NR),
+			qualityUnknownCount = unknown,
+			qualityNoneOrUnknownCount = qualityCounts.getValue("none"),
+			qualityPoorCount = qualityCounts.getValue("poor"),
+			qualityModerateCount = qualityCounts.getValue("moderate"),
+			qualityGoodCount = qualityCounts.getValue("good"),
+			qualityGreatCount = qualityCounts.getValue("great"),
+			weakObservationCount = weak,
+			knownQualityObservationCount = known,
+			allKnownQualityIsWeak = known > 0 && weak == known,
+		)
+	}
+
+	private fun fixtureCellSignalQuality(signalLevelDbm: Int?): String = when {
+		signalLevelDbm == null || signalLevelDbm == Int.MAX_VALUE -> "unknown"
+		signalLevelDbm <= -120 -> "none"
+		signalLevelDbm <= -110 -> "poor"
+		signalLevelDbm <= -100 -> "moderate"
+		signalLevelDbm <= -90 -> "good"
+		else -> "great"
+	}
+
+	private fun CellCapturedFactRevisionEntity.fixtureRevisions(
+		semanticRevisions: Int,
+	): List<CellCapturedFactRevisionEntity> = buildList {
+		add(this@fixtureRevisions)
+		if (semanticRevisions == 2) {
+			val secondUnsigned = copy(
+				semanticRevision = 2L,
+				supersedesSemanticRevision = 1L,
+				mutationId = CellCapturedFactRevisionIntegrity.mutationId(logicalFactId, 2L),
+				effectChecksum = ZERO_CHECKSUM,
+			)
+			add(secondUnsigned.copy(
+				effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(secondUnsigned),
+			))
+		}
+	}
+
+	private suspend fun CellCapturedFactDao.persistCellFixtureRevisions(
+		revisions: List<CellCapturedFactRevisionEntity>,
+		latest: CellCapturedFactRevisionEntity,
+	) {
+		revisions.forEach { revision -> insertRevision(revision) }
+		insertCursor(
+			CellCapturedFactCursorEntity(
+				writerProjectionId = WRITER_ID,
+				writerProjectionVersion = WRITER_VERSION,
+				logicalFactId = latest.logicalFactId,
+				logicalTrackingId = latest.logicalTrackingId,
+				serviceRunId = latest.serviceRunId,
+				sessionSegmentId = latest.sessionSegmentId,
+				writerOwnerGeneration = latest.writerOwnerGeneration,
+				collectedDataEpoch = latest.collectedDataEpoch,
+				scopeDeletionGeneration = latest.scopeDeletionGeneration,
+				latestSemanticRevision = latest.semanticRevision,
+				latestMutationId = latest.mutationId,
+				latestEffectChecksum = latest.effectChecksum,
+				latestSourceAdmissionOrdinal = latest.sourceAdmissionOrdinal,
+				cursorRevision = latest.semanticRevision,
+				updatedAtMs = latest.appliedAtMs,
+			),
+		)
 	}
 
 	private suspend fun installPolicy(revokedCapture: Boolean) {
@@ -4577,9 +4751,17 @@ class CellCapturedFactMaintenanceTest {
 		database.sourcePolicyDao().ensureAuthority(
 			SourcePolicyAuthorityEntity(
 				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
-				currentPolicyRevision = if (revokedCapture) REVOKED_POLICY_REVISION else POLICY_REVISION,
+				currentPolicyRevision = if (revokedCapture) {
+					REVOKED_POLICY_REVISION
+				} else {
+					POLICY_REVISION
+				},
 				legacySettingsFingerprint = null,
-				updatedAtMs = if (revokedCapture) REVOKED_POLICY_WALL_MS else RUN_START_WALL_MS,
+				updatedAtMs = if (revokedCapture) {
+					REVOKED_POLICY_WALL_MS
+				} else {
+					RUN_START_WALL_MS
+				},
 			),
 		)
 	}
@@ -4600,6 +4782,8 @@ class CellCapturedFactMaintenanceTest {
 		)
 	}
 
+	// Keep the Cell logical session, physical run, checksum-bound manifest and original stop fixture together.
+	@Suppress("LongMethod")
 	private suspend fun installSession(segmentId: Long) {
 		database.sourceSessionDao().insertSession(
 			LogicalTrackingSessionEntity(
@@ -4789,25 +4973,41 @@ class CellCapturedFactMaintenanceTest {
 			qosCode = fixtureQosCode,
 			minimumAcquisitionSpec = "cell:v1:required=CHANGE_CALLBACK",
 			adaptiveReductionAllowed = true,
-			maximumAgeMs = if (captureProfileLevel == null) 5 * 60_000L else 600_000L,
+			maximumAgeMs = if (captureProfileLevel == null) {
+				5 * 60_000L
+			} else {
+				600_000L
+			},
 			desiredLatencyMs = Long.MAX_VALUE,
 			requestedDeliveryLatencyMs = null,
 			requestedBootId = BOOT_ID,
 			requestedElapsedRealtimeNanos = requestedElapsedRealtimeNanos,
 			requestedAtMs = requestedAtMs,
-			status = if (active) SourceDemandEntity.STATUS_ACTIVE else SourceDemandEntity.STATUS_RETIRED,
+			status = if (active) {
+				SourceDemandEntity.STATUS_ACTIVE
+			} else {
+				SourceDemandEntity.STATUS_RETIRED
+			},
 			retireBootId = BOOT_ID.takeUnless { active },
 			retireElapsedRealtimeNanos = SESSION_END_NANOS.takeUnless { active },
 			retiredAtMs = SESSION_END_WALL_MS.takeUnless { active },
 		)
 	}
 
+	private fun currentPortableDemandId(demand: SourceDemandEntity): String = portableDemandId(
+		demand.consumerId,
+		requireNotNull(demand.manifestRevision),
+		demand.requestedElapsedRealtimeNanos,
+		sessionIdentity = "session:${demand.serviceRunId}:lease:${demand.lifecycleLeaseGeneration}",
+	)
+
 	private fun portableDemandId(
 		consumerId: String,
 		manifestRevision: Long,
 		requestedElapsedRealtimeNanos: Long,
-	): String = sha256(
-		listOf(
+		sessionIdentity: String? = null,
+	): String {
+		val components = listOf(
 			consumerId,
 			CELL_SOURCE,
 			SourceBrokerPurpose.SESSION_CAPTURE,
@@ -4816,8 +5016,14 @@ class CellCapturedFactMaintenanceTest {
 			manifestRevision,
 			BOOT_ID,
 			requestedElapsedRealtimeNanos,
-		).joinToString("\u001f").toByteArray(Charsets.UTF_8),
-	)
+		)
+		val identityComponents = if (sessionIdentity == null) {
+			components
+		} else {
+			components + sessionIdentity
+		}
+		return sha256(identityComponents.joinToString("\u001f").toByteArray(Charsets.UTF_8))
+	}
 
 	private fun registration(
 		generation: Long = REGISTRATION_GENERATION,
@@ -4893,6 +5099,9 @@ class CellCapturedFactMaintenanceTest {
 			arrayOf<Any?>(AUTHORIZATION_REVISION + 1L, CELL_SOURCE, REGISTRATION_GENERATION))
 	}
 
+	// Keep the independent CONTROL/background provider, historical capture boundary and successor
+	// authorizations together.
+	@Suppress("LongMethod")
 	private suspend fun installActiveControlOnlyProvider(
 		captureBarrierRevision: Long,
 		ambient: Boolean = false,
@@ -4901,7 +5110,11 @@ class CellCapturedFactMaintenanceTest {
 		val control = demand(active = true).copy(
 			demandId = CONTROL_DEMAND_ID,
 			consumerId = "app:cell-control",
-			purpose = if (ambient) SourceBrokerPurpose.AMBIENT_PRODUCT else SourceBrokerPurpose.CONTROL_AUTOSTART,
+			purpose = if (ambient) {
+				SourceBrokerPurpose.AMBIENT_PRODUCT
+			} else {
+				SourceBrokerPurpose.CONTROL_AUTOSTART
+			},
 			logicalTrackingId = null,
 			serviceRunId = null,
 			manifestRevision = null,
@@ -4909,7 +5122,11 @@ class CellCapturedFactMaintenanceTest {
 			sourcePolicyRevision = REVOKED_POLICY_REVISION,
 			consentEpoch = CONTROL_CONSENT_EPOCH,
 			persistenceEligible = ambient,
-			qosCode = if (ambient) 0 else fixtureQosCode,
+			qosCode = if (ambient) {
+				0
+			} else {
+				fixtureQosCode
+			},
 			requestedElapsedRealtimeNanos = REVOKED_POLICY_NANOS,
 			requestedAtMs = REVOKED_POLICY_WALL_MS,
 		)
@@ -4956,6 +5173,8 @@ class CellCapturedFactMaintenanceTest {
 		return control
 	}
 
+	// Keep one newer CONTROL-only WAL and its exact saved provider/authorization carrier together.
+	@Suppress("LongMethod")
 	private suspend fun insertNewerControlOnlyWal(): SourceEventWalEntity {
 		val authorization = database.cellCapturedFactDao().maintenanceAuthorizationMembers(
 			CELL_SOURCE,

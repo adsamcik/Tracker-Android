@@ -36,6 +36,7 @@ interface PointsAwardedDao : BaseDao<PointsAwarded> {
 		LIMIT 1
 		""",
 	)
+	/** Reads one effect by its source and stable key, returning null when no receipt exists. */
 	suspend fun getRevisionedEffect(source: String, effectKey: String): PointsAwarded?
 
 	@Query(
@@ -50,6 +51,7 @@ interface PointsAwardedDao : BaseDao<PointsAwarded> {
 			AND effect_revision < :effectRevision
 		""",
 	)
+	/** Replaces an effect only with a higher revision; returns the number of rows updated. */
 	suspend fun updateRevisionedEffect(
 		source: String,
 		effectKey: String,
@@ -77,6 +79,7 @@ interface PointsAwardedDao : BaseDao<PointsAwarded> {
 
 	@Query("SELECT * FROM points_awarded WHERE source = 'session' AND effect_key IS NOT NULL " +
 		"AND id > :afterId ORDER BY id LIMIT :limit")
+	/** Pages session effect receipts by increasing row ID after the exclusive cursor. */
 	suspend fun sessionEffectPage(afterId: Int, limit: Int): List<PointsAwarded>
 
 	/** A recording keeps its original receipt key after logical backup restore. */
@@ -86,16 +89,21 @@ interface PointsAwardedDao : BaseDao<PointsAwarded> {
 
 	@Query("SELECT EXISTS(SELECT 1 FROM points_awarded WHERE source = 'session' " +
 		"AND effect_key IS NULL AND time = :time)")
+	/** Detects timestamp-only session awards so new receipt keys do not grant the same older award twice. */
 	suspend fun hasLegacySessionAwardAt(time: Long): Boolean
 
 	@Transaction
+	/** Applies the latest session effect transactionally, preserving old timestamp-only duplicate prevention. */
 	suspend fun applySessionEffect(effectKey: String, effectRevision: Long, time: Long, valueMicros: Long): Boolean {
 		// The older timestamp-only row has no safe segment association. Never grant it twice.
-		if (getRevisionedEffect(AwardSource.SESSION.value, effectKey) == null && hasLegacySessionAwardAt(time)) return false
+		if (getRevisionedEffect(AwardSource.SESSION.value, effectKey) == null && hasLegacySessionAwardAt(time)) {
+			return false
+		}
 		return applyRevisionedEffect(AwardSource.SESSION, effectKey, effectRevision, time, valueMicros)
 	}
 
 	@Transaction
+	/** Acknowledges identical replay, rejects stale/conflicting revision payloads and retains zero-value retractions. */
 	suspend fun applyRevisionedEffect(awardSource: AwardSource, effectKey: String, effectRevision: Long,
 		time: Long, valueMicros: Long): Boolean {
 		require(effectKey.isNotBlank()) { "Effect key must not be blank" }
@@ -108,7 +116,9 @@ interface PointsAwardedDao : BaseDao<PointsAwarded> {
 			val currentRevision = checkNotNull(current.effectRevision) {
 				"Revisioned goal effect is missing its revision"
 			}
-			if (currentRevision > effectRevision) return false
+			if (currentRevision > effectRevision) {
+				return false
+			}
 			if (currentRevision == effectRevision) {
 				// One revision has one exact payload. Replay acknowledges without rewriting;
 				// different values need a newer correction, including a zero-value retraction.

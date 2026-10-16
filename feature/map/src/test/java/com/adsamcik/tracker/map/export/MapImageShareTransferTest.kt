@@ -122,7 +122,9 @@ class MapImageShareTransferTest {
         override val permitsNewCollection = false
         override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0L)
         override suspend fun <T> withReadyGenerationTransfer(expectedGeneration: Long, operation: suspend () -> T): T? {
-            if (!isReadyGeneration(expectedGeneration)) return null
+            if (!isReadyGeneration(expectedGeneration)) {
+                return null
+            }
             admitted = true
             return try { operation() } finally { completed = true; admitted = false }
         }

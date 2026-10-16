@@ -6,6 +6,7 @@ plugins {
     id("tracker.android.instrumented-test")
     id("tracker.android.protobuf")
     alias(libs.plugins.kotlin.parcelize)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -31,6 +32,7 @@ dependencies {
     implementation(libs.androidx.datastore.core)
     implementation(libs.protobuf.java)
     implementation(libs.gson)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.room.paging)

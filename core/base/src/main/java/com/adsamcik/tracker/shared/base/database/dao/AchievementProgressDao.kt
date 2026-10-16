@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base.database.dao
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Upsert
 import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -11,6 +12,10 @@ interface AchievementProgressDao {
 	@Query("SELECT * FROM achievement_progress WHERE metric_key = :metricKey LIMIT 1")
 	suspend fun getByMetric(metricKey: String): AchievementProgressEntity?
 
+	/**
+	 * Reads stored qualified Steps progress for total, best-day, goal-streak and perfect-week
+	 * metrics; it does not recalculate qualification.
+	 */
 	@Query(
 		"SELECT * FROM achievement_progress " +
 			"WHERE authority_kind = '${AchievementProgressEntity.AUTHORITY_QUALIFIED_STEPS_V1}' " +
@@ -22,6 +27,10 @@ interface AchievementProgressDao {
 	)
 	suspend fun getQualifiedStepsAchievementRows(): List<AchievementProgressEntity>
 
+	/**
+	 * Marks qualified Steps streak/week progress as materializing without lowering its authority
+	 * revision or replacing its saved count/tier; returns changed rows.
+	 */
 	@Query(
 		"UPDATE achievement_progress SET " +
 			"authority_revision = MAX(authority_revision, :sourceEvidenceRevision), " +
@@ -39,6 +48,10 @@ interface AchievementProgressDao {
 		updatedAtMs: Long,
 	): Int
 
+	/**
+	 * Replaces all values and qualified authority for one metric. The caller must validate values and
+	 * bind the write to its evaluation transaction.
+	 */
 	@Query(
 		"""
 		INSERT INTO achievement_progress(
@@ -76,6 +89,10 @@ interface AchievementProgressDao {
 		qualifiedNotificationClaimedTierIndex: Int?,
 	)
 
+	/**
+	 * Validates source-qualified Steps progress and replaces its tier, value and authority together
+	 * in one transaction.
+	 */
 	@Transaction
 	suspend fun replaceQualified(
 		metricKey: String,
@@ -128,6 +145,10 @@ interface AchievementProgressDao {
 	fun getAllFlow(): Flow<List<AchievementProgressEntity>>
 	@Query("SELECT * FROM achievement_progress WHERE last_tier_index >= 0 ORDER BY updated_at DESC LIMIT :limit")
 	fun getRecentProgressFlow(limit: Int): Flow<List<AchievementProgressEntity>>
+	/**
+	 * Stores the newest numeric value while retaining the greatest earned tier and its unlock time;
+	 * clears qualified-source metadata on ordinary progress.
+	 */
 	@Query(
 		"""
 		INSERT INTO achievement_progress(
@@ -187,6 +208,10 @@ interface AchievementProgressDao {
 	}
 	@Transaction
 	suspend fun upsertAll(entities: List<AchievementProgressEntity>) { entities.forEach { upsert(it) } }
+	/** Complete recalculated results, written inside the evaluator's fenced Room transaction. */
+	@Upsert
+	suspend fun replaceEvaluatedAll(entities: List<AchievementProgressEntity>)
+
 	@Query("DELETE FROM achievement_progress")
 	fun deleteAll()
 	@Query("DELETE FROM achievement_progress WHERE updated_at < :beforeMs AND last_tier_index < 0")

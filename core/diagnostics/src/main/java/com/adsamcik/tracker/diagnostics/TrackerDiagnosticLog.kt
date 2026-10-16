@@ -10,6 +10,7 @@ import dev.tracebox.api.public
  * Throwable objects and arbitrary text never cross this boundary.
  */
 object TrackerDiagnosticLog {
+	/** Records a fixed session milestone without identifiers or provider payloads. */
 	fun info(code: TrackerDiagnosticInfoCode) {
 		when (code) {
 			TrackerDiagnosticInfoCode.TRACKING_SESSION_START_REQUESTED ->
@@ -19,6 +20,7 @@ object TrackerDiagnosticLog {
 		}
 	}
 
+	/** Records a known degraded tracking condition without arbitrary diagnostic text. */
 	fun warn(code: TrackerDiagnosticWarningCode) {
 		when (code) {
 			TrackerDiagnosticWarningCode.ACTIVITY_RECOGNITION_UNAVAILABLE ->
@@ -38,6 +40,7 @@ object TrackerDiagnosticLog {
 		}
 	}
 
+	/** Records the operation code and typed failure reason; no throwable or sensor data is included. */
 	fun failure(
 		code: TrackerDiagnosticFailureCode,
 		reason: TrackingDiagnosticFailureReason,
@@ -49,6 +52,7 @@ object TrackerDiagnosticLog {
 		)
 	}
 
+	/** Records a typed start rejection without serializing the rejected request. */
 	fun rejected(
 		code: TrackerDiagnosticRejectionCode,
 		reason: TrackingDiagnosticRejectedReason,
@@ -60,10 +64,12 @@ object TrackerDiagnosticLog {
 		)
 	}
 
+	/** Records that Activity callback recovery ended with an unresolved delivery gap. */
 	fun activityCallbackTerminalGap() {
 		Tracebox.log.warn(TrackerTraceboxTemplates.ACTIVITY_CALLBACK_TERMINAL_GAP)
 	}
 
+	/** Records the repaired envelope count as a coarse bucket, never the repaired points. */
 	fun rawLocationRepairCompleted(repairedEnvelopeCount: Long) {
 		Tracebox.log.info(
 			TrackerTraceboxTemplates.RAW_LOCATION_REPAIR_COMPLETED,
@@ -71,10 +77,12 @@ object TrackerDiagnosticLog {
 		)
 	}
 
+	/** Records the stop request before provider teardown begins. */
 	fun trackingStopRequested() {
 		Tracebox.log.debug(TrackerTraceboxTemplates.TRACKING_STOP_REQUESTED)
 	}
 
+	/** Records a typed teardown failure and a bucketed retry count. */
 	fun trackingProviderTeardownFailed(
 		reason: TrackingDiagnosticFailureReason,
 		attempt: Long,
@@ -88,11 +96,13 @@ object TrackerDiagnosticLog {
 
 }
 
+/** Fixed lifecycle milestones accepted by the payload-free compatibility logger. */
 enum class TrackerDiagnosticInfoCode {
 	TRACKING_SESSION_START_REQUESTED,
 	TRACKING_SESSION_STARTED,
 }
 
+/** Known provider or processing conditions that can reduce collection reliability. */
 enum class TrackerDiagnosticWarningCode {
 	ACTIVITY_RECOGNITION_UNAVAILABLE,
 	AMBIENT_STEPS_PROVIDER_RECONCILIATION_FAILED,
@@ -102,6 +112,7 @@ enum class TrackerDiagnosticWarningCode {
 	TRACKING_SHUTDOWN_DEGRADED,
 }
 
+/** Fixed operation codes paired with typed failures; tracked values and exception text are excluded. */
 enum class TrackerDiagnosticFailureCode {
 	ACTIVITY_CALLBACK_METADATA_UPDATE_FAILED,
 	ACTIVITY_CALLBACK_RETRY_SCHEDULING_FAILED,
@@ -127,6 +138,7 @@ enum class TrackerDiagnosticFailureCode {
 	TRACKING_START_FAILED,
 }
 
+/** Fixed start-rejection codes accepted by the compatibility logger. */
 enum class TrackerDiagnosticRejectionCode {
 	TRACKING_SOURCE_SESSION_START_REJECTED,
 }

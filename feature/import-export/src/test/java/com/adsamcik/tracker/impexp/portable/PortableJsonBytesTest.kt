@@ -62,6 +62,39 @@ class PortableJsonBytesTest {
 		loaded.size shouldBe payload.size
 		loaded.inputStream().readBytes().contentEquals(payload) shouldBe true
 	}
+	@Test
+	fun `unknown source length grows within the bound and preserves every byte`() = runTest {
+		val payload = ByteArray(8_193) { it.toByte() }
+		val source = object : java.io.ByteArrayInputStream(payload) {
+			override fun available(): Int = 0
+		}
+		val allocations = mutableListOf<Int>()
+
+		val loaded = readPortableBytes(source, payload.size.toLong()) { size ->
+			allocations += size
+			ByteArray(size)
+		}
+
+		allocations shouldContainExactly listOf(8_192, 8_193)
+		loaded.size shouldBe payload.size
+		loaded.inputStream().readBytes().contentEquals(payload) shouldBe true
+	}
+
+	@Test
+	fun `one byte beyond the bound fails before allocating a larger buffer`() = runTest {
+		val source = object : java.io.ByteArrayInputStream(ByteArray(8_193)) {
+			override fun available(): Int = 0
+		}
+		val allocations = mutableListOf<Int>()
+
+		shouldThrow<PortableStepsJsonException> {
+			readPortableBytes(source, 8_192L) { size ->
+				allocations += size
+				ByteArray(size)
+			}
+		}.message shouldBe "Portable document exceeds its byte bound"
+		allocations shouldContainExactly listOf(8_192)
+	}
 }
 
 private class AllocationSourceSpy(
@@ -91,10 +124,16 @@ private class ExactBoundSource(
 	override fun available(): Int = payload.size - position
 
 	override fun read(): Int =
-		if (position == payload.size) -1 else payload[position++].toInt() and 0xff
+		if (position == payload.size) {
+			-1
+		} else {
+			payload[position++].toInt() and 0xff
+		}
 
 	override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-		if (position == payload.size) return -1
+		if (position == payload.size) {
+			return -1
+		}
 		val count = minOf(length, payload.size - position)
 		payload.copyInto(buffer, offset, position, position + count)
 		position += count

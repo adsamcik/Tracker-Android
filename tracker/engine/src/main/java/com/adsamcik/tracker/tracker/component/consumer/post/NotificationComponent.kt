@@ -90,11 +90,11 @@ internal class NotificationComponent(
 	 */
 	fun onServiceStopped(context: Context) {
 		synchronized(notificationLock) {
-            activeGeneration++
-            savedUpdatesJob?.cancel()
-            savedUpdatesJob = null
-            stateReader = null
-            lastData = null
+			activeGeneration++
+			savedUpdatesJob?.cancel()
+			savedUpdatesJob = null
+			stateReader = null
+			lastData = null
 			trackerNotificationManager = null
 			contentComponentList.clear()
 			titleComponentList.clear()
@@ -104,10 +104,10 @@ internal class NotificationComponent(
 		}
 	}
 
-    override suspend fun onEnable(context: Context) = coroutineScope<Unit> {
-        val generation = synchronized(notificationLock) {
-            activeGeneration++
-            savedUpdatesJob?.cancel()
+	override suspend fun onEnable(context: Context) = coroutineScope<Unit> {
+		val generation = synchronized(notificationLock) {
+			activeGeneration++
+			savedUpdatesJob?.cancel()
             savedUpdatesJob = null
             trackerNotificationManager = null
             stateReader = null
@@ -157,22 +157,35 @@ internal class NotificationComponent(
                 LiveNotificationInput(saved, session, info != null && running, choices)
             }.catch { failure ->
                 if (failure is CancellationException) throw failure
-                emit(LiveNotificationInput(SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE),
-                    reader.sessionFlow.value, reader.hasLiveCapture, currentParams))
+                emit(
+                    LiveNotificationInput(
+                        SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE),
+                        reader.sessionFlow.value, reader.hasLiveCapture, currentParams,
+                    ),
+                )
             }.collect { input ->
                 synchronized(notificationLock) {
-                    val session = input.session
-                    if (activeGeneration != generation || trackerNotificationManager == null ||
-                        !input.active || !reader.hasLiveCapture || session == null ||
-                        reader.sessionFlow.value?.id != session.id) return@synchronized
-                    currentParams = input.params
-                    val data = lastData?.takeIf { it.first == session.id }?.second ?: MutableCollectionData(0L)
-                    publish(context, session.asNotificationSession(), data,
-                        input.saved.forLiveSegment(session.id, input.params.locationEnabled),
-                        SystemClock.elapsedRealtimeNanos())
+                    publishSavedLocationUpdate(context, input, reader, generation)
                 }
             }
         }.also { savedUpdatesJob = it }
+    }
+
+    private fun publishSavedLocationUpdate(
+        context: Context, input: LiveNotificationInput, reader: TrackerStateReader, generation: Long,
+    ) {
+        val session = input.session
+        if (activeGeneration != generation || trackerNotificationManager == null || !input.active) {
+            return
+        }
+        if (!reader.hasLiveCapture || session == null || reader.sessionFlow.value?.id != session.id) {
+            return
+        }
+        currentParams = input.params
+        val data = lastData?.takeIf { it.first == session.id }?.second ?: MutableCollectionData(0L)
+        publish(context, session.asNotificationSession(), data,
+            input.saved.forLiveSegment(session.id, input.params.locationEnabled),
+            SystemClock.elapsedRealtimeNanos())
     }
 
     private data class LiveNotificationInput(val saved: SavedLocationSummaryRead,
@@ -241,12 +254,12 @@ internal class NotificationComponent(
 			context: Context,
 			data: CollectionData,
 			session: TrackerSession,
-            savedLocation: SavedLocationSummaryRead
+			savedLocation: SavedLocationSummaryRead
 	): String {
 		val sb = StringBuilder()
 		titleComponentList.forEach {
 			if (!it.isChosen(currentParams)) return@forEach
-            val text = it.generateText(context, session, data, savedLocation) ?: return@forEach
+			val text = it.generateText(context, session, data, savedLocation) ?: return@forEach
 
 			sb.append(text).append(delimiter)
 		}
@@ -270,13 +283,13 @@ internal class NotificationComponent(
 			context: Context,
 			session: TrackerSession,
 			data: CollectionData,
-            savedLocation: SavedLocationSummaryRead
+			savedLocation: SavedLocationSummaryRead
 	): String {
 		val sb = StringBuilder()
 
 		contentComponentList.forEach {
 			if (!it.isChosen(currentParams)) return@forEach
-            val text = it.generateText(context, session, data, savedLocation) ?: return@forEach
+			val text = it.generateText(context, session, data, savedLocation) ?: return@forEach
 
 			sb.append(text).append(delimiter)
 		}

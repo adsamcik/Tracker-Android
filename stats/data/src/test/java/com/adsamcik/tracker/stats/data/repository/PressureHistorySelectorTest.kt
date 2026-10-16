@@ -103,6 +103,9 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// One real Pressure Room selector fixture compares the same saved carrier/lineage through history,
+// correction and retention states.
+@Suppress("LargeClass")
 class PressureHistorySelectorTest {
 	private lateinit var database: AppDatabase
 	private lateinit var selector: PressureHistorySelector
@@ -316,13 +319,17 @@ class PressureHistorySelectorTest {
 		public.endTime.raw shouldBe originalCutoff
 		after.windows shouldBe before.windows
 		after.summary shouldBe before.summary
-		after.qualifiedSources shouldBe before.qualifiedSources
-		after.recencyMember shouldBe before.recencyMember
+		after.physicalMembers.map { it.windows } shouldBe before.physicalMembers.map { it.windows }
+		// The changed header no longer matches its original Stop intent; measured windows remain useful.
+		after.physicalMembers.single().coverage shouldBe PressureHistoryCoverage.PARTIAL
+		after.physicalMembers.single().reasons shouldBe setOf(PressureHistoryReason.STOP_INCOMPLETE)
+		after.recencyMember.segment shouldBe before.recencyMember.segment
 		public.pressure.hasQualifiedRetainedProof shouldBe true
 		val portable = requireNotNull(PortablePressureRoomReader(database, selector)
 			.portableEntryForComparison(after))
-		portable.startTimeMs shouldBe originalStart
-		portable.endTimeMs shouldBe originalCutoff
+		// Source data keeps the measured run bounds; session organization keeps its own header.
+		portable.startTimeMs shouldBe before.physicalMembers.minOf { it.segment.startTimeMs }
+		portable.endTimeMs shouldBe before.physicalMembers.maxOf { it.segment.endTimeMs }
 		portable.runs.single().startTimeMs shouldBe before.physicalMembers.single().segment.startTimeMs
 		portable.runs.single().endTimeMs shouldBe before.physicalMembers.single().segment.endTimeMs
 	}
@@ -2646,7 +2653,8 @@ class PressureHistorySelectorTest {
 		)
 	}
 
-	@Suppress("LongMethod", "LongParameterList")
+	// Keep the finite unavailable-provider and optional-fact fixture row variants explicit.
+	@Suppress("LongMethod", "LongParameterList", "CyclomaticComplexMethod")
 	private suspend fun insertFixture(
 		zoneId: String = "UTC",
 		factSemanticRevision: Long?,
@@ -2670,7 +2678,11 @@ class PressureHistorySelectorTest {
 	): PressureFixture {
 		val segment = segment()
 		database.sessionSegmentDao().insert(segment)
-		val origin = if (sessionMode == "AUTOMATIC") "AUTOMATIC_BACKGROUND_START" else MANUAL_START_ORIGIN
+		val origin = if (sessionMode == "AUTOMATIC") {
+			"AUTOMATIC_BACKGROUND_START"
+		} else {
+			MANUAL_START_ORIGIN
+		}
 		val run = serviceRun().copy(startOrigin = origin)
 		database.sourceSessionDao().insertSession(logicalSession().copy(sessionMode = sessionMode, startOrigin = origin))
 		database.sourceSessionDao().insertServiceRun(run)
@@ -2721,7 +2733,11 @@ class PressureHistorySelectorTest {
 				} else {
 					"pressure-provider-1"
 				},
-				registrationGeneration = if (unavailablePressure) 0L else 1L,
+				registrationGeneration = if (unavailablePressure) {
+					0L
+				} else {
+					1L
+				},
 				lastAdmissionOrdinal = if (unavailablePressure) {
 					null
 				} else {
@@ -2827,9 +2843,21 @@ class PressureHistorySelectorTest {
 				} else {
 					"pressure-provider-2"
 				},
-				registrationGeneration = if (unavailablePressure) 0L else 2L,
-				lastAdmissionOrdinal = if (unavailablePressure) null else 2L,
-				lastSourceSequence = if (unavailablePressure) null else 2L,
+				registrationGeneration = if (unavailablePressure) {
+					0L
+				} else {
+					2L
+				},
+				lastAdmissionOrdinal = if (unavailablePressure) {
+					null
+				} else {
+					2L
+				},
+				lastSourceSequence = if (unavailablePressure) {
+					null
+				} else {
+					2L
+				},
 				appDrainComplete = true,
 				providerCoverage = if (unavailablePressure) {
 					"PROVIDER_COMPLETENESS_UNOBSERVABLE"
@@ -3311,7 +3339,8 @@ class PressureHistorySelectorTest {
 			)
 		}
 		binding.writerOwnerGeneration shouldBe
-			SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+			com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
+				.canonicalOwnerGeneration(requireNotNull(binding.writerBindingGeneration))
 		run.leaseGeneration shouldBe requireNotNull(wal.lifecycleLeaseGeneration)
 	}
 
@@ -3587,6 +3616,8 @@ class PressureHistorySelectorTest {
 		)
 	}
 
+	// Keep the complete Pressure payload and its exact saved WAL carrier/checksums together as one fixture.
+	@Suppress("LongMethod")
 	private fun pressureWal(fact: PressureFactRevisionEntity): SourceEventWalEntity {
 		val payload = PressureWalPayload(
 			sampleCount = fact.sampleCount,
@@ -3729,7 +3760,11 @@ class PressureHistorySelectorTest {
 		val retainedFact = pressureFact(
 			binding = binding,
 			semanticRevision = 1L,
-			admissionOrdinal = if (fixture.runId == RUN_ID) 101L else 102L,
+			admissionOrdinal = if (fixture.runId == RUN_ID) {
+				101L
+			} else {
+				102L
+			},
 			sourceEventId = retainedEventId,
 			logicalTrackingId = fixture.logicalId,
 			serviceRunId = fixture.runId,

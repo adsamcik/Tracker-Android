@@ -52,6 +52,7 @@ enum class TrackingDiagnosticOperation {
 	EXPORT,
 }
 
+/** Outcome categories for one operation; retryability and no-effect results remain distinct. */
 enum class TrackingDiagnosticResult {
 	SUCCEEDED,
 	NO_EFFECT,
@@ -66,16 +67,19 @@ enum class TrackingDiagnosticResult {
 /** Closed reason hierarchy; adapters cannot attach free-form reason text. */
 sealed interface TrackingDiagnosticReason
 
+/** Reasons allowed when an operation completes successfully. */
 enum class TrackingDiagnosticSuccessReason : TrackingDiagnosticReason {
 	COMPLETED,
 }
 
+/** Reasons an accepted operation changes nothing, including exact replay. */
 enum class TrackingDiagnosticNoEffectReason : TrackingDiagnosticReason {
 	EXACT_REPLAY,
 	EMPTY_DELIVERY,
 	ALREADY_APPLIED,
 }
 
+/** Requirements that prevent an operation from proceeding until authority or availability changes. */
 enum class TrackingDiagnosticBlockedReason : TrackingDiagnosticReason {
 	POLICY_DISABLED,
 	CONSENT_REQUIRED,
@@ -87,6 +91,7 @@ enum class TrackingDiagnosticBlockedReason : TrackingDiagnosticReason {
 	ACTIVE_OWNER,
 }
 
+/** Conditions that postpone work while keeping it eligible for a later attempt. */
 enum class TrackingDiagnosticDeferredReason : TrackingDiagnosticReason {
 	BACKLOG_LIMIT,
 	DEPENDENCY_NOT_READY,
@@ -95,6 +100,7 @@ enum class TrackingDiagnosticDeferredReason : TrackingDiagnosticReason {
 	LIFECYCLE_TRANSITION,
 }
 
+/** Invalid delivery or ownership conditions that reject the attempted work. */
 enum class TrackingDiagnosticRejectedReason : TrackingDiagnosticReason {
 	STALE_GENERATION,
 	STALE_CALLBACK,
@@ -108,6 +114,7 @@ enum class TrackingDiagnosticRejectedReason : TrackingDiagnosticReason {
 	START_NOT_AUTHORIZED,
 }
 
+/** Payload-free failure categories shared by provider, storage and recovery operations. */
 enum class TrackingDiagnosticFailureReason : TrackingDiagnosticReason {
 	PROVIDER_FAILURE,
 	STORAGE_UNAVAILABLE,
@@ -123,11 +130,13 @@ enum class TrackingDiagnosticFailureReason : TrackingDiagnosticReason {
 	UNKNOWN,
 }
 
+/** Lifecycle or supersession reasons for cancelling an operation. */
 enum class TrackingDiagnosticCancellationReason : TrackingDiagnosticReason {
 	LIFECYCLE_STOP,
 	REQUEST_SUPERSEDED,
 }
 
+/** Marks a progress event or the terminal event that closes its operation scope. */
 enum class TrackingDiagnosticEventLifecycle {
 	PROGRESS,
 	TERMINAL,
@@ -142,15 +151,19 @@ enum class TrackingDiagnosticMetric {
 	PERSISTED_ENVELOPE_COUNT,
 }
 
+/** Defines the exact coarse metrics permitted for each source, stage and operation. */
 object TrackingDiagnosticMetricPolicy {
 	private val approvedSources = TrackingDiagnosticSource.entries.toSet()
 
+	/** Returns the complete metric set allowed for this operation; an empty set requires an unmetered event. */
 	fun allowedMetrics(
 		source: TrackingDiagnosticSource,
 		pipelineStage: TrackingDiagnosticPipelineStage,
 		operation: TrackingDiagnosticOperation,
 	): Set<TrackingDiagnosticMetric> {
-		if (source !in approvedSources) return emptySet()
+		if (source !in approvedSources) {
+			return emptySet()
+		}
 		return when (pipelineStage to operation) {
 			TrackingDiagnosticPipelineStage.DURABLE_INGRESS to
 				TrackingDiagnosticOperation.ENQUEUE -> setOf(
@@ -185,7 +198,9 @@ sealed interface TrackingDiagnosticEventRequest {
 	val lifecycle: TrackingDiagnosticEventLifecycle
 }
 
+/** Builds closed event requests and buckets operational metrics before they reach the recorder. */
 object TrackingDiagnosticEvents {
+	/** Creates an event for an operation with no approved metrics; rejects incompatible result/reason pairs. */
 	@Suppress("LongParameterList")
 	fun unmetered(
 		source: TrackingDiagnosticSource,
@@ -206,6 +221,7 @@ object TrackingDiagnosticEvents {
 		)
 	}
 
+	/** Creates an ingress enqueue event from nonnegative encoded bytes and queue length, storing only buckets. */
 	@Suppress("LongParameterList")
 	fun enqueue(
 		source: TrackingDiagnosticSource,
@@ -241,6 +257,7 @@ object TrackingDiagnosticEvents {
 		)
 	}
 
+	/** Creates an ingress drain event from nonnegative processed and remaining item counts, storing only buckets. */
 	@Suppress("LongParameterList")
 	fun drain(
 		source: TrackingDiagnosticSource,
@@ -278,6 +295,7 @@ object TrackingDiagnosticEvents {
 		)
 	}
 
+	/** Creates a persistence event from a nonnegative saved-envelope count, storing only its bucket. */
 	@Suppress("LongParameterList")
 	fun writeBatch(
 		source: TrackingDiagnosticSource,

@@ -25,6 +25,10 @@ fun SavedLocationSummaryRead.formatSavedDistance(
     return formatSavedValue(context, snapshot?.summary?.distanceMeters, format)
 }
 
+/**
+ * Formats saved moving average speed in metres per second through the supplied formatter; missing data
+ * keeps its status.
+ */
 fun SavedLocationSummaryRead.formatSavedAverageSpeed(
     context: Context,
     format: (Double) -> String,

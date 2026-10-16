@@ -40,4 +40,23 @@
     <string name="format_database">Резервно копие на база данни (ZIP)</string>
     <string name="settings_import_summary">Импортирайте данни от поддържани типове (%1$s) и архиви (%2$s). Импортирането на база данни обединява съвместимите редове; не заменя съществуващите данни.</string>
     <string name="settings_import_title">Импортиране</string>
+    <string name="export_radio_sensitivity_title">Да се експортират ли мрежовите данни?</string>
+    <string name="export_wifi_sensitivity_message">Този файл съдържа запазени Wi-Fi имена и идентификатори на точки за достъп.</string>
+    <string name="export_cell_sensitivity_message">Този файл съдържа запазени идентификатори на базови станции и измервания на сигнала.</string>
+    <string name="export_radio_no_data">Няма запазени данни за този източник</string>
+    <string name="export_include_complete_sessions">Включване на цели сесии</string>
+    <string name="import_location_conflict_title">Да се заменят ли запазените точки?</string>
+    <string name="import_location_replace">Използване на точките от файла</string>
+    <string name="import_location_keep">Запазване на съществуващите точки</string>
+    <string name="export_backup_review_title">Преглед на планираните резервни копия</string>
+    <string name="export_backup_review_summary">Пауза до прегледа на обновеното резервно копие на данните.</string>
+    <string name="export_backup_review_message">Тези графици вече архивират всички запазени данни за проследяване и файловете за възстановяването им. Настройките не се включват. Да се възобновят ли графиците?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Възобновяване на архивирането</string>
+    <string name="import_backup_replace_title">Да се възстанови ли резервното копие?</string>
+    <string name="import_backup_replace_message">Да се заменят ли запазените данни с това резервно копие? Настройките ще останат същите. Проследяването ще бъде изключено, докато не го възобновите.</string>
+    <string name="import_backup_restore">Замяна на данните</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d точка в този файл се различава от запазеното копие. Изберете коя да запазите. Другите точки ще бъдат импортирани както обикновено.</item>
+        <item quantity="other">%d точки в този файл се различават от запазените копия. Изберете кои да запазите. Другите точки ще бъдат импортирани както обикновено.</item>
+    </plurals>
 </resources>

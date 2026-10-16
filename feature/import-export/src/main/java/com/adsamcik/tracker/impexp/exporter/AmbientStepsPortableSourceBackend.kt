@@ -116,7 +116,8 @@ internal class AmbientStepsPortableSourceBackend(
 		AmbientStepsPortableScopeResolution.Unsupported(
 			AmbientStepsPortableUnsupportedScope.DAY_SCOPE_NOT_REPRESENTABLE,
 		)
-	} else try {
+	} else {
+		try {
 		val zone = ZoneId.of(scope.zoneId)
 		val date = LocalDate.ofEpochDay(scope.epochDay)
 		val start = date.atStartOfDay(zone).toInstant().toEpochMilli()
@@ -138,6 +139,7 @@ internal class AmbientStepsPortableSourceBackend(
 		AmbientStepsPortableScopeResolution.Unsupported(
 			AmbientStepsPortableUnsupportedScope.DAY_SCOPE_NOT_REPRESENTABLE,
 		)
+	}
 	}
 
 	internal companion object {

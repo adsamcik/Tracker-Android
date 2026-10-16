@@ -14,6 +14,8 @@ internal fun SourceEventWalEntity.hasExactQualifiedIntegrity(
 		SOURCE_WAL_SHA_256.matches(integrityIdentity) &&
 		integrityIdentity == calculatedIntegrityIdentity()
 
+// Validates the immutable capture-envelope field shape; each required field remains visible.
+@Suppress("CyclomaticComplexMethod")
 internal fun SourceEventWalEntity.hasCompleteSessionCaptureBinding(): Boolean =
 	logicalTrackingId?.isNotBlank() == true &&
 		serviceRunId?.isNotBlank() == true &&

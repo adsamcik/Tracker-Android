@@ -8,6 +8,8 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+// One mutex owns diagnostic aggregation, budgets, pruning and querying.
+@Suppress("TooManyFunctions")
 internal class RoomTrackingDiagnosticStore(
 	private val database: TrackingDiagnosticDatabase,
 	private val wallClock: () -> Long = System::currentTimeMillis,
@@ -56,46 +58,7 @@ internal class RoomTrackingDiagnosticStore(
 			val aggregationKey = entity.aggregationKey()
 			val previousAggregation = aggregationState[aggregationKey]
 			val operation = runStorageOperation {
-				database.withTransaction {
-					pruneExpired(nowMs)
-					val candidate = previousAggregation
-						?.takeIf { state ->
-							nowMs - state.lastSeenAtMs <= policy.aggregationWindowMillis
-						}
-						?.let { state -> dao.findById(state.rowId) }
-						?.takeIf { stored -> stored.aggregationKey() == aggregationKey }
-					val committed = if (candidate == null) {
-						val rowId = dao.insert(entity)
-						check(rowId > 0L) { "Diagnostic event insert was rejected" }
-						AppendCommit(
-							result = TrackingDiagnosticStorageResult.STORED,
-							rowId = rowId,
-							occurrenceCount = 1,
-						)
-					} else {
-						val nextCount = (requireNotNull(previousAggregation).occurrenceCount + 1)
-							.coerceAtMost(policy.maxAggregatedOccurrences)
-						val replacement = candidate.copy(
-							occurrenceCountBucket =
-								TrackingDiagnosticCountBucket.fromCount(nextCount.toLong()).name,
-						)
-						check(replacement.encodedByteCount() <= policy.maxEncodedEventBytes) {
-							"Aggregated diagnostic event exceeds its encoded byte bound"
-						}
-						check(dao.update(replacement) == 1) {
-							"Diagnostic aggregation target disappeared"
-						}
-						AppendCommit(
-							result = TrackingDiagnosticStorageResult.AGGREGATED,
-							rowId = candidate.eventId,
-							occurrenceCount = nextCount,
-						)
-					}
-					transactionCheckpoint()
-					enforceSourceLimits(entity.source, protectedRowId = committed.rowId)
-					enforceGlobalLimits(protectedRowId = committed.rowId)
-					committed
-				}
+				appendInTransaction(entity, nowMs, previousAggregation, aggregationKey)
 			}
 			when (operation) {
 				StorageOperation.Retryable ->
@@ -111,6 +74,52 @@ internal class RoomTrackingDiagnosticStore(
 		throw cancelled
 	} catch (_: Throwable) {
 		TrackingDiagnosticStorageResult.STORAGE_RETRYABLE
+	}
+
+	private suspend fun appendInTransaction(
+		entity: TrackingDiagnosticEventEntity,
+		nowMs: Long,
+		previousAggregation: AggregationEntry?,
+		aggregationKey: AggregationKey,
+	): AppendCommit = database.withTransaction {
+		pruneExpired(nowMs)
+		val candidate = previousAggregation
+			?.takeIf { state ->
+				nowMs - state.lastSeenAtMs <= policy.aggregationWindowMillis
+			}
+			?.let { state -> dao.findById(state.rowId) }
+			?.takeIf { stored -> stored.aggregationKey() == aggregationKey }
+		val committed = if (candidate == null) {
+			val rowId = dao.insert(entity)
+			check(rowId > 0L) { "Diagnostic event insert was rejected" }
+			AppendCommit(
+				result = TrackingDiagnosticStorageResult.STORED,
+				rowId = rowId,
+				occurrenceCount = 1,
+			)
+		} else {
+			val nextCount = (requireNotNull(previousAggregation).occurrenceCount + 1)
+				.coerceAtMost(policy.maxAggregatedOccurrences)
+			val replacement = candidate.copy(
+				occurrenceCountBucket =
+					TrackingDiagnosticCountBucket.fromCount(nextCount.toLong()).name,
+			)
+			check(replacement.encodedByteCount() <= policy.maxEncodedEventBytes) {
+				"Aggregated diagnostic event exceeds its encoded byte bound"
+			}
+			check(dao.update(replacement) == 1) {
+				"Diagnostic aggregation target disappeared"
+			}
+			AppendCommit(
+				result = TrackingDiagnosticStorageResult.AGGREGATED,
+				rowId = candidate.eventId,
+				occurrenceCount = nextCount,
+			)
+		}
+		transactionCheckpoint()
+		enforceSourceLimits(entity.source, protectedRowId = committed.rowId)
+		enforceGlobalLimits(protectedRowId = committed.rowId)
+		committed
 	}
 
 	override suspend fun querySource(
@@ -472,7 +481,9 @@ internal class RoomTrackingDiagnosticStore(
 			if (encodedEnvelopeSizeBucket != null) {
 				add(TrackingDiagnosticMetric.ENCODED_ENVELOPE_SIZE)
 			}
-			if (queueBacklogBucket != null) add(TrackingDiagnosticMetric.QUEUE_BACKLOG)
+			if (queueBacklogBucket != null) {
+				add(TrackingDiagnosticMetric.QUEUE_BACKLOG)
+			}
 			if (drainedEnvelopeCountBucket != null) {
 				add(TrackingDiagnosticMetric.DRAINED_ENVELOPE_COUNT)
 			}

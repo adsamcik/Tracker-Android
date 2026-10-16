@@ -172,6 +172,8 @@ class RoomTruncateImportedPressureRetentionTest {
 		)
 	}
 
+	// Remove one retained marker after the valid baseline, then verify replay, deletion, and retention see that loss.
+	@Suppress("LongMethod")
 	@Test
 	fun `missing retained marker is unverifiable for replay selected deletion and no-change`() =
 		runTest {
@@ -237,6 +239,8 @@ class RoomTruncateImportedPressureRetentionTest {
 			ImportPortablePressureResult.Applied(1L, 1, 1)
 		}
 
+	// Keep the false deletion set and its recomputed receipt together to verify both consumers reject the mismatch.
+	@Suppress("LongMethod")
 	@Test
 	fun `self-checksummed retention receipt with false deletion set is unverifiable`() = runTest {
 		val imported = importRequest(entry(), 1)

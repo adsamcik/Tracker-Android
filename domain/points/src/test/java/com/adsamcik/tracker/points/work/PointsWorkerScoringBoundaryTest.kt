@@ -233,10 +233,14 @@ class PointsWorkerScoringBoundaryTest {
 							// Scoring fixture only. Real saved grant/point qualification is covered in stats-data Room cases.
 							io.mockk.coEvery { readSavedSessionReward(segmentId) } coAnswers {
 								val stored = appDatabase.sessionSegmentDao().getById(segmentId)
-								if (stored == null) com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Removed(0, 2)
-								else com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready(
+								if (stored == null) {
+									com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Removed(0, 2)
+								}
+								else {
+									com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready(
 									com.adsamcik.tracker.stats.api.repository.SavedSessionReward(segmentId, 0, 1,
 										stored.endTimeMs, stored.endTimeMs - stored.startTimeMs, stored.distanceM.toDouble()))
+								}
 							}
 						},
 					)

@@ -13,22 +13,30 @@ private val legacyStampFields = listOf(
 private val legacyStampColumnNames = legacyStampFields.joinToString(", ")
 private val legacyStampNewValues = legacyStampFields.joinToString(", ") { "NEW.$it" }
 private val legacyStampColumnDefinitions = legacyStampFields.joinToString(",\n") { field ->
-	"$field ${if (field in setOf("clock_domain_id", "boot_clock_domain_id", "capability_flags", "permission_precision")) "TEXT" else "INTEGER"}"
+	"$field ${if (field in setOf("clock_domain_id", "boot_clock_domain_id", "capability_flags",
+        "permission_precision")) {
+		"TEXT"
+	} else {
+		"INTEGER"
+	}}"
 }
 
 /** Complete the unshipped v29 data model while preserving existing observation meaning. */
 val MIGRATION_28_29: Migration = object : Migration(28, 29) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		// Existing Steps memberships remain legacy-null; continuity is never inferred.
-		db.execSQL("ALTER TABLE session_manifest_source ADD COLUMN steps_recording_manifest_revision INTEGER DEFAULT NULL")
+		db.execSQL(("ALTER TABLE session_manifest_source ADD COLUMN steps_recording_manifest_revision " +
+            "INTEGER DEFAULT NULL"))
 		// Earlier facts have no durable carrier version; do not guess it from child presence.
 		db.execSQL("ALTER TABLE wifi_captured_fact_revision ADD COLUMN payload_version INTEGER DEFAULT NULL")
 		db.execSQL("ALTER TABLE ambient_wifi_fact_revision ADD COLUMN purpose_demand_id TEXT DEFAULT NULL")
 		db.execSQL("ALTER TABLE ambient_cell_fact_revision ADD COLUMN purpose_demand_id TEXT DEFAULT NULL")
-		db.execSQL("ALTER TABLE source_policy ADD COLUMN background_notification_host_enabled INTEGER NOT NULL DEFAULT 0")
+		db.execSQL(("ALTER TABLE source_policy ADD COLUMN background_notification_host_enabled INTEGER NOT " +
+            "NULL DEFAULT 0"))
 		db.execSQL("ALTER TABLE location_accepted_receipt ADD COLUMN retained_proof_version INTEGER NOT NULL DEFAULT 0")
 		db.execSQL("ALTER TABLE location_accepted_receipt ADD COLUMN retained_proof_checksum TEXT NOT NULL DEFAULT ''")
-		db.execSQL("ALTER TABLE location_sample_purpose_authority ADD COLUMN retained_proof_checksum TEXT NOT NULL DEFAULT ''")
+		db.execSQL(("ALTER TABLE location_sample_purpose_authority ADD COLUMN retained_proof_checksum TEXT " +
+            "NOT NULL DEFAULT ''"))
 		db.execSQL("ALTER TABLE organization_annotation ADD COLUMN imported_source_selection TEXT")
 		db.execSQL("ALTER TABLE organization_annotation ADD COLUMN imported_activity_label TEXT")
 		createLegacyPreservedDataSchema(db)
@@ -73,6 +81,10 @@ internal fun createLocationFileArchiveTables(db: SupportSQLiteDatabase) {
 
 /** Room creates new v29 tables itself; the released-data importer runs later in onCreate. */
 internal object RadioObservationChildRoomCallback : RoomDatabase.Callback() {
+	override fun onOpen(db: SupportSQLiteDatabase) {
+		normalizeNativePressureWindowOwnership(db)
+	}
+
 	override fun onCreate(db: SupportSQLiteDatabase) {
 		installLegacyRadioChildMirrors(db)
 		installNativePortableOwnershipDeletionTriggers(db)
@@ -80,144 +92,7 @@ internal object RadioObservationChildRoomCallback : RoomDatabase.Callback() {
 }
 
 internal fun createRadioObservationChildTables(db: SupportSQLiteDatabase) {
-	db.execSQL("""
-		CREATE TABLE IF NOT EXISTS wifi_captured_child (
-			writer_projection_id TEXT NOT NULL, writer_projection_version INTEGER NOT NULL,
-			logical_fact_id TEXT NOT NULL, semantic_revision INTEGER NOT NULL, item_index INTEGER NOT NULL,
-			provider_timestamp_nanos INTEGER NOT NULL, observed_wall_time_ms INTEGER NOT NULL,
-			wall_time_uncertainty_ms INTEGER NOT NULL, bssid TEXT, ssid TEXT,
-			frequency_mhz INTEGER NOT NULL, signal_dbm INTEGER NOT NULL, content_checksum TEXT NOT NULL,
-			PRIMARY KEY(writer_projection_id, writer_projection_version, logical_fact_id, semantic_revision, item_index),
-			FOREIGN KEY(writer_projection_id, writer_projection_version, logical_fact_id, semantic_revision)
-			REFERENCES wifi_captured_fact_revision(writer_projection_id, writer_projection_version, logical_fact_id, semantic_revision)
-			ON UPDATE NO ACTION ON DELETE RESTRICT
-		)
-	""".trimIndent())
-	db.execSQL("CREATE INDEX IF NOT EXISTS idx_wifi_captured_child_time ON wifi_captured_child(observed_wall_time_ms)")
-	db.execSQL("CREATE INDEX IF NOT EXISTS idx_wifi_captured_child_identity_time ON wifi_captured_child(bssid, observed_wall_time_ms)")
-	db.execSQL("""
-		CREATE TABLE IF NOT EXISTS cell_captured_child (
-			writer_projection_id TEXT NOT NULL, writer_projection_version INTEGER NOT NULL,
-			logical_fact_id TEXT NOT NULL, semantic_revision INTEGER NOT NULL, item_index INTEGER NOT NULL,
-			provider_timestamp_nanos INTEGER NOT NULL, observed_wall_time_ms INTEGER NOT NULL,
-			wall_time_uncertainty_ms INTEGER NOT NULL, tower_identity TEXT, radio_type TEXT NOT NULL,
-			registered INTEGER NOT NULL, signal_dbm INTEGER, content_checksum TEXT NOT NULL,
-			PRIMARY KEY(writer_projection_id, writer_projection_version, logical_fact_id, semantic_revision, item_index),
-			FOREIGN KEY(writer_projection_id, writer_projection_version, logical_fact_id, semantic_revision)
-			REFERENCES cell_captured_fact_revision(writer_projection_id, writer_projection_version, logical_fact_id, semantic_revision)
-			ON UPDATE NO ACTION ON DELETE RESTRICT
-		)
-	""".trimIndent())
-	db.execSQL("CREATE INDEX IF NOT EXISTS idx_cell_captured_child_time ON cell_captured_child(observed_wall_time_ms)")
-	db.execSQL("CREATE INDEX IF NOT EXISTS idx_cell_captured_child_identity_time ON cell_captured_child(tower_identity, observed_wall_time_ms)")
-	db.execSQL("""
-		CREATE TABLE IF NOT EXISTS ambient_wifi_child (
-			writer_id TEXT NOT NULL, writer_version INTEGER NOT NULL,
-			logical_fact_id TEXT NOT NULL, semantic_revision INTEGER NOT NULL, item_index INTEGER NOT NULL,
-			provider_timestamp_nanos INTEGER NOT NULL, observed_wall_time_ms INTEGER NOT NULL,
-			wall_time_uncertainty_ms INTEGER NOT NULL, bssid TEXT, ssid TEXT,
-			frequency_mhz INTEGER NOT NULL, signal_dbm INTEGER NOT NULL, content_checksum TEXT NOT NULL,
-			PRIMARY KEY(writer_id, writer_version, logical_fact_id, semantic_revision, item_index),
-			FOREIGN KEY(writer_id, writer_version, logical_fact_id, semantic_revision)
-			REFERENCES ambient_wifi_fact_revision(writer_id, writer_version, logical_fact_id, semantic_revision)
-			ON UPDATE NO ACTION ON DELETE RESTRICT
-		)
-	""".trimIndent())
-	db.execSQL("CREATE INDEX IF NOT EXISTS idx_ambient_wifi_child_time ON ambient_wifi_child(observed_wall_time_ms)")
-	db.execSQL("CREATE INDEX IF NOT EXISTS idx_ambient_wifi_child_identity_time ON ambient_wifi_child(bssid, observed_wall_time_ms)")
-	db.execSQL("""
-		CREATE TABLE IF NOT EXISTS ambient_cell_child (
-			writer_id TEXT NOT NULL, writer_version INTEGER NOT NULL,
-			logical_fact_id TEXT NOT NULL, semantic_revision INTEGER NOT NULL, item_index INTEGER NOT NULL,
-			provider_timestamp_nanos INTEGER NOT NULL, observed_wall_time_ms INTEGER NOT NULL,
-			wall_time_uncertainty_ms INTEGER NOT NULL, tower_identity TEXT, radio_type TEXT NOT NULL,
-			registered INTEGER NOT NULL, signal_dbm INTEGER, content_checksum TEXT NOT NULL,
-			PRIMARY KEY(writer_id, writer_version, logical_fact_id, semantic_revision, item_index),
-			FOREIGN KEY(writer_id, writer_version, logical_fact_id, semantic_revision)
-			REFERENCES ambient_cell_fact_revision(writer_id, writer_version, logical_fact_id, semantic_revision)
-			ON UPDATE NO ACTION ON DELETE RESTRICT
-		)
-	""".trimIndent())
-	db.execSQL("CREATE INDEX IF NOT EXISTS idx_ambient_cell_child_time ON ambient_cell_child(observed_wall_time_ms)")
-	db.execSQL("CREATE INDEX IF NOT EXISTS idx_ambient_cell_child_identity_time ON ambient_cell_child(tower_identity, observed_wall_time_ms)")
-	db.execSQL("""
-		CREATE TABLE IF NOT EXISTS legacy_wifi_child (
-			legacy_row_id INTEGER NOT NULL PRIMARY KEY, time_ms INTEGER NOT NULL,
-			bssid TEXT NOT NULL, ssid TEXT NOT NULL, capabilities TEXT NOT NULL,
-			frequency INTEGER NOT NULL, level INTEGER NOT NULL, lat_e7 INTEGER, lon_e7 INTEGER,
-			provenance TEXT NOT NULL, created_at INTEGER NOT NULL,
-			source_signal_id TEXT, source_item_index INTEGER,
-			$legacyStampColumnDefinitions
-		)
-	""".trimIndent())
-	db.execSQL("CREATE INDEX IF NOT EXISTS idx_legacy_wifi_child_time ON legacy_wifi_child(time_ms)")
-	db.execSQL("""
-		CREATE TABLE IF NOT EXISTS legacy_cell_child (
-			legacy_row_id INTEGER NOT NULL PRIMARY KEY, time_ms INTEGER NOT NULL,
-			cell_id INTEGER NOT NULL, lac INTEGER NOT NULL, mcc INTEGER NOT NULL, mnc INTEGER NOT NULL,
-			network_type INTEGER NOT NULL, signal_strength INTEGER NOT NULL,
-			lat_e7 INTEGER, lon_e7 INTEGER, provenance TEXT NOT NULL, created_at INTEGER NOT NULL,
-			source_signal_id TEXT, source_item_index INTEGER,
-			$legacyStampColumnDefinitions
-		)
-	""".trimIndent())
-	db.execSQL("CREATE INDEX IF NOT EXISTS idx_legacy_cell_child_time ON legacy_cell_child(time_ms)")
-	db.execSQL("""
-		CREATE TABLE IF NOT EXISTS imported_wifi_child (
-			entry_identity TEXT NOT NULL, entry_import_revision INTEGER NOT NULL,
-			run_identity TEXT NOT NULL, observation_identity TEXT NOT NULL, item_index INTEGER NOT NULL,
-			provider_timestamp_nanos INTEGER NOT NULL, observed_wall_time_ms INTEGER NOT NULL,
-			wall_time_uncertainty_ms INTEGER NOT NULL, bssid TEXT, ssid TEXT,
-			frequency_mhz INTEGER NOT NULL, signal_dbm INTEGER NOT NULL, content_checksum TEXT NOT NULL,
-			PRIMARY KEY(entry_identity, entry_import_revision, run_identity, observation_identity, item_index),
-			FOREIGN KEY(entry_identity, entry_import_revision, run_identity, observation_identity)
-			REFERENCES imported_wifi_observation(entry_identity, entry_import_revision, run_identity, identity)
-			ON UPDATE NO ACTION ON DELETE CASCADE
-		)
-	""".trimIndent())
-	db.execSQL("CREATE INDEX IF NOT EXISTS idx_imported_wifi_child_parent ON imported_wifi_child(entry_identity, entry_import_revision, run_identity, observation_identity)")
-	db.execSQL("""
-		CREATE TABLE IF NOT EXISTS imported_cell_child (
-			entry_identity TEXT NOT NULL, entry_import_revision INTEGER NOT NULL,
-			run_identity TEXT NOT NULL, observation_identity TEXT NOT NULL, item_index INTEGER NOT NULL,
-			provider_timestamp_nanos INTEGER NOT NULL, observed_wall_time_ms INTEGER NOT NULL,
-			wall_time_uncertainty_ms INTEGER NOT NULL, tower_identity TEXT, radio_type TEXT NOT NULL,
-			registered INTEGER NOT NULL, signal_dbm INTEGER, content_checksum TEXT NOT NULL,
-			PRIMARY KEY(entry_identity, entry_import_revision, run_identity, observation_identity, item_index),
-			FOREIGN KEY(entry_identity, entry_import_revision, run_identity, observation_identity)
-			REFERENCES imported_cell_observation(entry_identity, entry_import_revision, run_identity, identity)
-			ON UPDATE NO ACTION ON DELETE CASCADE
-		)
-	""".trimIndent())
-	db.execSQL("CREATE INDEX IF NOT EXISTS idx_imported_cell_child_parent ON imported_cell_child(entry_identity, entry_import_revision, run_identity, observation_identity)")
-	db.execSQL("""
-		CREATE TABLE IF NOT EXISTS imported_ambient_wifi_child (
-			archive_id TEXT NOT NULL, fact_id TEXT NOT NULL, semantic_revision INTEGER NOT NULL,
-			item_index INTEGER NOT NULL, provider_timestamp_nanos INTEGER NOT NULL,
-			observed_wall_time_ms INTEGER NOT NULL, wall_time_uncertainty_ms INTEGER NOT NULL,
-			bssid TEXT, ssid TEXT, frequency_mhz INTEGER NOT NULL, signal_dbm INTEGER NOT NULL,
-			content_checksum TEXT NOT NULL,
-			PRIMARY KEY(archive_id, fact_id, semantic_revision, item_index),
-			FOREIGN KEY(archive_id, fact_id, semantic_revision)
-			REFERENCES imported_ambient_wifi_fact(archive_id, fact_id, semantic_revision)
-			ON UPDATE NO ACTION ON DELETE CASCADE
-		)
-	""".trimIndent())
-	db.execSQL("CREATE INDEX IF NOT EXISTS idx_imported_ambient_wifi_child_parent ON imported_ambient_wifi_child(archive_id, fact_id, semantic_revision)")
-	db.execSQL("""
-		CREATE TABLE IF NOT EXISTS imported_ambient_cell_child (
-			archive_id TEXT NOT NULL, fact_id TEXT NOT NULL, semantic_revision INTEGER NOT NULL,
-			item_index INTEGER NOT NULL, provider_timestamp_nanos INTEGER NOT NULL,
-			observed_wall_time_ms INTEGER NOT NULL, wall_time_uncertainty_ms INTEGER NOT NULL,
-			tower_identity TEXT, radio_type TEXT NOT NULL, registered INTEGER NOT NULL,
-			signal_dbm INTEGER, content_checksum TEXT NOT NULL,
-			PRIMARY KEY(archive_id, fact_id, semantic_revision, item_index),
-			FOREIGN KEY(archive_id, fact_id, semantic_revision)
-			REFERENCES imported_ambient_cell_fact(archive_id, fact_id, semantic_revision)
-			ON UPDATE NO ACTION ON DELETE CASCADE
-		)
-	""".trimIndent())
-	db.execSQL("CREATE INDEX IF NOT EXISTS idx_imported_ambient_cell_child_parent ON imported_ambient_cell_child(archive_id, fact_id, semantic_revision)")
+	radioObservationChildTableStatements.forEach(db::execSQL)
 }
 
 /** Legacy rows have no trustworthy session/background purpose, so retain their original origin. */
@@ -327,16 +202,172 @@ internal fun createLegacyPreservedDataSchema(db: SupportSQLiteDatabase) {
 		)
 	""".trimIndent())
 	db.execSQL("CREATE INDEX IF NOT EXISTS idx_legacy_location_wifi_count_time ON legacy_location_wifi_count(time)")
-	db.execSQL("CREATE INDEX IF NOT EXISTS idx_legacy_location_wifi_count_coords ON legacy_location_wifi_count(lat, lon)")
-	db.execSQL("CREATE TABLE IF NOT EXISTS network_operator(mcc TEXT NOT NULL, mnc TEXT NOT NULL, name TEXT, PRIMARY KEY(mcc, mnc))")
+	db.execSQL(("CREATE INDEX IF NOT EXISTS idx_legacy_location_wifi_count_coords ON " +
+        "legacy_location_wifi_count(lat, lon)"))
+	db.execSQL(("CREATE TABLE IF NOT EXISTS network_operator(mcc TEXT NOT NULL, mnc TEXT NOT NULL, name " +
+        "TEXT, PRIMARY KEY(mcc, mnc))"))
 }
 
 private fun addPreservedColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
     val present = db.query("PRAGMA table_info(`$table`)").use { rows ->
         val nameIndex = rows.getColumnIndexOrThrow("name")
         var found = false
-        while (rows.moveToNext()) if (rows.getString(nameIndex) == column) found = true
+        while (rows.moveToNext()) if (rows.getString(nameIndex) == column) {
+            found = true
+        }
         found
     }
-    if (!present) db.execSQL("ALTER TABLE `$table` ADD COLUMN `$column` $type")
+    if (!present) {
+        db.execSQL("ALTER TABLE `$table` ADD COLUMN `$column` $type")
+    }
 }
+
+// Parent tables and indexes remain in their original migration order.
+private val radioObservationChildTableStatements: List<String> = listOf(
+	"""
+	CREATE TABLE IF NOT EXISTS wifi_captured_child (
+		writer_projection_id TEXT NOT NULL, writer_projection_version INTEGER NOT NULL,
+		logical_fact_id TEXT NOT NULL, semantic_revision INTEGER NOT NULL, item_index INTEGER NOT NULL,
+		provider_timestamp_nanos INTEGER NOT NULL, observed_wall_time_ms INTEGER NOT NULL,
+		wall_time_uncertainty_ms INTEGER NOT NULL, bssid TEXT, ssid TEXT,
+		frequency_mhz INTEGER NOT NULL, signal_dbm INTEGER NOT NULL, content_checksum TEXT NOT NULL,
+		PRIMARY KEY(writer_projection_id, writer_projection_version, logical_fact_id, semantic_revision, item_index),
+		FOREIGN KEY(writer_projection_id, writer_projection_version, logical_fact_id, semantic_revision)
+		REFERENCES wifi_captured_fact_revision(writer_projection_id, writer_projection_version, logical_fact_id, semantic_revision)
+		ON UPDATE NO ACTION ON DELETE RESTRICT
+	)
+""".trimIndent(),
+	"CREATE INDEX IF NOT EXISTS idx_wifi_captured_child_time ON wifi_captured_child(observed_wall_time_ms)",
+	("CREATE INDEX IF NOT EXISTS idx_wifi_captured_child_identity_time ON " +
+        "wifi_captured_child(bssid, observed_wall_time_ms)"),
+	"""
+	CREATE TABLE IF NOT EXISTS cell_captured_child (
+		writer_projection_id TEXT NOT NULL, writer_projection_version INTEGER NOT NULL,
+		logical_fact_id TEXT NOT NULL, semantic_revision INTEGER NOT NULL, item_index INTEGER NOT NULL,
+		provider_timestamp_nanos INTEGER NOT NULL, observed_wall_time_ms INTEGER NOT NULL,
+		wall_time_uncertainty_ms INTEGER NOT NULL, tower_identity TEXT, radio_type TEXT NOT NULL,
+		registered INTEGER NOT NULL, signal_dbm INTEGER, content_checksum TEXT NOT NULL,
+		PRIMARY KEY(writer_projection_id, writer_projection_version, logical_fact_id, semantic_revision, item_index),
+		FOREIGN KEY(writer_projection_id, writer_projection_version, logical_fact_id, semantic_revision)
+		REFERENCES cell_captured_fact_revision(writer_projection_id, writer_projection_version, logical_fact_id, semantic_revision)
+		ON UPDATE NO ACTION ON DELETE RESTRICT
+	)
+""".trimIndent(),
+	"CREATE INDEX IF NOT EXISTS idx_cell_captured_child_time ON cell_captured_child(observed_wall_time_ms)",
+	("CREATE INDEX IF NOT EXISTS idx_cell_captured_child_identity_time ON " +
+        "cell_captured_child(tower_identity, observed_wall_time_ms)"),
+	"""
+	CREATE TABLE IF NOT EXISTS ambient_wifi_child (
+		writer_id TEXT NOT NULL, writer_version INTEGER NOT NULL,
+		logical_fact_id TEXT NOT NULL, semantic_revision INTEGER NOT NULL, item_index INTEGER NOT NULL,
+		provider_timestamp_nanos INTEGER NOT NULL, observed_wall_time_ms INTEGER NOT NULL,
+		wall_time_uncertainty_ms INTEGER NOT NULL, bssid TEXT, ssid TEXT,
+		frequency_mhz INTEGER NOT NULL, signal_dbm INTEGER NOT NULL, content_checksum TEXT NOT NULL,
+		PRIMARY KEY(writer_id, writer_version, logical_fact_id, semantic_revision, item_index),
+		FOREIGN KEY(writer_id, writer_version, logical_fact_id, semantic_revision)
+		REFERENCES ambient_wifi_fact_revision(writer_id, writer_version, logical_fact_id, semantic_revision)
+		ON UPDATE NO ACTION ON DELETE RESTRICT
+	)
+""".trimIndent(),
+	"CREATE INDEX IF NOT EXISTS idx_ambient_wifi_child_time ON ambient_wifi_child(observed_wall_time_ms)",
+	("CREATE INDEX IF NOT EXISTS idx_ambient_wifi_child_identity_time ON " +
+        "ambient_wifi_child(bssid, observed_wall_time_ms)"),
+	"""
+	CREATE TABLE IF NOT EXISTS ambient_cell_child (
+		writer_id TEXT NOT NULL, writer_version INTEGER NOT NULL,
+		logical_fact_id TEXT NOT NULL, semantic_revision INTEGER NOT NULL, item_index INTEGER NOT NULL,
+		provider_timestamp_nanos INTEGER NOT NULL, observed_wall_time_ms INTEGER NOT NULL,
+		wall_time_uncertainty_ms INTEGER NOT NULL, tower_identity TEXT, radio_type TEXT NOT NULL,
+		registered INTEGER NOT NULL, signal_dbm INTEGER, content_checksum TEXT NOT NULL,
+		PRIMARY KEY(writer_id, writer_version, logical_fact_id, semantic_revision, item_index),
+		FOREIGN KEY(writer_id, writer_version, logical_fact_id, semantic_revision)
+		REFERENCES ambient_cell_fact_revision(writer_id, writer_version, logical_fact_id, semantic_revision)
+		ON UPDATE NO ACTION ON DELETE RESTRICT
+	)
+""".trimIndent(),
+	"CREATE INDEX IF NOT EXISTS idx_ambient_cell_child_time ON ambient_cell_child(observed_wall_time_ms)",
+	("CREATE INDEX IF NOT EXISTS idx_ambient_cell_child_identity_time ON " +
+        "ambient_cell_child(tower_identity, observed_wall_time_ms)"),
+	"""
+	CREATE TABLE IF NOT EXISTS legacy_wifi_child (
+		legacy_row_id INTEGER NOT NULL PRIMARY KEY, time_ms INTEGER NOT NULL,
+		bssid TEXT NOT NULL, ssid TEXT NOT NULL, capabilities TEXT NOT NULL,
+		frequency INTEGER NOT NULL, level INTEGER NOT NULL, lat_e7 INTEGER, lon_e7 INTEGER,
+		provenance TEXT NOT NULL, created_at INTEGER NOT NULL,
+		source_signal_id TEXT, source_item_index INTEGER,
+		$legacyStampColumnDefinitions
+	)
+""".trimIndent(),
+	"CREATE INDEX IF NOT EXISTS idx_legacy_wifi_child_time ON legacy_wifi_child(time_ms)",
+	"""
+	CREATE TABLE IF NOT EXISTS legacy_cell_child (
+		legacy_row_id INTEGER NOT NULL PRIMARY KEY, time_ms INTEGER NOT NULL,
+		cell_id INTEGER NOT NULL, lac INTEGER NOT NULL, mcc INTEGER NOT NULL, mnc INTEGER NOT NULL,
+		network_type INTEGER NOT NULL, signal_strength INTEGER NOT NULL,
+		lat_e7 INTEGER, lon_e7 INTEGER, provenance TEXT NOT NULL, created_at INTEGER NOT NULL,
+		source_signal_id TEXT, source_item_index INTEGER,
+		$legacyStampColumnDefinitions
+	)
+""".trimIndent(),
+	"CREATE INDEX IF NOT EXISTS idx_legacy_cell_child_time ON legacy_cell_child(time_ms)",
+	"""
+	CREATE TABLE IF NOT EXISTS imported_wifi_child (
+		entry_identity TEXT NOT NULL, entry_import_revision INTEGER NOT NULL,
+		run_identity TEXT NOT NULL, observation_identity TEXT NOT NULL, item_index INTEGER NOT NULL,
+		provider_timestamp_nanos INTEGER NOT NULL, observed_wall_time_ms INTEGER NOT NULL,
+		wall_time_uncertainty_ms INTEGER NOT NULL, bssid TEXT, ssid TEXT,
+		frequency_mhz INTEGER NOT NULL, signal_dbm INTEGER NOT NULL, content_checksum TEXT NOT NULL,
+		PRIMARY KEY(entry_identity, entry_import_revision, run_identity, observation_identity, item_index),
+		FOREIGN KEY(entry_identity, entry_import_revision, run_identity, observation_identity)
+		REFERENCES imported_wifi_observation(entry_identity, entry_import_revision, run_identity, identity)
+		ON UPDATE NO ACTION ON DELETE CASCADE
+	)
+""".trimIndent(),
+	("CREATE INDEX IF NOT EXISTS idx_imported_wifi_child_parent ON " +
+        "imported_wifi_child(entry_identity, entry_import_revision, run_identity, observation_identity)"),
+	"""
+	CREATE TABLE IF NOT EXISTS imported_cell_child (
+		entry_identity TEXT NOT NULL, entry_import_revision INTEGER NOT NULL,
+		run_identity TEXT NOT NULL, observation_identity TEXT NOT NULL, item_index INTEGER NOT NULL,
+		provider_timestamp_nanos INTEGER NOT NULL, observed_wall_time_ms INTEGER NOT NULL,
+		wall_time_uncertainty_ms INTEGER NOT NULL, tower_identity TEXT, radio_type TEXT NOT NULL,
+		registered INTEGER NOT NULL, signal_dbm INTEGER, content_checksum TEXT NOT NULL,
+		PRIMARY KEY(entry_identity, entry_import_revision, run_identity, observation_identity, item_index),
+		FOREIGN KEY(entry_identity, entry_import_revision, run_identity, observation_identity)
+		REFERENCES imported_cell_observation(entry_identity, entry_import_revision, run_identity, identity)
+		ON UPDATE NO ACTION ON DELETE CASCADE
+	)
+""".trimIndent(),
+	("CREATE INDEX IF NOT EXISTS idx_imported_cell_child_parent ON " +
+        "imported_cell_child(entry_identity, entry_import_revision, run_identity, observation_identity)"),
+	"""
+	CREATE TABLE IF NOT EXISTS imported_ambient_wifi_child (
+		archive_id TEXT NOT NULL, fact_id TEXT NOT NULL, semantic_revision INTEGER NOT NULL,
+		item_index INTEGER NOT NULL, provider_timestamp_nanos INTEGER NOT NULL,
+		observed_wall_time_ms INTEGER NOT NULL, wall_time_uncertainty_ms INTEGER NOT NULL,
+		bssid TEXT, ssid TEXT, frequency_mhz INTEGER NOT NULL, signal_dbm INTEGER NOT NULL,
+		content_checksum TEXT NOT NULL,
+		PRIMARY KEY(archive_id, fact_id, semantic_revision, item_index),
+		FOREIGN KEY(archive_id, fact_id, semantic_revision)
+		REFERENCES imported_ambient_wifi_fact(archive_id, fact_id, semantic_revision)
+		ON UPDATE NO ACTION ON DELETE CASCADE
+	)
+""".trimIndent(),
+	("CREATE INDEX IF NOT EXISTS idx_imported_ambient_wifi_child_parent ON " +
+        "imported_ambient_wifi_child(archive_id, fact_id, semantic_revision)"),
+	"""
+	CREATE TABLE IF NOT EXISTS imported_ambient_cell_child (
+		archive_id TEXT NOT NULL, fact_id TEXT NOT NULL, semantic_revision INTEGER NOT NULL,
+		item_index INTEGER NOT NULL, provider_timestamp_nanos INTEGER NOT NULL,
+		observed_wall_time_ms INTEGER NOT NULL, wall_time_uncertainty_ms INTEGER NOT NULL,
+		tower_identity TEXT, radio_type TEXT NOT NULL, registered INTEGER NOT NULL,
+		signal_dbm INTEGER, content_checksum TEXT NOT NULL,
+		PRIMARY KEY(archive_id, fact_id, semantic_revision, item_index),
+		FOREIGN KEY(archive_id, fact_id, semantic_revision)
+		REFERENCES imported_ambient_cell_fact(archive_id, fact_id, semantic_revision)
+		ON UPDATE NO ACTION ON DELETE CASCADE
+	)
+""".trimIndent(),
+	("CREATE INDEX IF NOT EXISTS idx_imported_ambient_cell_child_parent ON " +
+        "imported_ambient_cell_child(archive_id, fact_id, semantic_revision)"),
+)

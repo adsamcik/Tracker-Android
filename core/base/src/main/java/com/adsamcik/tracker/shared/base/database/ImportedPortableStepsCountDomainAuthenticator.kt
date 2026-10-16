@@ -19,6 +19,10 @@ import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainRootV
 
 /** Reconstructs and authenticates imported graph rows without consulting native authority. */
 object ImportedPortableStepsCountDomainAuthenticator {
+	/**
+	 * Reconstructs canonical graph content from original imported rows, or returns null for an
+	 * invalid graph hierarchy/checksum.
+	 */
 	fun authenticate(
 		graph: ImportedPortableStepsCountDomainGraphEntity,
 		receipts: List<ImportedPortableStepsCountDomainReceiptEntity>,
@@ -35,67 +39,23 @@ object ImportedPortableStepsCountDomainAuthenticator {
 			identity = PortableCountDomainOpaqueIdentity(graph.graphIdentity),
 			contentChecksum = PortableCountDomainOpaqueIdentity(graph.contentChecksum),
 			receipts = receipts.map { row ->
-				PortableCountDomainReceiptV2(
-					identity = PortableCountDomainOpaqueIdentity(row.receiptIdentity),
-					domainIdentity = PortableCountDomainOpaqueIdentity(row.domainIdentity),
-					ownerKind = PortableCountDomainOwnerKind.valueOf(row.ownerKind),
-					scopeIdentity = PortableCountDomainOpaqueIdentity(row.scopeIdentity),
-					ownerIdentity = PortableCountDomainOpaqueIdentity(row.ownerIdentity),
-					ownerRevision = row.ownerRevision,
-					registrationGeneration = row.registrationGeneration,
-					collectedDataEpoch = row.sourceCollectedDataEpoch,
-					authorityRevision = row.authorityRevision,
-					authorityFingerprint = PortableCountDomainDigest(row.authorityFingerprint),
-					coverage = PortableCountDomainCoverage.valueOf(row.coverage),
-					coverageVersion = row.coverageVersion,
-					countDomainVersion = row.countDomainVersion,
-					effectChecksum = PortableCountDomainDigest(row.effectChecksum),
-					completenessEvidenceChecksum = row.completenessEvidenceChecksum?.let(
-						::PortableCountDomainDigest,
-					),
-				)
+				row.toPortableReceipt()
 			}.sortedWith(
 				com.adsamcik.tracker.shared.model.steps.portable
 					.PORTABLE_COUNT_DOMAIN_RECEIPT_ORDER,
 			),
 			ownerRevisions = owners.map { row ->
-				PortableCountDomainOwnerRevisionV2(
-					ownerKind = PortableCountDomainOwnerKind.valueOf(row.ownerKind),
-					scopeIdentity = PortableCountDomainOpaqueIdentity(row.scopeIdentity),
-					ownerIdentity = PortableCountDomainOpaqueIdentity(row.ownerIdentity),
-					ownerRevision = row.ownerRevision,
-					operation = PortableCountDomainOperation.valueOf(row.operation),
-					receiptIdentity = row.receiptIdentity?.let(::PortableCountDomainOpaqueIdentity),
-					ownerEffectChecksum = PortableCountDomainDigest(row.ownerEffectChecksum),
-					linkedAtMs = row.sourceLinkedAtMs,
-				)
+				row.toPortableOwnerRevision()
 			}.sortedWith(
 				com.adsamcik.tracker.shared.model.steps.portable.PORTABLE_COUNT_DOMAIN_OWNER_ORDER,
 			),
 			completenessMarkers = markers.map { row ->
-				PortableCountDomainCompletenessMarkerV2(
-					ownerIdentity = PortableCountDomainOpaqueIdentity(row.ownerIdentity),
-					ownerRevision = row.ownerRevision,
-					terminalState = PortableCountDomainCompletenessState.valueOf(row.terminalState),
-					lastAdmissionOrdinal = row.lastAdmissionOrdinal,
-					lastSourceSequence = row.lastSourceSequence,
-					providerFlushOutcome = row.providerFlushOutcome,
-					registrationRemovalOutcome = row.registrationRemovalOutcome,
-					registrationTimelineChecksum =
-						PortableCountDomainDigest(row.registrationTimelineChecksum),
-					evidenceChecksum = PortableCountDomainDigest(row.evidenceChecksum),
-				)
+				row.toPortableCompletenessMarker()
 			}.sortedWith(
 				com.adsamcik.tracker.shared.model.steps.portable.PORTABLE_COUNT_DOMAIN_MARKER_ORDER,
 			),
 			roots = roots.map { row ->
-				PortableCountDomainRootV2(
-					containerIdentity = PortableCountDomainOpaqueIdentity(row.containerIdentity),
-					productIdentity = PortableCountDomainOpaqueIdentity(row.productIdentity),
-					ownerKind = PortableCountDomainOwnerKind.valueOf(row.ownerKind),
-					ownerIdentity = PortableCountDomainOpaqueIdentity(row.ownerIdentity),
-					ownerRevision = row.ownerRevision,
-				)
+				row.toPortableRoot()
 			}.sortedWith(
 				com.adsamcik.tracker.shared.model.steps.portable.PORTABLE_COUNT_DOMAIN_ROOT_ORDER,
 			),
@@ -105,6 +65,70 @@ object ImportedPortableStepsCountDomainAuthenticator {
 		))
 		portable
 	}.getOrNull()
+
+	private fun ImportedPortableStepsCountDomainReceiptEntity.toPortableReceipt():
+		PortableCountDomainReceiptV2 {
+		return PortableCountDomainReceiptV2(
+			identity = PortableCountDomainOpaqueIdentity(receiptIdentity),
+			domainIdentity = PortableCountDomainOpaqueIdentity(domainIdentity),
+			ownerKind = PortableCountDomainOwnerKind.valueOf(ownerKind),
+			scopeIdentity = PortableCountDomainOpaqueIdentity(scopeIdentity),
+			ownerIdentity = PortableCountDomainOpaqueIdentity(ownerIdentity),
+			ownerRevision = ownerRevision,
+			registrationGeneration = registrationGeneration,
+			collectedDataEpoch = sourceCollectedDataEpoch,
+			authorityRevision = authorityRevision,
+			authorityFingerprint = PortableCountDomainDigest(authorityFingerprint),
+			coverage = PortableCountDomainCoverage.valueOf(coverage),
+			coverageVersion = coverageVersion,
+			countDomainVersion = countDomainVersion,
+			effectChecksum = PortableCountDomainDigest(effectChecksum),
+			completenessEvidenceChecksum = completenessEvidenceChecksum?.let(
+				::PortableCountDomainDigest,
+			),
+		)
+	}
+
+	private fun ImportedPortableStepsCountDomainOwnerRevisionEntity.toPortableOwnerRevision():
+		PortableCountDomainOwnerRevisionV2 {
+		return PortableCountDomainOwnerRevisionV2(
+			ownerKind = PortableCountDomainOwnerKind.valueOf(ownerKind),
+			scopeIdentity = PortableCountDomainOpaqueIdentity(scopeIdentity),
+			ownerIdentity = PortableCountDomainOpaqueIdentity(ownerIdentity),
+			ownerRevision = ownerRevision,
+			operation = PortableCountDomainOperation.valueOf(operation),
+			receiptIdentity = receiptIdentity?.let(::PortableCountDomainOpaqueIdentity),
+			ownerEffectChecksum = PortableCountDomainDigest(ownerEffectChecksum),
+			linkedAtMs = sourceLinkedAtMs,
+		)
+	}
+
+	private fun ImportedPortableStepsCountDomainCompletenessEntity.toPortableCompletenessMarker():
+		PortableCountDomainCompletenessMarkerV2 {
+		return PortableCountDomainCompletenessMarkerV2(
+			ownerIdentity = PortableCountDomainOpaqueIdentity(ownerIdentity),
+			ownerRevision = ownerRevision,
+			terminalState = PortableCountDomainCompletenessState.valueOf(terminalState),
+			lastAdmissionOrdinal = lastAdmissionOrdinal,
+			lastSourceSequence = lastSourceSequence,
+			providerFlushOutcome = providerFlushOutcome,
+			registrationRemovalOutcome = registrationRemovalOutcome,
+			registrationTimelineChecksum =
+				PortableCountDomainDigest(registrationTimelineChecksum),
+			evidenceChecksum = PortableCountDomainDigest(evidenceChecksum),
+		)
+	}
+
+	private fun ImportedPortableStepsCountDomainRootEntity.toPortableRoot():
+		PortableCountDomainRootV2 {
+		return PortableCountDomainRootV2(
+			containerIdentity = PortableCountDomainOpaqueIdentity(containerIdentity),
+			productIdentity = PortableCountDomainOpaqueIdentity(productIdentity),
+			ownerKind = PortableCountDomainOwnerKind.valueOf(ownerKind),
+			ownerIdentity = PortableCountDomainOpaqueIdentity(ownerIdentity),
+			ownerRevision = ownerRevision,
+		)
+	}
 }
 
 private fun List<Any>.allGraphIdentity(expected: String): Boolean = all { value ->

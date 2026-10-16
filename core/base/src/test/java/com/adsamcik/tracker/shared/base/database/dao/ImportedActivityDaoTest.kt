@@ -4,6 +4,7 @@ import android.app.Application
 import android.database.sqlite.SQLiteConstraintException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.deleteAllCollectedData
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionReceiptEntity
@@ -67,6 +68,8 @@ class ImportedActivityDaoTest {
 		dao.receipt("job", "entry") shouldBe receipt()
 	}
 
+	// Keep the saved Activity hierarchy, retained deletion authority and complete-clear assertions together.
+	@Suppress("LongMethod")
 	@Test
 	fun `full collected clear removes imported payload and its old epoch tombstones`() = runTest {
 		insertHierarchy()

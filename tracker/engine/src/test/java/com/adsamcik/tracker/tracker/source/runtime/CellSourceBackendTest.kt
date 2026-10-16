@@ -42,6 +42,14 @@ class CellSourceBackendTest {
 	}
 
 	@Test
+	fun `tower identifier keeps positions while rejecting only Android unknown parts`() {
+		assertEquals(":::0:0", cellTowerIdentifier(0L, -1, Int.MAX_VALUE, Long.MAX_VALUE, 0, 0L))
+		assertEquals(":::001::-2", cellTowerIdentifier(7L, "null:2147483647:-1:001:", "-2"))
+		assertEquals("::", cellTowerIdentifier(7L, null, Any(), 1.5))
+		assertEquals("", cellTowerIdentifier(-1L, 0))
+	}
+
+	@Test
 	fun `provider start propagates cancellation and fatal errors`() {
 		val baseManager = mockk<TelephonyManager>(relaxed = true)
 		val subscriptionManager = mockk<TelephonyManager>(relaxed = true)

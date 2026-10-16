@@ -41,6 +41,10 @@ enum class WifiScanCapability {
 
 /** Platform prerequisites for this app's scan-only startScan()/getScanResults() path. */
 object WifiScanPlatformRequirements {
+	/**
+	 * Evaluates the existing scan-only permission rules: coarse/fine/CHANGE_WIFI_STATE through 8.1,
+	 * coarse/fine on 9, fine on 10+.
+	 */
 	fun hasRequiredPermission(
 		apiLevel: Int,
 		coarseLocationGranted: Boolean,
@@ -53,8 +57,16 @@ object WifiScanPlatformRequirements {
 		else -> preciseLocationGranted
 	}
 
+	/**
+	 * Returns whether this Android API level requires enabled Location services for the scan-only
+	 * Wi-Fi path.
+	 */
 	fun requiresLocationServices(apiLevel: Int): Boolean = apiLevel >= Build.VERSION_CODES.P
 
+	/**
+	 * Combines scan-only permission grants with the platform Location-service prerequisite without
+	 * requiring Location recording.
+	 */
 	fun isReady(
 		apiLevel: Int,
 		coarseLocationGranted: Boolean,

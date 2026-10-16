@@ -12,7 +12,8 @@ interface ActivitySessionDeletion {
 	suspend fun deleteSelectedSession(sessionSegmentId: Long): ActivitySessionDeletionResult
 
 	/** Current user selection epoch is rechecked inside the existing mutation transaction. */
-	suspend fun deleteSelectedSession(sessionSegmentId: Long, expectedCollectedDataEpoch: Long): ActivitySessionDeletionResult =
+	suspend fun deleteSelectedSession(sessionSegmentId: Long,
+        expectedCollectedDataEpoch: Long): ActivitySessionDeletionResult =
 		ActivitySessionDeletionResult.UnsupportedScope(ActivitySessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
 }
 

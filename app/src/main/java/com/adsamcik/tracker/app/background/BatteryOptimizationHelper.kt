@@ -84,6 +84,7 @@ object BatteryOptimizationHelper {
 	}
 }
 
+/** Current Android battery restrictions and optional repair destination for background collection. */
 data class BackgroundReliabilityState(
 	val batteryOptimizationsExempt: Boolean?,
 	val backgroundRestricted: Boolean?,
@@ -99,6 +100,7 @@ data class BackgroundReliabilityState(
 			condition == BackgroundReliabilityCondition.BATTERY_OPTIMIZED
 }
 
+/** User-facing categories of platform background execution restrictions. */
 enum class BackgroundReliabilityCondition {
 	BACKGROUND_RESTRICTED,
 	BATTERY_OPTIMIZED,

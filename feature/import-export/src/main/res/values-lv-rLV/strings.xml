@@ -40,4 +40,24 @@
     <string name="format_database">Datu bāzes dublējums (ZIP)</string>
     <string name="settings_import_summary">Importējiet datus no atbalstītajiem tipiem (%1$s) un arhīviem (%2$s). Datu bāzes imports apvieno saderīgās rindas; tas neaizstāj esošos datus.</string>
     <string name="settings_import_title">Importēšana</string>
+    <string name="export_radio_sensitivity_title">Eksportēt tīklu informāciju?</string>
+    <string name="export_wifi_sensitivity_message">Šajā failā ir saglabātie Wi-Fi nosaukumi un piekļuves punktu ID.</string>
+    <string name="export_cell_sensitivity_message">Šajā failā ir saglabātie bāzes staciju ID un signāla mērījumi.</string>
+    <string name="export_radio_no_data">Šim avotam nav saglabātu datu</string>
+    <string name="export_include_complete_sessions">Iekļaut pilnas sesijas</string>
+    <string name="import_location_conflict_title">Aizstāt saglabātos punktus?</string>
+    <string name="import_location_replace">Izmantot faila punktus</string>
+    <string name="import_location_keep">Paturēt saglabātos punktus</string>
+    <string name="export_backup_review_title">Pārskatīt plānotās dublējumkopijas</string>
+    <string name="export_backup_review_summary">Apturēts līdz atjauninātās datu dublējumkopijas pārskatīšanai.</string>
+    <string name="export_backup_review_message">Šie grafiki tagad dublē visus saglabātos izsekošanas datus un to atjaunošanai vajadzīgos failus. Iestatījumi netiek iekļauti. Atsākt šos grafikus?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Atsākt dublēšanu</string>
+    <string name="import_backup_replace_title">Atjaunot datu dublējumkopiju?</string>
+    <string name="import_backup_replace_message">Aizstāt saglabātos datus ar šo dublējumkopiju? Jūsu iestatījumi nemainīsies. Izsekošana būs izslēgta, līdz to atsāksiet.</string>
+    <string name="import_backup_restore">Aizstāt datus</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="zero">%d punktu šajā failā atšķiras no saglabātajām kopijām. Izvēlieties, kurus paturēt. Pārējie punkti tiks importēti kā parasti.</item>
+        <item quantity="one">%d punkts šajā failā atšķiras no saglabātās kopijas. Izvēlieties, kuru paturēt. Pārējie punkti tiks importēti kā parasti.</item>
+        <item quantity="other">%d punkti šajā failā atšķiras no saglabātajām kopijām. Izvēlieties, kurus paturēt. Pārējie punkti tiks importēti kā parasti.</item>
+    </plurals>
 </resources>

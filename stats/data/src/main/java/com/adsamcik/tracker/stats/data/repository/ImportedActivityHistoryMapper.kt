@@ -4,6 +4,7 @@ import com.adsamcik.tracker.shared.base.database.ImportedActivityProductEvaluati
 import com.adsamcik.tracker.shared.base.database.ImportedActivityProductFailure
 import com.adsamcik.tracker.shared.base.database.PortableActivityCaptureCoverage
 import com.adsamcik.tracker.shared.base.database.PortableActivityFragmentV1
+import com.adsamcik.tracker.shared.base.database.PortableActivityRunV1
 import com.adsamcik.tracker.shared.base.database.PortableActivityWindowCoverage
 import com.adsamcik.tracker.shared.base.database.PortableActivityWindowV1
 import com.adsamcik.tracker.stats.api.repository.ActivityActiveTime
@@ -44,7 +45,9 @@ internal fun ImportedActivityProductEvaluation.toPublicActivityEntry(
 }
 
 private fun ImportedActivityProductEvaluation.Readable.toReadablePublicEntry(): ActivityHistoryEntry {
-	if (entryDeleted) return unavailable(ActivityHistoryCause.DELETED)
+	if (entryDeleted) {
+		return unavailable(ActivityHistoryCause.DELETED)
+	}
 	val visibleRuns = entry.runs.filterNot { it.identity.value in deletedRunIdentities }
 	if (retentionLimited) {
 		return unavailable(ActivityHistoryCause.RETENTION_LIMIT)
@@ -55,48 +58,24 @@ private fun ImportedActivityProductEvaluation.Readable.toReadablePublicEntry(): 
 	val windows = capturedRuns.flatMap { it.windows }
 	if (windows.isEmpty()) {
 		return unavailable(
-			if (deletedRunIdentities.isNotEmpty()) ActivityHistoryCause.DELETED else
-				ActivityHistoryCause.NO_QUALIFIED_FACTS,
+			if (deletedRunIdentities.isNotEmpty()) {
+				ActivityHistoryCause.DELETED
+			} else
+				{
+				ActivityHistoryCause.NO_QUALIFIED_FACTS
+			},
 		)
 	}
-	val causes = linkedSetOf<ActivityHistoryCause>()
-	if (deletedRunIdentities.isNotEmpty()) causes += ActivityHistoryCause.DELETED
-	if (visibleRuns.any { it.captureCoverage == PortableActivityCaptureCoverage.NOT_CAPTURED }) {
-		causes += ActivityHistoryCause.SOURCE_NOT_CAPTURED
-	}
-	if (visibleRuns.any { it.captureCoverage == PortableActivityCaptureCoverage.PARTIAL_RUN }) {
-		causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
-	}
-	if (windows.any { it.coverage != PortableActivityWindowCoverage.COMPLETE }) {
-		causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
-	}
-	if (windows.flatMap { it.fragments }.any { it is PortableActivityFragmentV1.Gap }) {
-		causes += ActivityHistoryCause.PROVIDER_GAP
-	}
-	val activeTime = windows.fold(ActivityActiveTime(0L, 0L, 0L, 0L)) { total, window ->
-		ActivityActiveTime(
-			knownActiveDurationNanos = Math.addExact(
-				total.knownActiveDurationNanos,
-				window.knownActiveDurationNanos,
-			),
-			knownInactiveDurationNanos = Math.addExact(
-				total.knownInactiveDurationNanos,
-				window.knownInactiveDurationNanos,
-			),
-			unknownActivityDurationNanos = Math.addExact(
-				total.unknownActivityDurationNanos,
-				window.unknownActivityDurationNanos,
-			),
-			unobservedDurationNanos = Math.addExact(
-				total.unobservedDurationNanos,
-				window.unobservedDurationNanos,
-			),
-		)
-	}
+	val causes = visibleCauses(visibleRuns, windows)
+	val activeTime = windows.totalActiveTime()
 	val coverage = if (causes.isEmpty() && capturedRuns.size == visibleRuns.size &&
 		visibleRuns.all { it.captureCoverage == PortableActivityCaptureCoverage.WHOLE_RUN } &&
 		windows.all { it.coverage == PortableActivityWindowCoverage.COMPLETE }
-	) ActivityHistoryCoverage.COMPLETE else ActivityHistoryCoverage.PARTIAL
+	) {
+		ActivityHistoryCoverage.COMPLETE
+	} else {
+		ActivityHistoryCoverage.PARTIAL
+	}
 	val state = if (coverage == ActivityHistoryCoverage.COMPLETE) {
 		ActivityHistoryProductState.READY
 	} else {
@@ -118,6 +97,51 @@ private fun ImportedActivityProductEvaluation.Readable.toReadablePublicEntry(): 
 	)
 }
 
+private fun ImportedActivityProductEvaluation.Readable.visibleCauses(
+	visibleRuns: List<PortableActivityRunV1>,
+	windows: List<PortableActivityWindowV1>,
+): Set<ActivityHistoryCause> {
+	val causes = linkedSetOf<ActivityHistoryCause>()
+	if (deletedRunIdentities.isNotEmpty()) {
+		causes += ActivityHistoryCause.DELETED
+	}
+	if (visibleRuns.any { it.captureCoverage == PortableActivityCaptureCoverage.NOT_CAPTURED }) {
+		causes += ActivityHistoryCause.SOURCE_NOT_CAPTURED
+	}
+	if (visibleRuns.any { it.captureCoverage == PortableActivityCaptureCoverage.PARTIAL_RUN }) {
+		causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
+	}
+	if (windows.any { it.coverage != PortableActivityWindowCoverage.COMPLETE }) {
+		causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
+	}
+	if (windows.flatMap { it.fragments }.any { it is PortableActivityFragmentV1.Gap }) {
+		causes += ActivityHistoryCause.PROVIDER_GAP
+	}
+	return causes
+}
+
+private fun List<PortableActivityWindowV1>.totalActiveTime(): ActivityActiveTime =
+	fold(ActivityActiveTime(0L, 0L, 0L, 0L)) { total, window ->
+		ActivityActiveTime(
+			knownActiveDurationNanos = Math.addExact(
+				total.knownActiveDurationNanos,
+				window.knownActiveDurationNanos,
+			),
+			knownInactiveDurationNanos = Math.addExact(
+				total.knownInactiveDurationNanos,
+				window.knownInactiveDurationNanos,
+			),
+			unknownActivityDurationNanos = Math.addExact(
+				total.unknownActivityDurationNanos,
+				window.unknownActivityDurationNanos,
+			),
+			unobservedDurationNanos = Math.addExact(
+				total.unobservedDurationNanos,
+				window.unobservedDurationNanos,
+			),
+		)
+	}
+
 private fun PortableActivityWindowV1.toPublicFragments(): List<ActivityHistoryFragment> =
 	fragments.map { it.toMeasuredPublicFragment(storedZoneId) }
 
@@ -133,7 +157,8 @@ internal fun PortableActivityFragmentV1.toMeasuredPublicFragment(storedZoneId: S
 			startUncertaintyMs = startWallTimeUncertaintyMs, endUncertaintyMs = endWallTimeUncertaintyMs,
 			activity = ActivityHistoryType.valueOf(activity), mechanism = ActivityHistoryMechanism.valueOf(mechanism),
 			refinedTransitionActivity = refinedTransitionActivity?.let(ActivityHistoryType::valueOf),
-			confidence = toPublicConfidence(), wallTimeContinuity = ActivityHistoryWallTimeContinuity.valueOf(wallTimeContinuity),
+			confidence = toPublicConfidence(), wallTimeContinuity =
+                ActivityHistoryWallTimeContinuity.valueOf(wallTimeContinuity),
 			durationNanos = duration,
 		)
 	}
@@ -152,7 +177,11 @@ private fun PortableActivityFragmentV1.Band.toPublicConfidence(): ActivityHistor
 
 private fun ImportedActivityProductEvaluation.unavailableOrFailed(
 	cause: ActivityHistoryCause,
-): ActivityHistoryEntry = if (cause.isIntegrityFailure) failed(cause) else unavailable(cause)
+): ActivityHistoryEntry = if (cause.isIntegrityFailure) {
+	failed(cause)
+} else {
+	unavailable(cause)
+}
 
 private fun ImportedActivityProductEvaluation.failed(cause: ActivityHistoryCause) =
 	publicShell(ActivityHistoryProductState.FAILED, cause)

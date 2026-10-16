@@ -54,4 +54,33 @@ class LegacyDatabaseRecoveryScreenTest {
         assertEquals(false, deleted)
         compose.onNodeWithText(context.getString(R.string.legacy_database_delete_confirm_title)).assertIsDisplayed()
     }
+    @Test fun `cancel preserves legacy data and confirming later deletes once`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        var deletions = 0
+        compose.setContent {
+            AppTheme(useDynamicColor = false) {
+                LegacyDatabaseRecoveryScreen(
+                    message = null, sizeBytes = 4096L, canDelete = true,
+                    onRetry = {}, onDelete = { deletions++ },
+                )
+            }
+        }
+        val deleteLegacy = context.getString(R.string.legacy_database_delete)
+        val confirmTitle = context.getString(R.string.legacy_database_delete_confirm_title)
+        compose.onNodeWithText(deleteLegacy).performClick()
+        compose.onNodeWithText(confirmTitle).assertIsDisplayed()
+        compose.onNodeWithText(
+            context.getString(com.adsamcik.tracker.shared.base.R.string.generic_cancel),
+        ).performClick()
+        assertEquals(0, deletions)
+        compose.onNodeWithText(confirmTitle).assertDoesNotExist()
+
+        compose.onNodeWithText(deleteLegacy).performClick()
+        compose.onNodeWithText(
+            context.getString(com.adsamcik.tracker.shared.base.R.string.generic_delete),
+        ).performClick()
+        assertEquals(1, deletions)
+        compose.onNodeWithText(confirmTitle).assertDoesNotExist()
+    }
+
 }

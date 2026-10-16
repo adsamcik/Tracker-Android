@@ -129,7 +129,7 @@ class MeasuredLocationHistoryReaderRoomTest {
 		var observed: CancellationException? = null
 		try { database.withTransaction { reader.qualify(reader.candidates(range, null), range) } }
 		catch (failure: CancellationException) { observed = failure }
-		(observed === cancelled) shouldBe true
+		requireNotNull(observed).message shouldBe cancelled.message
 	}
 
 	private fun range(from: Long, to: Long) = HistoryRange(from, to, "UTC",

@@ -22,6 +22,7 @@ object AmbientStepsPortableFormatV1 {
 	const val MAX_IMPORT_RECEIPT_FIELD_LENGTH: Int = 1_024
 }
 
+/** Separates archive, civil-day, fact, gap and deletion-scope identities for all-day Steps transfer. */
 enum class AmbientStepsPortableIdentityKind {
 	ARCHIVE,
 	DAY,
@@ -37,7 +38,9 @@ value class AmbientStepsPortableOpaqueIdentity(val value: String) {
 		require(SHA_256_VALUE.matches(value))
 	}
 
+	/** Derives kind-namespaced identities without exposing provider or local database keys. */
 	companion object {
+		/** Derives a deterministic kind-specific portable identity from a nonblank bounded local key. */
 		fun derive(
 			kind: AmbientStepsPortableIdentityKind,
 			localIdentity: String,
@@ -54,6 +57,7 @@ value class AmbientStepsPortableOpaqueIdentity(val value: String) {
 	}
 }
 
+/** Canonical sha256-prefixed content checksum for portable Steps consistency, independent of an import job receipt. */
 @JvmInline
 value class AmbientStepsPortableDigest(val value: String) {
 	init {
@@ -61,6 +65,7 @@ value class AmbientStepsPortableDigest(val value: String) {
 	}
 }
 
+/** Whether retained facts cover the entire stored civil day or provide only a partial recorded count. */
 enum class PortableAmbientStepsCoverage { COMPLETE, PARTIAL }
 
 /** A partial day names only portable product limitations, never provider or local authority IDs. */
@@ -70,6 +75,7 @@ enum class PortableAmbientStepsPartialCause {
 	OUTSIDE_AUTHORITY,
 }
 
+/** Recorded provider, process, clock or authority boundaries that leave a real missing-count interval. */
 enum class PortableAmbientStepsGapReason {
 	PROVIDER_NO_EVIDENCE,
 	PROVIDER_RETENTION_LOSS,
@@ -82,6 +88,10 @@ enum class PortableAmbientStepsGapReason {
 	INITIAL_ZONE_AUTHORITY_UNOBSERVED,
 }
 
+/**
+ * Nonnegative count for one nonempty measured interval in UTC milliseconds; the interval is preserved rather
+ * than split.
+ */
 data class PortableAmbientStepsFactV1(
 	val identity: AmbientStepsPortableOpaqueIdentity,
 	val contentChecksum: AmbientStepsPortableDigest,
@@ -96,7 +106,9 @@ data class PortableAmbientStepsFactV1(
 		require(contentChecksum == AmbientStepsPortableIntegrity.expectedFactChecksum(this))
 	}
 
+	/** Constructs checksum-bound measured count intervals for all-day Steps. */
 	companion object {
+		/** Builds a nonempty measured UTC-millisecond interval and its count checksum. */
 		fun create(
 			identity: AmbientStepsPortableOpaqueIdentity,
 			intervalStartTimeMs: Long,
@@ -117,6 +129,7 @@ data class PortableAmbientStepsFactV1(
 	}
 }
 
+/** One explicit nonempty missing-count interval in UTC milliseconds, retaining its original reason. */
 data class PortableAmbientStepsGapV1(
 	val identity: AmbientStepsPortableOpaqueIdentity,
 	val contentChecksum: AmbientStepsPortableDigest,
@@ -130,7 +143,9 @@ data class PortableAmbientStepsGapV1(
 		require(contentChecksum == AmbientStepsPortableIntegrity.expectedGapChecksum(this))
 	}
 
+	/** Constructs checksum-bound missing-count intervals with their original reasons. */
 	companion object {
+		/** Builds a nonempty UTC-millisecond gap and checksum for its recorded missing-data reason. */
 		fun create(
 			identity: AmbientStepsPortableOpaqueIdentity,
 			intervalStartTimeMs: Long,
@@ -226,7 +241,12 @@ data class PortableAmbientStepsDayV1(
 		require(contentChecksum == AmbientStepsPortableIntegrity.expectedDayChecksum(this))
 	}
 
+	/** Constructs a validated stored civil day without inventing coverage or redistributing measured counts. */
 	companion object {
+		/**
+		 * Builds a civil day using its stored zone, exact facts and gaps; retained counts must equal the sum
+		 * of its facts.
+		 */
 		@Suppress("LongParameterList")
 		fun create(
 			identity: AmbientStepsPortableOpaqueIdentity,
@@ -272,6 +292,7 @@ data class PortableAmbientStepsDayV1(
 	}
 }
 
+/** Bounded ordered civil-day data with its canonical checksum; each partial day keeps its exact facts and gaps. */
 data class PortableAmbientStepsArchiveV1(
 	val format: String = AmbientStepsPortableFormatV1.FORMAT,
 	val schemaVersion: Int = AmbientStepsPortableFormatV1.SCHEMA_VERSION,
@@ -290,7 +311,9 @@ data class PortableAmbientStepsArchiveV1(
 		require(contentChecksum == AmbientStepsPortableIntegrity.expectedArchiveChecksum(this))
 	}
 
+	/** Constructs a bounded archive from already ordered civil-day records. */
 	companion object {
+		/** Builds an archive from already ordered days, computing their exact membership checksum. */
 		fun create(days: List<PortableAmbientStepsDayV1>): PortableAmbientStepsArchiveV1 =
 			PortableAmbientStepsArchiveV1(
 				contentChecksum = AmbientStepsPortableIntegrity.archiveChecksum(days),
@@ -326,8 +349,16 @@ val PORTABLE_AMBIENT_STEPS_DAY_ORDER: Comparator<PortableAmbientStepsDayV1> =
 		.thenBy(PortableAmbientStepsDayV1::storedZoneId)
 		.thenBy { it.identity.value }
 
+/**
+ * Computes deterministic content checksums for measured intervals and ordered day membership; does not grant
+ * recording authority.
+ */
 @Suppress("TooManyFunctions")
 object AmbientStepsPortableIntegrity {
+	private const val UNSIGNED_BYTE_MASK = 0xff
+	private const val HEX_RADIX = 16
+
+	/** Hashes the exact fact identity, UTC-millisecond interval and nonnegative step count. */
 	fun factChecksum(
 		identity: AmbientStepsPortableOpaqueIdentity,
 		intervalStartTimeMs: Long,
@@ -338,6 +369,7 @@ object AmbientStepsPortableIntegrity {
 		listOf(identity.value, intervalStartTimeMs, intervalEndTimeMs, stepCount),
 	)
 
+	/** Recomputes a fact checksum without changing its recorded interval or count. */
 	fun expectedFactChecksum(fact: PortableAmbientStepsFactV1) = factChecksum(
 		fact.identity,
 		fact.intervalStartTimeMs,
@@ -345,6 +377,7 @@ object AmbientStepsPortableIntegrity {
 		fact.stepCount,
 	)
 
+	/** Hashes the exact gap identity, UTC-millisecond interval and missing-data reason. */
 	fun gapChecksum(
 		identity: AmbientStepsPortableOpaqueIdentity,
 		intervalStartTimeMs: Long,
@@ -355,6 +388,7 @@ object AmbientStepsPortableIntegrity {
 		listOf(identity.value, intervalStartTimeMs, intervalEndTimeMs, reason.name),
 	)
 
+	/** Recomputes the checksum for the saved gap and its original reason. */
 	fun expectedGapChecksum(gap: PortableAmbientStepsGapV1) = gapChecksum(
 		gap.identity,
 		gap.intervalStartTimeMs,
@@ -362,6 +396,10 @@ object AmbientStepsPortableIntegrity {
 		gap.reason,
 	)
 
+	/**
+	 * Hashes the stored civil-day structure, retained count and ordered fact/gap membership; nullable
+	 * retention time remains distinct.
+	 */
 	@Suppress("LongParameterList")
 	fun dayChecksum(
 		identity: AmbientStepsPortableOpaqueIdentity,
@@ -392,6 +430,10 @@ object AmbientStepsPortableIntegrity {
 		),
 	)
 
+	/**
+	 * Recomputes the checksum using the day’s stored zone and structural bounds, including its original
+	 * partial causes.
+	 */
 	fun expectedDayChecksum(day: PortableAmbientStepsDayV1) = dayChecksum(
 		day.identity,
 		day.structuralEpochDay,
@@ -406,6 +448,7 @@ object AmbientStepsPortableIntegrity {
 		day.gaps,
 	)
 
+	/** Hashes the supplied ordered day identities and checksums under the v1 archive namespace. */
 	fun archiveChecksum(days: List<PortableAmbientStepsDayV1>) = digest(
 		"tracker-portable-ambient-steps-archive-v1",
 		listOf(
@@ -415,6 +458,10 @@ object AmbientStepsPortableIntegrity {
 		),
 	)
 
+	/**
+	 * Computes the same archive checksum from ordered identity/checksum pairs without loading complete day
+	 * payloads.
+	 */
 	fun archiveChecksumForMembers(
 		members: List<Pair<AmbientStepsPortableOpaqueIdentity, AmbientStepsPortableDigest>>,
 	) = digest(
@@ -426,6 +473,7 @@ object AmbientStepsPortableIntegrity {
 		),
 	)
 
+	/** Recomputes an archive checksum from its saved ordered day members. */
 	fun expectedArchiveChecksum(archive: PortableAmbientStepsArchiveV1) = archiveChecksum(archive.days)
 
 	internal fun digest(namespace: String, value: Any?): AmbientStepsPortableDigest {
@@ -433,7 +481,7 @@ object AmbientStepsPortableIntegrity {
 		digest.appendCanonical(listOf(namespace, value))
 		return AmbientStepsPortableDigest(
 			"sha256:" + digest.digest().joinToString("") { byte ->
-				(byte.toInt() and 0xff).toString(16).padStart(2, '0')
+				(byte.toInt() and UNSIGNED_BYTE_MASK).toString(HEX_RADIX).padStart(2, '0')
 			},
 		)
 	}

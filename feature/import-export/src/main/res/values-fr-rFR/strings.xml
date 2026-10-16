@@ -40,4 +40,24 @@
     <string name="format_database">Sauvegarde de base de données (ZIP)</string>
     <string name="settings_import_summary">Importez des données à partir de types pris en charge (%1$s) et d\'archives (%2$s). Les importations de bases de données fusionnent les lignes compatibles ; elles ne remplacent pas les données existantes.</string>
     <string name="settings_import_title">Importer</string>
+    <string name="export_radio_sensitivity_title">Exporter les détails des réseaux ?</string>
+    <string name="export_wifi_sensitivity_message">Ce fichier contient les noms Wi-Fi et les identifiants de points d\'accès enregistrés.</string>
+    <string name="export_cell_sensitivity_message">Ce fichier contient les identifiants d\'antennes et les mesures de signal enregistrés.</string>
+    <string name="export_radio_no_data">Aucune donnée enregistrée pour cette source</string>
+    <string name="export_include_complete_sessions">Inclure les sessions complètes</string>
+    <string name="import_location_conflict_title">Remplacer les points enregistrés ?</string>
+    <string name="import_location_replace">Utiliser les points du fichier</string>
+    <string name="import_location_keep">Garder les points enregistrés</string>
+    <string name="export_backup_review_title">Vérifier les sauvegardes planifiées</string>
+    <string name="export_backup_review_summary">En pause jusqu\'à la vérification de la sauvegarde de données mise à jour.</string>
+    <string name="export_backup_review_message">Ces planifications sauvegardent désormais toutes les données de suivi enregistrées et les fichiers nécessaires à leur restauration. Les réglages sont exclus. Reprendre ces planifications ?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Reprendre les sauvegardes</string>
+    <string name="import_backup_replace_title">Restaurer la sauvegarde de données ?</string>
+    <string name="import_backup_replace_message">Remplacer les données enregistrées par cette sauvegarde ? Vos réglages restent inchangés. Le suivi restera désactivé jusqu\'à sa reprise.</string>
+    <string name="import_backup_restore">Remplacer les données</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d point de ce fichier diffère de sa copie enregistrée. Choisissez lequel garder. Les autres points seront importés normalement.</item>
+        <item quantity="many">%d points de ce fichier diffèrent de leurs copies enregistrées. Choisissez lesquels garder. Les autres points seront importés normalement.</item>
+        <item quantity="other">%d points de ce fichier diffèrent de leurs copies enregistrées. Choisissez lesquels garder. Les autres points seront importés normalement.</item>
+    </plurals>
 </resources>

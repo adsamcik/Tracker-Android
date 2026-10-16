@@ -21,11 +21,19 @@ internal class MeasuredNativeStepsHistoryReader(
     private val steps: StepsSegmentHistorySelector,
 ) {
     suspend fun candidates(range: HistoryRange, after: HistoryPosition?): List<MeasuredHistoryCandidate> {
-        if (!includesNativeSteps(range)) return emptyList()
-        val seek = if (after == null) "" else """AND (startTimeMs < ? OR (startTimeMs = ? AND
+        if (!includesNativeSteps(range)) {
+            return emptyList()
+        }
+        val seek = if (after == null) {
+            ""
+        } else {
+            """AND (startTimeMs < ? OR (startTimeMs = ? AND
             ('local:steps' > ? OR ('local:steps' = ? AND identity > ?))))"""
+        }
         val args = mutableListOf<Any?>(range.toExclusiveMs, range.fromInclusiveMs)
-        if (after != null) args.addAll(listOf(after.startTimeMs, after.startTimeMs, after.originTag, after.originTag, after.stableId))
+        if (after != null) {
+            args.addAll(listOf(after.startTimeMs, after.startTimeMs, after.originTag, after.originTag, after.stableId))
+        }
         return database.trackingHistoryReadDao().measuredHistoryCandidates(SimpleSQLiteQuery("""
             SELECT kind, origin, purpose, identity, startTimeMs, endTimeMs, rowId,
                 writerId, writerVersion, factId, factRevision, itemIndex, NULL AS physicalEventId, NULL AS physicalIdentity FROM (
@@ -50,8 +58,10 @@ internal class MeasuredNativeStepsHistoryReader(
     }
 
     suspend fun qualify(keys: List<MeasuredHistoryCandidate>, range: HistoryRange): MeasuredNativeStepsHistoryRead {
-        require(keys.size <= 100 && keys.all { it.kind == "steps" && it.origin == "LOCAL" && it.purpose == "CAPTURE" })
-        if (keys.isEmpty() || !includesNativeSteps(range)) return MeasuredNativeStepsHistoryRead()
+        requireNativeCapturedCandidates(keys, "steps", MAX_MEASURED_CANDIDATES)
+        if (keys.isEmpty() || !includesNativeSteps(range)) {
+            return MeasuredNativeStepsHistoryRead()
+        }
         val selected = keys.groupBy { StepsFactCandidateIdentity(requireNotNull(it.writerId),
             requireNotNull(it.writerVersion).toLong(), requireNotNull(it.factId)) }
         val read = readIndependent(selected)
@@ -62,60 +72,115 @@ internal class MeasuredNativeStepsHistoryReader(
         val problems = read.problems.toMutableSet()
         for ((identity, candidates) in selected) {
             val owned = read.facts[identity] ?: continue
-            val fact = owned.fact ?: continue
-            if (owned.steps.availability != StepsHistoryAvailability.AVAILABLE ||
-                owned.steps.materialization == StepsHistoryMaterialization.FAILED) continue
-            val start = requireNotNull(fact.intervalStartTimeMs)
-            val end = requireNotNull(fact.intervalEndTimeMs)
-            if (floor != null && end < floor) continue
-            for (key in candidates) {
-                if (key.rowId != owned.segment.id || key.factRevision != fact.semanticRevision ||
-                    key.startTimeMs != start || key.endTimeMs != end || start >= range.toExclusiveMs ||
-                    end < range.fromInclusiveMs) {
-                    problems += HistoryProblem(HistorySource.STEPS, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
-                    continue
-                }
-                val position = measuredHistoryPosition(key)
-                rows[position] = UnifiedHistoryRow(position, end, setOf(HistoryOrigin.LOCAL), HistoryPurpose.CAPTURE,
-                    name = fact.logicalTrackingId?.let { names.window(it, start, end) }, sections = emptyList(),
-                    measurement = HistoryMeasurement.Steps(owned.steps.toPublicHistory()))
-            }
+            rows.putAll(measuredFactRows(owned, candidates, range, names, floor, problems))
         }
         return MeasuredNativeStepsHistoryRead(rows, problems)
     }
 
+    private fun measuredFactRows(
+        owned: StepsMeasuredFactRead,
+        candidates: List<MeasuredHistoryCandidate>,
+        range: HistoryRange,
+        names: MeasuredNativeSessionNames,
+        floor: Long?,
+        problems: MutableSet<HistoryProblem>,
+    ): Map<HistoryPosition, UnifiedHistoryRow> {
+        val rows = linkedMapOf<HistoryPosition, UnifiedHistoryRow>()
+        val fact = owned.fact ?: return emptyMap()
+        if (owned.steps.availability != StepsHistoryAvailability.AVAILABLE ||
+            owned.steps.materialization == StepsHistoryMaterialization.FAILED) {
+            return emptyMap()
+        }
+        val start = requireNotNull(fact.intervalStartTimeMs)
+        val end = requireNotNull(fact.intervalEndTimeMs)
+        if (floor != null && end < floor) {
+            return emptyMap()
+        }
+        for (key in candidates) {
+            if (hasInvalidWindowPosition(key, owned.segment.id, fact.semanticRevision, start, end, range)) {
+                problems += HistoryProblem(HistorySource.STEPS, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+                continue
+            }
+            val position = measuredHistoryPosition(key)
+            rows[position] = UnifiedHistoryRow(position, end, setOf(HistoryOrigin.LOCAL), HistoryPurpose.CAPTURE,
+                name = fact.logicalTrackingId?.let { names.window(it, start, end) }, sections = emptyList(),
+                measurement = HistoryMeasurement.Steps(owned.steps.toPublicHistory()))
+        }
+        return rows
+    }
+
+    private fun hasInvalidWindowPosition(
+        key: MeasuredHistoryCandidate,
+        segmentId: Long,
+        revision: Long,
+        start: Long,
+        end: Long,
+        range: HistoryRange,
+    ): Boolean = key.rowId != segmentId || key.factRevision != revision ||
+        key.startTimeMs != start || key.endTimeMs != end || start >= range.toExclusiveMs ||
+        end < range.fromInclusiveMs
+
     private suspend fun readIndependent(
         selected: Map<StepsFactCandidateIdentity, List<MeasuredHistoryCandidate>>,
     ): StepsMeasuredRead {
-        if (selected.isEmpty()) return StepsMeasuredRead()
-        val result = try {
+        if (selected.isEmpty()) {
+            return StepsMeasuredRead()
+        }
+        val result = readSelected(selected)
+        if (selected.size == 1 || selected.keys.all { key -> result.facts[key]?.let {
+                it.fact != null && it.steps.availability == StepsHistoryAvailability.AVAILABLE &&
+                    it.steps.materialization != StepsHistoryMaterialization.FAILED } == true }) {
+            return result
+        }
+        val keys = selected.keys.toList()
+        val middle = keys.size / 2
+        val left = readIndependent(keys.take(middle).associateWith(selected::getValue))
+        val right = readIndependent(keys.drop(middle).associateWith(selected::getValue))
+        return StepsMeasuredRead(left.facts + right.facts, left.problems + right.problems)
+    }
+
+    private suspend fun readSelected(
+        selected: Map<StepsFactCandidateIdentity, List<MeasuredHistoryCandidate>>,
+    ): StepsMeasuredRead =
+        try {
             val segmentIds = selected.values.flatten().mapNotNull { it.rowId?.takeIf { id -> id > 0L } }.distinct()
             val facts = steps.selectMeasuredFactsInTransaction(segmentIds, selected.keys.toList())
-            val problems = linkedSetOf<HistoryProblem>()
-            if (selected.keys.any { it !in facts }) problems += HistoryProblem(HistorySource.STEPS,
-                HistoryProblemReason.INTEGRITY_UNAVAILABLE)
-            for (fact in facts.values) {
-                if (fact.steps.availability in setOf(StepsHistoryAvailability.AVAILABLE, StepsHistoryAvailability.DELETED) &&
-                    fact.steps.materialization != StepsHistoryMaterialization.FAILED) continue
-                if (fact.steps.reasons.all { it in QUIET_ABSENCE_REASONS }) continue
-                problems += HistoryProblem(HistorySource.STEPS,
-                    if (StepsHistoryReason.BATCH_DEPENDENCY_OVERFLOW in fact.steps.reasons)
-                        HistoryProblemReason.DEPENDENCY_OVERFLOW else HistoryProblemReason.INTEGRITY_UNAVAILABLE)
-            }
+            val problems = selectedFactProblems(selected.keys, facts)
             StepsMeasuredRead(facts, problems)
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: android.database.sqlite.SQLiteException) { StepsMeasuredRead(problems = setOf(
             HistoryProblem(HistorySource.STEPS, HistoryProblemReason.STORAGE_UNAVAILABLE))) }
         catch (_: Exception) { StepsMeasuredRead(problems = setOf(
             HistoryProblem(HistorySource.STEPS, HistoryProblemReason.INTEGRITY_UNAVAILABLE))) }
-        if (selected.size == 1 || selected.keys.all { key -> result.facts[key]?.let {
-                it.fact != null && it.steps.availability == StepsHistoryAvailability.AVAILABLE &&
-                    it.steps.materialization != StepsHistoryMaterialization.FAILED } == true }) return result
-        val keys = selected.keys.toList()
-        val middle = keys.size / 2
-        val left = readIndependent(keys.take(middle).associateWith(selected::getValue))
-        val right = readIndependent(keys.drop(middle).associateWith(selected::getValue))
-        return StepsMeasuredRead(left.facts + right.facts, left.problems + right.problems)
+
+    /** Project qualified saved-fact outcomes after the source reader completes. */
+    private fun selectedFactProblems(
+        expected: Set<StepsFactCandidateIdentity>,
+        facts: Map<StepsFactCandidateIdentity, StepsMeasuredFactRead>,
+    ): Set<HistoryProblem> {
+        val problems = linkedSetOf<HistoryProblem>()
+        if (expected.any { it !in facts }) {
+            problems += HistoryProblem(HistorySource.STEPS,
+            HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+        }
+        for (fact in facts.values) {
+            if (fact.steps.availability in setOf(StepsHistoryAvailability.AVAILABLE,
+                StepsHistoryAvailability.DELETED) &&
+                fact.steps.materialization != StepsHistoryMaterialization.FAILED) {
+                continue
+            }
+            if (fact.steps.reasons.all { it in QUIET_ABSENCE_REASONS }) {
+                continue
+            }
+            problems += HistoryProblem(HistorySource.STEPS,
+                if (StepsHistoryReason.BATCH_DEPENDENCY_OVERFLOW in fact.steps.reasons)
+                    {
+                    HistoryProblemReason.DEPENDENCY_OVERFLOW
+                } else {
+                    HistoryProblemReason.INTEGRITY_UNAVAILABLE
+                })
+        }
+        return problems
     }
 
     private fun includesNativeSteps(range: HistoryRange): Boolean = HistorySource.STEPS in range.sources &&
@@ -135,3 +200,5 @@ internal data class MeasuredNativeStepsHistoryRead(
     val rows: Map<HistoryPosition, UnifiedHistoryRow> = emptyMap(),
     val problems: Set<HistoryProblem> = emptySet(),
 )
+
+private const val MAX_MEASURED_CANDIDATES = 100

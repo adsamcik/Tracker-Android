@@ -160,4 +160,5 @@
     <string name="history_button_label">Historik</string>
     <string name="history_view_trip_on_map">Vis tur på kort</string>
     <string name="stats_heatmap_title">Aktivitet</string>
+    <string name="stats_recorded_partial_value">%1$s · delvist</string>
 </resources>

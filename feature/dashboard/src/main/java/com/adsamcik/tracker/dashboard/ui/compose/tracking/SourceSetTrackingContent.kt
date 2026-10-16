@@ -20,6 +20,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import com.adsamcik.tracker.dashboard.R
+import com.adsamcik.tracker.dashboard.ui.compose.dashboardNameResource
 import com.adsamcik.tracker.dashboard.ui.compose.DashboardLayoutDefaults
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLivePressureValue
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveSessionPresentation
@@ -46,65 +47,11 @@ internal fun SourceSetTrackingContent(
 		verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Lg),
 	) {
 		item(key = "source_set_header") {
-			Card(
-				modifier = Modifier.fillMaxWidth(),
-				colors = CardDefaults.cardColors(
-					containerColor = MaterialTheme.colorScheme.primaryContainer,
-				),
-				shape = RidgelineCardDefaults.shape,
-			) {
-				Column(
-					modifier = Modifier.padding(RidgelineSpacing.Lg),
-					verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Sm),
-				) {
-					Text(
-						text = stringResource(R.string.dashboard_live_source_set_title),
-						style = MaterialTheme.typography.titleMedium,
-						fontWeight = FontWeight.SemiBold,
-					)
-					Text(
-						text = stringResource(R.string.dashboard_live_source_set_no_route),
-						style = MaterialTheme.typography.bodySmall,
-					)
-				}
-			}
+			SourceSetRecordingHeader()
 		}
 		HistorySource.entries.filter(presentation.capturedSources::contains).forEach { source ->
 			item(key = source.name) {
-				when (source) {
-					HistorySource.STEPS -> if (presentation.steps != null) {
-						StepsOnlyTrackingCard(presentation.steps)
-					} else {
-						MissingSourceEvidenceCard(source)
-					}
-					HistorySource.ACTIVITY -> if (presentation.activity != null) {
-						ActivityOnlyTrackingCard(presentation.activity)
-					} else {
-						MissingSourceEvidenceCard(source)
-					}
-					HistorySource.PRESSURE -> PressureOnlyTrackingCard(
-						presentation.pressure ?: DashboardLivePressureValue.Unavailable,
-					)
-					HistorySource.WIFI -> if (presentation.wifi != null) {
-						RadioTrackingCard(
-							title = stringResource(R.string.dashboard_live_wifi_title),
-							presentation = presentation.wifi,
-							includeLocationNotice = false,
-						)
-					} else {
-						MissingSourceEvidenceCard(source)
-					}
-					HistorySource.CELL -> if (presentation.cell != null) {
-						RadioTrackingCard(
-							title = stringResource(R.string.dashboard_live_cell_title),
-							presentation = presentation.cell,
-							includeLocationNotice = false,
-						)
-					} else {
-						MissingSourceEvidenceCard(source)
-					}
-					HistorySource.LOCATION -> error("Location cannot enter a location-free source set")
-				}
+				SourceSetEvidenceCard(source, presentation)
 			}
 		}
 	}
@@ -112,14 +59,7 @@ internal fun SourceSetTrackingContent(
 
 @Composable
 private fun MissingSourceEvidenceCard(source: HistorySource) {
-	val sourceName = stringResource(when (source) {
-		HistorySource.LOCATION -> R.string.dashboard_history_source_location
-		HistorySource.WIFI -> R.string.dashboard_history_source_wifi
-		HistorySource.CELL -> R.string.dashboard_history_source_cell
-		HistorySource.ACTIVITY -> R.string.dashboard_history_source_activity
-		HistorySource.STEPS -> R.string.dashboard_history_source_steps
-		HistorySource.PRESSURE -> R.string.dashboard_history_source_pressure
-	})
+	val sourceName = stringResource(source.dashboardNameResource)
 	Card(
 		modifier = Modifier.fillMaxWidth().testTag("dashboard_source_set_${source.name.lowercase()}_unavailable"),
 		colors = CardDefaults.cardColors(containerColor = RidgelineCardDefaults.containerColor),
@@ -130,5 +70,77 @@ private fun MissingSourceEvidenceCard(source: HistorySource) {
 			modifier = Modifier.padding(RidgelineSpacing.Lg),
 			style = MaterialTheme.typography.bodyMedium,
 		)
+	}
+}
+
+@Composable
+private fun SourceSetRecordingHeader() {
+	Card(
+		modifier = Modifier.fillMaxWidth(),
+		colors = CardDefaults.cardColors(
+			containerColor = MaterialTheme.colorScheme.primaryContainer,
+		),
+		shape = RidgelineCardDefaults.shape,
+	) {
+		Column(
+			modifier = Modifier.padding(RidgelineSpacing.Lg),
+			verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Sm),
+		) {
+			Text(
+				text = stringResource(R.string.dashboard_live_source_set_title),
+				style = MaterialTheme.typography.titleMedium,
+				fontWeight = FontWeight.SemiBold,
+			)
+			Text(
+				text = stringResource(R.string.dashboard_live_source_set_no_route),
+				style = MaterialTheme.typography.bodySmall,
+			)
+		}
+	}
+}
+
+@Composable
+private fun SourceSetEvidenceCard(
+	source: HistorySource,
+	presentation: DashboardLiveSessionPresentation.SourceSetWithoutLocation,
+) {
+	when (source) {
+		HistorySource.STEPS -> if (presentation.steps != null) {
+			StepsOnlyTrackingCard(presentation.steps)
+		} else {
+			MissingSourceEvidenceCard(source)
+		}
+		HistorySource.ACTIVITY -> if (presentation.activity != null) {
+			ActivityOnlyTrackingCard(presentation.activity)
+		} else {
+			MissingSourceEvidenceCard(source)
+		}
+		HistorySource.PRESSURE -> PressureOnlyTrackingCard(
+			presentation.pressure ?: DashboardLivePressureValue.Unavailable,
+		)
+		HistorySource.WIFI -> RadioSourceEvidenceCard(
+			source, R.string.dashboard_live_wifi_title, presentation.wifi,
+		)
+		HistorySource.CELL -> RadioSourceEvidenceCard(
+			source, R.string.dashboard_live_cell_title, presentation.cell,
+		)
+		HistorySource.LOCATION -> error("Location cannot enter a location-free source set")
+	}
+}
+
+@Composable
+private fun RadioSourceEvidenceCard(
+	source: HistorySource,
+	titleResource: Int,
+	value: com.adsamcik.tracker.dashboard.ui.compose.state.DashboardRadioHistoryValue?,
+) {
+	if (value != null) {
+		RadioTrackingCard(
+			title = stringResource(titleResource),
+			presentation = value,
+			includeLocationNotice = false,
+		)
+	} else {
+		MissingSourceEvidenceCard(source)
 	}
 }

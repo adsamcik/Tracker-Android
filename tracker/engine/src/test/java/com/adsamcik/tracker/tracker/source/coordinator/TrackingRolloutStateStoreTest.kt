@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
@@ -21,6 +22,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -39,11 +41,31 @@ class TrackingRolloutStateStoreTest {
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
+		runBlocking { database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L, retainedFromMs = null, updatedAtMs = 1L)) }
 		store = RoomTrackingRolloutStateStore(database, TEST_CATALOG)
 	}
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `generic radio shadow install keeps the full Ambient privacy boundary`() = runTest {
+		val productionStore = RoomTrackingRolloutStateStore(database, ExecutableSourceLaneCatalog())
+		for (kind in listOf(SourceKind.WIFI, SourceKind.CELL)) {
+			val binding = SourceWriterTransitionSpec.entries.single { it.source == kind }.finalBinding
+			val ambient = stepsControlDemand().copy(demandId = "generic-ambient-${kind.name}",
+				consumerId = "app:ambient:${kind.name.lowercase()}", sourceKind = kind.stableCode,
+				purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, persistenceEligible = true, qosCode = 0)
+			database.sourceBrokerDao().insertDemands(listOf(ambient))
+			val before = database.trackingRolloutStateDao().get()
+			shouldThrow<IllegalArgumentException> {
+				productionStore.installInertShadowLane(binding, 1L, 100L)
+			}
+			database.sourceProjectionStateDao().activeProductLane(kind.stableCode) shouldBe null
+			database.trackingRolloutStateDao().get() shouldBe before
+			database.sourceBrokerDao().demandsByIds(listOf(ambient.demandId)) shouldBe listOf(ambient)
+		}
+	}
 
 	@Test
 	fun `missing writer identity and repurposed radio generation masks are not executable`() {

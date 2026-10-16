@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetainedId
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetentionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureWindowEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.PortablePressureEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortablePressureOpaqueIdentity
@@ -82,7 +83,9 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 				beforeRecencyStartTimeMs = beforeRecencyStartTimeMs,
 				beforeRecencyTieIdentity = beforeRecencyTieIdentity,
 			)
-			if (page.isEmpty()) break
+			if (page.isEmpty()) {
+				break
+			}
 			if (!isValidImportedPressureHistoryCandidatePage(
 					page,
 					beforeRecencyStartTimeMs,
@@ -109,7 +112,9 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 			val last = page.last()
 			beforeRecencyStartTimeMs = last.recencyStartTimeMs
 			beforeRecencyTieIdentity = last.recencyTieIdentity
-			if (page.size < pageLimit) break
+			if (page.size < pageLimit) {
+				break
+			}
 		}
 		return ImportedPressureHistorySelection.Available(selected)
 	}
@@ -160,11 +165,14 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 		return candidates.flatMap { candidate -> evaluateBatch(listOf(candidate)) }
 	}
 
-	@Suppress("LongMethod")
+	// Preserve the ordered empty, malformed, missing-state and retained/live dispatch outcomes.
+	@Suppress("ReturnCount")
 	private suspend fun evaluateBatch(
 		candidates: List<ImportedPressureHistoryCandidate>,
 	): List<ImportedPressureHistoryEvaluation> {
-		if (candidates.isEmpty()) return emptyList()
+		if (candidates.isEmpty()) {
+			return emptyList()
+		}
 		require(candidates.size == 1)
 		if (!isValidImportedPressureHistoryCandidatePage(candidates, null, null)) {
 			return candidates.unverifiable(
@@ -182,70 +190,91 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 		}
 		val candidate = candidates.single()
 		if (candidate.candidateState == IMPORTED_PRESSURE_CANDIDATE_RETAINED) {
-			val receipt = database.importedPressureDao().retentionReceipt(candidate.identity)
-				?: return candidates.unverifiable(
-					ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
-				)
-			if (!candidate.exactlyMatches(receipt)) {
-				return candidates.unverifiable(
-					ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
-				)
-			}
-			return when (database.authenticateImportedPressureRetention(state, receipt)) {
-				ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
-					candidates.unverifiable(ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW)
-				ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
-					candidates.unverifiable(ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW)
-				ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
-				ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
-				-> candidates.unverifiable(
-					ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
-				)
-				null -> {
-					val markers = database.importedPressureDao().retainedIdentitiesForEntries(
-						listOf(candidate.identity),
-						receipt.protectedIdentityCount + 1,
-					)
-					listOf(
-						ImportedPressureHistoryEvaluation.Retained(
-							candidate = candidate,
-							collectedDataEpoch = receipt.collectedDataEpoch,
-							retainedFromMs = receipt.retainedFromMs,
-							retainedAtMs = receipt.retainedAtMs,
-							recencyStartTimeMs = receipt.recencyStartTimeMs,
-							recencyEndTimeMs = receipt.recencyEndTimeMs,
-							recencyTieIdentity = PortablePressureOpaqueIdentity(
-								receipt.recencyTieIdentity,
-							),
-							protectedIdentities = markers.map {
-								it.toRetainedPressureIdentity()
-							},
-						),
-					)
-				}
-			}
+			return evaluateRetainedCandidate(candidates, state)
 		}
+		return evaluateLiveBatch(candidates, state)
+	}
+
+	private suspend fun evaluateRetainedCandidate(
+		candidates: List<ImportedPressureHistoryCandidate>,
+		state: SourceEvidenceState,
+	): List<ImportedPressureHistoryEvaluation> {
+		val candidate = candidates.single()
+		val receipt = database.importedPressureDao().retentionReceipt(candidate.identity)
+			?: return candidates.unverifiable(
+				ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		if (!candidate.exactlyMatches(receipt)) {
+			return candidates.unverifiable(
+				ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+		return when (val failure = database.authenticateImportedPressureRetention(state, receipt)) {
+			null -> {
+				val markers = database.importedPressureDao().retainedIdentitiesForEntries(
+					listOf(candidate.identity),
+					receipt.protectedIdentityCount + 1,
+				)
+				listOf(
+					ImportedPressureHistoryEvaluation.Retained(
+						candidate = candidate,
+						collectedDataEpoch = receipt.collectedDataEpoch,
+						retainedFromMs = receipt.retainedFromMs,
+						retainedAtMs = receipt.retainedAtMs,
+						recencyStartTimeMs = receipt.recencyStartTimeMs,
+						recencyEndTimeMs = receipt.recencyEndTimeMs,
+						recencyTieIdentity = PortablePressureOpaqueIdentity(
+							receipt.recencyTieIdentity,
+						),
+						protectedIdentities = markers.map {
+							it.toRetainedPressureIdentity()
+						},
+					),
+				)
+			}
+			else -> candidates.unverifiable(failure.toHistoryFailure())
+		}
+	}
+
+	// Keep each live state, lineage, budget, membership and tombstone exit next to its original ordered read.
+	@Suppress("ReturnCount")
+	private suspend fun evaluateLiveBatch(
+		candidates: List<ImportedPressureHistoryCandidate>,
+		state: SourceEvidenceState,
+	): List<ImportedPressureHistoryEvaluation> {
+		val candidate = candidates.single()
 		if (candidate.candidateState != IMPORTED_PRESSURE_CANDIDATE_LIVE) {
 			return candidates.unverifiable(
 				ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
 			)
 		}
-		when (database.importedPressureDao().lineageFootprint(candidate.identity).validate()) {
-			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW,
-			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW,
-			-> return candidates.unverifiable(ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW)
-			ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
-			ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
-			-> return candidates.unverifiable(
-				ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
-			)
-			null -> Unit
+		val lineageFailure = database.importedPressureDao().lineageFootprint(candidate.identity).validate()
+		if (lineageFailure != null) {
+			return candidates.unverifiable(lineageFailure.toHistoryFailure())
 		}
 		val identities = candidates.map(ImportedPressureHistoryCandidate::identity)
 		integrationObserver.record(
 			TrackingHistoryIntegrationCheckpoint.PRESSURE_IMPORTED_DETAIL,
 		)
-		val loaded = try {
+		val loaded = loadHistoryBatch(identities)
+			?: return candidates.unverifiable(ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		if (loaded.exceedsBatchLimit(identities.size)) {
+			return candidates.unverifiable(ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW)
+		}
+		if (!loaded.belongsOnlyTo(identities)) {
+			return candidates.unverifiable(
+				ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+
+		val tombstonesByRun = loadRunTombstones(loaded, state)
+			?: return candidates.unverifiable(ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE)
+
+		return evaluateLoadedCandidates(candidates, state, loaded, tombstonesByRun)
+	}
+
+	private suspend fun loadHistoryBatch(identities: List<String>): ImportedPressureHistoryBatch? {
+		return try {
 			ImportedPressureHistoryBatch(
 				headers = database.importedPressureDao().entryRevisionsForHistory(identities),
 				receipts = database.importedPressureDao().receiptsForHistory(identities),
@@ -256,19 +285,14 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: RuntimeException) {
-			return candidates.unverifiable(
-				ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
-			)
+			null
 		}
-		if (loaded.exceedsBatchLimit(identities.size)) {
-			return candidates.unverifiable(ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW)
-		}
-		if (!loaded.belongsOnlyTo(identities)) {
-			return candidates.unverifiable(
-				ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
-			)
-		}
+	}
 
+	private suspend fun loadRunTombstones(
+		loaded: ImportedPressureHistoryBatch,
+		state: SourceEvidenceState,
+	): Map<String, ImportedPressureDeletionGenerationEntity>? {
 		val tombstones = try {
 			database.importedPressureDao().deletionGenerationsForHistory(
 				loaded.runs.map { it.identity }.distinct(),
@@ -276,19 +300,24 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: RuntimeException) {
-			return candidates.unverifiable(
-				ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
-			)
+			return null
 		}
 		val tombstonesByRun = tombstones.associateBy(ImportedPressureDeletionGenerationEntity::runIdentity)
 		if (tombstonesByRun.size != tombstones.size || tombstones.any {
 			!state.acceptsRetainedEpoch(it.collectedDataEpoch)
 		}) {
-			return candidates.unverifiable(
-				ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
-			)
+			return null
 		}
 
+		return tombstonesByRun
+	}
+
+	private suspend fun evaluateLoadedCandidates(
+		candidates: List<ImportedPressureHistoryCandidate>,
+		state: SourceEvidenceState,
+		loaded: ImportedPressureHistoryBatch,
+		tombstonesByRun: Map<String, ImportedPressureDeletionGenerationEntity>,
+	): List<ImportedPressureHistoryEvaluation> {
 		val headersByIdentity = loaded.headers.groupBy { it.identity }
 		val receiptsByIdentity = loaded.receipts.groupBy { it.entryIdentity }
 		val runsByIdentity = loaded.runs.groupBy { it.entryIdentity }
@@ -314,77 +343,93 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 					ImportedPressureHistoryFailure.STALE_COLLECTED_DATA_EPOCH,
 				)
 			}
-			try {
-				val lineage = ImportedPressureLineageAuthenticator.authenticate(
-					identity = candidate.identity,
-					expectedCollectedDataEpoch = state.collectedDataEpoch,
-					retainedState = state,
-					headers = headers,
-					receipts = receiptsByIdentity[candidate.identity].orEmpty(),
-					runs = runsByIdentity[candidate.identity].orEmpty(),
-					windows = windowsByIdentity[candidate.identity].orEmpty(),
-				)
-				val latest = requireNotNull(lineage.latest)
-				require(candidate.exactlyMatches(latest))
-				val lineageRunIds = lineage.revisions.flatMapTo(linkedSetOf()) { revision ->
-					revision.entry.runs.map { it.identity.value }
-				}
-				val deletedLineageRunIds = lineageRunIds.filterTo(linkedSetOf()) {
-					it in tombstonesByRun
-				}
-				val latestRunIds = latest.entry.runs.mapTo(linkedSetOf()) { it.identity.value }
-				if (deletedLineageRunIds.any { it !in latestRunIds }) {
-					ImportedPressureHistoryEvaluation.Unverifiable(
-						candidate,
-						ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
-					)
-				} else {
-					ImportedPressureHistoryEvaluation.Readable(
-						candidate = candidate,
-						lineage = lineage,
-						deletedRunIdentities = deletedLineageRunIds,
-						retainedFromMs = state.retainedFromMs,
-					)
-				}
-			} catch (failure: ImportedPressureLineageFailure) {
-				ImportedPressureHistoryEvaluation.Unverifiable(
-					candidate,
-					failure.reason.toHistoryFailure(),
-				)
-			} catch (_: IllegalArgumentException) {
+			evaluateCandidateLineage(candidate, state, headers,
+				receiptsByIdentity[candidate.identity].orEmpty(), runsByIdentity[candidate.identity].orEmpty(),
+				windowsByIdentity[candidate.identity].orEmpty(), tombstonesByRun)
+		}
+	}
+
+	// Keep the original candidate, saved state and five retained lineage inputs explicit in one authentication phase.
+	@Suppress("LongParameterList")
+	private fun evaluateCandidateLineage(
+		candidate: ImportedPressureHistoryCandidate,
+		state: SourceEvidenceState,
+		headers: List<ImportedPressureEntryRevisionEntity>,
+		receipts: List<ImportedPressureReceiptEntity>,
+		runs: List<ImportedPressureRunEntity>,
+		windows: List<ImportedPressureWindowEntity>,
+		tombstonesByRun: Map<String, ImportedPressureDeletionGenerationEntity>,
+	): ImportedPressureHistoryEvaluation {
+		return try {
+			val lineage = ImportedPressureLineageAuthenticator.authenticate(
+				identity = candidate.identity,
+				expectedCollectedDataEpoch = state.collectedDataEpoch,
+				retainedState = state,
+				headers = headers,
+				receipts = receipts,
+				runs = runs,
+				windows = windows,
+			)
+			val latest = requireNotNull(lineage.latest)
+			require(candidate.exactlyMatches(latest))
+			val lineageRunIds = lineage.revisions.flatMapTo(linkedSetOf()) { revision ->
+				revision.entry.runs.map { it.identity.value }
+			}
+			val deletedLineageRunIds = lineageRunIds.filterTo(linkedSetOf()) {
+				it in tombstonesByRun
+			}
+			val latestRunIds = latest.entry.runs.mapTo(linkedSetOf()) { it.identity.value }
+			if (deletedLineageRunIds.any { it !in latestRunIds }) {
 				ImportedPressureHistoryEvaluation.Unverifiable(
 					candidate,
 					ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
 				)
+			} else {
+				ImportedPressureHistoryEvaluation.Readable(
+					candidate = candidate,
+					lineage = lineage,
+					deletedRunIdentities = deletedLineageRunIds,
+					retainedFromMs = state.retainedFromMs,
+				)
 			}
+		} catch (failure: ImportedPressureLineageFailure) {
+			ImportedPressureHistoryEvaluation.Unverifiable(
+				candidate,
+				failure.reason.toHistoryFailure(),
+			)
+		} catch (_: IllegalArgumentException) {
+			ImportedPressureHistoryEvaluation.Unverifiable(
+				candidate,
+				ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
 		}
 	}
 
 }
 
+@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 internal fun isValidImportedPressureHistoryCandidatePage(
 	candidates: List<ImportedPressureHistoryCandidate>,
 	beforeRecencyStartTimeMs: Long?,
 	beforeRecencyTieIdentity: String?,
 ): Boolean {
-	if ((beforeRecencyStartTimeMs == null) != (beforeRecencyTieIdentity == null)) return false
-	if (candidates.size > ImportedPressureDao.MAX_HISTORY_ENTRY_CANDIDATES) return false
-	if (candidates.map { it.identity }.distinct().size != candidates.size) return false
-	if (candidates.any {
-		val recencyStartTimeMs = it.recencyStartTimeMs ?: return@any true
-		val recencyTieIdentity = it.recencyTieIdentity ?: return@any true
-		it.identity.isBlank() || it.importRevision <= 0L || it.startTimeMs < 0L ||
-			it.endTimeMs < it.startTimeMs || it.receivedAtMs < 0L ||
-			recencyStartTimeMs !in it.startTimeMs..it.endTimeMs ||
-			!isOpaquePressureIdentity(recencyTieIdentity) ||
-			it.candidateState !in setOf(
-				IMPORTED_PRESSURE_CANDIDATE_LIVE,
-				IMPORTED_PRESSURE_CANDIDATE_RETAINED,
-			)
-	}) return false
+	if ((beforeRecencyStartTimeMs == null) != (beforeRecencyTieIdentity == null)) {
+		return false
+	}
+	if (candidates.size > ImportedPressureDao.MAX_HISTORY_ENTRY_CANDIDATES) {
+		return false
+	}
+	if (candidates.map { it.identity }.distinct().size != candidates.size) {
+		return false
+	}
+	if (candidates.any { it.hasInvalidHistoryShape() }) {
+		return false
+	}
 	if (candidates.map { it.recencyStartTimeMs to it.recencyTieIdentity }.distinct().size !=
 		candidates.size
-	) return false
+	) {
+		return false
+	}
 	val cursors = buildList {
 		if (beforeRecencyStartTimeMs != null && beforeRecencyTieIdentity != null) {
 			add(beforeRecencyStartTimeMs to beforeRecencyTieIdentity)
@@ -396,6 +441,22 @@ internal fun isValidImportedPressureHistoryCandidatePage(
 	return cursors.zipWithNext().all { (left, right) ->
 		left.first > right.first || left.first == right.first && left.second > right.second
 	}
+}
+
+
+// Complete immutable candidate row shape; page uniqueness and cursor chronology remain above.
+@Suppress("CyclomaticComplexMethod")
+private fun ImportedPressureHistoryCandidate.hasInvalidHistoryShape(): Boolean {
+	val recencyStartTimeMs = this.recencyStartTimeMs ?: return true
+	val recencyTieIdentity = this.recencyTieIdentity ?: return true
+	return this.identity.isBlank() || this.importRevision <= 0L || this.startTimeMs < 0L ||
+		this.endTimeMs < this.startTimeMs || this.receivedAtMs < 0L ||
+		recencyStartTimeMs !in this.startTimeMs..this.endTimeMs ||
+		!isOpaquePressureIdentity(recencyTieIdentity) ||
+		this.candidateState !in setOf(
+			IMPORTED_PRESSURE_CANDIDATE_LIVE,
+			IMPORTED_PRESSURE_CANDIDATE_RETAINED,
+		)
 }
 
 private fun isOpaquePressureIdentity(value: String): Boolean = try {
@@ -523,6 +584,14 @@ private fun ImportedPressureHistoryCandidate.exactlyMatches(
 private fun List<ImportedPressureHistoryCandidate>.unverifiable(
 	reason: ImportedPressureHistoryFailure,
 ) = map { ImportedPressureHistoryEvaluation.Unverifiable(it, reason) }
+
+private fun ImportedPressureRetentionAuthorityFailure.toHistoryFailure(): ImportedPressureHistoryFailure = when (this) {
+	ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW,
+	ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW -> ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW
+	ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
+	ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE ->
+		ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE
+}
 
 private fun ImportedPressureLineageFailureReason.toHistoryFailure():
 	ImportedPressureHistoryFailure = when (this) {

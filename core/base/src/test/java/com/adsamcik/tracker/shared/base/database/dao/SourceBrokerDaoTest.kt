@@ -34,6 +34,9 @@ class SourceBrokerDaoTest {
 	fun tearDown() = database.close()
 
 	@Test
+	// Keep each source through registration, capture removal and exact callback-barrier acknowledgement
+	// together.
+	@Suppress("LongMethod")
 	fun `radio boundaries read and acknowledge Wi-Fi and Cell but exclude Pressure`() = runTest {
 		val dao = database.sourceBrokerDao()
 		for (sourceKind in listOf(
@@ -42,7 +45,11 @@ class SourceBrokerDaoTest {
 			SourceDestinationOwnerEntity.SOURCE_CELL,
 		)) {
 			val isRadio = sourceKind != SourceDestinationOwnerEntity.SOURCE_PRESSURE
-			val expectedCaptureRevision = if (isRadio) 1L else 0L
+			val expectedCaptureRevision = if (isRadio) {
+				1L
+			} else {
+				0L
+			}
 			val registration = providerRegistration(sourceKind = sourceKind)
 			val capture = captureDemand().copy(
 				demandId = "capture-$sourceKind",
@@ -57,7 +64,11 @@ class SourceBrokerDaoTest {
 			dao.insertAuthorizations(captureRows)
 			dao.maximumRadioSessionCaptureAuthorizationRevision(sourceKind, 1L) shouldBe expectedCaptureRevision
 			dao.latestRadioAuthorizationBounded(sourceKind, 1L, 2) shouldBe
-				if (isRadio) captureRows else emptyList()
+				if (isRadio) {
+					captureRows
+				} else {
+					emptyList()
+				}
 			// A current CAPTURE envelope cannot become a no-CAP callback boundary.
 			dao.acknowledgeRadioSessionCaptureCallbackBarrier(sourceKind, 1L, registration.sourceInstanceId, 1L) shouldBe 0
 
@@ -67,15 +78,27 @@ class SourceBrokerDaoTest {
 			dao.insertAuthorizations(noCaptureRows)
 			dao.maximumRadioSessionCaptureAuthorizationRevision(sourceKind, 1L) shouldBe expectedCaptureRevision
 			dao.latestRadioAuthorizationBounded(sourceKind, 1L, 2) shouldBe
-				if (isRadio) noCaptureRows else emptyList()
+				if (isRadio) {
+					noCaptureRows
+				} else {
+					emptyList()
+				}
 			dao.acknowledgeRadioSessionCaptureCallbackBarrier(sourceKind, 1L, "different-provider", 2L) shouldBe 0
 			dao.acknowledgeRadioSessionCaptureCallbackBarrier(sourceKind, 2L, registration.sourceInstanceId, 2L) shouldBe 0
 			dao.acknowledgeRadioSessionCaptureCallbackBarrier(sourceKind, 1L, registration.sourceInstanceId, 1L) shouldBe 0
 			dao.acknowledgeRadioSessionCaptureCallbackBarrier(sourceKind, 1L, registration.sourceInstanceId, 3L) shouldBe 0
 			dao.acknowledgeRadioSessionCaptureCallbackBarrier(sourceKind, 1L, registration.sourceInstanceId, 2L) shouldBe
-				if (isRadio) 1 else 0
+				if (isRadio) {
+					1
+				} else {
+					0
+				}
 			requireNotNull(dao.registration(sourceKind, 1L)).captureCallbackBarrierAuthorizationRevision shouldBe
-				if (isRadio) 2L else 0L
+				if (isRadio) {
+					2L
+				} else {
+					0L
+				}
 
 			val retired = providerRegistration(
 				sourceKind = sourceKind,

@@ -11,9 +11,13 @@ internal suspend fun AppDatabase.nativeLogicalIdsVisibleInRange(
     range: HistoryRange,
 ): Set<String> {
     if (logicalIds.isEmpty() || HistoryOrigin.LOCAL !in range.origins ||
-        HistoryPurpose.CAPTURE !in range.purposes) return emptySet()
-    require(logicalIds.size <= 100)
+        HistoryPurpose.CAPTURE !in range.purposes) {
+        return emptySet()
+    }
+    require(logicalIds.size <= MAX_LOGICAL_VISIBILITY_SELECTION)
     return trackingHistoryReadDao().unifiedHistoryCandidates(
         UnifiedHistoryCandidateQueries.nativeVisibility(range, logicalIds.toList()))
         .mapTo(linkedSetOf()) { it.identity.removePrefix("logical:") }
 }
+
+private const val MAX_LOGICAL_VISIBILITY_SELECTION = 100

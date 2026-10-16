@@ -2,6 +2,12 @@ package com.adsamcik.tracker.stats.data.repository
 
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.AuthenticatedImportedAmbientStepsGraphRevision
+import com.adsamcik.tracker.shared.base.database.AuthenticatedImportedAmbientStepsLineage
+import com.adsamcik.tracker.shared.base.database.AuthenticatedImportedAmbientStepsRevision
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV1
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailure
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailureReason
@@ -115,135 +121,118 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 			?: return ImportedAmbientStepsSnapshot.Unverifiable(
 				ImportedAmbientStepsReadFailure.SOURCE_EVIDENCE_UNAVAILABLE,
 			)
-		if (state.retainedFromMs?.let { it < 0L } == true) {
-			return ImportedAmbientStepsSnapshot.Unverifiable(
-				ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
-			)
+		return if (state.retainedFromMs?.let { it < 0L } == true) {
+			ImportedAmbientStepsSnapshot.Unverifiable(ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE)
+		} else {
+			readSourceFenceOutcome(state)
+				?: readDayFenceOutcome(request, state)
+				?: readCandidateDays(request, state, includeCountDomainGraph)
 		}
+	}
+
+	private suspend fun readSourceFenceOutcome(state: SourceEvidenceState): ImportedAmbientStepsSnapshot? {
 		dao.authenticateAllAmbientStepsFences(state)
 		val sourceFence = dao.sourceFence()
-		if (sourceFence != null) {
-			if (!state.acceptsRetainedEpoch(sourceFence.collectedDataEpoch)) {
-				return ImportedAmbientStepsSnapshot.Unverifiable(
-					ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
-				)
-			}
-			val reset = database.hasSavedAmbientStepsReopen(sourceFence)
-			if (!reset) return ImportedAmbientStepsSnapshot.Deleted
+		return when {
+			sourceFence == null -> null
+			!state.acceptsRetainedEpoch(sourceFence.collectedDataEpoch) ->
+				ImportedAmbientStepsSnapshot.Unverifiable(ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE)
+			!database.hasSavedAmbientStepsReopen(sourceFence) -> ImportedAmbientStepsSnapshot.Deleted
+			else -> null
 		}
-		val fences = request.selectedDayIdentities?.let { dao.fencesForIdentities(it.toList(), AmbientStepsPortableFormatV1.MAX_DAYS + 1) } ?: dao.fencesOverlapping(
-			request.fromInclusiveMs,
-			request.toExclusiveMs,
-			AmbientStepsPortableFormatV1.MAX_DAYS + 1,
-		)
-		if (fences.size > AmbientStepsPortableFormatV1.MAX_DAYS) {
-			return ImportedAmbientStepsSnapshot.Unverifiable(
-				ImportedAmbientStepsReadFailure.DEPENDENCY_OVERFLOW,
-			)
-		}
-		if (fences.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) }) {
-			return ImportedAmbientStepsSnapshot.Unverifiable(
-				ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
-			)
-		}
-		val fenceKinds = fences.mapTo(linkedSetOf(), ImportedAmbientStepsDayFenceEntity::fenceKind)
-		if (fenceKinds.size > 1) {
-			return ImportedAmbientStepsSnapshot.Unverifiable(
-				ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
-			)
-		}
-		if (ImportedAmbientStepsDayFenceEntity.FENCE_RETENTION in fenceKinds) {
-			return ImportedAmbientStepsSnapshot.Retained
-		}
-		if (fenceKinds.isNotEmpty()) return ImportedAmbientStepsSnapshot.Deleted
+	}
 
-		val candidates = request.selectedDayIdentities?.let { dao.latestDaysForIdentities(it.toList(), AmbientStepsPortableFormatV1.MAX_DAYS + 1) } ?: dao.latestDaysOverlapping(
+	private suspend fun readDayFenceOutcome(
+		request: ExportPortableAmbientStepsRequest,
+		state: SourceEvidenceState,
+	): ImportedAmbientStepsSnapshot? {
+		val fences = request.selectedDayIdentities?.let {
+			dao.fencesForIdentities(it.toList(), AmbientStepsPortableFormatV1.MAX_DAYS + 1)
+		} ?: dao.fencesOverlapping(
 			request.fromInclusiveMs,
 			request.toExclusiveMs,
 			AmbientStepsPortableFormatV1.MAX_DAYS + 1,
 		)
-		if (candidates.size > AmbientStepsPortableFormatV1.MAX_DAYS) {
-			return ImportedAmbientStepsSnapshot.Unverifiable(
-				ImportedAmbientStepsReadFailure.DEPENDENCY_OVERFLOW,
+		return when {
+			fences.size > AmbientStepsPortableFormatV1.MAX_DAYS ->
+				ImportedAmbientStepsSnapshot.Unverifiable(ImportedAmbientStepsReadFailure.DEPENDENCY_OVERFLOW)
+			fences.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) } ->
+				ImportedAmbientStepsSnapshot.Unverifiable(ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE)
+			else -> dayFenceOutcome(fences)
+		}
+	}
+
+	private fun dayFenceOutcome(fences: List<ImportedAmbientStepsDayFenceEntity>): ImportedAmbientStepsSnapshot? {
+		val kinds = fences.mapTo(linkedSetOf(), ImportedAmbientStepsDayFenceEntity::fenceKind)
+		return when {
+			kinds.size > 1 -> ImportedAmbientStepsSnapshot.Unverifiable(
+				ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
 			)
+			ImportedAmbientStepsDayFenceEntity.FENCE_RETENTION in kinds -> ImportedAmbientStepsSnapshot.Retained
+			kinds.isNotEmpty() -> ImportedAmbientStepsSnapshot.Deleted
+			else -> null
 		}
-		if (candidates.isEmpty()) return ImportedAmbientStepsSnapshot.NoData
-		if (request.selectedDayIdentities != null && candidates.map { it.dayIdentity }.toSet() != request.selectedDayIdentities)
-			return ImportedAmbientStepsSnapshot.Unverifiable(ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE)
-		state.retainedFromMs?.let { floor ->
-			if (candidates.any { candidate ->
-					candidate.structuralDayEndTimeMs <= floor ||
-						candidate.structuralDayStartTimeMs < floor &&
-						(candidate.retainedFromTimeMs?.let { it < floor } ?: true)
-				}
-			) return ImportedAmbientStepsSnapshot.Retained
-		}
-		val days = mutableListOf<com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV1>()
+	}
+
+	private suspend fun readCandidateDays(
+		request: ExportPortableAmbientStepsRequest,
+		state: SourceEvidenceState,
+		includeCountDomainGraph: Boolean,
+	): ImportedAmbientStepsSnapshot {
+		val candidates = request.selectedDayIdentities?.let {
+			dao.latestDaysForIdentities(it.toList(), AmbientStepsPortableFormatV1.MAX_DAYS + 1)
+		} ?: dao.latestDaysOverlapping(
+			request.fromInclusiveMs,
+			request.toExclusiveMs,
+			AmbientStepsPortableFormatV1.MAX_DAYS + 1,
+		)
+		return candidateDaysOutcome(request, state, candidates)
+			?: readSavedDays(candidates, state, includeCountDomainGraph)
+	}
+
+	private fun candidateDaysOutcome(
+		request: ExportPortableAmbientStepsRequest,
+		state: SourceEvidenceState,
+		candidates: List<ImportedAmbientStepsDayRevisionEntity>,
+	): ImportedAmbientStepsSnapshot? = when {
+		candidates.size > AmbientStepsPortableFormatV1.MAX_DAYS -> ImportedAmbientStepsSnapshot.Unverifiable(
+			ImportedAmbientStepsReadFailure.DEPENDENCY_OVERFLOW,
+		)
+		candidates.isEmpty() -> ImportedAmbientStepsSnapshot.NoData
+		request.selectedDayIdentities != null &&
+			candidates.map { it.dayIdentity }.toSet() != request.selectedDayIdentities ->
+			ImportedAmbientStepsSnapshot.Unverifiable(ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE)
+		state.retainedFromMs?.let { floor -> candidates.any { it.crossesImportRetentionFloor(floor) } } == true ->
+			ImportedAmbientStepsSnapshot.Retained
+		else -> null
+	}
+
+	private fun ImportedAmbientStepsDayRevisionEntity.crossesImportRetentionFloor(floor: Long): Boolean =
+		structuralDayEndTimeMs <= floor || structuralDayStartTimeMs < floor &&
+			(retainedFromTimeMs?.let { it < floor } ?: true)
+
+	private suspend fun readSavedDays(
+		candidates: List<ImportedAmbientStepsDayRevisionEntity>,
+		state: SourceEvidenceState,
+		includeCountDomainGraph: Boolean,
+	): ImportedAmbientStepsSnapshot {
+		val days = mutableListOf<PortableAmbientStepsDayV1>()
 		val products = mutableListOf<AmbientStepsDayProduct>()
 		val authenticatedDays = mutableListOf<PortableAmbientStepsDayV2>()
 		var factCount = 0
 		var gapCount = 0
 		candidates.forEach { candidate ->
 			currentCoroutineContext().ensureActive()
-			val lineage = dao.loadAuthenticatedAmbientStepsLineage(
-				candidate.dayIdentity,
-				state,
-			)
+			val lineage = dao.loadAuthenticatedAmbientStepsLineage(candidate.dayIdentity, state)
 			check(lineage.latest.header == candidate)
 			val revision = lineage.latest
 			val portableDay = revision.day
-			val graphBindings = database.importedPortableStepsCountDomainDao().bindingsForProduct(
-				ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
-				revision.header.dayIdentity,
-				ImportedAmbientStepsDao.MAX_ARCHIVES_PER_DAY + 1,
-			)
-			if (graphBindings.size > ImportedAmbientStepsDao.MAX_ARCHIVES_PER_DAY) {
-				return ImportedAmbientStepsSnapshot.Unverifiable(
-					ImportedAmbientStepsReadFailure.DEPENDENCY_OVERFLOW,
-				)
+			val graphRevision = readCountDomainRevision(lineage, includeCountDomainGraph) { reason ->
+				return ImportedAmbientStepsSnapshot.Unverifiable(reason)
 			}
-			val graphRevision = if (graphBindings.isEmpty()) {
-				val graphless = database.loadProvenGraphlessLegacyAmbientLineage(lineage)
-					.lastOrNull()
-				if (includeCountDomainGraph) {
-					return ImportedAmbientStepsSnapshot.Unverifiable(
-						ImportedAmbientStepsReadFailure.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
-					)
-				}
-				graphless
-			} else {
-				try {
-					database.loadAuthenticatedImportedAmbientStepsGraphLineage(lineage).lastOrNull()
-				} catch (_: IllegalArgumentException) {
-					null
-				} catch (_: IllegalStateException) {
-					null
-				} catch (_: ArithmeticException) {
-					null
-				} ?: return ImportedAmbientStepsSnapshot.Unverifiable(
-					ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
-				)
-			}
-			if (graphRevision != null &&
-				revision.header.importRevision !in graphRevision.productImportRevisions
-			) return ImportedAmbientStepsSnapshot.Unverifiable(
-				ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
-			)
 			if (includeCountDomainGraph) {
-				if (!checkNotNull(graphRevision).graph.hasCompletePortableOwnerLineages()) {
-					return ImportedAmbientStepsSnapshot.Unverifiable(
-						ImportedAmbientStepsReadFailure.COUNT_DOMAIN_GRAPH_UNAVAILABLE,
-					)
-				}
-				authenticatedDays += try {
-					PortableAmbientStepsDayV2(
-						portableDay,
-						graphRevision.graph,
-					)
-				} catch (_: IllegalArgumentException) {
-					return ImportedAmbientStepsSnapshot.Unverifiable(
-						ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
-					)
+				authenticatedDays += authenticatedDay(portableDay, checkNotNull(graphRevision)) { reason ->
+					return ImportedAmbientStepsSnapshot.Unverifiable(reason)
 				}
 			}
 			factCount = Math.addExact(factCount, portableDay.facts.size)
@@ -251,60 +240,12 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 			if (factCount > AmbientStepsPortableFormatV1.MAX_FACTS ||
 				gapCount > AmbientStepsPortableFormatV1.MAX_GAPS
 			) {
-				throw ImportedAmbientStepsLineageFailure(
-					ImportedAmbientStepsLineageFailureReason.DEPENDENCY_OVERFLOW,
-				)
+				throw ImportedAmbientStepsLineageFailure(ImportedAmbientStepsLineageFailureReason.DEPENDENCY_OVERFLOW)
 			}
 			days += portableDay
-			val day = AmbientStepsDayIdentity(
-				epochDay = portableDay.structuralEpochDay,
-				storedZoneId = portableDay.storedZoneId,
-				startTimeMs = portableDay.structuralDayStartTimeMs,
-				endTimeMs = portableDay.structuralDayEndTimeMs,
-			)
-			val provenance = ImportedAmbientStepsFactProvenance(
-				archiveIdentity = revision.header.archiveIdentity,
-				dayIdentity = revision.header.dayIdentity,
-				dayImportRevision = revision.header.importRevision,
-			)
-			val countDomainGraph = checkNotNull(graphRevision).graph
-			val countDomainOwners = countDomainGraph.ambientCountDomainOwners(
-				revision.header.dayIdentity,
-			) ?: return ImportedAmbientStepsSnapshot.Unverifiable(
-				ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
-			)
-			if (countDomainOwners.keys != portableDay.facts.mapTo(linkedSetOf()) {
-					it.identity.value
-				}
-			) {
-				return ImportedAmbientStepsSnapshot.Unverifiable(
-					ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
-				)
+			products += composeImportedDay(revision, graphRevision) { reason ->
+				return ImportedAmbientStepsSnapshot.Unverifiable(reason)
 			}
-			products += composeAmbientStepsDay(
-				day = day,
-				facts = portableDay.facts.map { fact ->
-					QualifiedAmbientStepsFact(
-						logicalFactId = fact.identity.value,
-						day = day,
-						startTimeMs = fact.intervalStartTimeMs,
-						endTimeMs = fact.intervalEndTimeMs,
-						stepCount = fact.stepCount,
-						provenance = null,
-						portableIdentity = fact.identity.value,
-						origin = QualifiedAmbientStepsFactOrigin.PORTABLE_IMPORT,
-						importedProvenance = provenance,
-						correctionRevision = revision.header.importRevision,
-						contentChecksum = fact.contentChecksum.value,
-						countDomainOwner = countDomainOwners[fact.identity.value],
-					)
-				},
-				gaps = portableDay.gaps.map { gap ->
-					EffectiveAmbientStepsGap(gap.intervalStartTimeMs, gap.intervalEndTimeMs)
-				},
-				sessions = emptyList(),
-				sourceCauses = portableDay.toAmbientStepsProductCauses(),
-			)
 		}
 		days.sortWith(PORTABLE_AMBIENT_STEPS_DAY_ORDER)
 		check(days.map { StructuralImportedAmbientStepsDayKey(it) }.distinct().size == days.size)
@@ -317,6 +258,111 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 			} else {
 				null
 			},
+		)
+	}
+
+	private suspend inline fun readCountDomainRevision(
+		lineage: AuthenticatedImportedAmbientStepsLineage,
+		includeCountDomainGraph: Boolean,
+		onFailure: (ImportedAmbientStepsReadFailure) -> Nothing,
+	): AuthenticatedImportedAmbientStepsGraphRevision? {
+		val revision = lineage.latest
+		val bindings = database.importedPortableStepsCountDomainDao().bindingsForProduct(
+			ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
+			revision.header.dayIdentity,
+			ImportedAmbientStepsDao.MAX_ARCHIVES_PER_DAY + 1,
+		)
+		if (bindings.size > ImportedAmbientStepsDao.MAX_ARCHIVES_PER_DAY) {
+			onFailure(ImportedAmbientStepsReadFailure.DEPENDENCY_OVERFLOW)
+		}
+		val graphRevision = if (bindings.isEmpty()) {
+			val graphless = database.loadProvenGraphlessLegacyAmbientLineage(lineage).lastOrNull()
+			if (includeCountDomainGraph) {
+				onFailure(ImportedAmbientStepsReadFailure.COUNT_DOMAIN_GRAPH_UNAVAILABLE)
+			}
+			graphless
+		} else {
+			try {
+				database.loadAuthenticatedImportedAmbientStepsGraphLineage(lineage).lastOrNull()
+			} catch (_: IllegalArgumentException) {
+				null
+			} catch (_: IllegalStateException) {
+				null
+			} catch (_: ArithmeticException) {
+				null
+			} ?: onFailure(ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE)
+		}
+		if (graphRevision != null && revision.header.importRevision !in graphRevision.productImportRevisions) {
+			onFailure(ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE)
+		}
+		return graphRevision
+	}
+
+	private inline fun authenticatedDay(
+		portableDay: PortableAmbientStepsDayV1,
+		graphRevision: AuthenticatedImportedAmbientStepsGraphRevision,
+		onFailure: (ImportedAmbientStepsReadFailure) -> Nothing,
+	): PortableAmbientStepsDayV2 {
+		if (!graphRevision.graph.hasCompletePortableOwnerLineages()) {
+			onFailure(ImportedAmbientStepsReadFailure.COUNT_DOMAIN_GRAPH_UNAVAILABLE)
+		}
+		return try {
+			PortableAmbientStepsDayV2(portableDay, graphRevision.graph)
+		} catch (_: IllegalArgumentException) {
+			onFailure(ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE)
+		}
+	}
+
+	private inline fun composeImportedDay(
+		revision: AuthenticatedImportedAmbientStepsRevision,
+		graphRevision: AuthenticatedImportedAmbientStepsGraphRevision?,
+		onFailure: (ImportedAmbientStepsReadFailure) -> Nothing,
+	): AmbientStepsDayProduct {
+		val portableDay = revision.day
+		val day = AmbientStepsDayIdentity(
+			epochDay = portableDay.structuralEpochDay,
+			storedZoneId = portableDay.storedZoneId,
+			startTimeMs = portableDay.structuralDayStartTimeMs,
+			endTimeMs = portableDay.structuralDayEndTimeMs,
+		)
+		val provenance = ImportedAmbientStepsFactProvenance(
+			archiveIdentity = revision.header.archiveIdentity,
+			dayIdentity = revision.header.dayIdentity,
+			dayImportRevision = revision.header.importRevision,
+		)
+		val countDomainGraph = checkNotNull(graphRevision).graph
+		val countDomainOwners = countDomainGraph.ambientCountDomainOwners(
+			revision.header.dayIdentity,
+		) ?: onFailure(ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE)
+		if (countDomainOwners.keys != portableDay.facts.mapTo(linkedSetOf()) {
+				it.identity.value
+			}
+		) {
+			onFailure(ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE)
+		}
+		return composeAmbientStepsDay(
+			day = day,
+			facts = portableDay.facts.map { fact ->
+				QualifiedAmbientStepsFact(
+					logicalFactId = fact.identity.value,
+					day = day,
+					startTimeMs = fact.intervalStartTimeMs,
+					endTimeMs = fact.intervalEndTimeMs,
+					stepCount = fact.stepCount,
+					provenance = null,
+					portableIdentity = fact.identity.value,
+					origin = QualifiedAmbientStepsFactOrigin.PORTABLE_IMPORT,
+					importedProvenance = provenance,
+					correctionRevision = revision.header.importRevision,
+					contentChecksum = fact.contentChecksum.value,
+					countDomainOwner = countDomainOwners[fact.identity.value],
+				)
+			},
+			gaps = portableDay.gaps.map { gap ->
+				EffectiveAmbientStepsGap(gap.intervalStartTimeMs, gap.intervalEndTimeMs)
+			},
+			sessions = emptyList(),
+			sourceCauses = portableDay.toAmbientStepsProductCauses(),
 		)
 	}
 
@@ -344,16 +390,7 @@ internal class RoomReexportImportedAmbientSteps @Inject constructor(
 					PortableAmbientStepsExportRetryableReason.STORAGE_UNAVAILABLE,
 				)
 			is ImportedAmbientStepsSnapshot.Unverifiable -> ExportPortableAmbientStepsResult.Unverifiable(
-				when (snapshot.reason) {
-					ImportedAmbientStepsReadFailure.DEPENDENCY_OVERFLOW ->
-						PortableAmbientStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW
-					ImportedAmbientStepsReadFailure.COUNT_DOMAIN_GRAPH_UNAVAILABLE ->
-						PortableAmbientStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE
-					ImportedAmbientStepsReadFailure.SOURCE_EVIDENCE_UNAVAILABLE ->
-						PortableAmbientStepsExportUnverifiableReason.SOURCE_AUTHORITY_UNAVAILABLE
-					ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE ->
-						PortableAmbientStepsExportUnverifiableReason.CORRUPT_RETAINED_STATE
-				},
+				snapshot.reason.toPortableAmbientStepsExportReason(),
 			)
 			is ImportedAmbientStepsSnapshot.Ready -> {
 				currentCoroutineContext().ensureActive()
@@ -390,17 +427,7 @@ internal class RoomReexportImportedAmbientStepsV2 @Inject constructor(
 				)
 			is ImportedAmbientStepsSnapshot.Unverifiable ->
 				ExportPortableAmbientStepsResult.Unverifiable(
-					when (snapshot.reason) {
-						ImportedAmbientStepsReadFailure.DEPENDENCY_OVERFLOW ->
-							PortableAmbientStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW
-						ImportedAmbientStepsReadFailure.COUNT_DOMAIN_GRAPH_UNAVAILABLE ->
-							PortableAmbientStepsExportUnverifiableReason
-								.COUNT_DOMAIN_GRAPH_UNAVAILABLE
-						ImportedAmbientStepsReadFailure.SOURCE_EVIDENCE_UNAVAILABLE ->
-							PortableAmbientStepsExportUnverifiableReason.SOURCE_AUTHORITY_UNAVAILABLE
-						ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE ->
-							PortableAmbientStepsExportUnverifiableReason.CORRUPT_RETAINED_STATE
-					},
+					snapshot.reason.toPortableAmbientStepsExportReason(),
 				)
 			is ImportedAmbientStepsSnapshot.Ready -> {
 				val archive = snapshot.authenticatedArchive
@@ -419,6 +446,18 @@ internal class RoomReexportImportedAmbientStepsV2 @Inject constructor(
 	}
 }
 
+private fun ImportedAmbientStepsReadFailure.toPortableAmbientStepsExportReason():
+	PortableAmbientStepsExportUnverifiableReason = when (this) {
+	ImportedAmbientStepsReadFailure.DEPENDENCY_OVERFLOW ->
+		PortableAmbientStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW
+	ImportedAmbientStepsReadFailure.COUNT_DOMAIN_GRAPH_UNAVAILABLE ->
+		PortableAmbientStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE
+	ImportedAmbientStepsReadFailure.SOURCE_EVIDENCE_UNAVAILABLE ->
+		PortableAmbientStepsExportUnverifiableReason.SOURCE_AUTHORITY_UNAVAILABLE
+	ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE ->
+		PortableAmbientStepsExportUnverifiableReason.CORRUPT_RETAINED_STATE
+}
+
 private data class StructuralImportedAmbientStepsDayKey(
 	val epochDay: Long,
 	val zoneId: String,
@@ -434,10 +473,13 @@ private data class StructuralImportedAmbientStepsDayKey(
 }
 
 /** A completed import reopening stays valid when current collection choices later change. */
+@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 internal suspend fun AppDatabase.hasSavedAmbientStepsReopen(
 	fence: ImportedAmbientStepsSourceFenceEntity,
 ): Boolean {
-	if (!fence.deletionCompleted) return false
+	if (!fence.deletionCompleted) {
+		return false
+	}
 	val epoch = fence.reopenedConsentEpoch ?: return false
 	val reopenedAtMs = fence.reopenedAtMs ?: return false
 	val consent = sourcePolicyDao().consentEpoch(

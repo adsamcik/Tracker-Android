@@ -18,7 +18,8 @@ import com.adsamcik.tracker.stats.api.signal.LocationDecisionSignal
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.shouldBe
-import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -38,6 +39,7 @@ class RawLocationObservationRepairTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		runTest {
+			database.sourceEvidenceStateDao().ensure()
 			database.sourceDestinationOwnerDao().insertIfAbsent(
 				SourceDestinationOwnerEntity(
 					sourceKind = SourceDestinationOwnerEntity.SOURCE_LOCATION,
@@ -88,9 +90,9 @@ class RawLocationObservationRepairTest {
 	}
 
 	@Test
-	fun `startup repair unblocks a durable pending legacy decision`() = runTest {
+	fun `startup repair unblocks a durable pending legacy decision`(): Unit = runBlocking {
 		insertWal("legacy-pending", payloadVersion = 1, isMock = null)
-		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val dispatchers = TestDispatchersProvider(Dispatchers.Unconfined)
 		val durableBuffer = DurableSignalBuffer(
 			pendingSignalDao = database.pendingSignalDao(),
 			dispatchers = dispatchers,
@@ -269,7 +271,11 @@ class RawLocationObservationRepairTest {
 		database.sourceEventWalDao().insertIgnoringDuplicate(
 			SourceEventWalEntity(
 				eventId = eventId,
-				providerDedupKey = if (protectedBinding) null else "callback-1:$unitIndex",
+				providerDedupKey = if (protectedBinding) {
+					null
+				} else {
+					"callback-1:$unitIndex"
+				},
 				deliveryIdentity = "delivery-1".takeIf { protectedBinding },
 				deliveryUnitIndex = unitIndex.takeIf { protectedBinding },
 				deliveryUnitCount = 1.takeIf { protectedBinding },

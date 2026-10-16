@@ -40,6 +40,8 @@ import kotlinx.coroutines.withContext
  *   not touch the staging list.
  */
 @Singleton
+// One staging lock and durable WAL owner keeps checkpoint, claim and acknowledgement state together.
+@Suppress("TooManyFunctions")
 class DurableSignalBuffer @Inject constructor(
 	private val pendingSignalDao: PendingSignalDao,
 	private val dispatchers: DispatchersProvider,

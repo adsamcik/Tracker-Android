@@ -39,12 +39,36 @@ internal suspend fun AppDatabase.insertUnrelatedNativePortableOwners(
 		sourceSessionDao().insertManifestSources(listOf(SessionManifestSourceEntity(
 			logicalTrackingId = logical, manifestRevision = 1L, sourceKind = sourceKind,
 			purpose = "SESSION_CAPTURE", consentEpoch = 1L, persistenceEligible = true, qosCode = 1,
-			outputDestination = if (sourceKind == 4) SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE else null,
-			writerOwner = if (sourceKind == 4) SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS else null,
-			writerOwnerGeneration = if (sourceKind == 4) 2L else null,
-			writerProjectionId = if (sourceKind == 4) SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID else null,
-			writerProjectionVersion = if (sourceKind == 4) SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION else null,
-			writerBindingGeneration = if (sourceKind == 4) SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION else null,
+			outputDestination = if (sourceKind == 4) {
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE
+			} else {
+				null
+			},
+			writerOwner = if (sourceKind == 4) {
+				SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS
+			} else {
+				null
+			},
+			writerOwnerGeneration = if (sourceKind == 4) {
+				2L
+			} else {
+				null
+			},
+			writerProjectionId = if (sourceKind == 4) {
+				SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID
+			} else {
+				null
+			},
+			writerProjectionVersion = if (sourceKind == 4) {
+				SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION
+			} else {
+				null
+			},
+			writerBindingGeneration = if (sourceKind == 4) {
+				SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION
+			} else {
+				null
+			},
 		)))
 	}
 }

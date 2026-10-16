@@ -219,11 +219,19 @@ class RadioPurposeItemQualifierTest {
 		source: Int, timesMs: List<Long?>, authority: RadioPurposeItemAuthority, invalidIndexes: Set<Int> = emptySet(),
 	): RadioPurposeItemQualification = if (source == SourceDestinationOwnerEntity.SOURCE_WIFI) {
 		RadioPurposeItemQualifier.wifi(WifiWalPayload(timesMs.mapIndexed { index, time ->
-			WifiWalPayloadObservation("", if (index in invalidIndexes) 1 else 2_412, -60, time?.let(::nanos))
+			WifiWalPayloadObservation("", if (index in invalidIndexes) {
+				1
+			} else {
+				2_412
+			}, -60, time?.let(::nanos))
 		}, null, null, "UTC"), authority)
 	} else {
 		RadioPurposeItemQualifier.cell(CellWalPayload(null, timesMs.mapIndexed { index, time ->
-			CellWalPayloadObservation("", if (index in invalidIndexes) "UNKNOWN" else "LTE", true, -90, time?.let(::nanos))
+			CellWalPayloadObservation("", if (index in invalidIndexes) {
+				"UNKNOWN"
+			} else {
+				"LTE"
+			}, true, -90, time?.let(::nanos))
 		}, 0, "UTC"), authority)
 	}
 

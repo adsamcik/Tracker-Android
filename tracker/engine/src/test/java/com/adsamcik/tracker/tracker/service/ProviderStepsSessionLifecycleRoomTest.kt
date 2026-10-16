@@ -56,7 +56,11 @@ class ProviderStepsSessionLifecycleRoomTest {
 	private var accepted = false
 		set(value) {
 			field = value
-			acceptedStarts.value = if (value) 1L else 0L
+			acceptedStarts.value = if (value) {
+				1L
+			} else {
+				0L
+			}
 		}
 
 	@Before fun setUp() {
@@ -79,7 +83,7 @@ class ProviderStepsSessionLifecycleRoomTest {
 
 	@After fun tearDown() = database.close()
 
-	@Test fun `Start creates organization without a physical run or acquisition authority`() = runBlocking {
+	@Test fun `Start creates organization without a physical run or acquisition authority`(): Unit = runBlocking {
 		lifecycle.isAvailable() shouldBe true
 		val prepared = prepare()
 		prepared.requiresForegroundService shouldBe false
@@ -99,15 +103,19 @@ class ProviderStepsSessionLifecycleRoomTest {
 		lifecycle.observeSessionInfo().first()?.isProviderStepsSession shouldBe true
 	}
 
-	@Test fun `durable acceptance publishes live session even when the Start caller is cancelled`() = runBlocking {
+	@Test fun `durable acceptance publishes live session even when the Start caller is cancelled`(): Unit = runBlocking {
 		val prepared = prepare()
 		lifecycle.accept(prepared.token, 1L) shouldBe true
 		val initial = CompletableDeferred<Unit>()
 		val live = CompletableDeferred<Unit>()
 		val observer = launch(Dispatchers.Default) {
 			lifecycle.observeSessionInfo().collect { info ->
-				if (info == null) initial.complete(Unit)
-				if (info?.isProviderStepsSession == true) live.complete(Unit)
+				if (info == null) {
+					initial.complete(Unit)
+				}
+				if (info?.isProviderStepsSession == true) {
+					live.complete(Unit)
+				}
 			}
 		}
 		try {
@@ -124,7 +132,7 @@ class ProviderStepsSessionLifecycleRoomTest {
 		} finally { observer.cancelAndJoin() }
 	}
 
-	@Test fun `End closes exact measured bounds and leaves source choices unchanged`() = runBlocking {
+	@Test fun `End closes exact measured bounds and leaves source choices unchanged`(): Unit = runBlocking {
 		val prepared = prepare()
 		lifecycle.accept(prepared.token, 1L) shouldBe true
 		accepted = true
@@ -143,7 +151,7 @@ class ProviderStepsSessionLifecycleRoomTest {
 		lifecycle.observeSessionInfo().first() shouldBe null
 	}
 
-	@Test fun `permission or choice loss before acceptance cannot create a live session`() = runBlocking {
+	@Test fun `permission or choice loss before acceptance cannot create a live session`(): Unit = runBlocking {
 		val prepared = prepare()
 		chosen.value = chosen.value.copy(stepsEnabled = false, ambientStepsEnabled = false)
 		lifecycle.accept(prepared.token, 1L) shouldBe false
@@ -152,7 +160,7 @@ class ProviderStepsSessionLifecycleRoomTest {
 		database.sourceSessionDao().activeSession() shouldBe null
 	}
 
-	@Test fun `a stale Stop or compensation cannot erase a newer prepared Start`() = runBlocking {
+	@Test fun `a stale Stop or compensation cannot erase a newer prepared Start`(): Unit = runBlocking {
 		val prepared = prepare(generation = 3L)
 		lifecycle.close(stop(2L, 1_200L)) shouldBe false
 		lifecycle.compensate(prepared.token, 1L, "OLD_FAILURE") shouldBe false
@@ -160,7 +168,7 @@ class ProviderStepsSessionLifecycleRoomTest {
 		lifecycle.accept(prepared.token, 3L) shouldBe true
 	}
 
-	@Test fun `End before successful Start removes its provisional organization`() = runBlocking {
+	@Test fun `End before successful Start removes its provisional organization`(): Unit = runBlocking {
 		prepare()
 		clock.advance(10L)
 		lifecycle.close(stop(2L, 1_010L)) shouldBe true
@@ -168,7 +176,7 @@ class ProviderStepsSessionLifecycleRoomTest {
 		database.sourceSessionDao().activeSession() shouldBe null
 	}
 
-	@Test fun continuationRetainsOriginalAcceptedCommandAndExactRowRevision() = runBlocking {
+	@Test fun continuationRetainsOriginalAcceptedCommandAndExactRowRevision(): Unit = runBlocking {
 		val prepared = prepare()
 		lifecycle.accept(prepared.token, 1L) shouldBe true
 		lifecycle.continuationRequest() shouldBe null

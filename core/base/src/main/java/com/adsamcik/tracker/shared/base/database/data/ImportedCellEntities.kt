@@ -55,6 +55,10 @@ data class ImportedCellEntryRevisionEntity(
 		ImportedCellIdentity.requireProvenance(importJobId, importEntryKey, importSourceName)
 	}
 
+	/**
+	 * Stable persisted codes, including `SOURCE_FORMAT`, `SOURCE_SCHEMA_VERSION`,
+	 * `SUBSCRIPTION_GROUPING_UNKNOWN`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val SOURCE_FORMAT = "tracker-portable-captured-cell"
 		const val SOURCE_SCHEMA_VERSION = 1
@@ -298,7 +302,15 @@ data class ImportedCellEntryDeletionEntity(
 		))
 	}
 
+	/**
+	 * Factories and canonical digests binding this record to its original identity, revision and
+	 * lifecycle fields.
+	 */
 	companion object {
+		/**
+		 * Builds the imported Cell entry-deletion witness with its original identity, deleted import
+		 * revision, data epoch and UTC erase time.
+		 */
 		fun create(
 			entryIdentity: String,
 			collectedDataEpoch: Long,
@@ -343,7 +355,7 @@ data class ImportedCellDeletionGenerationEntity(
 		listOf(runIdentity, entryIdentity, deletionScopeDigest).forEach {
 			require(ImportedCellIdentity.isDigest(it))
 		}
-		require(setOf(runIdentity, entryIdentity, deletionScopeDigest).size == 3)
+		require(setOf(runIdentity, entryIdentity, deletionScopeDigest).size == EXPECTED_ERASE_IDENTITY_COUNT)
 		require(collectedDataEpoch >= 0L && generation > 0L && deletedAtMs >= 0L)
 		require(effectChecksum == checksum(
 			"tracker-imported-cell-deletion-generation-v1",
@@ -356,7 +368,15 @@ data class ImportedCellDeletionGenerationEntity(
 		))
 	}
 
+	/**
+	 * Factories and canonical digests binding this record to its original identity, revision and
+	 * lifecycle fields.
+	 */
 	companion object {
+		/**
+		 * Builds the imported Cell run-deletion record with its original scope, data epoch, generation
+		 * and UTC erase time.
+		 */
 		fun create(
 			runIdentity: String,
 			entryIdentity: String,
@@ -448,6 +468,10 @@ data class ImportedCellEntryDeletionReceiptEntity(
 		))
 	}
 
+	/**
+	 * Stable persisted codes, including `MAX_REVISIONS`, `MAX_RECEIPTS`, `MAX_RUNS`, and any
+	 * identity-bound record factories.
+	 */
 	companion object {
 		const val MAX_REVISIONS = 16
 		const val MAX_RECEIPTS = 256
@@ -455,6 +479,10 @@ data class ImportedCellEntryDeletionReceiptEntity(
 		const val MAX_OBSERVATIONS = MAX_REVISIONS * 4_096
 		const val MAX_PROTECTED_IDENTITIES = 1 + MAX_RUNS * 2 + MAX_OBSERVATIONS
 
+		/**
+		 * Binds the imported entry deletion to original session metadata, measured UTC bounds, lineage
+		 * counts and protected identities.
+		 */
 		fun create(
 			entryDeletion: ImportedCellEntryDeletionEntity,
 			deletedContentChecksum: String,
@@ -512,6 +540,10 @@ data class ImportedCellEntryDeletionReceiptEntity(
 			)
 		}
 
+		/**
+		 * Hashes the canonically ordered protected identities, including their stored owner and deletion
+		 * metadata.
+		 */
 		fun checksumProtectedIdentities(
 			values: List<ImportedCellDeletedIdentityEntity>,
 		): String = checksum(
@@ -684,6 +716,10 @@ data class ImportedCellDeletedIdentityEntity(
 		))
 	}
 
+	/**
+	 * Stable persisted codes, including `ENTRY`, `RUN`, `OBSERVATION`, and any identity-bound record
+	 * factories.
+	 */
 	companion object {
 		const val ENTRY = "ENTRY"
 		const val RUN = "RUN"
@@ -691,6 +727,10 @@ data class ImportedCellDeletedIdentityEntity(
 		const val DELETION_SCOPE = "DELETION_SCOPE"
 		private val ALL_KINDS = setOf(ENTRY, RUN, OBSERVATION, DELETION_SCOPE)
 
+		/**
+		 * Builds a retained identity witness with its original entry/run membership and optional
+		 * aggregate, measurement and coverage metadata.
+		 */
 		fun create(
 			protectedIdentity: String,
 			entryIdentity: String,
@@ -815,3 +855,5 @@ private fun checksum(namespace: String, vararg values: Any?): String {
 		.digest(canonical.toByteArray(Charsets.UTF_8))
 		.joinToString(separator = "") { byte -> "%02x".format(byte) }
 }
+
+private const val EXPECTED_ERASE_IDENTITY_COUNT = 3

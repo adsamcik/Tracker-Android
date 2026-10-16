@@ -67,6 +67,7 @@ class RoomActivityRecognitionEventIngressTest {
 		motionController = mockk(relaxed = true)
 		context = mockk(relaxed = true)
 		startupGate = mockk()
+		every { startupGate.permitsNewCollection } returns true
 		coEvery { startupGate.reconcileAdmission(any()) } returns
 			TrackingAdmissionStartupResult.Ready
 		database = mockk()

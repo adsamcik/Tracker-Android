@@ -14,7 +14,9 @@ internal suspend fun AppDatabase.installOriginalSourceStopFixture(
     val cutoffElapsedNanos = session.cutoffElapsedNanos ?: return
     val cutoffAtMs = session.cutoffAtMs ?: return
     val dao = sourceSessionDao()
-    if (dao.firstStopIntent(session.logicalTrackingId) != null) return
+    if (dao.firstStopIntent(session.logicalTrackingId) != null) {
+        return
+    }
     val active = SessionLifecycleIntentVersionEntity(session.logicalTrackingId, manifest.manifestRevision,
         manifest.manifestRevision, "ACTIVE", manifest.startOrigin, manifest.effectiveBootId,
         manifest.effectiveElapsedRealtimeNanos, manifest.effectiveWallTimeMs, session.automationEpoch,

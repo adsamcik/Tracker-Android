@@ -38,8 +38,14 @@ object SourceProviderPurposeScope {
 	private const val BROKER_PREFIX = "source-broker:"
 	private const val PURPOSE_MARKER = ":purposes="
 
+	/**
+	 * Builds the source-specific shared physical-owner key; purposes remain separate demand rows.
+	 */
 	fun sharedOwnerScope(sourceKind: Int): String = "$BROKER_PREFIX$sourceKind"
 
+	/**
+	 * Builds an owner key for a nonempty mask containing only known purposes.
+	 */
 	fun exactOwnerScope(sourceKind: Int, purposeMask: Long): String {
 		require(
 			purposeMask > 0L &&
@@ -48,9 +54,14 @@ object SourceProviderPurposeScope {
 		return sharedOwnerScope(sourceKind) + PURPOSE_MARKER + purposeMask
 	}
 
+	/**
+	 * Accepts a source's shared owner key or a correctly encoded exact-purpose owner key.
+	 */
 	fun isCanonicalOwnerScope(sourceKind: Int, ownerScope: String): Boolean {
 		val shared = sharedOwnerScope(sourceKind)
-		if (ownerScope == shared) return true
+		if (ownerScope == shared) {
+			return true
+		}
 		return exactPurposeMaskOrNull(sourceKind, ownerScope) != null
 	}
 
@@ -63,6 +74,10 @@ object SourceProviderPurposeScope {
 			?: false
 	}
 
+	/**
+	 * Returns demands for this source whose purposes can be served by the supplied physical owner
+	 * scope.
+	 */
 	fun selectDemands(
 		sourceKind: Int,
 		ownerScope: String,
@@ -87,7 +102,9 @@ object SourceProviderPurposeScope {
 
 	private fun exactPurposeMaskOrNull(sourceKind: Int, ownerScope: String): Long? {
 		val prefix = sharedOwnerScope(sourceKind) + PURPOSE_MARKER
-		if (!ownerScope.startsWith(prefix)) return null
+		if (!ownerScope.startsWith(prefix)) {
+			return null
+		}
 		val purposeMask = ownerScope.removePrefix(prefix)
 			.toLongOrNull()
 			?.takeIf {
@@ -139,6 +156,9 @@ object SourceBrokerAuthorization {
 
 	fun memberId(demandId: String): String = "demand:$demandId"
 
+	/** Projects selected demands, or a deny row, into this registration authorization revision. */
+	// Keep the denied and member authorization row schemas visible together.
+	@Suppress("LongMethod")
 	fun rows(
 		sourceKind: Int,
 		registrationGeneration: Long,
@@ -551,7 +571,9 @@ data class SourceAuthorizationSnapshot(
 }
 
 fun List<SourceAuthorizationEntity>.toAuthorizationSnapshotOrNull(): SourceAuthorizationSnapshot? {
-	if (isEmpty()) return null
+	if (isEmpty()) {
+		return null
+	}
 	val first = first()
 	return SourceAuthorizationSnapshot(
 		authorizationRevision = first.authorizationRevision,

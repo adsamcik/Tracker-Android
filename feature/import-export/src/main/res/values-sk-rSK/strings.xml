@@ -42,4 +42,25 @@
     <string name="format_database">Záloha databázy (ZIP)</string>
     <string name="settings_import_summary">Importovať údaje z podporovaných typov (%1$s) a archívov (%2$s). Importy databázy zlúčia kompatibilné riadky; nenahradia existujúce údaje.</string>
     <string name="settings_import_title">Importovať</string>
+    <string name="export_radio_sensitivity_title">Exportovať podrobnosti sietí?</string>
+    <string name="export_wifi_sensitivity_message">Tento súbor obsahuje uložené názvy Wi-Fi sietí a ID prístupových bodov.</string>
+    <string name="export_cell_sensitivity_message">Tento súbor obsahuje uložené ID základňových staníc a merania signálu.</string>
+    <string name="export_radio_no_data">Pre tento zdroj nie sú uložené žiadne údaje</string>
+    <string name="export_include_complete_sessions">Zahrnúť celé relácie</string>
+    <string name="import_location_conflict_title">Nahradiť uložené body?</string>
+    <string name="import_location_replace">Použiť body zo súboru</string>
+    <string name="import_location_keep">Ponechať uložené body</string>
+    <string name="export_backup_review_title">Skontrolovať plánované zálohy</string>
+    <string name="export_backup_review_summary">Pozastavené do kontroly aktualizovanej zálohy údajov.</string>
+    <string name="export_backup_review_message">Tieto plány teraz zálohujú všetky uložené údaje sledovania a súbory potrebné na ich obnovenie. Nastavenia sa nezálohujú. Obnoviť tieto plány?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Obnoviť zálohovanie</string>
+    <string name="import_backup_replace_title">Obnoviť zálohu údajov?</string>
+    <string name="import_backup_replace_message">Nahradiť uložené údaje touto zálohou? Nastavenia zostanú rovnaké. Sledovanie bude vypnuté, kým ho znova nezapnete.</string>
+    <string name="import_backup_restore">Nahradiť údaje</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d bod v tomto súbore sa líši od uloženej kópie. Vyberte, ktorý ponechať. Ostatné body sa importujú bežným spôsobom.</item>
+        <item quantity="few">%d body v tomto súbore sa líšia od uložených kópií. Vyberte, ktoré ponechať. Ostatné body sa importujú bežným spôsobom.</item>
+        <item quantity="many">%d bodov v tomto súbore sa líši od uložených kópií. Vyberte, ktoré ponechať. Ostatné body sa importujú bežným spôsobom.</item>
+        <item quantity="other">%d bodov v tomto súbore sa líši od uložených kópií. Vyberte, ktoré ponechať. Ostatné body sa importujú bežným spôsobom.</item>
+    </plurals>
 </resources>

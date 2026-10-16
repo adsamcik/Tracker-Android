@@ -3,6 +3,7 @@ package com.adsamcik.tracker.stats.data.repository
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.AmbientCellEffectiveLocalRow
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellChildEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactIntegrity
@@ -42,6 +43,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 
 @Singleton
+// One Room snapshot owns bounded child reads, retained qualification and source publication.
+@Suppress("TooManyFunctions")
 internal class RoomAmbientCellRepository(
 	private val database: AppDatabase,
 	private val ioDispatcher: CoroutineDispatcher,
@@ -71,64 +74,92 @@ internal class RoomAmbientCellRepository(
 		readQualifiedWindowInTransaction(request, includeObservationOverlap = true).strictResult()
 
 	/** Saved-data status preserves valid siblings and typed gaps on the measured reading window. */
-	internal suspend fun readQualifiedObservationWindowInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow> =
+	internal suspend fun readQualifiedObservationWindowInTransaction(request: AmbientCellReadRequest):
+		RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow> =
 		readQualifiedWindowInTransaction(request, includeObservationOverlap = true)
 
 	/** Optional paired consumers keep independently qualified rows and the explicit read gaps. */
-	internal suspend fun readQualifiedInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow> =
+	internal suspend fun readQualifiedInTransaction(
+		request: AmbientCellReadRequest,
+	): RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow> =
 		readQualifiedWindowInTransaction(request, includeObservationOverlap = false)
 
 	/** Caller owns one Room snapshot and selects real parent identities, never a whole day limit. */
 	internal suspend fun readSelectedInTransaction(localFactIds: List<String>, importedFactIds: List<String>,
-		localGapIds: List<String>, importedGapIds: List<String>): RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow> {
-		require(localFactIds.size + importedFactIds.size + localGapIds.size + importedGapIds.size in 1..100)
+		localGapIds: List<String>, importedGapIds: List<String>): RetainedAmbientRead<AmbientCellReadResult,
+            AmbientCellEffectiveLocalRow> {
+		require(
+			localFactIds.size + importedFactIds.size + localGapIds.size + importedGapIds.size in
+				1..MAX_SELECTED_RADIO_ROWS,
+		)
 		val dao = database.ambientCellFactDao()
-		val local = if (localFactIds.isEmpty()) emptyList() else dao.effectiveLocalByFactIds(localFactIds, localFactIds.size + 1)
-		val imported = if (importedFactIds.isEmpty()) emptyList() else dao.effectiveImportedByFactIds(importedFactIds, importedFactIds.size + 1)
-		val gaps = if (localGapIds.isEmpty()) emptyList() else dao.gapsByIds(localGapIds, localGapIds.size + 1)
-		val importedGaps = if (importedGapIds.isEmpty()) emptyList() else dao.importedGapsByIds(importedGapIds, importedGapIds.size + 1)
+		val local = if (localFactIds.isEmpty()) {
+			emptyList()
+		} else {
+			dao.effectiveLocalByFactIds(localFactIds, localFactIds.size + 1)
+		}
+		val imported = if (importedFactIds.isEmpty()) {
+			emptyList()
+		} else {
+			dao.effectiveImportedByFactIds(importedFactIds, importedFactIds.size + 1)
+		}
+		val gaps = if (localGapIds.isEmpty()) {
+			emptyList()
+		} else {
+			dao.gapsByIds(localGapIds, localGapIds.size + 1)
+		}
+		val importedGaps = if (importedGapIds.isEmpty()) {
+			emptyList()
+		} else {
+			dao.importedGapsByIds(importedGapIds, importedGapIds.size + 1)
+		}
 		if (local.size > localFactIds.size || imported.size > importedFactIds.size ||
 			gaps.size > localGapIds.size || importedGaps.size > importedGapIds.size) {
 			return RetainedAmbientRead(AmbientCellReadResult.DependencyOverflow)
 		}
-		return qualifyAndCompose(local, imported, gaps, importedGaps, 100)
+		return qualifyAndCompose(local, imported, gaps, importedGaps, MAX_SELECTED_RADIO_ROWS)
 	}
 
 	private suspend fun readQualifiedWindowInTransaction(request: AmbientCellReadRequest,
 		includeObservationOverlap: Boolean): RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow> {
 		val dao = database.ambientCellFactDao()
 		val local = if (AmbientCellOrigin.LOCAL_DEVICE in request.origins) {
-			if (includeObservationOverlap) dao.effectiveLocalOverObservationWindow(request.fromInclusiveMs,
-				request.toExclusiveMs, request.limit + 1) else
-			dao.effectiveLocalOverWindow(
-				request.fromInclusiveMs,
-				request.toExclusiveMs,
-				request.limit + 1,
-			)
-		} else emptyList()
+			if (includeObservationOverlap) {
+				dao.effectiveLocalOverObservationWindow(request.fromInclusiveMs, request.toExclusiveMs,
+                    request.limit + 1)
+			} else {
+				dao.effectiveLocalOverWindow(request.fromInclusiveMs, request.toExclusiveMs, request.limit + 1)
+			}
+		} else {
+			emptyList()
+		}
 		val imported = if (AmbientCellOrigin.PORTABLE_IMPORT in request.origins) {
-			if (includeObservationOverlap) dao.importedOverObservationWindow(request.fromInclusiveMs,
-				request.toExclusiveMs, request.limit + 1) else
-			dao.importedOverWindow(
-				request.fromInclusiveMs,
-				request.toExclusiveMs,
-				request.limit + 1,
-			)
-		} else emptyList()
+			if (includeObservationOverlap) {
+				dao.importedOverObservationWindow(request.fromInclusiveMs, request.toExclusiveMs, request.limit + 1)
+			} else {
+				dao.importedOverWindow(request.fromInclusiveMs, request.toExclusiveMs, request.limit + 1)
+			}
+		} else {
+			emptyList()
+		}
 		val gaps = if (AmbientCellOrigin.LOCAL_DEVICE in request.origins) {
 			dao.gapsOverWindow(
 				request.fromInclusiveMs,
 				request.toExclusiveMs,
 				request.limit + 1,
 			)
-		} else emptyList()
+		} else {
+			emptyList()
+		}
 		val importedGaps = if (AmbientCellOrigin.PORTABLE_IMPORT in request.origins) {
 			dao.importedGapsOverWindow(
 				request.fromInclusiveMs,
 				request.toExclusiveMs,
 				request.limit + 1,
 			)
-		} else emptyList()
+		} else {
+			emptyList()
+		}
 		return qualifyAndCompose(local, imported, gaps, importedGaps, request.limit)
 	}
 
@@ -154,36 +185,44 @@ internal class RoomAmbientCellRepository(
 				request.storedZoneId,
 				request.limit + 1,
 			)
-		} else emptyList()
+		} else {
+			emptyList()
+		}
 		val imported = if (AmbientCellOrigin.PORTABLE_IMPORT in request.origins) {
 			dao.importedForDay(
 				request.structuralEpochDay,
 				request.storedZoneId,
 				request.limit + 1,
 			)
-		} else emptyList()
+		} else {
+			emptyList()
+		}
 		val gaps = if (AmbientCellOrigin.LOCAL_DEVICE in request.origins) {
 			dao.gapsForDay(
 				request.structuralEpochDay,
 				request.storedZoneId,
 				request.limit + 1,
 			)
-		} else emptyList()
+		} else {
+			emptyList()
+		}
 		val importedGaps = if (AmbientCellOrigin.PORTABLE_IMPORT in request.origins) {
 			dao.importedGapsForDay(
 				request.structuralEpochDay,
 				request.storedZoneId,
 				request.limit + 1,
 			)
-		} else emptyList()
+		} else {
+			emptyList()
+		}
 		return qualifyAndCompose(local, imported, gaps, importedGaps, request.limit).strictResult()
 	}
 
 	private suspend fun qualifyAndCompose(local: List<AmbientCellEffectiveLocalRow>,
 		imported: List<ImportedAmbientCellFactEntity>, gaps: List<AmbientCellGapEntity>,
-		importedGaps: List<ImportedAmbientCellGapEntity>, limit: Int): RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow> {
-		if (local.size > limit || imported.size > limit || gaps.size > limit || importedGaps.size > limit ||
-			local.size + imported.size > limit || gaps.size + importedGaps.size > limit) {
+		importedGaps: List<ImportedAmbientCellGapEntity>, limit: Int): RetainedAmbientRead<AmbientCellReadResult,
+            AmbientCellEffectiveLocalRow> {
+		if (exceedsReadLimit(local.size, imported.size, gaps.size, importedGaps.size, limit)) {
 			return RetainedAmbientRead(AmbientCellReadResult.DependencyOverflow)
 		}
 		val native = retained.qualifyCellInTransaction(local, limit)
@@ -192,19 +231,24 @@ internal class RoomAmbientCellRepository(
 		for (ids in imported.map { it.factId }.distinct().chunked(CELL_SQLITE_ID_CHUNK_SIZE)) {
 			history += database.ambientCellFactDao().importedFactRevisions(ids,
 				MAX_IMPORTED_CELL_REVISIONS_PER_READ - history.size + 1)
-			if (history.size > MAX_IMPORTED_CELL_REVISIONS_PER_READ) return RetainedAmbientRead(AmbientCellReadResult.DependencyOverflow)
+			if (history.size > MAX_IMPORTED_CELL_REVISIONS_PER_READ) {
+				return RetainedAmbientRead(AmbientCellReadResult.DependencyOverflow)
+			}
 		}
 		val portable = importedRetained.cellInTransaction(imported, history, importedGaps)
 		return RetainedAmbientRead(compose(native.rows, portable.facts, nativeGaps.rows, portable.gaps, limit),
 			native.gaps + nativeGaps.gaps + portable.readGaps, native.rows)
 	}
 
-	private fun RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow>.strictResult(): AmbientCellReadResult = when {
+	private fun RetainedAmbientRead<AmbientCellReadResult,
+        AmbientCellEffectiveLocalRow>.strictResult(): AmbientCellReadResult = when {
 		RadioContextReadGapReason.DEPENDENCY_LIMIT in readGaps -> AmbientCellReadResult.DependencyOverflow
 		readGaps.any { it != RadioContextReadGapReason.RETENTION_BOUNDARY } -> AmbientCellReadResult.StorageUnavailable
 		else -> result
 	}
 
+	// Ordered collection-budget and row-integrity exits retain their exact typed outcomes.
+	@Suppress("ReturnCount")
 	private suspend fun compose(
 		local: List<AmbientCellEffectiveLocalRow>,
 		imported: List<ImportedAmbientCellFactEntity>,
@@ -212,75 +256,120 @@ internal class RoomAmbientCellRepository(
 		importedGaps: List<ImportedAmbientCellGapEntity>,
 		limit: Int,
 	): AmbientCellReadResult {
-		if (local.size > limit || imported.size > limit || gaps.size > limit ||
-			importedGaps.size > limit || local.size + imported.size > limit ||
-			gaps.size + importedGaps.size > limit
-		) return AmbientCellReadResult.DependencyOverflow
-		val localChildren = local.map { it.fact.logicalFactId }.distinct()
-			.chunked(CELL_SQLITE_ID_CHUNK_SIZE).flatMap { ids ->
-				val rows = database.radioObservationChildDao().cellCurrentBackgroundChildrenForFactIds(
-					ids, ids.size * MAX_CELL_CHILDREN + 1)
-				if (rows.size > ids.size * MAX_CELL_CHILDREN) {
-					return AmbientCellReadResult.DependencyOverflow
-				}
-				rows
-			}.groupBy { it.logicalFactId to it.semanticRevision }
-		val localFacts = local.map { row ->
-			val base = row.toApiFact() ?: return AmbientCellReadResult.StorageUnavailable
-			val children = localChildren[row.fact.logicalFactId to row.fact.semanticRevision].orEmpty()
-			if ((row.fact.purposeDemandId != null || children.isNotEmpty()) &&
-				children.size != base.observationCount
-			) {
-				return AmbientCellReadResult.StorageUnavailable
-			}
-			if (children.any { child ->
-				child.writerId != row.fact.writerId || child.writerVersion != row.fact.writerVersion ||
-					!radioChildFitsMeasuredInterval(child.observedWallTimeMs, child.wallTimeUncertaintyMs,
-						base.coverageStartTimeMs, base.latestPossibleTimeMs) ||
-					child.contentChecksum != RadioObservationChildIntegrity.cell(CellChildChecksumInput(
-						RadioChildOwner(RadioChildPurpose.BACKGROUND, child.writerId,
-							child.writerVersion, child.logicalFactId, child.semanticRevision, child.itemIndex),
-						child.providerTimestampNanos, child.observedWallTimeMs,
-						child.wallTimeUncertaintyMs, child.towerIdentity, child.radioType,
-						child.registered, child.signalDbm))
-			}) return AmbientCellReadResult.StorageUnavailable
-			base.copy(towers = children.map { child -> CellObservedTower(
-				child.observedWallTimeMs, child.wallTimeUncertaintyMs,
-				child.towerIdentity?.takeIf(String::isNotBlank),
-				CellHistoryTechnology.valueOf(child.radioType), child.registered, child.signalDbm,
-			) })
+		if (exceedsReadLimit(local.size, imported.size, gaps.size, importedGaps.size, limit)) {
+			return AmbientCellReadResult.DependencyOverflow
 		}
-		val importedChildren = imported.map(ImportedAmbientCellFactEntity::factId).distinct()
-			.chunked(CELL_SQLITE_ID_CHUNK_SIZE).flatMap { ids ->
-				val rows = database.importedRadioChildDao().cellCurrentBackgroundChildrenForFactIds(
-					ids, ids.size * MAX_CELL_CHILDREN + 1)
-				if (rows.size > ids.size * MAX_CELL_CHILDREN) {
-					return AmbientCellReadResult.DependencyOverflow
-				}
-				rows
-			}.groupBy { Triple(it.archiveId, it.factId, it.semanticRevision) }
+		val localChildren = localChildren(local) ?: return AmbientCellReadResult.DependencyOverflow
+		val localFacts = local.map { row ->
+			composeLocalFact(row, localChildren[row.fact.logicalFactId to row.fact.semanticRevision].orEmpty())
+				?: return AmbientCellReadResult.StorageUnavailable
+		}
+		val importedChildren = importedChildren(imported) ?: return AmbientCellReadResult.DependencyOverflow
 		val importedKeys = imported.map { Triple(it.archiveId, it.factId, it.semanticRevision) }.toSet()
 		if (!importedKeys.containsAll(importedChildren.keys)) {
 			return AmbientCellReadResult.StorageUnavailable
 		}
-		val importedFacts = imported.map { row ->
-			val base = row.toApiFact() ?: return AmbientCellReadResult.StorageUnavailable
-			val children = importedChildren[Triple(row.archiveId, row.factId, row.semanticRevision)]
-				.orEmpty()
-			if (children.size > MAX_CELL_CHILDREN ||
-				children.isNotEmpty() && children.size != base.observationCount ||
-				children.map(ImportedAmbientCellChildEntity::itemIndex).distinct().size != children.size
-			) {
-				return AmbientCellReadResult.StorageUnavailable
-			}
-			val towers = children.map { child ->
-				if (!radioChildFitsMeasuredInterval(child.observedWallTimeMs, child.wallTimeUncertaintyMs,
-					base.coverageStartTimeMs, base.latestPossibleTimeMs)) return AmbientCellReadResult.StorageUnavailable
-				child.toObservedTowerIfValid(row)
-					?: return AmbientCellReadResult.StorageUnavailable
-			}
-			base.copy(towers = towers)
+		val importedFacts = imported.map { parent ->
+			composeImportedFact(parent, importedChildren[Triple(parent.archiveId, parent.factId,
+				parent.semanticRevision)].orEmpty()) ?: return AmbientCellReadResult.StorageUnavailable
 		}
+		return composeSnapshot(localFacts, importedFacts, gaps, importedGaps)
+	}
+
+	// Keep every individual and combined collection count in the same pre-read bound.
+	@Suppress("ComplexCondition")
+	private fun exceedsReadLimit(local: Int, imported: Int, gaps: Int, importedGaps: Int, limit: Int): Boolean =
+		local > limit || imported > limit || gaps > limit || importedGaps > limit ||
+			local + imported > limit || gaps + importedGaps > limit
+
+	private suspend fun localChildren(local: List<AmbientCellEffectiveLocalRow>):
+		Map<Pair<String, Long>, List<AmbientCellChildEntity>>? {
+		return local.map { it.fact.logicalFactId }.distinct()
+			.chunked(CELL_SQLITE_ID_CHUNK_SIZE).flatMap { ids ->
+				val rows = database.radioObservationChildDao().cellCurrentBackgroundChildrenForFactIds(
+					ids, ids.size * MAX_CELL_CHILDREN + 1)
+				if (rows.size > ids.size * MAX_CELL_CHILDREN) {
+					return null
+				}
+				rows
+			}.groupBy { it.logicalFactId to it.semanticRevision }
+	}
+
+	private fun composeLocalFact(
+		row: AmbientCellEffectiveLocalRow,
+		children: List<AmbientCellChildEntity>,
+	): AmbientCellFact? {
+		val base = row.toApiFact() ?: return null
+		if ((row.fact.purposeDemandId != null || children.isNotEmpty()) &&
+			children.size != base.observationCount
+		) {
+			return null
+		}
+		if (children.any { !it.matchesParent(row, base) }) {
+			return null
+		}
+		return base.copy(towers = children.map { child -> CellObservedTower(
+			child.observedWallTimeMs, child.wallTimeUncertaintyMs,
+			child.towerIdentity?.takeIf(String::isNotBlank),
+			CellHistoryTechnology.valueOf(child.radioType), child.registered, child.signalDbm,
+		) })
+	}
+
+	// One saved child must match its parent, measured interval and exact content digest.
+	private fun AmbientCellChildEntity.matchesParent(
+		row: AmbientCellEffectiveLocalRow,
+		base: AmbientCellFact,
+	): Boolean = !(
+		this.writerId != row.fact.writerId || this.writerVersion != row.fact.writerVersion ||
+			!radioChildFitsMeasuredInterval(this.observedWallTimeMs, this.wallTimeUncertaintyMs,
+				base.coverageStartTimeMs, base.latestPossibleTimeMs) ||
+			this.contentChecksum != RadioObservationChildIntegrity.cell(CellChildChecksumInput(
+				RadioChildOwner(RadioChildPurpose.BACKGROUND, this.writerId,
+					this.writerVersion, this.logicalFactId, this.semanticRevision, this.itemIndex),
+				this.providerTimestampNanos, this.observedWallTimeMs,
+				this.wallTimeUncertaintyMs, this.towerIdentity, this.radioType,
+				this.registered, this.signalDbm))
+	)
+
+	private suspend fun importedChildren(imported: List<ImportedAmbientCellFactEntity>):
+		Map<Triple<String, String, Long>, List<ImportedAmbientCellChildEntity>>? {
+		return imported.map(ImportedAmbientCellFactEntity::factId).distinct()
+			.chunked(CELL_SQLITE_ID_CHUNK_SIZE).flatMap { ids ->
+				val rows = database.importedRadioChildDao().cellCurrentBackgroundChildrenForFactIds(
+					ids, ids.size * MAX_CELL_CHILDREN + 1)
+				if (rows.size > ids.size * MAX_CELL_CHILDREN) {
+					return null
+				}
+				rows
+			}.groupBy { Triple(it.archiveId, it.factId, it.semanticRevision) }
+	}
+
+	// Ordered parent, child-count, measured-interval and digest rejections keep distinct exits.
+	@Suppress("ReturnCount")
+	private fun composeImportedFact(
+		row: ImportedAmbientCellFactEntity,
+		children: List<ImportedAmbientCellChildEntity>,
+	): AmbientCellFact? {
+		val base = row.toApiFact() ?: return null
+		if (children.size > MAX_CELL_CHILDREN ||
+			children.isNotEmpty() && children.size != base.observationCount ||
+			children.map(ImportedAmbientCellChildEntity::itemIndex).distinct().size != children.size
+		) {
+			return null
+		}
+		val towers = children.map { child ->
+			if (!radioChildFitsMeasuredInterval(child.observedWallTimeMs, child.wallTimeUncertaintyMs,
+				base.coverageStartTimeMs, base.latestPossibleTimeMs)) {
+				return null
+			}
+			child.toObservedTowerIfValid(row)
+				?: return null
+		}
+		return base.copy(towers = towers)
+	}
+
+	private suspend fun composeSnapshot(localFacts: List<AmbientCellFact>, importedFacts: List<AmbientCellFact>,
+		gaps: List<AmbientCellGapEntity>, importedGaps: List<ImportedAmbientCellGapEntity>): AmbientCellReadResult {
 		val facts = (localFacts + importedFacts)
 			.sortedWith(compareBy<AmbientCellFact>(
 				AmbientCellFact::observedTimeMs,
@@ -291,7 +380,11 @@ internal class RoomAmbientCellRepository(
 				AmbientCellAuthorityIntegrity.isAuthentic(it) &&
 					it.state == AmbientCellAuthorityEntity.STATE_ACTIVE
 			} == true
-		) AmbientCellAvailability.AVAILABLE else AmbientCellAvailability.DISABLED
+		) {
+			AmbientCellAvailability.AVAILABLE
+		} else {
+			AmbientCellAvailability.DISABLED
+		}
 		return AmbientCellReadResult.Snapshot(
 			facts,
 			(gaps.map {
@@ -315,6 +408,8 @@ internal class RoomAmbientCellRepository(
 	}
 }
 
+// One immutable imported child must match its parent identity, index, provider time and exact digest.
+@Suppress("ComplexCondition")
 internal fun ImportedAmbientCellChildEntity.toObservedTowerIfValid(
 	parent: ImportedAmbientCellFactEntity,
 ): CellObservedTower? {
@@ -323,15 +418,21 @@ internal fun ImportedAmbientCellChildEntity.toObservedTowerIfValid(
 		contentChecksum != PortableRadioChildIntegrity.digest("cell", listOf(factId),
 			listOf(semanticRevision, itemIndex, providerTimestampNanos, observedWallTimeMs,
 				wallTimeUncertaintyMs, towerIdentity, radioType, registered, signalDbm))
-	) return null
+	) {
+		return null
+	}
 	return runCatching { CellObservedTower(observedWallTimeMs, wallTimeUncertaintyMs,
 		towerIdentity?.takeIf(String::isNotBlank), CellHistoryTechnology.valueOf(radioType),
 		registered, signalDbm) }.getOrNull()
 }
 
+// Maps one immutable joined row; each missing-field rejection preserves the saved record contract.
+@Suppress("CyclomaticComplexMethod", "ReturnCount")
 internal fun AmbientCellEffectiveLocalRow.toApiFact(): AmbientCellFact? {
 	val source = fact
-	if (source.effectChecksum != AmbientCellFactIntegrity.effectChecksum(source)) return null
+	if (source.effectChecksum != AmbientCellFactIntegrity.effectChecksum(source)) {
+		return null
+	}
 	val measuredStart = source.measuredStartTimeMs() ?: return null
 	val count = source.observationCount ?: ownerObservationCount ?: return null
 	return AmbientCellFact(
@@ -423,7 +524,9 @@ internal fun ImportedAmbientCellGapEntity.toApiGap(): AmbientCellGap? {
 private fun String.toCellCoverage(): AmbientCellCoverage =
 	if (this == AmbientCellFactRevisionEntity.COMPLETENESS_COMPLETE) {
 		AmbientCellCoverage.COMPLETE
-	} else AmbientCellCoverage.UNVERIFIABLE
+	} else {
+		AmbientCellCoverage.UNVERIFIABLE
+	}
 
 private fun String.toSubscriptionCompleteness(): AmbientCellSubscriptionCompleteness = when (this) {
 	AmbientCellFactRevisionEntity.SUBSCRIPTION_COMPLETE -> AmbientCellSubscriptionCompleteness.COMPLETE
@@ -434,3 +537,5 @@ private fun String.toSubscriptionCompleteness(): AmbientCellSubscriptionComplete
 private const val MAX_IMPORTED_CELL_REVISIONS_PER_READ = 65_536
 private const val CELL_SQLITE_ID_CHUNK_SIZE = 400
 private const val MAX_CELL_CHILDREN = 256
+
+private const val MAX_SELECTED_RADIO_ROWS = 100

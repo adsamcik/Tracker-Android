@@ -40,4 +40,23 @@
     <string name="format_database">Αντίγραφο ασφαλείας βάσης δεδομένων (ZIP)</string>
     <string name="settings_import_summary">Εισαγωγή δεδομένων από υποστηριζόμενους τύπους (%1$s) και αρχεία (%2$s). Οι εισαγωγές βάσης δεδομένων συγχωνεύουν συμβατές γραμμές· δεν αντικαθιστούν υπάρχοντα δεδομένα.</string>
     <string name="settings_import_title">Εισαγωγή</string>
+    <string name="export_radio_sensitivity_title">Εξαγωγή στοιχείων δικτύου;</string>
+    <string name="export_wifi_sensitivity_message">Αυτό το αρχείο περιλαμβάνει αποθηκευμένα ονόματα Wi-Fi και αναγνωριστικά σημείων πρόσβασης.</string>
+    <string name="export_cell_sensitivity_message">Αυτό το αρχείο περιλαμβάνει αποθηκευμένα αναγνωριστικά σταθμών βάσης και μετρήσεις σήματος.</string>
+    <string name="export_radio_no_data">Δεν υπάρχουν αποθηκευμένα δεδομένα για αυτή την πηγή</string>
+    <string name="export_include_complete_sessions">Συμπερίληψη ολόκληρων συνεδριών</string>
+    <string name="import_location_conflict_title">Αντικατάσταση αποθηκευμένων σημείων;</string>
+    <string name="import_location_replace">Χρήση σημείων του αρχείου</string>
+    <string name="import_location_keep">Διατήρηση αποθηκευμένων σημείων</string>
+    <string name="export_backup_review_title">Έλεγχος προγραμματισμένων αντιγράφων ασφαλείας</string>
+    <string name="export_backup_review_summary">Σε παύση μέχρι να ελέγξετε το ενημερωμένο αντίγραφο ασφαλείας δεδομένων.</string>
+    <string name="export_backup_review_message">Αυτά τα προγράμματα πλέον δημιουργούν αντίγραφα όλων των αποθηκευμένων δεδομένων καταγραφής και των αρχείων που απαιτούνται για την επαναφορά τους. Οι ρυθμίσεις εξαιρούνται. Συνέχιση αυτών των προγραμμάτων;\n\n%1$s</string>
+    <string name="export_backup_review_resume">Συνέχιση αντιγράφων ασφαλείας</string>
+    <string name="import_backup_replace_title">Επαναφορά αντιγράφου ασφαλείας δεδομένων;</string>
+    <string name="import_backup_replace_message">Αντικατάσταση των αποθηκευμένων δεδομένων με αυτό το αντίγραφο ασφαλείας; Οι ρυθμίσεις σας παραμένουν ίδιες. Η καταγραφή θα είναι απενεργοποιημένη μέχρι να τη συνεχίσετε.</string>
+    <string name="import_backup_restore">Αντικατάσταση δεδομένων</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d σημείο σε αυτό το αρχείο διαφέρει από το αποθηκευμένο αντίγραφο. Επιλέξτε ποιο θα διατηρήσετε. Τα άλλα σημεία θα εισαχθούν κανονικά.</item>
+        <item quantity="other">%d σημεία σε αυτό το αρχείο διαφέρουν από τα αποθηκευμένα αντίγραφά τους. Επιλέξτε ποια θα διατηρήσετε. Τα άλλα σημεία θα εισαχθούν κανονικά.</item>
+    </plurals>
 </resources>

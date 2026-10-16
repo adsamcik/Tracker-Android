@@ -305,10 +305,10 @@ class TrackingStartupDeletionBarrier internal constructor(
 @Singleton
 class DefaultTrackingStartupGate @Inject constructor(
 	private val legacyDatabaseUpgradeCoordinator: LegacyDatabaseUpgradeCoordinator,
-	private val collectedDataDeletionService: CollectedDataDeletionService,
+	private val collectedDataDeletionService: Provider<CollectedDataDeletionService>,
 	private val recoveryResolver: ApplicationStartupRecoveryResolver,
 	private val lifecycleCommandAuthority: TrackingLifecycleCommandAuthority,
-	private val inactiveSessionStopHandler: InactiveTrackingSessionStopHandler,
+	private val inactiveSessionStopHandler: Provider<InactiveTrackingSessionStopHandler>,
 	private val sourcePipelineRecoveryProvider: Provider<SourcePipelineRecovery>,
 	private val deletionBarrier: TrackingStartupDeletionBarrier,
 	private val dataBackupRestore: Provider<com.adsamcik.tracker.impexp.backup.DataBackupRestore>? = null,
@@ -360,10 +360,12 @@ class DefaultTrackingStartupGate @Inject constructor(
 		expectedGeneration: Long,
 		operation: () -> T,
 	): T? = deletionBarrier.withOpenGeneration(expectedGeneration) {
-		if (ready != null && readyGeneration == expectedGeneration &&
-			readyStopGeneration == currentHandledStopGenerationOrNull()
-		) operation() else null
+		if (hasCurrentReadyState(expectedGeneration)) operation() else null
 	}
+
+	private fun hasCurrentReadyState(expectedGeneration: Long): Boolean =
+		ready != null && readyGeneration == expectedGeneration &&
+			readyStopGeneration == currentHandledStopGenerationOrNull()
 
 	override suspend fun <T> withReadyGenerationOperation(
 		expectedGeneration: Long,
@@ -375,19 +377,14 @@ class DefaultTrackingStartupGate @Inject constructor(
 				nested.generation != expectedGeneration ||
 				deletionBarrier.isClosed ||
 				expectedGeneration != deletionBarrier.currentGeneration ||
-				ready == null ||
-				readyGeneration != expectedGeneration ||
-				readyStopGeneration != currentHandledStopGenerationOrNull()
+				!hasCurrentReadyState(expectedGeneration)
 			) {
 				return null
 			}
 			return operation()
 		}
 		return deletionBarrier.withStartupRecovery(onClosed = { null }) {
-		if (expectedGeneration != deletionBarrier.currentGeneration ||
-			ready == null || readyGeneration != expectedGeneration ||
-			readyStopGeneration != currentHandledStopGenerationOrNull()
-		) {
+		if (expectedGeneration != deletionBarrier.currentGeneration || !hasCurrentReadyState(expectedGeneration)) {
 			return@withStartupRecovery null
 		}
 		var completed = false
@@ -504,33 +501,7 @@ class DefaultTrackingStartupGate @Inject constructor(
 				failure.failureCode(),
 			)
 		}
-		try {
-			// Pending deletion owns its own mutex and may close/reopen this barrier. Running it
-			// before the startup lease avoids self-deadlock while still keeping it ahead of Room.
-			when (val deletion = collectedDataDeletionService.reconcilePendingDeletion()) {
-				CollectedDataDeletionCompletion.Complete -> Unit
-				is CollectedDataDeletionCompletion.Retryable ->
-					return TrackingStartupResult.RetryableFailure(
-						TrackingStartupStage.STORAGE,
-						deletion.failure.failureCode,
-					)
-				is CollectedDataDeletionCompletion.Unverifiable ->
-					return TrackingStartupResult.Blocked(
-						TrackingStartupStage.STORAGE,
-						deletion.failure.failureCode,
-					)
-			}
-			if (dataBackupRestore?.get()?.reconcilePendingRestore() == false) {
-				return TrackingStartupResult.RetryableFailure(TrackingStartupStage.STORAGE, "DATA_RESTORE_INCOMPLETE")
-			}
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (failure: Exception) {
-			return TrackingStartupResult.RetryableFailure(
-				TrackingStartupStage.STORAGE,
-				failure.failureCode(),
-			)
-		}
+		reconcilePendingDataChanges()?.let { return it }
 		return deletionBarrier.withStartupRecovery(
 			onClosed = { deletionPendingFailure() },
 		) {
@@ -588,6 +559,31 @@ class DefaultTrackingStartupGate @Inject constructor(
 		}
 	}
 
+	private suspend fun reconcilePendingDataChanges(): TrackingStartupResult? = try {
+		// Pending deletion and restore run before the startup lease, so either may reopen its barrier.
+		when (val deletion = collectedDataDeletionService.get().reconcilePendingDeletion()) {
+			CollectedDataDeletionCompletion.Complete -> {
+				if (dataBackupRestore?.get()?.reconcilePendingRestore() == false) {
+					TrackingStartupResult.RetryableFailure(TrackingStartupStage.STORAGE, "DATA_RESTORE_INCOMPLETE")
+				} else {
+					null
+				}
+			}
+			is CollectedDataDeletionCompletion.Retryable -> TrackingStartupResult.RetryableFailure(
+				TrackingStartupStage.STORAGE,
+				deletion.failure.failureCode,
+			)
+			is CollectedDataDeletionCompletion.Unverifiable -> TrackingStartupResult.Blocked(
+				TrackingStartupStage.STORAGE,
+				deletion.failure.failureCode,
+			)
+		}
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (failure: Exception) {
+		TrackingStartupResult.RetryableFailure(TrackingStartupStage.STORAGE, failure.failureCode())
+	}
+
 	private fun clearFlight(flight: StartupFlight) {
 		synchronized(flightMonitor) {
 			if (activeFlight === flight) activeFlight = null
@@ -614,6 +610,39 @@ class DefaultTrackingStartupGate @Inject constructor(
 		return before.takeIf { it == after }
 	}
 
+	private suspend fun reconcileStorageLocked(retryFailedStorage: Boolean): TrackingStartupResult? =
+		when (val storage = legacyDatabaseUpgradeCoordinator.ensureReady(retryFailedStorage)) {
+			LegacyDatabaseStartupResult.Ready -> {
+				if (deletionBarrier.isClosed) {
+					TrackingStartupResult.RetryableFailure(
+						TrackingStartupStage.STORAGE,
+						COLLECTED_DATA_DELETION_PENDING,
+					)
+				} else {
+					storageReadyGeneration = deletionBarrier.currentGeneration
+					null
+				}
+			}
+			is LegacyDatabaseStartupResult.ActiveDatabaseBlocked -> TrackingStartupResult.Blocked(
+				stage = TrackingStartupStage.STORAGE,
+				failureCode = storage.reason.failureCode,
+				databaseContainment = TrackingDatabaseContainment(reason = storage.reason.toTrackingContainmentReason()),
+			)
+			is LegacyDatabaseStartupResult.ActiveDatabaseRetryable -> TrackingStartupResult.RetryableFailure(
+				stage = TrackingStartupStage.STORAGE,
+				failureCode = storage.reason.failureCode,
+				databaseRetryable = TrackingDatabaseRetryable(reason = storage.reason.toTrackingRetryableReason()),
+			)
+			is LegacyDatabaseStartupResult.Failed -> {
+				val failureCode = storage.message.ifBlank { STORAGE_NOT_READY }
+				if (storage.requiresExplicitRetry) {
+					TrackingStartupResult.Blocked(TrackingStartupStage.LEGACY_IMPORT, failureCode)
+				} else {
+					TrackingStartupResult.RetryableFailure(TrackingStartupStage.STORAGE, failureCode)
+				}
+			}
+		}
+
 	private suspend fun reconcilePrerequisitesLocked(
 		action: ApplicationStartupRecoveryAction,
 		retryFailedStorage: Boolean,
@@ -623,47 +652,7 @@ class DefaultTrackingStartupGate @Inject constructor(
 		}
 
 		if (storageReadyGeneration != deletionBarrier.currentGeneration) {
-			when (val storage = legacyDatabaseUpgradeCoordinator.ensureReady(retryFailedStorage)) {
-				LegacyDatabaseStartupResult.Ready -> {
-					if (deletionBarrier.isClosed) {
-						return TrackingStartupResult.RetryableFailure(
-							TrackingStartupStage.STORAGE,
-							COLLECTED_DATA_DELETION_PENDING,
-						)
-					}
-					storageReadyGeneration = deletionBarrier.currentGeneration
-				}
-				is LegacyDatabaseStartupResult.ActiveDatabaseBlocked ->
-					return TrackingStartupResult.Blocked(
-						stage = TrackingStartupStage.STORAGE,
-						failureCode = storage.reason.failureCode,
-						databaseContainment = TrackingDatabaseContainment(
-							reason = storage.reason.toTrackingContainmentReason(),
-						),
-					)
-				is LegacyDatabaseStartupResult.ActiveDatabaseRetryable ->
-					return TrackingStartupResult.RetryableFailure(
-						stage = TrackingStartupStage.STORAGE,
-						failureCode = storage.reason.failureCode,
-						databaseRetryable = TrackingDatabaseRetryable(
-							reason = storage.reason.toTrackingRetryableReason(),
-						),
-					)
-				is LegacyDatabaseStartupResult.Failed -> {
-					val failureCode = storage.message.ifBlank { STORAGE_NOT_READY }
-					return if (storage.requiresExplicitRetry) {
-						TrackingStartupResult.Blocked(
-							TrackingStartupStage.LEGACY_IMPORT,
-							failureCode,
-						)
-					} else {
-						TrackingStartupResult.RetryableFailure(
-							TrackingStartupStage.STORAGE,
-							failureCode,
-						)
-					}
-				}
-			}
+			reconcileStorageLocked(retryFailedStorage)?.let { return it }
 		}
 
 		reconcilePendingStopLocked(action)?.let { return it }
@@ -765,7 +754,7 @@ class DefaultTrackingStartupGate @Inject constructor(
 	private suspend fun finalizePendingStop(
 		command: TrackingStopCommand,
 	): Result<InactiveTrackingSessionStopOutcome> = try {
-		Result.success(inactiveSessionStopHandler.finalizeStoredSession(command))
+		Result.success(inactiveSessionStopHandler.get().finalizeStoredSession(command))
 	} catch (cancelled: CancellationException) {
 		throw cancelled
 	} catch (failure: Exception) {

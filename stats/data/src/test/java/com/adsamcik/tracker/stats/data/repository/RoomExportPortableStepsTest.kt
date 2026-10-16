@@ -154,6 +154,9 @@ class RoomExportPortableStepsTest {
 			run.manifests.all { manifest -> manifest.source.name == "STEPS" } shouldBe true
 		}
 
+	// Keep the incomplete owner graph beside both exporters to verify v2 rejects while the same v1 fact remains
+	// usable.
+	@Suppress("LongMethod")
 	@Test
 	fun `truncated native owner lineage emits no invalid v2 while v1 remains representable`() =
 		runTest {
@@ -1708,38 +1711,88 @@ class RoomExportPortableStepsTest {
 	@Test
 	@Suppress("LongMethod")
 	fun `query batching stays bounded across the 400 identity boundary`() = runTest {
+		val startedAtNanos = System.nanoTime()
+		var phase = "opening counting database"
+		var fixtureFinishedAtNanos = 0L
+		var warmFinishedAtNanos = 0L
+		var firstReadFinishedAtNanos = 0L
+		var completed = false
 		val queryCount = AtomicInteger()
-		replaceWithCountingDatabase(queryCount)
-		(1..401).forEach { index ->
-			val logicalId = "batch-logical-${index.toString().padStart(3, '0')}"
-			val runId = "batch-run-${index.toString().padStart(3, '0')}"
-			val startMs = 10_000L + (index - 1L) * 3_000L
-			insertLogicalSession(logicalId, startMs, startMs + 2_000L)
-			insertSettledRun(
-				logicalId = logicalId,
-				runId = runId,
-				segmentId = 1_000L + index,
-				manifestRevision = 1L,
-				startMs = startMs,
-				endMs = startMs + 2_000L,
-				facts = listOf(FactSeed("fact-$index", index.toLong(), count = 1L)),
-				registrationGeneration = index.toLong(),
-			)
-		}
-		val boundaryStartMs = 10_000L + 400L * 3_000L
-		val firstBatch = ExportPortableStepsRequest(0L, boundaryStartMs)
-		val secondBatch = ExportPortableStepsRequest(0L, boundaryStartMs + 3_000L)
-		exporter.export(firstBatch) {}
-		queryCount.set(0)
-		exporter.export(firstBatch) {} shouldBe ExportPortableStepsResult.Exported(400)
-		val atBoundary = queryCount.get()
-		queryCount.set(0)
-		exporter.export(secondBatch) {} shouldBe ExportPortableStepsResult.Exported(401)
-		val afterBoundary = queryCount.get()
+		val queryDiagnostics = PortableStepsQueryDiagnostics()
+		var firstReadQueryCount: Int? = null
+		try {
+			replaceWithCountingDatabase(queryCount, queryDiagnostics::observeQuery)
+			StepsCountDomainStore(database).withValidatedWriteBatch { countDomainStore ->
+				(1..401).forEach { index ->
+					phase = "seeding run $index/401"
+					val logicalId = "batch-logical-${index.toString().padStart(3, '0')}"
+					val runId = "batch-run-${index.toString().padStart(3, '0')}"
+					val startMs = 10_000L + (index - 1L) * 3_000L
+					insertLogicalSession(logicalId, startMs, startMs + 2_000L)
+					insertSettledRun(
+						logicalId = logicalId,
+						runId = runId,
+						segmentId = 1_000L + index,
+						manifestRevision = 1L,
+						startMs = startMs,
+						endMs = startMs + 2_000L,
+						facts = listOf(FactSeed("fact-$index", index.toLong(), count = 1L)),
+						registrationGeneration = index.toLong(),
+						countDomainStore = countDomainStore,
+					)
+				}
+			}
+			val boundaryStartMs = 10_000L + 400L * 3_000L
+			val firstBatch = ExportPortableStepsRequest(0L, boundaryStartMs)
+			val secondBatch = ExportPortableStepsRequest(0L, boundaryStartMs + 3_000L)
+			fixtureFinishedAtNanos = System.nanoTime()
+			phase = "warming export reader"
+			exporter.export(ExportPortableStepsRequest(0L, 13_000L)) {}
+			warmFinishedAtNanos = System.nanoTime()
+			queryCount.set(0)
+			phase = "measuring 400-entry export"
+			queryDiagnostics.begin("400-entry")
+			exporter.export(firstBatch) {} shouldBe ExportPortableStepsResult.Exported(400)
+			queryDiagnostics.finish()
+			firstReadFinishedAtNanos = System.nanoTime()
+			val atBoundary = queryCount.get()
+			firstReadQueryCount = atBoundary
+			queryCount.set(0)
+			phase = "measuring 401-entry export"
+			queryDiagnostics.begin("401-entry")
+			exporter.export(secondBatch) {} shouldBe ExportPortableStepsResult.Exported(401)
+			queryDiagnostics.finish()
+			val afterBoundary = queryCount.get()
 
-		(atBoundary > 0) shouldBe true
-		check(afterBoundary <= atBoundary + MAX_QUERY_BATCH_INCREMENT) {
-			"Query count rose from $atBoundary to $afterBoundary across the 400-entry boundary"
+			(atBoundary > 0) shouldBe true
+			check(afterBoundary <= atBoundary + MAX_QUERY_BATCH_INCREMENT) {
+				"Query count rose from $atBoundary to $afterBoundary across the 400-entry boundary"
+			}
+			completed = true
+		} finally {
+			if (!completed) {
+				queryDiagnostics.finish()
+				val failedAtNanos = System.nanoTime()
+				val elapsedMs = (failedAtNanos - startedAtNanos) / 1_000_000L
+				val fixtureMs = ((fixtureFinishedAtNanos.takeIf { it > 0L } ?: failedAtNanos) -
+					startedAtNanos) / 1_000_000L
+				val warmMs = if (fixtureFinishedAtNanos > 0L) {
+					((warmFinishedAtNanos.takeIf { it > 0L } ?: failedAtNanos) -
+						fixtureFinishedAtNanos) / 1_000_000L
+				} else { null }
+				val firstReadMs = if (warmFinishedAtNanos > 0L) {
+					((firstReadFinishedAtNanos.takeIf { it > 0L } ?: failedAtNanos) -
+						warmFinishedAtNanos) / 1_000_000L
+				} else { null }
+				val secondReadMs = if (firstReadFinishedAtNanos > 0L) {
+					(failedAtNanos - firstReadFinishedAtNanos) / 1_000_000L
+				} else { null }
+				System.err.println("Steps export batching failed during $phase after ${elapsedMs}ms; " +
+					"fixture=${fixtureMs}ms, warm=${warmMs}ms, 400-entry-read=${firstReadMs}ms, " +
+					"401-entry-read=${secondReadMs}ms; " +
+					"400-entry-queries=$firstReadQueryCount, current-phase-queries=${queryCount.get()}; " +
+					queryDiagnostics.summary())
+			}
 		}
 	}
 
@@ -2257,7 +2310,10 @@ class RoomExportPortableStepsTest {
 		return builder.build()
 	}
 
-	private suspend fun replaceWithCountingDatabase(queryCount: AtomicInteger) {
+	private suspend fun replaceWithCountingDatabase(
+		queryCount: AtomicInteger,
+		observeQuery: (String) -> Unit = {},
+	) {
 		database.close()
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.inMemoryBuilder(context)
@@ -2269,6 +2325,7 @@ class RoomExportPortableStepsTest {
 						normalized.startsWith("WITH", ignoreCase = true)
 					) {
 						queryCount.incrementAndGet()
+						observeQuery(sql)
 					}
 				},
 				Executor { command -> command.run() },
@@ -2317,7 +2374,8 @@ class RoomExportPortableStepsTest {
 		)
 	}
 
-	@Suppress("LongMethod")
+	// The only long boolean predicate is the fixed five-field ownership tuple for seeded native facts.
+	@Suppress("LongMethod", "ComplexCondition")
 	private suspend fun insertSettledRun(
 		logicalId: String,
 		runId: String,
@@ -2338,6 +2396,7 @@ class RoomExportPortableStepsTest {
 		walPayloadVersion: Int = STEPS_WAL_PAYLOAD_VERSION,
 		factTransform: (StepFactRevisionEntity) -> StepFactRevisionEntity = { it },
 		manifestTransform: (SessionManifestVersionEntity) -> SessionManifestVersionEntity = { it },
+		countDomainStore: StepsCountDomainStore = StepsCountDomainStore(database),
 	) {
 		insertRunManifest(
 			logicalId = logicalId,
@@ -2388,7 +2447,9 @@ class RoomExportPortableStepsTest {
 					canonical.writerProjectionId == WRITER_ID &&
 					canonical.writerProjectionVersion == WRITER_VERSION &&
 					canonical.writerBindingGeneration == bindingGeneration
-				) authenticateLiveFact(canonical, registrationGeneration, walPayloadVersion)
+				) {
+					authenticateLiveFact(canonical, registrationGeneration, walPayloadVersion, countDomainStore)
+				}
 				database.stepFactRevisionDao().insert(factTransform(canonical))
 			}
 		}
@@ -2589,7 +2650,11 @@ class RoomExportPortableStepsTest {
 		val sources = dao.manifestSources(LOGICAL_ONE, revision).map { source ->
 			if (source.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
 				source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE
-			) source.copy(stepsRecordingManifestRevision = origin) else source
+			) {
+				source.copy(stepsRecordingManifestRevision = origin)
+			} else {
+				source
+			}
 		}
 		val sqlite = database.openHelper.writableDatabase
 		sqlite.execSQL(
@@ -2749,15 +2814,18 @@ class RoomExportPortableStepsTest {
 		fact: StepFactRevisionEntity,
 		registrationGeneration: Long = 1L,
 		payloadVersion: Int = STEPS_WAL_PAYLOAD_VERSION,
+		store: StepsCountDomainStore = StepsCountDomainStore(database),
 	) {
 		val wal = stepsWal(fact, registrationGeneration, payloadVersion)
 		database.sourceEventWalDao().insertIgnoringDuplicate(wal)
-		val store = StepsCountDomainStore(database)
 		val token = walToken(fact).takeIf { payloadVersion >= 6 }
 		check(store.recordSessionWal(wal, token) in ACCEPTED_COUNT_DOMAIN_WRITES)
 		check(store.recordSessionFact(fact) in ACCEPTED_COUNT_DOMAIN_WRITES)
 	}
 
+	// Keep one Steps fact-to-WAL fixture with its payload-version boundary shape and exact carrier checksums
+	// together.
+	@Suppress("LongMethod")
 	private fun stepsWal(
 		fact: StepFactRevisionEntity,
 		registrationGeneration: Long,
@@ -3041,5 +3109,65 @@ class RoomExportPortableStepsTest {
 		// A 401st fact opens one more bounded WAL/fact owner page and its schema checks.
 		const val MAX_QUERY_BATCH_INCREMENT = 64
 		const val UNRELATED_RUNS_OVER_SNAPSHOT_BUDGET = 16_385
+	}
+}
+
+/** Failure-only export diagnostics; gaps include work between callbacks, not SQL execution time. */
+private class PortableStepsQueryDiagnostics {
+	private var phase: String? = null
+	private var previousAtNanos = 0L
+	private var previousLabel = ""
+	private var largestGapNanos = 0L
+	private var largestGapLabel = ""
+	private val prefixCounts = linkedMapOf<String, Int>()
+
+	@Synchronized
+	fun begin(value: String) {
+		phase = value
+		previousAtNanos = 0L
+	}
+
+	@Synchronized
+	fun observeQuery(sql: String) {
+		val currentPhase = phase ?: return
+		val prefix = sql.trimStart().lineSequence().firstOrNull().orEmpty()
+			.take(SQL_PREFIX_CHARACTERS)
+		val label = "$currentPhase: $prefix"
+		val countKey = if (label in prefixCounts || prefixCounts.size < MAX_PREFIXES) {
+			label
+		} else {
+			"$currentPhase: other SELECT/WITH"
+		}
+		prefixCounts[countKey] = (prefixCounts[countKey] ?: 0) + 1
+		recordGap(label)
+	}
+
+	@Synchronized
+	fun finish() {
+		val currentPhase = phase ?: return
+		recordGap("$currentPhase: export returned")
+		phase = null
+	}
+
+	@Synchronized
+	fun summary(): String =
+		"query-prefix-counts=$prefixCounts; largest-gap-between-callbacks=" +
+			"${largestGapNanos / NANOS_PER_MILLISECOND}ms ($largestGapLabel)"
+
+	private fun recordGap(label: String) {
+		val nowNanos = System.nanoTime()
+		val gap = nowNanos - previousAtNanos
+		if (previousAtNanos != 0L && gap > largestGapNanos) {
+			largestGapNanos = gap
+			largestGapLabel = "$previousLabel -> $label"
+		}
+		previousAtNanos = nowNanos
+		previousLabel = label
+	}
+
+	private companion object {
+		const val MAX_PREFIXES = 24
+		const val SQL_PREFIX_CHARACTERS = 96
+		const val NANOS_PER_MILLISECOND = 1_000_000L
 	}
 }

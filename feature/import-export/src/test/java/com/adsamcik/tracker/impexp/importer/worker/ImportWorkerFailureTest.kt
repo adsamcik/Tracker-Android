@@ -136,7 +136,9 @@ class ImportWorkerFailureTest {
 		}
 		shouldThrow<CancellationException> {
 			computeImportJobId(context, source, LocationFileJsonV1.MAX_FILE_BYTES) {
-				if (cancelled) throw CancellationException("Import stopped during read")
+				if (cancelled) {
+					throw CancellationException("Import stopped during read")
+				}
 			}
 		}
 		closed shouldBe true

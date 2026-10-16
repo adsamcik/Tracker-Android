@@ -102,6 +102,8 @@ class AmbientStepsRetentionAuthorityRoomTest {
 	}
 
 	@Test
+	// The stale approval and exact revoke must use the same grant.
+	@Suppress("LongMethod")
 	fun `live grant and revoke require exact policy consent and approval revisions`() = runTest {
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(collectedDataEpoch = 4L, updatedAtMs = 1L),

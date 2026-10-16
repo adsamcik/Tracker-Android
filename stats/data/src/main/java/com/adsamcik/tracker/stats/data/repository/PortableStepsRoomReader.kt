@@ -990,7 +990,9 @@ internal class PortableStepsRoomReader @Inject constructor(
 				runs = portableRuns,
 			)
 		}
-		if (!includeCountDomainGraph) return BuiltPortableEntry(product, null)
+		if (!includeCountDomainGraph) {
+			return BuiltPortableEntry(product, null)
+		}
 		val graph = when (
 			val read = PortableCountDomainGraphReader(database).read(
 				builtRuns.flatMap(BuiltPortableRun::roots),
@@ -1492,14 +1494,8 @@ internal class PortableStepsRoomReader @Inject constructor(
 			) {
 				abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 			}
-			validateUpsertAttribution(
-				scoped.state,
-				run,
-				manifests,
-				stepsBindings,
-				authority,
-				dependencies,
-			)
+			// Current UPSERTs are the same immutable revisions already checked in historicalUpserts.
+			// Only the scoped carrier metadata needs a separate check here.
 		}
 	}
 

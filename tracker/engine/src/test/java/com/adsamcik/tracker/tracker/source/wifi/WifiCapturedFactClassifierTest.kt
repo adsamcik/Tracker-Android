@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.source.wifi
 
+import com.adsamcik.tracker.shared.base.database.data.MAX_WIFI_WAL_PAYLOAD_BYTES
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_WIFI_WAL_PAYLOAD_VERSION
@@ -25,6 +26,9 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.Test
 import java.security.MessageDigest
 
+// One shared Wi-Fi classifier fixture compares the same captured payload, immutable carrier and correction
+// authority across provider outcomes.
+@Suppress("LargeClass")
 class WifiCapturedFactClassifierTest {
 	@Test
 	fun `fresh callback is identity free and bound to WAL plan registration and clock`() {
@@ -246,15 +250,12 @@ class WifiCapturedFactClassifierTest {
 	@Test
 	fun `immutable result contract bounds count frequency and signal`() {
 		val bounded = authority()
-		classify(
-			input(
-				bounded,
-				accessPoints = List(65) { index ->
-					accessPoint(2_412, -50, 1_000_000_000L + index)
-				},
-			),
-			bounded,
-		) shouldBe rejected(WifiFactRejection.PAYLOAD_TOO_LARGE)
+		// The canonical producer rejects an oversized carrier before classification.
+		shouldThrow<IllegalArgumentException> {
+			input(bounded, accessPoints = List(65) { index ->
+				accessPoint(2_412, -50, 1_000_000_000L + index)
+			})
+		}
 
 		listOf(accessPoint(2_399, -50, 1_000_000_000L), accessPoint(2_412, -201, 1_000_000_000L))
 			.forEach { malformed ->
@@ -448,7 +449,7 @@ class WifiCapturedFactClassifierTest {
 		))
 		val original = freshFact(open)
 		val next = classify(
-			input(open, delivery = 'b'),
+			input(open, delivery = 'b', accessPoints = listOf(accessPoint(2_412, -50, 1_001_000_000L))),
 			open,
 			priorFact = original.toReusableFact(),
 		) as WifiCapturedFactClassification.FreshChanged
@@ -482,6 +483,48 @@ class WifiCapturedFactClassifierTest {
 			correctionBase = original.toReusableFact(),
 		) as WifiCapturedFactClassification.FreshChanged
 		correction.fact.mutation.supersedesSemanticRevision shouldBe 1L
+	}
+
+	@Test
+	fun `correction can narrow finite ends while keeping every measured reading`() {
+		val originalAuthority = authority()
+		val originalInput = input(originalAuthority)
+		val original = freshFact(originalAuthority)
+		val narrowed = originalAuthority.copy(temporalAuthority = WifiCaptureTemporalAuthority(
+			providerAcceptance = WifiProviderTimeInterval(1L, 2_000_000_000L),
+			authorizationEffect = WifiProviderTimeInterval(1L, 2_000_000_000L),
+			sessionRunEffect = WifiProviderTimeInterval(1L, 2_000_000_000L),
+		))
+		val narrowedInput = originalInput.copy(walEvidence = requireNotNull(originalInput.walEvidence)
+			.copy(capturedAuthority = narrowed).withValidWalIntegrity())
+
+		val correction = classify(narrowedInput, narrowed, semanticRevision = 2L,
+			supersedesSemanticRevision = 1L, correctionBase = original.toReusableFact())
+			as WifiCapturedFactClassification.FreshChanged
+		correction.fact.authority shouldBe narrowed
+		correction.fact.coverage shouldBe original.coverage
+		correction.fact.aggregate shouldBe original.aggregate
+	}
+
+	@Test
+	fun `correction cannot move starts widen ends or exclude a retained reading`() {
+		val originalAuthority = authority()
+		val originalInput = input(originalAuthority)
+		val original = freshFact(originalAuthority)
+		val rejectedIntervals = listOf(
+			WifiProviderTimeInterval(2L, 10_000_000_000L),
+			WifiProviderTimeInterval(1L, 11_000_000_000L),
+			WifiProviderTimeInterval(1L, 1_000_000_000L),
+		)
+		rejectedIntervals.forEach { interval ->
+			val changed = originalAuthority.copy(temporalAuthority =
+				originalAuthority.temporalAuthority.copy(sessionRunEffect = interval))
+			val changedInput = originalInput.copy(walEvidence = requireNotNull(originalInput.walEvidence)
+				.copy(capturedAuthority = changed).withValidWalIntegrity())
+			classify(changedInput, changed, semanticRevision = 2L, supersedesSemanticRevision = 1L,
+				correctionBase = original.toReusableFact()) shouldBe
+				rejected(WifiFactRejection.INVALID_CORRECTION_BASE)
+		}
 	}
 
 	@Test
@@ -637,7 +680,7 @@ class WifiCapturedFactClassifierTest {
 		classify(original.copy(walEvidence = withTrailingBytes), authority) shouldBe
 			rejected(WifiFactRejection.PAYLOAD_DECODE_FAILED)
 
-		val oversizedBytes = ByteArray(2_000)
+		val oversizedBytes = ByteArray(MAX_WIFI_WAL_PAYLOAD_BYTES + 1)
 		val oversized = wal.copy(
 			payloadBytes = oversizedBytes.toList(),
 			payloadChecksum = oversizedBytes.sha256(),
@@ -836,6 +879,9 @@ class WifiCapturedFactClassifierTest {
 		)
 	}
 
+	// Keep one Wi-Fi classifier input with its ordered payload, captured clock/authority fields and matching
+	// WAL identity together.
+	@Suppress("LongMethod")
 	private fun input(
 		authority: WifiCaptureAuthority,
 		delivery: Char = 'a',

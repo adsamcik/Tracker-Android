@@ -49,7 +49,11 @@ class FiveLevelSourceConfigurationTest {
             live.plans.filterValues { it.enabled }.keys shouldBe participants
             SourceKind.entries.forEach { source ->
                 baseline.sourcePreferences.getValue(source).requestedLevel shouldBe level
-                live.sourcePreferences.getValue(source).requestedLevel shouldBe if (source in participants) maxOf(level, 4) else level
+                live.sourcePreferences.getValue(source).requestedLevel shouldBe if (source in participants) {
+                    maxOf(level, 4)
+                } else {
+                    level
+                }
                 live.sourcePreferences.getValue(source).focusRequested shouldBe (source in participants)
             }
             factory.create(configuration, 1, 0, environment) shouldBe baseline

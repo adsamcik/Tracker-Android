@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/** Stable reasons automatic Activity control cannot currently start a session. */
 enum class AutomaticTrackingUnavailableReason(
 	val stableCode: String,
 	val containmentReason: TrackingDecisionContainmentReason? = null,
@@ -25,7 +26,11 @@ enum class AutomaticTrackingUnavailableReason(
 	AUTHORITY_UNAVAILABLE("AUTHORITY_UNAVAILABLE"),
 }
 
+/**
+ * Published readiness for the exact Activity CONTROL lease, separate from captured Activity history.
+ */
 sealed interface AutomaticTrackingOperationalAvailability {
+	/** An exact operational Activity CONTROL identity whose execution revision is bound. */
 	data class Ready(
 		val identity: TrackingPurposeLeaseIdentity,
 	) : AutomaticTrackingOperationalAvailability {
@@ -38,6 +43,7 @@ sealed interface AutomaticTrackingOperationalAvailability {
 		}
 	}
 
+	/** Non-operational status with a repair reason and optional last identity for diagnostics. */
 	data class Unavailable(
 		val reason: AutomaticTrackingUnavailableReason,
 		val lastIdentity: TrackingPurposeLeaseIdentity? = null,
@@ -56,11 +62,18 @@ sealed interface AutomaticTrackingOperationalAvailability {
 	val authorityIdentityOrNull: TrackingPurposeLeaseIdentity?
 		get() = (this as? Ready)?.identity
 
+	/** Validated constructors for automatic-control readiness and unavailable status. */
 	companion object {
+		/**
+		 * Builds operational availability only for an exact identity with the required bound execution.
+		 */
 		@JvmStatic
 		fun ready(identity: TrackingPurposeLeaseIdentity): Ready =
 			Ready(identity)
 
+		/**
+		 * Builds non-operational availability with an honest reason and optional last owner identity.
+		 */
 		@JvmStatic
 		@JvmOverloads
 		fun unavailable(
@@ -76,6 +89,7 @@ sealed interface AutomaticTrackingOperationalAvailability {
 	}
 }
 
+/** Sources with independently authorized, sessionless saved-data collection. */
 enum class AmbientTrackingSource(
 	val canonicalSource: CanonicalTrackingSource,
 ) {
@@ -85,6 +99,7 @@ enum class AmbientTrackingSource(
 	CELL(CanonicalTrackingSource.CELL),
 }
 
+/** Operational, waiting, permission and degraded states for one all-day source. */
 enum class AmbientSourceOperationalState {
 	READY,
 	WAITING,
@@ -93,6 +108,7 @@ enum class AmbientSourceOperationalState {
 	DEGRADED,
 }
 
+/** The supported physical or system-provider path supplying an all-day source. */
 enum class AmbientAcquisitionMechanism {
 	HEALTH_CONNECT_MOBILE_STEPS,
 	LOCAL_RECORDING_STEPS,
@@ -102,6 +118,7 @@ enum class AmbientAcquisitionMechanism {
 	ADAPTIVE_LOCATION,
 }
 
+/** Stable source-local reasons for unavailable all-day collection and permission repair. */
 enum class AmbientSourceUnavailableReason(
 	val stableCode: String,
 	val containmentReason: TrackingDecisionContainmentReason? = null,
@@ -129,6 +146,10 @@ enum class AmbientSourceUnavailableReason(
 	FOREGROUND_HOST_UNAVAILABLE("FOREGROUND_HOST_UNAVAILABLE"),
 }
 
+/**
+ * Readiness and acquisition mechanism for one exact all-day lease; unavailable states grant no execution
+ * authority.
+ */
 data class AmbientSourceOperationalAvailability(
 	val source: AmbientTrackingSource,
 	val state: AmbientSourceOperationalState,
@@ -216,7 +237,11 @@ data class AmbientSourceOperationalAvailability(
 		get() = state == AmbientSourceOperationalState.READY ||
 			state == AmbientSourceOperationalState.DEGRADED
 
+	/** Validated constructors for all-day operational, unavailable and waiting status. */
 	companion object {
+		/**
+		 * Builds operational availability only for an exact identity with the required bound execution.
+		 */
 		@JvmStatic
 		fun ready(
 			source: AmbientTrackingSource,
@@ -229,6 +254,9 @@ data class AmbientSourceOperationalAvailability(
 			operationalIdentity = identity,
 		)
 
+		/**
+		 * Builds non-operational availability with an honest reason and optional last owner identity.
+		 */
 		@JvmStatic
 		@JvmOverloads
 		fun unavailable(
@@ -242,6 +270,9 @@ data class AmbientSourceOperationalAvailability(
 			lastIdentity = lastIdentity,
 		)
 
+		/**
+		 * Builds a waiting all-day state while its exact owner has not yet published an accepted result.
+		 */
 		@JvmStatic
 		@JvmOverloads
 		fun reconciliationPending(
@@ -256,6 +287,9 @@ data class AmbientSourceOperationalAvailability(
 	}
 }
 
+/**
+ * Parent-published automatic and all-day statuses, including safe unavailable defaults for every source.
+ */
 data class TrackingPurposeAvailabilitySnapshot(
 	val automaticControl: AutomaticTrackingOperationalAvailability =
 		AutomaticTrackingOperationalAvailability.Unavailable(
@@ -275,11 +309,13 @@ data class TrackingPurposeAvailabilitySnapshot(
 		}
 	}
 
+	/** Unavailable initial publication used before any source owner is accepted. */
 	companion object {
 		val SAFE_DEFAULT = TrackingPurposeAvailabilitySnapshot()
 	}
 }
 
+/** Current revision vector used to reject stale source-purpose availability. */
 data class TrackingPurposeAuthorityVector(
 	val sourcePurpose: CanonicalSourcePurpose,
 	val policyRevision: Long,
@@ -299,6 +335,10 @@ data class TrackingPurposeAuthorityVector(
 	}
 }
 
+/**
+ * Nullable policy/data/rollout revisions and UTC retention floor; null revisions mean current authority is
+ * unavailable.
+ */
 data class TrackingPurposeAuthorityRevision(
 	val policyRevision: Long?,
 	val collectedDataEpoch: Long?,
@@ -324,6 +364,7 @@ data class TrackingPurposeAuthorityRevision(
 		}
 	}
 
+	/** Unknown authority revision used when current policy or storage cannot be sampled. */
 	companion object {
 		val UNAVAILABLE = TrackingPurposeAuthorityRevision(null, null, null, null)
 	}
@@ -375,9 +416,13 @@ data class CurrentTrackingPurposeAvailability(
 			}
 		}
 
+	/**
+	 * Checks the complete lease vector against the currently sampled authority for that source-purpose.
+	 */
 	fun isCurrent(identity: TrackingPurposeLeaseIdentity): Boolean =
 		currentAuthorities[identity.sourcePurpose]?.let(identity::matchesAuthority) == true
 
+	/** Non-operational initial consumer projection with no current authority vectors. */
 	companion object {
 		val SAFE_DEFAULT = CurrentTrackingPurposeAvailability(
 			published = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT,
@@ -386,6 +431,7 @@ data class CurrentTrackingPurposeAvailability(
 	}
 }
 
+/** Reads raw parent publications; collection consumers use the authority-checked reader instead. */
 interface TrackingPurposeAvailabilityReader {
 	/**
 	 * Raw parent-owned publication catalog. Runtime and product consumers must use
@@ -394,6 +440,7 @@ interface TrackingPurposeAvailabilityReader {
 	val availability: StateFlow<TrackingPurposeAvailabilitySnapshot>
 }
 
+/** Reads publications after matching them against current consent, epochs, execution and ownership. */
 interface CurrentTrackingPurposeAvailabilityReader {
 	/**
 	 * Authority-checked consumer projection. Runtime monitors, settings, future caller guards, and
@@ -402,25 +449,45 @@ interface CurrentTrackingPurposeAvailabilityReader {
 	val availability: StateFlow<CurrentTrackingPurposeAvailability>
 	val authorityRevision: StateFlow<TrackingPurposeAuthorityRevision>
 
+	/**
+	 * Checks the complete lease vector against the currently sampled authority for that source-purpose.
+	 */
 	suspend fun isCurrent(identity: TrackingPurposeLeaseIdentity): Boolean =
 		availability.value.isCurrent(identity)
 }
 
+/**
+ * Reserves one-use reconciliation identities and accepts only matching owner reports or cancellations.
+ */
 interface TrackingPurposeAvailabilityReporter {
+	/**
+	 * Reserves an exact one-use Activity CONTROL reconciliation lease or joins its existing in-flight
+	 * operation.
+	 */
 	fun beginOrReplaceAutomaticControlLease(
 		identity: TrackingPurposeLeaseIdentity,
 	): AutomaticControlLeaseStartResult
+	/** Cancels only the expected current Activity CONTROL identity; a successor is preserved. */
 	fun cancelAutomaticControlLease(
 		expectedIdentity: TrackingPurposeLeaseIdentity,
 	): AutomaticControlPublicationAcceptance
 	/** Trusted authority loss reset. It can only remove readiness, never grant it. */
 	fun invalidateAutomaticControl()
+	/**
+	 * Publishes a report only when it matches the reserved current identity and its token is still
+	 * unconsumed.
+	 */
 	fun tryAccept(
 		report: AutomaticControlReconciliationReport,
 	): AutomaticControlPublicationAcceptance
+	/**
+	 * Reserves a one-use all-day reconciliation identity for the requested source or joins the same
+	 * operation.
+	 */
 	fun beginOrReplaceAmbientLease(
 		identity: AmbientReconciliationIdentity,
 	): AmbientLeaseStartResult
+	/** Cancels only the expected current all-day identity without affecting sibling sources. */
 	fun cancelAmbientLease(
 		expectedIdentity: AmbientReconciliationIdentity,
 	): AmbientPublicationAcceptance
@@ -433,11 +500,16 @@ interface TrackingPurposeAvailabilityReporter {
 		source: AmbientTrackingSource,
 		reason: AmbientSourceUnavailableReason,
 	)
+	/**
+	 * Publishes a report only when it matches the reserved current identity and its token is still
+	 * unconsumed.
+	 */
 	fun tryAccept(
 		report: AmbientSourceReconciliationReport,
 	): AmbientPublicationAcceptance
 }
 
+/** One parent-issued Activity CONTROL identity whose callback may reconcile that exact owner. */
 data class AutomaticControlReconciliationLease(
 	val identity: TrackingPurposeLeaseIdentity,
 ) {
@@ -446,6 +518,7 @@ data class AutomaticControlReconciliationLease(
 	}
 }
 
+/** Automatic control status bound to the same identity as its parent-issued lease. */
 data class AutomaticControlReconciliationReport(
 	val identity: TrackingPurposeLeaseIdentity,
 	val availability: AutomaticTrackingOperationalAvailability,
@@ -468,32 +541,53 @@ data class AutomaticControlReconciliationReport(
 	}
 }
 
+/**
+ * Whether an exact automatic control report or cancellation was accepted into the publication snapshot.
+ */
 sealed interface AutomaticControlPublicationAcceptance {
+	/** The exact automatic-control report or cancellation produced this publication snapshot. */
 	data class Accepted(
 		val snapshot: TrackingPurposeAvailabilitySnapshot,
 	) : AutomaticControlPublicationAcceptance
 
+	/**
+	 * Automatic-control publication did not change because the current identity or token check failed.
+	 */
 	data class Rejected(
 		val reason: TrackingPurposePublicationRejection,
 	) : AutomaticControlPublicationAcceptance
 }
 
+/**
+ * Reservation result for an automatic control reconciliation, including an existing in-flight lease.
+ */
 sealed interface AutomaticControlLeaseStartResult {
+	/**
+	 * A new automatic-control reconciliation lease is reserved; provider readiness still requires its
+	 * owner report.
+	 */
 	data class Started(
 		val lease: AutomaticControlReconciliationLease,
 		val snapshot: TrackingPurposeAvailabilitySnapshot,
 	) : AutomaticControlLeaseStartResult
 
+	/**
+	 * The same automatic-control lease already has an owner operation; no replacement authority is issued.
+	 */
 	data class InProgress(
 		val lease: AutomaticControlReconciliationLease,
 		val snapshot: TrackingPurposeAvailabilitySnapshot,
 	) : AutomaticControlLeaseStartResult
 
+	/** No automatic-control lease was reserved because its identity or token was rejected. */
 	data class Rejected(
 		val reason: TrackingPurposePublicationRejection,
 	) : AutomaticControlLeaseStartResult
 }
 
+/**
+ * Exact all-day owner identity and optional approved retention grant; its floor is UTC milliseconds.
+ */
 data class AmbientReconciliationIdentity(
 	val source: AmbientTrackingSource,
 	val policyRevision: Long,
@@ -555,7 +649,12 @@ data class AmbientReconciliationIdentity(
 			retainedFromMs = retainedFromMs,
 		)
 
+	/** Conversion from canonical purpose authority to one all-day owner identity. */
 	companion object {
+		/**
+		 * Converts a canonical all-day lease identity and optional retained grant into its source-owner
+		 * representation.
+		 */
 		fun from(
 			identity: TrackingPurposeLeaseIdentity,
 			retentionPolicyId: String? = null,
@@ -582,6 +681,10 @@ data class AmbientReconciliationIdentity(
 	}
 }
 
+/**
+ * Parent-issued all-day reconciliation authority for one source, exposed through its canonical purpose
+ * identity.
+ */
 data class AmbientReconciliationLease(
 	val identity: AmbientReconciliationIdentity,
 ) {
@@ -589,6 +692,7 @@ data class AmbientReconciliationLease(
 		get() = identity.purposeLeaseIdentity
 }
 
+/** One all-day source status bound to the exact reconciliation identity that produced it. */
 data class AmbientSourceReconciliationReport(
 	val identity: AmbientReconciliationIdentity,
 	val availability: AmbientSourceOperationalAvailability,
@@ -614,32 +718,40 @@ data class AmbientSourceReconciliationReport(
 	}
 }
 
+/** Whether an all-day owner publication matched and consumed the current one-use lease. */
 sealed interface AmbientPublicationAcceptance {
+	/** The exact all-day report or cancellation produced this publication snapshot. */
 	data class Accepted(
 		val snapshot: TrackingPurposeAvailabilitySnapshot,
 	) : AmbientPublicationAcceptance
 
+	/** All-day publication did not change because the current identity or token check failed. */
 	data class Rejected(
 		val reason: AmbientPublicationRejection,
 	) : AmbientPublicationAcceptance
 }
 
+/** Reservation result for an all-day source reconciliation, without starting its provider. */
 sealed interface AmbientLeaseStartResult {
+	/** A new all-day source lease is reserved; provider readiness still requires its owner report. */
 	data class Started(
 		val lease: AmbientReconciliationLease,
 		val snapshot: TrackingPurposeAvailabilitySnapshot,
 	) : AmbientLeaseStartResult
 
+	/** The same all-day identity already has an owner operation; no replacement authority is issued. */
 	data class InProgress(
 		val lease: AmbientReconciliationLease,
 		val snapshot: TrackingPurposeAvailabilitySnapshot,
 	) : AmbientLeaseStartResult
 
+	/** No all-day source lease was reserved because its identity or token was rejected. */
 	data class Rejected(
 		val reason: AmbientPublicationRejection,
 	) : AmbientLeaseStartResult
 }
 
+/** Why an all-day report failed its one-use identity or token check. */
 enum class AmbientPublicationRejection {
 	CANCELLED,
 	STALE_IDENTITY,
@@ -647,6 +759,7 @@ enum class AmbientPublicationRejection {
 	TOKEN_REUSED,
 }
 
+/** Why an automatic control report failed its one-use identity or token check. */
 enum class TrackingPurposePublicationRejection {
 	CANCELLED,
 	STALE_IDENTITY,
@@ -654,7 +767,9 @@ enum class TrackingPurposePublicationRejection {
 	TOKEN_REUSED,
 }
 
+/** Whether a reported all-day source is operational after reconciliation. */
 sealed interface AmbientSourceReconciliationResult {
+	/** The report carries an operational source state and its exact owner identity. */
 	data class Reconciled(
 		val report: AmbientSourceReconciliationReport,
 	) : AmbientSourceReconciliationResult {
@@ -663,6 +778,10 @@ sealed interface AmbientSourceReconciliationResult {
 		}
 	}
 
+	/**
+	 * The report carries a non-operational source state; valid data from other sources remains
+	 * independent.
+	 */
 	data class Unavailable(
 		val report: AmbientSourceReconciliationReport,
 	) : AmbientSourceReconciliationResult {
@@ -672,6 +791,9 @@ sealed interface AmbientSourceReconciliationResult {
 	}
 }
 
+/**
+ * Source owner operations for reconciliation, exact compensation, authority withdrawal and data deletion.
+ */
 fun interface AmbientSourceReconciliationCallback {
 	/**
 	 * Returns status for one exact parent-issued lease. Implementations must not treat invocation as
@@ -718,6 +840,9 @@ fun interface AmbientSourceReconciliationCallback {
 	): Boolean = retireAfterRetentionAuthorityFailure(previousLease)
 }
 
+/**
+ * Activity CONTROL owner operations; callback execution alone never authorizes recorded Activity data.
+ */
 fun interface AutomaticControlReconciliationCallback {
 	/**
 	 * Registers and reports one exact Activity CONTROL lease. Ready requires an accepted physical
@@ -727,9 +852,11 @@ fun interface AutomaticControlReconciliationCallback {
 		lease: AutomaticControlReconciliationLease,
 	): AutomaticTrackingOperationalAvailability
 
+	/** Acknowledges physical cleanup of this exact lease; false keeps its owner retained for retry. */
 	suspend fun compensate(lease: AutomaticControlReconciliationLease): Boolean = true
 }
 
+/** Identifies one callback registration so only its current owner can unregister it. */
 data class TrackingPurposeSourceOwnerRegistration(
 	val sourcePurpose: CanonicalSourcePurpose,
 	val registrationId: String,
@@ -744,30 +871,45 @@ data class TrackingPurposeSourceOwnerRegistration(
  * demand, provider, consent, retention, broker, or writer authority.
  */
 interface TrackingPurposeSourceOwnerRegistrar {
+	/**
+	 * Registers the Activity CONTROL callback and execution revision, retiring any previous exact owner
+	 * first.
+	 */
 	suspend fun registerAutomaticControlOwner(
 		executionRevision: Long,
 		callback: AutomaticControlReconciliationCallback,
 	): TrackingPurposeSourceOwnerRegistration
 
+	/**
+	 * Registers one all-day source owner and execution revision, preserving independently owned siblings.
+	 */
 	suspend fun registerAmbientSourceOwner(
 		source: AmbientTrackingSource,
 		executionRevision: Long,
 		callback: AmbientSourceReconciliationCallback,
 	): TrackingPurposeSourceOwnerRegistration
 
+	/** Removes only the matching owner registration after its exact provider work has been retired. */
 	suspend fun unregister(registration: TrackingPurposeSourceOwnerRegistration)
 }
 
+/** Whether current settings and owner transitions settled or left typed retry work. */
 sealed interface TrackingPurposeSettingsReconciliationResult {
+	/**
+	 * All required transitions completed for the listed sources; operational readiness is published
+	 * separately.
+	 */
 	data class Complete(
 		val reconciledSources: Set<AmbientTrackingSource>,
 	) : TrackingPurposeSettingsReconciliationResult
 
+	/** Unfinished settings reconciliation with the exact failures needed for recovery. */
 	data class Debt(
 		val debt: TrackingPurposeSettingsReconciliationDebt,
 	) : TrackingPurposeSettingsReconciliationResult
 }
 
+/** Nonempty source/automatic failures that must be retained for a bounded later reconciliation. */
 data class TrackingPurposeSettingsReconciliationDebt(
 	val failures: List<TrackingPurposeSettingsReconciliationFailure>,
 ) {
@@ -776,12 +918,14 @@ data class TrackingPurposeSettingsReconciliationDebt(
 	}
 }
 
+/** One unresolved owner or retention transition; a null source denotes automatic/control-wide work. */
 data class TrackingPurposeSettingsReconciliationFailure(
 	val source: AmbientTrackingSource?,
 	val reason: TrackingPurposeSettingsReconciliationFailureReason,
 	val retentionReason: String? = null,
 )
 
+/** Distinguishes authority failure, startup changes and owner/cleanup work still in progress. */
 enum class TrackingPurposeSettingsReconciliationFailureReason {
 	RETENTION_RESULT_SET_INVALID,
 	RETENTION_AUTHORITY_UNAVAILABLE,
@@ -797,6 +941,7 @@ enum class TrackingPurposeSettingsReconciliationFailureReason {
 	RETRY_SCHEDULING_FAILED,
 }
 
+/** Persists typed retry ownership before callers expose reconciliation debt. */
 fun interface TrackingPurposeReconciliationRetryScheduler {
 	/**
 	 * Persists one typed retry owner before the caller receives [debt]. Returns false when the
@@ -807,20 +952,33 @@ fun interface TrackingPurposeReconciliationRetryScheduler {
 
 /** Existing settings and direct authority collectors use this typed reconciliation boundary. */
 fun interface TrackingPurposeSettingsReconciler {
+	/**
+	 * Reconciles current source settings and owners through the shared flow, returning any durable retry
+	 * debt.
+	 */
 	suspend fun reconcileCurrentSettings(): TrackingPurposeSettingsReconciliationResult
 }
 
 /** Negative-only destructive fence used while collected-data startup admission is closed. */
 fun interface TrackingPurposeDeletionFencer {
+	/** Closes all previously owned sources while new collection admission is fenced for deletion. */
 	suspend fun fenceForCollectedDataDeletion(): TrackingPurposeSettingsReconciliationResult
 }
 
 /** Physically closes app-scoped owners after an explicit user stop; retained data is untouched. */
 fun interface TrackingPurposeUserStopFencer {
+	/** Physically retires automatic and all-day owners after an explicit all-source Off. */
 	suspend fun closeForUserStop(): TrackingPurposeSettingsReconciliationResult
 }
 
+/**
+ * Settles approved all-day owners against one UTC-millisecond retention floor and startup generation.
+ */
 fun interface TrackingRetentionFloorReconciler {
+	/**
+	 * Settles the supplied approved sources against the UTC-millisecond floor under the expected startup
+	 * generation.
+	 */
 	suspend fun reconcile(
 		expectedStartupGeneration: Long,
 		retainedFromMs: Long,
@@ -839,22 +997,27 @@ fun interface TrackingRetentionFloorReconciler {
 	}
 }
 
+/** Whether the requested retention floor and required owner transitions were settled. */
 sealed interface TrackingRetentionFloorReconciliationResult {
+	/**
+	 * The UTC-millisecond retention floor and listed approved source owners were successfully reconciled.
+	 */
 	data class Complete(
 		val retainedFromMs: Long,
 		val reconciledSources: Set<AmbientTrackingSource>,
 	) : TrackingRetentionFloorReconciliationResult {
 		init {
 			require(retainedFromMs >= 0L)
-			require(reconciledSources.none { it == AmbientTrackingSource.LOCATION })
 		}
 	}
 
+	/** Retention-floor work remains unfinished and its typed debt must be retried. */
 	data class Retryable(
 		val debt: TrackingRetentionFloorReconciliationDebt,
 	) : TrackingRetentionFloorReconciliationResult
 }
 
+/** The exact UTC-millisecond floor and nonempty failures retained for recovery. */
 data class TrackingRetentionFloorReconciliationDebt(
 	val retainedFromMs: Long,
 	val failures: List<TrackingRetentionFloorReconciliationFailure>,
@@ -865,11 +1028,13 @@ data class TrackingRetentionFloorReconciliationDebt(
 	}
 }
 
+/** A failed source-owner transition during floor settlement; null source denotes automatic control. */
 data class TrackingRetentionFloorReconciliationFailure(
 	val source: AmbientTrackingSource?,
 	val reason: TrackingRetentionFloorReconciliationFailureReason,
 )
 
+/** Why a floor settlement could not safely reconcile, publish or retire its exact owner. */
 enum class TrackingRetentionFloorReconciliationFailureReason {
 	STARTUP_GENERATION_CHANGED,
 	RETENTION_AUTHORITY_UNAVAILABLE,
@@ -1131,14 +1296,17 @@ class AtomicTrackingPurposeAvailabilityStore :
 		}
 	}
 
-	override fun reportAmbientForegroundHostLost(expectedIdentity: TrackingPurposeLeaseIdentity): Boolean = synchronized(lock) {
+	override fun reportAmbientForegroundHostLost(expectedIdentity: TrackingPurposeLeaseIdentity): Boolean =
+        synchronized(lock) {
 		val source = when (expectedIdentity.source) {
 			CanonicalTrackingSource.WIFI -> AmbientTrackingSource.WIFI
 			CanonicalTrackingSource.CELL -> AmbientTrackingSource.CELL
 			else -> return@synchronized false
 		}
 		val previous = mutableAvailability.value.ambientSources.getValue(source)
-		if (!previous.isOperational || previous.operationalIdentity != expectedIdentity) return@synchronized false
+		if (!previous.isOperational || previous.operationalIdentity != expectedIdentity) {
+			return@synchronized false
+		}
 		mutableAvailability.value = mutableAvailability.value.copy(
 			ambientSources = mutableAvailability.value.ambientSources + (source to previous.copy(
 				state = AmbientSourceOperationalState.DEGRADED,
@@ -1257,6 +1425,10 @@ private data class TrackingPurposeLeaseToken(
 private fun TrackingPurposeLeaseIdentity.leaseToken(): TrackingPurposeLeaseToken =
 	TrackingPurposeLeaseToken(sourcePurpose, ownerCasToken)
 
+/**
+ * Compares source, consent, data/rollout/execution revisions, owner token and retention floor without
+ * granting a lease.
+ */
 fun TrackingPurposeLeaseIdentity.matchesAuthority(
 	authority: TrackingPurposeAuthorityVector,
 ): Boolean = sourcePurpose == authority.sourcePurpose &&

@@ -176,6 +176,7 @@ object InfrastructureModule {
 
     @Provides
     @Singleton
+    /** Uses the existing application WorkManager instance for persistent bounded collection and cleanup jobs. */
     fun provideWorkManager(@ApplicationContext context: Context): WorkManager =
         WorkManager.getInstance(context)
 

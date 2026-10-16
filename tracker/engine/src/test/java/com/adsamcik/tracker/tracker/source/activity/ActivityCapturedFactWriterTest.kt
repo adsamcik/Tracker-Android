@@ -53,6 +53,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Suppress("LargeClass") // One Room fixture compares authenticated writes, corrections and replay.
 class ActivityCapturedFactWriterTest {
 	private lateinit var database: AppDatabase
 
@@ -762,6 +763,9 @@ class ActivityCapturedFactWriterTest {
 		database.activityCapturedFactDao().revisionCount() shouldBe 1L
 	}
 
+	// Keep one captured Activity fixture in its dependent session, manifest, plan, provider authorization and
+	// WAL installation order.
+	@Suppress("LongMethod")
 	private suspend fun seedAuthority(
 		sourcePolicyRevision: Long = 1L,
 		consentPolicyRevision: Long = sourcePolicyRevision,
@@ -815,7 +819,11 @@ class ActivityCapturedFactWriterTest {
 				lifecycleRevision = 2L,
 				desiredPlanRevision = runDesiredPlanRevision,
 				rolloutRevision = 1L,
-				startOrigin = if (sessionMode == "AUTOMATIC") "AUTOMATIC_BACKGROUND_START" else "MANUAL_FOREGROUND_START",
+				startOrigin = if (sessionMode == "AUTOMATIC") {
+					"AUTOMATIC_BACKGROUND_START"
+				} else {
+					"MANUAL_FOREGROUND_START"
+				},
 				clockDomainId = BOOT_ID,
 				startedAtMs = 1_000L,
 				startedElapsedNanos = RUN_START_NANOS,
@@ -847,7 +855,11 @@ class ActivityCapturedFactWriterTest {
 				completionReason = "TEST",
 				bootId = BOOT_ID,
 				leaseGeneration = 1L,
-				startOrigin = if (sessionMode == "AUTOMATIC") "AUTOMATIC_BACKGROUND_START" else "MANUAL_FOREGROUND_START",
+				startOrigin = if (sessionMode == "AUTOMATIC") {
+					"AUTOMATIC_BACKGROUND_START"
+				} else {
+					"MANUAL_FOREGROUND_START"
+				},
 				desiredForegroundCapabilityFlags = 0L,
 				appliedForegroundCapabilityFlags = 0L,
 				runtimeAcknowledgement = "STOPPED",
@@ -880,7 +892,11 @@ class ActivityCapturedFactWriterTest {
 					SourceKind.ACTIVITY.stableCode,
 					1,
 					encodedPlan.bytes,
-					if (corruptDesiredChecksum) "corrupt-checksum" else encodedPlan.checksum,
+					if (corruptDesiredChecksum) {
+						"corrupt-checksum"
+					} else {
+						encodedPlan.checksum
+					},
 				),
 			),
 		)
@@ -943,7 +959,11 @@ class ActivityCapturedFactWriterTest {
 			sourcePolicyRevision = sourcePolicyRevision,
 			acquisitionPlanRevision = 1L,
 			rolloutRevision = 1L,
-			startOrigin = if (sessionMode == "AUTOMATIC") "AUTOMATIC_BACKGROUND_START" else "MANUAL_FOREGROUND_START",
+			startOrigin = if (sessionMode == "AUTOMATIC") {
+				"AUTOMATIC_BACKGROUND_START"
+			} else {
+				"MANUAL_FOREGROUND_START"
+			},
 			effectiveBootId = BOOT_ID,
 			effectiveElapsedRealtimeNanos = RUN_START_NANOS,
 			effectiveWallTimeMs = 1_000L,
@@ -1187,7 +1207,11 @@ class ActivityCapturedFactWriterTest {
 			confidencePercent = null,
 			coverageEndExclusiveElapsedRealtimeNanos = null,
 		)
-		val bandEnd = if (withGap) 300L else 400L
+		val bandEnd = if (withGap) {
+			300L
+		} else {
+			400L
+		}
 		val band = ActivityCapturedBand(
 			key = ActivityCapturedFactKey(mutation, 0),
 			intervalStartElapsedRealtimeNanos = 200L,
@@ -1206,9 +1230,13 @@ class ActivityCapturedFactWriterTest {
 		return ActivityCapturedWindow(
 			mutation = mutation,
 			bands = listOf(band),
-			gaps = if (withGap) listOf(
+			gaps = if (withGap) {
+				listOf(
 				ActivityCoverageGap(300L, 400L, ActivityCoverageGapReason.NO_QUALIFIED_EVIDENCE),
-			) else emptyList(),
+			)
+			} else {
+				emptyList()
+			},
 			exactDuplicateCount = 0,
 			semanticDuplicateCount = 0,
 			unchangedEvidenceCount = 0,
@@ -1304,7 +1332,11 @@ class ActivityCapturedFactWriterTest {
 		kind: ActivityWallTimeBoundaryKind,
 	) = ActivityDerivedWallTimeBoundary(
 		wallTimeMs = wallTimeMs,
-		uncertaintyMs = if (kind == ActivityWallTimeBoundaryKind.EXACT_PROVIDER_OBSERVATION) 25L else 26L,
+		uncertaintyMs = if (kind == ActivityWallTimeBoundaryKind.EXACT_PROVIDER_OBSERVATION) {
+			25L
+		} else {
+			26L
+		},
 		authority = ActivityWallTimeDerivationAuthority(
 			kind = kind,
 			anchorSourceEventId = reference.sourceEventId,
@@ -1344,7 +1376,7 @@ class ActivityCapturedFactWriterTest {
 		private const val SERVICE_RUN_ID = "service-run-activity-1"
 		private const val SOURCE_INSTANCE_ID = "activity-instance-1"
 		private const val BOOT_ID = "boot-activity-1"
-		private const val AUTHORIZATION_FINGERPRINT = "activity-authorization-1"
+		private val AUTHORIZATION_FINGERPRINT = "a".repeat(64)
 		private const val RUN_START_NANOS = 100L
 		private const val RUN_END_NANOS = 2_000_000L
 		private const val WRITER_ID = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID

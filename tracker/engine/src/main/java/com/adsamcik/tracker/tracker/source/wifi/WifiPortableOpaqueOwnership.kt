@@ -82,7 +82,9 @@ internal class WifiPortableOpaqueOwnershipSet private constructor(
 					} || candidate.scopeOwners.any { (scope, owner) ->
 						scopes[scope]?.let { it != owner } == true
 					}
-				) return null
+				) {
+					return null
+				}
 				identities.putAll(candidate.identityOwners)
 				scopes.putAll(candidate.scopeOwners)
 				valuesByEntry[entry.identity.value] = candidate.allValues

@@ -63,6 +63,10 @@ data class ImportedActivityEntryRevisionEntity(
 		ImportedActivityIdentity.requireProvenance(importJobId, importEntryKey, importSourceName)
 	}
 
+	/**
+	 * Stable persisted codes, including `SOURCE_FORMAT`, `SOURCE_SCHEMA_VERSION`, and any
+	 * identity-bound record factories.
+	 */
 	companion object {
 		const val SOURCE_FORMAT = "tracker-portable-captured-activity"
 		const val SOURCE_SCHEMA_VERSION = 1
@@ -310,6 +314,10 @@ data class ImportedActivityFragmentEntity(
 		}
 	}
 
+	/**
+	 * Stable persisted codes, including `KIND_GAP`, `KIND_BAND`, and any identity-bound record
+	 * factories.
+	 */
 	companion object {
 		const val KIND_GAP = "GAP"
 		const val KIND_BAND = "BAND"
@@ -420,6 +428,10 @@ data class ImportedActivityRetentionReceiptEntity(
 		})
 	}
 
+	/**
+	 * Checks the supplied original Activity ownership/lineage metadata against this retained record's
+	 * saved values and digest.
+	 */
 	@Suppress("ComplexCondition")
 	fun authenticates(markers: List<ImportedActivityRetainedIdentityEntity>): Boolean {
 		val stableRunCount = runRowCount / revisionCount
@@ -438,15 +450,29 @@ data class ImportedActivityRetentionReceiptEntity(
 			protectedIdentitySetChecksum == checksumProtectedIdentities(markers)
 	}
 
+	/**
+	 * Decodes original stored calendar-zone intervals using the saved range count; malformed payloads
+	 * are rejected.
+	 */
 	fun structuralZoneRanges(): List<ImportedActivityRetainedZoneRange> =
 		decodeStructuralZoneRanges(structuralZoneRangesPayload, structuralZoneRangeCount)
 
+	/**
+	 * Stable persisted codes, including `TEMPORAL_AUTHORITY_AVAILABLE`,
+	 * `TEMPORAL_AUTHORITY_UNAVAILABLE`, `TEMPORAL_AUTHORITY_REDACTED`, and any identity-bound record
+	 * factories.
+	 */
 	companion object {
 		const val TEMPORAL_AUTHORITY_AVAILABLE = "AVAILABLE"
 		const val TEMPORAL_AUTHORITY_UNAVAILABLE = "UNAVAILABLE"
 		const val TEMPORAL_AUTHORITY_REDACTED = "REDACTED"
 
-		@Suppress("LongParameterList")
+		/**
+		 * Builds payload-free retained Activity lineage metadata from original import revisions, UTC
+		 * bounds, row counts and canonical ownership/deletion sets.
+		 */
+		// Keep this receipt row and the matching checksum field order together.
+		@Suppress("LongParameterList", "LongMethod")
 		fun create(
 			entryIdentity: String,
 			collectedDataEpoch: Long,
@@ -588,7 +614,12 @@ data class ImportedActivityRetentionReceiptEntity(
 			)
 		}
 
-		@Suppress("LongParameterList")
+		/**
+		 * Builds the payload-free retained form while keeping the identity and lineage counters needed
+		 * for later replay checks.
+		 */
+		// Keep the redacted row and its matching checksum field order together.
+		@Suppress("LongParameterList", "LongMethod")
 		fun createRedacted(
 			original: ImportedActivityRetentionReceiptEntity,
 			sourceEvidenceRevision: Long,
@@ -666,6 +697,10 @@ data class ImportedActivityRetentionReceiptEntity(
 			)
 		}
 
+		/**
+		 * Hashes the canonically ordered protected identities, including their stored owner and deletion
+		 * metadata.
+		 */
 		fun checksumProtectedIdentities(values: List<ImportedActivityRetainedIdentityEntity>): String {
 			require(values.isNotEmpty() && values.size <= MAX_PROTECTED_IDENTITIES)
 			require(values.map { it.protectedIdentity }.distinct().size == values.size)
@@ -678,6 +713,9 @@ data class ImportedActivityRetentionReceiptEntity(
 			)
 		}
 
+		/**
+		 * Hashes original import revisions and their ownership dependencies into one lineage digest.
+		 */
 		fun lineageAuthorityChecksum(
 			headers: List<ImportedActivityEntryRevisionEntity>,
 			receipts: List<ImportedActivityReceiptEntity>,
@@ -885,6 +923,10 @@ data class ImportedActivityRetainedIdentityEntity(
 		require((identityKind == ENTRY) == (protectedIdentity == entryIdentity))
 	}
 
+	/**
+	 * Stable persisted codes, including `ENTRY`, `RUN`, `WINDOW`, and any identity-bound record
+	 * factories.
+	 */
 	companion object {
 		const val ENTRY = "ENTRY"
 		const val RUN = "RUN"
@@ -909,7 +951,15 @@ data class ImportedActivityEntryDeletionEntity(
 		require(effectChecksum == checksum(entryIdentity, collectedDataEpoch, deletedImportRevision, deletedAtMs))
 	}
 
+	/**
+	 * Factories and canonical digests binding this record to its original identity, revision and
+	 * lifecycle fields.
+	 */
 	companion object {
+		/**
+		 * Builds the imported Activity entry-deletion witness with its original identity, deleted import
+		 * revision, data epoch and UTC erase time.
+		 */
 		fun create(
 			entryIdentity: String,
 			collectedDataEpoch: Long,
@@ -977,8 +1027,17 @@ data class ImportedActivityEntryDeletionReceiptEntity(
 		require(effectChecksum == checksum(this))
 	}
 
+	/**
+	 * Stable persisted codes, including `MAX_EXPECTED_RUNS`, `MAX_EXPECTED_WINDOWS`, and any
+	 * identity-bound record factories.
+	 */
 	companion object {
-		@Suppress("LongParameterList")
+		/**
+		 * Binds entry deletion to the original run scopes, windows, run deletions and source fences
+		 * using canonical set digests.
+		 */
+		// Keep one deletion receipt's membership validation, canonical digests and exact field construction together.
+		@Suppress("LongParameterList", "LongMethod")
 		fun create(
 			entryDeletion: ImportedActivityEntryDeletionEntity,
 			deletedContentChecksum: String,
@@ -1049,6 +1108,9 @@ data class ImportedActivityEntryDeletionReceiptEntity(
 			)
 		}
 
+		/**
+		 * Hashes the canonical set of original run-to-deletion-scope associations.
+		 */
 		fun checksumRunScopes(values: List<Pair<String, String>>): String {
 			requireValidRunScopes(values)
 			return ImportedActivityIdentity.digest(
@@ -1059,6 +1121,9 @@ data class ImportedActivityEntryDeletionReceiptEntity(
 			)
 		}
 
+		/**
+		 * Hashes the canonical set of original window-to-run ownership associations.
+		 */
 		fun checksumWindowIdentities(values: List<String>): String {
 			requireValidWindowIdentities(values)
 			return ImportedActivityIdentity.digest(
@@ -1067,6 +1132,9 @@ data class ImportedActivityEntryDeletionReceiptEntity(
 			)
 		}
 
+		/**
+		 * Hashes canonically ordered run-deletion records with their original scopes and revisions.
+		 */
 		fun checksumRunDeletions(values: List<ImportedActivityDeletionGenerationEntity>): String =
 			ImportedActivityIdentity.digest(
 				"tracker-imported-activity-deletion-run-marker-set-v1",
@@ -1081,6 +1149,10 @@ data class ImportedActivityEntryDeletionReceiptEntity(
 				},
 			)
 
+		/**
+		 * Hashes canonically ordered source-deletion fences with their original purposes and
+		 * generations.
+		 */
 		fun checksumSourceFences(values: List<SourceDeletionFenceEntity>): String =
 			ImportedActivityIdentity.digest(
 				"tracker-imported-activity-deletion-source-fence-set-v1",
@@ -1186,7 +1258,15 @@ data class ImportedActivityDeletionGenerationEntity(
 		require(effectChecksum == checksum(runIdentity, collectedDataEpoch, generation, deletedAtMs))
 	}
 
+	/**
+	 * Factories and canonical digests binding this record to its original identity, revision and
+	 * lifecycle fields.
+	 */
 	companion object {
+		/**
+		 * Builds the imported Activity run-deletion record with its original scope, data epoch,
+		 * generation and UTC erase time.
+		 */
 		fun create(
 			runIdentity: String,
 			collectedDataEpoch: Long,
@@ -1249,13 +1329,19 @@ internal fun PortableActivityEntryV1.toImportedActivityRetainedTemporalAuthority
 		val effectiveAtStart = run.zoneEpochs.lastOrNull {
 			it.effectiveWallTimeMs <= run.startTimeMs
 		}
-		if (effectiveAtStart == null) complete = false
+		if (effectiveAtStart == null) {
+			complete = false
+		}
 		run.zoneEpochs.mapIndexedNotNull { index, epoch ->
 			val start = maxOf(run.startTimeMs, epoch.effectiveWallTimeMs)
 			val nextStart = run.zoneEpochs.getOrNull(index + 1)?.effectiveWallTimeMs
 			val end = minOf(
 				runEndInclusive,
-				nextStart?.let { if (it == 0L) -1L else it - 1L } ?: runEndInclusive,
+				nextStart?.let { if (it == 0L) {
+					-1L
+				} else {
+					it - 1L
+				} } ?: runEndInclusive,
 			)
 			if (end < start) {
 				null
@@ -1268,7 +1354,7 @@ internal fun PortableActivityEntryV1.toImportedActivityRetainedTemporalAuthority
 			.thenBy(ImportedActivityRetainedZoneRange::endInclusiveMs)
 			.thenBy(ImportedActivityRetainedZoneRange::storedZoneId),
 	)
-	require(ranges.isNotEmpty() && ranges.size <= 16_384)
+	require(ranges.isNotEmpty() && ranges.size <= MAX_RETAINED_ACTIVITY_ZONE_RANGES)
 	val latestMember = runs.maxWith(
 		compareBy({ it.startTimeMs }, { it.identity.value }),
 	)
@@ -1320,3 +1406,5 @@ private fun requireBoundedText(value: String) {
 }
 
 private const val MAX_TEXT_VALUE_LENGTH = 128
+
+private const val MAX_RETAINED_ACTIVITY_ZONE_RANGES = 16_384

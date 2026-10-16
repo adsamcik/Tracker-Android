@@ -9,7 +9,6 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
-import com.adsamcik.tracker.shared.preferences.tracking.SourcePurpose
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicySnapshot
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
@@ -152,6 +151,9 @@ class AmbientStepsDemandReconcilerTest {
 			AmbientStepsAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS
 	}
 
+	// Keep the explicit pending Steps lease and reconciliation together to prove recording does not require READY
+	// first.
+	@Suppress("LongMethod")
 	@Test
 	fun `exact pending lease including retention identity is accepted before READY publication`() =
 		runTest {
@@ -364,7 +366,7 @@ class AmbientStepsDemandReconcilerTest {
 	}
 
 	@Test
-	fun `revoked ambient policy retires stale demand without probing a provider`() = runTest {
+	fun `turning Steps off retires its all-day demand without probing a provider`() = runTest {
 		bootstrapPolicy(ambientEnabled = true)
 		reconciler(
 			AmbientStepsCapability.ReadyForRegistration(
@@ -373,13 +375,10 @@ class AmbientStepsDemandReconcilerTest {
 			),
 		).reconcileAt(boundary(50L))
 		val activePolicy = policyRepository.currentState() as SourcePolicyAuthorityState.Active
-		policyRepository.setNonCaptureConsent(
+		policyRepository.replaceCaptureSettings(
 			expectedPolicyRevision = activePolicy.snapshot.revision,
-			source = TrackingSourceComponent.STEPS,
-			purpose = SourcePurpose.AMBIENT_PRODUCT,
-			eligible = false,
-			persistenceEligible = false,
-			reason = "TEST_AMBIENT_DISABLED",
+			settings = TrackingParamsState(stepsEnabled = false, legacySettingsMigrationCompleted = true),
+			reason = "TEST_STEPS_DISABLED",
 		)
 		var capabilityProbes = 0
 
@@ -393,7 +392,7 @@ class AmbientStepsDemandReconcilerTest {
 
 		result shouldBe AmbientStepsDemandReconciliation.PolicyBlocked(
 			provider = null,
-			reason = AmbientStepsDemandBlockReason.REQUEST_DISABLED,
+			reason = AmbientStepsDemandBlockReason.AUTHORITY_INACTIVE,
 		)
 		capabilityProbes shouldBe 0
 		database.sourceBrokerDao().currentDemands(AmbientStepsDemandReconciler.CONSUMER_ID) shouldBe
@@ -432,8 +431,8 @@ class AmbientStepsDemandReconcilerTest {
 	private suspend fun bootstrapPolicy(ambientEnabled: Boolean): SourcePolicySnapshot {
 		val policy = policyRepository.bootstrapFromLegacy(
 			TrackingParamsState(
-				stepsEnabled = false,
-				ambientStepsEnabled = ambientEnabled,
+				// The single Steps choice enables all-day recording as well as session capture.
+				stepsEnabled = ambientEnabled,
 				legacySettingsMigrationCompleted = true,
 			),
 		)

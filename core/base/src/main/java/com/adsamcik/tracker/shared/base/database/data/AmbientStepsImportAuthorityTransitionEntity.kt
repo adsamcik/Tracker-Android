@@ -124,7 +124,15 @@ data class AmbientStepsImportAuthorityTransitionEntity(
 	}
 }
 
+/**
+ * Stable identities binding Steps provider import transitions to their original authority
+ * boundaries.
+ */
 object AmbientStepsImportAuthorityTransitionIntegrity {
+	/**
+	 * Derives the import-authority transition key from its original epochs, registration and
+	 * effective boundary.
+	 */
 	fun transitionId(
 		registrationGeneration: Long,
 		transitionSequence: Long,
@@ -173,7 +181,11 @@ object AmbientStepsImportAuthorityTransitionIntegrity {
 	private fun digest(vararg values: Any?): String {
 		val canonical = values.joinToString(separator = "") { value ->
 			val text = value?.toString()
-			if (text == null) "-1:" else "${text.length}:$text"
+			if (text == null) {
+				"-1:"
+			} else {
+				"${text.length}:$text"
+			}
 		}
 		return MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray(Charsets.UTF_8))

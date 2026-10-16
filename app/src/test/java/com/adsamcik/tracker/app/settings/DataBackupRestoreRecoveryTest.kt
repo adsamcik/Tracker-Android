@@ -5,8 +5,12 @@ import android.net.Uri
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
+import com.adsamcik.tracker.impexp.backup.DataBackupArchiveReader
 import com.adsamcik.tracker.impexp.backup.DataBackupInspection
 import com.adsamcik.tracker.impexp.backup.DataBackupRestoreResult
+import com.adsamcik.tracker.impexp.backup.DataBackupSnapshot
+import com.adsamcik.tracker.impexp.backup.LogicalDataBackupImporter
+import com.adsamcik.tracker.impexp.exporter.DatabaseBackupScope
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -27,6 +31,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.shared.preferences.lifecycle.resetCollectedDataLifecycleForTests
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.api.TrackingTurnOffResult
+import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
@@ -37,12 +42,10 @@ import io.mockk.mockkObject
 import io.mockk.unmockkObject
 import io.mockk.Runs
 import java.io.File
-import java.security.MessageDigest
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
+import java.util.Properties
 import javax.inject.Provider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -51,18 +54,39 @@ import org.robolectric.annotation.Config
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [34], shadows = [PosixAtomicFileRenameShadow::class])
 class DataBackupRestoreRecoveryTest {
     @Test
-    fun `a committed main import resumes after asset failure without replacing Room or advancing epoch twice`() = runTest {
+    fun `restore resumes after asset failure`() = restoreScenario(false)
+
+    @Test
+    fun `restore refuses checkpoint`() = restoreScenario(true)
+
+    // Keep the real backup, interrupted asset handoff and checkpoint/recovery assertions together with
+    // their cleanup.
+    @Suppress("LongMethod")
+    private fun restoreScenario(rejectPreservedCheckpoint: Boolean) = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         resetCollectedDataLifecycleForTests(context)
         context.deleteDatabase(ACTIVE_DATABASE_NAME)
-        context.deleteDatabase("restore-fixture-source")
         val archive = File(context.cacheDir, "complete-data-backup.zip")
         val basemapDirectory = File(context.filesDir, "basemap")
         val restoreRoot = File(context.noBackupFilesDir, "data-restore")
         restoreRoot.deleteRecursively(); basemapDirectory.deleteRecursively()
+        context.deleteDatabase(com.adsamcik.tracker.shared.base.database.legacy.LEGACY_DATABASE_NAME)
+        val source = AppDatabase.fileBuilder(context, ACTIVE_DATABASE_NAME).allowMainThreadQueries().build()
+        try {
+            source.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 7L))
+            source.locationSampleDao().insert(point(2L, 200L))
+        } finally { source.close() }
+        basemapDirectory.mkdirs()
+        File(basemapDirectory, "custom.pmtiles").writeText("PMTiles\u0003restored")
+        try {
+            archive.outputStream().use { DataBackupSnapshot.write(context, it) }
+        } finally {
+            context.deleteDatabase(ACTIVE_DATABASE_NAME)
+            basemapDirectory.deleteRecursively()
+        }
         val target = AppDatabase.fileBuilder(context, ACTIVE_DATABASE_NAME).allowMainThreadQueries().build()
         val points = Room.inMemoryDatabaseBuilder(context, PointsDatabase::class.java).allowMainThreadQueries().build()
         mockkObject(TrackerServiceApi)
@@ -75,13 +99,6 @@ class DataBackupRestoreRecoveryTest {
                 old.execSQL("INSERT INTO saved_legacy_value VALUES ('previous dataset')")
                 old.version = 12
             }
-            val sourceFile = context.getDatabasePath("restore-fixture-source")
-            val source = AppDatabase.fileBuilder(context, "restore-fixture-source").allowMainThreadQueries().build()
-            try {
-                source.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 7L))
-                source.locationSampleDao().insert(point(2L, 200L))
-            } finally { source.close() }
-            writeArchive(archive, sourceFile, "PMTiles\u0003restored".toByteArray())
             val lifecycle = DefaultCollectedDataLifecycleStore(context)
             val barrier = TrackingStartupDeletionBarrier()
             val gate = object : TrackingStartupGate {
@@ -93,7 +110,7 @@ class DataBackupRestoreRecoveryTest {
             coEvery { quiescer.quiesce() } just Runs
             every { quiescer.resume() } just Runs
             coEvery { TrackerServiceApi.turnOffTrackingAndAwait(context, any()) } returns TrackingTurnOffResult.COMPLETE
-            val dispatchers = TestDispatchersProvider(UnconfinedTestDispatcher(testScheduler))
+            val dispatchers = TestDispatchersProvider(Dispatchers.Default)
             val policies = RoomSourcePolicyRepository(target, effectiveTimeProvider = {
                 SourcePolicyEffectiveTime("current-boot", 1_000L, 1_000L)
             })
@@ -106,18 +123,52 @@ class DataBackupRestoreRecoveryTest {
             }
             fun coordinator() = DefaultDataBackupRestore(context, lifecycle, Provider { gate }, barrier,
                 Provider { quiescer }, Provider { target }, Provider { points }, dispatchers, Provider { policies }, Provider { bootstrap })
+            val archiveUri = Uri.fromFile(archive)
+            val exportedReader = DataBackupArchiveReader(context)
+            val exportedPreview = exportedReader.inspect(archiveUri)
+                .shouldBeInstanceOf<DataBackupInspection.Ready>().preview
+            try {
+                val ownedCopy = File(exportedReader.directory(exportedPreview.token), "databases/$ACTIVE_DATABASE_NAME")
+                LogicalDataBackupImporter.normalizeOwnedCopy(context, ownedCopy)
+                LogicalDataBackupImporter.validateOwnedCopy(ownedCopy, target.openHelper.writableDatabase, tracker = true)
+                LogicalDataBackupImporter.maximumOriginalEpoch(ownedCopy) shouldBe 7L
+            } finally { exportedReader.discard(exportedPreview.token) }
             val initial = coordinator()
-            val preview = initial.inspect(Uri.fromFile(archive)).shouldBeInstanceOf<DataBackupInspection.Ready>().preview
+            val preview = initial.inspect(archiveUri).shouldBeInstanceOf<DataBackupInspection.Ready>().preview
             val preferences = context.getSharedPreferences("user-settings-fixture", Context.MODE_PRIVATE)
             preferences.edit().putString("quality", "balanced").commit()
             // A file where the asset's parent directory belongs makes only the asset handoff fail.
             basemapDirectory.writeText("temporary obstacle")
+            PosixAtomicFileRenameShadow.refusePreservedRestoreJournal = rejectPreservedCheckpoint
             initial.restore(preview) shouldBe DataBackupRestoreResult.Unavailable
             barrier.isClosed shouldBe true
-            lifecycle.snapshot().epoch shouldBe 8L
+            val safetyCopy = File(restoreRoot, "previous-data.zip")
+            val confirmation = File(restoreRoot, "confirmed.properties")
+            val pending = Properties().apply {
+                if (confirmation.isFile) {
+                    confirmation.inputStream().use(::load)
+                }
+            }
+            if (rejectPreservedCheckpoint) {
+                pending.getProperty("phase") shouldBe "prepared"
+                safetyCopy.isFile shouldBe true
+                lifecycle.snapshot().epoch shouldBe 0L
+                target.locationSampleDao().countAll() shouldBe 1L
+                target.locationSampleDao().byIds(listOf(1L)).single().timeMs shouldBe 100L
+                legacyFile.isFile shouldBe true
+                barrier.isClosed shouldBe true
+                return@runTest
+            }
+            val checkpointEpoch = lifecycle.snapshot().epoch
+            val atomicFailures = org.robolectric.shadows.ShadowLog.getLogsForTag("AtomicFile")
+                .takeLast(8).map { it.msg }
+            withClue("Restore checkpoint: phase=${pending.getProperty("phase")}, safetyBytes=${safetyCopy.length()}, epoch=$checkpointEpoch, atomicFailures=$atomicFailures") {
+                safetyCopy.isFile shouldBe true
+                confirmation.isFile shouldBe true
+                pending.getProperty("phase") shouldBe "preserved"
+                lifecycle.snapshot().epoch shouldBe 8L
+            }
             target.locationSampleDao().byIds(listOf(2L)).single().timeMs shouldBe 200L
-            File(restoreRoot, "previous-data.zip").isFile shouldBe true
-            File(restoreRoot, "confirmed.properties").isFile shouldBe true
 
             basemapDirectory.delete(); basemapDirectory.mkdirs()
             coordinator().reconcilePendingRestore() shouldBe true
@@ -140,9 +191,10 @@ class DataBackupRestoreRecoveryTest {
             DatabaseBackupScope.discover(context).none { it.archivePath.contains("legacy-database") ||
                 it.archivePath == "databases/${com.adsamcik.tracker.shared.base.database.legacy.LEGACY_DATABASE_NAME}" } shouldBe true
         } finally {
+            PosixAtomicFileRenameShadow.refusePreservedRestoreJournal = false
             unmockkObject(TrackerServiceApi)
             target.close(); points.close()
-            context.deleteDatabase(ACTIVE_DATABASE_NAME); context.deleteDatabase("restore-fixture-source")
+            context.deleteDatabase(ACTIVE_DATABASE_NAME)
             archive.delete(); basemapDirectory.deleteRecursively(); restoreRoot.deleteRecursively()
             resetCollectedDataLifecycleForTests(context)
         }
@@ -154,17 +206,4 @@ class DataBackupRestoreRecoveryTest {
         provider = "saved", quality = SampleQuality.COARSE, motionState = null, policy = null,
         bucketId = null, createdAt = time, sourceSignalId = "backup-original-$id")
 
-    private fun writeArchive(file: File, source: File, map: ByteArray) {
-        val data = linkedMapOf("databases/$ACTIVE_DATABASE_NAME" to source.readBytes(), "files/basemap/custom.pmtiles" to map)
-        ZipOutputStream(file.outputStream()).use { zip ->
-            data.forEach { (path, bytes) -> zip.putNextEntry(ZipEntry(path)); zip.write(bytes); zip.closeEntry() }
-            val entries = data.entries.joinToString(",") { (path, bytes) ->
-                val digest = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-                "{\"path\":\"$path\",\"sizeBytes\":${bytes.size},\"sha256\":\"$digest\"}"
-            }
-            zip.putNextEntry(ZipEntry("manifest.json"))
-            zip.write("{\"format\":\"tracker-database-backup\",\"version\":2,\"scope\":\"data\",\"files\":[$entries]}".toByteArray())
-            zip.closeEntry()
-        }
-    }
 }

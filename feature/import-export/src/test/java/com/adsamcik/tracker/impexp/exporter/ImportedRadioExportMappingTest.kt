@@ -37,7 +37,11 @@ class ImportedRadioExportMappingTest {
 		assertEquals(rows.map { it.runIdentity to it.itemIndex }, result.map { it.runIdentity to it.itemIndex })
 		assertEquals(rows.map { it.ssid }, result.map { it.ssid })
 		assertEquals(rows.map { it.contentChecksum }, result.map { it.contentChecksum })
-		assertEquals(rows.map { if (it.runIdentity == RUNS[0]) 1L else 2L },
+		assertEquals(rows.map { if (it.runIdentity == RUNS[0]) {
+			1L
+		} else {
+			2L
+		} },
 			result.map { it.semanticRevision })
 		assertEquals(100, WifiSessionFileV2(entry, result).children.size)
 	}
@@ -51,7 +55,11 @@ class ImportedRadioExportMappingTest {
 		assertEquals(rows.map { it.runIdentity to it.itemIndex }, result.map { it.runIdentity to it.itemIndex })
 		assertEquals(rows.map { it.towerIdentity }, result.map { it.towerIdentity })
 		assertEquals(rows.map { it.contentChecksum }, result.map { it.contentChecksum })
-		assertEquals(rows.map { if (it.runIdentity == RUNS[0]) 1L else 2L },
+		assertEquals(rows.map { if (it.runIdentity == RUNS[0]) {
+			1L
+		} else {
+			2L
+		} },
 			result.map { it.semanticRevision })
 		assertEquals(100, CellSessionFileV2(entry, result).children.size)
 	}

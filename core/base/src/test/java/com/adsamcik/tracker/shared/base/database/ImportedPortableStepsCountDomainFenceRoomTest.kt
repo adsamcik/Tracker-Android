@@ -59,6 +59,8 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// Owner-fence preservation, staging recovery and rollback share one authenticated graph and Room lifecycle.
+@Suppress("LargeClass")
 class ImportedPortableStepsCountDomainFenceRoomTest {
 	private lateinit var database: AppDatabase
 	private val context: Application
@@ -228,6 +230,8 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 	}
 
 	@Test
+	// Query bounds and the late receipt conflict prove the same atomic clear.
+	@Suppress("LongMethod")
 	fun `full clear authenticates one session product at a time and rolls back a late receipt conflict`() =
 		runTest {
 			val queries = CopyOnWriteArrayList<String>()
@@ -551,61 +555,36 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 			PortableCountDomainRootV2,
 			List<PortableCountDomainOwnerRevisionV2>,
 		) -> Unit = { _, _ -> }
+		fun assertRejected(
+			roots: List<PortableCountDomainRootV2> = graph.roots,
+			ownerRevisions: List<PortableCountDomainOwnerRevisionV2> = graph.ownerRevisions,
+		) {
+			assertFailsWith<IllegalArgumentException> {
+				forEachCanonicalPortableOwnerLineageForFullClear(
+					roots = roots,
+					ownerRevisions = ownerRevisions,
+					checkpoint = {},
+					consume = consume,
+				)
+			}
+		}
 
-		assertFailsWith<IllegalArgumentException> {
-			forEachCanonicalPortableOwnerLineageForFullClear(
-				roots = graph.roots + graph.roots.last(),
-				ownerRevisions = graph.ownerRevisions,
-				checkpoint = {},
-				consume = consume,
-			)
-		}
-		assertFailsWith<IllegalArgumentException> {
-			forEachCanonicalPortableOwnerLineageForFullClear(
-				roots = graph.roots.reversed(),
-				ownerRevisions = graph.ownerRevisions,
-				checkpoint = {},
-				consume = consume,
-			)
-		}
-		assertFailsWith<IllegalArgumentException> {
-			forEachCanonicalPortableOwnerLineageForFullClear(
-				roots = graph.roots,
-				ownerRevisions = graph.ownerRevisions + graph.ownerRevisions.last(),
-				checkpoint = {},
-				consume = consume,
-			)
-		}
-		assertFailsWith<IllegalArgumentException> {
-			forEachCanonicalPortableOwnerLineageForFullClear(
-				roots = graph.roots,
-				ownerRevisions = graph.ownerRevisions.reversed(),
-				checkpoint = {},
-				consume = consume,
-			)
-		}
-		assertFailsWith<IllegalArgumentException> {
-			forEachCanonicalPortableOwnerLineageForFullClear(
-				roots = List(PortableCountDomainFormatV2.MAX_ROOTS + 1) {
-					graph.roots.first()
-				},
-				ownerRevisions = graph.ownerRevisions,
-				checkpoint = {},
-				consume = consume,
-			)
-		}
-		assertFailsWith<IllegalArgumentException> {
-			forEachCanonicalPortableOwnerLineageForFullClear(
-				roots = graph.roots,
-				ownerRevisions = List(
-					PortableCountDomainFormatV2.MAX_OWNER_REVISIONS + 1,
-				) {
-					graph.ownerRevisions.first()
-				},
-				checkpoint = {},
-				consume = consume,
-			)
-		}
+		assertRejected(roots = graph.roots + graph.roots.last())
+		assertRejected(roots = graph.roots.reversed())
+		assertRejected(ownerRevisions = graph.ownerRevisions + graph.ownerRevisions.last())
+		assertRejected(ownerRevisions = graph.ownerRevisions.reversed())
+		assertRejected(
+			roots = List(PortableCountDomainFormatV2.MAX_ROOTS + 1) {
+				graph.roots.first()
+			},
+		)
+		assertRejected(
+			ownerRevisions = List(
+				PortableCountDomainFormatV2.MAX_OWNER_REVISIONS + 1,
+			) {
+				graph.ownerRevisions.first()
+			},
+		)
 	}
 
 	@Test
@@ -619,7 +598,9 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 				ownerRevisions = graph.ownerRevisions,
 				checkpoint = {
 					visits++
-					if (visits == 2) throw CancellationException("cancelled")
+					if (visits == 2) {
+						throw CancellationException("cancelled")
+					}
 				},
 			) { _, _ -> }
 		}
@@ -1209,6 +1190,8 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 		}
 
 	@Test
+	// Keep the fabricated BIND, downgraded binding and rollback proof together.
+	@Suppress("LongMethod")
 	fun `schema v1 binding cannot disguise fabricated bind authority`() = runTest {
 		val entry = entry()
 		seedSessionPayload(entry)
@@ -1454,7 +1437,11 @@ class ImportedPortableStepsCountDomainFenceRoomTest {
 		val older = PortableCountDomainGraphV2.create(
 			receipts = listOf(firstReceipt),
 			ownerRevisions = template.ownerRevisions.map {
-				if (it == originalOwner) firstOwner else it
+				if (it == originalOwner) {
+					firstOwner
+				} else {
+					it
+				}
 			},
 			completenessMarkers = template.completenessMarkers,
 			roots = template.roots,

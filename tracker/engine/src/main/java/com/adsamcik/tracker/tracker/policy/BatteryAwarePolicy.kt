@@ -16,6 +16,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 
+/**
+ * Battery constraints supplied to acquisition planning; stronger pressure reduces discretionary resource
+ * use.
+ */
 enum class BatteryPressure { NONE, MODERATE, STRONG }
 
 /**
@@ -51,12 +55,18 @@ class BatteryAwarePolicy @Inject constructor(
 			return previousPressure
 		}
 		if (level == null || level !in 0..100) return BatteryPressure.NONE
-		previousPressure = when {
-			level <= 10 || (previousPressure == BatteryPressure.STRONG && level < 15) -> BatteryPressure.STRONG
-			level <= 20 || (previousPressure != BatteryPressure.NONE && level < 25) -> BatteryPressure.MODERATE
-			else -> BatteryPressure.NONE
-		}
+		previousPressure = pressureForValidLevel(level)
 		return previousPressure
+	}
+
+	private fun pressureForValidLevel(level: Int): BatteryPressure = when {
+		level <= CRITICAL_LEVEL ||
+			(previousPressure == BatteryPressure.STRONG && level < STRONG_PRESSURE_RECOVERY_LEVEL) ->
+			BatteryPressure.STRONG
+		level <= LOW_LEVEL ||
+			(previousPressure != BatteryPressure.NONE && level < MODERATE_PRESSURE_RECOVERY_LEVEL) ->
+			BatteryPressure.MODERATE
+		else -> BatteryPressure.NONE
 	}
 
 	val batteryLevelUpdates: Flow<Int> = callbackFlow {
@@ -147,6 +157,8 @@ class BatteryAwarePolicy @Inject constructor(
 	}
 
 	internal companion object {
+		private const val STRONG_PRESSURE_RECOVERY_LEVEL = 15
+		private const val MODERATE_PRESSURE_RECOVERY_LEVEL = 25
 		const val CRITICAL_LEVEL = 10
 		const val LOW_LEVEL = 20
 		const val MEDIUM_LEVEL = 35

@@ -37,7 +37,9 @@ internal class PortableJsonTokenLimitInputStream(
 
 	override fun read(): Int {
 		val value = super.read()
-		if (value >= 0) inspect(value)
+		if (value >= 0) {
+			inspect(value)
+		}
 		return value
 	}
 
@@ -45,7 +47,7 @@ internal class PortableJsonTokenLimitInputStream(
 		val boundedLength = min(length, limits.maxReadChunkBytes)
 		val count = super.read(buffer, offset, boundedLength)
 		for (index in 0 until count.coerceAtLeast(0)) {
-			inspect(buffer[offset + index].toInt() and 0xff)
+			inspect(buffer[offset + index].toInt() and UNSIGNED_BYTE_MASK)
 		}
 		return count
 	}
@@ -64,44 +66,64 @@ internal class PortableJsonTokenLimitInputStream(
 			literalBytes = 0
 			literalStartedAsNumber = false
 		}
+		inspectTokenStart(value)
+	}
+
+	private fun inspectTokenStart(value: Int) {
 		when (value) {
-			QUOTE -> {
-				inString = true
-				stringIsName = expectsObjectName()
-				stringBytes = 0
-				stringMaximumBytes = if (!stringIsName && depth == ROOT_OBJECT_DEPTH) {
-					limits.rootStringValueMaxBytes[rootFieldName] ?: limits.maxStringBytes
-				} else {
-					limits.maxStringBytes
-				}
-				if (stringIsName) {
-					nameByteCount = 0
-					if (depth == ROOT_OBJECT_DEPTH) rootFieldName = null
-				}
-				escaped = false
-			}
+			QUOTE -> startString()
 			OBJECT_START -> push(OBJECT)
 			ARRAY_START -> push(ARRAY)
-			OBJECT_END, ARRAY_END -> if (depth > 0) depth--
-			COLON -> if (topContainer() == OBJECT) objectExpectsName[depth - 1] = false
-			COMMA -> if (topContainer() == OBJECT) {
-				objectExpectsName[depth - 1] = true
-				if (depth == ROOT_OBJECT_DEPTH) rootFieldName = null
+			OBJECT_END, ARRAY_END -> if (depth > 0) {
+				depth--
 			}
+			COLON -> setObjectExpectsName(expectsName = false)
+			COMMA -> setObjectExpectsName(expectsName = true)
 			else -> if (!isWhitespace(value)) {
-				inLiteral = true
-				literalBytes = 1
-				literalStartedAsNumber = value == MINUS || value in DIGIT_ZERO..DIGIT_NINE
-				literalMaximumBytes = if (literalStartedAsNumber) {
-					if (depth == ROOT_OBJECT_DEPTH) {
-						limits.rootNumberValueMaxBytes[rootFieldName] ?: limits.maxNumberBytes
-					} else {
-						limits.maxNumberBytes
-					}
-				} else {
-					limits.maxLiteralBytes
-				}
+				startLiteral(value)
 			}
+		}
+	}
+
+	private fun setObjectExpectsName(expectsName: Boolean) {
+		if (topContainer() == OBJECT) {
+			objectExpectsName[depth - 1] = expectsName
+			if (expectsName && depth == ROOT_OBJECT_DEPTH) {
+				rootFieldName = null
+			}
+		}
+	}
+
+	private fun startString() {
+		inString = true
+		stringIsName = expectsObjectName()
+		stringBytes = 0
+		stringMaximumBytes = if (!stringIsName && depth == ROOT_OBJECT_DEPTH) {
+			limits.rootStringValueMaxBytes[rootFieldName] ?: limits.maxStringBytes
+		} else {
+			limits.maxStringBytes
+		}
+		if (stringIsName) {
+			nameByteCount = 0
+			if (depth == ROOT_OBJECT_DEPTH) {
+				rootFieldName = null
+			}
+		}
+		escaped = false
+	}
+
+	private fun startLiteral(value: Int) {
+		inLiteral = true
+		literalBytes = 1
+		literalStartedAsNumber = value == MINUS || value in DIGIT_ZERO..DIGIT_NINE
+		literalMaximumBytes = if (literalStartedAsNumber) {
+			if (depth == ROOT_OBJECT_DEPTH) {
+				limits.rootNumberValueMaxBytes[rootFieldName] ?: limits.maxNumberBytes
+			} else {
+				limits.maxNumberBytes
+			}
+		} else {
+			limits.maxLiteralBytes
 		}
 	}
 
@@ -132,11 +154,19 @@ internal class PortableJsonTokenLimitInputStream(
 			nameBytes[nameByteCount++] = value.toByte()
 		}
 		stringBytes++
-		val maximum = if (stringIsName) limits.maxNameBytes else stringMaximumBytes
+		val maximum = if (stringIsName) {
+			limits.maxNameBytes
+		} else {
+			stringMaximumBytes
+		}
 		if (stringBytes > maximum) {
 			throw PortableJsonTokenLimitException(
-				if (stringIsName) "JSON field name exceeds its lexical byte bound"
-				else "JSON string exceeds its lexical byte bound",
+				if (stringIsName) {
+					"JSON field name exceeds its lexical byte bound"
+				}
+				else {
+					"JSON string exceeds its lexical byte bound"
+				},
 			)
 		}
 	}
@@ -145,8 +175,12 @@ internal class PortableJsonTokenLimitInputStream(
 		literalBytes++
 		if (literalBytes > literalMaximumBytes) {
 			throw PortableJsonTokenLimitException(
-				if (literalStartedAsNumber) "JSON number exceeds its lexical byte bound"
-				else "JSON bare literal exceeds its lexical byte bound",
+				if (literalStartedAsNumber) {
+					"JSON number exceeds its lexical byte bound"
+				}
+				else {
+					"JSON bare literal exceeds its lexical byte bound"
+				},
 			)
 		}
 	}
@@ -163,7 +197,11 @@ internal class PortableJsonTokenLimitInputStream(
 	private fun expectsObjectName(): Boolean =
 		topContainer() == OBJECT && objectExpectsName[depth - 1]
 
-	private fun topContainer(): Int = if (depth == 0) NONE else containers[depth - 1]
+	private fun topContainer(): Int = if (depth == 0) {
+		NONE
+	} else {
+		containers[depth - 1]
+	}
 
 	private fun isLiteralDelimiter(value: Int): Boolean =
 		isWhitespace(value) ||
@@ -179,6 +217,7 @@ internal class PortableJsonTokenLimitInputStream(
 		value == SPACE || value == TAB || value == CARRIAGE_RETURN || value == LINE_FEED
 
 	private companion object {
+		const val UNSIGNED_BYTE_MASK = 0xff
 		const val ROOT_OBJECT_DEPTH = 1
 		const val NONE = 0
 		const val OBJECT = 1
@@ -211,37 +250,49 @@ private fun decodeJsonFieldName(bytes: ByteArray, length: Int): String? {
 			decoded.append(character)
 			continue
 		}
-		if (index >= encoded.length) return null
-		when (val escaped = encoded[index++]) {
-			'"', '\\', '/' -> decoded.append(escaped)
-			'b' -> decoded.append('\b')
-			'f' -> decoded.append('\u000c')
-			'n' -> decoded.append('\n')
-			'r' -> decoded.append('\r')
-			't' -> decoded.append('\t')
-			'u' -> {
-				if (index + JSON_UNICODE_HEX_DIGITS > encoded.length) return null
-				val value = encoded.substring(index, index + JSON_UNICODE_HEX_DIGITS)
-					.toIntOrNull(16) ?: return null
-				decoded.append(value.toChar())
-				index += JSON_UNICODE_HEX_DIGITS
-			}
-			else -> return null
+		if (index >= encoded.length) {
+			return null
+		}
+		val escaped = encoded[index++]
+		if (escaped == 'u') {
+			val value = decodeJsonUnicodeCodeUnit(encoded, index) ?: return null
+			decoded.append(value)
+			index += JSON_UNICODE_HEX_DIGITS
+		} else {
+			decoded.append(decodeJsonSimpleEscape(escaped) ?: return null)
 		}
 	}
 	return decoded.toString()
+}
+
+private fun decodeJsonSimpleEscape(escaped: Char): Char? = when (escaped) {
+	'"', '\\', '/' -> escaped
+	'b' -> '\b'
+	'f' -> '\u000c'
+	'n' -> '\n'
+	'r' -> '\r'
+	't' -> '\t'
+	else -> null
+}
+
+private fun decodeJsonUnicodeCodeUnit(encoded: String, index: Int): Char? {
+	if (index + JSON_UNICODE_HEX_DIGITS > encoded.length) {
+		return null
+	}
+	return encoded.substring(index, index + JSON_UNICODE_HEX_DIGITS)
+		.toIntOrNull(JSON_HEXADECIMAL_RADIX)?.toChar()
 }
 
 /**
  * Raw lexical limits. Six bytes per decoded character admits fully `\\uXXXX`-escaped valid fields.
  */
 internal data class PortableJsonTokenLimits(
-	val maxNameBytes: Int = 64 * MAX_ESCAPED_BYTES_PER_CHARACTER,
-	val maxStringBytes: Int = 128 * MAX_ESCAPED_BYTES_PER_CHARACTER,
-	val maxNumberBytes: Int = 64,
-	val maxNestingDepth: Int = 32,
-	val maxReadChunkBytes: Int = 256,
-	val maxLiteralBytes: Int = 64,
+	val maxNameBytes: Int = DEFAULT_MAX_NAME_CHARACTERS * JSON_ESCAPE_BYTES_PER_CHARACTER,
+	val maxStringBytes: Int = DEFAULT_MAX_STRING_CHARACTERS * JSON_ESCAPE_BYTES_PER_CHARACTER,
+	val maxNumberBytes: Int = DEFAULT_MAX_NUMBER_BYTES,
+	val maxNestingDepth: Int = DEFAULT_MAX_NESTING_DEPTH,
+	val maxReadChunkBytes: Int = DEFAULT_MAX_READ_CHUNK_BYTES,
+	val maxLiteralBytes: Int = DEFAULT_MAX_LITERAL_BYTES,
 	val rootStringValueMaxBytes: Map<String, Int> = emptyMap(),
 	val rootNumberValueMaxBytes: Map<String, Int> = emptyMap(),
 ) {
@@ -257,16 +308,15 @@ internal data class PortableJsonTokenLimits(
 	}
 
 	private companion object {
-		const val MAX_ESCAPED_BYTES_PER_CHARACTER = 6
 		const val MIN_JSON_KEYWORD_BYTES = 5
 	}
 }
 
 internal fun portableJsonDocumentTokenLimits(encodedByteCount: Int) = PortableJsonTokenLimits(
-	maxNameBytes = 384,
-	maxStringBytes = encodedByteCount.coerceAtLeast(768),
-	maxNumberBytes = 64,
-	maxNestingDepth = 32,
+	maxNameBytes = DEFAULT_MAX_NAME_CHARACTERS * JSON_ESCAPE_BYTES_PER_CHARACTER,
+	maxStringBytes = encodedByteCount.coerceAtLeast(DEFAULT_MAX_STRING_CHARACTERS * JSON_ESCAPE_BYTES_PER_CHARACTER),
+	maxNumberBytes = DEFAULT_MAX_NUMBER_BYTES,
+	maxNestingDepth = DEFAULT_MAX_NESTING_DEPTH,
 )
 
 internal fun portableJsonHeaderTokenLimits(
@@ -292,3 +342,11 @@ internal class PortableJsonTokenLimitException(
 private const val JSON_UNICODE_HEX_DIGITS = 4
 private const val JSON_ESCAPE_BYTES_PER_CHARACTER = 6
 private const val MAX_SCHEMA_VERSION_TOKEN_BYTES = 10
+
+private const val JSON_HEXADECIMAL_RADIX = 16
+private const val DEFAULT_MAX_NAME_CHARACTERS = 64
+private const val DEFAULT_MAX_STRING_CHARACTERS = 128
+private const val DEFAULT_MAX_NUMBER_BYTES = 64
+private const val DEFAULT_MAX_NESTING_DEPTH = 32
+private const val DEFAULT_MAX_READ_CHUNK_BYTES = 256
+private const val DEFAULT_MAX_LITERAL_BYTES = 64

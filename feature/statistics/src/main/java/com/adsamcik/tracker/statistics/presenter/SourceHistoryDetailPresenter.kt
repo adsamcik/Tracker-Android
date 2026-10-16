@@ -19,12 +19,19 @@ import com.adsamcik.tracker.stats.api.repository.WifiHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryRepository
 import javax.inject.Inject
 
+/** Loading, readable exact-source detail, or a reasoned unavailable state without fabricated values. */
 sealed interface SourceHistoryDetailState {
+	/** The source-owned selection is being resolved. */
 	data object Loading : SourceHistoryDetailState
+	/** The exact selection is readable, with any validated native session members retained for display. */
 	data class Loaded(
 		val selection: SourceHistoryDetailSelection,
 		val members: List<LiveSessionHistorySnapshot> = emptyList(),
 	) : SourceHistoryDetailState
+	/**
+	 * The selection cannot currently be displayed; canRetry determines whether the same selection can be read
+	 * again.
+	 */
 	data class Unavailable(
 		val reason: SourceHistoryDetailUnavailableReason,
 		val source: HistorySource?,
@@ -32,6 +39,7 @@ sealed interface SourceHistoryDetailState {
 	) : SourceHistoryDetailState
 }
 
+/** Source detail failures that distinguish expired selection, changed data, missing records and retryable reads. */
 enum class SourceHistoryDetailUnavailableReason {
 	SELECTION_EXPIRED,
 	NOT_FOUND,
@@ -48,6 +56,10 @@ class SourceHistoryDetailPresenter @Inject constructor(
 	private val cellHistoryRepository: CellHistoryRepository,
 	private val trackingHistoryRepository: TrackingHistoryRepository,
 ) {
+	/**
+	 * Resolves the source-issued selection using existing source readers; changed ownership is never
+	 * substituted by another record.
+	 */
 	suspend fun load(selection: SourceHistoryDetailSelection): SourceHistoryDetailState =
 		when (val entry = selection.entry) {
 			is SourceAwareHistoryPageEntry.ActivityOnly -> loadActivity(selection)
@@ -63,13 +75,17 @@ class SourceHistoryDetailPresenter @Inject constructor(
 				)
 		}
 
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	private suspend fun loadCaptured(selection: SourceHistoryDetailSelection): SourceHistoryDetailState {
-		if (selection.actionTarget is TrackingHistoryActionTarget.ImportedPressure)
+		if (selection.actionTarget is TrackingHistoryActionTarget.ImportedPressure) {
 			return SourceHistoryDetailState.Loaded(selection)
+		}
 		val target = selection.actionTarget as? TrackingHistoryActionTarget.CapturedSource
 			?: return selectionChanged(requireNotNull(selection.entry.source))
 		val members = trackingHistoryRepository.readCapturedSourceMembers(target.segmentIds)
-		if (members.map { it.segmentId } != target.segmentIds) return selectionChanged(target.source)
+		if (members.map { it.segmentId } != target.segmentIds) {
+			return selectionChanged(target.source)
+		}
 		val epoch = selection.readSnapshot?.collectedDataEpoch ?: return SourceHistoryDetailState.Unavailable(
 			SourceHistoryDetailUnavailableReason.SNAPSHOT_UNAVAILABLE, target.source)
 		if (members.any { member ->
@@ -77,7 +93,9 @@ class SourceHistoryDetailPresenter @Inject constructor(
 			val capture = session?.capture as? HistoryCapture.Exact
 			capture == null || member.readSnapshot?.collectedDataEpoch != epoch ||
 				capture.revisions.any { it.capturedSources != setOf(target.source) }
-		}) return selectionChanged(target.source)
+		}) {
+			return selectionChanged(target.source)
+		}
 		return SourceHistoryDetailState.Loaded(selection.copy(readSnapshot = members.first().readSnapshot), members)
 	}
 

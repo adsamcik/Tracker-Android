@@ -83,6 +83,23 @@ class StepsNumericDecisionRepositoryTest {
 			StepsNumericCalendarAuthority.Unavailable,
 			"a".repeat(64),
 		)
+		val sourceUnavailable = StepsNumericSummary.Unverifiable(
+			StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+		)
+		assertEquals(sourceUnavailable, StepsNumericDecisionWindow(
+			request,
+			sourceUnavailable,
+			StepsNumericCalendarAuthority.Unavailable,
+			"a".repeat(64),
+		).summary)
+		assertFailsWith<IllegalArgumentException> {
+			StepsNumericDecisionWindow(
+				request,
+				summary,
+				StepsNumericCalendarAuthority.Unavailable,
+				"a".repeat(64),
+			)
+		}
 		assertFailsWith<IllegalArgumentException> {
 			StepsNumericDecisionWindow(
 				request,

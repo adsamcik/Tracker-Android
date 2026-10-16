@@ -9,6 +9,9 @@ import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.maintenance.DataRetentionScheduler
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilities
+import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
+import com.adsamcik.tracker.shared.base.extension.hasSelfPermission
+import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
 import com.adsamcik.tracker.shared.base.extension.ForegroundLocationCapability
 import com.adsamcik.tracker.shared.base.extension.PermissionGrantHistory
 import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
@@ -78,6 +81,10 @@ class SetupViewModelTest {
     @BeforeEach
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        mockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
+        every { appContext.hasPressureSensor } returns true
+        every { appContext.hasSelfPermission(any()) } returns false
+        every { appContext.hasStepCounterSensor } returns true
 		mockkStatic("com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilitiesKt")
 		currentCapabilities = TrackingPermissionCapabilities.denied(apiLevel = 34)
 		every { appContext.trackingPermissionCapabilities(any()) } answers { currentCapabilities }
@@ -101,6 +108,7 @@ class SetupViewModelTest {
     @AfterEach
     fun tearDown() {
         Dispatchers.resetMain()
+        unmockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
 		unmockkStatic("com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilitiesKt")
     }
 
@@ -420,6 +428,7 @@ class SetupViewModelTest {
 
 		@Test
 		fun `missing direct step sensor does not erase chosen all-day Steps`() {
+			every { appContext.hasStepCounterSensor } returns false
 			val vm = createViewModel()
 			vm.state.value.stepCounterAvailable shouldBe false
 			vm.setStepsEnabled(true)

@@ -6,11 +6,24 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRetentionAuthorityEntity
 
+/**
+ * Persists original Pressure fact retention authority independently of expiring raw-event
+ * payloads.
+ */
 @Dao
 interface PressureFactRetentionAuthorityDao {
+	/**
+	 * Inserts [PressureFactRetentionAuthorityEntity] rows. Existing conflicting rows remain
+	 * unchanged. An ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertIfAbsent(authority: PressureFactRetentionAuthorityEntity): Long
 
+	/**
+	 * Reads `pressure_fact_retention_authority` rows. Query conditions include `writer_projection_id
+	 * = :writerProjectionId`, `writer_projection_version = :writerProjectionVersion`,
+	 * `logical_fact_id = :logicalFactId`. Returns at most 1 row. Returns null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM pressure_fact_retention_authority " +
 			"WHERE writer_projection_id = :writerProjectionId " +
@@ -23,6 +36,11 @@ interface PressureFactRetentionAuthorityDao {
 		logicalFactId: String,
 	): PressureFactRetentionAuthorityEntity?
 
+	/**
+	 * Reads `pressure_fact_retention_authority` rows. Query conditions include `service_run_id IN
+	 * (:serviceRunIds)`. Orders by `service_run_id, writer_projection_id, writer_projection_version,
+	 * logical_fact_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM pressure_fact_retention_authority " +
 			"WHERE service_run_id IN (:serviceRunIds) " +
@@ -34,6 +52,11 @@ interface PressureFactRetentionAuthorityDao {
 		limit: Int,
 	): List<PressureFactRetentionAuthorityEntity>
 
+	/**
+	 * Reads `pressure_fact_retention_authority` rows. Query conditions include `logical_tracking_id =
+	 * :logicalTrackingId`, `service_run_id = :serviceRunId`. Orders by `writer_projection_id,
+	 * writer_projection_version, logical_fact_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM pressure_fact_retention_authority " +
 			"WHERE logical_tracking_id = :logicalTrackingId " +
@@ -47,6 +70,13 @@ interface PressureFactRetentionAuthorityDao {
 		limit: Int,
 	): List<PressureFactRetentionAuthorityEntity>
 
+	/**
+	 * Reads `pressure_fact_retention_authority` rows. Query conditions include `logical_tracking_id =
+	 * :logicalTrackingId`, `service_run_id = :serviceRunId`, `writer_projection_id >
+	 * :afterWriterProjectionId`, `writer_projection_id = :afterWriterProjectionId`. Orders by
+	 * `writer_projection_id, writer_projection_version, logical_fact_id`. Returns at most `limit`
+	 * rows.
+	 */
 	@Query(
 		"SELECT * FROM pressure_fact_retention_authority " +
 			"WHERE logical_tracking_id = :logicalTrackingId " +
@@ -69,6 +99,11 @@ interface PressureFactRetentionAuthorityDao {
 		limit: Int,
 	): List<PressureFactRetentionAuthorityEntity>
 
+	/**
+	 * Reads `pressure_fact_retention_authority` rows. Query conditions include `writer_projection_id
+	 * = :writerProjectionId`, `writer_projection_version = :writerProjectionVersion`. Orders by
+	 * `logical_fact_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM pressure_fact_retention_authority " +
 			"WHERE writer_projection_id = :writerProjectionId " +
@@ -81,6 +116,12 @@ interface PressureFactRetentionAuthorityDao {
 		limit: Int,
 	): List<PressureFactRetentionAuthorityEntity>
 
+	/**
+	 * Reads `pressure_fact_retention_authority` rows. Query conditions include `writer_projection_id
+	 * = :writerProjectionId`, `writer_projection_version = :writerProjectionVersion`,
+	 * `logical_fact_id > :afterLogicalFactId`. Orders by `logical_fact_id`. Returns at most `limit`
+	 * rows.
+	 */
 	@Query(
 		"SELECT * FROM pressure_fact_retention_authority " +
 			"WHERE writer_projection_id = :writerProjectionId " +
@@ -95,15 +136,26 @@ interface PressureFactRetentionAuthorityDao {
 		limit: Int,
 	): List<PressureFactRetentionAuthorityEntity>
 
+	/**
+	 * Counts rows in `pressure_fact_retention_authority`.
+	 */
 	@Query("SELECT COUNT(*) FROM pressure_fact_retention_authority")
 	suspend fun count(): Long
 
+	/**
+	 * Counts rows in `pressure_fact_retention_authority`. Query conditions include
+	 * `logical_tracking_id = :logicalTrackingId`, `service_run_id = :serviceRunId`.
+	 */
 	@Query(
 		"SELECT COUNT(*) FROM pressure_fact_retention_authority " +
 			"WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId",
 	)
 	suspend fun countForExactRun(logicalTrackingId: String, serviceRunId: String): Long
 
+	/**
+	 * Reports whether a row exists within the query scope. Query conditions include
+	 * `retained.logical_tracking_id = :logicalTrackingId`, `retained.service_run_id = :serviceRunId`.
+	 */
 	@Query(
 		"SELECT EXISTS(SELECT 1 FROM pressure_fact_retention_authority AS retained " +
 			"INNER JOIN pressure_fact_revision AS fact " +
@@ -118,6 +170,10 @@ interface PressureFactRetentionAuthorityDao {
 		serviceRunId: String,
 	): Boolean
 
+	/**
+	 * Reports whether a row exists within the query scope. Query conditions include
+	 * `retained.logical_tracking_id = :logicalTrackingId`, `retained.service_run_id = :serviceRunId`.
+	 */
 	@Query(
 		"SELECT EXISTS(SELECT 1 FROM pressure_fact_retention_revision_authority AS retained_revision " +
 			"INNER JOIN pressure_fact_retention_authority AS retained " +
@@ -136,6 +192,10 @@ interface PressureFactRetentionAuthorityDao {
 		serviceRunId: String,
 	): Boolean
 
+	/**
+	 * Reports whether a row exists within the query scope. Query conditions include
+	 * `retained.logical_tracking_id = :logicalTrackingId`, `retained.service_run_id = :serviceRunId`.
+	 */
 	@Query(
 		"SELECT EXISTS(SELECT 1 FROM pressure_fact_retention_revision_authority AS retained_revision " +
 			"INNER JOIN pressure_fact_retention_authority AS retained " +
@@ -154,12 +214,20 @@ interface PressureFactRetentionAuthorityDao {
 		serviceRunId: String,
 	): Boolean
 
+	/**
+	 * Deletes `pressure_fact_retention_authority` rows matching the supplied scope. Query conditions
+	 * include `logical_tracking_id = :logicalTrackingId`, `service_run_id = :serviceRunId`. Returns
+	 * the affected row count.
+	 */
 	@Query(
 		"DELETE FROM pressure_fact_retention_authority " +
 			"WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId",
 	)
 	fun deleteExactRun(logicalTrackingId: String, serviceRunId: String): Int
 
+	/**
+	 * Deletes `pressure_fact_retention_authority` rows.
+	 */
 	@Query("DELETE FROM pressure_fact_retention_authority")
 	fun deleteAll(): Int
 }

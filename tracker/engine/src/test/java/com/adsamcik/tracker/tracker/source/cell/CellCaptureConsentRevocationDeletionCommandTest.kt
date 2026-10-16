@@ -220,6 +220,9 @@ class CellCaptureConsentRevocationDeletionCommandTest {
 		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
 	}
 
+	// Keep the callback-barrier epoch race beside all preserved Cell rows to prove rejection mutates no source
+	// storage.
+	@Suppress("LongMethod")
 	@Test
 	fun `source evidence race after callback barrier preserves all Cell storage`() = runTest {
 		installPolicy(revoked = true, controlEligible = true)
@@ -319,31 +322,49 @@ class CellCaptureConsentRevocationDeletionCommandTest {
 			),
 		)
 		val eligiblePolicy = policy(revoked = false)
-		val policies = if (revoked) listOf(
+		val policies = if (revoked) {
+			listOf(
 			eligiblePolicy,
 			policy(
 				revoked = true,
 				sourceEnabled = revokedSourceEnabled,
 				controlConsentEpoch = CONTROL_CONSENT_EPOCH.takeIf { controlEligible },
 			),
-		) else
+		)
+		} else
+			{
 			listOf(eligiblePolicy)
+		}
 		val eligibleConsent = consent(revoked = false)
-		val consents = if (revoked) buildList {
+		val consents = if (revoked) {
+			buildList {
 			add(eligibleConsent)
 			add(consent(revoked = true))
-			if (controlEligible) add(controlConsent())
+			if (controlEligible) {
+				add(controlConsent())
+			}
+		}
 		} else
+			{
 			listOf(eligibleConsent)
+		}
 		database.sourcePolicyDao().insertPolicies(policies)
 		database.sourcePolicyDao().insertConsentEpochs(consents)
 		database.sourcePolicyDao().ensureAuthority(
 			SourcePolicyAuthorityEntity(
 				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
-				currentPolicyRevision = if (revoked) REVOKED_POLICY_REVISION else
-					ELIGIBLE_POLICY_REVISION,
+				currentPolicyRevision = if (revoked) {
+					REVOKED_POLICY_REVISION
+				} else
+					{
+					ELIGIBLE_POLICY_REVISION
+				},
 				legacySettingsFingerprint = null,
-				updatedAtMs = if (revoked) REVOKED_AT_MS else ELIGIBLE_AT_MS,
+				updatedAtMs = if (revoked) {
+					REVOKED_AT_MS
+				} else {
+					ELIGIBLE_AT_MS
+				},
 			),
 		)
 	}
@@ -432,7 +453,11 @@ class CellCaptureConsentRevocationDeletionCommandTest {
 		sourceEnabled: Boolean = !revoked,
 		controlConsentEpoch: Long? = null,
 	) = SourcePolicyEntity(
-		policyRevision = if (revoked) REVOKED_POLICY_REVISION else ELIGIBLE_POLICY_REVISION,
+		policyRevision = if (revoked) {
+			REVOKED_POLICY_REVISION
+		} else {
+			ELIGIBLE_POLICY_REVISION
+		},
 		sourceKind = CELL_SOURCE,
 		enabled = sourceEnabled,
 		qosCode = 1,
@@ -446,24 +471,56 @@ class CellCaptureConsentRevocationDeletionCommandTest {
 		controlConsentEpoch = controlConsentEpoch,
 		ambientConsentEpoch = null,
 		effectiveBootId = BOOT_ID,
-		effectiveElapsedRealtimeNanos = if (revoked) REVOKED_ELAPSED_NANOS else
-			ELIGIBLE_ELAPSED_NANOS,
-		effectiveWallTimeMs = if (revoked) REVOKED_AT_MS else ELIGIBLE_AT_MS,
-		changeReason = if (revoked) "TEST_REVOKED" else "TEST_ELIGIBLE",
+		effectiveElapsedRealtimeNanos = if (revoked) {
+			REVOKED_ELAPSED_NANOS
+		} else
+			{
+			ELIGIBLE_ELAPSED_NANOS
+		},
+		effectiveWallTimeMs = if (revoked) {
+			REVOKED_AT_MS
+		} else {
+			ELIGIBLE_AT_MS
+		},
+		changeReason = if (revoked) {
+			"TEST_REVOKED"
+		} else {
+			"TEST_ELIGIBLE"
+		},
 	)
 
 	private fun consent(revoked: Boolean) = SourceConsentEpochEntity(
 		sourceKind = CELL_SOURCE,
 		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
-		epoch = if (revoked) REVOKED_CONSENT_EPOCH else CAPTURE_CONSENT_EPOCH,
+		epoch = if (revoked) {
+			REVOKED_CONSENT_EPOCH
+		} else {
+			CAPTURE_CONSENT_EPOCH
+		},
 		eligible = !revoked,
 		persistenceEligible = !revoked,
-		policyRevision = if (revoked) REVOKED_POLICY_REVISION else ELIGIBLE_POLICY_REVISION,
+		policyRevision = if (revoked) {
+			REVOKED_POLICY_REVISION
+		} else {
+			ELIGIBLE_POLICY_REVISION
+		},
 		effectiveBootId = BOOT_ID,
-		effectiveElapsedRealtimeNanos = if (revoked) REVOKED_ELAPSED_NANOS else
-			ELIGIBLE_ELAPSED_NANOS,
-		effectiveWallTimeMs = if (revoked) REVOKED_AT_MS else ELIGIBLE_AT_MS,
-		changeReason = if (revoked) "TEST_REVOKED" else "TEST_ELIGIBLE",
+		effectiveElapsedRealtimeNanos = if (revoked) {
+			REVOKED_ELAPSED_NANOS
+		} else
+			{
+			ELIGIBLE_ELAPSED_NANOS
+		},
+		effectiveWallTimeMs = if (revoked) {
+			REVOKED_AT_MS
+		} else {
+			ELIGIBLE_AT_MS
+		},
+		changeReason = if (revoked) {
+			"TEST_REVOKED"
+		} else {
+			"TEST_ELIGIBLE"
+		},
 	)
 
 	private fun controlConsent() = SourceConsentEpochEntity(

@@ -143,7 +143,9 @@ private class RecordingDisplayRepository : StepsNumericSummaryRepository {
     var stale: StepsDailyDisplay? = null
     override fun observeDisplay(request: StepsNumericSummaryRequest): Flow<StepsDailyDisplay> = flow {
         requests += request
-        if (fail) error("Local read failed")
+        if (fail) {
+            error("Local read failed")
+        }
         try {
             emit(stale ?: StepsDailyDisplay.Snapshot(1L,
                 listOf(StepsDailyDisplayDay(request.firstEpochDay, StepsDailyDisplayValue.Complete(7L)))))

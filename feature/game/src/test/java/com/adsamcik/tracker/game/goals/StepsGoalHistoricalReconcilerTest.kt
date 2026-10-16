@@ -174,7 +174,11 @@ class StepsGoalHistoricalReconcilerTest {
 		periodKind = periodKind,
 		periodStartEpochDay = periodStartEpochDay,
 		periodEndEpochDay = periodStartEpochDay +
-			if (periodKind == StepsGoalEffectEntity.PERIOD_DAY) 0L else 6L,
+			if (periodKind == StepsGoalEffectEntity.PERIOD_DAY) {
+				0L
+			} else {
+				6L
+			},
 		qualifiedThroughEpochDay = qualifiedThroughEpochDay,
 		calendarAuthority = (periodStartEpochDay..qualifiedThroughEpochDay)
 			.joinToString("\n") { day -> "$day=Europe/Prague" },

@@ -62,9 +62,17 @@ interface SourcePolicyDao {
 		revisions: List<Long>,
 	): List<SourcePolicyEntity>
 
+	/**
+	 * Returns the greatest `epoch` in `source_consent_epoch`. Returns null when the aggregate has no
+	 * saved value.
+	 */
 	@Query("SELECT MAX(epoch) FROM source_consent_epoch")
 	suspend fun maximumConsentEpoch(): Long?
 
+	/**
+	 * Returns the greatest `policy_revision` in `source_policy`. Returns null when the aggregate has
+	 * no saved value.
+	 */
 	@Query("SELECT MAX(policy_revision) FROM source_policy")
 	suspend fun maximumPolicyRevision(): Long?
 

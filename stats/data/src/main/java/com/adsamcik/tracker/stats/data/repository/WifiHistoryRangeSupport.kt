@@ -56,9 +56,13 @@ internal object WifiHistoryRangeCursorCodec {
 			)
 		}
 		val parts = continuation.value.split(SEPARATOR)
-		if (parts.size != PART_COUNT) return null
+		if (parts.size != PART_COUNT) {
+			return null
+		}
 		val body = parts.dropLast(1).joinToString(SEPARATOR)
-		if (parts.last() != sha256(body) || parts[0] != VERSION) return null
+		if (parts.last() != sha256(body) || parts[0] != VERSION) {
+			return null
+		}
 		return runCatching {
 			WifiHistoryRangeCursor(
 				fromInclusiveMs = parts[1].toLong(),
@@ -129,57 +133,9 @@ internal object WifiHistoryStructuralDayComposer {
 		projections.forEach { projection ->
 			projection.runs.forEach { run ->
 				if (run.observations.isEmpty()) {
-					run.storedZoneIds.forEach zoneLoop@ { zoneId ->
-						val start = maxOf(run.startTimeMs, fromInclusiveMs)
-						val endExclusive = minOf(
-							if (run.endTimeMs > run.startTimeMs) run.endTimeMs else
-								Math.addExact(run.endTimeMs, 1L),
-							toExclusiveMs,
-						)
-						if (endExclusive <= start) return@zoneLoop
-						addRange(
-							projection.entry,
-							zoneId,
-							start,
-							endExclusive - 1L,
-							WifiHistoryDayAllocation.UNAVAILABLE,
-							memberships,
-						)
-					}
+					addEmptyRun(projection.entry, run, fromInclusiveMs, toExclusiveMs, memberships)
 				} else {
-					run.observations.forEach observationLoop@ { observation ->
-						val earliest = observation.earliestPossibleTimeMs
-						val latest = observation.latestPossibleTimeMs
-						if (latest < fromInclusiveMs || earliest >= toExclusiveMs) {
-							return@observationLoop
-						}
-						val zone = ZoneId.of(observation.storedZoneId)
-						val firstDay = Instant.ofEpochMilli(earliest)
-							.atZone(zone).toLocalDate().toEpochDay()
-						val lastDay = Instant.ofEpochMilli(latest)
-							.atZone(zone).toLocalDate().toEpochDay()
-						val clippedFirstDay = Instant.ofEpochMilli(maxOf(earliest, fromInclusiveMs))
-							.atZone(zone).toLocalDate().toEpochDay()
-						val clippedLastDay = Instant.ofEpochMilli(
-							minOf(latest, toExclusiveMs - 1L),
-						).atZone(zone).toLocalDate().toEpochDay()
-						val allocation = if (
-							firstDay == lastDay &&
-							projection.entry.state == WifiHistoryProductState.READY
-						) {
-							WifiHistoryDayAllocation.EXACT
-						} else {
-							WifiHistoryDayAllocation.PARTIAL
-						}
-						addDays(
-							projection.entry,
-							observation.storedZoneId,
-							clippedFirstDay,
-							clippedLastDay,
-							allocation,
-							memberships,
-						)
-					}
+					addObservedRun(projection.entry, run, fromInclusiveMs, toExclusiveMs, memberships)
 				}
 			}
 		}
@@ -195,6 +151,80 @@ internal object WifiHistoryStructuralDayComposer {
 			compareByDescending<WifiHistoryStructuralDay> { it.epochDay }
 				.thenBy(WifiHistoryStructuralDay::storedZoneId),
 		)
+	}
+
+	private fun addEmptyRun(
+		entry: WifiHistoryEntry,
+		run: WifiHistoryStructuralRunProjection,
+		fromInclusiveMs: Long,
+		toExclusiveMs: Long,
+		memberships: MutableMap<Pair<Long, String>, MutableMap<WifiHistoryEntry, WifiHistoryDayAllocation>>,
+	) {
+		run.storedZoneIds.forEach zoneLoop@ { zoneId ->
+			val start = maxOf(run.startTimeMs, fromInclusiveMs)
+			val endExclusive = minOf(
+				if (run.endTimeMs > run.startTimeMs) {
+					run.endTimeMs
+				} else
+					{
+					Math.addExact(run.endTimeMs, 1L)
+				},
+				toExclusiveMs,
+			)
+			if (endExclusive <= start) {
+				return@zoneLoop
+			}
+			addRange(
+				entry,
+				zoneId,
+				start,
+				endExclusive - 1L,
+				WifiHistoryDayAllocation.UNAVAILABLE,
+				memberships,
+			)
+		}
+	}
+
+	private fun addObservedRun(
+		entry: WifiHistoryEntry,
+		run: WifiHistoryStructuralRunProjection,
+		fromInclusiveMs: Long,
+		toExclusiveMs: Long,
+		memberships: MutableMap<Pair<Long, String>, MutableMap<WifiHistoryEntry, WifiHistoryDayAllocation>>,
+	) {
+		run.observations.forEach observationLoop@ { observation ->
+			val earliest = observation.earliestPossibleTimeMs
+			val latest = observation.latestPossibleTimeMs
+			if (latest < fromInclusiveMs || earliest >= toExclusiveMs) {
+				return@observationLoop
+			}
+			val zone = ZoneId.of(observation.storedZoneId)
+			val firstDay = Instant.ofEpochMilli(earliest)
+				.atZone(zone).toLocalDate().toEpochDay()
+			val lastDay = Instant.ofEpochMilli(latest)
+				.atZone(zone).toLocalDate().toEpochDay()
+			val clippedFirstDay = Instant.ofEpochMilli(maxOf(earliest, fromInclusiveMs))
+				.atZone(zone).toLocalDate().toEpochDay()
+			val clippedLastDay = Instant.ofEpochMilli(
+				minOf(latest, toExclusiveMs - 1L),
+			).atZone(zone).toLocalDate().toEpochDay()
+			val allocation = if (
+				firstDay == lastDay &&
+				entry.state == WifiHistoryProductState.READY
+			) {
+				WifiHistoryDayAllocation.EXACT
+			} else {
+				WifiHistoryDayAllocation.PARTIAL
+			}
+			addDays(
+				entry,
+				observation.storedZoneId,
+				clippedFirstDay,
+				clippedLastDay,
+				allocation,
+				memberships,
+			)
+		}
 	}
 
 	private fun addRange(
@@ -220,7 +250,9 @@ internal object WifiHistoryStructuralDayComposer {
 		memberships: MutableMap<Pair<Long, String>, MutableMap<WifiHistoryEntry, WifiHistoryDayAllocation>>,
 	) {
 		val span = Math.addExact(Math.subtractExact(lastDay, firstDay), 1L)
-		if (span !in 1L..MAX_STRUCTURAL_DAYS_PER_ENTRY) throw WifiHistoryRangeLimitExceeded()
+		if (span !in 1L..MAX_STRUCTURAL_DAYS_PER_ENTRY) {
+			throw WifiHistoryRangeLimitExceeded()
+		}
 		for (epochDay in firstDay..lastDay) {
 			val byEntry = memberships.getOrPut(epochDay to zoneId) { linkedMapOf() }
 			val prior = byEntry[entry]

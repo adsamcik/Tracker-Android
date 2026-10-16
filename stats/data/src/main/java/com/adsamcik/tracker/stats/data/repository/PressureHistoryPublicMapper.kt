@@ -27,7 +27,9 @@ internal fun PressurePhysicalHistory.toPublicPressureSessionHistory() = Pressure
 )
 
 internal fun PressureLogicalHistoryEntry.toPublicPressureOnlyEntryOrNull(): PressureOnlyHistoryEntry? {
-	if (!hasExactPressureOnlyIntent) return null
+	if (!hasExactPressureOnlyIntent) {
+		return null
+	}
 	val logicalIdentity = identity as? PressureHistoryEntryIdentity.Logical ?: return null
 	return PressureOnlyHistoryEntry(
 		key = TrackingHistoryEntryKey("pressure:logical:${logicalIdentity.logicalTrackingId}"),
@@ -69,27 +71,8 @@ internal fun List<PressurePhysicalHistory>.toPublicPressureHistory(): PressureHi
 		publicMembers.any { it.evidence == HistoryEvidence.STARTING } -> HistoryEvidence.STARTING
 		else -> HistoryEvidence.NONE
 	}
-	val coverage = when {
-		retainedWindows.isNotEmpty() && publicMembers.all {
-			it.coverage == ApiPressureHistoryCoverage.COMPLETE
-		} -> ApiPressureHistoryCoverage.COMPLETE
-		retainedWindows.isNotEmpty() -> ApiPressureHistoryCoverage.PARTIAL
-		publicMembers.any { it.coverage == ApiPressureHistoryCoverage.UNKNOWN } ->
-			ApiPressureHistoryCoverage.UNKNOWN
-		publicMembers.any { it.coverage == ApiPressureHistoryCoverage.PARTIAL } ->
-			ApiPressureHistoryCoverage.PARTIAL
-		else -> ApiPressureHistoryCoverage.NONE
-	}
-	val productState = when {
-		publicMembers.any { it.productState == HistoryProductState.FAILED } ->
-			HistoryProductState.FAILED
-		publicMembers.any { it.productState == HistoryProductState.MATERIALIZING } ->
-			HistoryProductState.MATERIALIZING
-		publicMembers.all { it.productState == HistoryProductState.READY } &&
-			coverage == ApiPressureHistoryCoverage.COMPLETE -> HistoryProductState.READY
-		retainedWindows.isNotEmpty() -> HistoryProductState.PARTIAL
-		else -> HistoryProductState.DEGRADED
-	}
+	val coverage = combinedPressureCoverage(publicMembers, retainedWindows)
+	val productState = combinedPressureProductState(publicMembers, retainedWindows, coverage)
 	return PressureHistory(
 		availability = availability,
 		evidence = evidence,
@@ -98,6 +81,36 @@ internal fun List<PressurePhysicalHistory>.toPublicPressureHistory(): PressureHi
 		windows = retainedWindows,
 		causes = publicMembers.flatMapTo(linkedSetOf(), PressureHistory::causes),
 	)
+}
+
+private fun combinedPressureCoverage(
+	publicMembers: List<PressureHistory>,
+	retainedWindows: List<ApiPressureHistoryWindow>,
+): ApiPressureHistoryCoverage = when {
+	retainedWindows.isNotEmpty() && publicMembers.all {
+		it.coverage == ApiPressureHistoryCoverage.COMPLETE
+	} -> ApiPressureHistoryCoverage.COMPLETE
+	retainedWindows.isNotEmpty() -> ApiPressureHistoryCoverage.PARTIAL
+	publicMembers.any { it.coverage == ApiPressureHistoryCoverage.UNKNOWN } ->
+		ApiPressureHistoryCoverage.UNKNOWN
+	publicMembers.any { it.coverage == ApiPressureHistoryCoverage.PARTIAL } ->
+		ApiPressureHistoryCoverage.PARTIAL
+	else -> ApiPressureHistoryCoverage.NONE
+}
+
+private fun combinedPressureProductState(
+	publicMembers: List<PressureHistory>,
+	retainedWindows: List<ApiPressureHistoryWindow>,
+	coverage: ApiPressureHistoryCoverage,
+): HistoryProductState = when {
+	publicMembers.any { it.productState == HistoryProductState.FAILED } ->
+		HistoryProductState.FAILED
+	publicMembers.any { it.productState == HistoryProductState.MATERIALIZING } ->
+		HistoryProductState.MATERIALIZING
+	publicMembers.all { it.productState == HistoryProductState.READY } &&
+		coverage == ApiPressureHistoryCoverage.COMPLETE -> HistoryProductState.READY
+	retainedWindows.isNotEmpty() -> HistoryProductState.PARTIAL
+	else -> HistoryProductState.DEGRADED
 }
 
 private fun PressureHistoryAvailability.toPublicAvailability(): HistoryAvailability = when (this) {
@@ -192,8 +205,8 @@ private fun String.toPublicQualification(): PressureWindowQualification = when (
 	else -> error("Qualified Pressure history contained unknown qualification")
 }
 
-// Exhaustiveness prevents a new selector failure from silently collapsing into a generic state.
-@Suppress("CyclomaticComplexMethod")
+// Keep the exhaustive reason-to-cause table together so no selector failure loses its public meaning.
+@Suppress("CyclomaticComplexMethod", "LongMethod")
 internal fun PressureHistoryReason.toPublicCause(): PressureHistoryCause = when (this) {
 	PressureHistoryReason.SOURCE_NOT_CAPTURED -> PressureHistoryCause.SOURCE_NOT_CAPTURED
 	PressureHistoryReason.LEGACY_UNATTRIBUTED -> PressureHistoryCause.LEGACY_UNATTRIBUTED

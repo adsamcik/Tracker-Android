@@ -8,6 +8,8 @@ import android.os.PowerManager
 import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.preferences.tracking.LocationBackgroundMode
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
@@ -94,47 +96,79 @@ internal class AmbientLocationPurposeOwner @Inject constructor(
 					AmbientSourceUnavailableReason.BACKGROUND_LOCATION_PERMISSION_REQUIRED,
 					lastIdentity = lease.purposeLeaseIdentity)
 			}
-			var acceptedDemand = false
-			try {
-				val result = callers.dispatchAmbientLocation(AmbientLocationDemandDispatchRequest(
-					lease.identity, clock.current(), Time.elapsedRealtimeNanos, Time.nowMillis))
-				val demand = (result as? GuardedPurposeDemandResult.Applied)?.value as? AmbientLocationDemandResult.Active
-				if (demand == null) return@withLock unavailable(lease, AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE)
-				acceptedDemand = true
-				current = lease
-				val passive = params.locationBackgroundMode == LocationBackgroundMode.PASSIVE_ONLY
-				val oldHostIdentity = host.active.value?.identity.takeIf { passive }
-				if (!passive && host.acquire(lease.identity) !is BackgroundLocationHostResult.Active) {
-					check(retireLocked(lease)) { "Location host failure cleanup remains pending" }
-					return@withLock unavailable(lease, AmbientSourceUnavailableReason.PLATFORM_UNAVAILABLE)
-				}
-				val outcome = applyPlanLocked(lease)
-				if (oldHostIdentity != null && host.active.value?.identity == oldHostIdentity &&
-					!host.release(oldHostIdentity)) {
-					check(retireLocked(lease)) { "Location host cleanup remains pending" }
-					return@withLock unavailable(lease, AmbientSourceUnavailableReason.PLATFORM_UNAVAILABLE)
-				}
-				when (outcome) {
-					is AmbientLocationRuntimeJoinResult.Active -> AmbientSourceOperationalAvailability.ready(
-						AmbientTrackingSource.LOCATION, if (passive) AmbientAcquisitionMechanism.PASSIVE_LOCATION
-						else AmbientAcquisitionMechanism.ADAPTIVE_LOCATION,
-						lease.purposeLeaseIdentity)
-					is AmbientLocationRuntimeJoinResult.Degraded -> AmbientSourceOperationalAvailability(
-						source = AmbientTrackingSource.LOCATION, state = AmbientSourceOperationalState.DEGRADED,
-						mechanism = if (passive) AmbientAcquisitionMechanism.PASSIVE_LOCATION
-						else AmbientAcquisitionMechanism.ADAPTIVE_LOCATION,
-						reason = AmbientSourceUnavailableReason.LOCATION_REQUEST_ADJUSTED,
-						operationalIdentity = lease.purposeLeaseIdentity)
-					else -> {
-						check(retireLocked(lease)) { "Location provider failure cleanup remains pending" }
-						unavailable(lease, AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE)
-					}
-				}.also { lastOperationalState = it.state }
-			} catch (failure: Exception) {
-				if (acceptedDemand) withContext(NonCancellable) { retireLocked(lease) }
-				throw failure
-			}
+			activateDemandLocked(lease, params.locationBackgroundMode)
 		}
+
+	private suspend fun activateDemandLocked(
+		lease: AmbientReconciliationLease, mode: LocationBackgroundMode?,
+	): AmbientSourceOperationalAvailability {
+		var acceptedDemand = false
+		return try {
+			val result = callers.dispatchAmbientLocation(AmbientLocationDemandDispatchRequest(
+				lease.identity, clock.current(), Time.elapsedRealtimeNanos, Time.nowMillis))
+			val demand =
+                    (result as? GuardedPurposeDemandResult.Applied)?.value as? AmbientLocationDemandResult.Active
+			if (demand == null) {
+				return unavailable(lease, AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE)
+			}
+			acceptedDemand = true
+			current = lease
+			val passive = mode == LocationBackgroundMode.PASSIVE_ONLY
+			activateRuntimeLocked(lease, passive)
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+			// Retire this accepted Location demand before propagating the same failure, including cancellation.
+			if (acceptedDemand) {
+				withContext(NonCancellable) { retireLocked(lease) }
+			}
+			throw failure
+		}
+	}
+
+	private suspend fun activateRuntimeLocked(
+		lease: AmbientReconciliationLease, passive: Boolean,
+	): AmbientSourceOperationalAvailability {
+		val oldHostIdentity = host.active.value?.identity.takeIf { passive }
+		if (!passive && host.acquire(lease.identity) !is BackgroundLocationHostResult.Active) {
+			check(retireLocked(lease)) { "Location host failure cleanup remains pending" }
+			return unavailable(lease, AmbientSourceUnavailableReason.PLATFORM_UNAVAILABLE)
+		}
+		val outcome = applyPlanLocked(lease)
+		if (oldHostIdentity != null && host.active.value?.identity == oldHostIdentity &&
+			!host.release(oldHostIdentity)) {
+			check(retireLocked(lease)) { "Location host cleanup remains pending" }
+			return unavailable(lease, AmbientSourceUnavailableReason.PLATFORM_UNAVAILABLE)
+		}
+		return joinAvailability(lease, outcome, passive)
+	}
+
+	private suspend fun joinAvailability(
+		lease: AmbientReconciliationLease, outcome: AmbientLocationRuntimeJoinResult, passive: Boolean,
+	): AmbientSourceOperationalAvailability {
+		return when (outcome) {
+			is AmbientLocationRuntimeJoinResult.Active -> AmbientSourceOperationalAvailability.ready(
+				AmbientTrackingSource.LOCATION, if (passive) {
+					AmbientAcquisitionMechanism.PASSIVE_LOCATION
+				}
+				else {
+					AmbientAcquisitionMechanism.ADAPTIVE_LOCATION
+				},
+				lease.purposeLeaseIdentity)
+			is AmbientLocationRuntimeJoinResult.Degraded -> AmbientSourceOperationalAvailability(
+				source = AmbientTrackingSource.LOCATION, state = AmbientSourceOperationalState.DEGRADED,
+				mechanism = if (passive) {
+					AmbientAcquisitionMechanism.PASSIVE_LOCATION
+				}
+				else {
+					AmbientAcquisitionMechanism.ADAPTIVE_LOCATION
+				},
+				reason = AmbientSourceUnavailableReason.LOCATION_REQUEST_ADJUSTED,
+				operationalIdentity = lease.purposeLeaseIdentity)
+			else -> {
+				check(retireLocked(lease)) { "Location provider failure cleanup remains pending" }
+				unavailable(lease, AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE)
+			}
+		}.also { lastOperationalState = it.state }
+	}
 
 	/** Existing host policy ticks drive this; no independent wakeup source or retry scan loop. */
 	suspend fun refreshActivePlan() = mutex.withLock {
@@ -148,24 +182,34 @@ internal class AmbientLocationPurposeOwner @Inject constructor(
 				return@withLock
 			}
 			val outcome = applyPlanLocked(lease)
-			if (outcome !is AmbientLocationRuntimeJoinResult.Active && outcome !is AmbientLocationRuntimeJoinResult.Degraded) {
-				requestReconciliation()
-			} else {
-				val state = if (outcome is AmbientLocationRuntimeJoinResult.Degraded) AmbientSourceOperationalState.DEGRADED
-					else AmbientSourceOperationalState.READY
-				if (lastOperationalState != null && lastOperationalState != state) {
-					// Publication tokens are single-use. A changed provider state obtains a fresh lease.
-					lastOperationalState = state
-					requestReconciliation()
-				}
-			}
+			reconcileRefreshedOutcome(outcome)
 			Unit
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (failure: Exception) {
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+			// Withdraw stale readiness and request reconciliation before the same host-tick failure escapes.
 			// Host ticks isolate failures so the service survives. Withdraw stale readiness here.
 			requestReconciliation()
 			throw failure
+		}
+	}
+
+	private suspend fun reconcileRefreshedOutcome(outcome: AmbientLocationRuntimeJoinResult) {
+		if (outcome !is AmbientLocationRuntimeJoinResult.Active &&
+                outcome !is AmbientLocationRuntimeJoinResult.Degraded) {
+			requestReconciliation()
+		} else {
+			val state = if (outcome is AmbientLocationRuntimeJoinResult.Degraded) {
+				AmbientSourceOperationalState.DEGRADED
+			}
+				else {
+				AmbientSourceOperationalState.READY
+			}
+			if (lastOperationalState != null && lastOperationalState != state) {
+				// Publication tokens are single-use. A changed provider state obtains a fresh lease.
+				lastOperationalState = state
+				requestReconciliation()
+			}
 		}
 	}
 
@@ -177,10 +221,16 @@ internal class AmbientLocationPurposeOwner @Inject constructor(
 
 	private suspend fun retireLocked(lease: AmbientReconciliationLease): Boolean {
 		if (!broker.retireAmbientLocationDemand(lease.identity, clock.current(),
-			Time.elapsedRealtimeNanos, Time.nowMillis)) return false
+			Time.elapsedRealtimeNanos, Time.nowMillis)) {
+			return false
+		}
 		val result = runtime.reconcileAmbientJoin(null, lease.identity.policyRevision)
-		if (result !is AmbientLocationRuntimeJoinResult.Inactive) return false
-		if (host.active.value?.identity == lease.identity && !host.release(lease.identity)) return false
+		if (result !is AmbientLocationRuntimeJoinResult.Inactive) {
+			return false
+		}
+		if (host.active.value?.identity == lease.identity && !host.release(lease.identity)) {
+			return false
+		}
 		if (current == lease) {
 			current = null
 			lastOperationalState = null
@@ -188,6 +238,8 @@ internal class AmbientLocationPurposeOwner @Inject constructor(
 		return true
 	}
 
+	// One current settings/host identity predicate precedes any demand or provider mutation.
+	@Suppress("ComplexCondition")
 	private suspend fun applyPlanLocked(lease: AmbientReconciliationLease): AmbientLocationRuntimeJoinResult {
 		val params = settings.data.first()
 		if (params.sourcePolicyRevision != lease.identity.policyRevision || !params.ambientLocationEnabled ||
@@ -218,9 +270,16 @@ internal class AmbientLocationPurposeOwner @Inject constructor(
 				passiveSystemDelivery = true,
 			), revision)
 		}
+		return runtime.reconcileAmbientJoin(adaptivePlan(demand, revision, params), lease.identity.policyRevision)
+	}
+
+	private suspend fun adaptivePlan(
+		demand: SourceDemandEntity, revision: Long, params: TrackingParamsState,
+	): LocationPlan? {
 		val level = requireNotNull(params.locationBalanceLevel)
 		val desired = adaptiveLocationPlan(level, revision, TrackerTimerManager.getSelectedLocationBackend(context),
-			ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+			ContextCompat.checkSelfPermission(context,
+                Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 		val power = context.getSystemService(PowerManager::class.java)
 		val contract = demand.toSourceDemandContract()
 		val plan = resolver.resolve(
@@ -236,11 +295,12 @@ internal class AmbientLocationPurposeOwner @Inject constructor(
 				motionProfile = motion.policy.value.acquisitionProfile, locationProfileLevel = level,
 				batteryPressure = battery.currentPressure()),
 		).applicablePlans[SourceKind.LOCATION] as? LocationPlan
-		return runtime.reconcileAmbientJoin(plan, lease.identity.policyRevision)
+		return plan
 	}
 
 	private fun unavailable(lease: AmbientReconciliationLease, reason: AmbientSourceUnavailableReason) =
-		AmbientSourceOperationalAvailability.unavailable(AmbientTrackingSource.LOCATION, reason, lease.purposeLeaseIdentity)
+		AmbientSourceOperationalAvailability.unavailable(AmbientTrackingSource.LOCATION, reason,
+            lease.purposeLeaseIdentity)
 
 	private suspend fun requestReconciliation() {
 		reporter.invalidateAmbient(AmbientTrackingSource.LOCATION)

@@ -11,9 +11,13 @@ internal suspend fun AppDatabase.installOriginalStopFixture(
     session: LogicalTrackingSessionEntity,
     manifest: SessionManifestVersionEntity,
 ) {
-    if (session.cutoffElapsedNanos == null || session.cutoffAtMs == null) return
+    if (session.cutoffElapsedNanos == null || session.cutoffAtMs == null) {
+        return
+    }
     val dao = sourceSessionDao()
-    if (dao.firstStopIntent(session.logicalTrackingId) != null) return
+    if (dao.firstStopIntent(session.logicalTrackingId) != null) {
+        return
+    }
     val active = SessionLifecycleIntentVersionEntity(session.logicalTrackingId, manifest.manifestRevision,
         manifest.manifestRevision, "ACTIVE", manifest.startOrigin, manifest.effectiveBootId,
         manifest.effectiveElapsedRealtimeNanos, manifest.effectiveWallTimeMs, session.automationEpoch,

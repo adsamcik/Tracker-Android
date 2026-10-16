@@ -1004,7 +1004,11 @@ class SourceSessionDaoTest {
 		for (generation in listOf(1L, 2L)) {
 			val source = protectedLocationSource(generation).copy(manifestRevision = generation)
 			val unsigned = manifest(revision = generation, serviceRunId = "run-a").copy(
-				sessionMode = if (generation == 1L) "MANUAL" else "AUTOMATIC", manifestChecksum = "")
+				sessionMode = if (generation == 1L) {
+					"MANUAL"
+				} else {
+					"AUTOMATIC"
+				}, manifestChecksum = "")
 			val header = unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(source)))
 			dao.insertManifest(header)
 			dao.insertManifestSources(listOf(source))

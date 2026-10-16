@@ -26,6 +26,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 
+/** A Steps demand boundary with boot-scoped elapsed nanoseconds and UTC wall-clock milliseconds. */
 data class AmbientStepsDemandBoundary(
 	val bootId: String,
 	val elapsedRealtimeNanos: Long,
@@ -165,55 +166,8 @@ class AmbientStepsDemandReconciler internal constructor(
 			)
 		}
 		return when (val capability = resolveCapability()) {
-			is AmbientStepsCapability.ReadyForRegistration -> {
-				val guarded = try {
-					sourceCallerDemandDispatcher.dispatchAmbientSteps(
-						AmbientStepsDemandDispatchRequest(
-							identity = lease.identity,
-							consumerId = CONSUMER_ID,
-							mechanism = capability.provider.toAcquisitionMechanism(),
-							bootId = boundary.bootId,
-							elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
-							wallTimeMs = boundary.wallTimeMs,
-						),
-					)
-				} catch (cancelled: CancellationException) {
-					withContext(NonCancellable) { retireDemand(boundary, lease) }
-					throw cancelled
-				} catch (_: Exception) {
-					retireDemand(boundary, lease)
-					return AmbientStepsDemandReconciliation.PolicyBlocked(
-						provider = capability.provider,
-						reason = AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
-					)
-				}
-				when (guarded) {
-					is GuardedPurposeDemandResult.Rejected,
-					is GuardedPurposeDemandResult.RejectedAfterCleanup,
-					GuardedPurposeDemandResult.Stale,
-					-> {
-						retireDemand(boundary, lease)
-						AmbientStepsDemandReconciliation.PolicyBlocked(
-							provider = capability.provider,
-							reason = AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
-						)
-					}
-					is GuardedPurposeDemandResult.Applied -> when (val demand = guarded.value) {
-						is AmbientStepsDemandResult.Active ->
-							AmbientStepsDemandReconciliation.DemandReady(
-								provider = capability.provider,
-								importAccess = capability.importAccess,
-								optionalPermissions = capability.optionalPermissions,
-								demandId = demand.demand.demandId,
-							)
-						is AmbientStepsDemandResult.Inactive ->
-							AmbientStepsDemandReconciliation.PolicyBlocked(
-								provider = capability.provider,
-								reason = demand.reason.toPublicReason(),
-							)
-					}
-				}
-			}
+			is AmbientStepsCapability.ReadyForRegistration ->
+				reconcileReadyCapability(capability, boundary, lease)
 			is AmbientStepsCapability.PermissionRequired -> {
 				val retired = retireDemand(boundary, lease)
 				AmbientStepsDemandReconciliation.PermissionRequired(
@@ -230,6 +184,60 @@ class AmbientStepsDemandReconciler internal constructor(
 					localRecording = capability.localRecording,
 					retirementComplete = retired,
 				)
+			}
+		}
+	}
+
+	private suspend fun reconcileReadyCapability(
+		capability: AmbientStepsCapability.ReadyForRegistration,
+		boundary: AmbientStepsDemandBoundary,
+		lease: AmbientReconciliationLease,
+	): AmbientStepsDemandReconciliation {
+		val guarded = try {
+			sourceCallerDemandDispatcher.dispatchAmbientSteps(
+				AmbientStepsDemandDispatchRequest(
+					identity = lease.identity,
+					consumerId = CONSUMER_ID,
+					mechanism = capability.provider.toAcquisitionMechanism(),
+					bootId = boundary.bootId,
+					elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
+					wallTimeMs = boundary.wallTimeMs,
+				),
+			)
+		} catch (cancelled: CancellationException) {
+			withContext(NonCancellable) { retireDemand(boundary, lease) }
+			throw cancelled
+		} catch (_: Exception) {
+			retireDemand(boundary, lease)
+			return AmbientStepsDemandReconciliation.PolicyBlocked(
+				provider = capability.provider,
+				reason = AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
+			)
+		}
+		return when (guarded) {
+			is GuardedPurposeDemandResult.Rejected,
+			is GuardedPurposeDemandResult.RejectedAfterCleanup,
+			GuardedPurposeDemandResult.Stale,
+			-> {
+				retireDemand(boundary, lease)
+				AmbientStepsDemandReconciliation.PolicyBlocked(
+					provider = capability.provider,
+					reason = AmbientStepsDemandBlockReason.CALLER_AUTHORITY_UNAVAILABLE,
+				)
+			}
+			is GuardedPurposeDemandResult.Applied -> when (val demand = guarded.value) {
+				is AmbientStepsDemandResult.Active ->
+					AmbientStepsDemandReconciliation.DemandReady(
+						provider = capability.provider,
+						importAccess = capability.importAccess,
+						optionalPermissions = capability.optionalPermissions,
+						demandId = demand.demand.demandId,
+					)
+				is AmbientStepsDemandResult.Inactive ->
+					AmbientStepsDemandReconciliation.PolicyBlocked(
+						provider = capability.provider,
+						reason = demand.reason.toPublicReason(),
+					)
 			}
 		}
 	}
@@ -297,46 +305,37 @@ class AmbientStepsDemandReconciler internal constructor(
 						!rollout.isAmbientProductReachable(SourceKind.STEPS) -> AmbientStepsPolicyAuthority.Blocked(
 						AmbientStepsDemandBlockReason.ROLLOUT_CONTAINED,
 					)
-					else -> when (val retention = if (settlementOperationId == null) {
-						currentRetentionAuthority(
-							authority.snapshot.revision,
-							requireNotNull(policy.ambientConsentEpoch),
-						)
-					} else {
-						currentSettlementRetentionAuthority(
-							authority.snapshot.revision,
-							requireNotNull(policy.ambientConsentEpoch),
-							settlementOperationId,
-						)
-					}) {
-						is CurrentRetentionAuthority.Approved ->
-							if (
-								retention.collectedDataEpoch ==
-									lease.identity.collectedDataEpoch &&
-								retention.retainedFromMs == lease.identity.retainedFromMs &&
-								retention.opaquePolicyId ==
-									lease.identity.retentionPolicyId &&
-								retention.approvalRevision ==
-									lease.identity.retentionApprovalRevision &&
-								retention.effectiveBootId == boundary.bootId &&
-								retention.effectiveElapsedRealtimeNanos <=
-									boundary.elapsedRealtimeNanos &&
-								retention.effectiveWallTimeMs <= boundary.wallTimeMs
-							) {
-								AmbientStepsPolicyAuthority.Ready
-							} else {
-								AmbientStepsPolicyAuthority.Blocked(
-									AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE,
-								)
-							}
-						is CurrentRetentionAuthority.Unavailable ->
-							AmbientStepsPolicyAuthority.Blocked(
-								AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE,
-							)
-					}
+					else -> retainedAmbientPolicyAuthority(
+						boundary, lease, authority.snapshot.revision,
+						requireNotNull(policy.ambientConsentEpoch), settlementOperationId,
+					)
 				}
 			}
 		}
+
+	private suspend fun retainedAmbientPolicyAuthority(
+		boundary: AmbientStepsDemandBoundary,
+		lease: AmbientReconciliationLease,
+		policyRevision: Long,
+		consentEpoch: Long,
+		settlementOperationId: String?,
+	): AmbientStepsPolicyAuthority = when (val retention = if (settlementOperationId == null) {
+		currentRetentionAuthority(policyRevision, consentEpoch)
+	} else {
+		currentSettlementRetentionAuthority(policyRevision, consentEpoch, settlementOperationId)
+	}) {
+		is CurrentRetentionAuthority.Approved ->
+			if (retention.matchesAmbientLease(lease) && retention.isEffectiveAt(boundary)) {
+				AmbientStepsPolicyAuthority.Ready
+			} else {
+				AmbientStepsPolicyAuthority.Blocked(
+					AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE,
+				)
+			}
+		is CurrentRetentionAuthority.Unavailable -> AmbientStepsPolicyAuthority.Blocked(
+			AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE,
+		)
+	}
 
 	internal suspend fun retireDemand(
 		boundary: AmbientStepsDemandBoundary,
@@ -358,12 +357,15 @@ class AmbientStepsDemandReconciler internal constructor(
 		}
 	}
 
+	/** Stable consumer identity used to reconcile the single all-day Steps demand. */
 	companion object {
 		const val CONSUMER_ID = "app:ambient:steps"
 	}
 }
 
+/** Outcome of applying all-day Steps policy, provider capability and permission to durable demand. */
 sealed interface AmbientStepsDemandReconciliation {
+	/** The selected provider has usable import access and an accepted all-day demand. */
 	data class DemandReady(
 		val provider: AmbientStepsProvider,
 		val importAccess: AmbientStepsImportAccess,
@@ -371,6 +373,9 @@ sealed interface AmbientStepsDemandReconciliation {
 		val demandId: String,
 	) : AmbientStepsDemandReconciliation
 
+	/**
+	 * Names the selected provider’s missing grants and whether the previous registration has retired.
+	 */
 	data class PermissionRequired(
 		val provider: AmbientStepsProvider,
 		val requiredPermissions: Set<AmbientStepsPermission>,
@@ -378,6 +383,9 @@ sealed interface AmbientStepsDemandReconciliation {
 		val retirementComplete: Boolean = true,
 	) : AmbientStepsDemandReconciliation
 
+	/**
+	 * Policy forbids collection; provider is unknown when rejection occurred before capability probing.
+	 */
 	data class PolicyBlocked(
 		/** Null when policy or rollout rejects collection before any provider is inspected. */
 		val provider: AmbientStepsProvider?,
@@ -385,6 +393,10 @@ sealed interface AmbientStepsDemandReconciliation {
 		val retirementComplete: Boolean = true,
 	) : AmbientStepsDemandReconciliation
 
+	/**
+	 * Neither supported system provider is currently usable, with previous-registration retirement
+	 * reported separately.
+	 */
 	data class Unavailable(
 		val healthConnect: HealthConnectAmbientStepsAvailability,
 		val localRecording: LocalRecordingAmbientStepsAvailability,
@@ -392,6 +404,7 @@ sealed interface AmbientStepsDemandReconciliation {
 	) : AmbientStepsDemandReconciliation
 }
 
+/** Saved-choice, lifecycle, consent, retention or rollout reason preventing all-day Steps demand. */
 enum class AmbientStepsDemandBlockReason {
 	REQUEST_DISABLED,
 	STALE_RECONCILIATION_LEASE,
@@ -411,6 +424,14 @@ private sealed interface AmbientStepsPolicyAuthority {
 	data class Blocked(val reason: AmbientStepsDemandBlockReason) :
 		AmbientStepsPolicyAuthority
 }
+
+private fun CurrentRetentionAuthority.Approved.matchesAmbientLease(lease: AmbientReconciliationLease): Boolean =
+	collectedDataEpoch == lease.identity.collectedDataEpoch && retainedFromMs == lease.identity.retainedFromMs &&
+	opaquePolicyId == lease.identity.retentionPolicyId && approvalRevision == lease.identity.retentionApprovalRevision
+
+private fun CurrentRetentionAuthority.Approved.isEffectiveAt(boundary: AmbientStepsDemandBoundary): Boolean =
+	effectiveBootId == boundary.bootId && effectiveElapsedRealtimeNanos <= boundary.elapsedRealtimeNanos &&
+	effectiveWallTimeMs <= boundary.wallTimeMs
 
 private fun AmbientStepsDemandInactiveReason.toPublicReason(): AmbientStepsDemandBlockReason = when (this) {
 	AmbientStepsDemandInactiveReason.REQUEST_DISABLED -> AmbientStepsDemandBlockReason.REQUEST_DISABLED

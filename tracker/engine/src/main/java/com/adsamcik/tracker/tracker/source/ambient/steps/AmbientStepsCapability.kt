@@ -22,6 +22,9 @@ enum class AmbientStepsImportAccess {
 	BACKGROUND_ALLOWED,
 }
 
+/**
+ * Result of probing Health Connect platform and provider support before a Steps subscription is attempted.
+ */
 enum class HealthConnectAmbientStepsAvailability {
 	AVAILABLE,
 	PLATFORM_TOO_OLD,
@@ -31,6 +34,7 @@ enum class HealthConnectAmbientStepsAvailability {
 	PROBE_FAILED,
 }
 
+/** Result of probing Google Play services support for local, on-device Steps recording. */
 enum class LocalRecordingAmbientStepsAvailability {
 	AVAILABLE,
 	PLAY_SERVICES_MISSING,
@@ -55,6 +59,10 @@ data class AmbientStepsPlatformSnapshot(
 	val activityRecognitionGranted: Boolean,
 )
 
+/**
+ * Selected system Steps provider and required grants, or the evidence explaining why neither provider is
+ * usable.
+ */
 sealed interface AmbientStepsCapability {
 	val provider: AmbientStepsProvider?
 
@@ -89,35 +97,15 @@ sealed interface AmbientStepsCapability {
  * considered only when Health Connect mobile Steps is not currently capable on this platform.
  */
 object AmbientStepsCapabilitySelector {
+	/**
+	 * Selects Health Connect when supported, otherwise local recording; reports missing grants without
+	 * registering either provider.
+	 */
+	// Return the first supported provider or its exact permission/availability state.
+	@Suppress("ReturnCount")
 	fun select(snapshot: AmbientStepsPlatformSnapshot): AmbientStepsCapability {
 		if (snapshot.healthConnect == HealthConnectAmbientStepsAvailability.AVAILABLE) {
-			val optionalPermissions = if (
-				snapshot.healthConnectBackgroundReadAvailable &&
-				!snapshot.healthConnectBackgroundReadGranted
-			) {
-				setOf(AmbientStepsPermission.HEALTH_CONNECT_BACKGROUND_READ)
-			} else {
-				emptySet()
-			}
-			if (!snapshot.healthConnectReadStepsGranted) {
-				return AmbientStepsCapability.PermissionRequired(
-					provider = AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS,
-					requiredPermissions = setOf(AmbientStepsPermission.HEALTH_CONNECT_READ_STEPS),
-					optionalPermissions = optionalPermissions,
-				)
-			}
-			return AmbientStepsCapability.ReadyForRegistration(
-				provider = AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS,
-				importAccess = if (
-					snapshot.healthConnectBackgroundReadAvailable &&
-					snapshot.healthConnectBackgroundReadGranted
-				) {
-					AmbientStepsImportAccess.BACKGROUND_ALLOWED
-				} else {
-					AmbientStepsImportAccess.FOREGROUND_ONLY
-				},
-				optionalPermissions = optionalPermissions,
-			)
+			return healthConnectCapability(snapshot)
 		}
 		if (snapshot.healthConnect == HealthConnectAmbientStepsAvailability.PROBE_FAILED) {
 			return AmbientStepsCapability.Unavailable(
@@ -138,10 +126,39 @@ object AmbientStepsCapabilitySelector {
 				importAccess = AmbientStepsImportAccess.BACKGROUND_ALLOWED,
 			)
 		}
-
+
 		return AmbientStepsCapability.Unavailable(
 			healthConnect = snapshot.healthConnect,
 			localRecording = snapshot.localRecording,
+		)
+	}
+	private fun healthConnectCapability(snapshot: AmbientStepsPlatformSnapshot): AmbientStepsCapability {
+		val optionalPermissions = if (
+			snapshot.healthConnectBackgroundReadAvailable &&
+			!snapshot.healthConnectBackgroundReadGranted
+		) {
+			setOf(AmbientStepsPermission.HEALTH_CONNECT_BACKGROUND_READ)
+		} else {
+			emptySet()
+		}
+		if (!snapshot.healthConnectReadStepsGranted) {
+			return AmbientStepsCapability.PermissionRequired(
+				provider = AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS,
+				requiredPermissions = setOf(AmbientStepsPermission.HEALTH_CONNECT_READ_STEPS),
+				optionalPermissions = optionalPermissions,
+			)
+		}
+		return AmbientStepsCapability.ReadyForRegistration(
+			provider = AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS,
+			importAccess = if (
+				snapshot.healthConnectBackgroundReadAvailable &&
+				snapshot.healthConnectBackgroundReadGranted
+			) {
+				AmbientStepsImportAccess.BACKGROUND_ALLOWED
+			} else {
+				AmbientStepsImportAccess.FOREGROUND_ONLY
+			},
+			optionalPermissions = optionalPermissions,
 		)
 	}
 }

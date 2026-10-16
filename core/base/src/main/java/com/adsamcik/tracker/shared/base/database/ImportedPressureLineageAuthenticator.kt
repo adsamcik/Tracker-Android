@@ -28,7 +28,10 @@ import com.adsamcik.tracker.shared.model.pressure.portable.PressurePortableForma
  * cannot become readable under weaker rules than the writer used to extend it.
  */
 object ImportedPressureLineageAuthenticator {
-	@Suppress("LongMethod", "ComplexCondition")
+	/**
+	 * Reconstructs the complete imported Pressure correction lineage under its expected epoch and
+	 * optional retained-state floor.
+	 */
 	fun authenticate(
 		identity: String,
 		expectedCollectedDataEpoch: Long,
@@ -50,34 +53,9 @@ object ImportedPressureLineageAuthenticator {
 		}
 
 		val orderedHeaders = headers.sortedBy(ImportedPressureEntryRevisionEntity::importRevision)
-		require(orderedHeaders.map { it.contentChecksum }.distinct().size == orderedHeaders.size) {
-			"An identical Pressure entry must reuse its existing import revision"
-		}
-		orderedHeaders.forEachIndexed { index, header ->
-			val revision = index.toLong() + 1L
-			require(header.identity == identity)
-			require(header.importRevision == revision)
-			require(header.supersedesImportRevision == if (revision == 1L) null else revision - 1L)
-			require((retainedState?.acceptsRetainedEpoch(header.collectedDataEpoch) ?: (header.collectedDataEpoch == expectedCollectedDataEpoch)))
-			require(header.sourceFormat == PressurePortableFormatV1.FORMAT)
-			require(header.sourceSchemaVersion == PressurePortableFormatV1.SCHEMA_VERSION)
-		}
-		require(orderedHeaders.zipWithNext().all { (previous, next) ->
-			next.receivedAtMs >= previous.receivedAtMs
-		})
+		authenticateRevisionHeaders(identity, expectedCollectedDataEpoch, orderedHeaders, retainedState)
 
-		val headersByRevision = orderedHeaders.associateBy { it.importRevision }
-		require(headersByRevision.size == orderedHeaders.size)
-		require(receipts.map { it.importJobId to it.importEntryKey }.distinct().size == receipts.size)
-		receipts.forEach { receipt ->
-			val header = requireNotNull(headersByRevision[receipt.entryImportRevision])
-			require(receipt.entryIdentity == header.identity)
-			require(receipt.entryContentChecksum == header.contentChecksum)
-			require(receipt.collectedDataEpoch == header.collectedDataEpoch)
-		}
-		orderedHeaders.forEach { header ->
-			require(receipts.any { receipt -> receipt.exactlyOwns(header) })
-		}
+		authenticateRevisionReceipts(orderedHeaders, receipts)
 
 		if (runs.size > orderedHeaders.size * PressurePortableFormatV1.MAX_RUNS_PER_ENTRY) {
 			fail(ImportedPressureLineageFailureReason.RUN_OVERFLOW)
@@ -113,6 +91,52 @@ object ImportedPressureLineageAuthenticator {
 		).also(::authenticateCorrectionHierarchy)
 	}
 
+	private fun authenticateRevisionHeaders(
+		identity: String,
+		expectedCollectedDataEpoch: Long,
+		orderedHeaders: List<ImportedPressureEntryRevisionEntity>,
+		retainedState: SourceEvidenceState?,
+	) {
+		require(orderedHeaders.map { it.contentChecksum }.distinct().size == orderedHeaders.size) {
+			"An identical Pressure entry must reuse its existing import revision"
+		}
+		orderedHeaders.forEachIndexed { index, header ->
+			val revision = index.toLong() + 1L
+			require(header.identity == identity)
+			require(header.importRevision == revision)
+			require(header.supersedesImportRevision == if (revision == 1L) {
+				null
+			} else {
+				revision - 1L
+			})
+			require((retainedState?.acceptsRetainedEpoch(header.collectedDataEpoch) ?:
+                (header.collectedDataEpoch == expectedCollectedDataEpoch)))
+			require(header.sourceFormat == PressurePortableFormatV1.FORMAT)
+			require(header.sourceSchemaVersion == PressurePortableFormatV1.SCHEMA_VERSION)
+		}
+		require(orderedHeaders.zipWithNext().all { (previous, next) ->
+			next.receivedAtMs >= previous.receivedAtMs
+		})
+	}
+
+	private fun authenticateRevisionReceipts(
+		orderedHeaders: List<ImportedPressureEntryRevisionEntity>,
+		receipts: List<ImportedPressureReceiptEntity>,
+	) {
+		val headersByRevision = orderedHeaders.associateBy { it.importRevision }
+		require(headersByRevision.size == orderedHeaders.size)
+		require(receipts.map { it.importJobId to it.importEntryKey }.distinct().size == receipts.size)
+		receipts.forEach { receipt ->
+			val header = requireNotNull(headersByRevision[receipt.entryImportRevision])
+			require(receipt.entryIdentity == header.identity)
+			require(receipt.entryContentChecksum == header.contentChecksum)
+			require(receipt.collectedDataEpoch == header.collectedDataEpoch)
+		}
+		orderedHeaders.forEach { header ->
+			require(receipts.any { receipt -> receipt.exactlyOwns(header) })
+		}
+	}
+
 	/**
 	 * Revisions may correct values or replace physical members, but an opaque identity may never
 	 * change its structural owner, intrinsic interval, acquisition plan, or stored civil zone.
@@ -130,7 +154,9 @@ object ImportedPressureLineageAuthenticator {
 					endTimeMs = run.endTimeMs,
 				)
 				val previousRun = runs.putIfAbsent(run.identity.value, structure)
-				if (previousRun != null) require(previousRun == structure)
+				if (previousRun != null) {
+					require(previousRun == structure)
+				}
 				run.windows.forEach { window ->
 					val windowStructure = ImportedPressureWindowStructure(
 						entryIdentity = revision.entry.identity.value,
@@ -145,7 +171,9 @@ object ImportedPressureLineageAuthenticator {
 						zoneId = window.zoneId,
 					)
 					val previousWindow = windows.putIfAbsent(window.identity.value, windowStructure)
-					if (previousWindow != null) require(previousWindow == windowStructure)
+					if (previousWindow != null) {
+						require(previousWindow == windowStructure)
+					}
 				}
 			}
 		}
@@ -170,7 +198,11 @@ object ImportedPressureLineageAuthenticator {
 		val owners = mutableMapOf<String, ImportedPressureIdentityOwner>()
 		fun bind(identity: String, owner: ImportedPressureIdentityOwner) {
 			val previous = owners[identity]
-			if (previous == null) owners[identity] = owner else require(previous == owner)
+			if (previous == null) {
+				owners[identity] = owner
+			} else {
+				require(previous == owner)
+			}
 		}
 		bind(
 			entryIdentity,
@@ -270,6 +302,9 @@ object ImportedPressureLineageAuthenticator {
 		throw ImportedPressureLineageFailure(reason)
 }
 
+/**
+ * Complete verified imported Pressure correction revisions and their file receipts.
+ */
 data class AuthenticatedImportedPressureLineage(
 	val revisions: List<AuthenticatedImportedPressureRevision>,
 	val receipts: List<ImportedPressureReceiptEntity>,
@@ -278,11 +313,17 @@ data class AuthenticatedImportedPressureLineage(
 		get() = revisions.lastOrNull()
 }
 
+/**
+ * Original imported Pressure revision header paired with its verified portable entry content.
+ */
 data class AuthenticatedImportedPressureRevision(
 	val header: ImportedPressureEntryRevisionEntity,
 	val entry: PortablePressureEntryV1,
 )
 
+/**
+ * Invalid saved Pressure lineage or exceeded run/window/revision/dependency limits.
+ */
 enum class ImportedPressureLineageFailureReason {
 	STORED_EVIDENCE_UNVERIFIABLE,
 	DEPENDENCY_OVERFLOW,
@@ -292,6 +333,9 @@ enum class ImportedPressureLineageFailureReason {
 	REVISION_OVERFLOW,
 }
 
+/**
+ * Carries the exact imported Pressure verification failure without a stack trace or payload.
+ */
 class ImportedPressureLineageFailure(
 	val reason: ImportedPressureLineageFailureReason,
 ) : RuntimeException(null, null, false, false)
@@ -320,6 +364,10 @@ private data class ImportedPressureWindowStructure(
 	val zoneId: String,
 )
 
+/**
+ * Copies the original saved Pressure aggregate, clocks, sampling, accuracy and zone into the
+ * validated shared wire window.
+ */
 @Suppress("LongMethod")
 fun ImportedPressureWindowEntity.toPortablePressureWindow() = PortablePressureWindowV1(
 	identity = PortablePressureOpaqueIdentity(identity),

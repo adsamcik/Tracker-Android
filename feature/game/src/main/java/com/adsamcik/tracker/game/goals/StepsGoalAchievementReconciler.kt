@@ -37,58 +37,7 @@ internal class StepsGoalAchievementReconciler @Inject constructor(
 			startupGate.withReadyGenerationOperation(expectedGeneration) {
 				withContext(dispatchers.io) {
 					database.withTransaction {
-						val sourceRevision = database.sourceEvidenceStateDao().get()?.revision
-							?: return@withTransaction StepsGoalAchievementReconcileResult.RetryableFailure
-						val daily = database.stepsGoalEffectDao().getDailyDecisions()
-						val pendingRepair = database.stepsGoalRepairDayDao().next() != null
-						val digest = daily.authorityDigest()
-						if (pendingRepair) {
-							return@withTransaction StepsGoalAchievementReconcileResult.Materializing(
-								changed = markAuthorityState(
-									sourceRevision,
-									digest,
-									AchievementProgressEntity.AUTHORITY_STATE_MATERIALIZING,
-									observedAtMs,
-								),
-							)
-						}
-						if (daily.isEmpty() || daily.any { effect ->
-								effect.decisionState != StepsGoalEffectEntity.STATE_READY_COMPLETE &&
-									effect.decisionState != StepsGoalEffectEntity.STATE_READY_INCOMPLETE
-							}
-						) {
-							return@withTransaction StepsGoalAchievementReconcileResult.Unverifiable(
-								changed = markAuthorityState(
-									sourceRevision,
-									digest,
-									AchievementProgressEntity.AUTHORITY_STATE_UNVERIFIABLE,
-									observedAtMs,
-								),
-							)
-						}
-
-						val completeDays = daily.asSequence()
-							.filter { it.decisionState == StepsGoalEffectEntity.STATE_READY_COMPLETE }
-							.map(StepsGoalEffectEntity::periodStartEpochDay)
-							.distinct()
-							.sorted()
-							.toList()
-						val streak = replace(
-							metric = MetricKey.GOAL_STREAK_DAYS,
-							value = longestRun(completeDays),
-							sourceRevision = sourceRevision,
-							digest = digest,
-							observedAtMs = observedAtMs,
-						)
-						val weeks = replace(
-							metric = MetricKey.PERFECT_WEEKS,
-							value = perfectIsoWeeks(completeDays),
-							sourceRevision = sourceRevision,
-							digest = digest,
-							observedAtMs = observedAtMs,
-						)
-						domainEvents.persist(streak.unlocks + weeks.unlocks)
-						StepsGoalAchievementReconcileResult.Applied(streak.changed || weeks.changed)
+						reconcileInTransaction(observedAtMs)
 					}
 				}
 			} ?: StepsGoalAchievementReconcileResult.RetryableFailure
@@ -98,6 +47,61 @@ internal class StepsGoalAchievementReconciler @Inject constructor(
 			StepsGoalAchievementReconcileResult.RetryableFailure
 		}
 		return result
+	}
+
+	private suspend fun reconcileInTransaction(observedAtMs: Long): StepsGoalAchievementReconcileResult {
+		val sourceRevision = database.sourceEvidenceStateDao().get()?.revision
+			?: return StepsGoalAchievementReconcileResult.RetryableFailure
+		val daily = database.stepsGoalEffectDao().getDailyDecisions()
+		val pendingRepair = database.stepsGoalRepairDayDao().next() != null
+		val digest = daily.authorityDigest()
+		if (pendingRepair) {
+			return StepsGoalAchievementReconcileResult.Materializing(
+				changed = markAuthorityState(
+					sourceRevision,
+					digest,
+					AchievementProgressEntity.AUTHORITY_STATE_MATERIALIZING,
+					observedAtMs,
+				),
+			)
+		}
+		if (daily.isEmpty() || daily.any { effect ->
+				effect.decisionState != StepsGoalEffectEntity.STATE_READY_COMPLETE &&
+					effect.decisionState != StepsGoalEffectEntity.STATE_READY_INCOMPLETE
+			}
+		) {
+			return StepsGoalAchievementReconcileResult.Unverifiable(
+				changed = markAuthorityState(
+					sourceRevision,
+					digest,
+					AchievementProgressEntity.AUTHORITY_STATE_UNVERIFIABLE,
+					observedAtMs,
+				),
+			)
+		}
+
+		val completeDays = daily.asSequence()
+			.filter { it.decisionState == StepsGoalEffectEntity.STATE_READY_COMPLETE }
+			.map(StepsGoalEffectEntity::periodStartEpochDay)
+			.distinct()
+			.sorted()
+			.toList()
+		val streak = replace(
+			metric = MetricKey.GOAL_STREAK_DAYS,
+			value = longestRun(completeDays),
+			sourceRevision = sourceRevision,
+			digest = digest,
+			observedAtMs = observedAtMs,
+		)
+		val weeks = replace(
+			metric = MetricKey.PERFECT_WEEKS,
+			value = perfectIsoWeeks(completeDays),
+			sourceRevision = sourceRevision,
+			digest = digest,
+			observedAtMs = observedAtMs,
+		)
+		domainEvents.persist(streak.unlocks + weeks.unlocks)
+		return StepsGoalAchievementReconcileResult.Applied(streak.changed || weeks.changed)
 	}
 
 	private suspend fun markAuthorityState(
@@ -145,12 +149,7 @@ internal class StepsGoalAchievementReconciler @Inject constructor(
 			.filter { definition -> value.toDouble() >= definition.threshold }
 			.maxOfOrNull { definition -> definition.tierIndex } ?: -1
 		val current = database.achievementProgressDao().getByMetric(metric.storageKey)
-		if (current != null && current.lastTierIndex == tier && current.lastValue == value.toDouble() &&
-			current.authorityKind == AchievementProgressEntity.AUTHORITY_QUALIFIED_STEPS_V1 &&
-			current.authorityRevision == sourceRevision && current.authorityDigest == digest &&
-			current.authorityState == AchievementProgressEntity.AUTHORITY_STATE_READY &&
-			current.qualifiedNotificationClaimedTierIndex != null
-		) {
+		if (current?.matchesQualifiedStepsValue(tier, value, sourceRevision, digest) == true) {
 			return Replacement(changed = false, unlocks = emptyList())
 		}
 		val qualifiedCurrent = current?.takeIf {
@@ -193,7 +192,9 @@ internal class StepsGoalAchievementReconciler @Inject constructor(
 	}
 
 	private fun longestRun(days: List<Long>): Long {
-		if (days.isEmpty()) return 0L
+		if (days.isEmpty()) {
+			return 0L
+		}
 		var best = 1L
 		var current = 1L
 		for (index in 1 until days.size) {
@@ -212,7 +213,7 @@ internal class StepsGoalAchievementReconciler @Inject constructor(
 		.groupBy { date -> date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)) }
 		.count { (monday, completed) ->
 			completed.map(LocalDate::toEpochDay).distinct().size == DAYS_PER_WEEK &&
-			completed.minOrNull() == monday && completed.maxOrNull() == monday.plusDays(6L)
+			completed.minOrNull() == monday && completed.maxOrNull() == monday.plusDays(ISO_WEEK_LAST_DAY_OFFSET)
 		}
 		.toLong()
 
@@ -234,7 +235,7 @@ internal class StepsGoalAchievementReconciler @Inject constructor(
 	private fun ByteArray.toHex(): String = buildString(size * 2) {
 		for (byte in this@toHex) {
 			val value = byte.toInt() and 0xff
-			append(HEX[value ushr 4])
+			append(HEX[value ushr BITS_PER_HEX_DIGIT])
 			append(HEX[value and 0x0f])
 		}
 	}
@@ -260,4 +261,24 @@ internal sealed interface StepsGoalAchievementReconcileResult {
 	data class Materializing(val changed: Boolean) : StepsGoalAchievementReconcileResult
 	data class Unverifiable(val changed: Boolean) : StepsGoalAchievementReconcileResult
 	data object RetryableFailure : StepsGoalAchievementReconcileResult
+}
+
+private const val ISO_WEEK_LAST_DAY_OFFSET = 6L
+private const val BITS_PER_HEX_DIGIT = 4
+
+/** Shared exact saved-value test for daily-goal and retained-total achievement replacements. */
+internal fun AchievementProgressEntity.matchesQualifiedStepsValue(
+	tier: Int,
+	value: Long,
+	sourceRevision: Long,
+	digest: String,
+): Boolean {
+	if (lastTierIndex != tier || lastValue != value.toDouble() ||
+		authorityKind != AchievementProgressEntity.AUTHORITY_QUALIFIED_STEPS_V1 ||
+		authorityRevision != sourceRevision
+	) {
+		return false
+	}
+	return authorityDigest == digest && authorityState == AchievementProgressEntity.AUTHORITY_STATE_READY &&
+		qualifiedNotificationClaimedTierIndex != null
 }

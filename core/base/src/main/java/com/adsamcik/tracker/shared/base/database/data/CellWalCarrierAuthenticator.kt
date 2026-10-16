@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.shared.base.database.data
 
-import java.time.Instant
-import java.time.ZoneId
-
+/**
+ * Specific original Cell payload, capture-binding, child-time and revision comparison failures.
+ */
 enum class CellWalCarrierFailure {
 	WRONG_SOURCE,
 	UNSUPPORTED_PAYLOAD_VERSION,
@@ -29,6 +29,9 @@ enum class CellWalCarrierFailure {
 	FACT_SEMANTICS_MISMATCH,
 }
 
+/**
+ * Half-open provider or authority acceptance interval measured in elapsed-realtime nanoseconds.
+ */
 data class CellWalProviderInterval(
 	val startInclusiveNanos: Long,
 	val endExclusiveNanos: Long,
@@ -38,10 +41,17 @@ data class CellWalProviderInterval(
 		require(endExclusiveNanos > startInclusiveNanos)
 	}
 
+	/**
+	 * Tests membership in this half-open elapsed-realtime interval, in nanoseconds.
+	 */
 	operator fun contains(value: Long): Boolean =
 		value >= startInclusiveNanos && value < endExclusiveNanos
 }
 
+/**
+ * Original Cell session/source/policy/consent/data ownership and provider acceptance boundaries
+ * used to qualify each reading.
+ */
 @Suppress("LongParameterList")
 data class CellWalCaptureAuthority(
 	val logicalTrackingId: String,
@@ -69,6 +79,10 @@ data class CellWalCaptureAuthority(
 	val maximumObservationAgeNanos: Long,
 )
 
+/**
+ * Per-reading admission outcome; rejected siblings do not determine whether other Cell readings
+ * qualify.
+ */
 enum class CellWalChildDisposition {
 	ACCEPTED,
 	STALE,
@@ -76,11 +90,18 @@ enum class CellWalChildDisposition {
 	UNSUPPORTED_TECHNOLOGY,
 }
 
+/**
+ * One original Cell reading index with its admission outcome and available provider/UTC bounds.
+ */
 data class CellWalQualifiedChild(
 	val observation: CellWalPayloadObservation,
 	val disposition: CellWalChildDisposition,
 )
 
+/**
+ * Counts of qualified Cell technologies and signal-quality categories without retaining tower
+ * identities.
+ */
 @Suppress("LongParameterList")
 data class CellWalIdentityFreeAggregate(
 	val observationCount: Int,
@@ -102,6 +123,10 @@ data class CellWalIdentityFreeAggregate(
 	val allKnownQualityIsWeak: Boolean,
 )
 
+/**
+ * Per-reading Cell outcomes, qualified aggregate and nullable measured coverage/UTC uncertainty
+ * bounds.
+ */
 data class CellWalChildQualification(
 	val children: List<CellWalQualifiedChild>,
 	val coverageIntervalStartNanos: Long?,
@@ -123,6 +148,10 @@ data class CellWalChildQualification(
 	val isComplete: Boolean = acceptedChildCount == submittedChildCount
 }
 
+/**
+ * Original decoded Cell delivery after envelope checks, with optional per-reading qualification
+ * for a recorded purpose.
+ */
 data class AuthenticatedCellWalCarrier internal constructor(
 	val deliveryIdentity: String,
 	val payload: CellWalPayload,
@@ -134,11 +163,21 @@ data class AuthenticatedCellWalCarrier internal constructor(
 	internal val wallTimeUncertaintyMs: Long,
 )
 
+/**
+ * Typed Cell carrier comparison result with the exact rejection cause.
+ */
 sealed interface CellWalCarrierAuthentication {
+	/**
+	 * Successful original-carrier comparison containing its checked, decoded measurement payload.
+	 */
 	data class Authenticated(
 		val carrier: AuthenticatedCellWalCarrier,
 	) : CellWalCarrierAuthentication
 
+	/**
+	 * Specific rejected decode, carrier or per-purpose qualification outcome; it carries no accepted
+	 * payload.
+	 */
 	data class Rejected(val reason: CellWalCarrierFailure) : CellWalCarrierAuthentication
 }
 
@@ -146,6 +185,10 @@ sealed interface CellWalCarrierAuthentication {
  * Single Cell WAL predicate shared by capture, materialization, history, and exact proof queries.
  */
 object CellWalCarrierAuthenticator {
+	/**
+	 * Returns the uncertainty-adjusted UTC millisecond coverage start; inconsistent anchors return
+	 * null.
+	 */
 	fun retentionLowerBound(
 		fact: CellCapturedFactRevisionEntity,
 		carrier: AuthenticatedCellWalCarrier,
@@ -156,6 +199,10 @@ object CellWalCarrierAuthenticator {
 		coverageStartElapsedRealtimeNanos = fact.coverageIntervalStartNanos,
 	)
 
+	/**
+	 * Maps the original elapsed coverage start to UTC milliseconds using the saved observation
+	 * anchor; invalid bounds return null.
+	 */
 	fun coverageStartWallTime(
 		fact: CellCapturedFactRevisionEntity,
 		carrier: AuthenticatedCellWalCarrier,
@@ -165,6 +212,10 @@ object CellWalCarrierAuthenticator {
 		coverageStartElapsedRealtimeNanos = fact.coverageIntervalStartNanos,
 	)
 
+	/**
+	 * Checks the original Cell WAL checksum, provider envelope, supported payload and recorded
+	 * capture binding; reports the exact rejection cause.
+	 */
 	@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount")
 	fun authenticate(
 		wal: SourceEventWalEntity,
@@ -225,13 +276,7 @@ object CellWalCarrierAuthenticator {
 		) {
 			return rejected(CellWalCarrierFailure.IDENTITY_BEARING_CHILD)
 		}
-		if (payload.observations.any { observation ->
-				observation.radioType.isBlank() ||
-					observation.radioType != observation.radioType.trim() ||
-					observation.radioType != observation.radioType.uppercase() ||
-					observation.providerTimestampNanos == null ||
-					requireNotNull(observation.providerTimestampNanos) <= 0L
-			}
+		if (payload.observations.any { !it.hasValidCellCarrierShape() }
 		) {
 			return rejected(CellWalCarrierFailure.INVALID_PROVIDER_TIME)
 		}
@@ -274,9 +319,11 @@ object CellWalCarrierAuthenticator {
 		}
 		if (qualifiedItemIndexes?.any { it !in payload.observations.indices } == true ||
 			(qualifiedItemIndexes != null && wal.payloadVersion != CELL_WAL_PAYLOAD_VERSION)
-		) return rejected(CellWalCarrierFailure.CAPTURE_AUTHORITY_MISMATCH)
+		) {
+			return rejected(CellWalCarrierFailure.CAPTURE_AUTHORITY_MISMATCH)
+		}
 		val qualification = expectedAuthority?.let { authority ->
-			qualifyChildren(wal, payload, authority, qualifiedItemIndexes)
+			qualifyCellWalChildren(wal, payload, authority, qualifiedItemIndexes)
 				?: return rejected(CellWalCarrierFailure.STRUCTURAL_DAY_MISMATCH)
 		}
 		return CellWalCarrierAuthentication.Authenticated(
@@ -293,13 +340,19 @@ object CellWalCarrierAuthenticator {
 		)
 	}
 
+	/**
+	 * Checks the saved Cell revision against its original WAL carrier, ownership, measured values and
+	 * supplied child/count-domain evidence.
+	 */
 	fun authenticate(
 		fact: CellCapturedFactRevisionEntity,
 		wal: SourceEventWalEntity,
 		qualifiedItemIndexes: Set<Int>? = null,
 	): CellWalCarrierAuthentication {
 		val authenticated = authenticate(wal, fact.captureAuthority(), qualifiedItemIndexes)
-		if (authenticated !is CellWalCarrierAuthentication.Authenticated) return authenticated
+		if (authenticated !is CellWalCarrierAuthentication.Authenticated) {
+			return authenticated
+		}
 		if (!fact.hasExactWalLink(wal, authenticated.carrier)) {
 			return rejected(CellWalCarrierFailure.FACT_LINKAGE_MISMATCH)
 		}
@@ -318,21 +371,33 @@ object CellWalCarrierAuthenticator {
 		val authenticated = authenticate(fact, wal,
 			children.map(CellCapturedChildEntity::itemIndex).toSet()
 				.takeIf { wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION })
-		if (authenticated !is CellWalCarrierAuthentication.Authenticated) return authenticated
+		if (authenticated !is CellWalCarrierAuthentication.Authenticated) {
+			return authenticated
+		}
 		if (wal.payloadVersion == LEGACY_CELL_WAL_PAYLOAD_VERSION && children.isEmpty()) {
 			return authenticated
 		}
 		if (wal.payloadVersion != CELL_WAL_PAYLOAD_VERSION ||
 			!children.authenticateFor(fact, wal, authenticated.carrier)
-		) return rejected(CellWalCarrierFailure.FACT_SEMANTICS_MISMATCH)
+		) {
+			return rejected(CellWalCarrierFailure.FACT_SEMANTICS_MISMATCH)
+		}
 		return authenticated
 	}
 
+	/**
+	 * Returns whether the saved Cell fact and supplied original carrier pass the complete carrier
+	 * comparison.
+	 */
 	fun authenticates(
 		fact: CellCapturedFactRevisionEntity,
 		wal: SourceEventWalEntity,
 	): Boolean = authenticate(fact, wal) is CellWalCarrierAuthentication.Authenticated
 
+	/**
+	 * Checks that aggregate values and original owner revision match the qualified Cell carrier and
+	 * any dependent coverage-only fact.
+	 */
 	fun authenticatesAggregate(
 		aggregateFact: CellCapturedFactRevisionEntity,
 		carrier: AuthenticatedCellWalCarrier,
@@ -340,7 +405,12 @@ object CellWalCarrierAuthenticator {
 		aggregateFact.matchesAggregate(aggregate)
 	} == true
 
-	@Suppress("ComplexCondition")
+	/**
+	 * Checks that aggregate values and original owner revision match the qualified Cell carrier and
+	 * any dependent coverage-only fact.
+	 */
+	// One saved aggregate/dependent ownership tuple; the carrier comparison also reads fixed fields only.
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 	fun authenticatesAggregate(
 		aggregateFact: CellCapturedFactRevisionEntity,
 		carrier: AuthenticatedCellWalCarrier,
@@ -360,95 +430,14 @@ object CellWalCarrierAuthenticator {
 		aggregateFact.sessionRunEffectEndNanos != Long.MAX_VALUE &&
 		aggregateFact.deletionEffectEndNanos != Long.MAX_VALUE
 
-	private fun qualifyChildren(
-		wal: SourceEventWalEntity,
-		payload: CellWalPayload,
-		authority: CellWalCaptureAuthority,
-		qualifiedItemIndexes: Set<Int>?,
-	): CellWalChildQualification? {
-		val carrier = AuthenticatedCellWalCarrier(
-			deliveryIdentity = requireNotNull(wal.deliveryIdentity),
-			payload = payload,
-			childQualification = null,
-			admissionOrdinal = wal.admissionOrdinal,
-			observedElapsedNanos = wal.observedElapsedNanos,
-			receivedElapsedNanos = wal.receivedElapsedNanos,
-			observedWallTimeMs = requireNotNull(wal.wallTimeMs),
-			wallTimeUncertaintyMs = requireNotNull(wal.wallTimeUncertaintyMs),
-		)
-		return qualifyChildrenFromAuthenticatedCarrier(carrier, authority,
-			preserveProviderRounding = wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION,
-			qualifiedItemIndexes = qualifiedItemIndexes)
-	}
-
-	private fun qualifyChildrenFromAuthenticatedCarrier(
-		carrier: AuthenticatedCellWalCarrier,
-		authority: CellWalCaptureAuthority,
-		preserveProviderRounding: Boolean,
-		qualifiedItemIndexes: Set<Int>? = null,
-	): CellWalChildQualification? {
-		if (authority.maximumObservationAgeNanos < 0L) return null
-		val children = carrier.payload.observations.mapIndexed { index, observation ->
-			val providerTime = requireNotNull(observation.providerTimestampNanos)
-			val disposition = when {
-				providerTime > carrier.receivedElapsedNanos ->
-					CellWalChildDisposition.FUTURE_TIME
-				!authority.contains(providerTime) ||
-					carrier.receivedElapsedNanos - providerTime >
-					authority.maximumObservationAgeNanos -> CellWalChildDisposition.STALE
-				!observation.hasSupportedCellProductShape() ->
-					CellWalChildDisposition.UNSUPPORTED_TECHNOLOGY
-				qualifiedItemIndexes != null && index !in qualifiedItemIndexes -> CellWalChildDisposition.STALE
-				else -> CellWalChildDisposition.ACCEPTED
-			}
-			CellWalQualifiedChild(observation, disposition)
-		}
-		val accepted = children.filter { it.disposition == CellWalChildDisposition.ACCEPTED }
-		if (accepted.isEmpty()) {
-			return CellWalChildQualification(children, null, null, null, null, null)
-		}
-		val acceptedTimes = accepted.map { requireNotNull(it.observation.providerTimestampNanos) }
-		val coverageStart = requireNotNull(acceptedTimes.minOrNull())
-		val coverageEnd = requireNotNull(acceptedTimes.maxOrNull())
-		val observedWall = carrier.providerWallTime(coverageEnd) ?: return null
-		val providerWallInterval = runCatching {
-			val first = CanonicalRetentionBounds.cellCoverage(
-				walObservedWallTimeMs = carrier.observedWallTimeMs,
-				wallTimeUncertaintyMs = carrier.wallTimeUncertaintyMs,
-				walObservedElapsedRealtimeNanos = carrier.observedElapsedNanos,
-				coverageStartElapsedRealtimeNanos = coverageStart,
-			) ?: return null
-			val last = if (preserveProviderRounding) {
-				acceptedTimes.maxOf { providerTime ->
-					val wall = carrier.providerWallTime(providerTime) ?: return null
-					val rounding = if ((carrier.observedElapsedNanos - providerTime) % 1_000_000L == 0L) 0L else 1L
-					Math.addExact(wall, Math.addExact(carrier.wallTimeUncertaintyMs, rounding))
-				}
-			} else Math.addExact(observedWall, carrier.wallTimeUncertaintyMs)
-			first..last
-		}.getOrNull() ?: return null
-		val zone = runCatching { ZoneId.of(authority.zoneId) }.getOrNull() ?: return null
-		val firstDay = Instant.ofEpochMilli(providerWallInterval.first)
-			.atZone(zone).toLocalDate().toEpochDay()
-		val lastDay = Instant.ofEpochMilli(providerWallInterval.last)
-			.atZone(zone).toLocalDate().toEpochDay()
-		val measuredDay = Instant.ofEpochMilli(observedWall).atZone(zone).toLocalDate().toEpochDay()
-		if (if (preserveProviderRounding) measuredDay != authority.structuralEpochDay else
-			firstDay != authority.structuralEpochDay || lastDay != authority.structuralEpochDay
-		) {
-			return null
-		}
-		return CellWalChildQualification(
-			children = children,
-			coverageIntervalStartNanos = coverageStart,
-			coverageIntervalEndNanos = coverageEnd,
-			observedWallTimeMs = observedWall,
-			providerWallInterval = providerWallInterval,
-			aggregate = accepted.map(CellWalQualifiedChild::observation).toAggregate(),
-		)
-	}
 }
 
+private fun CellWalPayloadObservation.hasValidCellCarrierShape(): Boolean = radioType.isNotBlank() &&
+	radioType == radioType.trim() && radioType == radioType.uppercase() &&
+	providerTimestampNanos != null && requireNotNull(providerTimestampNanos) > 0L
+
+// Missing qualification, mismatched membership and missing anchors reject before per-child reconstruction.
+@Suppress("ReturnCount")
 private fun List<CellCapturedChildEntity>.authenticateFor(
 	fact: CellCapturedFactRevisionEntity,
 	wal: SourceEventWalEntity,
@@ -459,37 +448,64 @@ private fun List<CellCapturedChildEntity>.authenticateFor(
 		?.map { it.index }?.toSet() ?: return false
 	if (isEmpty() || size != fact.acceptedChildCount || size > MAX_CELL_WAL_CHILDREN ||
 		map(CellCapturedChildEntity::itemIndex).toSet() != acceptedIndexes
-	) return false
+	) {
+		return false
+	}
 	val wallAnchor = wal.wallTimeMs ?: return false
 	val uncertaintyAnchor = wal.wallTimeUncertaintyMs ?: return false
 	return all { child ->
-		val item = carrier.payload.observations.getOrNull(child.itemIndex) ?: return@all false
-		val providerTime = item.providerTimestampNanos ?: return@all false
-		val age = wal.observedElapsedNanos - providerTime
-		if (age < 0L || child.writerProjectionId != fact.writerProjectionId ||
-			child.writerProjectionVersion != fact.writerProjectionVersion ||
-			child.logicalFactId != fact.logicalFactId ||
-			child.semanticRevision != fact.semanticRevision
-		) return@all false
-		val wall = runCatching { Math.subtractExact(wallAnchor, age / NANOS_PER_MILLISECOND) }
-			.getOrNull() ?: return@all false
-		val uncertainty = runCatching { Math.addExact(uncertaintyAnchor,
-			if (age % NANOS_PER_MILLISECOND == 0L) 0L else 1L) }
-			.getOrNull() ?: return@all false
-		val identity = item.identifierToken.ifEmpty { null }
-		val input = CellChildChecksumInput(
-			RadioChildOwner(RadioChildPurpose.SESSION, fact.writerProjectionId,
-				fact.writerProjectionVersion, fact.logicalFactId, fact.semanticRevision, child.itemIndex),
-			providerTime, wall, uncertainty, identity, item.radioType,
-			item.registered, item.signalLevelDbm,
-		)
-		child.providerTimestampNanos == providerTime && child.observedWallTimeMs == wall &&
-			child.wallTimeUncertaintyMs == uncertainty && child.towerIdentity == identity &&
-			child.radioType == item.radioType && child.registered == item.registered &&
-			child.signalDbm == item.signalLevelDbm &&
-			child.contentChecksum == RadioObservationChildIntegrity.cell(input)
+		val input = child.authenticatedChecksumInput(fact, wal, carrier, wallAnchor, uncertaintyAnchor)
+			?: return@all false
+		child.matchesAuthenticatedInput(input)
 	}
 }
+
+// Missing child/time, foreign ownership or unrepresentable UTC bounds reject before checksum construction.
+@Suppress("ReturnCount")
+private fun CellCapturedChildEntity.authenticatedChecksumInput(
+	fact: CellCapturedFactRevisionEntity,
+	wal: SourceEventWalEntity,
+	carrier: AuthenticatedCellWalCarrier,
+	wallAnchor: Long,
+	uncertaintyAnchor: Long,
+): CellChildChecksumInput? {
+	val item = carrier.payload.observations.getOrNull(itemIndex) ?: return null
+	val providerTime = item.providerTimestampNanos ?: return null
+	val age = wal.observedElapsedNanos - providerTime
+	if (age < 0L || !hasExactCellCarrierOwner(fact)) {
+		return null
+	}
+	val wall = runCatching { Math.subtractExact(wallAnchor, age / NANOS_PER_MILLISECOND) }
+		.getOrNull() ?: return null
+	val uncertainty = runCatching { Math.addExact(uncertaintyAnchor,
+		if (age % NANOS_PER_MILLISECOND == 0L) {
+			0L
+		} else {
+			1L
+		}) }
+		.getOrNull() ?: return null
+	val identity = item.identifierToken.ifEmpty { null }
+	return CellChildChecksumInput(
+		RadioChildOwner(RadioChildPurpose.SESSION, fact.writerProjectionId,
+			fact.writerProjectionVersion, fact.logicalFactId, fact.semanticRevision, itemIndex),
+		providerTime, wall, uncertainty, identity, item.radioType,
+		item.registered, item.signalLevelDbm,
+	)
+}
+
+private fun CellCapturedChildEntity.hasExactCellCarrierOwner(fact: CellCapturedFactRevisionEntity): Boolean =
+	writerProjectionId == fact.writerProjectionId && writerProjectionVersion == fact.writerProjectionVersion &&
+	logicalFactId == fact.logicalFactId && semanticRevision == fact.semanticRevision
+
+private fun CellCapturedChildEntity.matchesAuthenticatedInput(input: CellChildChecksumInput): Boolean =
+	providerTimestampNanos == input.providerTimestampNanos &&
+		observedWallTimeMs == input.observedWallTimeMs &&
+		wallTimeUncertaintyMs == input.wallTimeUncertaintyMs &&
+		towerIdentity == input.towerIdentity &&
+		radioType == input.radioType &&
+		registered == input.registered &&
+		signalDbm == input.signalDbm &&
+		contentChecksum == RadioObservationChildIntegrity.cell(input)
 
 private fun CellWalPayloadDecodeFailure.toCarrierFailure(): CellWalCarrierFailure = when (this) {
 	CellWalPayloadDecodeFailure.UNSUPPORTED_PAYLOAD_VERSION ->
@@ -505,7 +521,8 @@ private fun SourceEventWalEntity.hasCapturePurpose(): Boolean =
 		authorizationPurposeEligibilityMask &&
 		authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
 
-@Suppress("ComplexCondition")
+// One persisted capture tuple; keep every required field visible in its short-circuit contract.
+@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 private fun SourceEventWalEntity.hasCompleteCaptureBinding(): Boolean =
 	logicalTrackingId?.isNotBlank() == true &&
 		serviceRunId?.isNotBlank() == true &&
@@ -522,15 +539,20 @@ private fun SourceEventWalEntity.hasCompleteCaptureBinding(): Boolean =
 		capturedCollectedDataEpoch >= 0L &&
 		clockDomainId.isNotBlank()
 
-@Suppress("ComplexCondition")
+// One callback envelope; the version-specific binding has its own predicate below.
+@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 private fun SourceEventWalEntity.hasCanonicalProviderEnvelope(): Boolean =
 	admissionOrdinal > 0L &&
 		eventId.isNotBlank() &&
 		deliveryUnitIndex == 0 &&
 		deliveryUnitCount == 1 &&
 		sourceSequence >= 0L &&
-		(if (payloadVersion == CELL_WAL_PAYLOAD_VERSION) hasCanonicalPerReadingBinding() else
-			planAttribution == CAPTURED_REGISTRATION_PLAN_ORDINAL) &&
+		(if (payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
+			hasCanonicalPerReadingBinding()
+		} else
+			{
+			planAttribution == CAPTURED_REGISTRATION_PLAN_ORDINAL
+		}) &&
 		observedIntervalStartNanos?.let { it > 0L } == true &&
 		observedElapsedNanos >= requireNotNull(observedIntervalStartNanos) &&
 		receivedElapsedNanos >= observedElapsedNanos &&
@@ -542,7 +564,8 @@ private fun SourceEventWalEntity.hasCanonicalProviderEnvelope(): Boolean =
 		qualityFlags == 0L &&
 		qualityConfidence == null
 
-@Suppress("ComplexCondition")
+// One authority projection with explicit legacy/v6 field ownership; avoid a second mapping model.
+@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 private fun SourceEventWalEntity.matches(
 	authority: CellWalCaptureAuthority,
 	payload: CellWalPayload,
@@ -565,6 +588,8 @@ private fun SourceEventWalEntity.matches(
 		(payloadVersion == CELL_WAL_PAYLOAD_VERSION || payload.observationZoneId == authority.zoneId)
 
 /** v6 records the real callback, including a denied callback after historical capture ended. */
+// The two persisted header shapes share fixed nullability, mask and fingerprint requirements.
+@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 private fun SourceEventWalEntity.hasCanonicalPerReadingBinding(): Boolean {
 	if (sourceInstanceId.isBlank() || registrationGeneration <= 0L ||
 		configRevision?.let { it > 0L } != true || physicalConfigurationFingerprint.isNullOrBlank() ||
@@ -572,24 +597,32 @@ private fun SourceEventWalEntity.hasCanonicalPerReadingBinding(): Boolean {
 		authorizationFingerprint?.let(LOWERCASE_SHA_256::matches) != true ||
 		authorizationPurposeEligibilityMask and SourceBrokerPurpose.ALL_MASK != authorizationPurposeEligibilityMask ||
 		capturedCollectedDataEpoch < 0L || clockDomainId.isBlank()
-	) return false
-	return if (hasCapturePurpose()) hasCompleteCaptureBinding() &&
-		planAttribution == CAPTURED_REGISTRATION_PLAN_ORDINAL else
+	) {
+		return false
+	}
+	return if (hasCapturePurpose()) {
+		hasCompleteCaptureBinding() &&
+		planAttribution == CAPTURED_REGISTRATION_PLAN_ORDINAL
+	} else
+		{
 		listOf(logicalTrackingId, serviceRunId, sourcePolicyRevision, captureConsentEpoch,
 			sessionManifestRevision, lifecycleLeaseGeneration).all { it == null } &&
 			planAttribution == RECEIVE_TIME_ONLY_PLAN_ORDINAL
+	}
 }
 
-private fun CellWalCaptureAuthority.contains(providerTimeNanos: Long): Boolean =
+internal fun CellWalCaptureAuthority.containsQualifiedCellTime(providerTimeNanos: Long): Boolean =
 	providerTimeNanos in providerAcceptance &&
 		providerTimeNanos in authorizationEffect &&
 		providerTimeNanos in consentEffect &&
 		providerTimeNanos in sessionRunEffect &&
 		providerTimeNanos in deletionEffect
 
-private fun AuthenticatedCellWalCarrier.providerWallTime(providerTimeNanos: Long): Long? {
+internal fun AuthenticatedCellWalCarrier.cellCarrierProviderWallTime(providerTimeNanos: Long): Long? {
 	val ageNanos = observedElapsedNanos - providerTimeNanos
-	if (ageNanos < 0L) return null
+	if (ageNanos < 0L) {
+		return null
+	}
 	val ageMs = ageNanos / NANOS_PER_MILLISECOND
 	return observedWallTimeMs.takeIf { it >= ageMs }?.minus(ageMs)
 }
@@ -629,7 +662,8 @@ private fun CellCapturedFactRevisionEntity.captureAuthority() = CellWalCaptureAu
 	maximumObservationAgeNanos = maximumObservationAgeNanos,
 )
 
-@Suppress("ComplexCondition", "LongMethod")
+// One fact-to-carrier field mapping; keeping the complete list together exposes missing links.
+@Suppress("ComplexCondition", "LongMethod", "CyclomaticComplexMethod")
 private fun CellCapturedFactRevisionEntity.hasExactWalLink(
 	wal: SourceEventWalEntity,
 	carrier: AuthenticatedCellWalCarrier,
@@ -671,7 +705,8 @@ private fun CellCapturedFactRevisionEntity.hasExactWalLink(
 		planAttribution == CellCapturedFactRevisionEntity.PLAN_ATTRIBUTION_CAPTURED_REGISTRATION &&
 		(payloadVersion == CELL_WAL_PAYLOAD_VERSION || wal.planAttribution == CAPTURED_REGISTRATION_PLAN_ORDINAL)
 
-@Suppress("ComplexCondition", "LongMethod")
+// Compare the complete saved fact shape, keeping nullable qualification exits with its fields.
+@Suppress("ComplexCondition", "LongMethod", "CyclomaticComplexMethod", "ReturnCount")
 private fun CellCapturedFactRevisionEntity.hasExactPayloadSemantics(
 	carrier: AuthenticatedCellWalCarrier,
 ): Boolean {
@@ -696,10 +731,14 @@ private fun CellCapturedFactRevisionEntity.hasExactPayloadSemantics(
 	) {
 		return false
 	}
-	if (factKind == CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY) return true
+	if (factKind == CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY) {
+		return true
+	}
 	return factKind == CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE && matchesAggregate(aggregate)
 }
 
+// Compare only the 17 aggregate fields; full entity equality would include unrelated ownership.
+@Suppress("CyclomaticComplexMethod")
 private fun CellCapturedFactRevisionEntity.matchesAggregate(
 	aggregate: CellWalIdentityFreeAggregate,
 ): Boolean =
@@ -721,26 +760,26 @@ private fun CellCapturedFactRevisionEntity.matchesAggregate(
 		knownQualityObservationCount == aggregate.knownQualityObservationCount &&
 		allKnownQualityIsWeak == aggregate.allKnownQualityIsWeak
 
-private fun List<CellWalPayloadObservation>.toAggregate(): CellWalIdentityFreeAggregate {
-	val technologyCounts = groupingBy(CellWalPayloadObservation::radioType).eachCount()
-	val qualityCounts = groupingBy { it.signalLevelDbm.toQualityLevel() }.eachCount()
-	val unknown = qualityCounts[null] ?: 0
-	val noneOrUnknown = qualityCounts[0] ?: 0
-	val poor = qualityCounts[1] ?: 0
-	val moderate = qualityCounts[2] ?: 0
-	val good = qualityCounts[3] ?: 0
-	val great = qualityCounts[4] ?: 0
+internal fun List<CellWalPayloadObservation>.toQualifiedCellAggregate(): CellWalIdentityFreeAggregate {
+	val technologyCounts = groupingBy(CellWalPayloadObservation::radioType).eachCount().withDefault { 0 }
+	val qualityCounts = groupingBy { it.signalLevelDbm.toQualityLevel() }.eachCount().withDefault { 0 }
+	val unknown = qualityCounts.getValue(null)
+	val noneOrUnknown = qualityCounts.getValue(CELL_QUALITY_NONE_OR_UNKNOWN)
+	val poor = qualityCounts.getValue(CELL_QUALITY_POOR)
+	val moderate = qualityCounts.getValue(CELL_QUALITY_MODERATE)
+	val good = qualityCounts.getValue(CELL_QUALITY_GOOD)
+	val great = qualityCounts.getValue(CELL_QUALITY_GREAT)
 	val weak = noneOrUnknown + poor
 	val known = size - unknown
 	return CellWalIdentityFreeAggregate(
 		observationCount = size,
 		registeredObservationCount = count(CellWalPayloadObservation::registered),
-		gsmCount = technologyCounts["GSM"] ?: 0,
-		cdmaCount = technologyCounts["CDMA"] ?: 0,
-		wcdmaCount = technologyCounts["WCDMA"] ?: 0,
-		tdscdmaCount = technologyCounts["TDSCDMA"] ?: 0,
-		lteCount = technologyCounts["LTE"] ?: 0,
-		nrCount = technologyCounts["NR"] ?: 0,
+		gsmCount = technologyCounts.getValue("GSM"),
+		cdmaCount = technologyCounts.getValue("CDMA"),
+		wcdmaCount = technologyCounts.getValue("WCDMA"),
+		tdscdmaCount = technologyCounts.getValue("TDSCDMA"),
+		lteCount = technologyCounts.getValue("LTE"),
+		nrCount = technologyCounts.getValue("NR"),
 		qualityUnknownCount = unknown,
 		qualityNoneOrUnknownCount = noneOrUnknown,
 		qualityPoorCount = poor,
@@ -755,11 +794,11 @@ private fun List<CellWalPayloadObservation>.toAggregate(): CellWalIdentityFreeAg
 
 private fun Int?.toQualityLevel(): Int? = when {
 	this == null || this == Int.MAX_VALUE -> null
-	this <= -120 -> 0
-	this <= -110 -> 1
-	this <= -100 -> 2
-	this <= -90 -> 3
-	else -> 4
+	this <= CELL_NONE_OR_UNKNOWN_MAX_DBM -> CELL_QUALITY_NONE_OR_UNKNOWN
+	this <= CELL_POOR_MAX_DBM -> CELL_QUALITY_POOR
+	this <= CELL_MODERATE_MAX_DBM -> CELL_QUALITY_MODERATE
+	this <= CELL_GOOD_MAX_DBM -> CELL_QUALITY_GOOD
+	else -> CELL_QUALITY_GREAT
 }
 
 private fun rejected(reason: CellWalCarrierFailure) =
@@ -772,6 +811,10 @@ private val CELL_WAL_OBSERVATION_ORDER = compareBy<CellWalPayloadObservation>(
 	CellWalPayloadObservation::signalLevelDbm,
 	CellWalPayloadObservation::providerTimestampNanos,
 )
+/**
+ * Reports whether this reading uses one of the supported GSM/CDMA/WCDMA/TD-SCDMA/LTE/NR radio
+ * types.
+ */
 fun CellWalPayloadObservation.hasSupportedCellProductShape(): Boolean =
 	radioType in SUPPORTED_CELL_RADIO_TYPES
 
@@ -781,3 +824,12 @@ private const val CAPTURED_REGISTRATION_PLAN_ORDINAL = 0
 private const val RECEIVE_TIME_ONLY_PLAN_ORDINAL = 2
 private const val CELL_PROVIDER_WALL_UNCERTAINTY_MS = 1L
 private const val NANOS_PER_MILLISECOND = 1_000_000L
+private const val CELL_QUALITY_NONE_OR_UNKNOWN = 0
+private const val CELL_QUALITY_POOR = 1
+private const val CELL_QUALITY_MODERATE = 2
+private const val CELL_QUALITY_GOOD = 3
+private const val CELL_QUALITY_GREAT = 4
+private const val CELL_NONE_OR_UNKNOWN_MAX_DBM = -120
+private const val CELL_POOR_MAX_DBM = -110
+private const val CELL_MODERATE_MAX_DBM = -100
+private const val CELL_GOOD_MAX_DBM = -90

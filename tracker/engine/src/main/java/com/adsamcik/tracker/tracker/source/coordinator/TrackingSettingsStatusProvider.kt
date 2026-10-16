@@ -314,9 +314,9 @@ class DefaultTrackingSettingsStatusProvider @Inject constructor(
 		val accepted = acceptedPlans == null || source in acceptedPlans
 		val effective = acceptedPlans?.get(source) ?: resolvedEffective
 		val reasons = resolved.degradedReasons[source].orEmpty()
-        val frequency = if (settings.balanceProfileVersion == null) settings.frequency(source) else
-            if (!desired.enabled) SourceCollectionFrequency.OFF else
-                settings.frequency(source).takeUnless { it == SourceCollectionFrequency.OFF } ?: SourceCollectionFrequency.BALANCED
+		val frequency = if (settings.balanceProfileVersion == null) settings.frequency(source) else
+			if (!desired.enabled) SourceCollectionFrequency.OFF else
+				settings.frequency(source).takeUnless { it == SourceCollectionFrequency.OFF } ?: SourceCollectionFrequency.BALANCED
 		val blocked = reasons.any { reason ->
 			reason.name in BLOCKING_REASONS
 		}

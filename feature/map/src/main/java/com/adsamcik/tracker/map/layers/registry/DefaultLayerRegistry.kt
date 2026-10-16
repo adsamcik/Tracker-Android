@@ -1,5 +1,8 @@
 package com.adsamcik.tracker.map.layers.registry
 
+import com.adsamcik.tracker.map.data.Bounds
+import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
+
 import android.graphics.Color
 import com.adsamcik.tracker.map.viz.RetainedRadioContextLayer
 import com.adsamcik.tracker.stats.api.repository.RadioContextSource
@@ -106,7 +109,8 @@ class DefaultLayerRegistry(
      * No-op layer placeholder.
      */
     private class NoMapLayer : BaseMapLayer<Unit, Unit>() {
-        override suspend fun loadData(context: android.content.Context, bounds: com.adsamcik.tracker.map.data.Bounds?) = Unit
+        override suspend fun loadData(context: android.content.Context,
+            bounds: Bounds?) = Unit
         override fun processData(input: Unit, budgets: PerformanceManager.PerformanceBudgets) = Unit
         override fun produceConfig(processed: Unit): MapLibreLayerConfig? = null
     }
@@ -125,7 +129,8 @@ class DefaultLayerRegistry(
     private fun cellRadioLegendValues(): List<MapLegendValue> {
         return listOf(
             MapLegendValue(R.string.map_layer_cell_radio_gsm, CELL_RADIO_COLORS.getValue(RadioVisualGroup.CELL_GSM)),
-            MapLegendValue(R.string.map_layer_cell_radio_wcdma, CELL_RADIO_COLORS.getValue(RadioVisualGroup.CELL_WCDMA)),
+            MapLegendValue(R.string.map_layer_cell_radio_wcdma,
+                CELL_RADIO_COLORS.getValue(RadioVisualGroup.CELL_WCDMA)),
             MapLegendValue(R.string.map_layer_cell_radio_lte, CELL_RADIO_COLORS.getValue(RadioVisualGroup.CELL_LTE)),
             MapLegendValue(R.string.map_layer_cell_radio_nr, CELL_RADIO_COLORS.getValue(RadioVisualGroup.CELL_NR)),
         )
@@ -212,7 +217,8 @@ class DefaultLayerRegistry(
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
                             val repo: GeoRepository = GeoRepositoryImpl(dao)
-                            RetainedRadioContextLayer(cellSignalHeatmap(repo), ctx.mapLayerEntryPoint().radioLocationContextRepository(), RadioContextSource.CELL)
+                            RetainedRadioContextLayer(cellSignalHeatmap(repo),
+                                ctx.mapLayerEntryPoint().radioLocationContextRepository(), RadioContextSource.CELL)
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("CellHeatmapLayer", R.string.map_layer_cell_heatmap_title),
@@ -240,7 +246,8 @@ class DefaultLayerRegistry(
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
                             val repo: GeoRepository = GeoRepositoryImpl(dao)
-                            RetainedRadioContextLayer(signalCoverageHeatmap(repo), ctx.mapLayerEntryPoint().radioLocationContextRepository(), RadioContextSource.CELL)
+                            RetainedRadioContextLayer(signalCoverageHeatmap(repo),
+                                ctx.mapLayerEntryPoint().radioLocationContextRepository(), RadioContextSource.CELL)
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("SignalCoverageLayer", R.string.map_layer_signal_coverage_title),
@@ -267,7 +274,11 @@ class DefaultLayerRegistry(
                     LayerEntry(
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
-                            RetainedRadioContextLayer(signalAurora(GeoRepositoryImpl(dao)), ctx.mapLayerEntryPoint().radioLocationContextRepository(), RadioContextSource.CELL)
+                            RetainedRadioContextLayer(
+                                signalAurora(GeoRepositoryImpl(dao)),
+                                ctx.mapLayerEntryPoint().radioLocationContextRepository(),
+                                RadioContextSource.CELL
+                            )
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("SignalAurora", R.string.map_layer_signal_aurora_title),
@@ -297,7 +308,8 @@ class DefaultLayerRegistry(
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
                             val repo: GeoRepository = GeoRepositoryImpl(dao)
-                            RetainedRadioContextLayer(wifiSignalHeatmap(repo), ctx.mapLayerEntryPoint().radioLocationContextRepository(), RadioContextSource.WIFI)
+                            RetainedRadioContextLayer(wifiSignalHeatmap(repo),
+                                ctx.mapLayerEntryPoint().radioLocationContextRepository(), RadioContextSource.WIFI)
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("WifiHeatmapLayer", R.string.map_layer_wifi_heatmap_title),
@@ -325,7 +337,8 @@ class DefaultLayerRegistry(
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
                             val repo: GeoRepository = GeoRepositoryImpl(dao)
-                            RetainedRadioContextLayer(wifiCountHeatmap(repo), ctx.mapLayerEntryPoint().radioLocationContextRepository(), RadioContextSource.WIFI)
+                            RetainedRadioContextLayer(wifiCountHeatmap(repo),
+                                ctx.mapLayerEntryPoint().radioLocationContextRepository(), RadioContextSource.WIFI)
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("WifiCountHeatmapLayer", R.string.map_layer_wifi_count_heatmap_title),
@@ -402,15 +415,26 @@ class DefaultLayerRegistry(
                                         val to = if (range.isEmpty()) now else range.last
                                         var afterTime: Long? = null
                                         var afterId: Long? = null
-                                        val rows = collectBoundedChunks(LOCATION_PATH_CHUNK_SIZE, LOCATION_PATH_MAX_MATERIALIZED_POINTS) { limit ->
+                                        val rows =
+                                            collectBoundedChunks(
+                                                LOCATION_PATH_CHUNK_SIZE, LOCATION_PATH_MAX_MATERIALIZED_POINTS
+                                            ) { limit ->
                                             dao.visiblePathChunk(from, to, afterTime, afterId, limit,
-                                                northE7 = bounds?.north?.times(E7)?.toInt(), southE7 = bounds?.south?.times(E7)?.toInt(),
-                                                eastE7 = bounds?.east?.times(E7)?.toInt(), westE7 = bounds?.west?.times(E7)?.toInt()).also { page ->
-                                                page.lastOrNull()?.sample?.let { afterTime = it.timeMs; afterId = it.id }
+                                                northE7 =
+                                                    bounds?.north?.times(E7)?.toInt(),
+                                                southE7 = bounds?.south?.times(E7)?.toInt(),
+                                                eastE7 =
+                                                    bounds?.east?.times(E7)?.toInt(),
+                                                westE7 = bounds?.west?.times(E7)?.toInt()
+                                            ).also { page ->
+                                                page.lastOrNull()?.sample?.let {
+                                                    afterTime = it.timeMs;
+                                                    afterId = it.id
+                                                }
                                             }
                                         }
                                         val segments = mutableListOf<MutableList<LatLngModel>>()
-                                        var previous: com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow? = null
+                                        var previous: LocationPathSampleRow? = null
                                         rows.forEach { row ->
                                             val sample = row.sample
                                             val lat = sample.latE7?.div(1e7)
@@ -418,11 +442,13 @@ class DefaultLayerRegistry(
                                             val old = previous
                                             val native = old?.continuityId != null || row.continuityId != null
                                             val continuous = old != null && (!native ||
-                                                (old.continuityId == row.continuityId && old.continuitySequence != null &&
+                                                (old.continuityId == row.continuityId &&
+                                                    old.continuitySequence != null &&
                                                     row.continuitySequence == old.continuitySequence?.plus(1) &&
                                                     sample.clockDomainId == old.sample.clockDomainId &&
                                                     sample.elapsedRealtimeNanos > old.sample.elapsedRealtimeNanos &&
-                                                    sample.elapsedRealtimeNanos - old.sample.elapsedRealtimeNanos <= 120_000_000_000L))
+                                                    sample.elapsedRealtimeNanos - old.sample.elapsedRealtimeNanos <=
+                                                    120_000_000_000L))
                                             if (lat == null || lon == null) { previous = null; return@forEach }
                                             if (!continuous || segments.isEmpty()) segments.add(mutableListOf())
                                             segments.last().add(LatLngModel(lat, lon))

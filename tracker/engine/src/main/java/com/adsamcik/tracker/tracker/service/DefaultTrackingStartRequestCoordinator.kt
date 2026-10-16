@@ -127,7 +127,11 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 
 	override suspend fun providerStepsContinuationRequest(): TrackingStartRequest? =
 		trackingStartupGate.withReadyGenerationOperation(trackingStartupGate.currentGeneration) {
-			if (!trackingStartupGate.permitsNewCollection) null else providerStepsSessions?.continuationRequest()
+			if (!trackingStartupGate.permitsNewCollection) {
+				null
+			} else {
+				providerStepsSessions?.continuationRequest()
+			}
 		}
 
 	override suspend fun prepare(request: TrackingStartRequest): TrackingStartPreparationResult =
@@ -153,14 +157,8 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			prepared = trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
 				prepareUnderReadyGeneration(request, exactContinuationAuthority, startupGeneration)
 			} ?: retryableStartRejection("TRACKING_STARTUP_GENERATION_CLOSED")
-			if (prepared is TrackingStartPreparationResult.Prepared && !pendingResume &&
-				request.manualSourceSelection != null) {
-				try {
-					reconcilePurposeOwners()
-				} catch (cancelled: CancellationException) {
-					compensateCancelledPreparedStart(prepared, request)
-					throw cancelled
-				}
+			if (prepared is TrackingStartPreparationResult.Prepared) {
+				reconcilePreparedManualOwners(prepared, request, pendingResume)
 			}
 			return prepared
 		} finally {
@@ -170,16 +168,31 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		}
 	}
 
-	private fun isFreshManualStart(request: TrackingStartRequest): Boolean =
-		request.isUserInitiated && !request.isAmbient && request.automaticTrigger == null &&
-			request.recoveryDescriptor == null && request.providerStepsContinuation == null
+	private suspend fun reconcilePreparedManualOwners(
+		prepared: TrackingStartPreparationResult.Prepared, request: TrackingStartRequest, pendingResume: Boolean,
+	) {
+		if (pendingResume || request.manualSourceSelection == null) return
+		try {
+			reconcilePurposeOwners()
+		} catch (cancelled: CancellationException) {
+			compensateCancelledPreparedStart(prepared, request)
+			throw cancelled
+		}
+	}
+
+	private fun isFreshManualStart(request: TrackingStartRequest): Boolean {
+		val manualRequest = request.isUserInitiated && !request.isAmbient && request.automaticTrigger == null
+		return manualRequest && request.recoveryDescriptor == null && request.providerStepsContinuation == null
+	}
 
 	/** Called after durable service/Room acceptance, outside the lifecycle mutex. */
 	suspend fun reconcileAcceptedManualStart(command: TrackingStartCommand) {
 		if (!trackingStartupGate.permitsNewCollection ||
 			trackingLifecycleCommandAuthority.latestCommandGeneration() != command.generation ||
 			trackingLifecycleCommandAuthority.resolveStart(command) !=
-				com.adsamcik.tracker.tracker.resilience.TrackingStartCommandDisposition.Allowed) return
+				com.adsamcik.tracker.tracker.resilience.TrackingStartCommandDisposition.Allowed) {
+			return
+		}
 		reconcilePurposeOwners()
 	}
 
@@ -241,23 +254,30 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		startupGeneration: Long,
 	): TrackingStartPreparationResult {
 		if (trackingLifecycleCommandAuthority.pendingCollectionResumeExitId != null &&
-			(!isFreshManualStart(request) || !trackingStartupGate.permitsPendingManualStart(request.command.generation))) {
+			(!isFreshManualStart(request) ||
+                !trackingStartupGate.permitsPendingManualStart(request.command.generation))) {
 			return TrackingStartPreparationResult.Rejected("TRACKING_EXPLICIT_RESUME_REQUIRED")
 		}
 		val bootId = bootClockDomainProvider.current()
 		val continuation = request.providerStepsContinuation
-		if (continuation != null && (continuation.bootId != bootId ||
-			continuation.commandGeneration != request.command.generation ||
-			!trackingLifecycleCommandAuthority.isAcceptedStart(request.command) ||
-			trackingLifecycleCommandAuthority.resolveStart(request.command) !=
-				com.adsamcik.tracker.tracker.resilience.TrackingStartCommandDisposition.Allowed)) {
-			return TrackingStartPreparationResult.Rejected("PROVIDER_STEPS_CONTINUATION_STALE")
+		if (continuation != null) {
+			val matchesRequest = continuation.bootId == bootId &&
+				continuation.commandGeneration == request.command.generation
+			if (!matchesRequest || !trackingLifecycleCommandAuthority.isAcceptedStart(request.command) ||
+				trackingLifecycleCommandAuthority.resolveStart(request.command) !=
+					com.adsamcik.tracker.tracker.resilience.TrackingStartCommandDisposition.Allowed) {
+				return TrackingStartPreparationResult.Rejected("PROVIDER_STEPS_CONTINUATION_STALE")
+			}
 		}
-		val descriptorResolution = if (continuation == null) resolveDescriptor(request, bootId) else
+		val descriptorResolution = if (continuation == null) {
+			resolveDescriptor(request, bootId)
+		} else
+			{
 			TrackingStartDescriptorResolution.Resolved(
 				ActiveTrackingSessionDescriptor(isUserInitiated = true, isAmbient = false, policyTier = PolicyTier.OFF,
 					logicalTrackingId = continuation.logicalTrackingId, restartBootId = bootId,
 					restartToken = UUID.randomUUID().toString()), SessionStartOrigin.MANUAL_FOREGROUND_START)
+		}
 		val resolved = when (descriptorResolution) {
 			is TrackingStartDescriptorResolution.Failure ->
 				return if (descriptorResolution.disposition == TrackingStartFailureDisposition.RETRYABLE) {
@@ -273,22 +293,32 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		if (exactContinuationAuthority != null &&
 			resolved.continuationAuthority?.previousServiceRunId !=
 				exactContinuationAuthority.previousServiceRunId
-		) return TrackingStartPreparationResult.Rejected("REDELIVERY_DESCRIPTOR_CHANGED")
+		) {
+			return TrackingStartPreparationResult.Rejected("REDELIVERY_DESCRIPTOR_CHANGED")
+		}
 		val settings = trackingParamsRepository.data.first()
 		request.manualSourceSelection?.let { originalSelection ->
 			if (configuredForegroundSources(settings).mapTo(linkedSetOf(), SourceKind::toApiCaptureSource) !=
-				originalSelection.captureConsentEpochs.keys) return TrackingStartPreparationResult.Rejected("MANUAL_START_SELECTION_CHANGED")
+				originalSelection.captureConsentEpochs.keys) {
+				return TrackingStartPreparationResult.Rejected("MANUAL_START_SELECTION_CHANGED")
+			}
 			val policy = sourcePolicyRepository.currentState() as? SourcePolicyAuthorityState.Active
 				?: return TrackingStartPreparationResult.Rejected("MANUAL_START_SELECTION_UNAVAILABLE")
 			if (policy.snapshot.manualStartSelection() != originalSelection)
+				{
 				return TrackingStartPreparationResult.Rejected("MANUAL_START_SELECTION_CHANGED")
+			}
 			if (settings.sourcePolicyRevision != policy.snapshot.revision)
+				{
 				return TrackingStartPreparationResult.SetupPending
+			}
 		}
 		if (!trackingStartupGate.isReady ||
 			trackingStartupGate.currentGeneration != startupGeneration ||
 			bootClockDomainProvider.current() != bootId
-		) return retryableStartRejection("TRACKING_STARTUP_GENERATION_CLOSED")
+		) {
+			return retryableStartRejection("TRACKING_STARTUP_GENERATION_CLOSED")
+		}
 
 		val automaticExpected = resolved.origin == SessionStartOrigin.AUTOMATIC_BACKGROUND_START
 		val currentAutomationEpoch = if (automaticExpected) {
@@ -319,9 +349,15 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			return TrackingStartPreparationResult.Rejected("AUTOMATIC_START_REQUESTED_MASK_STALE")
 		}
 		// Original admitted recovery retains its saved binding; only a new session prepares final writers.
-		val writerSetup = if (continuationAuthority == null) chosenSourceWriterSetup.ensure(requestedSources) else null
+		val writerSetup = if (continuationAuthority == null) {
+			chosenSourceWriterSetup.ensure(requestedSources)
+		} else {
+			null
+		}
 		if (!trackingStartupGate.isReady || trackingStartupGate.currentGeneration != startupGeneration ||
-			bootClockDomainProvider.current() != bootId) return retryableStartRejection("TRACKING_STARTUP_GENERATION_CLOSED")
+			bootClockDomainProvider.current() != bootId) {
+			return retryableStartRejection("TRACKING_STARTUP_GENERATION_CLOSED")
+		}
 		validateAutomaticStartAtRuntime(
 			automaticStartExpected = automaticExpected, trigger = request.automaticTrigger,
 			currentBootId = bootId, currentElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
@@ -340,7 +376,8 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			resolved.descriptor.isAmbient,
 		)
 		val reachableRequestedSources = requestedSources.filterTo(linkedSetOf()) { source ->
-			rollout.isCaptureReachable(source, captureMode) && (writerSetup == null || source in writerSetup.readySources)
+			rollout.isCaptureReachable(source, captureMode) && (writerSetup == null ||
+                source in writerSetup.readySources)
 		}
 		val acceptedSources = resolveAcceptedSources(reachableRequestedSources, resolved.origin)
 		if (acceptedSources.isEmpty()) {
@@ -349,7 +386,9 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 				return providerStepsSessions.prepare(request.command.generation, resolved.origin,
 					startupGeneration, rollout.revision)
 			}
-			if (writerSetup?.pendingSources?.isNotEmpty() == true) return TrackingStartPreparationResult.SetupPending
+			if (writerSetup?.pendingSources?.isNotEmpty() == true) {
+				return TrackingStartPreparationResult.SetupPending
+			}
 			return TrackingStartPreparationResult.Rejected("TRACKING_CAPTURE_UNAVAILABLE")
 		}
 		val foregroundMask = foregroundServiceTypeMask(Build.VERSION.SDK_INT, acceptedSources)
@@ -359,9 +398,11 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			requestedSources = requestedSources,
 			acceptedSources = acceptedSources,
 			sdkInt = Build.VERSION.SDK_INT,
-		)) return TrackingStartPreparationResult.Rejected(
+		)) {
+			return TrackingStartPreparationResult.Rejected(
 			"AUTOMATIC_START_FOREGROUND_ENVELOPE_STALE",
 		)
+		}
 
 		val token = PreparedTrackingStartToken(UUID.randomUUID().toString())
 		var roomPrepared = false
@@ -450,7 +491,8 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 				preparedStartIsUserInitiatedHint = resolved.descriptor.isUserInitiated,
 			)
 		} catch (cancelled: CancellationException) {
-			if (roomPrepared) try {
+			if (roomPrepared) {
+				try {
 				runBoundedStartPreparationCancellationCleanup(request.automaticTrigger) {
 					compensatePrepared(token, request.command.generation, "START_PREPARATION_CANCELLED")
 					clearResolvedDescriptors(
@@ -461,6 +503,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 				}
 			} catch (_: Throwable) {
 				// Preserve cancellation; exact PREPARED state is left for startup reconciliation.
+			}
 			}
 			throw cancelled
 		} catch (_: Exception) {
@@ -513,10 +556,12 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		if (run.startCommandGeneration != redeliveredCommand.generation) {
 			return AndroidRedeliveryStartResolution.Rejected("REDELIVERED_START_COMMAND_MISMATCH")
 		}
-		if (trackingLifecycleCommandAuthority.pendingCollectionResumeExitId != null &&
-			(!trackingStartupGate.permitsPendingManualStart(redeliveredCommand.generation) ||
-				run.startOrigin != SessionStartOrigin.MANUAL_FOREGROUND_START.name || !run.startIsUserInitiated || run.startIsAmbient)) {
-			return AndroidRedeliveryStartResolution.Rejected("TRACKING_EXPLICIT_RESUME_REQUIRED")
+		if (trackingLifecycleCommandAuthority.pendingCollectionResumeExitId != null) {
+			val resumePermitted = trackingStartupGate.permitsPendingManualStart(redeliveredCommand.generation)
+			if (!resumePermitted || run.startOrigin != SessionStartOrigin.MANUAL_FOREGROUND_START.name ||
+				!run.startIsUserInitiated || run.startIsAmbient) {
+				return AndroidRedeliveryStartResolution.Rejected("TRACKING_EXPLICIT_RESUME_REQUIRED")
+			}
 		}
 		val bootId = bootClockDomainProvider.current()
 		if (run.state == com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState.STARTING.name &&
@@ -691,14 +736,18 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		prepared: TrackingStartPreparationResult.Prepared,
 		request: TrackingStartRequest,
 	): Boolean {
-		if (prepared.requiresForegroundService || !isFreshManualStart(request)) return false
+		if (prepared.requiresForegroundService || !isFreshManualStart(request)) {
+			return false
+		}
 		return trackingStartupGate.withReadyGenerationOperation(prepared.startupGeneration) {
 			val policy = sourcePolicyRepository.currentState() as? SourcePolicyAuthorityState.Active
 				?: return@withReadyGenerationOperation false
 			val settings = trackingParamsRepository.data.first()
 			if (settings.sourcePolicyRevision != policy.snapshot.revision ||
 				(request.manualSourceSelection != null && policy.snapshot.manualStartSelection() !=
-					request.manualSourceSelection)) return@withReadyGenerationOperation false
+					request.manualSourceSelection)) {
+				return@withReadyGenerationOperation false
+			}
 			providerStepsSessions?.accept(prepared.token, request.command.generation) == true
 		} == true
 	}
@@ -773,7 +822,8 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 				)
 		}
 		if (trackingLifecycleCommandAuthority.pendingCollectionResumeExitId != null &&
-			(claim.startOrigin != SessionStartOrigin.MANUAL_FOREGROUND_START || !claim.isUserInitiated || claim.isAmbient)) {
+			(claim.startOrigin != SessionStartOrigin.MANUAL_FOREGROUND_START || !claim.isUserInitiated ||
+                claim.isAmbient)) {
 			return TrackingServicePreparedStartClaim.Rejected("TRACKING_EXPLICIT_RESUME_REQUIRED")
 		}
 		val settings = trackingParamsRepository.data.first()
@@ -849,12 +899,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			}
 			is ActiveTrackingSessionStoreResult.Success -> stored.descriptor
 		}
-		if (storedDescriptor == null ||
-			storedDescriptor.logicalTrackingId != claim.logicalTrackingId ||
-			storedDescriptor.serviceRunId != claim.serviceRunId ||
-			storedDescriptor.isUserInitiated != claim.isUserInitiated ||
-			storedDescriptor.isAmbient != claim.isAmbient
-		) {
+		if (storedDescriptor == null || !storedDescriptor.hasSamePreparedIdentity(claim)) {
 			if (claim.callerAuthorityRebind != null) {
 				return TrackingServicePreparedStartClaim.Rejected(
 					"PREPARED_START_DESCRIPTOR_REBIND_STALE",
@@ -870,8 +915,9 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		val descriptor = when (val rebind = claim.callerAuthorityRebind) {
 			null -> storedDescriptor
 			else -> {
-				if (rebind.logicalTrackingId != claim.logicalTrackingId ||
-					rebind.serviceRunId != claim.serviceRunId ||
+				val sameRun = rebind.logicalTrackingId == claim.logicalTrackingId &&
+					rebind.serviceRunId == claim.serviceRunId
+				if (!sameRun ||
 					rebind.manifestRevision != claim.manifestRevision ||
 					rebind.currentIntentRevision != claim.intentRevision ||
 					rebind.currentReference != reference
@@ -949,23 +995,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			command,
 			acceptWhen = { it is TrackingServicePreparedStartClaim.Claimed },
 		) {
-			if (trackingLifecycleCommandAuthority.latestCommandGeneration() != command.generation &&
-				(!prepared.claim.isProviderStepsJoin || !trackingLifecycleCommandAuthority.isAcceptedStart(command) ||
-					trackingLifecycleCommandAuthority.pendingCollectionResumeExitId != null)) {
-				TrackingServicePreparedStartClaim.Rejected("START_COMMAND_STALE_BEFORE_FOREGROUND_ACCEPTANCE")
-			} else if (!trackingStartupGate.isReadyGeneration(prepared.startupGeneration)) {
-				TrackingServicePreparedStartClaim.Rejected("TRACKING_STARTUP_GENERATION_CLOSED")
-			} else if (!promote()) {
-				TrackingServicePreparedStartClaim.Rejected("TRACKING_FOREGROUND_PROMOTION_FAILED")
-			} else if (!authoritativeSessionCoordinator.markPreparedForegroundAccepted(
-				prepared.claim.token,
-				command.generation,
-				bootClockDomainProvider.current(),
-				SystemClock.elapsedRealtimeNanos(),
-				System.currentTimeMillis(),
-			)) {
-				TrackingServicePreparedStartClaim.Rejected("TRACKING_FOREGROUND_ACCEPTANCE_STALE")
-			} else prepared
+			acceptClaimedForeground(prepared, command, promote)
 		}) {
 			is com.adsamcik.tracker.tracker.resilience.LockedTrackingStartResult.Executed -> accepted.value
 			com.adsamcik.tracker.tracker.resilience.LockedTrackingStartResult.Stale ->
@@ -974,6 +1004,31 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 				TrackingServicePreparedStartClaim.Rejected("START_BLOCKED_BY_STOP_BEFORE_FOREGROUND_ACCEPTANCE")
 		}
 	} ?: TrackingServicePreparedStartClaim.Rejected("TRACKING_STARTUP_GENERATION_CLOSED")
+
+	private suspend fun acceptClaimedForeground(
+		prepared: TrackingServicePreparedStartClaim.Claimed, command: TrackingStartCommand,
+		promote: suspend () -> Boolean,
+	): TrackingServicePreparedStartClaim {
+		return if (trackingLifecycleCommandAuthority.latestCommandGeneration() != command.generation &&
+			(!prepared.claim.isProviderStepsJoin || !trackingLifecycleCommandAuthority.isAcceptedStart(command) ||
+				trackingLifecycleCommandAuthority.pendingCollectionResumeExitId != null)) {
+			TrackingServicePreparedStartClaim.Rejected("START_COMMAND_STALE_BEFORE_FOREGROUND_ACCEPTANCE")
+		} else if (!trackingStartupGate.isReadyGeneration(prepared.startupGeneration)) {
+			TrackingServicePreparedStartClaim.Rejected("TRACKING_STARTUP_GENERATION_CLOSED")
+		} else if (!promote()) {
+			TrackingServicePreparedStartClaim.Rejected("TRACKING_FOREGROUND_PROMOTION_FAILED")
+		} else if (!authoritativeSessionCoordinator.markPreparedForegroundAccepted(
+			prepared.claim.token,
+			command.generation,
+			bootClockDomainProvider.current(),
+			SystemClock.elapsedRealtimeNanos(),
+			System.currentTimeMillis(),
+		)) {
+			TrackingServicePreparedStartClaim.Rejected("TRACKING_FOREGROUND_ACCEPTANCE_STALE")
+		} else {
+			prepared
+		}
+	}
 
 	suspend fun apply(
 		prepared: TrackingServicePreparedStartClaim.Claimed,
@@ -992,7 +1047,9 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			} ?: return null
 			if (result !is SessionStartResult.InvalidIntent ||
 				result.disposition != TrackingStartFailureDisposition.RETRYABLE
-			) return result
+			) {
+				return result
+			}
 			delay(CATALOG_START_RETRY_DELAY_MILLIS)
 		}
 	}
@@ -1002,20 +1059,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		bootId: String,
 	): TrackingStartDescriptorResolution {
 		val stored = when (val result = activeTrackingSessionStore.read()) {
-			is ActiveTrackingSessionStoreResult.Failure ->
-				return TrackingStartDescriptorResolution.Failure(
-					code = when (result.kind) {
-						ActiveTrackingSessionStoreFailureKind.CORRUPT -> "ACTIVE_DESCRIPTOR_CORRUPT"
-						ActiveTrackingSessionStoreFailureKind.UNAVAILABLE -> "ACTIVE_DESCRIPTOR_READ_FAILED"
-					},
-					disposition = if (
-						result.kind == ActiveTrackingSessionStoreFailureKind.UNAVAILABLE
-					) {
-						TrackingStartFailureDisposition.RETRYABLE
-					} else {
-						TrackingStartFailureDisposition.TERMINAL
-					},
-				)
+			is ActiveTrackingSessionStoreResult.Failure -> return result.toDescriptorFailure()
 			is ActiveTrackingSessionStoreResult.Success -> result.descriptor
 		}
 		val recoveryCandidate = when {
@@ -1028,6 +1072,13 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			request.isUserInitiated && stored?.isRestartEligibleForBoot(bootId) == true -> stored
 			else -> null
 		}
+		return resolveReconciledDescriptor(request, stored, recoveryCandidate, bootId)
+	}
+
+	private suspend fun resolveReconciledDescriptor(
+		request: TrackingStartRequest, stored: ActiveTrackingSessionDescriptor?,
+		recoveryCandidate: ActiveTrackingSessionDescriptor?, bootId: String,
+	): TrackingStartDescriptorResolution {
 		val reconciledStored = if (recoveryCandidate == null) {
 			stored
 		} else {
@@ -1216,7 +1267,9 @@ internal fun resolveTrackingStartDescriptor(
 			continuationAuthority = ServiceRunContinuationAuthority(stored.serviceRunId),
 		)
 	}
-	if (stored != null) return TrackingStartDescriptorResolution.AlreadyActive
+	if (stored != null) {
+		return TrackingStartDescriptorResolution.AlreadyActive
+	}
 	if (!request.isUserInitiated && request.automaticTrigger == null) {
 		return TrackingStartDescriptorResolution.Failure(AUTOMATIC_START_TRIGGER_MISSING)
 	}
@@ -1248,9 +1301,15 @@ internal suspend fun runBoundedStartPreparationCancellationCleanup(
 	val timeoutMs = automaticTrigger?.let { trigger ->
 		val deadline = activityTransitionCallbackCleanupDeadlineElapsedRealtimeNanos(trigger)
 		val now = elapsedRealtimeNanos()
-		if (deadline <= now) 0L else (deadline - now) / START_CLEANUP_NANOS_PER_MILLISECOND
+		if (deadline <= now) {
+			0L
+		} else {
+			(deadline - now) / START_CLEANUP_NANOS_PER_MILLISECOND
+		}
 	} ?: DEFAULT_START_PREPARATION_CLEANUP_TIMEOUT_MS
-	if (timeoutMs <= 0L) return false
+	if (timeoutMs <= 0L) {
+		return false
+	}
 	return withContext(NonCancellable) {
 		withTimeoutOrNull(timeoutMs) {
 			cleanup()
@@ -1328,10 +1387,19 @@ internal suspend fun rebindPreparedCallerAuthorityDescriptor(
 		descriptor.serviceRunId != rebind.serviceRunId ||
 		descriptor.sourceCallerAuthorityReference !in rebind.authenticatedAncestorReferences ||
 		descriptor.pendingRetirementSourceCallerAuthorityReference == rebind.currentReference
-	) return PreparedCallerAuthorityDescriptorRebindResult.Stale
+	) {
+		return PreparedCallerAuthorityDescriptorRebindResult.Stale
+	}
 	val replacement = descriptor.copy(
 		sourceCallerAuthorityReference = rebind.currentReference,
 	)
+	return persistPreparedDescriptorRebind(store, descriptor, replacement)
+}
+
+private suspend fun persistPreparedDescriptorRebind(
+	store: ActiveTrackingSessionStore, descriptor: ActiveTrackingSessionDescriptor,
+	replacement: ActiveTrackingSessionDescriptor,
+): PreparedCallerAuthorityDescriptorRebindResult {
 	return when (val result = store.replaceExact(descriptor, replacement)) {
 		is ActiveTrackingSessionStoreResult.Failure ->
 			if (result.kind == ActiveTrackingSessionStoreFailureKind.UNAVAILABLE) {
@@ -1345,6 +1413,10 @@ internal suspend fun rebindPreparedCallerAuthorityDescriptor(
 		}
 	}
 }
+
+private fun ActiveTrackingSessionDescriptor.hasSamePreparedIdentity(claim: ClaimedPreparedSessionStart): Boolean =
+	logicalTrackingId == claim.logicalTrackingId && serviceRunId == claim.serviceRunId &&
+		isUserInitiated == claim.isUserInitiated && isAmbient == claim.isAmbient
 
 internal sealed interface TrackingServicePreparedStartClaim {
 	/** Startup/deletion authority changed before claim; the exact prepared start remains durable. */
@@ -1363,3 +1435,16 @@ internal sealed interface TrackingServicePreparedStartClaim {
 		val compensatePreparedState: Boolean = true,
 	) : TrackingServicePreparedStartClaim
 }
+
+private fun ActiveTrackingSessionStoreResult.Failure.toDescriptorFailure(): TrackingStartDescriptorResolution.Failure =
+	TrackingStartDescriptorResolution.Failure(
+		code = when (kind) {
+			ActiveTrackingSessionStoreFailureKind.CORRUPT -> "ACTIVE_DESCRIPTOR_CORRUPT"
+			ActiveTrackingSessionStoreFailureKind.UNAVAILABLE -> "ACTIVE_DESCRIPTOR_READ_FAILED"
+		},
+		disposition = if (kind == ActiveTrackingSessionStoreFailureKind.UNAVAILABLE) {
+			TrackingStartFailureDisposition.RETRYABLE
+		} else {
+			TrackingStartFailureDisposition.TERMINAL
+		},
+	)

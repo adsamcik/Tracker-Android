@@ -68,29 +68,7 @@ class GpxShareHelper @Inject constructor(
 					outputStream = outputStream,
 					dateRange = startTimeMs..endTimeMs,
 				) { emit ->
-					var afterTimeMs: Long? = null
-					var afterId: Long? = null
-
-					while (true) {
-						val chunk = locationSampleRepository.getOrderedChunkBetween(
-							fromMs = startTimeMs,
-							toMs = endTimeMs,
-							afterTimeMs = afterTimeMs,
-							afterId = afterId,
-							limit = LOCATION_EXPORT_CHUNK_SIZE,
-						)
-						if (chunk.isEmpty()) break
-
-						chunk.forEach { sample ->
-							afterTimeMs = sample.timeMs
-							afterId = sample.id
-
-							if (sample.latE7 != null && sample.lonE7 != null) {
-								emit(sample)
-								exportedPointCount++
-							}
-						}
-					}
+					exportedPointCount += streamSavedLocations(startTimeMs, endTimeMs, emit)
 				}
 			}
 
@@ -124,6 +102,37 @@ class GpxShareHelper @Inject constructor(
 				check(!file.exists() || file.delete()) { "Could not remove unfinished GPX share" }
 			}
 		}
+	}
+
+	private suspend fun streamSavedLocations(
+		startTimeMs: Long, endTimeMs: Long,
+		emit: (com.adsamcik.tracker.shared.model.LocationSample) -> Unit,
+	): Int {
+		var exportedPointCount = 0
+		var afterTimeMs: Long? = null
+		var afterId: Long? = null
+
+		while (true) {
+			val chunk = locationSampleRepository.getOrderedChunkBetween(
+				fromMs = startTimeMs,
+				toMs = endTimeMs,
+				afterTimeMs = afterTimeMs,
+				afterId = afterId,
+				limit = LOCATION_EXPORT_CHUNK_SIZE,
+			)
+			if (chunk.isEmpty()) break
+
+			chunk.forEach { sample ->
+				afterTimeMs = sample.timeMs
+				afterId = sample.id
+
+				if (sample.latE7 != null && sample.lonE7 != null) {
+					emit(sample)
+					exportedPointCount++
+				}
+			}
+		}
+		return exportedPointCount
 	}
 
 	companion object {

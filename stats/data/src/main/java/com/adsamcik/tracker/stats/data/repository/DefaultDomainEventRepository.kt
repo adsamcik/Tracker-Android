@@ -65,6 +65,9 @@ class DefaultDomainEventRepository @Inject constructor(
 		const val MAX_OBSERVED_EVENTS = 1_000
 	}
 
+	// Keep the complete fixed event-to-wire field mapping together; there is no query or lifecycle work here.
+	// The finite event variants map directly to their existing wire fields; no lifecycle or query decisions.
+	@Suppress("LongMethod", "CyclomaticComplexMethod")
 	private fun DomainEvent.toEntity(): DomainEventEntity {
 		val (type, payload) = when (this) {
 			is DomainEvent.SessionStarted -> "SessionStarted" to JSONObject().apply {

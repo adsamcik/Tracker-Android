@@ -93,7 +93,7 @@ internal sealed interface AmbientStepsProviderHandoffResult {
 		init {
 			require(predecessorRegistrationGeneration > 0L)
 			require(successorRegistrationGeneration > predecessorRegistrationGeneration)
-			require(successorStartTimeMs >= 0L && successorStartTimeMs % 1_000L == 0L)
+			require(successorStartTimeMs >= 0L && successorStartTimeMs % MILLISECONDS_PER_SECOND == 0L)
 			require((logicalFactId != null) == (drainedWindow != null))
 			require(!replayed || drainDisposition == AmbientStepsProviderDrainDisposition.ALREADY_COVERED)
 		}
@@ -109,3 +109,5 @@ internal class AmbientStepsProviderHandoffCoordinator @Inject constructor(
 		command: AmbientStepsProviderHandoffCommand,
 	): AmbientStepsProviderHandoffResult = importer.handoffAcceptedProvider(command)
 }
+
+private const val MILLISECONDS_PER_SECOND = 1_000L

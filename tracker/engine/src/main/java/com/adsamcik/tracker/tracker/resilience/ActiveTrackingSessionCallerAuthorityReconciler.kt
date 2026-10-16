@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.resilience
 import com.adsamcik.tracker.tracker.api.SourceCallerGuardResult
 import com.adsamcik.tracker.tracker.api.SourceCallerRejectionReason
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayKind
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.api.TrackingStartFailureDisposition
 import com.adsamcik.tracker.tracker.api.isRetryable
 import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
@@ -59,50 +60,9 @@ internal class ActiveTrackingSessionCallerAuthorityReconciler @Inject internal c
 						descriptor = reconciled,
 					)
 			}
-			if (reconciled.sourceCallerAuthorityReference != authority.reference) {
-				val predecessor = reconciled.sourceCallerAuthorityReference
-					?: return ActiveTrackingCallerAuthorityReconciliation.Blocked(
-						failureCode = "RECOVERY_SOURCE_CALLER_DESCRIPTOR_REFERENCE_MISSING",
-						disposition = TrackingStartFailureDisposition.TERMINAL,
-						descriptor = reconciled,
-					)
-				if (reconciled.pendingRetirementSourceCallerAuthorityReference != null) {
-					return ActiveTrackingCallerAuthorityReconciliation.Blocked(
-						failureCode = "RECOVERY_SOURCE_CALLER_RETIREMENT_AMBIGUOUS",
-						disposition = TrackingStartFailureDisposition.TERMINAL,
-						descriptor = reconciled,
-					)
-				}
-				val replacement = reconciled.copy(
-					sourceCallerAuthorityReference = authority.reference,
-					pendingRetirementSourceCallerAuthorityReference = predecessor,
-				)
-				reconciled = when (
-					val persisted = activeTrackingSessionStore.replaceExact(reconciled, replacement)
-				) {
-					is ActiveTrackingSessionStoreResult.Failure ->
-						return ActiveTrackingCallerAuthorityReconciliation.Blocked(
-							failureCode = "RECOVERY_SOURCE_CALLER_DESCRIPTOR_UPDATE_FAILED",
-							disposition = persisted.kind.toFailureDisposition(),
-							descriptor = reconciled,
-						)
-					is ActiveTrackingSessionStoreResult.Success -> {
-						val current = persisted.descriptor
-						?.takeIf { candidate ->
-							candidate.logicalTrackingId == reconciled.logicalTrackingId &&
-								candidate.serviceRunId == reconciled.serviceRunId
-						}
-						?: reconciled
-						if (current != replacement) {
-							return ActiveTrackingCallerAuthorityReconciliation.Blocked(
-								failureCode = "RECOVERY_SOURCE_CALLER_DESCRIPTOR_CHANGED",
-								disposition = TrackingStartFailureDisposition.RETRYABLE,
-								descriptor = current,
-							)
-						}
-						current
-					}
-				}
+			reconciled = when (val rebound = rebindDescriptor(reconciled, authority.reference)) {
+				is ActiveTrackingCallerAuthorityReconciliation.Ready -> rebound.descriptor
+				is ActiveTrackingCallerAuthorityReconciliation.Blocked -> return rebound
 			}
 			when (val replay = sourceCallerDemandDispatcher.replayPreparedSession(
 				manifestIdentity = authority.manifestIdentity,
@@ -117,78 +77,126 @@ internal class ActiveTrackingSessionCallerAuthorityReconciler @Inject internal c
 						descriptor = reconciled,
 					)
 			}
-			val predecessor = reconciled.pendingRetirementSourceCallerAuthorityReference
-				?: return ActiveTrackingCallerAuthorityReconciliation.Ready(reconciled)
-			when (val retirement =
-				authoritativeSessionCoordinator.retireSupersededSourceCallerAuthority(
-					logicalTrackingId = reconciled.logicalTrackingId,
-					currentReference = authority.reference,
-					supersededReference = predecessor,
-					wallTimeMs = System.currentTimeMillis(),
-				)) {
-				SourceCallerAuthorityRetirementOutcome.Completed,
-				SourceCallerAuthorityRetirementOutcome.RetainedForSteps -> Unit
-				is SourceCallerAuthorityRetirementOutcome.Retryable ->
-					return ActiveTrackingCallerAuthorityReconciliation.Blocked(
-						failureCode = retirement.failureCode(),
-						disposition = TrackingStartFailureDisposition.RETRYABLE,
-						descriptor = reconciled,
-					)
-				SourceCallerAuthorityRetirementOutcome.TerminalMissing,
-				SourceCallerAuthorityRetirementOutcome.TerminalCorrupt,
-				SourceCallerAuthorityRetirementOutcome.TerminalInvariant,
-				SourceCallerAuthorityRetirementOutcome.TerminalAmbiguous,
-				-> return ActiveTrackingCallerAuthorityReconciliation.Blocked(
-					failureCode = retirement.failureCode(),
-					disposition = TrackingStartFailureDisposition.TERMINAL,
-					descriptor = reconciled,
-				)
-			}
-			val cleared = reconciled.copy(
-				pendingRetirementSourceCallerAuthorityReference = null,
-			)
-			when (val persisted = activeTrackingSessionStore.replaceExact(reconciled, cleared)) {
-				is ActiveTrackingSessionStoreResult.Failure ->
-					ActiveTrackingCallerAuthorityReconciliation.Blocked(
-						failureCode = "RECOVERY_SOURCE_CALLER_RETIREMENT_DEBT_CLEAR_FAILED",
-						disposition = persisted.kind.toFailureDisposition(),
-						descriptor = reconciled,
-					)
-				is ActiveTrackingSessionStoreResult.Success ->
-					if (persisted.descriptor == cleared) {
-						ActiveTrackingCallerAuthorityReconciliation.Ready(cleared)
-					} else {
-						ActiveTrackingCallerAuthorityReconciliation.Blocked(
-							failureCode = "RECOVERY_SOURCE_CALLER_DESCRIPTOR_CHANGED",
-							disposition = TrackingStartFailureDisposition.RETRYABLE,
-							descriptor = persisted.descriptor
-								?.takeIf { candidate ->
-									candidate.logicalTrackingId == reconciled.logicalTrackingId &&
-										candidate.serviceRunId == reconciled.serviceRunId
-								}
-								?: reconciled,
-						)
-					}
-			}
+			settlePredecessor(reconciled, authority.reference)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (failure: Exception) {
-			val operational = failure.isTrackingOperationalFailure()
-			ActiveTrackingCallerAuthorityReconciliation.Blocked(
-				failureCode = if (operational) {
-					"RECOVERY_SOURCE_CALLER_RECONCILIATION_UNAVAILABLE"
-				} else {
-					"RECOVERY_SOURCE_CALLER_RECONCILIATION_INVARIANT"
-				},
-				disposition = if (operational) {
-					TrackingStartFailureDisposition.RETRYABLE
-				} else {
-					TrackingStartFailureDisposition.TERMINAL
-				},
-				descriptor = reconciled,
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+			recoveryFailure(reconciled, failure)
+		}
+	}
+	private fun recoveryFailure(
+		descriptor: ActiveTrackingSessionDescriptor,
+		failure: Exception,
+	): ActiveTrackingCallerAuthorityReconciliation.Blocked {
+		// Return the existing recovery failure classification with the latest persisted descriptor.
+		val operational = failure.isTrackingOperationalFailure()
+		return ActiveTrackingCallerAuthorityReconciliation.Blocked(
+			failureCode = if (operational) {
+				"RECOVERY_SOURCE_CALLER_RECONCILIATION_UNAVAILABLE"
+			} else {
+				"RECOVERY_SOURCE_CALLER_RECONCILIATION_INVARIANT"
+			},
+			disposition = if (operational) {
+				TrackingStartFailureDisposition.RETRYABLE
+			} else {
+				TrackingStartFailureDisposition.TERMINAL
+			},
+			descriptor = descriptor,
+		)
+	}
+
+	private suspend fun rebindDescriptor(
+		descriptor: ActiveTrackingSessionDescriptor,
+		reference: SourceCallerReplayReference,
+	): ActiveTrackingCallerAuthorityReconciliation {
+		if (descriptor.sourceCallerAuthorityReference == reference) {
+			return ActiveTrackingCallerAuthorityReconciliation.Ready(descriptor)
+		}
+		val predecessor = descriptor.sourceCallerAuthorityReference
+			?: return ActiveTrackingCallerAuthorityReconciliation.Blocked(
+				failureCode = "RECOVERY_SOURCE_CALLER_DESCRIPTOR_REFERENCE_MISSING",
+				disposition = TrackingStartFailureDisposition.TERMINAL,
+				descriptor = descriptor,
+			)
+		if (descriptor.pendingRetirementSourceCallerAuthorityReference != null) {
+			return ActiveTrackingCallerAuthorityReconciliation.Blocked(
+				failureCode = "RECOVERY_SOURCE_CALLER_RETIREMENT_AMBIGUOUS",
+				disposition = TrackingStartFailureDisposition.TERMINAL,
+				descriptor = descriptor,
 			)
 		}
+		return replaceDescriptor(
+			descriptor,
+			descriptor.copy(
+				sourceCallerAuthorityReference = reference,
+				pendingRetirementSourceCallerAuthorityReference = predecessor,
+			),
+			"RECOVERY_SOURCE_CALLER_DESCRIPTOR_UPDATE_FAILED",
+		)
 	}
+
+	private suspend fun settlePredecessor(
+		descriptor: ActiveTrackingSessionDescriptor,
+		reference: SourceCallerReplayReference,
+	): ActiveTrackingCallerAuthorityReconciliation {
+		val predecessor = descriptor.pendingRetirementSourceCallerAuthorityReference
+			?: return ActiveTrackingCallerAuthorityReconciliation.Ready(descriptor)
+		when (val retirement =
+			authoritativeSessionCoordinator.retireSupersededSourceCallerAuthority(
+				logicalTrackingId = descriptor.logicalTrackingId,
+				currentReference = reference,
+				supersededReference = predecessor,
+				wallTimeMs = System.currentTimeMillis(),
+			)) {
+			SourceCallerAuthorityRetirementOutcome.Completed,
+			SourceCallerAuthorityRetirementOutcome.RetainedForSteps -> Unit
+			is SourceCallerAuthorityRetirementOutcome.Retryable ->
+				return ActiveTrackingCallerAuthorityReconciliation.Blocked(
+					failureCode = retirement.failureCode(),
+					disposition = TrackingStartFailureDisposition.RETRYABLE,
+					descriptor = descriptor,
+				)
+			SourceCallerAuthorityRetirementOutcome.TerminalMissing,
+			SourceCallerAuthorityRetirementOutcome.TerminalCorrupt,
+			SourceCallerAuthorityRetirementOutcome.TerminalInvariant,
+			SourceCallerAuthorityRetirementOutcome.TerminalAmbiguous,
+			-> return ActiveTrackingCallerAuthorityReconciliation.Blocked(
+				failureCode = retirement.failureCode(),
+				disposition = TrackingStartFailureDisposition.TERMINAL,
+				descriptor = descriptor,
+			)
+		}
+		return replaceDescriptor(
+			descriptor,
+			descriptor.copy(pendingRetirementSourceCallerAuthorityReference = null),
+			"RECOVERY_SOURCE_CALLER_RETIREMENT_DEBT_CLEAR_FAILED",
+		)
+	}
+
+	private suspend fun replaceDescriptor(
+		descriptor: ActiveTrackingSessionDescriptor,
+		replacement: ActiveTrackingSessionDescriptor,
+		failureCode: String,
+	): ActiveTrackingCallerAuthorityReconciliation =
+		when (val persisted = activeTrackingSessionStore.replaceExact(descriptor, replacement)) {
+			is ActiveTrackingSessionStoreResult.Failure -> ActiveTrackingCallerAuthorityReconciliation.Blocked(
+				failureCode = failureCode,
+				disposition = persisted.kind.toFailureDisposition(),
+				descriptor = descriptor,
+			)
+			is ActiveTrackingSessionStoreResult.Success -> if (persisted.descriptor == replacement) {
+				ActiveTrackingCallerAuthorityReconciliation.Ready(replacement)
+			} else {
+				ActiveTrackingCallerAuthorityReconciliation.Blocked(
+					failureCode = "RECOVERY_SOURCE_CALLER_DESCRIPTOR_CHANGED",
+					disposition = TrackingStartFailureDisposition.RETRYABLE,
+					descriptor = persisted.descriptor?.takeIf { candidate ->
+						candidate.logicalTrackingId == descriptor.logicalTrackingId &&
+							candidate.serviceRunId == descriptor.serviceRunId
+					} ?: descriptor,
+				)
+			}
+		}
 }
 
 private fun SourceCallerAuthorityRetirementOutcome.failureCode(): String = when (this) {

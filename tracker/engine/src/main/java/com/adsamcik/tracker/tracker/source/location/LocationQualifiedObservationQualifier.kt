@@ -88,7 +88,11 @@ internal sealed interface LocationObservationQualification {
  * This object neither registers a provider nor writes storage. The established Location writer
  * remains canonical until the separate shadow/cutover decision is evidenced.
  */
+// One pure Location qualifier keeps boundary, clock and replay decisions with their shared rejection vocabulary.
+@Suppress("TooManyFunctions")
 internal object LocationQualifiedObservationQualifier {
+	// Keep the complete phase's ordered original outcome exits without nesting.
+	@Suppress("ReturnCount")
 	fun qualify(
 		input: LocationObservationInput,
 		expectedAuthority: LocationCaptureAuthority,
@@ -99,33 +103,20 @@ internal object LocationQualifiedObservationQualifier {
 		priorDeliveryFact: LocationCapturedFactCommand? = null,
 		correctionBase: LocationCapturedFactCommand? = null,
 	): LocationObservationQualification {
-		if (input.origin != LocationObservationOrigin.PROVIDER_CALLBACK) {
-			return rejected(LocationFactRejection.NOT_PROVIDER_OBSERVATION)
-		}
-		if (input.attemptedAuthority != expectedAuthority) {
-			return rejected(LocationFactRejection.AUTHORITY_MISMATCH)
-		}
-		if (input.outcome != LocationProviderOutcome.FIX) {
-			if (input.durableEvidence != null) {
-				return rejected(LocationFactRejection.INCONSISTENT_PROVIDER_RESULT)
-			}
-			return input.outcome.toUnavailable()
+		val providerResult = providerInputResult(input, expectedAuthority)
+		if (providerResult != null) {
+			return providerResult
 		}
 		val evidence = input.durableEvidence
 			?: return rejected(LocationFactRejection.INCONSISTENT_PROVIDER_RESULT)
-		if (evidence.capturedAuthority != expectedAuthority) {
-			return rejected(LocationFactRejection.AUTHORITY_MISMATCH)
+		val captureFailure =
+			validateCapturedAuthority(evidence, expectedAuthority, currentDeletionAuthority, qualifierVersion)
+		if (captureFailure != null) {
+			return captureFailure
 		}
-		if (currentDeletionAuthority.currentCollectedDataEpoch !=
-			expectedAuthority.capturedCollectedDataEpoch
-		) {
-			return rejected(LocationFactRejection.DELETION_AUTHORITY_MISMATCH)
-		}
-		if (qualifierVersion <= 0) {
-			return rejected(LocationFactRejection.INVALID_QUALIFIER_VERSION)
-		}
-		validateDurableEvidence(evidence, expectedAuthority, currentDeletionAuthority)?.let {
-			return it
+		val evidenceFailure = validateDurableEvidence(evidence, expectedAuthority, currentDeletionAuthority)
+		if (evidenceFailure != null) {
+			return evidenceFailure
 		}
 		val deliveryIdentity = evidence.sourceDeliveryIdentity
 			?: return rejected(LocationFactRejection.DELIVERY_IDENTITY_UNVERIFIABLE)
@@ -151,25 +142,21 @@ internal object LocationQualifiedObservationQualifier {
 			return rejected(LocationFactRejection.INVALID_CORRECTION_BASE)
 		}
 
-		val clock = evidence.clockAuthority
-		val uncertaintyInterval = uncertaintyInterval(clock)
+		val effect = qualifiedProductEffect(evidence, expectedAuthority, qualifierVersion)
 			?: return rejected(LocationFactRejection.CLOCK_UNVERIFIABLE)
-		val effect = LocationCapturedProductEffect(
-			durableEvidence = evidence,
-			derivedQualification = LocationDerivedQualification(
-				qualifierVersion = qualifierVersion,
-				deliveryAgeNanos = clock.receivedElapsedRealtimeNanos -
-					clock.observedElapsedRealtimeNanos,
-				maximumObservationAgeNanos =
-					expectedAuthority.acquisitionConfiguration.maximumObservationAgeNanos,
-				maximumHorizontalAccuracyMeters =
-					expectedAuthority.acquisitionConfiguration.maximumHorizontalAccuracyMeters,
-				earliestPossibleWallTimeMs = uncertaintyInterval.first,
-				latestPossibleWallTimeMs = uncertaintyInterval.last,
-			),
-		)
+		return classifyProductEffect(mutation, expectedAuthority, effect, priorDeliveryFact, correctionBase)
+	}
 
-		if (semanticRevision == 1L && priorDeliveryFact != null) {
+	private fun classifyProductEffect(
+		mutation: LocationCapturedFactMutation,
+		expectedAuthority: LocationCaptureAuthority,
+		effect: LocationCapturedProductEffect,
+		priorDeliveryFact: LocationCapturedFactCommand?,
+		correctionBase: LocationCapturedFactCommand?,
+	): LocationObservationQualification {
+		val identity = mutation.identity
+		val evidence = effect.durableEvidence
+		if (mutation.semanticRevision == 1L && priorDeliveryFact != null) {
 			return if (
 				priorDeliveryFact.mutation.identity == identity &&
 				priorDeliveryFact.authority == expectedAuthority &&
@@ -192,10 +179,109 @@ internal object LocationQualifiedObservationQualifier {
 		)
 	}
 
+	// Preserve the ordered source-boundary failures before accessing immutable evidence.
+	@Suppress("ReturnCount")
+	private fun providerInputResult(
+		input: LocationObservationInput,
+		expectedAuthority: LocationCaptureAuthority,
+	): LocationObservationQualification? {
+		if (input.origin != LocationObservationOrigin.PROVIDER_CALLBACK) {
+			return rejected(LocationFactRejection.NOT_PROVIDER_OBSERVATION)
+		}
+		if (input.attemptedAuthority != expectedAuthority) {
+			return rejected(LocationFactRejection.AUTHORITY_MISMATCH)
+		}
+		if (input.outcome != LocationProviderOutcome.FIX) {
+			if (input.durableEvidence != null) {
+				return rejected(LocationFactRejection.INCONSISTENT_PROVIDER_RESULT)
+			}
+			return input.outcome.toUnavailable()
+		}
+		return null
+	}
+
+	private fun validateCapturedAuthority(
+		evidence: LocationDurableObservationEvidence,
+		expectedAuthority: LocationCaptureAuthority,
+		currentDeletionAuthority: LocationDeletionAuthority,
+		qualifierVersion: Int,
+	): LocationObservationQualification? {
+		if (evidence.capturedAuthority != expectedAuthority) {
+			return rejected(LocationFactRejection.AUTHORITY_MISMATCH)
+		}
+		if (currentDeletionAuthority.currentCollectedDataEpoch !=
+			expectedAuthority.capturedCollectedDataEpoch
+		) {
+			return rejected(LocationFactRejection.DELETION_AUTHORITY_MISMATCH)
+		}
+		if (qualifierVersion <= 0) {
+			return rejected(LocationFactRejection.INVALID_QUALIFIER_VERSION)
+		}
+		return null
+	}
+
+	private fun qualifiedProductEffect(
+		evidence: LocationDurableObservationEvidence,
+		expectedAuthority: LocationCaptureAuthority,
+		qualifierVersion: Int,
+	): LocationCapturedProductEffect? {
+		val clock = evidence.clockAuthority
+		val uncertaintyInterval = uncertaintyInterval(clock)
+			?: return null
+		return LocationCapturedProductEffect(
+			durableEvidence = evidence,
+			derivedQualification = LocationDerivedQualification(
+				qualifierVersion = qualifierVersion,
+				deliveryAgeNanos = clock.receivedElapsedRealtimeNanos -
+					clock.observedElapsedRealtimeNanos,
+				maximumObservationAgeNanos =
+					expectedAuthority.acquisitionConfiguration.maximumObservationAgeNanos,
+				maximumHorizontalAccuracyMeters =
+					expectedAuthority.acquisitionConfiguration.maximumHorizontalAccuracyMeters,
+				earliestPossibleWallTimeMs = uncertaintyInterval.first,
+				latestPossibleWallTimeMs = uncertaintyInterval.last,
+			),
+		)
+	}
+
+	// Each immutable evidence check retains its precise rejection before any Location mutation.
+	@Suppress("ReturnCount")
 	private fun validateDurableEvidence(
 		evidence: LocationDurableObservationEvidence,
 		authority: LocationCaptureAuthority,
 		deletionAuthority: LocationDeletionAuthority,
+	): LocationObservationQualification? {
+		val envelopeFailure = validateEvidenceEnvelope(evidence)
+		if (envelopeFailure != null) {
+			return envelopeFailure
+		}
+		val clock = evidence.clockAuthority
+		val temporalFailure = validateProviderTime(clock, authority)
+		if (temporalFailure != null) {
+			return temporalFailure
+		}
+		val wallInterval = uncertaintyInterval(clock)
+			?: return rejected(LocationFactRejection.CLOCK_UNVERIFIABLE)
+		val retainedFromMs = deletionAuthority.retainedFromWallTimeMs
+		if (retainedFromMs != null && wallInterval.first < retainedFromMs) {
+			return LocationObservationQualification.Stale(LocationStaleReason.BEFORE_DELETION_FLOOR)
+		}
+		if (SourceQualityFlag.CACHED in evidence.quality.flags) {
+			return rejected(LocationFactRejection.CACHED_EVIDENCE)
+		}
+		val approximate = SourceQualityFlag.APPROXIMATE in evidence.quality.flags
+		if (approximate != (authority.permissionPrecision == LocationPermissionPrecision.APPROXIMATE)) {
+			return rejected(LocationFactRejection.QUALITY_AUTHORITY_MISMATCH)
+		}
+		evidence.payload.rejection(authority.acquisitionConfiguration.maximumHorizontalAccuracyMeters)
+			?.let { reason -> return rejected(reason) }
+		return null
+	}
+
+	// Preserve precise durable-envelope failures before any provider timing checks.
+	@Suppress("ReturnCount")
+	private fun validateEvidenceEnvelope(
+		evidence: LocationDurableObservationEvidence,
 	): LocationObservationQualification? {
 		if (evidence.sourceAdmissionOrdinal <= 0L) {
 			return rejected(LocationFactRejection.INCOMPLETE_DURABLE_EVIDENCE)
@@ -203,16 +289,9 @@ internal object LocationQualifiedObservationQualifier {
 		if (!LOWERCASE_SHA_256.matches(evidence.walIntegrityIdentity)) {
 			return rejected(LocationFactRejection.WAL_INTEGRITY_UNVERIFIABLE)
 		}
-		if (evidence.payloadVersion !in setOf(LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
-            LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION)) {
-			return rejected(LocationFactRejection.UNSUPPORTED_PAYLOAD_VERSION)
-		}
-        if (evidence.payloadVersion == LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION &&
-            evidence.payload.horizontalAccuracyMeters == null) {
-            return rejected(LocationFactRejection.INVALID_ACCURACY)
-        }
-		if (evidence.payload.isMock == null || evidence.payload.isMock != evidence.isMock) {
-			return rejected(LocationFactRejection.MOCK_PROVENANCE_MISMATCH)
+		val payloadFailure = validatePayloadVersion(evidence)
+		if (payloadFailure != null) {
+			return payloadFailure
 		}
 		if (evidence.deliveryUnitCount <= 0 ||
 			evidence.deliveryUnitIndex !in 0 until evidence.deliveryUnitCount
@@ -222,7 +301,32 @@ internal object LocationQualifiedObservationQualifier {
 		if (evidence.sourceDeliveryIdentity == null) {
 			return rejected(LocationFactRejection.DELIVERY_IDENTITY_UNVERIFIABLE)
 		}
-		val clock = evidence.clockAuthority
+		return null
+	}
+
+	private fun validatePayloadVersion(
+		evidence: LocationDurableObservationEvidence,
+	): LocationObservationQualification? {
+		if (evidence.payloadVersion !in setOf(LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION)) {
+			return rejected(LocationFactRejection.UNSUPPORTED_PAYLOAD_VERSION)
+		}
+		if (evidence.payloadVersion == LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION &&
+			evidence.payload.horizontalAccuracyMeters == null) {
+			return rejected(LocationFactRejection.INVALID_ACCURACY)
+		}
+		if (evidence.payload.isMock == null || evidence.payload.isMock != evidence.isMock) {
+			return rejected(LocationFactRejection.MOCK_PROVENANCE_MISMATCH)
+		}
+		return null
+	}
+
+	// These ordered source-clock checks retain each distinct original stale/rejection outcome.
+	@Suppress("ReturnCount")
+	private fun validateProviderTime(
+		clock: LocationDurableClockAuthority,
+		authority: LocationCaptureAuthority,
+	): LocationObservationQualification? {
 		if (clock.clockDomainId != authority.clockDomainId) {
 			return rejected(LocationFactRejection.CLOCK_UNVERIFIABLE)
 		}
@@ -243,26 +347,13 @@ internal object LocationQualifiedObservationQualifier {
 		if (ageNanos > authority.acquisitionConfiguration.maximumObservationAgeNanos) {
 			return LocationObservationQualification.Stale(LocationStaleReason.TOO_OLD)
 		}
-		val wallInterval = uncertaintyInterval(clock)
-			?: return rejected(LocationFactRejection.CLOCK_UNVERIFIABLE)
-		val retainedFromMs = deletionAuthority.retainedFromWallTimeMs
-		if (retainedFromMs != null && wallInterval.first < retainedFromMs) {
-			return LocationObservationQualification.Stale(LocationStaleReason.BEFORE_DELETION_FLOOR)
-		}
-		if (SourceQualityFlag.CACHED in evidence.quality.flags) {
-			return rejected(LocationFactRejection.CACHED_EVIDENCE)
-		}
-		val approximate = SourceQualityFlag.APPROXIMATE in evidence.quality.flags
-		if (approximate != (authority.permissionPrecision == LocationPermissionPrecision.APPROXIMATE)) {
-			return rejected(LocationFactRejection.QUALITY_AUTHORITY_MISMATCH)
-		}
-		evidence.payload.rejection(authority.acquisitionConfiguration.maximumHorizontalAccuracyMeters)
-			?.let { reason -> return rejected(reason) }
 		return null
 	}
 
 	private fun uncertaintyInterval(clock: LocationDurableClockAuthority): LongRange? {
-		if (clock.observedWallTimeMs < 0L || clock.wallTimeUncertaintyMs < 0L) return null
+		if (clock.observedWallTimeMs < 0L || clock.wallTimeUncertaintyMs < 0L) {
+			return null
+		}
 		return runCatching {
 			val start = CanonicalRetentionBounds.location(
 				clock.observedWallTimeMs,
@@ -302,6 +393,8 @@ internal object LocationQualifiedObservationQualifier {
 	internal fun payloadRejection(payload: LocationFixPayload, maximumAccuracyMeters: Float): LocationFactRejection? =
 		payload.rejection(maximumAccuracyMeters)
 
+	// Keep the fixed payload fields and their first-rejection priority visible together.
+	@Suppress("CyclomaticComplexMethod")
 	private fun LocationFixPayload.rejection(
 		maximumAccuracyMeters: Float,
 	): LocationFactRejection? = when {

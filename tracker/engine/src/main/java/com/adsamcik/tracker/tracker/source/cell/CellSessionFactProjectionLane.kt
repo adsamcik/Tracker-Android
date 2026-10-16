@@ -341,7 +341,11 @@ class CellSessionFactProjectionLane private constructor(
 		return CellSessionFactDrainResult.Failed(
 			lastCompletedOrdinal = cursor,
 			failedOrdinal = admissionOrdinal,
-			failureCode = if (persisted) normalized else "FAILURE_AUDIT_UNAVAILABLE",
+			failureCode = if (persisted) {
+				normalized
+			} else {
+				"FAILURE_AUDIT_UNAVAILABLE"
+			},
 			terminal = persisted && terminal,
 		)
 	}
@@ -365,18 +369,25 @@ class CellSessionFactProjectionLane private constructor(
 		return failure
 	}
 
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	private suspend fun failureIsLifecycleRejected(
 		failure: SourceProjectionFailureEntity,
 		state: SourceEvidenceState,
 	): Boolean {
-		if (failure.admissionOrdinal <= state.deletedSourceEventHighWaterOrdinal) return true
+		if (failure.admissionOrdinal <= state.deletedSourceEventHighWaterOrdinal) {
+			return true
+		}
 		val raw = database.sourceEventWalDao().getByAdmissionOrdinal(failure.admissionOrdinal)
 			?: return false
 		if (raw.admissionOrdinal != failure.admissionOrdinal ||
 			raw.sourceKind != SourceKind.CELL.stableCode ||
 			!raw.hasQualifiedIntegrity()
-		) return false
-		if (failure.failureCode in LIFECYCLE_SETTLED_FAILURES) return true
+		) {
+			return false
+		}
+		if (failure.failureCode in LIFECYCLE_SETTLED_FAILURES) {
+			return true
+		}
 		return raw.isLifecycleRejected(state) || raw.isDeletedScope()
 	}
 
@@ -387,7 +398,9 @@ class CellSessionFactProjectionLane private constructor(
 			?: return CellPreflightAuthentication.Failed("CELL_PREFLIGHT_WAL_MISSING")
 		if (wal.eventId != candidate.eventId || wal.admissionOrdinal != candidate.admissionOrdinal ||
 			wal.sourceKind != SourceKind.CELL.stableCode
-		) return CellPreflightAuthentication.Failed("CELL_PREFLIGHT_WAL_IDENTITY_MISMATCH")
+		) {
+			return CellPreflightAuthentication.Failed("CELL_PREFLIGHT_WAL_IDENTITY_MISMATCH")
+		}
 		if (!wal.hasQualifiedIntegrity()) {
 			return CellPreflightAuthentication.Failed("CELL_PREFLIGHT_WAL_INTEGRITY_MISMATCH")
 		}
@@ -406,7 +419,9 @@ class CellSessionFactProjectionLane private constructor(
 
 	private suspend fun SourceEventWalEntity.isDeletedScope(): Boolean {
 		// v6 can contain independently valid historical groups beside a deleted callback scope.
-		if (payloadVersion == com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION) return false
+		if (payloadVersion == com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION) {
+			return false
+		}
 		val logical = logicalTrackingId ?: return false
 		val run = serviceRunId ?: return false
 		return database.sourceDeletionFenceDao().contains(
@@ -425,10 +440,14 @@ class CellSessionFactProjectionLane private constructor(
 	private suspend fun executableLaneOrNull(): SourceProductProjectionLaneEntity? {
 		val active = database.sourceProjectionStateDao().allActiveProductLanes()
 			.filter { it.sourceKind == SourceKind.CELL.stableCode }
-		if (active.size != 1) return null
+		if (active.size != 1) {
+			return null
+		}
 		return active.single().takeIf(::isExecutableLane)
 	}
 
+	// Preserve the four ordered lane/cursor/registration/owner failures and their exact source-local reasons.
+	@Suppress("ThrowsCount")
 	private suspend fun requireExactLane(
 		expected: SourceProductProjectionLaneEntity,
 		expectedCursor: Long = expected.contiguousAdmissionOrdinal,
@@ -450,16 +469,21 @@ class CellSessionFactProjectionLane private constructor(
 			)
 			if (owner?.owner != SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS ||
 				owner.ownerGeneration != SourceWriterGenerationContract.canonicalOwnerGeneration(current.bindingGeneration)
-			) throw CellLaneAuthorityChangedException("CELL_DESTINATION_OWNER_CHANGED")
+			) {
+				throw CellLaneAuthorityChangedException("CELL_DESTINATION_OWNER_CHANGED")
+			}
 		}
 		return current
 	}
 
+	// Keep the complete fixed catalog/lane shape and ordinal bounds visible as one correspondence.
+	@Suppress("CyclomaticComplexMethod")
 	private fun isExecutableLane(lane: SourceProductProjectionLaneEntity): Boolean {
 		val binding = executableLaneCatalog.bindingFor(lane) ?: return false
 		return binding.source == SourceKind.CELL && binding.projectionId == WRITER_ID &&
 			binding.projectionVersion == WRITER_VERSION &&
-			SourceWriterGenerationContract.captureModeMaskForKnownBinding(binding.bindingGeneration) == binding.captureModeMask &&
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(binding.bindingGeneration) ==
+				binding.captureModeMask &&
 			lane.productStage in EXECUTABLE_STAGES && lane.activatedRolloutRevision > 0L &&
 			lane.activationOrdinal > 0L &&
 			lane.contiguousAdmissionOrdinal >= lane.activationOrdinal - 1L &&
@@ -476,7 +500,9 @@ class CellSessionFactProjectionLane private constructor(
 		lane: SourceProductProjectionLaneEntity,
 		throughOrdinal: Long,
 	) {
-		if (throughOrdinal == lane.contiguousAdmissionOrdinal) return
+		if (throughOrdinal == lane.contiguousAdmissionOrdinal) {
+			return
+		}
 		check(database.sourceProjectionStateDao().advanceExactProductLaneCursor(
 			sourceKind = lane.sourceKind,
 			bindingGeneration = lane.bindingGeneration,
@@ -495,6 +521,10 @@ class CellSessionFactProjectionLane private constructor(
 
 	private fun nowMs(): Long = System.currentTimeMillis().coerceAtLeast(0L)
 
+	/**
+	 * Stable Cell projection identity, binding generation and supported admission stages used by writer
+	 * handoffs.
+	 */
 	companion object {
 		const val WRITER_ID = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID
 		const val WRITER_VERSION = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION
@@ -522,7 +552,11 @@ class CellSessionFactProjectionLane private constructor(
 private fun CellWalAdapterResult.toProjectionResult(): CellCandidateProjectionResult = when (this) {
 	is CellWalAdapterResult.Groups -> results.map {
 		if (it is CellWalAdapterResult.Rejected && it.reason.isSettledCaptureGroup())
-			CellCandidateProjectionResult(0, null) else it.toProjectionResult()
+			{
+			CellCandidateProjectionResult(0, null)
+		} else {
+			it.toProjectionResult()
+		}
 	}.combined()
 	is CellWalAdapterResult.Evaluated -> CellCandidateProjectionResult(
 		factsInserted = 0,
@@ -537,7 +571,11 @@ private fun CellWalAdapterResult.toProjectionResult(): CellCandidateProjectionRe
 private fun CellCapturedWriteResult.toProjectionResult(): CellCandidateProjectionResult = when (this) {
 	is CellCapturedWriteResult.Groups -> results.map {
 		if (it is CellCapturedWriteResult.AdapterRejected && it.reason.isSettledCaptureGroup())
-			CellCandidateProjectionResult(0, null) else it.toProjectionResult()
+			{
+			CellCandidateProjectionResult(0, null)
+		} else {
+			it.toProjectionResult()
+		}
 	}.combined()
 	is CellCapturedWriteResult.Applied -> CellCandidateProjectionResult(1, null)
 	is CellCapturedWriteResult.Unchanged -> CellCandidateProjectionResult(0, null)
@@ -591,6 +629,8 @@ private fun CellCapturedFactClassification.failureCodeOrNull(): String? = when (
 	is CellCapturedFactClassification.Rejected -> "CELL_CLASSIFICATION_REJECTED_${reason.name}"
 }
 
+// Compares the immutable execution-binding tuple while leaving the advancing cursor out.
+@Suppress("CyclomaticComplexMethod")
 private fun SourceProductProjectionLaneEntity.hasSameCellExecutionBinding(
 	other: SourceProductProjectionLaneEntity,
 ): Boolean = sourceKind == other.sourceKind && bindingGeneration == other.bindingGeneration &&

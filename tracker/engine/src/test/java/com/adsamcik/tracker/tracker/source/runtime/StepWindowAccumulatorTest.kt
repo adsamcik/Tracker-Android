@@ -22,6 +22,8 @@ class StepWindowAccumulatorTest {
 		assertEquals(StepBoundaryKind.BASELINE, payload.boundaryKind)
 	}
 
+	// Keep restored baseline, reset and first successor callback in one counter-domain journey.
+	@Suppress("LongMethod")
 	@Test
 	fun `counter reset establishes a zero baseline and next callback counts only the new domain`() {
 		val boundary = StepBaselineBoundary(1L)

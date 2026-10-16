@@ -40,4 +40,26 @@
     <string name="format_database">Kopja ta’ riżerva tal-bażi tad-dejta (ZIP)</string>
     <string name="settings_import_summary">Importa dejta minn tipi appoġġati (%1$s) u arkivji (%2$s). L-importazzjonijiet tal-bażi tad-dejta jgħaqqdu rekords kompatibbli; ma jissostitwixxux id-dejta eżistenti.</string>
     <string name="settings_import_title">Importazzjoni</string>
+    <string name="export_radio_sensitivity_title">Tesporta d-dettalji tan-netwerks?</string>
+    <string name="export_wifi_sensitivity_message">Dan il-fajl jinkludi ismijiet Wi-Fi u IDs ta\' punti ta\' aċċess salvati.</string>
+    <string name="export_cell_sensitivity_message">Dan il-fajl jinkludi IDs tat-torrijiet u kejl tas-sinjal salvati.</string>
+    <string name="export_radio_no_data">Ebda data salvata għal dan is-sors</string>
+    <string name="export_include_complete_sessions">Inkludi sessjonijiet sħaħ</string>
+    <string name="import_location_conflict_title">Tissostitwixxi l-punti salvati?</string>
+    <string name="import_location_replace">Uża l-punti tal-fajl</string>
+    <string name="import_location_keep">Żomm il-punti salvati</string>
+    <string name="export_backup_review_title">Irrevedi l-kopji ta\' riżerva skedati</string>
+    <string name="export_backup_review_summary">Imwaqqaf sakemm tirrevedi l-kopja ta\' riżerva tad-data aġġornata.</string>
+    <string name="export_backup_review_message">Dawn l-iskedi issa jagħmlu kopja tad-data kollha tat-traċċar salvata u tal-fajls meħtieġa biex tiġi rrestawrata. Is-settings mhumiex inklużi. Tkompli dawn l-iskedi?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Kompli l-kopji ta\' riżerva</string>
+    <string name="import_backup_replace_title">Tirrestawra l-kopja ta\' riżerva tad-data?</string>
+    <string name="import_backup_replace_message">Tissostitwixxi d-data salvata b\'din il-kopja ta\' riżerva? Is-settings tiegħek jibqgħu l-istess. It-traċċar ikun mitfi sakemm terġa\' tixegħlu.</string>
+    <string name="import_backup_restore">Issostitwixxi d-data</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d punt f\'dan il-fajl huwa differenti mill-kopja salvata tiegħu. Agħżel liema żżomm. Il-punti l-oħra jiġu importati bħas-soltu.</item>
+        <item quantity="two">%d punti f\'dan il-fajl huma differenti mill-kopji salvati tagħhom. Agħżel liema żżomm. Il-punti l-oħra jiġu importati bħas-soltu.</item>
+        <item quantity="few">%d punti f\'dan il-fajl huma differenti mill-kopji salvati tagħhom. Agħżel liema żżomm. Il-punti l-oħra jiġu importati bħas-soltu.</item>
+        <item quantity="many">%d-il punt f\'dan il-fajl huwa differenti mill-kopji salvati tiegħu. Agħżel liema żżomm. Il-punti l-oħra jiġu importati bħas-soltu.</item>
+        <item quantity="other">%d punt f\'dan il-fajl huwa differenti mill-kopji salvati tiegħu. Agħżel liema żżomm. Il-punti l-oħra jiġu importati bħas-soltu.</item>
+    </plurals>
 </resources>

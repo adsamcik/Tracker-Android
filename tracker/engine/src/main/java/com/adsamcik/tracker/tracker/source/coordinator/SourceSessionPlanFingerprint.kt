@@ -108,15 +108,15 @@ internal fun sourcePlanFingerprint(
 		output.writeInt(SOURCE_PLAN_FINGERPRINT_VERSION)
 		output.writeString(inputsFingerprint)
 		output.writeNullableLong(plan.sourcePolicyRevision)
-        if (plan.balanceProfileVersion != null) {
-            output.writeString("source-balance-v1")
-            output.writeNullableLong(plan.balanceProfileVersion.toLong())
-            plan.sourcePreferences.entries.sortedBy { it.key.stableCode }.forEach { (source, preference) ->
-                output.writeInt(source.stableCode)
-                output.writeInt(preference.requestedLevel)
-                output.writeBoolean(preference.focusRequested)
-            }
-        }
+		if (plan.balanceProfileVersion != null) {
+			output.writeString("source-balance-v1")
+			output.writeNullableLong(plan.balanceProfileVersion.toLong())
+			plan.sourcePreferences.entries.sortedBy { it.key.stableCode }.forEach { (source, preference) ->
+				output.writeInt(source.stableCode)
+				output.writeInt(preference.requestedLevel)
+				output.writeBoolean(preference.focusRequested)
+			}
+		}
 		val orderedPlans = plan.plans.values.sortedBy { sourcePlan -> sourcePlan.source.stableCode }
 		output.writeInt(orderedPlans.size)
 		orderedPlans.forEach { sourcePlan ->
@@ -228,12 +228,16 @@ private fun DataOutputStream.writeString(value: String) {
 
 private fun DataOutputStream.writeNullableString(value: String?) {
 	writeBoolean(value != null)
-	if (value != null) writeString(value)
+	if (value != null) {
+		writeString(value)
+	}
 }
 
 private fun DataOutputStream.writeNullableLong(value: Long?) {
 	writeBoolean(value != null)
-	if (value != null) writeLong(value)
+	if (value != null) {
+		writeLong(value)
+	}
 }
 
 private fun DataOutputStream.writeByteArray(value: ByteArray) {

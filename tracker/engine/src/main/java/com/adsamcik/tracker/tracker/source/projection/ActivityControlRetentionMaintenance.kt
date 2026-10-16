@@ -49,40 +49,19 @@ class ActivityControlRetentionMaintenance @Inject constructor(
         }
         val outboxPass = database.withTransaction {
             requireReadyGeneration()
-            val actionDao = database.activityAutomaticStartActionDao()
-            val action = actionDao.current()
-            if (action != null && controlEvidenceExpired(
-                action.bootId, action.receivedElapsedRealtimeNanos,
-                currentBootId, nowElapsedNanos,
-            ) && action.status in PENDING_ACTION_STATUSES) {
-                check(actionDao.markTerminal(
-                    action.triggerId, action.collectedDataEpoch, nowWallMs,
-                    "ACTIVITY_CONTROL_RETENTION_EXPIRED",
-                ) == 1)
-            }
+            expirePendingControlAction(currentBootId, nowElapsedNanos, nowWallMs)
             val projectionDao = database.sourceProjectionStateDao()
             val savedCursor = projectionDao.checkpoint(CURSOR_PROJECTION_ID, CURSOR_VERSION)
                 ?.contiguousAdmissionOrdinal ?: 0L
             require(savedCursor >= 0L)
-            var removed = 0
             val page = projectionDao.activityAutomationOutboxPage(savedCursor, limit)
-            for (effect in page) {
-                val stamp = effect.retentionStampOrNull()
-                if (stamp == null || controlEvidenceExpired(
-                    stamp.bootId, stamp.receivedElapsedNanos, currentBootId, nowElapsedNanos,
-                )) {
-                    projectionDao.markOutboxTerminal(
-                        effect.stableId,
-                        if (stamp == null) "INVALID_AUTOMATION_EFFECT_PAYLOAD"
-                        else "ACTIVITY_CONTROL_RETENTION_EXPIRED",
-                        nowWallMs,
-                    )
-                    check(projectionDao.deleteActivityAutomationOutbox(effect.stableId) == 1)
-                    removed++
-                }
-            }
+            val removed = pruneOutboxPage(page, currentBootId, nowElapsedNanos, nowWallMs)
             val scanIncomplete = page.size == limit
-            val nextCursor = if (scanIncomplete) page.last().admissionOrdinal else 0L
+            val nextCursor = if (scanIncomplete) {
+                page.last().admissionOrdinal
+            } else {
+                0L
+            }
             if (nextCursor != savedCursor) {
                 projectionDao.saveCheckpoint(SourceProjectionCheckpointEntity(
                     projectionId = CURSOR_PROJECTION_ID,
@@ -92,23 +71,7 @@ class ActivityControlRetentionMaintenance @Inject constructor(
                     updatedAtMs = nowWallMs,
                 ))
             }
-            val completed = actionDao.current()
-            if (completed != null &&
-                controlEvidenceExpired(
-                    completed.bootId, completed.receivedElapsedRealtimeNanos,
-                    currentBootId, nowElapsedNanos,
-                ) && (completed.status == ActivityAutomaticStartActionEntity.STATUS_TERMINAL ||
-                    completed.status == ActivityAutomaticStartActionEntity.STATUS_LIFECYCLE_INTENT_ACCEPTED &&
-                    completed.acceptedLogicalTrackingId
-                        ?.let { database.sourceSessionDao().session(it) }
-                        ?.state?.let(::isTerminalSessionState) == true)
-            ) {
-                // Acceptance remains needed by a live session, but is not an indefinite
-                // CONTROL archive after its exact session has completed.
-                check(actionDao.clearCompletedSlot(
-                    completed.triggerId, completed.collectedDataEpoch,
-                ) == 1)
-            }
+            clearExpiredCompletedAction(currentBootId, nowElapsedNanos)
             requireReadyGeneration()
             removed to scanIncomplete
         }
@@ -122,6 +85,76 @@ class ActivityControlRetentionMaintenance @Inject constructor(
             outboxScanIncomplete = outboxPass.second,
             morePending = outboxPass.second || walDeleted == limit,
         )
+    }
+
+    private suspend fun expirePendingControlAction(
+        currentBootId: String,
+        nowElapsedNanos: Long,
+        nowWallMs: Long,
+    ) {
+        val actionDao = database.activityAutomaticStartActionDao()
+        val action = actionDao.current()
+        if (action != null && controlEvidenceExpired(
+            action.bootId, action.receivedElapsedRealtimeNanos,
+            currentBootId, nowElapsedNanos,
+        ) && action.status in PENDING_ACTION_STATUSES) {
+            check(actionDao.markTerminal(
+                action.triggerId, action.collectedDataEpoch, nowWallMs,
+                "ACTIVITY_CONTROL_RETENTION_EXPIRED",
+            ) == 1)
+        }
+    }
+
+    private suspend fun pruneOutboxPage(
+        page: List<SourceProjectionOutboxEntity>,
+        currentBootId: String,
+        nowElapsedNanos: Long,
+        nowWallMs: Long,
+    ): Int {
+        val projectionDao = database.sourceProjectionStateDao()
+        var removed = 0
+        for (effect in page) {
+            val stamp = effect.retentionStampOrNull()
+            if (stamp == null || controlEvidenceExpired(
+                stamp.bootId, stamp.receivedElapsedNanos, currentBootId, nowElapsedNanos,
+            )) {
+                projectionDao.markOutboxTerminal(
+                    effect.stableId,
+                    if (stamp == null) {
+                        "INVALID_AUTOMATION_EFFECT_PAYLOAD"
+                    }
+                    else {
+                        "ACTIVITY_CONTROL_RETENTION_EXPIRED"
+                    },
+                    nowWallMs,
+                )
+                check(projectionDao.deleteActivityAutomationOutbox(effect.stableId) == 1)
+                removed++
+            }
+        }
+        return removed
+    }
+
+    private suspend fun clearExpiredCompletedAction(currentBootId: String, nowElapsedNanos: Long) {
+        val actionDao = database.activityAutomaticStartActionDao()
+        val completed = actionDao.current()
+        if (completed == null || !controlEvidenceExpired(
+            completed.bootId, completed.receivedElapsedRealtimeNanos, currentBootId, nowElapsedNanos,
+        )) {
+            return
+        }
+        if (completed.status == ActivityAutomaticStartActionEntity.STATUS_TERMINAL ||
+            completed.status == ActivityAutomaticStartActionEntity.STATUS_LIFECYCLE_INTENT_ACCEPTED &&
+            completed.acceptedLogicalTrackingId
+                ?.let { database.sourceSessionDao().session(it) }
+                ?.state?.let(::isTerminalSessionState) == true
+        ) {
+            // Acceptance remains needed by a live session, but is not an indefinite
+            // CONTROL archive after its exact session has completed.
+            check(actionDao.clearCompletedSlot(
+                completed.triggerId, completed.collectedDataEpoch,
+            ) == 1)
+        }
     }
 }
 
@@ -142,7 +175,7 @@ private fun SourceProjectionOutboxEntity.retentionStampOrNull(): ControlRetentio
             val kind = input.readInt()
             require(kind == ActivityAutomationProjection.KIND_RECOGNITION ||
                 kind == ActivityAutomationProjection.KIND_TRANSITION)
-            repeat(3) { input.readInt() }
+            repeat(ACTIVITY_VALUE_FIELD_COUNT) { input.readInt() }
             val bootId = input.readUTF()
             input.readLong() // Observed elapsed time; retention starts at receipt, not observation.
             val received = input.readLong()
@@ -164,3 +197,5 @@ private val PENDING_ACTION_STATUSES = setOf(
 
 private const val CURSOR_PROJECTION_ID = "activity-control-expiry"
 private const val CURSOR_VERSION = 1
+
+private const val ACTIVITY_VALUE_FIELD_COUNT = 3

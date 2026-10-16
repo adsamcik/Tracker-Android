@@ -47,6 +47,8 @@ class ImportedAmbientStepsDaoTest {
 	fun tearDown() = database.close()
 
 	@Test
+	// Explicit lineage rows and the real cascade prove the same preserved fence.
+	@Suppress("LongMethod")
 	fun `complete lineage authenticates and source fence survives payload cascade`() = runTest {
 		val fact = PortableAmbientStepsFactV1.create(
 			identity(AmbientStepsPortableIdentityKind.FACT, "fact"),

@@ -11,6 +11,10 @@ data class RetainedCaptureScopeIdentity(
 	val scopeDeletionGeneration: Long,
 	val logicalRunScopeDigest: String,
 ) {
+	/**
+	 * Checks the expected source/data epoch, undeleted session/run ownership and canonical scope
+	 * digest.
+	 */
 	fun isCanonicalFor(expectedSourceKind: Int, expectedCollectedDataEpoch: Long): Boolean =
 		sourceKind == expectedSourceKind &&
 			logicalTrackingId.isNotBlank() &&
@@ -25,6 +29,10 @@ data class RetainedCaptureScopeIdentity(
 			)
 }
 
+/**
+ * Original admitted event, ordinal, policy/consent and WAL digest paired with its recorded
+ * session/run scope.
+ */
 data class RetainedCaptureEventIdentity(
 	val eventId: String,
 	val sourceAdmissionOrdinal: Long,

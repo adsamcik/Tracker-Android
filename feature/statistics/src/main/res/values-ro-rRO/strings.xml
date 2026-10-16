@@ -163,4 +163,5 @@
     <string name="history_button_label">Istoric</string>
     <string name="history_view_trip_on_map">Vezi călătoria pe hartă</string>
     <string name="stats_heatmap_title">Activitate</string>
+    <string name="stats_recorded_partial_value">%1$s · parțial</string>
 </resources>

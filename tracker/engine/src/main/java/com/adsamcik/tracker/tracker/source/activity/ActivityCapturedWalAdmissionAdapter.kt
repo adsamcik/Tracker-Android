@@ -159,6 +159,19 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			if (!selected.hasQualifiedIntegrity()) {
 				return@transaction rejected(ActivityCapturedWalAdmissionRejection.WAL_INTEGRITY_MISMATCH)
 			}
+			// A valid control-only envelope has no captured product to decode.
+			if (selected.authorizationPurposeEligibilityMask and SourceBrokerPurpose.ALL_MASK !=
+				selected.authorizationPurposeEligibilityMask
+			) {
+				return@transaction rejected(
+				ActivityCapturedWalAdmissionRejection.INCOMPLETE_CAPTURE_BINDING,
+			)
+			}
+			if (selected.authorizationPurposeEligibilityMask and
+				SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
+			) {
+				return@transaction rejected(ActivityCapturedWalAdmissionRejection.CONTROL_ONLY)
+			}
 			if (selected.sourceSequence !in 0..MAX_DURABLE_SOURCE_SEQUENCE) {
 				return@transaction rejected(ActivityCapturedWalAdmissionRejection.SOURCE_SEQUENCE_MISMATCH)
 			}
@@ -171,9 +184,11 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			val declaredUnitCount = selected.deliveryUnitCount
 			if (selectedUnitIndex == null || declaredUnitCount == null || declaredUnitCount <= 0 ||
 				selectedUnitIndex !in 0 until declaredUnitCount
-			) return@transaction rejected(
+			) {
+				return@transaction rejected(
 				ActivityCapturedWalAdmissionRejection.INCOMPLETE_CAPTURE_BINDING,
 			)
+			}
 			if (declaredUnitCount > MAX_DELIVERY_UNITS) {
 				return@transaction rejected(ActivityCapturedWalAdmissionRejection.DELIVERY_TOO_LARGE)
 			}
@@ -195,7 +210,9 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 				deliveryPreflight.mapNotNull { row -> row.deliveryUnitIndex } !=
 					deliveryPreflight.indices.toList() ||
 				deliveryPreflight.any { row -> row.deliveryUnitCount != declaredUnitCount }
-			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.MALFORMED_DELIVERY)
+			) {
+				return@transaction rejected(ActivityCapturedWalAdmissionRejection.MALFORMED_DELIVERY)
+			}
 			val deliveryRows = walDao.deliveryEventsWithBoundedPayload(
 				sourceKind = ACTIVITY_SOURCE,
 				collectedDataEpoch = selected.capturedCollectedDataEpoch,
@@ -207,14 +224,14 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			if (deliveryRows.size != deliveryPreflight.size) {
 				return@transaction rejected(ActivityCapturedWalAdmissionRejection.MALFORMED_DELIVERY)
 			}
-			val decodedDelivery = decodeCompleteDelivery(deliveryRows, selected)
+			val decodedDelivery = DecodedActivityWalUnit.decodeCompleteDelivery(deliveryRows, selected)
 				?: return@transaction rejected(ActivityCapturedWalAdmissionRejection.MALFORMED_DELIVERY)
 			val selectedUnit = decodedDelivery.getOrNull(selectedUnitIndex)
 				?: return@transaction rejected(ActivityCapturedWalAdmissionRejection.MALFORMED_DELIVERY)
 			if (!selectedUnit.wal.hasSamePersistedValueAs(selected)) {
 				return@transaction rejected(ActivityCapturedWalAdmissionRejection.MALFORMED_DELIVERY)
 			}
-			when (canonicalDeliveryVerdict(decodedDelivery, deliveryIdentity)) {
+			when (DecodedActivityWalUnit.canonicalDeliveryVerdict(decodedDelivery, deliveryIdentity)) {
 				DeliveryIdentityVerdict.MATCH -> Unit
 				DeliveryIdentityVerdict.MISMATCH -> return@transaction rejected(
 					ActivityCapturedWalAdmissionRejection.DELIVERY_IDENTITY_MISMATCH,
@@ -223,14 +240,6 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 					ActivityCapturedWalAdmissionUnavailable.DELIVERY_ORDER_UNVERIFIABLE,
 				)
 			}
-			if (selected.authorizationPurposeEligibilityMask and SourceBrokerPurpose.ALL_MASK !=
-				selected.authorizationPurposeEligibilityMask
-			) return@transaction rejected(
-				ActivityCapturedWalAdmissionRejection.INCOMPLETE_CAPTURE_BINDING,
-			)
-			if (selected.authorizationPurposeEligibilityMask and
-				SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
-			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.CONTROL_ONLY)
 
 			val logicalTrackingId = selected.logicalTrackingId
 			val serviceRunId = selected.serviceRunId
@@ -242,14 +251,18 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			val captureConsentEpoch = selected.captureConsentEpoch
 			val manifestRevision = selected.sessionManifestRevision
 			val leaseGeneration = selected.lifecycleLeaseGeneration
+			// The complete saved capture reference tuple must be present before authority lookups.
+			@Suppress("ComplexCondition")
 			if (logicalTrackingId == null || serviceRunId == null || configurationRevision == null ||
 				physicalFingerprint == null || authorizationRevision == null ||
 				authorizationFingerprint == null || sourcePolicyRevision == null ||
 				captureConsentEpoch == null || manifestRevision == null || leaseGeneration == null ||
 				selected.planAttribution != PlanAttribution.CAPTURED_REGISTRATION.ordinal
-			) return@transaction rejected(
+			) {
+				return@transaction rejected(
 				ActivityCapturedWalAdmissionRejection.INCOMPLETE_CAPTURE_BINDING,
 			)
+			}
 
 			val evidenceState = database.sourceEvidenceStateDao().get()
 				?: return@transaction rejected(ActivityCapturedWalAdmissionRejection.DELETED_EVIDENCE)
@@ -257,7 +270,9 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 				decodedDelivery.any { unit ->
 					unit.wal.admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal
 				}
-			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.DELETED_EVIDENCE)
+			) {
+				return@transaction rejected(ActivityCapturedWalAdmissionRejection.DELETED_EVIDENCE)
+			}
 			if (database.sourceDeletionFenceDao().contains(
 					sourceKind = ACTIVITY_SOURCE,
 					purpose = SourceBrokerPurpose.SESSION_CAPTURE,
@@ -269,28 +284,36 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 						serviceRunId = serviceRunId,
 					),
 				)
-			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.DELETED_EVIDENCE)
+			) {
+				return@transaction rejected(ActivityCapturedWalAdmissionRejection.DELETED_EVIDENCE)
+			}
 			if (evidenceState.retainedFromMs?.let { retainedFromMs ->
 				decodedDelivery.any { unit ->
 					unit.wal.earliestPossibleWallTimeMs()?.let { it < retainedFromMs } ?: true
 				}
-			} == true) return@transaction rejected(ActivityCapturedWalAdmissionRejection.RETAINED_EVIDENCE)
+			} == true) {
+				return@transaction rejected(ActivityCapturedWalAdmissionRejection.RETAINED_EVIDENCE)
+			}
 
 			val currentOwner = if (requireCurrentDestinationOwner) {
 				database.sourceDestinationOwnerDao().get(
 					SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
 					SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
 				)
-			} else null
+			} else {
+				null
+			}
 			if (requireCurrentDestinationOwner) {
 				val currentBinding = currentOwner?.ownerGeneration
 					?.let(SourceWriterGenerationContract::bindingGenerationForCanonicalOwner)
 				if (currentOwner?.owner != SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS ||
 					currentBinding == null ||
 					SourceWriterGenerationContract.captureModeMaskForKnownBinding(currentBinding) == null
-				) return@transaction rejected(
+				) {
+					return@transaction rejected(
 					ActivityCapturedWalAdmissionRejection.DESTINATION_OWNER_MISMATCH,
 				)
+				}
 			}
 
 			val planDao = database.sourcePlanStateDao()
@@ -300,24 +323,30 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			if (planHeader?.sourcePolicyRevision != sourcePolicyRevision || desiredPlan == null ||
 				desiredPlan.revision != configurationRevision ||
 				desiredPlan.payloadVersion != SOURCE_PLAN_PAYLOAD_VERSION
-			) return@transaction rejected(
+			) {
+				return@transaction rejected(
 				ActivityCapturedWalAdmissionRejection.HISTORICAL_PLAN_MISMATCH,
 			)
+			}
 			val registrationPlan = database.activityCapturedFactDao().registrationPlanBinding(
 				selected.sourceInstanceId,
 				selected.registrationGeneration,
 			) ?: return@transaction unavailable(
 				ActivityCapturedWalAdmissionUnavailable.MISSING_IMMUTABLE_REGISTRATION_PLAN,
 			)
+			// Compare the saved registration-plan payload, identity and applied boundary together.
+			@Suppress("ComplexCondition")
 			if (registrationPlan.configurationRevision != configurationRevision ||
 				registrationPlan.desiredPlanPayloadVersion != desiredPlan.payloadVersion ||
 				!registrationPlan.desiredPlanPayload.contentEquals(desiredPlan.payload) ||
 				registrationPlan.desiredPlanPayloadChecksum != desiredPlan.payloadChecksum ||
 				registrationPlan.physicalConfigurationFingerprint != physicalFingerprint ||
 				registrationPlan.appliedAtElapsedRealtimeNanos > selected.observedElapsedNanos
-			) return@transaction rejected(
+			) {
+				return@transaction rejected(
 				ActivityCapturedWalAdmissionRejection.HISTORICAL_PLAN_MISMATCH,
 			)
+			}
 
 			val brokerDao = database.sourceBrokerDao()
 			val registrationAuthentication = database.authenticateHistoricalProviderRegistration(
@@ -346,9 +375,11 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			val registrationStart = authenticatedRegistration.interval.startInclusiveNanos
 			val registrationEnd = authenticatedRegistration.interval.endExclusiveNanos
 			if (registration.captureCallbackBarrierAuthorizationRevision < authorizationRevision
-			) return@transaction unavailable(
+			) {
+				return@transaction unavailable(
 				ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW,
 			)
+			}
 			if (registration.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE) {
 				return@transaction rejected(ActivityCapturedWalAdmissionRejection.REGISTRATION_MISMATCH)
 			}
@@ -381,6 +412,8 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			val captureMember = authorization.authorizedMembers.singleOrNull { member ->
 				member.purpose == SourceBrokerPurpose.SESSION_CAPTURE && member.persistenceEligible
 			}
+			// The recomputed member set and selected capture member must match the saved authorization tuple.
+			@Suppress("ComplexCondition")
 			if (authorization.isDenied || observedAuthorization?.sameAuthorityAs(authorization) != true ||
 				demandIds.size != authorization.authorizedMembers.size ||
 				demandIds.distinct().size != demandIds.size || demands.size != demandIds.size ||
@@ -395,7 +428,9 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 				captureMember.lifecycleLeaseGeneration != leaseGeneration ||
 				captureMember.sourcePolicyRevision != sourcePolicyRevision ||
 				captureMember.consentEpoch != captureConsentEpoch
-			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.AUTHORIZATION_MISMATCH)
+			) {
+				return@transaction rejected(ActivityCapturedWalAdmissionRejection.AUTHORIZATION_MISMATCH)
+			}
 			val nextAuthorizationBoundary = database.activityCapturedFactDao()
 				.nextAuthorizationBoundary(
 					sourceKind = ACTIVITY_SOURCE,
@@ -412,38 +447,52 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			val policyDao = database.sourcePolicyDao()
 			val policyAuthority = policyDao.authority()
 			val policy = policyDao.policyAtRevision(sourcePolicyRevision, ACTIVITY_SOURCE)
+			// Compare the historical policy eligibility and original boot/time boundary together.
+			@Suppress("ComplexCondition")
 			if (policyAuthority?.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE ||
 				policyAuthority.currentPolicyRevision < sourcePolicyRevision || policy == null ||
 				!policy.enabled || !policy.capturePersistenceEligible ||
 				policy.captureConsentEpoch != captureConsentEpoch ||
 				policy.effectiveBootId != selected.clockDomainId ||
 				policy.effectiveElapsedRealtimeNanos > selected.observedElapsedNanos
-			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.POLICY_MISMATCH)
+			) {
+				return@transaction rejected(ActivityCapturedWalAdmissionRejection.POLICY_MISMATCH)
+			}
 			val consent = policyDao.consentEpoch(
 				ACTIVITY_SOURCE,
 				SourceBrokerPurpose.SESSION_CAPTURE,
 				captureConsentEpoch,
 			)
+			// Compare the historical consent eligibility and original boot/time boundary together.
+			@Suppress("ComplexCondition")
 			if (consent == null || !consent.eligible || !consent.persistenceEligible ||
 				consent.policyRevision > sourcePolicyRevision ||
 				consent.effectiveBootId != selected.clockDomainId ||
 				consent.effectiveElapsedRealtimeNanos > selected.observedElapsedNanos
-			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.CONSENT_MISMATCH)
+			) {
+				return@transaction rejected(ActivityCapturedWalAdmissionRejection.CONSENT_MISMATCH)
+			}
 
 			val sessionDao = database.sourceSessionDao()
 			val session = sessionDao.session(logicalTrackingId)
 			val run = sessionDao.serviceRun(serviceRunId)
+			// Compare the saved session/run/lease ownership and original run boundary together.
+			@Suppress("ComplexCondition")
 			if (session == null || run == null || run.logicalTrackingId != logicalTrackingId ||
 				!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, leaseGeneration) ||
 				session.logicalTrackingId != logicalTrackingId ||
 				session.lifecycleLeaseGeneration < leaseGeneration ||
 				run.startedElapsedNanos > selected.observedElapsedNanos
-			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH)
+			) {
+				return@transaction rejected(ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH)
+			}
 			val maximumDeliveryOrdinal = decodedDelivery.maxOf { unit -> unit.wal.admissionOrdinal }
 			val maximumDeliverySequence = decodedDelivery.maxOf { unit -> unit.wal.sourceSequence }
 			if (!session.hasValidLifecycleShape(maximumDeliveryOrdinal, run) ||
 				!run.hasValidLifecycleShape() || !run.hasValidRelationshipTo(session)
-			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH)
+			) {
+				return@transaction rejected(ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH)
+			}
 			val completeness = sessionDao.completenessForServiceRun(logicalTrackingId, serviceRunId)
 				.singleOrNull { row ->
 					row.sourceKind == ACTIVITY_SOURCE &&
@@ -469,9 +518,11 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 				currentIntent,
 				maximumDeliveryOrdinal,
 			)
-			if (!terminalWindow && !settledStoppingWindow) return@transaction unavailable(
+			if (!terminalWindow && !settledStoppingWindow) {
+				return@transaction unavailable(
 				ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW,
 			)
+			}
 			val savedCutoff = database.savedSessionCutoff(session)
 			val sessionEnd = when {
 				savedCutoff.bootId == selected.clockDomainId -> savedCutoff.elapsedNanos
@@ -482,9 +533,11 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			val finalAdmissionOrdinal = session.finalAdmissionOrdinal
 			if (sessionEnd == null || finalAdmissionOrdinal == null ||
 				maximumDeliveryOrdinal > finalAdmissionOrdinal
-			) return@transaction unavailable(
+			) {
+				return@transaction unavailable(
 				ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW,
 			)
+			}
 			if (sessionEnd <= run.startedElapsedNanos || selected.observedElapsedNanos >= sessionEnd) {
 				return@transaction rejected(ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH)
 			}
@@ -492,9 +545,11 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			val manifests = sessionDao.manifestsForServiceRun(serviceRunId, MAX_MANIFESTS_PER_RUN + 1)
 			if (manifests.size > MAX_MANIFESTS_PER_RUN ||
 				!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests)
-			) return@transaction rejected(
+			) {
+				return@transaction rejected(
 				ActivityCapturedWalAdmissionRejection.MANIFEST_TIMELINE_UNVERIFIABLE,
 			)
+			}
 			val allManifestSources = database.trackingHistoryReadDao().manifestSources(
 				listOf(serviceRunId),
 				MAX_MANIFEST_SOURCE_ROWS + 1,
@@ -504,9 +559,11 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 					manifest,
 					allManifestSources.filter { source -> source.belongsTo(manifest) },
 				)
-			}) return@transaction rejected(
+			}) {
+				return@transaction rejected(
 				ActivityCapturedWalAdmissionRejection.MANIFEST_TIMELINE_UNVERIFIABLE,
 			)
+			}
 			val manifestIndex = manifests.indexOfFirst { it.manifestRevision == manifestRevision }
 			if (manifestIndex < 0) {
 				return@transaction rejected(ActivityCapturedWalAdmissionRejection.MANIFEST_MISMATCH)
@@ -516,11 +573,15 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			if (manifestSources.any { source ->
 				SourceKind.entries.none { kind -> kind.stableCode == source.sourceKind } ||
 					source.purpose !in SessionManifestPurposeCode.ALL
-			}) return@transaction rejected(ActivityCapturedWalAdmissionRejection.MANIFEST_MISMATCH)
+			}) {
+				return@transaction rejected(ActivityCapturedWalAdmissionRejection.MANIFEST_MISMATCH)
+			}
 			val activityBinding = manifestSources.singleOrNull { source ->
 				source.sourceKind == ACTIVITY_SOURCE &&
 					source.purpose == SourceBrokerPurpose.SESSION_CAPTURE
 			} ?: return@transaction rejected(ActivityCapturedWalAdmissionRejection.MANIFEST_MISMATCH)
+			// Compare this saved manifest to its captured session, plan, consent and QoS binding together.
+			@Suppress("ComplexCondition")
 			if (manifest.logicalTrackingId != logicalTrackingId ||
 				manifest.serviceRunId != serviceRunId ||
 				manifest.sessionMode != session.sessionMode ||
@@ -530,12 +591,16 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 				manifest.effectiveElapsedRealtimeNanos > selected.observedElapsedNanos ||
 				!activityBinding.isExactCapturedActivityBinding(captureConsentEpoch, manifest.sessionMode) ||
 				activityBinding.qosCode != policy.qosCode
-			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.MANIFEST_MISMATCH)
+			) {
+				return@transaction rejected(ActivityCapturedWalAdmissionRejection.MANIFEST_MISMATCH)
+			}
 			if (requireCurrentDestinationOwner &&
 				currentOwner?.ownerGeneration != activityBinding.writerOwnerGeneration
-			) return@transaction rejected(
+			) {
+				return@transaction rejected(
 				ActivityCapturedWalAdmissionRejection.DESTINATION_OWNER_MISMATCH,
 			)
+			}
 			val nextManifestStart = manifests.getOrNull(manifestIndex + 1)
 				?.effectiveElapsedRealtimeNanos ?: sessionEnd
 			if (selected.observedElapsedNanos >= nextManifestStart) {
@@ -551,7 +616,9 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			val segment = database.sessionSegmentDao().getById(segmentId)
 			if (segment == null || segment.logicalTrackingId != logicalTrackingId ||
 				segment.serviceRunId != serviceRunId
-			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.SEGMENT_MISMATCH)
+			) {
+				return@transaction rejected(ActivityCapturedWalAdmissionRejection.SEGMENT_MISMATCH)
+			}
 
 			val temporalAuthority = runCatching {
 				ActivityCaptureTemporalAuthority(
@@ -655,125 +722,252 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			}
 		}
 
-	private fun decodeCompleteDelivery(
-		rows: List<SourceEventWalEntity>,
-		selected: SourceEventWalEntity,
-	): List<DecodedActivityWalUnit>? {
-		val declaredCount = selected.deliveryUnitCount ?: return null
-		if (rows.size != declaredCount || rows.mapNotNull { it.deliveryUnitIndex } != rows.indices.toList()) {
-			return null
-		}
-		val firstSequence = rows.firstOrNull()?.sourceSequence ?: return null
-		return rows.mapIndexed { index, wal ->
-			val expectedSequence = runCatching {
-				Math.addExact(firstSequence, index.toLong())
-			}.getOrNull() ?: return null
-			if (wal.sourceKind != ACTIVITY_SOURCE ||
-				wal.deliveryIdentity != selected.deliveryIdentity ||
-				wal.deliveryUnitCount != declaredCount || wal.deliveryUnitIndex != index ||
-				!wal.hasSameDeliveryAuthorityAs(selected) ||
-				wal.sourceSequence !in 0..MAX_DURABLE_SOURCE_SEQUENCE ||
-				wal.sourceSequence != expectedSequence
-			) return null
-			val authenticated = ActivityWalCarrierAuthenticator.authenticate(wal)
-				as? ActivityWalCarrierAuthentication.Authenticated ?: return null
-			val payload = authenticated.carrier.payload.toSourcePayload()
-			DecodedActivityWalUnit(wal, payload)
-		}
+	private fun rejected(reason: ActivityCapturedWalAdmissionRejection) =
+		ActivityCapturedWalAdmissionResult.Rejected(reason)
+
+	private fun unavailable(reason: ActivityCapturedWalAdmissionUnavailable) =
+		ActivityCapturedWalAdmissionResult.Unavailable(reason)
+
+
+}
+
+private fun SourceEventWalEntity.hasSamePersistedValueAs(other: SourceEventWalEntity): Boolean =
+	this == other.copy(payload = payload) && payload.contentEquals(other.payload)
+
+private fun SourceEventWalPayloadPreflightRow.matches(wal: SourceEventWalEntity): Boolean =
+	eventId == wal.eventId && sourceKind == wal.sourceKind &&
+	capturedCollectedDataEpoch == wal.capturedCollectedDataEpoch &&
+	clockDomainId == wal.clockDomainId && deliveryIdentity == wal.deliveryIdentity &&
+	deliveryUnitIndex == wal.deliveryUnitIndex && deliveryUnitCount == wal.deliveryUnitCount &&
+	payloadBytes == wal.payload.size.toLong()
+
+@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
+private fun LogicalTrackingSessionEntity.hasValidLifecycleShape(
+	maximumAdmissionOrdinal: Long,
+	run: SourceServiceRunEntity,
+): Boolean {
+	if (!hasValidLifecycleHeader()) {
+		return false
 	}
-
-	private fun canonicalDeliveryVerdict(
-		units: List<DecodedActivityWalUnit>,
-		expectedIdentity: SourceDeliveryIdentity,
-	): DeliveryIdentityVerdict {
-		if (units.zipWithNext().any { (left, right) -> left.canonicalKey > right.canonicalKey }) {
-			return DeliveryIdentityVerdict.MISMATCH
-		}
-
-		val sameTimeTransitions = units.indices
-			.filter { units[it].payload is ActivityTransitionPayload }
-			.groupBy { units[it].providerTime }
-		val providerOrders = IntArray(units.size)
-		val ambiguousGroups = mutableListOf<List<Int>>()
-		var candidateCount = 1L
-		for (group in sameTimeTransitions.values) {
-			val semanticKeys = group.map { units[it].canonicalKey }
-			if (semanticKeys.distinct().size == 1) {
-				group.forEachIndexed { order, unitIndex -> providerOrders[unitIndex] = order }
-			} else {
-				val permutations = boundedFactorial(group.size, MAX_DELIVERY_ORDER_CANDIDATES)
-					?: return DeliveryIdentityVerdict.UNVERIFIABLE
-				if (candidateCount > MAX_DELIVERY_ORDER_CANDIDATES / permutations) {
-					return DeliveryIdentityVerdict.UNVERIFIABLE
-				}
-				candidateCount *= permutations
-				ambiguousGroups += group
-			}
-		}
-		fun matchesAt(groupIndex: Int): Boolean {
-			if (groupIndex == ambiguousGroups.size) {
-				return sourceDeliveryIdentity(canonicalDeliveryBytes(units, providerOrders)) ==
-					expectedIdentity
-			}
-			val group = ambiguousGroups[groupIndex]
-			return permutations(group.size).any { permutation ->
-				group.forEachIndexed { index, unitIndex ->
-					providerOrders[unitIndex] = permutation[index]
-				}
-				matchesAt(groupIndex + 1)
-			}
-		}
-		return if (matchesAt(0)) DeliveryIdentityVerdict.MATCH else DeliveryIdentityVerdict.MISMATCH
+	val terminal = state in TERMINAL_LIFECYCLE_STATES
+	val stoppingRelationship = run.state == LIFECYCLE_STOPPING &&
+		run.serviceRunId == currentServiceRunId &&
+		state in SETTLED_STOPPING_SESSION_STATES
+	if ((completedAtMs != null) != terminal ||
+		completedAtMs?.let { completed -> completed < 0L } == true
+	) {
+		return false
 	}
-
-	private fun canonicalDeliveryBytes(
-		units: List<DecodedActivityWalUnit>,
-		providerOrders: IntArray,
-	): ByteArray = ByteBuffer.allocate(DELIVERY_HEADER_BYTES + units.size * DELIVERY_EVENT_BYTES)
-		.order(ByteOrder.BIG_ENDIAN)
-		.putInt(ACTIVITY_DELIVERY_MAGIC)
-		.putInt(ACTIVITY_DELIVERY_VERSION)
-		.putInt(units.size)
-		.apply {
-			units.forEachIndexed { index, unit ->
-				putLong(unit.providerTime)
-				putInt(unit.kindCode)
-				putInt(unit.activityType)
-				putInt(unit.detailCode)
-				putInt(providerOrders[index])
-			}
-		}
-		.array()
-
-	private fun permutations(size: Int): Sequence<IntArray> = sequence {
-		val values = IntArray(size) { it }
-		suspend fun SequenceScope<IntArray>.emitFrom(index: Int) {
-			if (index == values.size) {
-				yield(values.copyOf())
-				return
-			}
-			for (candidate in index until values.size) {
-				val held = values[index]
-				values[index] = values[candidate]
-				values[candidate] = held
-				emitFrom(index + 1)
-				values[candidate] = values[index]
-				values[index] = held
-			}
-		}
-		emitFrom(0)
+	if (!hasValidLifecycleCutoff(terminal, stoppingRelationship)) {
+		return false
 	}
+	return hasValidLifecycleOwnership(terminal, stoppingRelationship, run, maximumAdmissionOrdinal)
+}
 
-	private fun boundedFactorial(size: Int, limit: Long): Long? {
-		var result = 1L
-		for (factor in 2..size) {
-			if (result > limit / factor) return null
-			result *= factor
-		}
-		return result
+// Fixed persisted session header: IDs/revisions, original start and paired optional cutoff columns.
+@Suppress("CyclomaticComplexMethod", "ComplexCondition")
+private fun LogicalTrackingSessionEntity.hasValidLifecycleHeader(): Boolean =
+	state in ALL_LIFECYCLE_STATES && lifecycleRevision > 0L && desiredPlanRevision > 0L &&
+	startedAtMs >= 0L && startedElapsedNanos >= 0L && lifecycleLeaseGeneration > 0L &&
+	!lifecycleBootId.isNullOrBlank() && currentManifestRevision?.let { it <= 0L } == false &&
+	(cutoffAtMs == null) == (cutoffElapsedNanos == null)
+
+private fun LogicalTrackingSessionEntity.hasValidLifecycleCutoff(
+	terminal: Boolean,
+	stoppingRelationship: Boolean,
+): Boolean = if (terminal || state == LIFECYCLE_STOPPING) {
+	cutoffAtMs?.let { it < 0L } == false &&
+		cutoffElapsedNanos?.let { it < startedElapsedNanos } == false
+} else {
+	stoppingRelationship || (cutoffAtMs == null && cutoffElapsedNanos == null)
+}
+
+private fun LogicalTrackingSessionEntity.hasValidLifecycleOwnership(
+	terminal: Boolean,
+	stoppingRelationship: Boolean,
+	run: SourceServiceRunEntity,
+	maximumAdmissionOrdinal: Long,
+): Boolean {
+	val finalOrdinal = finalAdmissionOrdinal
+	return when {
+		terminal -> currentServiceRunId == null && finalOrdinal != null && finalOrdinal >= maximumAdmissionOrdinal
+		stoppingRelationship -> currentServiceRunId == run.serviceRunId &&
+			(finalOrdinal == null || finalOrdinal >= maximumAdmissionOrdinal)
+		else -> !currentServiceRunId.isNullOrBlank() && finalOrdinal == null
 	}
+}
 
-	private fun DecodedActivityWalUnit.toAdmittedEvent(): AdmittedSourceEvent<out SourcePayload> =
+// Missing saved cutoff, final ordinal or requested state cannot establish the stopping window.
+@Suppress("ReturnCount")
+private fun LogicalTrackingSessionEntity.isExactSettledStoppingWindow(
+	run: SourceServiceRunEntity,
+	intent: SessionLifecycleIntentVersionEntity?,
+	maximumAdmissionOrdinal: Long,
+): Boolean {
+	val cutoffElapsed = cutoffElapsedNanos ?: return false
+	val cutoffWall = cutoffAtMs ?: return false
+	val finalOrdinal = finalAdmissionOrdinal ?: return false
+	val expectedDesiredState = when (state) {
+		LIFECYCLE_STOPPING -> "FINALIZED"
+		LIFECYCLE_ACTIVE -> "ACTIVE"
+		else -> return false
+	}
+	return run.matchesStoppingWindow(this, maximumAdmissionOrdinal, finalOrdinal) &&
+		intent.matchesStoppingWindow(this, run, expectedDesiredState, cutoffElapsed, cutoffWall)
+}
+
+// Exact saved current run and final-admission correspondence for this stopping settlement.
+@Suppress("ComplexCondition")
+private fun SourceServiceRunEntity.matchesStoppingWindow(
+	session: LogicalTrackingSessionEntity,
+	maximumAdmissionOrdinal: Long,
+	finalOrdinal: Long,
+): Boolean = state == LIFECYCLE_STOPPING && serviceRunId == session.currentServiceRunId &&
+	logicalTrackingId == session.logicalTrackingId && completedAtMs == null &&
+	finalOrdinal >= maximumAdmissionOrdinal
+
+// Exact immutable saved intent tuple; it does not perform a transition or consult current state.
+@Suppress("ComplexCondition", "CyclomaticComplexMethod")
+private fun SessionLifecycleIntentVersionEntity?.matchesStoppingWindow(
+	session: LogicalTrackingSessionEntity,
+	run: SourceServiceRunEntity,
+	expectedDesiredState: String,
+	cutoffElapsed: Long,
+	cutoffWall: Long,
+): Boolean = this != null && logicalTrackingId == session.logicalTrackingId &&
+	intentRevision == session.currentIntentRevision && manifestRevision == session.currentManifestRevision &&
+	desiredState == expectedDesiredState && requestBootId == run.bootId &&
+	requestedElapsedRealtimeNanos == cutoffElapsed && requestedWallTimeMs == cutoffWall &&
+	!stopReason.isNullOrBlank()
+
+private fun SourceSessionCompletenessEntity.isExactSettledActivityTail(
+	maximumAdmissionOrdinal: Long,
+	maximumSourceSequence: Long,
+): Boolean = appDrainComplete &&
+	stopStatus in SETTLED_STOP_STATUSES &&
+	unresolvedSequenceStart == null &&
+	unresolvedSequenceEnd == null &&
+	lastAdmissionOrdinal?.let { it >= maximumAdmissionOrdinal } == true &&
+	lastSourceSequence?.let { it >= maximumSourceSequence } == true
+
+// Validate the complete immutable service-run row and its terminal completion correspondence together.
+@Suppress("ComplexCondition", "CyclomaticComplexMethod")
+private fun SourceServiceRunEntity.hasValidLifecycleShape(): Boolean {
+	if (state !in ALL_LIFECYCLE_STATES || serviceRunId.isBlank() || logicalTrackingId.isBlank() ||
+		startedAtMs < 0L || startedElapsedNanos < 0L || leaseGeneration <= 0L ||
+		bootId.isBlank() || runRevision <= 0L
+	) {
+		return false
+	}
+	val terminal = state in TERMINAL_LIFECYCLE_STATES
+	return (completedAtMs != null) == terminal &&
+		completedAtMs?.let { completed -> completed >= 0L } != false
+}
+
+private fun SourceServiceRunEntity.hasValidRelationshipTo(
+	session: LogicalTrackingSessionEntity,
+): Boolean = when {
+	logicalTrackingId != session.logicalTrackingId -> false
+	state !in TERMINAL_LIFECYCLE_STATES ->
+		session.currentServiceRunId == serviceRunId &&
+			(session.state to state) in LIVE_SESSION_RUN_STATE_PAIRS
+	session.state in TERMINAL_LIFECYCLE_STATES -> session.currentServiceRunId == null
+	else -> true
+}
+
+// Compares the complete immutable delivery-authority tuple without consulting live state.
+@Suppress("CyclomaticComplexMethod")
+private fun SourceEventWalEntity.hasSameDeliveryAuthorityAs(
+	other: SourceEventWalEntity,
+): Boolean = logicalTrackingId == other.logicalTrackingId &&
+	serviceRunId == other.serviceRunId && sourceKind == other.sourceKind &&
+	sourceInstanceId == other.sourceInstanceId &&
+	registrationGeneration == other.registrationGeneration &&
+	physicalConfigurationFingerprint == other.physicalConfigurationFingerprint &&
+	authorizationRevision == other.authorizationRevision &&
+	authorizationPurposeEligibilityMask == other.authorizationPurposeEligibilityMask &&
+	authorizationFingerprint == other.authorizationFingerprint &&
+	configRevision == other.configRevision && planAttribution == other.planAttribution &&
+	clockDomainId == other.clockDomainId && receivedElapsedNanos == other.receivedElapsedNanos &&
+	capturedCollectedDataEpoch == other.capturedCollectedDataEpoch &&
+	sourcePolicyRevision == other.sourcePolicyRevision &&
+	captureConsentEpoch == other.captureConsentEpoch &&
+	sessionManifestRevision == other.sessionManifestRevision &&
+	lifecycleLeaseGeneration == other.lifecycleLeaseGeneration
+
+private fun SourceEventWalEntity.earliestPossibleWallTimeMs(): Long? {
+	val wall = wallTimeMs ?: return null
+	val uncertainty = wallTimeUncertaintyMs ?: return null
+	return if (uncertainty >= wall) {
+		0L
+	} else {
+		wall - uncertainty
+	}
+}
+
+private fun SessionManifestSourceEntity.belongsTo(
+	manifest: com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity,
+): Boolean = logicalTrackingId == manifest.logicalTrackingId &&
+	manifestRevision == manifest.manifestRevision
+
+private fun SessionManifestSourceEntity.isExactCapturedActivityBinding(
+	consentEpoch: Long,
+	sessionMode: String,
+): Boolean {
+	val binding = writerBindingGeneration ?: return false
+	val supportedModes = SourceWriterGenerationContract.captureModeMaskForKnownBinding(binding)
+		?: return false
+	val requestedMode = when (sessionMode) {
+		"MANUAL" -> 1L
+		"AUTOMATIC" -> 2L
+		else -> return false
+	}
+	return persistenceEligible && this.consentEpoch == consentEpoch &&
+		hasExactCapturedActivityWriter(binding) &&
+		supportedModes and requestedMode != 0L
+}
+
+// Complete saved destination/owner/projection tuple for the already resolved binding generation.
+@Suppress("ComplexCondition")
+private fun SessionManifestSourceEntity.hasExactCapturedActivityWriter(binding: Long): Boolean =
+	outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY &&
+	writerOwner == SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS &&
+	writerOwnerGeneration == SourceWriterGenerationContract.canonicalOwnerGeneration(binding) &&
+	writerProjectionId == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID &&
+	writerProjectionVersion == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION
+
+private fun com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot.sameAuthorityAs(
+	other: com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot,
+): Boolean = authorizationRevision == other.authorizationRevision &&
+	authorizationFingerprint == other.authorizationFingerprint &&
+	purposeEligibilityMask == other.purposeEligibilityMask &&
+	effectiveBootId == other.effectiveBootId &&
+	effectiveElapsedRealtimeNanos == other.effectiveElapsedRealtimeNanos &&
+	members.sortedBy { row -> row.memberId } == other.members.sortedBy { row -> row.memberId }
+
+private data class DecodedActivityWalUnit(
+	val wal: SourceEventWalEntity,
+	val payload: SourcePayload,
+) {
+	val providerTime: Long = payload.providerTimeOrNull() ?: error("Activity provider time missing")
+	val kindCode: Int = if (payload is ActivityRecognitionPayload) {
+		KIND_RECOGNITION
+	} else {
+		KIND_TRANSITION
+	}
+	val activityType: Int = when (payload) {
+		is ActivityRecognitionPayload -> payload.activityType
+		is ActivityTransitionPayload -> payload.activityType
+		else -> error("Unsupported Activity payload")
+	}
+	val detailCode: Int = when (payload) {
+		is ActivityRecognitionPayload -> payload.confidencePercent
+		is ActivityTransitionPayload -> payload.transitionType
+		else -> error("Unsupported Activity payload")
+	}
+	val canonicalKey = ActivityCanonicalKey(providerTime, kindCode, activityType, detailCode)
+
+	fun toAdmittedEvent(): AdmittedSourceEvent<out SourcePayload> =
 		AdmittedSourceEvent(
 			eventId = SourceEventId(wal.eventId),
 			admissionOrdinal = wal.admissionOrdinal,
@@ -809,246 +1003,201 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			),
 		)
 
-	private fun SourceEventWalEntity.hasSamePersistedValueAs(other: SourceEventWalEntity): Boolean =
-		this == other.copy(payload = payload) && payload.contentEquals(other.payload)
-
-	private fun SourceEventWalPayloadPreflightRow.matches(wal: SourceEventWalEntity): Boolean =
-		eventId == wal.eventId && sourceKind == wal.sourceKind &&
-		capturedCollectedDataEpoch == wal.capturedCollectedDataEpoch &&
-		clockDomainId == wal.clockDomainId && deliveryIdentity == wal.deliveryIdentity &&
-		deliveryUnitIndex == wal.deliveryUnitIndex && deliveryUnitCount == wal.deliveryUnitCount &&
-		payloadBytes == wal.payload.size.toLong()
-
-	private fun LogicalTrackingSessionEntity.hasValidLifecycleShape(
-		maximumAdmissionOrdinal: Long,
-		run: SourceServiceRunEntity,
-	): Boolean {
-		if (state !in ALL_LIFECYCLE_STATES || lifecycleRevision <= 0L || desiredPlanRevision <= 0L ||
-			startedAtMs < 0L || startedElapsedNanos < 0L || lifecycleLeaseGeneration <= 0L ||
-			lifecycleBootId.isNullOrBlank() || currentManifestRevision?.let { it <= 0L } != false ||
-			(cutoffAtMs == null) != (cutoffElapsedNanos == null)
-		) return false
-		val terminal = state in TERMINAL_LIFECYCLE_STATES
-		val stoppingRelationship = run.state == LIFECYCLE_STOPPING &&
-			run.serviceRunId == currentServiceRunId &&
-			state in SETTLED_STOPPING_SESSION_STATES
-		if ((completedAtMs != null) != terminal ||
-			completedAtMs?.let { completed -> completed < 0L } == true
-		) return false
-		if (terminal || state == LIFECYCLE_STOPPING) {
-			if (cutoffAtMs?.let { it < 0L } != false ||
-				cutoffElapsedNanos?.let { it < startedElapsedNanos } != false
-		) return false
-		} else if (!stoppingRelationship && (cutoffAtMs != null || cutoffElapsedNanos != null)) {
-			return false
+	companion object {
+		@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
+		fun decodeCompleteDelivery(
+			rows: List<SourceEventWalEntity>,
+			selected: SourceEventWalEntity,
+		): List<DecodedActivityWalUnit>? {
+			val declaredCount = selected.deliveryUnitCount ?: return null
+			if (rows.size != declaredCount || rows.mapNotNull { it.deliveryUnitIndex } != rows.indices.toList()) {
+				return null
+			}
+			val firstSequence = rows.firstOrNull()?.sourceSequence ?: return null
+			return rows.mapIndexed { index, wal ->
+				decodeDeliveryUnit(wal, selected, index, declaredCount, firstSequence) ?: return null
+			}
 		}
-		return if (terminal) {
-			currentServiceRunId == null &&
-				finalAdmissionOrdinal?.let { ordinal -> ordinal >= maximumAdmissionOrdinal } == true
-		} else if (stoppingRelationship) {
-			currentServiceRunId == run.serviceRunId &&
-				finalAdmissionOrdinal?.let { ordinal -> ordinal >= maximumAdmissionOrdinal } != false
-		} else {
-			!currentServiceRunId.isNullOrBlank() && finalAdmissionOrdinal == null
+
+		private fun decodeDeliveryUnit(
+			wal: SourceEventWalEntity,
+			selected: SourceEventWalEntity,
+			index: Int,
+			declaredCount: Int,
+			firstSequence: Long,
+		): DecodedActivityWalUnit? {
+			val expectedSequence = runCatching {
+				Math.addExact(firstSequence, index.toLong())
+			}.getOrNull() ?: return null
+			if (!wal.matchesDeliveryUnit(selected, index, declaredCount, expectedSequence)) {
+				return null
+			}
+			val authenticated = ActivityWalCarrierAuthenticator.authenticate(wal)
+				as? ActivityWalCarrierAuthentication.Authenticated ?: return null
+			val payload = authenticated.carrier.payload.toSourcePayload()
+			return DecodedActivityWalUnit(wal, payload)
 		}
-	}
 
-	private fun LogicalTrackingSessionEntity.isExactSettledStoppingWindow(
-		run: SourceServiceRunEntity,
-		intent: SessionLifecycleIntentVersionEntity?,
-		maximumAdmissionOrdinal: Long,
-	): Boolean {
-		val cutoffElapsed = cutoffElapsedNanos ?: return false
-		val cutoffWall = cutoffAtMs ?: return false
-		val finalOrdinal = finalAdmissionOrdinal ?: return false
-		val expectedDesiredState = when (state) {
-			LIFECYCLE_STOPPING -> "FINALIZED"
-			LIFECYCLE_ACTIVE -> "ACTIVE"
-			else -> return false
+		// Complete saved delivery identity, authority and sequence correspondence before carrier decoding.
+		@Suppress("ComplexCondition")
+		private fun SourceEventWalEntity.matchesDeliveryUnit(
+			selected: SourceEventWalEntity,
+			index: Int,
+			declaredCount: Int,
+			expectedSequence: Long,
+		): Boolean = sourceKind == ACTIVITY_SOURCE && deliveryIdentity == selected.deliveryIdentity &&
+			deliveryUnitCount == declaredCount && deliveryUnitIndex == index &&
+			hasSameDeliveryAuthorityAs(selected) && sourceSequence in 0..MAX_DURABLE_SOURCE_SEQUENCE &&
+			sourceSequence == expectedSequence
+
+		fun canonicalDeliveryVerdict(
+			units: List<DecodedActivityWalUnit>,
+			expectedIdentity: SourceDeliveryIdentity,
+		): DeliveryIdentityVerdict {
+			if (units.zipWithNext().any { (left, right) -> left.canonicalKey > right.canonicalKey }) {
+				return DeliveryIdentityVerdict.MISMATCH
+			}
+
+			val sameTimeTransitions = units.indices
+				.filter { units[it].payload is ActivityTransitionPayload }
+				.groupBy { units[it].providerTime }
+			val providerOrders = IntArray(units.size)
+			val ambiguousGroups = mutableListOf<List<Int>>()
+			var candidateCount = 1L
+			for (group in sameTimeTransitions.values) {
+				val semanticKeys = group.map { units[it].canonicalKey }
+				if (semanticKeys.distinct().size == 1) {
+					group.forEachIndexed { order, unitIndex -> providerOrders[unitIndex] = order }
+				} else {
+					val permutations = boundedFactorial(group.size, MAX_DELIVERY_ORDER_CANDIDATES)
+						?: return DeliveryIdentityVerdict.UNVERIFIABLE
+					if (candidateCount > MAX_DELIVERY_ORDER_CANDIDATES / permutations) {
+						return DeliveryIdentityVerdict.UNVERIFIABLE
+					}
+					candidateCount *= permutations
+					ambiguousGroups += group
+				}
+			}
+			fun matchesAt(groupIndex: Int): Boolean {
+				if (groupIndex == ambiguousGroups.size) {
+					return sourceDeliveryIdentity(canonicalDeliveryBytes(units, providerOrders)) ==
+						expectedIdentity
+				}
+				val group = ambiguousGroups[groupIndex]
+				return permutations(group.size).any { permutation ->
+					group.forEachIndexed { index, unitIndex ->
+						providerOrders[unitIndex] = permutation[index]
+					}
+					matchesAt(groupIndex + 1)
+				}
+			}
+			return if (matchesAt(0)) {
+				DeliveryIdentityVerdict.MATCH
+			} else {
+				DeliveryIdentityVerdict.MISMATCH
+			}
 		}
-		return run.state == LIFECYCLE_STOPPING &&
-			run.serviceRunId == currentServiceRunId &&
-			run.logicalTrackingId == logicalTrackingId &&
-			run.completedAtMs == null &&
-			finalOrdinal >= maximumAdmissionOrdinal &&
-			intent != null &&
-			intent.logicalTrackingId == logicalTrackingId &&
-			intent.intentRevision == currentIntentRevision &&
-			intent.manifestRevision == currentManifestRevision &&
-			intent.desiredState == expectedDesiredState &&
-			intent.requestBootId == run.bootId &&
-			intent.requestedElapsedRealtimeNanos == cutoffElapsed &&
-			intent.requestedWallTimeMs == cutoffWall &&
-			!intent.stopReason.isNullOrBlank()
-	}
 
-	private fun SourceSessionCompletenessEntity.isExactSettledActivityTail(
-		maximumAdmissionOrdinal: Long,
-		maximumSourceSequence: Long,
-	): Boolean = appDrainComplete &&
-		stopStatus in SETTLED_STOP_STATUSES &&
-		unresolvedSequenceStart == null &&
-		unresolvedSequenceEnd == null &&
-		lastAdmissionOrdinal?.let { it >= maximumAdmissionOrdinal } == true &&
-		lastSourceSequence?.let { it >= maximumSourceSequence } == true
+		private fun canonicalDeliveryBytes(
+			units: List<DecodedActivityWalUnit>,
+			providerOrders: IntArray,
+		): ByteArray = ByteBuffer.allocate(DELIVERY_HEADER_BYTES + units.size * DELIVERY_EVENT_BYTES)
+			.order(ByteOrder.BIG_ENDIAN)
+			.putInt(ACTIVITY_DELIVERY_MAGIC)
+			.putInt(ACTIVITY_DELIVERY_VERSION)
+			.putInt(units.size)
+			.apply {
+				units.forEachIndexed { index, unit ->
+					putLong(unit.providerTime)
+					putInt(unit.kindCode)
+					putInt(unit.activityType)
+					putInt(unit.detailCode)
+					putInt(providerOrders[index])
+				}
+			}
+			.array()
 
-	private fun SourceServiceRunEntity.hasValidLifecycleShape(): Boolean {
-		if (state !in ALL_LIFECYCLE_STATES || serviceRunId.isBlank() || logicalTrackingId.isBlank() ||
-			startedAtMs < 0L || startedElapsedNanos < 0L || leaseGeneration <= 0L ||
-			bootId.isBlank() || runRevision <= 0L
-		) return false
-		val terminal = state in TERMINAL_LIFECYCLE_STATES
-		return (completedAtMs != null) == terminal &&
-			completedAtMs?.let { completed -> completed >= 0L } != false
-	}
-
-	private fun SourceServiceRunEntity.hasValidRelationshipTo(
-		session: LogicalTrackingSessionEntity,
-	): Boolean = when {
-		logicalTrackingId != session.logicalTrackingId -> false
-		state !in TERMINAL_LIFECYCLE_STATES ->
-			session.currentServiceRunId == serviceRunId &&
-				(session.state to state) in LIVE_SESSION_RUN_STATE_PAIRS
-		session.state in TERMINAL_LIFECYCLE_STATES -> session.currentServiceRunId == null
-		else -> true
-	}
-
-	private fun SourceEventWalEntity.hasSameDeliveryAuthorityAs(
-		other: SourceEventWalEntity,
-	): Boolean = logicalTrackingId == other.logicalTrackingId &&
-		serviceRunId == other.serviceRunId && sourceKind == other.sourceKind &&
-		sourceInstanceId == other.sourceInstanceId &&
-		registrationGeneration == other.registrationGeneration &&
-		physicalConfigurationFingerprint == other.physicalConfigurationFingerprint &&
-		authorizationRevision == other.authorizationRevision &&
-		authorizationPurposeEligibilityMask == other.authorizationPurposeEligibilityMask &&
-		authorizationFingerprint == other.authorizationFingerprint &&
-		configRevision == other.configRevision && planAttribution == other.planAttribution &&
-		clockDomainId == other.clockDomainId && receivedElapsedNanos == other.receivedElapsedNanos &&
-		capturedCollectedDataEpoch == other.capturedCollectedDataEpoch &&
-		sourcePolicyRevision == other.sourcePolicyRevision &&
-		captureConsentEpoch == other.captureConsentEpoch &&
-		sessionManifestRevision == other.sessionManifestRevision &&
-		lifecycleLeaseGeneration == other.lifecycleLeaseGeneration
-
-	private fun SourceEventWalEntity.earliestPossibleWallTimeMs(): Long? {
-		val wall = wallTimeMs ?: return null
-		val uncertainty = wallTimeUncertaintyMs ?: return null
-		return if (uncertainty >= wall) 0L else wall - uncertainty
-	}
-
-	private fun SessionManifestSourceEntity.belongsTo(
-		manifest: com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity,
-	): Boolean = logicalTrackingId == manifest.logicalTrackingId &&
-		manifestRevision == manifest.manifestRevision
-
-	private fun SessionManifestSourceEntity.isExactCapturedActivityBinding(
-		consentEpoch: Long,
-		sessionMode: String,
-	): Boolean {
-		val binding = writerBindingGeneration ?: return false
-		val supportedModes = SourceWriterGenerationContract.captureModeMaskForKnownBinding(binding)
-			?: return false
-		val requestedMode = when (sessionMode) {
-			"MANUAL" -> 1L
-			"AUTOMATIC" -> 2L
-			else -> return false
+		private fun permutations(size: Int): Sequence<IntArray> = sequence {
+			val values = IntArray(size) { it }
+			suspend fun SequenceScope<IntArray>.emitFrom(index: Int) {
+				if (index == values.size) {
+					yield(values.copyOf())
+					return
+				}
+				for (candidate in index until values.size) {
+					val held = values[index]
+					values[index] = values[candidate]
+					values[candidate] = held
+					emitFrom(index + 1)
+					values[candidate] = values[index]
+					values[index] = held
+				}
+			}
+			emitFrom(0)
 		}
-		return persistenceEligible && this.consentEpoch == consentEpoch &&
-			outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY &&
-			writerOwner == SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS &&
-			writerOwnerGeneration == SourceWriterGenerationContract.canonicalOwnerGeneration(binding) &&
-			writerProjectionId == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID &&
-			writerProjectionVersion == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION &&
-			supportedModes and requestedMode != 0L
-	}
 
-	private fun com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot.sameAuthorityAs(
-		other: com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot,
-	): Boolean = authorizationRevision == other.authorizationRevision &&
-		authorizationFingerprint == other.authorizationFingerprint &&
-		purposeEligibilityMask == other.purposeEligibilityMask &&
-		effectiveBootId == other.effectiveBootId &&
-		effectiveElapsedRealtimeNanos == other.effectiveElapsedRealtimeNanos &&
-		members.sortedBy { row -> row.memberId } == other.members.sortedBy { row -> row.memberId }
-
-	private fun rejected(reason: ActivityCapturedWalAdmissionRejection) =
-		ActivityCapturedWalAdmissionResult.Rejected(reason)
-
-	private fun unavailable(reason: ActivityCapturedWalAdmissionUnavailable) =
-		ActivityCapturedWalAdmissionResult.Unavailable(reason)
-
-	private data class DecodedActivityWalUnit(
-		val wal: SourceEventWalEntity,
-		val payload: SourcePayload,
-	) {
-		val providerTime: Long = payload.providerTimeOrNull() ?: error("Activity provider time missing")
-		val kindCode: Int = if (payload is ActivityRecognitionPayload) KIND_RECOGNITION else KIND_TRANSITION
-		val activityType: Int = when (payload) {
-			is ActivityRecognitionPayload -> payload.activityType
-			is ActivityTransitionPayload -> payload.activityType
-			else -> error("Unsupported Activity payload")
+		private fun boundedFactorial(size: Int, limit: Long): Long? {
+			var result = 1L
+			for (factor in 2..size) {
+				if (result > limit / factor) {
+					return null
+				}
+				result *= factor
+			}
+			return result
 		}
-		val detailCode: Int = when (payload) {
-			is ActivityRecognitionPayload -> payload.confidencePercent
-			is ActivityTransitionPayload -> payload.transitionType
-			else -> error("Unsupported Activity payload")
-		}
-		val canonicalKey = ActivityCanonicalKey(providerTime, kindCode, activityType, detailCode)
-	}
-
-	private data class ActivityCanonicalKey(
-		val providerTime: Long,
-		val kindCode: Int,
-		val activityType: Int,
-		val detailCode: Int,
-	) : Comparable<ActivityCanonicalKey> {
-		override fun compareTo(other: ActivityCanonicalKey): Int = compareValuesBy(
-			this,
-			other,
-			ActivityCanonicalKey::providerTime,
-			ActivityCanonicalKey::kindCode,
-			ActivityCanonicalKey::activityType,
-			ActivityCanonicalKey::detailCode,
-		)
-	}
-
-	private enum class DeliveryIdentityVerdict { MATCH, MISMATCH, UNVERIFIABLE }
-
-	private companion object {
-		const val ACTIVITY_SOURCE = 2
-		const val SOURCE_PLAN_PAYLOAD_VERSION = 1
-		const val MAX_DELIVERY_UNITS = 256
-		const val MAX_ACTIVITY_PAYLOAD_BYTES = 21
-		const val MAX_MANIFESTS_PER_RUN = 64
-		const val MAX_MANIFEST_SOURCE_ROWS = 1_024
-		const val MAX_DELIVERY_ORDER_CANDIDATES = 4_096L
-		const val MAX_DURABLE_SOURCE_SEQUENCE = Long.MAX_VALUE - 1L
-		const val ACTIVITY_DELIVERY_MAGIC = 0x41435456
-		const val ACTIVITY_DELIVERY_VERSION = 2
-		const val DELIVERY_HEADER_BYTES = Int.SIZE_BYTES * 3
-		const val DELIVERY_EVENT_BYTES = Long.SIZE_BYTES + Int.SIZE_BYTES * 4
-		const val KIND_RECOGNITION = 0
-		const val KIND_TRANSITION = 1
-		const val LIFECYCLE_STOPPING = "STOPPING"
-		const val LIFECYCLE_ACTIVE = "ACTIVE"
-		val SETTLED_STOP_STATUSES = setOf("COMPLETE", "PARTIAL_UNOBSERVABLE")
-		val TERMINAL_LIFECYCLE_STATES = setOf("FINALIZED", "CLOSED", "FAILED")
-		val ALL_LIFECYCLE_STATES = TERMINAL_LIFECYCLE_STATES +
-			setOf("STARTING", LIFECYCLE_ACTIVE, "RECONFIGURING", LIFECYCLE_STOPPING)
-		val SETTLED_STOPPING_SESSION_STATES = setOf(LIFECYCLE_ACTIVE, LIFECYCLE_STOPPING)
-		val LIVE_SESSION_RUN_STATE_PAIRS = setOf(
-			"STARTING" to "STARTING",
-			"STARTING" to "ACTIVE",
-			"ACTIVE" to "STARTING",
-			"ACTIVE" to "ACTIVE",
-			"RECONFIGURING" to "STARTING",
-			"RECONFIGURING" to "ACTIVE",
-			"ACTIVE" to LIFECYCLE_STOPPING,
-			LIFECYCLE_STOPPING to LIFECYCLE_STOPPING,
-		)
 	}
 }
+
+private data class ActivityCanonicalKey(
+	val providerTime: Long,
+	val kindCode: Int,
+	val activityType: Int,
+	val detailCode: Int,
+) : Comparable<ActivityCanonicalKey> {
+	override fun compareTo(other: ActivityCanonicalKey): Int = compareValuesBy(
+		this,
+		other,
+		ActivityCanonicalKey::providerTime,
+		ActivityCanonicalKey::kindCode,
+		ActivityCanonicalKey::activityType,
+		ActivityCanonicalKey::detailCode,
+	)
+}
+
+private enum class DeliveryIdentityVerdict { MATCH, MISMATCH, UNVERIFIABLE }
+
+private const val ACTIVITY_SOURCE = 2
+private const val SOURCE_PLAN_PAYLOAD_VERSION = 1
+private const val MAX_DELIVERY_UNITS = 256
+private const val MAX_ACTIVITY_PAYLOAD_BYTES = 21
+private const val MAX_MANIFESTS_PER_RUN = 64
+private const val MAX_MANIFEST_SOURCE_ROWS = 1_024
+private const val MAX_DELIVERY_ORDER_CANDIDATES = 4_096L
+private const val MAX_DURABLE_SOURCE_SEQUENCE = Long.MAX_VALUE - 1L
+private const val ACTIVITY_DELIVERY_MAGIC = 0x41435456
+private const val ACTIVITY_DELIVERY_VERSION = 2
+private const val DELIVERY_HEADER_BYTES = Int.SIZE_BYTES * 3
+private const val DELIVERY_EVENT_BYTES = Long.SIZE_BYTES + Int.SIZE_BYTES * 4
+private const val KIND_RECOGNITION = 0
+private const val KIND_TRANSITION = 1
+private const val LIFECYCLE_STOPPING = "STOPPING"
+private const val LIFECYCLE_ACTIVE = "ACTIVE"
+private val SETTLED_STOP_STATUSES = setOf("COMPLETE", "PARTIAL_UNOBSERVABLE")
+private val TERMINAL_LIFECYCLE_STATES = setOf("FINALIZED", "CLOSED", "FAILED")
+private val ALL_LIFECYCLE_STATES = TERMINAL_LIFECYCLE_STATES +
+	setOf("STARTING", LIFECYCLE_ACTIVE, "RECONFIGURING", LIFECYCLE_STOPPING)
+private val SETTLED_STOPPING_SESSION_STATES = setOf(LIFECYCLE_ACTIVE, LIFECYCLE_STOPPING)
+private val LIVE_SESSION_RUN_STATE_PAIRS = setOf(
+	"STARTING" to "STARTING",
+	"STARTING" to "ACTIVE",
+	"ACTIVE" to "STARTING",
+	"ACTIVE" to "ACTIVE",
+	"RECONFIGURING" to "STARTING",
+	"RECONFIGURING" to "ACTIVE",
+	"ACTIVE" to LIFECYCLE_STOPPING,
+	LIFECYCLE_STOPPING to LIFECYCLE_STOPPING,
+)
 
 private fun ActivityWalPayload.toSourcePayload(): SourcePayload = when (this) {
 	is ActivityWalPayload.Transition -> ActivityTransitionPayload(

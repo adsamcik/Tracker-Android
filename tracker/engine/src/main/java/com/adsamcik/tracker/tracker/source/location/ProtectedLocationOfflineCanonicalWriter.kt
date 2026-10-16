@@ -6,6 +6,8 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.tracker.component.consumer.data.LocationTrackerComponent
+import com.adsamcik.tracker.tracker.data.collection.LocationCanonicalCurationContext
+import com.adsamcik.tracker.tracker.data.collection.LocationCanonicalCurationState
 import com.adsamcik.tracker.tracker.pipeline.CycleContext
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
 import com.adsamcik.tracker.tracker.pipeline.TrackingPipeline
@@ -110,15 +112,11 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 		command: LocationCapturedFactCommand,
 		acquisitionMetadata: LocationWalAcquisitionMetadata,
 	): ProtectedLocationCanonicalWriteResult = operationMutex.withLock {
-		retainedCleanup?.let { cleanup ->
-			val failure = cleanup.attempt(applicationContext)
-			if (failure != null) {
-				return@withLock ProtectedLocationCanonicalWriteResult.Failed(
-					OFFLINE_CLEANUP_PENDING,
-					terminal = false,
-				)
-			}
-			retainedCleanup = null
+		if (!retryPendingCleanupLocked()) {
+			return@withLock ProtectedLocationCanonicalWriteResult.Failed(
+				OFFLINE_CLEANUP_PENDING,
+				terminal = false,
+			)
 		}
 		val permit = persistenceLifecycleLease.acquireOfflineLocationRecovery()
 		try {
@@ -139,24 +137,25 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 		}
 	}
 
+	override suspend fun retryPendingCleanup(): Boolean = operationMutex.withLock {
+		retryPendingCleanupLocked()
+	}
+
+	private suspend fun retryPendingCleanupLocked(): Boolean {
+		val cleanup = retainedCleanup ?: return true
+		if (cleanup.attempt(applicationContext) != null) {
+			return false
+		}
+		retainedCleanup = null
+		return true
+	}
+
 	private suspend fun writeWithLifecycleLease(
 		command: LocationCapturedFactCommand,
 		acquisitionMetadata: LocationWalAcquisitionMetadata,
 		permit: TrackingPersistenceLifecyclePermit,
 	): ProtectedLocationCanonicalWriteResult {
-		if (persistenceProcessor.isPipelineActiveForProtectedLocation()) {
-			return ProtectedLocationCanonicalWriteResult.Inactive(
-				"LOCATION_CANONICAL_LIVE_PIPELINE_ACTIVE",
-			)
-		}
-		val runState = database.sourceSessionDao()
-			.serviceRun(command.authority.serviceRunId.value)
-			?.state
-		if (runState !in OFFLINE_WRITER_RUN_STATES) {
-			return ProtectedLocationCanonicalWriteResult.Inactive(
-				"LOCATION_CANONICAL_RUN_NOT_QUIESCED",
-			)
-		}
+		offlineWriteUnavailable(command)?.let { return it }
 		val stateBefore = try {
 			database.withTransaction {
 				database.loadPreparedProtectedLocationCanonicalCurationState(command)
@@ -165,7 +164,8 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (failure: Exception) {
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+			// Return an unavailable saved-state read through the offline writer result; cancellation escapes.
 			return ProtectedLocationCanonicalWriteResult.Failed(
 				failure.safeProtectedLocationCode(),
 				terminal = false,
@@ -179,174 +179,260 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 				terminal = true,
 			)
 		}
+		return writeOfflinePipeline(command, acquisitionMetadata, permit, stateBefore, curationContext)
+	}
+
+	private suspend fun offlineWriteUnavailable(
+		command: LocationCapturedFactCommand,
+	): ProtectedLocationCanonicalWriteResult? {
+		if (persistenceProcessor.isPipelineActiveForProtectedLocation()) {
+			return ProtectedLocationCanonicalWriteResult.Inactive(
+				"LOCATION_CANONICAL_LIVE_PIPELINE_ACTIVE",
+			)
+		}
+		val runState = database.sourceSessionDao()
+			.serviceRun(command.authority.serviceRunId.value)
+			?.state
+		if (runState !in OFFLINE_WRITER_RUN_STATES) {
+			return ProtectedLocationCanonicalWriteResult.Inactive(
+				"LOCATION_CANONICAL_RUN_NOT_QUIESCED",
+			)
+		}
+		return null
+	}
+
+	private suspend fun writeOfflinePipeline(
+		command: LocationCapturedFactCommand,
+		acquisitionMetadata: LocationWalAcquisitionMetadata,
+		permit: TrackingPersistenceLifecyclePermit,
+		stateBefore: LocationCanonicalCurationState,
+		curationContext: LocationCanonicalCurationContext,
+	): ProtectedLocationCanonicalWriteResult {
 		val locationComponent = locationComponentFactory()
-		val pipeline = ProcessorPipeline(
-			processors = setOf(persistenceProcessor),
-			requireDurableAdmission = true,
-		)
+		val pipeline = ProcessorPipeline(processors = setOf(persistenceProcessor), requireDurableAdmission = true)
 		var componentEnabled = false
 		var pipelineStopRequired = false
 		var terminalFailure: Throwable? = null
-		return try {
-			locationComponent.onEnable(applicationContext)
-			componentEnabled = true
-			pipelineStopRequired = true
-			pipeline.start(
-				tier = acquisitionMetadata.policyTier,
-				startTimestamp = EpochMs(
-					command.productEffect.durableEvidence.clockAuthority.observedWallTimeMs,
-				),
-				isResuming = true,
-				sessionId = command.authority.sessionSegmentId,
-			)
-			if (!persistenceProcessor.isReadyForProtectedLocationWrite()) {
-				return ProtectedLocationCanonicalWriteResult.Deferred(
-					"LOCATION_CANONICAL_PENDING_RECOVERY_INCOMPLETE",
+		var cleanupFailure: Exception? = null
+		val result = try {
+			run {
+				locationComponent.onEnable(applicationContext)
+				componentEnabled = true
+				pipelineStopRequired = true
+				pipeline.start(
+					tier = acquisitionMetadata.policyTier,
+					startTimestamp = EpochMs(command.productEffect.durableEvidence.clockAuthority.observedWallTimeMs),
+					isResuming = true,
+					sessionId = command.authority.sessionSegmentId,
 				)
-			}
-			when (val recoveredReceipt = readReceipt(command, acquisitionMetadata)) {
-				is ProtectedLocationCanonicalReceipt.Complete ->
-					return ProtectedLocationCanonicalWriteResult.Committed
-				is ProtectedLocationCanonicalReceipt.Invalid ->
-					return ProtectedLocationCanonicalWriteResult.Failed(
-						recoveredReceipt.reason,
-						terminal = true,
-					)
-				is ProtectedLocationCanonicalReceipt.Incomplete -> Unit
-			}
-			if (!pipeline.checkpointDurableSignals(
-				listOf(command.toProtectedLocationObservationSignal(
-					acquisitionMetadata = acquisitionMetadata,
-					policyTier = acquisitionMetadata.policyTier,
-					policyName = acquisitionMetadata.policyName,
-				)),
-			)) {
-				return ProtectedLocationCanonicalWriteResult.Deferred(
-					"LOCATION_CANONICAL_RAW_ADMISSION_DEFERRED",
-				)
-			}
-
-			if (command.productEffect.isMock) {
-				val decisionSignal = command.toProtectedLocationMockRejectionSignal(
-					acquisitionMetadata = acquisitionMetadata,
-					policyTier = acquisitionMetadata.policyTier,
-					policyName = acquisitionMetadata.policyName,
-				)
-				database.withTransaction {
-					database.prepareProtectedLocationCanonicalCurationState(
-						command,
-						stateBefore,
-						stateBefore,
-						ProtectedLocationPreparedCanonicalOutput.fromSignal(
-							command,
-							decisionSignal,
-						),
-					)
-				}
-				if (!pipeline.onSignal(decisionSignal)) {
-					return ProtectedLocationCanonicalWriteResult.Deferred(
-						"LOCATION_CANONICAL_DECISION_ADMISSION_DEFERRED",
-					)
-				}
-			} else {
-				val cycle = command.toProtectedLocationTrackingCycle(
-					acquisitionMetadata = acquisitionMetadata,
-					curationContext = curationContext,
-				)
-				TrackingPipeline(
-					listOf(
-						DataCollectionStage(listOf(locationComponent)),
-						SignalDispatchStage(
-							processorPipelineProvider = { pipeline },
-							currentTierProvider = { acquisitionMetadata.policyTier },
-							currentPolicyNameProvider = { acquisitionMetadata.policyName },
-							beforeSignalAdmission = { cycleContext, signal ->
-								check(
-									cycleContext.collectionData.location != null ||
-										curationContext.outcome.decisionReason != null,
-								) {
-									"Protected Location curation produced no terminal outcome"
-								}
-								database.withTransaction {
-									database.prepareProtectedLocationCanonicalCurationState(
-										command,
-										curationContext.stateBefore,
-										curationContext.outcome.stateAfter,
-										ProtectedLocationPreparedCanonicalOutput.fromSignal(
-											command,
-											signal,
-										),
-									)
-								}
-							},
-						),
-					),
-				).execute(
-					applicationContext,
-					CycleContext(
-						cycle = cycle,
-						collectionData = MutableCollectionData(cycle.timestampMs),
-					),
-				)
-			}
-
-			pipeline.stop()
-			pipelineStopRequired = false
-			when (val receipt = readReceipt(command, acquisitionMetadata)) {
-				is ProtectedLocationCanonicalReceipt.Complete ->
-					ProtectedLocationCanonicalWriteResult.Committed
-				is ProtectedLocationCanonicalReceipt.Incomplete ->
-					ProtectedLocationCanonicalWriteResult.Deferred(receipt.reason)
-				is ProtectedLocationCanonicalReceipt.Invalid ->
-					ProtectedLocationCanonicalWriteResult.Failed(
-						receipt.reason,
-						terminal = true,
-					)
+				admitOfflineCanonicalSignals(
+					command, acquisitionMetadata, stateBefore, curationContext, locationComponent, pipeline,
+				)?.let { return@run it }
+				pipeline.stop()
+				pipelineStopRequired = false
+				readCompletedCanonicalWrite(command, acquisitionMetadata)
 			}
 		} catch (cancelled: CancellationException) {
 			terminalFailure = cancelled
 			throw cancelled
-		} catch (failure: Exception) {
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+			// Check the durable receipt after failure before returning the existing committed or retryable result.
 			terminalFailure = failure
 			val receipt = try {
-				readReceipt(command, acquisitionMetadata)
+				readReceiptAfterFailure(command, acquisitionMetadata, failure)
 			} catch (cancelled: CancellationException) {
-				if (cancelled !== failure) cancelled.addSuppressed(failure)
 				terminalFailure = cancelled
 				throw cancelled
-			} catch (receiptFailure: Exception) {
-				if (receiptFailure !== failure) failure.addSuppressed(receiptFailure)
-				null
 			}
 			if (receipt is ProtectedLocationCanonicalReceipt.Complete) {
 				ProtectedLocationCanonicalWriteResult.Committed
 			} else {
-				ProtectedLocationCanonicalWriteResult.Failed(
-					failure.safeProtectedLocationCode(),
-					terminal = false,
-				)
+				ProtectedLocationCanonicalWriteResult.Failed(failure.safeProtectedLocationCode(), terminal = false)
 			}
 		} finally {
-			val cleanup = RetainedOfflineCleanup(
-				pipeline = pipeline,
-				locationComponent = locationComponent,
-				permit = permit,
-				pipelineStopRequired = pipelineStopRequired,
-				componentDisableRequired = componentEnabled,
+			cleanupFailure = finishOfflineCleanup(
+				pipeline, locationComponent, permit, pipelineStopRequired, componentEnabled, terminalFailure,
 			)
-			retainedCleanup = cleanup
-			val cleanupFailure = cleanup.attempt(applicationContext)
-			if (cleanupFailure == null) {
-				retainedCleanup = null
-			} else if (terminalFailure is CancellationException) {
-				requireNotNull(terminalFailure).addSuppressed(cleanupFailure)
-			} else {
-				throw OfflineCleanupPendingException(
-					cleanupFailure = cleanupFailure,
-					originalFailure = terminalFailure,
-				)
-			}
 		}
+		return completedOfflineResult(result, cleanupFailure, terminalFailure)
+	}
+
+	private suspend fun admitOfflineCanonicalSignals(
+		command: LocationCapturedFactCommand,
+		acquisitionMetadata: LocationWalAcquisitionMetadata,
+		stateBefore: LocationCanonicalCurationState,
+		curationContext: LocationCanonicalCurationContext,
+		locationComponent: LocationTrackerComponent,
+		pipeline: ProcessorPipeline,
+	): ProtectedLocationCanonicalWriteResult? {
+		if (!persistenceProcessor.isReadyForProtectedLocationWrite()) {
+			return ProtectedLocationCanonicalWriteResult.Deferred("LOCATION_CANONICAL_PENDING_RECOVERY_INCOMPLETE")
+		}
+		readExistingCanonicalWrite(command, acquisitionMetadata)?.let { return it }
+		if (!pipeline.checkpointDurableSignals(
+			listOf(command.toProtectedLocationObservationSignal(
+				acquisitionMetadata = acquisitionMetadata,
+				policyTier = acquisitionMetadata.policyTier,
+				policyName = acquisitionMetadata.policyName,
+			)),
+		)) {
+			return ProtectedLocationCanonicalWriteResult.Deferred("LOCATION_CANONICAL_RAW_ADMISSION_DEFERRED")
+		}
+		return if (command.productEffect.isMock) {
+			admitOfflineMockDecision(command, acquisitionMetadata, stateBefore, pipeline)
+		} else {
+			executeOfflineCuration(command, acquisitionMetadata, curationContext, locationComponent, pipeline)
+			null
+		}
+	}
+
+	private suspend fun readExistingCanonicalWrite(
+		command: LocationCapturedFactCommand,
+		acquisitionMetadata: LocationWalAcquisitionMetadata,
+	): ProtectedLocationCanonicalWriteResult? = when (val receipt = readReceipt(command, acquisitionMetadata)) {
+		is ProtectedLocationCanonicalReceipt.Complete -> ProtectedLocationCanonicalWriteResult.Committed
+		is ProtectedLocationCanonicalReceipt.Invalid ->
+			ProtectedLocationCanonicalWriteResult.Failed(receipt.reason, terminal = true)
+		is ProtectedLocationCanonicalReceipt.Incomplete -> null
+	}
+
+	private suspend fun readCompletedCanonicalWrite(
+		command: LocationCapturedFactCommand,
+		acquisitionMetadata: LocationWalAcquisitionMetadata,
+	): ProtectedLocationCanonicalWriteResult = when (val receipt = readReceipt(command, acquisitionMetadata)) {
+		is ProtectedLocationCanonicalReceipt.Complete -> ProtectedLocationCanonicalWriteResult.Committed
+		is ProtectedLocationCanonicalReceipt.Incomplete -> ProtectedLocationCanonicalWriteResult.Deferred(receipt.reason)
+		is ProtectedLocationCanonicalReceipt.Invalid ->
+			ProtectedLocationCanonicalWriteResult.Failed(receipt.reason, terminal = true)
+	}
+
+	private suspend fun readReceiptAfterFailure(
+		command: LocationCapturedFactCommand,
+		acquisitionMetadata: LocationWalAcquisitionMetadata,
+		failure: Exception,
+	): ProtectedLocationCanonicalReceipt? = try {
+		readReceipt(command, acquisitionMetadata)
+	} catch (cancelled: CancellationException) {
+		if (cancelled !== failure) {
+			cancelled.addSuppressed(failure)
+		}
+		throw cancelled
+	} catch (@Suppress("TooGenericExceptionCaught") receiptFailure: Exception) {
+		// Keep the original write failure primary and attach this failed receipt check as suppressed.
+		if (receiptFailure !== failure) {
+			failure.addSuppressed(receiptFailure)
+		}
+		null
+	}
+
+	private suspend fun finishOfflineCleanup(
+		pipeline: ProcessorPipeline,
+		locationComponent: LocationTrackerComponent,
+		permit: TrackingPersistenceLifecyclePermit,
+		pipelineStopRequired: Boolean,
+		componentEnabled: Boolean,
+		terminalFailure: Throwable?,
+	): Exception? {
+		val cleanup = RetainedOfflineCleanup(
+			pipeline, locationComponent, permit, pipelineStopRequired, componentEnabled,
+		)
+		retainedCleanup = cleanup
+		val failure = cleanup.attempt(applicationContext)
+		if (failure == null) {
+			retainedCleanup = null
+		} else if (terminalFailure is CancellationException) {
+			terminalFailure.addSuppressed(failure)
+		}
+		return failure
+	}
+
+	private fun completedOfflineResult(
+		result: ProtectedLocationCanonicalWriteResult,
+		cleanupFailure: Exception?,
+		terminalFailure: Throwable?,
+	): ProtectedLocationCanonicalWriteResult {
+		cleanupFailure?.let { failure ->
+			throw OfflineCleanupPendingException(cleanupFailure = failure, originalFailure = terminalFailure)
+		}
+		return result
+	}
+
+	private suspend fun admitOfflineMockDecision(
+		command: LocationCapturedFactCommand,
+		acquisitionMetadata: LocationWalAcquisitionMetadata,
+		stateBefore: LocationCanonicalCurationState,
+		pipeline: ProcessorPipeline,
+	): ProtectedLocationCanonicalWriteResult? {
+		val decisionSignal = command.toProtectedLocationMockRejectionSignal(
+			acquisitionMetadata = acquisitionMetadata,
+			policyTier = acquisitionMetadata.policyTier,
+			policyName = acquisitionMetadata.policyName,
+		)
+		database.withTransaction {
+			database.prepareProtectedLocationCanonicalCurationState(
+				command,
+				stateBefore,
+				stateBefore,
+				ProtectedLocationPreparedCanonicalOutput.fromSignal(
+					command,
+					decisionSignal,
+				),
+			)
+		}
+		if (!pipeline.onSignal(decisionSignal)) {
+			return ProtectedLocationCanonicalWriteResult.Deferred(
+				"LOCATION_CANONICAL_DECISION_ADMISSION_DEFERRED",
+			)
+		}
+		return null
+	}
+
+	private suspend fun executeOfflineCuration(
+		command: LocationCapturedFactCommand,
+		acquisitionMetadata: LocationWalAcquisitionMetadata,
+		curationContext: LocationCanonicalCurationContext,
+		locationComponent: LocationTrackerComponent,
+		pipeline: ProcessorPipeline,
+	) {
+		val cycle = command.toProtectedLocationTrackingCycle(
+			acquisitionMetadata = acquisitionMetadata,
+			curationContext = curationContext,
+		)
+		TrackingPipeline(
+			listOf(
+				DataCollectionStage(listOf(locationComponent)),
+				SignalDispatchStage(
+					processorPipelineProvider = { pipeline },
+					currentTierProvider = { acquisitionMetadata.policyTier },
+					currentPolicyNameProvider = { acquisitionMetadata.policyName },
+					beforeSignalAdmission = { cycleContext, signal ->
+						check(
+							cycleContext.collectionData.location != null ||
+								curationContext.outcome.decisionReason != null,
+						) {
+							"Protected Location curation produced no terminal outcome"
+						}
+						database.withTransaction {
+							database.prepareProtectedLocationCanonicalCurationState(
+								command,
+								curationContext.stateBefore,
+								curationContext.outcome.stateAfter,
+								ProtectedLocationPreparedCanonicalOutput.fromSignal(
+									command,
+									signal,
+								),
+							)
+						}
+					},
+				),
+			),
+		).execute(
+			applicationContext,
+			CycleContext(
+				cycle = cycle,
+				collectionData = MutableCollectionData(cycle.timestampMs),
+			),
+		)
 	}
 
 	private class OfflineCleanupPendingException(
@@ -375,7 +461,8 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 				try {
 					pipeline.stop()
 					pipelineStopRequired = false
-				} catch (failure: Exception) {
+				} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+					// Retain failed pipeline cleanup and its lease so the next call can retry before any new write.
 					cleanupFailure = failure
 				}
 			}
@@ -383,7 +470,8 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 				try {
 					locationComponent.onDisable(context)
 					componentDisableRequired = false
-				} catch (failure: Exception) {
+				} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+					// Keep the first cleanup failure primary, suppress the next, and retain unfinished disable ownership.
 					cleanupFailure?.addSuppressed(failure) ?: run {
 						cleanupFailure = failure
 					}

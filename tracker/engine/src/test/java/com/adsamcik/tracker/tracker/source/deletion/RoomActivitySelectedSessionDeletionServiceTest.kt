@@ -46,6 +46,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
+// One Room Activity replacement fixture keeps selected deletion, rollback and surviving CONTROL checks
+// comparable.
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class RoomActivitySelectedSessionDeletionServiceTest {
@@ -354,6 +357,9 @@ class RoomActivitySelectedSessionDeletionServiceTest {
 		return listOf(firstSegment, secondSegment)
 	}
 
+	// Keep selected and unrelated Activity segments through their shared registration and historical
+	// authorization setup.
+	@Suppress("LongMethod")
 	private suspend fun insertCapturedActivityPayload(selectedSegments: List<SessionSegment>): String {
 		require(selectedSegments.size == 2)
 		database.sourceDestinationOwnerDao().insertIfAbsent(
@@ -553,7 +559,11 @@ class RoomActivitySelectedSessionDeletionServiceTest {
 
 	private fun logicalSession(active: Boolean) = LogicalTrackingSessionEntity(
 		logicalTrackingId = LOGICAL_ID,
-		state = if (active) "ACTIVE" else "FINALIZED",
+		state = if (active) {
+			"ACTIVE"
+		} else {
+			"FINALIZED"
+		},
 		lifecycleRevision = 3L,
 		desiredPlanRevision = 1L,
 		rolloutRevision = 1L,
@@ -588,7 +598,11 @@ class RoomActivitySelectedSessionDeletionServiceTest {
 	) = SourceServiceRunEntity(
 		serviceRunId = runId,
 		logicalTrackingId = logicalTrackingId,
-		state = if (active) "ACTIVE" else "FINALIZED",
+		state = if (active) {
+			"ACTIVE"
+		} else {
+			"FINALIZED"
+		},
 		desiredPlanRevision = 1L,
 		rolloutRevision = 1L,
 		foregroundCapabilityFlags = 0L,
@@ -601,15 +615,31 @@ class RoomActivitySelectedSessionDeletionServiceTest {
 		startOrigin = startOrigin,
 		desiredForegroundCapabilityFlags = 0L,
 		appliedForegroundCapabilityFlags = 0L,
-		runtimeAcknowledgement = if (active) "START_ACCEPTED" else "STOPPED",
+		runtimeAcknowledgement = if (active) {
+			"START_ACCEPTED"
+		} else {
+			"STOPPED"
+		},
 		runtimeFailureCode = null,
-		runRevision = if (active) 1L else 2L,
+		runRevision = if (active) {
+			1L
+		} else {
+			2L
+		},
 		startDeliveryToken = "delivery-$runId",
 		startCommandGeneration = manifestRevision,
 		preparedManifestRevision = manifestRevision,
 		preparedIntentRevision = manifestRevision,
-		androidDeliveryState = if (active) "DELIVERED" else "SETTLED",
-		androidDeliveryUpdatedAtMs = if (active) startMs else completedAtMs,
+		androidDeliveryState = if (active) {
+			"DELIVERED"
+		} else {
+			"SETTLED"
+		},
+		androidDeliveryUpdatedAtMs = if (active) {
+			startMs
+		} else {
+			completedAtMs
+		},
 		startIsUserInitiated = startOrigin == "MANUAL_FOREGROUND_START",
 		startIsAmbient = false,
 		sessionSegmentId = segmentId,
@@ -696,6 +726,8 @@ class RoomActivitySelectedSessionDeletionServiceTest {
 		retiredAtMs = 8_000L,
 	)
 
+	// Keep one complete Activity fact with its fragments, evidence, checksum and current cursor together.
+	@Suppress("LongMethod")
 	private suspend fun insertCapturedFact(
 		spec: CapturedFactSpec,
 		authorizationFingerprint: String,

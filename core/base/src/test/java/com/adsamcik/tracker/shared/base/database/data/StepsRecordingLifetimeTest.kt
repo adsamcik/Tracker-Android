@@ -86,7 +86,11 @@ class StepsRecordingLifetimeTest {
 	private fun manifest(revision: Long, elapsed: Long) = SessionManifestVersionEntity(
 		logicalTrackingId = "session", manifestRevision = revision, serviceRunId = "run",
 		sessionMode = "MANUAL", sourcePolicyRevision = revision, acquisitionPlanRevision = revision,
-		rolloutRevision = 1, startOrigin = if (revision == 1L) "MANUAL_FOREGROUND_START" else "POLICY_RECONCILIATION",
+		rolloutRevision = 1, startOrigin = if (revision == 1L) {
+			"MANUAL_FOREGROUND_START"
+		} else {
+			"POLICY_RECONCILIATION"
+		},
 		effectiveBootId = "boot", effectiveElapsedRealtimeNanos = elapsed, effectiveWallTimeMs = elapsed,
 		zoneId = "UTC", automationEpoch = null, changeReason = "POLICY_RECONCILIATION", manifestChecksum = "",
 	)

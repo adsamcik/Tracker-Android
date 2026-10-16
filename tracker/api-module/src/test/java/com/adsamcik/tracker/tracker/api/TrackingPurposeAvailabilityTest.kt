@@ -6,6 +6,9 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 
+// One purpose-availability store/value fixture follows exact lease publication, cancellation, replacement
+// and independent source states.
+@Suppress("LargeClass")
 class TrackingPurposeAvailabilityTest {
 	@Test
 	fun `user stop is an honest unavailable state for every ambient source`() {
@@ -144,6 +147,8 @@ class TrackingPurposeAvailabilityTest {
 	}
 
 	@Test
+	// Keep this complete contract scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `current projection rejects ready after deletion or rollout authority changes`() {
 		val automatic = automaticIdentity(
 			policy = 8L,

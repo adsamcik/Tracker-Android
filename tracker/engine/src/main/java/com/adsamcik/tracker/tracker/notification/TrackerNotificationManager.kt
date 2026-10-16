@@ -74,6 +74,10 @@ class TrackerNotificationManager(
 			getBackgroundCollectionForegroundNotification(context,
 				setOf(com.adsamcik.tracker.tracker.source.model.SourceKind.LOCATION))
 
+		/**
+		 * Builds the shared all-day foreground notification for the hosted sources, including Turn off
+		 * tracking.
+		 */
 		fun getBackgroundCollectionForegroundNotification(
 			context: Context,
 			sources: Set<com.adsamcik.tracker.tracker.source.model.SourceKind>,

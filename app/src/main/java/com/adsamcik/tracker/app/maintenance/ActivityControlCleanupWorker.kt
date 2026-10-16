@@ -26,7 +26,11 @@ class ActivityControlCleanupWorker @AssistedInject constructor(
     override suspend fun doWork(): Result = try {
         when (startupGate.reconcile()) {
             is TrackingStartupResult.Ready ->
-                if (maintenance.pruneDue()) Result.retry() else Result.success()
+                if (maintenance.pruneDue()) {
+                    Result.retry()
+                } else {
+                    Result.success()
+                }
             is TrackingStartupResult.RetryableFailure -> Result.retry()
             is TrackingStartupResult.Blocked -> Result.success()
         }
@@ -36,14 +40,17 @@ class ActivityControlCleanupWorker @AssistedInject constructor(
         Result.retry()
     }
 
+    /** Unique periodic-work identity for automatic-control expiry. */
     companion object {
         private const val WORK_NAME = "APP.ACTIVITY_CONTROL_EXPIRY"
+        private const val EXPIRY_CHECK_INTERVAL_HOURS = 12L
 
+        /** Schedules the existing 48-hour control expiry without changing recorded Activity history. */
         fun schedule(context: Context) {
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
                 ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<ActivityControlCleanupWorker>(Duration.ofHours(12))
+                PeriodicWorkRequestBuilder<ActivityControlCleanupWorker>(Duration.ofHours(EXPIRY_CHECK_INTERVAL_HOURS))
                     .build(),
             )
         }

@@ -18,6 +18,7 @@ import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.recordLocationRegistrationPlan
+import com.adsamcik.tracker.shared.base.database.data.LocationRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationRegistrationPlanIntegrity
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
@@ -32,8 +33,11 @@ import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenera
 import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientConsentReference
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.isEffectiveAtOrBefore
@@ -48,7 +52,6 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
-import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -124,8 +127,13 @@ internal sealed interface WifiCaptureCallbackBarrierPublication {
 	) : WifiCaptureCallbackBarrierPublication
 }
 
+/** Outcome of saving runtime progress under the exact current source registration. */
 sealed interface SourceRuntimeStateSaveResult {
+	/** The registration, sequence progress and optional terminal evidence were saved together. */
 	data object Saved : SourceRuntimeStateSaveResult
+	/**
+	 * The current registration or data authority could not be verified; progress was not acknowledged.
+	 */
 	data object Unverifiable : SourceRuntimeStateSaveResult
 }
 
@@ -139,6 +147,8 @@ sealed interface SourceRuntimeStateSaveResult {
  * changes. Authority-only changes append an observed-time authorization revision without restarting
  * compatible provider work.
  */
+// Registration changes and callback barriers share one transaction owner; method checks remain enabled.
+@Suppress("LargeClass")
 @Singleton
 class SourceRegistrationRepository @Inject constructor(
 	private val database: AppDatabase,
@@ -154,52 +164,39 @@ class SourceRegistrationRepository @Inject constructor(
 		registration: SourceRegistration,
 		evidence: SourceEvidenceCandidate<*>,
 	): List<Long> {
-		val snapshot = registration.authorization
-		val capture = snapshot.authorizedMembers.singleOrNull {
+		val capture = registration.authorization.authorizedMembers.singleOrNull {
 			it.purpose == SourceBrokerPurpose.SESSION_CAPTURE
-		}?.takeIf { it.persistenceEligible } ?: return emptyList()
+		}?.takeIf { it.persistenceEligible }
+		return if (capture == null) {
+			emptyList()
+		} else {
+			qualifiedRadioObservationTimes(registration, evidence, capture)
+		}
+	}
+
+	private suspend fun qualifiedRadioObservationTimes(
+		registration: SourceRegistration,
+		evidence: SourceEvidenceCandidate<*>,
+		capture: SourceAuthorizationEntity,
+	): List<Long> {
+		val snapshot = registration.authorization
 		val accepted = registration.providerAcceptedElapsedRealtimeNanos ?: return emptyList()
 		val ids = snapshot.authorizedMembers.mapNotNull { it.demandId }
-		if (ids.isEmpty() || ids.size > 64 || ids.size != snapshot.authorizedMembers.size ||
-			ids.distinct().size != ids.size || snapshot.effectiveBootId != registration.state.clockDomainId ||
-			evidence.source.stableCode != registration.state.sourceKind ||
-			evidence.sourceInstanceId.value != registration.state.sourceInstanceId ||
-			evidence.registrationGeneration != registration.state.registrationGeneration ||
-			evidence.clockDomainId != registration.state.clockDomainId ||
-			evidence.capturedCollectedDataEpoch != registration.state.collectedDataEpoch ||
-			evidence.authorizationRevision != snapshot.authorizationRevision ||
-			evidence.registrationPurposeEligibilityMask != snapshot.purposeEligibilityMask ||
-			evidence.registrationEligibilityFingerprint != snapshot.authorizationFingerprint ||
-			evidence.physicalConfigurationFingerprint != registration.physicalConfigurationFingerprint
-		) return emptyList()
-		val times = when (val payload = evidence.payload) {
-			is WifiResultSnapshotPayload -> payload.accessPoints.takeIf { it.size <= MAX_WIFI_WAL_CHILDREN }
-				?.map { it.providerTimestampNanos }
-			is CellSnapshotPayload -> payload.observations.takeIf { it.size <= MAX_CELL_WAL_CHILDREN }
-				?.map { it.providerTimestampNanos }
-			else -> null
-		} ?: return emptyList()
+		if (!SourceRegistrationCallbackAuthority.matchesRadioEvidence(registration, evidence, ids)) {
+			return emptyList()
+		}
+		val times = radioProviderObservationTimes(evidence) ?: return emptyList()
 		return try {
 			database.withTransaction {
 				val demands = database.sourceBrokerDao().demandsByIds(ids)
-				if (demands.size != ids.size) return@withTransaction emptyList()
+				if (demands.size != ids.size) {
+					return@withTransaction emptyList()
+				}
 				val authority = RadioPurposeItemAuthority(evidence.source.stableCode,
 					evidence.registrationGeneration, evidence.clockDomainId, accepted, Long.MAX_VALUE,
 					evidence.receivedElapsedRealtimeNanos, listOf(snapshot), demands)
-				val bytes = DefaultSourcePayloadCodec().encode(evidence.payload, evidence.payloadVersion).bytes
-				val qualified = when (evidence.source) {
-					SourceKind.WIFI -> {
-						val decoded = WifiWalPayloadCodec.decodeCanonical(evidence.payloadVersion, bytes)
-							as? WifiWalPayloadDecodeResult.Decoded ?: return@withTransaction emptyList()
-						RadioPurposeItemQualifier.wifi(decoded.payload, authority, evidence.payloadVersion)
-					}
-					SourceKind.CELL -> {
-						val decoded = CellWalPayloadCodec.decodeCanonical(evidence.payloadVersion, bytes)
-							as? CellWalPayloadDecodeResult.Decoded ?: return@withTransaction emptyList()
-						RadioPurposeItemQualifier.cell(decoded.payload, authority, evidence.payloadVersion)
-					}
-					else -> return@withTransaction emptyList()
-				} as? RadioPurposeItemQualification.Qualified ?: return@withTransaction emptyList()
+				val qualified = qualifyRadioCallbackPayload(evidence, authority)
+					?: return@withTransaction emptyList()
 				qualified.acceptedIndexesByDemandId[capture.demandId].orEmpty().mapNotNull { times.getOrNull(it) }
 			}
 		} catch (cancelled: kotlinx.coroutines.CancellationException) {
@@ -333,7 +330,9 @@ class SourceRegistrationRepository @Inject constructor(
 	): Boolean {
 		if (row.status != ProviderRegistrationGenerationEntity.STATUS_RESERVED ||
 			database.locationPurposeDao().latestRegistrationPlan(row.registrationGeneration) != null
-		) return false
+		) {
+			return false
+		}
 		if (row.clockDomainId != clockDomainProvider.current()) {
 			return completeRemovedPriorBootSystemLocation(row)
 		}
@@ -343,28 +342,22 @@ class SourceRegistrationRepository @Inject constructor(
 	}
 
 	/** Reconstruct only an exact, authenticated v4 request; an unknown handle fences replacement. */
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	internal suspend fun passiveLocationIdentity(
 		row: ProviderRegistrationGenerationEntity,
 	): PassiveLocationIdentity? {
 		if (row.sourceKind != SourceKind.LOCATION.stableCode ||
 			row.providerResidency != ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE
-		) return null
+		) {
+			return null
+		}
 		val stored = database.locationPurposeDao().latestRegistrationPlan(row.registrationGeneration)
 			?: return null
-		if (stored.registrationGeneration != row.registrationGeneration ||
-			stored.sourceInstanceId != row.sourceInstanceId ||
-			stored.physicalConfigurationFingerprint != row.physicalConfigurationFingerprint ||
-			stored.payloadVersion != 4 ||
-			LocationRegistrationPlanIntegrity.checksum(stored) != stored.effectChecksum
-		) return null
-		val plan = runCatching { SourcePlanCodec().decode(stored.payload) as? LocationPlan }.getOrNull()
+		if (stored.registrationGeneration != row.registrationGeneration) {
+			return null
+		}
+		val plan = stored.passiveLocationPlanOrNull(row.sourceInstanceId, row.physicalConfigurationFingerprint)
 			?: return null
-		val encoded = runCatching { SourcePlanCodec().encode(plan) }.getOrNull()
-			?: return null
-		if (!plan.passiveSystemDelivery || encoded.formatVersion != 4 ||
-			!encoded.bytes.contentEquals(stored.payload) || encoded.checksum != stored.payloadChecksum ||
-			plan.physicalConfigurationFingerprint() != row.physicalConfigurationFingerprint
-		) return null
 		return PassiveLocationIdentity(plan.backend, row.sourceInstanceId,
 			row.registrationGeneration, row.clockDomainId,
 			row.physicalConfigurationFingerprint, row.collectedDataEpoch)
@@ -376,96 +369,142 @@ class SourceRegistrationRepository @Inject constructor(
 		observedElapsedRealtimeNanos: Long,
 	): PassiveLocationAdmission? {
 		if (observedElapsedRealtimeNanos <= 0L || identity.bootId != clockDomainProvider.current() ||
-			identity.collectedDataEpoch != lifecycleStore.snapshot().epoch) return null
-		return database.withTransaction {
-			val dao = database.sourceBrokerDao()
-			val row = dao.registrationAtObservedTime(SourceKind.LOCATION.stableCode,
-				identity.generation, identity.sourceInstanceId, identity.bootId,
-				identity.fingerprint, observedElapsedRealtimeNanos) ?: return@withTransaction null
-			if (row.providerResidency != ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE ||
-				row.collectedDataEpoch != identity.collectedDataEpoch ||
-				!SourceProviderPurposeScope.supportsPurpose(row.sourceKind, row.ownerScope,
-					SourceBrokerPurpose.AMBIENT_PRODUCT) ||
-				SourceProviderPurposeScope.supportsPurpose(row.sourceKind, row.ownerScope,
-					SourceBrokerPurpose.SESSION_CAPTURE)
-			) return@withTransaction null
-			val rows = dao.authorizationAtBounded(row.sourceKind, row.registrationGeneration,
-				identity.bootId, observedElapsedRealtimeNanos, 17)
-			if (rows.isEmpty() || rows.size > 16) return@withTransaction null
-			val authorization = runCatching { rows.toAuthorizationSnapshotOrNull() }.getOrNull()
-				?: return@withTransaction null
-			val ambientMember = authorization.authorizedMembers.singleOrNull {
-				it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && it.persistenceEligible &&
-					it.logicalTrackingId == null && it.serviceRunId == null
-			} ?: return@withTransaction null
-			// A cold provider result is a new delivery. Historical authority proves its observed
-			// time, while this live fence prevents Off or a new consent epoch from admitting it.
-			val policyDao = database.sourcePolicyDao()
-			val authority = policyDao.authority()
-				?.takeIf { it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE }
-				?: return@withTransaction null
-			val currentPolicy = policyDao.policyAtRevision(authority.currentPolicyRevision,
-				SourceKind.LOCATION.stableCode) ?: return@withTransaction null
-			val currentConsent = policyDao.latestConsentEpoch(SourceKind.LOCATION.stableCode,
-				SourceBrokerPurpose.AMBIENT_PRODUCT)
-			val currentRetention = database.locationPurposeDao().latestRetentionAuthority(
-				AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT)
-			val historicalRetention = database.locationPurposeDao().retentionAuthorityAt(
-				AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
-				identity.bootId, observedElapsedRealtimeNanos)
-			if (historicalRetention == null || !historicalRetention.isActive ||
-				!AmbientLocationRetentionAuthorityIntegrity.isAuthentic(historicalRetention) ||
-				historicalRetention.sourcePolicyRevision != ambientMember.sourcePolicyRevision ||
-				historicalRetention.ambientConsentEpoch != ambientMember.consentEpoch ||
-				historicalRetention.collectedDataEpoch != identity.collectedDataEpoch ||
-				historicalRetention.opaquePolicyId != ambientMember.liveAmbientRetentionPolicyId ||
-				historicalRetention.approvalRevision != ambientMember.liveAmbientRetentionApprovalRevision
-			) return@withTransaction null
-			if (!currentPolicy.hasExactEligibleAmbientConsentReference(currentConsent) ||
-				currentPolicy.ambientConsentEpoch != ambientMember.consentEpoch ||
-				currentRetention == null || !currentRetention.isActive ||
-				!AmbientLocationRetentionAuthorityIntegrity.isAuthentic(currentRetention) ||
-				currentRetention.ambientConsentEpoch != ambientMember.consentEpoch ||
-				currentRetention.collectedDataEpoch != identity.collectedDataEpoch ||
-				currentRetention.opaquePolicyId != ambientMember.liveAmbientRetentionPolicyId ||
-				currentRetention.retainedFromMs != database.sourceEvidenceStateDao().get()?.retainedFromMs
-			) return@withTransaction null
-			if (authorization.isDenied || authorization.effectiveBootId != identity.bootId ||
-				authorization.purposeEligibilityMask != SourceBrokerPurpose.MASK_AMBIENT_PRODUCT
-			) return@withTransaction null
-			val ids = authorization.authorizedMembers.mapNotNull { it.demandId }
-			val demands = dao.demandsByIds(ids)
-			val expected = runCatching { SourceBrokerAuthorization.rows(row.sourceKind,
-				row.registrationGeneration, authorization.authorizationRevision, demands,
-				authorization.effectiveBootId, authorization.effectiveElapsedRealtimeNanos,
-				rows.first().effectiveWallTimeMs) }.getOrNull()
-			if (ids.size != authorization.authorizedMembers.size || ids.distinct().size != ids.size ||
-				demands.size != ids.size || expected?.sortedBy { it.memberId } !=
-				rows.sortedBy { it.memberId }) return@withTransaction null
-			val stored = database.locationPurposeDao().registrationPlan(identity.generation,
-				ambientMember.sourcePolicyRevision ?: return@withTransaction null,
-				authorization.authorizationRevision) ?: return@withTransaction null
-			if (stored.sourceInstanceId != identity.sourceInstanceId ||
-				stored.physicalConfigurationFingerprint != identity.fingerprint ||
-				stored.payloadVersion != 4 ||
-				LocationRegistrationPlanIntegrity.checksum(stored) != stored.effectChecksum
-			) return@withTransaction null
-			val plan = runCatching { SourcePlanCodec().decode(stored.payload) as? LocationPlan }.getOrNull()
-				?: return@withTransaction null
-			val encoded = runCatching { SourcePlanCodec().encode(plan) }.getOrNull()
-				?: return@withTransaction null
-			if (!plan.passiveSystemDelivery || plan.backend != identity.backend ||
-				plan.revision != stored.configurationRevision || encoded.formatVersion != 4 ||
-				!encoded.bytes.contentEquals(stored.payload) || encoded.checksum != stored.payloadChecksum ||
-				plan.physicalConfigurationFingerprint() != identity.fingerprint
-			) return@withTransaction null
-			PassiveLocationAdmission(LocationDeliveryAttribution(
-				SourceInstanceId(identity.sourceInstanceId), identity.generation, identity.fingerprint,
-				authorization.authorizationRevision, authorization.purposeEligibilityMask,
-				authorization.authorizationFingerprint, plan.revision, identity.bootId,
-				identity.collectedDataEpoch), !plan.preciseLocationAvailable)
+			identity.collectedDataEpoch != lifecycleStore.snapshot().epoch) {
+			return null
 		}
+		return database.withTransaction { admitPassiveLocationInTransaction(identity, observedElapsedRealtimeNanos) }
 	}
+
+	// Ordered bounded provider, snapshot, member and demand failures preserve their original read order.
+	@Suppress("ReturnCount")
+	private suspend fun admitPassiveLocationInTransaction(
+		identity: PassiveLocationIdentity, observedElapsedRealtimeNanos: Long,
+	): PassiveLocationAdmission? {
+		val dao = database.sourceBrokerDao()
+		val row = dao.registrationAtObservedTime(SourceKind.LOCATION.stableCode,
+			identity.generation, identity.sourceInstanceId, identity.bootId,
+			identity.fingerprint, observedElapsedRealtimeNanos) ?: return null
+		if (hasConflictingPassiveResidency(row, identity)) return null
+		val rows = dao.authorizationAtBounded(row.sourceKind, row.registrationGeneration,
+			identity.bootId, observedElapsedRealtimeNanos, MAX_PASSIVE_LOCATION_AUTHORIZATION_MEMBERS + 1)
+		val authorization = boundedPassiveAuthorization(rows) ?: return null
+		val ambientMember = authenticatedPassiveMember(identity, observedElapsedRealtimeNanos, authorization) ?: return null
+		if (!hasExactPassiveDemandAuthority(row, rows, authorization)) return null
+		return loadPassiveAdmissionPlan(identity, ambientMember, authorization)
+	}
+
+	private fun boundedPassiveAuthorization(rows: List<SourceAuthorizationEntity>): SourceAuthorizationSnapshot? {
+		if (rows.isEmpty() || rows.size > MAX_PASSIVE_LOCATION_AUTHORIZATION_MEMBERS) {
+			return null
+		}
+		return runCatching { rows.toAuthorizationSnapshotOrNull() }.getOrNull()
+	}
+
+	private fun hasConflictingPassiveResidency(
+		row: ProviderRegistrationGenerationEntity, identity: PassiveLocationIdentity,
+	): Boolean = row.providerResidency != ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE ||
+			row.collectedDataEpoch != identity.collectedDataEpoch ||
+			!SourceProviderPurposeScope.supportsPurpose(row.sourceKind, row.ownerScope,
+				SourceBrokerPurpose.AMBIENT_PRODUCT) ||
+			SourceProviderPurposeScope.supportsPurpose(row.sourceKind, row.ownerScope,
+				SourceBrokerPurpose.SESSION_CAPTURE)
+
+	private suspend fun loadPassiveAdmissionPlan(
+		identity: PassiveLocationIdentity, ambientMember: SourceAuthorizationEntity,
+		authorization: SourceAuthorizationSnapshot,
+	): PassiveLocationAdmission? {
+		val stored = database.locationPurposeDao().registrationPlan(identity.generation,
+			ambientMember.sourcePolicyRevision ?: return null,
+			authorization.authorizationRevision) ?: return null
+		val plan = stored.passiveLocationPlanOrNull(identity.sourceInstanceId, identity.fingerprint) {
+			it.backend == identity.backend && it.revision == stored.configurationRevision
+		} ?: return null
+		return PassiveLocationAdmission(LocationDeliveryAttribution(
+			SourceInstanceId(identity.sourceInstanceId), identity.generation, identity.fingerprint,
+			authorization.authorizationRevision, authorization.purposeEligibilityMask,
+			authorization.authorizationFingerprint, plan.revision, identity.bootId,
+			identity.collectedDataEpoch), !plan.preciseLocationAvailable)
+	}
+
+	private suspend fun hasExactPassiveDemandAuthority(
+		row: ProviderRegistrationGenerationEntity, rows: List<SourceAuthorizationEntity>,
+		authorization: SourceAuthorizationSnapshot,
+	): Boolean {
+		val ids = authorization.authorizedMembers.mapNotNull { it.demandId }
+		val demands = database.sourceBrokerDao().demandsByIds(ids)
+		val expected = runCatching { SourceBrokerAuthorization.rows(row.sourceKind,
+			row.registrationGeneration, authorization.authorizationRevision, demands,
+			authorization.effectiveBootId, authorization.effectiveElapsedRealtimeNanos,
+			rows.first().effectiveWallTimeMs) }.getOrNull()
+		return !(ids.size != authorization.authorizedMembers.size || ids.distinct().size != ids.size ||
+			demands.size != ids.size || expected?.sortedBy { it.memberId } !=
+			rows.sortedBy { it.memberId })
+	}
+
+	private suspend fun authenticatedPassiveMember(
+		identity: PassiveLocationIdentity, observedElapsedRealtimeNanos: Long, authorization: SourceAuthorizationSnapshot,
+	): SourceAuthorizationEntity? {
+		val ambientMember = authorization.authorizedMembers.singleOrNull {
+			it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && it.persistenceEligible &&
+				it.logicalTrackingId == null && it.serviceRunId == null
+		} ?: return null
+		if (!passiveAuthorityStillCurrent(identity, observedElapsedRealtimeNanos, ambientMember)) return null
+		if (authorization.isDenied || authorization.effectiveBootId != identity.bootId ||
+			authorization.purposeEligibilityMask != SourceBrokerPurpose.MASK_AMBIENT_PRODUCT
+		) {
+			return null
+		}
+		return ambientMember
+	}
+
+	private suspend fun passiveAuthorityStillCurrent(
+		identity: PassiveLocationIdentity, observedElapsedRealtimeNanos: Long, ambientMember: SourceAuthorizationEntity,
+	): Boolean {
+		// A cold provider result is a new delivery. Historical authority proves its observed
+		// time, while this live fence prevents Off or a new consent epoch from admitting it.
+		val policyDao = database.sourcePolicyDao()
+		val authority = policyDao.authority()
+			?.takeIf { it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE }
+			?: return false
+		val currentPolicy = policyDao.policyAtRevision(authority.currentPolicyRevision,
+			SourceKind.LOCATION.stableCode) ?: return false
+		val currentConsent = policyDao.latestConsentEpoch(SourceKind.LOCATION.stableCode,
+			SourceBrokerPurpose.AMBIENT_PRODUCT)
+		val currentRetention = database.locationPurposeDao().latestRetentionAuthority(
+			AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT)
+		val historicalRetention = database.locationPurposeDao().retentionAuthorityAt(
+			AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			identity.bootId, observedElapsedRealtimeNanos)
+		if (historicalRetention == null || !historicalRetention.isActive ||
+			!AmbientLocationRetentionAuthorityIntegrity.isAuthentic(historicalRetention) ||
+			historicalRetention.hasHistoricalPassiveMemberConflict(ambientMember, identity)) return false
+		return currentPassiveAuthorityMatches(currentPolicy, currentConsent, currentRetention, ambientMember, identity)
+	}
+
+	private suspend fun currentPassiveAuthorityMatches(
+		currentPolicy: SourcePolicyEntity, currentConsent: SourceConsentEpochEntity?,
+		currentRetention: AmbientLocationRetentionAuthorityEntity?, ambientMember: SourceAuthorizationEntity,
+		identity: PassiveLocationIdentity,
+	): Boolean {
+		if (!currentPolicy.hasExactEligibleAmbientConsentReference(currentConsent) ||
+			currentPolicy.ambientConsentEpoch != ambientMember.consentEpoch) return false
+		if (currentRetention == null || !currentRetention.isActive ||
+			!AmbientLocationRetentionAuthorityIntegrity.isAuthentic(currentRetention)) return false
+		return currentRetention.ambientConsentEpoch == ambientMember.consentEpoch &&
+			currentRetention.collectedDataEpoch == identity.collectedDataEpoch &&
+			currentRetention.opaquePolicyId == ambientMember.liveAmbientRetentionPolicyId &&
+			currentRetention.retainedFromMs == database.sourceEvidenceStateDao().get()?.retainedFromMs
+	}
+
+	// Fixed historical retention/member identity; integrity is checked before this comparison.
+	@Suppress("ComplexCondition")
+	private fun AmbientLocationRetentionAuthorityEntity.hasHistoricalPassiveMemberConflict(
+		ambientMember: SourceAuthorizationEntity, identity: PassiveLocationIdentity,
+	): Boolean = sourcePolicyRevision != ambientMember.sourcePolicyRevision ||
+		ambientConsentEpoch != ambientMember.consentEpoch ||
+		collectedDataEpoch != identity.collectedDataEpoch ||
+		opaquePolicyId != ambientMember.liveAmbientRetentionPolicyId ||
+		approvalRevision != ambientMember.liveAmbientRetentionApprovalRevision
 
 	internal suspend fun beginSystemLocationRetirement(
 		row: ProviderRegistrationGenerationEntity,
@@ -473,7 +512,9 @@ class SourceRegistrationRepository @Inject constructor(
 	): SourceRegistrationRetirementToken? {
 		if (row.sourceKind != SourceKind.LOCATION.stableCode ||
 			row.providerResidency != ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE ||
-			row.clockDomainId != clockDomainProvider.current()) return null
+			row.clockDomainId != clockDomainProvider.current()) {
+			return null
+		}
 		val dao = database.sourceBrokerDao()
 		if (row.status != ProviderRegistrationGenerationEntity.STATUS_RETIRING) {
 			dao.markSystemLocationRetiring(row.registrationGeneration, row.sourceInstanceId,
@@ -489,7 +530,9 @@ class SourceRegistrationRepository @Inject constructor(
 		row: ProviderRegistrationGenerationEntity,
 	): Boolean {
 		val currentBootId = clockDomainProvider.current()
-		if (row.clockDomainId == currentBootId) return false
+		if (row.clockDomainId == currentBootId) {
+			return false
+		}
 		return database.sourceBrokerDao().completeRemovedPriorBootSystemLocation(
 			row.registrationGeneration, row.sourceInstanceId, currentBootId,
 			ProviderRegistrationGenerationEntity.FAILURE_PRIOR_BOOT_SYSTEM_REMOVED) == 1
@@ -504,14 +547,7 @@ class SourceRegistrationRepository @Inject constructor(
 		purposeEligibilityMask: Long,
 		providerResidency: String = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
 	): SourceRegistration {
-		require(source != SourceKind.ACTIVITY) {
-			"Activity registrations are system-rearmable and must use ActivityRegistrationArbiter"
-		}
-		require(physicalConfigurationFingerprint.isNotBlank())
-		require(
-			purposeEligibilityMask > 0L &&
-				(purposeEligibilityMask and SourceBrokerPurpose.ALL_MASK.inv()) == 0L,
-		)
+		requireSourceRegistrationRequest(source, physicalConfigurationFingerprint, purposeEligibilityMask)
 		val lifecycle = lifecycleStore.snapshot()
 		val clockDomainId = clockDomainProvider.current()
 		val processIncarnationId = processIncarnationIdProvider.current()
@@ -536,171 +572,17 @@ class SourceRegistrationRepository @Inject constructor(
 			currentWallTimeMs = updatedAtMs,
 		)
 		return database.withTransaction {
-			requireSourceAcquisitionReachable(source)
-			val brokerDao = database.sourceBrokerDao()
-			check(
-				!brokerDao.hasNonterminalProcessBoundRegistrationsFromAnotherIncarnation(
-					processIncarnationId,
-				),
-			) { "Prior-process provider registrations must be reconciled before provider startup" }
-			check(
-				!brokerDao.hasPendingCurrentProcessProviderRemoval(
-					sourceKind = source.stableCode,
-					currentProcessId = processIncarnationId,
-				),
-			) { "Pending provider removal must complete before a replacement can be reserved" }
-			if (source == SourceKind.LOCATION) {
-				val system = brokerDao.nonterminalSystemLocationRegistrations(2)
-				val systemPointer = database.sourceRegistrationStateDao().get(source.stableCode, ownerScope)
-				check(system.size <= 1 && system.none { row ->
-					providerResidency != ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE ||
-					row.status == ProviderRegistrationGenerationEntity.STATUS_RETIRING ||
-					row.ownerScope != ownerScope ||
-					systemPointer?.registrationGeneration != row.registrationGeneration ||
-					systemPointer?.sourceInstanceId != row.sourceInstanceId ||
-					row.physicalConfigurationFingerprint != physicalConfigurationFingerprint ||
-					row.clockDomainId != clockDomainId || row.collectedDataEpoch != lifecycle.epoch
-				}) { "Rearmable Location removal must be acknowledged before replacement" }
-			}
-			val demands = SourceProviderPurposeScope.selectDemands(
-				source.stableCode,
-				ownerScope,
-				brokerDao.authorizationDemands(source.stableCode),
+			requireProviderReservationLifetimes(
+				source, providerResidency, processIncarnationId, ownerScope,
+				physicalConfigurationFingerprint, clockDomainId, lifecycle.epoch,
 			)
-			require(demands.isNotEmpty()) {
-				"A source registration requires a compatible durable active broker demand"
-			}
-			check(demands == observedDemands) {
-				"Broker demand changed while retention authority was being acquired"
-			}
-			require(
-				(SourceBrokerAuthorization.purposeMask(demands) and purposeEligibilityMask) != 0L,
-			) {
-				"Broker demand has no recognized purpose eligibility"
-			}
-			require(supportsExactDemandPurposes(source, demands)) {
-				"Pressure provider registration requires exact SESSION_CAPTURE demand only"
-			}
-			check(retentionSnapshot != null &&
-				sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
-				demands = demands,
-				expectedCollectedDataEpoch = lifecycle.epoch,
-				currentBootId = clockDomainId,
-				currentElapsedRealtimeNanos = updatedElapsedRealtimeNanos,
-				currentWallTimeMs = updatedAtMs,
-				retentionSnapshot = retentionSnapshot,
-			)) {
-				"LIVE_AMBIENT retention authority changed before provider reservation"
-			}
-			val dao = database.sourceRegistrationStateDao()
-			val current = dao.get(source.stableCode, ownerScope)
-			val currentPhysical = current?.let { state ->
-				brokerDao.registration(state.sourceKind, state.registrationGeneration)
-			}
-			if (current != null && currentPhysical != null &&
-				current.clockDomainId == clockDomainId &&
-				current.collectedDataEpoch == lifecycle.epoch &&
-				currentPhysical.providerResidency == providerResidency &&
-				(currentPhysical.providerProcessIncarnationId ==
-					if (providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND)
-						processIncarnationId else null) &&
-				currentPhysical.status in setOf(
-					ProviderRegistrationGenerationEntity.STATUS_RESERVED,
-					ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
-				) &&
-				currentPhysical.physicalConfigurationFingerprint == physicalConfigurationFingerprint
-			) {
-				val reused = current.copy(appliedRevision = appliedRevision, updatedAtMs = updatedAtMs)
-				dao.replace(reused)
-				val authorization = appendAuthorizationIfChanged(
-					source = source,
-					registrationGeneration = current.registrationGeneration,
-					demands = demands,
-					bootId = clockDomainId,
-					elapsedRealtimeNanos = updatedElapsedRealtimeNanos,
-					wallTimeMs = updatedAtMs,
-				)
-				return@withTransaction SourceRegistration(
-					ownerScope = ownerScope,
-					state = reused,
-					physicalConfigurationFingerprint = physicalConfigurationFingerprint,
-					authorization = authorization,
-					requiresProviderAcceptance = currentPhysical.status ==
-						ProviderRegistrationGenerationEntity.STATUS_RESERVED,
-					predecessorState = current,
-					providerAcceptedElapsedRealtimeNanos = when (currentPhysical.status) {
-						ProviderRegistrationGenerationEntity.STATUS_ACTIVE ->
-							requireNotNull(currentPhysical.acceptedElapsedRealtimeNanos)
-						else -> null
-					},
-				)
-			}
-			val registrationGeneration = brokerDao.maximumRegistrationGeneration(source.stableCode) + 1L
-			val next = when {
-				current == null -> SourceRegistrationStateEntity(
-					sourceKind = source.stableCode,
-					ownerScope = ownerScope,
-					sourceInstanceId = UUID.randomUUID().toString(),
-					clockDomainId = clockDomainId,
-					registrationGeneration = registrationGeneration,
-					nextSequence = 0L,
-					appliedRevision = appliedRevision,
-					collectedDataEpoch = lifecycle.epoch,
-					updatedAtMs = updatedAtMs,
-				)
-				current.clockDomainId == clockDomainId && current.collectedDataEpoch == lifecycle.epoch ->
-					current.copy(
-						registrationGeneration = registrationGeneration,
-						appliedRevision = appliedRevision,
-						updatedAtMs = updatedAtMs,
-					)
-				else -> current.copy(
-					sourceInstanceId = UUID.randomUUID().toString(),
-					clockDomainId = clockDomainId,
-					registrationGeneration = registrationGeneration,
-					nextSequence = 0L,
-					appliedRevision = appliedRevision,
-					collectedDataEpoch = lifecycle.epoch,
-					updatedAtMs = updatedAtMs,
-				)
-			}
-			brokerDao.insertRegistration(
-				ProviderRegistrationGenerationEntity(
-					sourceKind = source.stableCode,
-					registrationGeneration = next.registrationGeneration,
-					sourceInstanceId = next.sourceInstanceId,
-					ownerScope = ownerScope,
-					clockDomainId = next.clockDomainId,
-					physicalConfigurationFingerprint = physicalConfigurationFingerprint,
-					collectedDataEpoch = lifecycle.epoch,
-					providerResidency = providerResidency,
-					providerProcessIncarnationId = processIncarnationId.takeIf {
-						providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND },
-					status = ProviderRegistrationGenerationEntity.STATUS_RESERVED,
-					reservedAtMs = updatedAtMs,
-					reservedElapsedRealtimeNanos = updatedElapsedRealtimeNanos,
-					acceptedAtMs = null,
-					acceptedElapsedRealtimeNanos = null,
-					retiredAtMs = null,
-					retiredElapsedRealtimeNanos = null,
-					failureCode = null,
-				),
+			val demands = requireProviderReservationDemands(
+				source, ownerScope, purposeEligibilityMask, observedDemands, retentionSnapshot,
+				lifecycle.epoch, clockDomainId, updatedElapsedRealtimeNanos, updatedAtMs,
 			)
-			val authorization = appendAuthorizationIfChanged(
-				source = source,
-				registrationGeneration = next.registrationGeneration,
-				demands = demands,
-				bootId = clockDomainId,
-				elapsedRealtimeNanos = updatedElapsedRealtimeNanos,
-				wallTimeMs = updatedAtMs,
-			)
-			SourceRegistration(
-				ownerScope,
-				next,
-				physicalConfigurationFingerprint,
-				authorization,
-				requiresProviderAcceptance = true,
-				predecessorState = current,
+			settleProviderReservation(
+				source, appliedRevision, physicalConfigurationFingerprint, updatedAtMs, updatedElapsedRealtimeNanos,
+				providerResidency, lifecycle.epoch, clockDomainId, processIncarnationId, ownerScope, demands,
 			)
 		}
 	}
@@ -768,14 +650,8 @@ class SourceRegistrationRepository @Inject constructor(
 		purposeEligibilityMask: Long,
 		providerResidency: String = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
 	): SourceRegistration? {
-		require(source != SourceKind.ACTIVITY) {
-			"Activity registrations are system-rearmable and must use ActivityRegistrationArbiter"
-		}
-		require(physicalConfigurationFingerprint.isNotBlank())
-		require(expectedRegistration.state.sourceKind == source.stableCode)
-		require(
-			purposeEligibilityMask > 0L &&
-				(purposeEligibilityMask and SourceBrokerPurpose.ALL_MASK.inv()) == 0L,
+		requireSourceRegistrationRefreshRequest(
+			source, expectedRegistration, physicalConfigurationFingerprint, purposeEligibilityMask,
 		)
 		val lifecycle = lifecycleStore.snapshot()
 		val clockDomainId = clockDomainProvider.current()
@@ -798,75 +674,351 @@ class SourceRegistrationRepository @Inject constructor(
 			currentWallTimeMs = updatedAtMs,
 		)
 		return database.withTransaction {
-			if (!isSourceAcquisitionReachable(source)) return@withTransaction null
-			val brokerDao = database.sourceBrokerDao()
-			if (expectedRegistration.ownerScope != expectedOwnerScope) return@withTransaction null
-			val demands = SourceProviderPurposeScope.selectDemands(
-				source.stableCode,
-				expectedOwnerScope,
-				brokerDao.authorizationDemands(source.stableCode),
-			)
-			if (demands != observedDemands) return@withTransaction null
-			if (demands.isEmpty()) return@withTransaction null
-			if ((SourceBrokerAuthorization.purposeMask(demands) and purposeEligibilityMask) == 0L) {
+			if (!isSourceAcquisitionReachable(source)) {
 				return@withTransaction null
 			}
-			if (!supportsExactDemandPurposes(source, demands)) return@withTransaction null
-			if (retentionSnapshot == null ||
-				!sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
-					demands = demands,
-					expectedCollectedDataEpoch = lifecycle.epoch,
-					currentBootId = clockDomainId,
-					currentElapsedRealtimeNanos = updatedElapsedRealtimeNanos,
-					currentWallTimeMs = updatedAtMs,
-					retentionSnapshot = retentionSnapshot,
-				)
-			) return@withTransaction null
-			val ownerScope = expectedRegistration.ownerScope
-			val dao = database.sourceRegistrationStateDao()
-			val current = dao.get(source.stableCode, ownerScope) ?: return@withTransaction null
-			val currentPhysical = brokerDao.registration(
-				current.sourceKind,
-				current.registrationGeneration,
+			if (expectedRegistration.ownerScope != expectedOwnerScope) {
+				return@withTransaction null
+			}
+			val demands = readCurrentAuthorizationRefreshDemands(
+				source, expectedOwnerScope, purposeEligibilityMask, observedDemands, retentionSnapshot,
+				lifecycle.epoch, clockDomainId, updatedElapsedRealtimeNanos, updatedAtMs,
 			) ?: return@withTransaction null
-			if (current.sourceInstanceId != expectedRegistration.state.sourceInstanceId ||
-				current.registrationGeneration != expectedRegistration.state.registrationGeneration ||
-				current.clockDomainId != expectedRegistration.state.clockDomainId ||
-				current.collectedDataEpoch != expectedRegistration.state.collectedDataEpoch ||
-				current.clockDomainId != clockDomainId ||
-				current.collectedDataEpoch != lifecycle.epoch ||
-				currentPhysical.providerResidency != providerResidency ||
-				currentPhysical.providerProcessIncarnationId !=
-					processIncarnationId.takeIf { providerResidency ==
-						ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND } ||
-				currentPhysical.status != ProviderRegistrationGenerationEntity.STATUS_ACTIVE ||
-				expectedRegistration.physicalConfigurationFingerprint !=
-					physicalConfigurationFingerprint ||
-				currentPhysical.physicalConfigurationFingerprint != physicalConfigurationFingerprint
-			) return@withTransaction null
-
-			val refreshed = current.copy(
-				appliedRevision = appliedRevision,
-				updatedAtMs = updatedAtMs,
-			)
-			dao.replace(refreshed)
-			val authorization = appendAuthorizationIfChanged(
-				source = source,
-				registrationGeneration = current.registrationGeneration,
-				demands = demands,
-				bootId = clockDomainId,
-				elapsedRealtimeNanos = updatedElapsedRealtimeNanos,
-				wallTimeMs = updatedAtMs,
-			)
-			SourceRegistration(
-				ownerScope = ownerScope,
-				state = refreshed,
-				physicalConfigurationFingerprint = physicalConfigurationFingerprint,
-				authorization = authorization,
-				requiresProviderAcceptance = false, predecessorState = current,
-				providerAcceptedElapsedRealtimeNanos = requireNotNull(currentPhysical.acceptedElapsedRealtimeNanos),
+			publishRefreshedProviderAuthorization(
+				source, expectedRegistration, appliedRevision, physicalConfigurationFingerprint,
+				updatedAtMs, updatedElapsedRealtimeNanos, providerResidency, lifecycle.epoch,
+				clockDomainId, processIncarnationId, demands,
 			)
 		}
+	}
+
+	// The current process, exact shared owner and captured epoch form one provider-removal boundary.
+	@Suppress("LongParameterList")
+	private suspend fun requireProviderReservationLifetimes(
+		source: SourceKind,
+		providerResidency: String,
+		processIncarnationId: String,
+		ownerScope: String,
+		physicalConfigurationFingerprint: String,
+		clockDomainId: String,
+		collectedDataEpoch: Long,
+	) {
+		requireSourceAcquisitionReachable(source)
+		val brokerDao = database.sourceBrokerDao()
+		check(
+			!brokerDao.hasNonterminalProcessBoundRegistrationsFromAnotherIncarnation(processIncarnationId),
+		) { "Prior-process provider registrations must be reconciled before provider startup" }
+		check(
+			!brokerDao.hasPendingCurrentProcessProviderRemoval(
+				sourceKind = source.stableCode,
+				currentProcessId = processIncarnationId,
+			),
+		) { "Pending provider removal must complete before a replacement can be reserved" }
+		if (source == SourceKind.LOCATION) {
+			val system = brokerDao.nonterminalSystemLocationRegistrations(2)
+			val systemPointer = database.sourceRegistrationStateDao().get(source.stableCode, ownerScope)
+			check(system.size <= 1 && system.none { row ->
+				!row.isCompatibleSystemLocationReservation(
+					providerResidency, ownerScope, systemPointer, physicalConfigurationFingerprint,
+					clockDomainId, collectedDataEpoch,
+				)
+			}) { "Rearmable Location removal must be acknowledged before replacement" }
+		}
+	}
+
+	// Preserve the exact demands and retention snapshot captured before Room; no new authority is acquired here.
+	@Suppress("LongParameterList")
+	private suspend fun requireProviderReservationDemands(
+		source: SourceKind,
+		ownerScope: String,
+		purposeEligibilityMask: Long,
+		observedDemands: List<SourceDemandEntity>,
+		retentionSnapshot: LiveAmbientRetentionSnapshot?,
+		collectedDataEpoch: Long,
+		clockDomainId: String,
+		updatedElapsedRealtimeNanos: Long,
+		updatedAtMs: Long,
+	): List<SourceDemandEntity> {
+		val brokerDao = database.sourceBrokerDao()
+		val demands = SourceProviderPurposeScope.selectDemands(
+			source.stableCode,
+			ownerScope,
+			brokerDao.authorizationDemands(source.stableCode),
+		)
+		require(demands.isNotEmpty()) {
+			"A source registration requires a compatible durable active broker demand"
+		}
+		check(demands == observedDemands) {
+			"Broker demand changed while retention authority was being acquired"
+		}
+		require(
+			(SourceBrokerAuthorization.purposeMask(demands) and purposeEligibilityMask) != 0L,
+		) {
+			"Broker demand has no recognized purpose eligibility"
+		}
+		require(supportsExactDemandPurposes(source, demands)) {
+			"Pressure provider registration requires exact SESSION_CAPTURE demand only"
+		}
+		check(retentionSnapshot != null &&
+			sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
+				demands = demands,
+				expectedCollectedDataEpoch = collectedDataEpoch,
+				currentBootId = clockDomainId,
+				currentElapsedRealtimeNanos = updatedElapsedRealtimeNanos,
+				currentWallTimeMs = updatedAtMs,
+				retentionSnapshot = retentionSnapshot,
+			)
+		) {
+			"LIVE_AMBIENT retention authority changed before provider reservation"
+		}
+		return demands
+	}
+
+	// One captured registration request is published under its original Room transaction.
+	@Suppress("LongParameterList")
+	private suspend fun settleProviderReservation(
+		source: SourceKind,
+		appliedRevision: Long,
+		physicalConfigurationFingerprint: String,
+		updatedAtMs: Long,
+		updatedElapsedRealtimeNanos: Long,
+		providerResidency: String,
+		collectedDataEpoch: Long,
+		clockDomainId: String,
+		processIncarnationId: String,
+		ownerScope: String,
+		demands: List<SourceDemandEntity>,
+	): SourceRegistration {
+		val dao = database.sourceRegistrationStateDao()
+		val current = dao.get(source.stableCode, ownerScope)
+		val currentPhysical = current?.let { state ->
+			database.sourceBrokerDao().registration(state.sourceKind, state.registrationGeneration)
+		}
+		return if (current.canReuseProviderReservation(
+				currentPhysical, clockDomainId, collectedDataEpoch, providerResidency,
+				processIncarnationId, physicalConfigurationFingerprint,
+			)
+		) {
+			updateReusableProviderRegistration(
+				source, requireNotNull(current), requireNotNull(currentPhysical), appliedRevision,
+				physicalConfigurationFingerprint, updatedAtMs, updatedElapsedRealtimeNanos, demands,
+			)
+		} else {
+			reserveFreshProviderRegistration(
+				source, current, appliedRevision, physicalConfigurationFingerprint, updatedAtMs,
+				updatedElapsedRealtimeNanos, providerResidency, collectedDataEpoch, clockDomainId,
+				processIncarnationId, ownerScope, demands,
+			)
+		}
+	}
+
+	// The saved pointer has already matched the exact boot, epoch and reusable physical owner.
+	@Suppress("LongParameterList")
+	private suspend fun updateReusableProviderRegistration(
+		source: SourceKind,
+		current: SourceRegistrationStateEntity,
+		currentPhysical: ProviderRegistrationGenerationEntity,
+		appliedRevision: Long,
+		physicalConfigurationFingerprint: String,
+		updatedAtMs: Long,
+		updatedElapsedRealtimeNanos: Long,
+		demands: List<SourceDemandEntity>,
+	): SourceRegistration {
+		val dao = database.sourceRegistrationStateDao()
+		val reused = current.copy(appliedRevision = appliedRevision, updatedAtMs = updatedAtMs)
+		dao.replace(reused)
+		val authorization = appendAuthorizationIfChanged(
+			source = source,
+			registrationGeneration = current.registrationGeneration,
+			demands = demands,
+			bootId = current.clockDomainId,
+			elapsedRealtimeNanos = updatedElapsedRealtimeNanos,
+			wallTimeMs = updatedAtMs,
+		)
+		return SourceRegistration(
+			ownerScope = current.ownerScope,
+			state = reused,
+			physicalConfigurationFingerprint = physicalConfigurationFingerprint,
+			authorization = authorization,
+			requiresProviderAcceptance = currentPhysical.status ==
+				ProviderRegistrationGenerationEntity.STATUS_RESERVED,
+			predecessorState = current,
+			providerAcceptedElapsedRealtimeNanos = when (currentPhysical.status) {
+				ProviderRegistrationGenerationEntity.STATUS_ACTIVE ->
+					requireNotNull(currentPhysical.acceptedElapsedRealtimeNanos)
+				else -> null
+			},
+		)
+	}
+
+	// Preserve the original generation allocation, pointer construction, physical row and authorization publication.
+	@Suppress("LongParameterList")
+	private suspend fun reserveFreshProviderRegistration(
+		source: SourceKind,
+		current: SourceRegistrationStateEntity?,
+		appliedRevision: Long,
+		physicalConfigurationFingerprint: String,
+		updatedAtMs: Long,
+		updatedElapsedRealtimeNanos: Long,
+		providerResidency: String,
+		collectedDataEpoch: Long,
+		clockDomainId: String,
+		processIncarnationId: String,
+		ownerScope: String,
+		demands: List<SourceDemandEntity>,
+	): SourceRegistration {
+		val registrationGeneration = database.sourceBrokerDao().maximumRegistrationGeneration(source.stableCode) + 1L
+		val next = nextSourceRegistrationState(
+			source, current, ownerScope, registrationGeneration, appliedRevision, collectedDataEpoch,
+			clockDomainId, updatedAtMs,
+		)
+		insertReservedPhysicalProvider(
+			next, physicalConfigurationFingerprint, providerResidency, processIncarnationId,
+			updatedAtMs, updatedElapsedRealtimeNanos,
+		)
+		val authorization = appendAuthorizationIfChanged(
+			source = source,
+			registrationGeneration = next.registrationGeneration,
+			demands = demands,
+			bootId = clockDomainId,
+			elapsedRealtimeNanos = updatedElapsedRealtimeNanos,
+			wallTimeMs = updatedAtMs,
+		)
+		return SourceRegistration(
+			ownerScope,
+			next,
+			physicalConfigurationFingerprint,
+			authorization,
+			requiresProviderAcceptance = true,
+			predecessorState = current,
+		)
+	}
+
+	private suspend fun insertReservedPhysicalProvider(
+		next: SourceRegistrationStateEntity,
+		physicalConfigurationFingerprint: String,
+		providerResidency: String,
+		processIncarnationId: String,
+		updatedAtMs: Long,
+		updatedElapsedRealtimeNanos: Long,
+	) {
+		database.sourceBrokerDao().insertRegistration(
+			ProviderRegistrationGenerationEntity(
+				sourceKind = next.sourceKind,
+				registrationGeneration = next.registrationGeneration,
+				sourceInstanceId = next.sourceInstanceId,
+				ownerScope = next.ownerScope,
+				clockDomainId = next.clockDomainId,
+				physicalConfigurationFingerprint = physicalConfigurationFingerprint,
+				collectedDataEpoch = next.collectedDataEpoch,
+				providerResidency = providerResidency,
+				providerProcessIncarnationId = processIncarnationId.takeIf {
+					providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND
+				},
+				status = ProviderRegistrationGenerationEntity.STATUS_RESERVED,
+				reservedAtMs = updatedAtMs,
+				reservedElapsedRealtimeNanos = updatedElapsedRealtimeNanos,
+				acceptedAtMs = null,
+				acceptedElapsedRealtimeNanos = null,
+				retiredAtMs = null,
+				retiredElapsedRealtimeNanos = null,
+				failureCode = null,
+			),
+		)
+	}
+
+	// Refresh revalidates the captured complete demand set without acquiring new retention authority inside Room.
+	@Suppress("LongParameterList")
+	private suspend fun readCurrentAuthorizationRefreshDemands(
+		source: SourceKind,
+		expectedOwnerScope: String,
+		purposeEligibilityMask: Long,
+		observedDemands: List<SourceDemandEntity>,
+		retentionSnapshot: LiveAmbientRetentionSnapshot?,
+		collectedDataEpoch: Long,
+		clockDomainId: String,
+		updatedElapsedRealtimeNanos: Long,
+		updatedAtMs: Long,
+	): List<SourceDemandEntity>? {
+		val demands = SourceProviderPurposeScope.selectDemands(
+			source.stableCode,
+			expectedOwnerScope,
+			database.sourceBrokerDao().authorizationDemands(source.stableCode),
+		)
+		if (demands != observedDemands || demands.isEmpty() ||
+			(SourceBrokerAuthorization.purposeMask(demands) and purposeEligibilityMask) == 0L ||
+			!supportsExactDemandPurposes(source, demands)
+		) {
+			return null
+		}
+		return if (retentionSnapshot == null ||
+			!sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
+				demands = demands,
+				expectedCollectedDataEpoch = collectedDataEpoch,
+				currentBootId = clockDomainId,
+				currentElapsedRealtimeNanos = updatedElapsedRealtimeNanos,
+				currentWallTimeMs = updatedAtMs,
+				retentionSnapshot = retentionSnapshot,
+			)
+		) {
+			null
+		} else {
+			demands
+		}
+	}
+
+	// Publish only the caller's exact active physical owner; refresh never reserves a replacement.
+	@Suppress("LongParameterList")
+	private suspend fun publishRefreshedProviderAuthorization(
+		source: SourceKind,
+		expectedRegistration: SourceRegistration,
+		appliedRevision: Long,
+		physicalConfigurationFingerprint: String,
+		updatedAtMs: Long,
+		updatedElapsedRealtimeNanos: Long,
+		providerResidency: String,
+		collectedDataEpoch: Long,
+		clockDomainId: String,
+		processIncarnationId: String,
+		demands: List<SourceDemandEntity>,
+	): SourceRegistration? {
+		val brokerDao = database.sourceBrokerDao()
+		val ownerScope = expectedRegistration.ownerScope
+		val dao = database.sourceRegistrationStateDao()
+		val current = dao.get(source.stableCode, ownerScope) ?: return null
+		val currentPhysical = brokerDao.registration(
+			current.sourceKind,
+			current.registrationGeneration,
+		) ?: return null
+		if (!current.matchesRefreshedRegistrationIdentity(expectedRegistration.state, clockDomainId, collectedDataEpoch) ||
+			!currentPhysical.matchesRefreshedRegistrationOwner(
+				expectedRegistration, providerResidency, processIncarnationId, physicalConfigurationFingerprint,
+			)
+		) {
+			return null
+		}
+
+		val refreshed = current.copy(
+			appliedRevision = appliedRevision,
+			updatedAtMs = updatedAtMs,
+		)
+		dao.replace(refreshed)
+		val authorization = appendAuthorizationIfChanged(
+			source = source,
+			registrationGeneration = current.registrationGeneration,
+			demands = demands,
+			bootId = clockDomainId,
+			elapsedRealtimeNanos = updatedElapsedRealtimeNanos,
+			wallTimeMs = updatedAtMs,
+		)
+		return SourceRegistration(
+			ownerScope = ownerScope,
+			state = refreshed,
+			physicalConfigurationFingerprint = physicalConfigurationFingerprint,
+			authorization = authorization,
+			requiresProviderAcceptance = false, predecessorState = current,
+			providerAcceptedElapsedRealtimeNanos = requireNotNull(currentPhysical.acceptedElapsedRealtimeNanos),
+		)
 	}
 
 	suspend fun markAccepted(
@@ -874,7 +1026,9 @@ class SourceRegistrationRepository @Inject constructor(
 		acceptedAtMs: Long,
 		acceptedElapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),
 	): ProviderRegistrationGenerationEntity? {
-		if (!registration.requiresProviderAcceptance) return null
+		if (!registration.requiresProviderAcceptance) {
+			return null
+		}
 		val source = SourceKind.entries.single { it.stableCode == registration.state.sourceKind }
 		val lifecycle = lifecycleStore.snapshot()
 		check(lifecycle.epoch == registration.state.collectedDataEpoch) {
@@ -933,6 +1087,55 @@ class SourceRegistrationRepository @Inject constructor(
 	}
 
 
+	/** Rebinds a queued radio callback to the saved receive-time header without changing its owner. */
+	internal suspend fun radioCallbackAuthorizationAtReceipt(
+		expected: SourceRegistration,
+		receivedElapsedRealtimeNanos: Long,
+	): SourceRegistration? {
+		val source = expected.state.sourceKind
+		if (source !in setOf(SourceKind.WIFI.stableCode, SourceKind.CELL.stableCode) ||
+			receivedElapsedRealtimeNanos < 0L || lifecycleStore.snapshot().epoch != expected.state.collectedDataEpoch ||
+			clockDomainProvider.current() != expected.state.clockDomainId) {
+			return null
+		}
+		val process = processIncarnationIdProvider.current()
+		return database.withTransaction {
+			readRadioCallbackAuthorizationAtReceipt(expected, receivedElapsedRealtimeNanos, process)
+		}
+	}
+
+	// Saved/current authorization failures remain distinct ordered guards inside one Room snapshot.
+	@Suppress("ReturnCount")
+	private suspend fun readRadioCallbackAuthorizationAtReceipt(
+		expected: SourceRegistration, receivedElapsedRealtimeNanos: Long, process: String,
+	): SourceRegistration? {
+		val source = expected.state.sourceKind
+		val broker = database.sourceBrokerDao()
+		val state = database.sourceRegistrationStateDao().get(source, expected.ownerScope)
+			?: return null
+		val physical = broker.registrationAtObservedTime(source, expected.state.registrationGeneration,
+			expected.state.sourceInstanceId, expected.state.clockDomainId,
+			expected.physicalConfigurationFingerprint, receivedElapsedRealtimeNanos)
+			?: return null
+		if (database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expected.state.collectedDataEpoch ||
+			!SourceRegistrationCallbackAuthority.ownsRecordedRadioCallback(state, physical, expected, process)) {
+			return null
+		}
+		val original = boundedCallbackAuthorization(broker.authorizationRevisionBounded(source,
+			state.registrationGeneration, expected.authorization.authorizationRevision,
+			MAX_RADIO_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS + 1)) ?: return null
+		if (!original.sameAuthorizationAs(expected.authorization)) {
+			return null
+		}
+		val received = boundedCallbackAuthorization(broker.authorizationAtBounded(source,
+			state.registrationGeneration, state.clockDomainId, receivedElapsedRealtimeNanos,
+			MAX_RADIO_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS + 1)) ?: return null
+		if (received.authorizationRevision < original.authorizationRevision ||
+			received.effectiveBootId != state.clockDomainId) {
+			return null
+		}
+		return expected.copy(authorization = received)
+	}
 
 	/** Read-only reuse of publication checks; it grants no callback acknowledgement. */
 	internal suspend fun isCurrentRadioSessionCaptureCallbackOwner(expectedRegistration: SourceRegistration): Boolean =
@@ -949,7 +1152,9 @@ class SourceRegistrationRepository @Inject constructor(
 		val source = expectedRegistration.state.sourceKind
 		require(source in setOf(SourceKind.WIFI.stableCode, SourceKind.CELL.stableCode))
 		val epoch = expectedRegistration.state.collectedDataEpoch
-		if (lifecycleStore.snapshot().epoch != epoch) return false
+		if (lifecycleStore.snapshot().epoch != epoch) {
+			return false
+		}
 		val process = processIncarnationIdProvider.current()
 		val boot = clockDomainProvider.current()
 		return database.withTransaction {
@@ -958,43 +1163,67 @@ class SourceRegistrationRepository @Inject constructor(
 				?: return@withTransaction false
 			val physical = broker.registration(source, state.registrationGeneration) ?: return@withTransaction false
 			if (database.sourceEvidenceStateDao().get()?.collectedDataEpoch != epoch ||
-				state.registrationGeneration != expectedRegistration.state.registrationGeneration ||
-				state.sourceInstanceId != expectedRegistration.state.sourceInstanceId ||
-				state.clockDomainId != expectedRegistration.state.clockDomainId || state.clockDomainId != boot ||
-				state.collectedDataEpoch != epoch || physical.collectedDataEpoch != epoch ||
-				physical.sourceInstanceId != state.sourceInstanceId || physical.clockDomainId != boot ||
-				physical.ownerScope != expectedRegistration.ownerScope ||
-				physical.physicalConfigurationFingerprint != expectedRegistration.physicalConfigurationFingerprint ||
-				physical.providerResidency != ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND ||
-				physical.providerProcessIncarnationId != process || physical.status != ProviderRegistrationGenerationEntity.STATUS_ACTIVE
-			) return@withTransaction false
-			val rows = broker.latestRadioAuthorizationBounded(source, state.registrationGeneration, 65)
-			if (rows.size > 64) return@withTransaction false
-			val authorization = try { rows.toAuthorizationSnapshotOrNull() }
-			catch (@Suppress("SwallowedException") _: IllegalArgumentException) { null } ?: return@withTransaction false
-			if (!authorization.sameAuthorizationAs(expectedRegistration.authorization) || authorization.effectiveBootId != boot ||
-				authorization.authorizedMembers.any { it.persistenceEligible && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
-			) return@withTransaction false
-			val demands = if (source == SourceKind.WIFI.stableCode) {
-				database.wifiCapturedFactDao().activeDemandsForDeletion(source, 257)
-			} else database.cellCapturedFactDao().activeCellDemandsForDeletion(source, 257)
-			if (demands.size > 256 || !authenticateRadioAmbientCallbackDemands(source, demands, authorization)) {
+				!SourceRegistrationCallbackAuthority.ownsLiveRadioCallback(
+					state, physical, expectedRegistration, epoch, boot, process)) {
 				return@withTransaction false
 			}
-			val expected = try {
-				SourceBrokerAuthorization.rows(source, state.registrationGeneration, authorization.authorizationRevision,
-					demands, boot, authorization.effectiveElapsedRealtimeNanos, rows.first().effectiveWallTimeMs)
-			} catch (@Suppress("SwallowedException") _: IllegalArgumentException) { null }
-			if (rows.sortedBy { it.memberId } != expected?.sortedBy { it.memberId }) return@withTransaction false
-			if (physical.captureCallbackBarrierAuthorizationRevision > authorization.authorizationRevision) return@withTransaction false
-			val lastCapture = broker.maximumRadioSessionCaptureAuthorizationRevision(source, state.registrationGeneration)
-			val proposed = physical.copy(captureCallbackBarrierAuthorizationRevision = authorization.authorizationRevision)
-			if (!database.hasExactRadioSessionCaptureCallbackBarrier(proposed, authorization, lastCapture)) return@withTransaction false
-			if (!publish) return@withTransaction true
-			if (broker.acknowledgeRadioSessionCaptureCallbackBarrier(source, state.registrationGeneration,
-					state.sourceInstanceId, authorization.authorizationRevision) != 1) return@withTransaction false
-			val acknowledged = broker.registration(source, state.registrationGeneration) ?: return@withTransaction false
-			acknowledged.captureCallbackBarrierAuthorizationRevision == authorization.authorizationRevision
+			val authorization = currentRadioSessionCaptureAuthorization(expectedRegistration, state, boot)
+				?: return@withTransaction false
+			if (physical.captureCallbackBarrierAuthorizationRevision > authorization.authorizationRevision) {
+				return@withTransaction false
+			}
+			val lastCapture = broker.maximumRadioSessionCaptureAuthorizationRevision(source,
+                state.registrationGeneration)
+			val proposed = physical.copy(captureCallbackBarrierAuthorizationRevision =
+                authorization.authorizationRevision)
+			if (!database.hasExactRadioSessionCaptureCallbackBarrier(proposed, authorization, lastCapture)) {
+				return@withTransaction false
+			}
+			if (!publish) {
+				return@withTransaction true
+			}
+			publishRadioSessionBarrier(state, authorization)
+		}
+	}
+
+	private suspend fun publishRadioSessionBarrier(
+		state: SourceRegistrationStateEntity, authorization: SourceAuthorizationSnapshot,
+	): Boolean {
+		val source = state.sourceKind
+		val broker = database.sourceBrokerDao()
+		if (broker.acknowledgeRadioSessionCaptureCallbackBarrier(source, state.registrationGeneration,
+				state.sourceInstanceId, authorization.authorizationRevision) != 1) {
+			return false
+		}
+		val acknowledged = broker.registration(source, state.registrationGeneration) ?: return false
+		return acknowledged.captureCallbackBarrierAuthorizationRevision == authorization.authorizationRevision
+	}
+
+	/** The session boundary uses current bounded radio rows before proposing its prefix acknowledgement. */
+	private suspend fun currentRadioSessionCaptureAuthorization(
+		expected: SourceRegistration,
+		state: SourceRegistrationStateEntity,
+		boot: String,
+	): SourceAuthorizationSnapshot? {
+		val source = expected.state.sourceKind
+		val rows = database.sourceBrokerDao().latestRadioAuthorizationBounded(
+			source, state.registrationGeneration, MAX_RADIO_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS + 1)
+		val authorization = boundedCallbackAuthorization(rows) ?: return null
+		if (!SourceRegistrationCallbackAuthority.matchesNoncaptureAuthorization(expected, authorization, boot)) {
+			return null
+		}
+		val demands = if (source == SourceKind.WIFI.stableCode) {
+			database.wifiCapturedFactDao().activeDemandsForDeletion(source, MAX_RADIO_CALLBACK_BARRIER_DEMANDS + 1)
+		} else {
+			database.cellCapturedFactDao().activeCellDemandsForDeletion(source, MAX_RADIO_CALLBACK_BARRIER_DEMANDS + 1)
+		}
+		if (demands.size > MAX_RADIO_CALLBACK_BARRIER_DEMANDS ||
+			!authenticateRadioAmbientCallbackDemands(source, demands, authorization)) {
+			return null
+		}
+		val expectedRows = reconstructedCallbackAuthorization(source, state.registrationGeneration, authorization, demands)
+		return authorization.takeIf {
+			rows.sortedBy { row -> row.memberId } == expectedRows?.sortedBy { row -> row.memberId }
 		}
 	}
 
@@ -1008,7 +1237,9 @@ class SourceRegistrationRepository @Inject constructor(
 	): Boolean {
 		require(expectedRegistration.state.sourceKind == SourceKind.LOCATION.stableCode)
 		val expectedEpoch = expectedRegistration.state.collectedDataEpoch
-		if (lifecycleStore.snapshot().epoch != expectedEpoch) return false
+		if (lifecycleStore.snapshot().epoch != expectedEpoch) {
+			return false
+		}
 		val currentProcess = processIncarnationIdProvider.current()
 		val currentBoot = clockDomainProvider.current()
 		return database.withTransaction {
@@ -1019,31 +1250,20 @@ class SourceRegistrationRepository @Inject constructor(
 			val physical = broker.registration(SourceKind.LOCATION.stableCode,
 				expectedRegistration.state.registrationGeneration) ?: return@withTransaction false
 			if (database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch ||
-				state.sourceInstanceId != expectedRegistration.state.sourceInstanceId ||
-				state.registrationGeneration != expectedRegistration.state.registrationGeneration ||
-				state.clockDomainId != expectedRegistration.state.clockDomainId ||
-				state.collectedDataEpoch != expectedEpoch || state.clockDomainId != currentBoot ||
-				physical.sourceInstanceId != state.sourceInstanceId ||
-				physical.ownerScope != expectedRegistration.ownerScope ||
-				physical.clockDomainId != state.clockDomainId ||
-				physical.collectedDataEpoch != expectedEpoch ||
-				physical.physicalConfigurationFingerprint != expectedRegistration.physicalConfigurationFingerprint ||
-				physical.providerResidency != ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND ||
-				physical.providerProcessIncarnationId != currentProcess ||
-				physical.status != ProviderRegistrationGenerationEntity.STATUS_ACTIVE
-			) return@withTransaction false
+				!SourceRegistrationCallbackAuthority.ownsLiveLocationCallback(
+					state, physical, expectedRegistration, expectedEpoch, currentBoot, currentProcess)) {
+				return@withTransaction false
+			}
 			val rows = broker.latestAuthorization(SourceKind.LOCATION.stableCode, state.registrationGeneration)
 			val authorization = try {
 				rows.toAuthorizationSnapshotOrNull()
 			} catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
 				null
 			} ?: return@withTransaction false
-			if (!authorization.sameAuthorizationAs(expectedRegistration.authorization) ||
-				authorization.effectiveBootId != currentBoot ||
-				authorization.authorizedMembers.any { member ->
-					member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
-				}
-			) return@withTransaction false
+			if (!SourceRegistrationCallbackAuthority.matchesNoncaptureAuthorization(
+					expectedRegistration, authorization, currentBoot)) {
+				return@withTransaction false
+			}
 			val demands = SourceProviderPurposeScope.selectDemands(SourceKind.LOCATION.stableCode,
 				expectedRegistration.ownerScope, broker.authorizationDemands(SourceKind.LOCATION.stableCode))
 			val expectedRows = SourceBrokerAuthorization.rows(SourceKind.LOCATION.stableCode,
@@ -1071,140 +1291,54 @@ class SourceRegistrationRepository @Inject constructor(
 		val lifecycle = lifecycleStore.snapshot()
 		if (lifecycle.epoch != expectedCollectedDataEpoch) {
 			return CellCaptureCallbackBarrierPublication.Blocked(
-				CellCaptureCallbackBarrierBlockedReason.STALE_LIFECYCLE,
-			)
+				CellCaptureCallbackBarrierBlockedReason.STALE_LIFECYCLE)
 		}
 		val currentProcessId = processIncarnationIdProvider.current()
 		return database.withTransaction {
 			val state = database.sourceRegistrationStateDao().get(
-				SourceKind.CELL.stableCode,
-				expectedRegistration.ownerScope,
-			)
+				SourceKind.CELL.stableCode, expectedRegistration.ownerScope)
 			val physical = database.sourceBrokerDao().registration(
-				SourceKind.CELL.stableCode,
-				expectedRegistration.state.registrationGeneration,
-			)
-			if (state == null || physical == null ||
-				state.sourceInstanceId != expectedRegistration.state.sourceInstanceId ||
-				state.registrationGeneration != expectedRegistration.state.registrationGeneration ||
-				state.clockDomainId != expectedRegistration.state.clockDomainId ||
-				state.collectedDataEpoch != expectedCollectedDataEpoch ||
-				physical.sourceInstanceId != expectedRegistration.state.sourceInstanceId ||
-				physical.ownerScope != expectedRegistration.ownerScope ||
-				physical.clockDomainId != expectedRegistration.state.clockDomainId ||
-				physical.physicalConfigurationFingerprint !=
-					expectedRegistration.physicalConfigurationFingerprint ||
-				physical.collectedDataEpoch != expectedCollectedDataEpoch ||
-				physical.providerResidency !=
-					ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND ||
-				physical.providerProcessIncarnationId != currentProcessId ||
-				physical.status != ProviderRegistrationGenerationEntity.STATUS_ACTIVE
-			) return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
-				CellCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION,
-			)
-
-			val factDao = database.cellCapturedFactDao()
-			val latestRevision = factDao.maximumRegistrationAuthorizationRevision(
-				SourceKind.CELL.stableCode,
-				expectedRegistration.state.registrationGeneration,
-			)
-			val rows = factDao.maintenanceAuthorizationMembers(
-				SourceKind.CELL.stableCode,
-				expectedRegistration.state.registrationGeneration,
-				latestRevision,
-				MAX_CELL_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS + 1,
-			)
-			val currentAuthorization = if (rows.size <= MAX_CELL_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS) {
-				try {
-					rows.toAuthorizationSnapshotOrNull()
-				} catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
-					null
-				}
-			} else null
-			if (latestRevision <= 0L || currentAuthorization == null ||
-				!currentAuthorization.sameAuthorizationAs(expectedRegistration.authorization)
-			) return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
-				CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
-			)
-			val activeDemands = factDao.activeCellDemandsForDeletion(
-				SourceKind.CELL.stableCode,
-				MAX_CELL_CALLBACK_BARRIER_DEMANDS + 1,
-			)
-			val expectedRows = try {
-				SourceBrokerAuthorization.rows(
-					sourceKind = SourceKind.CELL.stableCode,
-					registrationGeneration = expectedRegistration.state.registrationGeneration,
-					authorizationRevision = latestRevision,
-					demands = activeDemands,
-					effectiveBootId = currentAuthorization.effectiveBootId,
-					effectiveElapsedRealtimeNanos = currentAuthorization.effectiveElapsedRealtimeNanos,
-					effectiveWallTimeMs = rows.first().effectiveWallTimeMs,
-				)
-			} catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
+				SourceKind.CELL.stableCode, expectedRegistration.state.registrationGeneration)
+			if (!SourceRegistrationCallbackAuthority.ownsProcessBoundRadioCallback(
+					state, physical, expectedRegistration, expectedCollectedDataEpoch, currentProcessId)) {
 				return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
-					CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
-				)
+					CellCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION)
 			}
-			if (activeDemands.size > MAX_CELL_CALLBACK_BARRIER_DEMANDS ||
-				rows.sortedBy { row -> row.memberId } != expectedRows.sortedBy { row -> row.memberId }
-			) return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
-				CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
-			)
-			if (currentAuthorization.authorizedMembers.any { member ->
-					member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
-				}) return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
-				CellCaptureCallbackBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
-			)
-
-			if (!authenticateRadioAmbientCallbackDemands(SourceKind.CELL.stableCode, activeDemands, currentAuthorization)) {
+			val (authorizationRevision, authorization) = currentRadioCallbackAuthorization(expectedRegistration)
+				?: return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
+					CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE)
+			val demands = currentRadioCallbackDemands(expectedRegistration, authorization, authorizationRevision)
+				?: return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
+					CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE)
+			if (authorization.authorizedMembers.any { member ->
+					member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) {
 				return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
-					CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
-				)
+					CellCaptureCallbackBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE)
 			}
-
-			val maximumCaptureRevision = database.sourceBrokerDao()
-				.maximumCaptureAuthorizationRevision(
-					SourceKind.CELL.stableCode,
-					expectedRegistration.state.registrationGeneration,
-				)
-			if (physical.captureCallbackBarrierAuthorizationRevision > maximumCaptureRevision &&
-				!database.hasExactRadioSessionCaptureCallbackBarrier(physical, currentAuthorization, maximumCaptureRevision)
-			) {
+			if (!authenticateRadioAmbientCallbackDemands(SourceKind.CELL.stableCode, demands, authorization)) {
 				return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
-					CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
-				)
+					CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE)
 			}
-			if (database.sourceBrokerDao().acknowledgeCaptureCallbackBarrier(
-					sourceKind = SourceKind.CELL.stableCode,
-					registrationGeneration = expectedRegistration.state.registrationGeneration,
-					sourceInstanceId = expectedRegistration.state.sourceInstanceId,
-					throughAuthorizationRevision = maximumCaptureRevision,
-				) != 1
-			) return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
-				CellCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION,
-			)
-			val acknowledged = database.sourceBrokerDao().registration(
-				SourceKind.CELL.stableCode,
-				expectedRegistration.state.registrationGeneration,
-			)
-			val publishedRevision = maxOf(physical.captureCallbackBarrierAuthorizationRevision, maximumCaptureRevision)
-			if (acknowledged?.captureCallbackBarrierAuthorizationRevision != publishedRevision) {
-				return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
-					CellCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION,
-				)
-			}
-			CellCaptureCallbackBarrierPublication.Established(publishedRevision)
+			settleRadioCaptureCallbackBarrier(expectedRegistration, requireNotNull(physical), authorization,
+				unverifiable = { CellCaptureCallbackBarrierPublication.Blocked(
+					CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE) },
+				stale = { CellCaptureCallbackBarrierPublication.Blocked(
+					CellCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION) },
+				established = { CellCaptureCallbackBarrierPublication.Established(it) })
 		}
 	}
 
 	/** The surviving Cell Ambient purpose keeps its own current policy and consent authority. */
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	private suspend fun authenticateRadioAmbientCallbackDemands(
 		sourceKind: Int,
 		demands: List<SourceDemandEntity>,
 		authorization: SourceAuthorizationSnapshot,
 	): Boolean {
 		val ambient = demands.filter { it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT }
-		if (ambient.isEmpty()) return true
+		if (ambient.isEmpty()) {
+			return true
+		}
 		val policies = database.sourcePolicyDao()
 		val authority = policies.authority()?.takeIf {
 			it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE
@@ -1212,21 +1346,14 @@ class SourceRegistrationRepository @Inject constructor(
 		val current = policies.policyAtRevision(authority.currentPolicyRevision, sourceKind)
 			?: return false
 		val consent = policies.latestConsentEpoch(sourceKind, SourceBrokerPurpose.AMBIENT_PRODUCT)
-		if (!current.hasExactEligibleAmbientConsentReference(consent)) return false
+		if (!current.hasExactEligibleAmbientConsentReference(consent)) {
+			return false
+		}
 		return ambient.all { demand ->
 			val historical = policies.policyAtRevision(demand.sourcePolicyRevision, sourceKind)
 				?: return@all false
-			demand.sourceKind == sourceKind && demand.status == SourceDemandEntity.STATUS_ACTIVE &&
-				demand.logicalTrackingId == null && demand.serviceRunId == null && demand.manifestRevision == null &&
-				demand.lifecycleLeaseGeneration == null && demand.retireBootId == null &&
-				demand.retireElapsedRealtimeNanos == null && demand.retiredAtMs == null &&
-				demand.persistenceEligible && historical.hasExactEligibleAmbientConsentReference(consent) &&
-				current.ambientConsentEpoch == demand.consentEpoch && historical.ambientConsentEpoch == demand.consentEpoch &&
-				consent != null && consent.policyRevision <= historical.policyRevision &&
-				historical.isEffectiveAtOrBefore(demand.requestedBootId, demand.requestedElapsedRealtimeNanos, demand.requestedAtMs) &&
-				consent.isEffectiveAtOrBefore(demand.requestedBootId, demand.requestedElapsedRealtimeNanos, demand.requestedAtMs) &&
-				demand.requestedBootId == authorization.effectiveBootId &&
-				demand.requestedElapsedRealtimeNanos <= authorization.effectiveElapsedRealtimeNanos
+			demand.isLiveSessionlessRadioAmbientDemand(sourceKind) &&
+				demand.hasExactRadioAmbientCallbackGrant(current, historical, consent, authorization)
 		}
 	}
 
@@ -1244,125 +1371,112 @@ class SourceRegistrationRepository @Inject constructor(
 		val lifecycle = lifecycleStore.snapshot()
 		if (lifecycle.epoch != expectedCollectedDataEpoch) {
 			return WifiCaptureCallbackBarrierPublication.Blocked(
-				WifiCaptureCallbackBarrierBlockedReason.STALE_LIFECYCLE,
-			)
+				WifiCaptureCallbackBarrierBlockedReason.STALE_LIFECYCLE)
 		}
 		val currentProcessId = processIncarnationIdProvider.current()
 		return database.withTransaction {
 			val state = database.sourceRegistrationStateDao().get(
-				SourceKind.WIFI.stableCode,
-				expectedRegistration.ownerScope,
-			)
+				SourceKind.WIFI.stableCode, expectedRegistration.ownerScope)
 			val physical = database.sourceBrokerDao().registration(
-				SourceKind.WIFI.stableCode,
-				expectedRegistration.state.registrationGeneration,
-			)
-			if (state == null || physical == null ||
-				state.sourceInstanceId != expectedRegistration.state.sourceInstanceId ||
-				state.registrationGeneration != expectedRegistration.state.registrationGeneration ||
-				state.clockDomainId != expectedRegistration.state.clockDomainId ||
-				state.collectedDataEpoch != expectedCollectedDataEpoch ||
-				physical.sourceInstanceId != expectedRegistration.state.sourceInstanceId ||
-				physical.ownerScope != expectedRegistration.ownerScope ||
-				physical.clockDomainId != expectedRegistration.state.clockDomainId ||
-				physical.physicalConfigurationFingerprint !=
-					expectedRegistration.physicalConfigurationFingerprint ||
-				physical.collectedDataEpoch != expectedCollectedDataEpoch ||
-				physical.providerResidency !=
-					ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND ||
-				physical.providerProcessIncarnationId != currentProcessId ||
-				physical.status != ProviderRegistrationGenerationEntity.STATUS_ACTIVE
-			) return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
-				WifiCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION,
-			)
-
-			val factDao = database.wifiCapturedFactDao()
-			val latestRevision = factDao.maximumRegistrationAuthorizationRevision(
-				SourceKind.WIFI.stableCode,
-				expectedRegistration.state.registrationGeneration,
-			)
-			val rows = factDao.maintenanceAuthorizationMembers(
-				SourceKind.WIFI.stableCode,
-				expectedRegistration.state.registrationGeneration,
-				latestRevision,
-				MAX_WIFI_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS + 1,
-			)
-			val currentAuthorization = if (
-				rows.size <= MAX_WIFI_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS
-			) {
-				try {
-					rows.toAuthorizationSnapshotOrNull()
-				} catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
-					null
-				}
-			} else null
-			if (latestRevision <= 0L || currentAuthorization == null ||
-				!currentAuthorization.sameWifiBarrierAuthorizationAs(expectedRegistration.authorization)
-			) return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
-				WifiCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
-			)
-			val activeDemands = factDao.activeDemandsForDeletion(
-				SourceKind.WIFI.stableCode,
-				MAX_WIFI_CALLBACK_BARRIER_DEMANDS + 1,
-			)
-			val expectedRows = try {
-				SourceBrokerAuthorization.rows(
-					sourceKind = SourceKind.WIFI.stableCode,
-					registrationGeneration = expectedRegistration.state.registrationGeneration,
-					authorizationRevision = latestRevision,
-					demands = activeDemands,
-					effectiveBootId = currentAuthorization.effectiveBootId,
-					effectiveElapsedRealtimeNanos =
-						currentAuthorization.effectiveElapsedRealtimeNanos,
-					effectiveWallTimeMs = rows.first().effectiveWallTimeMs,
-				)
-			} catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
+				SourceKind.WIFI.stableCode, expectedRegistration.state.registrationGeneration)
+			if (!SourceRegistrationCallbackAuthority.ownsProcessBoundRadioCallback(
+					state, physical, expectedRegistration, expectedCollectedDataEpoch, currentProcessId)) {
 				return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
-					WifiCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
-				)
+					WifiCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION)
 			}
-			if (activeDemands.size > MAX_WIFI_CALLBACK_BARRIER_DEMANDS ||
-				rows.sortedBy { row -> row.memberId } != expectedRows.sortedBy { row -> row.memberId }
-			) return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
-				WifiCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
-			)
-			if (currentAuthorization.authorizedMembers.any { member ->
-					member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
-				}
-			) return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
-				WifiCaptureCallbackBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
-			)
-
-			val maximumProductRevision = database.sourceBrokerDao()
-				.maximumCaptureAuthorizationRevision(
-					SourceKind.WIFI.stableCode,
-					expectedRegistration.state.registrationGeneration,
-				)
-			if (physical.captureCallbackBarrierAuthorizationRevision > maximumProductRevision &&
-				!database.hasExactRadioSessionCaptureCallbackBarrier(physical, currentAuthorization, maximumProductRevision)
-			) {
+			val (authorizationRevision, authorization) = currentRadioCallbackAuthorization(expectedRegistration)
+				?: return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
+					WifiCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE)
+			if (currentRadioCallbackDemands(expectedRegistration, authorization, authorizationRevision) == null) {
 				return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
-					WifiCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
-				)
+					WifiCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE)
 			}
-			if (database.sourceBrokerDao().acknowledgeCaptureCallbackBarrier(
-					sourceKind = SourceKind.WIFI.stableCode,
-					registrationGeneration = expectedRegistration.state.registrationGeneration,
-					sourceInstanceId = expectedRegistration.state.sourceInstanceId,
-					throughAuthorizationRevision = maximumProductRevision,
-				) != 1
-			) return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
-				WifiCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION,
-			)
-			val acknowledged = database.sourceBrokerDao().registration(
-				SourceKind.WIFI.stableCode,
-				expectedRegistration.state.registrationGeneration,
-			)
-			val publishedRevision = maxOf(physical.captureCallbackBarrierAuthorizationRevision, maximumProductRevision)
-			if (acknowledged?.captureCallbackBarrierAuthorizationRevision != publishedRevision) return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
-				WifiCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION,
-			)
-			WifiCaptureCallbackBarrierPublication.Established(publishedRevision)
+			if (authorization.authorizedMembers.any { member ->
+					member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) {
+				return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
+					WifiCaptureCallbackBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE)
+			}
+			settleRadioCaptureCallbackBarrier(expectedRegistration, requireNotNull(physical), authorization,
+				unverifiable = { WifiCaptureCallbackBarrierPublication.Blocked(
+					WifiCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE) },
+				stale = { WifiCaptureCallbackBarrierPublication.Blocked(
+					WifiCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION) },
+				established = { WifiCaptureCallbackBarrierPublication.Established(it) })
+		}
+	}
+
+	/** Reads the same source-local bounded snapshot used by both radio callback barriers. */
+	private suspend fun currentRadioCallbackAuthorization(
+		expected: SourceRegistration,
+	): Pair<Long, SourceAuthorizationSnapshot>? {
+		val source = expected.state.sourceKind
+		val generation = expected.state.registrationGeneration
+		val latestRevision = if (source == SourceKind.WIFI.stableCode) {
+			database.wifiCapturedFactDao().maximumRegistrationAuthorizationRevision(source, generation)
+		} else {
+			database.cellCapturedFactDao().maximumRegistrationAuthorizationRevision(source, generation)
+		}
+		val rows = if (source == SourceKind.WIFI.stableCode) {
+			database.wifiCapturedFactDao().maintenanceAuthorizationMembers(
+				source, generation, latestRevision, MAX_RADIO_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS + 1)
+		} else {
+			database.cellCapturedFactDao().maintenanceAuthorizationMembers(
+				source, generation, latestRevision, MAX_RADIO_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS + 1)
+		}
+		val authorization = boundedCallbackAuthorization(rows) ?: return null
+		return authorization.takeIf {
+			latestRevision > 0L && it.sameAuthorizationAs(expected.authorization)
+		}?.let { latestRevision to it }
+	}
+
+	/** Reconstructs every active member before the caller checks whether capture is absent. */
+	private suspend fun currentRadioCallbackDemands(
+		expected: SourceRegistration,
+		authorization: SourceAuthorizationSnapshot,
+		authorizationRevision: Long,
+	): List<SourceDemandEntity>? {
+		val source = expected.state.sourceKind
+		val demands = if (source == SourceKind.WIFI.stableCode) {
+			database.wifiCapturedFactDao().activeDemandsForDeletion(source, MAX_RADIO_CALLBACK_BARRIER_DEMANDS + 1)
+		} else {
+			database.cellCapturedFactDao().activeCellDemandsForDeletion(source, MAX_RADIO_CALLBACK_BARRIER_DEMANDS + 1)
+		}
+		val expectedRows = reconstructedCallbackAuthorization(
+			source, expected.state.registrationGeneration, authorization, demands, authorizationRevision)
+			?: return null
+		return demands.takeIf {
+			it.size <= MAX_RADIO_CALLBACK_BARRIER_DEMANDS &&
+				authorization.members.sortedBy { row -> row.memberId } == expectedRows.sortedBy { row -> row.memberId }
+		}
+	}
+
+	/** Acknowledges the same immutable capture frontier and verifies the saved revision. */
+	private suspend fun <Publication> settleRadioCaptureCallbackBarrier(
+		expected: SourceRegistration,
+		physical: ProviderRegistrationGenerationEntity,
+		authorization: SourceAuthorizationSnapshot,
+		unverifiable: () -> Publication,
+		stale: () -> Publication,
+		established: (Long) -> Publication,
+	): Publication {
+		val broker = database.sourceBrokerDao()
+		val source = expected.state.sourceKind
+		val generation = expected.state.registrationGeneration
+		val maximumCaptureRevision = broker.maximumCaptureAuthorizationRevision(source, generation)
+		if (physical.captureCallbackBarrierAuthorizationRevision > maximumCaptureRevision &&
+			!database.hasExactRadioSessionCaptureCallbackBarrier(physical, authorization, maximumCaptureRevision)) {
+			return unverifiable()
+		}
+		if (broker.acknowledgeCaptureCallbackBarrier(source, generation,
+				expected.state.sourceInstanceId, maximumCaptureRevision) != 1) {
+			return stale()
+		}
+		val acknowledged = broker.registration(source, generation)
+		val publishedRevision = maxOf(physical.captureCallbackBarrierAuthorizationRevision, maximumCaptureRevision)
+		return if (acknowledged?.captureCallbackBarrierAuthorizationRevision != publishedRevision) {
+			stale()
+		} else {
+			established(publishedRevision)
 		}
 	}
 
@@ -1434,7 +1548,8 @@ class SourceRegistrationRepository @Inject constructor(
 				registration.state.registrationGeneration)).also {
 				check(it.status == ProviderRegistrationGenerationEntity.STATUS_RETIRING)
 			}
-		} else checkNotNull(
+		} else {
+			checkNotNull(
 			brokerDao.beginCurrentProcessRegistrationRetirement(
 				sourceKind = registration.state.sourceKind,
 				registrationGeneration = registration.state.registrationGeneration,
@@ -1445,6 +1560,7 @@ class SourceRegistrationRepository @Inject constructor(
 				reason = reason,
 			),
 		) { "Provider registration is not current-process retirement eligible" }
+		}
 		return retiring.toRetirementToken()
 	}
 
@@ -1457,7 +1573,9 @@ class SourceRegistrationRepository @Inject constructor(
 					ProviderRegistrationGenerationEntity.STATUS_RETIRED
 		}
 		val currentProcessId = processIncarnationIdProvider.current()
-		if (token.processIncarnationId != currentProcessId) return false
+		if (token.processIncarnationId != currentProcessId) {
+			return false
+		}
 		val dao = database.sourceBrokerDao()
 		val completed = dao.completeCurrentProcessRegistrationRetirement(
 			sourceKind = token.source.stableCode,
@@ -1491,7 +1609,9 @@ class SourceRegistrationRepository @Inject constructor(
 			database.sourceBrokerDao().nonterminalSystemLocationRegistrations(2)
 				.filter { it.status == ProviderRegistrationGenerationEntity.STATUS_RETIRING }
 				.map { it.toRetirementToken() }
-		} else emptyList()
+		} else {
+			emptyList()
+		}
 		return process + system
 	}
 
@@ -1565,7 +1685,9 @@ class SourceRegistrationRepository @Inject constructor(
 		if (latest != null &&
 			latest.authorizationFingerprint == fingerprint &&
 			latest.effectiveBootId == bootId
-		) return latest
+		) {
+			return latest
+		}
 		val revision = dao.maximumAuthorizationRevision(source.stableCode) + 1L
 		val rows = SourceBrokerAuthorization.rows(
 			source.stableCode,
@@ -1611,6 +1733,10 @@ class SourceRegistrationRepository @Inject constructor(
 					state.clockDomainId == registration.state.clockDomainId
 			}
 
+	/**
+	 * Saves provider and admission progress transactionally for this exact registration; updatedAtMs is
+	 * UTC milliseconds.
+	 */
 	suspend fun saveRuntimeState(
 		registration: SourceRegistration,
 		lastProviderSequence: Long,
@@ -1645,98 +1771,141 @@ class SourceRegistrationRepository @Inject constructor(
 				payload = payload,
 				updatedAtMs = updatedAtMs,
 			)
-			val dao = database.sourceRuntimeStateDao()
-			val stored = if (stateVersion == SENSOR_RUNTIME_CHECKPOINT_VERSION) {
-				mergeSensorRuntimeStates(
-					current = dao.get(incoming.sourceKind, incoming.ownerScope),
-					incoming = incoming,
-					legacyComponentStateVersion = stateVersion,
-				)
-			} else {
-				incoming
-			}
-			check(stored.sourceInstanceId == registration.state.sourceInstanceId &&
-				stored.clockDomainId == registration.state.clockDomainId &&
-				stored.registrationGeneration == registration.state.registrationGeneration
-			) { "Runtime checkpoint was superseded by an incompatible registration" }
-			dao.save(stored)
+			saveMergedRuntimeCheckpoint(registration, incoming)
 			terminalCompleteness?.let { candidate ->
-				check(candidate.sourceKind == registration.state.sourceKind)
-				check(candidate.sourceInstanceId == registration.state.sourceInstanceId)
-				check(candidate.registrationGeneration == registration.state.registrationGeneration)
-				if (candidate.updatedAtMs !in 0L until Long.MAX_VALUE) {
-					throw StoredCompletenessUnverifiableException()
-				}
-				val countDomainStore = StepsCountDomainStore(database)
-				val completeness = if (
-					candidate.sourceKind == SourceKind.STEPS.stableCode &&
-					countDomainStore.isInstalled()
-				) {
-					val rawExisting = database.sourceSessionDao().rawSourceCompletenessForServiceRun(
-						serviceRunId = candidate.serviceRunId,
-						sourceKind = SourceKind.STEPS.stableCode,
-						limit = MAX_STEPS_COMPLETENESS_ROWS + 1,
-					)
-					if (rawExisting.size > MAX_STEPS_COMPLETENESS_ROWS) {
-						throw StoredCompletenessUnverifiableException()
-					}
-					val existingRows = rawExisting.map { raw ->
-						val existing = raw.validatedOrNull()
-							?: throw StoredCompletenessUnverifiableException()
-						if (
-							existing.logicalTrackingId != candidate.logicalTrackingId ||
-							existing.serviceRunId != candidate.serviceRunId ||
-							existing.sourceKind != SourceKind.STEPS.stableCode
-						) {
-							throw StoredCompletenessUnverifiableException()
-						}
-						existing
-					}
-					val exactRows = existingRows.filter {
-						it.sourceInstanceId == candidate.sourceInstanceId &&
-							it.registrationGeneration == candidate.registrationGeneration
-					}
-					if (exactRows.size > 1) throw StoredCompletenessUnverifiableException()
-					try {
-						candidate.withMonotonicStepsCountDomainRevision(exactRows.singleOrNull())
-					} catch (_: IllegalArgumentException) {
-						throw StoredCompletenessUnverifiableException()
-					}
-				} else {
-					candidate
-				}
-				database.sourceSessionDao().saveCompleteness(completeness)
-				if (completeness.sourceKind == SourceKind.STEPS.stableCode) {
-					val countDomainResult =
-						countDomainStore.recordSessionCompleteness(
-							completeness,
-							terminalStepsCountDomainEvidence
-								?: StepsCountDomainRetirementEvidence(
-									providerFlushOutcome = "UNOBSERVABLE",
-									registrationRemovalOutcome = "UNOBSERVABLE",
-								),
-						)
-					if (countDomainResult !in setOf(
-							StepsCountDomainWriteResult.INSERTED,
-							StepsCountDomainWriteResult.EXACT_REPLAY,
-							StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
-						)
-					) {
-						throw StoredCompletenessUnverifiableException()
-					}
-					if (countDomainResult == StepsCountDomainWriteResult.INSERTED) {
-						publishStepsCountDomainEvidenceRevisionAtWallTime(
-							database,
-							completeness.updatedAtMs,
-						)
-					}
-				}
+				saveTerminalRuntimeCompleteness(registration, candidate, terminalStepsCountDomainEvidence)
 			}
 			SourceRuntimeStateSaveResult.Saved
 		}
 	} catch (_: StoredCompletenessUnverifiableException) {
 		SourceRuntimeStateSaveResult.Unverifiable
 	}
+	/** Keeps the existing sensor checkpoint merge and identity check before the durable save. */
+	private suspend fun saveMergedRuntimeCheckpoint(
+		registration: SourceRegistration,
+		incoming: SourceRuntimeStateEntity,
+	) {
+		val dao = database.sourceRuntimeStateDao()
+		val stored = if (incoming.stateVersion == SENSOR_RUNTIME_CHECKPOINT_VERSION) {
+			mergeSensorRuntimeStates(
+				current = dao.get(incoming.sourceKind, incoming.ownerScope),
+				incoming = incoming,
+				legacyComponentStateVersion = incoming.stateVersion)
+		} else {
+			incoming
+		}
+		check(stored.sourceInstanceId == registration.state.sourceInstanceId &&
+			stored.clockDomainId == registration.state.clockDomainId &&
+			stored.registrationGeneration == registration.state.registrationGeneration) {
+			"Runtime checkpoint was superseded by an incompatible registration"
+		}
+		dao.save(stored)
+	}
+
+	/** Saves terminal source completeness in the same transaction as its runtime checkpoint. */
+	private suspend fun saveTerminalRuntimeCompleteness(
+		registration: SourceRegistration,
+		candidate: SourceSessionCompletenessEntity,
+		countDomainEvidence: StepsCountDomainRetirementEvidence?,
+	) {
+		check(candidate.sourceKind == registration.state.sourceKind)
+		check(candidate.sourceInstanceId == registration.state.sourceInstanceId)
+		check(candidate.registrationGeneration == registration.state.registrationGeneration)
+		if (candidate.updatedAtMs !in 0L until Long.MAX_VALUE) {
+			throw StoredCompletenessUnverifiableException()
+		}
+		val countDomainStore = StepsCountDomainStore(database)
+		val completeness = monotonicTerminalStepsCompleteness(candidate, countDomainStore)
+		database.sourceSessionDao().saveCompleteness(completeness)
+		if (completeness.sourceKind == SourceKind.STEPS.stableCode) {
+			recordTerminalStepsCountDomain(completeness, countDomainStore, countDomainEvidence)
+		}
+	}
+
+	private suspend fun monotonicTerminalStepsCompleteness(
+		candidate: SourceSessionCompletenessEntity,
+		countDomainStore: StepsCountDomainStore,
+	): SourceSessionCompletenessEntity {
+		if (candidate.sourceKind != SourceKind.STEPS.stableCode || !countDomainStore.isInstalled()) {
+			return candidate
+		}
+		val existing = loadExactStepsCompletenessPredecessor(candidate)
+		return try {
+			candidate.withMonotonicStepsCountDomainRevision(existing)
+		} catch (_: IllegalArgumentException) {
+			throw StoredCompletenessUnverifiableException()
+		}
+	}
+
+	private suspend fun loadExactStepsCompletenessPredecessor(
+		candidate: SourceSessionCompletenessEntity,
+	): SourceSessionCompletenessEntity? {
+		val rawExisting = database.sourceSessionDao().rawSourceCompletenessForServiceRun(
+			serviceRunId = candidate.serviceRunId,
+			sourceKind = SourceKind.STEPS.stableCode,
+			limit = MAX_STEPS_COMPLETENESS_ROWS + 1)
+		if (rawExisting.size > MAX_STEPS_COMPLETENESS_ROWS) {
+			throw StoredCompletenessUnverifiableException()
+		}
+		val existingRows = rawExisting.map { raw ->
+			requireStepsCompletenessRun(raw.validatedOrNull(), candidate)
+		}
+		val exactRows = existingRows.filter {
+			it.sourceInstanceId == candidate.sourceInstanceId &&
+				it.registrationGeneration == candidate.registrationGeneration
+		}
+		if (exactRows.size > 1) {
+			throw StoredCompletenessUnverifiableException()
+		}
+		return exactRows.singleOrNull()
+	}
+
+	private suspend fun recordTerminalStepsCountDomain(
+		completeness: SourceSessionCompletenessEntity,
+		countDomainStore: StepsCountDomainStore,
+		countDomainEvidence: StepsCountDomainRetirementEvidence?,
+	) {
+		val result = countDomainStore.recordSessionCompleteness(completeness,
+			countDomainEvidence ?: StepsCountDomainRetirementEvidence(
+				providerFlushOutcome = "UNOBSERVABLE", registrationRemovalOutcome = "UNOBSERVABLE"))
+		if (result !in setOf(StepsCountDomainWriteResult.INSERTED, StepsCountDomainWriteResult.EXACT_REPLAY,
+				StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE)) {
+			throw StoredCompletenessUnverifiableException()
+		}
+		if (result == StepsCountDomainWriteResult.INSERTED) {
+			publishStepsCountDomainEvidenceRevisionAtWallTime(database, completeness.updatedAtMs)
+		}
+	}
+
+}
+
+/** Authenticates immutable passive request bytes; callers retain their own request-selection rules. */
+private fun LocationRegistrationPlanEntity.passiveLocationPlanOrNull(
+	expectedSourceInstanceId: String,
+	expectedFingerprint: String,
+	matchesRequest: (LocationPlan) -> Boolean = { true },
+): LocationPlan? {
+	if (sourceInstanceId != expectedSourceInstanceId ||
+		physicalConfigurationFingerprint != expectedFingerprint ||
+		payloadVersion != PASSIVE_LOCATION_PLAN_PAYLOAD_VERSION ||
+		LocationRegistrationPlanIntegrity.checksum(this) != effectChecksum
+	) {
+		return null
+	}
+	val plan = runCatching { SourcePlanCodec().decode(payload) as? LocationPlan }.getOrNull()
+		?: return null
+	return plan.takeIf { isCanonicalPassivePlan(it, expectedFingerprint, matchesRequest) }
+}
+
+private fun LocationRegistrationPlanEntity.isCanonicalPassivePlan(
+	plan: LocationPlan, expectedFingerprint: String, matchesRequest: (LocationPlan) -> Boolean,
+): Boolean {
+	val encoded = runCatching { SourcePlanCodec().encode(plan) }.getOrNull()
+		?: return false
+	return plan.passiveSystemDelivery && matchesRequest(plan) &&
+		encoded.formatVersion == PASSIVE_LOCATION_PLAN_PAYLOAD_VERSION &&
+		encoded.bytes.contentEquals(payload) && encoded.checksum == payloadChecksum &&
+		plan.physicalConfigurationFingerprint() == expectedFingerprint
 }
 
 private fun SourceAuthorizationSnapshot.sameAuthorizationAs(
@@ -1748,21 +1917,249 @@ private fun SourceAuthorizationSnapshot.sameAuthorizationAs(
 	effectiveElapsedRealtimeNanos == other.effectiveElapsedRealtimeNanos &&
 	members.sortedBy { row -> row.memberId } == other.members.sortedBy { row -> row.memberId }
 
-private const val MAX_CELL_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS = 64
-private const val MAX_CELL_CALLBACK_BARRIER_DEMANDS = 256
+private const val PASSIVE_LOCATION_PLAN_PAYLOAD_VERSION = 4
+private const val MAX_RADIO_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS = 64
+private const val MAX_RADIO_CALLBACK_BARRIER_DEMANDS = 256
 private const val MAX_STEPS_COMPLETENESS_ROWS = 64
 
 private class StoredCompletenessUnverifiableException :
 	IllegalStateException("Stored Steps completeness is unverifiable")
 
-private fun SourceAuthorizationSnapshot.sameWifiBarrierAuthorizationAs(
-	other: SourceAuthorizationSnapshot,
-): Boolean = authorizationRevision == other.authorizationRevision &&
-	authorizationFingerprint == other.authorizationFingerprint &&
-	purposeEligibilityMask == other.purposeEligibilityMask &&
-	effectiveBootId == other.effectiveBootId &&
-	effectiveElapsedRealtimeNanos == other.effectiveElapsedRealtimeNanos &&
-	members.sortedBy { row -> row.memberId } == other.members.sortedBy { row -> row.memberId }
 
-private const val MAX_WIFI_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS = 64
-private const val MAX_WIFI_CALLBACK_BARRIER_DEMANDS = 256
+/** Pure identity checks shared only where the existing radio predicates are identical. */
+// These pure predicates describe the one callback identity protocol; method complexity checks stay enabled.
+@Suppress("TooManyFunctions")
+private object SourceRegistrationCallbackAuthority {
+	/** Verifies the callback identity and complete demand references before radio item qualification. */
+	fun matchesRadioEvidence(
+		registration: SourceRegistration,
+		evidence: SourceEvidenceCandidate<*>,
+		ids: List<String>,
+	): Boolean {
+		val snapshot = registration.authorization
+		if (!hasExactDemandIds(ids, snapshot)) {
+			return false
+		}
+		return snapshot.effectiveBootId == registration.state.clockDomainId &&
+			sameObservedSource(registration, evidence) && sameObservedAuthorization(registration, evidence) &&
+			evidence.physicalConfigurationFingerprint == registration.physicalConfigurationFingerprint
+	}
+
+	private fun hasExactDemandIds(ids: List<String>, snapshot: SourceAuthorizationSnapshot): Boolean =
+		ids.isNotEmpty() && ids.size <= MAX_RADIO_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS &&
+			ids.size == snapshot.authorizedMembers.size && ids.distinct().size == ids.size
+
+	private fun sameObservedSource(registration: SourceRegistration, evidence: SourceEvidenceCandidate<*>): Boolean =
+		evidence.source.stableCode == registration.state.sourceKind &&
+			evidence.sourceInstanceId.value == registration.state.sourceInstanceId &&
+			evidence.registrationGeneration == registration.state.registrationGeneration &&
+			evidence.clockDomainId == registration.state.clockDomainId
+
+	private fun sameObservedAuthorization(
+		registration: SourceRegistration,
+		evidence: SourceEvidenceCandidate<*>,
+	): Boolean = evidence.capturedCollectedDataEpoch == registration.state.collectedDataEpoch &&
+		evidence.authorizationRevision == registration.authorization.authorizationRevision &&
+		evidence.registrationPurposeEligibilityMask == registration.authorization.purposeEligibilityMask &&
+		evidence.registrationEligibilityFingerprint == registration.authorization.authorizationFingerprint
+
+	/** Matches the caller's complete snapshot while session capture has been removed. */
+	fun matchesNoncaptureAuthorization(
+		expected: SourceRegistration,
+		authorization: SourceAuthorizationSnapshot,
+		boot: String,
+	): Boolean = authorization.sameAuthorizationAs(expected.authorization) && authorization.effectiveBootId == boot &&
+		authorization.authorizedMembers.none { member ->
+			member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+		}
+
+	/** Checks current boot, data epoch and the exact process owner for a radio session boundary. */
+	fun ownsLiveRadioCallback(
+		state: SourceRegistrationStateEntity,
+		physical: ProviderRegistrationGenerationEntity,
+		expected: SourceRegistration,
+		epoch: Long,
+		boot: String,
+		processId: String,
+	): Boolean = sameLiveRadioState(state, expected.state, epoch, boot) &&
+		sameLiveRadioProvider(physical, state, expected, epoch, boot, processId)
+
+	private fun sameLiveRadioState(
+		state: SourceRegistrationStateEntity,
+		expected: SourceRegistrationStateEntity,
+		epoch: Long,
+		boot: String,
+	): Boolean {
+		if (state.registrationGeneration != expected.registrationGeneration ||
+			state.sourceInstanceId != expected.sourceInstanceId || state.clockDomainId != expected.clockDomainId ||
+			state.clockDomainId != boot) {
+			return false
+		}
+		return state.collectedDataEpoch == epoch
+	}
+
+	private fun sameLiveRadioProvider(
+		physical: ProviderRegistrationGenerationEntity,
+		state: SourceRegistrationStateEntity,
+		expected: SourceRegistration,
+		epoch: Long,
+		boot: String,
+		processId: String,
+	): Boolean {
+		if (physical.collectedDataEpoch != epoch || physical.sourceInstanceId != state.sourceInstanceId ||
+			physical.clockDomainId != boot) {
+			return false
+		}
+		return sameOwnerConfiguration(physical, expected) && isActiveInProcess(physical, processId)
+	}
+
+	private fun sameOwnerConfiguration(
+		physical: ProviderRegistrationGenerationEntity,
+		expected: SourceRegistration,
+	): Boolean = physical.ownerScope == expected.ownerScope &&
+		physical.physicalConfigurationFingerprint == expected.physicalConfigurationFingerprint
+
+	/** Checks the Location session boundary against its current boot, epoch and physical process owner. */
+	fun ownsLiveLocationCallback(
+		state: SourceRegistrationStateEntity,
+		physical: ProviderRegistrationGenerationEntity,
+		expected: SourceRegistration,
+		epoch: Long,
+		boot: String,
+		processId: String,
+	): Boolean = matchesExpectedState(state, expected.state, epoch) && state.clockDomainId == boot &&
+		sameLiveLocationProvider(physical, state, expected, epoch) && isActiveInProcess(physical, processId)
+
+	private fun sameLiveLocationProvider(
+		physical: ProviderRegistrationGenerationEntity,
+		state: SourceRegistrationStateEntity,
+		expected: SourceRegistration,
+		epoch: Long,
+	): Boolean {
+		if (physical.sourceInstanceId != state.sourceInstanceId || physical.ownerScope != expected.ownerScope ||
+			physical.clockDomainId != state.clockDomainId || physical.collectedDataEpoch != epoch) {
+			return false
+		}
+		return physical.physicalConfigurationFingerprint == expected.physicalConfigurationFingerprint
+	}
+
+	/** The receipt-time query already proves the original generation was physically live then. */
+	fun ownsRecordedRadioCallback(state: SourceRegistrationStateEntity,
+		physical: ProviderRegistrationGenerationEntity, expected: SourceRegistration, processId: String): Boolean =
+		matchesExpectedState(state, expected.state, expected.state.collectedDataEpoch) &&
+			matchesExpectedPhysical(physical, expected) && physical.collectedDataEpoch == state.collectedDataEpoch &&
+			physical.providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
+			physical.providerProcessIncarnationId == processId &&
+			physical.status in setOf(ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+				ProviderRegistrationGenerationEntity.STATUS_RETIRING, ProviderRegistrationGenerationEntity.STATUS_RETIRED) &&
+			physical.acceptedAtMs != null &&
+			expected.providerAcceptedElapsedRealtimeNanos?.let { it == physical.acceptedElapsedRealtimeNanos } != false
+
+	/** Requires both saved rows to identify the caller’s active process-bound radio generation. */
+	fun ownsProcessBoundRadioCallback(
+		state: SourceRegistrationStateEntity?,
+		physical: ProviderRegistrationGenerationEntity?,
+		expected: SourceRegistration,
+		epoch: Long,
+		processId: String,
+	): Boolean {
+		if (state == null || physical == null) {
+			return false
+		}
+		return matchesExpectedState(state, expected.state, epoch) &&
+			matchesExpectedPhysical(physical, expected) && physical.collectedDataEpoch == epoch &&
+			isActiveInProcess(physical, processId)
+	}
+
+	private fun matchesExpectedState(
+		state: SourceRegistrationStateEntity,
+		expected: SourceRegistrationStateEntity,
+		epoch: Long,
+	): Boolean = state.sourceInstanceId == expected.sourceInstanceId &&
+		state.registrationGeneration == expected.registrationGeneration &&
+		state.clockDomainId == expected.clockDomainId && state.collectedDataEpoch == epoch
+
+	private fun matchesExpectedPhysical(
+		physical: ProviderRegistrationGenerationEntity,
+		expected: SourceRegistration,
+	): Boolean = physical.sourceInstanceId == expected.state.sourceInstanceId &&
+		physical.ownerScope == expected.ownerScope && physical.clockDomainId == expected.state.clockDomainId &&
+		physical.physicalConfigurationFingerprint == expected.physicalConfigurationFingerprint
+
+	private fun isActiveInProcess(
+		physical: ProviderRegistrationGenerationEntity,
+		processId: String,
+	): Boolean = physical.providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
+		physical.providerProcessIncarnationId == processId &&
+		physical.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+}
+
+private fun boundedCallbackAuthorization(
+	rows: List<SourceAuthorizationEntity>,
+): SourceAuthorizationSnapshot? = if (rows.size <= MAX_RADIO_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS) {
+	try {
+		rows.toAuthorizationSnapshotOrNull()
+	} catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
+		null
+	}
+} else {
+	null
+}
+
+private fun reconstructedCallbackAuthorization(
+	source: Int,
+	generation: Long,
+	authorization: SourceAuthorizationSnapshot,
+	demands: List<SourceDemandEntity>,
+	authorizationRevision: Long = authorization.authorizationRevision,
+): List<SourceAuthorizationEntity>? = try {
+	SourceBrokerAuthorization.rows(source, generation, authorizationRevision, demands,
+		authorization.effectiveBootId, authorization.effectiveElapsedRealtimeNanos,
+		authorization.members.first().effectiveWallTimeMs)
+} catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
+	null
+}
+
+private fun qualifyRadioCallbackPayload(
+	evidence: SourceEvidenceCandidate<*>,
+	authority: RadioPurposeItemAuthority,
+): RadioPurposeItemQualification.Qualified? {
+	val bytes = DefaultSourcePayloadCodec().encode(evidence.payload, evidence.payloadVersion).bytes
+	val qualification = when (evidence.source) {
+		SourceKind.WIFI -> {
+			val decoded = WifiWalPayloadCodec.decodeCanonical(evidence.payloadVersion, bytes)
+				as? WifiWalPayloadDecodeResult.Decoded ?: return null
+			RadioPurposeItemQualifier.wifi(decoded.payload, authority, evidence.payloadVersion)
+		}
+		SourceKind.CELL -> {
+			val decoded = CellWalPayloadCodec.decodeCanonical(evidence.payloadVersion, bytes)
+				as? CellWalPayloadDecodeResult.Decoded ?: return null
+			RadioPurposeItemQualifier.cell(decoded.payload, authority, evidence.payloadVersion)
+		}
+		else -> return null
+	}
+	return qualification as? RadioPurposeItemQualification.Qualified
+}
+
+private fun radioProviderObservationTimes(evidence: SourceEvidenceCandidate<*>): List<Long?>? =
+	when (val payload = evidence.payload) {
+		is WifiResultSnapshotPayload -> payload.accessPoints.takeIf { it.size <= MAX_WIFI_WAL_CHILDREN }
+			?.map { it.providerTimestampNanos }
+		is CellSnapshotPayload -> payload.observations.takeIf { it.size <= MAX_CELL_WAL_CHILDREN }
+			?.map { it.providerTimestampNanos }
+		else -> null
+	}
+
+private fun requireStepsCompletenessRun(
+	existing: SourceSessionCompletenessEntity?,
+	candidate: SourceSessionCompletenessEntity,
+): SourceSessionCompletenessEntity {
+	val verified = existing ?: throw StoredCompletenessUnverifiableException()
+	if (verified.logicalTrackingId != candidate.logicalTrackingId ||
+		verified.serviceRunId != candidate.serviceRunId || verified.sourceKind != SourceKind.STEPS.stableCode) {
+		throw StoredCompletenessUnverifiableException()
+	}
+	return verified
+}
+
+private const val MAX_PASSIVE_LOCATION_AUTHORIZATION_MEMBERS = 16

@@ -20,6 +20,7 @@ import io.mockk.mockk
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
 import java.io.OutputStream
 import java.util.zip.ZipInputStream
 import kotlin.test.assertEquals
@@ -108,6 +109,34 @@ class SessionBundleExportAdapterRoomTest {
         }) } }
         assertSpoolEmpty()
     }
+
+    @Test fun `cancellation remains primary when child cleanup also fails`(): Unit = runBlocking {
+        annotation(1_000, 4_000)
+        point(2_000)
+        var blockedSpool: File? = null
+        try {
+            val failure = assertFailsWith<CancellationException> {
+                exporter.writeBundle(request(), {}) {
+                    val child = File(context.cacheDir, "portable-export-spool").listFiles().orEmpty()
+                        .single { it.name.contains("session-child-") }
+                    assertTrue(child.delete())
+                    assertTrue(child.mkdir())
+                    File(child, "occupied").writeText("fixture")
+                    blockedSpool = child
+                    throw CancellationException("cancelled destination")
+                }
+            }
+            assertEquals("cancelled destination", failure.message)
+            assertTrue(failure.suppressed.any { it is IOException })
+        } finally {
+            blockedSpool?.let { child ->
+                assertTrue(File(child, "occupied").delete())
+                assertTrue(child.delete())
+            }
+        }
+        assertSpoolEmpty()
+    }
+
     private suspend fun request() = SessionBundleExportRequest(OrganizationSessionId.Annotation("walk"), 0,
         requireNotNull(database.sourceEvidenceStateDao().get()).collectedDataEpoch, setOf(HistorySource.LOCATION))
     private suspend fun annotation(from: Long, to: Long) {

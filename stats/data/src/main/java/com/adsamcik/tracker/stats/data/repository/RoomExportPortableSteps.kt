@@ -104,7 +104,9 @@ internal class RoomExportPortableStepsV2 @Inject constructor(
 		val snapshot = try {
 			reader.readV2(request)
 		} catch (cancelled: CancellationException) {
-			if (!currentCoroutineContext().isActive) throw cancelled
+			if (!currentCoroutineContext().isActive) {
+				throw cancelled
+			}
 			return@withContext ExportPortableStepsResult.RetryableFailure(
 				PortableStepsTransferRetryableReason.STORAGE_UNAVAILABLE,
 			)
@@ -175,4 +177,8 @@ private fun selectedContentChanged() = ExportPortableStepsResult.RetryableFailur
 	PortableStepsTransferRetryableReason.CONCURRENT_STATE_CHANGE)
 
 private fun ExportPortableStepsResult.selectedRecheckFailure(): ExportPortableStepsResult =
-	if (this is ExportPortableStepsResult.RetryableFailure) this else selectedContentChanged()
+	if (this is ExportPortableStepsResult.RetryableFailure) {
+		this
+	} else {
+		selectedContentChanged()
+	}

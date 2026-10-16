@@ -143,7 +143,11 @@ class HistoryPresenterViewModel @Inject constructor(
 	val calendarHistory: Flow<PagingData<HistoryPagingItem>> = combine(
 		calendarRequest.map { it.selectedDay }.distinctUntilChanged(), viewZone,
 	) { day, zone -> day?.let { measuredDayRange(it, zone) } }.flatMapLatest { range ->
-		if (range == null) flowOf(PagingData.empty()) else observationPages(range)
+		if (range == null) {
+			flowOf(PagingData.empty())
+		} else {
+			observationPages(range)
+		}
 	}.cachedIn(viewModelScope)
 
 	private fun observationPages(range: HistoryRange): Flow<PagingData<HistoryPagingItem>> = Pager(
@@ -156,6 +160,7 @@ class HistoryPresenterViewModel @Inject constructor(
 
 	private val monthRetry = MutableStateFlow(0L)
 
+    /** Restarts the selected calendar month read without changing its month or display zone. */
     fun retryCalendarMonth() { monthRetry.value++ }
 
 	init {
@@ -163,7 +168,9 @@ class HistoryPresenterViewModel @Inject constructor(
             combine(_selectedTab, calendarRequest.map { it.month }.distinctUntilChanged(), viewZone, monthRetry) {
                 tab, month, zone, _ -> Triple(tab, month, zone)
             }.collectLatest { (tab, month, zone) ->
-                if (tab == HistoryTab.CALENDAR) observeCalendarMonth(month, zone)
+                if (tab == HistoryTab.CALENDAR) {
+                    observeCalendarMonth(month, zone)
+                }
             }
 		}
 		restorePendingDeletes()
@@ -187,8 +194,16 @@ class HistoryPresenterViewModel @Inject constructor(
 		savedStateHandle[KEY_CALENDAR_SELECTED_DAY] = date.toEpochDay()
 		_calendarState.update {
 			it.copy(currentMonth = newMonth, selectedDay = date, selectedDayDetail = null,
-                dayData = if (it.currentMonth == newMonth) it.dayData else emptyMap(),
-                monthProblems = if (it.currentMonth == newMonth) it.monthProblems else emptySet())
+                dayData = if (it.currentMonth == newMonth) {
+                    it.dayData
+                } else {
+                    emptyMap()
+                },
+                monthProblems = if (it.currentMonth == newMonth) {
+                    it.monthProblems
+                } else {
+                    emptySet()
+                })
 		}
 		calendarRequest.value = CalendarRequest(
 			generation = ++calendarRequestGeneration,
@@ -202,7 +217,8 @@ class HistoryPresenterViewModel @Inject constructor(
 		savedStateHandle[KEY_CALENDAR_MONTH] = month.toString()
 		savedStateHandle.remove<Long>(KEY_CALENDAR_SELECTED_DAY)
 		_calendarState.update {
-			it.copy(currentMonth = month, selectedDay = null, selectedDayDetail = null, dayData = emptyMap(), monthProblems = emptySet())
+			it.copy(currentMonth = month, selectedDay = null, selectedDayDetail = null, dayData = emptyMap(),
+                monthProblems = emptySet())
 		}
 		calendarRequest.value = CalendarRequest(
 			generation = ++calendarRequestGeneration,
@@ -224,9 +240,13 @@ class HistoryPresenterViewModel @Inject constructor(
         try {
             trackingHistoryRepository.observeRange(HistoryRangeRequest(range, limit = 1)).collectLatest { first ->
                 updateCalendarMonth(month, zone, emptyMap(), emptySet(), true)
-                if (first is HistoryRangeRead.Page) readCalendarMonthDays(month, zone, first.snapshot)
-                else updateCalendarMonth(month, zone, emptyMap(), setOf(HistoryProblem(null,
+                if (first is HistoryRangeRead.Page) {
+                    readCalendarMonthDays(month, zone, first.snapshot)
+                }
+                else {
+                    updateCalendarMonth(month, zone, emptyMap(), setOf(HistoryProblem(null,
                     (first as HistoryRangeRead.Unavailable).reason)), false)
+                }
             }
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) {
@@ -240,19 +260,18 @@ class HistoryPresenterViewModel @Inject constructor(
         val days = linkedMapOf<LocalDate, CalendarDayData>()
         val problems = linkedSetOf<HistoryProblem>()
         val pending = linkedMapOf<LocalDate, HistoryContinuation?>()
-        (month.lengthOfMonth() downTo 1).forEach { number ->
+        for (number in month.lengthOfMonth() downTo 1) {
             val day = month.atDay(number)
-            if (measuredDayRange(day, zone) != null) pending[day] = null
+            if (measuredDayRange(day, zone) != null) {
+                pending[day] = null
+            }
         }
         while (pending.isNotEmpty()) {
             for (day in pending.keys.toList()) {
                 currentCoroutineContext().ensureActive()
                 val range = requireNotNull(measuredDayRange(day, zone))
                 val after = pending[day]
-                val read = try { trackingHistoryRepository.readRange(HistoryRangeRequest(range,
-                    limit = if (after == null) 1 else 100, after = after)) }
-                catch (cancelled: CancellationException) { throw cancelled }
-                catch (_: Exception) { HistoryRangeRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE) }
+                val read = trackingHistoryRepository.readCalendarDay(range, after)
                 when (read) {
                     is HistoryRangeRead.Unavailable -> {
                         problems += HistoryProblem(null, read.reason)
@@ -265,15 +284,7 @@ class HistoryPresenterViewModel @Inject constructor(
                             return
                         }
                         problems += read.problems
-                        val next = read.next
-                        if (read.rows.any { it.measurement != null }) {
-                            days[day] = CalendarDayData(day)
-                            pending.remove(day)
-                        } else if (next == null) pending.remove(day)
-                        else if (next.range != range || next == after) {
-                            problems += HistoryProblem(null, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
-                            pending.remove(day)
-                        } else pending[day] = next
+                        advanceCalendarDay(day, range, after, read, days, pending)?.let { problems += it }
                     }
                 }
                 updateCalendarMonth(month, zone, days.toMap(), problems.toSet(), pending.isNotEmpty())
@@ -283,10 +294,14 @@ class HistoryPresenterViewModel @Inject constructor(
         updateCalendarMonth(month, zone, days.toMap(), problems.toSet(), false)
     }
 
+
     private fun updateCalendarMonth(month: YearMonth, zone: ZoneId, days: Map<LocalDate, CalendarDayData>,
         problems: Set<HistoryProblem>, loading: Boolean) {
-        if (calendarRequest.value.month == month && viewZone.value == zone && _selectedTab.value == HistoryTab.CALENDAR)
-            _calendarState.update { it.copy(currentMonth = month, dayData = days, monthProblems = problems, monthLoading = loading) }
+        if (calendarRequest.value.month == month && viewZone.value == zone &&
+            _selectedTab.value == HistoryTab.CALENDAR) {
+            _calendarState.update { it.copy(currentMonth = month, dayData = days, monthProblems =
+                problems, monthLoading = loading) }
+        }
     }
 
 	/**
@@ -294,7 +309,9 @@ class HistoryPresenterViewModel @Inject constructor(
 	 * The trip is hidden immediately and committed even if the UI leaves composition.
 	 */
 	fun requestDeleteTrip(tripId: Long) {
-		if (tripId in _pendingDeletes.value) return
+		if (tripId in _pendingDeletes.value) {
+			return
+		}
 
 		_pendingDeletes.value = _pendingDeletes.value + tripId
 		persistPendingDeletes()
@@ -316,7 +333,9 @@ class HistoryPresenterViewModel @Inject constructor(
 	 * Cancel a pending deletion, restoring the trip in the UI.
 	 */
 	fun undoDeleteTrip(tripId: Long) {
-		if (tripId in resolvingDeletes) return
+		if (tripId in resolvingDeletes) {
+			return
+		}
 
 		_pendingDeletes.value = _pendingDeletes.value - tripId
 		persistPendingDeletes()
@@ -350,7 +369,9 @@ class HistoryPresenterViewModel @Inject constructor(
 	}
 
 	private suspend fun commitPendingDelete(tripId: Long) {
-		if (tripId !in _pendingDeletes.value || !resolvingDeletes.add(tripId)) return
+		if (tripId !in _pendingDeletes.value || !resolvingDeletes.add(tripId)) {
+			return
+		}
 
 		try {
 			tripPresentationRepository.deleteTrip(tripId)
@@ -389,10 +410,49 @@ private data class CalendarRequest(
 )
 
 
+private suspend fun PagedTrackingHistoryRepository.readCalendarDay(
+    range: HistoryRange, after: HistoryContinuation?,
+): HistoryRangeRead = try {
+    readRange(HistoryRangeRequest(range,
+        limit = if (after == null) { 1 } else { 100 }, after = after))
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (_: Exception) {
+    HistoryRangeRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
+}
+
+private fun advanceCalendarDay(
+    day: LocalDate,
+    range: HistoryRange,
+    after: HistoryContinuation?,
+    read: HistoryRangeRead.Page,
+    days: MutableMap<LocalDate, CalendarDayData>,
+    pending: MutableMap<LocalDate, HistoryContinuation?>,
+): HistoryProblem? {
+    val next = read.next
+    if (read.rows.any { it.measurement != null }) {
+        days[day] = CalendarDayData(day)
+        pending.remove(day)
+    } else if (next == null) {
+        pending.remove(day)
+    } else if (next.range != range || next == after) {
+        pending.remove(day)
+        return HistoryProblem(null, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+    } else {
+        pending[day] = next
+    }
+    return null
+}
+
+
 /** A day before the supported UTC epoch contains no saved observation. */
 internal fun measuredDayRange(day: LocalDate, zone: ZoneId): HistoryRange? {
 	val start = day.atStartOfDay(zone).toInstant().toEpochMilli().coerceAtLeast(0L)
 	val end = day.plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli()
-	return if (end <= start) null else HistoryRange(start, end, zone.id,
+	return if (end <= start) {
+		null
+	} else {
+		HistoryRange(start, end, zone.id,
 		mode = HistoryBrowseMode.OBSERVATIONS)
+	}
 }

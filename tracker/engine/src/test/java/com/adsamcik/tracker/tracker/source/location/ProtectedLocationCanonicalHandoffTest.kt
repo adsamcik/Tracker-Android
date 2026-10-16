@@ -673,6 +673,8 @@ class ProtectedLocationCanonicalHandoffTest {
 		)
 	}
 
+	// Keep ignored duplicate insertion, interleaved source and the subsequent global drain together.
+	@Suppress("LongMethod")
 	@Test
 	fun `ignored WAL replay leaves global Location ordinals classifiable`() = runTest {
 		val first = command()
@@ -852,6 +854,8 @@ class ProtectedLocationCanonicalHandoffTest {
 		assertEquals(ADMISSION_ORDINAL + 1L, complete.lastCommittedOrdinal)
 	}
 
+	// Keep both observed registrations and the missing-completeness stopped-drain assertion together.
+	@Suppress("LongMethod")
 	@Test
 	fun `explicit stopped drain defers when observed registration lacks completeness`() = runTest {
 		val first = command()
@@ -1242,6 +1246,9 @@ class ProtectedLocationCanonicalHandoffTest {
 		)
 	}
 
+	// Keep one complete Location command fixture with its matching capture authority, durable observation and
+	// derived product identity together.
+	@Suppress("LongMethod")
 	private fun command(
 		eventId: String = EVENT_ID,
 		admissionOrdinal: Long = ADMISSION_ORDINAL,
@@ -1393,7 +1400,11 @@ private class ReceiptWriter(
 				} else {
 					LocationObservationDecision.REJECTED
 				},
-				reason = if (accepted) null else "CURATED_LOCATION_REJECTED",
+				reason = if (accepted) {
+					null
+				} else {
+					"CURATED_LOCATION_REJECTED"
+				},
 				writerProjectionId = ProtectedLocationCanonicalHandoff.WRITER_ID,
 				writerProjectionVersion = ProtectedLocationCanonicalHandoff.WRITER_VERSION,
 				writerBindingGeneration = ProtectedLocationCanonicalHandoff.BINDING_GENERATION,

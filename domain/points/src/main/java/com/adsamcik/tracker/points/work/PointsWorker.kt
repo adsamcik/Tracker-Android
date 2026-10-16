@@ -1,5 +1,8 @@
 package com.adsamcik.tracker.points.work
 
+import com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+
 import android.content.Context
 import androidx.room.withTransaction
 import androidx.work.CoroutineWorker
@@ -24,7 +27,7 @@ internal class PointsWorker @AssistedInject constructor(
 	private val appDatabaseProvider: Provider<AppDatabase>,
 	private val pointsDatabaseProvider: Provider<PointsDatabase>,
 	private val trackingStartupGate: TrackingStartupGate,
-    private val trackingHistory: com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository,
+    private val trackingHistory: TrackingHistoryRepository,
 ) : CoroutineWorker(
 	context,
 	workerParams
@@ -48,7 +51,7 @@ internal class PointsWorker @AssistedInject constructor(
             }
             val pointsDao = pointsDatabase.pointsAwardedDao()
             val read = trackingHistory.readSavedSessionReward(id)
-            val exactKey = (read as? com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready)?.value?.effectKey
+            val exactKey = (read as? SavedSessionRewardRead.Ready)?.value?.effectKey
             val exact = exactKey?.let { pointsDao.getRevisionedEffect(AwardSource.SESSION.value, it) }
             val receipts = exact?.let { listOf(it) } ?: pointsDao.sessionEffects(id)
             if (receipts.size > 1) return@withReadyGenerationOperation Result.failure()
@@ -67,28 +70,30 @@ internal class PointsWorker @AssistedInject constructor(
             val earnedAt: Long
             val valueMicros: Long
             when (read) {
-                is com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready -> {
+                is SavedSessionRewardRead.Ready -> {
                     val saved = read.value
-                    if (!state.acceptsRetainedEpoch(saved.dataEpoch)) return@withReadyGenerationOperation Result.success()
+                    if (!state.acceptsRetainedEpoch(saved.dataEpoch))
+                        return@withReadyGenerationOperation Result.success()
                     key = oldKey ?: saved.effectKey
                     revision = saved.revision
                     earnedAt = saved.earnedAtMs
                     val points = PointsScorer().calculateFallbackPoints(saved.distanceMeters ?: 0.0,
                         saved.durationMs / 60_000.0)
                     val micros = points * 1_000_000.0
-                    if (!micros.isFinite() || micros >= Long.MAX_VALUE.toDouble()) return@withReadyGenerationOperation Result.failure()
+                    if (!micros.isFinite() || micros >= Long.MAX_VALUE.toDouble())
+                        return@withReadyGenerationOperation Result.failure()
                     valueMicros = micros.toLong().coerceAtLeast(0L)
                 }
-                is com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Removed -> {
+                is SavedSessionRewardRead.Removed -> {
                     if (old == null) return@withReadyGenerationOperation Result.success()
                     key = requireNotNull(oldKey)
                     revision = read.revision
                     earnedAt = old.time
                     valueMicros = 0L
                 }
-                com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Legacy ->
+                SavedSessionRewardRead.Legacy ->
                     return@withReadyGenerationOperation Result.success()
-                com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Unavailable ->
+                SavedSessionRewardRead.Unavailable ->
                     return@withReadyGenerationOperation Result.retry()
             }
             pointsDatabase.withTransaction {

@@ -18,7 +18,7 @@ import org.junit.Test
 /** Exercises the actual portable historical reader, without provider activation. */
 class WifiHistoricalBalanceContractTest {
     @Test
-    fun `adopted responsive legacy QoS reconstructs fixed age while old contract stays strict`() {
+    fun `supported captured floor preserves custom historical freshness across profile changes`() {
         val legacy = policy()
         val originalContract = SourceDemandContractFactory.forQos(SourceKind.WIFI, 3, DirectSourceDemandPurpose.SESSION_CAPTURE)
         val original = demand(originalContract)
@@ -30,8 +30,8 @@ class WifiHistoricalBalanceContractTest {
             val current = demand(newContract)
             current.maximumAgeMs shouldBe 600_000L
             authenticates(adopted, current) shouldBe true
-            authenticates(adopted, original) shouldBe false
-            authenticates(legacy, current) shouldBe false
+            authenticates(adopted, original) shouldBe true
+            authenticates(legacy, current) shouldBe true
             authenticates(adopted.copy(balanceProfileVersion = 2), current) shouldBe false
             authenticates(adopted.copy(balanceLevel = null), current) shouldBe false
             authenticates(adopted.copy(balanceLevel = 0), current) shouldBe false

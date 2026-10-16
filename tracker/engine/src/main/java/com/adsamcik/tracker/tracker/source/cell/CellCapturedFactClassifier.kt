@@ -230,7 +230,11 @@ internal sealed interface CellCapturedFactClassification {
 }
 
 /** Bounded deterministic Cell classification before a source-local writer persists any fact. */
+// Keep one pure source classifier with its complete operational, replay and aggregate phases.
+@Suppress("TooManyFunctions")
 internal object CellCapturedFactClassifier {
+	// Keep ordered source-local validation rejections explicit; classification performs no persistence.
+	@Suppress("ReturnCount")
 	fun classify(
 		input: CellObservationInput,
 		authority: CellCaptureAuthority,
@@ -239,21 +243,7 @@ internal object CellCapturedFactClassifier {
 		priorFact: CellReusableFact? = null,
 		correctionBase: CellReusableFact? = null,
 	): CellCapturedFactClassification {
-		when (input.outcome) {
-			CellProviderOutcome.ABSENT -> return CellCapturedFactClassification.Absent(
-				CellAbsentReason.PROVIDER_ABSENT,
-			)
-			CellProviderOutcome.FAILED -> return CellCapturedFactClassification.Failed(
-				CellFailureReason.PROVIDER_FAILED,
-			)
-			CellProviderOutcome.PERMISSION_LIMITED ->
-				return CellCapturedFactClassification.PermissionLimited
-			CellProviderOutcome.OS_LIMITED -> return CellCapturedFactClassification.OsLimited
-			CellProviderOutcome.DELIVERED -> Unit
-		}
-		if (!input.origin.isProviderCallback) {
-			return CellCapturedFactClassification.Absent(CellAbsentReason.OPERATIONAL_ONLY)
-		}
+		input.operationalResult()?.let { return it }
 		val wal = input.walEvidence ?: return CellCapturedFactClassification.SourceUnverifiable(
 			CellSourceUnverifiableReason.DELIVERY_IDENTITY_MISSING,
 		)
@@ -262,9 +252,11 @@ internal object CellCapturedFactClassifier {
 				CellFactRejection.CAPTURE_AUTHORITY_MISMATCH,
 			)
 		}
-		if (!wal.hasExactOriginalEnvelope()) return CellCapturedFactClassification.Rejected(
+		if (!wal.hasExactOriginalEnvelope()) {
+			return CellCapturedFactClassification.Rejected(
 			CellFactRejection.WAL_INTEGRITY_UNVERIFIABLE,
 		)
+		}
 		val authenticated = when (val authentication = CellWalCarrierAuthenticator.authenticate(
 			wal.toWalEntity(),
 			authority.toWalCaptureAuthority(),
@@ -305,6 +297,20 @@ internal object CellCapturedFactClassifier {
 		)
 	}
 
+	private fun CellObservationInput.operationalResult(): CellCapturedFactClassification? = when (outcome) {
+		CellProviderOutcome.ABSENT -> CellCapturedFactClassification.Absent(CellAbsentReason.PROVIDER_ABSENT)
+		CellProviderOutcome.FAILED -> CellCapturedFactClassification.Failed(CellFailureReason.PROVIDER_FAILED)
+		CellProviderOutcome.PERMISSION_LIMITED -> CellCapturedFactClassification.PermissionLimited
+		CellProviderOutcome.OS_LIMITED -> CellCapturedFactClassification.OsLimited
+		CellProviderOutcome.DELIVERED -> if (origin.isProviderCallback) {
+			null
+		} else {
+			CellCapturedFactClassification.Absent(CellAbsentReason.OPERATIONAL_ONLY)
+		}
+	}
+
+	// Keep the complete qualified-child coverage and aggregate field projection together.
+	@Suppress("LongMethod")
 	private fun classifyChildren(
 		qualification: CellWalChildQualification,
 		authority: CellCaptureAuthority,
@@ -313,7 +319,9 @@ internal object CellCapturedFactClassifier {
 		priorFact: CellReusableFact?,
 		correctionBase: CellReusableFact?,
 	): CellCapturedFactClassification {
-		if (qualification.acceptedChildCount == 0) return qualification.noAcceptedResult()
+		if (qualification.acceptedChildCount == 0) {
+			return qualification.noAcceptedResult()
+		}
 		val aggregate = requireNotNull(qualification.aggregate)
 		val coverage = CellCoverageEvidence(
 			providerIntervalStartElapsedRealtimeNanos =
@@ -397,6 +405,16 @@ internal object CellCapturedFactClassifier {
 			coverage = coverage,
 			aggregate = aggregate,
 		)
+		return classifyProductEffect(mutation, authority, productEffect, priorFact, correctionBase)
+	}
+
+	private fun classifyProductEffect(
+		mutation: CellCapturedFactMutation,
+		authority: CellCaptureAuthority,
+		productEffect: CellCapturedProductEffect,
+		priorFact: CellReusableFact?,
+		correctionBase: CellReusableFact?,
+	): CellCapturedFactClassification {
 		if (mutation.semanticRevision == 1L &&
 			priorFact?.reference?.identity?.sourceDeliveryIdentity ==
 			mutation.identity.sourceDeliveryIdentity
@@ -420,6 +438,15 @@ internal object CellCapturedFactClassifier {
 				CellReplayReason.CORRECTION_NO_OP,
 			)
 		}
+		return classifyFreshCandidate(mutation, authority, productEffect, priorFact)
+	}
+
+	private fun classifyFreshCandidate(
+		mutation: CellCapturedFactMutation,
+		authority: CellCaptureAuthority,
+		productEffect: CellCapturedProductEffect,
+		priorFact: CellReusableFact?,
+	): CellCapturedFactClassification {
 		val reusablePrior: CellReusableFact.DirectAggregateOwner? = when {
 			// A correction advances this logical fact's cursor, so its superseded revision can no
 			// longer be a current direct owner. Keep every effective correction self-contained.
@@ -428,7 +455,7 @@ internal object CellCapturedFactClassifier {
 				it.reference.identity != mutation.identity &&
 					it.authority.temporalAuthority.isImmutableForAggregateReuse &&
 					authority.canReuseAggregateFrom(it.authority) &&
-					it.productEffect.aggregate == aggregate
+					it.productEffect.aggregate == productEffect.aggregate
 			}
 		}
 		if (reusablePrior != null) {
@@ -436,12 +463,12 @@ internal object CellCapturedFactClassifier {
 				CellCapturedFact.CoverageOnly.create(
 					mutation = mutation,
 					authority = authority,
-					evidenceBinding = evidenceBinding,
-					observedWallTimeMs = observedWallTimeMs,
-					wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+					evidenceBinding = productEffect.evidenceBinding,
+					observedWallTimeMs = productEffect.observedWallTimeMs,
+					wallTimeUncertaintyMs = productEffect.wallTimeUncertaintyMs,
 					availability = CellAvailability.AVAILABLE,
-					coverage = coverage,
-					aggregate = aggregate,
+					coverage = productEffect.coverage,
+					aggregate = productEffect.aggregate,
 					reusesAggregate = reusablePrior,
 				),
 			)
@@ -450,12 +477,12 @@ internal object CellCapturedFactClassifier {
 			CellCapturedFact.Aggregate(
 				mutation,
 				authority,
-				evidenceBinding,
-				observedWallTimeMs,
-				wallTimeUncertaintyMs,
+				productEffect.evidenceBinding,
+				productEffect.observedWallTimeMs,
+				productEffect.wallTimeUncertaintyMs,
 				CellAvailability.AVAILABLE,
-				coverage,
-				aggregate,
+				productEffect.coverage,
+				productEffect.aggregate,
 			),
 		)
 	}
@@ -554,6 +581,8 @@ internal object CellCapturedFactClassifier {
 		endExclusiveNanos,
 	)
 
+	// Exhaustive carrier-failure mapping; only saved identity/null checks distinguish two outcomes.
+	@Suppress("CyclomaticComplexMethod", "LongMethod")
 	private fun walAuthenticationRejection(
 		reason: CellWalCarrierFailure,
 		deliveryIdentity: SourceDeliveryIdentity?,

@@ -15,7 +15,6 @@ import com.adsamcik.tracker.stats.api.metric.MetricKey
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.repository.UnconsumedEvent
 import com.adsamcik.tracker.stats.api.value.EpochMs
-import com.adsamcik.tracker.stats.data.repository.DefaultAchievementRepository
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -55,7 +54,6 @@ class GameAchievementNotificationTest {
 		)
 		progressDao = mockk()
 		coEvery { progressDao.getAll() } returns emptyList()
-		coEvery { progressDao.getQualifiedStepsAchievementRows() } returns emptyList()
 		events = RecordingEventRepository()
 		gate = TestTrackingStartupGate()
 		consumer = GameDomainEventConsumer(
@@ -63,7 +61,6 @@ class GameAchievementNotificationTest {
 			achievementEvaluationScheduler = mockk(relaxed = true),
 			progressionRepository = mockk(),
 			trackingStartupGate = gate,
-			achievementRepository = DefaultAchievementRepository(progressDao),
 			achievementProgressDao = progressDao,
 			context = context,
 		)
@@ -105,6 +102,67 @@ class GameAchievementNotificationTest {
 	}
 
 	@Test
+	fun `corrected generic progress suppresses a queued tier while preserving an earned sibling`() = runTest {
+		val distance = definition(MetricKey.DISTANCE_TOTAL_M)
+		val sessions = definition(MetricKey.SESSIONS_TOTAL)
+		coEvery { progressDao.getAll() } returns listOf(
+			AchievementProgressEntity(distance.metric.storageKey, -1, 0.0, 2_000L),
+			AchievementProgressEntity(sessions.metric.storageKey, sessions.tierIndex, sessions.threshold, 2_000L),
+		)
+		events.persist(listOf(unlock(distance), unlock(sessions)))
+
+		consumer.processUnconsumed()
+
+		shadowOf(notificationManager).allNotifications.size shouldBe 1
+		events.acknowledgedIds shouldBe listOf(1L, 2L)
+		coVerify(exactly = 1) { progressDao.getAll() }
+	}
+
+	@Test
+	fun `fresh higher generic unlock is delivered before the older saved tier advances`() = runTest {
+		val higher = AchievementCatalog.byMetric(MetricKey.DISTANCE_TOTAL_M).first { it.tierIndex > 0 }
+		coEvery { progressDao.getAll() } returns listOf(
+			AchievementProgressEntity(higher.metric.storageKey, higher.tierIndex - 1, 1.0, 999L),
+		)
+		events.persist(listOf(unlock(higher)))
+
+		consumer.processUnconsumed()
+
+		shadowOf(notificationManager).allNotifications.size shouldBe 1
+		events.acknowledgedIds shouldBe listOf(1L)
+	}
+
+	@Test
+	fun `same millisecond generic event remains eligible when persistence cannot order it`() = runTest {
+		val higher = AchievementCatalog.byMetric(MetricKey.DISTANCE_TOTAL_M).first { it.tierIndex > 0 }
+		coEvery { progressDao.getAll() } returns listOf(
+			AchievementProgressEntity(higher.metric.storageKey, higher.tierIndex - 1, 1.0, 1_000L),
+		)
+		events.persist(listOf(unlock(higher)))
+
+		consumer.processUnconsumed()
+
+		shadowOf(notificationManager).allNotifications.size shouldBe 1
+		events.acknowledgedIds shouldBe listOf(1L)
+	}
+
+	@Test
+	fun `a currently earned generic tier permits its queued unlock after a newer progress update`() = runTest {
+		val earned = definition(MetricKey.DISTANCE_TOTAL_M)
+		coEvery { progressDao.getAll() } returns listOf(
+			AchievementProgressEntity(earned.metric.storageKey, earned.tierIndex, earned.threshold, 2_000L),
+		)
+		events.persist(listOf(unlock(earned)))
+
+		consumer.processUnconsumed()
+
+		shadowOf(notificationManager).allNotifications.size shouldBe 1
+		events.acknowledgedIds shouldBe listOf(1L)
+	}
+
+	@Test
+	// Keep this complete contract scenario with its setup, actions and unchanged assertions.
+	@Suppress("LongMethod")
 	fun `retained Steps unlocks require exact current revision digest ready state and claimed tier`() = runTest {
 		val metrics = listOf(MetricKey.STEPS_TOTAL, MetricKey.BEST_DAILY_STEPS)
 		val definitions = metrics.map(::definition)
@@ -246,7 +304,6 @@ class GameAchievementNotificationTest {
 
 	private fun setQualifiedRows(rows: List<AchievementProgressEntity>) {
 		coEvery { progressDao.getAll() } returns rows
-		coEvery { progressDao.getQualifiedStepsAchievementRows() } returns rows
 	}
 
 	private suspend fun persistQualifiedUnlocks(
@@ -275,7 +332,11 @@ class GameAchievementNotificationTest {
 	) = AchievementProgressEntity(
 		metricKey = metric.storageKey,
 		lastTierIndex = lastTierIndex,
-		lastValue = if (lastTierIndex >= 0) 3.0 else 0.0,
+		lastValue = if (lastTierIndex >= 0) {
+			3.0
+		} else {
+			0.0
+		},
 		updatedAt = 1_000L,
 		authorityKind = AchievementProgressEntity.AUTHORITY_QUALIFIED_STEPS_V1,
 		authorityRevision = authorityRevision,

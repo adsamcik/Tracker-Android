@@ -163,4 +163,5 @@
     <string name="history_button_label">Istorija</string>
     <string name="history_view_trip_on_map">Rodyti kelionę žemėlapyje</string>
     <string name="stats_heatmap_title">Veikla</string>
+    <string name="stats_recorded_partial_value">%1$s · daliniai duomenys</string>
 </resources>

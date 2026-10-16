@@ -79,38 +79,16 @@ internal object WifiHistoryOriginComposer {
 					logicalId,
 				) != entry.identity
 			}
-		) throw ImportedWifiHistoryCompositionFailure()
+		) {
+			throw ImportedWifiHistoryCompositionFailure()
+		}
 		val liveLogicalIds = visibleLocalLogicalIds
 			?: live.mapTo(hashSetOf(), ComposedWifiEntry::logicalTrackingId)
 		val ownership = PortableWifiOpaqueOwnershipVerifier.fromEntries(
 			localPortableByLogicalId.values,
 		) ?: throw ImportedWifiHistoryCompositionFailure()
 		val importedRows = imported.mapNotNull { evaluation ->
-			val readable = evaluation as? ImportedWifiProductEvaluation.Readable
-			val collision = readable?.collidingLocalLogicalTrackingId
-			val ownershipConflict = readable != null && !ownership.tryInclude(readable.entry)
-			val entry = if (ownershipConflict) {
-				evaluation.toPublicWifiEntry(originConflict = true)
-			} else if (collision == null) {
-				evaluation.toPublicWifiEntry()
-			} else {
-				val colliding = requireNotNull(readable)
-				val local = localPortableByLogicalId[collision]
-				?: throw ImportedWifiHistoryCompositionFailure()
-				if (colliding.isReExportable && colliding.entry == local) {
-					if (collision in liveLogicalIds) null else evaluation.toPublicWifiEntry()
-				} else {
-					evaluation.toPublicWifiEntry(originConflict = true)
-				}
-			}
-			entry?.let {
-				OriginWifiRow.Imported(
-					evaluation = evaluation,
-					entry = it,
-					recencyStartTimeMs = evaluation.candidate.newestMemberStartTimeMs,
-					stableTie = evaluation.candidate.newestMemberIdentity.value,
-				)
-			}
+			composeImportedRow(evaluation, ownership, localPortableByLogicalId, liveLogicalIds)
 		}
 		val localRows = live.map { composed ->
 			OriginWifiRow.Local(composed)
@@ -120,6 +98,43 @@ internal object WifiHistoryOriginComposer {
 				.thenBy(OriginWifiRow::originOrder)
 				.thenByDescending(OriginWifiRow::stableTie),
 		).take(limit)
+	}
+
+	private fun composeImportedRow(
+		evaluation: ImportedWifiProductEvaluation,
+		ownership: PortableWifiOpaqueOwnershipVerifier,
+		localPortableByLogicalId: Map<String, PortableCapturedWifiEntryV1>,
+		liveLogicalIds: Set<String>,
+	): OriginWifiRow.Imported? {
+		val readable = evaluation as? ImportedWifiProductEvaluation.Readable
+		val collision = readable?.collidingLocalLogicalTrackingId
+		val ownershipConflict = readable != null && !ownership.tryInclude(readable.entry)
+		val entry = if (ownershipConflict) {
+			evaluation.toPublicWifiEntry(originConflict = true)
+		} else if (collision == null) {
+			evaluation.toPublicWifiEntry()
+		} else {
+			val colliding = requireNotNull(readable)
+			val local = localPortableByLogicalId[collision]
+			?: throw ImportedWifiHistoryCompositionFailure()
+			if (colliding.isReExportable && colliding.entry == local) {
+				if (collision in liveLogicalIds) {
+					null
+				} else {
+					evaluation.toPublicWifiEntry()
+				}
+			} else {
+				evaluation.toPublicWifiEntry(originConflict = true)
+			}
+		}
+		return entry?.let {
+			OriginWifiRow.Imported(
+				evaluation = evaluation,
+				entry = it,
+				recencyStartTimeMs = evaluation.candidate.newestMemberStartTimeMs,
+				stableTie = evaluation.candidate.newestMemberIdentity.value,
+			)
+		}
 	}
 }
 

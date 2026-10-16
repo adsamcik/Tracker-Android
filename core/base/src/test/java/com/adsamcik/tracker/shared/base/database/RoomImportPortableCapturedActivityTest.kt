@@ -179,6 +179,8 @@ class RoomImportPortableCapturedActivityTest {
 	}
 
 	@Test
+	// Retargeting attempts must preserve the original typed owner and reject self-colliding scope.
+	@Suppress("LongMethod")
 	fun `opaque kind owner and deletion scope retargeting fail closed`() = runTest {
 		val original = request()
 		val importer = importer(testScheduler)
@@ -252,6 +254,8 @@ class RoomImportPortableCapturedActivityTest {
 	}
 
 	@Test
+	// Current and stale tombstone collisions must reject admission without consuming those markers.
+	@Suppress("LongMethod")
 	fun `cross kind tombstone identities block admission without consuming privacy markers`() = runTest {
 		val dao = database.importedActivityDao()
 		val entryMarkerRun = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "entry-marker-run")
@@ -548,7 +552,9 @@ class RoomImportPortableCapturedActivityTest {
 	fun `failure and cancellation roll back entry through receipt atomically`() = runTest {
 		val request = request()
 		val failing = importer(testScheduler) { checkpoint ->
-			if (checkpoint == PortableActivityImportWriteCheckpoint.RECEIPT_INSERTED) error("injected")
+			if (checkpoint == PortableActivityImportWriteCheckpoint.RECEIPT_INSERTED) {
+				error("injected")
+			}
 		}
 		failing.importEntry(request) shouldBe ImportPortableCapturedActivityResult.RetryableFailure(
 			PortableActivityTransferRetryableReason.STORAGE_UNAVAILABLE,
@@ -798,6 +804,8 @@ class RoomImportPortableCapturedActivityTest {
 	}
 
 	@Test
+	// Deletion, repeated deletion and replay share the corrected entry and its unaffected sibling.
+	@Suppress("LongMethod")
 	fun `selected imported deletion fences exact correction and cannot be reimported or re-exported`() =
 		runTest {
 			database.sourceEvidenceStateDao().updateAfterFullDeletion(
@@ -1053,6 +1061,8 @@ class RoomImportPortableCapturedActivityTest {
 	}
 
 	@Test
+	// Both foreign ownership collisions must reject replay against the same selected deletion marker.
+	@Suppress("LongMethod")
 	fun `exact replay rejects selected window reused as run or window owner under another entry`() = runTest {
 		val value = request()
 		val otherEntry = entry(
@@ -1536,6 +1546,8 @@ class RoomImportPortableCapturedActivityTest {
 	}
 
 	@Test
+	// One truncation must preserve its markers while blocking every reuse of that removed hierarchy.
+	@Suppress("LongMethod")
 	fun `retention truncates the complete imported hierarchy and prevents every resurrection path`() =
 		runTest {
 			val sourceScopedEntry = entry(
@@ -2139,6 +2151,8 @@ class RoomImportPortableCapturedActivityTest {
 	}
 
 	@Test
+	// The same erased scope must remain blocked through cascade, full clear and attempted reimport.
+	@Suppress("LongMethod")
 	fun `source erase reuses selected deletion marker before live imported cascade`() = runTest {
 		val erasedScope = PortableActivityDeletionScopeDigest.derive(
 			"source-erase-logical",
@@ -2456,6 +2470,8 @@ class RoomImportPortableCapturedActivityTest {
 	}
 
 	@Test
+	// Failure and retry must preserve the existing fence while creating only the missing run fence.
+	@Suppress("LongMethod")
 	fun `partial live fence retry preserves older fence and recreates only missing scope`() = runTest {
 		val firstRun = run(
 			identity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "partial-first-run"),

@@ -35,6 +35,7 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryDigest
 import com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryIdentity
 import com.adsamcik.tracker.stats.api.repository.ImportedCellHistorySelection
+import com.adsamcik.tracker.stats.api.repository.ImportedPressureHistoryIdentity
 import com.adsamcik.tracker.stats.api.repository.PressureHistory
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
@@ -185,6 +186,45 @@ class RecentTripsCardTest {
 			.assertHasNoClickAction()
 		composeRule.onAllNodesWithText("km", substring = true).assertCountEquals(0)
 		composeRule.onAllNodesWithContentDescription("View details").assertCountEquals(0)
+	}
+
+	@Test
+	fun partialStepsRowOpensTheExactSourceSelection() {
+		val steps = stepsEntry("steps-action", StepsOnlyHistoryListState.PARTIAL,
+			System.currentTimeMillis() - 3_600_000L).copy(segmentIds = listOf(17L, 19L))
+		val selection = sourceSelection(SourceAwareHistoryPageEntry.StepsOnly(steps))
+		var clicked: SourceHistoryDetailSelection? = null
+		setContent(DashboardRecentHistoryState.Content(
+			listOf(DashboardRecentHistoryEntry.StepsOnly(steps, selection))),
+			onTripClick = { error("Steps must not navigate using a fabricated Trip ID") },
+			onSourceHistoryClick = { clicked = it })
+
+		composeRule.onNodeWithTag("dashboard_recent_steps_row")
+			.assertIsDisplayed().assertHasClickAction().performClick()
+		clicked shouldBe selection
+		composeRule.onNodeWithText("Partial Steps history").assertIsDisplayed()
+		composeRule.onNodeWithContentDescription("View details").assertIsDisplayed()
+		composeRule.onAllNodesWithText("km", substring = true).assertCountEquals(0)
+	}
+
+	@Test
+	fun importedPressureRowOpensItsExactSourceSelection() {
+		val original = pressureEntry(withWindow = true)
+		val pressure = original.copy(origin = PressureHistoryOrigin.Imported(
+			ImportedPressureHistoryIdentity("sha256:" + "e".repeat(64))), importRevision = 3L)
+		val selection = sourceSelection(SourceAwareHistoryPageEntry.PressureOnly(pressure))
+		var clicked: SourceHistoryDetailSelection? = null
+		setContent(DashboardRecentHistoryState.Content(
+			listOf(DashboardRecentHistoryEntry.PressureOnly(pressure, selection))),
+			onTripClick = { error("Imported Pressure must not borrow a physical Trip ID") },
+			onSourceHistoryClick = { clicked = it })
+
+		composeRule.onNodeWithTag("dashboard_recent_pressure_row")
+			.assertIsDisplayed().assertHasClickAction().performClick()
+		clicked shouldBe selection
+		composeRule.onNodeWithText("1001.5 hPa · range 999.5–1002.0 hPa").assertIsDisplayed()
+		composeRule.onNodeWithContentDescription("View details").assertIsDisplayed()
+		composeRule.onAllNodesWithText("km", substring = true).assertCountEquals(0)
 	}
 
 	@Test
@@ -415,10 +455,18 @@ class RecentTripsCardTest {
 
 	private fun pressureEntry(
 		withWindow: Boolean,
-		key: String = if (withWindow) "pressure-ready" else "pressure-unavailable",
+		key: String = if (withWindow) {
+			"pressure-ready"
+		} else {
+			"pressure-unavailable"
+		},
 	): PressureOnlyHistoryEntry {
 		val now = System.currentTimeMillis()
-		val windows = if (withWindow) listOf(pressureWindow(now)) else emptyList()
+		val windows = if (withWindow) {
+			listOf(pressureWindow(now))
+		} else {
+			emptyList()
+		}
 		return PressureOnlyHistoryEntry(
 			key = TrackingHistoryEntryKey(key),
 			origin = PressureHistoryOrigin.Local,
@@ -430,15 +478,27 @@ class RecentTripsCardTest {
 				} else {
 					HistoryAvailability.UNAVAILABLE
 				},
-				evidence = if (withWindow) HistoryEvidence.RECORDED else HistoryEvidence.NONE,
-				productState = if (withWindow) HistoryProductState.READY else HistoryProductState.DEGRADED,
+				evidence = if (withWindow) {
+					HistoryEvidence.RECORDED
+				} else {
+					HistoryEvidence.NONE
+				},
+				productState = if (withWindow) {
+					HistoryProductState.READY
+				} else {
+					HistoryProductState.DEGRADED
+				},
 				coverage = if (withWindow) {
 					PressureHistoryCoverage.COMPLETE
 				} else {
 					PressureHistoryCoverage.UNKNOWN
 				},
 				windows = windows,
-				causes = if (withWindow) emptySet() else setOf(PressureHistoryCause.PROVIDER_UNAVAILABLE),
+				causes = if (withWindow) {
+					emptySet()
+				} else {
+					setOf(PressureHistoryCause.PROVIDER_UNAVAILABLE)
+				},
 			),
 		)
 	}

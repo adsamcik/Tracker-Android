@@ -144,6 +144,8 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 	@After
 	fun tearDown() = database.close()
 
+	// Keep the exact Pressure erase barrier, original authority audit and surviving sibling evidence together.
+	@Suppress("LongMethod")
 	@Test
 	fun `source erase authenticates and fences local Pressure without deleting session authority`() =
 		runTest {
@@ -152,7 +154,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 				1L,
 				1_000L,
 				2_000L,
-				insertWal = false,
+				insertWal = true,
 			)
 			database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(
 				pressureSourceEraseWal(fixture, admissionOrdinal = 2L, capture = true),
@@ -271,7 +273,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 				audit.retentionAuthorityCount shouldBe SOURCE_ERASE_RETENTION_AUTHORITY_COUNT
 				audit.retentionRevisionAuthorityCount shouldBe
 					SOURCE_ERASE_RETENTION_AUTHORITY_COUNT
-				audit.walEventCount shouldBe 1
+				audit.walEventCount shouldBe 2
 				audit.scopes shouldBe listOf(
 					com.adsamcik.tracker.shared.base.database.PressureSourceEraseLocalScope(
 						fixture.logicalId,
@@ -530,6 +532,8 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			) shouldBe 1
 			val uncertainUnsigned = fixture.fact.copy(
 				wallTimeUncertaintyMs = 100L,
+				windowStartElapsedRealtimeNanos = 2L * SECOND_NANOS,
+				windowEndElapsedRealtimeNanos = 2L * SECOND_NANOS + PRESSURE_WINDOW_NANOS,
 				effectChecksum = "pending-retention-effect",
 			)
 			val uncertain = uncertainUnsigned.copy(
@@ -757,6 +761,10 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			throughLogicalFactId = fixture.fact.logicalFactId,
 			throughSemanticRevision = fixture.fact.semanticRevision,
 		) shouldBe 1
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_event_wal WHERE event_id = ?", arrayOf(fixture.fact.sourceEventId))
+		database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(
+			pressureSourceEraseWal(fixture, admissionOrdinal = 1L, capture = true)).shouldBeGreaterThanZero()
 		installCanonicalPressureLane()
 		val ingress = mockk<DurableSourceIngress>()
 		coEvery {
@@ -890,7 +898,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 	@Test
 	fun `selected deletion clears retained and live Pressure lineages in one fenced transaction`() =
 		runTest {
-			val fixture = insertPressureSession("retained-live", 1L, 1_000L, 3_000L)
+			val fixture = insertPressureSession("retained-live", 1L, 1_000L, 3_000L, insertCompleteness = true)
 			database.sourceEvidenceStateDao().updateLifecycle(
 				epoch = COLLECTED_DATA_EPOCH,
 				retainedFromMs = 1_500L,
@@ -910,7 +918,10 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 					logicalFactIds = listOf(fixture.fact.logicalFactId),
 				) shouldBe 1
 			}
-			val live = pressureFact(fixture, 2L, "pressure-retained-live-current")
+			val liveUnsigned = pressureFact(fixture, 2L, "pressure-retained-live-current").copy(
+				intervalStartTimeMs = 2_000L, intervalEndTimeMs = 2_150L, appliedAtMs = 2_150L,
+				effectChecksum = "pending-live")
+			val live = liveUnsigned.copy(effectChecksum = pressureEffectChecksum(liveUnsigned, fixture.binding))
 			database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(
 				pressureWal(live),
 			).shouldBeGreaterThanZero()
@@ -1521,7 +1532,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			),
 			NegativeCase(
 				name = "correction without revision one",
-				expected = PressureSessionDeletionUnsupportedReason.FACT_CORRECTION_SCOPE_UNVERIFIABLE,
+				expected = PressureSessionDeletionUnsupportedReason.FACT_INTEGRITY_FAILED,
 				mutate = ::replaceFirstFactWithCorrection,
 			),
 			NegativeCase(
@@ -2009,6 +2020,8 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		)
 	}
 
+	// Keep the complete immutable Pressure payload and WAL field mapping together.
+	@Suppress("LongMethod")
 	private fun pressureWal(fact: PressureFactRevisionEntity): SourceEventWalEntity {
 		val payload = PressureWalPayload(
 			sampleCount = fact.sampleCount,
@@ -2527,6 +2540,8 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		appDatabaseProvider = Provider { database },
 	)
 
+	// Keep this complete source-erase scenario with sibling preservation and idempotent retry assertions.
+	@Suppress("LongMethod")
 	private suspend fun assertComposedRoomSourceErase(
 		scheduler: TestCoroutineScheduler,
 		bindingGeneration: Long,
@@ -2539,7 +2554,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			startMs = 1_000L,
 			endMs = 2_000L,
 			writerBindingGeneration = bindingGeneration,
-			insertWal = false,
+			insertWal = true,
 		)
 		val captureWal = pressureSourceEraseWal(fixture, admissionOrdinal = 2L, capture = true)
 		val controlWal = pressureSourceEraseWal(fixture, admissionOrdinal = 3L, capture = false)
@@ -2571,7 +2586,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 
 		erase.erase(sourceEraseRequest()) shouldBe ErasePressureSourceResult.Erased(
 			localFactRevisionCount = 1,
-			localWalEventCount = 1,
+			localWalEventCount = 2,
 			legacySampleCount = 0,
 			importedEntryCount = 0,
 			importedRevisionCount = 0,
@@ -2588,7 +2603,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 				SourceDestinationOwnerEntity.OWNER_CONTAINED_PRESSURE_SESSION_FACTS
 			receipt.legacyWriteFenceGeneration shouldBe containedGeneration
 			receipt.localFactRevisionCount shouldBe 1
-			receipt.localWalEventCount shouldBe 1
+			receipt.localWalEventCount shouldBe 2
 		}
 		exactFence(fixture)?.fenceGeneration shouldBe 1L
 
@@ -2680,6 +2695,8 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		erasedAtMs = erasedAtMs,
 	)
 
+	// Keep the complete capture/control Pressure WAL fixture mapping explicit.
+	@Suppress("LongMethod")
 	private fun pressureSourceEraseWal(
 		fixture: PressureFixture,
 		admissionOrdinal: Long,
@@ -2693,8 +2710,15 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		)
 		val unsigned = SourceEventWalEntity(
 			admissionOrdinal = admissionOrdinal,
-			eventId = if (capture) event.eventId.value else "pressure-control-$admissionOrdinal",
-			providerDedupKey = evidence.providerDedupKey,
+			eventId = if (capture) {
+				event.eventId.value
+			} else {
+				"pressure-control-$admissionOrdinal"
+			},
+			providerDedupKey = null,
+			deliveryIdentity = pressureDeliveryIdentity(
+				evidence.clockDomainId, requireNotNull(PressureWalPayloadCodec.decodeCanonical(evidence.payloadVersion, encoded.bytes))),
+			deliveryUnitIndex = 0, deliveryUnitCount = 1,
 			logicalTrackingId = evidence.logicalTrackingId?.value.takeIf { capture },
 			serviceRunId = evidence.serviceRunId?.value.takeIf { capture },
 			sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
@@ -3245,7 +3269,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 				physicalConfigurationFingerprint = "pressure-config",
 				authorizationRevision = 1L,
 				registrationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-				registrationEligibilityFingerprint = "pressure-capture",
+				registrationEligibilityFingerprint = "a".repeat(64),
 				sourceSequence = admissionOrdinal,
 				configRevision = 1L,
 				planAttribution = PlanAttribution.CAPTURED_REGISTRATION,

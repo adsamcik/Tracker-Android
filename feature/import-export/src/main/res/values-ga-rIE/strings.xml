@@ -40,4 +40,26 @@
     <string name="format_database">Cúltaca bunachair sonraí (ZIP)</string>
     <string name="settings_import_summary">Iompórtáil sonraí ó chineálacha tacaithe (%1$s) agus cartlanna (%2$s). Cumascann iompórtálacha bunachair sonraí sraitheanna comhoiriúnacha; ní chuireann siad sonraí reatha ina n-ionad.</string>
     <string name="settings_import_title">Iompórtáil</string>
+    <string name="export_radio_sensitivity_title">Easpórtáil sonraí líonra?</string>
+    <string name="export_wifi_sensitivity_message">Tá ainmneacha Wi-Fi agus aitheantóirí pointí rochtana sábháilte sa chomhad seo.</string>
+    <string name="export_cell_sensitivity_message">Tá aitheantóirí túr agus tomhais comhartha sábháilte sa chomhad seo.</string>
+    <string name="export_radio_no_data">Níl sonraí sábháilte don fhoinse seo</string>
+    <string name="export_include_complete_sessions">Cuir seisiúin iomlána san áireamh</string>
+    <string name="import_location_conflict_title">Athsholáthar na bpointí sábháilte?</string>
+    <string name="import_location_replace">Úsáid pointí an chomhaid</string>
+    <string name="import_location_keep">Coinnigh na pointí sábháilte</string>
+    <string name="export_backup_review_title">Athbhreithnigh cúltacaí sceidealaithe</string>
+    <string name="export_backup_review_summary">Ar sos go dtí go n-athbhreithníonn tú an cúltaca sonraí nuashonraithe.</string>
+    <string name="export_backup_review_message">Déanann na sceidil seo cúltaca de na sonraí rianaithe sábháilte go léir agus de na comhaid a theastaíonn lena n-athchóiriú anois. Ní chuirtear socruithe san áireamh. Lean ar aghaidh leis na sceidil seo?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Lean ar aghaidh le cúltacaí</string>
+    <string name="import_backup_replace_title">Athchóirigh cúltaca sonraí?</string>
+    <string name="import_backup_replace_message">Athsholáthar na sonraí sábháilte leis an gcúltaca seo? Fanfaidh do shocruithe mar atá. Beidh an rianú múchta go dtí go n-atosóidh tú é.</string>
+    <string name="import_backup_restore">Athsholáthair sonraí</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">Tá %d phointe sa chomhad seo éagsúil lena chóip shábháilte. Roghnaigh an ceann le coinneáil. Iompórtálfar na pointí eile mar is gnách.</item>
+        <item quantity="two">Tá %d phointe sa chomhad seo éagsúil lena gcóipeanna sábháilte. Roghnaigh na cinn le coinneáil. Iompórtálfar na pointí eile mar is gnách.</item>
+        <item quantity="few">Tá %d phointe sa chomhad seo éagsúil lena gcóipeanna sábháilte. Roghnaigh na cinn le coinneáil. Iompórtálfar na pointí eile mar is gnách.</item>
+        <item quantity="many">Tá %d bpointe sa chomhad seo éagsúil lena gcóipeanna sábháilte. Roghnaigh na cinn le coinneáil. Iompórtálfar na pointí eile mar is gnách.</item>
+        <item quantity="other">Tá %d pointe sa chomhad seo éagsúil lena gcóipeanna sábháilte. Roghnaigh na cinn le coinneáil. Iompórtálfar na pointí eile mar is gnách.</item>
+    </plurals>
 </resources>

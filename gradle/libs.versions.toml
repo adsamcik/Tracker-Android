@@ -56,6 +56,7 @@ maplibreAndroid = "13.4.1"
 # KotlinX
 coroutines = "1.11.0"
 kotlinxImmutable = "0.5.1"
+kotlinxSerialization = "1.11.0"
 
 # Arrow & Molecule
 arrow = "2.2.3"
@@ -146,6 +147,9 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutines" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
+
+kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "kotlinxSerialization" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 
 # UI Effects
 haze = { group = "dev.chrisbanes.haze", name = "haze", version.ref = "haze" }

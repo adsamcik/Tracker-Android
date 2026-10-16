@@ -58,11 +58,16 @@ internal class KmlImport(
                         if (point != null) throw IOException("KML placemark has multiple points")
                         point = parsePoint(parser)
                     }
-                    "LineString" -> throw IOException("KML line has no time for each point; import timed points instead")
+                    "LineString" ->
+                        throw IOException("KML line has no time for each point; import timed points instead")
                 }
             }
             event = parser.next()
         }
+        return timedPoint(point, timestamp)
+    }
+
+    private fun timedPoint(point: KmlPoint?, timestamp: Long?): Pair<KmlPoint, Long>? {
         val savedPoint = point ?: return null
         val savedTime = timestamp ?: throw IOException("KML point has no valid timestamp")
         if (savedTime < 0L) throw IOException("KML point timestamp is invalid")
@@ -89,27 +94,31 @@ internal class KmlImport(
         while (!(event == XmlPullParser.END_TAG && parser.depth == depth && parser.name == "Point")) {
             if (event == XmlPullParser.START_TAG && parser.name == "coordinates") {
                 if (point != null) throw IOException("KML point has multiple coordinate sets")
-                val coordinates = parser.nextText()?.trim().orEmpty()
-                if (coordinates.length > MAX_COORDINATE_TEXT || coordinates.any(Char::isWhitespace)) {
-                    throw IOException("KML point coordinates are invalid")
-                }
-                point = parseCoordinate(coordinates)
-                    ?: throw IOException("KML point coordinates are invalid")
+                point = readPointCoordinates(parser)
             }
             event = parser.next()
         }
         return point ?: throw IOException("KML point has no coordinates")
     }
 
+    private fun readPointCoordinates(parser: XmlPullParser): KmlPoint {
+        val coordinates = parser.nextText()?.trim().orEmpty()
+        if (coordinates.length > MAX_COORDINATE_TEXT || coordinates.any(Char::isWhitespace)) {
+            throw IOException("KML point coordinates are invalid")
+        }
+        return parseCoordinate(coordinates) ?: throw IOException("KML point coordinates are invalid")
+    }
+
+    @Suppress("CyclomaticComplexMethod", "ReturnCount") // Keep the ordered coordinate-field validation together.
     private fun parseCoordinate(value: String): KmlPoint? {
         val parts = value.split(',')
-        if (parts.size !in 2..3) return null
+        if (parts.size !in 2..COORDINATE_FIELDS_WITH_ALTITUDE) return null
         val longitude = parts[0].toDoubleOrNull() ?: return null
         val latitude = parts[1].toDoubleOrNull() ?: return null
         val altitude = parts.getOrNull(2)?.toDoubleOrNull()
         if (!latitude.isFinite() || !longitude.isFinite()) return null
         if (latitude !in -90.0..90.0 || longitude !in -180.0..180.0) return null
-        if (parts.size == 3 && (altitude == null || !altitude.isFinite())) return null
+        if (parts.size == COORDINATE_FIELDS_WITH_ALTITUDE && (altitude == null || !altitude.isFinite())) return null
         return KmlPoint(latitude, longitude, altitude)
     }
 
@@ -153,3 +162,5 @@ internal class KmlImport(
             runCatching { Instant.parse(value).toEpochMilli() }.getOrNull()
     }
 }
+
+private const val COORDINATE_FIELDS_WITH_ALTITUDE = 3

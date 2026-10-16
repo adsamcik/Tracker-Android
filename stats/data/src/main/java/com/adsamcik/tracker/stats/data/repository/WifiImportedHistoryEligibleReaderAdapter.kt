@@ -40,7 +40,9 @@ internal class WifiImportedHistoryEligibleReaderAdapter internal constructor(
 		limit: Int,
 	): ImportedHistoryEligiblePage<WifiImportedHistoryEligibleEntry> {
 		require(limit > 0)
-		if (limit > limits.maximumCandidates) return unavailable(readBudgetExceeded)
+		if (limit > limits.maximumCandidates) {
+			return unavailable(readBudgetExceeded)
+		}
 		val accepted = ArrayList<WifiImportedHistoryEligibleEntry>(limit)
 		val localPortableByLogicalId =
 			mutableMapOf<String, ReadLocalPortableCapturedWifiResult>()
@@ -75,7 +77,9 @@ internal class WifiImportedHistoryEligibleReaderAdapter internal constructor(
 			} catch (_: RuntimeException) {
 				return unavailable(sourceIntegrityFailure)
 			}
-			if (!page.isValidAfter(request)) return unavailable(sourceIntegrityFailure)
+			if (!page.isValidAfter(request)) {
+				return unavailable(sourceIntegrityFailure)
+			}
 			for (evaluation in page.evaluations) {
 				currentCoroutineContext().ensureActive()
 				scannedCandidates++
@@ -141,34 +145,7 @@ internal class WifiImportedHistoryEligibleReaderAdapter internal constructor(
 			return WifiImportedEligibilityDecision.Unavailable(recencyAuthorityUnavailable)
 		}
 		collidingLocalLogicalTrackingId?.let { logicalId ->
-			val local = try {
-				localPortableByLogicalId[logicalId] ?: localPortableReader.readInTransaction(
-					ExportPortableCapturedWifiRequest(logicalId),
-				).also { localPortableByLogicalId[logicalId] = it }
-			} catch (cancelled: CancellationException) {
-				throw cancelled
-			} catch (_: RuntimeException) {
-				return WifiImportedEligibilityDecision.Unavailable(sourceIntegrityFailure)
-			}
-			return when (local) {
-				is ReadLocalPortableCapturedWifiResult.Ready ->
-					if (isReExportable && local.entry == entry) {
-						WifiImportedEligibilityDecision.Suppressed
-					} else {
-						WifiImportedEligibilityDecision.Unavailable(sourceIntegrityFailure)
-					}
-				is ReadLocalPortableCapturedWifiResult.Outcome ->
-					WifiImportedEligibilityDecision.Unavailable(
-						if (local.result is ExportPortableCapturedWifiResult.Unverifiable &&
-							(local.result as ExportPortableCapturedWifiResult.Unverifiable).reason ==
-							PortableWifiUnverifiableReason.DEPENDENCY_OVERFLOW
-						) {
-							readBudgetExceeded
-						} else {
-							sourceIntegrityFailure
-						},
-					)
-			}
+			return localCollisionEligibility(logicalId, localPortableByLogicalId)
 		}
 		val publicEntry = try {
 			toPublicWifiEntry()
@@ -200,6 +177,46 @@ internal class WifiImportedHistoryEligibleReaderAdapter internal constructor(
 		}
 	}
 
+	private suspend fun ImportedWifiProductEvaluation.Readable.localCollisionEligibility(
+		logicalId: String,
+		localPortableByLogicalId: MutableMap<String, ReadLocalPortableCapturedWifiResult>,
+	): WifiImportedEligibilityDecision {
+		val local = try {
+			localPortableByLogicalId[logicalId] ?: localPortableReader.readInTransaction(
+				ExportPortableCapturedWifiRequest(logicalId),
+			).also { localPortableByLogicalId[logicalId] = it }
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: RuntimeException) {
+			return WifiImportedEligibilityDecision.Unavailable(sourceIntegrityFailure)
+		}
+		return collisionDecision(local)
+	}
+
+	private fun ImportedWifiProductEvaluation.Readable.collisionDecision(
+		local: ReadLocalPortableCapturedWifiResult,
+	): WifiImportedEligibilityDecision {
+		return when (local) {
+			is ReadLocalPortableCapturedWifiResult.Ready ->
+				if (isReExportable && local.entry == entry) {
+					WifiImportedEligibilityDecision.Suppressed
+				} else {
+					WifiImportedEligibilityDecision.Unavailable(sourceIntegrityFailure)
+				}
+			is ReadLocalPortableCapturedWifiResult.Outcome ->
+				WifiImportedEligibilityDecision.Unavailable(
+					if (local.result is ExportPortableCapturedWifiResult.Unverifiable &&
+						(local.result as ExportPortableCapturedWifiResult.Unverifiable).reason ==
+						PortableWifiUnverifiableReason.DEPENDENCY_OVERFLOW
+					) {
+						readBudgetExceeded
+					} else {
+						sourceIntegrityFailure
+					},
+				)
+		}
+	}
+
 	private fun unavailable(
 		reason: SourceAwareHistoryPageUnavailableReason,
 	) = ImportedHistoryEligiblePage.Unavailable(reason)
@@ -217,7 +234,9 @@ internal class WifiImportedHistoryEligibleReaderAdapter internal constructor(
 private fun ImportedWifiProductRecentPage.isValidAfter(
 	request: ImportedWifiProductRecentRequest,
 ): Boolean {
-	if (evaluations.size > request.limit || hasMore && evaluations.isEmpty()) return false
+	if (evaluations.size > request.limit || hasMore && evaluations.isEmpty()) {
+		return false
+	}
 	val candidates = evaluations.map(ImportedWifiProductEvaluation::candidate)
 	if (candidates.map(ImportedWifiProductCandidate::identity).distinct().size != candidates.size) {
 		return false

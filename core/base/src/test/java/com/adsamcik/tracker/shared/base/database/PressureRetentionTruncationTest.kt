@@ -37,6 +37,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
+// One real Pressure lineage fixture keeps retention, retained authority and rollback checks comparable.
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class PressureRetentionTruncationTest {
@@ -508,6 +510,8 @@ class PressureRetentionTruncationTest {
 		authority.lineageEarliestPossibleStartMs shouldBe 1_399L
 	}
 
+	// Keep the three-revision Pressure lineage, retained authority and resurrection checks together.
+	@Suppress("LongMethod")
 	@Test
 	fun `older correction revision crossing floor binds current retained identity`() = runTest {
 		val fixture = insertRetainedPressureRun("old-revision", 1L)
@@ -1161,6 +1165,8 @@ class PressureRetentionTruncationTest {
 		retainedFromMs = RETENTION_FLOOR_MS,
 	)
 
+	// Keep the complete immutable Pressure payload and WAL field mapping together.
+	@Suppress("LongMethod")
 	private fun pressureWal(fact: PressureFactRevisionEntity): SourceEventWalEntity {
 		val payload = PressureWalPayload(
 			sampleCount = fact.sampleCount,

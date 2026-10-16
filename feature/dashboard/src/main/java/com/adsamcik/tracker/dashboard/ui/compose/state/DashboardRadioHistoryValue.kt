@@ -32,8 +32,10 @@ data class DashboardRadioHistoryValue(
 	}
 }
 
+/** Whether the saved radio history was collected locally or imported from a source file. */
 enum class DashboardRadioOrigin { LOCAL, IMPORTED }
 
+/** Retained radio processing and availability state shared by Dashboard source summaries. */
 enum class DashboardRadioProductState {
 	MATERIALIZING,
 	PARTIAL,
@@ -45,6 +47,7 @@ enum class DashboardRadioProductState {
 	FAILED,
 }
 
+/** Known radio coverage; UNKNOWN preserves missing coverage information instead of implying complete recording. */
 enum class DashboardRadioCoverage { NONE, PARTIAL, COMPLETE, UNKNOWN }
 
 internal fun WifiHistoryEntry.toDashboardRadioHistoryValue() = DashboardRadioHistoryValue(
@@ -53,15 +56,7 @@ internal fun WifiHistoryEntry.toDashboardRadioHistoryValue() = DashboardRadioHis
 		WifiHistoryOrigin.LOCAL -> DashboardRadioOrigin.LOCAL
 		WifiHistoryOrigin.IMPORTED -> DashboardRadioOrigin.IMPORTED
 	},
-	state = when (state) {
-		WifiHistoryProductState.MATERIALIZING -> DashboardRadioProductState.MATERIALIZING
-		WifiHistoryProductState.PARTIAL -> DashboardRadioProductState.PARTIAL
-		WifiHistoryProductState.READY -> DashboardRadioProductState.READY
-		WifiHistoryProductState.UNAVAILABLE -> DashboardRadioProductState.UNAVAILABLE
-		WifiHistoryProductState.MISSING -> DashboardRadioProductState.MISSING
-		WifiHistoryProductState.DELETED -> DashboardRadioProductState.DELETED
-		WifiHistoryProductState.FAILED -> DashboardRadioProductState.FAILED
-	},
+	state = state.toDashboardState(),
 	coverage = when (coverage) {
 		WifiHistoryCoverage.NONE -> DashboardRadioCoverage.NONE
 		WifiHistoryCoverage.PARTIAL -> DashboardRadioCoverage.PARTIAL
@@ -81,16 +76,7 @@ internal fun CellHistoryEntry.toDashboardRadioHistoryValue() = DashboardRadioHis
 		CellHistoryOrigin.Local -> DashboardRadioOrigin.LOCAL
 		is CellHistoryOrigin.Imported -> DashboardRadioOrigin.IMPORTED
 	},
-	state = when (state) {
-		CellHistoryProductState.MATERIALIZING -> DashboardRadioProductState.MATERIALIZING
-		CellHistoryProductState.PARTIAL -> DashboardRadioProductState.PARTIAL
-		CellHistoryProductState.READY -> DashboardRadioProductState.READY
-		CellHistoryProductState.UNAVAILABLE -> DashboardRadioProductState.UNAVAILABLE
-		CellHistoryProductState.MISSING -> DashboardRadioProductState.MISSING
-		CellHistoryProductState.DELETED -> DashboardRadioProductState.DELETED
-		CellHistoryProductState.UNVERIFIABLE -> DashboardRadioProductState.UNVERIFIABLE
-		CellHistoryProductState.FAILED -> DashboardRadioProductState.FAILED
-	},
+	state = state.toDashboardState(),
 	coverage = when (coverage) {
 		CellHistoryCoverage.NONE -> DashboardRadioCoverage.NONE
 		CellHistoryCoverage.PARTIAL -> DashboardRadioCoverage.PARTIAL
@@ -103,3 +89,24 @@ internal fun CellHistoryEntry.toDashboardRadioHistoryValue() = DashboardRadioHis
 		it.childCompleteness == CellHistoryChildCompleteness.PARTIAL
 	},
 )
+
+private fun WifiHistoryProductState.toDashboardState(): DashboardRadioProductState = when (this) {
+	WifiHistoryProductState.MATERIALIZING -> DashboardRadioProductState.MATERIALIZING
+	WifiHistoryProductState.PARTIAL -> DashboardRadioProductState.PARTIAL
+	WifiHistoryProductState.READY -> DashboardRadioProductState.READY
+	WifiHistoryProductState.UNAVAILABLE -> DashboardRadioProductState.UNAVAILABLE
+	WifiHistoryProductState.MISSING -> DashboardRadioProductState.MISSING
+	WifiHistoryProductState.DELETED -> DashboardRadioProductState.DELETED
+	WifiHistoryProductState.FAILED -> DashboardRadioProductState.FAILED
+}
+
+private fun CellHistoryProductState.toDashboardState(): DashboardRadioProductState = when (this) {
+	CellHistoryProductState.MATERIALIZING -> DashboardRadioProductState.MATERIALIZING
+	CellHistoryProductState.PARTIAL -> DashboardRadioProductState.PARTIAL
+	CellHistoryProductState.READY -> DashboardRadioProductState.READY
+	CellHistoryProductState.UNAVAILABLE -> DashboardRadioProductState.UNAVAILABLE
+	CellHistoryProductState.MISSING -> DashboardRadioProductState.MISSING
+	CellHistoryProductState.DELETED -> DashboardRadioProductState.DELETED
+	CellHistoryProductState.UNVERIFIABLE -> DashboardRadioProductState.UNVERIFIABLE
+	CellHistoryProductState.FAILED -> DashboardRadioProductState.FAILED
+}

@@ -23,6 +23,8 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 
+// One paired radio-owner fixture keeps shared session/background lease and retirement checks comparable.
+@Suppress("LargeClass")
 class SharedAmbientRadioSourceControllerTest {
 	private val unboundSink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
 
@@ -30,9 +32,9 @@ class SharedAmbientRadioSourceControllerTest {
 	fun `Wi-Fi session stop retires only session join while ambient registration remains`() =
 		runTest {
 			val physical = mockk<WifiSourceRuntime>()
+			every { physical.capabilities } returns MutableStateFlow(capabilities())
 			val broker = mockk<SourceBroker>()
 			val sinkFactory = mockk<DurableSourceEventSinkFactory>()
-			every { physical.capabilities } returns MutableStateFlow(capabilities())
 			every { sinkFactory.unbound } returns unboundSink
 			val capture = demand(SourceKind.WIFI, SourceBrokerPurpose.SESSION_CAPTURE)
 			val ambient = demand(SourceKind.WIFI, SourceBrokerPurpose.AMBIENT_PRODUCT)
@@ -41,9 +43,10 @@ class SharedAmbientRadioSourceControllerTest {
 				listOf(ambient),
 			)
 			val plan = wifiPlan()
+			val sharedPlan = plan.copy(maximumAcceptableResultAgeMs = 600_000L)
 			val claim = claim(SourceKind.WIFI)
-			coEvery { physical.refreshShared(plan, unboundSink, claim) } returns null
-			coEvery { physical.reconfigure(claim, plan, unboundSink) } returns
+			coEvery { physical.refreshShared(sharedPlan, unboundSink, claim) } returns null
+			coEvery { physical.reconfigure(claim, sharedPlan, unboundSink) } returns
 				SourceApplyResult.Applied(applied(SourceKind.WIFI, plan.revision, 7L))
 			coEvery {
 				physical.refreshShared(
@@ -74,9 +77,9 @@ class SharedAmbientRadioSourceControllerTest {
 	fun `Cell session stop downgrades to callback-only while ambient registration remains`() =
 		runTest {
 			val physical = mockk<CellSourceRuntime>()
+			every { physical.capabilities } returns MutableStateFlow(capabilities())
 			val broker = mockk<SourceBroker>()
 			val sinkFactory = mockk<DurableSourceEventSinkFactory>()
-			every { physical.capabilities } returns MutableStateFlow(capabilities())
 			every { sinkFactory.unbound } returns unboundSink
 			val capture = demand(SourceKind.CELL, SourceBrokerPurpose.SESSION_CAPTURE)
 			val ambient = demand(SourceKind.CELL, SourceBrokerPurpose.AMBIENT_PRODUCT)
@@ -85,9 +88,10 @@ class SharedAmbientRadioSourceControllerTest {
 				listOf(ambient),
 			)
 			val plan = cellPlan()
+			val sharedPlan = plan.copy(maximumAcceptableCachedAgeMs = 600_000L)
 			val claim = claim(SourceKind.CELL)
-			coEvery { physical.refreshShared(plan, unboundSink, claim) } returns null
-			coEvery { physical.reconfigure(claim, plan, unboundSink) } returns
+			coEvery { physical.refreshShared(sharedPlan, unboundSink, claim) } returns null
+			coEvery { physical.reconfigure(claim, sharedPlan, unboundSink) } returns
 				SourceApplyResult.Applied(applied(SourceKind.CELL, plan.revision, 8L))
 			coEvery {
 				physical.refreshShared(
@@ -129,6 +133,7 @@ class SharedAmbientRadioSourceControllerTest {
 	fun `deletion fence requires terminal Wi-Fi physical closure after ambient demand retirement`() =
 		runTest {
 			val physical = mockk<WifiSourceRuntime>()
+			every { physical.capabilities } returns MutableStateFlow(capabilities())
 			val broker = mockk<SourceBroker>()
 			val sinkFactory = mockk<DurableSourceEventSinkFactory>()
 			every { sinkFactory.unbound } returns unboundSink
@@ -147,6 +152,7 @@ class SharedAmbientRadioSourceControllerTest {
 	@Test
 	fun `deletion fence exposes Cell physical removal failure`() = runTest {
 		val physical = mockk<CellSourceRuntime>()
+			every { physical.capabilities } returns MutableStateFlow(capabilities())
 		val broker = mockk<SourceBroker>()
 		val sinkFactory = mockk<DurableSourceEventSinkFactory>()
 		every { sinkFactory.unbound } returns unboundSink
@@ -166,9 +172,9 @@ class SharedAmbientRadioSourceControllerTest {
 	@Test
 	fun `failed ambient Wi-Fi provider retirement remains typed unavailable`() = runTest {
 		val physical = mockk<WifiSourceRuntime>()
+			every { physical.capabilities } returns MutableStateFlow(capabilities())
 		val broker = mockk<SourceBroker>()
 		val sinkFactory = mockk<DurableSourceEventSinkFactory>()
-		every { physical.capabilities } returns MutableStateFlow(capabilities())
 		every { sinkFactory.unbound } returns unboundSink
 		val ambient = demand(SourceKind.WIFI, SourceBrokerPurpose.AMBIENT_PRODUCT)
 		coEvery { broker.authorizationDemands(SourceKind.WIFI) } returnsMany listOf(
@@ -193,9 +199,9 @@ class SharedAmbientRadioSourceControllerTest {
 	@Test
 	fun `released disabled Wi-Fi reconfigure clears only retired session claim`() = runTest {
 		val physical = mockk<WifiSourceRuntime>()
+			every { physical.capabilities } returns MutableStateFlow(capabilities())
 		val broker = mockk<SourceBroker>()
 		val sinkFactory = mockk<DurableSourceEventSinkFactory>()
-		every { physical.capabilities } returns MutableStateFlow(capabilities())
 		every { sinkFactory.unbound } returns unboundSink
 		val capture = demand(SourceKind.WIFI, SourceBrokerPurpose.SESSION_CAPTURE)
 		val ambient = demand(SourceKind.WIFI, SourceBrokerPurpose.AMBIENT_PRODUCT)
@@ -207,8 +213,9 @@ class SharedAmbientRadioSourceControllerTest {
 		val oldClaim = claim(SourceKind.WIFI)
 		val newClaim = oldClaim.copy(actionId = "action-WIFI-new", leaseGeneration = 2L)
 		val plan = wifiPlan()
-		coEvery { physical.refreshShared(plan, unboundSink, oldClaim) } returns null
-		coEvery { physical.reconfigure(oldClaim, plan, unboundSink) } returns
+			val sharedPlan = plan.copy(maximumAcceptableResultAgeMs = 600_000L)
+		coEvery { physical.refreshShared(sharedPlan, unboundSink, oldClaim) } returns null
+		coEvery { physical.reconfigure(oldClaim, sharedPlan, unboundSink) } returns
 			SourceApplyResult.Applied(applied(SourceKind.WIFI, plan.revision, 7L))
 		coEvery { physical.refreshShared(any(), unboundSink, null) } returns
 			SourceApplyResult.Applied(applied(SourceKind.WIFI, 2L, 7L))
@@ -218,7 +225,7 @@ class SharedAmbientRadioSourceControllerTest {
 			RegistrationRemovalOutcome.NOT_REGISTERED,
 		)
 		coEvery { physical.shutdownIfOwned(oldClaim, any()) } returns OwnedSourceShutdown.NotOwned
-		coEvery { physical.refreshShared(plan, unboundSink, newClaim) } returns
+		coEvery { physical.refreshShared(sharedPlan, unboundSink, newClaim) } returns
 			SourceApplyResult.Applied(applied(SourceKind.WIFI, plan.revision, 7L))
 		val subject = SharedWifiSourceController(physical, broker, sinkFactory)
 
@@ -233,9 +240,9 @@ class SharedAmbientRadioSourceControllerTest {
 	@Test
 	fun `released disabled Cell reconfigure clears only retired session claim`() = runTest {
 		val physical = mockk<CellSourceRuntime>()
+			every { physical.capabilities } returns MutableStateFlow(capabilities())
 		val broker = mockk<SourceBroker>()
 		val sinkFactory = mockk<DurableSourceEventSinkFactory>()
-		every { physical.capabilities } returns MutableStateFlow(capabilities())
 		every { sinkFactory.unbound } returns unboundSink
 		val capture = demand(SourceKind.CELL, SourceBrokerPurpose.SESSION_CAPTURE)
 		val ambient = demand(SourceKind.CELL, SourceBrokerPurpose.AMBIENT_PRODUCT)
@@ -247,8 +254,9 @@ class SharedAmbientRadioSourceControllerTest {
 		val oldClaim = claim(SourceKind.CELL)
 		val newClaim = oldClaim.copy(actionId = "action-CELL-new", leaseGeneration = 2L)
 		val plan = cellPlan()
-		coEvery { physical.refreshShared(plan, unboundSink, oldClaim) } returns null
-		coEvery { physical.reconfigure(oldClaim, plan, unboundSink) } returns
+			val sharedPlan = plan.copy(maximumAcceptableCachedAgeMs = 600_000L)
+		coEvery { physical.refreshShared(sharedPlan, unboundSink, oldClaim) } returns null
+		coEvery { physical.reconfigure(oldClaim, sharedPlan, unboundSink) } returns
 			SourceApplyResult.Applied(applied(SourceKind.CELL, plan.revision, 8L))
 		coEvery { physical.refreshShared(any(), unboundSink, null) } returns
 			SourceApplyResult.Applied(applied(SourceKind.CELL, 2L, 8L))
@@ -258,7 +266,7 @@ class SharedAmbientRadioSourceControllerTest {
 			RegistrationRemovalOutcome.NOT_REGISTERED,
 		)
 		coEvery { physical.shutdownIfOwned(oldClaim, any()) } returns OwnedSourceShutdown.NotOwned
-		coEvery { physical.refreshShared(plan, unboundSink, newClaim) } returns
+		coEvery { physical.refreshShared(sharedPlan, unboundSink, newClaim) } returns
 			SourceApplyResult.Applied(applied(SourceKind.CELL, plan.revision, 8L))
 		val subject = SharedCellSourceController(physical, broker, sinkFactory)
 
@@ -273,9 +281,9 @@ class SharedAmbientRadioSourceControllerTest {
 	@Test
 	fun `Wifi rejects foreign capture identities and preserves exact predecessor`() = runTest {
 		val physical = mockk<WifiSourceRuntime>()
+			every { physical.capabilities } returns MutableStateFlow(capabilities())
 		val broker = mockk<SourceBroker>()
 		val sinkFactory = mockk<DurableSourceEventSinkFactory>()
-		every { physical.capabilities } returns MutableStateFlow(capabilities())
 		every { sinkFactory.unbound } returns unboundSink
 		val currentClaim = claim(SourceKind.WIFI)
 		val plan = wifiPlan()
@@ -308,9 +316,9 @@ class SharedAmbientRadioSourceControllerTest {
 	@Test
 	fun `Wifi close retains claimant on incomplete retirement`() = runTest {
 		val physical = mockk<WifiSourceRuntime>()
+			every { physical.capabilities } returns MutableStateFlow(capabilities())
 		val broker = mockk<SourceBroker>()
 		val sinkFactory = mockk<DurableSourceEventSinkFactory>()
-		every { physical.capabilities } returns MutableStateFlow(capabilities())
 		every { sinkFactory.unbound } returns unboundSink
 		val claim = claim(SourceKind.WIFI)
 		val plan = wifiPlan()
@@ -333,9 +341,9 @@ class SharedAmbientRadioSourceControllerTest {
 	@Test
 	fun `Cell rejects foreign capture identities and preserves exact predecessor`() = runTest {
 		val physical = mockk<CellSourceRuntime>()
+			every { physical.capabilities } returns MutableStateFlow(capabilities())
 		val broker = mockk<SourceBroker>()
 		val sinkFactory = mockk<DurableSourceEventSinkFactory>()
-		every { physical.capabilities } returns MutableStateFlow(capabilities())
 		every { sinkFactory.unbound } returns unboundSink
 		val currentClaim = claim(SourceKind.CELL)
 		val plan = cellPlan()
@@ -366,11 +374,103 @@ class SharedAmbientRadioSourceControllerTest {
 	}
 
 	@Test
-	fun `Cell close retains claimant on incomplete retirement`() = runTest {
+	fun `Cell physical blocked start failure restores the prior session plan and claim`() = runTest {
 		val physical = mockk<CellSourceRuntime>()
+		every { physical.capabilities } returns MutableStateFlow(capabilities())
 		val broker = mockk<SourceBroker>()
 		val sinkFactory = mockk<DurableSourceEventSinkFactory>()
+		every { sinkFactory.unbound } returns unboundSink
+		val currentClaim = claim(SourceKind.CELL)
+		val replacementClaim = currentClaim.copy(actionId = "action-CELL-new", leaseGeneration = 2L)
+		val plan = cellPlan()
+		val replacement = plan.copy(revision = 10L, subscriptionIds = setOf(2))
+		val capture = demand(SourceKind.CELL, SourceBrokerPurpose.SESSION_CAPTURE)
+		coEvery { broker.authorizationDemands(SourceKind.CELL) } returnsMany listOf(
+			listOf(capture),
+			listOf(capture.copy(lifecycleLeaseGeneration = 2L)),
+			listOf(capture),
+			emptyList(),
+		)
+		coEvery { physical.refreshShared(plan, unboundSink, currentClaim) } returns
+			SourceApplyResult.Applied(applied(SourceKind.CELL, plan.revision, 7L))
+		val blocked = applied(SourceKind.CELL, replacement.revision, 7L).copy(
+			appliedRevision = null, sourceInstanceId = null, registrationGeneration = null,
+			status = SourceApplyStatus.BLOCKED,
+		)
+		coEvery { physical.refreshShared(replacement, unboundSink, replacementClaim) } returns
+			SourceApplyResult.Failed(blocked, retryable = false)
+		coEvery { physical.quiesce(any()) } returns completeAck(
+			SourceKind.CELL, 7L, RegistrationRemovalOutcome.REMOVED,
+		)
+		val subject = SharedCellSourceController(physical, broker, sinkFactory)
+		assertIs<SourceStartResult.Started>(subject.start(currentClaim, plan, mockk()))
+
+		val failure = assertIs<SourceStartResult.Failed>(
+			subject.start(replacementClaim, replacement, mockk()),
+		)
+		assertEquals(blocked, failure.applied)
+		assertEquals(false, failure.retryable)
+		assertIs<AmbientCellRuntimeJoinResult.Inactive>(subject.reconcileAmbientJoin())
+		assertIs<OwnedSourceShutdown.Released>(subject.shutdownIfOwned(currentClaim, cutoff()))
+		coVerify(exactly = 2) { physical.refreshShared(plan, unboundSink, currentClaim) }
+		coVerify(exactly = 1) { physical.refreshShared(replacement, unboundSink, replacementClaim) }
+		coVerify(exactly = 1) { physical.quiesce(any()) }
+		coVerify(exactly = 0) { physical.shutdownIfOwned(any(), any()) }
+		coVerify(exactly = 0) { physical.reconfigure(any(), any(), any()) }
+	}
+
+	@Test
+	fun `Wifi physical blocked start failure restores the prior session plan and claim`() = runTest {
+		val physical = mockk<WifiSourceRuntime>()
 		every { physical.capabilities } returns MutableStateFlow(capabilities())
+		val broker = mockk<SourceBroker>()
+		val sinkFactory = mockk<DurableSourceEventSinkFactory>()
+		every { sinkFactory.unbound } returns unboundSink
+		val currentClaim = claim(SourceKind.WIFI)
+		val replacementClaim = currentClaim.copy(actionId = "action-WIFI-new", leaseGeneration = 2L)
+		val plan = wifiPlan()
+		val replacement = plan.copy(revision = 10L)
+		val capture = demand(SourceKind.WIFI, SourceBrokerPurpose.SESSION_CAPTURE)
+		coEvery { broker.authorizationDemands(SourceKind.WIFI) } returnsMany listOf(
+			listOf(capture),
+			listOf(capture.copy(lifecycleLeaseGeneration = 2L)),
+			listOf(capture),
+			emptyList(),
+		)
+		coEvery { physical.refreshShared(plan, unboundSink, currentClaim) } returns
+			SourceApplyResult.Applied(applied(SourceKind.WIFI, plan.revision, 7L))
+		val blocked = applied(SourceKind.WIFI, replacement.revision, 7L).copy(
+			appliedRevision = null, sourceInstanceId = null, registrationGeneration = null,
+			status = SourceApplyStatus.BLOCKED,
+		)
+		coEvery { physical.refreshShared(replacement, unboundSink, replacementClaim) } returns
+			SourceApplyResult.Failed(blocked, retryable = false)
+		coEvery { physical.quiesce(any()) } returns completeAck(
+			SourceKind.WIFI, 7L, RegistrationRemovalOutcome.REMOVED,
+		)
+		val subject = SharedWifiSourceController(physical, broker, sinkFactory)
+		assertIs<SourceStartResult.Started>(subject.start(currentClaim, plan, mockk()))
+
+		val failure = assertIs<SourceStartResult.Failed>(
+			subject.start(replacementClaim, replacement, mockk()),
+		)
+		assertEquals(blocked, failure.applied)
+		assertEquals(false, failure.retryable)
+		assertIs<AmbientWifiRuntimeJoinResult.Inactive>(subject.reconcileAmbientJoin())
+		assertIs<OwnedSourceShutdown.Released>(subject.shutdownIfOwned(currentClaim, cutoff()))
+		coVerify(exactly = 2) { physical.refreshShared(plan, unboundSink, currentClaim) }
+		coVerify(exactly = 1) { physical.refreshShared(replacement, unboundSink, replacementClaim) }
+		coVerify(exactly = 1) { physical.quiesce(any()) }
+		coVerify(exactly = 0) { physical.shutdownIfOwned(any(), any()) }
+		coVerify(exactly = 0) { physical.reconfigure(any(), any(), any()) }
+	}
+
+	@Test
+	fun `Cell close retains claimant on incomplete retirement`() = runTest {
+		val physical = mockk<CellSourceRuntime>()
+			every { physical.capabilities } returns MutableStateFlow(capabilities())
+		val broker = mockk<SourceBroker>()
+		val sinkFactory = mockk<DurableSourceEventSinkFactory>()
 		every { sinkFactory.unbound } returns unboundSink
 		val claim = claim(SourceKind.CELL)
 		val plan = cellPlan()
@@ -410,14 +510,22 @@ class SharedAmbientRadioSourceControllerTest {
 		sourcePolicyRevision = 2L,
 		consentEpoch = 3L,
 		persistenceEligible = true,
-		qosCode = if (purpose == SourceBrokerPurpose.SESSION_CAPTURE) 3 else 0,
+		qosCode = if (purpose == SourceBrokerPurpose.SESSION_CAPTURE) {
+			3
+		} else {
+			0
+		},
 		minimumAcquisitionSpec = if (source == SourceKind.WIFI) {
 			"wifi:v1:broadcast"
 		} else {
 			"cell:v1:callback"
 		},
 		adaptiveReductionAllowed = true,
-		maximumAgeMs = 600_000L,
+		maximumAgeMs = if (purpose == SourceBrokerPurpose.SESSION_CAPTURE) {
+			60_000L
+		} else {
+			600_000L
+		},
 		desiredLatencyMs = Long.MAX_VALUE,
 		requestedDeliveryLatencyMs = null,
 		requestedBootId = "boot-1",

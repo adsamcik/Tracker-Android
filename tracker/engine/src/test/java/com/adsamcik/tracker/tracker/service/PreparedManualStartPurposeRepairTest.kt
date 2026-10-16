@@ -57,7 +57,7 @@ class PreparedManualStartPurposeRepairTest {
         manualSourceSelection = selection)
 
     @Test
-    fun `prepared original Start refreshes all-day owners without requiring an earlier Off`() = runBlocking {
+    fun `prepared original Start refreshes all-day owners without requiring an earlier Off`(): Unit = runBlocking {
         val coordinator = coordinator()
         coordinator.prepare(originalStart) shouldBe prepared
         coVerify(exactly = 1) { reconciler.reconcileCurrentSettings() }
@@ -66,14 +66,18 @@ class PreparedManualStartPurposeRepairTest {
     }
 
     @Test
-    fun `owner refresh reads a later Off rather than treating original choices as renewed consent`() = runBlocking {
+    fun `owner refresh reads a later Off rather than treating original choices as renewed consent`(): Unit = runBlocking {
         val coordinator = coordinator()
         var stopped = false
         coEvery { gate.withReadyGenerationOperation<TrackingStartPreparationResult>(any(), any()) } answers {
             stopped = true
             prepared
         }
-        every { authority.pendingCollectionResumeExitId } answers { if (stopped) "later-off" else null }
+        every { authority.pendingCollectionResumeExitId } answers { if (stopped) {
+            "later-off"
+        } else {
+            null
+        } }
         var ownerSawStop = false
         coEvery { reconciler.reconcileCurrentSettings() } answers {
             ownerSawStop = authority.pendingCollectionResumeExitId == "later-off"
@@ -87,7 +91,7 @@ class PreparedManualStartPurposeRepairTest {
     }
 
     @Test
-    fun `independent owner debt schedules its existing retry and preserves prepared session`() = runBlocking {
+    fun `independent owner debt schedules its existing retry and preserves prepared session`(): Unit = runBlocking {
         val coordinator = coordinator()
         val debt = TrackingPurposeSettingsReconciliationDebt(listOf(
             TrackingPurposeSettingsReconciliationFailure(AmbientTrackingSource.STEPS,
@@ -99,7 +103,7 @@ class PreparedManualStartPurposeRepairTest {
     }
 
     @Test
-    fun `independent owner failure does not discard prepared session and schedules bounded recovery`() = runBlocking {
+    fun `independent owner failure does not discard prepared session and schedules bounded recovery`(): Unit = runBlocking {
         val coordinator = coordinator()
         coEvery { reconciler.reconcileCurrentSettings() } throws IOException("owner unavailable")
         coordinator.prepare(originalStart) shouldBe prepared
@@ -109,7 +113,7 @@ class PreparedManualStartPurposeRepairTest {
     }
 
     @Test
-    fun `cancellation in owner refresh remains cancellation without ordinary recovery scheduling`() = runBlocking {
+    fun `cancellation in owner refresh remains cancellation without ordinary recovery scheduling`(): Unit = runBlocking {
         val coordinator = coordinator()
         invokeCancellationCleanupLease()
         val cancelled = CancellationException("caller stopped")
@@ -127,7 +131,7 @@ class PreparedManualStartPurposeRepairTest {
     }
 
     @Test
-    fun `cancellation while scheduling recovery also compensates the exact prepared Start`() = runBlocking {
+    fun `cancellation while scheduling recovery also compensates the exact prepared Start`(): Unit = runBlocking {
         val coordinator = coordinator()
         invokeCancellationCleanupLease()
         val cancelled = CancellationException("retry cancelled")
@@ -145,7 +149,7 @@ class PreparedManualStartPurposeRepairTest {
     }
 
     @Test
-    fun `failed prepared compensation does not replace the original cancellation`() = runBlocking {
+    fun `failed prepared compensation does not replace the original cancellation`(): Unit = runBlocking {
         val coordinator = coordinator()
         invokeCancellationCleanupLease()
         val cancelled = CancellationException("caller stopped")
@@ -163,7 +167,7 @@ class PreparedManualStartPurposeRepairTest {
     }
 
     @Test
-    fun `prepared Start while Off leaves all-day owners closed until accepted`() = runBlocking {
+    fun `prepared Start while Off leaves all-day owners closed until accepted`(): Unit = runBlocking {
         val coordinator = coordinator()
         every { authority.pendingCollectionResumeExitId } returns "prior-off"
         coEvery { authority.prepareCollectionResumeForManualStart("prior-off", originalStart.command) } returns true
@@ -174,7 +178,7 @@ class PreparedManualStartPurposeRepairTest {
     }
 
     @Test
-    fun `accepted exact Start refreshes all-day owners after the command mutex is released`() = runBlocking {
+    fun `accepted exact Start refreshes all-day owners after the command mutex is released`(): Unit = runBlocking {
         val coordinator = coordinator()
         every { gate.permitsNewCollection } returns true
         every { authority.latestCommandGeneration() } returns originalStart.command.generation
@@ -185,7 +189,7 @@ class PreparedManualStartPurposeRepairTest {
     }
 
     @Test
-    fun `later Off or successor command suppresses post-acceptance owner refresh`() = runBlocking {
+    fun `later Off or successor command suppresses post-acceptance owner refresh`(): Unit = runBlocking {
         val coordinator = coordinator()
         every { gate.permitsNewCollection } returns false
         coordinator.reconcileAcceptedManualStart(originalStart.command)
@@ -196,7 +200,7 @@ class PreparedManualStartPurposeRepairTest {
     }
 
     @Test
-    fun `nonmanual recovery and rejected requests do not acquire the manual refresh opportunity`() = runBlocking {
+    fun `nonmanual recovery and rejected requests do not acquire the manual refresh opportunity`(): Unit = runBlocking {
         val coordinator = coordinator()
         coordinator.prepare(TrackingStartRequest(TrackingStartCommand(2L), false, false)) shouldBe prepared
         coordinator.prepare(TrackingStartRequest(TrackingStartCommand(3L), true, false,
@@ -239,7 +243,11 @@ class PreparedManualStartPurposeRepairTest {
     private fun invokeCancellationCleanupLease() {
         var calls = 0
         coEvery { gate.withReadyGenerationOperation<Any>(any(), any()) } coAnswers {
-            if (calls++ == 0) prepared else secondArg<suspend () -> Any?>().invoke()
+            if (calls++ == 0) {
+                prepared
+            } else {
+                secondArg<suspend () -> Any?>().invoke()
+            }
         }
         coEvery { database.sourceSessionDao().serviceRunByDeliveryToken(prepared.token.value) } returns null
         coEvery { store.read() } returns ActiveTrackingSessionStoreResult.Success(null)

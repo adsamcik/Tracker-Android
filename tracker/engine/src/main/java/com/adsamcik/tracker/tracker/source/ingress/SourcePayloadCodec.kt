@@ -61,6 +61,8 @@ data class EncodedSourcePayload(
 )
 
 @Singleton
+// Keep the six-source versioned wire codecs and their stable primitive encoding in one codec.
+@Suppress("TooManyFunctions")
 class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 	override fun encode(payload: SourcePayload, payloadVersion: Int): EncodedSourcePayload {
 		require(payloadVersion in MINIMUM_VERSION..CURRENT_VERSION) {
@@ -97,32 +99,7 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 			)
 			return EncodedSourcePayload(encoded.toByteArray(), encoded.checksum)
 		}
-		val canonicalBytes = when {
-			payload is ActivityTransitionPayload &&
-				payloadVersion == ACTIVITY_WAL_PAYLOAD_VERSION ->
-				ActivityWalPayloadCodec.encode(
-					ActivityWalPayload.Transition(
-						payload.activityType,
-						payload.transitionType,
-						payload.providerElapsedRealtimeNanos,
-					),
-				)
-			payload is ActivityRecognitionPayload &&
-				payloadVersion == ACTIVITY_WAL_PAYLOAD_VERSION ->
-				ActivityWalPayloadCodec.encode(
-					ActivityWalPayload.Recognition(
-						payload.activityType,
-						payload.confidencePercent,
-						payload.providerElapsedRealtimeNanos,
-					),
-				)
-			payload is StepCounterWindowPayload ->
-				StepsWalPayloadCodec.encode(payload.toWalPayload(), payloadVersion)
-			payload is PressureWindowPayload &&
-				payloadVersion == PRESSURE_WAL_PAYLOAD_VERSION ->
-				PressureWalPayloadCodec.encode(payload.toWalPayload())
-			else -> null
-		}
+		val canonicalBytes = encodeCanonicalPayload(payload, payloadVersion)
 		if (canonicalBytes != null) {
 			return EncodedSourcePayload(canonicalBytes, canonicalBytes.sha256())
 		}
@@ -137,89 +114,8 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 		require(payloadVersion in MINIMUM_VERSION..CURRENT_VERSION) {
 			"Unsupported source payload version $payloadVersion"
 		}
-		if (source == SourceKind.CELL &&
-			payloadVersion in 5..CELL_WAL_PAYLOAD_VERSION
-		) {
-			val decoded = CellWalPayloadCodec.decodeCanonical(payloadVersion, bytes)
-			require(decoded is CellWalPayloadDecodeResult.Decoded) {
-				"Invalid canonical Cell WAL payload"
-			}
-			return decoded.payload.let { payload ->
-				CellSnapshotPayload(
-					subscriptionId = payload.subscriptionId,
-					observations = payload.observations.map { observation ->
-						CellObservationEvidence(
-							identifierToken = observation.identifierToken,
-							radioType = observation.radioType,
-							registered = observation.registered,
-							signalLevelDbm = observation.signalLevelDbm,
-							providerTimestampNanos = observation.providerTimestampNanos,
-						)
-					},
-					refreshOutcome = CellRefreshOutcome.entries[payload.refreshOutcomeCode],
-					observationZoneId = payload.observationZoneId,
-				)
-			}
-		}
-		if (source == SourceKind.WIFI &&
-			payloadVersion in 5..WIFI_WAL_PAYLOAD_VERSION
-		) {
-			val decoded = WifiWalPayloadCodec.decodeCanonical(payloadVersion, bytes)
-			require(decoded is WifiWalPayloadDecodeResult.Decoded) {
-				"Invalid canonical Wi-Fi WAL payload"
-			}
-			return WifiResultSnapshotPayload(
-				accessPoints = decoded.payload.observations.map { observation ->
-					WifiAccessPointEvidence(
-						identifierToken = observation.identifierToken,
-						networkName = observation.networkName,
-						frequencyMhz = observation.frequencyMhz,
-						signalLevelDbm = observation.signalLevelDbm,
-						providerTimestampNanos = observation.providerTimestampNanos,
-					)
-				},
-				platformTimestampMs = decoded.payload.platformTimestampMs,
-				resultAgeMs = decoded.payload.resultAgeMs,
-				observationZoneId = decoded.payload.observationZoneId,
-			)
-		}
-		if (source == SourceKind.ACTIVITY && payloadVersion == ACTIVITY_WAL_PAYLOAD_VERSION) {
-			return when (val payload = ActivityWalPayloadCodec.decodeCanonical(payloadVersion, bytes)) {
-				is ActivityWalPayload.Transition -> ActivityTransitionPayload(
-					payload.activityType,
-					payload.transitionType,
-					payload.providerElapsedRealtimeNanos,
-				)
-				is ActivityWalPayload.Recognition -> ActivityRecognitionPayload(
-					payload.activityType,
-					payload.confidencePercent,
-					payload.providerElapsedRealtimeNanos,
-				)
-				null -> error("Invalid canonical Activity WAL payload")
-			}
-		}
-		if (source == SourceKind.STEPS) {
-			val payload = StepsWalPayloadCodec.decodeCanonical(payloadVersion, bytes)
-				?: error("Invalid canonical Steps WAL payload")
-			return StepCounterWindowPayload(
-				bootClockDomainId = payload.bootClockDomainId,
-				firstCumulativeCount = payload.firstCumulativeCount,
-				lastCumulativeCount = payload.lastCumulativeCount,
-				deltaCount = payload.deltaCount,
-				windowStartElapsedRealtimeNanos = payload.windowStartElapsedRealtimeNanos,
-				windowEndElapsedRealtimeNanos = payload.windowEndElapsedRealtimeNanos,
-				firstProviderSequence = payload.firstProviderSequence,
-				lastProviderSequence = payload.lastProviderSequence,
-				boundaryKind = payload.boundaryKind.toSourceBoundary(),
-				counterDomainToken = payload.counterDomainToken,
-				counterEpochGeneration = payload.counterEpochGeneration,
-			)
-		}
-		if (source == SourceKind.PRESSURE && payloadVersion == PRESSURE_WAL_PAYLOAD_VERSION) {
-			val payload = PressureWalPayloadCodec.decodeCanonical(payloadVersion, bytes)
-				?: error("Invalid canonical Pressure WAL payload")
-			return payload.toSourcePayload()
-		}
+		val canonical = decodeCanonicalPayload(source, payloadVersion, bytes)
+		if (canonical != null) return canonical
 		if (payloadVersion == LEGACY_V27_VERSION) {
 			return LegacyV27SourcePayloadDecoder.decode(source, bytes)
 		}
@@ -237,6 +133,137 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 		}
 		require(payload.source == source) { "Encoded payload source does not match WAL source" }
 		return payload
+	}
+
+	private fun encodeCanonicalPayload(payload: SourcePayload, payloadVersion: Int): ByteArray? = when {
+		payload is ActivityTransitionPayload &&
+			payloadVersion == ACTIVITY_WAL_PAYLOAD_VERSION ->
+			ActivityWalPayloadCodec.encode(
+				ActivityWalPayload.Transition(
+					payload.activityType,
+					payload.transitionType,
+					payload.providerElapsedRealtimeNanos,
+				),
+			)
+		payload is ActivityRecognitionPayload &&
+			payloadVersion == ACTIVITY_WAL_PAYLOAD_VERSION ->
+			ActivityWalPayloadCodec.encode(
+				ActivityWalPayload.Recognition(
+					payload.activityType,
+					payload.confidencePercent,
+					payload.providerElapsedRealtimeNanos,
+				),
+			)
+		payload is StepCounterWindowPayload ->
+			StepsWalPayloadCodec.encode(payload.toWalPayload(), payloadVersion)
+		payload is PressureWindowPayload &&
+			payloadVersion == PRESSURE_WAL_PAYLOAD_VERSION ->
+			PressureWalPayloadCodec.encode(payload.toWalPayload())
+		else -> null
+	}
+
+	private fun decodeCanonicalCell(payloadVersion: Int, bytes: ByteArray): SourcePayload {
+		val decoded = CellWalPayloadCodec.decodeCanonical(payloadVersion, bytes)
+		require(decoded is CellWalPayloadDecodeResult.Decoded) {
+			"Invalid canonical Cell WAL payload"
+		}
+		return decoded.payload.let { payload ->
+			CellSnapshotPayload(
+				subscriptionId = payload.subscriptionId,
+				observations = payload.observations.map { observation ->
+					CellObservationEvidence(
+						identifierToken = observation.identifierToken,
+						radioType = observation.radioType,
+						registered = observation.registered,
+						signalLevelDbm = observation.signalLevelDbm,
+						providerTimestampNanos = observation.providerTimestampNanos,
+					)
+				},
+				refreshOutcome = CellRefreshOutcome.entries[payload.refreshOutcomeCode],
+				observationZoneId = payload.observationZoneId,
+			)
+		}
+	}
+
+	private fun decodeCanonicalWifi(payloadVersion: Int, bytes: ByteArray): SourcePayload {
+		val decoded = WifiWalPayloadCodec.decodeCanonical(payloadVersion, bytes)
+		require(decoded is WifiWalPayloadDecodeResult.Decoded) {
+			"Invalid canonical Wi-Fi WAL payload"
+		}
+		return WifiResultSnapshotPayload(
+			accessPoints = decoded.payload.observations.map { observation ->
+				WifiAccessPointEvidence(
+					identifierToken = observation.identifierToken,
+					networkName = observation.networkName,
+					frequencyMhz = observation.frequencyMhz,
+					signalLevelDbm = observation.signalLevelDbm,
+					providerTimestampNanos = observation.providerTimestampNanos,
+				)
+			},
+			platformTimestampMs = decoded.payload.platformTimestampMs,
+			resultAgeMs = decoded.payload.resultAgeMs,
+			observationZoneId = decoded.payload.observationZoneId,
+		)
+	}
+
+	private fun decodeCanonicalActivity(payloadVersion: Int, bytes: ByteArray): SourcePayload {
+		return when (val payload = ActivityWalPayloadCodec.decodeCanonical(payloadVersion, bytes)) {
+			is ActivityWalPayload.Transition -> ActivityTransitionPayload(
+				payload.activityType,
+				payload.transitionType,
+				payload.providerElapsedRealtimeNanos,
+			)
+			is ActivityWalPayload.Recognition -> ActivityRecognitionPayload(
+				payload.activityType,
+				payload.confidencePercent,
+				payload.providerElapsedRealtimeNanos,
+			)
+			null -> error("Invalid canonical Activity WAL payload")
+		}
+	}
+
+	private fun decodeCanonicalSteps(payloadVersion: Int, bytes: ByteArray): SourcePayload {
+		val payload = StepsWalPayloadCodec.decodeCanonical(payloadVersion, bytes)
+			?: error("Invalid canonical Steps WAL payload")
+		return StepCounterWindowPayload(
+			bootClockDomainId = payload.bootClockDomainId,
+			firstCumulativeCount = payload.firstCumulativeCount,
+			lastCumulativeCount = payload.lastCumulativeCount,
+			deltaCount = payload.deltaCount,
+			windowStartElapsedRealtimeNanos = payload.windowStartElapsedRealtimeNanos,
+			windowEndElapsedRealtimeNanos = payload.windowEndElapsedRealtimeNanos,
+			firstProviderSequence = payload.firstProviderSequence,
+			lastProviderSequence = payload.lastProviderSequence,
+			boundaryKind = payload.boundaryKind.toSourceBoundary(),
+			counterDomainToken = payload.counterDomainToken,
+			counterEpochGeneration = payload.counterEpochGeneration,
+		)
+	}
+
+	private fun decodeCanonicalPressure(payloadVersion: Int, bytes: ByteArray): SourcePayload {
+		val payload = PressureWalPayloadCodec.decodeCanonical(payloadVersion, bytes)
+			?: error("Invalid canonical Pressure WAL payload")
+		return payload.toSourcePayload()
+	}
+
+	// This closed source/version table only selects an existing codec; keep wire dispatch explicit.
+	@Suppress("CyclomaticComplexMethod")
+	private fun decodeCanonicalPayload(
+		source: SourceKind,
+		payloadVersion: Int,
+		bytes: ByteArray,
+	): SourcePayload? = when {
+		source == SourceKind.CELL && payloadVersion in 5..CELL_WAL_PAYLOAD_VERSION ->
+			decodeCanonicalCell(payloadVersion, bytes)
+		source == SourceKind.WIFI && payloadVersion in 5..WIFI_WAL_PAYLOAD_VERSION ->
+			decodeCanonicalWifi(payloadVersion, bytes)
+		source == SourceKind.ACTIVITY && payloadVersion == ACTIVITY_WAL_PAYLOAD_VERSION ->
+			decodeCanonicalActivity(payloadVersion, bytes)
+		source == SourceKind.STEPS ->
+			decodeCanonicalSteps(payloadVersion, bytes)
+		source == SourceKind.PRESSURE && payloadVersion == PRESSURE_WAL_PAYLOAD_VERSION ->
+			decodeCanonicalPressure(payloadVersion, bytes)
+		else -> null
 	}
 
 	private fun DataOutputStream.writePayload(payload: SourcePayload, payloadVersion: Int) {
@@ -279,42 +306,6 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 				writeInt(payload.activityType)
 				writeInt(payload.confidencePercent)
 				writeNullableLong(payload.providerElapsedRealtimeNanos)
-			}
-			is StepCounterWindowPayload -> {
-				writeInt(TYPE_STEP_WINDOW)
-				writeUTF(payload.bootClockDomainId)
-				writeLong(payload.firstCumulativeCount)
-				writeLong(payload.lastCumulativeCount)
-				writeLong(payload.deltaCount)
-				writeLong(payload.windowStartElapsedRealtimeNanos)
-				writeLong(payload.windowEndElapsedRealtimeNanos)
-				writeLong(payload.firstProviderSequence)
-				writeLong(payload.lastProviderSequence)
-				if (payloadVersion >= STEP_BOUNDARY_KIND_PAYLOAD_VERSION) {
-					require(payload.boundaryKind != StepBoundaryKind.LEGACY_AMBIGUOUS) {
-						"Legacy-ambiguous Steps boundaries are decode-only"
-					}
-					writeInt(payload.boundaryKind.stableWireCode())
-				} else {
-					writeBoolean(payload.baselineReset)
-				}
-				if (payloadVersion >= STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION) {
-					writeLong(requireNotNull(payload.counterEpochGeneration))
-					writeBoolean(payload.counterDomainToken != null)
-					payload.counterDomainToken?.let { writeUTF(it.encoded) }
-				} else if (payloadVersion >= STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION) {
-					require(payload.counterEpochGeneration == null) {
-						"Steps payload version 6 cannot persist a counter-epoch generation"
-					}
-					writeUTF(requireNotNull(payload.counterDomainToken).encoded)
-				} else {
-					require(
-						payload.counterDomainToken == null &&
-							payload.counterEpochGeneration == null,
-					) {
-						"Legacy Steps payload cannot discard count-domain evidence"
-					}
-				}
 			}
 			is PressureWindowPayload -> {
 				if (payloadVersion >= PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION) {
@@ -669,15 +660,6 @@ private const val PRESSURE_ACCURACY_MEDIUM_WIRE_CODE = 4
 private const val PRESSURE_ACCURACY_HIGH_WIRE_CODE = 5
 private const val PRESSURE_CLOSURE_TARGET_ELAPSED_WIRE_CODE = 1
 private const val PRESSURE_CLOSURE_SOURCE_BOUNDARY_WIRE_CODE = 2
-
-private fun StepBoundaryKind.stableWireCode(): Int = when (this) {
-	StepBoundaryKind.BASELINE -> 1
-	StepBoundaryKind.COVERED -> 2
-	StepBoundaryKind.COUNTER_RESET -> 3
-	StepBoundaryKind.LEGACY_AMBIGUOUS -> throw IllegalArgumentException(
-		"Legacy-ambiguous Steps boundaries have no stable wire code",
-	)
-}
 
 private fun stepBoundaryKindFromStableWireCode(code: Int): StepBoundaryKind = when (code) {
 	1 -> StepBoundaryKind.BASELINE

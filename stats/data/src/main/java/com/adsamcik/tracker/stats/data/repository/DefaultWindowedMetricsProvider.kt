@@ -41,53 +41,82 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 	private val savedLocationMetrics: SavedLocationMetricsReader,
 ) : WindowedMetricsProvider {
 
+	// Keep the five ordered source/metric routes explicit before their complete private operations.
+	@Suppress("ReturnCount")
 	override suspend fun collect(metric: String, window: TimeWindow): Either<StatsError, Long> {
 		if (metric == MetricKeys.STEPS || metric == MetricKeys.STEPS_TOTAL || metric == MetricKeys.BEST_DAILY_STEPS) {
 			return StatsError.ValidationError("Steps require source-qualified numeric evidence").left()
 		}
 		if (metric == MetricKeys.LONGEST_TRIP_KM) {
-			val bounds = when (window) {
-				TimeWindow.Cumulative -> 0L to Long.MAX_VALUE
-				is TimeWindow.Interval -> window.startMs to window.endMs
-				is TimeWindow.Rolling -> {
-					if (window.durationMs < 0L) return StatsError.ValidationError("Rolling duration cannot be negative").left()
-					val now = System.currentTimeMillis()
-					(now - window.durationMs).coerceAtLeast(0L) to now
-				}
-			}
-			return savedTripDistanceReader.longestDistanceMeters(bounds.first, bounds.second).map { it / METERS_PER_KM }
+			return collectLongestTrip(window)
 		}
 		if (metric == MetricKeys.SEASONS_EXPLORED && window != TimeWindow.Cumulative) {
 			return StatsError.ValidationError("Seasonal visits are unavailable for this period").left()
 		}
 		if (metric in setOf(MetricKeys.DISTANCE_M, MetricKeys.DISTANCE_TOTAL_M, MetricKeys.DISTANCE_ON_FOOT_M)) {
-			if (window is TimeWindow.Interval && window.startMs > window.endMs) {
-				return StatsError.ValidationError("Metric interval cannot end before it starts").left()
-			}
-			if (window is TimeWindow.Rolling && window.durationMs < 0L) {
-				return StatsError.ValidationError("Rolling duration cannot be negative").left()
-			}
-			val now = System.currentTimeMillis()
-			val bounds = when (window) {
-				TimeWindow.Cumulative -> 0L to Long.MAX_VALUE
-				is TimeWindow.Interval -> window.startMs to window.endMs
-				is TimeWindow.Rolling -> (now - window.durationMs).coerceAtLeast(0L) to now
-			}
-			if (bounds.first < 0L || bounds.second < bounds.first ||
-				(window is TimeWindow.Rolling && window.durationMs < 0L)) {
-				return StatsError.ValidationError("Invalid measured distance interval").left()
-			}
-			return try {
-				val measured = savedLocationMetrics.read(bounds.first, bounds.second)
-				val value = if (metric == MetricKeys.DISTANCE_ON_FOOT_M) measured.onFootDistanceMeters
-					else measured.distanceMeters ?: 0.0
-				value.toLong().right()
-			} catch (cancelled: CancellationException) {
-				throw cancelled
-			} catch (error: Exception) {
-				StatsError.DatabaseError("Failed to load measured distance", error).left()
+			return collectMeasuredDistance(metric, window)
+		}
+		return collectOrdinaryWindow(metric, window)
+	}
+
+	/** Longest-trip windows retain their existing start-date and measured-distance rules. */
+	private suspend fun collectLongestTrip(window: TimeWindow): Either<StatsError, Long> {
+		val bounds = when (window) {
+			TimeWindow.Cumulative -> 0L to Long.MAX_VALUE
+			is TimeWindow.Interval -> window.startMs to window.endMs
+			is TimeWindow.Rolling -> {
+				if (window.durationMs < 0L) {
+					return StatsError.ValidationError("Rolling duration cannot be negative").left()
+				}
+				val now = System.currentTimeMillis()
+				(now - window.durationMs).coerceAtLeast(0L) to now
 			}
 		}
+		return savedTripDistanceReader.longestDistanceMeters(bounds.first, bounds.second).map { it / METERS_PER_KM }
+	}
+
+	/** Measured distance validates its own window before the saved-data reader and error boundary. */
+	private suspend fun collectMeasuredDistance(metric: String, window: TimeWindow): Either<StatsError, Long> {
+		measuredDistanceInputFailure(window)?.let { return it.left() }
+		val now = System.currentTimeMillis()
+		val bounds = when (window) {
+			TimeWindow.Cumulative -> 0L to Long.MAX_VALUE
+			is TimeWindow.Interval -> window.startMs to window.endMs
+			is TimeWindow.Rolling -> (now - window.durationMs).coerceAtLeast(0L) to now
+		}
+		if (bounds.first < 0L || bounds.second < bounds.first ||
+			(window is TimeWindow.Rolling && window.durationMs < 0L)) {
+			return StatsError.ValidationError("Invalid measured distance interval").left()
+		}
+		return readMeasuredDistance(metric, bounds.first, bounds.second)
+	}
+
+	private fun measuredDistanceInputFailure(window: TimeWindow): StatsError.ValidationError? = when {
+		window is TimeWindow.Interval && window.startMs > window.endMs ->
+			StatsError.ValidationError("Metric interval cannot end before it starts")
+		window is TimeWindow.Rolling && window.durationMs < 0L ->
+			StatsError.ValidationError("Rolling duration cannot be negative")
+		else -> null
+	}
+
+	private suspend fun readMeasuredDistance(metric: String, fromMs: Long, toMs: Long): Either<StatsError, Long> = try {
+		val measured = savedLocationMetrics.read(fromMs, toMs)
+		val value = if (metric == MetricKeys.DISTANCE_ON_FOOT_M) {
+			measured.onFootDistanceMeters
+		} else {
+			measured.distanceMeters ?: 0.0
+		}
+		value.toLong().right()
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
+		// Saved-data qualification/materialization failures are failed metrics, not measured zero.
+		StatsError.DatabaseError("Failed to load measured distance", error).left()
+	}
+
+	// Preserve ordered invalid-window and source-specific streak exits before generic conversion.
+	@Suppress("ReturnCount")
+	private suspend fun collectOrdinaryWindow(metric: String, window: TimeWindow): Either<StatsError, Long> {
 		val value = when (window) {
 			TimeWindow.Cumulative -> collectCumulative(metric)
 			is TimeWindow.Interval -> {
@@ -114,13 +143,12 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 			?: StatsError.ValidationError("Metric is not supported by this provider").left()
 	}
 
+	// Each metric selects one established lifetime calculation; keep this finite dispatch together.
+	@Suppress("CyclomaticComplexMethod")
 	private suspend fun collectCumulative(metric: String): Long? = when (metric) {
-		MetricKeys.DISTANCE_M -> dailySummaryDao.sumTotalDistance()
-		MetricKeys.DISTANCE_TOTAL_M -> dailySummaryDao.sumTotalDistance()
 		MetricKeys.ACTIVE_MINUTES -> dailySummaryDao.sumActiveMinutes()
 		MetricKeys.CELLS_DISCOVERED -> explorationCellDao.countAtLevelLong(EXPLORATION_CELL_LEVEL)
 		MetricKeys.UNIQUE_AREAS -> explorationCellDao.countAtLevelLong(AREA_CELL_LEVEL)
-		MetricKeys.DISTANCE_ON_FOOT_M -> sessionSegmentDao.sumDistanceByActivities(ON_FOOT_ACTIVITY_IDS)
 		MetricKeys.WALKING_TRIPS -> sessionSegmentDao.countByActivity(ACTIVITY_ON_FOOT) +
 			sessionSegmentDao.countByActivity(ACTIVITY_WALKING) +
 			sessionSegmentDao.countByActivity(ACTIVITY_RUNNING) +
@@ -138,6 +166,8 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 		else -> null
 	}
 
+	// Each metric selects one established bounded query using the same captured day bounds.
+	@Suppress("CyclomaticComplexMethod")
 	private suspend fun collectInterval(metric: String, fromMs: Long, toMs: Long): Long? {
 
 		// Daily-summary queries use the epoch_day primary index, NOT the wall-clock ms.
@@ -146,16 +176,9 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 		val toDay = com.adsamcik.tracker.shared.base.database.dao.toMsToToDay(toMs)
 
 		return when (metric) {
-			MetricKeys.DISTANCE_M -> dailySummaryDao.sumTotalDistanceBetween(fromDay, toDay)
-			MetricKeys.DISTANCE_TOTAL_M -> dailySummaryDao.sumTotalDistanceBetween(fromDay, toDay)
 			MetricKeys.ACTIVE_MINUTES -> dailySummaryDao.sumActiveMinutesBetween(fromDay, toDay)
 			MetricKeys.CELLS_DISCOVERED -> explorationCellDao.countDiscoveredBetween(fromMs, toMs, EXPLORATION_CELL_LEVEL)
 			MetricKeys.UNIQUE_AREAS -> explorationCellDao.countDiscoveredBetween(fromMs, toMs, AREA_CELL_LEVEL)
-			MetricKeys.DISTANCE_ON_FOOT_M -> sessionSegmentDao.sumDistanceByActivitiesBetween(
-				fromMs = fromMs,
-				toMs = toMs,
-				activityTypes = ON_FOOT_ACTIVITY_IDS,
-			)
 			MetricKeys.WALKING_TRIPS -> sessionSegmentDao.countByActivitiesBetween(
 				fromMs = fromMs,
 				toMs = toMs,
@@ -183,7 +206,11 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 	): Either<StatsError, Long> {
 		// Capture the displayed calendar before suspension; a settings change cannot split one read.
 		val zone = ZoneId.systemDefault()
-		val weekFields = if (metric == MetricKeys.WEEKLY_STREAK) WeekFields.of(Locale.getDefault()) else null
+		val weekFields = if (metric == MetricKeys.WEEKLY_STREAK) {
+			WeekFields.of(Locale.getDefault())
+		} else {
+			null
+		}
 		return withContext(dispatchers.default) {
 			try {
 				val timestamps = explorationCellDao.discoveryTimestampsBetween(
@@ -198,7 +225,8 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 				value.right()
 			} catch (error: CancellationException) {
 				throw error
-			} catch (error: Exception) {
+			} catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
+				// A failed discovery read stays a typed metric error with its original cause.
 				StatsError.DatabaseError("Failed to load discovery streak", error).left()
 			}
 		}

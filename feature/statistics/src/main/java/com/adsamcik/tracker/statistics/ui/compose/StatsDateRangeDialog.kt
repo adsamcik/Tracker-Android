@@ -112,7 +112,9 @@ internal fun matchingStatsDateRangePreset(
     nowMillis: Long = System.currentTimeMillis(),
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): StatsDateRangePreset? {
-    if (startMs == null || endMs == null) return StatsDateRangePreset.ALL_TIME
+    if (startMs == null || endMs == null) {
+        return StatsDateRangePreset.ALL_TIME
+    }
     val options = statsDateRangePresetOptions(nowMillis, zoneId)
     // Exact-match presets first so e.g. yesterday doesn't get bucketed into "last 7 days".
     return options.firstOrNull { option ->
@@ -169,9 +171,15 @@ internal fun StatsDateRangeDialog(
     val rangeIsAllTime = pickerStart == null && pickerEnd == null
     val selectedRange = if (pickerStart != null && pickerEnd != null) {
         statsLocalRangeFromPicker(pickerStart, pickerEnd, zoneId)
-    } else null
-    val selectedPreset = if (rangeIsAllTime) StatsDateRangePreset.ALL_TIME else selectedRange?.let {
+    } else {
+        null
+    }
+    val selectedPreset = if (rangeIsAllTime) {
+        StatsDateRangePreset.ALL_TIME
+    } else {
+        selectedRange?.let {
         matchingStatsDateRangePreset(it.first, it.second, now, zoneId)
+    }
     }
 
     val summaryText = when {

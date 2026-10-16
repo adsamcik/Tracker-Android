@@ -108,7 +108,6 @@ fun activityTransitionCallbackCleanupDeadlineElapsedRealtimeNanos(
  * Public API for Tracker Service.
  */
 object TrackerServiceApi {
-	private val turnOffRecoveryInFlight = mutableSetOf<String>()
 	@Volatile
 	private var cachedEntryPoint: TrackerServiceApiEntryPoint? = null
 
@@ -184,6 +183,23 @@ object TrackerServiceApi {
 		expectedCommandGeneration,
 	) is TrackingStartDispatchResult.Enqueued
 
+	private fun startAuthorityFailure(
+		isUserInitiated: Boolean,
+		automaticTrigger: AutomaticTrackingStartTrigger?,
+		recoveryDescriptor: ActiveTrackingSessionDescriptor?,
+		expectedCommandGeneration: Long?,
+	): String? = when {
+		!isUserInitiated && automaticTrigger == null && recoveryDescriptor == null ->
+			"TRACKING_START_AUTHORITY_MISSING"
+		automaticTrigger != null && (expectedCommandGeneration == null || expectedCommandGeneration < 0L) ->
+			"AUTOMATIC_START_CONTEXT_MISSING"
+		else -> null
+	}
+
+	/**
+	 * Starts the prepared service intent and waits for enqueue status; a successful enqueue does not prove
+	 * sensor activation.
+	 */
 	suspend fun startServiceAndAwaitEnqueueResult(
 		context: Context,
 		isUserInitiated: Boolean,
@@ -192,24 +208,23 @@ object TrackerServiceApi {
 		recoveryDescriptor: ActiveTrackingSessionDescriptor? = null,
 		expectedCommandGeneration: Long? = null,
 	): TrackingStartDispatchResult {
-		if (!isUserInitiated && automaticTrigger == null && recoveryDescriptor == null) {
-			return TrackingStartDispatchResult.Terminal("TRACKING_START_AUTHORITY_MISSING")
-		}
-		if (automaticTrigger != null && (expectedCommandGeneration == null || expectedCommandGeneration < 0L)) {
-			return TrackingStartDispatchResult.Terminal("AUTOMATIC_START_CONTEXT_MISSING")
-		}
+		startAuthorityFailure(isUserInitiated, automaticTrigger, recoveryDescriptor, expectedCommandGeneration)
+			?.let { return TrackingStartDispatchResult.Terminal(it) }
 		val appContext = context.applicationContext
 		val entryPoint = getEntryPoint(appContext)
 		val commands = entryPoint.trackingLifecycleCommandAuthority()
-		val command = if (automaticTrigger != null) {
-			commands.reserveStartIfGeneration(requireNotNull(expectedCommandGeneration), automaticTrigger)
-				?: return TrackingStartDispatchResult.Terminal("START_COMMAND_SUPERSEDED")
-		} else if (expectedCommandGeneration != null) {
-			commands.reserveStartIfGeneration(expectedCommandGeneration)
-				?: return TrackingStartDispatchResult.Terminal("START_COMMAND_SUPERSEDED")
-		} else {
-			commands.reserveStart()
-				?: return TrackingStartDispatchResult.Retryable("START_COMMAND_UNAVAILABLE")
+		val command = when {
+			automaticTrigger != null -> commands.reserveStartIfGeneration(
+				requireNotNull(expectedCommandGeneration), automaticTrigger)
+			expectedCommandGeneration != null -> commands.reserveStartIfGeneration(expectedCommandGeneration)
+			else -> commands.reserveStart()
+		}
+		if (command == null) {
+			return if (automaticTrigger != null || expectedCommandGeneration != null) {
+				TrackingStartDispatchResult.Terminal("START_COMMAND_SUPERSEDED")
+			} else {
+				TrackingStartDispatchResult.Retryable("START_COMMAND_UNAVAILABLE")
+			}
 		}
 		return dispatchPreparedStartResult(
 			request = TrackingStartRequest(
@@ -341,207 +356,10 @@ object TrackerServiceApi {
 		lifecycleAuthority: TrackingLifecycleCommandAuthority,
 		platformEnqueue: (TrackingStartPreparationResult.Prepared, TrackingStartCommand) -> Boolean,
 		elapsedRealtimeNanos: () -> Long = SystemClock::elapsedRealtimeNanos,
-	): TrackingStartDispatchResult {
-		var preparedToken: PreparedTrackingStartToken? = null
-		var preparedStartupGeneration = -1L
-		var enqueueOutcome = PlatformEnqueueOutcome.NOT_ATTEMPTED
-		var startupPermitRejected = false
-		val enqueueDeadline = request.automaticTrigger
-			?.let(::activityTransitionCallbackEnqueueDeadlineElapsedRealtimeNanos)
-		if (enqueueDeadline != null && elapsedRealtimeNanos() >= enqueueDeadline) {
-			return TrackingStartDispatchResult.Terminal("LIVE_CALLBACK_DEADLINE_EXPIRED")
-		}
-		return try {
-			val prepared = when (val result = coordinator.prepare(request)) {
-				is TrackingStartPreparationResult.Prepared -> {
-					preparedStartupGeneration = result.startupGeneration
-					result
-				}
-				TrackingStartPreparationResult.AlreadyActive ->
-					return TrackingStartDispatchResult.AlreadyActive
-				TrackingStartPreparationResult.SetupPending -> return TrackingStartDispatchResult.SetupPending
-				is TrackingStartPreparationResult.Rejected -> return when (result.disposition) {
-					TrackingStartFailureDisposition.RETRYABLE ->
-						TrackingStartDispatchResult.Retryable(result.failureCode)
-					TrackingStartFailureDisposition.TERMINAL ->
-						TrackingStartDispatchResult.Terminal(result.failureCode)
-				}
-			}
-			val token = prepared.token
-			preparedToken = token
-			currentCoroutineContext().ensureActive()
-			if (enqueueDeadline != null && elapsedRealtimeNanos() >= enqueueDeadline) {
-				compensatePreparedStartWithinBudget(
-					request,
-					token,
-					coordinator,
-					"LIVE_CALLBACK_DEADLINE_EXPIRED_BEFORE_ENQUEUE",
-					elapsedRealtimeNanos,
-				)
-				return TrackingStartDispatchResult.Terminal(
-					"LIVE_CALLBACK_DEADLINE_EXPIRED_BEFORE_ENQUEUE",
-				)
-			}
-			// The existing one-use claim happens only after actual Room preparation, so a late setup lag preserves intent.
-			request.manualSourceSelection?.let { selection ->
-				if (lifecycleAuthority.consumeManualStart(request.command.generation, selection) != request.command) {
-					compensatePreparedStartWithinBudget(request, token, coordinator,
-						"MANUAL_START_CONTINUATION_SUPERSEDED", elapsedRealtimeNanos)
-					return TrackingStartDispatchResult.Terminal("MANUAL_START_CONTINUATION_SUPERSEDED")
-				}
-			}
-			if (!prepared.requiresForegroundService) {
-				val accepted = lifecycleAuthority.withCurrentStart(request.command,
-					acceptWhen = { it }) {
-					currentCoroutineContext().ensureActive()
-					if (request.manualSourceSelection != null &&
-						lifecycleAuthority.latestCommandGeneration() != request.command.generation) {
-						return@withCurrentStart false
-					}
-					if (enqueueDeadline != null && elapsedRealtimeNanos() >= enqueueDeadline) false
-					else coordinator.acceptWithoutForegroundService(prepared, request)
-				}
-				if (accepted is LockedTrackingStartResult.Executed && accepted.value) {
-					enqueueOutcome = PlatformEnqueueOutcome.ENQUEUED
-					coordinator.reconcileAcceptedSessionWithoutService(request.command)
-					return TrackingStartDispatchResult.Enqueued
-				}
-				compensatePreparedStartWithinBudget(request, token, coordinator,
-					"START_WITHOUT_SERVICE_NOT_ACCEPTED", elapsedRealtimeNanos)
-				return TrackingStartDispatchResult.Terminal("START_WITHOUT_SERVICE_NOT_ACCEPTED")
-			}
-			val dispatchContext = currentCoroutineContext()
-			when (val result = lifecycleAuthority.withCurrentStart(request.command) {
-				// User-requested process exit advances the command fence without issuing a STOP.
-				// A consumed manual tap must still be current at Android delivery.
-				if (request.manualSourceSelection != null &&
-					lifecycleAuthority.latestCommandGeneration() != request.command.generation
-				) return@withCurrentStart false
-				coordinator.withStartupEnqueuePermit(preparedStartupGeneration) {
-					dispatchContext.ensureActive()
-					if (enqueueDeadline != null && elapsedRealtimeNanos() >= enqueueDeadline) {
-						false
-					} else {
-						enqueueOutcome = PlatformEnqueueOutcome.UNKNOWN
-						platformEnqueue(prepared, request.command).also { enqueued ->
-							enqueueOutcome = if (enqueued) {
-								PlatformEnqueueOutcome.ENQUEUED
-							} else {
-								PlatformEnqueueOutcome.NOT_ENQUEUED
-							}
-						}
-					}
-				} ?: run {
-					startupPermitRejected = true
-					false
-				}
-			}) {
-				is LockedTrackingStartResult.Executed -> if (result.value) {
-					// Android accepted the call already. A rejected/late acknowledgement must leave
-					// the exact PREPARED row for service claim or startup reconciliation.
-					coordinator.markAndroidStartEnqueued(token, request.command)
-					TrackingStartDispatchResult.Enqueued
-				} else {
-					compensatePreparedStartWithinBudget(
-						request,
-						token,
-						coordinator,
-						if (startupPermitRejected) {
-							"STARTUP_GENERATION_CLOSED_BEFORE_ENQUEUE"
-						} else {
-							"ANDROID_FOREGROUND_SERVICE_START_NOT_ENQUEUED"
-						},
-						elapsedRealtimeNanos,
-					)
-					TrackingStartDispatchResult.Terminal(
-						if (startupPermitRejected) {
-							"STARTUP_GENERATION_CLOSED_BEFORE_ENQUEUE"
-						} else {
-							"ANDROID_FOREGROUND_SERVICE_START_NOT_ENQUEUED"
-						},
-					)
-				}
-				LockedTrackingStartResult.Stale -> {
-					compensatePreparedStartWithinBudget(
-						request,
-						token,
-						coordinator,
-						"START_COMMAND_STALE_BEFORE_ENQUEUE",
-						elapsedRealtimeNanos,
-					)
-					TrackingStartDispatchResult.Terminal("START_COMMAND_STALE_BEFORE_ENQUEUE")
-				}
-				is LockedTrackingStartResult.BlockedByStop -> {
-					compensatePreparedStartWithinBudget(
-						request,
-						token,
-						coordinator,
-						"START_BLOCKED_BY_STOP_BEFORE_ENQUEUE",
-						elapsedRealtimeNanos,
-					)
-					TrackingStartDispatchResult.Terminal("START_BLOCKED_BY_STOP_BEFORE_ENQUEUE")
-				}
-			}
-		} catch (cancelled: CancellationException) {
-			if (enqueueOutcome == PlatformEnqueueOutcome.NOT_ATTEMPTED ||
-				enqueueOutcome == PlatformEnqueueOutcome.NOT_ENQUEUED
-			) preparedToken?.let { token ->
-				try {
-					compensatePreparedStartWithinBudget(
-						request,
-						token,
-						coordinator,
-						"ANDROID_START_DISPATCH_CANCELLED",
-						elapsedRealtimeNanos,
-					)
-				} catch (_: Throwable) {
-					// Preserve the initiating cancellation. Durable PREPARED state is recoverable.
-				}
-			}
-			throw cancelled
-		} catch (_: RuntimeException) {
-			if (enqueueOutcome == PlatformEnqueueOutcome.ENQUEUED) {
-				return TrackingStartDispatchResult.Enqueued
-			}
-			if (enqueueOutcome == PlatformEnqueueOutcome.UNKNOWN) {
-				return TrackingStartDispatchResult.Terminal(
-					"ANDROID_START_ENQUEUE_OUTCOME_UNKNOWN",
-				)
-			}
-			if (enqueueOutcome != PlatformEnqueueOutcome.UNKNOWN) preparedToken?.let { token ->
-				compensatePreparedStartWithinBudget(
-					request,
-					token,
-					coordinator,
-					"ANDROID_START_DISPATCH_FAILED",
-					elapsedRealtimeNanos,
-				)
-			}
-			TrackingStartDispatchResult.Retryable("ANDROID_START_DISPATCH_FAILED")
-		}
-	}
+	): TrackingStartDispatchResult = PreparedStartDispatch(
+		request, coordinator, lifecycleAuthority, platformEnqueue, elapsedRealtimeNanos,
+	).execute()
 
-	private suspend fun compensatePreparedStartWithinBudget(
-		request: TrackingStartRequest,
-		token: PreparedTrackingStartToken,
-		coordinator: TrackingStartRequestCoordinator,
-		failureCode: String,
-		elapsedRealtimeNanos: () -> Long,
-	): Boolean {
-		val timeoutMs = request.compensationTimeoutMillis(elapsedRealtimeNanos())
-		if (timeoutMs <= 0L) return false
-		val compensate: suspend () -> Boolean = {
-			withTimeoutOrNull(timeoutMs) {
-				coordinator.compensate(token, request.command, failureCode)
-				true
-			} ?: false
-		}
-		return if (currentCoroutineContext().isActive) {
-			compensate()
-		} else {
-			withContext(NonCancellable) { compensate() }
-		}
-	}
 
 	fun restartService(
 		context: Context,
@@ -807,87 +625,6 @@ object TrackerServiceApi {
 			TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING
 	}
 
-	private suspend fun finishPendingTurnOff(
-		entryPoint: TrackerServiceApiEntryPoint,
-		exitId: String,
-	): TrackingTurnOffResult {
-		val authority = entryPoint.trackingLifecycleCommandAuthority()
-		if (authority.pendingCollectionResumeExitId != exitId) {
-			return TrackingTurnOffResult.SUPERSEDED_BY_NEW_START
-		}
-		val pendingStop = authority.latestUnhandledStop()
-		if (pendingStop != null) {
-			val stop = try {
-				withContext(NonCancellable) {
-					withTimeoutOrNull(TURN_OFF_STOP_TIMEOUT_MILLIS) {
-						reserveRouteAndAwaitDurableStop(
-							reserve = { pendingStop },
-							deliverToRunningService = TrackerRuntimeStopDispatcher::dispatch,
-							finalizeWithoutService = { command ->
-								entryPoint.inactiveTrackingSessionStopHandler().finalizeWithoutService(command)
-							},
-							finalizeInactiveService = { command ->
-								entryPoint.inactiveTrackingSessionStopHandler()
-									.finalizeStoredSession(command)
-							},
-							isCurrent = authority::isStopCurrent,
-							isActionable = authority::isStopActionable,
-						)
-					}
-				}
-			} catch (_: Exception) {
-				null
-			}
-			if (stop == TrackingStopQuiescenceResult.SUPERSEDED) {
-				return TrackingTurnOffResult.SUPERSEDED_BY_NEW_START
-			}
-			if (stop != TrackingStopQuiescenceResult.HANDLED) {
-				return TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING
-			}
-		}
-		val ownersClosed = withContext(NonCancellable) {
-			try {
-				entryPoint.trackingTurnOffController().closeOwnersAfterSessionStop(exitId)
-			} catch (_: Exception) {
-				false
-			}
-		}
-		return when (ownersClosed) {
-			null -> TrackingTurnOffResult.SUPERSEDED_BY_NEW_START
-			true -> TrackingTurnOffResult.COMPLETE
-			false -> TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING
-		}
-	}
-
-	private fun scheduleTurnOffRecovery(
-		entryPoint: TrackerServiceApiEntryPoint,
-		exitId: String,
-	) {
-		synchronized(turnOffRecoveryInFlight) {
-			if (!turnOffRecoveryInFlight.add(exitId)) return
-		}
-		entryPoint.applicationScope().launch {
-			try {
-				var retryDelayMs = TURN_OFF_RETRY_INITIAL_DELAY_MILLIS
-				while (entryPoint.trackingLifecycleCommandAuthority()
-					.pendingCollectionResumeExitId == exitId) {
-					val result = try {
-						finishPendingTurnOff(entryPoint, exitId)
-					} catch (cancelled: CancellationException) {
-						throw cancelled
-					} catch (_: Exception) {
-						TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING
-					}
-					if (result != TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING) break
-					delay(retryDelayMs)
-					retryDelayMs = (retryDelayMs * 2L).coerceAtMost(TURN_OFF_RETRY_MAX_DELAY_MILLIS)
-				}
-			} finally {
-				synchronized(turnOffRecoveryInFlight) { turnOffRecoveryInFlight.remove(exitId) }
-			}
-		}
-	}
-
 	/**
 	 * Reserves one durable STOP and does not return until that exact generation has crossed the
 	 * runtime/provider teardown boundary. This is intentionally separate from the fire-and-forget
@@ -937,6 +674,90 @@ object TrackerServiceApi {
 	) {
 		if (!deliverToRunningService(command, finalizeInactiveService)) {
 			finalizeInactiveService(command)
+		}
+	}
+}
+
+// Existing process-local Turn off recovery, beside the shared durable Stop routing helper.
+private val turnOffRecoveryInFlight = mutableSetOf<String>()
+
+private suspend fun finishPendingTurnOff(
+	entryPoint: TrackerServiceApiEntryPoint,
+	exitId: String,
+): TrackingTurnOffResult {
+	val authority = entryPoint.trackingLifecycleCommandAuthority()
+	if (authority.pendingCollectionResumeExitId != exitId) {
+		return TrackingTurnOffResult.SUPERSEDED_BY_NEW_START
+	}
+	val pendingStop = authority.latestUnhandledStop()
+	if (pendingStop != null) {
+		val stop = try {
+			withContext(NonCancellable) {
+				withTimeoutOrNull(TURN_OFF_STOP_TIMEOUT_MILLIS) {
+					reserveRouteAndAwaitDurableStop(
+						reserve = { pendingStop },
+						deliverToRunningService = TrackerRuntimeStopDispatcher::dispatch,
+						finalizeWithoutService = { command ->
+							entryPoint.inactiveTrackingSessionStopHandler().finalizeWithoutService(command)
+						},
+						finalizeInactiveService = { command ->
+							entryPoint.inactiveTrackingSessionStopHandler()
+								.finalizeStoredSession(command)
+						},
+						isCurrent = authority::isStopCurrent,
+						isActionable = authority::isStopActionable,
+					)
+				}
+			}
+		} catch (_: Exception) {
+			null
+		}
+		if (stop == TrackingStopQuiescenceResult.SUPERSEDED) {
+			return TrackingTurnOffResult.SUPERSEDED_BY_NEW_START
+		}
+		if (stop != TrackingStopQuiescenceResult.HANDLED) {
+			return TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING
+		}
+	}
+	val ownersClosed = withContext(NonCancellable) {
+		try {
+			entryPoint.trackingTurnOffController().closeOwnersAfterSessionStop(exitId)
+		} catch (_: Exception) {
+			false
+		}
+	}
+	return when (ownersClosed) {
+		null -> TrackingTurnOffResult.SUPERSEDED_BY_NEW_START
+		true -> TrackingTurnOffResult.COMPLETE
+		false -> TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING
+	}
+}
+
+private fun scheduleTurnOffRecovery(
+	entryPoint: TrackerServiceApiEntryPoint,
+	exitId: String,
+) {
+	synchronized(turnOffRecoveryInFlight) {
+		if (!turnOffRecoveryInFlight.add(exitId)) return
+	}
+	entryPoint.applicationScope().launch {
+		try {
+			var retryDelayMs = TURN_OFF_RETRY_INITIAL_DELAY_MILLIS
+			while (entryPoint.trackingLifecycleCommandAuthority()
+				.pendingCollectionResumeExitId == exitId) {
+				val result = try {
+					finishPendingTurnOff(entryPoint, exitId)
+				} catch (cancelled: CancellationException) {
+					throw cancelled
+				} catch (_: Exception) {
+					TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING
+				}
+				if (result != TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING) break
+				delay(retryDelayMs)
+				retryDelayMs = (retryDelayMs * 2L).coerceAtMost(TURN_OFF_RETRY_MAX_DELAY_MILLIS)
+			}
+		} finally {
+			synchronized(turnOffRecoveryInFlight) { turnOffRecoveryInFlight.remove(exitId) }
 		}
 	}
 }
@@ -999,6 +820,197 @@ private fun TrackingStartRequest.compensationTimeoutMillis(nowElapsedRealtimeNan
 
 private fun Long.saturatedAdd(increment: Long): Long =
 	if (this > Long.MAX_VALUE - increment) Long.MAX_VALUE else this + increment
+
+/** One Start call owns its existing enqueue/cleanup state until the call returns. */
+private class PreparedStartDispatch(
+	private val request: TrackingStartRequest,
+	private val coordinator: TrackingStartRequestCoordinator,
+	private val lifecycleAuthority: TrackingLifecycleCommandAuthority,
+	private val platformEnqueue: (TrackingStartPreparationResult.Prepared, TrackingStartCommand) -> Boolean,
+	private val elapsedRealtimeNanos: () -> Long,
+) {
+	private var preparedToken: PreparedTrackingStartToken? = null
+	private var enqueueOutcome = PlatformEnqueueOutcome.NOT_ATTEMPTED
+	private var startupPermitRejected = false
+	private val enqueueDeadline = request.automaticTrigger
+		?.let(::activityTransitionCallbackEnqueueDeadlineElapsedRealtimeNanos)
+
+	suspend fun execute(): TrackingStartDispatchResult {
+		if (enqueueDeadline != null && elapsedRealtimeNanos() >= enqueueDeadline) {
+			return TrackingStartDispatchResult.Terminal("LIVE_CALLBACK_DEADLINE_EXPIRED")
+		}
+		return try {
+			prepareAndDispatch()
+		} catch (cancelled: CancellationException) {
+			cancelDispatch()
+			throw cancelled
+		} catch (_: RuntimeException) {
+			failedDispatch()
+		}
+	}
+
+	private suspend fun prepareAndDispatch(): TrackingStartDispatchResult =
+		when (val result = coordinator.prepare(request)) {
+			is TrackingStartPreparationResult.Prepared -> dispatchPrepared(result)
+			TrackingStartPreparationResult.AlreadyActive -> TrackingStartDispatchResult.AlreadyActive
+			TrackingStartPreparationResult.SetupPending -> TrackingStartDispatchResult.SetupPending
+			is TrackingStartPreparationResult.Rejected -> when (result.disposition) {
+				TrackingStartFailureDisposition.RETRYABLE -> TrackingStartDispatchResult.Retryable(result.failureCode)
+				TrackingStartFailureDisposition.TERMINAL -> TrackingStartDispatchResult.Terminal(result.failureCode)
+			}
+		}
+
+	private suspend fun dispatchPrepared(prepared: TrackingStartPreparationResult.Prepared): TrackingStartDispatchResult {
+		preparedToken = prepared.token
+		currentCoroutineContext().ensureActive()
+		rejectionBeforeEnqueue(prepared.token)?.let { return it }
+		return if (!prepared.requiresForegroundService) {
+			acceptWithoutService(prepared)
+		} else {
+			completePlatformEnqueue(enqueueUnderAuthority(prepared), prepared.token)
+		}
+	}
+
+	private suspend fun rejectionBeforeEnqueue(token: PreparedTrackingStartToken): TrackingStartDispatchResult? {
+		if (enqueueDeadline != null && elapsedRealtimeNanos() >= enqueueDeadline) {
+			return compensateTerminal(token, "LIVE_CALLBACK_DEADLINE_EXPIRED_BEFORE_ENQUEUE")
+		}
+		// Consume the one-use manual claim only after Room preparation, preserving intent during setup.
+		request.manualSourceSelection?.let { selection ->
+			if (lifecycleAuthority.consumeManualStart(request.command.generation, selection) != request.command) {
+				return compensateTerminal(token, "MANUAL_START_CONTINUATION_SUPERSEDED")
+			}
+		}
+		return null
+	}
+
+	private suspend fun acceptWithoutService(
+		prepared: TrackingStartPreparationResult.Prepared,
+	): TrackingStartDispatchResult {
+		val accepted = lifecycleAuthority.withCurrentStart(request.command, acceptWhen = { it }) {
+			currentCoroutineContext().ensureActive()
+			if (request.manualSourceSelection != null &&
+				lifecycleAuthority.latestCommandGeneration() != request.command.generation) {
+				return@withCurrentStart false
+			}
+			if (enqueueDeadline != null && elapsedRealtimeNanos() >= enqueueDeadline) {
+				false
+			} else {
+				coordinator.acceptWithoutForegroundService(prepared, request)
+			}
+		}
+		if (accepted is LockedTrackingStartResult.Executed && accepted.value) {
+			enqueueOutcome = PlatformEnqueueOutcome.ENQUEUED
+			coordinator.reconcileAcceptedSessionWithoutService(request.command)
+			return TrackingStartDispatchResult.Enqueued
+		}
+		return compensateTerminal(prepared.token, "START_WITHOUT_SERVICE_NOT_ACCEPTED")
+	}
+
+	private suspend fun enqueueUnderAuthority(
+		prepared: TrackingStartPreparationResult.Prepared,
+	): LockedTrackingStartResult<Boolean> {
+		val dispatchContext = currentCoroutineContext()
+		return lifecycleAuthority.withCurrentStart(request.command) {
+			// A user-requested process exit must still invalidate a consumed manual tap.
+			if (request.manualSourceSelection != null &&
+				lifecycleAuthority.latestCommandGeneration() != request.command.generation
+			) {
+				return@withCurrentStart false
+			}
+			coordinator.withStartupEnqueuePermit(prepared.startupGeneration) {
+				dispatchContext.ensureActive()
+				if (enqueueDeadline != null && elapsedRealtimeNanos() >= enqueueDeadline) {
+					false
+				} else {
+					enqueueOutcome = PlatformEnqueueOutcome.UNKNOWN
+					platformEnqueue(prepared, request.command).also { enqueued ->
+						enqueueOutcome = if (enqueued) {
+							PlatformEnqueueOutcome.ENQUEUED
+						} else {
+							PlatformEnqueueOutcome.NOT_ENQUEUED
+						}
+					}
+				}
+			} ?: run {
+				startupPermitRejected = true
+				false
+			}
+		}
+	}
+
+	private suspend fun completePlatformEnqueue(
+		result: LockedTrackingStartResult<Boolean>,
+		token: PreparedTrackingStartToken,
+	): TrackingStartDispatchResult = when (result) {
+		is LockedTrackingStartResult.Executed -> if (result.value) {
+			// Android accepted: leave the exact PREPARED row recoverable even if acknowledgement fails.
+			coordinator.markAndroidStartEnqueued(token, request.command)
+			TrackingStartDispatchResult.Enqueued
+		} else {
+			compensateTerminal(token, if (startupPermitRejected) {
+				"STARTUP_GENERATION_CLOSED_BEFORE_ENQUEUE"
+			} else {
+				"ANDROID_FOREGROUND_SERVICE_START_NOT_ENQUEUED"
+			})
+		}
+		LockedTrackingStartResult.Stale -> compensateTerminal(token, "START_COMMAND_STALE_BEFORE_ENQUEUE")
+		is LockedTrackingStartResult.BlockedByStop -> compensateTerminal(token, "START_BLOCKED_BY_STOP_BEFORE_ENQUEUE")
+	}
+
+	private suspend fun cancelDispatch() {
+		if (enqueueOutcome == PlatformEnqueueOutcome.NOT_ATTEMPTED ||
+			enqueueOutcome == PlatformEnqueueOutcome.NOT_ENQUEUED
+		) {
+			preparedToken?.let { token ->
+				try {
+					compensate(token, "ANDROID_START_DISPATCH_CANCELLED")
+				} catch (_: Throwable) {
+					// Preserve the initiating cancellation. Durable PREPARED state is recoverable.
+				}
+			}
+		}
+	}
+
+	private suspend fun failedDispatch(): TrackingStartDispatchResult {
+		if (enqueueOutcome == PlatformEnqueueOutcome.ENQUEUED) {
+			return TrackingStartDispatchResult.Enqueued
+		}
+		if (enqueueOutcome == PlatformEnqueueOutcome.UNKNOWN) {
+			return TrackingStartDispatchResult.Terminal("ANDROID_START_ENQUEUE_OUTCOME_UNKNOWN")
+		}
+		if (enqueueOutcome != PlatformEnqueueOutcome.UNKNOWN) {
+			preparedToken?.let { token ->
+				compensate(token, "ANDROID_START_DISPATCH_FAILED")
+			}
+		}
+		return TrackingStartDispatchResult.Retryable("ANDROID_START_DISPATCH_FAILED")
+	}
+
+	private suspend fun compensateTerminal(token: PreparedTrackingStartToken, failureCode: String):
+		TrackingStartDispatchResult.Terminal {
+		compensate(token, failureCode)
+		return TrackingStartDispatchResult.Terminal(failureCode)
+	}
+
+	private suspend fun compensate(token: PreparedTrackingStartToken, failureCode: String): Boolean {
+		val timeoutMs = request.compensationTimeoutMillis(elapsedRealtimeNanos())
+		if (timeoutMs <= 0L) {
+			return false
+		}
+		val compensate: suspend () -> Boolean = {
+			withTimeoutOrNull(timeoutMs) {
+				coordinator.compensate(token, request.command, failureCode)
+				true
+			} ?: false
+		}
+		return if (currentCoroutineContext().isActive) {
+			compensate()
+		} else {
+			withContext(NonCancellable) { compensate() }
+		}
+	}
+}
 
 private enum class PlatformEnqueueOutcome {
 	NOT_ATTEMPTED,

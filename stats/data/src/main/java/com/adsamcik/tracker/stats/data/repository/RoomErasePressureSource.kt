@@ -4,12 +4,14 @@ import android.database.sqlite.SQLiteConstraintException
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.PressureSourceEraseLocalAudit
 import com.adsamcik.tracker.shared.base.database.PressureSourceEraseLocalFailure
 import com.adsamcik.tracker.shared.base.database.PressureSourceEraseLocalFailureReason
 import com.adsamcik.tracker.shared.base.database.PressureSourceEraseWriterFence
 import com.adsamcik.tracker.shared.base.database.auditPressureSourceEraseLocalAuthorityInTransaction
 import com.adsamcik.tracker.shared.base.database.deletePressureSourceEraseLocalPayloadInTransaction
 import com.adsamcik.tracker.shared.base.database.installPressureSourceEraseLocalFencesInTransaction
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
@@ -47,6 +49,8 @@ import kotlinx.coroutines.withContext
 
 /** One source-specific erase spanning local and portable-origin Pressure authority. */
 @Singleton
+// One erase owner keeps its source barrier, deletion transaction, witnesses and publication together.
+@Suppress("LargeClass", "TooManyFunctions")
 internal class RoomErasePressureSource internal constructor(
 	private val database: AppDatabase,
 	private val barrier: PressureSourceEraseBarrier,
@@ -65,30 +69,7 @@ internal class RoomErasePressureSource internal constructor(
 		request: ErasePressureSourceRequest,
 	): ErasePressureSourceResult = withContext(ioDispatcher) {
 		try {
-			val preflight = database.withTransaction {
-				val state = database.sourceEvidenceStateDao().get()
-					?: unverifiable(
-						ImportedPressureMaintenanceUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING,
-					)
-				if (state.collectedDataEpoch != request.expectedCollectedDataEpoch ||
-					state.revision != request.expectedSourceEvidenceRevision ||
-					state.deletedSourceEventHighWaterOrdinal !=
-					request.expectedDeletedSourceEventHighWaterOrdinal
-				) blocked(PressureSourceEraseBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
-				val previousErase = database.importedPressureDao().sourceErase()
-				val existingBarrierToken = previousErase?.toBarrierToken()
-				val requiresHardwareAuthority =
-					database.pressureSourceEraseRequiresHardwareAuthority(
-						existingBarrierToken?.toWriterFence(),
-					).also { required ->
-					if (required) preflightLocalPolicy(request)
-				}
-				PressureErasePreflight(
-					isFirstErase = previousErase == null,
-					existingBarrierToken = existingBarrierToken,
-					requiresRevokedAuthority = requiresHardwareAuthority,
-				)
-			}
+			val preflight = preflightErase(request)
 
 			val barrierToken = if (preflight.isFirstErase) {
 				establishBarrier(request)
@@ -131,6 +112,42 @@ internal class RoomErasePressureSource internal constructor(
 		}
 	}
 
+	private suspend fun preflightErase(
+		request: ErasePressureSourceRequest,
+	): PressureErasePreflight = database.withTransaction {
+		requestedSourceState(request)
+		val previousErase = database.importedPressureDao().sourceErase()
+		val existingBarrierToken = previousErase?.toBarrierToken()
+		val requiresHardwareAuthority =
+			database.pressureSourceEraseRequiresHardwareAuthority(
+				existingBarrierToken?.toWriterFence(),
+			).also { required ->
+			if (required) {
+				preflightLocalPolicy(request)
+			}
+		}
+		PressureErasePreflight(
+			isFirstErase = previousErase == null,
+			existingBarrierToken = existingBarrierToken,
+			requiresRevokedAuthority = requiresHardwareAuthority,
+		)
+	}
+
+	private suspend fun requestedSourceState(request: ErasePressureSourceRequest): SourceEvidenceState {
+		val state = database.sourceEvidenceStateDao().get()
+			?: unverifiable(
+				ImportedPressureMaintenanceUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING,
+			)
+		if (state.collectedDataEpoch != request.expectedCollectedDataEpoch ||
+			state.revision != request.expectedSourceEvidenceRevision ||
+			state.deletedSourceEventHighWaterOrdinal !=
+			request.expectedDeletedSourceEventHighWaterOrdinal
+		) {
+			blocked(PressureSourceEraseBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		}
+		return state
+	}
+
 	private suspend fun preflightLocalPolicy(request: ErasePressureSourceRequest) {
 		val policyDao = database.sourcePolicyDao()
 		val authority = policyDao.authority()?.takeIf {
@@ -147,14 +164,10 @@ internal class RoomErasePressureSource internal constructor(
 		)
 		if (policy == null || consent == null ||
 			consent.epoch != request.expectedRevokedConsentEpoch
-		) blocked(PressureSourceEraseBlockedReason.POLICY_AUTHORITY_UNAVAILABLE)
-		if (policy.capturePersistenceEligible || policy.captureConsentEpoch != null ||
-			consent.eligible || consent.persistenceEligible ||
-			consent.policyRevision != policy.policyRevision ||
-			consent.effectiveBootId != policy.effectiveBootId ||
-			consent.effectiveElapsedRealtimeNanos != policy.effectiveElapsedRealtimeNanos ||
-			consent.effectiveWallTimeMs != policy.effectiveWallTimeMs
-		) blocked(PressureSourceEraseBlockedReason.CAPTURE_CONSENT_STILL_ELIGIBLE)
+		) {
+			blocked(PressureSourceEraseBlockedReason.POLICY_AUTHORITY_UNAVAILABLE)
+		}
+		requireRevokedPolicyConsent(policy, consent)
 		val demands = database.sourceBrokerDao().activeDemandsBounded(
 			SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 			PREFLIGHT_DEMAND_LIMIT + 1,
@@ -164,13 +177,35 @@ internal class RoomErasePressureSource internal constructor(
 		}
 		if (demands.any {
 			it.purpose == SourceBrokerPurpose.SESSION_CAPTURE || it.persistenceEligible
-		}) blocked(PressureSourceEraseBlockedReason.DIRECT_DEMAND_NOT_QUIESCED)
+		}) {
+			blocked(PressureSourceEraseBlockedReason.DIRECT_DEMAND_NOT_QUIESCED)
+		}
 		if (request.erasedAtMs < maxOf(
 				authority.updatedAtMs,
 				policy.effectiveWallTimeMs,
 				consent.effectiveWallTimeMs,
 			)
-		) blocked(PressureSourceEraseBlockedReason.STALE_REQUEST)
+		) {
+			blocked(PressureSourceEraseBlockedReason.STALE_REQUEST)
+		}
+	}
+
+	private fun requireRevokedPolicyConsent(
+		policy: com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity,
+		consent: com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity,
+	) {
+		if (policy.capturePersistenceEligible || policy.captureConsentEpoch != null ||
+			consent.eligible || consent.persistenceEligible
+		) {
+			blocked(PressureSourceEraseBlockedReason.CAPTURE_CONSENT_STILL_ELIGIBLE)
+		}
+		if (consent.policyRevision != policy.policyRevision ||
+			consent.effectiveBootId != policy.effectiveBootId ||
+			consent.effectiveElapsedRealtimeNanos != policy.effectiveElapsedRealtimeNanos ||
+			consent.effectiveWallTimeMs != policy.effectiveWallTimeMs
+		) {
+			blocked(PressureSourceEraseBlockedReason.CAPTURE_CONSENT_STILL_ELIGIBLE)
+		}
 	}
 
 	private suspend fun establishBarrier(
@@ -224,7 +259,6 @@ internal class RoomErasePressureSource internal constructor(
 		}
 	}
 
-	@Suppress("LongMethod", "ComplexCondition")
 	private suspend fun eraseInTransaction(
 		request: ErasePressureSourceRequest,
 		barrierToken: PressureSourceEraseBarrierToken?,
@@ -235,13 +269,7 @@ internal class RoomErasePressureSource internal constructor(
 			ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
 		)
 		verifyBarrier(verifiedBarrierToken)
-		val state = database.sourceEvidenceStateDao().get()
-			?: unverifiable(ImportedPressureMaintenanceUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING)
-		if (state.collectedDataEpoch != request.expectedCollectedDataEpoch ||
-			state.revision != request.expectedSourceEvidenceRevision ||
-			state.deletedSourceEventHighWaterOrdinal !=
-			request.expectedDeletedSourceEventHighWaterOrdinal
-		) blocked(PressureSourceEraseBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		val state = requestedSourceState(request)
 		val writerFence = verifiedBarrierToken.toWriterFence()
 		val requiresRevokedAuthorityNow =
 			database.pressureSourceEraseRequiresHardwareAuthority(writerFence)
@@ -251,76 +279,9 @@ internal class RoomErasePressureSource internal constructor(
 		val effectiveRequireRevokedAuthority =
 			requireRevokedAuthority || requiresRevokedAuthorityNow
 		val dao = database.importedPressureDao()
-		when (dao.liveMaintenanceFootprint().validateGlobal(
-			maximumRevisions = limits.maximumImportedRevisions.toLong(),
-			maximumReceipts = limits.maximumImportedEntries.toLong() *
-				com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
-					.MAX_RECEIPTS_PER_ENTRY,
-			maximumRuns = limits.maximumImportedRuns.toLong(),
-			maximumWindows = limits.maximumImportedWindows.toLong(),
-		)) {
-			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
-			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
-			ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
-			ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
-			-> unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-			null -> Unit
-		}
-		when (dao.retainedMaintenanceFootprint().validateGlobal(
-			maximumReceipts = limits.maximumImportedEntries.toLong(),
-			maximumMarkers = limits.maximumIdentityFences.toLong(),
-		)) {
-			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
-			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
-			ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
-			ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
-			-> unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-			null -> Unit
-		}
-		val privacyFootprint = dao.privacyMaintenanceFootprint()
-		when (privacyFootprint.validateGlobal(
-			maximumIdentityFences = limits.maximumIdentityFences.toLong(),
-			maximumEntryDeletions = limits.maximumEntryDeletions.toLong(),
-			maximumRunDeletions = limits.maximumRunDeletions.toLong(),
-			maximumWitnesses = limits.maximumWitnesses.toLong(),
-		)) {
-			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
-			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
-			ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
-			ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
-			-> unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-			null -> Unit
-		}
-		val localFenceFootprint = database.pressureFactRevisionDao()
-			.sourceEraseFenceGlobalFootprint()
-		try {
-			if (localFenceFootprint.rowCount !in 0L..limits.maximumLocalFences.toLong() ||
-				localFenceFootprint.textBytes < 0L ||
-				Math.addExact(
-					privacyFootprint.totalTextBytes,
-					localFenceFootprint.textBytes,
-				) > com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
-					.MAX_MAINTENANCE_TEXT_BYTES
-			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
-		} catch (_: ArithmeticException) {
-			unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
-		}
+		requireEraseFootprints(dao)
 		val previousErase = dao.sourceErase()
-		val previousAuthority = previousErase?.let {
-			val authority = authenticateSourceEraseAuthority(it, state)
-			collectLocalSourceEraseFences()
-			collectPermanentImportedAuthority()
-			authority
-		}
-		if (previousErase != null && previousErase.toBarrierToken() != verifiedBarrierToken) {
-			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-		}
+		val previousAuthority = authenticatePreviousPressureErase(previousErase, state, verifiedBarrierToken)
 
 		val local = database.auditPressureSourceEraseLocalAuthorityInTransaction(
 			expectedCollectedDataEpoch = request.expectedCollectedDataEpoch,
@@ -332,17 +293,7 @@ internal class RoomErasePressureSource internal constructor(
 			verifiedWriterFence = writerFence,
 			requireRevokedAuthority = effectiveRequireRevokedAuthority,
 		)
-		val byteBudget = ImportedPressureMaintenanceByteBudget()
-		val live = prepareLiveImportedAuthority(state, request.erasedAtMs, byteBudget)
-		val retained = prepareRetainedImportedAuthority(state, request.erasedAtMs, byteBudget)
-		val totals = try {
-			live.plus(retained)
-		} catch (_: ArithmeticException) {
-			unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
-		}
-		if (!totals.within(limits)) {
-			unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
-		}
+		val totals = prepareImportedAuthority(state, request.erasedAtMs)
 		if (previousErase != null && !local.requiresHardwareAuthority && totals.entryCount == 0) {
 			return ErasePressureSourceResult.AlreadyErased
 		}
@@ -354,11 +305,41 @@ internal class RoomErasePressureSource internal constructor(
 		if (request.erasedAtMs < maxOf(
 				state.updatedAtMs,
 				local.latestDurableTimeMs,
-				live.latestDurableTimeMs,
-				retained.latestDurableTimeMs,
+				totals.latestDurableTimeMs,
 			)
-		) blocked(PressureSourceEraseBlockedReason.STALE_REQUEST)
+		) {
+			blocked(PressureSourceEraseBlockedReason.STALE_REQUEST)
+		}
 
+		return dao.commitSourceErase(request, state, nextRevision, verifiedBarrierToken,
+			local, totals, previousErase, previousAuthority)
+	}
+
+	private suspend fun authenticatePreviousPressureErase(
+		previousErase: ImportedPressureSourceEraseEntity?, state: SourceEvidenceState,
+		verifiedBarrierToken: PressureSourceEraseBarrierToken,
+	): AuthenticatedPressureSourceEraseAuthority? {
+		val previousAuthority = previousErase?.let {
+			val authority = authenticateSourceEraseAuthority(it, state)
+			collectLocalSourceEraseFences()
+			collectPermanentImportedAuthority()
+			authority
+		}
+		if (previousErase != null && previousErase.toBarrierToken() != verifiedBarrierToken) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		return previousAuthority
+	}
+
+	// Commit with the already audited inputs; do not reread mutable authority or add a carrier.
+	@Suppress("LongParameterList")
+	private suspend fun ImportedPressureDao.commitSourceErase(
+		request: ErasePressureSourceRequest, state: SourceEvidenceState, nextRevision: Long,
+		verifiedBarrierToken: PressureSourceEraseBarrierToken, local: PressureSourceEraseLocalAudit,
+		totals: PressureImportedEraseTotals, previousErase: ImportedPressureSourceEraseEntity?,
+		previousAuthority: AuthenticatedPressureSourceEraseAuthority?,
+	): ErasePressureSourceResult {
+		val dao = this
 		database.installPressureSourceEraseLocalFencesInTransaction(
 			audit = local,
 			expectedCollectedDataEpoch = state.collectedDataEpoch,
@@ -389,6 +370,96 @@ internal class RoomErasePressureSource internal constructor(
 			runDeletions = authority.runDeletions,
 			identityFences = authority.identityFences,
 		)
+		persistSourceEraseFence(dao, previousErase, sourceErase, authority)
+
+		removeErasedPressurePayload(dao, local, state)
+		publishSourceErase(request, state, nextRevision, sourceErase)
+		return ErasePressureSourceResult.Erased(
+			localFactRevisionCount = local.factRevisionCount,
+			localWalEventCount = local.walEventCount,
+			legacySampleCount = local.legacySampleCount,
+			importedEntryCount = totals.entryCount,
+			importedRevisionCount = totals.revisionCount,
+			importedRunCount = totals.runCount,
+			importedWindowCount = totals.windowCount,
+			fencedLocalRunCount = local.scopes.size,
+		)
+	}
+
+	private suspend fun prepareImportedAuthority(
+		state: SourceEvidenceState, erasedAtMs: Long,
+	): PressureImportedEraseTotals {
+		val byteBudget = ImportedPressureMaintenanceByteBudget()
+		val live = prepareLiveImportedAuthority(state, erasedAtMs, byteBudget)
+		val retained = prepareRetainedImportedAuthority(state, erasedAtMs, byteBudget)
+		val totals = try {
+			live.plus(retained)
+		} catch (_: ArithmeticException) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
+		}
+		if (!totals.within(limits)) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+		}
+		return totals
+	}
+
+	private suspend fun requireEraseFootprints(dao: ImportedPressureDao) {
+		requireGlobalFootprint(dao.liveMaintenanceFootprint().validateGlobal(
+			maximumRevisions = limits.maximumImportedRevisions.toLong(),
+			maximumReceipts = limits.maximumImportedEntries.toLong() *
+				com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+					.MAX_RECEIPTS_PER_ENTRY,
+			maximumRuns = limits.maximumImportedRuns.toLong(),
+			maximumWindows = limits.maximumImportedWindows.toLong(),
+		))
+		requireGlobalFootprint(dao.retainedMaintenanceFootprint().validateGlobal(
+			maximumReceipts = limits.maximumImportedEntries.toLong(),
+			maximumMarkers = limits.maximumIdentityFences.toLong(),
+		))
+		val privacyFootprint = dao.privacyMaintenanceFootprint()
+		requireGlobalFootprint(privacyFootprint.validateGlobal(
+			maximumIdentityFences = limits.maximumIdentityFences.toLong(),
+			maximumEntryDeletions = limits.maximumEntryDeletions.toLong(),
+			maximumRunDeletions = limits.maximumRunDeletions.toLong(),
+			maximumWitnesses = limits.maximumWitnesses.toLong(),
+		))
+		val localFenceFootprint = database.pressureFactRevisionDao()
+			.sourceEraseFenceGlobalFootprint()
+		try {
+			if (localFenceFootprint.rowCount !in 0L..limits.maximumLocalFences.toLong() ||
+				localFenceFootprint.textBytes < 0L ||
+				Math.addExact(
+					privacyFootprint.totalTextBytes,
+					localFenceFootprint.textBytes,
+				) > com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+					.MAX_MAINTENANCE_TEXT_BYTES
+			) {
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+			}
+		} catch (_: ArithmeticException) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
+		}
+	}
+
+	private fun requireGlobalFootprint(failure: ImportedPressureRetentionAuthorityFailure?) {
+		when (failure) {
+			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
+			ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
+			ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			-> unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+			null -> Unit
+		}
+	}
+
+	private suspend fun persistSourceEraseFence(
+		dao: ImportedPressureDao,
+		previousErase: ImportedPressureSourceEraseEntity?,
+		sourceErase: ImportedPressureSourceEraseEntity,
+		authority: PressureSourceEraseAuthoritySnapshot,
+	) {
 		if (previousErase == null) {
 			dao.insertSourceErase(sourceErase)
 		} else {
@@ -401,21 +472,45 @@ internal class RoomErasePressureSource internal constructor(
 			dao.insertSourceEraseWitnesses(it)
 		}
 		checkpoint(PressureSourceEraseCheckpoint.SOURCE_FENCE_INSERTED)
+	}
 
+	private suspend fun removeErasedPressurePayload(
+		dao: ImportedPressureDao,
+		local: PressureSourceEraseLocalAudit,
+		state: SourceEvidenceState,
+	) {
 		database.deletePressureSourceEraseLocalPayloadInTransaction(local)
 		checkpoint(PressureSourceEraseCheckpoint.LOCAL_PAYLOAD_REMOVED)
 		deleteLiveImportedPayload(state)
 		deleteRetainedImportedPayload(state)
 		checkpoint(PressureSourceEraseCheckpoint.IMPORTED_PAYLOAD_REMOVED)
+		requireErasedImportedPayload(dao)
+	}
+
+	private suspend fun requireErasedImportedPayload(dao: ImportedPressureDao) {
 		if (dao.liveOwnerRowIdPage(0L, 1).isNotEmpty() ||
 			dao.retainedOwnerRowIdPage(0L, 1).isNotEmpty()
-		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+		}
 		val remainingLive = dao.liveMaintenanceFootprint()
 		val remainingRetained = dao.retainedMaintenanceFootprint()
 		if (remainingLive.headerCount != 0L || remainingLive.receiptCount != 0L ||
-			remainingLive.runCount != 0L || remainingLive.windowCount != 0L ||
-			remainingRetained.receiptCount != 0L || remainingRetained.markerCount != 0L
-		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+			remainingLive.runCount != 0L || remainingLive.windowCount != 0L
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+		}
+		if (remainingRetained.receiptCount != 0L || remainingRetained.markerCount != 0L) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+		}
+	}
+
+	private suspend fun publishSourceErase(
+		request: ErasePressureSourceRequest,
+		state: SourceEvidenceState,
+		nextRevision: Long,
+		sourceErase: ImportedPressureSourceEraseEntity,
+	) {
 		if (database.sourceEvidenceStateDao().incrementRevision(request.erasedAtMs) != 1) {
 			throw IllegalStateException("Unable to publish Pressure source erase")
 		}
@@ -423,19 +518,11 @@ internal class RoomErasePressureSource internal constructor(
 			?: unverifiable(ImportedPressureMaintenanceUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING)
 		if (!state.acceptsRetainedEpoch(published.collectedDataEpoch) ||
 			published.revision != nextRevision || published.updatedAtMs != request.erasedAtMs
-		) blocked(PressureSourceEraseBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		) {
+			blocked(PressureSourceEraseBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		}
 		authenticateSourceEraseAuthority(sourceErase, published)
 		checkpoint(PressureSourceEraseCheckpoint.SOURCE_FENCE_VERIFIED)
-		return ErasePressureSourceResult.Erased(
-			localFactRevisionCount = local.factRevisionCount,
-			localWalEventCount = local.walEventCount,
-			legacySampleCount = local.legacySampleCount,
-			importedEntryCount = totals.entryCount,
-			importedRevisionCount = totals.revisionCount,
-			importedRunCount = totals.runCount,
-			importedWindowCount = totals.windowCount,
-			fencedLocalRunCount = local.scopes.size,
-		)
 	}
 
 	private suspend fun prepareLiveImportedAuthority(
@@ -464,7 +551,9 @@ internal class RoomErasePressureSource internal constructor(
 			)
 			if (dao.retentionReceipt(candidate.identity) != null ||
 				dao.entryDeletion(candidate.identity) != null
-			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+			) {
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+			}
 			authenticateLiveIdentityOwnership(lineage)
 			val runIds = lineage.revisions.flatMap { it.entry.runs }.map { it.identity.value }.distinct()
 			val deletions = runIds.chunked(SQLITE_BIND_BATCH).flatMap { dao.deletionGenerations(it) }
@@ -505,6 +594,16 @@ internal class RoomErasePressureSource internal constructor(
 		lineage: AuthenticatedImportedPressureLineage,
 	) {
 		val entryIdentity = requireNotNull(lineage.latest).header.identity
+		val expected = expectedLiveIdentityKinds(entryIdentity, lineage)
+		val dao = database.importedPressureDao()
+		for (batch in expected.keys.chunked(SQLITE_BIND_BATCH)) {
+			authenticateLiveIdentityBatch(dao, entryIdentity, expected, batch)
+		}
+	}
+
+	private fun expectedLiveIdentityKinds(
+		entryIdentity: String, lineage: AuthenticatedImportedPressureLineage,
+	): Map<String, String> {
 		val expected = linkedMapOf<String, String>()
 		fun bind(identity: String, kind: String) {
 			val previous = expected.putIfAbsent(identity, kind)
@@ -521,31 +620,42 @@ internal class RoomErasePressureSource internal constructor(
 				}
 			}
 		}
-		val dao = database.importedPressureDao()
-		for (batch in expected.keys.chunked(SQLITE_BIND_BATCH)) {
-			val limit = batch.size + 1
-			val entries = dao.existingEntryIdentities(batch, limit)
-			val runs = dao.existingRunIdentityOwners(batch, limit)
-			val windows = dao.existingWindowIdentityOwners(batch, limit)
-			val retained = dao.retainedIdentityOwners(batch, limit)
-			val permanent = dao.identityFences(batch, limit)
-			if (entries.size >= limit || runs.size >= limit || windows.size >= limit ||
-				retained.size >= limit || permanent.size >= limit
-			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
-			if (retained.isNotEmpty() || permanent.isNotEmpty() ||
-				entries.any {
-					it != entryIdentity ||
-						expected[it] != ImportedPressureRetainedIdentityEntity.ENTRY
-				} || runs.any {
-					it.entryIdentity != entryIdentity ||
-						expected[it.identity] != ImportedPressureRetainedIdentityEntity.RUN_SCOPE
-				} || windows.any {
-					it.entryIdentity != entryIdentity ||
-						expected[it.identity] != ImportedPressureRetainedIdentityEntity.WINDOW
-				}
-			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.ORIGIN_IDENTITY_CONFLICT)
+		return expected
+	}
+
+	private suspend fun authenticateLiveIdentityBatch(
+		dao: ImportedPressureDao, entryIdentity: String, expected: Map<String, String>, batch: List<String>,
+	) {
+		val limit = batch.size + 1
+		val entries = dao.existingEntryIdentities(batch, limit)
+		val runs = dao.existingRunIdentityOwners(batch, limit)
+		val windows = dao.existingWindowIdentityOwners(batch, limit)
+		val retained = dao.retainedIdentityOwners(batch, limit)
+		val permanent = dao.identityFences(batch, limit)
+		if (listOf(entries.size, runs.size, windows.size, retained.size, permanent.size).any { it >= limit }) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+		}
+		if (retained.isNotEmpty() || permanent.isNotEmpty()) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.ORIGIN_IDENTITY_CONFLICT)
+		}
+		if (entries.any {
+			!hasExpectedLiveIdentityOwner(it, it, ImportedPressureRetainedIdentityEntity.ENTRY,
+				entryIdentity, expected)
+		} || runs.any {
+			!hasExpectedLiveIdentityOwner(it.identity, it.entryIdentity,
+				ImportedPressureRetainedIdentityEntity.RUN_SCOPE, entryIdentity, expected)
+		} || windows.any {
+			!hasExpectedLiveIdentityOwner(it.identity, it.entryIdentity,
+				ImportedPressureRetainedIdentityEntity.WINDOW, entryIdentity, expected)
+		}) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.ORIGIN_IDENTITY_CONFLICT)
 		}
 	}
+
+	private fun hasExpectedLiveIdentityOwner(
+		identity: String, ownerEntryIdentity: String, kind: String,
+		expectedEntryIdentity: String, expected: Map<String, String>,
+	): Boolean = ownerEntryIdentity == expectedEntryIdentity && expected[identity] == kind
 
 	private suspend fun prepareRetainedImportedAuthority(
 		state: SourceEvidenceState,
@@ -560,73 +670,97 @@ internal class RoomErasePressureSource internal constructor(
 			if (nextOwnerRowId <= ownerRowId) {
 				unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 			}
-			val footprint = dao.retainedOwnerFootprint(nextOwnerRowId)
-			if (footprint.receiptCount != 1L) {
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-			}
-			val markerCount = Math.toIntExact(footprint.markerCount)
-			consumeFootprint(byteBudget, footprint, markerCount)
-			val receipt = dao.retentionReceiptByOwnerRowId(nextOwnerRowId)
-				?: unverifiable(
-					ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
-				)
-			if (receipt.protectedIdentityCount != markerCount) {
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-			}
+			val receipt = retainedEraseOwner(dao, nextOwnerRowId, byteBudget)
 			ownerRowId = nextOwnerRowId
-			when (database.authenticateImportedPressureRetention(state, receipt)) {
-				ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
-					unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
-				ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
-					unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
-				ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT ->
-					unverifiable(ImportedPressureMaintenanceUnverifiableReason.ORIGIN_IDENTITY_CONFLICT)
-				ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE ->
-					unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-				null -> Unit
-			}
-			val identityFences = dao.identityFencesForEntry(
-				receipt.entryIdentity,
-				receipt.protectedIdentityCount + 1,
-			)
-			if (identityFences.size != receipt.protectedIdentityCount ||
-				ImportedPressureIdentityFenceEntity.checksumSet(identityFences) !=
-				receipt.identityFenceSetChecksum
-			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-			val runIds = identityFences.filter {
-				it.identityKind == ImportedPressureIdentityFenceEntity.RUN
-			}.map { it.protectedIdentity }
-			val existingRunDeletions = runIds.chunked(SQLITE_BIND_BATCH)
-				.flatMap { dao.deletionGenerations(it) }
-				.associateBy { it.runIdentity }
-			if (existingRunDeletions.size > runIds.size ||
-				existingRunDeletions.values.any { it.generation != 1L }
-			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-			val runDeletions = runIds.map { runIdentity ->
-				existingRunDeletions[runIdentity] ?: ImportedPressureDeletionGenerationEntity.create(
-					runIdentity,
-					state.collectedDataEpoch,
-					1L,
-					erasedAtMs,
-				).also { dao.insertDeletionGeneration(it) }
-			}
-			if (dao.entryDeletion(receipt.entryIdentity) != null) {
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
-			}
-			dao.insertEntryDeletion(
-				ImportedPressureEntryDeletionEntity.create(
-					entryIdentity = receipt.entryIdentity,
-					collectedDataEpoch = state.collectedDataEpoch,
-					deletedImportRevision = receipt.latestImportRevision,
-					deletedAtMs = erasedAtMs,
-					runDeletions = runDeletions,
-					identityFences = identityFences,
-				),
-			)
-			checkpoint(PressureSourceEraseCheckpoint.IMPORTED_DELETION_AUTHORITY_INSERTED)
+			requireRetainedEraseAuthority(state, receipt)
+			installRetainedEraseAuthority(dao, state, erasedAtMs, receipt)
 			totals = totals.plus(receipt)
 		}
 		return totals
+	}
+
+	private suspend fun retainedEraseOwner(
+		dao: ImportedPressureDao, nextOwnerRowId: Long, byteBudget: ImportedPressureMaintenanceByteBudget,
+	): ImportedPressureRetentionReceiptEntity {
+		val footprint = dao.retainedOwnerFootprint(nextOwnerRowId)
+		if (footprint.receiptCount != 1L) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		val markerCount = Math.toIntExact(footprint.markerCount)
+		consumeFootprint(byteBudget, footprint, markerCount)
+		val receipt = dao.retentionReceiptByOwnerRowId(nextOwnerRowId)
+			?: unverifiable(
+				ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		if (receipt.protectedIdentityCount != markerCount) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		return receipt
+	}
+
+	private suspend fun requireRetainedEraseAuthority(
+		state: SourceEvidenceState, receipt: ImportedPressureRetentionReceiptEntity,
+	) {
+		when (database.authenticateImportedPressureRetention(state, receipt)) {
+			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
+			ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT ->
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.ORIGIN_IDENTITY_CONFLICT)
+			ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE ->
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+			null -> Unit
+		}
+	}
+
+	private suspend fun installRetainedEraseAuthority(
+		dao: ImportedPressureDao, state: SourceEvidenceState, erasedAtMs: Long,
+		receipt: ImportedPressureRetentionReceiptEntity,
+	) {
+		val identityFences = dao.identityFencesForEntry(
+			receipt.entryIdentity,
+			receipt.protectedIdentityCount + 1,
+		)
+		if (identityFences.size != receipt.protectedIdentityCount ||
+			ImportedPressureIdentityFenceEntity.checksumSet(identityFences) !=
+			receipt.identityFenceSetChecksum
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		val runIds = identityFences.filter {
+			it.identityKind == ImportedPressureIdentityFenceEntity.RUN
+		}.map { it.protectedIdentity }
+		val existingRunDeletions = runIds.chunked(SQLITE_BIND_BATCH)
+			.flatMap { dao.deletionGenerations(it) }
+			.associateBy { it.runIdentity }
+		if (existingRunDeletions.size > runIds.size ||
+			existingRunDeletions.values.any { it.generation != 1L }
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		val runDeletions = runIds.map { runIdentity ->
+			existingRunDeletions[runIdentity] ?: ImportedPressureDeletionGenerationEntity.create(
+				runIdentity,
+				state.collectedDataEpoch,
+				1L,
+				erasedAtMs,
+			).also { dao.insertDeletionGeneration(it) }
+		}
+		if (dao.entryDeletion(receipt.entryIdentity) != null) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+		}
+		dao.insertEntryDeletion(
+			ImportedPressureEntryDeletionEntity.create(
+				entryIdentity = receipt.entryIdentity,
+				collectedDataEpoch = state.collectedDataEpoch,
+				deletedImportRevision = receipt.latestImportRevision,
+				deletedAtMs = erasedAtMs,
+				runDeletions = runDeletions,
+				identityFences = identityFences,
+			),
+		)
+		checkpoint(PressureSourceEraseCheckpoint.IMPORTED_DELETION_AUTHORITY_INSERTED)
 	}
 
 	private suspend fun deleteLiveImportedPayload(
@@ -658,32 +792,42 @@ internal class RoomErasePressureSource internal constructor(
 		val dao = database.importedPressureDao()
 		while (true) {
 			val ownerRowId = dao.retainedOwnerRowIdPage(0L, 1).singleOrNull() ?: break
-			val footprint = dao.retainedOwnerFootprint(ownerRowId)
-			if (footprint.receiptCount != 1L) {
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
-			}
-			val receipt = dao.retentionReceiptByOwnerRowId(ownerRowId)
-				?: unverifiable(
-					ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE,
-				)
-			val markers = dao.retainedIdentitiesForEntries(
-				listOf(receipt.entryIdentity),
-				receipt.protectedIdentityCount + 1,
+			deleteRetainedEraseOwner(dao, state, ownerRowId)
+		}
+	}
+
+	private suspend fun deleteRetainedEraseOwner(
+		dao: ImportedPressureDao, state: SourceEvidenceState, ownerRowId: Long,
+	) {
+		val footprint = dao.retainedOwnerFootprint(ownerRowId)
+		if (footprint.receiptCount != 1L) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+		}
+		val receipt = dao.retentionReceiptByOwnerRowId(ownerRowId)
+			?: unverifiable(
+				ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE,
 			)
-			if (!receipt.authenticates(markers)) {
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-			}
-			val deletion = dao.entryDeletion(receipt.entryIdentity)
-				?: unverifiable(
-					ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE,
-				)
-			if (!state.acceptsRetainedEpoch(deletion.collectedDataEpoch) ||
-				deletion.deletedImportRevision != receipt.latestImportRevision
-			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
-			if (dao.deleteRetainedOwnerMarkersByRowId(ownerRowId) !=
-				receipt.protectedIdentityCount ||
-				dao.deleteRetentionReceiptByOwnerRowId(ownerRowId) != 1
-			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+		val markers = dao.retainedIdentitiesForEntries(
+			listOf(receipt.entryIdentity),
+			receipt.protectedIdentityCount + 1,
+		)
+		if (!receipt.authenticates(markers)) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		val deletion = dao.entryDeletion(receipt.entryIdentity)
+			?: unverifiable(
+				ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE,
+			)
+		if (!state.acceptsRetainedEpoch(deletion.collectedDataEpoch) ||
+			deletion.deletedImportRevision != receipt.latestImportRevision
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+		}
+		if (dao.deleteRetainedOwnerMarkersByRowId(ownerRowId) !=
+			receipt.protectedIdentityCount ||
+			dao.deleteRetentionReceiptByOwnerRowId(ownerRowId) != 1
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
 		}
 	}
 
@@ -701,7 +845,9 @@ internal class RoomErasePressureSource internal constructor(
 			dao.entryDeletionCount() != entryDeletions.size.toLong() ||
 			dao.deletionGenerationCount() != runDeletions.size.toLong() ||
 			dao.identityFenceCount() != identityFences.size.toLong()
-		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
 		entryDeletions.forEach { authenticateEntryDeletionAuthority(it) }
 		val legacyByIdentity = linkedMapOf<String, ImportedPressureSourceEraseWitnessEntity>()
 		(previousLegacySamples + localAudit.legacySampleWitnesses.map {
@@ -734,37 +880,7 @@ internal class RoomErasePressureSource internal constructor(
 	private suspend fun collectLocalSourceEraseFences():
 		List<com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity> {
 		val dao = database.pressureFactRevisionDao()
-		val global = dao.sourceEraseFenceGlobalFootprint()
-		if (global.rowCount !in 0L..limits.maximumLocalFences.toLong()) {
-			unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
-		}
-		val privacyFootprint = database.importedPressureDao().privacyMaintenanceFootprint()
-		when (privacyFootprint.validateGlobal(
-			maximumIdentityFences = limits.maximumIdentityFences.toLong(),
-			maximumEntryDeletions = limits.maximumEntryDeletions.toLong(),
-			maximumRunDeletions = limits.maximumRunDeletions.toLong(),
-			maximumWitnesses = limits.maximumWitnesses.toLong(),
-		)) {
-			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
-			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
-			ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
-			ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
-			-> unverifiable(
-				ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
-			)
-			null -> Unit
-		}
-		try {
-			if (global.textBytes < 0L ||
-				Math.addExact(global.textBytes, privacyFootprint.totalTextBytes) >
-				com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
-					.MAX_MAINTENANCE_TEXT_BYTES
-			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
-		} catch (_: ArithmeticException) {
-			unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
-		}
+		val expectedFenceCount = localEraseFenceCount(dao)
 		val fences =
 			mutableListOf<com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity>()
 		var ownerRowId = 0L
@@ -789,15 +905,66 @@ internal class RoomErasePressureSource internal constructor(
 				)
 			ownerRowId = nextOwnerRowId
 		}
-		if (fences.size.toLong() != global.rowCount) {
+		if (fences.size.toLong() != expectedFenceCount) {
 			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 		}
 		return fences
 	}
 
+	private suspend fun localEraseFenceCount(
+		dao: com.adsamcik.tracker.shared.base.database.dao.PressureFactRevisionDao,
+	): Long {
+		val global = dao.sourceEraseFenceGlobalFootprint()
+		if (global.rowCount !in 0L..limits.maximumLocalFences.toLong()) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+		}
+		val privacyFootprint = database.importedPressureDao().privacyMaintenanceFootprint()
+		requireGlobalFootprint(privacyFootprint.validateGlobal(
+			maximumIdentityFences = limits.maximumIdentityFences.toLong(),
+			maximumEntryDeletions = limits.maximumEntryDeletions.toLong(),
+			maximumRunDeletions = limits.maximumRunDeletions.toLong(),
+			maximumWitnesses = limits.maximumWitnesses.toLong(),
+		))
+		try {
+			if (global.textBytes < 0L ||
+				Math.addExact(global.textBytes, privacyFootprint.totalTextBytes) >
+				com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+					.MAX_MAINTENANCE_TEXT_BYTES
+			) {
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+			}
+		} catch (_: ArithmeticException) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
+		}
+		return global.rowCount
+	}
+
 	private suspend fun collectPermanentImportedAuthority():
 		PressurePermanentAuthoritySnapshot {
 		val dao = database.importedPressureDao()
+		val owners = collectDeletedEntryOwners(dao)
+		appendStandalonePermanentOwners(dao, owners)
+		val entryDeletions = owners.mapNotNull(PressurePermanentAuthorityOwner::entryDeletion)
+		val identityFences = owners.flatMap(PressurePermanentAuthorityOwner::identityFences)
+		val runDeletions = owners.flatMap(PressurePermanentAuthorityOwner::runDeletions)
+		if (entryDeletions.map { it.entryIdentity }.distinct().size != entryDeletions.size ||
+			identityFences.map { it.protectedIdentity }.distinct().size != identityFences.size ||
+			runDeletions.map { it.runIdentity }.distinct().size != runDeletions.size
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		if (dao.entryDeletionCount() != entryDeletions.size.toLong() ||
+			dao.identityFenceCount() != identityFences.size.toLong() ||
+			dao.deletionGenerationCount() != runDeletions.size.toLong()
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		return PressurePermanentAuthoritySnapshot(entryDeletions, runDeletions, identityFences)
+	}
+
+	private suspend fun collectDeletedEntryOwners(
+		dao: ImportedPressureDao,
+	): MutableList<PressurePermanentAuthorityOwner> {
 		val owners = mutableListOf<PressurePermanentAuthorityOwner>()
 		var ownerRowId = 0L
 		while (true) {
@@ -821,7 +988,13 @@ internal class RoomErasePressureSource internal constructor(
 			)
 			ownerRowId = nextOwnerRowId
 		}
-		ownerRowId = 0L
+		return owners
+	}
+
+	private suspend fun appendStandalonePermanentOwners(
+		dao: ImportedPressureDao, owners: MutableList<PressurePermanentAuthorityOwner>,
+	) {
+		var ownerRowId = 0L
 		while (true) {
 			val nextOwnerRowId = dao.standalonePermanentOwnerRowIdPage(ownerRowId, 1)
 				.singleOrNull() ?: break
@@ -843,18 +1016,6 @@ internal class RoomErasePressureSource internal constructor(
 			)
 			ownerRowId = nextOwnerRowId
 		}
-		val entryDeletions = owners.mapNotNull(PressurePermanentAuthorityOwner::entryDeletion)
-		val identityFences = owners.flatMap(PressurePermanentAuthorityOwner::identityFences)
-		val runDeletions = owners.flatMap(PressurePermanentAuthorityOwner::runDeletions)
-		if (entryDeletions.map { it.entryIdentity }.distinct().size != entryDeletions.size ||
-			identityFences.map { it.protectedIdentity }.distinct().size != identityFences.size ||
-			runDeletions.map { it.runIdentity }.distinct().size != runDeletions.size
-		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-		if (dao.entryDeletionCount() != entryDeletions.size.toLong() ||
-			dao.identityFenceCount() != identityFences.size.toLong() ||
-			dao.deletionGenerationCount() != runDeletions.size.toLong()
-		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-		return PressurePermanentAuthoritySnapshot(entryDeletions, runDeletions, identityFences)
 	}
 
 	private suspend fun loadPermanentAuthorityOwner(
@@ -866,14 +1027,7 @@ internal class RoomErasePressureSource internal constructor(
 		val dao = database.importedPressureDao()
 		val fenceCount = Math.toIntExact(footprint.identityFenceCount)
 		val identityFences = dao.identityFencesForEntry(entryIdentity, fenceCount + 1)
-		if (identityFences.size != fenceCount ||
-			identityFences.count {
-				it.identityKind == ImportedPressureIdentityFenceEntity.ENTRY &&
-					it.protectedIdentity == entryIdentity &&
-					it.runIdentity == null
-			} != 1 ||
-			identityFences.any { it.entryIdentity != entryIdentity }
-		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		requirePermanentOwnerFences(identityFences, fenceCount, entryIdentity)
 		val runIds = identityFences.filter {
 			it.identityKind == ImportedPressureIdentityFenceEntity.RUN
 		}.map { it.protectedIdentity }
@@ -883,7 +1037,9 @@ internal class RoomErasePressureSource internal constructor(
 		if (runDeletions.size.toLong() != footprint.runDeletionCount ||
 			runDeletions.map { it.runIdentity }.distinct().size != runDeletions.size ||
 			runDeletions.any { it.runIdentity !in runIds }
-		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
 		val entryDeletion = dao.entryDeletion(entryIdentity)
 		if (entryDeletion != expectedEntryDeletion) {
 			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
@@ -894,17 +1050,40 @@ internal class RoomErasePressureSource internal constructor(
 		return PressurePermanentAuthorityOwner(entryDeletion, identityFences, runDeletions)
 	}
 
+	private fun requirePermanentOwnerFences(
+		identityFences: List<ImportedPressureIdentityFenceEntity>, fenceCount: Int, entryIdentity: String,
+	) {
+		if (identityFences.size != fenceCount) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		if (identityFences.count {
+				it.identityKind == ImportedPressureIdentityFenceEntity.ENTRY &&
+					it.protectedIdentity == entryIdentity &&
+					it.runIdentity == null
+			} != 1 ||
+			identityFences.any { it.entryIdentity != entryIdentity }
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+	}
+
 	private fun requirePermanentOwnerFootprint(
 		footprint:
 			com.adsamcik.tracker.shared.base.database.dao.ImportedPressurePermanentOwnerFootprint,
 		requireEntryDeletion: Boolean,
 	) {
 		requireOwnerTextWithinBounds(footprint.totalTextBytes)
-		if (footprint.entryDeletionCount != (if (requireEntryDeletion) 1L else 0L) ||
+		if (footprint.entryDeletionCount != (if (requireEntryDeletion) {
+			1L
+		} else {
+			0L
+		}) ||
 			footprint.entryMarkerCount != 1L ||
 			footprint.identityFenceCount !in 1L..limits.maximumIdentityFences.toLong() ||
 			footprint.runDeletionCount !in 0L..limits.maximumRunDeletions.toLong()
-		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
 	}
 
 	private fun requireOwnerTextWithinBounds(textBytes: Long) {
@@ -913,7 +1092,9 @@ internal class RoomErasePressureSource internal constructor(
 		}
 		if (textBytes > com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
 				.MAX_LINEAGE_TEXT_BYTES
-		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+		}
 	}
 
 	private suspend fun authenticateSourceEraseAuthority(
@@ -926,12 +1107,19 @@ internal class RoomErasePressureSource internal constructor(
 		if (!state.acceptsRetainedEpoch(marker.collectedDataEpoch) ||
 			marker.sourceEvidenceRevision > state.revision ||
 			marker.erasedAtMs > state.updatedAtMs
-		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
 		verifyBarrier(
 			marker.toBarrierToken() ?: unverifiable(
 				ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
 			),
 		)
+		val witnesses = sourceEraseWitnesses(marker)
+		return authenticateSourceEraseWitnesses(marker, witnesses)
+	}
+
+	private suspend fun sourceEraseWitnessCount(marker: ImportedPressureSourceEraseEntity): Int {
 		val expectedWitnessCount = try {
 			Math.addExact(
 				Math.addExact(marker.fencedLocalRunCount, marker.entryDeletionCount),
@@ -945,7 +1133,16 @@ internal class RoomErasePressureSource internal constructor(
 		}
 		if (expectedWitnessCount > limits.maximumWitnesses ||
 			database.importedPressureDao().sourceEraseWitnessCount() != expectedWitnessCount.toLong()
-		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+		}
+		return expectedWitnessCount
+	}
+
+	private suspend fun sourceEraseWitnesses(
+		marker: ImportedPressureSourceEraseEntity,
+	): List<ImportedPressureSourceEraseWitnessEntity> {
+		val expectedWitnessCount = sourceEraseWitnessCount(marker)
 		val witnesses = mutableListOf<ImportedPressureSourceEraseWitnessEntity>()
 		var afterKind: String? = null
 		var afterIdentity: String? = null
@@ -955,25 +1152,37 @@ internal class RoomErasePressureSource internal constructor(
 				afterIdentity,
 				AUTHORITY_PAGE_SIZE,
 			)
-			if (page.isEmpty()) break
+			if (page.isEmpty()) {
+				break
+			}
 			val previous = afterKind?.let { it to requireNotNull(afterIdentity) }
-			if (previous != null && (
-					page.first().witnessKind < previous.first ||
-						page.first().witnessKind == previous.first &&
-						page.first().witnessIdentity <= previous.second
-					)
-			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+			if (!page.first().followsWitnessCursor(previous)) {
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+			}
 			witnesses += page
 			if (witnesses.size > expectedWitnessCount) {
 				unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
 			}
 			afterKind = page.last().witnessKind
 			afterIdentity = page.last().witnessIdentity
-			if (page.size < AUTHORITY_PAGE_SIZE) break
+			if (page.size < AUTHORITY_PAGE_SIZE) {
+				break
+			}
 		}
 		if (witnesses.size != expectedWitnessCount) {
 			unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
 		}
+		return witnesses
+	}
+
+	private fun ImportedPressureSourceEraseWitnessEntity.followsWitnessCursor(
+		previous: Pair<String, String>?,
+	): Boolean = previous == null || witnessKind > previous.first ||
+		(witnessKind == previous.first && witnessIdentity > previous.second)
+
+	private suspend fun authenticateSourceEraseWitnesses(
+		marker: ImportedPressureSourceEraseEntity, witnesses: List<ImportedPressureSourceEraseWitnessEntity>,
+	): AuthenticatedPressureSourceEraseAuthority {
 		val localWitnesses = witnesses.filter {
 			it.witnessKind == ImportedPressureSourceEraseWitnessEntity.LOCAL_SCOPE
 		}
@@ -989,12 +1198,36 @@ internal class RoomErasePressureSource internal constructor(
 		val legacyWitnesses = witnesses.filter {
 			it.witnessKind == ImportedPressureSourceEraseWitnessEntity.LEGACY_SAMPLE
 		}
-		if (localWitnesses.size != marker.fencedLocalRunCount ||
-			legacyWitnesses.size != marker.legacySampleCount ||
-			entryWitnesses.size != marker.entryDeletionCount ||
-			runWitnesses.size != marker.runDeletionCount ||
-			identityWitnesses.size != marker.identityFenceCount
-		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+		if (!marker.hasWitnessCounts(localWitnesses.size, legacyWitnesses.size, entryWitnesses.size,
+			runWitnesses.size, identityWitnesses.size)) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+		}
+		val authority = loadSourceEraseWitnessAuthority(localWitnesses, legacyWitnesses, entryWitnesses,
+			runWitnesses, identityWitnesses)
+		verifyWitnessChecksums(localWitnesses, authority.localFences.associate {
+			it.scopeIdentityDigest to it.effectChecksum
+		})
+		verifyWitnessChecksums(entryWitnesses, authority.entryDeletions.associate {
+			it.entryIdentity to it.effectChecksum
+		})
+		verifyWitnessChecksums(runWitnesses, authority.runDeletions.associate {
+			it.runIdentity to it.effectChecksum
+		})
+		verifyWitnessChecksums(identityWitnesses, authority.identityFences.associate {
+			it.protectedIdentity to it.effectChecksum
+		})
+		requireSourceEraseSetChecksums(marker, authority)
+		authority.entryDeletions.forEach { authenticateEntryDeletionAuthority(it) }
+		return AuthenticatedPressureSourceEraseAuthority(legacyWitnesses)
+	}
+
+	private suspend fun loadSourceEraseWitnessAuthority(
+		localWitnesses: List<ImportedPressureSourceEraseWitnessEntity>,
+		legacyWitnesses: List<ImportedPressureSourceEraseWitnessEntity>,
+		entryWitnesses: List<ImportedPressureSourceEraseWitnessEntity>,
+		runWitnesses: List<ImportedPressureSourceEraseWitnessEntity>,
+		identityWitnesses: List<ImportedPressureSourceEraseWitnessEntity>,
+	): PressureSourceEraseAuthoritySnapshot {
 		val localFences = localWitnesses.chunked(SQLITE_BIND_BATCH).flatMap { batch ->
 			database.trackingHistoryReadDao().deletionFences(
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
@@ -1018,31 +1251,38 @@ internal class RoomErasePressureSource internal constructor(
 				it.size + 1,
 			)
 		}
-		verifyWitnessChecksums(localWitnesses, localFences.associate {
-			it.scopeIdentityDigest to it.effectChecksum
-		})
-		verifyWitnessChecksums(entryWitnesses, entryDeletions.associate {
-			it.entryIdentity to it.effectChecksum
-		})
-		verifyWitnessChecksums(runWitnesses, runDeletions.associate {
-			it.runIdentity to it.effectChecksum
-		})
-		verifyWitnessChecksums(identityWitnesses, identityFences.associate {
-			it.protectedIdentity to it.effectChecksum
-		})
-		if (ImportedPressureSourceEraseEntity.checksumLocalFences(localFences) !=
+		return PressureSourceEraseAuthoritySnapshot(localFences, legacyWitnesses, entryDeletions,
+			runDeletions, identityFences)
+	}
+
+	private fun ImportedPressureSourceEraseEntity.hasWitnessCounts(
+		local: Int, legacy: Int, entries: Int, runs: Int, identities: Int,
+	): Boolean {
+		val localCountsMatch = local == fencedLocalRunCount && legacy == legacySampleCount
+		return localCountsMatch && entries == entryDeletionCount && runs == runDeletionCount &&
+			identities == identityFenceCount
+	}
+
+	private fun requireSourceEraseSetChecksums(
+		marker: ImportedPressureSourceEraseEntity,
+		authority: PressureSourceEraseAuthoritySnapshot,
+	) {
+		if (ImportedPressureSourceEraseEntity.checksumLocalFences(authority.localFences) !=
 			marker.localScopeSetChecksum ||
-			ImportedPressureSourceEraseEntity.checksumLegacySamples(legacyWitnesses) !=
-			marker.legacySampleSetChecksum ||
-			ImportedPressureSourceEraseEntity.checksumEntryDeletions(entryDeletions) !=
+			ImportedPressureSourceEraseEntity.checksumLegacySamples(authority.legacySamples) !=
+			marker.legacySampleSetChecksum
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		if (ImportedPressureSourceEraseEntity.checksumEntryDeletions(authority.entryDeletions) !=
 			marker.entryDeletionSetChecksum ||
-			ImportedPressureRetentionReceiptEntity.checksumRunDeletions(runDeletions) !=
+			ImportedPressureRetentionReceiptEntity.checksumRunDeletions(authority.runDeletions) !=
 			marker.runDeletionSetChecksum ||
-			ImportedPressureIdentityFenceEntity.checksumSet(identityFences) !=
+			ImportedPressureIdentityFenceEntity.checksumSet(authority.identityFences) !=
 			marker.identityFenceSetChecksum
-		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-		entryDeletions.forEach { authenticateEntryDeletionAuthority(it) }
-		return AuthenticatedPressureSourceEraseAuthority(legacyWitnesses)
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
 	}
 
 	private fun verifyWitnessChecksums(
@@ -1051,7 +1291,9 @@ internal class RoomErasePressureSource internal constructor(
 	) {
 		if (actual.size != witnesses.size || witnesses.any {
 			actual[it.witnessIdentity] != it.authorityChecksum
-		}) unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+		}) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+		}
 	}
 
 	private fun consumeFootprint(
@@ -1109,7 +1351,9 @@ internal class RoomErasePressureSource internal constructor(
 			runDeletions.size != deletion.runDeletionCount ||
 			ImportedPressureRetentionReceiptEntity.checksumRunDeletions(runDeletions) !=
 			deletion.runDeletionSetChecksum
-		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
 	}
 
 	private suspend fun authenticateLineage(
@@ -1154,7 +1398,9 @@ internal class RoomErasePressureSource internal constructor(
 
 	private fun ImportedPressureSourceEraseEntity.toBarrierToken():
 		PressureSourceEraseBarrierToken? {
-		if (legacyWriteFenceGeneration <= 0L) return null
+		if (legacyWriteFenceGeneration <= 0L) {
+			return null
+		}
 		val owner = legacyWriteFenceOwner
 			?.let { PressureSourceEraseFenceOwner.fromStorageValue(it) }
 			?: return null
@@ -1305,6 +1551,8 @@ internal data class PressureSourceEraseLimits(
 	}
 }
 
+// Keep every local erase failure in one exhaustive public-result map.
+@Suppress("CyclomaticComplexMethod")
 private fun PressureSourceEraseLocalFailure.toPublicResult(): ErasePressureSourceResult =
 	when (reason) {
 		PressureSourceEraseLocalFailureReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED ->

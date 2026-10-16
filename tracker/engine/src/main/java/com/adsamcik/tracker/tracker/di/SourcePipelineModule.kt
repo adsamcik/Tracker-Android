@@ -84,26 +84,32 @@ object SourcePipelineModule {
 	@IntoSet
 	internal fun provideAmbientCellProjection(projection: AmbientCellProjection): Projection = projection
 
+	/** Registers the shared Activity owner in the source runtime map. */
 	@Provides
 	@IntoMap
 	@SourceRuntimeKey(SourceKind.ACTIVITY)
 	fun provideActivitySourceRuntime(runtime: ActivitySourceRuntime): ClaimedSourceRuntime<out SourcePlan> = runtime
 
+	/** Registers the shared Steps sensor owner in the source runtime map. */
 	@Provides
 	@IntoMap
 	@SourceRuntimeKey(SourceKind.STEPS)
 	fun provideStepSourceRuntime(runtime: SharedStepSourceController): ClaimedSourceRuntime<out SourcePlan> = runtime
 
+	/** Registers the Pressure owner in the source runtime map. */
 	@Provides
 	@IntoMap
 	@SourceRuntimeKey(SourceKind.PRESSURE)
 	fun providePressureSourceRuntime(runtime: PressureSourceRuntime): ClaimedSourceRuntime<out SourcePlan> = runtime
 
+	/** Registers the single Location owner shared by recording and temporary consumers. */
 	@Provides
 	@IntoMap
 	@SourceRuntimeKey(SourceKind.LOCATION)
-	fun provideLocationSourceRuntime(runtime: SharedLocationSourceController): ClaimedSourceRuntime<out SourcePlan> = runtime
+	fun provideLocationSourceRuntime(runtime: SharedLocationSourceController): ClaimedSourceRuntime<out SourcePlan> =
+        runtime
 
+	/** Registers the Wi-Fi owner shared by session and all-day demands. */
 	@Provides
 	@IntoMap
 	@SourceRuntimeKey(SourceKind.WIFI)
@@ -111,6 +117,7 @@ object SourcePipelineModule {
 		runtime: SharedWifiSourceController,
 	): ClaimedSourceRuntime<out SourcePlan> = runtime
 
+	/** Registers the Cell owner shared by session and all-day demands. */
 	@Provides
 	@IntoMap
 	@SourceRuntimeKey(SourceKind.CELL)
@@ -139,18 +146,21 @@ object SourcePipelineModule {
         savedLocationUpdates::pointCommitted,
 	)
 
+	/** Binds the router that settles source writers through a captured admission boundary. */
 	@Provides
 	@Singleton
 	fun provideSourceProductDrainRouter(
 		router: RoomSourceProductDrainRouter,
 	): SourceProductDrainRouter = router
 
+	/** Binds the read-only catalog of supported acquisition and product contracts. */
 	@Provides
 	@Singleton
 	fun provideSourceImplementationCatalog(
 		catalog: DefaultSourceImplementationCatalog,
 	): SourceImplementationCatalog = catalog
 
+	/** Uses the catalog to build acquisition plans without starting providers. */
 	@Provides
 	@Singleton
 	fun provideSourceAcquisitionPlanFactory(

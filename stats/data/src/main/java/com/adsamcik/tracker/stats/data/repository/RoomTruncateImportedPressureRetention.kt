@@ -3,6 +3,10 @@ package com.adsamcik.tracker.stats.data.repository
 import android.database.sqlite.SQLiteConstraintException
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureWindowIdentityOwner
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureRunIdentityOwner
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetainedIdentityEntity
@@ -79,11 +83,15 @@ internal class RoomTruncateImportedPressureRetention internal constructor(
 			?: unverifiable(ImportedPressureMaintenanceUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING)
 		if (state.revision < 0L || state.collectedDataEpoch < 0L || state.updatedAtMs < 0L ||
 			state.retainedFromMs?.let { it < 0L } == true
-		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
 		if (state.collectedDataEpoch != request.expectedCollectedDataEpoch ||
 			state.revision != request.expectedSourceEvidenceRevision ||
 			state.retainedFromMs != request.retainedFromMs
-		) blocked(ImportedPressureRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		) {
+			blocked(ImportedPressureRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		}
 		if (request.retainedAtMs < state.updatedAtMs) {
 			blocked(ImportedPressureRetentionBlockedReason.STALE_REQUEST)
 		}
@@ -123,7 +131,9 @@ internal class RoomTruncateImportedPressureRetention internal constructor(
 		if (existingReceiptCount > limits.maximumEntries ||
 			existingMarkerCount > limits.maximumProtectedIdentities ||
 			stored { dao.orphanRetainedIdentityCount() } != 0L
-		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+		}
 		val byteBudget = ImportedPressureMaintenanceByteBudget()
 		authenticateExistingRetainedAuthority(state, byteBudget)
 
@@ -160,8 +170,12 @@ internal class RoomTruncateImportedPressureRetention internal constructor(
 				candidate.startTimeMs != latest.header.startTimeMs ||
 				candidate.endTimeMs != latest.header.endTimeMs ||
 				candidate.receivedAtMs != latest.header.receivedAtMs
-			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-			if (!lineage.crossesRetentionFloor(request.retainedFromMs)) continue
+			) {
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+			}
+			if (!lineage.crossesRetentionFloor(request.retainedFromMs)) {
+				continue
+			}
 
 			val selection = authenticateSelection(
 				lineage = lineage,
@@ -178,7 +192,9 @@ internal class RoomTruncateImportedPressureRetention internal constructor(
 				existingReceiptCount + totals.entryCount > limits.maximumEntries ||
 				existingMarkerCount + totals.protectedIdentityCount >
 				limits.maximumProtectedIdentities
-			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+			) {
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+			}
 
 			dao.insertOrAuthenticateIdentityFences(selection.identityFences)
 			dao.insertRetentionReceipt(selection.receipt)
@@ -191,11 +207,15 @@ internal class RoomTruncateImportedPressureRetention internal constructor(
 				dao.receiptsForAdmission(candidate.identity).isNotEmpty() ||
 				dao.allRunsForAdmission(candidate.identity).isNotEmpty() ||
 				dao.allWindowsForAdmission(candidate.identity).isNotEmpty()
-			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+			) {
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+			}
 			checkpoint(ImportedPressureRetentionCheckpoint.PAYLOAD_REMOVED)
 		}
 
-		if (totals.entryCount == 0) return TruncateImportedPressureRetentionResult.NoChange
+		if (totals.entryCount == 0) {
+			return TruncateImportedPressureRetentionResult.NoChange
+		}
 		if (database.sourceEvidenceStateDao().incrementRevision(request.retainedAtMs) != 1) {
 			throw IllegalStateException("Unable to publish imported Pressure retention")
 		}
@@ -205,7 +225,9 @@ internal class RoomTruncateImportedPressureRetention internal constructor(
 			published.retainedFromMs != request.retainedFromMs ||
 			published.revision != nextStateRevision ||
 			published.updatedAtMs != request.retainedAtMs
-		) blocked(ImportedPressureRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		) {
+			blocked(ImportedPressureRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		}
 
 		val verificationBudget = ImportedPressureMaintenanceByteBudget()
 		var retainedOwnerRowId = 0L
@@ -311,7 +333,9 @@ internal class RoomTruncateImportedPressureRetention internal constructor(
 			runDeletions.any {
 				!state.acceptsRetainedEpoch(it.collectedDataEpoch) || it.generation != 1L
 			}
-		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
 		val latestDurableAtMs = maxOf(
 			state.updatedAtMs,
 			lineage.revisions.maxOf { it.header.receivedAtMs },
@@ -390,19 +414,60 @@ internal class RoomTruncateImportedPressureRetention internal constructor(
 				unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 			}
 			ownerRowId = nextOwnerRowId
-			when (stored { database.authenticateImportedPressureRetention(state, receipt) }) {
-				ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
-					unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
-				ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
-					unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
-				ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT ->
-					unverifiable(ImportedPressureMaintenanceUnverifiableReason.ORIGIN_IDENTITY_CONFLICT)
-				ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE ->
-					unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-				null -> Unit
-			}
+			requireRetainedAuthority(stored { database.authenticateImportedPressureRetention(state, receipt) })
 		}
 	}
+
+	private fun requireRetainedAuthority(
+		failure: ImportedPressureRetentionAuthorityFailure?,
+	) {
+		when (failure) {
+			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
+			ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT ->
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.ORIGIN_IDENTITY_CONFLICT)
+			ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE ->
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+			null -> Unit
+		}
+	}
+
+	private fun collectPressureRetentionOwners(
+		lineage: AuthenticatedImportedPressureLineage, entries: List<String>,
+		runs: List<ImportedPressureRunIdentityOwner>, windows: List<ImportedPressureWindowIdentityOwner>,
+	): Map<String, String> {
+		val observed = linkedMapOf<String, String>()
+		fun bind(identity: String, kind: String) {
+			val previous = observed.putIfAbsent(identity, kind)
+			if (previous != null && previous != kind) {
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.ORIGIN_IDENTITY_CONFLICT)
+			}
+		}
+		entries.forEach { bind(it, ImportedPressureRetainedIdentityEntity.ENTRY) }
+		runs.forEach { owner ->
+			if (owner.entryIdentity != lineage.latest?.header?.identity) {
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.ORIGIN_IDENTITY_CONFLICT)
+			}
+			bind(owner.identity, ImportedPressureRetainedIdentityEntity.RUN_SCOPE)
+		}
+		windows.forEach { owner ->
+			if (owner.entryIdentity != lineage.latest?.header?.identity) {
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.ORIGIN_IDENTITY_CONFLICT)
+			}
+			bind(owner.identity, ImportedPressureRetainedIdentityEntity.WINDOW)
+		}
+		return observed
+	}
+
+	private fun hasSamePressureRetentionOwners(
+		entryDeletions: List<ImportedPressureEntryDeletionEntity>,
+		runDeletions: List<ImportedPressureDeletionGenerationEntity>, expected: Map<String, String>,
+		observed: Map<String, String>, batch: List<String>,
+	): Boolean = entryDeletions.isEmpty() && runDeletions.none {
+		expected[it.runIdentity] != ImportedPressureRetainedIdentityEntity.RUN_SCOPE
+	} && observed == expected.filterKeys { it in batch }
 
 	private suspend fun authenticateIdentityOwnership(
 		lineage: AuthenticatedImportedPressureLineage,
@@ -422,34 +487,16 @@ internal class RoomTruncateImportedPressureRetention internal constructor(
 			val entryDeletions = dao.entryDeletions(batch)
 			val runDeletions = dao.deletionGenerations(batch)
 			if (entries.size >= limit || runs.size >= limit || windows.size >= limit
-			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+			) {
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+			}
 			if (retained.isNotEmpty() || permanent.isNotEmpty()) {
 				unverifiable(ImportedPressureMaintenanceUnverifiableReason.ORIGIN_IDENTITY_CONFLICT)
 			}
-			val observed = linkedMapOf<String, String>()
-			fun bind(identity: String, kind: String) {
-				val previous = observed.putIfAbsent(identity, kind)
-				if (previous != null && previous != kind) {
-					unverifiable(ImportedPressureMaintenanceUnverifiableReason.ORIGIN_IDENTITY_CONFLICT)
-				}
+			val observed = collectPressureRetentionOwners(lineage, entries, runs, windows)
+			if (!hasSamePressureRetentionOwners(entryDeletions, runDeletions, expected, observed, batch)) {
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.ORIGIN_IDENTITY_CONFLICT)
 			}
-			entries.forEach { bind(it, ImportedPressureRetainedIdentityEntity.ENTRY) }
-			runs.forEach { owner ->
-				if (owner.entryIdentity != lineage.latest?.header?.identity) {
-					unverifiable(ImportedPressureMaintenanceUnverifiableReason.ORIGIN_IDENTITY_CONFLICT)
-				}
-				bind(owner.identity, ImportedPressureRetainedIdentityEntity.RUN_SCOPE)
-			}
-			windows.forEach { owner ->
-				if (owner.entryIdentity != lineage.latest?.header?.identity) {
-					unverifiable(ImportedPressureMaintenanceUnverifiableReason.ORIGIN_IDENTITY_CONFLICT)
-				}
-				bind(owner.identity, ImportedPressureRetainedIdentityEntity.WINDOW)
-			}
-			if (entryDeletions.isNotEmpty() || runDeletions.any {
-				expected[it.runIdentity] != ImportedPressureRetainedIdentityEntity.RUN_SCOPE
-			} || observed != expected.filterKeys { it in batch }
-			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.ORIGIN_IDENTITY_CONFLICT)
 		}
 	}
 

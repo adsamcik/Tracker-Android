@@ -49,7 +49,9 @@ internal class ProtectedLocationAmbientCanonicalWriter @Inject constructor(
 	suspend fun write(command: LocationAmbientFactCommand): ProtectedLocationCanonicalWriteResult = mutex.withLock {
 		try {
 			val existing = persistence.hasCommittedProtectedAmbientLocation(command)
-			if (existing) return@withLock ProtectedLocationCanonicalWriteResult.Committed
+			if (existing) {
+				return@withLock ProtectedLocationCanonicalWriteResult.Committed
+			}
 			val before = database.withTransaction { database.loadLocationAmbientCurationState(command) }
 			val component = LocationTrackerComponent(trackingParamsRepository = null, dispatchers = dispatchers)
 			val metadata = command.acquisitionMetadata
@@ -63,16 +65,28 @@ internal class ProtectedLocationAmbientCanonicalWriter @Inject constructor(
 					withContext(NonCancellable) { component.onDisable(context) }
 				}
 			}
-			val reason = if (command.payload.isMock == true) "MOCK_LOCATION_REJECTED"
-				else curation.outcome.decisionReason
+			val reason = if (command.payload.isMock == true) {
+				"MOCK_LOCATION_REJECTED"
+			}
+				else {
+				curation.outcome.decisionReason
+			}
 			val accepted = data.location != null
 			check(accepted || reason != null) { "Location curation has no terminal outcome" }
 			persistence.commitProtectedAmbientLocation(ProtectedLocationAmbientWrite(
 				command, before,
-				if (command.payload.isMock == true) before else curation.outcome.stateAfter,
+				if (command.payload.isMock == true) {
+					before
+				} else {
+					curation.outcome.stateAfter
+				},
 				command.toAmbientObservation(),
 				command.toAmbientDecision(accepted, reason),
-				if (accepted) command.toAmbientSample(data) else null,
+				if (accepted) {
+					command.toAmbientSample(data)
+				} else {
+					null
+				},
 			))
 			ProtectedLocationCanonicalWriteResult.Committed
 		} catch (cancelled: CancellationException) {
@@ -111,8 +125,10 @@ private fun LocationAmbientFactCommand.toAmbientTrackingCycle(
 		location = LocationData(listOf(location), null, null, listOf(LocationFixMetadata(
 			callbackId = wal.deliveryIdentity, sourceEventId = wal.eventId,
 			clockDomainId = wal.clockDomainId, bootClockDomainId = wal.clockDomainId,
-			receivedAtMs = requireNotNull(wal.receivedWallTimeMs), receivedElapsedRealtimeNanos = wal.receivedElapsedNanos,
-			acquisitionMode = acquisitionMetadata.acquisitionMode, requestPriority = acquisitionMetadata.requestPriority,
+			receivedAtMs = requireNotNull(wal.receivedWallTimeMs), receivedElapsedRealtimeNanos =
+                wal.receivedElapsedNanos,
+			acquisitionMode = acquisitionMetadata.acquisitionMode, requestPriority =
+                acquisitionMetadata.requestPriority,
 			permissionPrecision = permissionPrecision(), batchIndex = requireNotNull(wal.deliveryUnitIndex),
 			batchSize = requireNotNull(wal.deliveryUnitCount),
 		))), locationCanonicalCuration = curation,
@@ -120,8 +136,12 @@ private fun LocationAmbientFactCommand.toAmbientTrackingCycle(
 }
 
 private fun LocationAmbientFactCommand.permissionPrecision(): LocationPermissionPrecision =
-	if (wal.qualityFlags and SourceQualityFlag.APPROXIMATE.bit != 0L) LocationPermissionPrecision.APPROXIMATE
-	else LocationPermissionPrecision.PRECISE
+	if (wal.qualityFlags and SourceQualityFlag.APPROXIMATE.bit != 0L) {
+		LocationPermissionPrecision.APPROXIMATE
+	}
+	else {
+		LocationPermissionPrecision.PRECISE
+	}
 
 internal fun LocationAmbientFactCommand.toAmbientObservation(): LocationObservation = LocationObservation(
 	fixTimeMs = requireNotNull(wal.wallTimeMs), fixElapsedRealtimeNanos = wal.observedElapsedNanos,
@@ -135,15 +155,25 @@ internal fun LocationAmbientFactCommand.toAmbientObservation(): LocationObservat
 	batchIndex = requireNotNull(wal.deliveryUnitIndex), batchSize = requireNotNull(wal.deliveryUnitCount),
 	isMock = requireNotNull(payload.isMock), ingressDisposition = "DELIVERED_VALID",
 	estimatorVersion = 1, calibrationVersion = 0,
-	createdAt = requireNotNull(wal.wallTimeMs), sourceSignalId = ProtectedLocationCanonicalSignalIdentity.rawObservation(wal.eventId),
+	createdAt = requireNotNull(wal.wallTimeMs), sourceSignalId =
+        ProtectedLocationCanonicalSignalIdentity.rawObservation(wal.eventId),
 	sourceEventId = wal.eventId, callbackId = wal.deliveryIdentity, clockDomainId = wal.clockDomainId,
 	bearingDeg = payload.bearingDegrees, bearingAccuracyDeg = null, bootClockDomainId = wal.clockDomainId,
 )
 
-private fun LocationAmbientFactCommand.toAmbientDecision(accepted: Boolean, reason: String?) = LocationObservationDecision(
+private fun LocationAmbientFactCommand.toAmbientDecision(accepted: Boolean, reason: String?) =
+    LocationObservationDecision(
 	observationSourceEventId = wal.eventId,
-	decision = if (accepted) LocationObservationDecision.ACCEPTED else LocationObservationDecision.REJECTED,
-	reason = reason, acceptedSampleSourceSignalId = if (accepted) ProtectedLocationCanonicalSignalIdentity.canonicalProduct(wal.eventId) else null,
+	decision = if (accepted) {
+		LocationObservationDecision.ACCEPTED
+	} else {
+		LocationObservationDecision.REJECTED
+	},
+	reason = reason, acceptedSampleSourceSignalId = if (accepted) {
+		ProtectedLocationCanonicalSignalIdentity.canonicalProduct(wal.eventId)
+	} else {
+		null
+	},
 	sourceSignalId = ProtectedLocationCanonicalSignalIdentity.canonicalProduct(wal.eventId),
 	clockDomainId = wal.clockDomainId, decidedAtMs = requireNotNull(wal.wallTimeMs),
 )
@@ -160,24 +190,31 @@ private fun LocationAmbientFactCommand.toAmbientSample(data: MutableCollectionDa
 		policy = acquisitionMetadata.policyName, bucketId = null, createdAt = requireNotNull(wal.wallTimeMs),
 		receivedElapsedRealtimeNanos = wal.receivedElapsedNanos,
 		deliveryAgeMs = (wal.receivedElapsedNanos - wal.observedElapsedNanos) / 1_000_000,
-		acquisitionMode = acquisitionMetadata.acquisitionMode.name, requestPriority = acquisitionMetadata.requestPriority.name,
+		acquisitionMode = acquisitionMetadata.acquisitionMode.name, requestPriority =
+            acquisitionMetadata.requestPriority.name,
 		permissionPrecision = permissionPrecision().name, batchIndex = requireNotNull(wal.deliveryUnitIndex),
 		batchSize = requireNotNull(wal.deliveryUnitCount), isMock = false,
 		estimatorVersion = altitude?.estimatorVersion ?: 0, calibrationVersion = altitude?.calibrationVersion ?: 0,
-		sourceSignalId = ProtectedLocationCanonicalSignalIdentity.canonicalProduct(wal.eventId), sourceEventId = wal.eventId,
+		sourceSignalId = ProtectedLocationCanonicalSignalIdentity.canonicalProduct(wal.eventId), sourceEventId =
+            wal.eventId,
 		clockDomainId = wal.clockDomainId, bootClockDomainId = wal.clockDomainId,
 		altitudeDatum = altitude?.datum ?: com.adsamcik.tracker.shared.model.AltitudeDatum.UNKNOWN_LEGACY,
 		altitudeSource = altitude?.source ?: com.adsamcik.tracker.shared.model.AltitudeSource.UNKNOWN_LEGACY,
-		altitudeConversionStatus = altitude?.conversionStatus ?: com.adsamcik.tracker.shared.model.AltitudeConversionStatus.UNKNOWN_LEGACY,
-		rawGpsAltitudeDatum = altitude?.rawAltitudeDatum ?: com.adsamcik.tracker.shared.model.AltitudeDatum.UNKNOWN_LEGACY,
+		altitudeConversionStatus = altitude?.conversionStatus ?:
+            com.adsamcik.tracker.shared.model.AltitudeConversionStatus.UNKNOWN_LEGACY,
+		rawGpsAltitudeDatum = altitude?.rawAltitudeDatum ?:
+            com.adsamcik.tracker.shared.model.AltitudeDatum.UNKNOWN_LEGACY,
 		altitudeModelVersion = altitude?.modelVersion ?: 0, rawPlatformSpeedMps = payload.speedMetersPerSecond,
 		bearingDeg = payload.bearingDegrees,
 	)
 }
 
-internal suspend fun AppDatabase.loadLocationAmbientCurationState(command: LocationAmbientFactCommand): LocationCanonicalCurationState {
+internal suspend fun AppDatabase.loadLocationAmbientCurationState(
+	command: LocationAmbientFactCommand,
+): LocationCanonicalCurationState {
 	val row = sourceProjectionStateDao().joinState(ProtectedLocationCanonicalHandoff.WRITER_ID,
-		ProtectedLocationCanonicalHandoff.WRITER_VERSION, ambientStateKey(command)) ?: return LocationCanonicalCurationState.EMPTY
+		ProtectedLocationCanonicalHandoff.WRITER_VERSION, ambientStateKey(command)) ?:
+            return LocationCanonicalCurationState.EMPTY
 	check(row.logicalTrackingId == null && row.payloadVersion == ProtectedLocationCanonicalCurationStateCodec.VERSION)
 	check(row.minimumRequiredOrdinal - 1 < command.wal.admissionOrdinal)
 	return ProtectedLocationCanonicalCurationStateCodec.decode(row.payload)
@@ -189,11 +226,17 @@ internal suspend fun AppDatabase.readLocationAmbientReceipt(command: LocationAmb
 }
 
 /** Retained all-day acceptance remains separate from a rejected capture decision for the same fix. */
+@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 internal suspend fun AppDatabase.hasAcceptedAmbientSiblingReceipt(eventId: String): Boolean {
 	val common = locationPurposeDao().receiptByEvent(eventId) ?: return false
-	if (!LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(common)) return false
-	val purposes = locationPurposeDao().purposes(common.sampleId, 17)
-	if (purposes.size > 16 || purposes.any { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) return false
+	if (!LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(common)) {
+		return false
+	}
+	val purposes = locationPurposeDao().purposes(common.sampleId, MAX_LOCATION_RECEIPT_PURPOSES + 1)
+	if (purposes.size > MAX_LOCATION_RECEIPT_PURPOSES ||
+		purposes.any { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) {
+		return false
+	}
 	val purpose = purposes.firstOrNull {
 		it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
 			LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(it, common)
@@ -204,30 +247,28 @@ internal suspend fun AppDatabase.hasAcceptedAmbientSiblingReceipt(eventId: Strin
 internal suspend fun AppDatabase.hasAcceptedAmbientSibling(qualification: LocationAmbientQualification): Boolean =
 	qualification is LocationAmbientQualification.Qualified && readLocationAmbientReceipt(qualification.command) == true
 
-private suspend fun AppDatabase.readLocationAmbientReceipt(eventId: String, integrityIdentity: String, demandId: String): Boolean? {
+private suspend fun AppDatabase.readLocationAmbientReceipt(eventId: String, integrityIdentity: String,
+    demandId: String): Boolean? {
 	val row = sourceProjectionStateDao().joinState(ProtectedLocationCanonicalHandoff.WRITER_ID,
 		ProtectedLocationCanonicalHandoff.WRITER_VERSION, "ambient-receipt:$eventId") ?: return null
 	check(row.logicalTrackingId == null && row.payloadVersion == 1 && row.payload.size in 1..2048)
 	val observation = requireNotNull(locationObservationDao().getBySourceEventId(eventId))
 	val decision = requireNotNull(locationObservationDecisionDao().getBySourceEventId(eventId))
-	val sample = locationSampleDao().getBySourceSignalId(ProtectedLocationCanonicalSignalIdentity.canonicalProduct(eventId))
+	val sample =
+        locationSampleDao().getBySourceSignalId(ProtectedLocationCanonicalSignalIdentity.canonicalProduct(eventId))
 	check(decision.decision == LocationObservationDecision.REJECTED ||
 		(decision.decision == LocationObservationDecision.ACCEPTED && sample != null))
 	if (sample != null) {
 		val common = requireNotNull(locationPurposeDao().receipt(sample.id))
-		val purpose = requireNotNull(locationPurposeDao().purpose(sample.id, SourceBrokerPurpose.AMBIENT_PRODUCT, demandId))
+		val purpose = requireNotNull(locationPurposeDao().purpose(sample.id, SourceBrokerPurpose.AMBIENT_PRODUCT,
+            demandId))
 		check(LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(common) &&
 			common.canonicalContentChecksum == LocationAcceptedReceiptIntegrity.canonicalChecksum(sample) &&
 			LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(purpose, common))
 	}
-	DataInputStream(ByteArrayInputStream(row.payload)).use { input ->
-		check(input.readUTF() == integrityIdentity)
-		check(input.readUTF() == demandId)
-		check(input.readUTF() == locationContentDigest(observation.canonicalReceiptBytes()))
-		check(input.readUTF() == locationContentDigest(decision.canonicalReceiptBytes()))
-		check(input.readUTF() == (sample?.let { locationContentDigest(it.canonicalReceiptBytes()) } ?: ""))
-		check(input.available() == 0)
-	}
+	verifyAmbientLocationReceiptPayload(
+		row.payload, integrityIdentity, demandId, observation, decision, sample,
+	)
 	return sample != null
 }
 
@@ -236,7 +277,10 @@ internal suspend fun AppDatabase.recordLocationAmbientReceipt(write: ProtectedLo
 	val command = write.command
 	val observation = requireNotNull(locationObservationDao().getBySourceEventId(command.wal.eventId))
 	val decision = requireNotNull(locationObservationDecisionDao().getBySourceEventId(command.wal.eventId))
-	val sample = locationSampleDao().getBySourceSignalId(ProtectedLocationCanonicalSignalIdentity.canonicalProduct(command.wal.eventId))
+	val sample =
+		locationSampleDao().getBySourceSignalId(
+			ProtectedLocationCanonicalSignalIdentity.canonicalProduct(command.wal.eventId),
+		)
 	val bytes = ByteArrayOutputStream().also { stream -> DataOutputStream(stream).use { out ->
 		out.writeUTF(command.wal.integrityIdentity); out.writeUTF(command.authority.demandId)
 		out.writeUTF(locationContentDigest(observation.canonicalReceiptBytes()))
@@ -245,36 +289,68 @@ internal suspend fun AppDatabase.recordLocationAmbientReceipt(write: ProtectedLo
 	} }.toByteArray()
 	sourceProjectionStateDao().saveJoinState(ambientJoin(command, ambientReceiptKey(command), bytes, 1, Long.MAX_VALUE))
 	sourceProjectionStateDao().saveJoinState(ambientJoin(command, ambientStateKey(command),
-		ProtectedLocationCanonicalCurationStateCodec.encode(write.stateAfter), ProtectedLocationCanonicalCurationStateCodec.VERSION,
+		ProtectedLocationCanonicalCurationStateCodec.encode(write.stateAfter),
+            ProtectedLocationCanonicalCurationStateCodec.VERSION,
 		Math.addExact(command.wal.admissionOrdinal, 1)))
-	if (sample != null) recordLocationAmbientPurpose(command, sample)
+	if (sample != null) {
+		recordLocationAmbientPurpose(command, sample)
+	}
 }
 
 /** Capture and ambient associate the same accepted sample, never insert a second coordinate row. */
-internal suspend fun AppDatabase.recordLocationAmbientPurpose(command: LocationAmbientFactCommand, sample: LocationSample) {
+internal suspend fun AppDatabase.recordLocationAmbientPurpose(command: LocationAmbientFactCommand,
+    sample: LocationSample) {
 	val wal = command.wal
 	val a = command.authority
-	val common = LocationAcceptedReceiptIntegrity.seal(LocationAcceptedReceiptEntity(sample.id, wal.eventId, requireNotNull(sample.sourceSignalId),
+	val common = LocationAcceptedReceiptIntegrity.seal(LocationAcceptedReceiptEntity(sample.id, wal.eventId,
+        requireNotNull(sample.sourceSignalId),
 		wal.admissionOrdinal, wal.integrityIdentity, LocationAcceptedReceiptIntegrity.canonicalChecksum(sample),
 		wal.sourceInstanceId, wal.registrationGeneration, wal.sourceSequence, requireNotNull(wal.deliveryIdentity),
-		requireNotNull(wal.deliveryUnitIndex), requireNotNull(wal.deliveryUnitCount), ProtectedLocationCanonicalHandoff.WRITER_ID,
-		ProtectedLocationCanonicalHandoff.WRITER_VERSION, requireNotNull(wal.configRevision), requireNotNull(wal.physicalConfigurationFingerprint),
-		requireNotNull(wal.authorizationRevision), requireNotNull(wal.authorizationFingerprint), wal.clockDomainId, wal.clockDomainId,
+		requireNotNull(wal.deliveryUnitIndex), requireNotNull(wal.deliveryUnitCount),
+            ProtectedLocationCanonicalHandoff.WRITER_ID,
+		ProtectedLocationCanonicalHandoff.WRITER_VERSION, requireNotNull(wal.configRevision),
+            requireNotNull(wal.physicalConfigurationFingerprint),
+		requireNotNull(wal.authorizationRevision), requireNotNull(wal.authorizationFingerprint), wal.clockDomainId,
+            wal.clockDomainId,
 		wal.observedElapsedNanos, wal.receivedElapsedNanos, requireNotNull(wal.wallTimeMs), wal.receivedWallTimeMs,
 		requireNotNull(wal.wallTimeUncertaintyMs), wal.capturedCollectedDataEpoch))
 	val dao = locationPurposeDao()
-	if (dao.insertReceiptIfAbsent(common) == -1L) check(LocationAcceptedReceiptIntegrity.compatibleStoredReceipt(dao.receipt(sample.id), common) &&
+	if (dao.insertReceiptIfAbsent(common) == -1L) {
+		check(LocationAcceptedReceiptIntegrity.compatibleStoredReceipt(dao.receipt(sample.id), common) &&
 		LocationAcceptedReceiptIntegrity.compatibleStoredReceipt(dao.receiptByEvent(wal.eventId), common))
-	val purpose = LocationAcceptedReceiptIntegrity.seal(LocationSamplePurposeAuthorityEntity(sample.id, SourceBrokerPurpose.AMBIENT_PRODUCT, a.demandId,
+	}
+	val purpose = LocationAcceptedReceiptIntegrity.seal(LocationSamplePurposeAuthorityEntity(sample.id,
+        SourceBrokerPurpose.AMBIENT_PRODUCT, a.demandId,
 		a.sourcePolicyRevision, a.consentEpoch, wal.observedElapsedNanos, Math.addExact(wal.observedElapsedNanos, 1),
 		null, null, null, null, null, a.demandId, a.retentionPolicyId, a.retentionApprovalRevision, 0, null), common)
-	if (dao.insertPurposeIfAbsent(purpose) == -1L) check(LocationAcceptedReceiptIntegrity.compatibleStoredPurpose(
+	if (dao.insertPurposeIfAbsent(purpose) == -1L) {
+		check(LocationAcceptedReceiptIntegrity.compatibleStoredPurpose(
 		dao.purpose(sample.id, purpose.purpose, purpose.authorityId), purpose))
+	}
 }
 
-private fun ambientStateKey(c: LocationAmbientFactCommand) = "ambient-curation:${c.authority.consentEpoch}:${c.wal.clockDomainId}:${c.wal.sourceInstanceId}:${c.wal.registrationGeneration}"
+private fun ambientStateKey(c: LocationAmbientFactCommand) =
+    "ambient-curation:${c.authority.consentEpoch}:${c.wal.clockDomainId}:${c.wal.sourceInstanceId}:${c.wal.registrationGeneration}"
 private fun ambientReceiptKey(c: LocationAmbientFactCommand) = "ambient-receipt:${c.wal.eventId}"
 private fun ambientJoin(c: LocationAmbientFactCommand, key: String, payload: ByteArray, version: Int, ordinal: Long) =
-	SourceProjectionJoinStateEntity(ProtectedLocationCanonicalHandoff.WRITER_ID, ProtectedLocationCanonicalHandoff.WRITER_VERSION,
+	SourceProjectionJoinStateEntity(ProtectedLocationCanonicalHandoff.WRITER_ID,
+        ProtectedLocationCanonicalHandoff.WRITER_VERSION,
 		key, null, ordinal, version, payload, requireNotNull(c.wal.receivedWallTimeMs))
-private fun locationContentDigest(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+private fun locationContentDigest(bytes: ByteArray) =
+    MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+
+private const val MAX_LOCATION_RECEIPT_PURPOSES = 16
+
+private fun verifyAmbientLocationReceiptPayload(
+	payload: ByteArray, integrityIdentity: String, demandId: String,
+	observation: LocationObservation, decision: LocationObservationDecision, sample: LocationSample?,
+) {
+	DataInputStream(ByteArrayInputStream(payload)).use { input ->
+		check(input.readUTF() == integrityIdentity)
+		check(input.readUTF() == demandId)
+		check(input.readUTF() == locationContentDigest(observation.canonicalReceiptBytes()))
+		check(input.readUTF() == locationContentDigest(decision.canonicalReceiptBytes()))
+		check(input.readUTF() == (sample?.let { locationContentDigest(it.canonicalReceiptBytes()) } ?: ""))
+		check(input.available() == 0)
+	}
+}

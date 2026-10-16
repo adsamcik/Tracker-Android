@@ -15,7 +15,8 @@ import androidx.room.Index
 		childColumns = ["entry_identity", "entry_import_revision", "run_identity", "observation_identity"],
 		onDelete = ForeignKey.CASCADE,
 	)],
-	indices = [Index(value = ["entry_identity", "entry_import_revision", "run_identity", "observation_identity"], name = "idx_imported_wifi_child_parent")],
+	indices = [Index(value = ["entry_identity", "entry_import_revision", "run_identity", "observation_identity"],
+        name = "idx_imported_wifi_child_parent")],
 )
 data class ImportedWifiChildEntity(
 	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
@@ -43,7 +44,8 @@ data class ImportedWifiChildEntity(
 		childColumns = ["entry_identity", "entry_import_revision", "run_identity", "observation_identity"],
 		onDelete = ForeignKey.CASCADE,
 	)],
-	indices = [Index(value = ["entry_identity", "entry_import_revision", "run_identity", "observation_identity"], name = "idx_imported_cell_child_parent")],
+	indices = [Index(value = ["entry_identity", "entry_import_revision", "run_identity", "observation_identity"],
+        name = "idx_imported_cell_child_parent")],
 )
 data class ImportedCellChildEntity(
 	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
@@ -71,7 +73,8 @@ data class ImportedCellChildEntity(
 		childColumns = ["archive_id", "fact_id", "semantic_revision"],
 		onDelete = ForeignKey.CASCADE,
 	)],
-	indices = [Index(value = ["archive_id", "fact_id", "semantic_revision"], name = "idx_imported_ambient_wifi_child_parent")],
+	indices = [Index(value = ["archive_id", "fact_id", "semantic_revision"], name =
+        "idx_imported_ambient_wifi_child_parent")],
 )
 data class ImportedAmbientWifiChildEntity(
 	@ColumnInfo(name = "archive_id") val archiveId: String,
@@ -98,7 +101,8 @@ data class ImportedAmbientWifiChildEntity(
 		childColumns = ["archive_id", "fact_id", "semantic_revision"],
 		onDelete = ForeignKey.CASCADE,
 	)],
-	indices = [Index(value = ["archive_id", "fact_id", "semantic_revision"], name = "idx_imported_ambient_cell_child_parent")],
+	indices = [Index(value = ["archive_id", "fact_id", "semantic_revision"], name =
+        "idx_imported_ambient_cell_child_parent")],
 )
 data class ImportedAmbientCellChildEntity(
 	@ColumnInfo(name = "archive_id") val archiveId: String,

@@ -3,10 +3,14 @@ package com.adsamcik.tracker.tracker.source.coordinator
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.deleteAllCollectedDataForTesting
 import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceCoordinatorLeaseEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -91,7 +95,11 @@ class SharedSourceWriterDeletionRearmTest {
 		for (generation in listOf(2L, 3L, 4L, 5L)) {
 			val epoch = generation
 			for (spec in SourceWriterTransitionSpec.entries) {
-				val name = if (generation % 2L == 0L) spec.candidateOwner else spec.containedOwner
+				val name = if (generation % 2L == 0L) {
+					spec.candidateOwner
+				} else {
+					spec.containedOwner
+				}
 				// Seed each recognized historical state before another real full clear.
 				database.openHelper.writableDatabase.execSQL(
 					"UPDATE source_destination_owner SET owner = ?, owner_generation = ? " +
@@ -203,7 +211,9 @@ class SharedSourceWriterDeletionRearmTest {
 		val original = putOwner(SourceWriterTransitionSpec.PRESSURE, SourceWriterTransitionSpec.PRESSURE.containedOwner, 5L)
 		clear("fault-clear", 1L, 100L)
 		val failed = rearm(StepsWriterTransitionFaultInjector { checkpoint ->
-			if (checkpoint == StepsWriterTransitionCheckpoint.AFTER_DELETION_OWNER_REARM) throw RearmFailure
+			if (checkpoint == StepsWriterTransitionCheckpoint.AFTER_DELETION_OWNER_REARM) {
+				throw RearmFailure
+			}
 		})
 
 		shouldThrow<RearmFailure> { failed.rearmAfterFullDeletion("fault-clear", 1L, 100L) }
@@ -262,12 +272,57 @@ class SharedSourceWriterDeletionRearmTest {
 		assertFinalOwner(spec)
 	}
 
+	@Test
+	fun `released prior-boot lease cannot block clear with a lower new boot uptime`(): Unit = runTest {
+		for (spec in SourceWriterTransitionSpec.entries) putOwner(spec, spec.candidateOwner, 2L)
+		clear("reboot-clear", 1L, 100L)
+		val leases = database.sourceProjectionStateDao()
+		leases.insertLeaseIfAbsent(SourceCoordinatorLeaseEntity("writer-setup", "unowned", 0L, 0L))
+		leases.acquireOrRenewLease("writer-setup", "old-owner", "previous-boot",
+			100L, 200L, 10_000L, 20_000L) shouldBe 1
+		val lease = requireNotNull(leases.lease("writer-setup"))
+		leases.releaseLease(lease.leaseName, lease.ownerToken, lease.bootId,
+			lease.generation, 101L, 10_001L) shouldBe 1
+
+		rearm().rearmAfterFullDeletion("reboot-clear", 1L, 100L)
+
+		for (spec in SourceWriterTransitionSpec.entries) assertFinalOwner(spec)
+		leases.lease(lease.leaseName)?.generation shouldBe lease.generation
+		database.collectedDataDeletionOperationDao().get("reboot-clear")?.phase shouldBe
+			CollectedDataDeletionOperationEntity.PHASE_WRITERS_REARMED
+	}
+
+	@Test
+	fun `current boot lease blocks rearm until its exact release`(): Unit = runTest {
+		val original = putOwner(SourceWriterTransitionSpec.CELL, SourceWriterTransitionSpec.CELL.containedOwner, 5L)
+		clear("leased-clear", 1L, 100L)
+		val leases = database.sourceProjectionStateDao()
+		leases.insertLeaseIfAbsent(SourceCoordinatorLeaseEntity("writer-setup", "unowned", 0L, 0L))
+		leases.acquireOrRenewLease("writer-setup", "current-owner", "current-boot",
+			100L, 200L, 1_000L, 2_000L) shouldBe 1
+		val lease = requireNotNull(leases.lease("writer-setup"))
+
+		shouldThrow<IllegalStateException> {
+			rearm().rearmAfterFullDeletion("leased-clear", 1L, 100L)
+		}
+		database.sourceDestinationOwnerDao().get(original.sourceKind, original.destination) shouldBe original
+		database.collectedDataDeletionOperationDao().get("leased-clear")?.phase shouldBe
+			CollectedDataDeletionOperationEntity.PHASE_DATABASE_CLEARED
+
+		leases.releaseLease(lease.leaseName, lease.ownerToken, lease.bootId,
+			lease.generation, 100L, 1_000L) shouldBe 1
+		rearm().rearmAfterFullDeletion("leased-clear", 1L, 100L)
+		assertFinalOwner(SourceWriterTransitionSpec.CELL)
+	}
+
 	private fun rearm(fault: StepsWriterTransitionFaultInjector = StepsWriterTransitionFaultInjector.NONE) =
 		SharedSourceWriterDeletionRearm(database, lifecycle,
 			StepsWriterDeletionRearm(StepsWriterTransitionState(database, catalog),
 				StepsWriterTransitionRuntimeHooks.forTest(StepsWriterTransitionTestDependencies(
 					startupGate = ReadyTrackingStartupGate, faultInjector = fault,
 				))),
+			bootClockDomainProvider = BootClockDomainProvider { "current-boot" },
+			clock = FixedClock(1_000L, 1_000L),
 		)
 
 	private suspend fun clear(operationId: String, epoch: Long, time: Long) {

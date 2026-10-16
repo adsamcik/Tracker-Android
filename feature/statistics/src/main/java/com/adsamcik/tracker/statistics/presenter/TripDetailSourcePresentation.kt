@@ -16,6 +16,7 @@ import com.adsamcik.tracker.stats.api.repository.PressureHistory
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.SessionHistory
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntry
@@ -120,81 +121,103 @@ internal fun LiveSessionHistorySnapshot.toTripDetailSourcePresentation(): TripDe
 		is HistoryCapture.ImportedSteps -> TripDetailSourcePresentation.ImportedSteps(
 			sessionHistory.steps,
 		)
-		is HistoryCapture.Exact -> {
-			val sourceSets = capture.revisions.map { revision -> revision.capturedSources }
-			when {
-				sourceSets.all { it == setOf(HistorySource.WIFI) } -> when (
-					val query = sessionHistory.sourceProducts?.wifi ?: wifi
-				) {
-					is WifiHistoryQuery.Found -> query.entry.historyUnavailableReasonOrNull()?.let {
-						reason -> TripDetailSourcePresentation.Unavailable(
-							reason = reason,
-							source = HistorySource.WIFI,
-						)
-					} ?: TripDetailSourcePresentation.WifiOnly(query.entry)
-					is WifiHistoryQuery.Failed -> TripDetailSourcePresentation.Unavailable(
-						reason = query.cause.toHistoryUnavailableReason(),
-						source = HistorySource.WIFI,
-					)
-					null,
-					WifiHistoryQuery.NotFound -> TripDetailSourcePresentation.Unavailable(
-						reason = TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-						source = HistorySource.WIFI,
-					)
-				}
-				sourceSets.all { it == setOf(HistorySource.CELL) } -> when (
-					val query = sessionHistory.sourceProducts?.cell ?: cell
-				) {
-					is CellHistoryQuery.Found -> query.entry.historyUnavailableReasonOrNull()?.let {
-						reason -> TripDetailSourcePresentation.Unavailable(
-							reason = reason,
-							source = HistorySource.CELL,
-						)
-					} ?: TripDetailSourcePresentation.CellOnly(query.entry)
-					null,
-					CellHistoryQuery.NotFound -> TripDetailSourcePresentation.Unavailable(
-						reason = TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-						source = HistorySource.CELL,
-					)
-				}
-				sourceSets.all { it == setOf(HistorySource.ACTIVITY) } -> {
-					val activityHistory = requireNotNull(
-						(
-							sessionHistory.sourceProducts?.activity ?: activity
-						) as? ActivityHistoryQuery.Found,
-					) { "Live Activity-only detail requires the common Activity product" }
-					activityHistory.entry.historyUnavailableReasonOrNull()?.let {
-						reason -> TripDetailSourcePresentation.Unavailable(
-							reason = reason,
-							source = HistorySource.ACTIVITY,
-						)
-					} ?: TripDetailSourcePresentation.ActivityOnly(activityHistory.entry)
-				}
-				sourceSets.all { it == setOf(HistorySource.STEPS) } ->
-					TripDetailSourcePresentation.StepsOnly(sessionHistory.steps)
-				sourceSets.all { it == setOf(HistorySource.PRESSURE) } -> {
-					val pressureHistory = requireNotNull(
-						(
-							sessionHistory.sourceProducts?.pressure ?: pressure
-						) as? PressureSessionHistoryQuery.Found,
-					) { "Live Pressure-only detail requires the common Pressure product" }
-					pressureHistory.history.pressure.historyUnavailableReasonOrNull()?.let {
-						reason -> TripDetailSourcePresentation.Unavailable(
-							reason = reason,
-							source = HistorySource.PRESSURE,
-						)
-					} ?: TripDetailSourcePresentation.PressureOnly(
-						pressureHistory.history.pressure,
-					)
-				}
-				sourceSets.any { HistorySource.LOCATION in it } ->
-					TripDetailSourcePresentation.Standard
-				else -> TripDetailSourcePresentation.CapturedWithoutLocation(
-					capturedSources = sourceSets.flatten().toSet(),
-				)
-			}
-		}
+		is HistoryCapture.Exact -> presentExactCapture(sessionHistory, capture)
 	}
+}
+
+private fun LiveSessionHistorySnapshot.presentExactCapture(
+	sessionHistory: SessionHistory,
+	capture: HistoryCapture.Exact,
+): TripDetailSourcePresentation {
+	val sourceSets = capture.revisions.map { revision -> revision.capturedSources }
+	return when {
+		sourceSets.all { it == setOf(HistorySource.WIFI) } -> presentWifiOnly(sessionHistory)
+		sourceSets.all { it == setOf(HistorySource.CELL) } -> presentCellOnly(sessionHistory)
+		sourceSets.all { it == setOf(HistorySource.ACTIVITY) } -> presentActivityOnly(sessionHistory)
+		sourceSets.all { it == setOf(HistorySource.STEPS) } ->
+			TripDetailSourcePresentation.StepsOnly(sessionHistory.steps)
+		sourceSets.all { it == setOf(HistorySource.PRESSURE) } -> presentPressureOnly(sessionHistory)
+		sourceSets.any { HistorySource.LOCATION in it } -> TripDetailSourcePresentation.Standard
+		else -> TripDetailSourcePresentation.CapturedWithoutLocation(sourceSets.flatten().toSet())
+	}
+}
+
+private fun LiveSessionHistorySnapshot.presentWifiOnly(
+	sessionHistory: SessionHistory,
+): TripDetailSourcePresentation {
+	return when (
+		val query = sessionHistory.sourceProducts?.wifi ?: wifi
+	) {
+		is WifiHistoryQuery.Found -> query.entry.historyUnavailableReasonOrNull()?.let {
+			reason -> TripDetailSourcePresentation.Unavailable(
+				reason = reason,
+				source = HistorySource.WIFI,
+			)
+		} ?: TripDetailSourcePresentation.WifiOnly(query.entry)
+		is WifiHistoryQuery.Failed -> TripDetailSourcePresentation.Unavailable(
+			reason = query.cause.toHistoryUnavailableReason(),
+			source = HistorySource.WIFI,
+		)
+		null,
+		WifiHistoryQuery.NotFound -> TripDetailSourcePresentation.Unavailable(
+			reason = TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+			source = HistorySource.WIFI,
+		)
+	}
+}
+
+private fun LiveSessionHistorySnapshot.presentCellOnly(
+	sessionHistory: SessionHistory,
+): TripDetailSourcePresentation {
+	return when (
+		val query = sessionHistory.sourceProducts?.cell ?: cell
+	) {
+		is CellHistoryQuery.Found -> query.entry.historyUnavailableReasonOrNull()?.let {
+			reason -> TripDetailSourcePresentation.Unavailable(
+				reason = reason,
+				source = HistorySource.CELL,
+			)
+		} ?: TripDetailSourcePresentation.CellOnly(query.entry)
+		null,
+		CellHistoryQuery.NotFound -> TripDetailSourcePresentation.Unavailable(
+			reason = TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+			source = HistorySource.CELL,
+		)
+	}
+}
+
+private fun LiveSessionHistorySnapshot.presentActivityOnly(
+	sessionHistory: SessionHistory,
+): TripDetailSourcePresentation {
+	val activityHistory = requireNotNull(
+		(
+			sessionHistory.sourceProducts?.activity ?: activity
+		) as? ActivityHistoryQuery.Found,
+	) { "Live Activity-only detail requires the common Activity product" }
+	return activityHistory.entry.historyUnavailableReasonOrNull()?.let {
+		reason -> TripDetailSourcePresentation.Unavailable(
+			reason = reason,
+			source = HistorySource.ACTIVITY,
+		)
+	} ?: TripDetailSourcePresentation.ActivityOnly(activityHistory.entry)
+}
+
+private fun LiveSessionHistorySnapshot.presentPressureOnly(
+	sessionHistory: SessionHistory,
+): TripDetailSourcePresentation {
+	val pressureHistory = requireNotNull(
+		(
+			sessionHistory.sourceProducts?.pressure ?: pressure
+		) as? PressureSessionHistoryQuery.Found,
+	) { "Live Pressure-only detail requires the common Pressure product" }
+	return pressureHistory.history.pressure.historyUnavailableReasonOrNull()?.let {
+		reason -> TripDetailSourcePresentation.Unavailable(
+			reason = reason,
+			source = HistorySource.PRESSURE,
+		)
+	} ?: TripDetailSourcePresentation.PressureOnly(
+		pressureHistory.history.pressure,
+	)
 }
 
 private fun WifiHistoryEntry.historyUnavailableReasonOrNull(): TrackingHistoryUnavailableReason? =

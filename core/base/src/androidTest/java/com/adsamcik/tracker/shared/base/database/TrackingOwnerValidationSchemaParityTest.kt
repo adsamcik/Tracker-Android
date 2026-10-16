@@ -65,6 +65,8 @@ class TrackingOwnerValidationSchemaParityTest {
 		).use(::assertOwnerValidation)
 	}
 
+	// Keep the finite valid and invalid owner-assignment matrix identical across schema paths.
+	@Suppress("LongMethod")
 	private fun assertOwnerValidation(database: SupportSQLiteDatabase) {
 		listOf(
 			"validate_pending_signal_writer_owners_insert",

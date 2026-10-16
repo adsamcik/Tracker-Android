@@ -12,6 +12,10 @@ import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
  * contract.
  */
 interface AmbientRadioMutationLeaseGuard {
+	/**
+	 * Runs the mutation atomically with the exact current all-day lease check; a stale lease never invokes
+	 * it.
+	 */
 	suspend fun <T> mutateIfCurrent(
 		identity: AmbientReconciliationIdentity,
 		mutation: suspend () -> T,
@@ -27,20 +31,26 @@ interface AmbientRadioMutationLeaseGuard {
 	): AmbientRadioLeaseMutation<T> = mutateIfCurrent(identity, mutation)
 }
 
+/** Applies the same current-lease mutation fence to automatic triggers and all-day collection. */
 interface TrackingPurposeMutationLeaseGuard : AmbientRadioMutationLeaseGuard {
+	/** Runs the mutation only while this automatic-purpose lease remains current. */
 	suspend fun <T> mutateAutomaticIfCurrent(
 		identity: com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity,
 		mutation: suspend () -> T,
 	): AmbientRadioLeaseMutation<T>
 
+	/** Runs the mutation only while this all-day source-purpose lease remains current. */
 	suspend fun <T> mutateAmbientIfCurrent(
 		identity: AmbientReconciliationIdentity,
 		mutation: suspend () -> T,
 	): AmbientRadioLeaseMutation<T>
 }
 
+/** Reports whether a guarded mutation ran or was rejected before invocation. */
 sealed interface AmbientRadioLeaseMutation<out T> {
+	/** The current-lease check accepted and the mutation returned this value. */
 	data class Applied<T>(val value: T) : AmbientRadioLeaseMutation<T>
+	/** The lease was superseded or invalid, so the mutation was not invoked. */
 	data object Stale : AmbientRadioLeaseMutation<Nothing>
 }
 

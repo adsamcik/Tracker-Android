@@ -6,11 +6,24 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.CapturedRadioFactRetentionProofEntity
 
+/**
+ * Stores per-fact radio retention witnesses separately from short-lived raw event payloads.
+ */
 @Dao
 interface CapturedRadioFactRetentionProofDao {
+	/**
+	 * Inserts [CapturedRadioFactRetentionProofEntity] rows. Existing conflicting rows remain
+	 * unchanged. An ignored insert returns -1 for that row.
+	 */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insert(proof: CapturedRadioFactRetentionProofEntity): Long
 
+	/**
+	 * Reads `captured_radio_fact_retention_proof` rows. Query conditions include `source_kind =
+	 * :sourceKind`, `writer_projection_id = :writerProjectionId`, `writer_projection_version =
+	 * :writerProjectionVersion`, `logical_fact_id = :logicalFactId`. Returns at most 1 row. Returns
+	 * null when no row matches.
+	 */
 	@Query(
 		"SELECT * FROM captured_radio_fact_retention_proof WHERE source_kind = :sourceKind " +
 			"AND writer_projection_id = :writerProjectionId " +
@@ -24,6 +37,11 @@ interface CapturedRadioFactRetentionProofDao {
 		logicalFactId: String,
 	): CapturedRadioFactRetentionProofEntity?
 
+	/**
+	 * Reads `captured_radio_fact_retention_proof` rows. Query conditions include `source_kind =
+	 * :sourceKind`, `source_event_id = :sourceEventId`. Orders by `logical_fact_id`. Returns at most
+	 * 2 rows.
+	 */
 	@Query(
 		"SELECT * FROM captured_radio_fact_retention_proof " +
 			"WHERE source_kind = :sourceKind AND source_event_id = :sourceEventId " +
@@ -38,6 +56,11 @@ interface CapturedRadioFactRetentionProofDao {
 	suspend fun byEvent(sourceKind: Int, sourceEventId: String): CapturedRadioFactRetentionProofEntity? =
 		eventCandidates(sourceKind, sourceEventId).singleOrNull()
 
+	/**
+	 * Reads `captured_radio_fact_retention_proof` rows. Query conditions include `source_kind =
+	 * :sourceKind`, `source_event_id = :sourceEventId`, `logical_tracking_id = :logicalTrackingId`,
+	 * `service_run_id = :serviceRunId`. Orders by `logical_fact_id`. Returns at most 2 rows.
+	 */
 	@Query(
 		"SELECT * FROM captured_radio_fact_retention_proof " +
 			"WHERE source_kind = :sourceKind AND source_event_id = :sourceEventId " +
@@ -55,6 +78,11 @@ interface CapturedRadioFactRetentionProofDao {
 		captureConsentEpoch: Long,
 	): List<CapturedRadioFactRetentionProofEntity>
 
+	/**
+	 * Reports whether a row exists within the query scope. Query conditions include `source_kind =
+	 * :sourceKind`, `source_event_id = :sourceEventId`, `source_admission_ordinal !=
+	 * :sourceAdmissionOrdinal`, `collected_data_epoch != :collectedDataEpoch`.
+	 */
 	@Query(
 		"SELECT EXISTS(SELECT 1 FROM captured_radio_fact_retention_proof " +
 			"WHERE source_kind = :sourceKind AND source_event_id = :sourceEventId " +
@@ -70,12 +98,23 @@ interface CapturedRadioFactRetentionProofDao {
 		walIntegrityIdentity: String,
 	): Boolean
 
+	/**
+	 * Reads `captured_radio_fact_retention_proof` rows. Query conditions include `source_kind =
+	 * :sourceKind`. Orders by `source_admission_ordinal, logical_fact_id`.
+	 */
 	@Query(
 		"SELECT * FROM captured_radio_fact_retention_proof " +
 			"WHERE source_kind = :sourceKind ORDER BY source_admission_ordinal, logical_fact_id",
 	)
 	suspend fun allForSource(sourceKind: Int): List<CapturedRadioFactRetentionProofEntity>
 
+	/**
+	 * Reads `captured_radio_fact_retention_proof` rows. Query conditions include `source_kind =
+	 * :sourceKind`, `logical_tracking_id = :logicalTrackingId`, `service_run_id = :serviceRunId`,
+	 * `collected_data_epoch = :collectedDataEpoch`. Orders by `source_admission_ordinal,
+	 * logical_fact_id`. Returns at most 1 row. Returns null when no row matches. Timestamp bounds use
+	 * UTC milliseconds.
+	 */
 	@Query(
 		"SELECT * FROM captured_radio_fact_retention_proof " +
 			"WHERE source_kind = :sourceKind AND logical_tracking_id = :logicalTrackingId " +
@@ -95,6 +134,12 @@ interface CapturedRadioFactRetentionProofDao {
 		retainedFromMs: Long,
 	): CapturedRadioFactRetentionProofEntity?
 
+	/**
+	 * Reads `captured_radio_fact_retention_proof` rows. Query conditions include `source_kind =
+	 * :sourceKind`, `source_admission_ordinal > :afterAdmissionOrdinal`, `source_admission_ordinal =
+	 * :afterAdmissionOrdinal`, `logical_fact_id > :afterLogicalFactId`. Orders by
+	 * `source_admission_ordinal, logical_fact_id`. Returns at most `limit` rows.
+	 */
 	@Query(
 		"SELECT * FROM captured_radio_fact_retention_proof " +
 			"WHERE source_kind = :sourceKind AND (:afterAdmissionOrdinal IS NULL OR " +
@@ -110,14 +155,24 @@ interface CapturedRadioFactRetentionProofDao {
 		limit: Int,
 	): List<CapturedRadioFactRetentionProofEntity>
 
+	/**
+	 * Deletes `captured_radio_fact_retention_proof` rows matching the supplied scope. Query
+	 * conditions include `source_kind = :sourceKind`. Returns the affected row count.
+	 */
 	@Query(
 		"DELETE FROM captured_radio_fact_retention_proof WHERE source_kind = :sourceKind",
 	)
 	suspend fun deleteSource(sourceKind: Int): Int
 
+	/**
+	 * Counts rows in `captured_radio_fact_retention_proof`.
+	 */
 	@Query("SELECT COUNT(*) FROM captured_radio_fact_retention_proof")
 	suspend fun countAll(): Long
 
+	/**
+	 * Deletes `captured_radio_fact_retention_proof` rows.
+	 */
 	@Query("DELETE FROM captured_radio_fact_retention_proof")
 	fun deleteAll()
 }

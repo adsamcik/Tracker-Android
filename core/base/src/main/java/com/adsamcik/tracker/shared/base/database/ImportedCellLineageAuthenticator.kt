@@ -22,6 +22,8 @@ internal class ImportedCellLineageFailure(
 ) : IllegalArgumentException(reason.name)
 
 /** Reconstructs every retained row back through the one canonical Cell-v1 value contract. */
+// One canonical Cell lineage contract owns bounds, receipts, reconstruction and aggregate relationships.
+@Suppress("TooManyFunctions")
 internal object ImportedCellLineageAuthenticator {
 	fun authenticate(
 		identity: String,
@@ -32,85 +34,163 @@ internal object ImportedCellLineageAuthenticator {
 		observations: List<ImportedCellObservationEntity>,
 		retainedState: SourceEvidenceState? = null,
 	): AuthenticatedImportedCellLineage {
-		if (headers.size > ImportedCellDao.MAX_REVISIONS_PER_ENTRY) overflow()
-		if (receipts.size > ImportedCellDao.MAX_RECEIPTS_PER_ENTRY) overflow()
-		if (runs.size > ImportedCellDao.MAX_RUN_ROWS_PER_LINEAGE) overflow()
-		if (observations.size > ImportedCellDao.MAX_OBSERVATION_ROWS_PER_LINEAGE) overflow()
+		authenticateLineageBounds(headers, receipts, runs, observations)
 		if (headers.isEmpty()) {
-			if (receipts.isNotEmpty() || runs.isNotEmpty() || observations.isNotEmpty()) corrupt()
+			if (receipts.isNotEmpty() || runs.isNotEmpty() || observations.isNotEmpty()) {
+				corrupt()
+			}
 			return AuthenticatedImportedCellLineage(emptyList(), emptyList())
 		}
 
+		authenticateRevisionHeaders(identity, expectedCollectedDataEpoch, headers, retainedState)
+		authenticateRevisionReceipts(identity, expectedCollectedDataEpoch, headers, receipts, retainedState)
+
+		authenticateChildOwnership(headers, runs, observations, expectedCollectedDataEpoch, retainedState)
+
+		val reconstructed = headers.map { header -> reconstructRevision(header, runs, observations) }
+		reconstructed.zipWithNext().forEach { (previous, next) ->
+			if (!next.entry.isMonotonicCorrectionOf(previous.entry)) {
+				corrupt()
+			}
+		}
+		return AuthenticatedImportedCellLineage(reconstructed, receipts)
+	}
+
+	private fun authenticateLineageBounds(
+		headers: List<ImportedCellEntryRevisionEntity>,
+		receipts: List<ImportedCellReceiptEntity>,
+		runs: List<ImportedCellRunEntity>,
+		observations: List<ImportedCellObservationEntity>,
+	) {
+		if (headers.size > ImportedCellDao.MAX_REVISIONS_PER_ENTRY) {
+			overflow()
+		}
+		if (receipts.size > ImportedCellDao.MAX_RECEIPTS_PER_ENTRY) {
+			overflow()
+		}
+		if (runs.size > ImportedCellDao.MAX_RUN_ROWS_PER_LINEAGE) {
+			overflow()
+		}
+		if (observations.size > ImportedCellDao.MAX_OBSERVATION_ROWS_PER_LINEAGE) {
+			overflow()
+		}
+	}
+
+	private fun authenticateRevisionHeaders(
+		identity: String,
+		expectedCollectedDataEpoch: Long,
+		headers: List<ImportedCellEntryRevisionEntity>,
+		retainedState: SourceEvidenceState?,
+	) {
 		val expectedRevisions = (1L..headers.size.toLong()).toList()
 		if (headers.map { it.importRevision } != expectedRevisions ||
 			headers.map { it.contentChecksum }.distinct().size != headers.size ||
 			headers.any {
-				it.identity != identity || !(retainedState?.acceptsRetainedEpoch(it.collectedDataEpoch) ?: (it.collectedDataEpoch == expectedCollectedDataEpoch))
+				it.identity != identity || !(retainedState?.acceptsRetainedEpoch(it.collectedDataEpoch) ?:
+                    (it.collectedDataEpoch == expectedCollectedDataEpoch))
 			}
-		) corrupt()
+		) {
+			corrupt()
+		}
+	}
+
+	private fun authenticateRevisionReceipts(
+		identity: String,
+		expectedCollectedDataEpoch: Long,
+		headers: List<ImportedCellEntryRevisionEntity>,
+		receipts: List<ImportedCellReceiptEntity>,
+		retainedState: SourceEvidenceState?,
+	) {
 		if (receipts.any {
-			it.entryIdentity != identity || !(retainedState?.acceptsRetainedEpoch(it.collectedDataEpoch) ?: (it.collectedDataEpoch == expectedCollectedDataEpoch))
-		}) corrupt()
-		if (receipts.distinctBy { it.importJobId to it.importEntryKey }.size != receipts.size) corrupt()
+			it.entryIdentity != identity || !(retainedState?.acceptsRetainedEpoch(it.collectedDataEpoch) ?:
+                (it.collectedDataEpoch == expectedCollectedDataEpoch))
+		}) {
+			corrupt()
+		}
+		if (receipts.distinctBy { it.importJobId to it.importEntryKey }.size != receipts.size) {
+			corrupt()
+		}
 		val headerByRevision = headers.associateBy { it.importRevision }
 		if (receipts.any { receipt ->
 			val header = headerByRevision[receipt.entryImportRevision]
 			header == null || receipt.entryContentChecksum != header.contentChecksum
-		}) corrupt()
+		}) {
+			corrupt()
+		}
 		if (headers.any { header ->
-			receipts.none { receipt ->
-				receipt.entryImportRevision == header.importRevision &&
-					receipt.importJobId == header.importJobId &&
-					receipt.importEntryKey == header.importEntryKey &&
-					receipt.importSourceName == header.importSourceName &&
-					receipt.receivedAtMs == header.receivedAtMs &&
-					receipt.entryContentChecksum == header.contentChecksum
-			}
-		}) corrupt()
+			receipts.none { receipt -> receipt.exactlyOwns(header) }
+		}) {
+			corrupt()
+		}
+	}
 
+	private fun ImportedCellReceiptEntity.exactlyOwns(header: ImportedCellEntryRevisionEntity): Boolean =
+		entryImportRevision == header.importRevision &&
+			importJobId == header.importJobId &&
+			importEntryKey == header.importEntryKey &&
+			importSourceName == header.importSourceName &&
+			receivedAtMs == header.receivedAtMs &&
+			entryContentChecksum == header.contentChecksum
+
+	private fun authenticateChildOwnership(
+		headers: List<ImportedCellEntryRevisionEntity>,
+		runs: List<ImportedCellRunEntity>,
+		observations: List<ImportedCellObservationEntity>,
+		expectedCollectedDataEpoch: Long,
+		retainedState: SourceEvidenceState?,
+	) {
 		val headerKeys = headers.map { it.identity to it.importRevision }.toSet()
 		if (runs.any {
 			(it.entryIdentity to it.entryImportRevision) !in headerKeys ||
-				!(retainedState?.acceptsRetainedEpoch(it.collectedDataEpoch) ?: (it.collectedDataEpoch == expectedCollectedDataEpoch)) || it.scopeDeletionGeneration != 0L
-		}) corrupt()
+				!(retainedState?.acceptsRetainedEpoch(it.collectedDataEpoch) ?:
+                    (it.collectedDataEpoch == expectedCollectedDataEpoch)) || it.scopeDeletionGeneration != 0L
+		}) {
+			corrupt()
+		}
 		val runKeys = runs.map { Triple(it.entryIdentity, it.entryImportRevision, it.identity) }.toSet()
-		if (runKeys.size != runs.size) corrupt()
+		if (runKeys.size != runs.size) {
+			corrupt()
+		}
 		if (observations.any {
 			Triple(it.entryIdentity, it.entryImportRevision, it.runIdentity) !in runKeys
-		}) corrupt()
+		}) {
+			corrupt()
+		}
+	}
 
-		val reconstructed = headers.map { header ->
-			val revisionRuns = runs.filter { it.entryImportRevision == header.importRevision }
-			if (revisionRuns.size !in 1..CellCapturedPortableFormatV1.MAX_RUNS_PER_ENTRY) corrupt()
-			val values = revisionRuns.map { run ->
-				val children = observations
-					.filter {
-						it.entryImportRevision == header.importRevision && it.runIdentity == run.identity
-					}
-					.map(::toPortableObservation)
-					.sortedWith(PORTABLE_OBSERVATION_ORDER)
-				toPortableRun(run, children)
-			}.sortedWith(PORTABLE_RUN_ORDER)
-			val entry = PortableCapturedCellEntryV1(
-				format = header.sourceFormat,
-				schemaVersion = header.sourceSchemaVersion,
-				identity = PortableCellOpaqueIdentity(header.identity),
-				contentChecksum = PortableCellDigest(header.contentChecksum),
-				sessionMode = PortableCellSessionMode.valueOf(header.sessionMode),
-				startTimeMs = header.startTimeMs,
-				endTimeMs = header.endTimeMs,
-				subscriptionGrouping = PortableCellSubscriptionGrouping.valueOf(
-					header.subscriptionGrouping,
-				),
-				runs = values,
-			)
-			authenticateEntryGraph(entry)
-			AuthenticatedImportedCellRevision(header, entry)
+	private fun reconstructRevision(
+		header: ImportedCellEntryRevisionEntity,
+		runs: List<ImportedCellRunEntity>,
+		observations: List<ImportedCellObservationEntity>,
+	): AuthenticatedImportedCellRevision {
+		val revisionRuns = runs.filter { it.entryImportRevision == header.importRevision }
+		if (revisionRuns.size !in 1..CellCapturedPortableFormatV1.MAX_RUNS_PER_ENTRY) {
+			corrupt()
 		}
-		reconstructed.zipWithNext().forEach { (previous, next) ->
-			if (!next.entry.isMonotonicCorrectionOf(previous.entry)) corrupt()
-		}
-		return AuthenticatedImportedCellLineage(reconstructed, receipts)
+		val values = revisionRuns.map { run ->
+			val children = observations
+				.filter {
+					it.entryImportRevision == header.importRevision && it.runIdentity == run.identity
+				}
+				.map(::toPortableObservation)
+				.sortedWith(PORTABLE_OBSERVATION_ORDER)
+			toPortableRun(run, children)
+		}.sortedWith(PORTABLE_RUN_ORDER)
+		val entry = PortableCapturedCellEntryV1(
+			format = header.sourceFormat,
+			schemaVersion = header.sourceSchemaVersion,
+			identity = PortableCellOpaqueIdentity(header.identity),
+			contentChecksum = PortableCellDigest(header.contentChecksum),
+			sessionMode = PortableCellSessionMode.valueOf(header.sessionMode),
+			startTimeMs = header.startTimeMs,
+			endTimeMs = header.endTimeMs,
+			subscriptionGrouping = PortableCellSubscriptionGrouping.valueOf(
+				header.subscriptionGrouping,
+			),
+			runs = values,
+		)
+		authenticateEntryGraph(entry)
+		return AuthenticatedImportedCellRevision(header, entry)
 	}
 
 	private fun toPortableObservation(row: ImportedCellObservationEntity) =
@@ -156,7 +236,9 @@ internal object ImportedCellLineageAuthenticator {
 			qualityFlags = row.qualityFlags,
 			qualityConfidence = row.qualityConfidence,
 		).also {
-			if (it.latestPossibleTimeMs != exactLatest(it.observedTimeMs, it.wallTimeUncertaintyMs)) corrupt()
+			if (it.latestPossibleTimeMs != exactLatest(it.observedTimeMs, it.wallTimeUncertaintyMs)) {
+				corrupt()
+			}
 		}
 
 	private fun toPortableRun(
@@ -182,16 +264,22 @@ internal object ImportedCellLineageAuthenticator {
 		if (entry.runs.size > CellCapturedPortableFormatV1.MAX_RUNS_PER_ENTRY) {
 			throw ImportedCellLineageFailure(PortableCellImportUnverifiableReason.RUN_OVERFLOW)
 		}
+		authenticateIncomingObservationBounds(entry)
+		authenticateEntryGraph(entry)
+	}
+
+	private fun authenticateIncomingObservationBounds(entry: PortableCapturedCellEntryV1) {
 		if (entry.runs.any {
 			it.observations.size > CellCapturedPortableFormatV1.MAX_OBSERVATIONS_PER_RUN
-		}) throw ImportedCellLineageFailure(PortableCellImportUnverifiableReason.OBSERVATION_OVERFLOW)
+		}) {
+			throw ImportedCellLineageFailure(PortableCellImportUnverifiableReason.OBSERVATION_OVERFLOW)
+		}
 		val observationCount = entry.runs.sumOf { it.observations.size }
 		if (observationCount > CellCapturedPortableFormatV1.MAX_OBSERVATIONS_PER_ENTRY) {
 			throw ImportedCellLineageFailure(
 				PortableCellImportUnverifiableReason.TOTAL_OBSERVATION_OVERFLOW,
 			)
 		}
-		authenticateEntryGraph(entry)
 	}
 
 	private fun authenticateEntryGraph(entry: PortableCapturedCellEntryV1) {
@@ -204,7 +292,9 @@ internal object ImportedCellLineageAuthenticator {
 		if (runIdentities.distinct().size != runIdentities.size ||
 			scopes.distinct().size != scopes.size ||
 			observationIdentities.distinct().size != observationIdentities.size
-		) corrupt()
+		) {
+			corrupt()
+		}
 		val opaque = buildSet {
 			add(entry.identity.value)
 			addAll(runIdentities)
@@ -212,37 +302,53 @@ internal object ImportedCellLineageAuthenticator {
 		}
 		if (opaque.size != 1 + runIdentities.size + observationIdentities.size ||
 			scopes.any { it in opaque }
-		) corrupt()
-		entry.runs.forEach { run ->
-			val byIdentity = run.observations.associateBy { it.identity.value }
-			run.observations.forEach { dependent ->
-				if (dependent.coverageStartTimeMs > Math.subtractExact(
-						dependent.observedTimeMs,
-						dependent.wallTimeUncertaintyMs,
-					) || dependent.knownQualityObservationCount != Math.subtractExact(
-						dependent.observationCount,
-						dependent.qualityUnknownCount,
-					) || dependent.weakObservationCount != Math.addExact(
-						dependent.qualityNoneOrUnknownCount,
-						dependent.qualityPoorCount,
-					)
-				) corrupt()
-				if (dependent.latestPossibleTimeMs != exactLatest(
-						dependent.observedTimeMs,
-						dependent.wallTimeUncertaintyMs,
-					)
-				) corrupt()
-				val ownerIdentity = dependent.aggregateOwnerIdentity?.value ?: return@forEach
-				val owner = byIdentity[ownerIdentity] ?: corrupt()
-				// A later coverage callback reuses content, but keeps its own time and zone.
-				if (owner.aggregateOwnerIdentity != null ||
-					owner.semanticRevision != dependent.aggregateOwnerSemanticRevision ||
-					!dependent.hasSameIdentityFreeAggregateAs(owner)
-				) corrupt()
+		) {
+			corrupt()
+		}
+		entry.runs.forEach(::authenticateRunObservations)
+	}
+
+	private fun authenticateRunObservations(run: PortableCapturedCellRunV1) {
+		val byIdentity = run.observations.associateBy { it.identity.value }
+		run.observations.forEach { dependent ->
+			authenticateObservationBoundsAndCounts(dependent)
+			val ownerIdentity = dependent.aggregateOwnerIdentity?.value ?: return@forEach
+			val owner = byIdentity[ownerIdentity] ?: corrupt()
+			// A later coverage callback reuses content, but keeps its own time and zone.
+			if (owner.aggregateOwnerIdentity != null ||
+				owner.semanticRevision != dependent.aggregateOwnerSemanticRevision ||
+				!dependent.hasSameIdentityFreeAggregateAs(owner)
+			) {
+				corrupt()
 			}
 		}
 	}
 
+	private fun authenticateObservationBoundsAndCounts(dependent: PortableCapturedCellObservationV1) {
+		if (dependent.coverageStartTimeMs > Math.subtractExact(
+				dependent.observedTimeMs,
+				dependent.wallTimeUncertaintyMs,
+			) || dependent.knownQualityObservationCount != Math.subtractExact(
+				dependent.observationCount,
+				dependent.qualityUnknownCount,
+			) || dependent.weakObservationCount != Math.addExact(
+				dependent.qualityNoneOrUnknownCount,
+				dependent.qualityPoorCount,
+			)
+		) {
+			corrupt()
+		}
+		if (dependent.latestPossibleTimeMs != exactLatest(
+				dependent.observedTimeMs,
+				dependent.wallTimeUncertaintyMs,
+			)
+		) {
+			corrupt()
+		}
+	}
+
+	// Compares the complete immutable aggregate tuple without hiding individual signal counts.
+	@Suppress("CyclomaticComplexMethod")
 	private fun PortableCapturedCellObservationV1.hasSameIdentityFreeAggregateAs(
 		other: PortableCapturedCellObservationV1,
 	): Boolean = observationCount == other.observationCount &&
@@ -275,56 +381,117 @@ internal object ImportedCellLineageAuthenticator {
 internal fun PortableCapturedCellEntryV1.isMonotonicCorrectionOf(
 	previous: PortableCapturedCellEntryV1,
 ): Boolean {
-	if (isAdditiveReadingSelectionOf(previous)) return true
-	if (this == previous || contentChecksum == previous.contentChecksum) return false
-	if (identity != previous.identity || sessionMode != previous.sessionMode ||
-		startTimeMs != previous.startTimeMs || endTimeMs != previous.endTimeMs ||
-		subscriptionGrouping != previous.subscriptionGrouping || runs.size != previous.runs.size
-	) return false
+	if (isAdditiveReadingSelectionOf(previous)) {
+		return true
+	}
+	if (this == previous || contentChecksum == previous.contentChecksum || !hasSameCellCorrectionEntryShape(previous)) {
+		return false
+	}
 	var changed = false
 	for ((current, prior) in runs.zip(previous.runs)) {
-		if (current.identity != prior.identity ||
-			current.deletionScopeDigest != prior.deletionScopeDigest ||
-			current.startTimeMs != prior.startTimeMs || current.endTimeMs != prior.endTimeMs ||
-			current.captureCoverage != prior.captureCoverage ||
-			current.acquisitionCompleteness != prior.acquisitionCompleteness ||
-			current.subscriptionGrouping != prior.subscriptionGrouping ||
-			(prior.retentionLoss && !current.retentionLoss)
-		) return false
-		if (prior.availability == PortableCellRunAvailability.NOT_CAPTURED ||
-			prior.availability == PortableCellRunAvailability.NO_RETAINED_OBSERVATION
-		) {
-			if (current != prior) return false
-			continue
-		}
-		if (current.availability != prior.availability ||
-			current.retentionLoss != prior.retentionLoss
-		) changed = true
-		val priorByIdentity = prior.observations.associateBy { it.identity }
-		val currentByIdentity = current.observations.associateBy { it.identity }
-		if (!priorByIdentity.keys.containsAll(currentByIdentity.keys)) return false
-		if (priorByIdentity.size != currentByIdentity.size) {
-			if (!current.retentionLoss) return false
-			changed = true
-		}
-		for ((identity, observation) in currentByIdentity) {
-			val before = priorByIdentity.getValue(identity)
-			if (observation.aggregateOwnerIdentity != before.aggregateOwnerIdentity) return false
-			if (observation.semanticRevision == before.semanticRevision) {
-				if (observation != before) return false
-				continue
-			}
-			val nextRevision = try {
-				Math.addExact(before.semanticRevision, 1L)
-			} catch (_: ArithmeticException) {
-				return false
-			}
-			if (observation.semanticRevision != nextRevision) return false
-			if (!observation.hasMaterialDifferenceFrom(before)) return false
+		val runChanged = cellRunCorrectionChanged(current, prior) ?: return false
+		if (runChanged) {
 			changed = true
 		}
 	}
 	return changed
+}
+
+// A correction retains this fixed entry identity, measurement bounds and run count.
+@Suppress("ComplexCondition")
+private fun PortableCapturedCellEntryV1.hasSameCellCorrectionEntryShape(
+	previous: PortableCapturedCellEntryV1,
+): Boolean = identity == previous.identity && sessionMode == previous.sessionMode &&
+	startTimeMs == previous.startTimeMs && endTimeMs == previous.endTimeMs &&
+	subscriptionGrouping == previous.subscriptionGrouping && runs.size == previous.runs.size
+
+/** Null rejects a non-monotonic run; false is a valid unchanged run. */
+private fun cellRunCorrectionChanged(
+	current: PortableCapturedCellRunV1, prior: PortableCapturedCellRunV1,
+): Boolean? {
+	if (hasConflictingCellRunCorrectionShape(current, prior)) {
+		return null
+	}
+	if (prior.availability == PortableCellRunAvailability.NOT_CAPTURED ||
+		prior.availability == PortableCellRunAvailability.NO_RETAINED_OBSERVATION
+	) {
+		return if (current == prior) {
+			false
+		} else {
+			null
+		}
+	}
+	val observationsChanged = cellObservationCorrectionsChanged(current, prior) ?: return null
+	return current.availability != prior.availability || current.retentionLoss != prior.retentionLoss ||
+		observationsChanged
+}
+
+private fun cellObservationCorrectionsChanged(
+	current: PortableCapturedCellRunV1, prior: PortableCapturedCellRunV1,
+): Boolean? {
+	val priorByIdentity = prior.observations.associateBy { it.identity }
+	val currentByIdentity = current.observations.associateBy { it.identity }
+	if (!priorByIdentity.keys.containsAll(currentByIdentity.keys)) {
+		return null
+	}
+	var changed = false
+	if (priorByIdentity.size != currentByIdentity.size) {
+		if (!current.retentionLoss) {
+			return null
+		}
+		changed = true
+	}
+	for ((identity, observation) in currentByIdentity) {
+		val before = priorByIdentity.getValue(identity)
+		if (!observation.isValidCellObservationCorrectionOf(before)) {
+			return null
+		}
+		if (observation.semanticRevision != before.semanticRevision) {
+			changed = true
+		}
+	}
+	return changed
+}
+
+// The full run identity, measurement and capture tuple is immutable; keep its fields visible together.
+@Suppress("ComplexCondition")
+private fun hasConflictingCellRunCorrectionShape(
+	current: PortableCapturedCellRunV1,
+	prior: PortableCapturedCellRunV1,
+): Boolean = current.identity != prior.identity ||
+	current.deletionScopeDigest != prior.deletionScopeDigest ||
+	current.startTimeMs != prior.startTimeMs || current.endTimeMs != prior.endTimeMs ||
+	current.captureCoverage != prior.captureCoverage ||
+	current.acquisitionCompleteness != prior.acquisitionCompleteness ||
+	current.subscriptionGrouping != prior.subscriptionGrouping ||
+	(prior.retentionLoss && !current.retentionLoss)
+
+// Preserve rejection priority for aggregate owner, unchanged revision and exact material successor.
+@Suppress("ReturnCount")
+private fun PortableCapturedCellObservationV1.isValidCellObservationCorrectionOf(
+	before: PortableCapturedCellObservationV1,
+): Boolean {
+	if (aggregateOwnerIdentity != before.aggregateOwnerIdentity) {
+		return false
+	}
+	if (semanticRevision == before.semanticRevision) {
+		if (this != before) {
+			return false
+		}
+		return true
+	}
+	val nextRevision = try {
+		Math.addExact(before.semanticRevision, 1L)
+	} catch (_: ArithmeticException) {
+		return false
+	}
+	if (semanticRevision != nextRevision) {
+		return false
+	}
+	if (!hasMaterialDifferenceFrom(before)) {
+		return false
+	}
+	return true
 }
 
 private val PORTABLE_OBSERVATION_ORDER = compareBy<PortableCapturedCellObservationV1>(

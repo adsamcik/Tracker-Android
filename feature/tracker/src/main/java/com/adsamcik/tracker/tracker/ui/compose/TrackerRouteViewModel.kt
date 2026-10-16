@@ -33,6 +33,7 @@ class TrackerRouteViewModel @Inject constructor(
     val stepsToday = todayStepsDisplay.observe()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0L, 0L), StepsDailyDisplay.Materializing)
 
+    /** Refreshes the saved Steps display for the current local day independently of session capture. */
     fun refreshStepsToday() = todayStepsDisplay.refresh()
 
     val recentTrips = recentTripsRepository.observeRecentTrips(RECENT_TRIP_LIMIT)

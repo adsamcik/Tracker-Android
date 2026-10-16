@@ -62,10 +62,12 @@ class ProviderStepsSessionLifecycle @Inject constructor(
 		withContext(dispatchers.io) {
 			val row = databaseProvider.get().sourceSessionDao().activeSession() ?: return@withContext null
 			val command = TrackingStartCommand(row.lifecycleLeaseGeneration.takeIf { it > 0L } ?: return@withContext null)
-			if (row.sessionMode != LogicalTrackingSessionEntity.MODE_PROVIDER_STEPS || row.state != "ACTIVE" ||
-				row.currentServiceRunId != null || row.clockDomainId != boot.current() ||
-				!commands.isAcceptedStart(command) || commands.resolveStart(command) !=
-					com.adsamcik.tracker.tracker.resilience.TrackingStartCommandDisposition.Allowed) return@withContext null
+			val matchesSession = row.sessionMode == LogicalTrackingSessionEntity.MODE_PROVIDER_STEPS &&
+				row.state == "ACTIVE" && row.currentServiceRunId == null && row.clockDomainId == boot.current()
+			if (!matchesSession || !commands.isAcceptedStart(command) || commands.resolveStart(command) !=
+					com.adsamcik.tracker.tracker.resilience.TrackingStartCommandDisposition.Allowed) {
+				return@withContext null
+			}
 			com.adsamcik.tracker.tracker.api.TrackingStartRequest(command, isUserInitiated = true, isAmbient = false,
 				providerStepsContinuation = com.adsamcik.tracker.tracker.api.ProviderStepsSessionContinuation(
 					row.logicalTrackingId, row.lifecycleRevision, command.generation, row.clockDomainId))
@@ -79,7 +81,9 @@ class ProviderStepsSessionLifecycle @Inject constructor(
 			val database = databaseProvider.get()
 			database.withTransaction {
 				val dao = database.sourceSessionDao()
-				if (dao.activeSession() != null) return@withTransaction TrackingStartPreparationResult.AlreadyActive
+				if (dao.activeSession() != null) {
+					return@withTransaction TrackingStartPreparationResult.AlreadyActive
+				}
 				val id = "provider-steps:${UUID.randomUUID()}"
 				val now = clock.currentTimeMillis()
 				dao.insertSession(LogicalTrackingSessionEntity(
@@ -106,13 +110,17 @@ class ProviderStepsSessionLifecycle @Inject constructor(
 
 	internal suspend fun accept(token: PreparedTrackingStartToken, commandGeneration: Long): Boolean =
 		withContext(dispatchers.io) {
-			if (!isAvailable()) return@withContext false
+			if (!isAvailable()) {
+				return@withContext false
+			}
 			val database = databaseProvider.get()
 			database.withTransaction {
 				val dao = database.sourceSessionDao()
 				val row = dao.session(token.value) ?: return@withTransaction false
 				if (!matches(row, commandGeneration) || row.state != "STARTING" ||
-					row.clockDomainId != boot.current()) return@withTransaction false
+					row.clockDomainId != boot.current()) {
+					return@withTransaction false
+				}
 				dao.updateSession(row.copy(state = "ACTIVE", lifecycleRevision = row.lifecycleRevision + 1L)) == 1
 			}
 		}
@@ -165,9 +173,15 @@ class ProviderStepsSessionLifecycle @Inject constructor(
 		}
 	}
 
+	/**
+	 * Observes accepted provider-only Steps sessions while startup is ready; emits null when none is
+	 * usable.
+	 */
 	@OptIn(ExperimentalCoroutinesApi::class)
 	fun observeSessionInfo(): Flow<TrackerSessionInfo?> = startup.runtimeReadyChanges.flatMapLatest {
-		if (!startup.isReady) return@flatMapLatest flowOf(null)
+		if (!startup.isReady) {
+			return@flatMapLatest flowOf(null)
+		}
 		val generation = startup.currentGeneration
 		withContext(dispatchers.io) { databaseProvider.get() }.invalidationTracker
 			.createFlow("logical_tracking_session", "source_service_run", emitInitialState = true)
@@ -183,22 +197,31 @@ class ProviderStepsSessionLifecycle @Inject constructor(
 					}
 				}
 			}.catch { failure ->
-				if (failure is CancellationException) throw failure
+				if (failure is CancellationException) {
+					throw failure
+				}
 				emit(null)
 			}
 	}.distinctUntilChanged()
 
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	private suspend fun isAcceptedOrganization(row: LogicalTrackingSessionEntity): Boolean {
 		if (row.sessionMode == LogicalTrackingSessionEntity.MODE_PROVIDER_STEPS && row.state == "ACTIVE") {
 			return commands.isAcceptedStart(TrackingStartCommand(row.lifecycleLeaseGeneration))
 		}
-		if (row.state !in setOf("STARTING", "ACTIVE")) return false
+		if (row.state !in setOf("STARTING", "ACTIVE")) {
+			return false
+		}
+		return isAcceptedProviderJoin(row)
+	}
+
+	private suspend fun isAcceptedProviderJoin(row: LogicalTrackingSessionEntity): Boolean {
 		val dao = databaseProvider.get().sourceSessionDao()
 		val run = row.currentServiceRunId?.let { dao.serviceRun(it) } ?: return false
 		val manifest = dao.manifest(row.logicalTrackingId, run.preparedManifestRevision) ?: return false
-		return manifest.changeReason == "PROVIDER_STEPS_JOIN" && manifest.serviceRunId == run.serviceRunId &&
-			row.currentManifestRevision == run.preparedManifestRevision && run.startCommandGeneration > 0L &&
-			commands.isAcceptedStart(TrackingStartCommand(run.startCommandGeneration))
+		val matchesJoin = manifest.changeReason == "PROVIDER_STEPS_JOIN" && manifest.serviceRunId == run.serviceRunId &&
+			row.currentManifestRevision == run.preparedManifestRevision && run.startCommandGeneration > 0L
+		return matchesJoin && commands.isAcceptedStart(TrackingStartCommand(run.startCommandGeneration))
 	}
 
 	private fun matches(row: LogicalTrackingSessionEntity, generation: Long): Boolean =

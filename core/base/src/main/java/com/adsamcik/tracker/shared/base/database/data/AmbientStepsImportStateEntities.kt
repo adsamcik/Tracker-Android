@@ -113,10 +113,14 @@ data class AmbientStepsImportCursorEntity(
 		require(status in STATUSES)
 		require(updatedAtMs >= lastObservedAtMs)
 		require(retentionScope == AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT)
-		require(retentionPolicyId.isNotBlank() && retentionPolicyId.length <= 256)
+		require(retentionPolicyId.isNotBlank() && retentionPolicyId.length <= MAX_POLICY_ID_LENGTH)
 		require(retentionApprovalRevision > 0L)
 	}
 
+	/**
+	 * Stable persisted codes, including `STATUS_ACTIVE`, `STATUS_RETIRED`,
+	 * `PROVIDER_HEALTH_CONNECT_MOBILE_STEPS`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val STATUS_ACTIVE = "ACTIVE"
 		const val STATUS_RETIRED = "RETIRED"
@@ -131,6 +135,7 @@ data class AmbientStepsImportCursorEntity(
 		)
 		private val STATUSES = setOf(STATUS_ACTIVE, STATUS_RETIRED)
 		private val AUTHORIZATION_FINGERPRINT = Regex("[0-9a-f]{64}")
+		private const val MAX_POLICY_ID_LENGTH = 256
 		private const val MILLIS_PER_SECOND = 1_000L
 
 		/** Smallest whole-second provider boundary that cannot include pre-authorization data. */
@@ -142,7 +147,9 @@ data class AmbientStepsImportCursorEntity(
 			require(authorizationEffectiveWallTimeMs >= 0L)
 			val boundary = maxOf(registrationAcceptedAtMs, authorizationEffectiveWallTimeMs)
 			val remainder = boundary % MILLIS_PER_SECOND
-			return if (remainder == 0L) boundary else {
+			return if (remainder == 0L) {
+				boundary
+			} else {
 				Math.addExact(boundary, MILLIS_PER_SECOND - remainder)
 			}
 		}
@@ -259,6 +266,11 @@ data class AmbientStepsImportGapEntity(
 		}
 	}
 
+	/**
+	 * Stable persisted codes, including `REASON_PROVIDER_NO_EVIDENCE`,
+	 * `REASON_PROVIDER_RETENTION_LOSS`, `REASON_PROCESS_ABSENCE`, and any identity-bound record
+	 * factories.
+	 */
 	companion object {
 		const val REASON_PROVIDER_NO_EVIDENCE = "PROVIDER_NO_EVIDENCE"
 		const val REASON_PROVIDER_RETENTION_LOSS = "PROVIDER_RETENTION_LOSS"
@@ -292,6 +304,10 @@ data class AmbientStepsImportGapEntity(
 
 /** Stable retry identity for one exact Ambient Steps discontinuity. */
 object AmbientStepsImportGapIntegrity {
+	/**
+	 * Derives the stable gap key from the provider registration, sequence and original clock/zone
+	 * transition.
+	 */
 	fun gapId(
 		registrationGeneration: Long,
 		gapSequence: Long,
@@ -330,7 +346,11 @@ object AmbientStepsImportGapIntegrity {
 	private fun digest(vararg values: Any?): String {
 		val canonical = values.joinToString(separator = "") { value ->
 			val text = value?.toString()
-			if (text == null) "-1:" else "${text.length}:$text"
+			if (text == null) {
+				"-1:"
+			} else {
+				"${text.length}:$text"
+			}
 		}
 		return MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray(Charsets.UTF_8))
@@ -341,6 +361,8 @@ object AmbientStepsImportGapIntegrity {
 }
 
 private fun requireValidZone(zoneId: String) {
-	require(zoneId.isNotBlank() && zoneId.length <= 128)
+	require(zoneId.isNotBlank() && zoneId.length <= MAX_AMBIENT_STEPS_ZONE_ID_LENGTH)
 	require(runCatching { ZoneId.of(zoneId) }.isSuccess) { "Invalid Ambient Steps zone authority" }
 }
+
+private const val MAX_AMBIENT_STEPS_ZONE_ID_LENGTH = 128

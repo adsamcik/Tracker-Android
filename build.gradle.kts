@@ -38,6 +38,8 @@ fun PatternFilterable.configureRepositoryDetektSources() {
 		"**/build/**",
 		"**/generated/**",
 		"**/node_modules/**",
+		// Preserved review snapshots are not compilation inputs.
+		"docs/tracking-infrastructure/convergence/2026-10-03/**",
 	)
 }
 

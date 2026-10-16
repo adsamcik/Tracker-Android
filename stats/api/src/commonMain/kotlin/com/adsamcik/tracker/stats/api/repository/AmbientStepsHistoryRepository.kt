@@ -9,6 +9,10 @@ import kotlinx.coroutines.flow.Flow
  * probe permissions, start a provider, acquire demand, repair storage, or use the current zone.
  */
 interface AmbientStepsHistoryRepository {
+	/**
+	 * Reads one all-day Steps day with independent total, session partition and imported provenance
+	 * states.
+	 */
 	suspend fun readDay(request: AmbientStepsHistoryDayRequest): AmbientStepsHistoryRead
 
 	/** One bounded source snapshot for every requested structural day; no per-day storage fan-out. */
@@ -17,6 +21,10 @@ interface AmbientStepsHistoryRepository {
 	/** Newest source-qualified structural days using an exact keyset continuation. */
 	suspend fun readRecent(request: AmbientStepsHistoryRecentRequest): AmbientStepsHistoryRecentRead
 
+	/**
+	 * Observes the requested bounded all-day Steps range while subscribed; it does not activate
+	 * recording.
+	 */
 	fun observeRange(request: AmbientStepsHistoryRangeRequest): Flow<AmbientStepsHistoryRead>
 }
 
@@ -58,13 +66,24 @@ interface AmbientStepsNumericRangeReader {
 		expectedSourceEvidenceRevision: Long,
 	): AmbientStepsNumericStructuralDayRead
 
+	/**
+	 * Reads strict per-day values inside the caller's Room transaction only under the expected
+	 * source-evidence revision.
+	 */
 	suspend fun readNumericRangeInCurrentTransaction(
 		request: AmbientStepsHistoryRangeRequest,
 		expectedSourceEvidenceRevision: Long,
 	): AmbientStepsNumericRangeRead
 }
 
+/**
+ * Stored calendar authority for display, retaining healthy days alongside a set of conflicting
+ * local dates.
+ */
 sealed interface AmbientStepsDisplayStructuralDayRead {
+	/**
+	 * Source-revision snapshot of usable saved days plus dates with conflicting calendar authority.
+	 */
 	data class Snapshot(
 		val sourceEvidenceRevision: Long,
 		val days: List<AmbientStepsStructuralDay>,
@@ -79,13 +98,28 @@ sealed interface AmbientStepsDisplayStructuralDayRead {
 		}
 	}
 
+	/**
+	 * The requested data or authority is unavailable; any named reason preserves the original failure
+	 * cause.
+	 */
 	data class Unavailable(
 		val reason: AmbientStepsHistoryUnavailableReason,
 	) : AmbientStepsDisplayStructuralDayRead
+	/**
+	 * The saved-data snapshot could not be read; this is distinct from an empty or measured-zero
+	 * result.
+	 */
 	data object StorageUnavailable : AmbientStepsDisplayStructuralDayRead
 }
 
+/**
+ * Exact stored calendar authority for strict totals, or an explicit absence/failure of all-day
+ * authority.
+ */
 sealed interface AmbientStepsNumericStructuralDayRead {
+	/**
+	 * Saved structural days resolved under one source revision for strict numeric composition.
+	 */
 	data class Exact(
 		val sourceEvidenceRevision: Long,
 		val days: List<AmbientStepsStructuralDay>,
@@ -102,15 +136,30 @@ sealed interface AmbientStepsNumericStructuralDayRead {
 		}
 	}
 
+	/**
+	 * No all-day calendar authority exists; a caller may still evaluate independently saved session
+	 * evidence.
+	 */
 	data object NoAmbientAuthority : AmbientStepsNumericStructuralDayRead
 
+	/**
+	 * The requested data or authority is unavailable; any named reason preserves the original failure
+	 * cause.
+	 */
 	data class Unavailable(
 		val reason: AmbientStepsHistoryUnavailableReason,
 	) : AmbientStepsNumericStructuralDayRead
 
+	/**
+	 * The saved-data snapshot could not be read; this is distinct from an empty or measured-zero
+	 * result.
+	 */
 	data object StorageUnavailable : AmbientStepsNumericStructuralDayRead
 }
 
+/**
+ * A nonnegative local calendar epoch day paired with its saved nonblank zone identifier.
+ */
 data class AmbientStepsStructuralDay(
 	val epochDay: Long,
 	val storedZoneId: String,
@@ -120,15 +169,24 @@ data class AmbientStepsStructuralDay(
 		require(storedZoneId.length <= MAX_ZONE_ID_LENGTH)
 	}
 
+	/**
+	 * Maximum supported length of a saved Steps zone identifier.
+	 */
 	companion object {
 		const val MAX_ZONE_ID_LENGTH = 128
 	}
 }
 
+/**
+ * Selects one saved structural Steps day without requiring a session.
+ */
 data class AmbientStepsHistoryDayRequest(
 	val day: AmbientStepsStructuralDay,
 )
 
+/**
+ * Bounded unique ordered structural days for one all-day Steps read generation.
+ */
 data class AmbientStepsHistoryRangeRequest(
 	val days: List<AmbientStepsStructuralDay>,
 ) {
@@ -144,11 +202,18 @@ data class AmbientStepsHistoryRangeRequest(
 		require(span < MAX_DAY_COUNT.toULong())
 	}
 
+	/**
+	 * Maximum number of structural Steps days in one bounded range read.
+	 */
 	companion object {
 		const val MAX_DAY_COUNT = 370
 	}
 }
 
+/**
+ * Recent-day cursor bound to the data epoch and source revision, with measured recency and stable
+ * day identity.
+ */
 data class AmbientStepsHistoryRecentCursor(
 	val sourceEvidenceRevision: Long,
 	val collectedDataEpoch: Long,
@@ -167,6 +232,9 @@ data class AmbientStepsHistoryRecentCursor(
 	}
 }
 
+/**
+ * Bounded recent-day page size and an optional cursor from an earlier source snapshot.
+ */
 data class AmbientStepsHistoryRecentRequest(
 	val limit: Int,
 	val before: AmbientStepsHistoryRecentCursor? = null,
@@ -175,12 +243,22 @@ data class AmbientStepsHistoryRecentRequest(
 		require(limit in 1..MAX_RECENT_DAY_COUNT)
 	}
 
+	/**
+	 * Maximum number of recent Steps days returned by one page.
+	 */
 	companion object {
 		const val MAX_RECENT_DAY_COUNT = 31
 	}
 }
 
+/**
+ * All-day Steps day results from one source revision, or explicit read/qualification limits.
+ */
 sealed interface AmbientStepsHistoryRead {
+	/**
+	 * Saved day results bound to one source-evidence revision; each value retains its own
+	 * completeness.
+	 */
 	data class Snapshot(
 		val sourceEvidenceRevision: Long,
 		val days: List<AmbientStepsHistoryDay>,
@@ -193,18 +271,37 @@ sealed interface AmbientStepsHistoryRead {
 		}
 	}
 
+	/**
+	 * A required saved-data dependency exceeds the bounded read budget; a truncated prefix is not a
+	 * complete result.
+	 */
 	data class DependencyOverflow(
 		val dependency: AmbientStepsHistoryDependency,
 	) : AmbientStepsHistoryRead
 
+	/**
+	 * The requested data or authority is unavailable; any named reason preserves the original failure
+	 * cause.
+	 */
 	data class Unavailable(
 		val reason: AmbientStepsHistoryUnavailableReason,
 	) : AmbientStepsHistoryRead
 
+	/**
+	 * The saved-data snapshot could not be read; this is distinct from an empty or measured-zero
+	 * result.
+	 */
 	data object StorageUnavailable : AmbientStepsHistoryRead
 }
 
+/**
+ * Recent all-day Steps page with a revision-bound continuation, or an explicit
+ * unavailable/read-limit outcome.
+ */
 sealed interface AmbientStepsHistoryRecentRead {
+	/**
+	 * Bounded saved day results and continuation under one source-evidence revision.
+	 */
 	data class Page(
 		val sourceEvidenceRevision: Long,
 		val days: List<AmbientStepsHistoryDay>,
@@ -217,18 +314,37 @@ sealed interface AmbientStepsHistoryRecentRead {
 		}
 	}
 
+	/**
+	 * A required saved-data dependency exceeds the bounded read budget; a truncated prefix is not a
+	 * complete result.
+	 */
 	data class DependencyOverflow(
 		val dependency: AmbientStepsHistoryDependency,
 	) : AmbientStepsHistoryRecentRead
 
+	/**
+	 * The requested data or authority is unavailable; any named reason preserves the original failure
+	 * cause.
+	 */
 	data class Unavailable(
 		val reason: AmbientStepsHistoryUnavailableReason,
 	) : AmbientStepsHistoryRecentRead
 
+	/**
+	 * The saved-data snapshot could not be read; this is distinct from an empty or measured-zero
+	 * result.
+	 */
 	data object StorageUnavailable : AmbientStepsHistoryRecentRead
 }
 
+/**
+ * Per-day all-day numeric values read under one expected source-evidence revision.
+ */
 sealed interface AmbientStepsNumericRangeRead {
+	/**
+	 * Saved day results bound to one source-evidence revision; each value retains its own
+	 * completeness.
+	 */
 	data class Snapshot(
 		val sourceEvidenceRevision: Long,
 		val days: List<AmbientStepsNumericHistoryDay>,
@@ -241,22 +357,41 @@ sealed interface AmbientStepsNumericRangeRead {
 		}
 	}
 
+	/**
+	 * A required saved-data dependency exceeds the bounded read budget; a truncated prefix is not a
+	 * complete result.
+	 */
 	data class DependencyOverflow(
 		val dependency: AmbientStepsHistoryDependency,
 	) : AmbientStepsNumericRangeRead
 
+	/**
+	 * The requested data or authority is unavailable; any named reason preserves the original failure
+	 * cause.
+	 */
 	data class Unavailable(
 		val reason: AmbientStepsHistoryUnavailableReason,
 	) : AmbientStepsNumericRangeRead
 
+	/**
+	 * The saved-data snapshot could not be read; this is distinct from an empty or measured-zero
+	 * result.
+	 */
 	data object StorageUnavailable : AmbientStepsNumericRangeRead
 }
 
+/**
+ * A saved structural day paired with its exact, partial or unavailable all-day count result.
+ */
 data class AmbientStepsNumericHistoryDay(
 	val day: AmbientStepsStructuralDay,
 	val total: AmbientStepsHistoryValue,
 )
 
+/**
+ * All-day total and session partitions, preserving real UTC millisecond day bounds and
+ * native/imported fact provenance.
+ */
 data class AmbientStepsHistoryDay(
 	val day: AmbientStepsStructuralDay,
 	val opaqueDayIdentity: String,
@@ -284,6 +419,10 @@ data class AmbientStepsHistoryDay(
 	}
 }
 
+/**
+ * Whether imported Steps are absent, present, explicitly deleted or removed by retention for this
+ * day.
+ */
 enum class AmbientStepsImportedDisposition {
 	NONE,
 	PRESENT,
@@ -291,15 +430,26 @@ enum class AmbientStepsImportedDisposition {
 	RETAINED,
 }
 
+/**
+ * A complete count, a saved subtotal with named gaps, or an unavailable count; absence is never
+ * numeric zero.
+ */
 sealed interface AmbientStepsHistoryValue {
 	val count: Long?
 
+	/**
+	 * Complete nonnegative count supported by the represented saved Steps coverage.
+	 */
 	data class Exact(override val count: Long) : AmbientStepsHistoryValue {
 		init {
 			require(count >= 0L)
 		}
 	}
 
+	/**
+	 * Nonnegative recorded subtotal with nonempty named coverage/ownership causes; this is not a
+	 * complete daily count.
+	 */
 	data class Partial(
 		override val count: Long,
 		val causes: Set<AmbientStepsHistoryCause>,
@@ -310,6 +460,9 @@ sealed interface AmbientStepsHistoryValue {
 		}
 	}
 
+	/**
+	 * No qualified numeric value is available; nonempty causes preserve the actual reason.
+	 */
 	data class Unavailable(
 		val causes: Set<AmbientStepsHistoryCause>,
 	) : AmbientStepsHistoryValue {
@@ -321,6 +474,10 @@ sealed interface AmbientStepsHistoryValue {
 	}
 }
 
+/**
+ * Real session overlap bounds in UTC milliseconds and an optional exact count; null means the
+ * partition cannot be counted.
+ */
 data class AmbientStepsSessionPartition(
 	val startTimeMs: Long,
 	val endTimeMs: Long,
@@ -335,11 +492,18 @@ data class AmbientStepsSessionPartition(
 	}
 }
 
+/**
+ * Whether a Steps partition belongs to local capture or portable imported data.
+ */
 enum class AmbientStepsSessionOrigin {
 	LOCAL_CAPTURE,
 	PORTABLE_IMPORT,
 }
 
+/**
+ * Original opaque fact identity and correction revision, with archive membership only for imported
+ * facts.
+ */
 data class AmbientStepsHistoryFactOrigin(
 	val kind: AmbientStepsHistoryFactOriginKind,
 	val opaqueFactIdentity: String,
@@ -357,11 +521,18 @@ data class AmbientStepsHistoryFactOrigin(
 	}
 }
 
+/**
+ * Distinguishes native provider facts from portable imported Steps facts.
+ */
 enum class AmbientStepsHistoryFactOriginKind {
 	NATIVE_PROVIDER,
 	PORTABLE_IMPORT,
 }
 
+/**
+ * Named missing-coverage, ownership, overlap, calendar, deletion and retention causes for
+ * incomplete Steps data.
+ */
 enum class AmbientStepsHistoryCause {
 	NO_EVIDENCE,
 	EXPLICIT_GAP,
@@ -382,6 +553,9 @@ enum class AmbientStepsHistoryCause {
 	RETAINED,
 }
 
+/**
+ * Which bounded native, imported or session dependency prevented a complete all-day Steps read.
+ */
 enum class AmbientStepsHistoryDependency {
 	NATIVE_FACTS,
 	NATIVE_GAPS,
@@ -394,6 +568,10 @@ enum class AmbientStepsHistoryDependency {
 	IMPORTED_SESSION_ENTRIES,
 }
 
+/**
+ * Missing source state, corrupt retained data or unavailable saved calendar authority preventing
+ * the Steps read.
+ */
 enum class AmbientStepsHistoryUnavailableReason {
 	SOURCE_EVIDENCE_STATE_MISSING,
 	CORRUPT_RETAINED_STATE,

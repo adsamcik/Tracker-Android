@@ -160,4 +160,5 @@
     <string name="history_button_label">Geschiedenis</string>
     <string name="history_view_trip_on_map">Rit op kaart bekijken</string>
     <string name="stats_heatmap_title">Activiteit</string>
+    <string name="stats_recorded_partial_value">%1$s · gedeeltelijk</string>
 </resources>

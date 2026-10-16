@@ -61,6 +61,9 @@ class WifiImportedHistoryRepositoryTest {
 	@After
 	fun tearDown() = database.close()
 
+	// Keep one imported evaluation across the public lookup and page paths to verify identity without native
+	// fallback.
+	@Suppress("LongMethod")
 	@Test
 	fun `imported-only entry is discoverable and exactly selectable without native fallback`() = runTest {
 		val entry = portableEntry()

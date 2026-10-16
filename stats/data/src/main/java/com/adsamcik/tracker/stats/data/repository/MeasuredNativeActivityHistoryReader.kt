@@ -23,11 +23,19 @@ internal class MeasuredNativeActivityHistoryReader(
 ) {
     suspend fun candidates(range: HistoryRange, after: HistoryPosition?): List<MeasuredHistoryCandidate> {
         if (HistorySource.ACTIVITY !in range.sources || HistoryOrigin.LOCAL !in range.origins ||
-            HistoryPurpose.CAPTURE !in range.purposes) return emptyList()
-        val seek = if (after == null) "" else """AND (startTimeMs < ? OR (startTimeMs = ? AND
+            HistoryPurpose.CAPTURE !in range.purposes) {
+            return emptyList()
+        }
+        val seek = if (after == null) {
+            ""
+        } else {
+            """AND (startTimeMs < ? OR (startTimeMs = ? AND
             ('local:activity' > ? OR ('local:activity' = ? AND identity > ?))))"""
+        }
         val args = mutableListOf<Any?>(range.toExclusiveMs, range.fromInclusiveMs, range.fromInclusiveMs)
-        if (after != null) args.addAll(listOf(after.startTimeMs, after.startTimeMs, after.originTag, after.originTag, after.stableId))
+        if (after != null) {
+            args.addAll(listOf(after.startTimeMs, after.startTimeMs, after.originTag, after.originTag, after.stableId))
+        }
         return database.trackingHistoryReadDao().measuredHistoryCandidates(SimpleSQLiteQuery("""
             SELECT kind, origin, purpose, identity, startTimeMs, endTimeMs, rowId,
                 writerId, writerVersion, factId, factRevision, itemIndex, NULL AS physicalEventId, NULL AS physicalIdentity FROM (
@@ -54,59 +62,99 @@ internal class MeasuredNativeActivityHistoryReader(
     }
 
     suspend fun qualify(keys: List<MeasuredHistoryCandidate>, range: HistoryRange): MeasuredNativeActivityHistoryRead {
-        require(keys.size <= 100 && keys.all { it.kind == "activity" && it.origin == "LOCAL" && it.purpose == "CAPTURE" })
+        requireNativeCapturedCandidates(keys, "activity", MAX_MEASURED_CANDIDATES)
         if (keys.isEmpty() || HistorySource.ACTIVITY !in range.sources || HistoryOrigin.LOCAL !in range.origins ||
-            HistoryPurpose.CAPTURE !in range.purposes) return MeasuredNativeActivityHistoryRead()
+            HistoryPurpose.CAPTURE !in range.purposes) {
+            return MeasuredNativeActivityHistoryRead()
+        }
         val groups = keys.groupBy { ActivityRevisionKey(requireNotNull(it.writerId), requireNotNull(it.writerVersion),
             requireNotNull(it.factId), requireNotNull(it.factRevision)) }
         val read = readIndependent(groups.keys.toList())
         val names = MeasuredNativeSessionNames.load(database,
             read.windows.values.map { it.revision.logicalTrackingId })
         val rows = linkedMapOf<HistoryPosition, UnifiedHistoryRow>()
-        val problems = read.causes.filter { it !in setOf(ActivityHistoryCause.RETENTION_LIMIT, ActivityHistoryCause.DELETED,
-            ActivityHistoryCause.PRIVACY_EPOCH_MISMATCH) }.mapTo(linkedSetOf()) { HistoryProblem(HistorySource.ACTIVITY,
-                if (it == ActivityHistoryCause.READ_BUDGET_EXCEEDED) HistoryProblemReason.DEPENDENCY_OVERFLOW
-                else HistoryProblemReason.INTEGRITY_UNAVAILABLE) }
-        if (read.storageFailed) problems += HistoryProblem(HistorySource.ACTIVITY, HistoryProblemReason.STORAGE_UNAVAILABLE)
+        val problems = historyProblems(read)
         for ((identity, candidates) in groups) {
             val window = read.windows[identity] ?: continue
-            if (window.fragments.values.any { it is ActivityHistoryFragment.Gap })
-                problems += HistoryProblem(HistorySource.ACTIVITY, HistoryProblemReason.TIME_UNCERTAIN)
-            for (key in candidates) {
-                val band = window.fragments[key.itemIndex] as? ActivityHistoryFragment.Band
-                if (band == null) {
-                    problems += HistoryProblem(HistorySource.ACTIVITY, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
-                    continue
-                }
-                val start = band.startTime.raw
-                val end = band.endTime.raw
-                if (key.rowId != window.revision.sessionSegmentId || start != key.startTimeMs || end != key.endTimeMs ||
-                    start >= range.toExclusiveMs || end >= start && end < range.fromInclusiveMs ||
-                    end < start && start < range.fromInclusiveMs) {
-                    problems += HistoryProblem(HistorySource.ACTIVITY, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
-                    continue
-                }
-                val position = measuredHistoryPosition(key)
-                rows[position] = UnifiedHistoryRow(position, end, setOf(HistoryOrigin.LOCAL), HistoryPurpose.CAPTURE,
-                    name = names.window(window.revision.logicalTrackingId, start, end), sections = emptyList(),
-                    measurement = HistoryMeasurement.Activity(band))
-            }
+            appendMeasuredBands(window, candidates, range, names, rows, problems)
         }
         return MeasuredNativeActivityHistoryRead(rows, problems)
     }
 
+    private fun historyProblems(read: ActivityMeasuredWindowsRead): MutableSet<HistoryProblem> {
+        val problems = read.causes.filter { it !in setOf(ActivityHistoryCause.RETENTION_LIMIT,
+            ActivityHistoryCause.DELETED,
+            ActivityHistoryCause.PRIVACY_EPOCH_MISMATCH) }.mapTo(linkedSetOf()) { HistoryProblem(HistorySource.ACTIVITY,
+                if (it == ActivityHistoryCause.READ_BUDGET_EXCEEDED) {
+                    HistoryProblemReason.DEPENDENCY_OVERFLOW
+                }
+                else {
+                    HistoryProblemReason.INTEGRITY_UNAVAILABLE
+                }) }
+        if (read.storageFailed) {
+            problems += HistoryProblem(HistorySource.ACTIVITY, HistoryProblemReason.STORAGE_UNAVAILABLE)
+        }
+        return problems
+    }
+
+    private fun appendMeasuredBands(
+        window: ActivityMeasuredWindow,
+        candidates: List<MeasuredHistoryCandidate>,
+        range: HistoryRange,
+        names: MeasuredNativeSessionNames,
+        rows: MutableMap<HistoryPosition, UnifiedHistoryRow>,
+        problems: MutableSet<HistoryProblem>,
+    ) {
+        if (window.fragments.values.any { it is ActivityHistoryFragment.Gap })
+            {
+            problems += HistoryProblem(HistorySource.ACTIVITY, HistoryProblemReason.TIME_UNCERTAIN)
+        }
+        for (key in candidates) {
+            val band = window.fragments[key.itemIndex] as? ActivityHistoryFragment.Band
+            if (band == null) {
+                problems += HistoryProblem(HistorySource.ACTIVITY, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+                continue
+            }
+            val start = band.startTime.raw
+            val end = band.endTime.raw
+            if (hasInvalidBandPosition(key, window, start, end, range)) {
+                problems += HistoryProblem(HistorySource.ACTIVITY, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+                continue
+            }
+            val position = measuredHistoryPosition(key)
+            rows[position] = UnifiedHistoryRow(position, end, setOf(HistoryOrigin.LOCAL), HistoryPurpose.CAPTURE,
+                name = names.window(window.revision.logicalTrackingId, start, end), sections = emptyList(),
+                measurement = HistoryMeasurement.Activity(band))
+        }
+    }
+
+    private fun hasInvalidBandPosition(
+        key: MeasuredHistoryCandidate,
+        window: ActivityMeasuredWindow,
+        start: Long,
+        end: Long,
+        range: HistoryRange,
+    ): Boolean = key.rowId != window.revision.sessionSegmentId || start != key.startTimeMs || end != key.endTimeMs ||
+        start >= range.toExclusiveMs || end >= start && end < range.fromInclusiveMs ||
+        end < start && start < range.fromInclusiveMs
+
     /** Split a failing selected batch only; malformed windows cannot hide independently valid siblings. */
     private suspend fun readIndependent(keys: List<ActivityRevisionKey>): ActivityMeasuredWindowsRead {
-        if (keys.isEmpty()) return ActivityMeasuredWindowsRead()
+        if (keys.isEmpty()) {
+            return ActivityMeasuredWindowsRead()
+        }
         val result = try { activity.selectMeasuredWindowsInTransaction(keys) }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (_: android.database.sqlite.SQLiteException) { ActivityMeasuredWindowsRead(storageFailed = true) }
         catch (_: Exception) { ActivityMeasuredWindowsRead(causes = setOf(ActivityHistoryCause.FACT_INTEGRITY_FAILED)) }
-        if (keys.size == 1 || result.windows.keys.containsAll(keys)) return result
+        if (keys.size == 1 || result.windows.keys.containsAll(keys)) {
+            return result
+        }
         val middle = keys.size / 2
         val left = readIndependent(keys.take(middle))
         val right = readIndependent(keys.drop(middle))
-        return ActivityMeasuredWindowsRead(left.windows + right.windows, left.causes + right.causes, left.storageFailed || right.storageFailed)
+        return ActivityMeasuredWindowsRead(left.windows + right.windows, left.causes + right.causes,
+            left.storageFailed || right.storageFailed)
     }
 }
 
@@ -114,3 +162,5 @@ internal data class MeasuredNativeActivityHistoryRead(
     val rows: Map<HistoryPosition, UnifiedHistoryRow> = emptyMap(),
     val problems: Set<HistoryProblem> = emptySet(),
 )
+
+private const val MAX_MEASURED_CANDIDATES = 100

@@ -185,7 +185,7 @@ class MainActivityCompose : ComponentActivity() {
             ),
         )
 
-        when (startupDestination) {
+        val startupScreenVisible = when (startupDestination) {
             StartupDestination.Pending -> {
                 AppTheme(darkTheme = darkTheme) {
                     Surface(color = MaterialTheme.colorScheme.background) {
@@ -197,7 +197,7 @@ class MainActivityCompose : ComponentActivity() {
                         }
                     }
                 }
-                return
+                true
             }
 
             StartupDestination.LegacyRecovery -> {
@@ -229,7 +229,7 @@ class MainActivityCompose : ComponentActivity() {
                         },
                     )
                 }
-                return
+                true
             }
 
 			StartupDestination.Recovery -> {
@@ -241,7 +241,7 @@ class MainActivityCompose : ComponentActivity() {
 						},
 					)
 				}
-				return
+				true
 			}
 
 			StartupDestination.DevelopmentDatabaseContainment -> {
@@ -255,7 +255,7 @@ class MainActivityCompose : ComponentActivity() {
 						},
 					)
 				}
-				return
+				true
 			}
 
 			StartupDestination.DatabaseContainment -> {
@@ -269,7 +269,7 @@ class MainActivityCompose : ComponentActivity() {
 						},
 					)
 				}
-				return
+				true
 			}
 
 			StartupDestination.DatabaseRetryable -> {
@@ -283,13 +283,14 @@ class MainActivityCompose : ComponentActivity() {
 						},
 					)
 				}
-				return
+				true
 			}
 
             StartupDestination.Onboarding,
-            StartupDestination.OnboardingReadFailed -> Unit // handled below via startDestination = Setup
-            StartupDestination.Main -> Unit
+            StartupDestination.OnboardingReadFailed -> false // handled below via startDestination = Setup
+            StartupDestination.Main -> false
         }
+        if (startupScreenVisible) return
 
         LaunchedEffect(Unit) {
             withFrameNanos { }
@@ -487,50 +488,63 @@ internal fun LegacyDatabaseRecoveryScreen(
         }
     }
     if (showDeleteConfirmation) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showDeleteConfirmation = false },
-            title = {
-                Text(androidx.compose.ui.res.stringResource(R.string.legacy_database_delete_confirm_title))
-            },
-            text = {
-                Text(
-                    androidx.compose.ui.res.stringResource(
-                        R.string.legacy_database_delete_confirm_message,
-                        android.text.format.Formatter.formatFileSize(
-                            androidx.compose.ui.platform.LocalContext.current,
-                            sizeBytes,
-                        ),
-                    ),
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showDeleteConfirmation = false
-                        onDelete()
-                    },
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                    ),
-                ) {
-                    Text(
-                        androidx.compose.ui.res.stringResource(
-                            com.adsamcik.tracker.shared.base.R.string.generic_delete,
-                        ),
-                    )
-                }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { showDeleteConfirmation = false }) {
-                    Text(
-                        androidx.compose.ui.res.stringResource(
-                            com.adsamcik.tracker.shared.base.R.string.generic_cancel,
-                        ),
-                    )
-                }
+        LegacyDatabaseDeleteConfirmation(
+            sizeBytes = sizeBytes,
+            onDismiss = { showDeleteConfirmation = false },
+            onDelete = {
+                showDeleteConfirmation = false
+                onDelete()
             },
         )
     }
+}
+
+@Composable
+private fun LegacyDatabaseDeleteConfirmation(
+    sizeBytes: Long,
+    onDismiss: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(androidx.compose.ui.res.stringResource(R.string.legacy_database_delete_confirm_title))
+        },
+        text = {
+            Text(
+                androidx.compose.ui.res.stringResource(
+                    R.string.legacy_database_delete_confirm_message,
+                    android.text.format.Formatter.formatFileSize(
+                        androidx.compose.ui.platform.LocalContext.current,
+                        sizeBytes,
+                    ),
+                ),
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onDelete,
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                ),
+            ) {
+                Text(
+                    androidx.compose.ui.res.stringResource(
+                        com.adsamcik.tracker.shared.base.R.string.generic_delete,
+                    ),
+                )
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text(
+                    androidx.compose.ui.res.stringResource(
+                        com.adsamcik.tracker.shared.base.R.string.generic_cancel,
+                    ),
+                )
+            }
+        },
+    )
 }
 
 internal val StartupDestination.requiresOnboarding: Boolean

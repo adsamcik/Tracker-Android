@@ -119,42 +119,69 @@ internal object RadioLocationContextResolver {
 				compareBy<LocationContextInput> { it.observedElapsedNanos }.thenBy { it.sourceEventId },
 			) }
 		return radio.mapNotNull { fact ->
-			if (!fact.eligibleForMap) return@mapNotNull null
-			val fixes = byScope[fact.scope].orEmpty()
-			if (fixes.isEmpty()) return@mapNotNull null
-			val previousIndex = upperBound(fixes, fact.observedFromElapsedNanos) - 1
-			val previous = endpointAt(fixes, previousIndex) ?: return@mapNotNull null
-			val previousDistance = fact.observedElapsedNanos - previous.observedElapsedNanos
-			val chosen = when (fact.source) {
-				RadioContextSource.CELL -> previous.takeIf { previousDistance <= CELL_MAX_SEPARATION_NANOS }
-				RadioContextSource.WIFI -> {
-					val next = endpointAt(fixes, lowerBound(fixes, fact.observedElapsedNanos))
-						?: return@mapNotNull null
-					val nextDistance = next.observedElapsedNanos - fact.observedFromElapsedNanos
-					if (previousDistance > WIFI_MAX_SEPARATION_NANOS ||
-						nextDistance > WIFI_MAX_SEPARATION_NANOS
-					) null else if (previousDistance <= nextDistance) previous else next
-				}
-			} ?: return@mapNotNull null
-			val separationNanos = if (chosen.observedElapsedNanos <= fact.observedFromElapsedNanos) {
-				fact.observedElapsedNanos - chosen.observedElapsedNanos
-			} else chosen.observedElapsedNanos - fact.observedFromElapsedNanos
-			RadioLocationContext(
-				source = fact.source,
-				scope = fact.scope,
-				radioSourceEventId = fact.sourceEventId,
-				locationSourceEventId = chosen.sourceEventId,
-				latitude = chosen.latitudeE7 / E7_DIVISOR,
-				longitude = chosen.longitudeE7 / E7_DIVISOR,
-				observedWallTimeMs = fact.observedWallTimeMs,
-				locationObservedWallTimeMs = chosen.observedWallTimeMs,
-				radioWallTimeUncertaintyMs = fact.wallTimeUncertaintyMs,
-				locationWallTimeUncertaintyMs = chosen.wallTimeUncertaintyMs,
-				separationMillis = separationNanos / NANOS_PER_MILLISECOND +
-					if (separationNanos % NANOS_PER_MILLISECOND == 0L) 0L else 1L,
-				horizontalAccuracyMeters = chosen.horizontalAccuracyMeters,
-			)
+			val chosen = resolveEndpoint(fact, byScope[fact.scope].orEmpty()) ?: return@mapNotNull null
+			contextFor(fact, chosen)
 		}
+	}
+
+	private fun resolveEndpoint(
+		fact: RadioContextInput,
+		fixes: List<LocationContextInput>,
+	): LocationContextInput? {
+		if (!fact.eligibleForMap || fixes.isEmpty()) {
+			return null
+		}
+		val previousIndex = upperBound(fixes, fact.observedFromElapsedNanos) - 1
+		val previous = endpointAt(fixes, previousIndex) ?: return null
+		val previousDistance = fact.observedElapsedNanos - previous.observedElapsedNanos
+		return when (fact.source) {
+			RadioContextSource.CELL -> previous.takeIf { previousDistance <= CELL_MAX_SEPARATION_NANOS }
+			RadioContextSource.WIFI -> wifiEndpoint(fact, fixes, previous, previousDistance)
+		}
+	}
+
+	private fun wifiEndpoint(
+		fact: RadioContextInput,
+		fixes: List<LocationContextInput>,
+		previous: LocationContextInput,
+		previousDistance: Long,
+	): LocationContextInput? {
+		val next = endpointAt(fixes, lowerBound(fixes, fact.observedElapsedNanos)) ?: return null
+		val nextDistance = next.observedElapsedNanos - fact.observedFromElapsedNanos
+		return if (previousDistance > WIFI_MAX_SEPARATION_NANOS || nextDistance > WIFI_MAX_SEPARATION_NANOS) {
+			null
+		} else if (previousDistance <= nextDistance) {
+			previous
+		} else {
+			next
+		}
+	}
+
+	private fun contextFor(fact: RadioContextInput, chosen: LocationContextInput): RadioLocationContext {
+		val separationNanos = if (chosen.observedElapsedNanos <= fact.observedFromElapsedNanos) {
+			fact.observedElapsedNanos - chosen.observedElapsedNanos
+		} else {
+			chosen.observedElapsedNanos - fact.observedFromElapsedNanos
+		}
+		return RadioLocationContext(
+			source = fact.source,
+			scope = fact.scope,
+			radioSourceEventId = fact.sourceEventId,
+			locationSourceEventId = chosen.sourceEventId,
+			latitude = chosen.latitudeE7 / E7_DIVISOR,
+			longitude = chosen.longitudeE7 / E7_DIVISOR,
+			observedWallTimeMs = fact.observedWallTimeMs,
+			locationObservedWallTimeMs = chosen.observedWallTimeMs,
+			radioWallTimeUncertaintyMs = fact.wallTimeUncertaintyMs,
+			locationWallTimeUncertaintyMs = chosen.wallTimeUncertaintyMs,
+			separationMillis = separationNanos / NANOS_PER_MILLISECOND +
+				if (separationNanos % NANOS_PER_MILLISECOND == 0L) {
+					0L
+				} else {
+					1L
+				},
+			horizontalAccuracyMeters = chosen.horizontalAccuracyMeters,
+		)
 	}
 
 	/** First endpoint >= time. Stable source identity ordering selects equal-time endpoints. */
@@ -163,7 +190,11 @@ internal object RadioLocationContextResolver {
 		var high = fixes.size
 		while (low < high) {
 			val middle = low + (high - low) / 2
-			if (fixes[middle].observedElapsedNanos < time) low = middle + 1 else high = middle
+			if (fixes[middle].observedElapsedNanos < time) {
+				low = middle + 1
+			} else {
+				high = middle
+			}
 		}
 		return low
 	}
@@ -173,7 +204,11 @@ internal object RadioLocationContextResolver {
 		var high = fixes.size
 		while (low < high) {
 			val middle = low + (high - low) / 2
-			if (fixes[middle].observedElapsedNanos <= time) low = middle + 1 else high = middle
+			if (fixes[middle].observedElapsedNanos <= time) {
+				low = middle + 1
+			} else {
+				high = middle
+			}
 		}
 		return low
 	}

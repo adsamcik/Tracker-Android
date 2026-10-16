@@ -37,6 +37,8 @@ class RoomSourcePlanStoreTest {
 		database = AppDatabase.inMemoryBuilder(context)
 			.allowMainThreadQueries()
 			.build()
+		// The store contract starts with a usable database, as production startup does.
+		database.openHelper.writableDatabase
 		store = RoomSourcePlanStore(database, SourcePlanCodec())
 	}
 
@@ -64,8 +66,16 @@ class RoomSourcePlanStoreTest {
         store.load(1) shouldBe plan
         plan.plans.values.forEach { sourcePlan ->
             store.saveApplied(AppliedSourcePlan(1, 1, sourcePlan.source,
-                if (sourcePlan.enabled) SourceInstanceId("source-${sourcePlan.source}") else null,
-                if (sourcePlan.enabled) 1L else null, 100, SourceApplyStatus.APPLIED), sourcePlan, 100)
+                if (sourcePlan.enabled) {
+                    SourceInstanceId("source-${sourcePlan.source}")
+                } else {
+                    null
+                },
+                if (sourcePlan.enabled) {
+                    1L
+                } else {
+                    null
+                }, 100, SourceApplyStatus.APPLIED), sourcePlan, 100)
         }
         val applied = store.loadApplied(1).shouldBeInstanceOf<AppliedPlanRead.Available>().plan
         applied.balanceProfileVersion shouldBe 1
@@ -82,8 +92,12 @@ class RoomSourcePlanStoreTest {
 		for (version in 1..2) {
 			val revision = version.toLong()
 			val original = locationPlan(LocationBackend.FUSED, revision)
-			val sourcePlan = if (version == 1) original.plans.getValue(SourceKind.LOCATION)
-				else adaptiveLocationPlan(3, revision, LocationBackend.FUSED, true)
+			val sourcePlan = if (version == 1) {
+				original.plans.getValue(SourceKind.LOCATION)
+			}
+				else {
+				adaptiveLocationPlan(3, revision, LocationBackend.FUSED, true)
+			}
 			val plan = original.copy(plans = mapOf(SourceKind.LOCATION to sourcePlan))
 			store.persistDesired(plan, DesiredPlanStatus.APPLYING)
 			store.saveApplied(AppliedSourcePlan(revision, revision, SourceKind.LOCATION,

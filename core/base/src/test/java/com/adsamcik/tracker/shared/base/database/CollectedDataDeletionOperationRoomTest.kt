@@ -13,6 +13,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.test.assertFailsWith
 
+// One real Room journal fixture keeps retry, cancellation and deletion receipt ordering comparable.
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class CollectedDataDeletionOperationRoomTest {
@@ -196,6 +198,8 @@ class CollectedDataDeletionOperationRoomTest {
 		}
 	}
 
+	// Keep one periodic receipt through retry, completion and successor-period acknowledgement.
+	@Suppress("LongMethod")
 	@Test
 	fun `periodic execution generation survives preflight process death and retires final only on next period`() =
 		runTest {
@@ -330,6 +334,8 @@ class CollectedDataDeletionOperationRoomTest {
 				}
 			}
 
+	// Keep cancellation request, blocked takeover and exact abandonment handoff in one Room journey.
+	@Suppress("LongMethod")
 	@Test
 	fun `cancellation request blocks owner and migration takeover until exact abandonment confirmation`() =
 		runTest {
@@ -496,6 +502,8 @@ class CollectedDataDeletionOperationRoomTest {
 		}
 
 	@Test
+	// Keep the incompatible executor rejection and subsequent exact migration-debt takeover journey together.
+	@Suppress("LongMethod")
 	fun `data executor rejects a pipeline plan while pipeline safely claims legacy migration debt`() =
 		runTest {
 			val context = ApplicationProvider.getApplicationContext<Application>()

@@ -30,7 +30,6 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import java.io.IOException
 import java.security.MessageDigest
-import kotlinx.coroutines.CancellationException
 
 @EntryPoint
 @InstallIn(SingletonComponent::class)
@@ -80,8 +79,6 @@ internal class PortableAmbientStepsFileImport(
 		val epoch = stream.requireOriginalDataEpoch()
 		val bytes = try {
 			readPortableBytes(stream, MAX_FILE_BYTES)
-		} catch (cancelled: CancellationException) {
-			throw cancelled
 		} catch (_: PortableStepsJsonException) {
 			return ImportResult(
 				failedCount = 1,
@@ -89,9 +86,11 @@ internal class PortableAmbientStepsFileImport(
 			)
 		}
 		val dependencies = dependenciesProvider(context)
-		if (dependencies.lifecycleStore.snapshot().epoch != epoch) return ImportResult(
+		if (dependencies.lifecycleStore.snapshot().epoch != epoch) {
+			return ImportResult(
 			failedCount = 1, errors = listOf("Import stopped because recorded data was cleared"),
 		)
+		}
 		return try {
 			when (portableAmbientStepsSchemaVersion(bytes)) {
 				AmbientStepsPortableFormatV1.SCHEMA_VERSION -> {
@@ -119,8 +118,6 @@ internal class PortableAmbientStepsFileImport(
 						.toFileResult(decoded.archive.days.size)
 				}
 			}
-		} catch (cancelled: CancellationException) {
-			throw cancelled
 		} catch (_: PortableAmbientStepsFormatException) {
 			ImportResult(failedCount = 1, errors = listOf(PERMANENT_FORMAT_ERROR))
 		}

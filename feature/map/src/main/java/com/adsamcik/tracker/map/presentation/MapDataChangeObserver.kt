@@ -94,9 +94,15 @@ class MapDataChangeObserver private constructor(databaseProvider: () -> AppDatab
             if (invalidatedTables.any(sharedAuthorityTables::contains)) {
                 addAll(setOf(MapDataSource.Location, MapDataSource.Wifi, MapDataSource.Cell))
             }
-            if (invalidatedTables.any(locationTables::contains)) add(MapDataSource.Location)
-            if (invalidatedTables.any(wifiTables::contains)) add(MapDataSource.Wifi)
-            if (invalidatedTables.any(cellTables::contains)) add(MapDataSource.Cell)
+            if (invalidatedTables.any(locationTables::contains)) {
+                add(MapDataSource.Location)
+            }
+            if (invalidatedTables.any(wifiTables::contains)) {
+                add(MapDataSource.Wifi)
+            }
+            if (invalidatedTables.any(cellTables::contains)) {
+                add(MapDataSource.Cell)
+            }
         }
     }
 }

@@ -77,6 +77,9 @@ import java.lang.reflect.Method
 import kotlin.math.abs
 
 @OptIn(ExperimentalCoroutinesApi::class)
+// One detail-presenter fixture keeps its saved-source selection, subscriber lifecycle, route supplements
+// and derived insight assertions together.
+@Suppress("LargeClass")
 class TripDetailPresenterViewModelTest {
 
 	private val testDispatcher = StandardTestDispatcher()

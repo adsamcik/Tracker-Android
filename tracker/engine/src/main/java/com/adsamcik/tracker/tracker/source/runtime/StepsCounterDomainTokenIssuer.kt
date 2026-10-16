@@ -29,6 +29,8 @@ internal object StepsCounterDomainTokenIssuer {
 		sensorId = sensor.id,
 	)
 
+	// The six independent required identity fields form one fixed sensor identity.
+	@Suppress("ComplexCondition")
 	internal fun directSensor(
 		bootClockDomainId: String,
 		sourceInstanceId: String,
@@ -47,7 +49,9 @@ internal object StepsCounterDomainTokenIssuer {
 			sensorStringType.isBlank() ||
 			sensorVendor.isBlank() ||
 			sensorName.isBlank()
-		) return null
+		) {
+			return null
+		}
 		return StepsCounterDomainToken.opaque(
 			opaqueDigest(
 				"android-step-counter-epoch-v1",
@@ -67,7 +71,11 @@ internal object StepsCounterDomainTokenIssuer {
 	private fun opaqueDigest(vararg values: Any?): String {
 		val canonical = values.joinToString(separator = "") { value ->
 			val text = value?.toString()
-			if (text == null) "-1:" else "${text.length}:$text"
+			if (text == null) {
+				"-1:"
+			} else {
+				"${text.length}:$text"
+			}
 		}
 		return "sha256:" + MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray(Charsets.UTF_8))

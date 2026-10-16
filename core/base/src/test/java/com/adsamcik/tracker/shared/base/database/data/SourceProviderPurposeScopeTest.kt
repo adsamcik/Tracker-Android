@@ -108,10 +108,26 @@ class SourceProviderPurposeScopeTest {
 		consumerId = "consumer:$id",
 		sourceKind = sourceKind,
 		purpose = purpose,
-		logicalTrackingId = if (purpose == SourceBrokerPurpose.SESSION_CAPTURE) "session:$id" else null,
-		serviceRunId = if (purpose == SourceBrokerPurpose.SESSION_CAPTURE) "run:$id" else null,
-		manifestRevision = if (purpose == SourceBrokerPurpose.SESSION_CAPTURE) 1L else null,
-		lifecycleLeaseGeneration = if (purpose == SourceBrokerPurpose.SESSION_CAPTURE) 1L else null,
+		logicalTrackingId = if (purpose == SourceBrokerPurpose.SESSION_CAPTURE) {
+			"session:$id"
+		} else {
+			null
+		},
+		serviceRunId = if (purpose == SourceBrokerPurpose.SESSION_CAPTURE) {
+			"run:$id"
+		} else {
+			null
+		},
+		manifestRevision = if (purpose == SourceBrokerPurpose.SESSION_CAPTURE) {
+			1L
+		} else {
+			null
+		},
+		lifecycleLeaseGeneration = if (purpose == SourceBrokerPurpose.SESSION_CAPTURE) {
+			1L
+		} else {
+			null
+		},
 		sourcePolicyRevision = 1L,
 		consentEpoch = 0L,
 		persistenceEligible = true,

@@ -40,4 +40,24 @@
     <string name="format_database">Cópia de segurança da base de dados (ZIP)</string>
     <string name="settings_import_summary">Importe dados de tipos suportados (%1$s) e arquivos (%2$s). As importações de bases de dados combinam linhas compatíveis; não substituem os dados existentes.</string>
     <string name="settings_import_title">Importar</string>
+    <string name="export_radio_sensitivity_title">Exportar detalhes das redes?</string>
+    <string name="export_wifi_sensitivity_message">Este ficheiro inclui nomes de Wi-Fi e IDs de pontos de acesso guardados.</string>
+    <string name="export_cell_sensitivity_message">Este ficheiro inclui IDs de antenas e medições de sinal guardados.</string>
+    <string name="export_radio_no_data">Não há dados guardados para esta fonte</string>
+    <string name="export_include_complete_sessions">Incluir sessões completas</string>
+    <string name="import_location_conflict_title">Substituir pontos guardados?</string>
+    <string name="import_location_replace">Usar os pontos do ficheiro</string>
+    <string name="import_location_keep">Manter os pontos guardados</string>
+    <string name="export_backup_review_title">Rever cópias de segurança agendadas</string>
+    <string name="export_backup_review_summary">Em pausa até rever a cópia de dados atualizada.</string>
+    <string name="export_backup_review_message">Estes agendamentos passam a incluir todos os dados de monitorização guardados e os ficheiros necessários para os restaurar. As definições são excluídas. Retomar estes agendamentos?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Retomar cópias de segurança</string>
+    <string name="import_backup_replace_title">Restaurar a cópia de dados?</string>
+    <string name="import_backup_replace_message">Substituir os dados guardados por esta cópia de segurança? As suas definições mantêm-se. A monitorização ficará desativada até a retomar.</string>
+    <string name="import_backup_restore">Substituir dados</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d ponto neste ficheiro difere da cópia guardada. Escolha qual manter. Os outros pontos serão importados normalmente.</item>
+        <item quantity="many">%d pontos neste ficheiro diferem das cópias guardadas. Escolha quais manter. Os outros pontos serão importados normalmente.</item>
+        <item quantity="other">%d pontos neste ficheiro diferem das cópias guardadas. Escolha quais manter. Os outros pontos serão importados normalmente.</item>
+    </plurals>
 </resources>

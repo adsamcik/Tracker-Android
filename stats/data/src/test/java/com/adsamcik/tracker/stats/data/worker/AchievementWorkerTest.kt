@@ -23,6 +23,7 @@ import com.adsamcik.tracker.stats.api.rule.RuleKind
 import com.adsamcik.tracker.stats.api.rule.RuleRegistry
 import com.adsamcik.tracker.stats.api.rule.RuleTarget
 import com.adsamcik.tracker.stats.data.metric.DefaultMetricDirtyTracker
+import com.adsamcik.tracker.stats.data.achievement.AchievementRuleRegistry
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -68,6 +69,9 @@ class AchievementWorkerTest {
 		metricsProvider: AchievementMetricsProvider,
 		achievementDao: AchievementProgressDao,
 		dirtyTracker: MetricDirtyTracker,
+		transactionRunner: AchievementEvaluationTransactionRunner = object : AchievementEvaluationTransactionRunner {
+			override suspend fun run(block: suspend () -> Unit) = block()
+		},
 	): AchievementWorker {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		return TestListenableWorkerBuilder<AchievementWorker>(context)
@@ -84,11 +88,7 @@ class AchievementWorkerTest {
 						Provider { metricsProvider },
 						Provider { achievementDao },
 						dirtyTracker,
-						Provider {
-							object : AchievementEvaluationTransactionRunner {
-								override suspend fun run(block: suspend () -> Unit) = block()
-							}
-						},
+						Provider { transactionRunner },
 						READY_STARTUP_GATE,
 					)
 				},
@@ -132,7 +132,7 @@ class AchievementWorkerTest {
 		coVerify(exactly = 0) { registry.allInstances() }
 		coVerify(exactly = 0) { metricsProvider.collect() }
 		coVerify(exactly = 0) { achievementDao.getAll() }
-		coVerify(exactly = 0) { achievementDao.upsertAll(any()) }
+		coVerify(exactly = 0) { achievementDao.replaceEvaluatedAll(any()) }
 	}
 
 	@Test
@@ -152,7 +152,7 @@ class AchievementWorkerTest {
 		coVerify(exactly = 1) { registry.instancesAffectedByTables(any()) }
 		coVerify(exactly = 0) { metricsProvider.collect() }
 		coVerify(exactly = 0) { achievementDao.getAll() }
-		coVerify(exactly = 0) { achievementDao.upsertAll(any()) }
+		coVerify(exactly = 0) { achievementDao.replaceEvaluatedAll(any()) }
 	}
 
 	@Test
@@ -175,7 +175,7 @@ class AchievementWorkerTest {
 		result shouldBe ListenableWorker.Result.retry()
 		coVerify(exactly = 1) { metricsProvider.collect() }
 		coVerify(exactly = 0) { achievementDao.getAll() }
-		coVerify(exactly = 0) { achievementDao.upsertAll(any()) }
+		coVerify(exactly = 0) { achievementDao.replaceEvaluatedAll(any()) }
 		dirtyTracker.snapshotDirty(MetricDirtyTracker.Consumer.PERSISTENCE).tables shouldContainExactlyInAnyOrder
 			setOf("daily_summary")
 	}
@@ -200,7 +200,7 @@ class AchievementWorkerTest {
 		val achievementDao = mockk<AchievementProgressDao>(relaxed = true)
 		coEvery { achievementDao.getAll() } returns emptyList()
 		val upsertSlot = slot<List<AchievementProgressEntity>>()
-		coEvery { achievementDao.upsertAll(capture(upsertSlot)) } returns Unit
+		coEvery { achievementDao.replaceEvaluatedAll(capture(upsertSlot)) } returns Unit
 
 		val dirtyTracker = DefaultMetricDirtyTracker()
 		dirtyTracker.markDirty("daily_summary")
@@ -210,7 +210,7 @@ class AchievementWorkerTest {
 
 		result shouldBe ListenableWorker.Result.success()
 		coVerify(exactly = 1) { metricsProvider.collect() }
-		coVerify(exactly = 1) { achievementDao.upsertAll(any()) }
+		coVerify(exactly = 1) { achievementDao.replaceEvaluatedAll(any()) }
 
 		val written = upsertSlot.captured
 		written.size shouldBe 1
@@ -245,7 +245,7 @@ class AchievementWorkerTest {
 		val achievementDao = mockk<AchievementProgressDao>(relaxed = true)
 		coEvery { achievementDao.getAll() } returns listOf(existingSteps)
 		val upsertSlot = slot<List<AchievementProgressEntity>>()
-		coEvery { achievementDao.upsertAll(capture(upsertSlot)) } returns Unit
+		coEvery { achievementDao.replaceEvaluatedAll(capture(upsertSlot)) } returns Unit
 
 		val dirtyTracker = DefaultMetricDirtyTracker().apply {
 			markDirty("daily_summary")
@@ -267,18 +267,77 @@ class AchievementWorkerTest {
 		val metrics = mockk<AchievementMetricsProvider>()
 		coEvery { metrics.collect() } returns MetricSnapshot.of(
 			MetricKey.DISTANCE_TOTAL_M to 0L, MetricKey.ACTIVE_DAYS_TOTAL to 0L)
-		val existing = AchievementProgressEntity(MetricKey.DISTANCE_TOTAL_M.storageKey,
-			lastTierIndex = definitions.maxOf { it.tierIndex }, lastValue = 100_000.0,
-			updatedAt = 1L, lastUnlockedAt = 1L)
+		val database = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Context>())
+		try {
+			val dao = database.achievementProgressDao()
+			dao.upsertMonotonic(MetricKey.DISTANCE_TOTAL_M.storageKey,
+				definitions.maxOf { it.tierIndex }, 100_000.0, 1L, 1L)
+			val dirty = DefaultMetricDirtyTracker().apply { markDirty("daily_summary") }
+
+			newWorker(registry, metrics, dao, dirty,
+				RoomAchievementEvaluationTransactionRunner(database)).doWork() shouldBe ListenableWorker.Result.success()
+
+			val saved = requireNotNull(dao.getByMetric(MetricKey.DISTANCE_TOTAL_M.storageKey))
+			saved.lastTierIndex shouldBe -1
+			saved.lastValue shouldBe 0.0
+			saved.lastUnlockedAt shouldBe null
+		} finally {
+			database.close()
+		}
+	}
+
+	@Test
+	fun `pacing-only changes preserve earned unpaced exploration progress`() = runTest {
+		val metric = MetricKey.CELLS_DISTINCT_LIFETIME
+		val firstTier = AchievementCatalog.byMetric(metric).first()
+		val database = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Context>())
+		try {
+			val dao = database.achievementProgressDao()
+			dao.upsertMonotonic(metric.storageKey, firstTier.tierIndex, firstTier.threshold, 1L, 1L)
+			val saved = requireNotNull(dao.getByMetric(metric.storageKey))
+			val registry = AchievementRuleRegistry(dao)
+			// A daily update changes pacing; it does not select the first exploration tier.
+			val affected = registry.instancesAffectedByTables(setOf("daily_summary"))
+				.filter { it.rule.metric == metric }
+			affected.isNotEmpty() shouldBe true
+			affected.any { (it.attachment as AchievementDefinition).tierIndex == firstTier.tierIndex } shouldBe false
+			val metrics = mockk<AchievementMetricsProvider>()
+			coEvery { metrics.collect() } returns MetricSnapshot.of(
+				metric to firstTier.threshold, MetricKey.ACTIVE_DAYS_TOTAL to 1L)
+			val dirty = DefaultMetricDirtyTracker().apply { markDirty("daily_summary") }
+
+			newWorker(registry, metrics, dao, dirty,
+				RoomAchievementEvaluationTransactionRunner(database)).doWork() shouldBe ListenableWorker.Result.success()
+
+			dao.getByMetric(metric.storageKey) shouldBe saved
+			dirty.snapshotDirty(MetricDirtyTracker.Consumer.PERSISTENCE).isEmpty shouldBe true
+		} finally {
+			database.close()
+		}
+	}
+
+	@Test
+	fun `missing pacing data does not retract an otherwise still qualifying saved tier`() = runTest {
+		val definitions = AchievementCatalog.byMetric(MetricKey.DISTANCE_TOTAL_M)
+		val savedDefinition = definitions.last { it.minimumActiveDays > 1 }
+		val registry = mockk<RuleRegistry>()
+		coEvery { registry.instancesAffectedByTables(any()) } returnsMany listOf(
+			definitions.map(::ruleInstanceFor), emptyList())
+		val metrics = mockk<AchievementMetricsProvider>()
+		coEvery { metrics.collect() } returns MetricSnapshot.of(
+			MetricKey.DISTANCE_TOTAL_M to (savedDefinition.threshold + 1.0))
+		val saved = AchievementProgressEntity(MetricKey.DISTANCE_TOTAL_M.storageKey,
+			savedDefinition.tierIndex, savedDefinition.threshold, 1L, 1L)
 		val dao = mockk<AchievementProgressDao>(relaxed = true)
-		coEvery { dao.getAll() } returns listOf(existing)
+		coEvery { dao.getAll() } returns listOf(saved)
 		val written = slot<List<AchievementProgressEntity>>()
-		coEvery { dao.upsertAll(capture(written)) } returns Unit
+		coEvery { dao.replaceEvaluatedAll(capture(written)) } returns Unit
 		val dirty = DefaultMetricDirtyTracker().apply { markDirty("daily_summary") }
+
 		newWorker(registry, metrics, dao, dirty).doWork() shouldBe ListenableWorker.Result.success()
-		written.captured.single().lastTierIndex shouldBe -1
-		written.captured.single().lastValue shouldBe 0.0
-		written.captured.single().lastUnlockedAt shouldBe null
+
+		written.captured.single().lastTierIndex shouldBe saved.lastTierIndex
+		written.captured.single().lastUnlockedAt shouldBe saved.lastUnlockedAt
 	}
 
 	@Test
@@ -300,7 +359,7 @@ class AchievementWorkerTest {
 		val result = newWorker(registry, metricsProvider, achievementDao, dirtyTracker).doWork()
 
 		result shouldBe ListenableWorker.Result.success()
-		coVerify(exactly = 0) { achievementDao.upsertAll(any()) }
+		coVerify(exactly = 0) { achievementDao.replaceEvaluatedAll(any()) }
 		dirtyTracker.snapshotDirty(MetricDirtyTracker.Consumer.PERSISTENCE).isEmpty shouldBe true
 	}
 

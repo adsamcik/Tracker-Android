@@ -9,6 +9,10 @@ import com.adsamcik.tracker.shared.base.database.data.LegacyRejectedTrackerSessi
 /** Typed access to the finite released compatibility records. They carry no inferred purpose. */
 @Dao
 interface LegacyPreservedDataDao {
+	/**
+	 * Reads `legacy_rejected_tracker_session` rows. Query conditions include `id = :id`. Returns null
+	 * when no row matches.
+	 */
 	@Query("SELECT * FROM legacy_rejected_tracker_session WHERE id = :id")
 	suspend fun rejectedSession(id: Long): LegacyRejectedTrackerSession?
 
@@ -32,14 +36,22 @@ interface LegacyPreservedDataDao {
 	suspend fun wifiCountHistoryCandidates(fromMs: Long, toMs: Long, afterTime: Long?, afterTag: String?,
 		afterIdentity: String?, limit: Int): List<MeasuredHistoryCandidate>
 
+	/**
+	 * Reads `legacy_location_wifi_count` rows. Query conditions include `id IN (:ids)`.
+	 */
 	@Query("SELECT * FROM legacy_location_wifi_count WHERE id IN (:ids)")
 	suspend fun wifiCountsByIds(ids: List<Long>): List<LegacyLocationWifiCount>
 
+	/**
+	 * Reads `network_operator` rows. Query conditions include `mcc = :mcc`, `mnc = :mnc`. Returns
+	 * null when no row matches.
+	 */
 	@Query("SELECT * FROM network_operator WHERE mcc = :mcc AND mnc = :mnc")
 	suspend fun networkOperator(mcc: String, mnc: String): NetworkOperator?
 
 	/** Invoked inside the existing trip-retention authority transaction. */
-	@Query("DELETE FROM legacy_rejected_tracker_session WHERE start >= 0 AND `end` >= 0 AND start < :cutoff AND `end` < :cutoff")
+	@Query(("DELETE FROM legacy_rejected_tracker_session WHERE start >= 0 AND `end` >= 0 AND start < " +
+        ":cutoff AND `end` < :cutoff"))
 	suspend fun deleteRejectedSessionsOlderThan(cutoff: Long)
 
 	/** Invoked inside the existing radio-retention authority transaction. */
@@ -49,8 +61,14 @@ interface LegacyPreservedDataDao {
 	/** The existing full-clear transaction owns these deletes; no purpose is guessed. */
 	@Query("DELETE FROM legacy_rejected_tracker_session")
 	fun deleteAllRejectedSessions()
+	/**
+	 * Deletes `legacy_location_wifi_count` rows.
+	 */
 	@Query("DELETE FROM legacy_location_wifi_count")
 	fun deleteAllWifiCounts()
+	/**
+	 * Deletes `network_operator` rows.
+	 */
 	@Query("DELETE FROM network_operator")
 	fun deleteAllNetworkOperators()
 }

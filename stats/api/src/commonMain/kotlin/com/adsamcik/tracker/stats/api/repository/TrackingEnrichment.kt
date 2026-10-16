@@ -10,6 +10,10 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
  * operation. A caller receives one immutable answer or an explicit rejection.
  */
 interface TrackingEnrichmentReader {
+	/**
+	 * Reads independently qualified saved enrichment for the exact base selection without acquiring
+	 * or retaining any sensor.
+	 */
 	suspend fun read(request: TrackingEnrichmentRequest): TrackingEnrichmentSnapshot
 }
 
@@ -45,6 +49,10 @@ data class TrackingEnrichmentEligibility(
 		}
 	}
 
+	/**
+	 * Checks the proven origin identity, consent epoch and saved structural day against this
+	 * enrichment eligibility.
+	 */
 	fun isCompatibleWith(origin: TrackingProductOrigin): Boolean = when (origin.kind) {
 		TrackingProductOriginKind.SESSION ->
 			purpose == TrackingEnrichmentPurpose.SESSION_CAPTURE &&
@@ -165,6 +173,10 @@ class WifiEnrichmentObservation(
 	}
 }
 
+/**
+ * Qualified Wi-Fi observation paired with the original fact authority used for optional
+ * enrichment.
+ */
 data class WifiEnrichmentFact(
 	val authority: TrackingEnrichmentFactAuthority,
 	val observation: WifiEnrichmentObservation,
@@ -206,6 +218,9 @@ class CellEnrichmentObservation(
 	}
 }
 
+/**
+ * Qualified Cell observation paired with its original saved-fact authority.
+ */
 data class CellEnrichmentFact(
 	val authority: TrackingEnrichmentFactAuthority,
 	val observation: CellEnrichmentObservation,
@@ -254,6 +269,10 @@ data class PressureEnrichmentFact(
 	}
 }
 
+/**
+ * Count of compatible saved fixes and their newest measured time, not the time of the enrichment
+ * read.
+ */
 data class LocationEnrichmentResultMetadata(
 	val compatibleFixCount: Int,
 	val newestObservedAt: EpochMs,
@@ -263,6 +282,9 @@ data class LocationEnrichmentResultMetadata(
 	}
 }
 
+/**
+ * Compatible Wi-Fi observation count and whether any accepted result set is partial.
+ */
 data class WifiEnrichmentResultMetadata(
 	val compatibleObservationCount: Int,
 	val hasPartialResultSet: Boolean,
@@ -272,6 +294,9 @@ data class WifiEnrichmentResultMetadata(
 	}
 }
 
+/**
+ * Compatible Cell observation count and whether any represented child set is partial.
+ */
 data class CellEnrichmentResultMetadata(
 	val compatibleObservationCount: Int,
 	val hasPartialChildren: Boolean,
@@ -281,6 +306,9 @@ data class CellEnrichmentResultMetadata(
 	}
 }
 
+/**
+ * Compatible Activity band count and the retained coverage of those bands.
+ */
 data class ActivityEnrichmentResultMetadata(
 	val compatibleBandCount: Int,
 	val coverage: ActivityHistoryCoverage,
@@ -291,12 +319,19 @@ data class ActivityEnrichmentResultMetadata(
 	}
 }
 
+/**
+ * Whether retained aggregate windows cover the selected authority range completely, partly or with
+ * a gap.
+ */
 enum class TrackingEnrichmentAggregateCoverage {
 	COMPLETE,
 	PARTIAL,
 	GAP,
 }
 
+/**
+ * Compatible real Steps window count with its original authority range and aggregate coverage.
+ */
 data class StepsEnrichmentResultMetadata(
 	val compatibleWindowCount: Int,
 	val authorityRange: TrackingProductQueryScope.WallRange,
@@ -307,6 +342,9 @@ data class StepsEnrichmentResultMetadata(
 	}
 }
 
+/**
+ * Compatible real Pressure window count with its original authority range and aggregate coverage.
+ */
 data class PressureEnrichmentResultMetadata(
 	val compatibleWindowCount: Int,
 	val authorityRange: TrackingProductQueryScope.WallRange,
@@ -317,6 +355,9 @@ data class PressureEnrichmentResultMetadata(
 	}
 }
 
+/**
+ * Nonempty half-open measured UTC millisecond interval eligible for optional enrichment.
+ */
 data class TrackingEnrichmentInterval(
 	val fromInclusive: EpochMs,
 	val toExclusive: EpochMs,
@@ -326,12 +367,24 @@ data class TrackingEnrichmentInterval(
 	}
 }
 
+/**
+ * Bounded normalized interval union or a rejection that prevents selecting enrichment data.
+ */
 sealed interface TrackingEnrichmentIntervalUnionResult {
+	/**
+	 * Computed aggregate coverage for the bounded measured interval union.
+	 */
 	data class Covered(
 		val coverage: TrackingEnrichmentAggregateCoverage,
 	) : TrackingEnrichmentIntervalUnionResult
 
+	/**
+	 * Some selected measured interval falls outside the requested source authority.
+	 */
 	data object OutsideAuthority : TrackingEnrichmentIntervalUnionResult
+	/**
+	 * The measured interval union exceeds the finite permitted interval count.
+	 */
 	data object Overflow : TrackingEnrichmentIntervalUnionResult
 }
 
@@ -362,6 +415,14 @@ fun trackingEnrichmentIntervalUnionCoverage(
 		return TrackingEnrichmentIntervalUnionResult.OutsideAuthority
 	}
 
+	return orderedEnrichmentIntervalUnionCoverage(authorityRange, ordered)
+}
+
+/** Scans nonempty, ordered intervals already checked against the authority range. */
+private fun orderedEnrichmentIntervalUnionCoverage(
+	authorityRange: TrackingProductQueryScope.WallRange,
+	ordered: List<TrackingEnrichmentInterval>,
+): TrackingEnrichmentIntervalUnionResult {
 	var mergedStart = ordered.first().fromInclusive.raw
 	var mergedEnd = ordered.first().toExclusive.raw
 	var coveredDuration = 0L
@@ -385,11 +446,21 @@ fun trackingEnrichmentIntervalUnionCoverage(
 		return TrackingEnrichmentIntervalUnionResult.Overflow
 	}
 	coveredDuration += lastDuration
+	return enrichmentIntervalCoverage(authorityRange, ordered.first(), mergedEnd, coveredDuration, hasInternalGap)
+}
+
+private fun enrichmentIntervalCoverage(
+	authorityRange: TrackingProductQueryScope.WallRange,
+	firstInterval: TrackingEnrichmentInterval,
+	mergedEnd: Long,
+	coveredDuration: Long,
+	hasInternalGap: Boolean,
+): TrackingEnrichmentIntervalUnionResult.Covered {
 	val authorityDuration =
 		authorityRange.toExclusive.raw - authorityRange.fromInclusive.raw
 	val complete =
 		!hasInternalGap &&
-			ordered.first().fromInclusive == authorityRange.fromInclusive &&
+			firstInterval.fromInclusive == authorityRange.fromInclusive &&
 			mergedEnd == authorityRange.toExclusive.raw &&
 			coveredDuration == authorityDuration
 	val coverage = when {
@@ -408,6 +479,10 @@ fun trackingEnrichmentIntervalUnionCoverage(
 sealed interface TrackingEnrichmentSourceResult {
 	val source: HistorySource
 
+	/**
+	 * Snapshot of compatible Location facts and source-specific coverage metadata; it never activates
+	 * collection.
+	 */
 	class Location(
 		facts: List<LocationEnrichmentFact>,
 		val metadata: LocationEnrichmentResultMetadata,
@@ -425,6 +500,10 @@ sealed interface TrackingEnrichmentSourceResult {
 		}
 	}
 
+	/**
+	 * Snapshot of compatible Wi-Fi facts and source-specific coverage metadata; it never activates
+	 * collection.
+	 */
 	class Wifi(
 		facts: List<WifiEnrichmentFact>,
 		val metadata: WifiEnrichmentResultMetadata,
@@ -448,6 +527,10 @@ sealed interface TrackingEnrichmentSourceResult {
 		}
 	}
 
+	/**
+	 * Snapshot of compatible Cell facts and source-specific coverage metadata; it never activates
+	 * collection.
+	 */
 	class Cell(
 		facts: List<CellEnrichmentFact>,
 		val metadata: CellEnrichmentResultMetadata,
@@ -471,6 +554,10 @@ sealed interface TrackingEnrichmentSourceResult {
 		}
 	}
 
+	/**
+	 * Snapshot of compatible Activity facts and source-specific coverage metadata; it never activates
+	 * collection.
+	 */
 	class Activity(
 		facts: List<ActivityEnrichmentFact>,
 		val metadata: ActivityEnrichmentResultMetadata,
@@ -487,6 +574,10 @@ sealed interface TrackingEnrichmentSourceResult {
 		}
 	}
 
+	/**
+	 * Snapshot of compatible Steps facts and source-specific coverage metadata; it never activates
+	 * collection.
+	 */
 	class Steps private constructor(
 		facts: List<StepsEnrichmentFact>,
 		val metadata: StepsEnrichmentResultMetadata,
@@ -502,7 +593,15 @@ sealed interface TrackingEnrichmentSourceResult {
 			require(metadata.compatibleWindowCount == factsSnapshot.size)
 		}
 
+		/**
+		 * Constructs optional Steps enrichment only from unique valid facts and the verified measured
+		 * interval union.
+		 */
 		companion object {
+			/**
+			 * Snapshots unique Steps facts and checks their bounded interval-union coverage against
+			 * metadata before exposing enrichment.
+			 */
 			fun create(
 				facts: List<StepsEnrichmentFact>,
 				metadata: StepsEnrichmentResultMetadata,
@@ -551,6 +650,10 @@ sealed interface TrackingEnrichmentSourceResult {
 		}
 	}
 
+	/**
+	 * Snapshot of compatible Pressure facts and source-specific coverage metadata; it never activates
+	 * collection.
+	 */
 	class Pressure private constructor(
 		facts: List<PressureEnrichmentFact>,
 		val metadata: PressureEnrichmentResultMetadata,
@@ -566,7 +669,15 @@ sealed interface TrackingEnrichmentSourceResult {
 			require(metadata.compatibleWindowCount == factsSnapshot.size)
 		}
 
+		/**
+		 * Constructs optional Pressure enrichment only from valid windows and the verified measured
+		 * interval union.
+		 */
 		companion object {
+			/**
+			 * Snapshots valid unique Pressure windows and checks their bounded interval-union coverage
+			 * against metadata before exposing enrichment.
+			 */
 			fun create(
 				facts: List<PressureEnrichmentFact>,
 				metadata: PressureEnrichmentResultMetadata,
@@ -612,30 +723,41 @@ sealed interface TrackingEnrichmentSourceResult {
 					} else {
 						coverage
 					}
-				if (
+				return if (
 					metadata.compatibleWindowCount != factSnapshot.size ||
 					metadata.aggregateCoverage != qualifiedCoverage
 				) {
-					return TrackingEnrichmentSourceResult.Rejected(
+					TrackingEnrichmentSourceResult.Rejected(
 						HistorySource.PRESSURE,
 						TrackingEnrichmentRejectionReason.CONFLICT,
 					)
+				} else {
+					Pressure(factSnapshot, metadata)
 				}
-				return Pressure(factSnapshot, metadata)
 			}
 		}
 	}
 
+	/**
+	 * The optional source has no independently qualified compatible saved facts for this selection.
+	 */
 	data class NoCompatibleFacts(
 		override val source: HistorySource,
 	) : TrackingEnrichmentSourceResult
 
+	/**
+	 * Optional enrichment was rejected for the named authority, conflict or interval reason.
+	 */
 	data class Rejected(
 		override val source: HistorySource,
 		val reason: TrackingEnrichmentRejectionReason,
 	) : TrackingEnrichmentSourceResult
 }
 
+/**
+ * Authority, conflict, acquisition or interval problems that reject optional enrichment without
+ * invalidating the base data.
+ */
 enum class TrackingEnrichmentRejectionReason {
 	OUTSIDE_AUTHORITY,
 	CONFLICT,

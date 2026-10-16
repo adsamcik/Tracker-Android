@@ -54,77 +54,122 @@ internal fun MeasuredHistoryContent(
 	modifier: Modifier = Modifier,
 ) {
 	val locale = LocalConfiguration.current.locales[0]
-    val refresh = pages.loadState.refresh
-    val append = pages.loadState.append
-    val emptyComplete = refresh is LoadState.NotLoading && append is LoadState.NotLoading && append.endOfPaginationReached
-    if (pages.itemCount == 0 && refresh !is LoadState.Error && append !is LoadState.Error && !emptyComplete) {
-		Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-			CircularProgressIndicator()
-		}
+	val refresh = pages.loadState.refresh
+	val append = pages.loadState.append
+	val emptyComplete = refresh is LoadState.NotLoading && append is LoadState.NotLoading &&
+		append.endOfPaginationReached
+	if (hasInitialHistoryLoad(pages, emptyComplete)) {
+		Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
 		return
 	}
-    val firstProblems = mutableMapOf<HistorySource?, Int>()
-    pages.itemSnapshotList.forEachIndexed { index, item ->
-        if (item is HistoryPagingItem.PageProblems) item.problems.forEach { firstProblems.putIfAbsent(it.source, index) }
-    }
+	val firstProblems = firstHistoryProblemPages(pages)
 	LazyColumn(
 		modifier.fillMaxSize().testTag("measured_history"),
 		contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp),
 		verticalArrangement = Arrangement.spacedBy(8.dp),
 	) {
-        if (pages.itemCount == 0 && emptyComplete) {
+		if (pages.itemCount == 0 && emptyComplete) {
 			item("empty") { Text(stringResource(R.string.history_measurements_empty)) }
 		}
-		items(count = pages.itemCount, key = { index ->
-			when (val item = pages.peek(index)) {
-				is HistoryPagingItem.Row -> "${item.snapshot.collectedDataEpoch}:${item.row.position}"
-				is HistoryPagingItem.PageProblems -> "problems:$index:${item.snapshot.collectedDataEpoch}"
-				null -> "placeholder:$index"
-			}
-		}) { index ->
-			when (val item = pages[index]) {
-				is HistoryPagingItem.Row -> {
-					val date = measuredDate(item.row, viewZone)
-					var previousIndex = index - 1
-					var previousDate: LocalDate? = null
-					while (previousIndex >= 0 && previousDate == null) {
-						val previous = pages.peek(previousIndex--)
-						if (previous is HistoryPagingItem.Row) previousDate = measuredDate(previous.row, viewZone)
-					}
-					if (date != previousDate) Text(
-						date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)),
-						modifier = Modifier.padding(top = 8.dp).semantics { heading() },
-						style = MaterialTheme.typography.titleSmall,
-					)
-					MeasuredHistoryCard(item.row, viewZone, locale)
-				}
-				is HistoryPagingItem.PageProblems -> item.problems.distinctBy { it.source }.filter { firstProblems[it.source] == index }
-                    .sortedBy { it.source?.ordinal ?: -1 }
-					.forEach { problem ->
-						Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-							Text(
-								text = problem.source?.let { stringResource(it.labelResource) }
-									?: stringResource(R.string.history_screen_title),
-								modifier = Modifier.weight(1f),
-							)
-							Text(stringResource(R.string.history_value_unavailable))
-							TextButton(onClick = pages::refresh) { Text(stringResource(R.string.action_retry)) }
-						}
-					}
-				null -> Unit
-			}
+		items(count = pages.itemCount, key = { index -> measuredHistoryKey(pages.peek(index), index) }) { index ->
+			MeasuredHistoryItem(pages, index, viewZone, locale, firstProblems)
 		}
-		val failure = pages.loadState.refresh as? LoadState.Error ?: pages.loadState.append as? LoadState.Error
-		if (failure != null) item("load_error") {
-			Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-				Text(stringResource(R.string.history_value_unavailable), modifier = Modifier.weight(1f))
-				TextButton(onClick = pages::retry) { Text(stringResource(R.string.action_retry)) }
-			}
+		measuredHistoryLoadState(pages)
+	}
+}
+
+private fun hasInitialHistoryLoad(pages: LazyPagingItems<HistoryPagingItem>, emptyComplete: Boolean): Boolean =
+	pages.itemCount == 0 && pages.loadState.refresh !is LoadState.Error &&
+		pages.loadState.append !is LoadState.Error && !emptyComplete
+
+private fun firstHistoryProblemPages(pages: LazyPagingItems<HistoryPagingItem>): Map<HistorySource?, Int> {
+	val firstProblems = mutableMapOf<HistorySource?, Int>()
+	pages.itemSnapshotList.forEachIndexed { index, item ->
+		if (item is HistoryPagingItem.PageProblems) {
+			item.problems.forEach { firstProblems.putIfAbsent(it.source, index) }
 		}
-		if (pages.loadState.append is LoadState.Loading ||
-			pages.itemCount > 0 && pages.loadState.refresh is LoadState.Loading) item("loading") {
-			Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+	}
+	return firstProblems
+}
+
+private fun measuredHistoryKey(item: HistoryPagingItem?, index: Int): String =
+	when (item) {
+		is HistoryPagingItem.Row -> "${item.snapshot.collectedDataEpoch}:${item.row.position}"
+		is HistoryPagingItem.PageProblems -> "problems:$index:${item.snapshot.collectedDataEpoch}"
+		null -> "placeholder:$index"
+	}
+
+@Composable
+private fun MeasuredHistoryItem(
+	pages: LazyPagingItems<HistoryPagingItem>, index: Int, viewZone: ZoneId, locale: Locale,
+	firstProblems: Map<HistorySource?, Int>,
+) {
+	when (val item = pages[index]) {
+		is HistoryPagingItem.Row -> MeasuredHistoryRow(item, pages, index, viewZone, locale)
+		is HistoryPagingItem.PageProblems -> MeasuredHistoryProblems(item, index, firstProblems, pages::refresh)
+		null -> Unit
+	}
+}
+
+@Composable
+private fun MeasuredHistoryRow(
+	item: HistoryPagingItem.Row, pages: LazyPagingItems<HistoryPagingItem>, index: Int, viewZone: ZoneId, locale: Locale,
+) {
+	val date = measuredDate(item.row, viewZone)
+	var previousIndex = index - 1
+	var previousDate: LocalDate? = null
+	while (previousIndex >= 0 && previousDate == null) {
+		val previous = pages.peek(previousIndex--)
+		if (previous is HistoryPagingItem.Row) {
+			previousDate = measuredDate(previous.row, viewZone)
 		}
+	}
+	if (date != previousDate) {
+		Text(
+		date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)),
+		modifier = Modifier.padding(top = 8.dp).semantics { heading() },
+		style = MaterialTheme.typography.titleSmall,
+	)
+	}
+	MeasuredHistoryCard(item.row, viewZone, locale)
+}
+
+@Composable
+private fun MeasuredHistoryProblems(
+	item: HistoryPagingItem.PageProblems, index: Int, firstProblems: Map<HistorySource?, Int>, onRetry: () -> Unit,
+) {
+	item.problems.distinctBy { it.source }.filter { firstProblems[it.source] == index }
+	.sortedBy { it.source?.ordinal ?: -1 }
+	.forEach { problem ->
+		Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+			Text(
+				text = problem.source?.let { stringResource(it.labelResource) }
+					?: stringResource(R.string.history_screen_title),
+				modifier = Modifier.weight(1f),
+			)
+			Text(stringResource(R.string.history_value_unavailable))
+			TextButton(onClick = onRetry) { Text(stringResource(R.string.action_retry)) }
+		}
+	}
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.measuredHistoryLoadState(
+	pages: LazyPagingItems<HistoryPagingItem>,
+) {
+	val failure = pages.loadState.refresh as? LoadState.Error ?: pages.loadState.append as? LoadState.Error
+	if (failure != null) {
+		item("load_error") {
+		Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+			Text(stringResource(R.string.history_value_unavailable), modifier = Modifier.weight(1f))
+			TextButton(onClick = pages::retry) { Text(stringResource(R.string.action_retry)) }
+		}
+	}
+	}
+	if (pages.loadState.append is LoadState.Loading ||
+		pages.itemCount > 0 && pages.loadState.refresh is LoadState.Loading) {
+		item("loading") {
+		Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+	}
 	}
 }
 
@@ -137,8 +182,12 @@ internal fun measuredTimeLabel(row: UnifiedHistoryRow, zone: ZoneId, locale: Loc
 	val end = row.toExclusiveMs?.let { Instant.ofEpochMilli(it).atZone(zone) }
 	val time = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale)
 	return start.format(time) + (end?.let {
-		val endFormat = if (it.toLocalDate() == start.toLocalDate()) time
-			else DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale)
+		val endFormat = if (it.toLocalDate() == start.toLocalDate()) {
+			time
+		}
+			else {
+			DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale)
+		}
 		" → " + it.format(endFormat)
 	} ?: "")
 }
@@ -147,7 +196,11 @@ internal fun measuredTimeLabel(row: UnifiedHistoryRow, zone: ZoneId, locale: Loc
 private fun MeasuredHistoryCard(row: UnifiedHistoryRow, zone: ZoneId, locale: Locale) {
 	val measurement = row.measurement ?: return
 	var expanded by rememberSaveable(row.position) { mutableStateOf(false) }
-	val expansion = stringResource(if (expanded) R.string.history_hide_details else R.string.history_show_details)
+	val expansion = stringResource(if (expanded) {
+		R.string.history_hide_details
+	} else {
+		R.string.history_show_details
+	})
 	Card(
 		onClick = { expanded = !expanded },
 		modifier = Modifier.fillMaxWidth().testTag("history_measurement_${row.position.stableId}")
@@ -160,13 +213,17 @@ private fun MeasuredHistoryCard(row: UnifiedHistoryRow, zone: ZoneId, locale: Lo
 				Text(measuredTimeLabel(row, zone, locale), style = MaterialTheme.typography.bodySmall)
 			}
 			MeasurementValue(measurement, locale, expanded)
-			if (HistoryOrigin.IMPORTED in row.origins) Text(stringResource(R.string.radio_detail_imported),
+			if (HistoryOrigin.IMPORTED in row.origins) {
+				Text(stringResource(R.string.radio_detail_imported),
 				style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+			}
 			if (expanded) {
-                row.sessionNames.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
-				val format = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withLocale(locale)
+				row.sessionNames.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+				val format = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM,
+                    FormatStyle.SHORT).withLocale(locale)
 				Text(Instant.ofEpochMilli(row.position.startTimeMs).atZone(zone).format(format) +
-					(row.toExclusiveMs?.let { " \u2192 " + Instant.ofEpochMilli(it).atZone(zone).format(format) } ?: ""),
+					(row.toExclusiveMs?.let { " \u2192 " + Instant.ofEpochMilli(it).atZone(zone).format(format) } ?:
+                        ""),
 					style = MaterialTheme.typography.bodySmall)
 			}
 		}
@@ -174,25 +231,40 @@ private fun MeasuredHistoryCard(row: UnifiedHistoryRow, zone: ZoneId, locale: Lo
 }
 
 @Composable
+// Keep this display-only sealed measurement table together; loading and qualification stay outside it.
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 private fun MeasurementValue(value: HistoryMeasurement, locale: Locale, expanded: Boolean) {
 	val numbers = NumberFormat.getNumberInstance(locale)
 	when (value) {
 		is HistoryMeasurement.Location -> {
-			Text(String.format(locale, "%.5f, %.5f", value.point.latitudeE7 / 1e7, value.point.longitudeE7 / 1e7))
-			if (expanded) value.point.accuracyMeters?.let { Text("\u00b1 " + numbers.format(it) + " m") }
+			Text(String.format(locale, "%.5f, %.5f", value.point.latitudeE7 / COORDINATE_E7_SCALE,
+				value.point.longitudeE7 / COORDINATE_E7_SCALE))
+			if (expanded) {
+				value.point.accuracyMeters?.let { Text("\u00b1 " + numbers.format(it) + " m") }
+			}
 		}
 		is HistoryMeasurement.Wifi -> {
 			value.network.ssid?.let { Text(it) }
-			if (expanded) value.network.bssid?.let { Text(it) }
+			if (expanded) {
+				value.network.bssid?.let { Text(it) }
+			}
 			Text(stringResource(R.string.radio_detail_signal_dbm, value.network.signalDbm))
-			if (expanded) Text(stringResource(R.string.radio_detail_frequency_mhz, value.network.frequencyMhz))
-			if (value.partial) IncompleteMeasurement()
+			if (expanded) {
+				Text(stringResource(R.string.radio_detail_frequency_mhz, value.network.frequencyMhz))
+			}
+			if (value.partial) {
+				IncompleteMeasurement()
+			}
 		}
 		is HistoryMeasurement.Cell -> {
 			value.tower.identity?.let { Text(it) }
 			value.tower.signalDbm?.let { Text(stringResource(R.string.radio_detail_signal_dbm, it)) }
-			if (expanded) Text(stringResource(value.tower.technology.labelResource))
-			if (value.partial) IncompleteMeasurement()
+			if (expanded) {
+				Text(stringResource(value.tower.technology.labelResource))
+			}
+			if (value.partial) {
+				IncompleteMeasurement()
+			}
 		}
 		is HistoryMeasurement.LegacyWifi -> {
 			value.ssid.takeIf(String::isNotBlank)?.let { Text(it) }
@@ -207,7 +279,9 @@ private fun MeasurementValue(value: HistoryMeasurement, locale: Locale, expanded
 			val activity = DetectedActivity.entries.firstOrNull { it.value == value.activityType }
 				?: DetectedActivity.UNKNOWN
 			Text(stringResource(activity.nameRes))
-			if (expanded) Text(NumberFormat.getPercentInstance(locale).format(value.confidencePercent / 100.0))
+			if (expanded) {
+				Text(NumberFormat.getPercentInstance(locale).format(value.confidencePercent / PERCENT_SCALE))
+			}
 		}
 		is HistoryMeasurement.LegacyPressure -> {
 			Text(String.format(locale, "%.1f hPa", value.meanHectopascals))
@@ -236,12 +310,19 @@ private fun MeasurementValue(value: HistoryMeasurement, locale: Locale, expanded
 		is HistoryMeasurement.Activity -> Text(stringResource(value.band.activity.labelResource))
 		is HistoryMeasurement.Pressure -> {
 			Text(String.format(locale, "%.1f hPa", value.window.meanHectopascals))
-			if (expanded) Text(String.format(locale, "%.1f\u2013%.1f hPa", value.window.minimumHectopascals, value.window.maximumHectopascals))
-			if (value.window.qualification != PressureWindowQualification.COMPLETE) IncompleteMeasurement()
+			if (expanded) {
+				Text(String.format(locale, "%.1f\u2013%.1f hPa", value.window.minimumHectopascals,
+                    value.window.maximumHectopascals))
+			}
+			if (value.window.qualification != PressureWindowQualification.COMPLETE) {
+				IncompleteMeasurement()
+			}
 		}
 		is HistoryMeasurement.Steps -> {
 			Text(value.history.count?.let(numbers::format) ?: stringResource(R.string.history_value_unavailable))
-			if (!value.history.hasCompleteValue) IncompleteMeasurement()
+			if (!value.history.hasCompleteValue) {
+				IncompleteMeasurement()
+			}
 		}
 		is HistoryMeasurement.Gap -> Text(stringResource(R.string.history_value_unavailable))
 	}
@@ -252,3 +333,6 @@ private fun IncompleteMeasurement() {
 	Text(stringResource(R.string.history_value_partial), style = MaterialTheme.typography.bodySmall,
 		color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
+
+private const val COORDINATE_E7_SCALE = 1e7
+private const val PERCENT_SCALE = 100.0

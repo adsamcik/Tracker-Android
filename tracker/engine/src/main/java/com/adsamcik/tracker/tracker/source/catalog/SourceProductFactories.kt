@@ -17,13 +17,22 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjection
 import javax.inject.Inject
 
+/**
+ * Whether a product descriptor is dormant or explicitly contained; this value does not activate
+ * collection.
+ */
 sealed interface SourceProductCapability {
+	/**
+	 * The contract is described but must still obtain runtime and writer authority before activation.
+	 */
 	data object Dormant : SourceProductCapability
+	/** This product is withheld under the recorded decision reason. */
 	data class Contained(
 		val reason: TrackingDecisionContainmentReason,
 	) : SourceProductCapability
 }
 
+/** Exact durable destination owner and positive generation required before product writes. */
 data class SourceWriterOwnership(
 	val destination: String,
 	val owner: String,
@@ -36,15 +45,19 @@ data class SourceWriterOwnership(
 	}
 }
 
+/** Source-owned persistence path for one purpose, including paths with no recorded product writer. */
 sealed interface SourceWriterContract {
+	/** This purpose has no product writer or drain; the reason distinguishes deliberate exclusions. */
 	data class NotApplicable(
 		val reason: SourceWriterUnsupportedReason,
 	) : SourceWriterContract
 
+	/** Uses the existing protected Location owner rather than creating a competing writer. */
 	data class ProtectedLocation(
 		val ownership: SourceWriterOwnership,
 	) : SourceWriterContract
 
+	/** Canonical source-local writer ownership and the supported executable lane bindings. */
 	data class SourceLocalLane(
 		val ownership: SourceWriterOwnership,
 		val lanes: Set<ExecutableSourceLaneBinding>,
@@ -58,12 +71,16 @@ sealed interface SourceWriterContract {
 		}
 	}
 
+	/**
+	 * Sessionless writer identity or retention scopes for independently authorized all-day products.
+	 */
 	sealed interface Ambient : SourceWriterContract {
 		val writerId: String
 		val writerVersion: Int
 		val writerOwnerGeneration: Long
 	}
 
+	/** All-day Steps writer with its exact durable destination generation. */
 	data class AmbientSteps(
 		val ownership: SourceWriterOwnership,
 		override val writerId: String,
@@ -77,6 +94,7 @@ sealed interface SourceWriterContract {
 		}
 	}
 
+	/** All-day Wi-Fi writer ID, version and owner generation; no session owner is implied. */
 	data class AmbientWifi(
 		override val writerId: String,
 		override val writerVersion: Int,
@@ -89,6 +107,7 @@ sealed interface SourceWriterContract {
 		}
 	}
 
+	/** All-day Cell writer ID, version and owner generation; no session owner is implied. */
 	data class AmbientCell(
 		override val writerId: String,
 		override val writerVersion: Int,
@@ -102,11 +121,14 @@ sealed interface SourceWriterContract {
 	}
 }
 
+/** Reasons a source-purpose pair intentionally has no recorded-product writer. */
 enum class SourceWriterUnsupportedReason {
 	CONTROL_HAS_NO_PRODUCT_WRITER,
 }
 
+/** Which source-owned projection interprets durable observations for this purpose. */
 sealed interface SourceProjectionContract {
+	/** Versioned handoff to the existing canonical Location pipeline. */
 	data class ProtectedLocationCanonicalHandoff(
 		val projectionId: String,
 		val projectionVersion: Int,
@@ -117,6 +139,7 @@ sealed interface SourceProjectionContract {
 		}
 	}
 
+	/** Supported non-Location projection bindings for one source-owned product. */
 	data class ExecutableLanes(
 		val lanes: Set<ExecutableSourceLaneBinding>,
 	) : SourceProjectionContract {
@@ -126,6 +149,7 @@ sealed interface SourceProjectionContract {
 		}
 	}
 
+	/** Activity-only automatic-start projection; it does not create captured Activity history. */
 	data class ActivityControl(
 		val projectionId: String,
 		val projectionVersion: Int,
@@ -136,6 +160,7 @@ sealed interface SourceProjectionContract {
 		}
 	}
 
+	/** Versioned all-day projection identity independent of session capture. */
 	data class AmbientWriter(
 		val writerId: String,
 		val writerVersion: Int,
@@ -147,61 +172,96 @@ sealed interface SourceProjectionContract {
 	}
 }
 
+/** Drain routing needed to settle a purpose, or an explicit reason no session drain applies. */
 sealed interface SourceDrainContract {
+	/** Uses the existing protected Location owner rather than creating a competing writer. */
 	data object ProtectedLocation : SourceDrainContract
+	/** Routes drain requests to the chosen source-local product lane. */
 	data object SourceLocalProductRouter : SourceDrainContract
+	/** This purpose has no product writer or drain; the reason distinguishes deliberate exclusions. */
 	data class NotApplicable(val reason: SourceDrainUnsupportedReason) : SourceDrainContract
 }
 
+/** Reasons CONTROL or all-day products do not use session product draining. */
 enum class SourceDrainUnsupportedReason {
 	CONTROL_HAS_NO_PRODUCT_DRAIN,
 	AMBIENT_PRODUCT_IS_NOT_SESSION_DRAINED,
 }
 
+/** The source-owned saved-data reader family required by a product descriptor. */
 sealed interface SourceQueryContract {
+	/** Reads retained canonical Location points; querying never starts Location. */
 	data object LocationSamples : SourceQueryContract
+	/** Reads captured or imported Activity measurements through their saved-data authority. */
 	data object ActivityHistory : SourceQueryContract
+	/** Reads saved session Steps intervals and their exact count-domain semantics. */
 	data object StepsSessionHistory : SourceQueryContract
+	/** Reads saved Pressure windows with their original measurement bounds. */
 	data object PressureSessionHistory : SourceQueryContract
+	/** Reads saved session Wi-Fi observations and available network details. */
 	data object WifiHistory : SourceQueryContract
+	/** Reads saved session Cell observations and available tower details. */
 	data object CellHistory : SourceQueryContract
+	/** Reads independent all-day Steps provider windows for daily history. */
 	data object AmbientStepsHistory : SourceQueryContract
+	/** Reads sessionless Wi-Fi observations under their original all-day purpose. */
 	data object AmbientWifiHistory : SourceQueryContract
+	/** Reads sessionless Cell observations under their original all-day purpose. */
 	data object AmbientCellHistory : SourceQueryContract
+	/** This purpose has no applicable query or portable format under the attached reason. */
 	data class Unsupported(val reason: SourceQueryUnsupportedReason) : SourceQueryContract
 }
 
+/** Reasons temporary CONTROL evidence has no user-facing product query. */
 enum class SourceQueryUnsupportedReason {
 	CONTROL_HAS_NO_PRODUCT_QUERY,
 }
 
+/** Typed portable format supported for one saved source-purpose product. */
 sealed interface SourcePortableContract {
+	/** Portable captured Activity measurements with their saved provenance. */
 	data object CapturedActivity : SourcePortableContract
+	/** Version-two session Steps format carrying count-domain information. */
 	data object SessionStepsV2 : SourcePortableContract
+	/** Version-one Pressure format retaining original measured window bounds. */
 	data object PressureV1 : SourcePortableContract
+	/** Captured Wi-Fi source format; optional Location enrichment is not invented into radio data. */
 	data object CapturedWifiV1 : SourcePortableContract
+	/** Captured Cell source format retaining observation and tower details. */
 	data object CapturedCell : SourcePortableContract
+	/** Version-two all-day Steps format retaining real provider windows and count domains. */
 	data object AmbientStepsV2 : SourcePortableContract
+	/** Version-one sessionless Wi-Fi format under independent retained purpose authority. */
 	data object AmbientWifiV1 : SourcePortableContract
+	/** Version-one sessionless Cell format under independent retained purpose authority. */
 	data object AmbientCellV1 : SourcePortableContract
+	/** This purpose has no applicable query or portable format under the attached reason. */
 	data class Unsupported(val reason: SourcePortableUnsupportedReason) : SourcePortableContract
 }
 
+/** Reasons this source-purpose descriptor cannot produce a typed portable file. */
 enum class SourcePortableUnsupportedReason {
 	CONTROL_EVIDENCE_IS_NOT_PORTABLE,
 	LOCATION_SOURCE_PORTABLE_CONTRACT_UNAVAILABLE,
 	AMBIENT_LOCATION_PORTABLE_CONTRACT_UNAVAILABLE,
 }
 
+/**
+ * Retention authority required by a purpose; CONTROL remains separate from durable user observations.
+ */
 sealed interface SourceRetentionContract {
 	/** Temporary automatic-start evidence; never a recorded Activity product. */
 	data object ActivityControl : SourceRetentionContract {
 		val maximumAgeNanos = com.adsamcik.tracker.shared.base.database.ACTIVITY_CONTROL_RETENTION_NANOS
 	}
+	/** Session-product retention with an optional separately approved portable import scope. */
 	data class SessionCapture(
 		val portableImportScope: RetentionAuthorityScope?,
 	) : SourceRetentionContract
 
+	/**
+	 * Independent live all-day retention plus an optional separately approved portable import scope.
+	 */
 	data class Ambient(
 		val liveScope: RetentionAuthorityScope,
 		val portableImportScope: RetentionAuthorityScope?,
@@ -215,11 +275,15 @@ sealed interface SourceRetentionContract {
 		}
 	}
 
+	/** Retention behavior withheld until the attached containment decision is resolved. */
 	data class Contained(
 		val reason: TrackingDecisionContainmentReason,
 	) : SourceRetentionContract
 }
 
+/**
+ * Immutable writer, projection, query, portable and retention contracts for one source-purpose pair.
+ */
 sealed interface SourceProductBinding {
 	val source: TrackingSource
 	val purpose: TrackingPurpose
@@ -231,6 +295,9 @@ sealed interface SourceProductBinding {
 	val portable: SourcePortableContract
 	val retention: SourceRetentionContract
 
+	/**
+	 * Session Location descriptor reusing its existing protected canonical writer and sample reader.
+	 */
 	data object LocationSession : SourceProductBinding {
 		override val source = TrackingSource.LOCATION
 		override val purpose = TrackingPurpose.SESSION_CAPTURE
@@ -245,6 +312,7 @@ sealed interface SourceProductBinding {
 		override val retention = SourceRetentionContract.SessionCapture(portableImportScope = null)
 	}
 
+	/** Session Activity descriptor with canonical source-local lanes and captured Activity history. */
 	data object ActivitySession : SourceProductBinding {
 		override val source = TrackingSource.ACTIVITY
 		override val purpose = TrackingPurpose.SESSION_CAPTURE
@@ -264,6 +332,7 @@ sealed interface SourceProductBinding {
 		override val retention = portableSessionRetention()
 	}
 
+	/** Session Steps descriptor with canonical lanes, exact interval queries and version-two files. */
 	data object StepsSession : SourceProductBinding {
 		override val source = TrackingSource.STEPS
 		override val purpose = TrackingPurpose.SESSION_CAPTURE
@@ -283,6 +352,7 @@ sealed interface SourceProductBinding {
 		override val retention = portableSessionRetention()
 	}
 
+	/** Session Pressure descriptor with canonical lanes, original windows and typed Pressure files. */
 	data object PressureSession : SourceProductBinding {
 		override val source = TrackingSource.PRESSURE
 		override val purpose = TrackingPurpose.SESSION_CAPTURE
@@ -302,6 +372,7 @@ sealed interface SourceProductBinding {
 		override val retention = portableSessionRetention()
 	}
 
+	/** Session Wi-Fi descriptor with canonical lanes, source history and typed radio export. */
 	data object WifiSession : SourceProductBinding {
 		override val source = TrackingSource.WIFI
 		override val purpose = TrackingPurpose.SESSION_CAPTURE
@@ -321,6 +392,7 @@ sealed interface SourceProductBinding {
 		override val retention = portableSessionRetention()
 	}
 
+	/** Session Cell descriptor with canonical lanes, source history and typed radio export. */
 	data object CellSession : SourceProductBinding {
 		override val source = TrackingSource.CELL
 		override val purpose = TrackingPurpose.SESSION_CAPTURE
@@ -340,6 +412,9 @@ sealed interface SourceProductBinding {
 		override val retention = portableSessionRetention()
 	}
 
+	/**
+	 * Temporary Activity trigger descriptor with no recorded-product writer, query or portable export.
+	 */
 	data object ActivityControl : SourceProductBinding {
 		override val source = TrackingSource.ACTIVITY
 		override val purpose = TrackingPurpose.CONTROL
@@ -363,6 +438,10 @@ sealed interface SourceProductBinding {
 		override val retention = SourceRetentionContract.ActivityControl
 	}
 
+	/**
+	 * Contained all-day Location descriptor reusing the protected writer; it does not assert acquisition
+	 * is enabled.
+	 */
 	data object LocationAmbient : SourceProductBinding {
 		override val source = TrackingSource.LOCATION
 		override val purpose = TrackingPurpose.AMBIENT_PRODUCT
@@ -382,6 +461,9 @@ sealed interface SourceProductBinding {
 		)
 	}
 
+	/**
+	 * Independent all-day Steps descriptor with its own writer, retention and provider-window history.
+	 */
 	data object StepsAmbient : SourceProductBinding {
 		override val source = TrackingSource.STEPS
 		override val purpose = TrackingPurpose.AMBIENT_PRODUCT
@@ -408,6 +490,7 @@ sealed interface SourceProductBinding {
 		override val retention = portableAmbientRetention()
 	}
 
+	/** Independent all-day Wi-Fi descriptor with its own writer, retention and source history. */
 	data object WifiAmbient : SourceProductBinding {
 		override val source = TrackingSource.WIFI
 		override val purpose = TrackingPurpose.AMBIENT_PRODUCT
@@ -429,6 +512,7 @@ sealed interface SourceProductBinding {
 		override val retention = portableAmbientRetention()
 	}
 
+	/** Independent all-day Cell descriptor with its own writer, retention and source history. */
 	data object CellAmbient : SourceProductBinding {
 		override val source = TrackingSource.CELL
 		override val purpose = TrackingPurpose.AMBIENT_PRODUCT
@@ -453,6 +537,12 @@ sealed interface SourceProductBinding {
 
 /** Produces immutable source-specific descriptors; it never resolves or invokes product services. */
 class SourceProductFactories @Inject constructor() {
+	/**
+	 * Selects immutable contracts for the supported canonical source-purpose pair; it never invokes a
+	 * provider.
+	 */
+	// Exhaustive source-purpose mapping returns immutable descriptors without invoking services.
+	@Suppress("CyclomaticComplexMethod")
 	fun create(identity: TrackingSourcePurposeIdentity): SourceProductBinding =
 		when (identity.purpose) {
 			TrackingPurpose.SESSION_CAPTURE -> when (identity.source) {

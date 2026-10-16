@@ -14,7 +14,8 @@ internal fun createLocationPointCorrectionSchema(db: SupportSQLiteDatabase) {
         alt_conversion_status TEXT NOT NULL, raw_gps_alt_datum TEXT NOT NULL,
         FOREIGN KEY(sample_id) REFERENCES location_sample(id) ON UPDATE NO ACTION ON DELETE CASCADE
     )""")
-    db.execSQL("CREATE INDEX IF NOT EXISTS idx_location_correction_time ON location_point_correction(time_ms, sample_id)")
+    db.execSQL(("CREATE INDEX IF NOT EXISTS idx_location_correction_time ON " +
+        "location_point_correction(time_ms, sample_id)"))
     db.execSQL("CREATE INDEX IF NOT EXISTS idx_location_correction_coords ON location_point_correction(lat_e7, lon_e7)")
     // The migration drops the previous view first. Keep the SQL identical to Room's view contract.
     db.execSQL("CREATE VIEW `effective_location_sample` AS $EFFECTIVE_LOCATION_SAMPLE_QUERY")

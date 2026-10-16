@@ -24,7 +24,12 @@ data class RawSessionManifestVersion(
 	@ColumnInfo(name = "change_reason") val changeReason: String?,
 	@ColumnInfo(name = "manifest_checksum") val manifestChecksum: String?,
 ) {
-	@Suppress("ComplexCondition", "ReturnCount")
+	/**
+	 * Builds the typed record only when raw SQL values have the expected types and satisfy its
+	 * constructor constraints; otherwise returns null.
+	 */
+	// Keep the 15-column SQL shape checks beside their typed manifest mapping.
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	fun validatedOrNull(): SessionManifestVersionEntity? {
 		val storageClasses = storageClassSignature?.split(STORAGE_CLASS_SEPARATOR)
 			?.takeIf { it.size == STORAGE_CLASS_COUNT }
@@ -62,7 +67,9 @@ data class RawSessionManifestVersion(
 		val elapsed = effectiveElapsedRealtimeNanos?.takeIf { it >= 0L } ?: return null
 		val wall = effectiveWallTimeMs?.takeIf { it >= 0L } ?: return null
 		val zone = zoneId?.takeIf(String::isNotBlank) ?: return null
-		if (automationEpoch?.let { it < 0L } == true) return null
+		if (automationEpoch?.let { it < 0L } == true) {
+			return null
+		}
 		val reason = changeReason?.takeIf(String::isNotBlank) ?: return null
 		val checksum = manifestChecksum?.takeIf(DIGEST::matches) ?: return null
 		return runCatching {
@@ -148,7 +155,12 @@ data class RawSessionLifecycleIntentVersion(
 	@ColumnInfo(name = "source_caller_authority_reference")
 	val sourceCallerAuthorityReference: String? = null,
 ) {
-	@Suppress("ComplexCondition", "LongMethod", "ReturnCount")
+	/**
+	 * Builds the typed record only when raw SQL values have the expected types and satisfy its
+	 * constructor constraints; otherwise returns null.
+	 */
+	// Keep the 21-column SQL shape and nullable trigger/deadline tuples beside their typed mapping.
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	fun validatedOrNull(): SessionLifecycleIntentVersionEntity? {
 		val storageClasses = storageClassSignature?.split(STORAGE_CLASS_SEPARATOR)
 			?.takeIf { it.size == STORAGE_CLASS_COUNT }
@@ -318,7 +330,12 @@ data class RawSourceSessionCompleteness(
 	@ColumnInfo(name = "unresolved_sequence_end") val unresolvedSequenceEnd: Long?,
 	@ColumnInfo(name = "updated_at_ms") val updatedAtMs: Long?,
 ) {
-	@Suppress("ComplexCondition", "ReturnCount")
+	/**
+	 * Builds the typed record only when raw SQL values have the expected types and satisfy its
+	 * constructor constraints; otherwise returns null.
+	 */
+	// Keep the 13-column SQL shape and paired sequence fields beside their typed mapping.
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	fun validatedOrNull(): SourceSessionCompletenessEntity? {
 		val storageClasses = storageClassSignature?.split(STORAGE_CLASS_SEPARATOR)
 			?.takeIf { it.size == STORAGE_CLASS_COUNT }
@@ -431,4 +448,8 @@ private fun List<String>.hasNullableClass(
 	index: Int,
 	value: Any?,
 	presentClass: String,
-): Boolean = getOrNull(index) == if (value == null) "null" else presentClass
+): Boolean = getOrNull(index) == if (value == null) {
+	"null"
+} else {
+	presentClass
+}

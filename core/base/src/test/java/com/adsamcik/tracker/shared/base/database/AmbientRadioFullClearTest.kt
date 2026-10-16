@@ -41,6 +41,8 @@ class AmbientRadioFullClearTest {
 		database.close()
 	}
 
+	// Keep original radio payload, source clear and exact/effect replay-fence assertions together.
+	@Suppress("LongMethod")
 	@Test
 	fun `source clear preserves exact and rehashed replay footprints`() = runTest {
 		val archiveId = digest("archive")

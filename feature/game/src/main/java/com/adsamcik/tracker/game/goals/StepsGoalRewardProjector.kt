@@ -7,6 +7,7 @@ import com.adsamcik.tracker.points.data.AwardSource
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.StepsGoalEffectEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -80,34 +81,49 @@ internal class StepsGoalRewardProjector @Inject constructor(
 			return@withContext StepsGoalRewardComponentResult.ALREADY_SETTLED
 		}
 		val pointsDao = pointsDatabase.pointsAwardedDao()
-		val zeroReceipt = if (effect.firstCompletedAtMs == null && effect.desiredPointsMicros == 0L) {
-			pointsDao.getRevisionedEffect(AwardSource.GOAL.value, effectIdentity)
-				?.takeIf { receipt ->
-					receipt.source == AwardSource.GOAL && receipt.effectKey == effectIdentity &&
-						receipt.effectRevision == effectRevision && receipt.effectValueMicros == 0L &&
-						receipt.value.value == 0.0 && receipt.time >= 0L
-				}
-		} else null
+		val zeroReceiptTime = existingZeroReceiptTime(effect)
 		// Diagnostic refreshes do not change the revision of a never-completed goal. Preserve
 		// its existing exact zero receipt time when retrying the cross-database acknowledgement.
-		val earnedAt = effect.firstCompletedAtMs ?: zeroReceipt?.time ?: effect.updatedAtMs
+		val earnedAt = effect.firstCompletedAtMs ?: zeroReceiptTime ?: effect.updatedAtMs
 		val accepted = pointsDao.applyGoalEffect(
 			effectKey = effectIdentity,
 			effectRevision = effectRevision,
 			time = earnedAt,
 			valueMicros = effect.desiredPointsMicros,
 		)
-		if (!accepted) return@withContext StepsGoalRewardComponentResult.RETRYABLE_FAILURE
+		if (!accepted) {
+			return@withContext StepsGoalRewardComponentResult.RETRYABLE_FAILURE
+		}
 
 		val acknowledged = database.withTransaction {
 			val current = database.stepsGoalEffectDao().get(effectIdentity)
-			if (current?.effectRevision != effectRevision) return@withTransaction false
+			if (current?.effectRevision != effectRevision) {
+				return@withTransaction false
+			}
 			database.stepsGoalEffectDao().markPointsApplied(effectIdentity, effectRevision) == 1
 		}
 		if (acknowledged) {
 			StepsGoalRewardComponentResult.APPLIED
 		} else {
 			StepsGoalRewardComponentResult.SUPERSEDED
+		}
+	}
+
+	private suspend fun existingZeroReceiptTime(effect: StepsGoalEffectEntity): Long? {
+		if (effect.firstCompletedAtMs != null || effect.desiredPointsMicros != 0L) {
+			return null
+		}
+		val receipt = pointsDatabase.pointsAwardedDao().getRevisionedEffect(AwardSource.GOAL.value, effect.effectIdentity)
+			?: return null
+		if (receipt.source != AwardSource.GOAL || receipt.effectKey != effect.effectIdentity ||
+			receipt.effectRevision != effect.effectRevision
+		) {
+			return null
+		}
+		return if (receipt.effectValueMicros == 0L && receipt.value.value == 0.0 && receipt.time >= 0L) {
+			receipt.time
+		} else {
+			null
 		}
 	}
 

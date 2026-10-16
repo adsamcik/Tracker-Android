@@ -265,7 +265,8 @@ internal class PortableStepsJsonV1Codec(
 			sink.emit(entry)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (failure: Exception) {
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+			// Relay opaque sink failures unchanged so they cannot be mistaken for invalid JSON.
 			throw StepsSinkFailure(failure)
 		}
 	}

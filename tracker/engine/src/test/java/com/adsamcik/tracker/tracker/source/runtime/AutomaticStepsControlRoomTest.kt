@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
@@ -22,6 +23,8 @@ import com.adsamcik.tracker.tracker.source.catalog.AndroidActivityRecognitionSou
 import com.adsamcik.tracker.tracker.source.coordinator.*
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEpochAuthority
+import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjection
+import com.adsamcik.tracker.tracker.source.projection.ProjectionDispatcher
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.ActivityControlRetentionMaintenance
 import io.kotest.matchers.shouldBe
@@ -34,9 +37,10 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -61,8 +65,8 @@ class AutomaticStepsControlRoomTest {
 	}
 	@After fun tearDown() = database.close()
 
-	@Test fun `built in owner arms Steps only control during flight then refuses post publication activation`() = runTest {
-		val f = fixture(backgroundScope)
+	@Test fun `built in owner arms Steps only control during flight then refuses post publication activation`() = roomTest {
+		val f = fixture(this)
 		f.arbiter.beforeSet = {
 			f.store.availability.value.automaticControl.isOperational shouldBe false
 			val demands = database.sourceBrokerDao().activeDemands(SourceKind.ACTIVITY.stableCode)
@@ -71,7 +75,8 @@ class AutomaticStepsControlRoomTest {
 			demands.single().persistenceEligible shouldBe false
 		}
 		f.runtime.reconcileCurrentSettings()
-		val ready = f.store.availability.value.automaticControl.shouldBeInstanceOf<AutomaticTrackingOperationalAvailability.Ready>()
+		val observedAvailability = f.store.availability.value.automaticControl
+		val ready = observedAvailability.shouldBeInstanceOf<AutomaticTrackingOperationalAvailability.Ready>()
 		f.arbiter.setCount shouldBe 1
 		val policy = (f.policies.currentState() as SourcePolicyAuthorityState.Active).snapshot
 		policy[TrackingSource.ACTIVITY].capturePersistenceEligible shouldBe false
@@ -82,23 +87,23 @@ class AutomaticStepsControlRoomTest {
 		f.arbiter.clearCount shouldBe 0
 	}
 
-	@Test fun `persisted lock restore is awaited and suppression stamped before registration`() = runTest {
-		val f = fixture(backgroundScope)
+	@Test fun `persisted lock restore is awaited and suppression stamped before registration`() = roomTest {
+		val f = fixture(this)
 		val restore = CompletableDeferred<Unit>()
 		coEvery { f.locks.initializeFromPersistence(application) } coAnswers { restore.await(); locked = true }
 		f.arbiter.beforeSet = {
 			requireNotNull(database.activityAutomationEpochDao().current()).lockSuppressed shouldBe true
 		}
 		val request = async { f.runtime.reconcileCurrentSettings() }
-		runCurrent()
+		yield()
 		f.arbiter.setCount shouldBe 0
 		restore.complete(Unit)
 		request.await()
 		f.arbiter.setCount shouldBe 1
 	}
 
-	@Test fun `disabled transitions preserve chosen automatic mode and never arm continuous fallback`() = runTest {
-		val f = fixture(backgroundScope, transitions = false)
+	@Test fun `disabled transitions preserve chosen automatic mode and never arm continuous fallback`() = roomTest {
+		val f = fixture(this, transitions = false)
 		f.runtime.reconcileCurrentSettings()
 		f.store.availability.value.automaticControl.shouldBeInstanceOf<AutomaticTrackingOperationalAvailability.Unavailable>()
 			.reason shouldBe AutomaticTrackingUnavailableReason.TRANSITION_DETECTION_DISABLED
@@ -107,8 +112,8 @@ class AutomaticStepsControlRoomTest {
 		database.sourceBrokerDao().activeDemands(SourceKind.ACTIVITY.stableCode) shouldBe emptyList()
 	}
 
-	@Test fun `missing permission exposes repair and does not activate any provider`() = runTest {
-		val f = fixture(backgroundScope)
+	@Test fun `missing permission exposes repair and does not activate any provider`() = roomTest {
+		val f = fixture(this)
 		permissionGranted = false
 		f.runtime.reconcileCurrentSettings()
 		f.store.availability.value.automaticControl.shouldBeInstanceOf<AutomaticTrackingOperationalAvailability.Unavailable>()
@@ -120,8 +125,8 @@ class AutomaticStepsControlRoomTest {
 		f.arbiter.setCount shouldBe 1
 	}
 
-	@Test fun `unavailable provider remains truthful without recording Activity`() = runTest {
-		val f = fixture(backgroundScope)
+	@Test fun `unavailable provider remains truthful without recording Activity`() = roomTest {
+		val f = fixture(this)
 		providerAvailable = false
 		f.runtime.reconcileCurrentSettings()
 		f.store.availability.value.automaticControl.shouldBeInstanceOf<AutomaticTrackingOperationalAvailability.Unavailable>()
@@ -129,8 +134,8 @@ class AutomaticStepsControlRoomTest {
 		f.arbiter.setCount shouldBe 0
 	}
 
-	@Test fun `failed provider registration removes durable control instead of publishing Ready`() = runTest {
-		val f = fixture(backgroundScope)
+	@Test fun `failed provider registration removes durable control instead of publishing Ready`() = roomTest {
+		val f = fixture(this)
 		f.arbiter.rejectRegistration = true
 		f.runtime.reconcileCurrentSettings()
 		f.store.availability.value.automaticControl.shouldBeInstanceOf<AutomaticTrackingOperationalAvailability.Unavailable>()
@@ -139,8 +144,8 @@ class AutomaticStepsControlRoomTest {
 		f.store.availability.value.automaticControl.isOperational shouldBe false
 	}
 
-	@Test fun `revocation retires only control and preserves the existing captured Activity sibling`() = runTest {
-		val f = fixture(backgroundScope)
+	@Test fun `revocation retires only control and preserves the existing captured Activity sibling`() = roomTest {
+		val f = fixture(this)
 		f.arbiter.owners += ActivityRegistrationOwner.ACTIVE_SESSION
 		f.runtime.reconcileCurrentSettings()
 		val old = requireNotNull(f.issuer.currentAutomaticControlLease())
@@ -155,8 +160,8 @@ class AutomaticStepsControlRoomTest {
 		f.arbiter.owners shouldBe setOf(ActivityRegistrationOwner.ACTIVE_SESSION)
 	}
 
-	@Test fun `Off fences registration and acknowledged cleanup closes the exact previous purpose`() = runTest {
-		val f = fixture(backgroundScope)
+	@Test fun `Off fences registration and acknowledged cleanup closes the exact previous purpose`() = roomTest {
+		val f = fixture(this)
 		f.runtime.reconcileCurrentSettings()
 		permitsCollection = false
 		f.runtime.closeForUserStop().shouldBeInstanceOf<TrackingPurposeSettingsReconciliationResult.Complete>()
@@ -166,8 +171,8 @@ class AutomaticStepsControlRoomTest {
 		database.sourceBrokerDao().activeDemands(SourceKind.ACTIVITY.stableCode) shouldBe emptyList()
 	}
 
-	@Test fun `unacknowledged provider removal retains cleanup lease for retry`() = runTest {
-		val f = fixture(backgroundScope)
+	@Test fun `unacknowledged provider removal retains cleanup lease for retry`() = roomTest {
+		val f = fixture(this)
 		f.runtime.reconcileCurrentSettings()
 		val previous = requireNotNull(f.issuer.currentAutomaticControlLease())
 		f.arbiter.rejectRemoval = true
@@ -179,8 +184,8 @@ class AutomaticStepsControlRoomTest {
 		f.issuer.currentAutomaticControlLease() shouldBe null
 	}
 
-	@Test fun `stale compensation cannot remove a newer accepted activation`() = runTest {
-		val f = fixture(backgroundScope)
+	@Test fun `stale compensation cannot remove a newer accepted activation`() = roomTest {
+		val f = fixture(this)
 		f.runtime.reconcileCurrentSettings()
 		val old = requireNotNull(f.issuer.currentAutomaticControlLease())
 		f.runtime.reconcileCurrentSettings()
@@ -192,8 +197,8 @@ class AutomaticStepsControlRoomTest {
 		f.store.availability.value.automaticControl.isOperational shouldBe true
 	}
 
-	@Test fun `cold disabled automatic authority cleans up without a fabricated lease and preserves capture`() = runTest {
-		val f = fixture(backgroundScope, automaticMode = 0)
+	@Test fun `cold disabled automatic authority cleans up without a fabricated lease and preserves capture`() = roomTest {
+		val f = fixture(this, automaticMode = 0)
 		f.arbiter.owners += setOf(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR, ActivityRegistrationOwner.ACTIVE_SESSION)
 		f.issuer.currentAutomaticControlLease() shouldBe null
 
@@ -206,8 +211,8 @@ class AutomaticStepsControlRoomTest {
 		f.store.availability.value.automaticControl.isOperational shouldBe false
 	}
 
-	@Test fun `cold Off waits for acknowledged cleanup even with no process lease`() = runTest {
-		val f = fixture(backgroundScope)
+	@Test fun `cold Off waits for acknowledged cleanup even with no process lease`() = roomTest {
+		val f = fixture(this)
 		f.arbiter.owners += ActivityRegistrationOwner.AUTOMATIC_START_MONITOR
 		f.arbiter.rejectRemoval = true
 		permitsCollection = false
@@ -220,17 +225,17 @@ class AutomaticStepsControlRoomTest {
 		f.arbiter.clearCount shouldBe 2
 	}
 
-	@Test fun `timed out cold cleanup must finish before a successor can become ready`() = runTest {
-		val f = fixture(backgroundScope)
+	@Test fun `timed out cold cleanup must finish before a successor can become ready`() = roomTest {
+		val f = fixture(this)
 		val remove = CompletableDeferred<Unit>()
 		f.arbiter.beforeClear = { remove.await() }
 		val closing = async { f.runtime.closeForUserStop() }
-		runCurrent()
-		advanceTimeBy(2_001L)
-		runCurrent()
+		yield()
+		delay(2_001L)
+		yield()
 		closing.await().shouldBeInstanceOf<TrackingPurposeSettingsReconciliationResult.Debt>()
 		val successor = async { f.runtime.reconcileCurrentSettings() }
-		runCurrent()
+		yield()
 		f.arbiter.setCount shouldBe 0
 		f.store.availability.value.automaticControl.isOperational shouldBe false
 
@@ -240,8 +245,8 @@ class AutomaticStepsControlRoomTest {
 		f.store.availability.value.automaticControl.isOperational shouldBe true
 	}
 
-	@Test fun `late unowned cleanup cannot retire a newly accepted activation`() = runTest {
-		val f = fixture(backgroundScope)
+	@Test fun `late unowned cleanup cannot retire a newly accepted activation`() = roomTest {
+		val f = fixture(this)
 		f.runtime.reconcileCurrentSettings()
 		val before = f.arbiter.clearCount
 
@@ -252,6 +257,9 @@ class AutomaticStepsControlRoomTest {
 		f.store.availability.value.automaticControl.isOperational shouldBe true
 	}
 
+	// Keep one real Steps-only automatic-control fixture in its policy, rollout, lease, caller, broker and
+	// owner wiring order.
+	@Suppress("LongMethod")
 	private suspend fun fixture(scope: CoroutineScope, transitions: Boolean = true, automaticMode: Int = 2): Fixture {
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 3L, updatedAtMs = 1L))
 		database.sourceDestinationOwnerDao().insertIfAbsent(SourceDestinationOwnerEntity(
@@ -271,10 +279,11 @@ class AutomaticStepsControlRoomTest {
 		val policy = policies.bootstrapFromLegacy(selected)
 		val params = MutableStateFlow(selected.copy(sourcePolicyRevision = policy.revision))
 		val repository = mockk<TrackingParamsRepository> { every { data } returns params }
-		val gate = mockk<TrackingStartupGate> {
-			every { isReady } returns true
-			every { currentGeneration } returns 1L
-			every { permitsNewCollection } answers { permitsCollection }
+		val gate = object : TrackingStartupGate {
+			override val isReady = true
+			override val currentGeneration = 1L
+			override val permitsNewCollection: Boolean get() = permitsCollection
+			override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0L)
 		}
 		val lifecycle = mockk<CollectedDataLifecycleStore> {
 			coEvery { snapshot() } returns CollectedDataLifecycleSnapshot(3L, null)
@@ -304,7 +313,8 @@ class AutomaticStepsControlRoomTest {
 		val dispatcher = GuardedSourceCallerDemandDispatcher(authority, ExactSourceCallerGuard(authority, receipts, Provider { gate }), broker, receipts)
 		val arbiter = RecordingControlArbiter()
 		val monitor = AutomaticStartTransitionMonitor(arbiter, dispatcher, clockDomain,
-			ActivityAutomationProjectionLane(database, mockk(), mockk()), issuer)
+			ActivityAutomationProjectionLane(database, mockk(),
+				ProjectionDispatcher(database, setOf(ActivityAutomationProjection()))), issuer)
 		val locks = mockk<LockManager>(relaxed = true) { every { isLocked } answers { locked } }
 		val device = mockk<AndroidActivityRecognitionSourceStateProvider> {
 			every { snapshot() } answers { ActivityRecognitionSourceState(permissionGranted, providerAvailable) }
@@ -316,6 +326,15 @@ class AutomaticStepsControlRoomTest {
 		val runtime = DefaultTrackingPurposePublicationRuntime(issuer, store, registry, retention,
 			ownerCallbackScope = scope, automaticControlPurposeOwnerProvider = Provider { owner })
 		return Fixture(params, policies, store, issuer, runtime, owner, monitor, arbiter, locks)
+	}
+
+	// Native Room work must finish against the same real deadlines as provider callbacks.
+	private fun roomTest(block: suspend CoroutineScope.() -> Unit): Unit = runBlocking {
+		try {
+			block()
+		} finally {
+			coroutineContext.cancelChildren()
+		}
 	}
 
 	private data class Fixture(val params: MutableStateFlow<TrackingParamsState>, val policies: RoomSourcePolicyRepository,
@@ -336,7 +355,9 @@ private class RecordingControlArbiter : ActivityRegistrationArbiter {
 		setCount++
 		beforeSet()
 		demand.continuousRecognitionIntervalSeconds shouldBe null
-		if (rejectRegistration) return ActivityRegistrationResult(ActivityRegistrationStatus.FAILED, snapshot(), ActivityRegistrationFailureCode.PROVIDER_UNAVAILABLE)
+		if (rejectRegistration) {
+			return ActivityRegistrationResult(ActivityRegistrationStatus.FAILED, snapshot(), ActivityRegistrationFailureCode.PROVIDER_UNAVAILABLE)
+		}
 		owners += owner
 		return result()
 	}
@@ -344,8 +365,12 @@ private class RecordingControlArbiter : ActivityRegistrationArbiter {
 		clearCount++
 		beforeClear()
 		owners -= owner
-		return if (rejectRemoval) ActivityRegistrationResult(ActivityRegistrationStatus.DEGRADED, snapshot(),
-			ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED, retryable = true) else result()
+		return if (rejectRemoval) {
+			ActivityRegistrationResult(ActivityRegistrationStatus.DEGRADED, snapshot(),
+			ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED, retryable = true)
+		} else {
+			result()
+		}
 	}
 	override suspend fun reconcileDurableDemands() = result()
 	override suspend fun closeForCollectedDataDeletion() = result()

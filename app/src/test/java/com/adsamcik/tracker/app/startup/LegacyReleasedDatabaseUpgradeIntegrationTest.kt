@@ -61,7 +61,7 @@ class LegacyReleasedDatabaseUpgradeIntegrationTest {
 		clearFixture()
 	}
 
-	@Test fun `startup coordinator imports released v12 into Room29 without changing its source`() = runBlocking {
+	@Test fun `startup imports released v12 without changing its source`(): Unit = runBlocking {
 		createReleasedSource()
 		val original = sourceSnapshot()
 		val database = buildActive()
@@ -77,7 +77,7 @@ class LegacyReleasedDatabaseUpgradeIntegrationTest {
 		assertEquals(original, sourceSnapshot())
 	}
 
-	@Test fun `new coordinator reopens the completed Room database without duplicating its import`() = runBlocking {
+	@Test fun `new coordinator reopens the completed Room database without duplicating its import`(): Unit = runBlocking {
 		createReleasedSource()
 		val original = sourceSnapshot()
 		val first = buildActive()
@@ -97,7 +97,7 @@ class LegacyReleasedDatabaseUpgradeIntegrationTest {
 		assertEquals(original, sourceSnapshot())
 	}
 
-	@Test fun `failed real import requires explicit retry and recovers on the same Room helper`() = runBlocking {
+	@Test fun `failed real import requires explicit retry and recovers on the same Room helper`(): Unit = runBlocking {
 		createReleasedSource()
 		editSource { execSQL("ALTER TABLE location_data RENAME TO location_data_needs_repair") }
 		val database = buildActive()
@@ -164,7 +164,7 @@ class LegacyReleasedDatabaseUpgradeIntegrationTest {
 	}
 
 	private fun assertImported(database: SupportSQLiteDatabase) {
-		assertEquals(29, database.version)
+		assertEquals(30, database.version)
 		assertTrue(hasCompletedLegacyImport(database))
 		for (table in listOf("location_sample", "location_observation", "import_job_receipt")) {
 			database.query("SELECT COUNT(*) FROM `$table`").use { row ->

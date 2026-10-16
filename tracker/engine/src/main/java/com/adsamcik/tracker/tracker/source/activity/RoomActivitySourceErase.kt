@@ -80,15 +80,22 @@ internal class RoomActivitySourceErase @Inject constructor(
 				return@withContext local.reason.toSourceEraseFailure()
 		}
 
+		eraseImported(request, localCounts)
+	}
+
+	private suspend fun eraseImported(
+		request: ActivitySourceEraseRequest,
+		localCounts: LocalEraseCounts,
+	): ActivitySourceEraseResult {
 		var liveEntries = 0
 		var retainedEntries = 0
 		var physicalRuns = 0
 		repeat(ActivityCapturedPortableFormatV1.MAX_ENTRIES) {
-			when (val next = importedErase.eraseNext(
+			val result: ActivitySourceEraseResult? = when (val next = importedErase.eraseNext(
 				expectedCollectedDataEpoch = request.expectedCollectedDataEpoch,
 				deletedAtMs = request.deletedAtMs,
 			)) {
-				EraseNextImportedActivityResult.Complete -> return@withContext completedResult(
+				EraseNextImportedActivityResult.Complete -> completedResult(
 					localCounts,
 					liveEntries,
 					retainedEntries,
@@ -97,12 +104,14 @@ internal class RoomActivitySourceErase @Inject constructor(
 				is EraseNextImportedActivityResult.ErasedLive -> {
 					liveEntries = Math.addExact(liveEntries, 1)
 					physicalRuns = Math.addExact(physicalRuns, next.physicalRunCount)
+					null
 				}
 				is EraseNextImportedActivityResult.ErasedRetained -> {
 					retainedEntries = Math.addExact(retainedEntries, 1)
 					physicalRuns = Math.addExact(physicalRuns, next.physicalRunCount)
+					null
 				}
-				is EraseNextImportedActivityResult.Blocked -> return@withContext ActivitySourceEraseResult.Blocked(
+				is EraseNextImportedActivityResult.Blocked -> ActivitySourceEraseResult.Blocked(
 						reason = next.reason.toPublicReason(),
 						localProductErasedBeforeFailure = localCounts != LocalEraseCounts.EMPTY,
 						importedEntriesErasedBeforeFailure = Math.addExact(
@@ -110,56 +119,72 @@ internal class RoomActivitySourceErase @Inject constructor(
 							retainedEntries,
 						),
 					)
-				is EraseNextImportedActivityResult.Unverifiable -> return@withContext ActivitySourceEraseResult.Unverifiable(
+				is EraseNextImportedActivityResult.Unverifiable ->
+                    ActivitySourceEraseResult.Unverifiable(
 						reason = next.reason.toPublicReason(),
 						localProductErasedBeforeFailure = localCounts != LocalEraseCounts.EMPTY,
 						importedEntriesErasedBeforeFailure = Math.addExact(liveEntries, retainedEntries),
 					)
-				is EraseNextImportedActivityResult.RetryableFailure -> return@withContext ActivitySourceEraseResult.RetryableFailure(
+				is EraseNextImportedActivityResult.RetryableFailure ->
+                    ActivitySourceEraseResult.RetryableFailure(
 						reason = next.reason.toPublicReason(),
 						localProductErasedBeforeFailure = localCounts != LocalEraseCounts.EMPTY,
 						importedEntriesErasedBeforeFailure = Math.addExact(liveEntries, retainedEntries),
 					)
 			}
+			if (result != null) {
+				return result
+			}
 		}
-		when (val remaining = importedErase.probeRemaining(request.expectedCollectedDataEpoch)) {
-			ImportedActivityEraseRemainingResult.Complete -> completedResult(
-				localCounts,
-				liveEntries,
-				retainedEntries,
-				physicalRuns,
+		return remainingEraseResult(
+			importedErase.probeRemaining(request.expectedCollectedDataEpoch),
+			localCounts, liveEntries, retainedEntries, physicalRuns,
+		)
+	}
+
+	private fun remainingEraseResult(
+		remaining: ImportedActivityEraseRemainingResult,
+		localCounts: LocalEraseCounts,
+		liveEntries: Int,
+		retainedEntries: Int,
+		physicalRuns: Int,
+	): ActivitySourceEraseResult = when (remaining) {
+		ImportedActivityEraseRemainingResult.Complete -> completedResult(
+			localCounts,
+			liveEntries,
+			retainedEntries,
+			physicalRuns,
+		)
+		ImportedActivityEraseRemainingResult.Remaining ->
+			ActivitySourceEraseResult.ContinuationRequired(
+				localProductErasedBeforeContinuation = localCounts != LocalEraseCounts.EMPTY,
+				importedLiveEntryCount = liveEntries,
+				importedRetainedEntryCount = retainedEntries,
+				importedPhysicalRunCount = physicalRuns,
 			)
-			ImportedActivityEraseRemainingResult.Remaining ->
-				ActivitySourceEraseResult.ContinuationRequired(
-					localProductErasedBeforeContinuation = localCounts != LocalEraseCounts.EMPTY,
-					importedLiveEntryCount = liveEntries,
-					importedRetainedEntryCount = retainedEntries,
-					importedPhysicalRunCount = physicalRuns,
-				)
-			is ImportedActivityEraseRemainingResult.Blocked -> ActivitySourceEraseResult.Blocked(
+		is ImportedActivityEraseRemainingResult.Blocked -> ActivitySourceEraseResult.Blocked(
+			reason = remaining.reason.toPublicReason(),
+			localProductErasedBeforeFailure = localCounts != LocalEraseCounts.EMPTY,
+			importedEntriesErasedBeforeFailure = Math.addExact(liveEntries, retainedEntries),
+		)
+		is ImportedActivityEraseRemainingResult.Unverifiable ->
+			ActivitySourceEraseResult.Unverifiable(
 				reason = remaining.reason.toPublicReason(),
 				localProductErasedBeforeFailure = localCounts != LocalEraseCounts.EMPTY,
-				importedEntriesErasedBeforeFailure = Math.addExact(liveEntries, retainedEntries),
+				importedEntriesErasedBeforeFailure = Math.addExact(
+					liveEntries,
+					retainedEntries,
+				),
 			)
-			is ImportedActivityEraseRemainingResult.Unverifiable ->
-				ActivitySourceEraseResult.Unverifiable(
-					reason = remaining.reason.toPublicReason(),
-					localProductErasedBeforeFailure = localCounts != LocalEraseCounts.EMPTY,
-					importedEntriesErasedBeforeFailure = Math.addExact(
-						liveEntries,
-						retainedEntries,
-					),
-				)
-			is ImportedActivityEraseRemainingResult.RetryableFailure ->
-				ActivitySourceEraseResult.RetryableFailure(
-					reason = remaining.reason.toPublicReason(),
-					localProductErasedBeforeFailure = localCounts != LocalEraseCounts.EMPTY,
-					importedEntriesErasedBeforeFailure = Math.addExact(
-						liveEntries,
-						retainedEntries,
-					),
-				)
-		}
+		is ImportedActivityEraseRemainingResult.RetryableFailure ->
+			ActivitySourceEraseResult.RetryableFailure(
+				reason = remaining.reason.toPublicReason(),
+				localProductErasedBeforeFailure = localCounts != LocalEraseCounts.EMPTY,
+				importedEntriesErasedBeforeFailure = Math.addExact(
+					liveEntries,
+					retainedEntries,
+				),
+			)
 	}
 }
 
@@ -196,6 +221,8 @@ private fun completedResult(
 	}
 }
 
+// Exhaustive local failure-to-public-result mapping; no deletion decision is made here.
+@Suppress("CyclomaticComplexMethod")
 private fun ActivityCapturedSourceDeletionBlockedReason.toSourceEraseFailure():
 	ActivitySourceEraseResult = when (this) {
 	ActivityCapturedSourceDeletionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED ->

@@ -24,10 +24,14 @@ internal object ActivityRecentHistoryPager {
 		while (accepted.size < limit) {
 			currentCoroutineContext().ensureActive()
 			val remaining = candidateBudget - scanned
-			if (remaining == 0) return ActivityHistoryPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+			if (remaining == 0) {
+				return ActivityHistoryPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+			}
 			val requestedPageSize = minOf(pageSize, remaining)
 			val page = loadPage(requestedPageSize, beforeStartTimeMs, beforeSegmentId)
-			if (page.isEmpty()) break
+			if (page.isEmpty()) {
+				break
+			}
 			require(page.size <= requestedPageSize) { "Activity candidate page exceeded its requested bound" }
 			scanned += page.size
 			when (val composed = compose(page.map { it.segment })) {
@@ -37,7 +41,9 @@ internal object ActivityRecentHistoryPager {
 			val last = page.last()
 			beforeStartTimeMs = last.logicalRecencyStartMs
 			beforeSegmentId = last.logicalRecencySegmentId
-			if (page.size < requestedPageSize) break
+			if (page.size < requestedPageSize) {
+				break
+			}
 		}
 		return ActivityHistoryPage.Available(accepted.take(limit))
 	}

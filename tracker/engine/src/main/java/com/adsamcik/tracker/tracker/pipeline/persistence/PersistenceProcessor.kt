@@ -215,7 +215,9 @@ class PersistenceProcessor @Inject internal constructor(
 			!hasRetainedInMemoryState()
 
 
-	internal suspend fun hasCommittedProtectedAmbientLocation(command: com.adsamcik.tracker.tracker.source.location.LocationAmbientFactCommand): Boolean =
+	internal suspend fun hasCommittedProtectedAmbientLocation(
+		command: com.adsamcik.tracker.tracker.source.location.LocationAmbientFactCommand,
+	): Boolean =
 		appDatabaseProvider.get().withTransaction {
 			protectedLocationCanonicalPersistenceGuardProvider.get().verifyAmbientInCurrentWriterTransaction(command)
 			appDatabaseProvider.get().readLocationAmbientReceipt(command) != null
@@ -231,7 +233,9 @@ class PersistenceProcessor @Inject internal constructor(
 			protectedLocationCanonicalPersistenceGuardProvider.get()
 				.verifyAmbientInCurrentWriterTransaction(write.command)
 			val db = appDatabaseProvider.get()
-			if (db.readLocationAmbientReceipt(write.command) != null) return@withTransaction
+			if (db.readLocationAmbientReceipt(write.command) != null) {
+				return@withTransaction
+			}
 			check(db.loadLocationAmbientCurationState(write.command) == write.stateBefore) {
 				"Location ambient curation checkpoint changed"
 			}
@@ -240,10 +244,13 @@ class PersistenceProcessor @Inject internal constructor(
 			check((write.decision.decision == LocationObservationDecision.ACCEPTED) == (write.sample != null))
 			val revision = requireNotNull(nextSourceRevisionOrNull(true))
 			val observation = write.observation.copy(sourceRevision = revision)
-			val rejectedCapture = if (db.locationObservationDao().getBySourceEventId(write.command.wal.eventId) != null) {
+			val rejectedCapture =
+                if (db.locationObservationDao().getBySourceEventId(write.command.wal.eventId) != null) {
 				protectedLocationCanonicalPersistenceGuardProvider.get()
 					.rejectedCaptureInCurrentWriterTransaction(write.command.wal.eventId)
-			} else null
+			} else {
+				null
+			}
 			if (rejectedCapture == null) {
 				check(db.locationObservationDao().insert(observation) != -1L) {
 					"Location observation exists without exact ambient receipt"
@@ -255,7 +262,8 @@ class PersistenceProcessor @Inject internal constructor(
 				}
 			}
 			if (rejectedCapture == null) {
-				check(db.locationObservationDecisionDao().insert(listOf(write.decision.copy(sourceRevision = revision))).single() != -1L)
+				check(db.locationObservationDecisionDao().insert(listOf(write.decision.copy(sourceRevision =
+                    revision))).single() != -1L)
 			}
 			db.recordLocationAmbientReceipt(write)
 		}
@@ -288,11 +296,17 @@ class PersistenceProcessor @Inject internal constructor(
 
 	/** Caller owns the offline Location lease and coordinator lease until the metadata transaction ends. */
 	internal suspend fun <T : Any> withLocationWriterSetupQuiesced(operation: suspend () -> T): T? {
-		if (!recoveryMutex.tryLock()) return null
+		if (!recoveryMutex.tryLock()) {
+			return null
+		}
 		return try {
 			if (hasUnsettledPersistenceStateForPressureFence() ||
 				appDatabaseProvider.get().pendingSignalDao().countAll() != 0
-			) null else operation()
+			) {
+				null
+			} else {
+				operation()
+			}
 		} finally { recoveryMutex.unlock() }
 	}
 
@@ -328,7 +342,9 @@ class PersistenceProcessor @Inject internal constructor(
 		val currentIsLegacy = currentOwner?.owner ==
 			SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE &&
 			currentOwner?.ownerGeneration == SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
-		if (this == null || pressureWriterOwner == null) return currentIsLegacy
+		if (this == null || pressureWriterOwner == null) {
+			return currentIsLegacy
+		}
 		return pressureWriterOwner == currentOwner?.owner &&
 			pressureWriterOwnerGeneration == currentOwner?.ownerGeneration &&
 			currentIsLegacy
@@ -360,7 +376,9 @@ class PersistenceProcessor @Inject internal constructor(
 	 * No I/O — must be fast.
 	 */
 	override fun onSignal(signal: TrackingSignal) {
-		if (!signal.hasPersistablePayload()) return
+		if (!signal.hasPersistablePayload()) {
+			return
+		}
 		durableBuffer.stage(signal)
 	}
 
@@ -555,7 +573,9 @@ class PersistenceProcessor @Inject internal constructor(
 		policyName: String?,
 		sourceSignalId: String,
 	) {
-		if (location == null) return
+		if (location == null) {
+			return
+		}
 
 		val quality = classifyQuality(location.horizontalAccuracyM).toModel()
 		val motionState = inferMotionState(signal.activity)?.toModel()
@@ -630,7 +650,9 @@ class PersistenceProcessor @Inject internal constructor(
 		fixElapsedRealtimeNanos: Long,
 		receivedElapsedRealtimeNanos: Long,
 	): Long? {
-		if (fixElapsedRealtimeNanos <= 0L || receivedElapsedRealtimeNanos <= 0L) return null
+		if (fixElapsedRealtimeNanos <= 0L || receivedElapsedRealtimeNanos <= 0L) {
+			return null
+		}
 		return ((receivedElapsedRealtimeNanos - fixElapsedRealtimeNanos).coerceAtLeast(0L) /
 			Time.MILLISECONDS_IN_NANOSECONDS)
 	}
@@ -644,7 +666,11 @@ class PersistenceProcessor @Inject internal constructor(
 		val timeMs = signal.timestampMs.raw
 		val latE7 = location?.coordinate?.lat?.raw
 		val lonE7 = location?.coordinate?.lon?.raw
-		val provenance = if (location != null) CoordinateProvenance.DIRECT else CoordinateProvenance.UNKNOWN
+		val provenance = if (location != null) {
+			CoordinateProvenance.DIRECT
+		} else {
+			CoordinateProvenance.UNKNOWN
+		}
 
 		for ((itemIndex, tower) in cells.towers.withIndex()) {
 			cellBuffer.add(
@@ -684,7 +710,11 @@ class PersistenceProcessor @Inject internal constructor(
 				ObservationCoordinateProvenance.DIRECT -> CoordinateProvenance.DIRECT
 				ObservationCoordinateProvenance.INTERPOLATED -> CoordinateProvenance.INTERPOLATED
 			}
-		} else if (location != null) CoordinateProvenance.DIRECT else CoordinateProvenance.UNKNOWN
+		} else if (location != null) {
+			CoordinateProvenance.DIRECT
+		} else {
+			CoordinateProvenance.UNKNOWN
+		}
 
 		for ((itemIndex, network) in wifi.networks.withIndex()) {
 			wifiBuffer.add(
@@ -713,7 +743,9 @@ class PersistenceProcessor @Inject internal constructor(
 		admission: PendingAdmission,
 	) {
 		val pressure = signal.pressure ?: return
-		if (admission.hasExplicitIneligiblePressureWriter()) return
+		if (admission.hasExplicitIneligiblePressureWriter()) {
+			return
+		}
 		pressureBuffer.add(
 			PressureSample(
 				timeMs = signal.timestampMs.raw,
@@ -764,7 +796,9 @@ class PersistenceProcessor @Inject internal constructor(
 	}
 
 	private fun bufferActivity(signal: TrackingSignal, sourceSignalId: String) {
-		if (!signal.activityFresh) return
+		if (!signal.activityFresh) {
+			return
+		}
 		val activity = signal.activity ?: return
 		activityBuffer.add(
 			ActivitySnapshot(
@@ -780,7 +814,9 @@ class PersistenceProcessor @Inject internal constructor(
 	}
 
 	private fun ObservationStamp?.sourceEpochOrEstimate(fallbackEpochMs: Long): Long {
-		if (this == null) return fallbackEpochMs
+		if (this == null) {
+			return fallbackEpochMs
+		}
 		sourceEpochMs?.let { return it }
 		return fallbackEpochMs - (sourceAgeMs ?: 0L)
 	}
@@ -824,8 +860,12 @@ class PersistenceProcessor @Inject internal constructor(
 	 * recovery — hence the early return.
 	 */
 	private suspend fun flushAll(): Boolean {
-		if (commitStatusUnknown && reconcileUnknownCommit() == CommitResolution.UNKNOWN) return false
-		if (checkpointStagedSignalsStatus() == DurableAdmissionStatus.FAILED) return false
+		if (commitStatusUnknown && reconcileUnknownCommit() == CommitResolution.UNKNOWN) {
+			return false
+		}
+		if (checkpointStagedSignalsStatus() == DurableAdmissionStatus.FAILED) {
+			return false
+		}
 
 		return persistBufferedAndAcknowledge()
 	}
@@ -836,11 +876,37 @@ class PersistenceProcessor @Inject internal constructor(
 	 * in-memory snapshots and acknowledged IDs are cleared; on failure they are
 	 * retained for retry and the error is reported (cancellation propagates).
 	 */
+
+	private suspend fun persistBufferedAttempt(
+		ackIds: List<Long>,
+		claimToken: String?,
+		verifyCollectedDataAccess: () -> Unit,
+	) {
+		verifyCollectedDataAccess()
+		// Refresh for every retry attempt. A lifecycle transition can occur after a
+		// transient SQLite failure and before the next publish transaction.
+		val authoritativeLifecycle = captureAuthoritativeLifecycle()
+		transactor.inTransaction {
+			verifyCollectedDataAccess()
+			try {
+				val staleSources = staleSourceSignalIds(ackIds, authoritativeLifecycle)
+				val invalidStepsIds = invalidStepsPendingIds(staleSources)
+				insertBufferedDestinations(staleSources)
+				quarantineInvalidSteps(invalidStepsIds, claimToken)
+				deleteAcknowledgedRows(ackIds.filterNot(invalidStepsIds::contains), claimToken)
+			} finally {
+				verifyCollectedDataAccess()
+			}
+		}
+	}
+
 	private suspend fun persistBufferedAndAcknowledge(
 		verifyCollectedDataAccess: () -> Unit = {},
 	): Boolean {
 		verifyCollectedDataAccess()
-		if (isAllBuffersEmpty() && pendingIds.isEmpty()) return true
+		if (isAllBuffersEmpty() && pendingIds.isEmpty()) {
+			return true
+		}
 
 		val ackIds = pendingIds.toList()
 		val claimToken = pendingClaimToken
@@ -849,22 +915,7 @@ class PersistenceProcessor @Inject internal constructor(
 		try {
 			withTimeout(PERSISTENCE_TRANSACTION_TIMEOUT_MILLIS) {
 				withDatabaseRetry {
-					verifyCollectedDataAccess()
-					// Refresh for every retry attempt. A lifecycle transition can occur after a
-					// transient SQLite failure and before the next publish transaction.
-					val authoritativeLifecycle = captureAuthoritativeLifecycle()
-					transactor.inTransaction {
-						verifyCollectedDataAccess()
-						try {
-							val staleSources = staleSourceSignalIds(ackIds, authoritativeLifecycle)
-							val invalidStepsIds = invalidStepsPendingIds(staleSources)
-							insertBufferedDestinations(staleSources)
-							quarantineInvalidSteps(invalidStepsIds, claimToken)
-							deleteAcknowledgedRows(ackIds.filterNot(invalidStepsIds::contains), claimToken)
-						} finally {
-							verifyCollectedDataAccess()
-						}
-					}
+					persistBufferedAttempt(ackIds, claimToken, verifyCollectedDataAccess)
 				}
 			}
 			verifyCollectedDataAccess()
@@ -872,13 +923,17 @@ class PersistenceProcessor @Inject internal constructor(
 				clearBuffers()
 				pendingIds.removeAll(ackIds.toSet())
 				pendingAdmissions.keys.removeAll(ackIds.toSet())
-				if (pendingClaimToken == claimToken) pendingClaimToken = null
+				if (pendingClaimToken == claimToken) {
+					pendingClaimToken = null
+				}
 			}
 		} catch (e: TimeoutCancellationException) {
 			verifyCollectedDataAccess()
 			lastPersistenceFailure = e
 			commitStatusUnknown = true
-			if (reconcileUnknownCommit() == CommitResolution.COMMITTED) return true
+			if (reconcileUnknownCommit() == CommitResolution.COMMITTED) {
+				return true
+			}
 			TrackerDiagnosticLog.failure(
 				TrackerDiagnosticFailureCode.TRACKING_PERSISTENCE_WRITE_FAILED,
 				TrackingDiagnosticFailureReason.TIMEOUT,
@@ -896,7 +951,9 @@ class PersistenceProcessor @Inject internal constructor(
 			verifyCollectedDataAccess()
 			lastPersistenceFailure = e
 			commitStatusUnknown = true
-			if (reconcileUnknownCommit() == CommitResolution.COMMITTED) return true
+			if (reconcileUnknownCommit() == CommitResolution.COMMITTED) {
+				return true
+			}
 			TrackerDiagnosticLog.failure(
 				TrackerDiagnosticFailureCode.TRACKING_PERSISTENCE_WRITE_FAILED,
 				TrackingDiagnosticFailureReason.STORAGE_UNAVAILABLE,
@@ -912,7 +969,9 @@ class PersistenceProcessor @Inject internal constructor(
 		ackIds: List<Long>,
 		claimToken: String?,
 	) {
-		if (ackIds.isEmpty()) return
+		if (ackIds.isEmpty()) {
+			return
+		}
 		if (claimToken == null) {
 			ackIds.chunked(ACK_DELETE_BATCH_SIZE).forEach { chunk ->
 				pendingSignalDao.deleteByIds(chunk)
@@ -997,7 +1056,11 @@ class PersistenceProcessor @Inject internal constructor(
 
 	/** Captures DataStore state before acquiring the Room transaction that consumes it. */
 	private suspend fun captureAuthoritativeLifecycle(): CollectedDataLifecycleSnapshot? =
-		if (sourceEvidenceStateDao == null) null else collectedDataLifecycleStore?.snapshot()
+		if (sourceEvidenceStateDao == null) {
+			null
+		} else {
+			collectedDataLifecycleStore?.snapshot()
+		}
 
 	private fun SourceEvidenceState.accepts(capturedEpoch: Long, acquiredAtMs: Long): Boolean {
 		val retainedFrom = retainedFromMs
@@ -1073,11 +1136,19 @@ class PersistenceProcessor @Inject internal constructor(
 		val cells = if (cellCandidates.isNotEmpty() && legacyRadioDestinationIsUnclaimed(
 				SourceDestinationOwnerEntity.SOURCE_CELL,
 				SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
-			)) cellCandidates else emptyList()
+			)) {
+			cellCandidates
+		} else {
+			emptyList()
+		}
 		val wifi = if (wifiCandidates.isNotEmpty() && legacyRadioDestinationIsUnclaimed(
 				SourceDestinationOwnerEntity.SOURCE_WIFI,
 				SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI,
-			)) wifiCandidates else emptyList()
+			)) {
+			wifiCandidates
+		} else {
+			emptyList()
+		}
 		val steps = stepBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
 		val activities = activityBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
 		val admissionsBySignal = pendingAdmissions.values.associateBy(PendingAdmission::sourceSignalId)
@@ -1108,10 +1179,18 @@ class PersistenceProcessor @Inject internal constructor(
 				decisions.isNotEmpty(),
 		)
 		val revisedObservations = observations.map { observation ->
-			if (sourceRevision == null) observation else observation.copy(sourceRevision = sourceRevision)
+			if (sourceRevision == null) {
+				observation
+			} else {
+				observation.copy(sourceRevision = sourceRevision)
+			}
 		}
 		val revisedLocations = locations.map { sample ->
-			val revised = if (sourceRevision == null) sample else sample.copy(sourceRevision = sourceRevision)
+			val revised = if (sourceRevision == null) {
+				sample
+			} else {
+				sample.copy(sourceRevision = sourceRevision)
+			}
 			revised.toEntity()
 		}
 		val preparedDecisions = buildLocationDecisions(decisions, sourceRevision)
@@ -1183,7 +1262,9 @@ class PersistenceProcessor @Inject internal constructor(
 		sourceDestinationOwnerDao.get(sourceKind, destination) == null
 
 	private suspend fun requireExistingLocationDestinationOwner(hasLocationMutation: Boolean) {
-		if (!hasLocationMutation) return
+		if (!hasLocationMutation) {
+			return
+		}
 		check(sourceDestinationOwnerDao.isExactOwner(
 			sourceKind = SourceDestinationOwnerEntity.SOURCE_LOCATION,
 			destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
@@ -1194,12 +1275,68 @@ class PersistenceProcessor @Inject internal constructor(
 		}
 	}
 
-	private suspend fun verifyProtectedLocationCanonicalWrites(
+
+	private fun LocationObservationDecision.toProtectedLocationPendingDecision():
+		ProtectedLocationCanonicalPendingDecision =
+		ProtectedLocationCanonicalPendingDecision(
+			sourceEventId = this.observationSourceEventId,
+			decision = this.decision,
+			reason = this.reason,
+			decisionVersion = this.decisionVersion,
+			writerProjectionId = this.writerProjectionId,
+			writerProjectionVersion = this.writerProjectionVersion,
+			writerBindingGeneration = this.writerBindingGeneration,
+			writerOwnerGeneration = this.writerOwnerGeneration,
+			acceptedSampleSourceSignalId = this.acceptedSampleSourceSignalId,
+			sourceSignalId = this.sourceSignalId,
+			clockDomainId = this.clockDomainId,
+			decidedAtMs = this.decidedAtMs,
+		)
+
+	private suspend fun verifyProtectedLocationEvent(
+		eventId: String,
 		observations: List<LocationObservation>,
 		locations: List<StoredLocationSample>,
 		decisions: List<LocationObservationDecision>,
 		qualifiedByEvent: Map<String, ProtectedLocationQualifiedCandidate>,
-	): List<ProtectedLocationVerifiedWrite> {
+		guard: ProtectedLocationCanonicalPersistenceGuard,
+	): ProtectedLocationVerifiedWrite {
+		val observation = observations.singleOrNull { candidate ->
+			candidate.sourceEventId == eventId &&
+				ProtectedLocationCanonicalSignalIdentity.rawEventId(
+					candidate.sourceSignalId,
+				) == eventId
+		}
+		val sample = locations.singleOrNull { candidate ->
+			candidate.sourceEventId == eventId &&
+				ProtectedLocationCanonicalSignalIdentity.canonicalEventId(
+					candidate.sourceSignalId,
+				) == eventId
+		}
+		val decision = decisions.singleOrNull { candidate ->
+			candidate.observationSourceEventId == eventId &&
+				ProtectedLocationCanonicalSignalIdentity.canonicalEventId(
+					candidate.sourceSignalId,
+				) == eventId
+		}
+		val qualified = qualifiedByEvent[eventId]
+			?: guard.qualifyInCurrentWriterTransaction(eventId)
+		return guard.verifyInCurrentWriterTransaction(
+			ProtectedLocationCanonicalPendingWrite(
+				sourceEventId = eventId,
+				observation = observation,
+				decision = decision?.toProtectedLocationPendingDecision(),
+				sample = sample,
+			),
+			qualified,
+		)
+	}
+
+	private fun verifyProtectedLocationSignalIdentities(
+		observations: List<LocationObservation>,
+		locations: List<StoredLocationSample>,
+		decisions: List<LocationObservationDecision>,
+	) {
 		observations.forEach { observation ->
 			ProtectedLocationCanonicalSignalIdentity.rawEventId(observation.sourceSignalId)
 				?.let { eventId ->
@@ -1224,6 +1361,15 @@ class PersistenceProcessor @Inject internal constructor(
 					}
 				}
 		}
+	}
+
+	private suspend fun verifyProtectedLocationCanonicalWrites(
+		observations: List<LocationObservation>,
+		locations: List<StoredLocationSample>,
+		decisions: List<LocationObservationDecision>,
+		qualifiedByEvent: Map<String, ProtectedLocationQualifiedCandidate>,
+	): List<ProtectedLocationVerifiedWrite> {
+		verifyProtectedLocationSignalIdentities(observations, locations, decisions)
 
 		val eventIds = buildSet {
 			observations.mapNotNullTo(this) { observation ->
@@ -1236,54 +1382,13 @@ class PersistenceProcessor @Inject internal constructor(
 				ProtectedLocationCanonicalSignalIdentity.canonicalEventId(decision.sourceSignalId)
 			}
 		}
-		if (eventIds.isEmpty()) return emptyList()
+		if (eventIds.isEmpty()) {
+			return emptyList()
+		}
 
 		val guard = protectedLocationCanonicalPersistenceGuardProvider.get()
 		return eventIds.sorted().map { eventId ->
-			val observation = observations.singleOrNull { candidate ->
-				candidate.sourceEventId == eventId &&
-					ProtectedLocationCanonicalSignalIdentity.rawEventId(
-						candidate.sourceSignalId,
-					) == eventId
-			}
-			val sample = locations.singleOrNull { candidate ->
-				candidate.sourceEventId == eventId &&
-					ProtectedLocationCanonicalSignalIdentity.canonicalEventId(
-						candidate.sourceSignalId,
-					) == eventId
-			}
-			val decision = decisions.singleOrNull { candidate ->
-				candidate.observationSourceEventId == eventId &&
-					ProtectedLocationCanonicalSignalIdentity.canonicalEventId(
-						candidate.sourceSignalId,
-					) == eventId
-			}
-			val qualified = qualifiedByEvent[eventId]
-				?: guard.qualifyInCurrentWriterTransaction(eventId)
-			guard.verifyInCurrentWriterTransaction(
-				ProtectedLocationCanonicalPendingWrite(
-					sourceEventId = eventId,
-					observation = observation,
-					decision = decision?.let { stored ->
-						ProtectedLocationCanonicalPendingDecision(
-							sourceEventId = stored.observationSourceEventId,
-							decision = stored.decision,
-							reason = stored.reason,
-							decisionVersion = stored.decisionVersion,
-							writerProjectionId = stored.writerProjectionId,
-							writerProjectionVersion = stored.writerProjectionVersion,
-							writerBindingGeneration = stored.writerBindingGeneration,
-							writerOwnerGeneration = stored.writerOwnerGeneration,
-							acceptedSampleSourceSignalId = stored.acceptedSampleSourceSignalId,
-							sourceSignalId = stored.sourceSignalId,
-							clockDomainId = stored.clockDomainId,
-							decidedAtMs = stored.decidedAtMs,
-						)
-					},
-					sample = sample,
-				),
-				qualified,
-			)
+			verifyProtectedLocationEvent(eventId, observations, locations, decisions, qualifiedByEvent, guard)
 		}
 	}
 
@@ -1311,7 +1416,9 @@ class PersistenceProcessor @Inject internal constructor(
 		pendingIds: Set<Long>,
 		claimToken: String?,
 	) {
-		if (pendingIds.isEmpty()) return
+		if (pendingIds.isEmpty()) {
+			return
+		}
 		val rows = pendingIds.toList().chunked(ACK_DELETE_BATCH_SIZE).flatMap { chunk ->
 			pendingSignalDao.getByIds(chunk)
 		}.associateBy(PendingSignalEntity::id)
@@ -1374,7 +1481,9 @@ class PersistenceProcessor @Inject internal constructor(
 
 	/** Bump once per source transaction and read the resulting coherent snapshot revision. */
 	private suspend fun nextSourceRevisionOrNull(hasSourceMutation: Boolean): Long? {
-		if (!hasSourceMutation) return null
+		if (!hasSourceMutation) {
+			return null
+		}
 		val stateDao = sourceEvidenceStateDao ?: return null
 		stateDao.ensure()
 		check(stateDao.incrementRevision(Time.nowMillis) == 1) {
@@ -1429,7 +1538,9 @@ class PersistenceProcessor @Inject internal constructor(
 	private suspend fun insertLocationDecisions(
 		decisions: List<LocationObservationDecision>,
 	) {
-		if (decisions.isEmpty()) return
+		if (decisions.isEmpty()) {
+			return
+		}
 		val decisionDao = requireNotNull(locationObservationDecisionDao) {
 			"Location decisions require LocationObservationDecisionDao"
 		}
@@ -1458,7 +1569,9 @@ class PersistenceProcessor @Inject internal constructor(
 			verifyCollectedDataAccess()
 			val claimed = durableBuffer.claimBatch(DurableSignalBuffer.RECOVERY_BATCH_SIZE)
 			verifyCollectedDataAccess()
-			if (claimed == null) break
+			if (claimed == null) {
+				break
+			}
 			val claimToken = claimed.claimToken
 			val currentSignals = discardStaleClaimedSignals(
 				entries = claimed.signals,
@@ -1519,7 +1632,9 @@ class PersistenceProcessor @Inject internal constructor(
 				verifyCollectedDataAccess()
 				try {
 					val guard = currentLifecycleGuardOrNull(authoritativeLifecycle)
-					if (guard == null) return@inTransaction entries
+					if (guard == null) {
+						return@inTransaction entries
+					}
 					val staleIds = entries.filterNot { entry ->
 						guard.accepts(
 							capturedEpoch = entry.capturedEpoch,
@@ -1546,7 +1661,9 @@ class PersistenceProcessor @Inject internal constructor(
 		verifyCollectedDataAccess: () -> Unit = {},
 	): Boolean {
 		verifyCollectedDataAccess()
-		if (entries.isEmpty()) return true
+		if (entries.isEmpty()) {
+			return true
+		}
 
 		clearBuffers()
 		pendingIds.clear()
@@ -1568,14 +1685,18 @@ class PersistenceProcessor @Inject internal constructor(
 			pendingIds.add(entry.id)
 		}
 
-		if (persistBufferedAndAcknowledge(verifyCollectedDataAccess)) return true
+		if (persistBufferedAndAcknowledge(verifyCollectedDataAccess)) {
+			return true
+		}
 
 		val failure = lastPersistenceFailure
 		clearBuffers()
 		pendingIds.clear()
 		pendingAdmissions.clear()
 		pendingClaimToken = null
-		if (!failure.isKnownPermanentDestinationFailure()) return false
+		if (!failure.isKnownPermanentDestinationFailure()) {
+			return false
+		}
 
 		if (entries.size == 1) {
 			val entry = entries.single()
@@ -1664,14 +1785,18 @@ class PersistenceProcessor @Inject internal constructor(
 	private fun Throwable?.isKnownPermanentDestinationFailure(): Boolean {
 		var current: Throwable? = this
 		while (current != null) {
-			if (current is SQLiteConstraintException || current is IllegalArgumentException) return true
+			if (current is SQLiteConstraintException || current is IllegalArgumentException) {
+				return true
+			}
 			current = current.cause
 		}
 		return false
 	}
 
 	private fun Throwable?.safeFailureDetail(): String? {
-		if (this == null) return null
+		if (this == null) {
+			return null
+		}
 		val message = message?.replace(Regex("\\s+"), " ")?.take(MAX_FAILURE_DETAIL_LENGTH)
 		return listOfNotNull(javaClass.simpleName.takeIf { it.isNotBlank() }, message)
 			.joinToString(": ")
@@ -1743,7 +1868,9 @@ class PersistenceProcessor @Inject internal constructor(
 		 * Infer motion state from activity recognition.
 		 */
 		internal fun inferMotionState(activity: ActivitySignal?): EntityMotionState? {
-			if (activity == null) return null
+			if (activity == null) {
+				return null
+			}
 			return when (activity.type) {
 				DetectedActivityType.STILL -> EntityMotionState.STILL
 				DetectedActivityType.WALKING,

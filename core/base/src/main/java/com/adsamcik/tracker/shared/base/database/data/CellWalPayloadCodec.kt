@@ -10,6 +10,10 @@ import java.time.ZoneId
 const val LEGACY_CELL_WAL_PAYLOAD_VERSION = 5
 const val CELL_WAL_PAYLOAD_VERSION = 6
 
+/**
+ * One original tower reading with available tower token, technology, signal and nullable provider
+ * timestamp.
+ */
 data class CellWalPayloadObservation(
 	val identifierToken: String,
 	val radioType: String,
@@ -20,6 +24,10 @@ data class CellWalPayloadObservation(
 	override fun toString(): String = "CellWalPayloadObservation"
 }
 
+/**
+ * One original Cell delivery: tower readings, optional subscription grouping, refresh outcome and
+ * observation zone.
+ */
 data class CellWalPayload(
 	val subscriptionId: Int?,
 	val observations: List<CellWalPayloadObservation>,
@@ -33,15 +41,24 @@ data class CellWalPayload(
 	}
 }
 
+/**
+ * Immutable Cell payload bytes together with their deterministic checksum.
+ */
 data class EncodedCellWalPayload internal constructor(
 	val bytes: List<Byte>,
 	val checksum: String,
 ) {
+	/**
+	 * Returns an independent byte-array copy of the encoded payload.
+	 */
 	fun toByteArray(): ByteArray = bytes.toByteArray()
 
 	override fun toString(): String = "EncodedCellWalPayload"
 }
 
+/**
+ * Supported-version, payload-bound and canonical-format decode failure causes.
+ */
 enum class CellWalPayloadDecodeFailure {
 	UNSUPPORTED_PAYLOAD_VERSION,
 	PAYLOAD_TOO_LARGE,
@@ -49,8 +66,19 @@ enum class CellWalPayloadDecodeFailure {
 	NON_CANONICAL_PAYLOAD,
 }
 
+/**
+ * Decoded Cell payload or a specific format rejection; decoding alone grants no collection
+ * permission.
+ */
 sealed interface CellWalPayloadDecodeResult {
+	/**
+	 * Supported canonical payload returned after bounded binary decoding.
+	 */
 	data class Decoded(val payload: CellWalPayload) : CellWalPayloadDecodeResult
+	/**
+	 * Specific rejected decode, carrier or per-purpose qualification outcome; it carries no accepted
+	 * payload.
+	 */
 	data class Rejected(val reason: CellWalPayloadDecodeFailure) : CellWalPayloadDecodeResult
 }
 
@@ -61,6 +89,10 @@ sealed interface CellWalPayloadDecodeResult {
  * byte lists instead of the mutable Room payload array.
  */
 object CellWalPayloadCodec {
+	/**
+	 * Serializes Cell payload values into the supported deterministic binary layout; nullable
+	 * measurements keep their absence.
+	 */
 	fun encode(
 		payload: CellWalPayload,
 		payloadVersion: Int = CELL_WAL_PAYLOAD_VERSION,
@@ -88,6 +120,10 @@ object CellWalPayloadCodec {
 		return EncodedCellWalPayload(bytes.toList(), bytes.sha256())
 	}
 
+	/**
+	 * Decodes a bounded supported Cell payload and requires exact canonical bytes; malformed data is
+	 * rejected through the declared result type.
+	 */
 	fun decodeCanonical(
 		payloadVersion: Int,
 		bytes: ByteArray,
@@ -131,6 +167,14 @@ object CellWalPayloadCodec {
 				CellWalPayloadDecodeFailure.MALFORMED_PAYLOAD,
 			)
 		}
+		return canonicalResult(payload, payloadVersion, bytes)
+	}
+
+	private fun canonicalResult(
+		payload: CellWalPayload,
+		payloadVersion: Int,
+		bytes: ByteArray,
+	): CellWalPayloadDecodeResult {
 		val canonical = runCatching { encode(payload, payloadVersion).toByteArray() }.getOrElse {
 			return CellWalPayloadDecodeResult.Rejected(
 				CellWalPayloadDecodeFailure.MALFORMED_PAYLOAD,
@@ -147,17 +191,29 @@ object CellWalPayloadCodec {
 
 private fun DataOutputStream.writeNullableInt(value: Int?) {
 	writeBoolean(value != null)
-	if (value != null) writeInt(value)
+	if (value != null) {
+		writeInt(value)
+	}
 }
 
-private fun DataInputStream.readNullableInt(): Int? = if (readBoolean()) readInt() else null
+private fun DataInputStream.readNullableInt(): Int? = if (readBoolean()) {
+	readInt()
+} else {
+	null
+}
 
 private fun DataOutputStream.writeNullableLong(value: Long?) {
 	writeBoolean(value != null)
-	if (value != null) writeLong(value)
+	if (value != null) {
+		writeLong(value)
+	}
 }
 
-private fun DataInputStream.readNullableLong(): Long? = if (readBoolean()) readLong() else null
+private fun DataInputStream.readNullableLong(): Long? = if (readBoolean()) {
+	readLong()
+} else {
+	null
+}
 
 private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256")
 	.digest(this)

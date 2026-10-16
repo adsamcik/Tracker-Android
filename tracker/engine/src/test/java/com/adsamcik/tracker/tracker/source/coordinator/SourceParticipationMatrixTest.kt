@@ -47,7 +47,11 @@ class SourceParticipationMatrixTest {
                     sources.forEach { source ->
                         val shouldFocus = source == joining && source in selected
                         focused.sourcePreferences.getValue(source).focusRequested shouldBe shouldFocus
-                        val expectedLevel = if (shouldFocus) maxOf(level, 4) else level
+                        val expectedLevel = if (shouldFocus) {
+                            maxOf(level, 4)
+                        } else {
+                            level
+                        }
                         focused.sourcePreferences.getValue(source).requestedLevel shouldBe expectedLevel
                         if (source != joining || joining !in selected) {
                             focused.plans.getValue(source) shouldBe baseline.plans.getValue(source)
@@ -90,7 +94,11 @@ class SourceParticipationMatrixTest {
             val baseline = factory.create(settings(selected, level), 1, 100, environment)
             sources.forEach { changed ->
                 withClue("quality override=$changed") {
-                    val overrideLevel = if (level == 5) 1 else 5
+                    val overrideLevel = if (level == 5) {
+                        1
+                    } else {
+                        5
+                    }
                     val component = TrackingSourceComponent.fromStableCode(changed.stableCode)
                     val overrides = SourceBalanceOverrides().with(component, overrideLevel)
                     val changedPlan = factory.create(settings(selected, level, overrides), 1, 100, environment)

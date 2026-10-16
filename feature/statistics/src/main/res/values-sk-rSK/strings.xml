@@ -166,4 +166,5 @@
     <string name="history_button_label">História</string>
     <string name="history_view_trip_on_map">Zobraziť cestu na mape</string>
     <string name="stats_heatmap_title">Aktivita</string>
+    <string name="stats_recorded_partial_value">%1$s · čiastočne</string>
 </resources>

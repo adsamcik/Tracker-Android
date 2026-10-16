@@ -59,6 +59,9 @@ data class StepsNumericSummaryBatch(
 		}
 	}
 
+	/**
+	 * Limits a coherent summary batch to the two demonstrated consumer windows.
+	 */
 	companion object {
 		const val MAX_SUMMARY_COUNT = 2
 	}
@@ -153,6 +156,9 @@ enum class StepsNumericUnverifiableReason {
 
 /** A display snapshot does not authorize a numeric product decision. */
 sealed interface StepsDailyDisplay {
+	/**
+	 * A bounded contiguous display-day snapshot with independent values under one source revision.
+	 */
 	data class Snapshot(
 		val sourceEvidenceRevision: Long,
 		val days: List<StepsDailyDisplayDay>,
@@ -166,16 +172,34 @@ sealed interface StepsDailyDisplay {
 		}
 	}
 
+	/**
+	 * The required saved source product is still settling, so a complete value is not available yet.
+	 */
 	data object Materializing : StepsDailyDisplay
+	/**
+	 * The saved-data snapshot could not be read; this is distinct from an empty or measured-zero
+	 * result.
+	 */
 	data object StorageUnavailable : StepsDailyDisplay
 }
 
+/**
+ * One local calendar epoch day with its independent display result, preserving healthy sibling
+ * days.
+ */
 data class StepsDailyDisplayDay(
 	val epochDay: Long,
 	val value: StepsDailyDisplayValue,
 )
 
+/**
+ * Display-only complete count, saved subtotal or unavailable state; incomplete values do not
+ * authorize game effects.
+ */
 sealed interface StepsDailyDisplayValue {
+	/**
+	 * A complete nonnegative display count supported by saved day coverage.
+	 */
 	data class Complete(val count: Long) : StepsDailyDisplayValue {
 		init { require(count >= 0L) }
 	}
@@ -191,7 +215,13 @@ sealed interface StepsDailyDisplayValue {
 		}
 	}
 
+	/**
+	 * The required saved source product is still settling, so a complete value is not available yet.
+	 */
 	data object Materializing : StepsDailyDisplayValue
+	/**
+	 * This day has no display count; retains the numeric reason and any known source causes.
+	 */
 	data class Unavailable(
 		val reason: StepsNumericUnverifiableReason,
 		val causes: Set<AmbientStepsHistoryCause> = emptySet(),

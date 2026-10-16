@@ -100,7 +100,9 @@ class RetainedRadioContextLayerTest {
         var fail = false
         val repository = object : RadioLocationContextRepository {
             override suspend fun read(request: RadioLocationContextRequest): RadioLocationContextReadResult {
-                if (fail) throw IllegalStateException("Local read failed")
+                if (fail) {
+                    throw IllegalStateException("Local read failed")
+                }
                 return RadioLocationContextReadResult.Ready(RadioContextSource.WIFI, listOf(observation()))
             }
         }
@@ -143,7 +145,9 @@ class RetainedRadioContextLayerTest {
         var cancel = false
         val repository = object : RadioLocationContextRepository {
             override suspend fun read(request: RadioLocationContextRequest): RadioLocationContextReadResult {
-                if (cancel) throw CancellationException("Screen closed")
+                if (cancel) {
+                    throw CancellationException("Screen closed")
+                }
                 return RadioLocationContextReadResult.Ready(RadioContextSource.WIFI, emptyList())
             }
         }
@@ -162,14 +166,20 @@ class RetainedRadioContextLayerTest {
     @Test fun `both unavailable radio readers remain a load failure rather than an empty recording`() = runTest {
         var fail = false
         val pipeline = VizPipeline("wifi_heatmap", VizSource<WeightedGeoFeature> {
-            if (fail) throw IllegalStateException("Legacy read failed")
+            if (fail) {
+                throw IllegalStateException("Legacy read failed")
+            }
             emptyList()
         }, Aggregator<WeightedGeoFeature, SpatialData.Markers> { features, _ -> SpatialData.Markers(features) },
             Encoder<SpatialData.Markers> { _, _ -> null })
         val repository = object : RadioLocationContextRepository {
             override suspend fun read(request: RadioLocationContextRequest): RadioLocationContextReadResult =
-                if (fail) RadioLocationContextReadResult.StorageUnavailable
-                else RadioLocationContextReadResult.Ready(RadioContextSource.WIFI, emptyList())
+                if (fail) {
+                    RadioLocationContextReadResult.StorageUnavailable
+                }
+                else {
+                    RadioLocationContextReadResult.Ready(RadioContextSource.WIFI, emptyList())
+                }
         }
         val layer = RetainedRadioContextLayer(pipeline, repository, RadioContextSource.WIFI,
             TestDispatchersProvider(StandardTestDispatcher(testScheduler)))

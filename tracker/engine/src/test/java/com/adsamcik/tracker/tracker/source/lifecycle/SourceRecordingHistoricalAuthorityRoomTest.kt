@@ -307,9 +307,9 @@ class SourceRecordingHistoricalAuthorityRoomTest {
 		writerBindingGeneration = SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
 		payloadVersion = PressureFactRevisionEntity.QUALIFIED_PRESSURE_PAYLOAD_VERSION,
 		intervalStartTimeMs = 8_000L,
-		intervalEndTimeMs = 8_150L,
+		intervalEndTimeMs = 8_001L,
 		windowStartElapsedRealtimeNanos = 8_000_000L,
-		windowEndElapsedRealtimeNanos = 8_150_000L,
+		windowEndElapsedRealtimeNanos = 9_000_000L,
 		clockDomainId = BOOT_ID,
 		wallTimeUncertaintyMs = 1L,
 		sampleCount = 2,
@@ -341,7 +341,7 @@ class SourceRecordingHistoricalAuthorityRoomTest {
 		captureConsentEpoch = CONSENT_EPOCH,
 		collectedDataEpoch = DATA_EPOCH,
 		effectChecksum = "retained-effect",
-		appliedAtMs = 8_150L,
+		appliedAtMs = 8_001L,
 	)
 
 	private companion object {

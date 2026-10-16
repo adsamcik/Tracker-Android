@@ -221,63 +221,69 @@ internal class TestPurposeSourceCallerDemandDispatcher(
 				request.elapsedRealtimeNanos,
 				request.wallTimeMs,
 			)
-			val demand = when (request.source) {
-				com.adsamcik.tracker.tracker.api.AmbientTrackingSource.WIFI ->
-					if (snapshot == null) {
-						broker.replaceAmbientWifiDemandUnderHeldLease(
-							request.consumerId,
-							request.requested,
-							request.leaseIdentity,
-							request.reconciliationAttempt,
-							request.bootId,
-							request.elapsedRealtimeNanos,
-							request.wallTimeMs,
-						)
-					} else {
-						broker.replaceAmbientWifiDemandUnderHeldLease(
-							request.consumerId,
-							request.requested,
-							request.leaseIdentity,
-							request.reconciliationAttempt,
-							request.bootId,
-							request.elapsedRealtimeNanos,
-							request.wallTimeMs,
-							retentionSnapshot = snapshot,
-						)
-					}
-
-				com.adsamcik.tracker.tracker.api.AmbientTrackingSource.CELL ->
-					if (snapshot == null) {
-						broker.replaceAmbientCellDemandUnderHeldLease(
-							request.consumerId,
-							request.requested,
-							request.leaseIdentity,
-							request.reconciliationAttempt,
-							request.bootId,
-							request.elapsedRealtimeNanos,
-							request.wallTimeMs,
-						)
-					} else {
-						broker.replaceAmbientCellDemandUnderHeldLease(
-							request.consumerId,
-							request.requested,
-							request.leaseIdentity,
-							request.reconciliationAttempt,
-							request.bootId,
-							request.elapsedRealtimeNanos,
-							request.wallTimeMs,
-							retentionSnapshot = snapshot,
-						)
-					}
-
-				else -> error("Unsupported test ambient radio source")
-			}
+			val demand = replaceAmbientRadioDemand(request, snapshot)
 			reconcile(demand, GuardedAmbientRadioAttempt(request, null))
 		}
 		return when (guarded) {
 			is AmbientRadioLeaseMutation.Applied ->
 				GuardedPurposeDemandResult.Applied(guarded.value, null)
 			AmbientRadioLeaseMutation.Stale -> GuardedPurposeDemandResult.Stale
+		}
+	}
+
+	private suspend fun replaceAmbientRadioDemand(
+		request: AmbientRadioDemandDispatchRequest, snapshot: LiveAmbientRetentionSnapshot?,
+	): AmbientRadioDemandResult {
+		return when (request.source) {
+			com.adsamcik.tracker.tracker.api.AmbientTrackingSource.WIFI ->
+				if (snapshot == null) {
+					broker.replaceAmbientWifiDemandUnderHeldLease(
+						request.consumerId,
+						request.requested,
+						request.leaseIdentity,
+						request.reconciliationAttempt,
+						request.bootId,
+						request.elapsedRealtimeNanos,
+						request.wallTimeMs,
+					)
+				} else {
+					broker.replaceAmbientWifiDemandUnderHeldLease(
+						request.consumerId,
+						request.requested,
+						request.leaseIdentity,
+						request.reconciliationAttempt,
+						request.bootId,
+						request.elapsedRealtimeNanos,
+						request.wallTimeMs,
+						retentionSnapshot = snapshot,
+					)
+				}
+
+			com.adsamcik.tracker.tracker.api.AmbientTrackingSource.CELL ->
+				if (snapshot == null) {
+					broker.replaceAmbientCellDemandUnderHeldLease(
+						request.consumerId,
+						request.requested,
+						request.leaseIdentity,
+						request.reconciliationAttempt,
+						request.bootId,
+						request.elapsedRealtimeNanos,
+						request.wallTimeMs,
+					)
+				} else {
+					broker.replaceAmbientCellDemandUnderHeldLease(
+						request.consumerId,
+						request.requested,
+						request.leaseIdentity,
+						request.reconciliationAttempt,
+						request.bootId,
+						request.elapsedRealtimeNanos,
+						request.wallTimeMs,
+						retentionSnapshot = snapshot,
+					)
+				}
+
+			else -> error("Unsupported test ambient radio source")
 		}
 	}
 

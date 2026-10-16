@@ -5,6 +5,9 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.tracker.source.runtime.WifiCaptureDeletionBarrierBlockedReason
 import com.adsamcik.tracker.tracker.source.runtime.WifiCaptureDeletionBarrierResult
@@ -67,6 +70,14 @@ internal class WifiCaptureConsentRevocationDeletionCommand @Inject constructor(
 	suspend fun delete(
 		request: WifiCaptureConsentRevocationDeletionRequest,
 	): WifiCaptureConsentRevocationDeletionResult {
+		return preflightFailure(request)
+			?: callbackBarrierFailure(request)
+			?: deleteCapturedFacts(request)
+	}
+
+	private suspend fun preflightFailure(
+		request: WifiCaptureConsentRevocationDeletionRequest,
+	): WifiCaptureConsentRevocationDeletionResult? {
 		val preflight = try {
 			preflight(request)
 		} catch (cancelled: CancellationException) {
@@ -83,7 +94,12 @@ internal class WifiCaptureConsentRevocationDeletionCommand @Inject constructor(
 		if (preflight != null) {
 			return WifiCaptureConsentRevocationDeletionResult.Blocked(preflight)
 		}
+		return null
+	}
 
+	private suspend fun callbackBarrierFailure(
+		request: WifiCaptureConsentRevocationDeletionRequest,
+	): WifiCaptureConsentRevocationDeletionResult? {
 		val barrierResult = try {
 			runtime.establishCaptureDeletionBarrier(request.expectedCollectedDataEpoch)
 		} catch (cancelled: CancellationException) {
@@ -111,7 +127,12 @@ internal class WifiCaptureConsentRevocationDeletionCommand @Inject constructor(
 					barrier.reason.toDeletionBlockedReason(),
 				)
 		}
+		return null
+	}
 
+	private suspend fun deleteCapturedFacts(
+		request: WifiCaptureConsentRevocationDeletionRequest,
+	): WifiCaptureConsentRevocationDeletionResult {
 		val result = try {
 			maintenance.deleteAfterCaptureConsentReset(
 				expectedCollectedDataEpoch = request.expectedCollectedDataEpoch,
@@ -147,11 +168,12 @@ internal class WifiCaptureConsentRevocationDeletionCommand @Inject constructor(
 		request: WifiCaptureConsentRevocationDeletionRequest,
 	): WifiCapturedSourceDeletionBlockedReason? = database.withTransaction {
 		val evidence = database.sourceEvidenceStateDao().get()
-		if (evidence == null ||
-			evidence.collectedDataEpoch != request.expectedCollectedDataEpoch ||
-			evidence.deletedSourceEventHighWaterOrdinal !=
-				request.expectedDeletedSourceEventHighWaterOrdinal
-		) return@withTransaction WifiCapturedSourceDeletionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED
+		if (!evidence.matchesWifiCaptureDeletionLifecycle(
+				request.expectedCollectedDataEpoch, request.expectedDeletedSourceEventHighWaterOrdinal,
+			)
+		) {
+			return@withTransaction WifiCapturedSourceDeletionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED
+		}
 
 		val policyDao = database.sourcePolicyDao()
 		val authority = policyDao.authority()?.takeIf { current ->
@@ -162,11 +184,13 @@ internal class WifiCaptureConsentRevocationDeletionCommand @Inject constructor(
 		val consent = policyDao.latestConsentEpoch(WIFI_SOURCE, CAPTURE_PURPOSE)
 		if (policy == null || consent == null ||
 			consent.epoch != request.expectedRevokedConsentEpoch
-		) return@withTransaction WifiCapturedSourceDeletionBlockedReason.POLICY_AUTHORITY_UNAVAILABLE
-		if (policy.capturePersistenceEligible || policy.captureConsentEpoch != null ||
-			consent.eligible || consent.persistenceEligible ||
-			consent.policyRevision > policy.policyRevision
-		) return@withTransaction WifiCapturedSourceDeletionBlockedReason.CAPTURE_CONSENT_STILL_ELIGIBLE
+		) {
+			return@withTransaction WifiCapturedSourceDeletionBlockedReason.POLICY_AUTHORITY_UNAVAILABLE
+		}
+		if (policy.hasEligibleWifiCaptureConsent(consent)
+		) {
+			return@withTransaction WifiCapturedSourceDeletionBlockedReason.CAPTURE_CONSENT_STILL_ELIGIBLE
+		}
 		// Generic evidence time also advances for independent CONTROL/AMBIENT WAL. The exact
 		// epoch/high-water checks above fence lifecycle authority without making those sources block.
 		if (request.deletedAtMs < maxOf(
@@ -174,10 +198,23 @@ internal class WifiCaptureConsentRevocationDeletionCommand @Inject constructor(
 			policy.effectiveWallTimeMs,
 			consent.effectiveWallTimeMs,
 		)
-		) return@withTransaction WifiCapturedSourceDeletionBlockedReason.STALE_REQUEST
+		) {
+			return@withTransaction WifiCapturedSourceDeletionBlockedReason.STALE_REQUEST
+		}
 		null
 	}
 }
+
+private fun SourceEvidenceState?.matchesWifiCaptureDeletionLifecycle(
+	expectedEpoch: Long,
+	expectedHighWaterOrdinal: Long,
+): Boolean = this != null && collectedDataEpoch == expectedEpoch &&
+	deletedSourceEventHighWaterOrdinal == expectedHighWaterOrdinal
+
+private fun SourcePolicyEntity.hasEligibleWifiCaptureConsent(
+	consent: SourceConsentEpochEntity,
+): Boolean = capturePersistenceEligible || captureConsentEpoch != null || consent.eligible ||
+	consent.persistenceEligible || consent.policyRevision > policyRevision
 
 private fun WifiCaptureDeletionBarrierBlockedReason.toDeletionBlockedReason() = when (this) {
 	WifiCaptureDeletionBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,

@@ -46,6 +46,8 @@ class ImportedAmbientStepsEntitiesTest {
 	}
 
 	@Test
+	// The complete owner set, changed revision and wrong day prove one fence.
+	@Suppress("LongMethod")
 	fun `retention fence checksum authenticates the complete protected owner set`() {
 		val day = day(LocalDate.of(2026, 3, 29), 5L)
 		val archive = PortableAmbientStepsArchiveV1.create(listOf(day))

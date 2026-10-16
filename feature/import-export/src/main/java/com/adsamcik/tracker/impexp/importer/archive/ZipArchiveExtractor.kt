@@ -47,93 +47,21 @@ internal class ZipArchiveExtractor(
 	 * Identifies full-database backups before any entry is handed to a merge importer. The
 	 * exporter writes its manifest last, so classification must inspect the complete archive.
 	 */
-	@Suppress("LongMethod", "NestedBlockDepth")
 	suspend fun classifyForMergeImport(
 		context: Context,
 		file: DocumentFile,
 	): ZipArchiveClassification {
 		currentCoroutineContext().ensureActive()
-		if (file.isDirectory) {
-			throw PermanentImportInputException("Import source is not a ZIP archive.")
-		}
-		val declaredSourceSize = file.length()
-		if (declaredSourceSize > maximumCompressedInputBytes) {
-			throw PermanentImportInputException(
-				"Zip archive exceeds compressed input size limit " +
-					"($maximumCompressedInputBytes bytes)."
-			)
-		}
+		requireZipSource(file)
 
 		val source = file.openInputStream(context) ?: return ZipArchiveClassification.GENERAL_IMPORT
 		try {
 			LimitedCountingInputStream(source, maximumCompressedInputBytes).use { countedSource ->
 				val validated = validatedZipInputStream(countedSource)
 				validated.stream.use { zipStream ->
-				var totalBytesRead = 0L
-				var entryCount = 0
-				while (true) {
-					currentCoroutineContext().ensureActive()
-					val entry = nextZipEntry(zipStream) ?: break
-					entryCount++
-					if (entryCount > MAX_ENTRY_COUNT) {
-						throw PermanentImportInputException(
-							"Zip archive exceeds entry count limit ($MAX_ENTRY_COUNT)."
-						)
+					if (classifyEntries(zipStream, countedSource, validated.hasLocalFileHeader)) {
+						return ZipArchiveClassification.TRACKER_DATABASE_BACKUP
 					}
-
-					var entryReadSuccessfully = false
-					var entryFailure: Throwable? = null
-					try {
-						val entryLimit = entryLimit(entry)
-						validateDeclaredEntry(entry, entryLimit)
-						val budgetRemaining = maximumTotalBytes - totalBytesRead
-						if (budgetRemaining <= 0L) {
-							throw PermanentImportInputException(
-								"Zip archive exceeds total uncompressed size limit " +
-									"($maximumTotalBytes bytes); refusing to inspect more."
-							)
-						}
-
-						val compressedBytesBefore = countedSource.bytesRead
-						val output = if (entry.name == BACKUP_MANIFEST_FILE) {
-							ByteArrayOutputStream()
-						} else {
-							DISCARDING_OUTPUT
-						}
-						val read = readEntryWithLimits(
-							zipStream = zipStream,
-							entry = entry,
-							output = output,
-							perEntryLimit = minOf(
-								entryLimit,
-								if (output is ByteArrayOutputStream) {
-									MAX_MANIFEST_BYTES
-								} else {
-									Long.MAX_VALUE
-								},
-							),
-							remainingTotalBudget = budgetRemaining,
-							compressedBytesBefore = compressedBytesBefore,
-							compressedBytesRead = { countedSource.bytesRead },
-						)
-						entryReadSuccessfully = true
-						totalBytesRead += read
-						if (
-							output is ByteArrayOutputStream &&
-							isTrackerDatabaseBackupManifest(output.toByteArray())
-						) {
-							return ZipArchiveClassification.TRACKER_DATABASE_BACKUP
-						}
-					} catch (failure: Throwable) {
-						entryFailure = failure
-						throw failure
-					} finally {
-						closeCompletedZipEntry(zipStream, entryReadSuccessfully, entryFailure)
-					}
-				}
-				if (entryCount == 0 && validated.hasLocalFileHeader) {
-					throw PermanentImportInputException("ZIP archive contains no entries.")
-				}
 			}
 			}
 		} catch (failure: ArchiveSourceReadFailure) {
@@ -144,7 +72,6 @@ internal class ZipArchiveExtractor(
 		return ZipArchiveClassification.GENERAL_IMPORT
 	}
 
-	@Suppress("LongMethod", "NestedBlockDepth")
 	override suspend fun extract(
 		context: Context,
 		file: DocumentFile,
@@ -152,6 +79,171 @@ internal class ZipArchiveExtractor(
 		consume: suspend (FileImportStream) -> Unit,
 	): Boolean {
 		currentCoroutineContext().ensureActive()
+		requireZipSource(file)
+
+		val source = file.openInputStream(context) ?: return false
+		try {
+			LimitedCountingInputStream(source, maximumCompressedInputBytes).use { countedSource ->
+				val validated = validatedZipInputStream(countedSource)
+				validated.stream.use { zipStream ->
+					extractEntries(context, zipStream, countedSource, validated.hasLocalFileHeader, shouldExtract, consume)
+			}
+			}
+		} catch (failure: ArchiveSourceReadFailure) {
+			throw failure.original
+		} catch (failure: PermanentImportInputException) {
+			throw failure
+		}
+		return true
+	}
+
+	private suspend fun classifyEntries(zipStream: ZipInputStream,
+		countedSource: LimitedCountingInputStream, hasLocalFileHeader: Boolean): Boolean {
+		var totalBytesRead = 0L
+		var entryCount = 0
+		while (true) {
+			currentCoroutineContext().ensureActive()
+			val entry = nextZipEntry(zipStream) ?: break
+			entryCount++
+			if (entryCount > MAX_ENTRY_COUNT) {
+				throw PermanentImportInputException(
+					"Zip archive exceeds entry count limit ($MAX_ENTRY_COUNT)."
+				)
+			}
+
+			val read = inspectArchiveEntry(zipStream, entry, countedSource, totalBytesRead)
+			totalBytesRead += read.first
+			if (read.second) {
+				return true
+			}
+		}
+		if (entryCount == 0 && hasLocalFileHeader) {
+			throw PermanentImportInputException("ZIP archive contains no entries.")
+		}
+		return false
+	}
+
+	private suspend fun inspectArchiveEntry(zipStream: ZipInputStream, entry: ZipEntry,
+		countedSource: LimitedCountingInputStream, totalBytesRead: Long): Pair<Long, Boolean> {
+		var entryReadSuccessfully = false
+		var entryFailure: Throwable? = null
+		try {
+			val entryLimit = entryLimit(entry)
+			validateDeclaredEntry(entry, entryLimit)
+			val budgetRemaining = requireArchiveBudget(totalBytesRead, "inspect")
+
+			val compressedBytesBefore = countedSource.bytesRead
+			val output = if (entry.name == BACKUP_MANIFEST_FILE) {
+				ByteArrayOutputStream()
+			} else {
+				DISCARDING_OUTPUT
+			}
+			val read = readEntryWithLimits(
+				zipStream = zipStream,
+				entry = entry,
+				output = output,
+				perEntryLimit = minOf(
+					entryLimit,
+					if (output is ByteArrayOutputStream) {
+						MAX_MANIFEST_BYTES
+					} else {
+						Long.MAX_VALUE
+					},
+				),
+				remainingTotalBudget = budgetRemaining,
+				compressedBytesBefore = compressedBytesBefore,
+				compressedBytesRead = { countedSource.bytesRead },
+			)
+			entryReadSuccessfully = true
+			return read to (output is ByteArrayOutputStream &&
+				isTrackerDatabaseBackupManifest(output.toByteArray()))
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Throwable) {
+			// Keep the original entry failure so finally-close cannot replace it, including cancellation or Error.
+			entryFailure = failure
+			throw failure
+		} finally {
+			closeCompletedZipEntry(zipStream, entryReadSuccessfully, entryFailure)
+		}
+	}
+
+	private suspend fun extractEntries(context: Context, zipStream: ZipInputStream,
+		countedSource: LimitedCountingInputStream, hasLocalFileHeader: Boolean,
+		shouldExtract: suspend (ArchiveEntryMetadata) -> Boolean, consume: suspend (FileImportStream) -> Unit) {
+		var totalBytesWritten = 0L
+		var entryCount = 0
+		while (true) {
+			currentCoroutineContext().ensureActive()
+			val entry = nextZipEntry(zipStream) ?: break
+			entryCount++
+			if (entryCount > MAX_ENTRY_COUNT) {
+				throw PermanentImportInputException(
+					"Zip archive exceeds entry count limit ($MAX_ENTRY_COUNT)."
+				)
+			}
+
+			totalBytesWritten += extractArchiveEntry(context, zipStream, entry, countedSource,
+				entryCount, totalBytesWritten, shouldExtract, consume)
+		}
+		if (entryCount == 0 && hasLocalFileHeader) {
+			throw PermanentImportInputException("ZIP archive contains no entries.")
+		}
+	}
+
+	// Keep the complete entry resources, budgets, identity and caller actions explicit.
+	@Suppress("LongParameterList")
+	private suspend fun extractArchiveEntry(context: Context, zipStream: ZipInputStream, entry: ZipEntry,
+		countedSource: LimitedCountingInputStream, entryCount: Int, totalBytesWritten: Long,
+		shouldExtract: suspend (ArchiveEntryMetadata) -> Boolean, consume: suspend (FileImportStream) -> Unit): Long {
+		var entryReadSuccessfully = false
+		var entryFailure: Throwable? = null
+		try {
+			val entryName = entry.name
+			val entryLimit = entryLimit(entry)
+			validateDeclaredEntry(entry, entryLimit)
+			val budgetRemaining = requireArchiveBudget(totalBytesWritten, "extract")
+
+			val compressedBytesBefore = countedSource.bytesRead
+			if (entry.isDirectory || !isSafeZipEntryName(entryName)) {
+				val discarded = discardArchiveEntry(zipStream, entry, entryLimit, budgetRemaining,
+					compressedBytesBefore, countedSource)
+				entryReadSuccessfully = true
+				return discarded
+			}
+
+			val metadata = ArchiveEntryMetadata(
+				receiptKey = entryReceiptKey(entryCount, entry),
+				fileName = entryName,
+			)
+			if (!shouldExtract(metadata)) {
+				val discarded = discardArchiveEntry(zipStream, entry, entryLimit, budgetRemaining,
+					compressedBytesBefore, countedSource)
+				entryReadSuccessfully = true
+				return discarded
+			}
+
+			val (stream, written) = materializeEntry(
+				context = context,
+				zipStream = zipStream,
+				entry = entry,
+				metadata = metadata,
+				perEntryLimit = entryLimit,
+				remainingTotalBudget = budgetRemaining,
+				compressedBytesBefore = compressedBytesBefore,
+				compressedBytesRead = { countedSource.bytesRead },
+			)
+			entryReadSuccessfully = true
+			stream.use { consume(it) }
+			return written
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Throwable) {
+			// Keep the original entry failure so finally-close cannot replace it, including cancellation or Error.
+			entryFailure = failure
+			throw failure
+		} finally {
+			closeCompletedZipEntry(zipStream, entryReadSuccessfully, entryFailure)
+		}
+	}
+
+	private fun requireZipSource(file: DocumentFile) {
 		if (file.isDirectory) {
 			throw PermanentImportInputException("Import source is not a ZIP archive.")
 		}
@@ -162,105 +254,23 @@ internal class ZipArchiveExtractor(
 					"($maximumCompressedInputBytes bytes)."
 			)
 		}
-
-		val source = file.openInputStream(context) ?: return false
-		try {
-			LimitedCountingInputStream(source, maximumCompressedInputBytes).use { countedSource ->
-				val validated = validatedZipInputStream(countedSource)
-				validated.stream.use { zipStream ->
-				var totalBytesWritten = 0L
-				var entryCount = 0
-				while (true) {
-					currentCoroutineContext().ensureActive()
-					val entry = nextZipEntry(zipStream) ?: break
-					entryCount++
-					if (entryCount > MAX_ENTRY_COUNT) {
-						throw PermanentImportInputException(
-							"Zip archive exceeds entry count limit ($MAX_ENTRY_COUNT)."
-						)
-					}
-
-					var entryReadSuccessfully = false
-					var entryFailure: Throwable? = null
-					try {
-						val entryName = entry.name
-						val entryLimit = entryLimit(entry)
-						validateDeclaredEntry(entry, entryLimit)
-						val budgetRemaining = maximumTotalBytes - totalBytesWritten
-						if (budgetRemaining <= 0L) {
-							throw PermanentImportInputException(
-								"Zip archive exceeds total uncompressed size limit " +
-									"($maximumTotalBytes bytes); refusing to extract more."
-							)
-						}
-
-						val compressedBytesBefore = countedSource.bytesRead
-						if (entry.isDirectory || !isSafeZipEntryName(entryName)) {
-							val discarded = readEntryWithLimits(
-								zipStream = zipStream,
-								entry = entry,
-								output = DISCARDING_OUTPUT,
-								perEntryLimit = entryLimit,
-								remainingTotalBudget = budgetRemaining,
-								compressedBytesBefore = compressedBytesBefore,
-								compressedBytesRead = { countedSource.bytesRead },
-							)
-							entryReadSuccessfully = true
-							totalBytesWritten += discarded
-							continue
-						}
-
-						val metadata = ArchiveEntryMetadata(
-							receiptKey = entryReceiptKey(entryCount, entry),
-							fileName = entryName,
-						)
-						if (!shouldExtract(metadata)) {
-							val discarded = readEntryWithLimits(
-								zipStream = zipStream,
-								entry = entry,
-								output = DISCARDING_OUTPUT,
-								perEntryLimit = entryLimit,
-								remainingTotalBudget = budgetRemaining,
-								compressedBytesBefore = compressedBytesBefore,
-								compressedBytesRead = { countedSource.bytesRead },
-							)
-							entryReadSuccessfully = true
-							totalBytesWritten += discarded
-							continue
-						}
-
-						val (stream, written) = materializeEntry(
-							context = context,
-							zipStream = zipStream,
-							entry = entry,
-							metadata = metadata,
-							perEntryLimit = entryLimit,
-							remainingTotalBudget = budgetRemaining,
-							compressedBytesBefore = compressedBytesBefore,
-							compressedBytesRead = { countedSource.bytesRead },
-						)
-						entryReadSuccessfully = true
-						stream.use { consume(it) }
-						totalBytesWritten += written
-					} catch (failure: Throwable) {
-						entryFailure = failure
-						throw failure
-					} finally {
-						closeCompletedZipEntry(zipStream, entryReadSuccessfully, entryFailure)
-					}
-				}
-				if (entryCount == 0 && validated.hasLocalFileHeader) {
-					throw PermanentImportInputException("ZIP archive contains no entries.")
-				}
-			}
-			}
-		} catch (failure: ArchiveSourceReadFailure) {
-			throw failure.original
-		} catch (failure: PermanentImportInputException) {
-			throw failure
-		}
-		return true
 	}
+
+	private fun requireArchiveBudget(used: Long, action: String): Long {
+		val remaining = maximumTotalBytes - used
+		if (remaining <= 0L) {
+			throw PermanentImportInputException(
+				"Zip archive exceeds total uncompressed size limit " +
+					"($maximumTotalBytes bytes); refusing to $action more.")
+		}
+		return remaining
+	}
+
+	private suspend fun discardArchiveEntry(zipStream: ZipInputStream, entry: ZipEntry,
+		entryLimit: Long, budgetRemaining: Long, compressedBytesBefore: Long,
+		countedSource: LimitedCountingInputStream): Long = readEntryWithLimits(
+		zipStream, entry, DISCARDING_OUTPUT, entryLimit, budgetRemaining,
+		compressedBytesBefore, { countedSource.bytesRead })
 
 	private fun entryLimit(entry: ZipEntry): Long =
 		maximumEntryBytes(entry.name).also { require(it >= 0L) }.coerceAtMost(MAX_ENTRY_BYTES)
@@ -345,122 +355,6 @@ internal class ZipArchiveExtractor(
 		return written
 	}
 
-	private fun validateCompressionRatio(
-		uncompressedBytes: Long,
-		compressedBytes: Long,
-	) {
-		if (uncompressedBytes > maximumExpandedBytes(compressedBytes)) {
-			throw PermanentImportInputException(
-				"Zip entry exceeds maximum compression ratio " +
-					"($MAX_COMPRESSION_RATIO:1)."
-			)
-		}
-	}
-
-	private fun maximumExpandedBytes(compressedBytes: Long): Long =
-		try {
-			Math.multiplyExact(compressedBytes, MAX_COMPRESSION_RATIO)
-		} catch (_: ArithmeticException) {
-			Long.MAX_VALUE
-		}
-
-	private suspend fun ZipInputStream.copyToWithLimit(
-		out: OutputStream,
-		limit: Long,
-	): Long {
-		val buffer = ByteArray(BUFFER_SIZE)
-		var total = 0L
-		while (true) {
-			currentCoroutineContext().ensureActive()
-			val read = readZip { this.read(buffer) }
-			currentCoroutineContext().ensureActive()
-			if (read <= 0) break
-			val nextTotal = total + read
-			if (nextTotal > limit) {
-				throw PermanentImportInputException(
-					"Zip entry exceeds extraction limit ($limit bytes)."
-				)
-			}
-			out.write(buffer, 0, read)
-			total = nextTotal
-		}
-		return total
-	}
-
-	private suspend fun nextZipEntry(zipStream: ZipInputStream): ZipEntry? {
-		currentCoroutineContext().ensureActive()
-		return readZip { zipStream.nextEntry }.also { currentCoroutineContext().ensureActive() }
-	}
-
-	private fun closeZipEntry(zipStream: ZipInputStream) {
-		readZip { zipStream.closeEntry() }
-	}
-
-	private fun closeCompletedZipEntry(
-		zipStream: ZipInputStream,
-		entryReadSuccessfully: Boolean,
-		entryFailure: Throwable?,
-	) {
-		if (!entryReadSuccessfully) return
-		try {
-			closeZipEntry(zipStream)
-		} catch (closeFailure: Throwable) {
-			if (entryFailure == null) {
-				throw closeFailure
-			}
-			entryFailure.addSuppressed(closeFailure)
-		}
-	}
-
-	private inline fun <T> readZip(block: () -> T): T = try {
-		block()
-	} catch (failure: ArchiveSourceReadFailure) {
-		throw failure
-	} catch (failure: PermanentImportInputException) {
-		throw failure
-	} catch (failure: ZipException) {
-		failure.archiveSourceReadFailure()?.let { throw it }
-		throw PermanentImportInputException("ZIP archive structure is invalid.", failure)
-	} catch (failure: java.io.EOFException) {
-		failure.archiveSourceReadFailure()?.let { throw it }
-		throw PermanentImportInputException("ZIP archive is truncated.", failure)
-	} catch (failure: IOException) {
-		failure.archiveSourceReadFailure()?.let { throw it }
-		throw PermanentImportInputException("ZIP archive structure is invalid.", failure)
-	}
-
-	private fun entryReceiptKey(index: Int, entry: ZipEntry): String {
-		val identity = buildString {
-			append("zip-entry-v1")
-			append('\u0000')
-			append(index)
-			append('\u0000')
-			append(entry.name)
-			append('\u0000')
-			append(entry.size)
-			append('\u0000')
-			append(entry.crc)
-			append('\u0000')
-			append(entry.compressedSize)
-		}
-		return MessageDigest.getInstance("SHA-256")
-			.digest(identity.toByteArray())
-			.joinToString("") { byte -> "%02x".format(byte) }
-	}
-
-	private fun isSafeZipEntryName(entryName: String): Boolean {
-		val normalized = entryName.replace('\\', '/')
-		return normalized.isNotBlank() &&
-			!normalized.startsWith("/") &&
-			!normalized.startsWith("../") &&
-			normalized != ".." &&
-			!normalized.contains("/../") &&
-			!WINDOWS_ABSOLUTE_PATH.matches(normalized)
-	}
-
-	private fun isTrackerDatabaseBackupManifest(bytes: ByteArray): Boolean =
-		TRACKER_BACKUP_MANIFEST_PREFIX.containsMatchIn(bytes.toString(Charsets.UTF_8))
-
 	private data class ValidatedZipInput(
 		val stream: ZipInputStream,
 		val hasLocalFileHeader: Boolean,
@@ -504,13 +398,17 @@ internal class ZipArchiveExtractor(
 
 		override fun read(): Int {
 			val value = readSource { super.read() }
-			if (value >= 0) addBytes(1)
+			if (value >= 0) {
+				addBytes(1)
+			}
 			return value
 		}
 
 		override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
 			val read = readSource { super.read(buffer, offset, length) }
-			if (read > 0) addBytes(read)
+			if (read > 0) {
+				addBytes(read)
+			}
 			return read
 		}
 
@@ -540,9 +438,7 @@ internal class ZipArchiveExtractor(
 		private const val ZIP_SIGNATURE_BYTES = 4
 		private const val BACKUP_MANIFEST_FILE = "manifest.json"
 		private const val MAX_MANIFEST_BYTES = 64L * 1024L
-		private val TRACKER_BACKUP_MANIFEST_PREFIX = Regex(
-			"""^\uFEFF?\s*\{\s*"format"\s*:\s*"tracker-database-backup"\s*[,}]"""
-		)
+
 		private val ZIP_LOCAL_FILE_HEADER = byteArrayOf(0x50, 0x4b, 0x03, 0x04)
 		private val ZIP_EMPTY_ARCHIVE_HEADER = byteArrayOf(0x50, 0x4b, 0x05, 0x06)
 		private val DISCARDING_OUTPUT = object : OutputStream() {
@@ -579,7 +475,9 @@ private class ArchiveSourceReadFailure(
 private fun Throwable.archiveSourceReadFailure(): ArchiveSourceReadFailure? {
 	var current: Throwable? = this
 	while (current != null) {
-		if (current is ArchiveSourceReadFailure) return current
+		if (current is ArchiveSourceReadFailure) {
+			return current
+		}
 		current = current.cause
 	}
 	return null
@@ -589,3 +487,138 @@ internal enum class ZipArchiveClassification {
 	GENERAL_IMPORT,
 	TRACKER_DATABASE_BACKUP,
 }
+
+private fun validateCompressionRatio(
+	uncompressedBytes: Long,
+	compressedBytes: Long,
+) {
+	if (uncompressedBytes > maximumExpandedBytes(compressedBytes)) {
+		throw PermanentImportInputException(
+			"Zip entry exceeds maximum compression ratio " +
+				"($ZipArchiveExtractor.MAX_COMPRESSION_RATIO:1)."
+		)
+	}
+}
+
+
+private fun maximumExpandedBytes(compressedBytes: Long): Long =
+	try {
+		Math.multiplyExact(compressedBytes, ZipArchiveExtractor.MAX_COMPRESSION_RATIO)
+	} catch (_: ArithmeticException) {
+		Long.MAX_VALUE
+	}
+
+
+private suspend fun ZipInputStream.copyToWithLimit(
+	out: OutputStream,
+	limit: Long,
+): Long {
+	val buffer = ByteArray(ZipArchiveExtractor.BUFFER_SIZE)
+	var total = 0L
+	while (true) {
+		currentCoroutineContext().ensureActive()
+		val read = readZip { this.read(buffer) }
+		currentCoroutineContext().ensureActive()
+		if (read <= 0) {
+			break
+		}
+		val nextTotal = total + read
+		if (nextTotal > limit) {
+			throw PermanentImportInputException(
+				"Zip entry exceeds extraction limit ($limit bytes)."
+			)
+		}
+		out.write(buffer, 0, read)
+		total = nextTotal
+	}
+	return total
+}
+
+
+private suspend fun nextZipEntry(zipStream: ZipInputStream): ZipEntry? {
+	currentCoroutineContext().ensureActive()
+	return readZip { zipStream.nextEntry }.also { currentCoroutineContext().ensureActive() }
+}
+
+
+private fun closeZipEntry(zipStream: ZipInputStream) {
+	readZip { zipStream.closeEntry() }
+}
+
+
+private fun closeCompletedZipEntry(
+	zipStream: ZipInputStream,
+	entryReadSuccessfully: Boolean,
+	entryFailure: Throwable?,
+) {
+	if (!entryReadSuccessfully) {
+		return
+	}
+	try {
+		closeZipEntry(zipStream)
+	} catch (@Suppress("TooGenericExceptionCaught") closeFailure: Throwable) {
+		// A close failure is primary only when no earlier entry failure exists; otherwise retain it as suppressed.
+		if (entryFailure == null) {
+			throw closeFailure
+		}
+		entryFailure.addSuppressed(closeFailure)
+	}
+}
+
+
+private inline fun <T> readZip(block: () -> T): T = try {
+	block()
+} catch (failure: ArchiveSourceReadFailure) {
+	throw failure
+} catch (failure: PermanentImportInputException) {
+	throw failure
+} catch (failure: ZipException) {
+	failure.archiveSourceReadFailure()?.let { throw it }
+	throw PermanentImportInputException("ZIP archive structure is invalid.", failure)
+} catch (failure: java.io.EOFException) {
+	failure.archiveSourceReadFailure()?.let { throw it }
+	throw PermanentImportInputException("ZIP archive is truncated.", failure)
+} catch (failure: IOException) {
+	failure.archiveSourceReadFailure()?.let { throw it }
+	throw PermanentImportInputException("ZIP archive structure is invalid.", failure)
+}
+
+
+private fun entryReceiptKey(index: Int, entry: ZipEntry): String {
+	val identity = buildString {
+		append("zip-entry-v1")
+		append('\u0000')
+		append(index)
+		append('\u0000')
+		append(entry.name)
+		append('\u0000')
+		append(entry.size)
+		append('\u0000')
+		append(entry.crc)
+		append('\u0000')
+		append(entry.compressedSize)
+	}
+	return MessageDigest.getInstance("SHA-256")
+		.digest(identity.toByteArray())
+		.joinToString("") { byte -> "%02x".format(byte) }
+}
+
+
+private fun isSafeZipEntryName(entryName: String): Boolean {
+	val normalized = entryName.replace('\\', '/')
+	return normalized.isNotBlank() &&
+		!normalized.startsWith("/") &&
+		!normalized.startsWith("../") &&
+		normalized != ".." &&
+		!normalized.contains("/../") &&
+		!ZipArchiveExtractor.WINDOWS_ABSOLUTE_PATH.matches(normalized)
+}
+
+
+private fun isTrackerDatabaseBackupManifest(bytes: ByteArray): Boolean =
+	TRACKER_BACKUP_MANIFEST_PREFIX.containsMatchIn(bytes.toString(Charsets.UTF_8))
+
+
+private val TRACKER_BACKUP_MANIFEST_PREFIX = Regex(
+	"""^\uFEFF?\s*\{\s*"format"\s*:\s*"tracker-database-backup"\s*[,}]"""
+)

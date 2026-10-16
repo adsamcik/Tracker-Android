@@ -53,6 +53,9 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
+// One lifecycle proof fixture compares saved-source stages, sibling isolation and invalidation behavior
+// consistently.
+@Suppress("LargeClass")
 class SourceLifecycleProofCoordinatorTest {
 
 	@Test
@@ -137,8 +140,12 @@ class SourceLifecycleProofCoordinatorTest {
 		val coordinator = SourceLifecycleProofCoordinator(invalidations, successfulDescriptors(counters),
 			successfulQueryRepository(counters), StandardTestDispatcher(testScheduler), AllDaySourceStatusQuery {
 				reads++
-				val result = allDayStepsRead(if (reads == 1) emptyList() else
-					listOf(AllDayStepsGapStatus(AmbientStepsStructuralDay(0L, "UTC"), 1_000L, 2_000L)))
+				val result = allDayStepsRead(if (reads == 1) {
+					emptyList()
+				} else
+					{
+					listOf(AllDayStepsGapStatus(AmbientStepsStructuralDay(0L, "UTC"), 1_000L, 2_000L))
+				})
 				if (reads == 1) { entered.complete(Unit); release.await() }
 				result
 			})
@@ -217,10 +224,14 @@ class SourceLifecycleProofCoordinatorTest {
 		val counters = CallCounters()
 		val key = keys().first()
 		val descriptors = successfulDescriptors(counters).mapTo(linkedSetOf()) { descriptor ->
-			if (descriptor.source != key.source) descriptor else SourceLifecycleProofDescriptor(
+			if (descriptor.source != key.source) {
+				descriptor
+			} else {
+				SourceLifecycleProofDescriptor(
 				key.source,
 				SourceLifecycleProofAdapterFactory { successfulAdapter(TrackingSource.CELL, counters) },
 			)
+			}
 		}
 
 		val proof = coordinator(descriptors, successfulQueryRepository(counters))
@@ -238,7 +249,10 @@ class SourceLifecycleProofCoordinatorTest {
 		val counters = CallCounters()
 		val key = keys().first()
 		val descriptors = successfulDescriptors(counters).mapTo(linkedSetOf()) { descriptor ->
-			if (descriptor.source != key.source) descriptor else SourceLifecycleProofDescriptor(
+			if (descriptor.source != key.source) {
+				descriptor
+			} else {
+				SourceLifecycleProofDescriptor(
 				key.source,
 				SourceLifecycleProofAdapterFactory {
 					object : SourceLifecycleProofAdapter by successfulAdapter(key.source, counters) {
@@ -249,6 +263,7 @@ class SourceLifecycleProofCoordinatorTest {
 					}
 				},
 			)
+			}
 		}
 
 		val proof = coordinator(descriptors, successfulQueryRepository(counters))
@@ -265,7 +280,10 @@ class SourceLifecycleProofCoordinatorTest {
 			val counters = CallCounters()
 			val key = keys().first()
 			val descriptors = successfulDescriptors(counters).mapTo(linkedSetOf()) { descriptor ->
-				if (descriptor.source != key.source) descriptor else SourceLifecycleProofDescriptor(
+				if (descriptor.source != key.source) {
+					descriptor
+				} else {
+					SourceLifecycleProofDescriptor(
 					key.source,
 					SourceLifecycleProofAdapterFactory {
 						object : SourceLifecycleProofAdapter by successfulAdapter(key.source, counters) {
@@ -284,6 +302,7 @@ class SourceLifecycleProofCoordinatorTest {
 						}
 					},
 				)
+				}
 			}
 
 			val proof = coordinator(descriptors, successfulQueryRepository(counters))
@@ -333,7 +352,9 @@ class SourceLifecycleProofCoordinatorTest {
 				val original = found(request).state
 				SourceFactLookupResult.Found(if (replaceEpoch) {
 					original.copy(readSnapshot = TrackingHistoryReadSnapshot(8L, 11L))
-				} else original.copy(lineage = original.lineage.copy(factIdentity = SourceFactIdentity("other-fact"))))
+				} else {
+					original.copy(lineage = original.lineage.copy(factIdentity = SourceFactIdentity("other-fact")))
+				})
 			}
 			val key = keys().first()
 			val proof = coordinator(successfulDescriptors(counters), query).snapshot(setOf(key)).proofs.getValue(key.source)
@@ -477,7 +498,9 @@ class SourceLifecycleProofCoordinatorTest {
 	fun `query exception preserves recording and materialized lineage`() = runTest {
 		val counters = CallCounters()
 		val queryRepository = SourceFactQueryRepository { request ->
-			if (request.key.source == TrackingSource.WIFI) error("history rejected")
+			if (request.key.source == TrackingSource.WIFI) {
+				error("history rejected")
+			}
 			found(request)
 		}
 
@@ -526,6 +549,20 @@ class SourceLifecycleProofCoordinatorTest {
 			"location_observation",
 			"location_observation_decision",
 			"location_sample",
+			"location_sample_purpose_authority",
+			"location_accepted_receipt",
+			"collected_data_deletion_operation",
+			"ambient_location_retention_authority",
+			"ambient_steps_import_cursor",
+			"ambient_steps_import_gap",
+			"ambient_steps_import_authority_transition",
+			"ambient_steps_retention_authority",
+			"ambient_wifi_authority",
+			"ambient_wifi_retention_authority",
+			"ambient_wifi_fact_cursor",
+			"ambient_cell_authority",
+			"ambient_cell_retention_authority",
+			"ambient_cell_fact_cursor",
 		)
 		SOURCE_LIFECYCLE_PROOF_OBSERVED_TABLES.size shouldBe
 			SOURCE_LIFECYCLE_PROOF_OBSERVED_TABLES.toSet().size

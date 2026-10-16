@@ -45,8 +45,18 @@ internal suspend fun AppDatabase.insertStepsDeletionRetractionOrVerify(
 			retraction.semanticRevision,
 		) == retraction
 	}
-	if (!stored) return false
-	if (fact.originKind != StepFactRevisionEntity.ORIGIN_LIVE_WAL) return true
+	if (!stored) {
+		return false
+	}
+	return fact.originKind != StepFactRevisionEntity.ORIGIN_LIVE_WAL ||
+		retractStepsDeletionCountDomain(fact, retraction, countDomainOwners)
+}
+
+private suspend fun AppDatabase.retractStepsDeletionCountDomain(
+	fact: StepFactRevisionEntity,
+	retraction: StepFactRevisionEntity,
+	countDomainOwners: MutableCollection<StepsCountDomainOwnerLookupKey>,
+): Boolean {
 	val store = StepsCountDomainStore(this)
 	when (store.recordSessionFact(fact)) {
 		StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
@@ -103,7 +113,9 @@ internal suspend fun AppDatabase.insertStepsDeletionRetractionOrVerify(
 internal suspend fun AppDatabase.removeStepsDeletionCountDomainOwners(
 	keys: Collection<StepsCountDomainOwnerLookupKey>,
 ) {
-	if (keys.isEmpty()) return
+	if (keys.isEmpty()) {
+		return
+	}
 	StepsCountDomainStore(this).withOwnerMaintenance { maintenance ->
 		keys.distinct().chunked(STEPS_DELETION_COUNT_DOMAIN_BATCH_SIZE).forEach { batch ->
 			check(

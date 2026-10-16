@@ -3,8 +3,6 @@ package com.adsamcik.tracker.shared.base.database
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPortableStepsCountDomainDao
-import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveDayEntity
-import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainGraphEntity
@@ -12,18 +10,19 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCount
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsFileReceiptEntity
 import com.adsamcik.tracker.shared.base.database.steps.imported.RetainedImportedStepsEntry
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
-import com.adsamcik.tracker.shared.model.steps.portable.PORTABLE_STEPS_RUN_ORDER
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsPartialCause
-import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainGraphV2
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOperation
 import com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainOwnerKind
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsEntryV1
-import com.adsamcik.tracker.shared.model.steps.portable.StepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.deletionScopeIdentity
 import com.adsamcik.tracker.shared.model.steps.portable.legacyUnprovenStepsCountDomainGraph
 import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 
+/**
+ * Verified imported count-domain binding/graph associated with the set of product import revisions
+ * it represents.
+ */
 data class AuthenticatedImportedAmbientStepsGraphRevision(
 	val binding: ImportedPortableStepsCountDomainBindingEntity,
 	val productImportRevisions: Set<Long>,
@@ -36,11 +35,18 @@ data class AuthenticatedImportedAmbientStepsGraphRevision(
 		get() = binding.sourceSchemaVersion
 }
 
+/**
+ * Verified imported product binding paired with its original portable count-domain graph.
+ */
 data class AuthenticatedImportedPortableGraphBinding(
 	val binding: ImportedPortableStepsCountDomainBindingEntity,
 	val graph: PortableCountDomainGraphV2,
 )
 
+/**
+ * Loads and verifies each original count-domain graph binding for a complete imported all-day
+ * Steps correction lineage.
+ */
 suspend fun AppDatabase.loadAuthenticatedImportedAmbientStepsGraphLineage(
 	lineage: AuthenticatedImportedAmbientStepsLineage,
 ): List<AuthenticatedImportedAmbientStepsGraphRevision> = withTransaction {
@@ -63,17 +69,11 @@ private suspend fun AppDatabase.loadAuthenticatedImportedAmbientStepsGraphLineag
 	try {
 		return authenticateImportedAmbientStepsGraphLineage(lineage, bindings, graphs)
 	} catch (failure: IllegalArgumentException) {
-		if (!reconcilePreviouslyTruncatedLegacyAmbientGraph(lineage, bindings, graphs)) {
-			throw failure
-		}
+		reconcileTruncatedAmbientGraphOrThrow(failure, lineage, bindings, graphs)
 	} catch (failure: IllegalStateException) {
-		if (!reconcilePreviouslyTruncatedLegacyAmbientGraph(lineage, bindings, graphs)) {
-			throw failure
-		}
+		reconcileTruncatedAmbientGraphOrThrow(failure, lineage, bindings, graphs)
 	} catch (failure: ArithmeticException) {
-		if (!reconcilePreviouslyTruncatedLegacyAmbientGraph(lineage, bindings, graphs)) {
-			throw failure
-		}
+		reconcileTruncatedAmbientGraphOrThrow(failure, lineage, bindings, graphs)
 	}
 	val repairedBindings = importedPortableStepsCountDomainDao().bindingsForProduct(
 		ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
@@ -92,6 +92,21 @@ private suspend fun AppDatabase.loadAuthenticatedImportedAmbientStepsGraphLineag
 	)
 }
 
+private suspend fun AppDatabase.reconcileTruncatedAmbientGraphOrThrow(
+	failure: RuntimeException,
+	lineage: AuthenticatedImportedAmbientStepsLineage,
+	bindings: List<ImportedPortableStepsCountDomainBindingEntity>,
+	graphs: Map<String, PortableCountDomainGraphV2>,
+) {
+	if (!reconcilePreviouslyTruncatedLegacyAmbientGraph(lineage, bindings, graphs)) {
+		throw failure
+	}
+}
+
+/**
+ * Verifies all original graph bindings before full-clear preservation without accepting a
+ * partially reconstructed lineage.
+ */
 fun AppDatabase.loadAuthenticatedImportedAmbientStepsGraphLineageForFullClear(
 	lineage: AuthenticatedImportedAmbientStepsLineage,
 ): List<AuthenticatedImportedAmbientStepsGraphRevision> {
@@ -116,6 +131,10 @@ fun AppDatabase.loadAuthenticatedImportedAmbientStepsGraphLineageForFullClear(
 	return authenticateImportedAmbientStepsGraphLineage(lineage, bindings, graphs)
 }
 
+/**
+ * Loads the original imported session graph binding, returning null when none exists and rejecting
+ * invalid stored evidence.
+ */
 suspend fun AppDatabase.loadAuthenticatedImportedSessionCountDomainBinding(
 	entry: RetainedImportedStepsEntry,
 ): AuthenticatedImportedPortableGraphBinding? = withTransaction {
@@ -163,6 +182,10 @@ suspend fun AppDatabase.loadAuthenticatedImportedSessionCountDomainBinding(
 	AuthenticatedImportedPortableGraphBinding(repaired.binding, repaired.graph)
 }
 
+/**
+ * Loads the original imported session graph binding, returning null when none exists and rejecting
+ * invalid stored evidence.
+ */
 suspend fun AppDatabase.loadAuthenticatedImportedSessionCountDomainBinding(
 	entry: PortableStepsEntryV1,
 ): AuthenticatedImportedPortableGraphBinding? = withTransaction {
@@ -194,10 +217,12 @@ private suspend fun AppDatabase.loadImportedSessionCountDomainBinding(
 		entryIdentity,
 		2,
 	)
-	if (bindings.isEmpty()) return null
+	if (bindings.isEmpty()) {
+		return null
+	}
 	check(bindings.size == 1)
 	val binding = bindings.single()
-	check(binding.productRevision == IMPORTED_SESSION_PRODUCT_REVISION)
+	check(binding.productRevision == IMPORTED_SESSION_COUNT_DOMAIN_PRODUCT_REVISION)
 	val graph = checkNotNull(
 		dao.authenticatedGraph(
 			binding.graphIdentity,
@@ -270,29 +295,6 @@ private suspend fun AppDatabase.loadBoundedSessionFileReceipts(
 		afterEntryKey = last.entryKey
 	}
 	return result
-}
-
-private fun authenticateImportedSessionFileReceipts(
-	binding: ImportedPortableStepsCountDomainBindingEntity,
-	receipts: List<ImportedPortableStepsFileReceiptEntity>,
-	expectedProductChecksum: String,
-) {
-	check(receipts.map { it.importJobId to it.entryKey }.distinct().size == receipts.size)
-	check(receipts.map { it.receiptIdentity }.distinct().size == receipts.size)
-	receipts.forEach { receipt ->
-		check(receipt.entryIdentity == binding.productIdentity)
-		check(receipt.graphIdentity == binding.graphIdentity)
-		check(receipt.entryOrdinal in 0 until StepsPortableFormatV1.MAX_ENTRIES)
-		if (binding.sourceSchemaVersion == StepsPortableFormatV1.SCHEMA_VERSION) {
-			check(receipt.archiveContentChecksum == expectedProductChecksum)
-		}
-	}
-	val sourceReceiptIdentity = binding.sourceReceiptIdentity ?: return
-	val sourceReceipt = receipts.singleOrNull {
-		it.receiptIdentity == sourceReceiptIdentity
-	}
-	checkNotNull(sourceReceipt)
-	check(sourceReceipt.archiveContentChecksum == binding.sourceArchiveContentChecksum)
 }
 
 private suspend fun AppDatabase.loadAuthenticatedImportedAmbientGraphs(
@@ -439,68 +441,6 @@ internal suspend fun AppDatabase.requireGraphlessLegacyAmbientProvenance(
 	)
 }
 
-internal fun reconstructGraphlessLegacyAmbientLineage(
-	lineage: AuthenticatedImportedAmbientStepsLineage,
-): List<AuthenticatedImportedAmbientStepsGraphRevision> {
-	val dayIdentity = lineage.latest.header.dayIdentity
-	val members = lineage.archiveDays.filter { it.dayIdentity == dayIdentity }
-	require(members.isNotEmpty())
-	val revisions = lineage.revisions.associateBy { it.header.importRevision }
-	val archives = lineage.archives.associateBy { it.archiveIdentity }
-	val receipts = lineage.receipts.groupBy { it.archiveIdentity }
-	val membersByGraphRevision = members.groupBy { it.boundCountDomainGraphRevision }
-		.toSortedMap()
-	require(
-		membersByGraphRevision.keys.toList() ==
-			(1L..membersByGraphRevision.size.toLong()).toList(),
-	)
-	return membersByGraphRevision.map { (graphRevision, graphMembers) ->
-		val sourceMembers = graphMembers.sortedWith(
-			compareBy(
-				ImportedAmbientStepsArchiveDayEntity::archiveIdentity,
-				ImportedAmbientStepsArchiveDayEntity::ordinal,
-			),
-		)
-		val graphs = sourceMembers.map { member ->
-			val archive = requireNotNull(archives[member.archiveIdentity])
-			require(archive.sourceSchemaVersion == AmbientStepsPortableFormatV1.SCHEMA_VERSION)
-			requireNotNull(revisions[member.boundDayImportRevision])
-				.day
-				.withExplicitUnprovenCountDomain(graphRevision)
-				.countDomainGraph
-		}.distinct()
-		require(graphs.size == 1) {
-			"Legacy Ambient Steps graph revision has conflicting synthetic ownership"
-		}
-		val source = sourceMembers.first()
-		val archive = requireNotNull(archives[source.archiveIdentity])
-		val receipt = receipts.getValue(source.archiveIdentity).minWith(
-			compareBy(
-				ImportedAmbientStepsReceiptEntity::importJobId,
-				ImportedAmbientStepsReceiptEntity::archiveKey,
-			),
-		)
-		AuthenticatedImportedAmbientStepsGraphRevision(
-			binding = ImportedPortableStepsCountDomainBindingEntity(
-				productKind = ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY,
-				productIdentity = dayIdentity,
-				productRevision = graphRevision,
-				graphIdentity = graphs.single().identity.value,
-				sourceSchemaVersion = AmbientStepsPortableFormatV1.SCHEMA_VERSION,
-				sourceReceiptIdentity = receipt.receiptIdentity,
-				sourceArchiveIdentity = archive.archiveIdentity,
-				sourceArchiveContentChecksum = archive.contentChecksum,
-			),
-			productImportRevisions =
-				sourceMembers.mapTo(linkedSetOf()) { it.boundDayImportRevision },
-			graph = graphs.single(),
-		)
-	}.also { graphLineage ->
-		require(lineage.latest.header.importRevision in
-			graphLineage.last().productImportRevisions)
-	}
-}
-
 /** Reconstructs legacy v1 graphless authority only after all graph-era evidence is absent. */
 suspend fun AppDatabase.loadProvenGraphlessLegacyAmbientLineage(
 	lineage: AuthenticatedImportedAmbientStepsLineage,
@@ -534,6 +474,10 @@ suspend fun AppDatabase.authenticateOrInstallGraphlessLegacyAmbientLineage(
 	return loadAuthenticatedImportedAmbientStepsGraphLineageInCurrentTransaction(lineage)
 }
 
+/**
+ * Verifies the exact provided imported session graph binding against retained product before
+ * preserving full-clear replay fences.
+ */
 fun AppDatabase.loadAuthenticatedImportedSessionCountDomainBindingForFullClear(
 	binding: ImportedPortableStepsCountDomainBindingEntity,
 	entry: RetainedImportedStepsEntry,
@@ -562,10 +506,12 @@ internal fun AppDatabase.loadImportedSessionCountDomainBindingForFullClear(
 		entryIdentity,
 		2,
 	)
-	if (bindings.isEmpty()) return null
+	if (bindings.isEmpty()) {
+		return null
+	}
 	check(bindings.size == 1)
 	val binding = bindings.single()
-	check(binding.productRevision == IMPORTED_SESSION_PRODUCT_REVISION)
+	check(binding.productRevision == IMPORTED_SESSION_COUNT_DOMAIN_PRODUCT_REVISION)
 	val graph = checkNotNull(
 		dao.authenticatedGraphForFullClear(
 			binding.graphIdentity,
@@ -583,14 +529,6 @@ internal fun AppDatabase.loadImportedSessionCountDomainBindingForFullClear(
 		fileReceiptCount = dao.fileReceiptCountForEntryForFullClear(entryIdentity),
 	)
 }
-
-internal fun RetainedImportedStepsEntry.legacyUnprovenCountDomainGraph(): PortableCountDomainGraphV2 =
-	legacyUnprovenStepsCountDomainGraph(
-		com.adsamcik.tracker.shared.model.steps.portable.PortableStepsDigest(
-			metadata.contentChecksum,
-		),
-		portableRunsById.values.sortedWith(PORTABLE_STEPS_RUN_ORDER),
-	)
 
 @Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount", "ComplexCondition")
 private suspend fun AppDatabase.reconcilePreviouslyTruncatedLegacyAmbientGraph(
@@ -637,14 +575,18 @@ private suspend fun AppDatabase.reconcilePreviouslyTruncatedLegacyAmbientGraph(
 	}
 	val latestRevision = lineage.latest.header.importRevision
 	val latestMembers = members.filter { it.boundDayImportRevision == latestRevision }
-	if (latestMembers.isEmpty()) return false
+	if (latestMembers.isEmpty()) {
+		return false
+	}
 	val previousGraphRevision = latestMembers
 		.mapTo(linkedSetOf()) { it.boundCountDomainGraphRevision }
 		.singleOrNull() ?: return false
 	val previousBinding = bindings.singleOrNull {
 		it.productRevision == previousGraphRevision
 	} ?: return false
-	if (previousBinding != bindings.last()) return false
+	if (previousBinding != bindings.last()) {
+		return false
+	}
 	val previousGraph = graphs[previousBinding.graphIdentity] ?: return false
 	val previousMembers = members.filter {
 		it.boundCountDomainGraphRevision == previousGraphRevision &&
@@ -656,7 +598,9 @@ private suspend fun AppDatabase.reconcilePreviouslyTruncatedLegacyAmbientGraph(
 		it.day.withExplicitUnprovenCountDomain(previousGraphRevision).countDomainGraph ==
 			previousGraph
 	} ?: return false
-	if (priorRevision.header.importRevision >= latestRevision) return false
+	if (priorRevision.header.importRevision >= latestRevision) {
+		return false
+	}
 	bindings.forEach { binding ->
 		val graph = graphs.getValue(binding.graphIdentity)
 		val revisionMembers = members.filter {
@@ -746,7 +690,9 @@ private suspend fun AppDatabase.reconcilePreviouslyTruncatedLegacyAmbientGraph(
 				identities.size + 1,
 			)
 		}
-	if (retainedOwnerFences.isNotEmpty()) return false
+	if (retainedOwnerFences.isNotEmpty()) {
+		return false
+	}
 	val replacementRevision = Math.addExact(bindings.last().productRevision, 1L)
 	val graphDao = importedPortableStepsCountDomainDao()
 	insertOrAuthenticateImportedPortableOwnerFences(
@@ -811,174 +757,15 @@ private suspend fun AppDatabase.reconcilePreviouslyTruncatedLegacyAmbientGraph(
 	return true
 }
 
-private fun ImportedPortableStepsCountDomainBindingEntity.hasAuthenticatedLegacyAmbientProvenance(
-	dayIdentity: String,
-	archivesByIdentity: Map<String, ImportedAmbientStepsArchiveEntity>,
-	receiptsByIdentity: Map<String, ImportedAmbientStepsReceiptEntity>,
-): Boolean {
-	if (productKind != ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY ||
-		productIdentity != dayIdentity ||
-		sourceSchemaVersion != AmbientStepsPortableFormatV1.SCHEMA_VERSION
-	) {
-		return false
-	}
-	val archiveIdentity = sourceArchiveIdentity ?: return false
-	val archiveChecksum = sourceArchiveContentChecksum ?: return false
-	val receiptIdentity = sourceReceiptIdentity ?: return false
-	val archive = archivesByIdentity[archiveIdentity] ?: return false
-	val receipt = receiptsByIdentity[receiptIdentity] ?: return false
-	return archive.sourceSchemaVersion == AmbientStepsPortableFormatV1.SCHEMA_VERSION &&
-		archive.contentChecksum == archiveChecksum &&
-		receipt.archiveIdentity == archiveIdentity &&
-		receipt.archiveContentChecksum == archiveChecksum
-}
-
-fun isAuthenticatedAmbientGraphSuccessor(
-	previous: PortableCountDomainGraphV2,
-	incoming: PortableCountDomainGraphV2,
-): Boolean {
-	val previousByLineage = previous.ownerRevisions.groupBy { it.ownerKind to it.ownerIdentity }
-	val incomingByLineage = incoming.ownerRevisions.groupBy { it.ownerKind to it.ownerIdentity }
-	if (previousByLineage.keys != incomingByLineage.keys) return false
-	if (previous.roots.map { it.stableBindingKey() }.toSet() !=
-		incoming.roots.map { it.stableBindingKey() }.toSet()
-	) return false
-	var advanced = false
-	for ((lineage, priorOwners) in previousByLineage) {
-		val nextOwners = incomingByLineage.getValue(lineage)
-		if (nextOwners.size < priorOwners.size ||
-			nextOwners.take(priorOwners.size) != priorOwners
-		) return false
-		if (nextOwners.size > priorOwners.size) advanced = true
-	}
-	return advanced
-}
-
-private fun authenticateImportedAmbientStepsGraphLineage(
-	lineage: AuthenticatedImportedAmbientStepsLineage,
-	bindings: List<ImportedPortableStepsCountDomainBindingEntity>,
-	graphs: Map<String, PortableCountDomainGraphV2>,
-): List<AuthenticatedImportedAmbientStepsGraphRevision> {
-	if (lineage.revisions.isEmpty()) {
-		check(lineage.archiveDays.isEmpty())
-		check(bindings.isEmpty())
-		check(graphs.isEmpty())
-		return emptyList()
-	}
-	val dayIdentity = lineage.latest.header.dayIdentity
-	val members = lineage.archiveDays.filter { it.dayIdentity == dayIdentity }
-	check(members.isNotEmpty())
-	check(bindings.isNotEmpty())
-	check(bindings.size <= ImportedAmbientStepsDao.MAX_ARCHIVES_PER_DAY)
-	check(bindings.map { it.productRevision } == (1L..bindings.size.toLong()).toList())
-	check(
-		bindings.mapTo(linkedSetOf()) { it.productRevision } ==
-			members.mapTo(linkedSetOf()) { it.boundCountDomainGraphRevision },
-	)
-	check(graphs.keys == bindings.mapTo(linkedSetOf()) { it.graphIdentity })
-	check(bindings.map { it.graphIdentity }.distinct().size == bindings.size)
-
-	val revisionsByNumber = lineage.revisions.associateBy { it.header.importRevision }
-	val archivesByIdentity = lineage.archives.associateBy { it.archiveIdentity }
-	val receiptsByIdentity = lineage.receipts.associateBy { it.receiptIdentity }
-	check(receiptsByIdentity.size == lineage.receipts.size)
-	val graphLineage = bindings.map { binding ->
-		check(binding.productKind == ImportedPortableStepsCountDomainBindingEntity.PRODUCT_AMBIENT_DAY)
-		check(binding.productIdentity == dayIdentity)
-		val sourceArchiveIdentity = checkNotNull(binding.sourceArchiveIdentity)
-		val sourceArchiveChecksum = checkNotNull(binding.sourceArchiveContentChecksum)
-		val sourceReceiptIdentity = checkNotNull(binding.sourceReceiptIdentity)
-		val archive = checkNotNull(archivesByIdentity[sourceArchiveIdentity])
-		val receipt = checkNotNull(receiptsByIdentity[sourceReceiptIdentity])
-		check(receipt.archiveIdentity == sourceArchiveIdentity)
-		check(receipt.archiveContentChecksum == sourceArchiveChecksum)
-		check(archive.contentChecksum == sourceArchiveChecksum)
-		check(archive.sourceSchemaVersion == binding.sourceSchemaVersion)
-		val revisionMembers = members.filter {
-			it.boundCountDomainGraphRevision == binding.productRevision
-		}
-		check(revisionMembers.isNotEmpty())
-		check(revisionMembers.any { it.archiveIdentity == sourceArchiveIdentity })
-		val productRevisions = revisionMembers.mapTo(linkedSetOf()) { it.boundDayImportRevision }
-		val graph = checkNotNull(graphs[binding.graphIdentity])
-		check(graph.identity.value == binding.graphIdentity)
-		if (binding.sourceSchemaVersion == 2) {
-			check(graph.hasCompletePortableOwnerLineages())
-		}
-		productRevisions.forEach { productRevision ->
-			val day = checkNotNull(revisionsByNumber[productRevision]).day
-			if (binding.sourceSchemaVersion == 1) {
-				check(
-					graph ==
-						day.withExplicitUnprovenCountDomain(binding.productRevision).countDomainGraph,
-				)
-			} else {
-				PortableAmbientStepsDayV2(day, graph)
-			}
-		}
-		AuthenticatedImportedAmbientStepsGraphRevision(
-			binding = binding,
-			productImportRevisions = productRevisions,
-			graph = graph,
-		)
-	}
-	graphLineage.zipWithNext().forEach { (previous, incoming) ->
-		if (incoming.sourceSchemaVersion == 2) {
-			check(isAuthenticatedAmbientGraphSuccessor(previous.graph, incoming.graph))
-		}
-	}
-	check(lineage.latest.header.importRevision in graphLineage.last().productImportRevisions)
-	return graphLineage
-}
-
-private fun authenticateImportedSessionBinding(
-	binding: ImportedPortableStepsCountDomainBindingEntity,
-	graph: PortableCountDomainGraphV2,
-	fileReceipt: ImportedPortableStepsFileReceiptEntity?,
-	expectedLegacyGraph: PortableCountDomainGraphV2,
-) {
-	check(binding.productKind == ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY)
-	check(binding.productRevision == IMPORTED_SESSION_PRODUCT_REVISION)
-	check(binding.graphIdentity == graph.identity.value)
-	if (binding.sourceSchemaVersion == 2) {
-		check(graph.hasCompletePortableOwnerLineages())
-	} else {
-		check(binding.sourceSchemaVersion == 1)
-		check(graph == expectedLegacyGraph)
-	}
-	if (binding.sourceReceiptIdentity == null) {
-		check(binding.sourceSchemaVersion == 1)
-		check(binding.sourceArchiveContentChecksum == null)
-		check(fileReceipt == null)
-		return
-	}
-	val receipt = checkNotNull(fileReceipt)
-	check(receipt.receiptIdentity == binding.sourceReceiptIdentity)
-	check(receipt.entryIdentity == binding.productIdentity)
-	check(receipt.graphIdentity == binding.graphIdentity)
-	check(receipt.archiveContentChecksum == binding.sourceArchiveContentChecksum)
-}
-
-fun PortableCountDomainGraphV2.hasCompletePortableOwnerLineages(): Boolean =
-	ownerRevisions.groupBy { it.ownerKind to it.ownerIdentity }.values.all {
-		it.first().ownerRevision == 1L
-	}
-
-private fun com.adsamcik.tracker.shared.model.steps.portable.PortableCountDomainRootV2
-	.stableBindingKey(): List<String> = listOf(
-	containerIdentity.value,
-	productIdentity.value,
-	ownerKind.name,
-	ownerIdentity.value,
-)
-
 internal fun com.adsamcik.tracker.shared.base.database.dao.ImportedPortableStepsCountDomainDao
 	.authenticatedGraphForFullClear(
 		graphIdentity: String,
 		expectedSourceFormat: String,
 	): PortableCountDomainGraphV2? {
 	val graph = graphForFullClear(graphIdentity) ?: return null
-	if (graph.sourceFormat != expectedSourceFormat) return null
+	if (graph.sourceFormat != expectedSourceFormat) {
+		return null
+	}
 	return ImportedPortableStepsCountDomainAuthenticator.authenticate(
 		graph,
 		receiptsForFullClear(graphIdentity, graph.receiptCount + 1),
@@ -988,5 +775,5 @@ internal fun com.adsamcik.tracker.shared.base.database.dao.ImportedPortableSteps
 	)
 }
 
-private const val IMPORTED_SESSION_PRODUCT_REVISION = 1L
+internal const val IMPORTED_SESSION_COUNT_DOMAIN_PRODUCT_REVISION = 1L
 private const val PORTABLE_EVIDENCE_QUERY_BATCH = 400

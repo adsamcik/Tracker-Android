@@ -7,6 +7,7 @@ import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.portable.InvalidSessionBundle
 import com.adsamcik.tracker.impexp.portable.RadioSourceFileV2
 import com.adsamcik.tracker.impexp.portable.LocationFileJsonV1
+import com.adsamcik.tracker.impexp.portable.SessionBundleChildV1
 import com.adsamcik.tracker.impexp.portable.SessionBundleManifestCodecV1
 import com.adsamcik.tracker.impexp.portable.SessionBundleManifestV1
 import com.adsamcik.tracker.shared.base.extension.openInputStream
@@ -15,6 +16,7 @@ import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.security.MessageDigest
@@ -32,26 +34,20 @@ internal class SessionBundleStager(
 		val destination = File.createTempFile("session-source-", ".trackersession", directory)
 		try {
 			val input = source.openInputStream(context)
-				?: throw java.io.IOException("Cannot open session file")
-			input.use { stream -> destination.outputStream().use { output ->
-				val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-				var count = 0L
-				while (true) {
-					currentCoroutineContext().ensureActive()
-					val read = stream.read(buffer)
-					currentCoroutineContext().ensureActive()
-					if (read < 0) break
-					count += read
-					if (count > SessionBundleManifestCodecV1.MAX_ARCHIVE_BYTES)
-						throw InvalidSessionBundle("Session file exceeds the size limit")
-					output.write(buffer, 0, read)
+				?: throw IOException("Cannot open session file")
+			input.use { stream ->
+				destination.outputStream().use { output ->
+					copyBounded(stream, output, SessionBundleManifestCodecV1.MAX_ARCHIVE_BYTES,
+						sizeLimitMessage = "Session file exceeds the size limit")
 				}
-			} }
+			}
 			currentCoroutineContext().ensureActive()
 			return StagedSessionSource(destination)
-		} catch (failure: Throwable) {
-			if (destination.exists() && !destination.delete())
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Throwable) {
+			// Remove the picked-file copy even on cancellation or Error, then rethrow the original failure.
+			if (destination.exists() && !destination.delete()) {
 				failure.addSuppressed(IOException("Session import copy could not be removed"))
+			}
 			throw failure
 		}
 	}
@@ -64,10 +60,12 @@ internal class SessionBundleStager(
 		var totalBytes = 0L
 		val boundedExtractor = extractor ?: ZipArchiveExtractor(
 			maximumEntryBytes = { name ->
-				if (name == SessionBundleManifestCodecV1.MANIFEST_PATH)
+				if (name == SessionBundleManifestCodecV1.MANIFEST_PATH) {
 					SessionBundleManifestCodecV1.MAX_MANIFEST_BYTES.toLong()
-				else minOf(SessionBundleManifestCodecV1.MAX_CHILD_BYTES,
-					SessionBundleManifestCodecV1.MAX_TOTAL_BYTES - totalBytes)
+				} else {
+					minOf(SessionBundleManifestCodecV1.MAX_CHILD_BYTES,
+						SessionBundleManifestCodecV1.MAX_TOTAL_BYTES - totalBytes)
+				}
 			},
 			maximumTotalBytes = SessionBundleManifestCodecV1.MAX_TOTAL_BYTES +
 				SessionBundleManifestCodecV1.MAX_MANIFEST_BYTES,
@@ -76,90 +74,136 @@ internal class SessionBundleStager(
 		try {
 			val opened = boundedExtractor.extract(context, file, shouldExtract = { entry ->
 				currentCoroutineContext().ensureActive()
-				if (entry.fileName == SessionBundleManifestCodecV1.MANIFEST_PATH) {
-					if (manifestBytes != null) throw InvalidSessionBundle("Duplicate session details")
-				} else if (staged.size >= SessionBundleManifestCodecV1.MAX_CHILDREN || staged.containsKey(entry.fileName)) {
-					throw InvalidSessionBundle("Duplicate or excessive session data files")
-				}
+				requireUniqueMember(entry.fileName, manifestBytes != null, staged)
 				true
 			}) { stream ->
 				stream.use { input ->
 					val name = input.fileName
+					requireUniqueMember(name, manifestBytes != null, staged)
 					if (name == SessionBundleManifestCodecV1.MANIFEST_PATH) {
-						if (manifestBytes != null) throw InvalidSessionBundle("Duplicate session details")
 						val bytes = ByteArrayOutputStream()
 						copyBounded(input, bytes, SessionBundleManifestCodecV1.MAX_MANIFEST_BYTES.toLong())
 						manifestBytes = bytes.toByteArray()
 					} else {
-						if (staged.size >= SessionBundleManifestCodecV1.MAX_CHILDREN || staged.containsKey(name))
-							throw InvalidSessionBundle("Duplicate or excessive session data files")
-						val destination = File.createTempFile("session-child-", ".tmp", directory)
-						try {
-							val digest = MessageDigest.getInstance("SHA-256")
-							val size = destination.outputStream().use { output ->
-								copyBounded(input, output, SessionBundleManifestCodecV1.MAX_CHILD_BYTES, digest)
-							}
-							totalBytes += size
-							if (totalBytes > SessionBundleManifestCodecV1.MAX_TOTAL_BYTES)
-								throw InvalidSessionBundle("Session data exceeds the file limit")
-							staged[name] = StagedSessionChild(name, input.receiptKey, destination, size,
-								digest.digest().toHex())
-						} catch (failure: Throwable) {
-							if (destination.exists() && !destination.delete())
-								failure.addSuppressed(IOException("Session import data could not be removed"))
-							throw failure
-						}
+						totalBytes += stageChild(input, directory, totalBytes, staged)
 					}
 				}
 			}
 			currentCoroutineContext().ensureActive()
-			if (!opened) throw InvalidSessionBundle("Cannot open session file")
-			val encodedManifest = manifestBytes
-				?: throw InvalidSessionBundle("Session details are missing")
-			val manifest = SessionBundleManifestCodecV1.decode(encodedManifest)
-			if (manifest.children.map { it.path }.toSet() != staged.keys)
-				throw InvalidSessionBundle("Session data files do not match the details")
-			manifest.children.forEach { declared ->
-				currentCoroutineContext().ensureActive()
-				val actual = staged.getValue(declared.path)
-				if (actual.sizeBytes != declared.sizeBytes || actual.sha256 != declared.sha256)
-					throw InvalidSessionBundle("Session data file was changed or damaged")
-				val extension = declared.path.substringAfterLast('.', "")
-				val registered = FormatRegistry.allEntries().singleOrNull { entry ->
-					entry.descriptor.id == declared.formatId && entry.importer != null &&
-					entry.importer.supportedExtensions.any { it.equals(extension, ignoreCase = true) }
-				}
-				if (declared.formatId !in TYPED_SOURCE_FORMAT_IDS || registered == null)
-					throw InvalidSessionBundle("Unsupported session data file")
-				val source = when (declared.formatId) {
-					LocationFileJsonV1.FORMAT -> "location"
-					"portable-steps-v1", "portable-ambient-steps-v1" -> "steps"
-					"portable-activity-v1" -> "activity"
-					"portable-pressure-v1" -> "pressure"
-					RadioSourceFileV2.WIFI_FORMAT -> "wifi"
-					RadioSourceFileV2.CELL_FORMAT -> "cell"
-					else -> throw InvalidSessionBundle("Unsupported session data file")
-				}
-				if (source !in manifest.selectedSources)
-					throw InvalidSessionBundle("Session contains an unselected source")
+			if (!opened) {
+				throw InvalidSessionBundle("Cannot open session file")
 			}
-			currentCoroutineContext().ensureActive()
-			return StagedSessionBundle(manifest, encodedManifest,
-				manifest.children.map { staged.getValue(it.path) })
-		} catch (failure: Throwable) {
+			return finishBundle(manifestBytes, staged)
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Throwable) {
+			// Remove previously staged children on any extraction or validation failure, including cancellation or Error.
 			staged.values.forEach { child ->
-				if (child.file.exists() && !child.file.delete())
+				if (child.file.exists() && !child.file.delete()) {
 					failure.addSuppressed(IOException("Session import data could not be removed"))
+				}
 			}
 			throw failure
 		}
 	}
 
-	private suspend fun copyBounded(
+	private fun requireUniqueMember(
+		name: String,
+		manifestPresent: Boolean,
+		staged: Map<String, StagedSessionChild>,
+	) {
+		if (name == SessionBundleManifestCodecV1.MANIFEST_PATH) {
+			if (manifestPresent) {
+				throw InvalidSessionBundle("Duplicate session details")
+			}
+		} else if (staged.size >= SessionBundleManifestCodecV1.MAX_CHILDREN || staged.containsKey(name)) {
+			throw InvalidSessionBundle("Duplicate or excessive session data files")
+		}
+	}
+
+	private suspend fun stageChild(
 		input: FileImportStream,
+		directory: File,
+		previousTotalBytes: Long,
+		staged: MutableMap<String, StagedSessionChild>,
+	): Long {
+		val destination = File.createTempFile("session-child-", ".tmp", directory)
+		try {
+			val digest = MessageDigest.getInstance("SHA-256")
+			val size = destination.outputStream().use { output ->
+				copyBounded(input, output, SessionBundleManifestCodecV1.MAX_CHILD_BYTES, digest)
+			}
+			if (previousTotalBytes + size > SessionBundleManifestCodecV1.MAX_TOTAL_BYTES) {
+				throw InvalidSessionBundle("Session data exceeds the file limit")
+			}
+			staged[input.fileName] =
+				StagedSessionChild(input.fileName, input.receiptKey, destination, size, digest.digest().toHex())
+			return size
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Throwable) {
+			// Remove the current child if copying, hashing or publication fails, including cancellation or Error.
+			if (destination.exists() && !destination.delete()) {
+				failure.addSuppressed(IOException("Session import data could not be removed"))
+			}
+			throw failure
+		}
+	}
+
+	private suspend fun finishBundle(
+		manifestBytes: ByteArray?,
+		staged: Map<String, StagedSessionChild>,
+	): StagedSessionBundle {
+		val encodedManifest = manifestBytes ?: throw InvalidSessionBundle("Session details are missing")
+		val manifest = SessionBundleManifestCodecV1.decode(encodedManifest)
+		if (manifest.children.map { it.path }.toSet() != staged.keys) {
+			throw InvalidSessionBundle("Session data files do not match the details")
+		}
+		manifest.children.forEach { declared ->
+			currentCoroutineContext().ensureActive()
+			validateDeclaredChild(declared, staged.getValue(declared.path), manifest.selectedSources)
+		}
+		currentCoroutineContext().ensureActive()
+		return StagedSessionBundle(manifest, encodedManifest, manifest.children.map { staged.getValue(it.path) })
+	}
+
+	private fun validateDeclaredChild(
+		declared: SessionBundleChildV1,
+		actual: StagedSessionChild,
+		selectedSources: List<String>,
+	) {
+		if (actual.sizeBytes != declared.sizeBytes || actual.sha256 != declared.sha256) {
+			throw InvalidSessionBundle("Session data file was changed or damaged")
+		}
+		requireRegisteredChildFormat(declared)
+		if (sourceForFormat(declared.formatId) !in selectedSources) {
+			throw InvalidSessionBundle("Session contains an unselected source")
+		}
+	}
+
+	private fun requireRegisteredChildFormat(declared: SessionBundleChildV1) {
+		val extension = declared.path.substringAfterLast('.', "")
+		val registered = FormatRegistry.allEntries().singleOrNull { entry ->
+			entry.descriptor.id == declared.formatId && entry.importer != null &&
+				entry.importer.supportedExtensions.any { it.equals(extension, ignoreCase = true) }
+		}
+		if (declared.formatId !in TYPED_SOURCE_FORMAT_IDS || registered == null) {
+			throw InvalidSessionBundle("Unsupported session data file")
+		}
+	}
+
+	private fun sourceForFormat(formatId: String): String = when (formatId) {
+		LocationFileJsonV1.FORMAT -> "location"
+		"portable-steps-v1", "portable-ambient-steps-v1" -> "steps"
+		"portable-activity-v1" -> "activity"
+		"portable-pressure-v1" -> "pressure"
+		RadioSourceFileV2.WIFI_FORMAT -> "wifi"
+		RadioSourceFileV2.CELL_FORMAT -> "cell"
+		else -> throw InvalidSessionBundle("Unsupported session data file")
+	}
+
+	private suspend fun copyBounded(
+		input: InputStream,
 		output: java.io.OutputStream,
 		limit: Long,
 		digest: MessageDigest? = null,
+		sizeLimitMessage: String = "Session data file is too large",
 	): Long {
 		val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
 		var count = 0L
@@ -167,9 +211,13 @@ internal class SessionBundleStager(
 			currentCoroutineContext().ensureActive()
 			val read = input.read(buffer)
 			currentCoroutineContext().ensureActive()
-			if (read < 0) break
+			if (read < 0) {
+				break
+			}
 			count += read
-			if (count > limit) throw InvalidSessionBundle("Session data file is too large")
+			if (count > limit) {
+				throw InvalidSessionBundle(sizeLimitMessage)
+			}
 			output.write(buffer, 0, read)
 			digest?.update(buffer, 0, read)
 		}
@@ -190,45 +238,64 @@ internal class SessionBundleStager(
 		fun clearOwnedStaging(context: Context) {
 			val cache = context.cacheDir.canonicalFile
 			val directory = File(cache, CACHE_DIRECTORY)
-			if (!Files.exists(directory.toPath(), LinkOption.NOFOLLOW_LINKS)) return
+			if (!Files.exists(directory.toPath(), LinkOption.NOFOLLOW_LINKS)) {
+				return
+			}
 			if (directory.canonicalFile != directory.absoluteFile ||
-				directory.canonicalFile.parentFile != cache || !directory.isDirectory)
+				directory.canonicalFile.parentFile != cache || !directory.isDirectory) {
 				throw IOException("Session import cache cannot be cleaned safely")
+			}
+			clearStagedChildren(directory)
+			if (!directory.delete()) {
+				throw IOException("Session import cache could not be cleaned")
+			}
+		}
+
+		private fun clearStagedChildren(directory: File) {
 			directory.listFiles()?.forEach { candidate ->
 				if (!candidate.isFile || candidate.canonicalFile != candidate.absoluteFile ||
-					candidate.canonicalFile.parentFile != directory.canonicalFile || !candidate.delete())
+					candidate.canonicalFile.parentFile != directory.canonicalFile || !candidate.delete()) {
 					throw IOException("Session import cache could not be cleaned")
+				}
 			} ?: throw IOException("Session import cache could not be inspected")
-			if (!directory.delete()) throw IOException("Session import cache could not be cleaned")
 		}
 
 		private fun ownedDirectory(context: Context): File {
 			val cache = context.cacheDir.canonicalFile
 			val directory = File(cache, CACHE_DIRECTORY).apply {
-				if (!isDirectory && !mkdirs()) throw IOException("Cannot prepare session import")
+				if (!isDirectory && !mkdirs()) {
+					throw IOException("Cannot prepare session import")
+				}
 			}
 			if (directory.canonicalFile != directory.absoluteFile ||
-				directory.canonicalFile.parentFile != cache)
+				directory.canonicalFile.parentFile != cache) {
 				throw IOException("Session import cache is outside app storage")
+			}
 			cleanupStaleChildren(directory, System.currentTimeMillis())
 			return directory
 		}
 
 		private fun cleanupStaleChildren(directory: File, nowMs: Long) {
 			directory.listFiles()?.forEach { candidate ->
-				if (OWNED_FILE.matches(candidate.name) && candidate.isFile &&
-					candidate.canonicalFile.parentFile == directory.canonicalFile &&
-					candidate.lastModified() < nowMs - STALE_CHILD_AGE_MS && !candidate.delete())
+				if (isOwnedChild(candidate, directory) &&
+					candidate.lastModified() < nowMs - STALE_CHILD_AGE_MS && !candidate.delete()) {
 					throw IOException("Old session import cache could not be cleaned")
+				}
 			} ?: throw IOException("Session import cache could not be inspected")
 		}
+
+		private fun isOwnedChild(candidate: File, directory: File): Boolean =
+			OWNED_FILE.matches(candidate.name) && candidate.isFile &&
+				candidate.canonicalFile.parentFile == directory.canonicalFile
 	}
 }
 
 internal class StagedSessionSource(val file: File) : Closeable {
 	val document: DocumentFile get() = DocumentFile.fromFile(file)
 	override fun close() {
-		if (file.exists() && !file.delete()) throw IOException("Session import copy could not be removed")
+		if (file.exists() && !file.delete()) {
+			throw IOException("Session import copy could not be removed")
+		}
 	}
 }
 
@@ -240,9 +307,13 @@ internal class StagedSessionBundle(
 	override fun close() {
 		var failed = false
 		children.forEach { child ->
-			if (child.file.exists() && !child.file.delete()) failed = true
+			if (child.file.exists() && !child.file.delete()) {
+				failed = true
+			}
 		}
-		if (failed) throw IOException("Session import data could not be removed")
+		if (failed) {
+			throw IOException("Session import data could not be removed")
+		}
 	}
 
 	fun metadataStream(): FileImportStream = FileImportStream(
@@ -267,5 +338,8 @@ internal data class StagedSessionChild(
 }
 
 private fun ByteArray.toHex(): String = joinToString("") { byte ->
-	(byte.toInt() and 0xff).toString(16).padStart(2, '0')
+	(byte.toInt() and UNSIGNED_BYTE_MASK).toString(HEXADECIMAL_RADIX).padStart(2, '0')
 }
+
+private const val UNSIGNED_BYTE_MASK = 0xff
+private const val HEXADECIMAL_RADIX = 16

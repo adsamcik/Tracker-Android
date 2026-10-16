@@ -41,14 +41,26 @@ internal data class WifiPlanApplication(
 
 internal object WifiPrerequisiteEvaluator {
 	fun evaluate(plan: WifiPlan, state: WifiDeviceState): WifiPlanApplication {
-		if (!plan.enabled) return WifiPlanApplication(plan, SourceApplyStatus.APPLIED)
+		if (!plan.enabled) {
+			return WifiPlanApplication(plan, SourceApplyStatus.APPLIED)
+		}
 		val blockers = wifiPrerequisiteBlockers(state)
-		if (blockers.isNotEmpty()) return WifiPlanApplication(plan, SourceApplyStatus.BLOCKED, blockers)
+		if (blockers.isNotEmpty()) {
+			return WifiPlanApplication(plan, SourceApplyStatus.BLOCKED, blockers)
+		}
 		val deferred = plan.mode == WifiMode.ACTIVE_ATTEMPTS && state.deviceIdle
 		return WifiPlanApplication(
 			plan,
-			if (deferred) SourceApplyStatus.DEGRADED else SourceApplyStatus.APPLIED,
-			if (deferred) setOf(SourceDegradedReason.DOZE) else emptySet(),
+			if (deferred) {
+				SourceApplyStatus.DEGRADED
+			} else {
+				SourceApplyStatus.APPLIED
+			},
+			if (deferred) {
+				setOf(SourceDegradedReason.DOZE)
+			} else {
+				emptySet()
+			},
 			activeAttemptsDeferred = deferred,
 		)
 	}
@@ -62,11 +74,17 @@ internal fun wifiPrerequisiteBlockers(state: WifiDeviceState): Set<SourceDegrade
 		state.changeWifiStatePermission,
 	)
 	return buildSet {
-		if (!state.wifiFeatureAvailable) add(SourceDegradedReason.HARDWARE_UNAVAILABLE)
-		if (!hasRequiredPermission) add(SourceDegradedReason.PERMISSION_MISSING)
+		if (!state.wifiFeatureAvailable) {
+			add(SourceDegradedReason.HARDWARE_UNAVAILABLE)
+		}
+		if (!hasRequiredPermission) {
+			add(SourceDegradedReason.PERMISSION_MISSING)
+		}
 		if (WifiScanPlatformRequirements.requiresLocationServices(state.apiLevel) &&
 			!state.locationServicesEnabled
-		) add(SourceDegradedReason.PROVIDER_UNAVAILABLE)
+		) {
+			add(SourceDegradedReason.PROVIDER_UNAVAILABLE)
+		}
 	}
 }
 
@@ -85,19 +103,33 @@ internal data class CellPlanApplication(
 
 internal object CellPrerequisiteEvaluator {
 	fun evaluate(plan: CellPlan, state: CellDeviceState): CellPlanApplication {
-		if (!plan.enabled) return CellPlanApplication(plan, SourceApplyStatus.APPLIED)
+		if (!plan.enabled) {
+			return CellPlanApplication(plan, SourceApplyStatus.APPLIED)
+		}
 		val blockers = buildSet {
-			if (!state.radioFeatureAvailable) add(SourceDegradedReason.HARDWARE_UNAVAILABLE)
+			if (!state.radioFeatureAvailable) {
+				add(SourceDegradedReason.HARDWARE_UNAVAILABLE)
+			}
 			if (!state.fineLocationPermission || !state.readPhoneStatePermission) {
 				add(SourceDegradedReason.PERMISSION_MISSING)
 			}
 		}
-		if (blockers.isNotEmpty()) return CellPlanApplication(plan, SourceApplyStatus.BLOCKED, blockers)
+		if (blockers.isNotEmpty()) {
+			return CellPlanApplication(plan, SourceApplyStatus.BLOCKED, blockers)
+		}
 		val degraded = plan.mode == CellMode.OBSERVE_AND_SPARSE_REFRESH && !state.refreshApiAvailable
 		return CellPlanApplication(
 			plan,
-			if (degraded) SourceApplyStatus.DEGRADED else SourceApplyStatus.APPLIED,
-			if (degraded) setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE) else emptySet(),
+			if (degraded) {
+				SourceApplyStatus.DEGRADED
+			} else {
+				SourceApplyStatus.APPLIED
+			},
+			if (degraded) {
+				setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE)
+			} else {
+				emptySet()
+			},
 		)
 	}
 }
@@ -149,7 +181,9 @@ internal data class RuntimeBackoffState(val consecutiveFailures: Int = 0) {
 	fun succeeded() = RuntimeBackoffState()
 	fun failed() = RuntimeBackoffState((consecutiveFailures + 1).coerceAtMost(MAX_FAILURES))
 	fun delayMs(policy: RetryBackoff): Long {
-		if (consecutiveFailures == 0) return 0L
+		if (consecutiveFailures == 0) {
+			return 0L
+		}
 		val scaled = policy.initialDelayMs.toDouble() *
 			policy.multiplier.pow((consecutiveFailures - 1).toDouble())
 		return scaled.coerceAtMost(policy.maximumDelayMs.toDouble()).toLong()
@@ -178,7 +212,9 @@ internal class BoundedReplayIdentityGate(private val capacity: Int = DEFAULT_CAP
 
 	/** Record only after the delivery is known durable (or was durably present already). */
 	fun record(snapshotIdentity: String) {
-		if (!admittedIdentities.add(snapshotIdentity)) return
+		if (!admittedIdentities.add(snapshotIdentity)) {
+			return
+		}
 		while (admittedIdentities.size > capacity) {
 			admittedIdentities.remove(admittedIdentities.first())
 		}
@@ -197,7 +233,11 @@ internal class DirectAcquisitionBudget(
 	maximumAttempts: Int,
 	directCaptureRequested: Boolean,
 ) {
-	private var remainingAttempts = if (directCaptureRequested) maximumAttempts else 0
+	private var remainingAttempts = if (directCaptureRequested) {
+		maximumAttempts
+	} else {
+		0
+	}
 	private var qualifiedEvidenceReceived = false
 
 	init {
@@ -208,7 +248,9 @@ internal class DirectAcquisitionBudget(
 		get() = remainingAttempts > 0 && !qualifiedEvidenceReceived
 
 	fun consumeRequest(): Boolean {
-		if (!canRequest) return false
+		if (!canRequest) {
+			return false
+		}
 		remainingAttempts -= 1
 		return true
 	}

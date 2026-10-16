@@ -77,8 +77,10 @@ object DataImporter {
 						workRequest,
 					)
 				}
-				if (!queued) withContext(graph.dispatchersProvider().main) {
+				if (!queued) {
+					withContext(graph.dispatchersProvider().main) {
 					onStartFailure(context.getString(R.string.import_start_error))
+				}
 				}
 			} catch (cancelled: CancellationException) {
 				throw cancelled
@@ -103,7 +105,9 @@ object DataImporter {
 	fun clearSessionBundleStaging(context: Context) = SessionBundleStager.clearOwnedStaging(context)
 
 	internal fun persistReadPermission(context: Context, fileUri: Uri): Boolean {
-		if (fileUri.scheme != ContentResolver.SCHEME_CONTENT) return false
+		if (fileUri.scheme != ContentResolver.SCHEME_CONTENT) {
+			return false
+		}
 
 		return runCatching {
 			context.contentResolver.takePersistableUriPermission(
@@ -127,7 +131,9 @@ internal class ImportAdmissionFence {
 	@Synchronized fun capture(): Long? = generation.takeUnless { paused }
 
 	@Synchronized fun enqueueIfCurrent(captured: Long, enqueue: () -> Unit): Boolean {
-		if (paused || generation != captured) return false
+		if (paused || generation != captured) {
+			return false
+		}
 		enqueue()
 		return true
 	}
@@ -269,10 +275,14 @@ internal class ImportJobRunner(
 				context = context,
 				file = file,
 				shouldExtract = shouldExtract@ { entry ->
-					if (!isImportableEntry(entry)) return@shouldExtract false
+					if (!isImportableEntry(entry)) {
+						return@shouldExtract false
+					}
 					sawImportableEntry = true
 					val previous = successfulEntryResult(jobId, entry.receiptKey)
-					if (previous != null) aggregate += previous
+					if (previous != null) {
+						aggregate += previous
+					}
 					previous == null
 				},
 				consume = { stream ->
@@ -289,7 +299,9 @@ internal class ImportJobRunner(
 		} catch (failure: PermanentImportInputException) {
 			throw failure.withCommittedPrefix(aggregate)
 		}
-		if (!opened) throw IOException("Failed to extract ${file.name ?: "archive"}")
+		if (!opened) {
+			throw IOException("Failed to extract ${file.name ?: "archive"}")
+		}
 		if (!sawImportableEntry) {
 			aggregate += ImportResult(
 				failedCount = 1,
@@ -328,7 +340,9 @@ internal class ImportJobRunner(
 						importChild(receiptBoundStream(jobId, stream))
 					}
 				}
-				if (aggregate.failedCount > 0) return@withLock aggregate
+				if (aggregate.failedCount > 0) {
+					return@withLock aggregate
+				}
 			}
 			bundle.metadataStream().use { metadata ->
 				successfulEntryResult(jobId, metadata.receiptKey)?.let { return@withLock aggregate + it }
@@ -446,7 +460,9 @@ internal class ImportJobRunner(
 			successfulEntryResult(jobId, entryKey)?.let { return@transaction it }
 			val result = importEntry()
 			verifyCollectedDataAccess()
-			if (result.failedCount > 0) throw ImportEntryRollback(result)
+			if (result.failedCount > 0) {
+				throw ImportEntryRollback(result)
+			}
 			receiptStore.putEntry(result.successReceipt(jobId, entryKey, entryName))
 			verifyCollectedDataAccess()
 			result
@@ -464,7 +480,9 @@ internal class ImportJobRunner(
 		verifyCollectedDataAccess()
 		val result = importEntry()
 		verifyCollectedDataAccess()
-		if (result.failedCount > 0) throw ImportEntryRollback(result)
+		if (result.failedCount > 0) {
+			throw ImportEntryRollback(result)
+		}
 		return receiptStore.transaction {
 			verifyCollectedDataAccess()
 			successfulEntryResult(jobId, entryKey)?.let { return@transaction it }
@@ -577,37 +595,48 @@ internal fun computeImportJobId(
 	digest.update(0)
 	val input = file.openInputStream(context)
 		?: throw IOException("Failed to open ${file.name ?: "import source"}")
-	input.use {
-		val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-		var totalBytes = 0L
-		while (true) {
+	input.use { updateImportJobDigest(it, digest, maxBytes, checkCancelled) }
+	return digest.digest().joinToString("") { byte -> "%02x".format(byte) }
+}
+
+private fun updateImportJobDigest(
+	input: java.io.InputStream,
+	digest: MessageDigest,
+	maxBytes: Long,
+	checkCancelled: () -> Unit,
+) {
+	val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+	var totalBytes = 0L
+	while (true) {
+		checkCancelled()
+		val read = input.read(buffer)
+		checkCancelled()
+		if (read < 0) {
+			break
+		}
+		if (read == 0) {
+			val single = input.read()
 			checkCancelled()
-			val read = it.read(buffer)
-			checkCancelled()
-			if (read < 0) break
-			if (read == 0) {
-				val single = it.read()
-				checkCancelled()
-				if (single < 0) break
-				totalBytes++
-				if (totalBytes > maxBytes) {
-					throw PermanentImportInputException(
-						"Import source exceeds its size limit ($maxBytes bytes).",
-					)
-				}
-				digest.update(single.toByte())
-				continue
+			if (single < 0) {
+				break
 			}
-			totalBytes += read
+			totalBytes++
 			if (totalBytes > maxBytes) {
 				throw PermanentImportInputException(
 					"Import source exceeds its size limit ($maxBytes bytes).",
 				)
 			}
-			digest.update(buffer, 0, read)
+			digest.update(single.toByte())
+			continue
 		}
+		totalBytes += read
+		if (totalBytes > maxBytes) {
+			throw PermanentImportInputException(
+				"Import source exceeds its size limit ($maxBytes bytes).",
+			)
+		}
+		digest.update(buffer, 0, read)
 	}
-	return digest.digest().joinToString("") { byte -> "%02x".format(byte) }
 }
 
 private fun ImportResult.toReceipt(

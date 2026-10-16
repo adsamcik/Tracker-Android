@@ -12,6 +12,9 @@ interface TrackingRolloutStateDao {
 	@Query("SELECT * FROM tracking_rollout_state WHERE id = 1")
 	suspend fun get(): TrackingRolloutStateEntity?
 
+	/**
+	 * Observes `tracking_rollout_state` rows. Query conditions include `id = 1`.
+	 */
 	@Query("SELECT * FROM tracking_rollout_state WHERE id = 1")
 	fun observe(): Flow<TrackingRolloutStateEntity?>
 

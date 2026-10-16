@@ -61,7 +61,11 @@ data class LocationAcceptedReceiptEntity(
 		require(observedWallTimeMs >= 0 && wallTimeUncertaintyMs >= 0)
 		require(receivedWallTimeMs == null || receivedWallTimeMs >= 0)
 		require(retainedProofVersion in 0..1)
-		require(if (retainedProofVersion == 0) retainedProofChecksum.isEmpty() else DIGEST.matches(retainedProofChecksum))
+		require(if (retainedProofVersion == 0) {
+			retainedProofChecksum.isEmpty()
+		} else {
+			DIGEST.matches(retainedProofChecksum)
+		})
 	}
 	private companion object { val DIGEST = Regex("[0-9a-f]{64}") }
 }

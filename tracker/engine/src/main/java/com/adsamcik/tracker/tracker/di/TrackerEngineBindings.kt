@@ -38,6 +38,8 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.Multibinds
 
+// One declarative engine binding list; every member is an abstract Hilt binding.
+@Suppress("TooManyFunctions")
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class TrackerEngineBindings {
@@ -111,6 +113,7 @@ abstract class TrackerEngineBindings {
 		impl: AndroidLocationDeviceStateProvider,
 	): LocationDeviceStateProvider
 
+	/** Binds the owner of supported system Steps subscriptions and their retirement. */
 	@Binds
 	abstract fun bindAmbientStepsProviderLifecycle(
 		impl: AmbientStepsProviderLifecycleOwner,

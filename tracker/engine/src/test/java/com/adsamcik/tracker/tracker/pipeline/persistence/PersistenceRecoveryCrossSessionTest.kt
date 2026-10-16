@@ -309,6 +309,8 @@ class PersistenceRecoveryCrossSessionTest {
 			fakeDao.store.shouldBeEmpty()
 		}
 
+	// Keep the original mixed pending row, fenced replay and preserved Location assertions together.
+	@Suppress("LongMethod")
 	@Test
 	fun `crash replay after Pressure fence preserves Location and settles stale hPa`() = runTest {
 		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))

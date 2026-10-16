@@ -4,6 +4,10 @@ import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose as CanonicalTr
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource as CanonicalTrackingSource
 import com.adsamcik.tracker.shared.model.tracking.TrackingSourcePurposeIdentity as CanonicalSourcePurpose
 
+/**
+ * Distinguishes unchanged service redelivery from recovery and policy changes that require fresh
+ * acceptance.
+ */
 enum class SourceCallerReplayKind {
 	/** Exact prepared intent delivered to the foreground service. */
 	FOREGROUND_SERVICE_DELIVERY,
@@ -44,6 +48,7 @@ enum class SourceCallerReplayKind {
 		}
 }
 
+/** Identifies the exact logical session manifest a captured demand is allowed to use. */
 data class SourceCallerManifestIdentity(
 	val logicalTrackingId: String,
 	val manifestRevision: Long,
@@ -79,15 +84,22 @@ data class SourceCallerDemandIdentity(
 	}
 }
 
+/** A caller request to accept, retire or replay an exact set of source-purpose demands. */
 sealed interface SourceCallerRequest {
 	val requestedDemandIdentities: Set<SourceCallerDemandIdentity>
 
+	/** Manual capture request bound to the selected sources and one exact session manifest. */
 	data class ManualSessionStart(
 		val requestedCapturedSources: Set<CanonicalTrackingSource>,
 		val manifestIdentity: SourceCallerManifestIdentity,
 		override val requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
 	) : SourceCallerRequest {
+		/** Java-friendly factories for this request without creating accepted demand authority. */
 		companion object {
+			/**
+			 * Constructs this request from its declared identities; acceptance still requires the caller
+			 * guard.
+			 */
 			@JvmStatic
 			fun create(
 				requestedCapturedSources: Set<CanonicalTrackingSource>,
@@ -101,13 +113,19 @@ sealed interface SourceCallerRequest {
 		}
 	}
 
+	/** Automatic capture request that separately declares its Activity control dependencies. */
 	data class AutomaticSessionStart(
 		val requestedCapturedSources: Set<CanonicalTrackingSource>,
 		val declaredControlDependencies: Set<CanonicalTrackingSource>,
 		val manifestIdentity: SourceCallerManifestIdentity,
 		override val requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
 	) : SourceCallerRequest {
+		/** Java-friendly factories for this request without creating accepted demand authority. */
 		companion object {
+			/**
+			 * Constructs this request from its declared identities; acceptance still requires the caller
+			 * guard.
+			 */
 			@JvmStatic
 			fun create(
 				requestedCapturedSources: Set<CanonicalTrackingSource>,
@@ -123,12 +141,21 @@ sealed interface SourceCallerRequest {
 		}
 	}
 
+	/**
+	 * Recovery request that preserves the original capture set and manifest before any replacement
+	 * acceptance.
+	 */
 	data class RecoverySessionStart(
 		val requestedCapturedSources: Set<CanonicalTrackingSource>,
 		val manifestIdentity: SourceCallerManifestIdentity,
 		override val requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
 	) : SourceCallerRequest {
+		/** Java-friendly factories for this request without creating accepted demand authority. */
 		companion object {
+			/**
+			 * Constructs this request from its declared identities; acceptance still requires the caller
+			 * guard.
+			 */
 			@JvmStatic
 			fun create(
 				requestedCapturedSources: Set<CanonicalTrackingSource>,
@@ -142,6 +169,7 @@ sealed interface SourceCallerRequest {
 		}
 	}
 
+	/** Sessionless CONTROL or all-day mutation for the specified source and exact lease vector. */
 	data class PurposeOwnerMutation(
 		val source: CanonicalTrackingSource,
 		val purpose: CanonicalTrackingPurpose,
@@ -154,7 +182,12 @@ sealed interface SourceCallerRequest {
 			require(source.supports(purpose))
 		}
 
+		/** Java-friendly factories for this request without creating accepted demand authority. */
 		companion object {
+			/**
+			 * Constructs this request from its declared identities; acceptance still requires the caller
+			 * guard.
+			 */
 			@JvmStatic
 			fun create(
 				source: CanonicalTrackingSource,
@@ -170,6 +203,7 @@ sealed interface SourceCallerRequest {
 		}
 	}
 
+	/** Retires an accepted sessionless purpose reference without requesting new demand. */
 	data class PurposeOwnerRetirement(
 		val source: CanonicalTrackingSource,
 		val purpose: CanonicalTrackingPurpose,
@@ -183,7 +217,12 @@ sealed interface SourceCallerRequest {
 			require(source.supports(purpose))
 		}
 
+		/** Java-friendly factories for this request without creating accepted demand authority. */
 		companion object {
+			/**
+			 * Constructs this request from its declared identities; acceptance still requires the caller
+			 * guard.
+			 */
 			@JvmStatic
 			fun create(
 				source: CanonicalTrackingSource,
@@ -193,12 +232,18 @@ sealed interface SourceCallerRequest {
 		}
 	}
 
+	/** Compatibility request for one independently enabled all-day source. */
 	data class Ambient(
 		val source: CanonicalTrackingSource,
 		val enabled: Boolean = false,
 		override val requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
 	) : SourceCallerRequest {
+		/** Java-friendly factories for this request without creating accepted demand authority. */
 		companion object {
+			/**
+			 * Constructs this request from its declared identities; acceptance still requires the caller
+			 * guard.
+			 */
 			@JvmStatic
 			@JvmOverloads
 			fun create(
@@ -209,13 +254,22 @@ sealed interface SourceCallerRequest {
 		}
 	}
 
+	/**
+	 * Reuses a stored acceptance only for the declared purpose, replay kind and unchanged demand
+	 * identities.
+	 */
 	data class Replay(
 		val replayKind: SourceCallerReplayKind,
 		val reference: SourceCallerReplayReference,
 		val purpose: CanonicalTrackingPurpose,
 		override val requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
 	) : SourceCallerRequest {
+		/** Java-friendly factories for this request without creating accepted demand authority. */
 		companion object {
+			/**
+			 * Constructs this request from its declared identities; acceptance still requires the caller
+			 * guard.
+			 */
 			@JvmStatic
 			fun create(
 				replayKind: SourceCallerReplayKind,
@@ -241,6 +295,7 @@ data class SourceCallerReplayReference(
 	}
 }
 
+/** The authority, selection or replay mismatch that prevented source demand acceptance. */
 enum class SourceCallerRejectionReason {
 	ZERO_CAPTURE_SOURCE_REQUEST,
 	AUTOMATIC_CONTROL_SET_MISMATCH,
@@ -284,6 +339,9 @@ val SourceCallerRejectionReason.isRetryable: Boolean
 		SourceCallerRejectionReason.AUTHORITY_STORAGE_UNAVAILABLE,
 	)
 
+/**
+ * Rejected caller authority with the affected source/purpose and any actionable availability details.
+ */
 data class SourceCallerGuardRejection(
 	val reason: SourceCallerRejectionReason,
 	val source: CanonicalTrackingSource? = null,
@@ -316,16 +374,23 @@ class SourceCallerAcceptanceReceipt(
 			"permittedDemandIdentities=$permittedDemandIdentities)"
 }
 
+/** Whether the caller obtained an accepted demand receipt or a typed rejection. */
 sealed interface SourceCallerGuardResult {
+	/** The caller was accepted for exactly the identities in the returned receipt. */
 	data class Permitted(
 		val receipt: SourceCallerAcceptanceReceipt,
 	) : SourceCallerGuardResult
 
+	/** No new demand authority was granted; the rejection identifies the failed check. */
 	data class Rejected(
 		val rejection: SourceCallerGuardRejection,
 	) : SourceCallerGuardResult
 }
 
+/**
+ * Validates source-purpose authority before requests reach the broker; copying a receipt cannot grant
+ * authority.
+ */
 fun interface SourceCallerGuard {
 	/**
 	 * The caller supplies only its request. Implementations acquire current authority internally,

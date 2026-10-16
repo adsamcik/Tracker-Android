@@ -53,6 +53,8 @@ class ImportedActivityMigration27To28Test {
 	}
 
 	@Test
+	// One migrated Activity hierarchy is persisted and reopened to check retained and deleted authority together.
+	@Suppress("LongMethod")
 	fun activityImportedHierarchyIsAdditiveAndSurvivesProductionReopen() {
 		helper.createDatabase(DATABASE, 27).close()
 		helper.runMigrationsAndValidate(DATABASE, 28, true, MIGRATION_27_28).use { database ->
@@ -174,6 +176,8 @@ class ImportedActivityMigration27To28Test {
 		}
 	}
 
+	// Keep the fixed migration hierarchy, retention markers and deletion receipts in their insertion order.
+	@Suppress("LongMethod")
 	private suspend fun insertHierarchy(database: AppDatabase) {
 		val dao = database.importedActivityDao()
 		dao.insertEntryRevision(
@@ -300,6 +304,8 @@ class ImportedActivityMigration27To28Test {
 		.allowMainThreadQueries()
 		.build()
 
+	// Keep the complete legacy receipt row and its checksum inputs visible as one fixture.
+	@Suppress("LongMethod")
 	private fun legacyUnavailableReceipt(): ImportedActivityRetentionReceiptEntity {
 		val header = ImportedActivityEntryRevisionEntity(
 			RETAINED_ENTRY, 1L, null, digest('d'), ActivityCapturedPortableFormatV1.FORMAT, 1,

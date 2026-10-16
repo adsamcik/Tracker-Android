@@ -156,10 +156,18 @@ internal suspend fun completeDurableStopBeforeForegroundRelease(
 		maxRetryDelayMillis = maxRetryDelayMillis,
 		onFailure = onFailure,
 	) {
-		if (!isCurrent()) return@retryTrackingShutdownUntilSuccess
-		if (!persistStopCandidate()) throw TrackingShutdownRetryException("STOP_CANDIDATE_NOT_DURABLE")
-		if (!isCurrent()) return@retryTrackingShutdownUntilSuccess
-		if (!retireSources()) throw TrackingShutdownRetryException("SOURCE_RETIREMENT_NOT_DURABLE")
+		if (!isCurrent()) {
+			return@retryTrackingShutdownUntilSuccess
+		}
+		if (!persistStopCandidate()) {
+			throw TrackingShutdownRetryException("STOP_CANDIDATE_NOT_DURABLE")
+		}
+		if (!isCurrent()) {
+			return@retryTrackingShutdownUntilSuccess
+		}
+		if (!retireSources()) {
+			throw TrackingShutdownRetryException("SOURCE_RETIREMENT_NOT_DURABLE")
+		}
 	}
 	return isCurrent()
 }

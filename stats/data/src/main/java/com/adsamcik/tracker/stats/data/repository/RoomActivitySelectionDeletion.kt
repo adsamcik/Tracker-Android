@@ -48,23 +48,7 @@ internal class RoomActivitySelectionDeletion @Inject constructor(
 		request: ActivitySelectionDeletionRequest,
 	): ActivitySelectionDeletionResult = withContext(ioDispatcher) {
 		try {
-			if (request.expectedCollectedDataEpoch != null && database.sourceEvidenceStateDao().get()?.collectedDataEpoch != request.expectedCollectedDataEpoch)
-				return@withContext ActivitySelectionDeletionResult.Blocked(ActivitySelectionDeletionBlockedReason.COLLECTED_DATA_EPOCH_CHANGED)
-			when (val selection = request.selection) {
-				is ActivityHistorySelection.Local -> {
-					when (val resolved = database.withTransaction { resolveLocal(selection.key) }) {
-						ResolvedActivitySelection.NotFound -> ActivitySelectionDeletionResult.NotFound
-						is ResolvedActivitySelection.Unverifiable ->
-							ActivitySelectionDeletionResult.Unverifiable(resolved.reason)
-						is ResolvedActivitySelection.Local ->
-							(request.expectedCollectedDataEpoch?.let { localDeletion.deleteSelectedSession(resolved.segmentId, it) }
-								?: localDeletion.deleteSelectedSession(resolved.segmentId)).toActionResult()
-					}
-				}
-				is ActivityHistorySelection.Imported -> importedDeletion.delete(
-					selection.selected.toDeletionRequest(request.deletedAtMs),
-				).toActionResult()
-			}
+			deleteCurrentSelection(request)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: SQLiteException) {
@@ -81,6 +65,37 @@ internal class RoomActivitySelectionDeletion @Inject constructor(
 			)
 		}
 	}
+
+	private suspend fun deleteCurrentSelection(
+		request: ActivitySelectionDeletionRequest,
+	): ActivitySelectionDeletionResult {
+		if (request.expectedCollectedDataEpoch != null &&
+			database.sourceEvidenceStateDao().get()?.collectedDataEpoch != request.expectedCollectedDataEpoch
+		) {
+			return ActivitySelectionDeletionResult.Blocked(
+				ActivitySelectionDeletionBlockedReason.COLLECTED_DATA_EPOCH_CHANGED,
+			)
+		}
+		return when (val selection = request.selection) {
+			is ActivityHistorySelection.Local -> deleteLocalSelection(selection, request.expectedCollectedDataEpoch)
+			is ActivityHistorySelection.Imported -> importedDeletion.delete(
+				selection.selected.toDeletionRequest(request.deletedAtMs),
+			).toActionResult()
+		}
+	}
+
+	private suspend fun deleteLocalSelection(
+		selection: ActivityHistorySelection.Local,
+		expectedEpoch: Long?,
+	): ActivitySelectionDeletionResult =
+		when (val resolved = database.withTransaction { resolveLocal(selection.key) }) {
+			ResolvedActivitySelection.NotFound -> ActivitySelectionDeletionResult.NotFound
+			is ResolvedActivitySelection.Unverifiable ->
+				ActivitySelectionDeletionResult.Unverifiable(resolved.reason)
+			is ResolvedActivitySelection.Local ->
+				(expectedEpoch?.let { localDeletion.deleteSelectedSession(resolved.segmentId, it) }
+					?: localDeletion.deleteSelectedSession(resolved.segmentId)).toActionResult()
+		}
 
 	private suspend fun resolveLocal(key: ActivityHistoryEntryKey): ResolvedActivitySelection {
 		var beforeStartTimeMs: Long? = null
@@ -100,7 +115,9 @@ internal class RoomActivitySelectionDeletion @Inject constructor(
 				beforeSegmentId = beforeSegmentId,
 				activitySourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
 			)
-			if (page.isEmpty()) return ResolvedActivitySelection.NotFound
+			if (page.isEmpty()) {
+				return ResolvedActivitySelection.NotFound
+			}
 			page.firstOrNull { candidate ->
 				val logicalId = candidate.segment.logicalTrackingId ?: return@firstOrNull false
 				ActivityHistoryEntryKey("activity-logical:$logicalId") == key
@@ -111,7 +128,9 @@ internal class RoomActivitySelectionDeletion @Inject constructor(
 			val last = page.last()
 			beforeStartTimeMs = last.logicalRecencyStartMs
 			beforeSegmentId = last.logicalRecencySegmentId
-			if (page.size < limit) return ResolvedActivitySelection.NotFound
+			if (page.size < limit) {
+				return ResolvedActivitySelection.NotFound
+			}
 		}
 	}
 

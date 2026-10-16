@@ -120,8 +120,10 @@ fun TripRouteMapPreview(
 		}
 	}
 
-	val baseStyle by androidx.compose.runtime.produceState<BaseStyle?>(null, customPath, isDark, basemapPath, importedFilesRevision) {
-		value = kotlinx.coroutines.withContext(com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider.io) {
+	val baseStyle by androidx.compose.runtime.produceState<BaseStyle?>(null, customPath, isDark, basemapPath,
+        importedFilesRevision) {
+		value =
+            kotlinx.coroutines.withContext(com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider.io) {
 		when {
 			customPath.isNotBlank() -> {
 				MapStyleProvider.customStyleJson(customPath, isDark)?.let { BaseStyle.Json(it) }

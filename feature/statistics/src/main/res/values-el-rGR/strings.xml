@@ -160,4 +160,5 @@
     <string name="history_button_label">Ιστορικό</string>
     <string name="history_view_trip_on_map">Προβολή διαδρομής στον χάρτη</string>
     <string name="stats_heatmap_title">Δραστηριότητα</string>
+    <string name="stats_recorded_partial_value">%1$s · μερικώς</string>
 </resources>

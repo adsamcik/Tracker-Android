@@ -344,14 +344,26 @@ class StepsGoalRewardProjectorTest {
 			StepsGoalEffectEntity.STATE_READY_INCOMPLETE
 		},
 		unavailableReason = null,
-		qualifiedSteps = if (complete) 4_500L else 3_500L,
+		qualifiedSteps = if (complete) {
+			4_500L
+		} else {
+			3_500L
+		},
 		sourceAuthorityDigest = digest.toString().repeat(64),
 		sourceEvidenceRevision = sourceRevision,
 		effectRevision = 1L,
 		completionPointsMicros = 40_000_000L,
 		completionXp = 50,
-		desiredPointsMicros = if (complete) 40_000_000L else 0L,
-		desiredXp = if (complete) 50 else 0,
+		desiredPointsMicros = if (complete) {
+			40_000_000L
+		} else {
+			0L
+		},
+		desiredXp = if (complete) {
+			50
+		} else {
+			0
+		},
 		firstCompletedAtMs = updatedAt.takeIf { complete },
 		pointsAppliedRevision = 0L,
 		xpAppliedRevision = 0L,
@@ -385,7 +397,9 @@ class StepsGoalRewardProjectorTest {
 		}
 
 		override fun markDirty(tables: Set<String>) {
-			if (tables.isNotEmpty()) markCalls += 1
+			if (tables.isNotEmpty()) {
+				markCalls += 1
+			}
 		}
 
 		override suspend fun snapshotDirty(consumer: MetricDirtyTracker.Consumer) =

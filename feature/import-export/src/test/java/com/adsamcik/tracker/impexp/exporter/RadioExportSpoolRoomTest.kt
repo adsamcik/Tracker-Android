@@ -267,74 +267,84 @@ class RadioExportSpoolRoomTest {
 
 	private fun exporter(kind: Kind, maximumBytes: Long = RadioSourceFileV2.MAX_FILE_BYTES,
 		afterParentRead: suspend () -> Unit = {}): RadioSourceExporter = when (kind) {
-		Kind.WIFI -> {
-			val background = mockk<ExportPortableAmbientWifi>()
-			coEvery { background.export(any(), any()) } coAnswers {
-				assertTrue(database.inTransaction())
-				val facts = database.ambientWifiFactDao().importedOverWindow(0, 86_400_000, 100).map { row ->
-					AmbientWifiPortableIntegrity.createFact(AmbientWifiFact(row.factId,
-						AmbientWifiOrigin.valueOf(row.portableOrigin), row.coverageStartTimeMs,
-						row.observedTimeMs, row.latestPossibleTimeMs, row.structuralEpochDay,
-						row.storedZoneId, AmbientWifiCoverage.valueOf(row.coverageCompleteness),
-						row.observationCount, row.twoPointFourGhzCount, row.fiveGhzCount,
-						row.sixGhzCount, row.otherBandCount, row.strongestSignalDbm,
-						row.weakestSignalDbm, row.meanSignalDbm, row.semanticRevision,
-						row.supersedesSemanticRevision))
-				}
-				val gaps = database.ambientWifiFactDao().importedGapsOverWindow(0, 86_400_000, 100).map { row ->
-					AmbientWifiPortableIntegrity.createGap(AmbientWifiGap(row.gapId,
-						AmbientWifiOrigin.valueOf(row.portableOrigin), row.structuralEpochDay,
-						row.startTimeMs, row.endTimeMs, row.storedZoneId, row.reason))
-				}
-				afterParentRead()
-				if (facts.isEmpty() && gaps.isEmpty()) ExportPortableAmbientWifiResult.NoData
-				else {
-					secondArg<PortableAmbientWifiSink>().emit(
-						AmbientWifiPortableIntegrity.createArchive(ARCHIVE, facts, gaps))
-					ExportPortableAmbientWifiResult.Exported(facts.size, gaps.size)
-				}
+		Kind.WIFI -> wifiExporter(maximumBytes, afterParentRead)
+		Kind.CELL -> cellExporter(maximumBytes, afterParentRead)
+	}
+
+	private fun wifiExporter(maximumBytes: Long, afterParentRead: suspend () -> Unit): RadioSourceExporter {
+		val background = mockk<ExportPortableAmbientWifi>()
+		coEvery { background.export(any(), any()) } coAnswers {
+			assertTrue(database.inTransaction())
+			val facts = database.ambientWifiFactDao().importedOverWindow(0, 86_400_000, 100).map { row ->
+				AmbientWifiPortableIntegrity.createFact(AmbientWifiFact(row.factId,
+					AmbientWifiOrigin.valueOf(row.portableOrigin), row.coverageStartTimeMs,
+					row.observedTimeMs, row.latestPossibleTimeMs, row.structuralEpochDay,
+					row.storedZoneId, AmbientWifiCoverage.valueOf(row.coverageCompleteness),
+					row.observationCount, row.twoPointFourGhzCount, row.fiveGhzCount,
+					row.sixGhzCount, row.otherBandCount, row.strongestSignalDbm,
+					row.weakestSignalDbm, row.meanSignalDbm, row.semanticRevision,
+					row.supersedesSemanticRevision))
 			}
-			val imported = mockk<ImportedWifiProductEvaluator>()
-			coEvery { imported.selectExportRangeInTransaction(any()) } coAnswers {
-				assertTrue(database.inTransaction())
-				ImportedWifiProductRangePage(emptyList(), false)
+			val gaps = database.ambientWifiFactDao().importedGapsOverWindow(0, 86_400_000, 100).map { row ->
+				AmbientWifiPortableIntegrity.createGap(AmbientWifiGap(row.gapId,
+					AmbientWifiOrigin.valueOf(row.portableOrigin), row.structuralEpochDay,
+					row.startTimeMs, row.endTimeMs, row.storedZoneId, row.reason))
 			}
-			val captured = mockk<ExportPortableCapturedWifi>()
-			PortableWifiSourceExporter(maximumBytes) {
-				object : WifiSourceExportEntryPoint {
-					override fun database() = database
-					override fun capturedWifi() = captured
-					override fun backgroundWifi() = background
-					override fun importedWifiEvaluator() = imported
-				}
+			afterParentRead()
+			if (facts.isEmpty() && gaps.isEmpty()) {
+				ExportPortableAmbientWifiResult.NoData
+			}
+			else {
+				secondArg<PortableAmbientWifiSink>().emit(
+					AmbientWifiPortableIntegrity.createArchive(ARCHIVE, facts, gaps))
+				ExportPortableAmbientWifiResult.Exported(facts.size, gaps.size)
 			}
 		}
-		Kind.CELL -> {
-			val background = mockk<ExportPortableAmbientCell>()
-			coEvery { background.export(any(), any()) } coAnswers {
-				assertTrue(database.inTransaction())
-				val gaps = database.ambientCellFactDao().importedGapsOverWindow(0, 86_400_000, 100).map { row ->
-					AmbientCellPortableIntegrity.createGap(AmbientCellGap(row.gapId,
-						AmbientCellOrigin.valueOf(row.portableOrigin), row.structuralEpochDay,
-						row.startTimeMs, row.endTimeMs, row.storedZoneId, row.reason))
-				}
-				afterParentRead()
-				if (gaps.isEmpty()) ExportPortableAmbientCellResult.NoData
-				else {
-					secondArg<PortableAmbientCellSink>().emit(
-						AmbientCellPortableIntegrity.createArchive(ARCHIVE, emptyList(), gaps))
-					ExportPortableAmbientCellResult.Exported(0, gaps.size)
-				}
-			}
-			val captured = mockk<ExportPortableCapturedCell>()
-			PortableCellSourceExporter(maximumBytes) {
-				object : CellSourceExportEntryPoint {
-					override fun database() = database
-					override fun capturedCell() = captured
-					override fun backgroundCell() = background
-				}
+		val imported = mockk<ImportedWifiProductEvaluator>()
+		coEvery { imported.selectExportRangeInTransaction(any()) } coAnswers {
+			assertTrue(database.inTransaction())
+			ImportedWifiProductRangePage(emptyList(), false)
+		}
+		val captured = mockk<ExportPortableCapturedWifi>()
+		return PortableWifiSourceExporter(maximumBytes) {
+			object : WifiSourceExportEntryPoint {
+				override fun database() = database
+				override fun capturedWifi() = captured
+				override fun backgroundWifi() = background
+				override fun importedWifiEvaluator() = imported
 			}
 		}
+
+	}
+
+	private fun cellExporter(maximumBytes: Long, afterParentRead: suspend () -> Unit): RadioSourceExporter {
+		val background = mockk<ExportPortableAmbientCell>()
+		coEvery { background.export(any(), any()) } coAnswers {
+			assertTrue(database.inTransaction())
+			val gaps = database.ambientCellFactDao().importedGapsOverWindow(0, 86_400_000, 100).map { row ->
+				AmbientCellPortableIntegrity.createGap(AmbientCellGap(row.gapId,
+					AmbientCellOrigin.valueOf(row.portableOrigin), row.structuralEpochDay,
+					row.startTimeMs, row.endTimeMs, row.storedZoneId, row.reason))
+			}
+			afterParentRead()
+			if (gaps.isEmpty()) {
+				ExportPortableAmbientCellResult.NoData
+			}
+			else {
+				secondArg<PortableAmbientCellSink>().emit(
+					AmbientCellPortableIntegrity.createArchive(ARCHIVE, emptyList(), gaps))
+				ExportPortableAmbientCellResult.Exported(0, gaps.size)
+			}
+		}
+		val captured = mockk<ExportPortableCapturedCell>()
+		return PortableCellSourceExporter(maximumBytes) {
+			object : CellSourceExportEntryPoint {
+				override fun database() = database
+				override fun capturedCell() = captured
+				override fun backgroundCell() = background
+			}
+		}
+
 	}
 
 	private suspend fun seedGap(kind: Kind, identity: String) {

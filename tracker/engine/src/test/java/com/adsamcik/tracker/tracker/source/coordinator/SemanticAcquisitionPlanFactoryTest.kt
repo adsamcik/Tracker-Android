@@ -27,7 +27,11 @@ class SemanticAcquisitionPlanFactoryTest {
 	fun `adopted Balanced requests route capable time based fixes and focus restores saved baseline`() {
 		val settings = TrackingParamsState(locationProfileVersion = 1, locationBalanceLevel = 3)
 		fun create(live: Boolean) = subject.create(settings, 3, 100,
-			environment.copy(liveSources = if (live) setOf(SourceKind.LOCATION) else emptySet()),
+			environment.copy(liveSources = if (live) {
+				setOf(SourceKind.LOCATION)
+			} else {
+				emptySet()
+			}),
 		).plans.getValue(SourceKind.LOCATION) as LocationPlan
 		val baseline = create(false)
 		baseline.mode shouldBe LocationMode.HIGH_ACCURACY

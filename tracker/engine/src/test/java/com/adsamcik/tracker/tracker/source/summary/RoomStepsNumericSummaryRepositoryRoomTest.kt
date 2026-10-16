@@ -68,7 +68,7 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 	private lateinit var repository: RoomStepsNumericSummaryRepository
 
 	@Before
-	fun setUp() = runBlocking {
+	fun setUp(): Unit = runBlocking {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))

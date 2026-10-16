@@ -40,4 +40,23 @@
     <string name="format_database">Databassäkerhetskopia (ZIP)</string>
     <string name="settings_import_summary">Importera data från format som stöds (%1$s) och arkiv (%2$s). Databasimporter sammanfogar kompatibla rader; de ersätter inte befintliga data.</string>
     <string name="settings_import_title">Importera</string>
+    <string name="export_radio_sensitivity_title">Exportera nätverksdetaljer?</string>
+    <string name="export_wifi_sensitivity_message">Den här filen innehåller sparade Wi-Fi-namn och åtkomstpunkts-ID:n.</string>
+    <string name="export_cell_sensitivity_message">Den här filen innehåller sparade mobilmast-ID:n och signalmätningar.</string>
+    <string name="export_radio_no_data">Inga sparade data för den här källan</string>
+    <string name="export_include_complete_sessions">Ta med hela sessioner</string>
+    <string name="import_location_conflict_title">Ersätta sparade punkter?</string>
+    <string name="import_location_replace">Använd filens punkter</string>
+    <string name="import_location_keep">Behåll sparade punkter</string>
+    <string name="export_backup_review_title">Granska schemalagda säkerhetskopior</string>
+    <string name="export_backup_review_summary">Pausat tills du har granskat den uppdaterade datasäkerhetskopian.</string>
+    <string name="export_backup_review_message">Dessa scheman säkerhetskopierar nu alla sparade spårningsdata och de filer som behövs för att återställa dem. Inställningar tas inte med. Återuppta dessa scheman?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Återuppta säkerhetskopiering</string>
+    <string name="import_backup_replace_title">Återställa datasäkerhetskopia?</string>
+    <string name="import_backup_replace_message">Ersätta sparade data med den här säkerhetskopian? Dina inställningar är oförändrade. Spårningen är avstängd tills du återupptar den.</string>
+    <string name="import_backup_restore">Ersätt data</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d punkt i den här filen skiljer sig från den sparade kopian. Välj vilken du vill behålla. Andra punkter importeras som vanligt.</item>
+        <item quantity="other">%d punkter i den här filen skiljer sig från sina sparade kopior. Välj vilka du vill behålla. Andra punkter importeras som vanligt.</item>
+    </plurals>
 </resources>

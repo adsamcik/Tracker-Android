@@ -129,7 +129,11 @@ class MeasuredHistoryContentComposeTest {
 			object : PagingSource<HistoryContinuation, HistoryPagingItem>() {
 				override suspend fun load(params: LoadParams<HistoryContinuation>): LoadResult<HistoryContinuation, HistoryPagingItem> {
 					val count = loads.incrementAndGet()
-					return LoadResult.Page(if (count == 1) listOf(saved, problem) else listOf(saved), null, null)
+					return LoadResult.Page(if (count == 1) {
+						listOf(saved, problem)
+					} else {
+						listOf(saved)
+					}, null, null)
 				}
 				override fun getRefreshKey(state: PagingState<HistoryContinuation, HistoryPagingItem>): HistoryContinuation? = null
 			}

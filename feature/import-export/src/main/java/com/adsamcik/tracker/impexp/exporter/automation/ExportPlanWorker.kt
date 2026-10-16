@@ -116,20 +116,7 @@ class ExportPlanWorker @AssistedInject constructor(
 
             when (exportResult) {
                 is PlanExportResult.Success -> {
-                    // Update watermark only on successful export with actual records
-                    if (exportResult.shouldAdvanceWatermark && exportResult.recordCount > 0 && exportResult.maxTimeMs > 0L) {
-						requireReadyGeneration()
-                        planStore.updateWatermark(
-                            planId = plan.id,
-                            watermarkMs = exportResult.maxTimeMs,
-                            watermarkId = exportResult.maxId,
-                            completedAt = completedAt,
-                            recordCount = exportResult.recordCount,
-                        )
-                    }
-                    if (exportResult.fileName.isNotEmpty()) {
-                        showExportCompletedNotification(plan, exportResult)
-                    }
+                    recordSuccessfulExport(plan, exportResult, completedAt)
                     Result.success()
                 }
                 is PlanExportResult.Failed -> {
@@ -154,6 +141,25 @@ class ExportPlanWorker @AssistedInject constructor(
 			} catch (_: StartupGenerationChangedException) {
 				Result.success()
 			}
+        }
+    }
+
+    private suspend fun recordSuccessfulExport(
+        plan: ExportBackupPlan, exportResult: PlanExportResult.Success, completedAt: Long,
+    ) {
+        // Update watermark only on successful export with actual records
+        if (exportResult.shouldAdvanceWatermark && exportResult.recordCount > 0 && exportResult.maxTimeMs > 0L) {
+            requireReadyGeneration()
+            planStore.updateWatermark(
+                planId = plan.id,
+                watermarkMs = exportResult.maxTimeMs,
+                watermarkId = exportResult.maxId,
+                completedAt = completedAt,
+                recordCount = exportResult.recordCount,
+            )
+        }
+        if (exportResult.fileName.isNotEmpty()) {
+            showExportCompletedNotification(plan, exportResult)
         }
     }
 
@@ -275,10 +281,6 @@ class ExportPlanWorker @AssistedInject constructor(
             }
         }
     }
-
-    private fun resolveExporter(format: ExportFormat): Exporter =
-        FormatRegistry.exporterFor(format.formatId)
-            ?: error("No exporter registered for format ${format.name}")
 
     internal data class ResolvedExportRange(
         val dateRange: LongRange?,
@@ -408,7 +410,9 @@ class ExportPlanWorker @AssistedInject constructor(
         val row = rows.firstOrNull { it.isCompleted && !it.isActive } ?: return null
         val from = row.fromMs
         val to = row.toMs
-        return if (row.timeUncertain || from == null || to == null || from < 0L || to < from) {
+        return if (row.timeUncertain || from == null || to == null) {
+            ScopeDateRange.Unavailable
+        } else if (from < 0L || to < from) {
             ScopeDateRange.Unavailable
         } else {
             ScopeDateRange.Selected(from..to)
@@ -461,33 +465,6 @@ class ExportPlanWorker @AssistedInject constructor(
         applicationContext.contentResolver.persistedUriPermissions.any {
             it.uri == treeUri && it.isWritePermission
         }
-
-    private fun resolveDocumentDirectory(root: DocumentFile, subdirectory: String?): DocumentFile? {
-        var current = root
-        val segments = subdirectory
-            ?.split('/', '\\')
-            ?.map { it.trim() }
-            ?.filter { it.isNotEmpty() }
-            .orEmpty()
-
-        for (segment in segments) {
-            val existing = current.findFile(segment)?.takeIf { it.isDirectory }
-            current = existing ?: current.createDirectory(segment) ?: return null
-        }
-
-        return current
-    }
-
-    private fun buildFileName(plan: ExportBackupPlan, extension: String, isDelta: Boolean = false): String {
-        val prefix = plan.destination.fileNamePrefix?.takeIf { it.isNotBlank() } ?: "tracker-export"
-        val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-        return if (isDelta && plan.lastWatermarkMs > 0L) {
-            val watermarkDate = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date(plan.lastWatermarkMs))
-            "${prefix}_${timestamp}_delta-from-${watermarkDate}.$extension"
-        } else {
-            "${prefix}_${timestamp}.$extension"
-        }
-    }
 
     private suspend fun logExport(
         plan: ExportBackupPlan,
@@ -663,11 +640,13 @@ internal suspend fun cleanupPartialExportOutput(output: ExportOutput, store: Exp
     withContext(NonCancellable) {
         try {
             output.deletePartial()
-        } catch (failure: Exception) {
+        } catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+            // Retain the external-file reminder before rethrowing the original partial-output deletion failure.
             output.unfinishedExternalFile?.let { file ->
                 try {
                     store.rememberUnfinishedFile(file)
-                } catch (saveFailure: Exception) {
+                } catch (@Suppress("TooGenericExceptionCaught") saveFailure: Exception) {
+                    // Report both failed deletion and failed reminder persistence without losing either exception.
                     failure.addSuppressed(saveFailure)
                     throw IOException("Unable to remove or remember unfinished export: ${file.name}", failure)
                 }
@@ -675,3 +654,37 @@ internal suspend fun cleanupPartialExportOutput(output: ExportOutput, store: Exp
             throw failure
         }
     }
+
+private fun resolveExporter(format: ExportFormat): Exporter =
+    FormatRegistry.exporterFor(format.formatId)
+        ?: error("No exporter registered for format ${format.name}")
+
+
+private fun resolveDocumentDirectory(root: DocumentFile, subdirectory: String?): DocumentFile? {
+    var current = root
+    val segments = subdirectory
+        ?.split('/', '\\')
+        ?.map { it.trim() }
+        ?.filter { it.isNotEmpty() }
+        .orEmpty()
+
+    for (segment in segments) {
+        val existing = current.findFile(segment)?.takeIf { it.isDirectory }
+        current = existing ?: current.createDirectory(segment) ?: return null
+    }
+
+    return current
+}
+
+
+private fun buildFileName(plan: ExportBackupPlan, extension: String, isDelta: Boolean = false): String {
+    val prefix = plan.destination.fileNamePrefix?.takeIf { it.isNotBlank() } ?: "tracker-export"
+    val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+    return if (isDelta && plan.lastWatermarkMs > 0L) {
+        val watermarkDate = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date(plan.lastWatermarkMs))
+        "${prefix}_${timestamp}_delta-from-${watermarkDate}.$extension"
+    } else {
+        "${prefix}_${timestamp}.$extension"
+    }
+}
+

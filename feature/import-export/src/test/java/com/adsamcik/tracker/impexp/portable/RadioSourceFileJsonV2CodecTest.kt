@@ -10,6 +10,7 @@ import com.adsamcik.tracker.stats.api.repository.AmbientCellOrigin
 import com.adsamcik.tracker.stats.api.repository.AmbientCellPortableIntegrity
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiCoverage
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiFact
+import com.adsamcik.tracker.stats.api.repository.AmbientWifiGap
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiOrigin
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiPortableIntegrity
 import com.adsamcik.tracker.stats.api.repository.PortableWifiAcquisitionCompleteness
@@ -26,14 +27,25 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryTechnology
 import com.google.gson.JsonParser
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.IOException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RadioSourceFileJsonV2CodecTest {
 	private val codec = RadioSourceFileJsonV2Codec()
 
+	// Keep one explicit Wi-Fi file through both writer paths and targeted corruption to verify its complete wire
+	// shape.
+	@Suppress("LongMethod")
 	@Test fun `Wi-Fi file round trips session inline identities and raw network detail`(): Unit = runBlocking {
 		val entryId = PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.LOGICAL_ENTRY, "entry")
 		val runId = PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.PHYSICAL_RUN, "run")
@@ -214,16 +226,141 @@ class RadioSourceFileJsonV2CodecTest {
 		}
 	}
 
+	@Test fun `both radio decoders preserve unexpected input failures`() = runBlocking {
+		for (wifi in listOf(true, false)) {
+			val sourceFailure = RuntimeException("radio source failed")
+			val bytes = cancellationFileBytes(wifi)
+			val input = object : ByteArrayInputStream(bytes) {
+				override fun read(buffer: ByteArray, offset: Int, length: Int): Int = throw sourceFailure
+			}
+			var observed: Exception? = null
+			try {
+				if (wifi) {
+					codec.readWifi(input)
+				} else {
+					codec.readCell(input)
+				}
+			} catch (failure: Exception) {
+				observed = failure
+			}
+			assertSame(sourceFailure, observed)
+		}
+	}
+
+	@Test fun `both radio decoders propagate job cancellation raised inside Gson`() = runBlocking {
+		for (wifi in listOf(true, false)) {
+			val bytes = cancellationFileBytes(wifi)
+			val job = Job()
+			var sourceReads = 0
+			var observed: Exception? = null
+			val input = object : ByteArrayInputStream(bytes) {
+				override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+					sourceReads++
+					val count = super.read(buffer, offset, minOf(length, 1))
+					job.cancel(CancellationException("cancel after the first radio byte"))
+					return count
+				}
+			}
+			try {
+				withContext(job) {
+					try {
+						if (wifi) {
+							codec.readWifi(input)
+						} else {
+							codec.readCell(input)
+						}
+					} catch (failure: Exception) {
+						// Capture here: withContext's exit cancellation must not hide a format error.
+						observed = failure
+					}
+				}
+			} catch (_: CancellationException) {
+				// The deliberately canceled child context also cancels its exit.
+			} finally {
+				job.cancel()
+			}
+			assertTrue("${if (wifi) { "Wi-Fi" } else { "Cell" }} cancellation became $observed",
+				observed is CancellationException)
+			assertEquals(1, sourceReads)
+			assertTrue(currentCoroutineContext().isActive)
+		}
+	}
+
+	@Test fun `both radio decoders preserve an input cancellation while their job is active`() = runBlocking {
+		for (wifi in listOf(true, false)) {
+			val cancellation = CancellationException("radio source stopped")
+			val bytes = cancellationFileBytes(wifi)
+			val input = object : ByteArrayInputStream(bytes) {
+				override fun read(buffer: ByteArray, offset: Int, length: Int): Int = throw cancellation
+			}
+			var observed: Exception? = null
+			try {
+				if (wifi) {
+					codec.readWifi(input)
+				} else {
+					codec.readCell(input)
+				}
+			} catch (failure: Exception) {
+				observed = failure
+			}
+			assertSame(if (wifi) { "Wi-Fi" } else { "Cell" }, cancellation, observed)
+			assertTrue(currentCoroutineContext().isActive)
+		}
+	}
+
+	@Test fun `both radio decoders preserve the exact source transport failure`() = runBlocking {
+		for (wifi in listOf(true, false)) {
+			val bytes = cancellationFileBytes(wifi)
+			val transport = IOException("radio source temporarily unavailable")
+			val input = object : ByteArrayInputStream(bytes) {
+				override fun read(buffer: ByteArray, offset: Int, length: Int): Int = throw transport
+			}
+			var observed: Exception? = null
+			try {
+				if (wifi) {
+					codec.readWifi(input)
+				} else {
+					codec.readCell(input)
+				}
+			} catch (failure: Exception) {
+				observed = failure
+			}
+			assertSame(if (wifi) { "Wi-Fi" } else { "Cell" }, transport, observed)
+			assertTrue(currentCoroutineContext().isActive)
+		}
+	}
+
+	@Test fun `both radio decoders retain invalid file classification for malformed bounded content`() = runBlocking {
+		for (wifi in listOf(true, false)) {
+			val json = cancellationFileBytes(wifi).toString(Charsets.UTF_8)
+			val invalidFiles = listOf(
+				json.dropLast(1),
+				"{\"format\":]}",
+				"{}",
+				json.dropLast(1) + ",\"ignored\":\"" + "x".repeat(16_385) + "\"}",
+			)
+			for ((index, invalid) in invalidFiles.withIndex()) {
+				var observed: Exception? = null
+				try {
+					val input = ByteArrayInputStream(invalid.toByteArray(Charsets.UTF_8))
+					if (wifi) {
+						codec.readWifi(input)
+					} else {
+						codec.readCell(input)
+					}
+				} catch (failure: Exception) {
+					observed = failure
+				}
+				assertTrue("${if (wifi) { "Wi-Fi" } else { "Cell" }} invalid input $index became $observed",
+					observed is RadioSourceFileFormatException)
+				assertTrue(currentCoroutineContext().isActive)
+			}
+		}
+	}
+
 	@Test fun `Cell gap-only file round trips without inventing a tower or coordinate`() = runBlocking {
-		val gap = AmbientCellPortableIntegrity.createGap(AmbientCellGap(
-			identity = "d".repeat(64), origin = AmbientCellOrigin.LOCAL_DEVICE,
-			structuralEpochDay = 0L, startTimeMs = 1_000L, endTimeMs = 2_000L,
-			storedZoneId = "UTC", reason = "provider unavailable"))
-		val archive = AmbientCellPortableIntegrity.createArchive("e".repeat(64),
-			emptyList(), listOf(gap))
-		val file = CellSourceFileV2(selectedFromMs = null, selectedToExclusiveMs = null,
-			includeSessionsAcrossDates = true, observationsOutsideDates = 0,
-			sessions = emptyList(), background = archive, backgroundChildren = emptyList())
+		val file = cellGapFile()
+		val archive = requireNotNull(file.background)
 		val bytes = ByteArrayOutputStream().also { codec.writeCell(it, file) }.toByteArray()
 		assertEquals(file, codec.readCell(ByteArrayInputStream(bytes)))
 		val streamed = ByteArrayOutputStream()
@@ -249,5 +386,31 @@ class RadioSourceFileJsonV2CodecTest {
 					runBlocking { codec.readCell(ByteArrayInputStream(invalid.toByteArray())) }
 				}
 			}
+	}
+
+	private suspend fun cancellationFileBytes(wifi: Boolean): ByteArray = ByteArrayOutputStream().also { output ->
+		if (wifi) {
+			val gap = AmbientWifiPortableIntegrity.createGap(AmbientWifiGap(
+				identity = "d".repeat(64), origin = AmbientWifiOrigin.LOCAL_DEVICE,
+				structuralEpochDay = 0L, startTimeMs = 1_000L, endTimeMs = 2_000L,
+				storedZoneId = "UTC", reason = "provider unavailable"))
+			val archive = AmbientWifiPortableIntegrity.createArchive("e".repeat(64), emptyList(), listOf(gap))
+			codec.writeWifi(output, WifiSourceFileV2(selectedFromMs = null, selectedToExclusiveMs = null,
+				includeSessionsAcrossDates = true, observationsOutsideDates = 0,
+				sessions = emptyList(), background = archive, backgroundChildren = emptyList()))
+		} else {
+			codec.writeCell(output, cellGapFile())
+		}
+	}.toByteArray()
+
+	private fun cellGapFile(): CellSourceFileV2 {
+		val gap = AmbientCellPortableIntegrity.createGap(AmbientCellGap(
+			identity = "d".repeat(64), origin = AmbientCellOrigin.LOCAL_DEVICE,
+			structuralEpochDay = 0L, startTimeMs = 1_000L, endTimeMs = 2_000L,
+			storedZoneId = "UTC", reason = "provider unavailable"))
+		val archive = AmbientCellPortableIntegrity.createArchive("e".repeat(64), emptyList(), listOf(gap))
+		return CellSourceFileV2(selectedFromMs = null, selectedToExclusiveMs = null,
+			includeSessionsAcrossDates = true, observationsOutsideDates = 0,
+			sessions = emptyList(), background = archive, backgroundChildren = emptyList())
 	}
 }

@@ -11,7 +11,6 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedActivityZoneEpochE
 
 /** Shared fail-closed reconstruction used before any imported Activity lineage is extended. */
 internal object ImportedActivityLineageAuthenticator {
-	@Suppress("LongMethod", "ComplexCondition")
 	fun authenticate(
 		identity: String,
 		expectedCollectedDataEpoch: Long,
@@ -23,16 +22,7 @@ internal object ImportedActivityLineageAuthenticator {
 		fragments: List<ImportedActivityFragmentEntity>,
 		retainedState: SourceEvidenceState? = null,
 	): AuthenticatedImportedActivityLineage = storedValue {
-		if (headers.size > ImportedActivityDao.MAX_REVISIONS_PER_ENTRY) fail(Reason.REVISION_OVERFLOW)
-		if (receipts.size > ImportedActivityDao.MAX_RECEIPTS_PER_ENTRY) fail(Reason.DEPENDENCY_OVERFLOW)
-		if (runs.size > ImportedActivityDao.MAX_TOTAL_RUNS_PER_LINEAGE) fail(Reason.RUN_OVERFLOW)
-		if (zoneEpochs.size > ImportedActivityDao.MAX_TOTAL_ZONE_EPOCHS_PER_LINEAGE) {
-			fail(Reason.ZONE_EPOCH_OVERFLOW)
-		}
-		if (windows.size > ImportedActivityDao.MAX_TOTAL_WINDOWS_PER_LINEAGE) fail(Reason.WINDOW_OVERFLOW)
-		if (fragments.size > ImportedActivityDao.MAX_TOTAL_FRAGMENTS_PER_LINEAGE) {
-			fail(Reason.FRAGMENT_OVERFLOW)
-		}
+		authenticateLineageBounds(headers, receipts, runs, zoneEpochs, windows, fragments)
 		if (headers.isEmpty()) {
 			require(
 				receipts.isEmpty() && runs.isEmpty() && zoneEpochs.isEmpty() && windows.isEmpty() &&
@@ -42,38 +32,11 @@ internal object ImportedActivityLineageAuthenticator {
 		}
 
 		val orderedHeaders = headers.sortedBy(ImportedActivityEntryRevisionEntity::importRevision)
-		orderedHeaders.forEachIndexed { index, header ->
-			val revision = index.toLong() + 1L
-			require(header.identity == identity)
-			require(header.importRevision == revision)
-			require(header.supersedesImportRevision == if (revision == 1L) null else revision - 1L)
-			require((retainedState?.acceptsRetainedEpoch(header.collectedDataEpoch) ?: (header.collectedDataEpoch == expectedCollectedDataEpoch)))
-			require(header.sourceFormat == ActivityCapturedPortableFormatV1.FORMAT)
-			require(header.sourceSchemaVersion == ActivityCapturedPortableFormatV1.SCHEMA_VERSION)
-		}
-		val headersByRevision = orderedHeaders.associateBy { it.importRevision }
-		require(headersByRevision.size == orderedHeaders.size)
-		require(orderedHeaders.map { it.sessionMode }.distinct().size == 1)
-		require(orderedHeaders.map { it.contentChecksum }.distinct().size == orderedHeaders.size)
-		require(receipts.map { it.importJobId to it.importEntryKey }.distinct().size == receipts.size)
-		receipts.forEach { receipt ->
-			val header = requireNotNull(headersByRevision[receipt.entryImportRevision])
-			require(receipt.entryIdentity == header.identity)
-			require(receipt.entryContentChecksum == header.contentChecksum)
-			require(receipt.collectedDataEpoch == header.collectedDataEpoch)
-		}
-		orderedHeaders.forEach { header -> require(receipts.any { it.exactlyOwns(header) }) }
+		val headersByRevision = authenticateHeadersAndReceipts(
+			identity, expectedCollectedDataEpoch, orderedHeaders, receipts, retainedState,
+		)
 
-		val revisionNumbers = headersByRevision.keys
-		require(runs.all { it.entryIdentity == identity && it.entryImportRevision in revisionNumbers })
-		require(zoneEpochs.all {
-			it.entryIdentity == identity && it.entryImportRevision in revisionNumbers
-		})
-		require(windows.all { it.entryIdentity == identity && it.entryImportRevision in revisionNumbers })
-		require(fragments.all {
-			it.entryIdentity == identity && it.entryImportRevision in revisionNumbers
-		})
-		authenticateIdentityOwnership(identity, runs, windows)
+		authenticateRevisionMembership(identity, headersByRevision.keys, runs, zoneEpochs, windows, fragments)
 
 		val runsByRevision = runs.groupBy(ImportedActivityRunEntity::entryImportRevision)
 		val zonesByRevision = zoneEpochs.groupBy(ImportedActivityZoneEpochEntity::entryImportRevision)
@@ -107,6 +70,89 @@ internal object ImportedActivityLineageAuthenticator {
 		)
 	}
 
+	private fun authenticateLineageBounds(
+		headers: List<ImportedActivityEntryRevisionEntity>,
+		receipts: List<ImportedActivityReceiptEntity>,
+		runs: List<ImportedActivityRunEntity>,
+		zoneEpochs: List<ImportedActivityZoneEpochEntity>,
+		windows: List<ImportedActivityWindowEntity>,
+		fragments: List<ImportedActivityFragmentEntity>,
+	) {
+		if (headers.size > ImportedActivityDao.MAX_REVISIONS_PER_ENTRY) {
+			fail(Reason.REVISION_OVERFLOW)
+		}
+		if (receipts.size > ImportedActivityDao.MAX_RECEIPTS_PER_ENTRY) {
+			fail(Reason.DEPENDENCY_OVERFLOW)
+		}
+		if (runs.size > ImportedActivityDao.MAX_TOTAL_RUNS_PER_LINEAGE) {
+			fail(Reason.RUN_OVERFLOW)
+		}
+		if (zoneEpochs.size > ImportedActivityDao.MAX_TOTAL_ZONE_EPOCHS_PER_LINEAGE) {
+			fail(Reason.ZONE_EPOCH_OVERFLOW)
+		}
+		if (windows.size > ImportedActivityDao.MAX_TOTAL_WINDOWS_PER_LINEAGE) {
+			fail(Reason.WINDOW_OVERFLOW)
+		}
+		if (fragments.size > ImportedActivityDao.MAX_TOTAL_FRAGMENTS_PER_LINEAGE) {
+			fail(Reason.FRAGMENT_OVERFLOW)
+		}
+	}
+
+	private fun authenticateHeadersAndReceipts(
+		identity: String,
+		expectedCollectedDataEpoch: Long,
+		orderedHeaders: List<ImportedActivityEntryRevisionEntity>,
+		receipts: List<ImportedActivityReceiptEntity>,
+		retainedState: SourceEvidenceState?,
+	): Map<Long, ImportedActivityEntryRevisionEntity> {
+		orderedHeaders.forEachIndexed { index, header ->
+			val revision = index.toLong() + 1L
+			require(header.identity == identity)
+			require(header.importRevision == revision)
+			require(header.supersedesImportRevision == if (revision == 1L) {
+				null
+			} else {
+				revision - 1L
+			})
+			require((retainedState?.acceptsRetainedEpoch(header.collectedDataEpoch) ?:
+                (header.collectedDataEpoch == expectedCollectedDataEpoch)))
+			require(header.sourceFormat == ActivityCapturedPortableFormatV1.FORMAT)
+			require(header.sourceSchemaVersion == ActivityCapturedPortableFormatV1.SCHEMA_VERSION)
+		}
+		val headersByRevision = orderedHeaders.associateBy { it.importRevision }
+		require(headersByRevision.size == orderedHeaders.size)
+		require(orderedHeaders.map { it.sessionMode }.distinct().size == 1)
+		require(orderedHeaders.map { it.contentChecksum }.distinct().size == orderedHeaders.size)
+		require(receipts.map { it.importJobId to it.importEntryKey }.distinct().size == receipts.size)
+		receipts.forEach { receipt ->
+			val header = requireNotNull(headersByRevision[receipt.entryImportRevision])
+			require(receipt.entryIdentity == header.identity)
+			require(receipt.entryContentChecksum == header.contentChecksum)
+			require(receipt.collectedDataEpoch == header.collectedDataEpoch)
+		}
+		orderedHeaders.forEach { header -> require(receipts.any { it.exactlyOwns(header) }) }
+		return headersByRevision
+	}
+
+	private fun authenticateRevisionMembership(
+		identity: String,
+		revisionNumbers: Set<Long>,
+		runs: List<ImportedActivityRunEntity>,
+		zoneEpochs: List<ImportedActivityZoneEpochEntity>,
+		windows: List<ImportedActivityWindowEntity>,
+		fragments: List<ImportedActivityFragmentEntity>,
+	) {
+		require(runs.all { it.entryIdentity == identity && it.entryImportRevision in revisionNumbers })
+		require(zoneEpochs.all {
+			it.entryIdentity == identity && it.entryImportRevision in revisionNumbers
+		})
+		require(windows.all { it.entryIdentity == identity && it.entryImportRevision in revisionNumbers })
+		require(fragments.all {
+			it.entryIdentity == identity && it.entryImportRevision in revisionNumbers
+		})
+		authenticateIdentityOwnership(identity, runs, windows)
+	}
+
 	private fun ImportedActivityReceiptEntity.exactlyOwns(
 		header: ImportedActivityEntryRevisionEntity,
 	): Boolean = importJobId == header.importJobId && importEntryKey == header.importEntryKey &&
@@ -124,7 +170,11 @@ internal object ImportedActivityLineageAuthenticator {
 		val deletionScopeOwners = mutableMapOf<String, String>()
 		fun bind(identity: String, owner: ImportedActivityIdentityOwner) {
 			val previous = owners[identity]
-			if (previous == null) owners[identity] = owner else require(previous == owner)
+			if (previous == null) {
+				owners[identity] = owner
+			} else {
+				require(previous == owner)
+			}
 		}
 		bind(entryIdentity, ImportedActivityIdentityOwner(PortableActivityIdentityKind.LOGICAL_ENTRY))
 		runs.forEach { run ->
@@ -164,8 +214,12 @@ internal object ImportedActivityLineageAuthenticator {
 		windows: List<ImportedActivityWindowEntity>,
 		fragments: List<ImportedActivityFragmentEntity>,
 	): PortableActivityEntryV1 {
-		if (runs.size > ActivityCapturedPortableFormatV1.MAX_RUNS_PER_ENTRY) fail(Reason.RUN_OVERFLOW)
-		if (windows.size > ImportedActivityDao.MAX_TOTAL_WINDOWS_PER_ENTRY) fail(Reason.WINDOW_OVERFLOW)
+		if (runs.size > ActivityCapturedPortableFormatV1.MAX_RUNS_PER_ENTRY) {
+			fail(Reason.RUN_OVERFLOW)
+		}
+		if (windows.size > ImportedActivityDao.MAX_TOTAL_WINDOWS_PER_ENTRY) {
+			fail(Reason.WINDOW_OVERFLOW)
+		}
 		if (fragments.size > ImportedActivityDao.MAX_TOTAL_FRAGMENTS_PER_ENTRY) {
 			fail(Reason.FRAGMENT_OVERFLOW)
 		}
@@ -319,16 +373,24 @@ internal fun PortableActivityEntryV1.hasSameImportedActivityStructureAs(
 ): Boolean = identity == other.identity && sessionMode == other.sessionMode &&
 	startTimeMs == other.startTimeMs && endTimeMs == other.endTimeMs &&
 	runs.size == other.runs.size && runs.zip(other.runs).all { (leftRun, rightRun) ->
-		leftRun.identity == rightRun.identity &&
-			leftRun.deletionScopeDigest == rightRun.deletionScopeDigest &&
-			leftRun.startTimeMs == rightRun.startTimeMs && leftRun.endTimeMs == rightRun.endTimeMs &&
-			leftRun.captureCoverage == rightRun.captureCoverage &&
-			leftRun.zoneEpochs == rightRun.zoneEpochs &&
-			leftRun.windows.size == rightRun.windows.size &&
-			leftRun.windows.zip(rightRun.windows).all { (leftWindow, rightWindow) ->
-				leftWindow.identity == rightWindow.identity &&
-					leftWindow.startOffsetNanos == rightWindow.startOffsetNanos &&
-					leftWindow.endOffsetNanos == rightWindow.endOffsetNanos &&
-					leftWindow.storedZoneId == rightWindow.storedZoneId
-			}
+		leftRun.hasSameImportedActivityStructureAs(rightRun)
 	}
+
+private fun PortableActivityRunV1.hasSameImportedActivityStructureAs(other: PortableActivityRunV1): Boolean =
+	identity == other.identity &&
+		deletionScopeDigest == other.deletionScopeDigest &&
+		startTimeMs == other.startTimeMs && endTimeMs == other.endTimeMs &&
+		captureCoverage == other.captureCoverage &&
+		zoneEpochs == other.zoneEpochs &&
+		windows.size == other.windows.size &&
+		windows.zip(other.windows).all { (leftWindow, rightWindow) ->
+			leftWindow.hasSameImportedActivityStructureAs(rightWindow)
+		}
+
+private fun PortableActivityWindowV1.hasSameImportedActivityStructureAs(
+	other: PortableActivityWindowV1,
+): Boolean =
+	identity == other.identity &&
+		startOffsetNanos == other.startOffsetNanos &&
+		endOffsetNanos == other.endOffsetNanos &&
+		storedZoneId == other.storedZoneId

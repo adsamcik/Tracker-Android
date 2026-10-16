@@ -217,6 +217,20 @@ enum class ExportFormat(
         sensitivityMessageRes = R.string.export_sensitivity_portable_pressure_message,
         sensitivityTitleRes = R.string.export_sensitivity_portable_title,
     ),
+    WIFI(
+        formatId = "tracker-wifi",
+        displayNameRes = com.adsamcik.tracker.impexp.R.string.format_portable_wifi,
+        descriptionRes = com.adsamcik.tracker.impexp.R.string.export_wifi_sensitivity_message,
+        sensitivityMessageRes = com.adsamcik.tracker.impexp.R.string.export_wifi_sensitivity_message,
+        sensitivityTitleRes = com.adsamcik.tracker.impexp.R.string.export_radio_sensitivity_title,
+    ),
+    CELL(
+        formatId = "tracker-cell",
+        displayNameRes = com.adsamcik.tracker.impexp.R.string.format_portable_cell,
+        descriptionRes = com.adsamcik.tracker.impexp.R.string.export_cell_sensitivity_message,
+        sensitivityMessageRes = com.adsamcik.tracker.impexp.R.string.export_cell_sensitivity_message,
+        sensitivityTitleRes = com.adsamcik.tracker.impexp.R.string.export_radio_sensitivity_title,
+    ),
     LOCATION(
         formatId = "tracker-location",
         displayNameRes = R.string.setup_source_location,
@@ -244,6 +258,8 @@ private val ExportFormat.icon: ImageVector
         ExportFormat.PORTABLE_AMBIENT_STEPS,
         ExportFormat.PORTABLE_ACTIVITY,
         ExportFormat.PORTABLE_PRESSURE,
+        ExportFormat.WIFI,
+        ExportFormat.CELL,
         ExportFormat.LOCATION -> Icons.Default.Storage
     }
 

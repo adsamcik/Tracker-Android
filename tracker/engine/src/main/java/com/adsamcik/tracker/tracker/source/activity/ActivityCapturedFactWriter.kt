@@ -120,7 +120,9 @@ internal class ActivityCapturedFactWriter(
 					serviceRunId = serviceRunId,
 				),
 			)
-		) reject(ActivityCapturedWriteRejection.DELETED_SCOPE)
+		) {
+			reject(ActivityCapturedWriteRejection.DELETED_SCOPE)
+		}
 
 		val owner = database.sourceDestinationOwnerDao().get(
 			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
@@ -129,7 +131,9 @@ internal class ActivityCapturedFactWriter(
 		if (owner?.owner != SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS ||
 			SourceWriterGenerationContract.bindingGenerationForCanonicalOwner(owner.ownerGeneration)
 				?.let(SourceWriterGenerationContract::captureModeMaskForKnownBinding) == null
-		) reject(ActivityCapturedWriteRejection.DESTINATION_OWNER_CHANGED)
+		) {
+			reject(ActivityCapturedWriteRejection.DESTINATION_OWNER_CHANGED)
+		}
 
 		val sessionDao = database.sourceSessionDao()
 		val session = sessionDao.session(logicalTrackingId)
@@ -140,11 +144,14 @@ internal class ActivityCapturedFactWriter(
 			?: reject(ActivityCapturedWriteRejection.SEGMENT_REVERSE_BINDING_MISMATCH)
 		if (run.logicalTrackingId != logicalTrackingId ||
 			!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, authority.lifecycleLeaseGeneration) ||
-			session.lifecycleLeaseGeneration < authority.lifecycleLeaseGeneration ||
-			(session.currentServiceRunId == serviceRunId &&
+			session.lifecycleLeaseGeneration < authority.lifecycleLeaseGeneration) {
+			reject(ActivityCapturedWriteRejection.SERVICE_RUN_MISMATCH)
+		}
+		if ((session.currentServiceRunId == serviceRunId &&
 				(run.leaseGeneration != session.lifecycleLeaseGeneration || run.bootId != session.lifecycleBootId)) ||
-			run.startedElapsedNanos != authority.temporalAuthority.sessionRunEffect.startInclusiveNanos
-		) reject(ActivityCapturedWriteRejection.SERVICE_RUN_MISMATCH)
+			run.startedElapsedNanos != authority.temporalAuthority.sessionRunEffect.startInclusiveNanos) {
+			reject(ActivityCapturedWriteRejection.SERVICE_RUN_MISMATCH)
+		}
 		val segment = database.sessionSegmentDao().getById(segmentId)
 		if (segment?.logicalTrackingId != logicalTrackingId || segment.serviceRunId != serviceRunId) {
 			reject(ActivityCapturedWriteRejection.SEGMENT_REVERSE_BINDING_MISMATCH)
@@ -168,16 +175,21 @@ internal class ActivityCapturedFactWriter(
 		val manifestIndex = runManifests.indexOfFirst { candidate ->
 			candidate.manifestRevision == authority.sessionManifestRevision
 		}
-		if (manifestIndex < 0) reject(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
+		if (manifestIndex < 0) {
+			reject(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
+		}
 		val manifest = runManifests[manifestIndex]
 		val sources = checkNotNull(manifestSourcesByRevision[authority.sessionManifestRevision])
 		if (manifest.logicalTrackingId != logicalTrackingId ||
 			manifest.sourcePolicyRevision != authority.sourcePolicyRevision ||
 			manifest.acquisitionPlanRevision != authority.configurationRevision ||
-			manifest.effectiveBootId != authority.clockDomainId ||
-			manifest.effectiveElapsedRealtimeNanos > window.intervalStartElapsedRealtimeNanos ||
-			!SessionManifestIntegrity.verify(manifest, sources)
-		) reject(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
+			manifest.effectiveBootId != authority.clockDomainId) {
+			reject(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
+		}
+		if (manifest.effectiveElapsedRealtimeNanos > window.intervalStartElapsedRealtimeNanos ||
+			!SessionManifestIntegrity.verify(manifest, sources)) {
+			reject(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
+		}
 		try {
 			ZoneId.of(manifest.zoneId)
 		} catch (_: DateTimeException) {
@@ -186,7 +198,9 @@ internal class ActivityCapturedFactWriter(
 		val nextManifest = runManifests.getOrNull(manifestIndex + 1)
 		if (nextManifest != null &&
 			window.intervalEndExclusiveElapsedRealtimeNanos > nextManifest.effectiveElapsedRealtimeNanos
-		) reject(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
+		) {
+			reject(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
+		}
 		val binding = sources.singleOrNull { source ->
 			source.sourceKind == SOURCE_KIND && source.purpose == PURPOSE
 		} ?: reject(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
@@ -201,21 +215,26 @@ internal class ActivityCapturedFactWriter(
 			SOURCE_KIND,
 		) ?: reject(ActivityCapturedWriteRejection.POLICY_AUTHORITY_MISMATCH)
 		if (!policy.enabled || !policy.capturePersistenceEligible ||
-			policy.captureConsentEpoch != authority.captureConsentEpoch ||
-			policy.qosCode != binding.qosCode || policy.effectiveBootId != authority.clockDomainId ||
-			policy.effectiveElapsedRealtimeNanos > window.intervalStartElapsedRealtimeNanos
-		) reject(ActivityCapturedWriteRejection.POLICY_AUTHORITY_MISMATCH)
+			policy.captureConsentEpoch != authority.captureConsentEpoch || policy.qosCode != binding.qosCode) {
+			reject(ActivityCapturedWriteRejection.POLICY_AUTHORITY_MISMATCH)
+		}
+		if (policy.effectiveBootId != authority.clockDomainId ||
+			policy.effectiveElapsedRealtimeNanos > window.intervalStartElapsedRealtimeNanos) {
+			reject(ActivityCapturedWriteRejection.POLICY_AUTHORITY_MISMATCH)
+		}
 		val consent = database.sourcePolicyDao().consentEpoch(
 			SOURCE_KIND,
 			PURPOSE,
 			authority.captureConsentEpoch,
 		) ?: reject(ActivityCapturedWriteRejection.CONSENT_AUTHORITY_MISMATCH)
 		if (!consent.eligible || !consent.persistenceEligible ||
-			consent.policyRevision > authority.sourcePolicyRevision ||
-			consent.effectiveBootId != authority.clockDomainId ||
-			consent.effectiveElapsedRealtimeNanos > window.intervalStartElapsedRealtimeNanos
-		) reject(ActivityCapturedWriteRejection.CONSENT_AUTHORITY_MISMATCH)
-
+			consent.policyRevision > authority.sourcePolicyRevision) {
+			reject(ActivityCapturedWriteRejection.CONSENT_AUTHORITY_MISMATCH)
+		}
+		if (consent.effectiveBootId != authority.clockDomainId ||
+			consent.effectiveElapsedRealtimeNanos > window.intervalStartElapsedRealtimeNanos) {
+			reject(ActivityCapturedWriteRejection.CONSENT_AUTHORITY_MISMATCH)
+		}
 		val acquisitionRevision = database.sourcePlanStateDao().revision(authority.configurationRevision)
 		val desiredActivityPlan = database.sourcePlanStateDao()
 			.desiredPlans(authority.configurationRevision)
@@ -230,26 +249,30 @@ internal class ActivityCapturedFactWriter(
 			authority.registrationGeneration,
 		)
 		if (acquisitionRevision?.sourcePolicyRevision != authority.sourcePolicyRevision ||
-			desiredActivityPlan == null || decodedActivityPlan == null || verifiedActivityPlan == null ||
-			canonicalActivityPlan == null ||
+			desiredActivityPlan == null || decodedActivityPlan == null || verifiedActivityPlan == null) {
+			reject(ActivityCapturedWriteRejection.ACQUISITION_CONFIGURATION_MISMATCH)
+		}
+		if (canonicalActivityPlan == null ||
 			!desiredActivityPlan.payload.contentEquals(canonicalActivityPlan.bytes) ||
 			desiredActivityPlan.payloadChecksum != canonicalActivityPlan.checksum ||
-			verifiedActivityPlan.revision != authority.configurationRevision ||
-			!verifiedActivityPlan.enabled ||
-			verifiedActivityPlan.physicalConfigurationFingerprint !=
-				authority.physicalConfigurationFingerprint ||
-			historicalRegistrationPlan == null ||
-			historicalRegistrationPlan.configurationRevision != authority.configurationRevision ||
+			verifiedActivityPlan.revision != authority.configurationRevision) {
+			reject(ActivityCapturedWriteRejection.ACQUISITION_CONFIGURATION_MISMATCH)
+		}
+		if (!verifiedActivityPlan.enabled ||
+			verifiedActivityPlan.physicalConfigurationFingerprint != authority.physicalConfigurationFingerprint ||
+			historicalRegistrationPlan == null) {
+			reject(ActivityCapturedWriteRejection.ACQUISITION_CONFIGURATION_MISMATCH)
+		}
+		if (historicalRegistrationPlan.configurationRevision != authority.configurationRevision ||
 			historicalRegistrationPlan.desiredPlanPayloadVersion != desiredActivityPlan.payloadVersion ||
 			!historicalRegistrationPlan.desiredPlanPayload.contentEquals(desiredActivityPlan.payload) ||
-			historicalRegistrationPlan.desiredPlanPayloadChecksum !=
-				desiredActivityPlan.payloadChecksum ||
-			historicalRegistrationPlan.physicalConfigurationFingerprint !=
-				authority.physicalConfigurationFingerprint ||
-			historicalRegistrationPlan.appliedAtElapsedRealtimeNanos >
-				window.intervalStartElapsedRealtimeNanos
-		) reject(ActivityCapturedWriteRejection.ACQUISITION_CONFIGURATION_MISMATCH)
-
+			historicalRegistrationPlan.desiredPlanPayloadChecksum != desiredActivityPlan.payloadChecksum) {
+			reject(ActivityCapturedWriteRejection.ACQUISITION_CONFIGURATION_MISMATCH)
+		}
+		if (historicalRegistrationPlan.physicalConfigurationFingerprint != authority.physicalConfigurationFingerprint ||
+			historicalRegistrationPlan.appliedAtElapsedRealtimeNanos > window.intervalStartElapsedRealtimeNanos) {
+			reject(ActivityCapturedWriteRejection.ACQUISITION_CONFIGURATION_MISMATCH)
+		}
 		val registration = database.sourceBrokerDao().registration(
 			SOURCE_KIND,
 			authority.registrationGeneration,
@@ -258,12 +281,13 @@ internal class ActivityCapturedFactWriter(
 		if (registration.sourceInstanceId != authority.sourceInstanceId.value ||
 			registration.clockDomainId != authority.clockDomainId ||
 			registration.physicalConfigurationFingerprint != authority.physicalConfigurationFingerprint ||
-			registration.collectedDataEpoch != authority.collectedDataEpoch ||
-			registration.acceptedElapsedRealtimeNanos !=
-				authority.temporalAuthority.providerAcceptance.startInclusiveNanos ||
-			expectedProviderEnd != authority.temporalAuthority.providerAcceptance.endExclusiveNanos
-		) reject(ActivityCapturedWriteRejection.PROVIDER_AUTHORITY_MISMATCH)
-
+			registration.collectedDataEpoch != authority.collectedDataEpoch) {
+			reject(ActivityCapturedWriteRejection.PROVIDER_AUTHORITY_MISMATCH)
+		}
+		if (registration.acceptedElapsedRealtimeNanos != authority.temporalAuthority.providerAcceptance.startInclusiveNanos ||
+			expectedProviderEnd != authority.temporalAuthority.providerAcceptance.endExclusiveNanos) {
+			reject(ActivityCapturedWriteRejection.PROVIDER_AUTHORITY_MISMATCH)
+		}
 		val authorization = database.sourceBrokerDao().authorizationRevision(
 			SOURCE_KIND,
 			authority.registrationGeneration,
@@ -288,12 +312,14 @@ internal class ActivityCapturedFactWriter(
 		if (authorization.authorizationRevision != authority.authorizationRevision ||
 			authorization.authorizationFingerprint != authority.authorizationFingerprint ||
 			authorization.purposeEligibilityMask != authority.purposeEligibilityMask ||
-			authorization.effectiveBootId != authority.clockDomainId || !memberMatches ||
-			authorization.effectiveElapsedRealtimeNanos !=
-				authority.temporalAuthority.authorizationEffect.startInclusiveNanos ||
-			nextAuthorizationBoundary != authority.temporalAuthority.authorizationEffect.endExclusiveNanos
-		) reject(ActivityCapturedWriteRejection.AUTHORIZATION_AUTHORITY_MISMATCH)
-
+			authorization.effectiveBootId != authority.clockDomainId) {
+			reject(ActivityCapturedWriteRejection.AUTHORIZATION_AUTHORITY_MISMATCH)
+		}
+		if (!memberMatches ||
+			authorization.effectiveElapsedRealtimeNanos != authority.temporalAuthority.authorizationEffect.startInclusiveNanos ||
+			nextAuthorizationBoundary != authority.temporalAuthority.authorizationEffect.endExclusiveNanos) {
+			reject(ActivityCapturedWriteRejection.AUTHORIZATION_AUTHORITY_MISMATCH)
+		}
 		val originalCutoff = database.savedSessionCutoff(session)
 		val expectedRunEnd = when {
 			originalCutoff.bootId == authority.clockDomainId -> originalCutoff.elapsedNanos
@@ -302,7 +328,9 @@ internal class ActivityCapturedFactWriter(
 			else -> null
 		} ?: Long.MAX_VALUE
 		if (expectedRunEnd != authority.temporalAuthority.sessionRunEffect.endExclusiveNanos
-		) reject(ActivityCapturedWriteRejection.SERVICE_RUN_MISMATCH)
+		) {
+			reject(ActivityCapturedWriteRejection.SERVICE_RUN_MISMATCH)
+		}
 
 		requireExactDurableEvidence(window, decodedActivityPlan)
 
@@ -335,7 +363,9 @@ internal class ActivityCapturedFactWriter(
 			)
 			listOfNotNull(currentWallAuthority, priorWallAuthority).minOrNull()
 				?.let { authoritativeStart -> authoritativeStart < retainedFrom } ?: true
-		} == true) reject(ActivityCapturedWriteRejection.RETAINED_DATA)
+		} == true) {
+			reject(ActivityCapturedWriteRejection.RETAINED_DATA)
+		}
 		val existing = dao.revision(WRITER_ID, WRITER_VERSION, mapped.revision.logicalWindowId,
 			mapped.revision.semanticRevision)
 		if (existing != null) {
@@ -344,7 +374,9 @@ internal class ActivityCapturedFactWriter(
 					mapped.revision.semanticRevision) == mapped.fragments &&
 				dao.evidence(WRITER_ID, WRITER_VERSION, mapped.revision.logicalWindowId,
 					mapped.revision.semanticRevision) == mapped.evidence
-			if (!exact) reject(ActivityCapturedWriteRejection.IDENTITY_COLLISION)
+			if (!exact) {
+				reject(ActivityCapturedWriteRejection.IDENTITY_COLLISION)
+			}
 			val cursor = dao.cursor(WRITER_ID, WRITER_VERSION, mapped.revision.logicalWindowId)
 			if (cursor == null || cursor.latestSemanticRevision < mapped.revision.semanticRevision) {
 				reject(ActivityCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
@@ -352,7 +384,9 @@ internal class ActivityCapturedFactWriter(
 			if (cursor.latestSemanticRevision == mapped.revision.semanticRevision &&
 				(cursor.latestMutationId != mapped.revision.mutationId ||
 					cursor.latestEffectChecksum != mapped.revision.effectChecksum)
-			) reject(ActivityCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			) {
+				reject(ActivityCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			}
 			return ActivityCapturedWriteResult.Unchanged(
 				mapped.revision.logicalWindowId,
 				mapped.revision.semanticRevision,
@@ -365,14 +399,20 @@ internal class ActivityCapturedFactWriter(
 			if (mapped.revision.semanticRevision != 1L || mapped.revision.supersedesSemanticRevision != null) {
 				reject(ActivityCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 			}
-			if (window.bands.isEmpty()) reject(ActivityCapturedWriteRejection.EMPTY_INITIAL_WINDOW)
-		} else if (current.latestSemanticRevision != mapped.revision.supersedesSemanticRevision ||
-			current.latestSemanticRevision + 1L != mapped.revision.semanticRevision ||
-			current.logicalTrackingId != logicalTrackingId || current.serviceRunId != serviceRunId ||
-			current.sessionSegmentId != segmentId ||
-			current.writerOwnerGeneration != owner.ownerGeneration ||
-			current.collectedDataEpoch != authority.collectedDataEpoch
-		) reject(ActivityCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			if (window.bands.isEmpty()) {
+				reject(ActivityCapturedWriteRejection.EMPTY_INITIAL_WINDOW)
+			}
+		} else {
+			if (current.latestSemanticRevision != mapped.revision.supersedesSemanticRevision ||
+				current.latestSemanticRevision + 1L != mapped.revision.semanticRevision ||
+				current.logicalTrackingId != logicalTrackingId || current.serviceRunId != serviceRunId) {
+				reject(ActivityCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			}
+			if (current.sessionSegmentId != segmentId || current.writerOwnerGeneration != owner.ownerGeneration ||
+				current.collectedDataEpoch != authority.collectedDataEpoch) {
+				reject(ActivityCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			}
+		}
 		if (current?.latestEffectChecksum == mapped.revision.effectChecksum) {
 			return ActivityCapturedWriteResult.Unchanged(
 				mapped.revision.logicalWindowId,
@@ -389,7 +429,9 @@ internal class ActivityCapturedFactWriter(
 		val nextCursorRevision = (current?.cursorRevision ?: 0L) + 1L
 		if (current == null) {
 			val inserted = dao.insertCursor(mapped.cursor.copy(cursorRevision = nextCursorRevision))
-			if (inserted == INSERT_IGNORED) reject(ActivityCapturedWriteRejection.CURSOR_CHANGED)
+			if (inserted == INSERT_IGNORED) {
+				reject(ActivityCapturedWriteRejection.CURSOR_CHANGED)
+			}
 		} else if (dao.advanceCursorExact(
 				writerProjectionId = WRITER_ID,
 				writerProjectionVersion = WRITER_VERSION,
@@ -406,7 +448,9 @@ internal class ActivityCapturedFactWriter(
 				newCursorRevision = nextCursorRevision,
 				updatedAtMs = mapped.revision.appliedAtMs,
 			) != 1
-		) reject(ActivityCapturedWriteRejection.CURSOR_CHANGED)
+		) {
+			reject(ActivityCapturedWriteRejection.CURSOR_CHANGED)
+		}
 		check(database.sourceEvidenceStateDao().incrementRevision(mapped.revision.appliedAtMs) == 1) {
 			"Unable to publish captured Activity fact revision"
 		}
@@ -450,7 +494,9 @@ internal class ActivityCapturedFactWriter(
 					band.intervalEndExclusiveElapsedRealtimeNanos,
 					walByEventId,
 				)
-			) reject(ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH)
+			) {
+				reject(ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH)
+			}
 		}
 	}
 
@@ -489,33 +535,49 @@ private fun ActivityCapturedObservationReference.matches(
 		?: return false
 	if (receivedElapsedRealtimeNanos < providerElapsedRealtimeNanos ||
 		receivedElapsedRealtimeNanos - providerElapsedRealtimeNanos > maximumAgeNanos
-	) return false
+	) {
+		return false
+	}
 	return when (payload) {
-		is ActivityTransitionPayload ->
-			observationKind == ActivityCapturedObservationKind.TRANSITION &&
-				activityPlan.mode == ActivityMode.TRANSITIONS_ONLY &&
-				payload.transitionType in activityPlan.transitionTypes &&
-				payload.activityType == observedActivity.stableActivityTypeCode() &&
-				payload.transitionType == transitionChange?.stableTransitionCode() &&
-				payload.providerElapsedRealtimeNanos == providerElapsedRealtimeNanos &&
-				coverageEndExclusiveElapsedRealtimeNanos == null
-		is ActivityRecognitionPayload ->
-			observationKind == ActivityCapturedObservationKind.SAMPLED_CLASSIFICATION &&
-				activityPlan.mode == ActivityMode.CONTINUOUS_RECOGNITION &&
-				payload.activityType == observedActivity.stableActivityTypeCode() &&
-				payload.confidencePercent == confidencePercent &&
-				payload.confidencePercent >= activityPlan.confidenceThresholdPercent &&
-				payload.providerElapsedRealtimeNanos == providerElapsedRealtimeNanos &&
-				coverageEndExclusiveElapsedRealtimeNanos ==
-				expectedSampledCoverageEnd(activityPlan, authority)
+		is ActivityTransitionPayload -> matchesTransition(payload, activityPlan)
+		is ActivityRecognitionPayload -> matchesSample(payload, activityPlan, authority)
 		else -> false
 	}
 }
 
+private fun ActivityCapturedObservationReference.matchesTransition(
+	payload: ActivityTransitionPayload,
+	activityPlan: ActivityPlan,
+): Boolean =
+	observationKind == ActivityCapturedObservationKind.TRANSITION &&
+		activityPlan.mode == ActivityMode.TRANSITIONS_ONLY &&
+		payload.transitionType in activityPlan.transitionTypes &&
+		payload.activityType == observedActivity.stableActivityTypeCode() &&
+		payload.transitionType == transitionChange?.stableTransitionCode() &&
+		payload.providerElapsedRealtimeNanos == providerElapsedRealtimeNanos &&
+		coverageEndExclusiveElapsedRealtimeNanos == null
+
+private fun ActivityCapturedObservationReference.matchesSample(
+	payload: ActivityRecognitionPayload,
+	activityPlan: ActivityPlan,
+	authority: ActivityCaptureAuthority,
+): Boolean =
+	observationKind == ActivityCapturedObservationKind.SAMPLED_CLASSIFICATION &&
+		activityPlan.mode == ActivityMode.CONTINUOUS_RECOGNITION &&
+		payload.activityType == observedActivity.stableActivityTypeCode() &&
+		payload.confidencePercent == confidencePercent &&
+		payload.confidencePercent >= activityPlan.confidenceThresholdPercent &&
+		payload.providerElapsedRealtimeNanos == providerElapsedRealtimeNanos &&
+		coverageEndExclusiveElapsedRealtimeNanos == expectedSampledCoverageEnd(activityPlan, authority)
+
 private fun Long?.earliestPossible(uncertaintyMs: Long?): Long? {
 	val wallTimeMs = this ?: return null
 	val uncertainty = uncertaintyMs ?: return null
-	return if (wallTimeMs <= uncertainty) 0L else wallTimeMs - uncertainty
+	return if (wallTimeMs <= uncertainty) {
+		0L
+	} else {
+		wallTimeMs - uncertainty
+	}
 }
 
 private fun ActivityCapturedObservationReference.expectedSampledCoverageEnd(
@@ -552,6 +614,8 @@ private fun ActivityTransitionChange.stableTransitionCode(): Int = when (this) {
 	ActivityTransitionChange.EXIT -> 1
 }
 
+// One complete three-object storage correspondence.
+@Suppress("CyclomaticComplexMethod")
 private fun SourceEventWalEntity.matches(
 	reference: ActivityCapturedObservationReference,
 	authority: ActivityCaptureAuthority,
@@ -580,6 +644,7 @@ private fun SourceEventWalEntity.matches(
 	sessionManifestRevision == authority.sessionManifestRevision &&
 	lifecycleLeaseGeneration == authority.lifecycleLeaseGeneration
 
+@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 private fun ActivityDerivedWallTimeBoundary.matchesWalAnchor(
 	boundaryElapsedRealtimeNanos: Long,
 	walByEventId: Map<String, SourceEventWalEntity>,
@@ -587,14 +652,30 @@ private fun ActivityDerivedWallTimeBoundary.matchesWalAnchor(
 	val wal = walByEventId[authority.anchorSourceEventId.value] ?: return false
 	val anchorWallTimeMs = wal.wallTimeMs ?: return false
 	val anchorUncertaintyMs = wal.wallTimeUncertaintyMs ?: return false
-	if (authority.anchorProviderElapsedRealtimeNanos != wal.observedElapsedNanos) return false
+	if (authority.anchorProviderElapsedRealtimeNanos != wal.observedElapsedNanos) {
+		return false
+	}
+	return matchesWalTimeProjection(boundaryElapsedRealtimeNanos, wal.observedElapsedNanos,
+		anchorWallTimeMs, anchorUncertaintyMs)
+}
+
+private fun ActivityDerivedWallTimeBoundary.matchesWalTimeProjection(
+	boundaryElapsedRealtimeNanos: Long,
+	observedElapsedNanos: Long,
+	anchorWallTimeMs: Long,
+	anchorUncertaintyMs: Long,
+): Boolean {
 	val deltaNanos = runCatching {
-		Math.subtractExact(boundaryElapsedRealtimeNanos, wal.observedElapsedNanos)
+		Math.subtractExact(boundaryElapsedRealtimeNanos, observedElapsedNanos)
 	}.getOrNull() ?: return false
 	val deltaMs = deltaNanos / NANOS_PER_MILLISECOND
 	val expectedWallTimeMs = runCatching { Math.addExact(anchorWallTimeMs, deltaMs) }
 		.getOrNull() ?: return false
-	val roundingUncertaintyMs = if (deltaNanos % NANOS_PER_MILLISECOND == 0L) 0L else 1L
+	val roundingUncertaintyMs = if (deltaNanos % NANOS_PER_MILLISECOND == 0L) {
+		0L
+	} else {
+		1L
+	}
 	val expectedUncertaintyMs = runCatching {
 		Math.addExact(anchorUncertaintyMs, roundingUncertaintyMs)
 	}.getOrNull() ?: return false
@@ -607,6 +688,8 @@ private fun ActivityDerivedWallTimeBoundary.matchesWalAnchor(
 		uncertaintyMs == expectedUncertaintyMs
 }
 
+// One declared writer binding shape with a necessary two-mode compatibility branch.
+@Suppress("CyclomaticComplexMethod")
 private fun SessionManifestSourceEntity.isExactCandidate(
 	consentEpoch: Long,
 	ownerGeneration: Long,
@@ -644,10 +727,8 @@ private object ActivityCapturedPersistence {
 	): ActivityCapturedPersistedMutation {
 		val logicalWindowId = digest("activity-captured-window-v1", identityParts(window))
 		val semanticRevision = window.mutation.semanticRevision
-		val mutationId = digest(
-			"activity-captured-mutation-v1",
-			listOf(logicalWindowId, semanticRevision.toString()),
-		)
+		val mutationId =
+			digest("activity-captured-mutation-v1", listOf(logicalWindowId, semanticRevision.toString()))
 		val fragments = mapFragments(window, logicalWindowId)
 		val evidence = mapEvidence(window, logicalWindowId, fragments)
 		val authority = window.authority
@@ -681,11 +762,9 @@ private object ActivityCapturedPersistence {
 			collectedDataEpoch = authority.collectedDataEpoch,
 			clockDomainId = authority.clockDomainId,
 			storedZoneId = storedZoneId,
-			providerAcceptanceStartNanos =
-				authority.temporalAuthority.providerAcceptance.startInclusiveNanos,
+			providerAcceptanceStartNanos = authority.temporalAuthority.providerAcceptance.startInclusiveNanos,
 			providerAcceptanceEndNanos = authority.temporalAuthority.providerAcceptance.endExclusiveNanos,
-			authorizationEffectStartNanos =
-				authority.temporalAuthority.authorizationEffect.startInclusiveNanos,
+			authorizationEffectStartNanos = authority.temporalAuthority.authorizationEffect.startInclusiveNanos,
 			authorizationEffectEndNanos = authority.temporalAuthority.authorizationEffect.endExclusiveNanos,
 			sessionRunEffectStartNanos = authority.temporalAuthority.sessionRunEffect.startInclusiveNanos,
 			sessionRunEffectEndNanos = authority.temporalAuthority.sessionRunEffect.endExclusiveNanos,
@@ -703,8 +782,19 @@ private object ActivityCapturedPersistence {
 			effectChecksum = "pending",
 			appliedAtMs = appliedAtMs,
 		)
-		check(ActivityCapturedFactIntegrity.logicalWindowId(unsigned) == logicalWindowId)
-		check(ActivityCapturedFactIntegrity.mutationId(logicalWindowId, semanticRevision) == mutationId)
+		return completeMutation(unsigned, fragments, evidence)
+	}
+
+	private fun completeMutation(
+		unsigned: ActivityCapturedWindowRevisionEntity,
+		fragments: List<ActivityCapturedFragmentEntity>,
+		evidence: List<ActivityCapturedEvidenceEntity>,
+	): ActivityCapturedPersistedMutation {
+		check(ActivityCapturedFactIntegrity.logicalWindowId(unsigned) == unsigned.logicalWindowId)
+		check(
+			ActivityCapturedFactIntegrity.mutationId(unsigned.logicalWindowId, unsigned.semanticRevision) ==
+				unsigned.mutationId,
+		)
 		val revision = unsigned.copy(
 			effectChecksum = ActivityCapturedFactIntegrity.effectChecksum(unsigned, fragments, evidence),
 		)
@@ -715,17 +805,17 @@ private object ActivityCapturedPersistence {
 			cursor = ActivityCapturedWindowCursorEntity(
 				writerProjectionId = revision.writerProjectionId,
 				writerProjectionVersion = revision.writerProjectionVersion,
-				logicalWindowId = logicalWindowId,
+				logicalWindowId = revision.logicalWindowId,
 				logicalTrackingId = revision.logicalTrackingId,
 				serviceRunId = revision.serviceRunId,
-				sessionSegmentId = sessionSegmentId,
+				sessionSegmentId = revision.sessionSegmentId,
 				writerOwnerGeneration = revision.writerOwnerGeneration,
-				latestSemanticRevision = semanticRevision,
-				latestMutationId = mutationId,
+				latestSemanticRevision = revision.semanticRevision,
+				latestMutationId = revision.mutationId,
 				latestEffectChecksum = revision.effectChecksum,
 				cursorRevision = 1L,
 				collectedDataEpoch = revision.collectedDataEpoch,
-				updatedAtMs = appliedAtMs,
+				updatedAtMs = revision.appliedAtMs,
 			),
 		)
 	}

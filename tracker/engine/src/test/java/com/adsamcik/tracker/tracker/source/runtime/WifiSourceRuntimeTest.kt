@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
+import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
+
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -522,6 +524,8 @@ class WifiSourceRuntimeTest {
 		))
 	}
 
+	// Keep one physical Wi-Fi reading across runtime restart and duplicate acknowledgement together.
+	@Suppress("LongMethod")
 	@Test
 	fun `same provider delivery emits one delivery identity across different runtime envelopes`() = runTest {
 		val activePlan = plan(1L)
@@ -658,7 +662,7 @@ class WifiSourceRuntimeTest {
 	}
 
 	@Test
-	fun `mixed registration boundary callback persists only currently authorized access points`() = runTest {
+	fun `mixed registration boundary callback preserves readings for historical authorization`() = runTest {
 		val activePlan = plan(1L, maximumAgeMs = 5_000L)
 		val activeRegistration = registration(
 			plan = activePlan,
@@ -691,8 +695,8 @@ class WifiSourceRuntimeTest {
 		val delivery = deliveries.single()
 		val unit = delivery.units.single()
 		val payload = unit.evidence.payload as WifiResultSnapshotPayload
-		assertEquals(listOf(5_180), payload.accessPoints.map { it.frequencyMhz })
-		assertEquals(9_500_000L, unit.observedIntervalStartElapsedRealtimeNanos)
+		assertEquals(listOf(2_437, 5_180), payload.accessPoints.map { it.frequencyMhz })
+		assertEquals(8_500_000L, unit.observedIntervalStartElapsedRealtimeNanos)
 		assertEquals(9_500_000L, unit.evidence.observedElapsedRealtimeNanos)
 		assertFalse(delivery.identity.value.contains("before-provider"))
 		assertFalse(delivery.identity.value.contains("before-authorization"))
@@ -1140,7 +1144,8 @@ class WifiSourceRuntimeTest {
 		assertEquals(
 			wifiProviderDeliveryIdentity(
 				"boot-1",
-				listOf(WifiAccessPointEvidence("", 2_412, -50, 7_000_000L)),
+				listOf(WifiAccessPointEvidence("raw-a", 2_412, -50, 7_000_000L)),
+				WIFI_WAL_PAYLOAD_VERSION,
 			),
 			attempts[1].identity,
 		)
@@ -1184,6 +1189,44 @@ class WifiSourceRuntimeTest {
 		assertEquals(100L, ack.lastAdmissionOrdinal)
 		assertEquals(0L, ack.failedAdmissionCount)
 		assertNull(ack.unresolvedSequenceStart)
+	}
+
+	@Test
+	fun `session cutoff refresh preserves separately authorized Ambient readings`() = runTest {
+		val activePlan = plan(1L, maximumAgeMs = 5L)
+		val demands = mutableListOf<SourceDemandEntity>()
+		val original = registration(activePlan, 1L, demandCollector = demands)
+		registration(activePlan, 1L, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, demandCollector = demands)
+		val ambient = demands.last().copy(demandId = "wifi-ambient-sibling")
+		val shared = original.copy(authorization = requireNotNull(SourceBrokerAuthorization.rows(
+			SourceKind.WIFI.stableCode, original.state.registrationGeneration, 1L,
+			listOf(demands.first(), ambient), "boot-1", 1L, 1L).toAuthorizationSnapshotOrNull()))
+		val afterEnd = shared.copy(authorization = requireNotNull(SourceBrokerAuthorization.rows(
+			SourceKind.WIFI.stableCode, shared.state.registrationGeneration, 2L,
+			listOf(ambient), "boot-1", 8_000_000L, 1_000L).toAuthorizationSnapshotOrNull()))
+		val fixture = runtimeFixture(this, activePlan, listOf(shared))
+		coEvery { fixture.registrations.radioCallbackAuthorizationAtReceipt(shared, 10_000_000L) } returns afterEnd
+		val attempts = mutableListOf<SourceDeliveryCandidate>()
+		fixture.start(wifiDeliverySink { delivery ->
+			attempts += delivery
+			if (attempts.size == 1) SourceDeliveryAdmissionHandoff.SessionCutoff(8_000_000L)
+			else SourceDeliveryAdmissionHandoff.Durable(listOf(100L))
+		})
+		fixture.emit(retryBoundaryEvent())
+		advanceUntilIdle()
+		assertEquals(2, attempts.size)
+		val rebound = attempts.last().units.single().evidence
+		assertEquals(listOf(7_000_000L, 9_000_000L),
+			(rebound.payload as WifiResultSnapshotPayload).accessPoints.map { it.providerTimestampNanos })
+		assertEquals(attempts.first().identity, attempts.last().identity)
+		assertEquals(2L, rebound.authorizationRevision)
+		assertEquals(SourceBrokerPurpose.MASK_AMBIENT_PRODUCT, rebound.registrationPurposeEligibilityMask)
+		assertNull(rebound.logicalTrackingId)
+		assertEquals(activePlan.revision, rebound.configRevision)
+		coVerify(exactly = 1) { fixture.registrations.radioCallbackAuthorizationAtReceipt(shared, 10_000_000L) }
+		val ack = fixture.quiesce()
+		assertEquals(0L, ack.failedAdmissionCount)
+		assertEquals(100L, ack.lastAdmissionOrdinal)
 	}
 
 	@Test
@@ -1503,7 +1546,7 @@ class WifiSourceRuntimeTest {
 		verify(exactly = 1) { fixture.backend.requestScan() }
 		assertEquals(1, admitted.size)
 		assertEquals(PlanAttribution.RECEIVE_TIME_ONLY, admitted.single().planAttribution)
-		assertNull(admitted.single().configRevision)
+		assertEquals(activePlan.revision, admitted.single().configRevision)
 		fixture.runtime.close()
 	}
 
@@ -1569,7 +1612,7 @@ class WifiSourceRuntimeTest {
 		advanceUntilIdle()
 
 		assertEquals(2L, admitted?.authorizationRevision)
-		assertEquals(null, admitted?.configRevision)
+		assertEquals(refreshedPlan.revision, admitted?.configRevision)
 		fixture.runtime.close()
 		verify(exactly = 1) { fixture.backend.stop() }
 	}
@@ -2815,6 +2858,7 @@ class WifiSourceRuntimeTest {
 		allowance: RadioActiveRequestAllowance = testRadioActiveRequestAllowance(),
 	): RuntimeFixture {
 		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
+		coEvery { registrations.radioCallbackAuthorizationAtReceipt(any(), any()) } answers { firstArg<SourceRegistration>() }
 		// Most runtime cases isolate owner/timing behavior with a mocked qualification seam.
 		// The Room-qualified subset cases replace this answer with the actual bounded reader.
 		coEvery { registrations.captureQualifiedRadioObservationTimes(any(), any()) } answers {

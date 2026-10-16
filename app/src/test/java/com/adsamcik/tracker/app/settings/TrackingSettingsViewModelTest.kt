@@ -84,6 +84,9 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
+// One settings ViewModel fixture shares repository flows and permission state across edits and repair
+// races.
+@Suppress("LargeClass")
 class TrackingSettingsViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
@@ -117,6 +120,11 @@ class TrackingSettingsViewModelTest {
     @BeforeEach
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        paramsFlow.value = TrackingParamsState(sourcePolicyRevision = 1L)
+        purposeAvailabilityFlow.value = CurrentTrackingPurposeAvailability.SAFE_DEFAULT
+        exactPurposeAuthorityCurrent = true
+        permissionsGranted = true
+        nearbyWifiGranted = true
 
         // Mock hasSelfPermission (called by inline hasPreciseLocationPermission)
         mockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
@@ -447,7 +455,9 @@ class TrackingSettingsViewModelTest {
 		val writes = mutableListOf<Boolean>()
 		coEvery { trackingParamsRepository.setCellEnabled(any()) } coAnswers {
 			val enabled = firstArg<Boolean>()
-			if (enabled) firstSave.await()
+			if (enabled) {
+				firstSave.await()
+			}
 			writes += enabled
 			paramsFlow.value = paramsFlow.value.copy(cellEnabled = enabled)
 		}
@@ -564,10 +574,6 @@ class TrackingSettingsViewModelTest {
 			SourcePolicyRevisionReconciliationCoordinator =
 			UnavailableSourcePolicyRevisionReconciliationCoordinator,
     ): TrackingSettingsViewModel {
-        paramsFlow.value = TrackingParamsState()
-		purposeAvailabilityFlow.value = CurrentTrackingPurposeAvailability.SAFE_DEFAULT
-		exactPurposeAuthorityCurrent = true
-        permissionsGranted = true
         this.nearbyWifiGranted = nearbyWifiGranted
         return TrackingSettingsViewModel(
             context,
@@ -620,7 +626,9 @@ class TrackingSettingsViewModelTest {
 				purposeAvailabilityReader,
 				purposeSettingsReconciler = TrackingPurposeSettingsReconciler {
 					reconciliations++
-					if (fail) throw IllegalStateException("provider unavailable")
+					if (fail) {
+						throw IllegalStateException("provider unavailable")
+					}
 					TrackingPurposeSettingsReconciliationResult.Complete(setOf(AmbientTrackingSource.STEPS))
 				},
 				activityPermissionProbe = { permissionsGranted },
@@ -772,8 +780,10 @@ class TrackingSettingsViewModelTest {
 						reason = AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED,
 					)
 					purposeAvailabilityFlow.value = purposeAvailabilityFlow.value.copy(
-						ambientSources = purposeAvailabilityFlow.value.ambientSources +
-							(AmbientTrackingSource.STEPS to unavailable),
+						published = purposeAvailabilityFlow.value.published.copy(
+							ambientSources = purposeAvailabilityFlow.value.published.ambientSources +
+								(AmbientTrackingSource.STEPS to unavailable),
+						),
 					)
 					TrackingPurposeSettingsReconciliationResult.Complete(setOf(AmbientTrackingSource.STEPS))
 				},
@@ -1363,6 +1373,9 @@ class TrackingSettingsViewModelTest {
 			}
 
 		@Test
+		// Keep stale saved-purpose publication through its visible state and disabled watcher assertions
+		// together.
+		@Suppress("LongMethod")
 		fun `stale automatic and ambient ready identities project as nonoperational`() =
 			runTest(testDispatcher) {
 				paramsFlow.value = TrackingParamsState(
@@ -1698,7 +1711,9 @@ class TrackingSettingsViewModelTest {
 				@Suppress("UNCHECKED_CAST")
 				val block = invocation.args[0] as (TrackingParamsState.() -> TrackingParamsState)
 				paramsFlow.value = block(paramsFlow.value)
-				if (paramsFlow.value.autoTrackingMode == 2) release.await()
+				if (paramsFlow.value.autoTrackingMode == 2) {
+					release.await()
+				}
 			}
 			val vm = createViewModel()
 			advanceUntilIdle()

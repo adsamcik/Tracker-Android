@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base.database.dao
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.deleteAllCollectedData
 import com.adsamcik.tracker.shared.base.database.data.StepsGoalEffectEntity
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.first

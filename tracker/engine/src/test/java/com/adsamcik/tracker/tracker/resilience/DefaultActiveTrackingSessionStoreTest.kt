@@ -72,6 +72,52 @@ class DefaultActiveTrackingSessionStoreTest {
 	}
 
 	@Test
+	fun `guarded source plan round trips while Location tier is OFF`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val dispatcher = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val store = DefaultActiveTrackingSessionStore(context, dispatcher)
+		store.clear() shouldBe ActiveTrackingSessionStoreResult.Success(null)
+		val prepared = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.OFF,
+			sourceCallerAuthorityReference = SourceCallerReplayReference("prepared-steps-caller"),
+			desiredSourcePlanIdentity = sourcePlanIdentity(1L, 'a', 'b'),
+		)
+		store.save(prepared) shouldBe ActiveTrackingSessionStoreResult.Success(prepared)
+		val recreated = DefaultActiveTrackingSessionStore(context, dispatcher)
+		recreated.read() shouldBe ActiveTrackingSessionStoreResult.Success(prepared)
+
+		val accepted = prepared.copy(appliedSourcePlanIdentity = prepared.desiredSourcePlanIdentity)
+		store.replaceExact(prepared, accepted) shouldBe ActiveTrackingSessionStoreResult.Success(accepted)
+		recreated.read() shouldBe ActiveTrackingSessionStoreResult.Success(accepted)
+		recreated.clear() shouldBe ActiveTrackingSessionStoreResult.Success(null)
+	}
+
+	@Test
+	fun `active OFF tier without complete source plan guard remains corrupt`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val store = DefaultActiveTrackingSessionStore(
+			context, TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
+		)
+		store.clear() shouldBe ActiveTrackingSessionStoreResult.Success(null)
+		val unguarded = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true, isAmbient = false, policyTier = PolicyTier.OFF,
+		)
+		val incompleteGuards = listOf(
+			unguarded,
+			unguarded.copy(sourceCallerAuthorityReference = SourceCallerReplayReference("missing-plan")),
+			unguarded.copy(desiredSourcePlanIdentity = sourcePlanIdentity(1L, 'a', 'b')),
+		)
+		for (descriptor in incompleteGuards) {
+			store.save(descriptor) shouldBe ActiveTrackingSessionStoreResult.Success(descriptor)
+			store.read().shouldBeInstanceOf<ActiveTrackingSessionStoreResult.Failure>()
+				.kind shouldBe ActiveTrackingSessionStoreFailureKind.CORRUPT
+			store.resetCorruptState() shouldBe ActiveTrackingSessionStoreResult.Success(null)
+		}
+	}
+
+	@Test
 	fun `graceful stop mirror preserves retirement debt across restart until exact retirement clears it`() =
 		runTest {
 			val context = ApplicationProvider.getApplicationContext<Context>()

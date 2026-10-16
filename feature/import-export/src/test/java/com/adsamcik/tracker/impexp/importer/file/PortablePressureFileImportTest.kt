@@ -57,6 +57,8 @@ class PortablePressureFileImportTest {
 		importer.supportedExtensions.single() shouldBe PressurePortableFormatV1.FILE_EXTENSION
 	}
 
+	// Follow one Pressure measurement through initial import, duplicate, and correction with its original data epoch.
+	@Suppress("LongMethod")
 	@Test
 	fun `duplicate and correction imports use stable content receipts and original epoch`() = runTest {
 		val original = pressureEntry("logical", meanHectopascals = 1_000.25)

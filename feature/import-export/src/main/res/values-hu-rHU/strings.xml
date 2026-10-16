@@ -40,4 +40,23 @@
     <string name="format_database">Adatbázis-mentés (ZIP)</string>
     <string name="settings_import_summary">Adatok importálása támogatott típusokból (%1$s) és archívumokból (%2$s). Az adatbázis-importok egyesítik a kompatibilis sorokat, nem írják felül a meglévő adatokat.</string>
     <string name="settings_import_title">Importálás</string>
+    <string name="export_radio_sensitivity_title">Hálózati adatok exportálása?</string>
+    <string name="export_wifi_sensitivity_message">Ez a fájl mentett Wi-Fi-neveket és a hozzáférési pontok azonosítóit tartalmazza.</string>
+    <string name="export_cell_sensitivity_message">Ez a fájl mentett bázisállomás-azonosítókat és jelméréseket tartalmaz.</string>
+    <string name="export_radio_no_data">Nincs mentett adat ehhez a forráshoz</string>
+    <string name="export_include_complete_sessions">Teljes munkamenetek hozzáadása</string>
+    <string name="import_location_conflict_title">Mentett pontok lecserélése?</string>
+    <string name="import_location_replace">A fájl pontjainak használata</string>
+    <string name="import_location_keep">Mentett pontok megtartása</string>
+    <string name="export_backup_review_title">Ütemezett biztonsági mentések áttekintése</string>
+    <string name="export_backup_review_summary">Szünetel a frissített adatmentés áttekintéséig.</string>
+    <string name="export_backup_review_message">Ezek az ütemezések mostantól minden mentett követési adatot és a visszaállításhoz szükséges fájlt mentenek. A beállításokat nem tartalmazzák. Folytatja ezeket az ütemezéseket?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Biztonsági mentések folytatása</string>
+    <string name="import_backup_replace_title">Adatmentés visszaállítása?</string>
+    <string name="import_backup_replace_message">Lecseréli a mentett adatokat erre a biztonsági mentésre? A beállításai nem változnak. A követés kikapcsolva marad, amíg újra nem indítja.</string>
+    <string name="import_backup_restore">Adatok lecserélése</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">A fájl %d pontja eltér a mentett másolatától. Válassza ki, melyiket tartja meg. A többi pont importálása a szokásos módon történik.</item>
+        <item quantity="other">A fájl %d pontja eltér a mentett másolatától. Válassza ki, melyik változatot tartja meg. A többi pont importálása a szokásos módon történik.</item>
+    </plurals>
 </resources>

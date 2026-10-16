@@ -11,6 +11,7 @@ import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRequest
 import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
 import com.adsamcik.tracker.stats.api.repository.MaterializedProofState
 import com.adsamcik.tracker.stats.api.repository.QueryableProofState
+import com.adsamcik.tracker.stats.api.repository.RecordingProofState
 import com.adsamcik.tracker.stats.api.repository.SourceFactLookupRequest
 import com.adsamcik.tracker.stats.api.repository.SourceFactLookupResult
 import com.adsamcik.tracker.stats.api.repository.SourceFactQueryRepository
@@ -31,6 +32,9 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
+/**
+ * One reconstructed lifecycle result per requested source, with each proof keyed to that same source.
+ */
 data class SourceLifecycleProofSnapshot(
 	val proofs: Map<TrackingSource, SourceLifecycleProof>,
 ) {
@@ -85,9 +89,15 @@ class SourceLifecycleProofCoordinator internal constructor(
 			require(bySource.keys == TrackingSource.entries.toSet())
 		}
 
+	/**
+	 * Observes durable lifecycle results for one bounded key per source; conflates invalidations without
+	 * starting providers.
+	 */
 	fun observe(keys: Set<SourceProofKey>): Flow<SourceLifecycleProofSnapshot> {
 		requireUniqueSourceKeys(keys)
-		if (keys.isEmpty()) return flowOf(SourceLifecycleProofSnapshot(emptyMap()))
+		if (keys.isEmpty()) {
+			return flowOf(SourceLifecycleProofSnapshot(emptyMap()))
+		}
 		return invalidations.conflate()
 			.map {
 				snapshot(keys)
@@ -95,11 +105,17 @@ class SourceLifecycleProofCoordinator internal constructor(
 			.flowOn(ioDispatcher)
 	}
 
+	/**
+	 * Observes saved all-day source status independently; one source failure does not hide the other
+	 * results.
+	 */
 	fun observeAllDay(requests: Set<AllDaySourceStatusRequest>): Flow<AllDaySourceStatusSnapshot> {
 		require(requests.size == requests.map(AllDaySourceStatusRequest::source).distinct().size) {
 			"Each source must have one bounded all-day request"
 		}
-		if (requests.isEmpty()) return flowOf(AllDaySourceStatusSnapshot(emptyMap()))
+		if (requests.isEmpty()) {
+			return flowOf(AllDaySourceStatusSnapshot(emptyMap()))
+		}
 		return invalidations.conflate().map {
 			val results = linkedMapOf<TrackingSource, AllDaySourceStatusRead>()
 			for (request in requests) {
@@ -136,8 +152,11 @@ class SourceLifecycleProofCoordinator internal constructor(
 	private suspend fun evaluateIsolated(key: SourceProofKey): SourceLifecycleProof {
 		val adapter = try {
 			descriptorsBySource.getValue(key.source).adapterFactory.create()
-		} catch (failure: Exception) {
-			if (failure is CancellationException) throw failure
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+			// Adapter construction failure stays local to this requested source; cancellation still propagates.
+			if (failure is CancellationException) {
+				throw failure
+			}
 			return SourceLifecycleProof(
 				key = key,
 				recording = failed(SourceProofStage.RECORDING),
@@ -145,20 +164,7 @@ class SourceLifecycleProofCoordinator internal constructor(
 				queryable = failed(SourceProofStage.QUERYABLE),
 			)
 		}
-		val recording = try {
-			if (adapter.source != key.source) {
-				failed(SourceProofStage.RECORDING, reason = SourceProofReason.WRONG_SOURCE)
-			} else {
-				adapter.recording(key).let { result ->
-					if (result is SourceProofResult.Proven && result.state.lineage.evidenceIdentity != key.evidenceIdentity) {
-						failed(SourceProofStage.RECORDING, reason = SourceProofReason.FACT_IDENTITY_MISMATCH)
-					} else result
-				}
-			}
-		} catch (failure: Exception) {
-			if (failure is CancellationException) throw failure
-			failed(SourceProofStage.RECORDING)
-		}
+		val recording = evaluateRecording(key, adapter)
 		if (recording !is SourceProofResult.Proven) {
 			return SourceLifecycleProof(
 				key,
@@ -168,19 +174,7 @@ class SourceLifecycleProofCoordinator internal constructor(
 			)
 		}
 
-		val materialized = try {
-			adapter.materialized(key, recording.state).let { result ->
-				if (result is SourceProofResult.Proven &&
-					(result.state.lineage.evidenceIdentity != key.evidenceIdentity ||
-						result.state.lineage.sourceAdmissionOrdinal != recording.state.lineage.sourceAdmissionOrdinal ||
-						result.state.lineage.sourceEvidenceRevision < recording.state.lineage.sourceEvidenceRevision)) {
-					failed(SourceProofStage.MATERIALIZED, recording.state.lineage, SourceProofReason.FACT_IDENTITY_MISMATCH)
-				} else result
-			}
-		} catch (failure: Exception) {
-			if (failure is CancellationException) throw failure
-			failed(SourceProofStage.MATERIALIZED, recording.state.lineage)
-		}
+		val materialized = evaluateMaterialized(key, adapter, recording)
 		if (materialized !is SourceProofResult.Proven) {
 			return SourceLifecycleProof(
 				key,
@@ -190,15 +184,75 @@ class SourceLifecycleProofCoordinator internal constructor(
 			)
 		}
 
-		val queryable = try {
+		val queryable = evaluateQueryable(key, materialized)
+		return SourceLifecycleProof(key, recording, materialized, queryable)
+	}
+
+	private suspend fun evaluateRecording(
+		key: SourceProofKey,
+		adapter: SourceLifecycleProofAdapter,
+	): SourceProofResult<RecordingProofState> {
+		return try {
+			if (adapter.source != key.source) {
+				failed(SourceProofStage.RECORDING, reason = SourceProofReason.WRONG_SOURCE)
+			} else {
+				adapter.recording(key).let { result ->
+					if (result is SourceProofResult.Proven && result.state.lineage.evidenceIdentity != key.evidenceIdentity) {
+						failed(SourceProofStage.RECORDING, reason = SourceProofReason.FACT_IDENTITY_MISMATCH)
+					} else {
+						result
+					}
+				}
+			}
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+			// A failed recording read cannot establish proof or discard another source result.
+			if (failure is CancellationException) {
+				throw failure
+			}
+			failed(SourceProofStage.RECORDING)
+		}
+	}
+
+	private suspend fun evaluateMaterialized(
+		key: SourceProofKey,
+		adapter: SourceLifecycleProofAdapter,
+		recording: SourceProofResult.Proven<RecordingProofState>,
+	): SourceProofResult<MaterializedProofState> {
+		return try {
+			adapter.materialized(key, recording.state).let { result ->
+				if (result is SourceProofResult.Proven &&
+					(result.state.lineage.evidenceIdentity != key.evidenceIdentity ||
+						result.state.lineage.sourceAdmissionOrdinal != recording.state.lineage.sourceAdmissionOrdinal ||
+						result.state.lineage.sourceEvidenceRevision < recording.state.lineage.sourceEvidenceRevision)) {
+					failed(SourceProofStage.MATERIALIZED, recording.state.lineage, SourceProofReason.FACT_IDENTITY_MISMATCH)
+				} else {
+					result
+				}
+			}
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+			// A failed materialization read preserves the prior recording lineage and fails this stage only.
+			if (failure is CancellationException) {
+				throw failure
+			}
+			failed(SourceProofStage.MATERIALIZED, recording.state.lineage)
+		}
+	}
+
+	private suspend fun evaluateQueryable(
+		key: SourceProofKey,
+		materialized: SourceProofResult.Proven<MaterializedProofState>,
+	): SourceProofResult<QueryableProofState> {
+		return try {
 			queryRepository.lookup(
 				SourceFactLookupRequest(key, materialized.state),
 			).toProofResult(key, materialized.state)
-		} catch (failure: Exception) {
-			if (failure is CancellationException) throw failure
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+			// A failed lookup preserves prior lineage and returns an explicit failed query stage.
+			if (failure is CancellationException) {
+				throw failure
+			}
 			failed(SourceProofStage.QUERYABLE, materialized.state.lineage)
 		}
-		return SourceLifecycleProof(key, recording, materialized, queryable)
 	}
 
 	private fun SourceFactLookupResult.toProofResult(
@@ -209,7 +263,9 @@ class SourceLifecycleProofCoordinator internal constructor(
 			state.coverage != materialized.coverage || state.completeness != materialized.completeness ||
 			state.readSnapshot.collectedDataEpoch != key.collectedDataEpoch) {
 			failed(SourceProofStage.QUERYABLE, materialized.lineage, SourceProofReason.FACT_IDENTITY_MISMATCH)
-		} else SourceProofResult.Proven(state)
+		} else {
+			SourceProofResult.Proven(state)
+		}
 		is SourceFactLookupResult.NotFound -> SourceProofResult.Pending(
 			SourceProofStage.QUERYABLE,
 			reason,

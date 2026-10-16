@@ -108,8 +108,12 @@ class ExportDocumentCleanupTest {
             val source = object : PagingSource<Int, Trip>() {
                 override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Trip> {
                     loads++
-                    return if (loads == 1) LoadResult.Page(listOf(savedTrip), null, 1)
-                    else LoadResult.Invalid()
+                    return if (loads == 1) {
+                        LoadResult.Page(listOf(savedTrip), null, 1)
+                    }
+                    else {
+                        LoadResult.Invalid()
+                    }
                 }
                 override fun getRefreshKey(state: PagingState<Int, Trip>): Int? = null
             }

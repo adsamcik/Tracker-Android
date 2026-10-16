@@ -26,19 +26,25 @@ internal class ManualStartTestAuthority : TrackingLifecycleCommandAuthority by m
 	override suspend fun reserveManualStartIfGeneration(
 		expectedGeneration: Long, selection: ManualTrackingStartSelection,
 	): ManualTrackingStartContinuation? {
-		if (state.lastGeneration != expectedGeneration) return null
+		if (state.lastGeneration != expectedGeneration) {
+			return null
+		}
 		reservations++
 		state = state.issueManualStart(selection)
 		return state.pendingManualStart
 	}
 	override suspend fun consumeManualStart(generation: Long, selection: ManualTrackingStartSelection): TrackingStartCommand? {
-		if (!state.isPendingManualStart(generation, selection)) return null
+		if (!state.isPendingManualStart(generation, selection)) {
+			return null
+		}
 		val command = requireNotNull(state.pendingManualStart).command
 		state = state.copy(pendingManualStart = null)
 		return command
 	}
 	override suspend fun cancelManualStart(generation: Long): Boolean {
-		if (state.pendingManualStart?.command?.generation != generation) return false
+		if (state.pendingManualStart?.command?.generation != generation) {
+			return false
+		}
 		state = state.copy(pendingManualStart = null)
 		return true
 	}
@@ -48,8 +54,12 @@ internal suspend fun testManualStartEnqueue(
 	authority: TrackingLifecycleCommandAuthority,
 	continuation: ManualTrackingStartContinuation,
 ): TrackingStartDispatchResult = if (authority.consumeManualStart(continuation.command.generation,
-	continuation.selection) == continuation.command) TrackingStartDispatchResult.Enqueued
-	else TrackingStartDispatchResult.Terminal("MANUAL_START_CONTINUATION_SUPERSEDED")
+	continuation.selection) == continuation.command) {
+	TrackingStartDispatchResult.Enqueued
+}
+	else {
+	TrackingStartDispatchResult.Terminal("MANUAL_START_CONTINUATION_SUPERSEDED")
+}
 
 class ManualTrackingStartContinuationTest {
 	private val repair = ManualTrackingStartReadiness.RepairRequired(ManualTrackingStartPrerequisite.READ_PHONE_STATE_PERMISSION)

@@ -25,6 +25,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.test.assertFailsWith
 
+// One real WAL and retention fixture keeps source-isolated pruning and retained proofs comparable.
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SourceEventStorageMaintenanceTest {
@@ -99,12 +101,16 @@ class SourceEventStorageMaintenanceTest {
 		database.sourceProjectionStateDao().register(SourceProjectionRegistrationEntity(
 			id, version, 1L, true, "ACTIVE", 1L,
 		))
-		if (checkpoint != null) database.sourceProjectionStateDao().saveCheckpoint(SourceProjectionCheckpointEntity(
+		if (checkpoint != null) {
+			database.sourceProjectionStateDao().saveCheckpoint(SourceProjectionCheckpointEntity(
 			id, version, checkpoint, 1, 1L,
 		))
+		}
 	}
 
 	@Test
+	// Expiry must wait for capture drain while preserving fresh Control and independent ambient data.
+	@Suppress("LongMethod")
 	fun `control expiry waits for the exact capture lane before retiring shared raw Activity`() = runTest {
 		val source = SourceDestinationOwnerEntity.SOURCE_ACTIVITY
 		fun signed(row: SourceEventWalEntity) =
@@ -207,6 +213,8 @@ class SourceEventStorageMaintenanceTest {
 	}
 
 	@Test
+	// The failed source, healthy siblings and retry belong to one source-isolated pruning journey.
+	@Suppress("LongMethod")
 	fun `blocked Steps batch rolls back locally while every other source commits`() = runTest {
 		val sourceKinds = listOf(
 			SourceDestinationOwnerEntity.SOURCE_LOCATION,
@@ -345,6 +353,8 @@ class SourceEventStorageMaintenanceTest {
 	}
 
 	@Test
+	// One prune call must preserve both debts and still commit the later healthy source.
+	@Suppress("LongMethod")
 	fun `multiple source debts aggregate while later source progress commits`() = runTest {
 		listOf(
 			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
@@ -497,6 +507,8 @@ class SourceEventStorageMaintenanceTest {
 	}
 
 	@Test
+	// The retained proof must preserve every original capture field after its WAL is removed.
+	@Suppress("LongMethod")
 	fun `retention proof binds the complete capture authority before WAL deletion`() = runTest {
 		insertEvent(
 			sourceKind = SourceDestinationOwnerEntity.SOURCE_WIFI,
@@ -576,6 +588,8 @@ class SourceEventStorageMaintenanceTest {
 	}
 
 	@Test
+	// Proof persistence, reopening and the later full clear require the same physical database.
+	@Suppress("LongMethod")
 	fun `retention proof survives reopen and full clear removes it behind the new epoch`() = runTest {
 		val name = "source-event-retention-proof-reopen"
 		context.deleteDatabase(name)
@@ -876,6 +890,8 @@ class SourceEventStorageMaintenanceTest {
 		database.sourceEventWalDao().insertIgnoringDuplicate(row) shouldBe admissionOrdinal
 	}
 
+	// Keep the complete WAL row and its integrity checksum together as one fixture value.
+	@Suppress("LongMethod")
 	private fun event(
 		sourceKind: Int,
 		admissionOrdinal: Long,
@@ -884,6 +900,13 @@ class SourceEventStorageMaintenanceTest {
 		captureAuthority: Boolean,
 	): SourceEventWalEntity {
 		val payload = byteArrayOf(sourceKind.toByte())
+		val authenticStepSource = sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && authenticSteps
+		val hasAuthority = captureAuthority || authenticStepSource
+		val authorityRevision = if (hasAuthority) {
+			1L
+		} else {
+			null
+		}
 		val unsigned = SourceEventWalEntity(
 			admissionOrdinal = admissionOrdinal,
 			eventId = eventId,
@@ -894,29 +917,22 @@ class SourceEventStorageMaintenanceTest {
 			sourceInstanceId = "instance-$eventId",
 			registrationGeneration = 1L,
 			physicalConfigurationFingerprint =
-				if (captureAuthority ||
-					sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && authenticSteps
-				) {
+				if (hasAuthority) {
 					"a".repeat(64)
 				} else {
 					null
 				},
-			authorizationRevision =
-				if (captureAuthority ||
-					sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && authenticSteps
-				) 1L else null,
+			authorizationRevision = authorityRevision,
 			authorizationPurposeEligibilityMask =
 				if (captureAuthority) {
 					SourceBrokerPurpose.MASK_SESSION_CAPTURE
-				} else if (sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && authenticSteps) {
+				} else if (authenticStepSource) {
 					SourceBrokerPurpose.MASK_CONTROL_AUTOSTART
 				} else {
 					0L
 				},
 			authorizationFingerprint =
-				if (captureAuthority ||
-					sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && authenticSteps
-				) {
+				if (hasAuthority) {
 					"b".repeat(64)
 				} else {
 					null
@@ -931,20 +947,18 @@ class SourceEventStorageMaintenanceTest {
 			wallTimeMs = 10L,
 			wallTimeUncertaintyMs = 0L,
 			capturedCollectedDataEpoch = 0L,
-			sourcePolicyRevision =
-				if (captureAuthority ||
-					sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && authenticSteps
-				) 1L else null,
+			sourcePolicyRevision = authorityRevision,
 			captureConsentEpoch = 1L.takeIf { captureAuthority },
 			sessionManifestRevision = 1L.takeIf { captureAuthority },
-			lifecycleLeaseGeneration =
-				if (captureAuthority ||
-					sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && authenticSteps
-				) 1L else null,
+			lifecycleLeaseGeneration = authorityRevision,
 			acquiredAtMs = 10L,
 			qualityFlags = 0L,
 			qualityConfidence = null,
-			payloadVersion = if (sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS) 7 else 1,
+			payloadVersion = if (sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS) {
+				7
+			} else {
+				1
+			},
 			payload = payload,
 			payloadChecksum = payload.sha256(),
 			createdAtMs = 10L,

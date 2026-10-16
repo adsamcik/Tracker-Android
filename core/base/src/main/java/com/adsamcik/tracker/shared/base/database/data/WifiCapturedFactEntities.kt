@@ -138,8 +138,12 @@ data class WifiCapturedFactRevisionEntity(
 		require(SourceWriterGenerationContract.captureModeMaskForKnownBinding(writerBindingGeneration) != null)
 		require(writerOwnerGeneration == SourceWriterGenerationContract.canonicalOwnerGeneration(writerBindingGeneration))
 		require(semanticRevision > 0L)
-		require(if (semanticRevision == 1L) supersedesSemanticRevision == null else
-			supersedesSemanticRevision == semanticRevision - 1L)
+		require(if (semanticRevision == 1L) {
+			supersedesSemanticRevision == null
+		} else
+			{
+			supersedesSemanticRevision == semanticRevision - 1L
+		})
 		require(logicalTrackingId.isNotBlank() && serviceRunId.isNotBlank() && sessionSegmentId > 0L)
 		require(purpose == SourceBrokerPurpose.SESSION_CAPTURE)
 		val capturedCodes = requireCanonicalSourceCodes(capturedSourceCodes, allowEmpty = false)
@@ -226,6 +230,10 @@ data class WifiCapturedFactRevisionEntity(
 		return codes.toSet()
 	}
 
+	/**
+	 * Stable persisted codes, including `FACT_KIND_AGGREGATE`, `FACT_KIND_COVERAGE_ONLY`,
+	 * `PLAN_ATTRIBUTION_CAPTURED_REGISTRATION`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val FACT_KIND_AGGREGATE = "AGGREGATE"
 		const val FACT_KIND_COVERAGE_ONLY = "COVERAGE_ONLY"
@@ -292,7 +300,16 @@ data class WifiCaptureDeletionGenerationEntity(
 	}
 }
 
+/**
+ * Stable native Wi-Fi fact identities, effect digests and contiguous revision/cursor comparisons.
+ */
+// Captured Wi-Fi identities, revision digests and cursor checks share one immutable fact protocol.
+@Suppress("TooManyFunctions")
 object WifiCapturedFactRevisionIntegrity {
+	/**
+	 * Derives the session Wi-Fi fact identity from its original delivery, session/run/segment,
+	 * manifest and data/deletion epochs.
+	 */
 	fun logicalFactId(
 		sourceDeliveryIdentity: String,
 		logicalTrackingId: String,
@@ -304,9 +321,16 @@ object WifiCapturedFactRevisionIntegrity {
 	): String = digest("wifi-captured-fact-v1", sourceDeliveryIdentity, logicalTrackingId,
 		serviceRunId, sessionSegmentId, manifestRevision, collectedDataEpoch, scopeDeletionGeneration)
 
+	/**
+	 * Builds a stable mutation key from the logical fact identity, semantic revision and operation.
+	 */
 	fun mutationId(logicalFactId: String, semanticRevision: Long): String =
 		digest("wifi-captured-mutation-v1", logicalFactId, semanticRevision)
 
+	/**
+	 * Computes the deterministic digest of the persisted revision values, excluding its stored
+	 * digest.
+	 */
 	fun effectChecksum(fact: WifiCapturedFactRevisionEntity): String =
 		if (fact.payloadVersion == null) {
 			// Preserve the exact checksum contract of summary-only and earlier development facts.
@@ -315,9 +339,16 @@ object WifiCapturedFactRevisionIntegrity {
 			digest("wifi-captured-effect-v2", fact.payloadVersion, *fact.effectParts().toTypedArray())
 		}
 
+	/**
+	 * Checks the stored revision digest against its values; this does not establish current capture
+	 * permission.
+	 */
 	fun hasValidEffectChecksum(fact: WifiCapturedFactRevisionEntity): Boolean =
 		fact.effectChecksum == effectChecksum(fact)
 
+	/**
+	 * Requires contiguous revisions from 1, valid effect digests and exact successor relationships.
+	 */
 	fun hasValidRetainedLineage(
 		ordered: List<WifiCapturedFactRevisionEntity>,
 	): Boolean =
@@ -329,6 +360,12 @@ object WifiCapturedFactRevisionIntegrity {
 				next.isExactSuccessorOf(previous)
 			}
 
+	/**
+	 * Checks that the current cursor names this exact fact revision, mutation, scope, epoch and
+	 * effect digest.
+	 */
+	// Compares the stored cursor and fact field by field; no current tracking state is consulted.
+	@Suppress("CyclomaticComplexMethod")
 	fun cursorAuthenticatesCurrent(
 		cursor: WifiCapturedFactCursorEntity,
 		fact: WifiCapturedFactRevisionEntity,
@@ -349,6 +386,10 @@ object WifiCapturedFactRevisionIntegrity {
 			cursor.cursorRevision == fact.semanticRevision &&
 			cursor.updatedAtMs == fact.appliedAtMs
 
+	/**
+	 * Checks that a coverage-only fact references this aggregate revision and that its owner cursor
+	 * is current.
+	 */
 	fun coverageOnlyOwnerCursorAuthenticates(
 		dependent: WifiCapturedFactRevisionEntity,
 		owner: WifiCapturedFactRevisionEntity,
@@ -368,7 +409,17 @@ object WifiCapturedFactRevisionIntegrity {
 			fixedCorrectionAuthority() == previous.fixedCorrectionAuthority() &&
 			providerAcceptanceEndNanos.settles(previous.providerAcceptanceEndNanos) &&
 			authorizationEffectEndNanos.settles(previous.authorizationEffectEndNanos) &&
-			sessionRunEffectEndNanos.settles(previous.sessionRunEffectEndNanos)
+			sessionRunEffectEndNanos.settles(previous.sessionRunEffectEndNanos) &&
+			hasCoveredMeasurements() && previous.hasCoveredMeasurements()
+
+	private fun WifiCapturedFactRevisionEntity.hasCoveredMeasurements(): Boolean =
+		providerAcceptanceStartNanos >= 0L && authorizationEffectStartNanos >= 0L &&
+			sessionRunEffectStartNanos >= 0L && coverageIntervalStartNanos >= maxOf(
+				providerAcceptanceStartNanos, authorizationEffectStartNanos, sessionRunEffectStartNanos,
+			) && coverageIntervalEndNanos >= coverageIntervalStartNanos &&
+			coverageIntervalEndNanos < minOf(
+				providerAcceptanceEndNanos, authorizationEffectEndNanos, sessionRunEffectEndNanos,
+			)
 
 	@Suppress("LongMethod")
 	private fun WifiCapturedFactRevisionEntity.fixedCorrectionAuthority(): List<Any?> = listOf(
@@ -394,7 +445,7 @@ object WifiCapturedFactRevisionIntegrity {
 	)
 
 	private fun Long.settles(previous: Long): Boolean =
-		this == previous || previous == Long.MAX_VALUE && this < Long.MAX_VALUE
+		this <= previous
 
 	private fun WifiCapturedFactRevisionEntity.effectParts(): List<Any?> = listOf(
 		writerProjectionId, writerProjectionVersion, writerBindingGeneration, writerOwnerGeneration,
@@ -423,7 +474,11 @@ object WifiCapturedFactRevisionIntegrity {
 	private fun digest(vararg values: Any?): String {
 		val canonical = values.joinToString(separator = "") { value ->
 			val text = value?.toString()
-			if (text == null) "-1:" else "${text.length}:$text"
+			if (text == null) {
+				"-1:"
+			} else {
+				"${text.length}:$text"
+			}
 		}
 		return MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray(Charsets.UTF_8))
 			.joinToString(separator = "") { byte -> "%02x".format(byte) }

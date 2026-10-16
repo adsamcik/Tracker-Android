@@ -21,6 +21,8 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class CompleteDatabaseSnapshotTest {
     @Test
+    // Keep the one latch-controlled two-database snapshot scenario, deadlines and cleanup together.
+    @Suppress("CyclomaticComplexMethod")
     fun `one backup cannot combine an earlier main database with later points data`() = runTest {
         val directory = Files.createTempDirectory("complete-backup-snapshot").toFile()
         val main = File(directory, "main")
@@ -70,7 +72,9 @@ class CompleteDatabaseSnapshotTest {
             ZipInputStream(output.toByteArray().inputStream()).use { zip ->
                 while (true) {
                     val entry = zip.nextEntry ?: break
-                    if (entry.name.startsWith("databases/")) snapshots[entry.name] = zip.readBytes()
+                    if (entry.name.startsWith("databases/")) {
+                        snapshots[entry.name] = zip.readBytes()
+                    }
                     zip.closeEntry()
                 }
             }
@@ -84,7 +88,9 @@ class CompleteDatabaseSnapshotTest {
                 }
             }
         } finally {
-            if (writer.isAlive) writer.join(5_000L)
+            if (writer.isAlive) {
+                writer.join(5_000L)
+            }
             directory.deleteRecursively()
         }
     }

@@ -25,6 +25,8 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// Legacy Steps WAL pruning and full-clear outcomes share the same drain, attribution and Room fixtures.
+@Suppress("LargeClass")
 class LegacyV27StepsWalRetentionTest {
 	private lateinit var database: AppDatabase
 	private val context: Application
@@ -835,7 +837,11 @@ class LegacyV27StepsWalRetentionTest {
 			initialActivationOrdinal = 1L,
 			initialCheckpointOrdinal = 0L,
 			requiredThroughOrdinal = cutoff,
-			lastCompletedOrdinal = if (pending) 0L else cutoff,
+			lastCompletedOrdinal = if (pending) {
+				0L
+			} else {
+				cutoff
+			},
 			retentionRequired = true,
 			initialRegistrationStatus = if (
 				projectionId == "event-tracking-frame" &&
@@ -850,7 +856,11 @@ class LegacyV27StepsWalRetentionTest {
 			} else {
 				terminalDisposition
 			},
-			completedAtMs = if (pending) null else 2L,
+			completedAtMs = if (pending) {
+				null
+			} else {
+				2L
+			},
 			failureCode = null,
 		)
 	}

@@ -32,6 +32,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
+// One accepted Steps provider fixture verifies atomic retention, deletion, replay and effect repair.
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class AmbientStepsMaintenanceTest {
@@ -604,7 +606,11 @@ class AmbientStepsMaintenanceTest {
 	}
 
 	private fun completedGoal(period: String, start: Long, revision: Long): StepsGoalEffectEntity {
-		val end = if (period == StepsGoalEffectEntity.PERIOD_WEEK) start + 6L else start
+		val end = if (period == StepsGoalEffectEntity.PERIOD_WEEK) {
+			start + 6L
+		} else {
+			start
+		}
 		return StepsGoalEffectEntity(
 			effectIdentity = StepsGoalEffectEntity.identity(period, start),
 			periodKind = period,
@@ -648,6 +654,9 @@ class AmbientStepsMaintenanceTest {
 		)
 	}
 
+	// Keep one retained Steps provider fixture and its historical/current policy, consent, authorization and
+	// cursor rows together.
+	@Suppress("LongMethod")
 	private suspend fun seed(
 		revoked: Boolean,
 		retainedFromMs: Long? = null,
@@ -693,7 +702,11 @@ class AmbientStepsMaintenanceTest {
 				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
 				currentPolicyRevision = currentPolicy.policyRevision,
 				legacySettingsFingerprint = null,
-				updatedAtMs = if (revoked) 2_000L else 0L,
+				updatedAtMs = if (revoked) {
+					2_000L
+				} else {
+					0L
+				},
 			),
 		)
 		database.ambientStepsFactRevisionDao().insertRetentionAuthority(
@@ -829,8 +842,16 @@ class AmbientStepsMaintenanceTest {
 		controlConsentEpoch = null,
 		ambientConsentEpoch = ambientConsentEpoch,
 		effectiveBootId = BOOT_ID,
-		effectiveElapsedRealtimeNanos = if (ambientEligible) 0L else 2_000L,
-		effectiveWallTimeMs = if (ambientEligible) 0L else 2_000L,
+		effectiveElapsedRealtimeNanos = if (ambientEligible) {
+			0L
+		} else {
+			2_000L
+		},
+		effectiveWallTimeMs = if (ambientEligible) {
+			0L
+		} else {
+			2_000L
+		},
 		changeReason = "test",
 	)
 
@@ -846,8 +867,16 @@ class AmbientStepsMaintenanceTest {
 		persistenceEligible = eligible,
 		policyRevision = policyRevision,
 		effectiveBootId = BOOT_ID,
-		effectiveElapsedRealtimeNanos = if (eligible) 0L else 2_000L,
-		effectiveWallTimeMs = if (eligible) 0L else 2_000L,
+		effectiveElapsedRealtimeNanos = if (eligible) {
+			0L
+		} else {
+			2_000L
+		},
+		effectiveWallTimeMs = if (eligible) {
+			0L
+		} else {
+			2_000L
+		},
 		changeReason = "test",
 	)
 

@@ -64,6 +64,9 @@ import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
  * - **No permission:** LocationOff icon, muted ring colors
  */
 @Composable
+// Keep one tracking action with its accessibility semantics, ring/button variant and matching status together.
+@Suppress("LongMethod", "CyclomaticComplexMethod")
+// Keep one action and its matching accessible labels, ring variant and status presentation together.
 internal fun TrackingActionRing(
 	isTracking: Boolean,
 	hasPermission: Boolean,

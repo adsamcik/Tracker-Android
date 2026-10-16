@@ -144,6 +144,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.longs.shouldBeGreaterThan
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.assertions.withClue
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -152,9 +153,13 @@ import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
@@ -195,6 +200,7 @@ class AuthoritativeSessionCoordinatorTest {
 			SourcePolicyEffectiveTime("boot-1", 1_000_000, 1_000)
 		}
 		runBlocking {
+			database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
 			policy.bootstrapFromLegacy(TrackingParamsState(legacySettingsMigrationCompleted = true))
 			database.trackingRolloutStateDao().save(rolloutSnapshot.toEntity(updatedAtMs = 0L))
 			database.sourceDestinationOwnerDao().insertIfAbsent(
@@ -252,12 +258,17 @@ class AuthoritativeSessionCoordinatorTest {
 		)
 	}
 
+	// Room uses real executors; virtual deadlines can expire before its transaction resumes.
+	private fun runRoomTest(block: suspend CoroutineScope.() -> Unit) = runTest {
+		withContext(Dispatchers.IO, block)
+	}
+
 	@After
 	fun tearDown() = database.close()
 
 	@Test
-	fun `actual End advances operation authority while retaining original recording generation and Stop clock`() = runTest {
-		val started = subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+	fun `actual End advances operation authority while retaining original recording generation and Stop clock`() = runRoomTest {
+		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
 		val active = requireNotNull(database.sourceSessionDao().session(started.logicalTrackingId))
 		val runId = requireNotNull(active.currentServiceRunId)
 		val originalRun = requireNotNull(database.sourceSessionDao().serviceRun(runId))
@@ -266,6 +277,8 @@ class AuthoritativeSessionCoordinatorTest {
 		originalActions.isNotEmpty() shouldBe true
 		withContext(Dispatchers.IO) { subject.stop(SessionStopRequest("test-owner", "manual", 2_000L, 2_000_000L,
 			"boot-1", perSourceTimeoutMs = 5_000L)) }.shouldBeInstanceOf<SessionStopResult.Stopped>()
+		runtime.shutdownAttemptCount shouldBe 1
+		runtime.shutdownClaims.single().actionId shouldBe originalActions.single().actionId
 		val closed = requireNotNull(database.sourceSessionDao().session(started.logicalTrackingId))
 		val stoppedRun = requireNotNull(database.sourceSessionDao().serviceRun(runId))
 		stoppedRun.leaseGeneration shouldBeGreaterThan originalRun.leaseGeneration
@@ -282,9 +295,49 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `Steps-only End completes with pending Wi-Fi and Cell background consumers`() = runTest {
+	fun `Stop retry settles the original provider owner after a failed Stop claim`() = runRoomTest {
 		runtime.hasNoAdmittedStepEvents = true
-		val started = subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.retainProviderOnIncompleteShutdown = true
+		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.stopProviderFlushOutcome = ProviderFlushOutcome.FAILED
+
+		subject.stop(SessionStopRequest(
+			"first-provider-stop", "USER_STOP", 2_000L, 2_000_000L, "boot-1",
+		)).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+		val dao = database.sourceSessionDao()
+		val originalReceipt = dao.runRetirements(
+			started.logicalTrackingId, started.serviceRunId, SourceKind.STEPS.stableCode,
+		).single()
+		originalReceipt.state shouldBe SourceRunRetirementEntity.STATE_REQUESTED
+		val originalOwner = requireNotNull(dao.lifecycleAction(originalReceipt.actionId))
+		originalOwner.desiredState shouldBe "STARTED"
+		dao.lifecycleActions(started.logicalTrackingId).single { it.desiredState == "STOPPED" }
+			.status shouldBe LifecycleActionStatus.CLEANUP_REQUIRED.name
+
+		runtime.stopProviderFlushOutcome = ProviderFlushOutcome.COMPLETE
+		subject.stop(SessionStopRequest(
+			"retry-provider-stop", "USER_STOP", 2_600L, 2_600_000L, "boot-1",
+		)).shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+		val terminalReceipt = dao.runRetirements(
+			started.logicalTrackingId, started.serviceRunId, SourceKind.STEPS.stableCode,
+		).single()
+		terminalReceipt.state shouldBe SourceRunRetirementEntity.STATE_ACKNOWLEDGED
+		terminalReceipt.actionId shouldBe originalReceipt.actionId
+		terminalReceipt.attemptCount shouldBe originalReceipt.attemptCount
+		terminalReceipt.leaseGeneration shouldBe originalReceipt.leaseGeneration
+		terminalReceipt.sourceInstanceId shouldBe originalReceipt.sourceInstanceId
+		terminalReceipt.registrationGeneration shouldBe originalReceipt.registrationGeneration
+		terminalReceipt.cutoffWallTimeMs shouldBe originalReceipt.cutoffWallTimeMs
+		terminalReceipt.cutoffElapsedRealtimeNanos shouldBe originalReceipt.cutoffElapsedRealtimeNanos
+		runtime.shutdownClaims.count { it.actionId == originalReceipt.actionId } shouldBe 2
+		dao.session(started.logicalTrackingId)?.state shouldBe SessionLifecycleState.FINALIZED.name
+	}
+
+	@Test
+	fun `Steps-only End completes with pending Wi-Fi and Cell background consumers`() = runRoomTest {
+		runtime.hasNoAdmittedStepEvents = true
+		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
 		installPendingBackgroundRadioCoordinator()
 
 		withContext(Dispatchers.IO) { subject.stop(SessionStopRequest("test-owner", "manual", 2_000L, 2_000_000L,
@@ -295,9 +348,9 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `Steps-only suspension completes with pending Wi-Fi and Cell background consumers`() = runTest {
+	fun `Steps-only suspension completes with pending Wi-Fi and Cell background consumers`() = runRoomTest {
 		runtime.hasNoAdmittedStepEvents = true
-		val started = subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
 		installPendingBackgroundRadioCoordinator()
 
 		withContext(Dispatchers.IO) { subject.suspendForRestart(SessionSuspendRequest("test-owner", "ANDROID_RESTART", 2_000L,
@@ -312,7 +365,11 @@ class AuthoritativeSessionCoordinatorTest {
 	/** Real global coordinator plus retaining pending source consumers; no Android provider is used. */
 	private suspend fun installPendingBackgroundRadioCoordinator() {
 		fun background(source: SourceKind) = object : Projection {
-			override val id = if (source == SourceKind.WIFI) AmbientWifiFactRevisionEntity.WRITER_ID else AmbientCellFactRevisionEntity.WRITER_ID
+			override val id = if (source == SourceKind.WIFI) {
+				AmbientWifiFactRevisionEntity.WRITER_ID
+			} else {
+				AmbientCellFactRevisionEntity.WRITER_ID
+			}
 			override val version = 1
 			override suspend fun apply(event: AdmittedSourceEvent<out SourcePayload>, context: ProjectionContext) {
 				throw java.io.IOException("Pending background storage")
@@ -327,7 +384,12 @@ class AuthoritativeSessionCoordinatorTest {
 		dispatcher.registerAll(1L)
 		dispatcher.registerAmbientRadioProjections()
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
-		val payload = WifiResultSnapshotPayload(listOf(WifiAccessPointEvidence("test-ap", 2_412, -61, 1_500_000L)), null, null)
+		val payload = WifiResultSnapshotPayload(
+			accessPoints = listOf(WifiAccessPointEvidence("test-ap", 2_412, -61, 1_500_000L)),
+			platformTimestampMs = null,
+			resultAgeMs = null,
+			observationZoneId = "UTC",
+		)
 		val encoded = DefaultSourcePayloadCodec().encode(payload, com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION)
 		val evidence = SourceEvidenceCandidate(
 			providerDedupKey = null, logicalTrackingId = null, serviceRunId = null,
@@ -359,7 +421,11 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 		val ingress = mockk<DurableSourceIngress>()
 		coEvery { ingress.committedBatch(any(), any()) } coAnswers {
-			if (firstArg<Long>() < 1L) listOf(admitted) else emptyList()
+			if (firstArg<Long>() < 1L) {
+				listOf(admitted)
+			} else {
+				emptyList()
+			}
 		}
 		replaceEventCoordinator(TrackingCoordinator(database, ingress, dispatcher))
 	}
@@ -373,8 +439,10 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `session is durable before source start and closes after source drain`() = runTest {
-		val started = subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+	// One Start-to-End chain checks durable authority before providers and retirement after drain.
+	@Suppress("LongMethod")
+	fun `session is durable before source start and closes after source drain`() = runRoomTest {
+		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
 		started.sourceCallerAuthorityReference shouldBe
 			com.adsamcik.tracker.tracker.api.SourceCallerReplayReference(
 				"test:${started.logicalTrackingId}:1",
@@ -447,7 +515,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `session start rejects catalog permission failure before provider start`() = runTest {
+	fun `session start rejects catalog permission failure before provider start`() = runRoomTest {
 		val catalog = mockk<SourceImplementationCatalog>()
 		coEvery { catalog.availability(any()) } returns SourceCatalogAvailability.Executable(
 			SourceProviderAvailability.PermissionRequired(
@@ -485,7 +553,7 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@Test
 	fun `only source catalog read failure remains retryable before any start authority exists`() =
-		runTest {
+		runRoomTest {
 			val catalog = mockk<SourceImplementationCatalog>()
 			coEvery { catalog.availability(any()) } throws SQLiteException("storage unavailable")
 			var providerCalls = 0
@@ -531,7 +599,7 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
-	fun `available location starts while steps catalog read fails`() = runTest {
+	fun `available location starts while steps catalog read fails`() = runRoomTest {
 		val catalog = mockk<SourceImplementationCatalog>()
 		coEvery { catalog.availability(any()) } answers {
 			when (firstArg<SourceAvailabilityRequest>().source) {
@@ -566,7 +634,7 @@ class AuthoritativeSessionCoordinatorTest {
 			plan = stepsAndLocationPlan(1L, stepsEnabled = true),
 		)
 
-		val started = subject.start(request).shouldBeInstanceOf<SessionStartResult.Started>()
+		val started = startCaptureRun(request).shouldBeInstanceOf<SessionStartResult.Started>()
 
 		started.planStatus shouldBe DesiredPlanStatus.DEGRADED
 		started.applied.associateBy(AppliedSourcePlan::source).let { outcomes ->
@@ -586,7 +654,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `available steps start while location is OS limited`() = runTest {
+	fun `available steps start while location is OS limited`() = runRoomTest {
 		val catalog = mockk<SourceImplementationCatalog>()
 		coEvery { catalog.availability(any()) } answers {
 			when (firstArg<SourceAvailabilityRequest>().source) {
@@ -606,7 +674,7 @@ class AuthoritativeSessionCoordinatorTest {
 			), catalog, requireAllSources = false,
 		))
 
-		val started = subject.start(startRequest().copy(
+		val started = startCaptureRun(startRequest().copy(
 			logicalTrackingId = "steps-with-limited-location",
 			serviceRunId = "steps-with-limited-location-run",
 			plan = stepsAndLocationPlan(1L, stepsEnabled = true),
@@ -628,7 +696,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `prepared steps start keeps unavailable location out of capture authority`() = runTest {
+	fun `prepared steps start keeps unavailable location out of capture authority`() = runRoomTest {
 		val catalog = mockk<SourceImplementationCatalog>()
 		coEvery { catalog.availability(any()) } answers {
 			when (firstArg<SourceAvailabilityRequest>().source) {
@@ -682,7 +750,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `recovery resumes steps when previously recorded location is unavailable`() = runTest {
+	fun `recovery resumes steps when previously recorded location is unavailable`() = runRoomTest {
 		val catalog = mockk<SourceImplementationCatalog>()
 		var locationUnavailable = false
 		coEvery { catalog.availability(any()) } answers {
@@ -692,7 +760,9 @@ class AuthoritativeSessionCoordinatorTest {
 						SourceKind.LOCATION, setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE),
 					),
 				))
-			} else SourceCatalogAvailability.Executable(SourceProviderAvailability.Available())
+			} else {
+				SourceCatalogAvailability.Executable(SourceProviderAvailability.Available())
+			}
 		}
 		var locationProviderCalls = 0
 		replaceRuntimeRegistry(SourceRuntimeRegistry(
@@ -709,7 +779,7 @@ class AuthoritativeSessionCoordinatorTest {
 			serviceRunId = "partial-recovery-first-run",
 			plan = stepsAndLocationPlan(1L, stepsEnabled = true),
 		)
-		val first = subject.start(request).shouldBeInstanceOf<SessionStartResult.Started>()
+		val first = startCaptureRun(request).shouldBeInstanceOf<SessionStartResult.Started>()
 		subject.suspendForRestart(SessionSuspendRequest(
 			"test-owner", "ANDROID_RESTART", 2_000L, 2_000_000L, "boot-1", perSourceTimeoutMs = 100L,
 		)).shouldBeInstanceOf<SessionSuspendResult.Suspended>()
@@ -743,8 +813,10 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	// One catalog-failure retry checks unchanged active authority before the same request succeeds.
+	@Suppress("LongMethod")
 	fun `retryable catalog reconfiguration preserves exact active authority until later success`() =
-		runTest {
+		runRoomTest {
 			val catalog = mockk<SourceImplementationCatalog>()
 			var stepsReadFails = false
 			coEvery { catalog.availability(any()) } answers {
@@ -762,7 +834,7 @@ class AuthoritativeSessionCoordinatorTest {
 				SourceKind.STEPS to Provider { runtime },
 			)
 			replaceRuntimeRegistry(SourceRuntimeRegistry(providers, catalog, requireAllSources = false))
-			val started = subject.start(
+			val started = startCaptureRun(
 				startRequest().copy(
 					logicalTrackingId = "catalog-retry-logical",
 					serviceRunId = "catalog-retry-run",
@@ -826,8 +898,10 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
+	// One source-change chain checks removal, deferred addition and its later catalog recovery.
+	@Suppress("LongMethod")
 	fun `durable catalog acknowledgement applies removal while transient addition stays deferred`() =
-		runTest {
+		runRoomTest {
 			val catalog = mockk<SourceImplementationCatalog>()
 			var stepsReadFails = false
 			coEvery { catalog.availability(any()) } answers {
@@ -847,13 +921,14 @@ class AuthoritativeSessionCoordinatorTest {
 					requireAllSources = false,
 				),
 			)
-			val started = subject.start(
+			val started = startCaptureRun(
 				startRequest().copy(
 					logicalTrackingId = "catalog-split-logical",
 					serviceRunId = "catalog-split-run",
 					plan = stepsAndLocationPlan(1L, stepsEnabled = false),
 				),
 			).shouldBeInstanceOf<SessionStartResult.Started>()
+			val acceptedRowsBefore = acceptedCallerRowCount()
 			stepsReadFails = true
 			val requested = stepsAndLocationReconfigure(
 				revision = 2L,
@@ -875,6 +950,10 @@ class AuthoritativeSessionCoordinatorTest {
 			).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
 
 			applied.deferredCatalogSources shouldBe setOf(SourceKind.STEPS)
+			acceptedCallerRowCount() shouldBe acceptedRowsBefore
+			database.sourceBrokerDao().currentDemands("session:${started.logicalTrackingId}") shouldBe emptyList()
+			database.sourceSessionDao().lifecycleIntent(started.logicalTrackingId, 2L)
+				?.sourceCallerAuthorityReference shouldBe requireNotNull(started.sourceCallerAuthorityReference).value
 			database.sourceSessionDao()
 				.manifestSources(started.logicalTrackingId, 2L)
 				.filter { binding ->
@@ -904,8 +983,8 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
-	fun `reconfiguration retires and removes an obsolete source absent from the new plan`() = runTest {
-		val started = subject.start(
+	fun `reconfiguration retires and removes an obsolete source absent from the new plan`() = runRoomTest {
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "narrow-reconfigure-logical",
 				serviceRunId = "narrow-reconfigure-run",
@@ -951,8 +1030,8 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@Test
 	fun `a narrower successor session cannot inherit applied rows from a broader session`() =
-		runTest {
-			subject.start(
+		runRoomTest {
+			startCaptureRun(
 				startRequest().copy(
 					logicalTrackingId = "broad-session-logical",
 					serviceRunId = "broad-session-run",
@@ -978,7 +1057,7 @@ class AuthoritativeSessionCoordinatorTest {
 					SourceKind.LOCATION to requested.plans.getValue(SourceKind.LOCATION),
 				),
 			)
-			subject.start(
+			startCaptureRun(
 				startRequest().copy(
 					ownerToken = "narrow-session-owner",
 					logicalTrackingId = "narrow-session-logical",
@@ -996,8 +1075,10 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
+	// Repeated debt retries belong to one unchanged plan and its eventual catalog recovery.
+	@Suppress("LongMethod")
 	fun `unchanged thirty second debt retries keep the active plan until catalog recovery`() =
-		runTest {
+		runRoomTest {
 			val catalog = mockk<SourceImplementationCatalog>()
 			var stepsReadFails = false
 			coEvery { catalog.availability(any()) } answers {
@@ -1018,7 +1099,7 @@ class AuthoritativeSessionCoordinatorTest {
 					requireAllSources = false,
 				),
 			)
-			subject.start(
+			startCaptureRun(
 				startRequest().copy(
 					logicalTrackingId = "catalog-preserve-logical",
 					serviceRunId = "catalog-preserve-run",
@@ -1089,7 +1170,9 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
-	fun `transient fused request preserves exact framework effective plan separately`() = runTest {
+	// One degraded Location plan stays framework-backed across catalog failure and recovery.
+	@Suppress("LongMethod")
+	fun `transient fused request preserves exact framework effective plan separately`() = runRoomTest {
 		val catalog = mockk<SourceImplementationCatalog>()
 		var locationReadFails = false
 		coEvery { catalog.availability(any()) } answers {
@@ -1124,7 +1207,7 @@ class AuthoritativeSessionCoordinatorTest {
 				requireAllSources = false,
 			),
 		)
-		subject.start(
+		startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "catalog-framework-logical",
 				serviceRunId = "catalog-framework-run",
@@ -1179,8 +1262,8 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `reconfiguration fails closed when live effective plan encoding is unknown`() = runTest {
-		subject.start(
+	fun `reconfiguration fails closed when live effective plan encoding is unknown`() = runRoomTest {
+		startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "catalog-corrupt-logical",
 				serviceRunId = "catalog-corrupt-run",
@@ -1203,8 +1286,8 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@Test
 	fun `reconfiguration fails closed before provider lookup when active runtime identity is corrupt`() =
-		runTest {
-			subject.start(
+		runRoomTest {
+			startCaptureRun(
 				startRequest().copy(
 					logicalTrackingId = "catalog-runtime-identity-logical",
 					serviceRunId = "catalog-runtime-identity-run",
@@ -1231,8 +1314,10 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
+	// One failed Steps start stays inactive through deferred retries until real catalog recovery.
+	@Suppress("LongMethod")
 	fun `transient catalog failure does not revive manifest source without live applied identity`() =
-		runTest {
+		runRoomTest {
 			val catalog = mockk<SourceImplementationCatalog>()
 			var stepsReadFails = false
 			coEvery { catalog.availability(any()) } answers {
@@ -1258,7 +1343,7 @@ class AuthoritativeSessionCoordinatorTest {
 					requireAllSources = false,
 				),
 			)
-			val started = subject.start(
+			val started = startCaptureRun(
 				startRequest().copy(
 					logicalTrackingId = "catalog-manifest-only-logical",
 					serviceRunId = "catalog-manifest-only-run",
@@ -1309,6 +1394,7 @@ class AuthoritativeSessionCoordinatorTest {
 			locationRuntime.isActive shouldBe true
 
 			stepsReadFails = false
+			runtime.failedStartWithoutProviderEvidence = false
 			subject.reconfigure(debtBacked)
 				.shouldBeInstanceOf<SessionReconfigureResult.Applied>()
 			stepsProviderCalls shouldBe 2
@@ -1317,8 +1403,10 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
+	// One permission-loss reconfiguration checks blocked Steps and uninterrupted Location together.
+	@Suppress("LongMethod")
 	fun `terminal catalog unavailability can block one active source while its sibling continues`() =
-		runTest {
+		runRoomTest {
 			val catalog = mockk<SourceImplementationCatalog>()
 			var stepsPermissionGranted = true
 			coEvery { catalog.availability(any()) } answers {
@@ -1341,7 +1429,7 @@ class AuthoritativeSessionCoordinatorTest {
 				SourceKind.STEPS to Provider { runtime },
 			)
 			replaceRuntimeRegistry(SourceRuntimeRegistry(providers, catalog, requireAllSources = false))
-			val started = subject.start(
+			val started = startCaptureRun(
 				startRequest().copy(
 					logicalTrackingId = "terminal-catalog-logical",
 					serviceRunId = "terminal-catalog-run",
@@ -1384,8 +1472,10 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
+	// One partial start checks healthy Location and both missing sensors across the saved authority.
+	@Suppress("LongMethod")
 	fun `missing optional sensors are typed blocked while location starts without resolving them`() =
-		runTest {
+		runRoomTest {
 			val catalog = mockk<SourceImplementationCatalog>()
 			coEvery { catalog.availability(any()) } answers {
 				val request = firstArg<SourceAvailabilityRequest>()
@@ -1443,7 +1533,7 @@ class AuthoritativeSessionCoordinatorTest {
 				),
 			)
 
-			val started = subject.start(
+			val started = startCaptureRun(
 				startRequest().copy(
 					logicalTrackingId = "partial-availability-logical",
 					serviceRunId = "partial-availability-run",
@@ -1487,8 +1577,10 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
+	// One prepared-start chain checks a sensor lost between acceptance and physical application.
+	@Suppress("LongMethod")
 	fun `prepared apply blocks newly unavailable accepted source without resolving its provider`() =
-		runTest {
+		runRoomTest {
 			val catalog = mockk<SourceImplementationCatalog>()
 			var stepsAvailable = true
 			coEvery { catalog.availability(any()) } answers {
@@ -1603,7 +1695,9 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
-	fun `prepared location starts without waiting for unavailable steps`() = runTest {
+	// One prepared-start chain checks Location activation while the Steps catalog remains unavailable.
+	@Suppress("LongMethod")
+	fun `prepared location starts without waiting for unavailable steps`() = runRoomTest {
 		val catalog = mockk<SourceImplementationCatalog>()
 		var stepsReadFails = false
 		coEvery { catalog.availability(any()) } answers {
@@ -1686,7 +1780,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `prepared steps continue when location becomes unavailable after foreground acceptance`() = runTest {
+	fun `prepared steps continue when location becomes unavailable after foreground acceptance`() = runRoomTest {
 		val catalog = mockk<SourceImplementationCatalog>()
 		var locationReadFails = false
 		coEvery { catalog.availability(any()) } answers {
@@ -1742,6 +1836,8 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	// One delayed foreground acceptance must retain the original lease through all catalog retries.
+	@Suppress("LongMethod")
 	fun `retryable prepared foreground wait renews one generation beyond thirty seconds`() = runTest {
 		val catalog = mockk<SourceImplementationCatalog>()
 		var retryableReadsRemaining = 0
@@ -1812,11 +1908,15 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `retryable prepared apply retains its exact lease until the next attempt`() = runTest {
+	// One prepared apply fails transiently, preserves its lease and succeeds on the exact retry.
+	@Suppress("LongMethod")
+	fun `retryable prepared apply retains its exact lease until the next attempt`() = runRoomTest {
 		val catalog = mockk<SourceImplementationCatalog>()
 		var unavailable = false
 		coEvery { catalog.availability(any()) } answers {
-			if (unavailable) throw SQLiteException("catalog temporarily unavailable")
+			if (unavailable) {
+				throw SQLiteException("catalog temporarily unavailable")
+			}
 			SourceCatalogAvailability.Executable(SourceProviderAvailability.Available())
 		}
 		replaceRuntimeRegistry(
@@ -1884,13 +1984,13 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `candidate source settlement observes frozen STOPPING state before finalization`() = runTest {
+	fun `candidate source settlement observes frozen STOPPING state before finalization`() = runRoomTest {
 		val binding = installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
 		val drainOrder = mutableListOf<String>()
 		val controlCoordinator = mockk<TrackingCoordinator>()
 		coEvery { controlCoordinator.drainAvailable(any(), any()) } coAnswers {
 			drainOrder += "control"
-			CoordinatorDrainResult.Complete(0L, 0)
+			CoordinatorDrainResult.Complete(database.sourceEventWalDao().maximumAdmissionOrdinal() ?: 0L, 0)
 		}
 		replaceEventCoordinator(controlCoordinator)
 		sourceProductDrainRouter.onDrain = { request ->
@@ -1908,13 +2008,15 @@ class AuthoritativeSessionCoordinatorTest {
 				eventsValidated = 0,
 			)
 		}
-		val started = subject.start(
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "source-drain-order",
 				serviceRunId = "source-drain-order-run",
 				rolloutRevision = rolloutSnapshot.revision,
 			),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val admissionOrdinal = insertTerminalStepsWal(started)
+		runtime.lastAdmissionOrdinal = admissionOrdinal
 
 		subject.stop(
 			SessionStopRequest(
@@ -1983,7 +2085,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `recorded source poison defers finalization without suppressing settlement evidence`() = runTest {
+	fun `recorded source poison defers finalization without suppressing settlement evidence`() = runRoomTest {
 		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
 		sourceProductDrainRouter.onDrain = { request ->
 			SourceProductDrainResult.Failed(
@@ -1994,13 +2096,17 @@ class AuthoritativeSessionCoordinatorTest {
 				terminalFailureRecorded = true,
 			)
 		}
-		val started = subject.start(
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "source-poison",
 				serviceRunId = "source-poison-run",
 				rolloutRevision = rolloutSnapshot.revision,
 			),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
+
+		val admissionOrdinal = insertTerminalStepsWal(started)
+		runtime.lastAdmissionOrdinal = admissionOrdinal
+		replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
 
 		val pending = subject.stop(
 			SessionStopRequest("source-poison-owner", "USER_STOP", 2_000L, 2_000_000L, "boot-1"),
@@ -2017,7 +2123,9 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `one poisoned source does not suppress an independent captured source drain`() = runTest {
+	// One End operation must attempt both captured drains despite Steps poison.
+	@Suppress("LongMethod")
+	fun `one poisoned source does not suppress an independent captured source drain`() = runRoomTest {
 		val stepsBinding = installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
 		rolloutSnapshot = TrackingRolloutState.eventCanonical(
 			sources = setOf(SourceKind.STEPS, SourceKind.LOCATION),
@@ -2070,7 +2178,11 @@ class AuthoritativeSessionCoordinatorTest {
 				sourcePolicyRevision = 1L,
 			),
 		)
-		subject.start(request).shouldBeInstanceOf<SessionStartResult.Started>()
+		val started = startCaptureRun(request).shouldBeInstanceOf<SessionStartResult.Started>()
+
+		val admissionOrdinal = insertTerminalStepsWal(started)
+		runtime.lastAdmissionOrdinal = admissionOrdinal
+		replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
 
 		subject.stop(
 			SessionStopRequest("partial-source-owner", "USER_STOP", 2_000L, 2_000_000L, "boot-1"),
@@ -2081,16 +2193,19 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `source drain cancellation preserves the frozen run for retry`() = runTest {
+	fun `source drain cancellation preserves the frozen run for retry`() = runRoomTest {
 		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
 		sourceProductDrainRouter.onDrain = { throw CancellationException("test cancellation") }
-		val started = subject.start(
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "source-drain-cancel",
 				serviceRunId = "source-drain-cancel-run",
 				rolloutRevision = rolloutSnapshot.revision,
 			),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val admissionOrdinal = insertTerminalStepsWal(started)
+		runtime.lastAdmissionOrdinal = admissionOrdinal
+		replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
 
 		runCatching {
 			subject.stop(
@@ -2101,21 +2216,34 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceSessionDao().session(started.logicalTrackingId)?.let { session ->
 			session.state shouldBe SessionLifecycleState.STOPPING.name
 			session.currentServiceRunId shouldBe started.serviceRunId
-			session.finalAdmissionOrdinal shouldBe 0L
+			session.finalAdmissionOrdinal shouldBe admissionOrdinal
 		}
 	}
 
 	@Test
-	fun `process death settlement finalizes with durable unavailable Steps product`() = runTest {
+	// One interrupted End is replayed after process death without losing saved WAL or claiming coverage.
+	@Suppress("LongMethod")
+	fun `process death settlement drains saved Steps while keeping coverage unavailable`() = runRoomTest {
 		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
-		val started = subject.start(
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "retirement-crash-gap",
 				serviceRunId = "retirement-crash-run",
 				rolloutRevision = rolloutSnapshot.revision,
 			),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val admissionOrdinal = insertTerminalStepsWal(started)
+		runtime.lastAdmissionOrdinal = admissionOrdinal
+		replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
 		runtime.cancelAfterPhysicalShutdown = true
+		runtime.beforePhysicalShutdownCancellation = { acknowledgement ->
+			persistTerminalStepsEvidence(acknowledgement.copy(
+				status = SourceStopStatus.PROCESS_RESTARTED,
+				providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
+				providerFlushOutcome = ProviderFlushOutcome.NOT_SUPPORTED,
+				appDrainComplete = false,
+			))
+		}
 
 		assertFailsWith<CancellationException> {
 			subject.stop(
@@ -2169,7 +2297,14 @@ class AuthoritativeSessionCoordinatorTest {
 		).shouldBeInstanceOf<SessionStopResult.Stopped>()
 
 		stopped.acknowledgements.single().status shouldBe SourceStopStatus.PROCESS_RESTARTED
-		sourceProductDrainRouter.requests shouldBe emptyList()
+		sourceProductDrainRouter.requests.single().let { request ->
+			request.source shouldBe SourceKind.STEPS
+			request.logicalTrackingId shouldBe started.logicalTrackingId
+			request.serviceRunId shouldBe started.serviceRunId
+			request.sourceHighWaterAdmissionOrdinal shouldBe admissionOrdinal
+			request.memberships.single().providerCoverage shouldBe
+				ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE.name
+		}
 		database.sourceSessionDao().session(started.logicalTrackingId)?.let { session ->
 			session.state shouldBe SessionLifecycleState.FINALIZED.name
 			session.failureCode shouldBe "STOP_PARTIAL"
@@ -2183,10 +2318,10 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `terminal partial Steps settlement finalizes without invoking a queryable product lane`() =
-		runTest {
+	fun `terminal partial Steps settlement drains admitted WAL without claiming complete coverage`() =
+		runRoomTest {
 			installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
-			val started = subject.start(
+			val started = startCaptureRun(
 				startRequest().copy(
 					logicalTrackingId = "terminal-partial-product",
 					serviceRunId = "terminal-partial-product-run",
@@ -2210,7 +2345,13 @@ class AuthoritativeSessionCoordinatorTest {
 
 			stopped.acknowledgements.single().status shouldBe
 				SourceStopStatus.PARTIAL_UNOBSERVABLE
-			sourceProductDrainRouter.requests shouldBe emptyList()
+			sourceProductDrainRouter.requests.single().let { request ->
+				request.source shouldBe SourceKind.STEPS
+				request.logicalTrackingId shouldBe started.logicalTrackingId
+				request.serviceRunId shouldBe started.serviceRunId
+				request.sourceHighWaterAdmissionOrdinal shouldBe admissionOrdinal
+				request.memberships.single().stopStatus shouldBe SourceStopStatus.PARTIAL_UNOBSERVABLE.name
+			}
 			database.sourceSessionDao().session(started.logicalTrackingId)?.let { session ->
 				session.state shouldBe SessionLifecycleState.FINALIZED.name
 				session.failureCode shouldBe "STOP_PARTIAL"
@@ -2225,9 +2366,9 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
-	fun `raw WAL high-water rejects malformed aggregate inputs during drain planning`() = runTest {
+	fun `raw WAL high-water rejects malformed aggregate inputs during drain planning`() = runRoomTest {
 		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
-		val started = subject.start(
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "raw-wal-plan",
 				serviceRunId = "raw-wal-plan-run",
@@ -2258,7 +2399,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `exact run cannot hide a cleared middle capture row behind later completeness`() = runTest {
+	fun `exact run cannot hide a cleared middle capture row behind later completeness`() = runRoomTest {
 		val logicalTrackingId = "cleared-middle-purpose-logical"
 		val serviceRunId = "cleared-middle-purpose-run"
 		val sourceInstanceId = "cleared-middle-purpose-instance"
@@ -2306,7 +2447,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `exact run cannot hide a cleared terminal capture row`() = runTest {
+	fun `exact run cannot hide a cleared terminal capture row`() = runRoomTest {
 		val logicalTrackingId = "cleared-terminal-purpose-logical"
 		val serviceRunId = "cleared-terminal-purpose-run"
 		val sourceInstanceId = "cleared-terminal-purpose-instance"
@@ -2347,7 +2488,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `capture-owned WAL rejects malformed purpose mask storage and values`() = runTest {
+	fun `capture-owned WAL rejects malformed purpose mask storage and values`() = runRoomTest {
 		val logicalTrackingId = "malformed-purpose-logical"
 		val serviceRunId = "malformed-purpose-run"
 		val sourceInstanceId = "malformed-purpose-instance"
@@ -2389,7 +2530,9 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `exact-run non-member WAL must prove valid control-only masks before exclusion`() = runTest {
+	// One exact-run association matrix keeps valid control masks separate from malformed masks.
+	@Suppress("LongMethod")
+	fun `exact-run non-member WAL must prove valid control-only masks before exclusion`() = runRoomTest {
 		val logicalTrackingId = "non-member-purpose-logical"
 		val serviceRunId = "non-member-purpose-run"
 		val captureInstanceId = "non-member-purpose-capture"
@@ -2475,7 +2618,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `product member control mask with out-of-run revision fails closed`() = runTest {
+	fun `product member control mask with out-of-run revision fails closed`() = runRoomTest {
 		val logicalTrackingId = "member-control-revision-logical"
 		val serviceRunId = "member-control-revision-run"
 		val sourceInstanceId = "member-control-revision-instance"
@@ -2505,7 +2648,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `retirement-claimed control mask with out-of-run revision fails closed`() = runTest {
+	fun `retirement-claimed control mask with out-of-run revision fails closed`() = runRoomTest {
 		val logicalTrackingId = "claimed-control-revision-logical"
 		val serviceRunId = "claimed-control-revision-run"
 		val sourceInstanceId = "claimed-control-revision-instance"
@@ -2533,7 +2676,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `non-member control-only row after cutoff does not advance product high-water`() = runTest {
+	fun `non-member control-only row after cutoff does not advance product high-water`() = runRoomTest {
 		val logicalTrackingId = "control-after-cutoff-logical"
 		val serviceRunId = "control-after-cutoff-run"
 		val captureInstanceId = "control-after-cutoff-capture"
@@ -2589,7 +2732,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `product member control-only row after cutoff fails closed`() = runTest {
+	fun `product member control-only row after cutoff fails closed`() = runRoomTest {
 		val logicalTrackingId = "member-control-after-cutoff-logical"
 		val serviceRunId = "member-control-after-cutoff-run"
 		val sourceInstanceId = "member-control-after-cutoff-instance"
@@ -2626,7 +2769,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `non-member product and malformed rows after cutoff fail closed`() = runTest {
+	fun `non-member product and malformed rows after cutoff fail closed`() = runRoomTest {
 		val logicalTrackingId = "invalid-after-cutoff-logical"
 		val serviceRunId = "invalid-after-cutoff-run"
 		val captureInstanceId = "invalid-after-cutoff-capture"
@@ -2680,7 +2823,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `control-only-only provider group has zero product high-water`() = runTest {
+	fun `control-only-only provider group has zero product high-water`() = runRoomTest {
 		val logicalTrackingId = "control-only-group-logical"
 		val serviceRunId = "control-only-group-run"
 		val controlOrdinal = insertTerminalStepsWal(
@@ -2704,7 +2847,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `exact-run non-member control rejects ASCII blank event and service run ids`() = runTest {
+	fun `exact-run non-member control rejects ASCII blank event and service run ids`() = runRoomTest {
 		val logicalTrackingId = "exact-control-identifiers-logical"
 		val serviceRunId = "exact-control-identifiers-run"
 		val controlOrdinal = insertTerminalStepsWal(
@@ -2755,7 +2898,9 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `wrong-run non-member WAL must prove valid control-only masks before exclusion`() = runTest {
+	// One wrong-run association matrix checks every excluded control mask against the same capture.
+	@Suppress("LongMethod")
+	fun `wrong-run non-member WAL must prove valid control-only masks before exclusion`() = runRoomTest {
 		val logicalTrackingId = "wrong-run-non-member-logical"
 		val serviceRunId = "wrong-run-non-member-current"
 		val captureInstanceId = "wrong-run-non-member-capture"
@@ -2841,7 +2986,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `wrong-run non-member control rejects ASCII blank event and service run ids`() = runTest {
+	fun `wrong-run non-member control rejects ASCII blank event and service run ids`() = runRoomTest {
 		val logicalTrackingId = "wrong-control-identifiers-logical"
 		val serviceRunId = "wrong-control-identifiers-current"
 		val wrongServiceRunId = "wrong-control-identifiers-other"
@@ -2906,7 +3051,9 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `non-member association rejects unavailable malformed count before exclusion`() = runTest {
+	// One missing-count contract is checked for both exact-run and wrong-run association queries.
+	@Suppress("LongMethod")
+	fun `non-member association rejects unavailable malformed count before exclusion`() = runRoomTest {
 		for (wrongRun in listOf(false, true)) {
 			val mockedDatabase = mockk<AppDatabase>()
 			val walDao = mockk<SourceEventWalDao>()
@@ -2946,7 +3093,11 @@ class AuthoritativeSessionCoordinatorTest {
 					SourceBrokerPurpose.ALL_MASK,
 					any(),
 				)
-			} returns if (wrongRun) emptyList() else listOf(association)
+			} returns if (wrongRun) {
+				emptyList()
+			} else {
+				listOf(association)
+			}
 			coEvery {
 				walDao.rawWrongRunSourceManifestAssociations(
 					SourceKind.STEPS.stableCode,
@@ -2958,7 +3109,11 @@ class AuthoritativeSessionCoordinatorTest {
 					SourceBrokerPurpose.ALL_MASK,
 					any(),
 				)
-			} returns if (wrongRun) listOf(association) else emptyList()
+			} returns if (wrongRun) {
+				listOf(association)
+			} else {
+				emptyList()
+			}
 
 			sourceRunHighWater(
 				database = mockedDatabase,
@@ -2975,7 +3130,7 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@Test
 	fun `mixed capture and control WAL keeps control-only evidence outside product high-water`() =
-		runTest {
+		runRoomTest {
 			val logicalTrackingId = "mixed-purpose-logical"
 			val serviceRunId = "mixed-purpose-run"
 			val captureInstanceId = "mixed-purpose-capture-instance"
@@ -3015,9 +3170,9 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@Test
 	fun `raw WAL high-water exposes a logical owner mismatch on the globally unique service run`() =
-		runTest {
+		runRoomTest {
 			installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
-			val started = subject.start(
+			val started = startCaptureRun(
 				startRequest().copy(
 					logicalTrackingId = "raw-wal-logical-owner",
 					serviceRunId = "raw-wal-logical-owner-run",
@@ -3026,12 +3181,17 @@ class AuthoritativeSessionCoordinatorTest {
 			).shouldBeInstanceOf<SessionStartResult.Started>()
 			val admissionOrdinal = insertTerminalStepsWal(started)
 			runtime.lastAdmissionOrdinal = admissionOrdinal
-			replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
-			database.openHelper.writableDatabase.execSQL(
-				"UPDATE source_event_wal SET logical_tracking_id = 'foreign-logical-owner' " +
-					"WHERE admission_ordinal = ?",
-				arrayOf(admissionOrdinal),
-			)
+			val eventCoordinator = completedEventCoordinator(admissionOrdinal)
+			coEvery { eventCoordinator.drainAvailable(any(), any()) } coAnswers {
+				// Corrupt after terminal completeness so this isolates the raw high-water read.
+				database.openHelper.writableDatabase.execSQL(
+					"UPDATE source_event_wal SET logical_tracking_id = 'foreign-logical-owner' " +
+						"WHERE admission_ordinal = ?",
+					arrayOf(admissionOrdinal),
+				)
+				CoordinatorDrainResult.Complete(admissionOrdinal, 1)
+			}
+			replaceEventCoordinator(eventCoordinator)
 
 			val pending = subject.stop(
 				SessionStopRequest(
@@ -3049,9 +3209,9 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@Test
 	fun `historical other-run nonblank identity on another revision cannot poison high-water`() =
-		runTest {
+		runRoomTest {
 			installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
-			val started = subject.start(
+			val started = startCaptureRun(
 				startRequest().copy(
 					logicalTrackingId = "raw-wal-historical-owner",
 					serviceRunId = "raw-wal-current-run",
@@ -3095,9 +3255,12 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
-	fun `current-run wrong null blob blank and whitespace service identities fail closed`() = runTest {
+	// One failed-End chain keeps one physical retirement through malformed IDs, stale checkpoint and restored retry.
+	@Suppress("LongMethod")
+	fun `current-run wrong null blob blank and whitespace service identities fail closed`() = runRoomTest {
 		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
-		val started = subject.start(
+		runtime.onPhysicalShutdown = ::persistStepsPhysicalRetirement
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "raw-wal-current-malformed",
 				serviceRunId = "raw-wal-current-malformed-run",
@@ -3129,16 +3292,41 @@ class AuthoritativeSessionCoordinatorTest {
 					2_000_000L + index,
 					"boot-1",
 				),
-			).shouldBeInstanceOf<SessionStopResult.DrainPending>()
+			).shouldBeInstanceOf<SessionStopResult.InvalidIntent>()
 
-			pending.reason shouldBe "SOURCE_DRAIN_HIGH_WATER_UNVERIFIABLE"
+			pending.code shouldBe "SOURCE_COMPLETENESS_AUTHENTICATION_BLOCKED"
 			sourceProductDrainRouter.requests shouldBe emptyList()
+			runtime.shutdownAttemptCount shouldBe 1
+			database.sourceSessionDao().completenessForServiceRun(
+				started.logicalTrackingId, started.serviceRunId,
+			) shouldBe emptyList()
+			if (index == 0) {
+				val checkpoint = requireNotNull(database.sourceRuntimeStateDao().get(
+					SourceKind.STEPS.stableCode, "source-broker:${SourceKind.STEPS.stableCode}",
+				))
+				database.sourceRuntimeStateDao().save(checkpoint.copy(
+					registrationGeneration = checkpoint.registrationGeneration + 1L,
+				))
+				subject.stop(SessionStopRequest(
+					"raw-wal-current-wrong-checkpoint", "USER_STOP", 2_050L, 2_050_000L, "boot-1",
+				)).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+				runtime.shutdownAttemptCount shouldBe 1
+				sourceProductDrainRouter.requests shouldBe emptyList()
+				database.sourceSessionDao().completenessForServiceRun(
+					started.logicalTrackingId, started.serviceRunId,
+				) shouldBe emptyList()
+				database.sourceRuntimeStateDao().save(checkpoint)
+			}
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE source_event_wal SET service_run_id = ? WHERE admission_ordinal = ?",
 				arrayOf<Any?>(started.serviceRunId, admissionOrdinal),
 			)
 		}
 
+		val originalRetirement = database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId, started.serviceRunId, SourceKind.STEPS.stableCode,
+		).single()
+		originalRetirement.state shouldBe SourceRunRetirementEntity.STATE_ACKNOWLEDGED
 		subject.stop(
 			SessionStopRequest(
 				"raw-wal-current-malformed-restored",
@@ -3148,10 +3336,14 @@ class AuthoritativeSessionCoordinatorTest {
 				"boot-1",
 			),
 		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+		runtime.shutdownAttemptCount shouldBe 1
+		database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId, started.serviceRunId, SourceKind.STEPS.stableCode,
+		).single() shouldBe originalRetirement
 	}
 
 	@Test
-	fun `exact run WAL accepts 101 301 and 2048 authenticated revisions across chunks`() = runTest {
+	fun `exact run WAL accepts 101 301 and 2048 authenticated revisions across chunks`() = runRoomTest {
 		for (revisionCount in listOf(101, 301, MAX_RUN_DRAIN_MANIFEST_REVISIONS)) {
 			val logicalTrackingId = "chunked-wal-logical-$revisionCount"
 			val serviceRunId = "chunked-wal-run-$revisionCount"
@@ -3195,7 +3387,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `exact run WAL rejects missing and out-of-run manifest revisions`() = runTest {
+	fun `exact run WAL rejects missing and out-of-run manifest revisions`() = runRoomTest {
 		for ((identity, manifestRevision) in listOf(
 			"missing" to null,
 			"out-of-run" to 3L,
@@ -3230,7 +3422,7 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@Test
 	fun `wrong nonblank service run with cleared capture bit is rejected across 301 revisions`() =
-		runTest {
+		runRoomTest {
 		val logicalTrackingId = "wrong-service-run-logical"
 		val serviceRunId = "expected-service-run"
 		val sourceInstanceId = "wrong-service-run-instance"
@@ -3273,7 +3465,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `duplicate authenticated manifest revisions fail before WAL attribution`() = runTest {
+	fun `duplicate authenticated manifest revisions fail before WAL attribution`() = runRoomTest {
 		sourceRunHighWater(
 			database = database,
 			source = SourceKind.STEPS,
@@ -3291,7 +3483,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `duplicate WAL manifest revisions are each retained in the exact run high-water`() = runTest {
+	fun `duplicate WAL manifest revisions are each retained in the exact run high-water`() = runRoomTest {
 		val logicalTrackingId = "duplicate-wal-revision-logical"
 		val serviceRunId = "duplicate-wal-revision-run"
 		val sourceInstanceId = "duplicate-wal-revision-instance"
@@ -3329,7 +3521,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `cleanup-only generation WAL remains visible across manifest chunks`() = runTest {
+	fun `cleanup-only generation WAL remains visible across manifest chunks`() = runRoomTest {
 		val logicalTrackingId = "chunked-cleanup-generation-logical"
 		val serviceRunId = "chunked-cleanup-generation-run"
 		val productInstanceId = "chunked-product-instance"
@@ -3377,9 +3569,9 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `raw WAL high-water recheck rejects corruption after plan creation`() = runTest {
+	fun `raw WAL high-water recheck rejects corruption after plan creation`() = runRoomTest {
 		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
-		val started = subject.start(
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "raw-wal-recheck",
 				serviceRunId = "raw-wal-recheck-run",
@@ -3417,8 +3609,8 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `Steps WAL maintenance rejects corrupt active-run lifecycle protection`() = runTest {
-		val started = subject.start(
+	fun `Steps WAL maintenance rejects corrupt active-run lifecycle protection`() = runRoomTest {
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "maintenance-run-state",
 				serviceRunId = "maintenance-run-state-run",
@@ -3440,11 +3632,11 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@Test
 	fun `raw Steps completeness overflow returns authentication blocked instead of throwing`() =
-		runTest {
+		runRoomTest {
 			StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
 				StepsCountDomainSchemaState.ValidV2
 			installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
-			val started = subject.start(
+			val started = startCaptureRun(
 				startRequest().copy(
 					logicalTrackingId = "raw-completeness-overflow",
 					serviceRunId = "raw-completeness-overflow-run",
@@ -3485,9 +3677,9 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
-	fun `requested replay promotes authenticated terminal Steps checkpoint without weakening BIND`() = runTest {
+	fun `requested replay promotes authenticated terminal Steps checkpoint without weakening BIND`() = runRoomTest {
 		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
-		val started = subject.start(
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "retirement-checkpoint-recovery",
 				serviceRunId = "retirement-checkpoint-recovery-run",
@@ -3549,7 +3741,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `stale terminal Steps owner evidence leaves requested replay payload free`() = runTest {
+	fun `stale terminal Steps owner evidence leaves requested replay payload free`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("stale-terminal-owner")
 		val exact = database.sourceSessionDao().completenessForServiceRun(
 			started.logicalTrackingId,
@@ -3561,7 +3753,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `wrong generation terminal Steps checkpoint leaves requested replay payload free`() = runTest {
+	fun `wrong generation terminal Steps checkpoint leaves requested replay payload free`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("wrong-generation-checkpoint")
 		val state = requireNotNull(database.sourceRuntimeStateDao().get(
 			SourceKind.STEPS.stableCode,
@@ -3573,7 +3765,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `malformed terminal Steps checkpoint leaves requested replay payload free`() = runTest {
+	fun `malformed terminal Steps checkpoint leaves requested replay payload free`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("malformed-checkpoint")
 		val state = requireNotNull(database.sourceRuntimeStateDao().get(
 			SourceKind.STEPS.stableCode,
@@ -3585,7 +3777,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `requested replay without its exact action claim remains blocked`() = runTest {
+	fun `requested replay without its exact action claim remains blocked`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("missing-requested-owner")
 		val retirement = database.sourceSessionDao().runRetirements(
 			started.logicalTrackingId,
@@ -3600,7 +3792,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `requested replay cannot move its action claim to another physical provider`() = runTest {
+	fun `requested replay cannot move its action claim to another physical provider`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("wrong-requested-provider")
 		val retirement = database.sourceSessionDao().runRetirements(
 			started.logicalTrackingId,
@@ -3614,11 +3806,17 @@ class AuthoritativeSessionCoordinatorTest {
 			owner.copy(sourceInstanceId = "different-steps-instance"),
 		) shouldBe 1
 
-		assertTerminalStepsRecoveryBlocked(started, "wrong-requested-provider-retry")
+		assertTerminalStepsRecoveryBlocked(started, "wrong-requested-provider-retry", expectedRetirementCount = 2)
+		database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId, started.serviceRunId, SourceKind.STEPS.stableCode,
+		).single { receipt ->
+			receipt.sourceInstanceId == retirement.sourceInstanceId &&
+				receipt.registrationGeneration == retirement.registrationGeneration
+		} shouldBe retirement
 	}
 
 	@Test
-	fun `requested replay cannot move its action claim to another provider generation`() = runTest {
+	fun `requested replay cannot move its action claim to another provider generation`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("wrong-requested-generation")
 		val retirement = database.sourceSessionDao().runRetirements(
 			started.logicalTrackingId,
@@ -3632,11 +3830,17 @@ class AuthoritativeSessionCoordinatorTest {
 			owner.copy(registrationGeneration = retirement.registrationGeneration + 1L),
 		) shouldBe 1
 
-		assertTerminalStepsRecoveryBlocked(started, "wrong-requested-generation-retry")
+		assertTerminalStepsRecoveryBlocked(started, "wrong-requested-generation-retry", expectedRetirementCount = 2)
+		database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId, started.serviceRunId, SourceKind.STEPS.stableCode,
+		).single { receipt ->
+			receipt.sourceInstanceId == retirement.sourceInstanceId &&
+				receipt.registrationGeneration == retirement.registrationGeneration
+		} shouldBe retirement
 	}
 
 	@Test
-	fun `requested replay authenticates desired plan revision against immutable manifest`() = runTest {
+	fun `requested replay authenticates desired plan revision against immutable manifest`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("requested-plan-revision-tamper")
 		val retirement = database.sourceSessionDao().runRetirements(
 			started.logicalTrackingId,
@@ -3673,7 +3877,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `requested replay rejects immutable action identity field tampering`() = runTest {
+	fun `requested replay rejects immutable action identity field tampering`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("requested-action-envelope-tamper")
 		val retirement = database.sourceSessionDao().runRetirements(
 			started.logicalTrackingId,
@@ -3734,7 +3938,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `retirement reads referenced manifests without scanning long irrelevant history`() = runTest {
+	fun `retirement reads referenced manifests without scanning long irrelevant history`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("retirement-long-manifest-history")
 		appendIrrelevantManifestHistory(started, count = 300)
 
@@ -3752,15 +3956,18 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `suspend drains after more than three hundred irrelevant manifests`() = runTest {
+	fun `suspend drains after more than three hundred irrelevant manifests`() = runRoomTest {
 		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
-		val started = subject.start(
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "suspend-long-manifest-history",
 				serviceRunId = "suspend-long-manifest-history-run",
 				rolloutRevision = rolloutSnapshot.revision,
 			),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val admissionOrdinal = insertTerminalStepsWal(started)
+		runtime.lastAdmissionOrdinal = admissionOrdinal
+		replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
 		appendIrrelevantManifestHistory(started, count = 320)
 
 		subject.suspendForRestart(
@@ -3776,8 +3983,8 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `retirement action query exposes a logical id mismatch on the exact service run`() = runTest {
-		val started = subject.start(
+	fun `retirement action query exposes a logical id mismatch on the exact service run`() = runRoomTest {
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "retirement-logical-mismatch",
 				serviceRunId = "retirement-logical-mismatch-run",
@@ -3803,7 +4010,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `retirement blocks unknown and overflowed referenced manifest revisions`() = runTest {
+	fun `retirement blocks unknown and overflowed referenced manifest revisions`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("retirement-referenced-manifest")
 		val retirement = database.sourceSessionDao().runRetirements(
 			started.logicalTrackingId,
@@ -3846,7 +4053,9 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `retirement raw action projection blocks malformed ids enums types and ranges`() = runTest {
+	// One saved action is corrupted field by field, repaired and then retired without early shutdown.
+	@Suppress("LongMethod")
+	fun `retirement raw action projection blocks malformed ids enums types and ranges`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("retirement-raw-action")
 		val retirement = database.sourceSessionDao().runRetirements(
 			started.logicalTrackingId,
@@ -3854,6 +4063,7 @@ class AuthoritativeSessionCoordinatorTest {
 			SourceKind.STEPS.stableCode,
 		).single()
 		val action = requireNotNull(database.sourceSessionDao().lifecycleAction(retirement.actionId))
+		allowNullColumnsForCorruptionTest("lifecycle_desired_action", setOf("requested_elapsed_realtime_nanos"))
 		val mutations = listOf(
 			RawActionMutation("action_id", "''", action.actionId),
 			RawActionMutation("action_id", "'malformed'", action.actionId),
@@ -3885,8 +4095,8 @@ class AuthoritativeSessionCoordinatorTest {
 				"X'01'",
 				action.acknowledgedElapsedRealtimeNanos,
 			),
-			RawActionMutation("failure_code", "1", action.failureCode),
-			RawActionMutation("retry_trigger", "1", action.retryTrigger),
+			RawActionMutation("failure_code", "X'01'", action.failureCode),
+			RawActionMutation("retry_trigger", "X'01'", action.retryTrigger),
 			RawActionMutation("source_instance_id", "''", action.sourceInstanceId),
 			RawActionMutation("registration_generation", "0", action.registrationGeneration),
 		)
@@ -3896,16 +4106,18 @@ class AuthoritativeSessionCoordinatorTest {
 					"${mutation.column} = ${mutation.corruptSql} WHERE action_id IS ?",
 				arrayOf(action.actionId),
 			)
-			subject.stop(
-				SessionStopRequest(
-					"retirement-raw-action-$index",
-					"USER_STOP",
-					2_600L + index,
-					2_600_000L + index,
-					"boot-1",
-				),
-			).shouldBeInstanceOf<SessionStopResult.InvalidIntent>().code shouldBe
-				"RUN_RETIREMENT_ACTION_AUTHENTICATION_BLOCKED"
+			withClue("Corrupted action column: ${mutation.column}") {
+				subject.stop(
+					SessionStopRequest(
+						"retirement-raw-action-$index",
+						"USER_STOP",
+						2_600L + index,
+						2_600_000L + index,
+						"boot-1",
+					),
+				).shouldBeInstanceOf<SessionStopResult.InvalidIntent>().code shouldBe
+					"RUN_RETIREMENT_ACTION_AUTHENTICATION_BLOCKED"
+			}
 			runtime.shutdownClaims shouldBe emptyList()
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE lifecycle_desired_action SET ${mutation.column} = ? " +
@@ -3932,7 +4144,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `retirement manifest source overflow blocks before binding materialization`() = runTest {
+	fun `retirement manifest source overflow blocks before binding materialization`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("retirement-manifest-source-overflow")
 		repeat(MAX_RUN_RETIREMENT_MANIFEST_SOURCES) { index ->
 			database.openHelper.writableDatabase.execSQL(
@@ -3965,7 +4177,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `malformed raw manifest bindings block authentication before runtime shutdown`() = runTest {
+	fun `malformed raw manifest bindings block authentication before runtime shutdown`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("raw-retirement-manifest-binding")
 		val original = database.sourceSessionDao()
 			.manifestSources(started.logicalTrackingId, 1L)
@@ -4003,7 +4215,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `real manifest header value cannot authenticate retirement`() = runTest {
+	fun `real manifest header value cannot authenticate retirement`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("raw-retirement-manifest-header")
 		appendIrrelevantManifestHistory(started, count = 1)
 		val session = requireNotNull(database.sourceSessionDao().session(started.logicalTrackingId))
@@ -4030,7 +4242,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `real lifecycle intent value cannot authenticate requested Steps retirement`() = runTest {
+	fun `real lifecycle intent value cannot authenticate requested Steps retirement`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("raw-retirement-intent")
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE session_lifecycle_intent_version SET requested_wall_time_ms = 1.5 " +
@@ -4051,7 +4263,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `real completeness value cannot authenticate terminal Steps replay`() = runTest {
+	fun `real completeness value cannot authenticate terminal Steps replay`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("raw-retirement-completeness")
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_session_completeness SET last_admission_ordinal = 1.5 " +
@@ -4066,12 +4278,13 @@ class AuthoritativeSessionCoordinatorTest {
 				2_500_000L,
 				"boot-1",
 			),
-		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+		).shouldBeInstanceOf<SessionStopResult.InvalidIntent>().code shouldBe
+			"SOURCE_COMPLETENESS_AUTHENTICATION_BLOCKED"
 		runtime.shutdownClaims shouldBe emptyList()
 	}
 
 	@Test
-	fun `retirement action replay fails closed on bounded overflow`() = runTest {
+	fun `retirement action replay fails closed on bounded overflow`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("retirement-action-overflow")
 		insertSyntheticRetirementClaims(
 			started,
@@ -4093,7 +4306,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `raw retirement replay fails closed on bounded overflow`() = runTest {
+	fun `raw retirement replay fails closed on bounded overflow`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("retirement-receipt-overflow")
 		insertSyntheticRetirementClaims(
 			started,
@@ -4115,7 +4328,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `bounded retirement indexing handles a large exact ownership set once`() = runTest {
+	fun `bounded retirement indexing handles a large exact ownership set once`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("retirement-indexed-batch")
 		val syntheticCount = MAX_RUN_RETIREMENT_RECEIPTS / 2
 		insertSyntheticRetirementClaims(
@@ -4138,7 +4351,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `clean legacy cleanup-only drain keeps the existing empty plan without mutation`() = runTest {
+	fun `clean legacy cleanup-only drain keeps the existing empty plan without mutation`() = runRoomTest {
 		val (started, receipt) = prepareCleanupOnlyReceiptAfterCoordinatorCrash("legacy-clean-drain-plan")
 		val dao = database.sourceSessionDao()
 		val sessionBefore = dao.session(started.logicalTrackingId)
@@ -4158,7 +4371,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `legacy cleanup-only drain rejects completeness belonging to the cleanup provider`() = runTest {
+	fun `legacy cleanup-only drain rejects completeness belonging to the cleanup provider`() = runRoomTest {
 		val (started, receipt) = prepareCleanupOnlyReceiptAfterCoordinatorCrash("legacy-cleanup-completeness-plan")
 		val dao = database.sourceSessionDao()
 		val completeness = cleanupCompletenessForDrainPlan(started, receipt)
@@ -4178,7 +4391,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `legacy drain preserves malformed completeness precedence before cleanup evidence checks`() = runTest {
+	fun `legacy drain preserves malformed completeness precedence before cleanup evidence checks`() = runRoomTest {
 		val (started, receipt) = prepareCleanupOnlyReceiptAfterCoordinatorCrash("legacy-malformed-completeness-plan")
 		val dao = database.sourceSessionDao()
 		dao.saveCompleteness(cleanupCompletenessForDrainPlan(started, receipt))
@@ -4202,7 +4415,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `legacy cleanup-only drain rejects an orphan fact instead of returning an empty plan`() = runTest {
+	fun `legacy cleanup-only drain rejects an orphan fact instead of returning an empty plan`() = runRoomTest {
 		val (started, receipt) = prepareCleanupOnlyReceiptAfterCoordinatorCrash("legacy-orphan-fact-plan")
 		insertOrphanStepsFact(started.logicalTrackingId, started.serviceRunId)
 		val dao = database.sourceSessionDao()
@@ -4221,9 +4434,9 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `candidate plan reports an exact incomplete membership instead of Ready empty`() = runTest {
+	fun `candidate plan leaves pending Steps retirement unavailable until terminal evidence`() = runRoomTest {
 		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
-		val started = subject.start(
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "incomplete-candidate-plan",
 				serviceRunId = "incomplete-candidate-run",
@@ -4232,7 +4445,7 @@ class AuthoritativeSessionCoordinatorTest {
 		).shouldBeInstanceOf<SessionStartResult.Started>()
 		runtime.stopStatus = SourceStopStatus.TIMED_OUT
 
-		subject.stop(
+		val pending = subject.stop(
 			SessionStopRequest(
 				"incomplete-candidate-owner",
 				"USER_STOP",
@@ -4260,24 +4473,41 @@ class AuthoritativeSessionCoordinatorTest {
 		).shouldBeInstanceOf<SourceProductDrainPlan.Failed>()
 
 		plan.source shouldBe SourceKind.STEPS
-		plan.reason shouldBe "SOURCE_DRAIN_SETTLEMENT_INCOMPLETE"
-		plan.memberships.single().let { membership ->
-			membership.sourceInstanceId shouldBe "steps-instance"
-			membership.registrationGeneration shouldBe 1L
-			membership.stopStatus shouldBe SourceStopStatus.TIMED_OUT.name
+		plan.reason shouldBe "SOURCE_DRAIN_COMPLETENESS_MISSING"
+		plan.memberships shouldBe emptyList()
+		pending.acknowledgements.single().let { acknowledgement ->
+			acknowledgement.logicalTrackingId shouldBe started.logicalTrackingId
+			acknowledgement.serviceRunId shouldBe started.serviceRunId
+			acknowledgement.sourceInstanceId.value shouldBe "steps-instance"
+			acknowledgement.registrationGeneration shouldBe 1L
+			acknowledgement.status shouldBe SourceStopStatus.TIMED_OUT
+		}
+		database.sourceSessionDao().completenessForServiceRun(
+			started.logicalTrackingId, started.serviceRunId,
+		) shouldBe emptyList()
+		database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId, started.serviceRunId, SourceKind.STEPS.stableCode,
+		).single().let { receipt ->
+			receipt.state shouldBe SourceRunRetirementEntity.STATE_REQUESTED
+			receipt.acknowledgementFieldsForTest().all { it == null } shouldBe true
 		}
 	}
 
 	@Test
-	fun `suspend settles source products then clears the temporary run cutoff for replacement`() = runTest {
+	// One suspension handoff checks its exact caller references through stale, missing and self-retirement fencing.
+	@Suppress("LongMethod")
+	fun `suspend settles source products then clears the temporary run cutoff for replacement`() = runRoomTest {
 		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
-		val started = subject.start(
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "source-suspend",
 				serviceRunId = "source-suspend-run",
 				rolloutRevision = rolloutSnapshot.revision,
 			),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val admissionOrdinal = insertTerminalStepsWal(started)
+		runtime.lastAdmissionOrdinal = admissionOrdinal
+		replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
 
 		val suspended = subject.suspendForRestart(
 			SessionSuspendRequest(
@@ -4293,7 +4523,7 @@ class AuthoritativeSessionCoordinatorTest {
 			request.logicalTrackingId shouldBe started.logicalTrackingId
 			request.serviceRunId shouldBe started.serviceRunId
 			request.cutoffElapsedRealtimeNanos shouldBe 2_000_000L
-			request.settlementHighWaterAdmissionOrdinal shouldBe 0L
+			request.settlementHighWaterAdmissionOrdinal shouldBe admissionOrdinal
 		}
 		database.sourceSessionDao().session(started.logicalTrackingId)?.let { session ->
 			session.state shouldBe SessionLifecycleState.ACTIVE.name
@@ -4362,7 +4592,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `manual Pressure manifest records the exact legacy destination owner`() = runTest {
+	fun `manual Pressure manifest records the exact legacy destination owner`() = runRoomTest {
 		val prepared = subject.prepareAndroidStart(
 			pressureStartRequest(
 				logicalTrackingId = "legacy-pressure-logical",
@@ -4387,7 +4617,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `manual Pressure candidate manifest records only the exact official writer binding`() = runTest {
+	fun `manual Pressure candidate manifest records only the exact official writer binding`() = runRoomTest {
 		val expected = installPressureCandidateRollout()
 		val prepared = subject.prepareAndroidStart(
 			pressureStartRequest(
@@ -4416,27 +4646,27 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `final Activity binding prepares an automatic manifest with its exact owner and recorded mode`() = runTest {
+	fun `final Activity binding prepares an automatic manifest with its exact owner and recorded mode`() = runRoomTest {
 		assertFinalAutomaticManifest(SourceWriterTransitionSpec.ACTIVITY)
 	}
 
 	@Test
-	fun `final Pressure binding prepares an automatic manifest with its exact owner and recorded mode`() = runTest {
+	fun `final Pressure binding prepares an automatic manifest with its exact owner and recorded mode`() = runRoomTest {
 		assertFinalAutomaticManifest(SourceWriterTransitionSpec.PRESSURE)
 	}
 
 	@Test
-	fun `final Wifi binding prepares an automatic manifest with its exact owner and recorded mode`() = runTest {
+	fun `final Wifi binding prepares an automatic manifest with its exact owner and recorded mode`() = runRoomTest {
 		assertFinalAutomaticManifest(SourceWriterTransitionSpec.WIFI)
 	}
 
 	@Test
-	fun `final Cell binding prepares an automatic manifest with its exact owner and recorded mode`() = runTest {
+	fun `final Cell binding prepares an automatic manifest with its exact owner and recorded mode`() = runRoomTest {
 		assertFinalAutomaticManifest(SourceWriterTransitionSpec.CELL)
 	}
 
 	@Test
-	fun `final Wi-Fi binding cannot borrow the original owner generation to prepare a session`() = runTest {
+	fun `final Wi-Fi binding cannot borrow the original owner generation to prepare a session`() = runRoomTest {
 		val policyRevision = enableRadioPolicy(wifi = true, cell = false)
 		installExactCandidateRollout(SourceWriterTransitionSpec.WIFI,
 			SourceWriterTransitionSpec.WIFI.binding.copy(bindingGeneration = 2L, captureModes = setOf(
@@ -4466,8 +4696,12 @@ class AuthoritativeSessionCoordinatorTest {
 			requestedCaptureSourceMask = mask, intendedCaptureSourceMask = mask)
 		seedAutomaticStartAction(trigger)
 		val logicalId = "final-automatic-${spec.source.name.lowercase()}"
-		val manual = if (spec.source == SourceKind.PRESSURE) pressureStartRequest(logicalId, "$logicalId-run", rolloutSnapshot.revision)
-		else manualSourceStartRequest(spec.source, logicalId, "$logicalId-run", policyRevision)
+		val manual = if (spec.source == SourceKind.PRESSURE) {
+			pressureStartRequest(logicalId, "$logicalId-run", rolloutSnapshot.revision)
+		}
+		else {
+			manualSourceStartRequest(spec.source, logicalId, "$logicalId-run", policyRevision)
+		}
 		val prepared = subject.prepareAndroidStart(manual.copy(origin = SessionStartOrigin.AUTOMATIC_BACKGROUND_START,
 			controlDependencies = setOf(SourceKind.ACTIVITY), automaticTrigger = trigger), AndroidStartDeliveryMetadata(
 			PreparedTrackingStartToken("$logicalId-token"), commandGeneration = 1L, isUserInitiated = false, isAmbient = false))
@@ -4484,7 +4718,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `manual Activity candidate manifest records exact writer provenance`() = runTest {
+	fun `manual Activity candidate manifest records exact writer provenance`() = runRoomTest {
 		val expected = installExactCandidateRollout(SourceWriterTransitionSpec.ACTIVITY)
 		val prepared = subject.prepareAndroidStart(
 			manualSourceStartRequest(
@@ -4505,7 +4739,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `manual Wi-Fi candidate manifest records exact writer provenance`() = runTest {
+	fun `manual Wi-Fi candidate manifest records exact writer provenance`() = runRoomTest {
 		val policyRevision = enableRadioPolicy(wifi = true, cell = false)
 		val expected = installExactCandidateRollout(SourceWriterTransitionSpec.WIFI)
 		val prepared = subject.prepareAndroidStart(
@@ -4527,7 +4761,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `manual Cell candidate manifest records exact writer provenance`() = runTest {
+	fun `manual Cell candidate manifest records exact writer provenance`() = runRoomTest {
 		val policyRevision = enableRadioPolicy(wifi = false, cell = true)
 		val expected = installExactCandidateRollout(SourceWriterTransitionSpec.CELL)
 		val prepared = subject.prepareAndroidStart(
@@ -4549,7 +4783,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `Pressure generation 1 candidate cannot be attributed to an automatic session`() = runTest {
+	fun `Pressure generation 1 candidate cannot be attributed to an automatic session`() = runRoomTest {
 		installPressureCandidateRollout()
 		val trigger = automaticTrigger()
 
@@ -4577,7 +4811,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `stale rollout loaded before lease cannot create a new service run`() = runTest {
+	fun `stale rollout loaded before lease cannot create a new service run`() = runRoomTest {
 		database.trackingRolloutStateDao().save(
 			fixedEventRollout().copy(revision = 2L).toEntity(updatedAtMs = 2L),
 		)
@@ -4592,7 +4826,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `fresh Android preparation revalidates rollout before creating its service run`() = runTest {
+	fun `fresh Android preparation revalidates rollout before creating its service run`() = runRoomTest {
 		persistRolloutRevision(2L)
 
 		val rejected = subject.prepareAndroidStart(
@@ -4612,8 +4846,8 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `direct recovery revalidates rollout before creating its replacement run`() = runTest {
-		subject.start(
+	fun `direct recovery revalidates rollout before creating its replacement run`() = runRoomTest {
+		startCaptureRun(
 			startRequest().copy(logicalTrackingId = "stale-direct-logical", serviceRunId = "stale-direct-run-1"),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
 		subject.suspendForRestart(
@@ -4651,7 +4885,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `Android recovery preparation revalidates rollout before creating its replacement run`() = runTest {
+	fun `Android recovery preparation revalidates rollout before creating its replacement run`() = runRoomTest {
 		val old = activatePreparedAndroidRun(
 			tokenValue = "stale-prepared-old-token",
 			commandGeneration = 41L,
@@ -4693,7 +4927,9 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `failed automatic provider attempt remains nonterminal until its exact cleanup obligation is retired`() = runTest {
+	// One failed automatic start stays nonterminal until its resident provider is actually cleaned up.
+	@Suppress("LongMethod")
+	fun `failed automatic provider attempt remains nonterminal until its exact cleanup obligation is retired`() = runRoomTest {
 		runtime.startReturnsRetryableFailure = true
 		runtime.cleanupOnlyShutdown = true
 		runtime.closeFailure = IllegalStateException("provider still resident")
@@ -4761,7 +4997,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `cleanup-only completion is durable before a later coordinator crash`() = runTest {
+	fun `cleanup-only completion is durable before a later coordinator crash`() = runRoomTest {
 		val (started, receipt) = prepareCleanupOnlyReceiptAfterCoordinatorCrash(
 			"cleanup-only-crash",
 		)
@@ -4777,7 +5013,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `process death after physical cleanup recovers a null acknowledgement closure`() = runTest {
+	fun `process death after physical cleanup recovers a null acknowledgement closure`() = runRoomTest {
 		runtime.startReturnsRetryableFailure = true
 		runtime.cleanupOnlyShutdown = true
 		runtime.closeFailure = IllegalStateException("provider still resident")
@@ -4838,7 +5074,7 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@Test
 	fun `cleanup-only terminal receipt replays a null acknowledgement without product evidence`() =
-		runTest {
+		runRoomTest {
 			val (started, receipt) = prepareCleanupOnlyReceiptAfterCoordinatorCrash(
 				"cleanup-only-replay",
 			)
@@ -4873,7 +5109,7 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@Test
 	fun `cleanup-only retirement cannot remove drain authority while its generation has WAL`() =
-		runTest {
+		runRoomTest {
 			installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
 			runtime.startReturnsRetryableFailure = true
 			runtime.cleanupOnlyShutdown = true
@@ -4914,10 +5150,12 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
+	// One two-generation chain checks that newer cleanup WAL cannot borrow older capture evidence.
+	@Suppress("LongMethod")
 	fun `later cleanup-only WAL cannot borrow an earlier product generation completeness`() =
-		runTest {
+		runRoomTest {
 			installStepsAndLocationCandidateRollout()
-			val started = subject.start(
+			val started = startCaptureRun(
 				startRequest().copy(
 					logicalTrackingId = "mixed-generation-wal-logical",
 					serviceRunId = "mixed-generation-wal-run",
@@ -4986,9 +5224,9 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@Test
 	fun `product generation drains past its high-water while later cleanup-only generation has no evidence`() =
-		runTest {
+		runRoomTest {
 		installStepsAndLocationCandidateRollout()
-		val started = subject.start(
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "product-cleanup-no-wal-logical",
 				serviceRunId = "product-cleanup-no-wal-run",
@@ -5051,10 +5289,12 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	// One mixed-generation End is replayed after a crash with both retirement roles kept intact.
+	@Suppress("LongMethod")
 	fun `cleanup-only replay preserves an earlier product generation across coordinator crash`() =
-		runTest {
+		runRoomTest {
 			installStepsAndLocationCandidateRollout()
-			val started = subject.start(
+			val started = startCaptureRun(
 				startRequest().copy(
 					logicalTrackingId = "product-then-cleanup-logical",
 					serviceRunId = "product-then-cleanup-run",
@@ -5159,7 +5399,7 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@Test
 	fun `cleanup-only completeness corruption cannot authorize null acknowledgement removal`() =
-		runTest {
+		runRoomTest {
 			val (started, receipt) = prepareCleanupOnlyReceiptAfterCoordinatorCrash(
 				"cleanup-only-completeness-corruption",
 			)
@@ -5202,7 +5442,7 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@Test
 	fun `cleanup-only orphan fact corruption cannot authorize null acknowledgement removal`() =
-		runTest {
+		runRoomTest {
 			val (started, _) = prepareCleanupOnlyReceiptAfterCoordinatorCrash(
 				"cleanup-only-fact-corruption",
 			)
@@ -5227,10 +5467,12 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
+	// One crash replay settles both cleanup-only generations without inventing capture or repeating cleanup.
+	@Suppress("LongMethod")
 	fun `multiple cleanup-only generations replay without product evidence or repeated cleanup`() =
-		runTest {
+		runRoomTest {
 			installStepsAndLocationCandidateRollout()
-			val started = subject.start(
+			val started = startCaptureRun(
 				startRequest().copy(
 					logicalTrackingId = "multiple-cleanup-logical",
 					serviceRunId = "multiple-cleanup-run",
@@ -5338,7 +5580,7 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
-	fun `malformed cleanup-only receipt cannot authorize replay`() = runTest {
+	fun `malformed cleanup-only receipt cannot authorize replay`() = runRoomTest {
 		val (started, receipt) = prepareCleanupOnlyReceiptAfterCoordinatorCrash(
 			"cleanup-only-malformed",
 		)
@@ -5389,7 +5631,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `providerless exact claim closes as complete not registered after all runtimes reject ownership`() = runTest {
+	fun `providerless exact claim closes as complete not registered after all runtimes reject ownership`() = runRoomTest {
 		StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
 			StepsCountDomainSchemaState.ValidV2
 		runtime.startReturnsRetryableFailure = true
@@ -5444,7 +5686,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `failed provider cleanup rejects acknowledgement from another service run`() = runTest {
+	fun `failed provider cleanup rejects acknowledgement from another service run`() = runRoomTest {
 		runtime.startReturnsRetryableFailure = true
 		runtime.acknowledgementLogicalTrackingId = "other-logical"
 		runtime.acknowledgementServiceRunId = "other-run"
@@ -5466,8 +5708,8 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `stop without acknowledgement membership remains cleanup pending and cannot write completeness`() = runTest {
-		val started = subject.start(
+	fun `stop without acknowledgement membership remains cleanup pending and cannot write completeness`() = runRoomTest {
+		val started = startCaptureRun(
 			startRequest().copy(logicalTrackingId = "missing-ack-membership", serviceRunId = "missing-ack-run"),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
 		runtime.omitAcknowledgementMembership = true
@@ -5497,8 +5739,8 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `suspend rejects provider acknowledgement from another service run`() = runTest {
-		val started = subject.start(
+	fun `suspend rejects provider acknowledgement from another service run`() = runRoomTest {
+		val started = startCaptureRun(
 			startRequest().copy(logicalTrackingId = "suspend-membership", serviceRunId = "suspend-run"),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
 		runtime.acknowledgementLogicalTrackingId = "other-logical"
@@ -5527,8 +5769,8 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `unobservable provider removal cannot finalize a stopping run`() = runTest {
-		val started = subject.start(
+	fun `unobservable provider removal cannot finalize a stopping run`() = runRoomTest {
+		val started = startCaptureRun(
 			startRequest().copy(logicalTrackingId = "unobservable-stop", serviceRunId = "unobservable-run"),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
 		runtime.registrationRemovalOutcome = RegistrationRemovalOutcome.UNOBSERVABLE
@@ -5554,7 +5796,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `stopping a steps run leaves an unrelated location provider untouched`() = runTest {
+	fun `stopping a steps run leaves an unrelated location provider untouched`() = runRoomTest {
 		locationRuntime.start(
 			SourceRuntimeClaim(
 				source = SourceKind.LOCATION,
@@ -5577,7 +5819,7 @@ class AuthoritativeSessionCoordinatorTest {
 			mockk(relaxed = true),
 		)
 		locationRuntime.failRetirement = true
-		subject.start(
+		startCaptureRun(
 			startRequest().copy(logicalTrackingId = "steps-only-logical", serviceRunId = "steps-only-run"),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
 
@@ -5598,7 +5840,9 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `stopping retry resolves requested provider row past newer cleanup claim to start owner`() = runTest {
+	// One incomplete End retries against its original start owner despite the newer cleanup action.
+	@Suppress("LongMethod")
+	fun `stopping retry resolves requested provider row past newer cleanup claim to start owner`() = runRoomTest {
 		val eventCoordinator = mockk<TrackingCoordinator>()
 		coEvery { eventCoordinator.drainAvailable(any(), any()) } returnsMany listOf(
 			CoordinatorDrainResult.LeaseUnavailable,
@@ -5620,7 +5864,7 @@ class AuthoritativeSessionCoordinatorTest {
 			rolloutStore = fixedEventRolloutStore(),
 			sourceProductDrainRouter = sourceProductDrainRouter,
 		)
-		val started = subject.start(
+		val started = startCaptureRun(
 			startRequest().copy(logicalTrackingId = "retry-stop-logical", serviceRunId = "retry-stop-run"),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
 		runtime.stopStatus = SourceStopStatus.TIMED_OUT
@@ -5686,15 +5930,18 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `timeout acknowledgement persists a null provider pair and remains retryable`() = runTest {
+	fun `timeout acknowledgement persists a null provider pair and remains retryable`() = runRoomTest {
 		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
-		val started = subject.start(
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "timeout-provider-pair",
 				serviceRunId = "timeout-provider-pair-run",
 				rolloutRevision = rolloutSnapshot.revision,
 			),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val admissionOrdinal = insertTerminalStepsWal(started)
+		runtime.lastAdmissionOrdinal = admissionOrdinal
+		replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
 		runtime.shutdownDelayMs = 1_000L
 
 		subject.stop(
@@ -5745,7 +5992,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `terminal receipt replay resolves exact older owner past cleanup claim after process death`() = runTest {
+	fun `terminal receipt replay resolves exact older owner past cleanup claim after process death`() = runRoomTest {
 		val (started, terminalReceipt) =
 			prepareTerminalReceiptWithCleanup("terminal-replay-cleanup")
 		val startOwner = database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
@@ -5786,7 +6033,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `terminal receipt replay rejects failed settlement evidence`() = runTest {
+	fun `terminal receipt replay rejects failed settlement evidence`() = runRoomTest {
 		val (started, terminalReceipt) =
 			prepareTerminalReceiptWithCleanup("terminal-replay-failed")
 		database.sourceSessionDao().updateRunRetirement(
@@ -5810,7 +6057,9 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `terminal Steps receipt replay authenticates every settlement payload field`() = runTest {
+	// One terminal-receipt field matrix blocks altered evidence and permits the restored receipt.
+	@Suppress("LongMethod")
+	fun `terminal Steps receipt replay authenticates every settlement payload field`() = runRoomTest {
 		val mutations = listOf<Pair<String, (SourceRunRetirementEntity) -> SourceRunRetirementEntity>>(
 			"applied revision" to { receipt ->
 				receipt.copy(appliedRevision = requireNotNull(receipt.appliedRevision) + 1L)
@@ -5897,7 +6146,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `raw retirement storage classes reject blob real wrong type and invalid boolean`() = runTest {
+	fun `raw retirement storage classes reject blob real wrong type and invalid boolean`() = runRoomTest {
 		val (started, terminalReceipt) =
 			prepareTerminalReceiptWithCleanup("raw-retirement-storage-class")
 		replaceRuntime(FakeStepsRuntime(database))
@@ -5956,7 +6205,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `contradictory Steps receipt state cannot authenticate terminal replay`() = runTest {
+	fun `contradictory Steps receipt state cannot authenticate terminal replay`() = runRoomTest {
 		val (started, _) = prepareTerminalReceiptWithCleanup("contradictory-steps-receipt")
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_run_retirement SET stop_status = 'PROCESS_RESTARTED' " +
@@ -5991,7 +6240,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `contradictory non-Steps receipt state cannot resolve runtime cleanup`() = runTest {
+	fun `contradictory non-Steps receipt state cannot resolve runtime cleanup`() = runRoomTest {
 		val (started, _) = prepareLocationReceiptWithCleanup("contradictory-location-receipt")
 		val quiesceCountBeforeReplay = locationRuntime.quiesceCount
 		database.openHelper.writableDatabase.execSQL(
@@ -6026,7 +6275,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `malformed requested retirement row fails closed and resolves after repair`() = runTest {
+	fun `malformed requested retirement row fails closed and resolves after repair`() = runRoomTest {
 		val started = prepareBlockedTerminalStepsRecovery("malformed-requested-retirement")
 		val receipt = database.sourceSessionDao().runRetirements(
 			started.logicalTrackingId,
@@ -6072,7 +6321,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `malformed terminal retirement row fails closed and resolves after repair`() = runTest {
+	fun `malformed terminal retirement row fails closed and resolves after repair`() = runRoomTest {
 		val (started, terminalReceipt) =
 			prepareTerminalReceiptWithCleanup("malformed-terminal-retirement")
 		database.openHelper.writableDatabase.execSQL(
@@ -6115,7 +6364,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `terminal receipt replay without one exact owner remains blocked`() = runTest {
+	fun `terminal receipt replay without one exact owner remains blocked`() = runRoomTest {
 		val (started, terminalReceipt) =
 			prepareTerminalReceiptWithCleanup("terminal-replay-owner-missing")
 		database.sourceSessionDao().updateRunRetirement(
@@ -6139,7 +6388,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `terminal receipt replay rejects owner moved to another provider generation`() = runTest {
+	fun `terminal receipt replay rejects owner moved to another provider generation`() = runRoomTest {
 		val (started, terminalReceipt) =
 			prepareTerminalReceiptWithCleanup("terminal-replay-provider-moved")
 		val owner = requireNotNull(
@@ -6169,8 +6418,8 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `shared manifest integrity detects run and writer provenance tampering`() = runTest {
-		val started = subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+	fun `shared manifest integrity detects run and writer provenance tampering`() = runRoomTest {
+		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
 		val manifest = database.sourceSessionDao().manifests(started.logicalTrackingId).single()
 		val sources = database.sourceSessionDao()
 			.manifestSources(started.logicalTrackingId, manifest.manifestRevision)
@@ -6191,7 +6440,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `prepared claim rejects raw binding tampering before delivery acceptance`() = runTest {
+	fun `prepared claim rejects raw binding tampering before delivery acceptance`() = runRoomTest {
 		val prepared = prepareAndroidStart(
 			tokenValue = "tampered-claim-token",
 			commandGeneration = 16L,
@@ -6215,7 +6464,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `prepared apply rejects persisted writer provenance tampering before provider start`() = runTest {
+	fun `prepared apply rejects persisted writer provenance tampering before provider start`() = runRoomTest {
 		val prepared = prepareAndroidStart(
 			tokenValue = "tampered-apply-token",
 			commandGeneration = 17L,
@@ -6253,13 +6502,13 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `reserved legacy completeness run id cannot be admitted as a live run`() = runTest {
+	fun `reserved legacy completeness run id cannot be admitted as a live run`() = runRoomTest {
 		subject.start(startRequest().copy(serviceRunId = LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID)) shouldBe
 			SessionStartResult.InvalidIntent("SERVICE_RUN_ID_RESERVED")
 	}
 
 	@Test
-	fun `blank service run id is rejected with a typed result before any durable row`() = runTest {
+	fun `blank service run id is rejected with a typed result before any durable row`() = runRoomTest {
 		subject.start(startRequest().copy(serviceRunId = "   ")) shouldBe
 			SessionStartResult.InvalidIntent("SERVICE_RUN_ID_INVALID")
 		database.sourceSessionDao().incompleteSessions() shouldBe emptyList()
@@ -6267,12 +6516,12 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `old boot cleanup allows exactly one fresh manual logical session`() = runTest {
+	fun `old boot cleanup allows exactly one fresh manual logical session`() = runRoomTest {
 		val oldRequest = startRequest().copy(
 			logicalTrackingId = "old-boot-manual",
 			serviceRunId = "old-boot-run",
 		)
-		subject.start(oldRequest).shouldBeInstanceOf<SessionStartResult.Started>()
+		startCaptureRun(oldRequest).shouldBeInstanceOf<SessionStartResult.Started>()
 
 		PreviousExitSourceSessionFinalizer(
 			Provider { database },
@@ -6300,7 +6549,7 @@ class AuthoritativeSessionCoordinatorTest {
 			logicalTrackingId = "fresh-manual",
 			serviceRunId = "fresh-run",
 		)
-		subject.start(freshRequest).shouldBeInstanceOf<SessionStartResult.Started>()
+		startCaptureRun(freshRequest).shouldBeInstanceOf<SessionStartResult.Started>()
 
 		subject.start(
 			freshRequest.copy(
@@ -6316,7 +6565,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `source start cancellation propagates without terminal cleanup`() = runTest {
+	fun `source start cancellation propagates without terminal cleanup`() = runRoomTest {
 		runtime.startFailure = CancellationException("test cancellation")
 		var propagated = false
 
@@ -6335,7 +6584,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `cancelled start after provider publication retires applying claim before finalization`() = runTest {
+	fun `cancelled start after provider publication retires applying claim before finalization`() = runRoomTest {
 		runtime.startFailureAfterSideEffect = CancellationException("cancel after provider publication")
 		runtime.stopStatus = SourceStopStatus.PROVIDER_FAILED
 		runtime.registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED
@@ -6348,7 +6597,7 @@ class AuthoritativeSessionCoordinatorTest {
 
 		var propagated = false
 		try {
-			subject.start(request)
+			startCaptureRun(request)
 		} catch (_: CancellationException) {
 			propagated = true
 		}
@@ -6421,7 +6670,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `stale automatic replacement cannot finalize an applying provider attempt`() = runTest {
+	fun `stale automatic replacement cannot finalize an applying provider attempt`() = runRoomTest {
 		runtime.startFailureAfterSideEffect = CancellationException("cancel automatic start after publication")
 		val trigger = automaticTrigger()
 		seedAutomaticStartAction(trigger)
@@ -6481,7 +6730,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `stale automatic replacement cannot finalize a start accepted provider`() = runTest {
+	fun `stale automatic replacement cannot finalize a start accepted provider`() = runRoomTest {
 		val trigger = automaticTrigger()
 		seedAutomaticStartAction(trigger)
 		val original = startRequest().copy(
@@ -6492,7 +6741,7 @@ class AuthoritativeSessionCoordinatorTest {
 			serviceRunId = "automatic-accepted-run",
 		)
 
-		val started = subject.start(original).shouldBeInstanceOf<SessionStartResult.Started>()
+		val started = startCaptureRun(original).shouldBeInstanceOf<SessionStartResult.Started>()
 		runtime.isActive shouldBe true
 		val acceptedStart = database.sourceSessionDao()
 			.lifecycleActions(started.logicalTrackingId)
@@ -6523,8 +6772,10 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `reconfiguration appends an immutable manifest and leaves the prior revision intact`() = runTest {
-		val started = subject.start(
+	// One reconfiguration checks immutable history and retirement of its superseded caller authority.
+	@Suppress("LongMethod")
+	fun `reconfiguration appends an immutable manifest and leaves the prior revision intact`() = runRoomTest {
+		val started = startCaptureRun(
 			startRequest().copy(logicalTrackingId = "logical-manifest", serviceRunId = "run-manifest"),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
 		val firstManifest = database.sourceSessionDao().manifests(started.logicalTrackingId).single()
@@ -6589,8 +6840,8 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `reconfiguration rejects persisted manifest tampering before runtime action`() = runTest {
-		val started = subject.start(
+	fun `reconfiguration rejects persisted manifest tampering before runtime action`() = runRoomTest {
+		val started = startCaptureRun(
 			startRequest().copy(logicalTrackingId = "tampered-reconfigure-logical", serviceRunId = "tampered-reconfigure-run"),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
 		database.openHelper.writableDatabase.execSQL(
@@ -6623,8 +6874,8 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `cancelled reconfiguration retires newest applying claim instead of predecessor`() = runTest {
-		val started = subject.start(
+	fun `cancelled reconfiguration retires newest applying claim instead of predecessor`() = runRoomTest {
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "cancelled-reconfigure-logical",
 				serviceRunId = "cancelled-reconfigure-run",
@@ -6680,6 +6931,7 @@ class AuthoritativeSessionCoordinatorTest {
 			),
 		).shouldBeInstanceOf<SessionStopResult.Stopped>()
 
+		runtime.shutdownAttemptCount shouldBe 1
 		runtime.shutdownClaims.single().let { claim ->
 			claim.actionId shouldBe applyingReconfigure.actionId
 			claim.attemptCount shouldBe applyingReconfigure.attemptCount
@@ -6702,8 +6954,8 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `reconfiguration cannot move effective time backwards`() = runTest {
-		val started = subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+	fun `reconfiguration cannot move effective time backwards`() = runRoomTest {
+		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
 
 		val result = subject.reconfigure(
 			SessionReconfigureRequest(
@@ -6726,8 +6978,10 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `disabling the last source cannot leave the session active`() = runTest {
-		val started = subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+	fun `disabling the last source cannot leave the session active`() = runRoomTest {
+		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		val background = installIndependentBackgroundStepsDemand(started.logicalTrackingId)
+		val acceptedRowsBefore = acceptedCallerRowCount()
 
 		val result = subject.reconfigure(
 			SessionReconfigureRequest(
@@ -6746,6 +7000,9 @@ class AuthoritativeSessionCoordinatorTest {
 		).shouldBeInstanceOf<SessionReconfigureResult.Failed>()
 
 		result.failureCode shouldBe "NO_SOURCE_ACTIVE_AFTER_RECONFIGURE"
+		acceptedCallerRowCount() shouldBe acceptedRowsBefore
+		database.sourceBrokerDao().currentDemands("session:${started.logicalTrackingId}") shouldBe emptyList()
+		database.sourceBrokerDao().currentDemands(background.consumerId).single() shouldBe background
 		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
 			SessionLifecycleState.FAILED.name
 		database.sourceSessionDao().lifecycleIntents(started.logicalTrackingId).last().desiredState shouldBe
@@ -6755,7 +7012,9 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `Steps disable and reenable receipts each physical generation under the same run`() = runTest {
+	// One disable-enable-disable cycle checks both physical generations before the final End.
+	@Suppress("LongMethod")
+	fun `Steps disable and reenable receipts each physical generation under the same run`() = runRoomTest {
 		val stepsBinding =
 			installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
 		rolloutSnapshot = TrackingRolloutState.eventCanonical(
@@ -6787,7 +7046,7 @@ class AuthoritativeSessionCoordinatorTest {
 			),
 			sourcePolicyRevision = 1L,
 		)
-		val started = subject.start(
+		val started = startCaptureRun(
 			startRequest().copy(
 				plan = plan(1L, true),
 				rolloutRevision = rolloutSnapshot.revision,
@@ -6804,12 +7063,31 @@ class AuthoritativeSessionCoordinatorTest {
 			foregroundCapabilityFlags = 0L,
 		)
 
+		val firstOrdinal = insertTerminalStepsWal(started)
+		runtime.lastAdmissionOrdinal = firstOrdinal
+		replaceEventCoordinator(completedEventCoordinator(firstOrdinal))
 		subject.reconfigure(request(2L, false)).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
 		database.sourceSessionDao().session(started.logicalTrackingId)?.currentServiceRunId shouldBe
 			started.serviceRunId
 		database.sourceSessionDao().completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
 			.map { it.registrationGeneration } shouldBe listOf(1L)
 		subject.reconfigure(request(3L, true)).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+		val secondOrdinal = insertTerminalStepsWal(
+			logicalTrackingId = started.logicalTrackingId,
+			serviceRunId = started.serviceRunId,
+			registrationGeneration = 2L,
+			manifestRevision = 3L,
+			sourceInstanceId = "steps-instance-2",
+			lifecycleLeaseGeneration = requireNotNull(
+				database.sourceSessionDao().serviceRun(started.serviceRunId),
+			).leaseGeneration,
+			configurationRevision = 3L,
+			windowStartElapsedNanos = 3_000_000L,
+			observedWallTimeMs = 4_000L,
+			counterDomainToken = StepsCounterDomainToken.opaque("sha256:${"b".repeat(64)}"),
+		)
+		runtime.lastAdmissionOrdinal = secondOrdinal
+		replaceEventCoordinator(completedEventCoordinator(secondOrdinal))
 		subject.reconfigure(request(4L, false)).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
 		database.sourceSessionDao().completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
 			.map { it.registrationGeneration }.sorted() shouldBe listOf(1L, 2L)
@@ -6830,7 +7108,74 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `failed source disable blocks active and final states until predecessor provider retires`() = runTest {
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	fun `Stop replays a completed receipt committed before its retirement timeout`() = runRoomTest {
+		StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
+			StepsCountDomainSchemaState.ValidV2
+		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		val timeoutScheduler = TestCoroutineScheduler()
+		val receiptCommitted = CompletableDeferred<Unit>()
+		runtime.onPhysicalShutdown = { acknowledgement, cutoff ->
+			persistStepsPhysicalRetirement(acknowledgement, cutoff)
+			persistCompletedStepsRetirementReceipt(acknowledgement, cutoff)
+			receiptCommitted.complete(Unit)
+			awaitCancellation()
+		}
+		val stopping = async(UnconfinedTestDispatcher(timeoutScheduler) + timeoutScheduler) {
+			subject.stop(SessionStopRequest("completed-timeout", "USER_STOP", 2_000L,
+				2_000_000L, "boot-1", perSourceTimeoutMs = 100L))
+		}
+		// The independent scheduler cannot expire the timeout while Room is still committing.
+		receiptCommitted.await()
+		timeoutScheduler.advanceTimeBy(100L)
+		timeoutScheduler.runCurrent()
+		val stopped = stopping.await().shouldBeInstanceOf<SessionStopResult.Stopped>()
+		stopped.acknowledgements.single().let { acknowledgement ->
+			acknowledgement.sourceInstanceId shouldBe SourceInstanceId("steps-instance")
+			acknowledgement.registrationGeneration shouldBe 1L
+			acknowledgement.status shouldBe SourceStopStatus.COMPLETE
+		}
+		runtime.shutdownAttemptCount shouldBe 1
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.FINALIZED.name
+	}
+
+	@Test
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	fun `retirement timeout cannot promote a requested receipt with terminal Steps evidence`() = runRoomTest {
+		StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
+			StepsCountDomainSchemaState.ValidV2
+		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		val timeoutScheduler = TestCoroutineScheduler()
+		val checkpointCommitted = CompletableDeferred<Unit>()
+		runtime.onPhysicalShutdown = { acknowledgement, cutoff ->
+			persistStepsPhysicalRetirement(acknowledgement, cutoff)
+			persistTerminalStepsEvidence(acknowledgement)
+			checkpointCommitted.complete(Unit)
+			awaitCancellation()
+		}
+		val stopping = async(UnconfinedTestDispatcher(timeoutScheduler) + timeoutScheduler) {
+			subject.stop(SessionStopRequest("requested-timeout", "USER_STOP", 2_000L,
+				2_000_000L, "boot-1", perSourceTimeoutMs = 100L))
+		}
+		checkpointCommitted.await()
+		timeoutScheduler.advanceTimeBy(100L)
+		timeoutScheduler.runCurrent()
+		val pending = stopping.await().shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+		pending.acknowledgements.single().status shouldBe SourceStopStatus.TIMED_OUT
+		runtime.shutdownAttemptCount shouldBe 1
+		database.sourceSessionDao().runRetirements(started.logicalTrackingId, started.serviceRunId,
+			SourceKind.STEPS.stableCode).single().state shouldBe SourceRunRetirementEntity.STATE_REQUESTED
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.STOPPING.name
+	}
+
+	@Test
+	// One failed disable advances through pending End to the same provider retirement on retry.
+	@Suppress("LongMethod")
+	fun `failed source disable blocks active and final states until predecessor provider retires`() = runRoomTest {
+		StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
+			StepsCountDomainSchemaState.ValidV2
 		fun plan(revision: Long, locationEnabled: Boolean) = AcquisitionPlanRevision(
 			revision = revision,
 			planId = "location-retirement-$revision",
@@ -6861,8 +7206,9 @@ class AuthoritativeSessionCoordinatorTest {
 			),
 			sourcePolicyRevision = 1L,
 		)
-		val started = subject.start(startRequest().copy(plan = plan(1L, locationEnabled = true)))
+		val started = startCaptureRun(startRequest().copy(plan = plan(1L, locationEnabled = true)))
 			.shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.onPhysicalShutdown = ::persistStepsPhysicalRetirement
 		locationRuntime.failRetirement = true
 
 		val reconfigured = subject.reconfigure(
@@ -6900,8 +7246,14 @@ class AuthoritativeSessionCoordinatorTest {
 		locationRuntime.quiesceCount shouldBe 1
 		locationRuntime.isActive shouldBe true
 
+		val pendingRetirement = database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId, started.serviceRunId, SourceKind.LOCATION.stableCode,
+		).single()
+		pendingRetirement.state shouldBe SourceRunRetirementEntity.STATE_REQUESTED
+		pendingRetirement.stopStatus shouldBe null
+
 		locationRuntime.failRetirement = false
-		subject.stop(
+		val retriedStop = subject.stop(
 			SessionStopRequest(
 				"location-cleanup-owner",
 				"provider-retirement-retry",
@@ -6910,8 +7262,37 @@ class AuthoritativeSessionCoordinatorTest {
 				"boot-1",
 				perSourceTimeoutMs = 100L,
 			),
-		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+		)
+		val retryClue = if (retriedStop is SessionStopResult.Stopped) {
+			""
+		} else database.withTransaction {
+			val sessions = database.sourceSessionDao()
+			val sourceStates = listOf(SourceKind.LOCATION, SourceKind.STEPS).associate { source ->
+				val retirements = sessions.rawRunRetirements(
+					started.logicalTrackingId, started.serviceRunId, source.stableCode, limit = 4,
+				).map { raw ->
+					raw.validatedOrNull()?.let { row ->
+						"state=" + row.state + ", stop=" + row.stopStatus +
+							", removal=" + row.registrationRemovalOutcome + ", appDrain=" + row.appDrainComplete +
+							", ordinal=" + row.lastAdmissionOrdinal + ", sequence=" + row.lastSourceSequence
+					} ?: "malformed retirement"
+				}
+				val lane = database.sourceProjectionStateDao().latestProductLane(source.stableCode)
+				source.name to ("retirements=" + retirements + ", laneCursor=" + lane?.contiguousAdmissionOrdinal +
+					", laneCutoff=" + lane?.captureAdmissionCutoffOrdinal)
+			}
+			"Stop=" + retriedStop + "; session=" + sessions.session(started.logicalTrackingId)?.state +
+				"; sources=" + sourceStates + "; locationQuiesce=" + locationRuntime.quiesceCount +
+				"; locationActive=" + locationRuntime.isActive + "; stepsShutdown=" + runtime.shutdownAttemptCount
+		}
+		withClue(retryClue) { retriedStop.shouldBeInstanceOf<SessionStopResult.Stopped>() }
 
+		val completedRetirement = database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId, started.serviceRunId, SourceKind.LOCATION.stableCode,
+		).single()
+		completedRetirement.state shouldBe SourceRunRetirementEntity.STATE_ACKNOWLEDGED
+		completedRetirement.actionId shouldBe pendingRetirement.actionId
+		completedRetirement.cutoffElapsedRealtimeNanos shouldBe pendingRetirement.cutoffElapsedRealtimeNanos
 		locationRuntime.quiesceCount shouldBe 2
 		locationRuntime.isActive shouldBe false
 		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
@@ -6919,7 +7300,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `released lease reacquisition increments generation and fences the old token`() = runTest {
+	fun `released lease reacquisition increments generation and fences the old token`() = runRoomTest {
 		val dao = database.sourceProjectionStateDao()
 		dao.insertLeaseIfAbsent(
 			SourceCoordinatorLeaseEntity(
@@ -6942,7 +7323,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `stale boot direct start is rejected before any durable row or lease`() = runTest {
+	fun `stale boot direct start is rejected before any durable row or lease`() = runRoomTest {
 		val request = startRequest().copy(
 			ownerToken = "stale-boot-owner",
 			logicalTrackingId = "stale-boot-logical",
@@ -6963,7 +7344,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `stale boot prepared start is rejected before any durable row or lease`() = runTest {
+	fun `stale boot prepared start is rejected before any durable row or lease`() = runRoomTest {
 		val token = PreparedTrackingStartToken("stale-boot-prepared-token")
 		val request = startRequest().copy(
 			ownerToken = "stale-boot-prepared-owner",
@@ -6991,8 +7372,8 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `stale boot cannot mutate an active session through reconfigure stop or suspend`() = runTest {
-		val started = subject.start(
+	fun `stale boot cannot mutate an active session through reconfigure stop or suspend`() = runRoomTest {
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "stale-mutation-logical",
 				serviceRunId = "stale-mutation-run",
@@ -7054,7 +7435,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `extreme request elapsed metadata cannot poison the canonical session lease`() = runTest {
+	fun `extreme request elapsed metadata cannot poison the canonical session lease`() = runRoomTest {
 		val incumbent = incumbentSessionLease()
 		database.sourceProjectionStateDao().insertLeaseIfAbsent(incumbent) shouldBe 1L
 
@@ -7069,7 +7450,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `prepared demand is not callback authority until foreground acceptance`() = runTest {
+	fun `prepared demand is not callback authority until foreground acceptance`() = runRoomTest {
 		seedActiveStepsRegistration()
 		val prepared = prepareAndroidStart(
 			tokenValue = "blocked-demand-token",
@@ -7120,7 +7501,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `retryable recovery catalog preserves the current descriptor run and manifest`() = runTest {
+	fun `retryable recovery catalog preserves the current descriptor run and manifest`() = runRoomTest {
 		val old = activatePreparedAndroidRun(
 			tokenValue = "retryable-recovery-old-token",
 			commandGeneration = 29L,
@@ -7151,7 +7532,7 @@ class AuthoritativeSessionCoordinatorTest {
 		)
 		val recovery = startRequest().copy(
 			origin = SessionStartOrigin.RECOVERY,
-			plan = stepsAndLocationPlan(2L, stepsEnabled = true),
+			plan = stepsAndLocationPlan(2L, stepsEnabled = true, locationEnabled = false),
 			wallTimeMs = 2_000L,
 			elapsedRealtimeNanos = expiredPreparedLeaseElapsedNanos(),
 			logicalTrackingId = old.logicalTrackingId,
@@ -7183,7 +7564,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `active manual redelivery prepares one distinct recovery run after old lease expiry`() = runTest {
+	fun `active manual redelivery prepares one distinct recovery run after old lease expiry`() = runRoomTest {
 		val old = activatePreparedAndroidRun(
 			tokenValue = "active-redelivery-old-token",
 			commandGeneration = 31L,
@@ -7244,7 +7625,7 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@Test
 	fun `active run recovery compensation follows the exact prepared intent not lifecycle count`() =
-		runTest {
+		runRoomTest {
 			val old = activatePreparedAndroidRun(
 				tokenValue = "compensated-recovery-old-token",
 				commandGeneration = 33L,
@@ -7303,7 +7684,7 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
-	fun `interrupted manual reconfiguration prepares a replacement recovery run`() = runTest {
+	fun `interrupted manual reconfiguration prepares a replacement recovery run`() = runRoomTest {
 		val old = activatePreparedAndroidRun(
 			tokenValue = "reconfiguring-old-token",
 			commandGeneration = 51L,
@@ -7349,7 +7730,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `different boot terminalizes exact active redelivery without creating a run`() = runTest {
+	fun `different boot terminalizes exact active redelivery without creating a run`() = runRoomTest {
 		val old = activatePreparedAndroidRun(
 			tokenValue = "old-boot-redelivery-token",
 			commandGeneration = 41L,
@@ -7379,7 +7760,9 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `process restart rebinds a released prepared delivery to a new lease generation`() = runTest {
+	// One prepared delivery rebind checks old history, new authority and idempotent redelivery together.
+	@Suppress("LongMethod")
+	fun `process restart rebinds a released prepared delivery to a new lease generation`() = runRoomTest {
 		val prepared = prepareAndroidStart(
 			tokenValue = "expired-prepared-token",
 			commandGeneration = 21L,
@@ -7505,7 +7888,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `two process deaths return the full authenticated caller authority ancestor path`() = runTest {
+	fun `two process deaths return the full authenticated caller authority ancestor path`() = runRoomTest {
 		val prepared = prepareAndroidStart(
 			tokenValue = "two-rebind-token",
 			commandGeneration = 211L,
@@ -7549,7 +7932,7 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@Test
 	fun `maximum prepared rebind chain is returned and overflow leaves demand history untouched`() =
-		runTest {
+		runRoomTest {
 			val prepared = prepareAndroidStart(
 				tokenValue = "maximum-rebind-token",
 				commandGeneration = 212L,
@@ -7578,7 +7961,10 @@ class AuthoritativeSessionCoordinatorTest {
 				"boot-1",
 				expiredPreparedLeaseElapsedNanos(),
 				leaseClock.currentTimeMillis(),
-			) shouldBe PreparedSessionClaimResult.Rejected("PREPARED_START_REBIND_STALE")
+			) shouldBe PreparedSessionClaimResult.Rejected(
+				"PREPARED_START_REBIND_STALE",
+				compensatePreparedState = false,
+			)
 
 			sessionDao.serviceRun(prepared.serviceRunId) shouldBe beforeRun
 			sessionDao.lifecycleIntents(prepared.logicalTrackingId) shouldBe beforeIntents
@@ -7586,7 +7972,7 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
-	fun `prepared caller authority chain rejects an intent revision gap`() = runTest {
+	fun `prepared caller authority chain rejects an intent revision gap`() = runRoomTest {
 		val prepared = prepareAndroidStart(
 			tokenValue = "rebind-gap-token",
 			commandGeneration = 213L,
@@ -7614,7 +8000,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `prepared caller authority chain rejects an unreferenced branch demand`() = runTest {
+	fun `prepared caller authority chain rejects an unreferenced branch demand`() = runRoomTest {
 		val prepared = prepareAndroidStart(
 			tokenValue = "rebind-branch-token",
 			commandGeneration = 214L,
@@ -7647,7 +8033,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `prepared caller authority chain rejects authentic wrong owner and manifest rows`() = runTest {
+	fun `prepared caller authority chain rejects authentic wrong owner and manifest rows`() = runRoomTest {
 		val prepared = prepareAndroidStart(
 			tokenValue = "rebind-authority-token",
 			commandGeneration = 215L,
@@ -7706,7 +8092,7 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@Test
 	fun `expired enqueued automatic delivery rebinds without terminalizing its accepted action`() =
-		runTest {
+		runRoomTest {
 		val trigger = automaticTrigger()
 		seedAutomaticStartAction(trigger)
 		val prepared = prepareAndroidStart(
@@ -7756,7 +8142,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `lease expiry after claim rebinds before foreground activation`() = runTest {
+	fun `lease expiry after claim rebinds before foreground activation`() = runRoomTest {
 		val prepared = prepareAndroidStart(
 			tokenValue = "expired-delivered-token",
 			commandGeneration = 23L,
@@ -7795,7 +8181,9 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `foreground accepted lease rebind rotates authorization and preserves callback audit`() = runTest {
+	// One accepted-start rebind checks both sides of the exact authorization boundary.
+	@Suppress("LongMethod")
+	fun `foreground accepted lease rebind rotates authorization and preserves callback audit`() = runRoomTest {
 		seedActiveStepsRegistration()
 		val prepared = prepareAndroidStart(
 			tokenValue = "foreground-rebind-token",
@@ -7900,8 +8288,10 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	// One stale-authorization rebind checks rejection and preservation of all original authority rows.
+	@Suppress("LongMethod")
 	fun `foreground rebind rejects inexact registration authorization without rewriting history`() =
-		runTest {
+		runRoomTest {
 			seedActiveStepsRegistration()
 			val prepared = prepareAndroidStart(
 				tokenValue = "foreground-inexact-token",
@@ -7969,7 +8359,9 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
-	fun `foreground rebind crash rolls back and retry creates one successor`() = runTest {
+	// One forced rebind transaction failure checks rollback and a single successor on retry.
+	@Suppress("LongMethod")
+	fun `foreground rebind crash rolls back and retry creates one successor`() = runRoomTest {
 		seedActiveStepsRegistration()
 		val prepared = prepareAndroidStart(
 			tokenValue = "foreground-rebind-crash-token",
@@ -8052,7 +8444,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `live stale owner rejects prepared claim without rebinding`() = runTest {
+	fun `live stale owner rejects prepared claim without rebinding`() = runRoomTest {
 		val prepared = prepareAndroidStart(
 			tokenValue = "stale-owner-token",
 			commandGeneration = 24L,
@@ -8093,7 +8485,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `terminal prepared cancellation releases the rebound lease`() = runTest {
+	fun `terminal prepared cancellation releases the rebound lease`() = runRoomTest {
 		val prepared = prepareAndroidStart(
 			tokenValue = "terminal-release-token",
 			commandGeneration = 25L,
@@ -8122,7 +8514,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `advanced envelope refuses old claim and compensation without touching newer rows`() = runTest {
+	fun `advanced envelope refuses old claim and compensation without touching newer rows`() = runRoomTest {
 		val prepared = prepareAndroidStart(
 			tokenValue = "advanced-old-token",
 			commandGeneration = 24L,
@@ -8167,7 +8559,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `zero-source and stale automatic starts fail before durable intent`() = runTest {
+	fun `zero-source and stale automatic starts fail before durable intent`() = runRoomTest {
 		val zeroSource = startRequest().copy(
 			plan = startRequest().plan.copy(
 				plans = mapOf(SourceKind.STEPS to StepsPlan(1L, false, 60_000, 15_000, false)),
@@ -8210,11 +8602,11 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `automatic action and lifecycle intent are accepted atomically with distinct epochs`() = runTest {
+	fun `automatic action and lifecycle intent are accepted atomically with distinct epochs`() = runRoomTest {
 		val trigger = automaticTrigger(automationEpoch = 9L, sourcePolicyRevision = 1L)
 		seedAutomaticStartAction(trigger)
 
-		val started = subject.start(
+		val started = startCaptureRun(
 			startRequest().copy(
 				origin = SessionStartOrigin.AUTOMATIC_BACKGROUND_START,
 				controlDependencies = setOf(SourceKind.ACTIVITY),
@@ -8237,7 +8629,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `coordinator synchronously reconciles lock before automatic lifecycle acceptance`() = runTest {
+	fun `coordinator synchronously reconciles lock before automatic lifecycle acceptance`() = runRoomTest {
 		val trigger = automaticTrigger(automationEpoch = 17L, sourcePolicyRevision = 1L)
 		seedAutomaticStartAction(trigger)
 		activityLocked = true
@@ -8260,7 +8652,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `automatic action foreground envelope mismatch creates no lifecycle intent`() = runTest {
+	fun `automatic action foreground envelope mismatch creates no lifecycle intent`() = runRoomTest {
 		val trigger = automaticTrigger(intendedForegroundServiceTypeMask = 256L)
 		seedAutomaticStartAction(trigger)
 
@@ -8282,7 +8674,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `automatic start without the exact requested action creates no lifecycle intent`() = runTest {
+	fun `automatic start without the exact requested action creates no lifecycle intent`() = runRoomTest {
 		val trigger = automaticTrigger()
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(collectedDataEpoch = trigger.collectedDataEpoch),
@@ -8301,7 +8693,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `accepted automatic action cannot recreate its finalized logical session`() = runTest {
+	fun `accepted automatic action cannot recreate its finalized logical session`() = runRoomTest {
 		val trigger = automaticTrigger()
 		seedAutomaticStartAction(trigger)
 		val request = startRequest().copy(
@@ -8311,7 +8703,7 @@ class AuthoritativeSessionCoordinatorTest {
 			logicalTrackingId = "automatic-logical",
 			serviceRunId = "automatic-run",
 		)
-		subject.start(request).shouldBeInstanceOf<SessionStartResult.Started>()
+		startCaptureRun(request).shouldBeInstanceOf<SessionStartResult.Started>()
 		subject.stop(
 			SessionStopRequest(
 				ownerToken = "test-owner",
@@ -8335,7 +8727,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `crash after coordinator acceptance then finalize still acknowledges the durable outbox`() = runTest {
+	fun `crash after coordinator acceptance then finalize still acknowledges the durable outbox`() = runRoomTest {
 		val trigger = automaticTrigger()
 		seedAutomaticStartAction(trigger)
 		database.sourceProjectionStateDao().insertOutbox(
@@ -8361,7 +8753,7 @@ class AuthoritativeSessionCoordinatorTest {
 
 		// Model a process crash after the coordinator transaction commits but before the
 		// process-local drain hint is serviced, followed by terminal session recovery.
-		subject.start(request).shouldBeInstanceOf<SessionStartResult.Started>()
+		startCaptureRun(request).shouldBeInstanceOf<SessionStartResult.Started>()
 		subject.stop(
 			SessionStopRequest(
 				ownerToken = "test-owner",
@@ -8405,8 +8797,8 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `a finalized logical identity cannot be recovered or recreated`() = runTest {
-		val started = subject.start(
+	fun `a finalized logical identity cannot be recovered or recreated`() = runRoomTest {
+		val started = startCaptureRun(
 			startRequest().copy(logicalTrackingId = "terminal-logical", serviceRunId = "terminal-run"),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
 		subject.stop(
@@ -8426,8 +8818,8 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `service run suspension preserves logical session and recovery resumes exact identity`() = runTest {
-		val first = subject.start(
+	fun `service run suspension preserves logical session and recovery resumes exact identity`() = runRoomTest {
+		val first = startCaptureRun(
 			startRequest().copy(logicalTrackingId = "logical-1", serviceRunId = "run-1"),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
 		first.logicalTrackingId shouldBe "logical-1"
@@ -8479,8 +8871,10 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `service run suspension stays nonterminal until provider flush retry succeeds`() = runTest {
-		val started = subject.start(
+	// One failed suspension retains its cutoff and owner until the same provider flush succeeds.
+	@Suppress("LongMethod")
+	fun `service run suspension stays nonterminal until provider flush retry succeeds`() = runRoomTest {
+		val started = startCaptureRun(
 			startRequest().copy(logicalTrackingId = "suspend-incomplete-logical", serviceRunId = "suspend-incomplete-run"),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
 		runtime.stopProviderFlushOutcome = ProviderFlushOutcome.FAILED
@@ -8503,9 +8897,14 @@ class AuthoritativeSessionCoordinatorTest {
 		pendingRun.runtimeFailureCode shouldBe "STOP_INCOMPLETE"
 		pendingRun.completionReason shouldBe null
 		database.sourceSessionDao().session(started.logicalTrackingId)?.currentServiceRunId shouldBe started.serviceRunId
-		database.sourceSessionDao().completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
-			.single { completeness -> completeness.sourceKind == SourceKind.STEPS.stableCode }
-			.stopStatus shouldBe SourceStopStatus.COMPLETE.name
+		database.sourceSessionDao().completenessForServiceRun(
+			started.logicalTrackingId, started.serviceRunId,
+		) shouldBe emptyList()
+		val pendingRetirement = database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId, started.serviceRunId, SourceKind.STEPS.stableCode,
+		).single()
+		pendingRetirement.state shouldBe SourceRunRetirementEntity.STATE_REQUESTED
+		pendingRetirement.acknowledgementFieldsForTest().all { it == null } shouldBe true
 		database.sourceSessionDao().lifecycleActions(started.logicalTrackingId).last().status shouldBe
 			LifecycleActionStatus.CLEANUP_REQUIRED.name
 
@@ -8520,6 +8919,21 @@ class AuthoritativeSessionCoordinatorTest {
 				perSourceTimeoutMs = 100L,
 			),
 		).shouldBeInstanceOf<SessionSuspendResult.Suspended>()
+		database.sourceSessionDao().completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
+			.single { completeness -> completeness.sourceKind == SourceKind.STEPS.stableCode }
+			.stopStatus shouldBe SourceStopStatus.COMPLETE.name
+		database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId, started.serviceRunId, SourceKind.STEPS.stableCode,
+		).single().let { receipt ->
+			receipt.state shouldBe SourceRunRetirementEntity.STATE_ACKNOWLEDGED
+			receipt.actionId shouldBe pendingRetirement.actionId
+			receipt.attemptCount shouldBe pendingRetirement.attemptCount
+			receipt.leaseGeneration shouldBe pendingRetirement.leaseGeneration
+			receipt.sourceInstanceId shouldBe pendingRetirement.sourceInstanceId
+			receipt.registrationGeneration shouldBe pendingRetirement.registrationGeneration
+			receipt.cutoffWallTimeMs shouldBe pendingRetirement.cutoffWallTimeMs
+			receipt.cutoffElapsedRealtimeNanos shouldBe pendingRetirement.cutoffElapsedRealtimeNanos
+		}
 		val completedRun = requireNotNull(database.sourceSessionDao().serviceRun(started.serviceRunId))
 		completedRun.state shouldBe SessionLifecycleState.FINALIZED.name
 		completedRun.runtimeAcknowledgement shouldBe LifecycleActionStatus.STOP_ACCEPTED.name
@@ -8528,8 +8942,8 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `ordinary duplicate start cannot replace a live manual session`() = runTest {
-		subject.start(
+	fun `ordinary duplicate start cannot replace a live manual session`() = runRoomTest {
+		startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "active-manual",
 				serviceRunId = "active-run",
@@ -8553,7 +8967,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `plan from a revoked policy revision is rejected before provider start`() = runTest {
+	fun `plan from a revoked policy revision is rejected before provider start`() = runRoomTest {
 		val initialSettings = TrackingParamsState(legacySettingsMigrationCompleted = true)
 		val initial = policy.bootstrapFromLegacy(initialSettings)
 		policy.replaceCaptureSettings(
@@ -8579,7 +8993,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `unbound new plan is rejected without durable lifecycle intent`() = runTest {
+	fun `unbound new plan is rejected without durable lifecycle intent`() = runRoomTest {
 		val result = subject.start(startRequest().copy(plan = startRequest().plan.copy(sourcePolicyRevision = null)))
 
 		result shouldBe SessionStartResult.InvalidPolicy("SOURCE_POLICY_BINDING_MISSING")
@@ -8588,7 +9002,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
     @Test
-    fun `adopted policy rejects hidden low latency and weaker radio backoff substitutions`() = runTest {
+    fun `adopted policy rejects hidden low latency and weaker radio backoff substitutions`() = runRoomTest {
         val settings = TrackingParamsState(legacySettingsMigrationCompleted = true,
             balanceProfileVersion = 1, overallBalanceLevel = 2, locationProfileVersion = 1, locationBalanceLevel = 2,
             wifiEnabled = true, cellEnabled = true)
@@ -8610,7 +9024,7 @@ class AuthoritativeSessionCoordinatorTest {
     }
 
 	@Test
-	fun `plan stronger than current policy QoS is rejected`() = runTest {
+	fun `plan stronger than current policy QoS is rejected`() = runRoomTest {
 		val forged = startRequest().plan.copy(
 			plans = mapOf(SourceKind.STEPS to StepsPlan(1, true, 5_000, 2_000, true)),
 		)
@@ -8621,7 +9035,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `manual location capture keeps its consent epoch after unrelated wifi policy change`() = runTest {
+	fun `manual location capture keeps its consent epoch after unrelated wifi policy change`() = runRoomTest {
 		val unchanged = advancePolicyForUnrelatedWifiQos()
 		val request = startRequest().copy(
 			plan = locationOnlyPlan(unchanged.policyRevision),
@@ -8650,7 +9064,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `automatic location start keeps capture and activity control epochs after wifi change`() = runTest {
+	fun `automatic location start keeps capture and activity control epochs after wifi change`() = runRoomTest {
 		val unchanged = advancePolicyForUnrelatedWifiQos()
 		val locationMask = 1L shl (SourceKind.LOCATION.stableCode - 1)
 		val trigger = automaticTrigger(sourcePolicyRevision = unchanged.policyRevision).copy(
@@ -8693,7 +9107,13 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `automatic generation 2 Steps persists exact immutable capture and control attribution`() = runTest {
+	// One automatic-start chain follows distinct capture and control attribution through the real WAL writer.
+	@Suppress("LongMethod")
+	fun `automatic generation 2 Steps persists exact immutable capture and control attribution`() = runRoomTest {
+		seedActiveStepsRegistration(
+			sourceInstanceId = "steps-instance",
+			ownerScope = "source-broker:${SourceKind.STEPS.stableCode}",
+		)
 		val binding = installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2)
 		val ingress = useDurableStepsIngress()
 		val trigger = automaticTrigger()
@@ -8764,7 +9184,8 @@ class AuthoritativeSessionCoordinatorTest {
 				SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS
 			capture.single().writerOwner shouldBe SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
 			capture.single().writerOwnerGeneration shouldBe
-				SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+				com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
+					.canonicalOwnerGeneration(binding.bindingGeneration)
 			capture.single().writerProjectionId shouldBe binding.projectionId
 			capture.single().writerProjectionVersion shouldBe binding.projectionVersion
 			capture.single().writerBindingGeneration shouldBe binding.bindingGeneration
@@ -8866,7 +9287,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `generation 1 candidate remains manual only at the lifecycle boundary`() = runTest {
+	fun `generation 1 candidate remains manual only at the lifecycle boundary`() = runRoomTest {
 		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
 		val trigger = automaticTrigger()
 		seedAutomaticStartAction(trigger)
@@ -8894,7 +9315,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `revocation committed during provider start rolls registration back`() = runTest {
+	fun `revocation committed during provider start rolls registration back`() = runRoomTest {
 		runtime.blockStart = true
 		val start = async {
 			subject.start(
@@ -8932,7 +9353,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `manifest tampering committed during provider start rolls exact runtime claim back`() = runTest {
+	fun `manifest tampering committed during provider start rolls exact runtime claim back`() = runRoomTest {
 		runtime.blockStart = true
 		val start = async {
 			subject.start(
@@ -8960,7 +9381,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `stale start compensation cannot close a successor runtime claim`() = runTest {
+	fun `stale start compensation cannot close a successor runtime claim`() = runRoomTest {
 		runtime.blockStart = true
 		val start = async {
 			subject.start(
@@ -9073,7 +9494,11 @@ class AuthoritativeSessionCoordinatorTest {
 		val observedAt = baselineAt + (sequence - 1L) * 1_000L
 		val firstCount = 100L
 		val lastCount = firstCount + delta
-		val boundary = if (sequence == 1L) StepBoundaryKind.BASELINE else StepBoundaryKind.COVERED
+		val boundary = if (sequence == 1L) {
+			StepBoundaryKind.BASELINE
+		} else {
+			StepBoundaryKind.COVERED
+		}
 		return SourceEvidenceCandidate(
 			providerDedupKey = "automatic-steps-$sequence",
 			logicalTrackingId = null,
@@ -9112,7 +9537,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun providerOrganizationAttachesFirstPhysicalRunWithoutReplacingItsBounds() = runTest {
+	fun providerOrganizationAttachesFirstPhysicalRunWithoutReplacingItsBounds() = runRoomTest {
 		val original = insertProviderOrganization()
 		val prepared = prepareProviderJoin(original, "join-one")
 		val dao = database.sourceSessionDao()
@@ -9128,7 +9553,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun failedProviderJoinPreservesOriginalOrganizationAndRetryGetsNewAuthority() = runTest {
+	fun failedProviderJoinPreservesOriginalOrganizationAndRetryGetsNewAuthority() = runRoomTest {
 		val original = insertProviderOrganization()
 		val first = prepareProviderJoin(original, "join-failed")
 		subject.compensatePreparedAndroidStart(first.token, 7L, "PLATFORM_REJECTED", "boot-1",
@@ -9157,7 +9582,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun endedProviderOrganizationCannotBePromotedByStaleForegroundRepair() = runTest {
+	fun endedProviderOrganizationCannotBePromotedByStaleForegroundRepair() = runRoomTest {
 		val original = insertProviderOrganization()
 		database.sourceSessionDao().updateSession(original.copy(state = "FINALIZED", lifecycleRevision = 9L,
 			cutoffAtMs = 800L, completedAtMs = 800L)) shouldBe 1
@@ -9168,7 +9593,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun stopAfterJoinPreparationCannotBeUndoneByLateCompensation() = runTest {
+	fun stopAfterJoinPreparationCannotBeUndoneByLateCompensation() = runRoomTest {
 		val original = insertProviderOrganization()
 		val prepared = prepareProviderJoin(original, "join-stopped")
 		val current = requireNotNull(database.sourceSessionDao().session(original.logicalTrackingId))
@@ -9180,7 +9605,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun joinRollbackRetainsAnyPublishedCaptureLineage() = runTest {
+	fun joinRollbackRetainsAnyPublishedCaptureLineage() = runRoomTest {
 		val original = insertProviderOrganization()
 		val prepared = prepareProviderJoin(original, "join-evidence")
 		database.sourceSessionDao().saveCompleteness(SourceSessionCompletenessEntity(
@@ -9197,7 +9622,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun foregroundAcceptedUnappliedJoinRestoresOriginalOrganization() = runTest {
+	fun foregroundAcceptedUnappliedJoinRestoresOriginalOrganization() = runRoomTest {
 		val original = insertProviderOrganization()
 		val prepared = prepareProviderJoin(original, "join-before-apply")
 		subject.claimAndroidStart(prepared.token, 7L, "boot-1", 1_100_000L, 1_100L)
@@ -9216,7 +9641,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun foregroundAcceptedJoinWithRuntimeAttemptCannotBeCompensated() = runTest {
+	fun foregroundAcceptedJoinWithRuntimeAttemptCannotBeCompensated() = runRoomTest {
 		val original = insertProviderOrganization()
 		val prepared = prepareProviderJoin(original, "join-runtime-attempt")
 		subject.claimAndroidStart(prepared.token, 7L, "boot-1", 1_100_000L, 1_100L)
@@ -9233,7 +9658,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun foregroundAcceptedJoinWithCaptureCannotBeCompensated() = runTest {
+	fun foregroundAcceptedJoinWithCaptureCannotBeCompensated() = runRoomTest {
 		val original = insertProviderOrganization()
 		val prepared = prepareProviderJoin(original, "join-foreground-capture")
 		subject.claimAndroidStart(prepared.token, 7L, "boot-1", 1_100_000L, 1_100L)
@@ -9254,7 +9679,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun foregroundAcceptedJoinWithUnavailableRuntimeRestoresOrganization() = runTest {
+	fun foregroundAcceptedJoinWithUnavailableRuntimeRestoresOrganization() = runRoomTest {
 		val original = insertProviderOrganization()
 		val prepared = prepareProviderJoin(original, "join-runtime-unavailable")
 		subject.claimAndroidStart(prepared.token, 7L, "boot-1", 1_100_000L, 1_100L)
@@ -9272,7 +9697,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun unpublishedJoinProofFindsSharedWalThroughItsAuthorizationMember() = runTest {
+	fun unpublishedJoinProofFindsSharedWalThroughItsAuthorizationMember() = runRoomTest {
 		val original = insertProviderOrganization()
 		val prepared = prepareProviderJoin(original, "join-shared-wal")
 		installPendingBackgroundRadioCoordinator()
@@ -9297,7 +9722,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun unpublishedJoinProofRetainsTrimmedRadioCaptureScope() = runTest {
+	fun unpublishedJoinProofRetainsTrimmedRadioCaptureScope() = runRoomTest {
 		val original = insertProviderOrganization()
 		val prepared = prepareProviderJoin(original, "join-retained-scope")
 		database.openHelper.writableDatabase.execSQL(
@@ -9330,6 +9755,33 @@ class AuthoritativeSessionCoordinatorTest {
 		runId: String): PreparedSessionStart = subject.prepareAndroidStart(providerJoinRequest(row, runId),
 			AndroidStartDeliveryMetadata(PreparedTrackingStartToken(runId), 7L, true, false))
 		.shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+
+	/** Uses the same persisted foreground acceptance as the app before exercising saved capture. */
+	private suspend fun startCaptureRun(request: SessionStartRequest): SessionStartResult {
+		val token = PreparedTrackingStartToken(java.util.UUID.randomUUID().toString())
+		val generation = 1L
+		val prepared = subject.prepareAndroidStart(
+			request,
+			AndroidStartDeliveryMetadata(
+				token, generation,
+				isUserInitiated = request.origin == SessionStartOrigin.MANUAL_FOREGROUND_START,
+				isAmbient = false,
+			),
+		).shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+		subject.markAndroidStartEnqueued(prepared.token, generation, request.wallTimeMs) shouldBe true
+		subject.claimAndroidStart(
+			prepared.token, generation, request.clockDomainId,
+			request.elapsedRealtimeNanos, request.wallTimeMs,
+		).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+		subject.markPreparedForegroundAccepted(
+			prepared.token, generation, request.clockDomainId,
+			request.elapsedRealtimeNanos, request.wallTimeMs,
+		) shouldBe true
+		return subject.applyPreparedAndroidStart(
+			prepared.token, generation, request.clockDomainId,
+			request.elapsedRealtimeNanos, request.wallTimeMs,
+		)
+	}
 
 	private suspend fun prepareAndroidStart(
 		tokenValue: String,
@@ -9421,13 +9873,16 @@ class AuthoritativeSessionCoordinatorTest {
 		expiresElapsedRealtimeNanos = 2_000_000L,
 	)
 
-	private suspend fun seedActiveStepsRegistration() {
+	private suspend fun seedActiveStepsRegistration(
+		sourceInstanceId: String = "prepared-steps-instance",
+		ownerScope: String = "shared:steps",
+	) {
 		database.sourceBrokerDao().insertRegistration(
 			ProviderRegistrationGenerationEntity(
 				sourceKind = SourceKind.STEPS.stableCode,
 				registrationGeneration = 1L,
-				sourceInstanceId = "prepared-steps-instance",
-				ownerScope = "shared:steps",
+				sourceInstanceId = sourceInstanceId,
+				ownerScope = ownerScope,
 				providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
 				providerProcessIncarnationId = "test-process",
 				clockDomainId = "boot-1",
@@ -9449,7 +9904,7 @@ class AuthoritativeSessionCoordinatorTest {
 		identity: String,
 	): SessionStartResult.Started {
 		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
-		val started = subject.start(
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = identity,
 				serviceRunId = "$identity-run",
@@ -9537,7 +9992,9 @@ class AuthoritativeSessionCoordinatorTest {
 			)
 		}
 		database.withTransaction {
-			if (includeActions) dao.insertLifecycleActions(actions)
+			if (includeActions) {
+				dao.insertLifecycleActions(actions)
+			}
 			if (includeReceipts) {
 				actions.forEach { synthetic ->
 					dao.insertRunRetirementIntent(
@@ -9556,7 +10013,7 @@ class AuthoritativeSessionCoordinatorTest {
 	private suspend fun prepareTerminalReceiptWithCleanup(
 		identity: String,
 	): Pair<SessionStartResult.Started, SourceRunRetirementEntity> {
-		val started = subject.start(
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "$identity-logical",
 				serviceRunId = "$identity-run",
@@ -9647,7 +10104,7 @@ class AuthoritativeSessionCoordinatorTest {
 		runtime.startReturnsRetryableFailure = true
 		runtime.cleanupOnlyShutdown = true
 		runtime.closeFailure = IllegalStateException("provider still resident")
-		val started = subject.start(
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "$identity-logical",
 				serviceRunId = "$identity-run",
@@ -9693,7 +10150,7 @@ class AuthoritativeSessionCoordinatorTest {
 			maximumBatchDelayMs = 10_000L,
 			preciseLocationAvailable = true,
 		)
-		val started = subject.start(
+		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "$identity-logical",
 				serviceRunId = "$identity-run",
@@ -9768,6 +10225,7 @@ class AuthoritativeSessionCoordinatorTest {
 	private suspend fun assertTerminalStepsRecoveryBlocked(
 		started: SessionStartResult.Started,
 		ownerToken: String,
+		expectedRetirementCount: Int = 1,
 	) {
 		subject.stop(
 			SessionStopRequest(
@@ -9778,11 +10236,13 @@ class AuthoritativeSessionCoordinatorTest {
 				"boot-1",
 			),
 		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
-		database.sourceSessionDao().runRetirements(
+		val receipts = database.sourceSessionDao().runRetirements(
 			started.logicalTrackingId,
 			started.serviceRunId,
 			SourceKind.STEPS.stableCode,
-		).single().let { receipt ->
+		)
+		receipts.size shouldBe expectedRetirementCount
+		receipts.forEach { receipt ->
 			receipt.state shouldBe
 				com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity.STATE_REQUESTED
 			receipt.appliedRevision shouldBe null
@@ -9865,35 +10325,52 @@ class AuthoritativeSessionCoordinatorTest {
 		)
 	}
 
-	private fun allowNullWalPurposeMaskForCorruptionTest() {
-		val writableDatabase = database.openHelper.writableDatabase
-		val tableSql = writableDatabase.query(
-			"SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'source_event_wal'",
-		).use { cursor ->
-			check(cursor.moveToFirst())
-			requireNotNull(cursor.getString(0))
+	private fun allowNullWalPurposeMaskForCorruptionTest() = allowNullColumnsForCorruptionTest(
+		"source_event_wal", setOf("authorization_purpose_eligibility_mask"),
+	)
+
+	/** Rebuilds only the fixture table so every pooled SQLite connection sees the corruptible schema. */
+	private fun allowNullColumnsForCorruptionTest(table: String, columns: Set<String>) {
+		val sql = database.openHelper.writableDatabase
+		val tableSql = sql.query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
+			arrayOf(table)).use { rows ->
+			check(rows.moveToFirst())
+			requireNotNull(rows.getString(0))
 		}
-		val nullableTableSql = tableSql.replace(
-			"`authorization_purpose_eligibility_mask` INTEGER NOT NULL DEFAULT 0",
-			"`authorization_purpose_eligibility_mask` INTEGER DEFAULT 0",
-		)
-		check(nullableTableSql != tableSql)
-		writableDatabase.execSQL("PRAGMA writable_schema = ON")
+		val nullableSql = columns.fold(tableSql) { current, column ->
+			val changed = current.replace(Regex("`${Regex.escape(column)}` ([^,]+?) NOT NULL"), "`$column` $1")
+			check(changed != current) { "Expected a required fixture column: $column" }
+			changed
+		}
+		val schemaObjects = sql.query(
+			"SELECT sql FROM sqlite_master WHERE tbl_name = ? AND type IN ('index', 'trigger') AND sql IS NOT NULL",
+			arrayOf(table),
+		).use { rows -> buildList { while (rows.moveToNext()) add(rows.getString(0)) } }
+		val temporary = "${table}_corruption_fixture"
+		val foreignKeys = sql.query("PRAGMA foreign_keys").use { rows ->
+			check(rows.moveToFirst())
+			rows.getInt(0)
+		}
+		sql.execSQL("PRAGMA foreign_keys = OFF")
 		try {
-			writableDatabase.execSQL(
-				"UPDATE sqlite_master SET sql = ? WHERE type = 'table' AND name = 'source_event_wal'",
-				arrayOf(nullableTableSql),
-			)
+			sql.beginTransaction()
+			try {
+				sql.execSQL(nullableSql.replaceFirst("`$table`", "`$temporary`"))
+				sql.execSQL("INSERT INTO `$temporary` SELECT * FROM `$table`")
+				sql.execSQL("DROP TABLE `$table`")
+				sql.execSQL("ALTER TABLE `$temporary` RENAME TO `$table`")
+				schemaObjects.forEach(sql::execSQL)
+				sql.setTransactionSuccessful()
+			} finally {
+				sql.endTransaction()
+			}
 		} finally {
-			writableDatabase.execSQL("PRAGMA writable_schema = OFF")
+			sql.execSQL("PRAGMA foreign_keys = $foreignKeys")
 		}
-		val schemaVersion = writableDatabase.query("PRAGMA schema_version").use { cursor ->
-			check(cursor.moveToFirst())
-			cursor.getInt(0)
-		}
-		writableDatabase.execSQL("PRAGMA schema_version = ${Math.addExact(schemaVersion, 1)}")
 	}
 
+	// Keep one terminal Steps payload, WAL row and optional count-domain fixture publication together.
+	@Suppress("LongMethod")
 	private suspend fun insertTerminalStepsWal(
 		logicalTrackingId: String,
 		serviceRunId: String,
@@ -9904,19 +10381,24 @@ class AuthoritativeSessionCoordinatorTest {
 		sourceSequence: Long = 4L,
 		purposeMask: Long = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 		recordStepsFact: Boolean = true,
+		configurationRevision: Long = 1L,
+		windowStartElapsedNanos: Long = 1_000_000L,
+		observedWallTimeMs: Long = 2_000L,
+		counterDomainToken: StepsCounterDomainToken =
+			StepsCounterDomainToken.opaque("sha256:${"a".repeat(64)}"),
 	): Long {
 		if (recordStepsFact) {
 			StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
 				StepsCountDomainSchemaState.ValidV2
 		}
-		val token = StepsCounterDomainToken.opaque("sha256:${"a".repeat(64)}")
+		val token = counterDomainToken
 		val payload = StepCounterWindowPayload(
 			bootClockDomainId = "boot-1",
 			firstCumulativeCount = 10L,
 			lastCumulativeCount = 14L,
 			deltaCount = 4L,
-			windowStartElapsedRealtimeNanos = 1_000_000_000L,
-			windowEndElapsedRealtimeNanos = 2_000_000_000L,
+			windowStartElapsedRealtimeNanos = windowStartElapsedNanos,
+			windowEndElapsedRealtimeNanos = windowStartElapsedNanos + 1_000_000L,
 			firstProviderSequence = sourceSequence,
 			lastProviderSequence = sourceSequence,
 			boundaryKind = StepBoundaryKind.COVERED,
@@ -9942,25 +10424,26 @@ class AuthoritativeSessionCoordinatorTest {
 			authorizationPurposeEligibilityMask = purposeMask,
 			authorizationFingerprint = "b".repeat(64),
 			sourceSequence = sourceSequence,
-			configRevision = 1L,
+			configRevision = configurationRevision,
 			planAttribution = PlanAttribution.CAPTURED_REGISTRATION.ordinal,
 			clockDomainId = "boot-1",
-			observedElapsedNanos = 2_000_000_000L,
-			receivedElapsedNanos = 2_000_000_000L,
-			wallTimeMs = 2_000L,
+			observedIntervalStartNanos = windowStartElapsedNanos,
+			observedElapsedNanos = payload.windowEndElapsedRealtimeNanos,
+			receivedElapsedNanos = payload.windowEndElapsedRealtimeNanos,
+			wallTimeMs = observedWallTimeMs,
 			wallTimeUncertaintyMs = 0L,
 			capturedCollectedDataEpoch = 0L,
 			sourcePolicyRevision = 1L,
 			captureConsentEpoch = 1L,
 			sessionManifestRevision = manifestRevision,
 			lifecycleLeaseGeneration = lifecycleLeaseGeneration,
-			acquiredAtMs = 2_000L,
+			acquiredAtMs = observedWallTimeMs,
 			qualityFlags = 0L,
 			qualityConfidence = null,
 			payloadVersion = StepsCounterDomainToken.COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION,
 			payload = encoded.bytes,
 			payloadChecksum = encoded.checksum,
-			createdAtMs = 2_000L,
+			createdAtMs = observedWallTimeMs,
 		)
 		val signed = unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
 		val admissionOrdinal =
@@ -10036,36 +10519,8 @@ class AuthoritativeSessionCoordinatorTest {
 			unresolvedSequenceEnd = acknowledgement.unresolvedSequenceEndInclusive,
 			updatedAtMs = 2_000L,
 		)
-		val checkpoint = SensorRuntimeCheckpoint(
-			lifecycle = RuntimeCheckpointLifecycle.QUIESCED,
-			metrics = RuntimeAdmissionSnapshot(
-				lastDurablyAdmittedSequence = acknowledgement.lastDurablyAdmittedSequence,
-				lastAdmissionOrdinal = acknowledgement.lastAdmissionOrdinal,
-				failedAdmissionCount = acknowledgement.failedAdmissionCount,
-				unresolvedSequenceStart = acknowledgement.unresolvedSequenceStart,
-				unresolvedSequenceEndInclusive = acknowledgement.unresolvedSequenceEndInclusive,
-				gapClassifications = emptySet(),
-			),
-			componentStateVersion = 1,
-			componentPayload = ByteArray(0),
-			causalOrderElapsedRealtimeNanos = 2_000_000L,
-		)
 		database.withTransaction {
-			database.sourceRuntimeStateDao().save(
-				SourceRuntimeStateEntity(
-					sourceKind = SourceKind.STEPS.stableCode,
-					ownerScope = "source-broker:${SourceKind.STEPS.stableCode}",
-					sourceInstanceId = acknowledgement.sourceInstanceId.value,
-					clockDomainId = "boot-1",
-					registrationGeneration = acknowledgement.registrationGeneration,
-					lastProviderSequence = acknowledgement.callbackEntryBarrierSequence,
-					lastAdmittedSourceSequence = acknowledgement.lastDurablyAdmittedSequence,
-					lastAdmissionOrdinal = acknowledgement.lastAdmissionOrdinal,
-					stateVersion = SENSOR_RUNTIME_CHECKPOINT_VERSION,
-					payload = encodeSensorRuntimeCheckpoint(checkpoint),
-					updatedAtMs = 2_000L,
-				),
-			)
+			persistTerminalStepsCheckpoint(acknowledgement)
 			database.sourceSessionDao().saveCompleteness(completeness)
 			StepsCountDomainStore(database).recordSessionCompleteness(
 				completeness,
@@ -10077,7 +10532,87 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 	}
 
-	private suspend fun insertRetiredStepsRegistration() {
+	private suspend fun persistCompletedStepsRetirementReceipt(
+		acknowledgement: SourceStopAck,
+		cutoff: SessionCutoff,
+	) = database.withTransaction {
+		val dao = database.sourceSessionDao()
+		val requested = dao.runRetirements(requireNotNull(acknowledgement.logicalTrackingId),
+			requireNotNull(acknowledgement.serviceRunId), SourceKind.STEPS.stableCode).single()
+		requested.state shouldBe SourceRunRetirementEntity.STATE_REQUESTED
+		requested.sourceInstanceId shouldBe acknowledgement.sourceInstanceId.value
+		requested.registrationGeneration shouldBe acknowledgement.registrationGeneration
+		requested.cutoffWallTimeMs shouldBe cutoff.wallTimeMs
+		requested.cutoffElapsedRealtimeNanos shouldBe cutoff.elapsedRealtimeNanos
+		dao.updateRunRetirement(requested.copy(
+			state = SourceRunRetirementEntity.STATE_ACKNOWLEDGED,
+			appliedRevision = acknowledgement.appliedRevision,
+			callbackEntryBarrierSequence = acknowledgement.callbackEntryBarrierSequence,
+			lastSourceSequence = acknowledgement.lastDurablyAdmittedSequence,
+			lastAdmissionOrdinal = acknowledgement.lastAdmissionOrdinal,
+			failedAdmissionCount = acknowledgement.failedAdmissionCount,
+			unresolvedSequenceStart = acknowledgement.unresolvedSequenceStart,
+			unresolvedSequenceEnd = acknowledgement.unresolvedSequenceEndInclusive,
+			registrationRemovalOutcome = acknowledgement.registrationRemovalOutcome.name,
+			providerFlushOutcome = acknowledgement.providerFlushOutcome.name,
+			providerCoverage = acknowledgement.providerCoverage.name,
+			appDrainComplete = acknowledgement.appDrainComplete,
+			stopStatus = acknowledgement.status.name,
+			updatedAtMs = cutoff.wallTimeMs,
+		)) shouldBe 1
+	}
+
+	private suspend fun persistStepsPhysicalRetirement(acknowledgement: SourceStopAck, cutoff: SessionCutoff) {
+		database.withTransaction {
+			insertRetiredStepsRegistration(cutoff.wallTimeMs, cutoff.elapsedRealtimeNanos)
+			persistTerminalStepsCheckpoint(acknowledgement, cutoff.wallTimeMs, cutoff.elapsedRealtimeNanos)
+		}
+	}
+
+	private suspend fun persistTerminalStepsCheckpoint(
+		acknowledgement: SourceStopAck,
+		wallTimeMs: Long = 2_000L,
+		elapsedRealtimeNanos: Long = 2_000_000L,
+	) {
+		val checkpoint = SensorRuntimeCheckpoint(
+			lifecycle = if (acknowledgement.appDrainComplete) {
+				RuntimeCheckpointLifecycle.QUIESCED
+			} else {
+				RuntimeCheckpointLifecycle.TIMED_OUT
+			},
+			metrics = RuntimeAdmissionSnapshot(
+				lastDurablyAdmittedSequence = acknowledgement.lastDurablyAdmittedSequence,
+				lastAdmissionOrdinal = acknowledgement.lastAdmissionOrdinal,
+				failedAdmissionCount = acknowledgement.failedAdmissionCount,
+				unresolvedSequenceStart = acknowledgement.unresolvedSequenceStart,
+				unresolvedSequenceEndInclusive = acknowledgement.unresolvedSequenceEndInclusive,
+				gapClassifications = emptySet(),
+			),
+			componentStateVersion = 1,
+			componentPayload = ByteArray(0),
+			causalOrderElapsedRealtimeNanos = elapsedRealtimeNanos,
+		)
+		database.sourceRuntimeStateDao().save(
+			SourceRuntimeStateEntity(
+				sourceKind = SourceKind.STEPS.stableCode,
+				ownerScope = "source-broker:${SourceKind.STEPS.stableCode}",
+				sourceInstanceId = acknowledgement.sourceInstanceId.value,
+				clockDomainId = "boot-1",
+				registrationGeneration = acknowledgement.registrationGeneration,
+				lastProviderSequence = acknowledgement.callbackEntryBarrierSequence,
+				lastAdmittedSourceSequence = acknowledgement.lastDurablyAdmittedSequence,
+				lastAdmissionOrdinal = acknowledgement.lastAdmissionOrdinal,
+				stateVersion = SENSOR_RUNTIME_CHECKPOINT_VERSION,
+				payload = encodeSensorRuntimeCheckpoint(checkpoint),
+				updatedAtMs = wallTimeMs,
+			),
+		)
+	}
+
+	private suspend fun insertRetiredStepsRegistration(
+		retiredAtMs: Long = 2_000L,
+		retiredElapsedRealtimeNanos: Long = 2_000_000L,
+	) {
 		if (database.sourceBrokerDao().registration(SourceKind.STEPS.stableCode, 1L) != null) {
 			return
 		}
@@ -10097,8 +10632,8 @@ class AuthoritativeSessionCoordinatorTest {
 				reservedElapsedRealtimeNanos = 1_000_000L,
 				acceptedAtMs = 1_000L,
 				acceptedElapsedRealtimeNanos = 1_000_000L,
-				retiredAtMs = 2_000L,
-				retiredElapsedRealtimeNanos = 2_000_000L,
+				retiredAtMs = retiredAtMs,
+				retiredElapsedRealtimeNanos = retiredElapsedRealtimeNanos,
 				failureCode = "PRIOR_PROCESS_ENDED",
 			),
 		)
@@ -10228,6 +10763,44 @@ class AuthoritativeSessionCoordinatorTest {
 		) shouldBe 1
 	}
 
+	private fun acceptedCallerRowCount(): Long = database.openHelper.readableDatabase.query(
+		"SELECT COUNT(*) FROM source_caller_accepted_authority",
+	).use { cursor ->
+		check(cursor.moveToFirst())
+		cursor.getLong(0)
+	}
+
+	private suspend fun installIndependentBackgroundStepsDemand(logicalTrackingId: String): SourceDemandEntity {
+		val sourcePolicy = requireNotNull(database.sourcePolicyDao().policyAtRevision(1L, SourceKind.STEPS.stableCode))
+		val reference = com.adsamcik.tracker.tracker.api.SourceCallerReplayReference("test:all-day-steps")
+		val identity = com.adsamcik.tracker.tracker.api.SourceCallerDemandIdentity(
+			com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity(
+				sourcePurpose = com.adsamcik.tracker.shared.model.tracking.TrackingSource.STEPS
+					.forPurpose(com.adsamcik.tracker.shared.model.tracking.TrackingPurpose.AMBIENT_PRODUCT),
+				policyRevision = sourcePolicy.policyRevision,
+				consentEpoch = requireNotNull(sourcePolicy.ambientConsentEpoch),
+				collectedDataEpoch = 0L, rolloutRevision = rolloutSnapshot.revision,
+				executionRevision = 1L, ownerCasToken = "all-day-steps",
+			),
+			manifestIdentity = null,
+		)
+		check(com.adsamcik.tracker.tracker.source.runtime.RoomSourceCallerAcceptedAuthorityRepository(database)
+			.insertIfAbsent(reference, com.adsamcik.tracker.tracker.source.runtime.StoredSourceCallerAuthority(
+				origin = com.adsamcik.tracker.tracker.source.runtime.StoredSourceCallerOrigin.AMBIENT,
+				purpose = com.adsamcik.tracker.shared.model.tracking.TrackingPurpose.AMBIENT_PRODUCT,
+				permittedDemandIdentities = setOf(identity),
+			), 1_000L))
+		val background = database.sourceBrokerDao().currentDemands("session:$logicalTrackingId").single().copy(
+			demandId = "all-day-steps", consumerId = "ambient-steps",
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+			logicalTrackingId = null, serviceRunId = null, manifestRevision = null, lifecycleLeaseGeneration = null,
+			consentEpoch = requireNotNull(sourcePolicy.ambientConsentEpoch),
+			sourceCallerAuthorityReference = reference.value,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(background))
+		return background
+	}
+
 	private fun startRequest() = SessionStartRequest(
 		ownerToken = "test-owner",
 		origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
@@ -10266,7 +10839,11 @@ class AuthoritativeSessionCoordinatorTest {
 			SourceKind.LOCATION to LocationPlan(
 				revision = revision,
 				backend = LocationBackend.FUSED,
-				mode = if (locationEnabled) LocationMode.BALANCED else LocationMode.DISABLED,
+				mode = if (locationEnabled) {
+					LocationMode.BALANCED
+				} else {
+					LocationMode.DISABLED
+				},
 				requestedIntervalMs = 2_000L,
 				minimumUpdateIntervalMs = 2_000L,
 				minimumDisplacementMeters = 10f,
@@ -10382,8 +10959,16 @@ class AuthoritativeSessionCoordinatorTest {
 				wifiEnabled = wifi,
 				cellEnabled = cell,
 				sourceCollectionSettings = settings.sourceCollectionSettings.copy(
-					wifi = if (wifi) SourceCollectionFrequency.BALANCED else SourceCollectionFrequency.OFF,
-					cell = if (cell) SourceCollectionFrequency.BALANCED else SourceCollectionFrequency.OFF,
+					wifi = if (wifi) {
+						SourceCollectionFrequency.BALANCED
+					} else {
+						SourceCollectionFrequency.OFF
+					},
+					cell = if (cell) {
+						SourceCollectionFrequency.BALANCED
+					} else {
+						SourceCollectionFrequency.OFF
+					},
 				),
 			),
 			reason = "TEST_RADIO_MANIFEST_PROVENANCE",
@@ -10602,7 +11187,7 @@ class AuthoritativeSessionCoordinatorTest {
 
 
 	@Test
-	fun `manual protected Location preparation stamps the exact final binding and permanent owner`() = runTest {
+	fun `manual protected Location preparation stamps the exact final binding and permanent owner`() = runRoomTest {
 		val unchanged = advancePolicyForUnrelatedWifiQos()
 		installProtectedLocationCandidateRollout(ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V2)
 		val prepared = subject.prepareAndroidStart(startRequest().copy(
@@ -10621,7 +11206,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `automatic protected Location preparation stamps final binding with independent Activity control`() = runTest {
+	fun `automatic protected Location preparation stamps final binding with independent Activity control`() = runRoomTest {
 		val unchanged = advancePolicyForUnrelatedWifiQos()
 		installProtectedLocationCandidateRollout(ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V2)
 		val mask = 1L shl (SourceKind.LOCATION.stableCode - 1)
@@ -10681,7 +11266,8 @@ class AuthoritativeSessionCoordinatorTest {
 			expectedOwner = owner.owner,
 			expectedOwnerGeneration = owner.ownerGeneration,
 			newOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
-			newOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			newOwnerGeneration = com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
+				.canonicalOwnerGeneration(binding.bindingGeneration),
 			updatedAtMs = 1L,
 		) == 1)
 		rolloutSnapshot = TrackingRolloutState.eventCanonical(
@@ -10997,6 +11583,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 	var cancelAfterPhysicalShutdown = false
 	var cancelAfterCleanupOnlyShutdown = false
 	var beforePhysicalShutdownCancellation: suspend (SourceStopAck) -> Unit = {}
+	var onPhysicalShutdown: suspend (SourceStopAck, SessionCutoff) -> Unit = { _, _ -> }
 	var closeFailure: Throwable? = null
 	var cleanupOnlyShutdown = false
 	var cleanupOnlyReady = false
@@ -11014,6 +11601,13 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 	private var active = false
 	val isActive: Boolean get() = active
 	private var registrationGeneration = 0L
+	private var lastAppliedRevision = 1L
+	private val sourceInstanceId: String
+		get() = if (registrationGeneration == 1L) {
+			"steps-instance"
+		} else {
+			"steps-instance-$registrationGeneration"
+		}
 	private var ownedClaim: SourceRuntimeClaim? = null
 
 	override suspend fun start(
@@ -11028,6 +11622,26 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 	override suspend fun start(plan: StepsPlan, sink: SourceEventSink): SourceStartResult {
 		startCount += 1
 		startFailure?.let { throw it }
+		observeSessionAtStart()
+		sinkAtStart = sink
+		if (blockStart) {
+			startEntered.complete(Unit)
+			releaseStart.await()
+		}
+		if (plan.enabled && !active && !failedStartWithoutProviderEvidence) {
+			registrationGeneration += 1L
+		}
+		active = plan.enabled && !failedStartWithoutProviderEvidence
+		startFailureAfterSideEffect?.let { throw it }
+		val applied = applied(plan)
+		return if (startReturnsRetryableFailure || failedStartWithoutProviderEvidence) {
+			SourceStartResult.Failed(applied.copy(status = SourceApplyStatus.FAILED), retryable = true)
+		} else {
+			SourceStartResult.Started(applied)
+		}
+	}
+
+	private suspend fun observeSessionAtStart() {
 		val session = database.sourceSessionDao().activeSession()
 		stateObservedAtStart = session?.state
 		manifestRevisionObservedAtStart = session?.currentManifestRevision
@@ -11037,27 +11651,19 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 		actionStatusObservedAtStart = session?.let { current ->
 			database.sourceSessionDao().lifecycleActions(current.logicalTrackingId).lastOrNull()?.status
 		}
-		sinkAtStart = sink
-		if (blockStart) {
-			startEntered.complete(Unit)
-			releaseStart.await()
-		}
-		if (plan.enabled && !active && !failedStartWithoutProviderEvidence) registrationGeneration += 1L
-		active = plan.enabled && !failedStartWithoutProviderEvidence
-		startFailureAfterSideEffect?.let { throw it }
-		val applied = applied(plan)
-		return if (startReturnsRetryableFailure) {
-			SourceStartResult.Failed(applied, retryable = true)
-		} else {
-			SourceStartResult.Started(applied)
-		}
 	}
 
 	override suspend fun reconfigure(plan: StepsPlan, sink: SourceEventSink): SourceApplyResult {
 		reconfigureCount += 1
 		reconfigureFailure?.let { throw it }
-		val stopAck = if (active && !plan.enabled) stopAck() else null
-		if (plan.enabled && !active) registrationGeneration += 1L
+		val stopAck = if (active && !plan.enabled) {
+			stopAck()
+		} else {
+			null
+		}
+		if (plan.enabled && !active) {
+			registrationGeneration += 1L
+		}
 		active = plan.enabled
 		return SourceApplyResult.Applied(applied(plan), stopAck)
 	}
@@ -11069,13 +11675,17 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 	): SourceApplyResult {
 		ownedClaim = claim
 		return reconfigure(plan, sink).also {
-			if (!plan.enabled) ownedClaim = null
+			if (!plan.enabled) {
+				ownedClaim = null
+			}
 		}
 	}
 
 	override suspend fun quiesce(cutoff: SessionCutoff): SourceStopAck {
 		val acknowledgement = stopAck()
-		if (isComplete(acknowledgement) || !retainProviderOnIncompleteShutdown) active = false
+		if (isComplete(acknowledgement) || !retainProviderOnIncompleteShutdown) {
+			active = false
+		}
 		return acknowledgement
 	}
 
@@ -11084,8 +11694,12 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 		cutoff: SessionCutoff,
 	): OwnedSourceShutdown {
 		shutdownAttemptCount += 1
-		if (ownedClaim != claim) return OwnedSourceShutdown.NotOwned
-		if (shutdownDelayMs > 0L) delay(shutdownDelayMs)
+		if (ownedClaim != claim) {
+			return OwnedSourceShutdown.NotOwned
+		}
+		if (shutdownDelayMs > 0L) {
+			delay(shutdownDelayMs)
+		}
 		shutdownClaims += claim
 		if (abandonProviderlessClaimAfterIncompleteShutdown) {
 			abandonProviderlessClaimAfterIncompleteShutdown = false
@@ -11094,17 +11708,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 			return OwnedSourceShutdown.Incomplete(provider = null, stopAck = null)
 		}
 		if (cleanupOnlyShutdown) {
-			if (!cleanupOnlyReady) {
-				return OwnedSourceShutdown.Incomplete(provider = null, stopAck = null)
-			}
-			persistCleanupOnlyProviderRetirement(cutoff)
-			active = false
-			closed = true
-			ownedClaim = null
-			if (cancelAfterCleanupOnlyShutdown) {
-				throw CancellationException("simulated process death after cleanup-only retirement")
-			}
-			return OwnedSourceShutdown.Released(provider = null, stopAck = null)
+			return shutdownCleanupOnly(cutoff)
 		}
 		val acknowledgement = stopAck()
 		val complete = isComplete(acknowledgement)
@@ -11112,6 +11716,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 			active = false
 			closed = true
 			ownedClaim = null
+			onPhysicalShutdown(acknowledgement, cutoff)
 			if (cancelAfterPhysicalShutdown) {
 				beforePhysicalShutdownCancellation(acknowledgement)
 				throw CancellationException("simulated process death after provider retirement")
@@ -11121,12 +11726,28 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 				stopAck = acknowledgement,
 			)
 		} else {
-			if (!retainProviderOnIncompleteShutdown) active = false
+			if (!retainProviderOnIncompleteShutdown) {
+				active = false
+			}
 			OwnedSourceShutdown.Incomplete(
 				provider = null,
 				stopAck = acknowledgement,
 			)
 		}
+	}
+
+	private suspend fun shutdownCleanupOnly(cutoff: SessionCutoff): OwnedSourceShutdown {
+		if (!cleanupOnlyReady) {
+			return OwnedSourceShutdown.Incomplete(provider = null, stopAck = null)
+		}
+		persistCleanupOnlyProviderRetirement(cutoff)
+		active = false
+		closed = true
+		ownedClaim = null
+		if (cancelAfterCleanupOnlyShutdown) {
+			throw CancellationException("simulated process death after cleanup-only retirement")
+		}
+		return OwnedSourceShutdown.Released(provider = null, stopAck = null)
 	}
 
 	private suspend fun persistCleanupOnlyProviderRetirement(cutoff: SessionCutoff) {
@@ -11139,7 +11760,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 				ProviderRegistrationGenerationEntity(
 					sourceKind = SourceKind.STEPS.stableCode,
 					registrationGeneration = registrationGeneration,
-					sourceInstanceId = "steps-instance",
+					sourceInstanceId = sourceInstanceId,
 					ownerScope = "source-broker:${SourceKind.STEPS.stableCode}",
 					clockDomainId = "boot-1",
 					physicalConfigurationFingerprint = "failed-start-cleanup",
@@ -11174,11 +11795,19 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 
 	private fun stopAck() = SourceStopAck(
 		source = source,
-		sourceInstanceId = SourceInstanceId("steps-instance"),
+		sourceInstanceId = SourceInstanceId(sourceInstanceId),
 		registrationGeneration = registrationGeneration,
-		appliedRevision = 1,
-		callbackEntryBarrierSequence = if (hasNoAdmittedStepEvents) 0 else 4,
-		lastDurablyAdmittedSequence = if (hasNoAdmittedStepEvents) null else 4,
+		appliedRevision = lastAppliedRevision,
+		callbackEntryBarrierSequence = if (hasNoAdmittedStepEvents || lastAdmissionOrdinal == null) {
+			0
+		} else {
+			4
+		},
+		lastDurablyAdmittedSequence = if (hasNoAdmittedStepEvents || lastAdmissionOrdinal == null) {
+			null
+		} else {
+			4
+		},
 		lastAdmissionOrdinal = lastAdmissionOrdinal,
 		failedAdmissionCount = 0,
 		unresolvedSequenceStart = null,
@@ -11211,13 +11840,15 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 		desiredRevision = plan.revision,
 		appliedRevision = plan.revision,
 		source = source,
-		sourceInstanceId = SourceInstanceId("steps-instance")
+		sourceInstanceId = SourceInstanceId(sourceInstanceId)
 			.takeIf { plan.enabled && !failedStartWithoutProviderEvidence },
 		registrationGeneration = registrationGeneration
 			.takeIf { plan.enabled && !failedStartWithoutProviderEvidence },
 		appliedAtElapsedRealtimeNanos = 1_000_000,
 		status = SourceApplyStatus.APPLIED,
-	)
+	).also {
+		lastAppliedRevision = plan.revision
+	}
 }
 
 private class FakeLocationRuntime : ClaimedSourceRuntime<LocationPlan> {
@@ -11255,8 +11886,9 @@ private class FakeLocationRuntime : ClaimedSourceRuntime<LocationPlan> {
 				stopAck = stopAck(),
 			)
 		}
+		val acknowledgement = if (active && !plan.enabled) { stopAck() } else { null }
 		active = plan.enabled
-		return SourceApplyResult.Applied(applied(plan))
+		return SourceApplyResult.Applied(applied(plan), acknowledgement)
 	}
 
 	override suspend fun reconfigure(
@@ -11264,9 +11896,13 @@ private class FakeLocationRuntime : ClaimedSourceRuntime<LocationPlan> {
 		plan: LocationPlan,
 		sink: SourceEventSink,
 	): SourceApplyResult {
-		if (plan.enabled || !failRetirement) ownedClaim = claim
+		if (plan.enabled || !failRetirement) {
+			ownedClaim = claim
+		}
 		return reconfigure(plan, sink).also {
-			if (!plan.enabled && !failRetirement) ownedClaim = null
+			if (!plan.enabled && !failRetirement) {
+				ownedClaim = null
+			}
 		}
 	}
 
@@ -11284,7 +11920,9 @@ private class FakeLocationRuntime : ClaimedSourceRuntime<LocationPlan> {
 		claim: SourceRuntimeClaim,
 		cutoff: SessionCutoff,
 	): OwnedSourceShutdown {
-		if (ownedClaim != claim) return OwnedSourceShutdown.NotOwned
+		if (ownedClaim != claim) {
+			return OwnedSourceShutdown.NotOwned
+		}
 		val acknowledgement = quiesce(cutoff)
 		return if (acknowledgement.hasIncompleteTerminalRetirementForTest()) {
 			OwnedSourceShutdown.Incomplete(provider = null, stopAck = acknowledgement)
@@ -11313,14 +11951,20 @@ private class FakeLocationRuntime : ClaimedSourceRuntime<LocationPlan> {
 			},
 			providerCoverage = ProviderCoverage.CALLBACKS_ENTERED_BEFORE_BARRIER,
 			appDrainComplete = !failRetirement,
-			status = if (failRetirement) SourceStopStatus.PROVIDER_FAILED else SourceStopStatus.COMPLETE,
+			status = if (failRetirement) {
+				SourceStopStatus.PROVIDER_FAILED
+			} else {
+				SourceStopStatus.COMPLETE
+			},
 			logicalTrackingId = ownedClaim?.logicalTrackingId,
 			serviceRunId = acknowledgementServiceRunId ?: ownedClaim?.serviceRunId,
 		)
 
 	override suspend fun close() {
 		closeCount += 1
-		if (failRetirement) error("location provider still resident")
+		if (failRetirement) {
+			error("location provider still resident")
+		}
 		active = false
 		ownedClaim = null
 	}

@@ -17,6 +17,7 @@ import javax.inject.Inject
 import javax.inject.Provider
 import kotlin.coroutines.cancellation.CancellationException
 
+/** Applies the settled retention floor independently to all-day Steps, Wi-Fi and Cell. */
 class PeriodicAmbientRetentionMaintenance internal constructor(
 	private val localSteps: suspend (
 		AppDatabase,
@@ -87,6 +88,7 @@ class PeriodicAmbientRetentionMaintenance internal constructor(
 		},
 	)
 
+	/** Prunes each source under continuation checks, retaining individual failures for retry. Times use UTC milliseconds. */
 	suspend fun run(
 		database: AppDatabase,
 		lifecycle: CollectedDataLifecycleSnapshot,
@@ -98,79 +100,86 @@ class PeriodicAmbientRetentionMaintenance internal constructor(
 		}
 		require(appliedAtMs >= floor)
 		val failures = mutableListOf<PeriodicAmbientRetentionFailure>()
-
 		captureFailure(PeriodicAmbientRetentionSource.LOCAL_STEPS, failures) {
 			verifyExecutionContinuation()
-			when (
-				val result = localSteps(
-					database,
-					floor,
-					lifecycle.epoch,
-					appliedAtMs,
-					verifyExecutionContinuation,
-				)
-			) {
-				LocalAmbientStepsRetentionResult.NoChange,
-				is LocalAmbientStepsRetentionResult.Pruned,
-				-> null
-				is LocalAmbientStepsRetentionResult.Unavailable -> result.reason
-			}
+			localStepsFailureReason(database, floor, lifecycle.epoch, appliedAtMs, verifyExecutionContinuation)
 		}
 		captureFailure(PeriodicAmbientRetentionSource.IMPORTED_STEPS, failures) {
 			verifyExecutionContinuation()
-			when (importedSteps(
-				database,
-				TruncateImportedAmbientStepsRetentionRequest(
-					retainedFromMs = floor,
-					expectedCollectedDataEpoch = lifecycle.epoch,
-					retainedAtMs = appliedAtMs,
-				),
-				verifyExecutionContinuation,
-			)) {
-				TruncateImportedAmbientStepsRetentionResult.Complete -> null
-				is TruncateImportedAmbientStepsRetentionResult.Retained ->
-					PeriodicAmbientRetentionFailureReason.INCOMPLETE
-				is TruncateImportedAmbientStepsRetentionResult.Blocked ->
-					PeriodicAmbientRetentionFailureReason.BLOCKED
-				is TruncateImportedAmbientStepsRetentionResult.Unverifiable ->
-					PeriodicAmbientRetentionFailureReason.UNVERIFIABLE
-				is TruncateImportedAmbientStepsRetentionResult.RetryableFailure ->
-					PeriodicAmbientRetentionFailureReason.RETRYABLE
-			}
+			importedStepsFailureReason(database, floor, lifecycle.epoch, appliedAtMs, verifyExecutionContinuation)
 		}
 		captureFailure(PeriodicAmbientRetentionSource.WIFI, failures) {
 			verifyExecutionContinuation()
-			when (wifi(
-				database,
-				AmbientWifiRetentionCommand(floor, lifecycle.epoch, appliedAtMs),
-				verifyExecutionContinuation,
-			)) {
-				AmbientWifiRetentionResult.NoChange,
-				is AmbientWifiRetentionResult.Pruned -> null
-				is AmbientWifiRetentionResult.Unavailable ->
-					PeriodicAmbientRetentionFailureReason.UNVERIFIABLE
-			}
+			wifiFailureReason(database, floor, lifecycle.epoch, appliedAtMs, verifyExecutionContinuation)
 		}
 		captureFailure(PeriodicAmbientRetentionSource.CELL, failures) {
 			verifyExecutionContinuation()
-			when (cell(
-				database,
-				AmbientCellRetentionCommand(floor, lifecycle.epoch, appliedAtMs),
-				verifyExecutionContinuation,
-			)) {
-				AmbientCellRetentionResult.NoChange,
-				is AmbientCellRetentionResult.Pruned -> null
-				is AmbientCellRetentionResult.Unavailable ->
-					PeriodicAmbientRetentionFailureReason.UNVERIFIABLE
-			}
+			cellFailureReason(database, floor, lifecycle.epoch, appliedAtMs, verifyExecutionContinuation)
 		}
-
 		return if (failures.isEmpty()) {
 			PeriodicAmbientRetentionResult.Complete
 		} else {
 			PeriodicAmbientRetentionResult.Retryable(failures)
 		}
 	}
+
+	private suspend fun localStepsFailureReason(
+		database: AppDatabase,
+		floor: Long,
+		epoch: Long,
+		appliedAtMs: Long,
+		verifyExecutionContinuation: suspend () -> Unit,
+	): PeriodicAmbientRetentionFailureReason? =
+		when (val result = localSteps(database, floor, epoch, appliedAtMs, verifyExecutionContinuation)) {
+			LocalAmbientStepsRetentionResult.NoChange,
+			is LocalAmbientStepsRetentionResult.Pruned -> null
+			is LocalAmbientStepsRetentionResult.Unavailable -> result.reason
+		}
+
+	private suspend fun importedStepsFailureReason(
+		database: AppDatabase,
+		floor: Long,
+		epoch: Long,
+		appliedAtMs: Long,
+		verifyExecutionContinuation: suspend () -> Unit,
+	): PeriodicAmbientRetentionFailureReason? =
+		when (importedSteps(database, TruncateImportedAmbientStepsRetentionRequest(
+			retainedFromMs = floor, expectedCollectedDataEpoch = epoch, retainedAtMs = appliedAtMs,
+		), verifyExecutionContinuation)) {
+			TruncateImportedAmbientStepsRetentionResult.Complete -> null
+			is TruncateImportedAmbientStepsRetentionResult.Retained -> PeriodicAmbientRetentionFailureReason.INCOMPLETE
+			is TruncateImportedAmbientStepsRetentionResult.Blocked -> PeriodicAmbientRetentionFailureReason.BLOCKED
+			is TruncateImportedAmbientStepsRetentionResult.Unverifiable ->
+				PeriodicAmbientRetentionFailureReason.UNVERIFIABLE
+			is TruncateImportedAmbientStepsRetentionResult.RetryableFailure ->
+				PeriodicAmbientRetentionFailureReason.RETRYABLE
+		}
+
+	private suspend fun wifiFailureReason(
+		database: AppDatabase,
+		floor: Long,
+		epoch: Long,
+		appliedAtMs: Long,
+		verifyExecutionContinuation: suspend () -> Unit,
+	): PeriodicAmbientRetentionFailureReason? =
+		when (wifi(database, AmbientWifiRetentionCommand(floor, epoch, appliedAtMs), verifyExecutionContinuation)) {
+			AmbientWifiRetentionResult.NoChange,
+			is AmbientWifiRetentionResult.Pruned -> null
+			is AmbientWifiRetentionResult.Unavailable -> PeriodicAmbientRetentionFailureReason.UNVERIFIABLE
+		}
+
+	private suspend fun cellFailureReason(
+		database: AppDatabase,
+		floor: Long,
+		epoch: Long,
+		appliedAtMs: Long,
+		verifyExecutionContinuation: suspend () -> Unit,
+	): PeriodicAmbientRetentionFailureReason? =
+		when (cell(database, AmbientCellRetentionCommand(floor, epoch, appliedAtMs), verifyExecutionContinuation)) {
+			AmbientCellRetentionResult.NoChange,
+			is AmbientCellRetentionResult.Pruned -> null
+			is AmbientCellRetentionResult.Unavailable -> PeriodicAmbientRetentionFailureReason.UNVERIFIABLE
+		}
 
 	private suspend fun captureFailure(
 		source: PeriodicAmbientRetentionSource,
@@ -181,10 +190,8 @@ class PeriodicAmbientRetentionMaintenance internal constructor(
 			operation()
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (stopped: RetentionExecutionStoppedException) {
-			throw stopped
-		} catch (deferred: RetentionExecutionDeferredException) {
-			throw deferred
+		} catch (aborted: RetentionExecutionAbortException) {
+			throw aborted
 		} catch (_: Exception) {
 			PeriodicAmbientRetentionFailureReason.STORAGE_UNAVAILABLE
 		}
@@ -194,27 +201,37 @@ class PeriodicAmbientRetentionMaintenance internal constructor(
 	}
 }
 
-internal class RetentionExecutionStoppedException : RuntimeException()
+/** A retention attempt must exit immediately when its owned execution stops or is deferred. */
+internal sealed class RetentionExecutionAbortException : RuntimeException()
 
-internal class RetentionExecutionDeferredException : RuntimeException()
+internal class RetentionExecutionStoppedException : RetentionExecutionAbortException()
 
+internal class RetentionExecutionDeferredException : RetentionExecutionAbortException()
+
+/** Result of pruning native all-day step revisions in the current collected-data epoch. */
 sealed interface LocalAmbientStepsRetentionResult {
+	/** Positive count of removed revisions. */
 	data class Pruned(val deletedRevisionCount: Int) : LocalAmbientStepsRetentionResult {
 		init {
 			require(deletedRevisionCount > 0)
 		}
 	}
 
+	/** No eligible native step revisions needed removal. */
 	data object NoChange : LocalAmbientStepsRetentionResult
 
+	/** This source could not safely complete its pruning operation. */
 	data class Unavailable(
 		val reason: PeriodicAmbientRetentionFailureReason,
 	) : LocalAmbientStepsRetentionResult
 }
 
+/** Combined maintenance result that preserves source-specific retry reasons. */
 sealed interface PeriodicAmbientRetentionResult {
+	/** Every selected maintenance operation reached its settled floor. */
 	data object Complete : PeriodicAmbientRetentionResult
 
+	/** One or more distinct sources need another bounded attempt. */
 	data class Retryable(
 		val failures: List<PeriodicAmbientRetentionFailure>,
 	) : PeriodicAmbientRetentionResult {
@@ -225,11 +242,13 @@ sealed interface PeriodicAmbientRetentionResult {
 	}
 }
 
+/** Source and payload-free reason for a failed periodic pruning attempt. */
 data class PeriodicAmbientRetentionFailure(
 	val source: PeriodicAmbientRetentionSource,
 	val reason: PeriodicAmbientRetentionFailureReason,
 )
 
+/** Separately maintained all-day data stores; imported Steps retain their own workflow. */
 enum class PeriodicAmbientRetentionSource {
 	LOCAL_STEPS,
 	IMPORTED_STEPS,
@@ -237,6 +256,7 @@ enum class PeriodicAmbientRetentionSource {
 	CELL,
 }
 
+/** Distinguishes incomplete batches, authority problems and retryable storage failures. */
 enum class PeriodicAmbientRetentionFailureReason {
 	BLOCKED,
 	UNVERIFIABLE,

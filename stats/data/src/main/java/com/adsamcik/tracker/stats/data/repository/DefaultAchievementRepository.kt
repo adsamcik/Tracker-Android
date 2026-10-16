@@ -34,7 +34,8 @@ class DefaultAchievementRepository @Inject constructor(
 		)
 	}
 
-	override fun observeRecentUnlocks(limit: Int): Flow<List<AchievementSnapshot>> = progressDao.getAllFlow().map { rows ->
+	override fun observeRecentUnlocks(limit: Int): Flow<List<AchievementSnapshot>> =
+        progressDao.getAllFlow().map { rows ->
 		rows.mapNotNull { it.toLatestUnlockSnapshot() }
 			.sortedByDescending(AchievementSnapshot::updatedAt)
 			.take(limit.coerceAtLeast(0))
@@ -79,6 +80,7 @@ class DefaultAchievementRepository @Inject constructor(
 		val metric = MetricKey.fromStorageKey(metricKey) ?: return null
 		if (!AchievementMetricQualification.hasTrustedUnlockTimestamp(metric, this) || lastTierIndex < 0) return null
 		val definition = AchievementCatalog.byMetric(metric).getOrNull(lastTierIndex) ?: return null
-		return AchievementSnapshot(definition.id, definition.nameRes, definition.descriptionRes, definition.category, definition.tier, definition.metric, lastValue, definition.threshold, true, requireNotNull(lastUnlockedAt))
+		return AchievementSnapshot(definition.id, definition.nameRes, definition.descriptionRes, definition.category,
+            definition.tier, definition.metric, lastValue, definition.threshold, true, requireNotNull(lastUnlockedAt))
 	}
 }

@@ -39,16 +39,9 @@ import com.adsamcik.tracker.stats.api.repository.ImportedStepsHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.ImportedStepsHistoryMember
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage
-import com.adsamcik.tracker.stats.api.repository.PressureHistory
-import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
-import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
-import com.adsamcik.tracker.stats.api.repository.PressureHistoryOrigin
-import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
-import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
-import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryActionTarget
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
@@ -629,28 +622,6 @@ class DashboardHistoryRepositoryTest {
 		lastValue = AchievementCatalog.byMetric(metric).first().threshold,
 		updatedAt = updatedAt,
 		lastUnlockedAt = unlockedAt,
-	)
-
-	private fun stepsEntry(key: String, startTimeMs: Long) = StepsOnlyHistoryEntry(
-		key = TrackingHistoryEntryKey(key),
-		startTime = EpochMs(startTimeMs),
-		endTime = EpochMs(startTimeMs + 500L),
-		state = StepsOnlyHistoryListState.AVAILABLE,
-	)
-
-	private fun pressureEntry(key: String, startTimeMs: Long) = PressureOnlyHistoryEntry(
-		key = TrackingHistoryEntryKey(key),
-		origin = PressureHistoryOrigin.Local,
-		startTime = EpochMs(startTimeMs),
-		endTime = EpochMs(startTimeMs + 500L),
-		pressure = PressureHistory(
-			availability = HistoryAvailability.UNAVAILABLE,
-			evidence = HistoryEvidence.NONE,
-			productState = HistoryProductState.DEGRADED,
-			coverage = PressureHistoryCoverage.UNKNOWN,
-			windows = emptyList(),
-			causes = setOf(PressureHistoryCause.RETENTION_TRUNCATED),
-		),
 	)
 
 	private fun activityEntry(key: String, startTimeMs: Long) = ActivityHistoryEntry(

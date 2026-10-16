@@ -345,10 +345,18 @@ class RetainedLocationContextReaderTest {
             SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID,
             SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION, 1, "physical", 1, "authorization",
             "boot", "boot", 10, 11, 1_000, 1_010, 10, 0)
-        val receipt = if (sealed) LocationAcceptedReceiptIntegrity.seal(initial) else initial
+        val receipt = if (sealed) {
+            LocationAcceptedReceiptIntegrity.seal(initial)
+        } else {
+            initial
+        }
         val initialPurpose = LocationSamplePurposeAuthorityEntity(id, SourceBrokerPurpose.AMBIENT_PRODUCT,
             "ambient", 1, 0, 10, 11, null, null, null, null, null, "ambient", "retention", 1, 0, null)
-        val purpose = if (sealed) LocationAcceptedReceiptIntegrity.seal(initialPurpose, receipt) else initialPurpose
+        val purpose = if (sealed) {
+            LocationAcceptedReceiptIntegrity.seal(initialPurpose, receipt)
+        } else {
+            initialPurpose
+        }
         database.locationPurposeDao().insertReceiptIfAbsent(receipt)
         database.locationPurposeDao().insertPurposeIfAbsent(purpose)
         return receipt

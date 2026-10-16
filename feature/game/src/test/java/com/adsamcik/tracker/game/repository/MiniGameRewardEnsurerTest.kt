@@ -291,7 +291,9 @@ class MiniGameRewardEnsurerTest {
 				it.source.value == source && it.effectKey == effectKey &&
 					(it.effectRevision ?: Long.MAX_VALUE) <= effectRevision
 			}
-			if (index < 0) return 0
+			if (index < 0) {
+				return 0
+			}
 			inserted[index] = inserted[index].copy(
 				time = time,
 				value = Points(value),

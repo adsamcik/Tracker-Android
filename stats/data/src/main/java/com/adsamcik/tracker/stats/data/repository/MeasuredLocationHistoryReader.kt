@@ -3,6 +3,8 @@ package com.adsamcik.tracker.stats.data.repository
 import androidx.sqlite.db.SimpleSQLiteQuery
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.LocationReadScope
+import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
+import com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptEntity
 import com.adsamcik.tracker.shared.base.database.dao.MeasuredHistoryCandidate
 import com.adsamcik.tracker.stats.api.repository.HistoryLocationCoverage
 import com.adsamcik.tracker.stats.api.repository.HistoryLocationPoint
@@ -25,23 +27,45 @@ internal class MeasuredLocationHistoryReader @Inject constructor(
     private val qualified: RetainedLocationContextReader,
 ) {
     suspend fun candidates(range: HistoryRange, after: HistoryPosition?): List<MeasuredHistoryCandidate> {
-        if (HistorySource.LOCATION !in range.sources) return emptyList()
+        if (HistorySource.LOCATION !in range.sources) {
+            return emptyList()
+        }
         val origins = range.origins.intersect(setOf(HistoryOrigin.LOCAL, HistoryOrigin.IMPORTED, HistoryOrigin.LEGACY))
-        if (origins.isEmpty()) return emptyList()
-        val capture = if (HistoryPurpose.CAPTURE in range.purposes) 1 else 0
-        val background = if (HistoryPurpose.BACKGROUND in range.purposes) 1 else 0
-        val unknown = if (HistoryPurpose.UNKNOWN in range.purposes) 1 else 0
+        if (origins.isEmpty()) {
+            return emptyList()
+        }
+        val capture = if (HistoryPurpose.CAPTURE in range.purposes) {
+            1
+        } else {
+            0
+        }
+        val background = if (HistoryPurpose.BACKGROUND in range.purposes) {
+            1
+        } else {
+            0
+        }
+        val unknown = if (HistoryPurpose.UNKNOWN in range.purposes) {
+            1
+        } else {
+            0
+        }
         val purpose = """CASE WHEN $capture AND EXISTS (SELECT 1 FROM location_sample_purpose_authority p
             WHERE p.sample_id = location_sample.id AND p.purpose = 'SESSION_CAPTURE') THEN 'CAPTURE'
             WHEN $background AND EXISTS (SELECT 1 FROM location_sample_purpose_authority p
             WHERE p.sample_id = location_sample.id AND p.purpose = 'AMBIENT_PRODUCT') THEN 'BACKGROUND'
             ELSE 'UNKNOWN' END"""
         val names = origins.joinToString(",") { "'${it.name}'" }
-        val seek = if (after == null) "" else """AND (startTimeMs < ? OR (startTimeMs = ? AND
+        val seek = if (after == null) {
+            ""
+        } else {
+            """AND (startTimeMs < ? OR (startTimeMs = ? AND
             (sortTag > ? OR (sortTag = ? AND identity > ?))))"""
+        }
         val bindings = mutableListOf<Any?>(range.fromInclusiveMs, range.toExclusiveMs)
-        if (after != null) bindings.addAll(listOf(after.startTimeMs, after.startTimeMs,
+        if (after != null) {
+            bindings.addAll(listOf(after.startTimeMs, after.startTimeMs,
             after.originTag, after.originTag, after.stableId))
+        }
         val query = SimpleSQLiteQuery("""SELECT kind, origin, purpose, identity, startTimeMs, endTimeMs,
             rowId, writerId, writerVersion, factId, factRevision, itemIndex, NULL AS physicalEventId, NULL AS physicalIdentity FROM (
             SELECT 'location' AS kind, ${LocationReadScope.HISTORY_ORIGIN} AS origin,
@@ -58,8 +82,10 @@ internal class MeasuredLocationHistoryReader @Inject constructor(
     }
 
     suspend fun qualify(candidates: List<MeasuredHistoryCandidate>, range: HistoryRange): MeasuredLocationHistoryRead {
-        require(candidates.size <= 100 && candidates.all { it.kind == "location" })
-        if (candidates.isEmpty()) return MeasuredLocationHistoryRead(emptyMap(), emptySet())
+        require(candidates.size <= MAX_MEASURED_CANDIDATES && candidates.all { it.kind == "location" })
+        if (candidates.isEmpty()) {
+            return MeasuredLocationHistoryRead(emptyMap(), emptySet())
+        }
         val ids = candidates.map { requireNotNull(it.rowId) }
         require(ids.distinct().size == ids.size)
         val points = ids.chunked(64).flatMap { database.locationPurposeDao().savedFileSamples(it) }
@@ -78,53 +104,107 @@ internal class MeasuredLocationHistoryReader @Inject constructor(
             readProblem = HistoryProblemReason.INTEGRITY_UNAVAILABLE
             RetainedLocationSavedSnapshot(emptyList())
         }
-        val byId = proof.samples.groupBy { it.sample.id }
         val imported = ids.chunked(64).flatMap { database.locationPurposeDao().importedHistorySampleIds(it) }.toSet()
         val names = MeasuredNativeSessionNames.load(database, proof.samples.mapNotNull { row ->
             (row.scope as? RadioContextScope.Session)?.owner?.logicalTrackingId
         })
         val problems = linkedSetOf<HistoryProblem>()
         (readProblem ?: proof.historyProblem)?.let { problems += HistoryProblem(HistorySource.LOCATION, it) }
-        if (RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT in proof.gaps) problems +=
+        if (RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT in proof.gaps) {
+            problems +=
             HistoryProblem(HistorySource.LOCATION, HistoryProblemReason.DEPENDENCY_OVERFLOW)
-        val rows = candidates.mapNotNull { candidate ->
+        }
+        val rows = qualifyRows(candidates, range, points, receipts, proof, imported, names, problems)
+        return MeasuredLocationHistoryRead(rows, problems)
+    }
+
+    // Keep the captured snapshot inputs and shared problem collector explicit without another mutable carrier.
+    @Suppress("LongParameterList")
+    private fun qualifyRows(
+        candidates: List<MeasuredHistoryCandidate>,
+        range: HistoryRange,
+        points: Map<Long, LocationPathSampleRow>,
+        receipts: List<LocationAcceptedReceiptEntity>,
+        proof: RetainedLocationSavedSnapshot,
+        imported: Set<Long>,
+        names: MeasuredNativeSessionNames,
+        problems: MutableSet<HistoryProblem>,
+    ): Map<HistoryPosition, UnifiedHistoryRow> {
+        val byId = proof.samples.groupBy { it.sample.id }
+        return candidates.mapNotNull { candidate ->
             val path = points[candidate.rowId] ?: return@mapNotNull null
             val sample = path.sample
-            if (sample.timeMs != candidate.startTimeMs || sample.timeMs !in range.fromInclusiveMs until range.toExclusiveMs) {
+            if (sample.timeMs != candidate.startTimeMs ||
+                sample.timeMs !in range.fromInclusiveMs until range.toExclusiveMs) {
                 problems += HistoryProblem(HistorySource.LOCATION, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
                 return@mapNotNull null
             }
-            if (sample.id in proof.erasedNativeSampleIds && sample.id !in imported) return@mapNotNull null
+            if (sample.id in proof.erasedNativeSampleIds && sample.id !in imported) {
+                return@mapNotNull null
+            }
             val available = byId[sample.id].orEmpty()
-            val purpose = when {
-                HistoryPurpose.CAPTURE in range.purposes && available.any { it.scope is RadioContextScope.Session } ->
-                    HistoryPurpose.CAPTURE
-                HistoryPurpose.BACKGROUND in range.purposes && available.any { it.scope is RadioContextScope.Ambient } ->
-                    HistoryPurpose.BACKGROUND
-                HistoryPurpose.UNKNOWN in range.purposes && available.isEmpty() &&
-                    (sample.id in imported || receipts.none { it.sampleId == sample.id } ||
-                        proof.erasedNativeScopeSampleIds?.let { sample.id !in it } == true) -> HistoryPurpose.UNKNOWN
-                else -> return@mapNotNull null
-            }
-            val grants = available.filter {
-                when (purpose) {
-                    HistoryPurpose.CAPTURE -> it.scope is RadioContextScope.Session
-                    HistoryPurpose.BACKGROUND -> it.scope is RadioContextScope.Ambient
-                    else -> false
-                }
-            }
-            val name = grants.mapNotNull { (it.scope as? RadioContextScope.Session)?.owner?.logicalTrackingId }
-                .mapNotNull { names.point(it, sample.timeMs) }.distinct().joinToString(", ").takeIf(String::isNotBlank)
-            val point = HistoryLocationPoint(sample.timeMs, requireNotNull(sample.latE7), requireNotNull(sample.lonE7),
-                sample.hAccM?.takeIf { it.isFinite() && it >= 0f }, path.continuityId, sample.id)
-            val position = measuredHistoryPosition(candidate)
-            position to UnifiedHistoryRow(position, null, setOf(HistoryOrigin.valueOf(candidate.origin)), purpose,
-                name = name, sections = emptyList(), measurement = HistoryMeasurement.Location(point,
-                    if (grants.isNotEmpty()) HistoryLocationCoverage.QUALIFIED else HistoryLocationCoverage.LEGACY_UNVERIFIABLE))
+            val purpose = locationPurpose(range, available, sample.id, receipts, imported, proof)
+                ?: return@mapNotNull null
+            locationRow(candidate, path, purpose, available, names)
         }.toMap()
-        return MeasuredLocationHistoryRead(rows, problems)
+    }
+
+    private fun locationPurpose(
+        range: HistoryRange,
+        available: List<QualifiedRetainedLocationSample>,
+        sampleId: Long,
+        receipts: List<LocationAcceptedReceiptEntity>,
+        imported: Set<Long>,
+        proof: RetainedLocationSavedSnapshot,
+    ): HistoryPurpose? = when {
+        HistoryPurpose.CAPTURE in range.purposes && available.any { it.scope is RadioContextScope.Session } ->
+            HistoryPurpose.CAPTURE
+        HistoryPurpose.BACKGROUND in range.purposes && available.any { it.scope is RadioContextScope.Ambient } ->
+            HistoryPurpose.BACKGROUND
+        HistoryPurpose.UNKNOWN in range.purposes && available.isEmpty() &&
+            canShowUnknownPurpose(sampleId, receipts, imported, proof) -> HistoryPurpose.UNKNOWN
+        else -> null
+    }
+
+    private fun canShowUnknownPurpose(
+        sampleId: Long,
+        receipts: List<LocationAcceptedReceiptEntity>,
+        imported: Set<Long>,
+        proof: RetainedLocationSavedSnapshot,
+    ): Boolean = sampleId in imported || receipts.none { it.sampleId == sampleId } ||
+        proof.erasedNativeScopeSampleIds?.let { sampleId !in it } == true
+
+    private fun locationRow(
+        candidate: MeasuredHistoryCandidate,
+        path: LocationPathSampleRow,
+        purpose: HistoryPurpose,
+        available: List<QualifiedRetainedLocationSample>,
+        names: MeasuredNativeSessionNames,
+    ): Pair<HistoryPosition, UnifiedHistoryRow> {
+        val sample = path.sample
+        val grants = available.filter {
+            when (purpose) {
+                HistoryPurpose.CAPTURE -> it.scope is RadioContextScope.Session
+                HistoryPurpose.BACKGROUND -> it.scope is RadioContextScope.Ambient
+                else -> false
+            }
+        }
+        val name = grants.mapNotNull { (it.scope as? RadioContextScope.Session)?.owner?.logicalTrackingId }
+            .mapNotNull { names.point(it, sample.timeMs) }.distinct().joinToString(", ").takeIf(String::isNotBlank)
+        val point = HistoryLocationPoint(sample.timeMs, requireNotNull(sample.latE7), requireNotNull(sample.lonE7),
+            sample.hAccM?.takeIf { it.isFinite() && it >= 0f }, path.continuityId, sample.id)
+        val position = measuredHistoryPosition(candidate)
+        return position to UnifiedHistoryRow(position, null, setOf(HistoryOrigin.valueOf(candidate.origin)), purpose,
+            name = name, sections = emptyList(), measurement = HistoryMeasurement.Location(point,
+                if (grants.isNotEmpty()) {
+                    HistoryLocationCoverage.QUALIFIED
+                } else {
+                    HistoryLocationCoverage.LEGACY_UNVERIFIABLE
+                }))
     }
 }
 
 internal data class MeasuredLocationHistoryRead(val rows: Map<HistoryPosition, UnifiedHistoryRow>,
     val problems: Set<HistoryProblem>)
+
+private const val MAX_MEASURED_CANDIDATES = 100

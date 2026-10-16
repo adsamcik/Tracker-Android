@@ -498,14 +498,8 @@ class MapStore @Inject constructor(
         lastKnownUserLocation = latLng
 
         _state.update { st ->
-            val userOverlayIndices = mutableListOf<Int>()
-            st.overlays.forEachIndexed { index, overlay ->
-                if (overlay is MapOverlayState.UserMarker || overlay is MapOverlayState.AccuracyCircle) {
-                    userOverlayIndices.add(index)
-                }
-            }
-            val filteredOverlays = st.overlays.filterIndexed { index, _ ->
-                index !in userOverlayIndices
+            val filteredOverlays = st.overlays.filterNot { overlay ->
+                overlay is MapOverlayState.UserMarker || overlay is MapOverlayState.AccuracyCircle
             }
             val newUserOverlays = buildList {
                 add(MapOverlayState.UserMarker(latLng, bearing = if (st.isFollowing) lastBearing else null))

@@ -110,9 +110,9 @@ class PortableStepsSourceStructureTest {
 
 	@Test
 	fun `portable full clear stages maximum authority instead of heap aggregating it`() {
-		val fullClear = source(
-			"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/" +
-				"ImportedPortableStepsCountDomainFullClear.kt",
+		val fullClear = databaseSources(
+			"ImportedPortableStepsCountDomainFullClear.kt",
+			"ImportedPortableStepsFullClearStaging.kt",
 		)
 		val production = fullClear.substring(
 			fullClear.indexOf(
@@ -130,10 +130,7 @@ class PortableStepsSourceStructureTest {
 			"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/" +
 				"ImportedPortableStepsCountDomainDao.kt",
 		)
-		val appDatabase = source(
-			"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/" +
-				"AppDatabase.kt",
-		)
+		val appDatabase = databaseSources("AppDatabase.kt", "AppDatabaseCollectedData.kt")
 
 		assertTrue("AuthenticatedFullClearOwnerFenceStaging(" in production)
 		assertFalse("AuthenticatedFullClearOwnerFenceAccumulator" in fullClear)
@@ -169,9 +166,9 @@ class PortableStepsSourceStructureTest {
 
 	@Test
 	fun `portable full clear stages compact session identity instead of retained products`() {
-		val fullClear = source(
-			"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/" +
-				"ImportedPortableStepsCountDomainFullClear.kt",
+		val fullClear = databaseSources(
+			"ImportedPortableStepsCountDomainFullClear.kt",
+			"ImportedPortableStepsFullClearStaging.kt",
 		)
 		val sessionPaging = fullClear.substring(
 			fullClear.indexOf(
@@ -182,7 +179,7 @@ class PortableStepsSourceStructureTest {
 			),
 		)
 		val stagedType = fullClear.substring(
-			fullClear.indexOf("private data class StagedFullClearSessionProduct"),
+			fullClear.indexOf("internal data class StagedFullClearSessionProduct"),
 			fullClear.indexOf("private data class StagedFullClearOwner"),
 		)
 		val stagingSchema = source(
@@ -264,6 +261,11 @@ class PortableStepsSourceStructureTest {
 		assertTrue("codec.decode(bytes)" in fileImport)
 		assertTrue("PortableStepsJsonV2Codec().decode(bytes)" in fileImport)
 	}
+
+	private fun databaseSources(vararg fileNames: String): String =
+		fileNames.joinToString("") { fileName ->
+			source("core/base/src/main/java/com/adsamcik/tracker/shared/base/database/$fileName")
+		}
 
 	private fun source(relativePath: String): String = projectRoot.resolve(relativePath).readText()
 }

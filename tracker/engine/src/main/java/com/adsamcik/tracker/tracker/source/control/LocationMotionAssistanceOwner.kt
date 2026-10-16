@@ -11,6 +11,7 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationOwner
 import com.adsamcik.tracker.activity.api.registration.LocationMotionPurpose
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
@@ -61,10 +62,14 @@ class LocationMotionAssistanceOwner @Inject constructor(
 				mutex.withLock {
 					val scope = currentScope ?: return@withLock
 					val snapshot = arbiter.snapshot()
-					if (hint.authority != currentAuthority || hint.authority != assistance.currentAuthority ||
-						!snapshot.active || snapshot.identity != hint.registrationIdentity ||
+					if (hint.authority != currentAuthority || hint.authority != assistance.currentAuthority) {
+						return@withLock
+					}
+					if (!snapshot.active || snapshot.identity != hint.registrationIdentity ||
 						ActivityRegistrationOwner.LOCATION_MOTION_ASSISTANCE !in snapshot.owners
-					) return@withLock
+					) {
+						return@withLock
+					}
 					val authority = try {
 						optionalAuthority(scope)
 					} catch (cancelled: CancellationException) {
@@ -72,7 +77,9 @@ class LocationMotionAssistanceOwner @Inject constructor(
 					} catch (_: Exception) {
 						null
 					}
-					if (authority != hint.authority) return@withLock
+					if (authority != hint.authority) {
+						return@withLock
+					}
 					controller.onMotionAssistance(scope.scopeId, scope.clockDomainId,
 						hint.observedElapsedRealtimeNanos, hint.receivedElapsedRealtimeNanos,
 						hint.activityType.motionCode(), hint.transitionType.value)
@@ -112,39 +119,72 @@ class LocationMotionAssistanceOwner @Inject constructor(
 
 	private suspend fun optionalAuthority(scope: LocationMotionScope): ActivityMotionAssistanceAuthority? =
 		database.withTransaction {
-			if (clock.current() != scope.clockDomainId) return@withTransaction null
-			val dao = database.sourcePolicyDao()
-			val pointer = dao.authority() ?: return@withTransaction null
-			if (pointer.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE) return@withTransaction null
-			val policy = dao.policyAtRevision(pointer.currentPolicyRevision, 1) ?: return@withTransaction null
-			if (!policy.locationMotionAssistanceEnabled || policy.balanceProfileVersion != 1) return@withTransaction null
-			// Stable preference avoids rotating the helper merely because a live session joins background.
-			val purpose = when {
-				LocationMotionPurpose.BACKGROUND in scope.purposes && policy.ambientPersistenceEligible &&
-					policy.locationBackgroundMode == 2 -> LocationMotionPurpose.BACKGROUND
-				LocationMotionPurpose.CAPTURE in scope.purposes && policy.enabled && policy.capturePersistenceEligible ->
-					LocationMotionPurpose.CAPTURE
-				else -> return@withTransaction null
-			}
-			val background = purpose == LocationMotionPurpose.BACKGROUND
-			val epoch = if (background) policy.ambientConsentEpoch else policy.captureConsentEpoch
-			val consent = dao.latestConsentEpoch(1, if (background) SourceBrokerPurpose.AMBIENT_PRODUCT
-				else SourceBrokerPurpose.SESSION_CAPTURE) ?: return@withTransaction null
-			if (epoch == null || consent.epoch != epoch || !consent.eligible || !consent.persistenceEligible) {
+			if (clock.current() != scope.clockDomainId) {
 				return@withTransaction null
 			}
-			ActivityMotionAssistanceAuthority(pointer.currentPolicyRevision, purpose, epoch, lifecycle.snapshot().epoch,
-				scope.clockDomainId, maxOf(scope.effectiveSinceNanos,
-					if (policy.effectiveBootId == scope.clockDomainId) policy.effectiveElapsedRealtimeNanos else 0L,
-					if (consent.effectiveBootId == scope.clockDomainId) consent.effectiveElapsedRealtimeNanos else 0L),
-				scope.hostLeaseId)
+			val dao = database.sourcePolicyDao()
+			val pointer = dao.authority() ?: return@withTransaction null
+			if (pointer.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE) {
+				return@withTransaction null
+			}
+			val policy = dao.policyAtRevision(pointer.currentPolicyRevision, 1) ?: return@withTransaction null
+			if (!policy.locationMotionAssistanceEnabled || policy.balanceProfileVersion != 1) {
+				return@withTransaction null
+			}
+			// Stable preference avoids rotating the helper merely because a live session joins background.
+			val purpose = policy.motionPurposeFor(scope) ?: return@withTransaction null
+			authorityForMotionPurpose(scope, pointer.currentPolicyRevision, policy, purpose)
 		}
+
+	private suspend fun authorityForMotionPurpose(
+		scope: LocationMotionScope,
+		policyRevision: Long,
+		policy: SourcePolicyEntity,
+		purpose: LocationMotionPurpose,
+	): ActivityMotionAssistanceAuthority? {
+		val background = purpose == LocationMotionPurpose.BACKGROUND
+		val epoch = if (background) {
+			policy.ambientConsentEpoch
+		} else {
+			policy.captureConsentEpoch
+		}
+		val consent = database.sourcePolicyDao().latestConsentEpoch(1, if (background) {
+			SourceBrokerPurpose.AMBIENT_PRODUCT
+		}
+			else {
+			SourceBrokerPurpose.SESSION_CAPTURE
+		}) ?: return null
+		if (epoch == null || consent.epoch != epoch || !consent.eligible || !consent.persistenceEligible) {
+			return null
+		}
+		return ActivityMotionAssistanceAuthority(policyRevision, purpose, epoch, lifecycle.snapshot().epoch,
+			scope.clockDomainId, maxOf(scope.effectiveSinceNanos,
+				if (policy.effectiveBootId == scope.clockDomainId) {
+					policy.effectiveElapsedRealtimeNanos
+				} else {
+					0L
+				},
+				if (consent.effectiveBootId == scope.clockDomainId) {
+					consent.effectiveElapsedRealtimeNanos
+				} else {
+					0L
+				}),
+			scope.hostLeaseId)
+	}
 
 	private companion object {
 		val MOTION_TRANSITIONS = setOf(DetectedActivityType.STILL, DetectedActivityType.WALKING,
 			DetectedActivityType.RUNNING, DetectedActivityType.ON_BICYCLE, DetectedActivityType.IN_VEHICLE)
 			.map { ActivityTransitionData(it, ActivityTransitionType.ENTER) }.toSet()
 	}
+}
+
+private fun SourcePolicyEntity.motionPurposeFor(scope: LocationMotionScope): LocationMotionPurpose? = when {
+	LocationMotionPurpose.BACKGROUND in scope.purposes && ambientPersistenceEligible &&
+		locationBackgroundMode == 2 -> LocationMotionPurpose.BACKGROUND
+	LocationMotionPurpose.CAPTURE in scope.purposes && enabled && capturePersistenceEligible ->
+		LocationMotionPurpose.CAPTURE
+	else -> null
 }
 
 private fun DetectedActivityType.motionCode(): Int = when (this) {

@@ -156,6 +156,7 @@ class NotificationManagementViewModel @Inject constructor(
 		persist(items)
 	}
 
+	/** Moves a valid notification item and queues the same ordered save used by drag reordering. */
 	fun moveItemAndPersist(from: Int, to: Int) {
 		if (from == to || from !in items.indices || to !in items.indices) return
 		moveItem(from, to)
@@ -163,6 +164,7 @@ class NotificationManagementViewModel @Inject constructor(
 		draggingIndex = null
 	}
 
+	/** Retries the current notification edits only after an actual save failure. */
 	fun retrySave() {
 		if (saveFailed) persist(items)
 	}
@@ -188,14 +190,17 @@ class NotificationManagementViewModel @Inject constructor(
 		}
 	}
 
+	/** Dismisses the exit choice and keeps the current edits on screen. */
 	fun dismissUnsavedExit() { unsavedExitRequested = false }
 
+	/** Retries failed edits and navigates back only when the latest queued save succeeds. */
 	fun retrySaveAndExit(onBack: () -> Unit) {
 		unsavedExitRequested = false
 		retrySave()
 		exitWhenSaved(onBack)
 	}
 
+	/** Leaves only after the user chooses to discard edits following a save failure. */
 	fun leaveWithoutSaving(onBack: () -> Unit) {
 		if (!unsavedExitRequested || !saveFailed) return
 		unsavedExitRequested = false
@@ -244,7 +249,8 @@ fun NotificationManagementRoute(
 			TopAppBar(
 				title = { Text(stringResource(id = R.string.settings_notification_customize_title)) },
 				navigationIcon = {
-					IconButton(onClick = requestBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_navigate_back)) }
+					IconButton(onClick = requestBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription =
+                        stringResource(R.string.action_navigate_back)) }
 				}
 			)
 		}
@@ -254,7 +260,8 @@ fun NotificationManagementRoute(
 				if (viewModel.loadFailed) {
 					Column(horizontalAlignment = Alignment.CenterHorizontally) {
 						Text(stringResource(R.string.settings_notification_load_failed))
-						TextButton(onClick = viewModel::load) { Text(stringResource(R.string.settings_notification_retry)) }
+						TextButton(onClick =
+                            viewModel::load) { Text(stringResource(R.string.settings_notification_retry)) }
 					}
 				} else {
 					CircularProgressIndicator()
@@ -271,9 +278,12 @@ fun NotificationManagementRoute(
 			) {
 				if (viewModel.saveFailed) {
 					item {
-						Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-							Text(stringResource(R.string.settings_notification_save_failed), modifier = Modifier.weight(1f))
-							TextButton(onClick = viewModel::retrySave) { Text(stringResource(R.string.settings_notification_retry)) }
+						Row(verticalAlignment = Alignment.CenterVertically, modifier =
+                            Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+							Text(stringResource(R.string.settings_notification_save_failed), modifier =
+                                Modifier.weight(1f))
+							TextButton(onClick =
+                                viewModel::retrySave) { Text(stringResource(R.string.settings_notification_retry)) }
 						}
 					}
 				}
@@ -300,41 +310,7 @@ fun NotificationManagementRoute(
 									canMoveDown = index < items.lastIndex,
 									onMoveUp = { viewModel.moveItemAndPersist(index, index - 1) },
 									onMoveDown = { viewModel.moveItemAndPersist(index, index + 1) },
-									modifier = Modifier.pointerInput(rowHeightPx) {
-										var dragDistance = 0f
-										var moved = false
-										detectDragGesturesAfterLongPress(
-											onDragStart = {
-												dragDistance = 0f
-												moved = false
-												viewModel.setDragging(index)
-											},
-											onDragEnd = {
-												dragDistance = 0f
-												viewModel.setDragging(null)
-												if (moved) viewModel.persistOrder()
-											},
-											onDragCancel = {
-												dragDistance = 0f
-												viewModel.setDragging(null)
-												if (moved) viewModel.persistOrder()
-											},
-											onDrag = { change, dragAmount ->
-												change.consume()
-												val current = viewModel.draggingIndex ?: return@detectDragGesturesAfterLongPress
-												dragDistance += dragAmount.y
-												if (dragDistance > rowHeightPx / 2 && current < currentItems.lastIndex) {
-													viewModel.moveItem(current, current + 1)
-													moved = true
-													dragDistance = 0f
-												} else if (dragDistance < -rowHeightPx / 2 && current > 0) {
-													viewModel.moveItem(current, current - 1)
-													moved = true
-													dragDistance = 0f
-												}
-											},
-										)
-									},
+									modifier = Modifier.notificationItemDrag(viewModel, index, rowHeightPx) { currentItems.lastIndex },
 								)
 								if (index != items.lastIndex) {
 									HorizontalDivider(
@@ -387,6 +363,49 @@ fun NotificationManagementRoute(
 			}
 		)
 	}
+}
+
+private fun Modifier.notificationItemDrag(
+	viewModel: NotificationManagementViewModel,
+	index: Int,
+	rowHeightPx: Float,
+	lastItemIndex: () -> Int,
+): Modifier = pointerInput(rowHeightPx) {
+	var dragDistance = 0f
+	var moved = false
+	detectDragGesturesAfterLongPress(
+		onDragStart = {
+			dragDistance = 0f
+			moved = false
+			viewModel.setDragging(index)
+		},
+		onDragEnd = {
+			dragDistance = 0f
+			viewModel.setDragging(null)
+			if (moved) viewModel.persistOrder()
+		},
+		onDragCancel = {
+			dragDistance = 0f
+			viewModel.setDragging(null)
+			if (moved) viewModel.persistOrder()
+		},
+		onDrag = { change, dragAmount ->
+			change.consume()
+			val current = viewModel.draggingIndex ?:
+				return@detectDragGesturesAfterLongPress
+			dragDistance += dragAmount.y
+			if (dragDistance > rowHeightPx / 2 &&
+				current < lastItemIndex()) {
+				viewModel.moveItem(current, current + 1)
+				moved = true
+				dragDistance = 0f
+			} else if (dragDistance < -rowHeightPx / 2 && current > 0) {
+				viewModel.moveItem(current, current - 1)
+				moved = true
+				dragDistance = 0f
+			}
+		},
+	)
 }
 
 @Composable
@@ -455,15 +474,18 @@ internal fun NotificationItemRow(
 			modifier = Modifier.weight(1f),
 		)
 		if (item.isInTitle) {
-			Icon(painterResource(id = R.drawable.ic_format_title), contentDescription = stringResource(R.string.hint_customize_notification_show_in_title), modifier = Modifier.size(20.dp))
+			Icon(painterResource(id = R.drawable.ic_format_title), contentDescription =
+                stringResource(R.string.hint_customize_notification_show_in_title), modifier = Modifier.size(20.dp))
 		}
 		if (item.isInContent) {
 			Spacer(Modifier.width(4.dp))
-			Icon(painterResource(id = R.drawable.ic_subtitles_outline), contentDescription = stringResource(R.string.hint_customize_notification_show_in_content), modifier = Modifier.size(20.dp))
+			Icon(painterResource(id = R.drawable.ic_subtitles_outline), contentDescription =
+                stringResource(R.string.hint_customize_notification_show_in_content), modifier = Modifier.size(20.dp))
 		}
 		Spacer(Modifier.width(8.dp))
 		IconButton(onClick = onEdit) {
-			Icon(Icons.Filled.Edit, contentDescription = stringResource(com.adsamcik.tracker.shared.base.R.string.generic_edit))
+			Icon(Icons.Filled.Edit, contentDescription =
+                stringResource(com.adsamcik.tracker.shared.base.R.string.generic_edit))
 		}
 	}
 }

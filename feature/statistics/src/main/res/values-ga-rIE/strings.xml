@@ -160,4 +160,5 @@
     <string name="history_button_label">Stair</string>
     <string name="history_view_trip_on_map">Féach ar an turas ar an léarscáil</string>
     <string name="stats_heatmap_title">Gníomhaíocht</string>
+    <string name="stats_recorded_partial_value">%1$s · páirteach</string>
 </resources>

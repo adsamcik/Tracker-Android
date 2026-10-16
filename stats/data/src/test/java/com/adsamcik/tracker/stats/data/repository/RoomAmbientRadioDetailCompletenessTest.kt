@@ -38,6 +38,7 @@ import com.adsamcik.tracker.stats.api.repository.HistoryPurpose
 import com.adsamcik.tracker.stats.api.repository.HistoryRange
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.deleteAllCollectedDataForTesting
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellChildEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactIntegrity
@@ -88,6 +89,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /** Real Room current-fact and child joins, rather than a duplicate of the reader predicate. */
+// One paired radio Room fixture keeps saved detail ownership consistent across readers and cleanup.
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class RoomAmbientRadioDetailCompletenessTest {
@@ -202,9 +205,13 @@ class RoomAmbientRadioDetailCompletenessTest {
 		val wifi = insertWifi(true, wallOffsetMs = offset, storedZoneId = "America/Los_Angeles")
 		val cell = insertCell(true, wallOffsetMs = offset, storedZoneId = "America/Los_Angeles")
 		val dao = database.radioObservationChildDao()
-		for ((from, to, time, index) in listOf(
+		for (expected in listOf(
 			listOf(86_399_000L, 86_400_000L, 86_399_950L, 0L),
 			listOf(86_400_000L, 86_401_000L, 86_400_050L, 1L))) {
+			val from = expected[0]
+			val to = expected[1]
+			val time = expected[2]
+			val index = expected[3]
 			val w = dao.wifiMeasuredHistoryCandidates(from, to, listOf("LOCAL"), listOf("BACKGROUND"), null, null, null, 101).single()
 			val c = dao.cellMeasuredHistoryCandidates(from, to, listOf("LOCAL"), listOf("BACKGROUND"), null, null, null, 101).single()
 			assertEquals("ambient_wifi", w.kind); assertEquals("ambient_cell", c.kind)
@@ -256,9 +263,13 @@ class RoomAmbientRadioDetailCompletenessTest {
 		insertCell(true, wallOffsetMs = offset, storedZoneId = "America/Los_Angeles")
 		val reader = measuredRadioReader()
 		data class ExpectedLeaf(val from: Long, val to: Long, val observed: Long, val name: String)
-		for ((from, to, observed, name) in listOf(
+		for (expected in listOf(
 			ExpectedLeaf(86_399_000L, 86_400_000L, 86_399_950L, "Home"),
 			ExpectedLeaf(86_400_000L, 86_401_000L, 86_400_050L, "Cafe"))) {
+			val from = expected.from
+			val to = expected.to
+			val observed = expected.observed
+			val name = expected.name
 			val range = measuredRadioRange(from, to)
 			for (source in listOf(HistorySource.WIFI, HistorySource.CELL)) database.withTransaction {
 				val keys = reader.candidates(source, range, null)
@@ -269,9 +280,13 @@ class RoomAmbientRadioDetailCompletenessTest {
 				assertEquals(HistoryPurpose.BACKGROUND, row.purpose)
 				assertEquals(setOf(HistoryOrigin.LOCAL), row.origins)
 				assertEquals(null, row.toExclusiveMs)
-				if (source == HistorySource.WIFI) assertEquals(name,
+				if (source == HistorySource.WIFI) {
+					assertEquals(name,
 					assertIs<HistoryMeasurement.Wifi>(row.measurement).network.ssid)
-				else assertEquals(observed, assertIs<HistoryMeasurement.Cell>(row.measurement).tower.observedTimeMs)
+				}
+				else {
+					assertEquals(observed, assertIs<HistoryMeasurement.Cell>(row.measurement).tower.observedTimeMs)
+				}
 			}
 		}
 	}
@@ -289,9 +304,13 @@ class RoomAmbientRadioDetailCompletenessTest {
 			assertEquals(1_899L, row.position.startTimeMs)
 			assertEquals(2_000L, row.toExclusiveMs)
 			assertEquals(HistoryPurpose.BACKGROUND, row.purpose)
-			if (source == HistorySource.WIFI) assertEquals(2,
+			if (source == HistorySource.WIFI) {
+				assertEquals(2,
 				assertIs<HistoryMeasurement.BackgroundWifiSummary>(row.measurement).fact.observationCount)
-			else assertEquals(2, assertIs<HistoryMeasurement.BackgroundCellSummary>(row.measurement).fact.observationCount)
+			}
+			else {
+				assertEquals(2, assertIs<HistoryMeasurement.BackgroundCellSummary>(row.measurement).fact.observationCount)
+			}
 		}
 	}
 
@@ -594,10 +613,16 @@ class RoomAmbientRadioDetailCompletenessTest {
 		assertEquals(savedCell.facts, assertIs<AmbientCellReadResult.Snapshot>(cellRepository.read(cellWindow())).facts)
 		assertEquals(savedWifiContext, radioContext(RadioContextSource.WIFI))
 		assertEquals(savedCellContext, radioContext(RadioContextSource.CELL))
-		if (!clearProduct) resetAmbientConsent(erasedSource)
+		if (!clearProduct) {
+			resetAmbientConsent(erasedSource)
+		}
 		if (erasedSource == SourceDestinationOwnerEntity.SOURCE_WIFI) {
-			val result = if (clearProduct) database.clearAmbientWifiProductPreservingReplayFootprints(0L, 4_000L)
-				else database.deleteAmbientWifiAfterConsentReset(0L, 2L, 4_000L)
+			val result = if (clearProduct) {
+				database.clearAmbientWifiProductPreservingReplayFootprints(0L, 4_000L)
+			}
+				else {
+				database.deleteAmbientWifiAfterConsentReset(0L, 2L, 4_000L)
+			}
 			assertEquals(1L, assertIs<AmbientWifiDeletionResult.Deleted>(result).localRevisionCount)
 			assertTrue(wifiChildren(wifi).isEmpty())
 			assertEquals(0L, database.ambientWifiFactDao().localFactCount())
@@ -607,8 +632,12 @@ class RoomAmbientRadioDetailCompletenessTest {
 			assertEquals(savedCellChildren, cellChildren(cell))
 			assertEquals(savedCellContext, radioContext(RadioContextSource.CELL))
 		} else {
-			val result = if (clearProduct) database.clearAmbientCellProductPreservingReplayFootprints(0L, 4_000L)
-				else database.deleteAmbientCellAfterConsentReset(0L, 2L, 4_000L)
+			val result = if (clearProduct) {
+				database.clearAmbientCellProductPreservingReplayFootprints(0L, 4_000L)
+			}
+				else {
+				database.deleteAmbientCellAfterConsentReset(0L, 2L, 4_000L)
+			}
 			assertEquals(1L, assertIs<AmbientCellDeletionResult.Deleted>(result).localRevisionCount)
 			assertTrue(cellChildren(cell).isEmpty())
 			assertEquals(0L, database.ambientCellFactDao().localFactCount())
@@ -661,48 +690,84 @@ class RoomAmbientRadioDetailCompletenessTest {
 		}
 		val policyDao = database.sourcePolicyDao()
 		val current = policyDao.authority()
-		if (current == null) policyDao.ensureAuthority(SourcePolicyAuthorityEntity(bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+		if (current == null) {
+			policyDao.ensureAuthority(SourcePolicyAuthorityEntity(bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
 			currentPolicyRevision = 2L, legacySettingsFingerprint = null, updatedAtMs = 3_300L))
-		else assertEquals(1, policyDao.compareAndSetAuthority(current.bootstrapState, current.currentPolicyRevision,
+		}
+		else {
+			assertEquals(1, policyDao.compareAndSetAuthority(current.bootstrapState, current.currentPolicyRevision,
 			SourcePolicyAuthorityEntity.STATE_ACTIVE, 2L, null, 3_300L))
+		}
 	}
 
 	private suspend fun resetAmbientConsent(source: Int) = database.withTransaction {
-		val name = if (source == SourceDestinationOwnerEntity.SOURCE_WIFI) "wifi" else "cell"
+		val name = if (source == SourceDestinationOwnerEntity.SOURCE_WIFI) {
+			"wifi"
+		} else {
+			"cell"
+		}
 		val policyDao = database.sourcePolicyDao()
 		policyDao.insertPolicies(policyDao.policiesAtRevision(2L).map { policy ->
 			val next = policy.copy(policyRevision = 3L, effectiveElapsedRealtimeNanos = 3_400_000_000L,
 				effectiveWallTimeMs = 3_400L, changeReason = "TEST_CONSENT_RESET")
-			if (policy.sourceKind == source) next.copy(ambientPersistenceEligible = false, ambientConsentEpoch = null)
-			else next
+			if (policy.sourceKind == source) {
+				next.copy(ambientPersistenceEligible = false, ambientConsentEpoch = null)
+			}
+			else {
+				next
+			}
 		})
 		val authority = policyDao.authority()
-		if (authority == null) policyDao.ensureAuthority(SourcePolicyAuthorityEntity(
+		if (authority == null) {
+			policyDao.ensureAuthority(SourcePolicyAuthorityEntity(
 			bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE, currentPolicyRevision = 3L,
 			legacySettingsFingerprint = null, updatedAtMs = 3_400L))
-		else assertEquals(1, policyDao.compareAndSetAuthority(authority.bootstrapState, authority.currentPolicyRevision,
+		}
+		else {
+			assertEquals(1, policyDao.compareAndSetAuthority(authority.bootstrapState, authority.currentPolicyRevision,
 			SourcePolicyAuthorityEntity.STATE_ACTIVE, 3L, null, 3_400L))
+		}
 		policyDao.insertConsentEpochs(listOf(SourceConsentEpochEntity(source, SourceBrokerPurpose.AMBIENT_PRODUCT,
 			2L, false, false, 3L, "boot", 3_400_000_000L, 3_400L, "TEST_CONSENT_RESET")))
 		val dao = database.sourceBrokerDao()
 		assertEquals(1, dao.retireConsumer("$name-consumer", "boot", 3_400_000_000L, 3_400L))
 		database.rotateCurrentSourceAuthorizationInTransaction(source, "boot", 3_400_000_000L, 3_400L)
 		assertEquals(0L, requireNotNull(dao.latestAuthorization(source, 2L).toAuthorizationSnapshotOrNull()).purposeEligibilityMask)
-		if (source == SourceDestinationOwnerEntity.SOURCE_WIFI) database.ambientWifiFactDao().insertAuthority(
+		if (source == SourceDestinationOwnerEntity.SOURCE_WIFI) {
+			database.ambientWifiFactDao().insertAuthority(
 			AmbientWifiAuthorityIntegrity.create(1L, AmbientWifiAuthorityEntity.STATE_REVOKED, 3L, 2L,
 				"wifi-retention", 1L, 0L, 0L, "boot", 3_400_000_000L, 3_400L, 1L, "wifi-revoked", 1L, "wifi-demand"))
-		else database.ambientCellFactDao().insertAuthority(AmbientCellAuthorityIntegrity.create(
+		}
+		else {
+			database.ambientCellFactDao().insertAuthority(AmbientCellAuthorityIntegrity.create(
 			1L, AmbientCellAuthorityEntity.STATE_REVOKED, 3L, 2L, "cell-retention", 1L, 0L, 0L,
 			"boot", 3_400_000_000L, 3_400L, 1L, "cell-revoked", 1L, "cell-demand"))
+		}
 	}
 
 	private suspend fun assertPruningPreservesOtherRadio(prunedSource: Int) {
-		val wifi = insertWifi(true, wallOffsetMs = if (prunedSource == SourceDestinationOwnerEntity.SOURCE_WIFI) 0L else 10_000L)
-		val cell = insertCell(true, wallOffsetMs = if (prunedSource == SourceDestinationOwnerEntity.SOURCE_CELL) 0L else 10_000L)
+		val wifi = insertWifi(true, wallOffsetMs = if (prunedSource == SourceDestinationOwnerEntity.SOURCE_WIFI) {
+			0L
+		} else {
+			10_000L
+		})
+		val cell = insertCell(true, wallOffsetMs = if (prunedSource == SourceDestinationOwnerEntity.SOURCE_CELL) {
+			0L
+		} else {
+			10_000L
+		})
 		val savedWifiChildren = wifiChildren(wifi)
 		val savedCellChildren = cellChildren(cell)
-		val newerWifi = if (prunedSource == SourceDestinationOwnerEntity.SOURCE_WIFI) appendNewerWifiGroup(wifi) else null
-		val newerCell = if (prunedSource == SourceDestinationOwnerEntity.SOURCE_CELL) appendNewerCellGroup(cell) else null
+		val newerWifi = if (prunedSource == SourceDestinationOwnerEntity.SOURCE_WIFI) {
+			appendNewerWifiGroup(wifi)
+		} else {
+			null
+		}
+		val newerCell = if (prunedSource == SourceDestinationOwnerEntity.SOURCE_CELL) {
+			appendNewerCellGroup(cell)
+		} else {
+			null
+		}
 		val savedNewerWifiChildren = newerWifi?.let { wifiChildren(it) }
 		val savedNewerCellChildren = newerCell?.let { cellChildren(it) }
 		database.sourceEvidenceStateDao().updateLifecycle(0L, 2_500L, 2_500L)
@@ -848,19 +913,37 @@ class RoomAmbientRadioDetailCompletenessTest {
 		database.ambientWifiFactDao().insertCursor(AmbientWifiFactCursorEntity(
 			fact.writerId, fact.writerVersion, id, 1L, fact.mutationId, fact.effectChecksum,
 			1L, 0L, 0L, 1L, wallOffsetMs + 2_100L))
-		if (detailGroup) database.radioObservationChildDao().insertWifiBackground((0..1).map { index ->
+		if (detailGroup) {
+			database.radioObservationChildDao().insertWifiBackground((0..1).map { index ->
 			val providerTime = 1_000_000_000L + index * 100_000_000L + wallOffsetMs * 1_000_000L
-			val wall = wallOffsetMs + if (index == 0) firstChildTimeMs else 2_000L
+			val wall = wallOffsetMs + if (index == 0) {
+				firstChildTimeMs
+			} else {
+				2_000L
+			}
 			val bssid = "aa:bb:cc:dd:ee:f$index"
-			val name = if (index == 0) "Home" else "Cafe"
-			val frequency = if (index == 0) 2_412 else 5_180
-			val signal = if (index == 0) -70 else -40
+			val name = if (index == 0) {
+				"Home"
+			} else {
+				"Cafe"
+			}
+			val frequency = if (index == 0) {
+				2_412
+			} else {
+				5_180
+			}
+			val signal = if (index == 0) {
+				-70
+			} else {
+				-40
+			}
 			val owner = RadioChildOwner(RadioChildPurpose.BACKGROUND, fact.writerId, fact.writerVersion, id, 1L, index)
 			AmbientWifiChildEntity(fact.writerId, fact.writerVersion, id, 1L, index, providerTime,
 				wall, 1L, bssid, name, frequency, signal,
 				RadioObservationChildIntegrity.wifi(WifiChildChecksumInput(owner, providerTime, wall, 1L,
 					bssid, name, frequency, signal)))
 		})
+		}
 		return fact
 	}
 
@@ -908,19 +991,37 @@ class RoomAmbientRadioDetailCompletenessTest {
 		database.ambientCellFactDao().insertCursor(AmbientCellFactCursorEntity(
 			fact.writerId, fact.writerVersion, id, 1L, fact.mutationId, fact.effectChecksum,
 			1L, 0L, 0L, 1L, wallOffsetMs + 2_100L))
-		if (detailGroup) database.radioObservationChildDao().insertCellBackground((0..1).map { index ->
+		if (detailGroup) {
+			database.radioObservationChildDao().insertCellBackground((0..1).map { index ->
 			val providerTime = 1_000_000_000L + index * 100_000_000L + wallOffsetMs * 1_000_000L
-			val wall = wallOffsetMs + if (index == 0) firstChildTimeMs else 2_000L
-			val tower = if (index == 0) "LTE:123" else "NR:456"
-			val radio = if (index == 0) "LTE" else "NR"
+			val wall = wallOffsetMs + if (index == 0) {
+				firstChildTimeMs
+			} else {
+				2_000L
+			}
+			val tower = if (index == 0) {
+				"LTE:123"
+			} else {
+				"NR:456"
+			}
+			val radio = if (index == 0) {
+				"LTE"
+			} else {
+				"NR"
+			}
 			val registered = index == 0
-			val signal = if (index == 0) -72 else -90
+			val signal = if (index == 0) {
+				-72
+			} else {
+				-90
+			}
 			val owner = RadioChildOwner(RadioChildPurpose.BACKGROUND, fact.writerId, fact.writerVersion, id, 1L, index)
 			AmbientCellChildEntity(fact.writerId, fact.writerVersion, id, 1L, index, providerTime,
 				wall, 1L, tower, radio, registered, signal,
 				RadioObservationChildIntegrity.cell(CellChildChecksumInput(owner, providerTime, wall, 1L,
 					tower, radio, registered, signal)))
 		})
+		}
 		return fact
 	}
 

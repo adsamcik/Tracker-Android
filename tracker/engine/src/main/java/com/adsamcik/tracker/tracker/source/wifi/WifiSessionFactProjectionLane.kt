@@ -341,7 +341,11 @@ class WifiSessionFactProjectionLane private constructor(
 		return WifiSessionFactDrainResult.Failed(
 			lastCompletedOrdinal = cursor,
 			failedOrdinal = admissionOrdinal,
-			failureCode = if (persisted) normalized else "FAILURE_AUDIT_UNAVAILABLE",
+			failureCode = if (persisted) {
+				normalized
+			} else {
+				"FAILURE_AUDIT_UNAVAILABLE"
+			},
 			terminal = persisted && terminal,
 		)
 	}
@@ -365,18 +369,25 @@ class WifiSessionFactProjectionLane private constructor(
 		return failure
 	}
 
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	private suspend fun failureIsLifecycleRejected(
 		failure: SourceProjectionFailureEntity,
 		state: SourceEvidenceState,
 	): Boolean {
-		if (failure.admissionOrdinal <= state.deletedSourceEventHighWaterOrdinal) return true
+		if (failure.admissionOrdinal <= state.deletedSourceEventHighWaterOrdinal) {
+			return true
+		}
 		val raw = database.sourceEventWalDao().getByAdmissionOrdinal(failure.admissionOrdinal)
 			?: return false
 		if (raw.admissionOrdinal != failure.admissionOrdinal ||
 			raw.sourceKind != SourceKind.WIFI.stableCode ||
 			!raw.hasQualifiedIntegrity()
-		) return false
-		if (failure.failureCode in LIFECYCLE_SETTLED_FAILURES) return true
+		) {
+			return false
+		}
+		if (failure.failureCode in LIFECYCLE_SETTLED_FAILURES) {
+			return true
+		}
 		return raw.isLifecycleRejected(state) || raw.isDeletedScope()
 	}
 
@@ -387,7 +398,9 @@ class WifiSessionFactProjectionLane private constructor(
 			?: return WifiPreflightAuthentication.Failed("WIFI_PREFLIGHT_WAL_MISSING")
 		if (wal.eventId != candidate.eventId || wal.admissionOrdinal != candidate.admissionOrdinal ||
 			wal.sourceKind != SourceKind.WIFI.stableCode
-		) return WifiPreflightAuthentication.Failed("WIFI_PREFLIGHT_WAL_IDENTITY_MISMATCH")
+		) {
+			return WifiPreflightAuthentication.Failed("WIFI_PREFLIGHT_WAL_IDENTITY_MISMATCH")
+		}
 		if (!wal.hasQualifiedIntegrity()) {
 			return WifiPreflightAuthentication.Failed("WIFI_PREFLIGHT_WAL_INTEGRITY_MISMATCH")
 		}
@@ -404,7 +417,9 @@ class WifiSessionFactProjectionLane private constructor(
 
 	private suspend fun SourceEventWalEntity.isDeletedScope(): Boolean {
 		// A v6 callback header cannot settle failures for independently owned historical items.
-		if (payloadVersion == com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION) return false
+		if (payloadVersion == com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION) {
+			return false
+		}
 		val logical = logicalTrackingId ?: return false
 		val run = serviceRunId ?: return false
 		return database.sourceDeletionFenceDao().contains(
@@ -423,10 +438,14 @@ class WifiSessionFactProjectionLane private constructor(
 	private suspend fun executableLaneOrNull(): SourceProductProjectionLaneEntity? {
 		val active = database.sourceProjectionStateDao().allActiveProductLanes()
 			.filter { it.sourceKind == SourceKind.WIFI.stableCode }
-		if (active.size != 1) return null
+		if (active.size != 1) {
+			return null
+		}
 		return active.single().takeIf(::isExecutableLane)
 	}
 
+	// Preserve the four ordered lane/cursor/registration/owner failures and their exact source-local reasons.
+	@Suppress("ThrowsCount")
 	private suspend fun requireExactLane(
 		expected: SourceProductProjectionLaneEntity,
 		expectedCursor: Long = expected.contiguousAdmissionOrdinal,
@@ -448,16 +467,21 @@ class WifiSessionFactProjectionLane private constructor(
 			)
 			if (owner?.owner != SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS ||
 				owner.ownerGeneration != SourceWriterGenerationContract.canonicalOwnerGeneration(current.bindingGeneration)
-			) throw WifiLaneAuthorityChangedException("WIFI_DESTINATION_OWNER_CHANGED")
+			) {
+				throw WifiLaneAuthorityChangedException("WIFI_DESTINATION_OWNER_CHANGED")
+			}
 		}
 		return current
 	}
 
+	// Keep the complete fixed catalog/lane shape and ordinal bounds visible as one correspondence.
+	@Suppress("CyclomaticComplexMethod")
 	private fun isExecutableLane(lane: SourceProductProjectionLaneEntity): Boolean {
 		val binding = executableLaneCatalog.bindingFor(lane) ?: return false
 		return binding.source == SourceKind.WIFI && binding.projectionId == WRITER_ID &&
 			binding.projectionVersion == WRITER_VERSION &&
-			SourceWriterGenerationContract.captureModeMaskForKnownBinding(binding.bindingGeneration) == binding.captureModeMask &&
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(binding.bindingGeneration) ==
+				binding.captureModeMask &&
 			lane.productStage in EXECUTABLE_STAGES && lane.activatedRolloutRevision > 0L &&
 			lane.activationOrdinal > 0L &&
 			lane.contiguousAdmissionOrdinal >= lane.activationOrdinal - 1L &&
@@ -474,7 +498,9 @@ class WifiSessionFactProjectionLane private constructor(
 		lane: SourceProductProjectionLaneEntity,
 		throughOrdinal: Long,
 	) {
-		if (throughOrdinal == lane.contiguousAdmissionOrdinal) return
+		if (throughOrdinal == lane.contiguousAdmissionOrdinal) {
+			return
+		}
 		check(database.sourceProjectionStateDao().advanceExactProductLaneCursor(
 			sourceKind = lane.sourceKind,
 			bindingGeneration = lane.bindingGeneration,
@@ -493,6 +519,10 @@ class WifiSessionFactProjectionLane private constructor(
 
 	private fun nowMs(): Long = System.currentTimeMillis().coerceAtLeast(0L)
 
+	/**
+	 * Stable Wi-Fi projection identity, binding generation and supported admission stages used by writer
+	 * handoffs.
+	 */
 	companion object {
 		const val WRITER_ID = SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID
 		const val WRITER_VERSION = SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION
@@ -520,7 +550,11 @@ class WifiSessionFactProjectionLane private constructor(
 private fun WifiWalAdapterResult.toProjectionResult(): WifiCandidateProjectionResult = when (this) {
 	is WifiWalAdapterResult.Groups -> results.map {
 		if (it is WifiWalAdapterResult.Rejected && it.reason.isSettledCaptureGroup())
-			WifiCandidateProjectionResult(0, null) else it.toProjectionResult()
+			{
+			WifiCandidateProjectionResult(0, null)
+		} else {
+			it.toProjectionResult()
+		}
 	}.combined()
 	is WifiWalAdapterResult.Evaluated -> WifiCandidateProjectionResult(
 		factsInserted = 0,
@@ -535,7 +569,11 @@ private fun WifiWalAdapterResult.toProjectionResult(): WifiCandidateProjectionRe
 private fun WifiCapturedWriteResult.toProjectionResult(): WifiCandidateProjectionResult = when (this) {
 	is WifiCapturedWriteResult.Groups -> results.map {
 		if (it is WifiCapturedWriteResult.AdapterRejected && it.reason.isSettledCaptureGroup())
-			WifiCandidateProjectionResult(0, null) else it.toProjectionResult()
+			{
+			WifiCandidateProjectionResult(0, null)
+		} else {
+			it.toProjectionResult()
+		}
 	}.combined()
 	is WifiCapturedWriteResult.Applied -> WifiCandidateProjectionResult(1, null)
 	is WifiCapturedWriteResult.Unchanged -> WifiCandidateProjectionResult(0, null)
@@ -573,19 +611,22 @@ private sealed interface WifiPreflightAuthentication {
 	data class Failed(val failureCode: String) : WifiPreflightAuthentication
 }
 
+// Authentic stale or untimed callbacks settle their WAL without inventing a captured count.
 private fun WifiCapturedFactClassification.failureCodeOrNull(): String? = when (this) {
 	is WifiCapturedFactClassification.FreshChanged,
 	is WifiCapturedFactClassification.FreshUnchanged,
-	is WifiCapturedFactClassification.Replay -> null
+	is WifiCapturedFactClassification.Replay,
+	WifiCapturedFactClassification.Stale,
+	WifiCapturedFactClassification.ClockUnverifiable -> null
 	WifiCapturedFactClassification.Absent -> "WIFI_CLASSIFICATION_ABSENT"
-	WifiCapturedFactClassification.Stale -> "WIFI_CLASSIFICATION_STALE"
 	WifiCapturedFactClassification.Failed -> "WIFI_CLASSIFICATION_FAILED"
 	WifiCapturedFactClassification.PermissionLimited -> "WIFI_CLASSIFICATION_PERMISSION_LIMITED"
 	WifiCapturedFactClassification.OsThrottled -> "WIFI_CLASSIFICATION_OS_THROTTLED"
-	WifiCapturedFactClassification.ClockUnverifiable -> "WIFI_CLASSIFICATION_CLOCK_UNVERIFIABLE"
 	is WifiCapturedFactClassification.Rejected -> "WIFI_CLASSIFICATION_REJECTED_${reason.name}"
 }
 
+// A structural before/after equality predicate.
+@Suppress("CyclomaticComplexMethod")
 private fun SourceProductProjectionLaneEntity.hasSameWifiExecutionBinding(
 	other: SourceProductProjectionLaneEntity,
 ): Boolean = sourceKind == other.sourceKind && bindingGeneration == other.bindingGeneration &&

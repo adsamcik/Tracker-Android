@@ -1,5 +1,6 @@
 plugins {
 	id("tracker.kotlin.multiplatform.android-jvm")
+	alias(libs.plugins.kotlin.serialization)
 }
 
 kotlin {
@@ -11,6 +12,7 @@ kotlin {
 	sourceSets {
 		commonMain.dependencies {
 			api(libs.kotlinx.coroutines.core)
+			api(libs.kotlinx.serialization.core)
 			api(libs.arrow.core)
 			api(libs.javax.inject)
 			api(project(":core:model"))

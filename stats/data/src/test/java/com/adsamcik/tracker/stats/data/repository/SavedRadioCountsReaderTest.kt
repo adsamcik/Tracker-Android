@@ -30,8 +30,10 @@ class SavedRadioCountsReaderTest {
                 val rows = listOf(wifi(300L, "AA:BB", HistoryOrigin.LOCAL), wifi(200L, "aa:bb", HistoryOrigin.IMPORTED))
                 HistoryRangeRead.Page(rows, TrackingHistoryReadSnapshot(0L, 1L),
                     HistoryContinuation(request.range, rows.last().position))
-            } else HistoryRangeRead.Page(listOf(wifi(100L, "CC:DD", HistoryOrigin.LEGACY)),
+            } else {
+                HistoryRangeRead.Page(listOf(wifi(100L, "CC:DD", HistoryOrigin.LEGACY)),
                 TrackingHistoryReadSnapshot(0L, 1L), null)
+            }
         }
         reader.read(HistorySource.WIFI) shouldBe SavedRadioCount(2L, false)
     }
@@ -39,9 +41,13 @@ class SavedRadioCountsReaderTest {
     @Test fun `one unavailable source does not erase the other measured count`() = runTest {
         coEvery { history.readRange(any()) } coAnswers {
             if (HistorySource.CELL in firstArg<com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest>().range.sources)
+                {
                 HistoryRangeRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
-            else HistoryRangeRead.Page(listOf(wifi(100L, "aa:bb", HistoryOrigin.LOCAL)),
+            }
+            else {
+                HistoryRangeRead.Page(listOf(wifi(100L, "aa:bb", HistoryOrigin.LOCAL)),
                 TrackingHistoryReadSnapshot(0L, 1L), null)
+            }
         }
         reader.read(HistorySource.CELL) shouldBe SavedRadioCount(null, true)
         reader.read(HistorySource.WIFI) shouldBe SavedRadioCount(1L, false)
@@ -50,9 +56,21 @@ class SavedRadioCountsReaderTest {
     @Test fun `a changed saved-data snapshot cannot publish a mixed unique count`() = runTest {
         coEvery { history.readRange(any()) } coAnswers {
             val request = firstArg<com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest>()
-            val row = wifi(if (request.after == null) 200L else 100L, "aa:bb", HistoryOrigin.LOCAL)
-            HistoryRangeRead.Page(listOf(row), TrackingHistoryReadSnapshot(0L, if (request.after == null) 1L else 2L),
-                if (request.after == null) HistoryContinuation(request.range, row.position) else null)
+            val row = wifi(if (request.after == null) {
+                200L
+            } else {
+                100L
+            }, "aa:bb", HistoryOrigin.LOCAL)
+            HistoryRangeRead.Page(listOf(row), TrackingHistoryReadSnapshot(0L, if (request.after == null) {
+                1L
+            } else {
+                2L
+            }),
+                if (request.after == null) {
+                    HistoryContinuation(request.range, row.position)
+                } else {
+                    null
+                })
         }
         reader.read(HistorySource.WIFI) shouldBe SavedRadioCount(null, true)
     }

@@ -75,6 +75,10 @@ data class StepsCountDomainReceiptEntity(
 		require(coverageKind in coverageKindsFor(ownerKind))
 	}
 
+	/**
+	 * Stable persisted codes, including `COVERAGE_ADMITTED_WINDOW`, `COVERAGE_BASELINE`,
+	 * `COVERAGE_COVERED`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val COVERAGE_ADMITTED_WINDOW = "ADMITTED_WINDOW"
 		const val COVERAGE_BASELINE = "BASELINE"
@@ -180,6 +184,10 @@ data class StepsCountDomainOwnerRevisionEntity(
 		}
 	}
 
+	/**
+	 * Stable persisted codes, including `OWNER_SESSION_WAL`, `OWNER_SESSION_FACT`,
+	 * `OWNER_SESSION_COMPLETENESS`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val OWNER_SESSION_WAL = "SESSION_WAL"
 		const val OWNER_SESSION_FACT = "SESSION_FACT"
@@ -260,6 +268,10 @@ data class StepsCountDomainCompletenessMarkerEntity(
 		}
 	}
 
+	/**
+	 * Stable persisted codes, including `STATE_COMPLETE`, `STATE_UNPROVEN`, and any identity-bound
+	 * record factories.
+	 */
 	companion object {
 		const val STATE_COMPLETE = "COMPLETE"
 		const val STATE_UNPROVEN = "UNPROVEN"
@@ -285,6 +297,10 @@ data class StepsCountDomainSchemaMarkerEntity(
 		require(terminalUnproven)
 	}
 
+	/**
+	 * Stable persisted codes, including `REQUIRED_ID`, `REQUIRED_CONTRACT_VERSION`,
+	 * `REQUIRED_TOKEN_SEMANTICS`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val REQUIRED_ID = 1
 		const val REQUIRED_CONTRACT_VERSION = 2
@@ -293,7 +309,13 @@ data class StepsCountDomainSchemaMarkerEntity(
 }
 
 /** Stable identities and checksums shared by the native Steps receipt producers and readers. */
+// Receipt, owner revision and completeness digests form one deterministic Steps count-domain protocol.
+@Suppress("TooManyFunctions")
 object StepsCountDomainReceiptIntegrity {
+	/**
+	 * Derives the count-domain key from the opaque provider token, independent of registration and
+	 * quality configuration.
+	 */
 	fun counterDomainIdentity(token: StepsCounterDomainToken): String = token.encoded
 
 	/**
@@ -315,6 +337,10 @@ object StepsCountDomainReceiptIntegrity {
 		)
 	}
 
+	/**
+	 * Derives the Steps session-run ownership scope from its original logical session and service
+	 * run.
+	 */
 	fun sessionRunScopeIdentity(
 		logicalTrackingId: String,
 		serviceRunId: String,
@@ -324,12 +350,18 @@ object StepsCountDomainReceiptIntegrity {
 		return opaqueDigest("steps-count-session-run-v1", logicalTrackingId, serviceRunId)
 	}
 
+	/**
+	 * Derives the Steps WAL owner identity from its admission ordinal and original event ID.
+	 */
 	fun sessionWalOwnerIdentity(admissionOrdinal: Long, eventId: String): String {
 		require(admissionOrdinal > 0L)
 		require(eventId.isNotBlank())
 		return opaqueDigest("steps-count-session-wal-owner-v1", admissionOrdinal, eventId)
 	}
 
+	/**
+	 * Derives the Steps fact owner identity from its writer projection and logical fact ID.
+	 */
 	fun sessionFactOwnerIdentity(
 		writerId: String,
 		writerVersion: Int,
@@ -346,6 +378,10 @@ object StepsCountDomainReceiptIntegrity {
 		)
 	}
 
+	/**
+	 * Derives the terminal Steps owner identity from its session, run and exact provider
+	 * registration.
+	 */
 	fun sessionCompletenessOwnerIdentity(
 		logicalTrackingId: String,
 		serviceRunId: String,
@@ -363,16 +399,27 @@ object StepsCountDomainReceiptIntegrity {
 		)
 	}
 
+	/**
+	 * Uses the nonnegative completeness update time plus one as a positive ordered owner revision;
+	 * Long.MAX_VALUE is rejected.
+	 */
 	fun completenessOwnerRevision(row: SourceSessionCompletenessEntity): Long {
 		require(row.updatedAtMs in 0L until Long.MAX_VALUE)
 		return row.updatedAtMs + 1L
 	}
 
+	/**
+	 * Uses the original opaque all-day Steps logical fact ID as its count-domain scope, rejecting
+	 * unsupported identity syntax.
+	 */
 	fun ambientFactScopeIdentity(logicalFactId: String): String {
 		require(isOpaque(logicalFactId))
 		return logicalFactId
 	}
 
+	/**
+	 * Derives the all-day Steps owner identity from its writer and logical fact ID.
+	 */
 	fun ambientFactOwnerIdentity(
 		writerId: String,
 		writerVersion: Int,
@@ -386,6 +433,10 @@ object StepsCountDomainReceiptIntegrity {
 		return logicalFactId
 	}
 
+	/**
+	 * Hashes the recorded terminal Steps capture bounds, provider/drain outcomes and unresolved
+	 * ranges.
+	 */
 	fun completenessEffectChecksum(row: SourceSessionCompletenessEntity): String = digest(
 		"steps-count-completeness-effect-v1",
 		row.logicalTrackingId,
@@ -403,6 +454,9 @@ object StepsCountDomainReceiptIntegrity {
 		row.updatedAtMs,
 	)
 
+	/**
+	 * Hashes count-domain receipt values into the stable owner/revision identity.
+	 */
 	fun receiptIdentity(receipt: StepsCountDomainReceiptEntity): String = receiptIdentity(
 		domainIdentity = receipt.domainIdentity,
 		ownerKind = receipt.ownerKind,
@@ -420,6 +474,9 @@ object StepsCountDomainReceiptIntegrity {
 		completionEvidenceChecksum = receipt.completionEvidenceChecksum,
 	)
 
+	/**
+	 * Hashes count-domain receipt values into the stable owner/revision identity.
+	 */
 	@Suppress("LongParameterList")
 	fun receiptIdentity(
 		domainIdentity: String,
@@ -454,9 +511,16 @@ object StepsCountDomainReceiptIntegrity {
 		completionEvidenceChecksum,
 	)
 
+	/**
+	 * Checks the count-domain receipt's identity against its recorded provider token, owner, scope
+	 * and epochs.
+	 */
 	fun hasValidReceipt(receipt: StepsCountDomainReceiptEntity): Boolean =
 		receipt.receiptIdentity == receiptIdentity(receipt)
 
+	/**
+	 * Hashes the terminal count-domain marker's state and original owner/timeline boundaries.
+	 */
 	fun completenessMarkerChecksum(
 		marker: StepsCountDomainCompletenessMarkerEntity,
 	): String = completenessMarkerChecksum(
@@ -471,6 +535,9 @@ object StepsCountDomainReceiptIntegrity {
 		registrationTimelineChecksum = marker.registrationTimelineChecksum,
 	)
 
+	/**
+	 * Hashes the terminal count-domain marker's state and original owner/timeline boundaries.
+	 */
 	@Suppress("LongParameterList")
 	fun completenessMarkerChecksum(
 		ownerKind: String,
@@ -495,6 +562,9 @@ object StepsCountDomainReceiptIntegrity {
 		registrationTimelineChecksum,
 	)
 
+	/**
+	 * Hashes the canonical provider-registration ownership timeline used by the completeness marker.
+	 */
 	fun registrationTimelineChecksum(
 		rows: Collection<SourceSessionCompletenessEntity>,
 	): String {
@@ -530,7 +600,11 @@ object StepsCountDomainReceiptIntegrity {
 	private fun digest(vararg values: Any?): String {
 		val canonical = values.joinToString(separator = "") { value ->
 			val text = value?.toString()
-			if (text == null) "-1:" else "${text.length}:$text"
+			if (text == null) {
+				"-1:"
+			} else {
+				"${text.length}:$text"
+			}
 		}
 		return MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray(Charsets.UTF_8))

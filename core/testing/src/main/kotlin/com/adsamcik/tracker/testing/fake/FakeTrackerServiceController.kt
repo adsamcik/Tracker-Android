@@ -96,12 +96,16 @@ class FakeTrackerServiceController : TrackerServiceController {
     override val planeStateFlow: StateFlow<LivePlaneState?> get() = _planeStateFlow
 
     override fun updateServiceRunning(isRunning: Boolean) {
-        if (!isRunning) _savedLocationSummaryFlow.value = SavedLocationSummaryRead.NotFound
+        if (!isRunning) {
+            _savedLocationSummaryFlow.value = SavedLocationSummaryRead.NotFound
+        }
         _isServiceRunning.value = isRunning
     }
 
     override fun updateSessionInfo(info: TrackerSessionInfo?) {
-        if (info == null) _savedLocationSummaryFlow.value = SavedLocationSummaryRead.NotFound
+        if (info == null) {
+            _savedLocationSummaryFlow.value = SavedLocationSummaryRead.NotFound
+        }
         _sessionInfoFlow.value = info
     }
 

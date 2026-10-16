@@ -236,6 +236,8 @@ naming:
     minimumFunctionNameLength: 3
   FunctionNaming:
     active: true
+    # Compose component names follow PascalCase; ordinary functions keep the existing rule.
+    ignoreAnnotated: ['Composable']
     excludes:
       - '**/test/**'
       - '**/androidTest/**'

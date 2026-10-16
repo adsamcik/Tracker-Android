@@ -243,7 +243,11 @@ private fun testPressureDigest(namespace: String, values: Any?): PortablePressur
 private fun MessageDigest.appendCanonical(value: Any?) {
 	when (value) {
 		null -> appendUtf8("N;")
-		is Boolean -> appendUtf8(if (value) "B1;" else "B0;")
+		is Boolean -> appendUtf8(if (value) {
+			"B1;"
+		} else {
+			"B0;"
+		})
 		is Int -> appendUtf8("I$value;")
 		is Long -> appendUtf8("I$value;")
 		is Float -> appendUtf8("F${value.toRawBits()};")

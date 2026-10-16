@@ -318,9 +318,8 @@ class LocationQualifiedObservationQualifierTest {
 	fun `WAL admission payload delivery position and clock binding must be explicit`() {
 		val authority = authority()
 		val baseline = evidence(authority)
+		assertFailsWith<IllegalArgumentException> { baseline.copy(sourceAdmissionOrdinal = 0L) }
 		val cases = listOf(
-			baseline.copy(sourceAdmissionOrdinal = 0L) to
-				LocationFactRejection.INCOMPLETE_DURABLE_EVIDENCE,
 			baseline.copy(walIntegrityIdentity = "B".repeat(64)) to
 				LocationFactRejection.WAL_INTEGRITY_UNVERIFIABLE,
 			baseline.copy(sourceDeliveryIdentity = null) to
@@ -351,7 +350,7 @@ class LocationQualifiedObservationQualifierTest {
 		assertSame(original, replay.existing)
 		val changed = originalInput.copy(
 			durableEvidence = requireNotNull(originalInput.durableEvidence).copy(
-				payload = payload().copy(latitudeDegrees = 50.0001),
+				payload = requireNotNull(originalInput.durableEvidence).payload.copy(latitudeDegrees = 50.0001),
 			),
 		)
 		assertRejected(
@@ -369,7 +368,7 @@ class LocationQualifiedObservationQualifierTest {
 		val original = qualified(originalInput, authority)
 		val rawChanges = listOf(
 			requireNotNull(originalInput.durableEvidence).copy(
-				payload = payload().copy(latitudeDegrees = 50.0001),
+				payload = requireNotNull(originalInput.durableEvidence).payload.copy(latitudeDegrees = 50.0001),
 			),
 			requireNotNull(originalInput.durableEvidence).copy(
 				clockAuthority = requireNotNull(originalInput.durableEvidence).clockAuthority.copy(

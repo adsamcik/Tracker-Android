@@ -79,6 +79,26 @@ class RearmablePassiveLocationBackendTest {
 		assertEquals(RegistrationRemovalOutcome.REMOVED, backend.stop())
 	}
 
+	@Test
+	fun `permission revoked during passive registration retains its exact handle for cleanup`() = runTest {
+		var removals = 0
+		val backend = RearmablePassiveLocationBackend(context, PassiveLocationOperations(
+			requestFused = { _, _ -> error("wrong backend") },
+			removeFused = { error("wrong backend") },
+			requestFramework = { _, _ -> throw SecurityException("permission revoked") },
+			removeFramework = { removals += 1 },
+			frameworkPassiveAvailable = { true },
+		))
+		val original = identity()
+		backend.prepare(original)
+
+		assertEquals(LocationBackendStartOutcome.CLEANUP_REQUIRED, backend.start(plan) {})
+		assertTrue(backend.retains(original))
+		assertEquals(RegistrationRemovalOutcome.REMOVED, backend.stop())
+		assertEquals(1, removals)
+		assertFalse(backend.hasRetainedRegistration)
+	}
+
 	private fun identity() = PassiveLocationIdentity(LocationBackend.FRAMEWORK, "source-8", 8,
 		"boot-8", plan.physicalConfigurationFingerprint(), 3)
 }

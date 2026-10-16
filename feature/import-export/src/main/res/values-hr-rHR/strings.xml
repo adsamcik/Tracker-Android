@@ -41,4 +41,24 @@
     <string name="format_database">Sigurnosna kopija baze podataka (ZIP)</string>
     <string name="settings_import_summary">Uvezite podatke iz podržanih vrsta (%1$s) i arhiva (%2$s). Uvoz baze podataka spaja kompatibilne retke; ne zamjenjuje postojeće podatke.</string>
     <string name="settings_import_title">Uvoz</string>
+    <string name="export_radio_sensitivity_title">Izvesti mrežne podatke?</string>
+    <string name="export_wifi_sensitivity_message">Ova datoteka sadrži spremljene Wi-Fi nazive i ID-ove pristupnih točaka.</string>
+    <string name="export_cell_sensitivity_message">Ova datoteka sadrži spremljene ID-ove baznih stanica i mjerenja signala.</string>
+    <string name="export_radio_no_data">Nema spremljenih podataka za ovaj izvor</string>
+    <string name="export_include_complete_sessions">Uključi cijele sesije</string>
+    <string name="import_location_conflict_title">Zamijeniti spremljene točke?</string>
+    <string name="import_location_replace">Upotrijebi točke iz datoteke</string>
+    <string name="import_location_keep">Zadrži spremljene točke</string>
+    <string name="export_backup_review_title">Pregledaj zakazane sigurnosne kopije</string>
+    <string name="export_backup_review_summary">Pauzirano dok ne pregledate ažuriranu sigurnosnu kopiju podataka.</string>
+    <string name="export_backup_review_message">Ovi rasporedi sada sigurnosno kopiraju sve spremljene podatke praćenja i datoteke potrebne za njihovu obnovu. Postavke nisu uključene. Nastaviti ove rasporede?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Nastavi sigurnosno kopiranje</string>
+    <string name="import_backup_replace_title">Obnoviti sigurnosnu kopiju podataka?</string>
+    <string name="import_backup_replace_message">Zamijeniti spremljene podatke ovom sigurnosnom kopijom? Vaše postavke ostaju iste. Praćenje će biti isključeno dok ga ponovno ne uključite.</string>
+    <string name="import_backup_restore">Zamijeni podatke</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d točka u ovoj datoteci razlikuje se od spremljene kopije. Odaberite koju zadržati. Ostale točke uvest će se uobičajeno.</item>
+        <item quantity="few">%d točke u ovoj datoteci razlikuju se od spremljenih kopija. Odaberite koje zadržati. Ostale točke uvest će se uobičajeno.</item>
+        <item quantity="other">%d točaka u ovoj datoteci razlikuje se od spremljenih kopija. Odaberite koje zadržati. Ostale točke uvest će se uobičajeno.</item>
+    </plurals>
 </resources>

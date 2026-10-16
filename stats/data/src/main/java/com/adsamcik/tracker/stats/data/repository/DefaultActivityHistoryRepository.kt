@@ -1,5 +1,14 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import com.adsamcik.tracker.shared.base.database.ImportedActivityProductFailure
+import com.adsamcik.tracker.shared.base.database.PortableActivityExportUnverifiableReason
+import com.adsamcik.tracker.shared.base.database.dao.ActivityCapturedFactDao
+import com.adsamcik.tracker.shared.base.database.dao.TrackingHistoryReadDao
+import com.adsamcik.tracker.shared.base.database.dao.ActivityLogicalHistoryCandidate
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryFragment
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.HistoryRange
+
 import com.adsamcik.tracker.shared.base.database.SavedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
 import androidx.room.withTransaction
@@ -74,6 +83,8 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 /** Source-local Activity history facade. All dependencies are read in one bounded Room snapshot. */
+// One source-owned Room snapshot coordinates Activity membership, native and imported history without splitting its authority.
+@Suppress("LargeClass", "TooManyFunctions")
 internal class DefaultActivityHistoryRepository private constructor(
 	private val database: AppDatabase,
 	private val laneExecutionAuthority: SourceProductLaneExecutionAuthority,
@@ -160,16 +171,19 @@ internal class DefaultActivityHistoryRepository private constructor(
 	 * Combined local/imported recent producer for the shared history facade. Both origins are
 	 * normalized by newest physical-member recency before duplicate suppression and final cutoff.
 	 */
-	internal suspend fun recentActivityHistoryInTransaction(
-		limit: Int,
-	): ActivitySourceComposedPage {
+	internal suspend fun recentActivityHistoryInTransaction(limit: Int): ActivitySourceComposedPage {
 		require(limit in 1..MAX_ACTIVITY_HISTORY_RESULTS)
 		val localPage = when (val page = loadOrderedRecentLocalPage()) {
-			is ActivityLocalOrderedPage.Failed ->
-				return ActivitySourceComposedPage.Failed(page.cause)
+			is ActivityLocalOrderedPage.Failed -> return ActivitySourceComposedPage.Failed(page.cause)
 			is ActivityLocalOrderedPage.Ready -> page
 		}
-		val local = localPage.entries
+		return readRecentImportedActivity(localPage, limit)
+	}
+
+	private suspend fun readRecentImportedActivity(
+		localPage: ActivityLocalOrderedPage.Ready,
+		limit: Int,
+	): ActivitySourceComposedPage {
 		val importedPage = try {
 			importedProductReader.selectOrderedRecentPageInTransaction(
 				limit = MAX_ACTIVITY_HISTORY_RESULTS,
@@ -181,65 +195,75 @@ internal class DefaultActivityHistoryRepository private constructor(
 		} catch (_: ArithmeticException) {
 			return ActivitySourceComposedPage.Failed(ActivityHistoryCause.VALUE_OVERFLOW)
 		} catch (_: RuntimeException) {
-			return ActivitySourceComposedPage.Failed(
-				ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
-			)
+			return ActivitySourceComposedPage.Failed(ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
 		}
 		val imported = when (importedPage) {
 			is ImportedActivityOrderedProductPage.Unverifiable ->
 				return ActivitySourceComposedPage.Failed(importedPage.reason.toHistoryCause())
-			is ImportedActivityOrderedProductPage.Ready -> importedPage.evaluations
+			is ImportedActivityOrderedProductPage.Ready -> importedPage
 		}
-		val importedHasMore =
-			(importedPage as ImportedActivityOrderedProductPage.Ready).hasMore
-		val localIdentities = local.mapTo(linkedSetOf(), ComposedActivityEntry::logicalTrackingId)
-		val localIdentityByOpaque = localIdentities.associateBy { logicalId ->
-			PortableActivityOpaqueIdentity.derive(
-				PortableActivityIdentityKind.LOGICAL_ENTRY,
-				logicalId,
-			).value
-		}
-		if (localIdentityByOpaque.size != localIdentities.size) {
+		return qualifyRecentActivityOrigins(localPage, imported, limit)
+	}
+
+	private suspend fun qualifyRecentActivityOrigins(
+		localPage: ActivityLocalOrderedPage.Ready,
+		importedPage: ImportedActivityOrderedProductPage.Ready,
+		limit: Int,
+	): ActivitySourceComposedPage {
+		val localIdentities = localPage.entries.mapTo(linkedSetOf(), ComposedActivityEntry::logicalTrackingId)
+		if (activityLogicalOpaqueIdentities(localIdentities) == null) {
 			return ActivitySourceComposedPage.Failed(ActivityHistoryCause.ORIGIN_IDENTITY_CONFLICT)
 		}
-		val importedEvaluations = imported.map { it.evaluation }
-		val selectionSnapshot = if (
-			importedEvaluations.any { it is ImportedActivityProductEvaluation.Readable }
-		) {
+		val importedEvaluations = importedPage.evaluations.map { it.evaluation }
+		val selectionSnapshot = if (importedEvaluations.any { it is ImportedActivityProductEvaluation.Readable }) {
 			currentImportedSelectionReadSnapshot()
-				?: return ActivitySourceComposedPage.Failed(
-					ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
-				)
+				?: return ActivitySourceComposedPage.Failed(ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
 		} else {
 			null
 		}
-		val hasImportedOwnership = importedEvaluations.any {
-			it is ImportedActivityProductEvaluation.Readable || it is ImportedActivityProductEvaluation.Retained
-		}
-		// Presentation recency cannot establish that an imported identity has no older native owner.
 		val ownershipLocal = when (val page = loadLocalOwnershipForImportedEligibility(importedEvaluations)) {
 			is ActivityComposedPage.Failed -> return ActivitySourceComposedPage.Failed(page.cause)
 			is ActivityComposedPage.Available -> page.entries
 		}
+		return readRecentActivityPortableOwnership(localPage, importedPage, selectionSnapshot, ownershipLocal, limit)
+	}
+
+	private suspend fun readRecentActivityPortableOwnership(
+		localPage: ActivityLocalOrderedPage.Ready,
+		importedPage: ImportedActivityOrderedProductPage.Ready,
+		selectionSnapshot: ActivityImportedHistoryReadSnapshot?,
+		ownershipLocal: List<ComposedActivityEntry>,
+		limit: Int,
+	): ActivitySourceComposedPage {
 		val ownershipLogicalIds = ownershipLocal.mapTo(linkedSetOf(), ComposedActivityEntry::logicalTrackingId)
-		val ownershipIdentities = ownershipLogicalIds.mapTo(linkedSetOf()) { logicalId ->
-			PortableActivityOpaqueIdentity.derive(PortableActivityIdentityKind.LOGICAL_ENTRY, logicalId).value
-		}
-		if (ownershipIdentities.size != ownershipLogicalIds.size) {
-			return ActivitySourceComposedPage.Failed(ActivityHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+		val ownershipIdentities = activityLogicalOpaqueIdentities(ownershipLogicalIds)
+			?: return ActivitySourceComposedPage.Failed(ActivityHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+		val hasImportedOwnership = importedPage.evaluations.any {
+			it.evaluation is ImportedActivityProductEvaluation.Readable ||
+				it.evaluation is ImportedActivityProductEvaluation.Retained
 		}
 		val localPortableEntries = try {
-			loadLocalPortableOwnershipSnapshot(
-				hasImportedOwnership,
-				ownershipLocal,
-				ownershipIdentities,
-			)
+			loadLocalPortableOwnershipSnapshot(hasImportedOwnership, ownershipLocal, ownershipIdentities)
 		} catch (_: ActivityLocalOwnershipBudgetExceeded) {
 			return ActivitySourceComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
 		} catch (_: ImportedActivityHistoryCompositionFailure) {
-			return ActivitySourceComposedPage.Failed(
-				ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
-			)
+			return ActivitySourceComposedPage.Failed(ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+		}
+		return composeRecentActivityOwnership(localPage, importedPage, selectionSnapshot,
+			ownershipLocal, localPortableEntries, limit)
+	}
+
+	private suspend fun composeRecentActivityOwnership(
+		localPage: ActivityLocalOrderedPage.Ready,
+		importedPage: ImportedActivityOrderedProductPage.Ready,
+		selectionSnapshot: ActivityImportedHistoryReadSnapshot?,
+		ownershipLocal: List<ComposedActivityEntry>,
+		localPortableEntries: Map<String, PortableActivityEntryV1>,
+		limit: Int,
+	): ActivitySourceComposedPage {
+		val hasImportedOwnership = importedPage.evaluations.any {
+			it.evaluation is ImportedActivityProductEvaluation.Readable ||
+				it.evaluation is ImportedActivityProductEvaluation.Retained
 		}
 		val localProtectedIdentities = try {
 			if (hasImportedOwnership) {
@@ -250,59 +274,64 @@ internal class DefaultActivityHistoryRepository private constructor(
 		} catch (_: ActivityLocalOwnershipBudgetExceeded) {
 			return ActivitySourceComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
 		} catch (_: ImportedActivityHistoryCompositionFailure) {
-			return ActivitySourceComposedPage.Failed(
-				ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
-			)
+			return ActivitySourceComposedPage.Failed(ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
 		}
 		return try {
-			val mappedImported = ActivityHistoryOriginComposer.composeImported(
-				liveLogicalTrackingIds = localIdentities + ownershipLogicalIds,
-				imported = importedEvaluations,
-				localPortableEntriesByIdentity = localPortableEntries,
-				localProtectedIdentitiesByEntry = localProtectedIdentities,
-			)
-			val importedByIdentity = imported.associateBy { it.evaluation.candidate.identity }
-			val combined = buildList {
-				local.forEach { add(ActivitySourceComposedEntry.Local(it)) }
-				mappedImported.forEach { mapped ->
-					val entry = mapped.entry ?: return@forEach
-					val ordered = importedByIdentity[mapped.evaluation.candidate.identity]
-						?: throw ImportedActivityHistoryCompositionFailure()
-					val importedSelection =
-						if (entry.state == ActivityHistoryProductState.FAILED) {
-							null
-						} else {
-							mapped.evaluation.toPublicSelection(
-								key = entry.key,
-								readSnapshot = selectionSnapshot,
-							)
-						}
-					add(
-						ActivitySourceComposedEntry.Imported(
-							entry = entry.copy(importedSelection = importedSelection),
-							evaluation = mapped.evaluation,
-							recencyStartTimeMs = ordered.recencyStartTimeMs,
-							recencyMemberIdentity = ordered.recencyMemberIdentity.value,
-						),
-					)
-				}
-			}.sortedWith(ACTIVITY_SOURCE_COMPOSITION_ORDER)
-			val localFrontier = local.takeIf { localPage.hasMore }?.lastOrNull()
-				?.let { ActivitySourceComposedEntry.Local(it).orderKey() }
-			val importedFrontier = imported.takeIf { importedHasMore }
-				?.lastOrNull()?.orderKey()
-			val safe = combined.takeWhile { entry ->
-				entry.orderKey().isSafeBeforeUnseen(localFrontier, importedFrontier)
-			}.take(limit)
-			if (safe.size < limit && (localPage.hasMore || importedHasMore)) {
-				return ActivitySourceComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
-			}
-			ActivitySourceComposedPage.Available(safe)
+			val local = localPage.entries
+			val imported = importedPage.evaluations
+			val liveLogicalIds = local.mapTo(linkedSetOf(), ComposedActivityEntry::logicalTrackingId) +
+				ownershipLocal.mapTo(linkedSetOf(), ComposedActivityEntry::logicalTrackingId)
+			val combined = composeRecentActivityEntries(local, imported, selectionSnapshot,
+				liveLogicalIds, localPortableEntries, localProtectedIdentities)
+			recentActivityFrontierPage(localPage, importedPage, combined, limit)
 		} catch (_: ImportedActivityHistoryCompositionFailure) {
 			ActivitySourceComposedPage.Failed(ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
 		}
 	}
 
+	private fun composeRecentActivityEntries(
+		local: List<ComposedActivityEntry>,
+		imported: List<ImportedActivityOrderedProductEvaluation>,
+		selectionSnapshot: ActivityImportedHistoryReadSnapshot?,
+		liveLogicalTrackingIds: Set<String>,
+		localPortableEntries: Map<String, PortableActivityEntryV1>,
+		localProtectedIdentities: Map<PortableActivityOpaqueIdentity, List<RetainedImportedActivityIdentity>>,
+	): List<ActivitySourceComposedEntry> {
+		val mappedImported = ActivityHistoryOriginComposer.composeImported(
+			liveLogicalTrackingIds = liveLogicalTrackingIds,
+			imported = imported.map { it.evaluation },
+			localPortableEntriesByIdentity = localPortableEntries,
+			localProtectedIdentitiesByEntry = localProtectedIdentities,
+		)
+		val importedByIdentity = imported.associateBy { it.evaluation.candidate.identity }
+		return buildList {
+			local.forEach { add(ActivitySourceComposedEntry.Local(it)) }
+			mappedImported.forEach { mapped ->
+				val entry = mapped.entry ?: return@forEach
+				val ordered = importedByIdentity[mapped.evaluation.candidate.identity]
+					?: throw ImportedActivityHistoryCompositionFailure()
+				val importedSelection =
+					if (entry.state == ActivityHistoryProductState.FAILED) {
+						null
+					} else {
+						mapped.evaluation.toPublicSelection(
+							key = entry.key,
+							readSnapshot = selectionSnapshot,
+						)
+					}
+				add(
+					ActivitySourceComposedEntry.Imported(
+						entry = entry.copy(importedSelection = importedSelection),
+						evaluation = mapped.evaluation,
+						recencyStartTimeMs = ordered.recencyStartTimeMs,
+						recencyMemberIdentity = ordered.recencyMemberIdentity.value,
+					),
+				)
+			}
+		}.sortedWith(ACTIVITY_SOURCE_COMPOSITION_ORDER)
+	}
+
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	private suspend fun loadOrderedRecentLocalPage(): ActivityLocalOrderedPage {
 		val rows = database.activityCapturedFactDao().logicalHistoryCandidatePage(
 			limit = MAX_ACTIVITY_HISTORY_RESULTS + 1,
@@ -314,7 +343,9 @@ internal class DefaultActivityHistoryRepository private constructor(
 			return ActivityLocalOrderedPage.Failed(ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
 		}
 		val selected = rows.take(MAX_ACTIVITY_HISTORY_RESULTS)
-		if (selected.isEmpty()) return ActivityLocalOrderedPage.Ready(emptyList(), false)
+		if (selected.isEmpty()) {
+			return ActivityLocalOrderedPage.Ready(emptyList(), false)
+		}
 		val expansion = expandActivityMembership(selected.map { it.segment })
 		val snapshot = loadActivitySnapshot(expansion)
 		if (snapshot.overflow) {
@@ -340,35 +371,40 @@ internal class DefaultActivityHistoryRepository private constructor(
 	}
 
 	/** Complete mixed-origin Activity range page for callers already holding the Room transaction. */
-	@Suppress("LongMethod", "CyclomaticComplexMethod")
 	internal suspend fun rangeInTransaction(
 		request: ActivityHistoryRangeRequest,
 	): ActivityHistoryRangePage {
 		val revision = currentRangeRevision()
-			?: return ActivityHistoryRangePage.Failed(
-				ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
+			?: return ActivityHistoryRangePage.Failed(ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+		val cursor = activityRangeCursor(request, revision)
+			?: return ActivityHistoryRangePage.Unavailable(
+				ActivityHistoryRangeUnavailableReason.INVALID_CONTINUATION,
 			)
-		val selectionReadSnapshot = ActivityImportedHistoryReadSnapshot(
-			collectedDataEpoch = revision.collectedDataEpoch,
-			sourceEvidenceRevision = revision.evidenceRevision,
+		return readActivityRangeLocalPage(request, revision, cursor)
+	}
+
+	private fun activityRangeCursor(
+		request: ActivityHistoryRangeRequest,
+		revision: ActivityHistorySnapshotRevision,
+	): ActivityHistoryRangeContinuationSnapshot? = when (val supplied = request.continuation) {
+		null -> ActivityHistoryRangeContinuationSnapshot(
+			issuer = rangeIssuer,
+			scope = request.scope,
+			revision = revision,
+			localCursor = null,
+			importedCursor = null,
 		)
-		val cursor = when (val supplied = request.continuation) {
-			null -> ActivityHistoryRangeContinuationSnapshot(
-				issuer = rangeIssuer,
-				scope = request.scope,
-				revision = revision,
-				localCursor = null,
-				importedCursor = null,
-			)
-			is ActivityHistoryRangeContinuationSnapshot -> supplied.takeIf {
-				it.issuer === rangeIssuer && it.scope == request.scope && it.revision == revision
-			} ?: return ActivityHistoryRangePage.Unavailable(
-				ActivityHistoryRangeUnavailableReason.INVALID_CONTINUATION,
-			)
-			else -> return ActivityHistoryRangePage.Unavailable(
-				ActivityHistoryRangeUnavailableReason.INVALID_CONTINUATION,
-			)
+		is ActivityHistoryRangeContinuationSnapshot -> supplied.takeIf {
+			it.issuer === rangeIssuer && it.scope == request.scope && it.revision == revision
 		}
+		else -> null
+	}
+
+	private suspend fun readActivityRangeLocalPage(
+		request: ActivityHistoryRangeRequest,
+		revision: ActivityHistorySnapshotRevision,
+		cursor: ActivityHistoryRangeContinuationSnapshot,
+	): ActivityHistoryRangePage {
 		val bounds = try {
 			request.scope.queryBounds()
 		} catch (_: ArithmeticException) {
@@ -396,53 +432,84 @@ internal class DefaultActivityHistoryRepository private constructor(
 				}
 			}
 		}
+		return prepareLocalActivityRange(request, revision, cursor, bounds, localRows, localSnapshot)
+	}
+
+	private suspend fun prepareLocalActivityRange(
+		request: ActivityHistoryRangeRequest,
+		revision: ActivityHistorySnapshotRevision,
+		cursor: ActivityHistoryRangeContinuationSnapshot,
+		bounds: ActivityHistoryQueryBounds,
+		localRows: List<ActivityLogicalRangeCandidate>,
+		localSnapshot: ActivityHistorySnapshot?,
+	): ActivityHistoryRangePage {
 		val localComposed = localSnapshot?.let { snapshot ->
 			ActivityHistoryComposer.composeRecent(snapshot, laneExecutionAuthority)
 				.associateBy(ComposedActivityEntry::logicalTrackingId)
 		}.orEmpty()
-		val localPrepared = selectedLocalRows.map { row ->
-			val logicalId = row.segment.logicalTrackingId
-				?: return ActivityHistoryRangePage.Failed(
-					ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID,
-				)
-			val composed = localComposed[logicalId]
-				?: return ActivityHistoryRangePage.Failed(
-					ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID,
-				)
+		val localPrepared = localRows.take(RANGE_SOURCE_CANDIDATE_LIMIT).map { row ->
+			val composed = row.segment.logicalTrackingId?.let(localComposed::get)
+				?: return ActivityHistoryRangePage.Failed(ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
 			if (composed.recencyStartTimeMs != row.logicalRecencyStartMs ||
 				composed.recencySegmentId != row.logicalRecencySegmentId ||
 				composed.entry.startTime.raw != row.logicalStartTimeMs ||
 				composed.entry.endTime.raw != row.logicalEndTimeMs
 			) {
+				return ActivityHistoryRangePage.Failed(ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+			}
+			val projection = localActivityRangeProjection(composed, localSnapshot, request.scope)
+			if (projection !is ActivityHistoryRangePage.Available) {
+				return projection
+			}
+			ActivityRangeWorkItem.Local(row, composed, projection.entries.singleOrNull())
+		}
+		return readActivityRangeImportedPage(request, revision, cursor, bounds, localRows, localPrepared)
+	}
+
+	private fun localActivityRangeProjection(
+		composed: ComposedActivityEntry,
+		snapshot: ActivityHistorySnapshot?,
+		scope: ActivityHistoryRangeScope,
+	): ActivityHistoryRangePage {
+		val temporal = try {
+			localActivityTemporalAuthority(composed, requireNotNull(snapshot))
+		} catch (_: ActivityHistoryRangeLimitExceeded) {
+			return ActivityHistoryRangePage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+		} catch (_: RuntimeException) {
+			if (scope is ActivityHistoryRangeScope.StructuralDays) {
 				return ActivityHistoryRangePage.Failed(
-					ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID,
+					composed.entry.causes.firstOrNull { it.isIntegrityFailure }
+						?: ActivityHistoryCause.STORED_ZONE_INVALID,
 				)
 			}
-			val temporal = try {
-				localActivityTemporalAuthority(composed, requireNotNull(localSnapshot))
-			} catch (_: ActivityHistoryRangeLimitExceeded) {
-				return ActivityHistoryRangePage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
-			} catch (_: RuntimeException) {
-				if (request.scope is ActivityHistoryRangeScope.StructuralDays) {
-					return ActivityHistoryRangePage.Failed(
-						composed.entry.causes.firstOrNull { it.isIntegrityFailure }
-							?: ActivityHistoryCause.STORED_ZONE_INVALID,
-					)
-				}
-				null
-			}
-			val rangeEntry = try {
-				activityHistoryRangeEntry(composed.entry, temporal, request.scope)
-			} catch (_: ActivityHistoryRangeLimitExceeded) {
-				return ActivityHistoryRangePage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
-			} catch (_: ArithmeticException) {
-				return ActivityHistoryRangePage.Failed(ActivityHistoryCause.VALUE_OVERFLOW)
-			} catch (_: RuntimeException) {
-				return ActivityHistoryRangePage.Failed(ActivityHistoryCause.STORED_ZONE_INVALID)
-			}
-			ActivityRangeWorkItem.Local(row, composed, rangeEntry)
+			null
 		}
+		return projectedActivityRangePage(composed.entry, temporal, scope, ActivityHistoryCause.STORED_ZONE_INVALID)
+	}
 
+	private fun projectedActivityRangePage(
+		entry: ActivityHistoryEntry,
+		temporal: ActivityTemporalAuthority?,
+		scope: ActivityHistoryRangeScope,
+		invalidCause: ActivityHistoryCause,
+	): ActivityHistoryRangePage = try {
+		ActivityHistoryRangePage.Available(listOfNotNull(activityHistoryRangeEntry(entry, temporal, scope)), null)
+	} catch (_: ActivityHistoryRangeLimitExceeded) {
+		ActivityHistoryRangePage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+	} catch (_: ArithmeticException) {
+		ActivityHistoryRangePage.Failed(ActivityHistoryCause.VALUE_OVERFLOW)
+	} catch (_: RuntimeException) {
+		ActivityHistoryRangePage.Failed(invalidCause)
+	}
+
+	private suspend fun readActivityRangeImportedPage(
+		request: ActivityHistoryRangeRequest,
+		revision: ActivityHistorySnapshotRevision,
+		cursor: ActivityHistoryRangeContinuationSnapshot,
+		bounds: ActivityHistoryQueryBounds,
+		localRows: List<ActivityLogicalRangeCandidate>,
+		localPrepared: List<ActivityRangeWorkItem.Local>,
+	): ActivityHistoryRangePage {
 		val importedPage = try {
 			importedProductReader.selectOrderedRangePageInTransaction(
 				fromInclusiveMs = bounds.fromInclusiveMs,
@@ -462,12 +529,20 @@ internal class DefaultActivityHistoryRepository private constructor(
 				ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
 			)
 		}
-		val importedOrdered = when (importedPage) {
+		return when (importedPage) {
 			is ImportedActivityOrderedProductPage.Unverifiable ->
-				return ActivityHistoryRangePage.Failed(importedPage.reason.toHistoryCause())
-			is ImportedActivityOrderedProductPage.Ready -> importedPage.evaluations
+				ActivityHistoryRangePage.Failed(importedPage.reason.toHistoryCause())
+			is ImportedActivityOrderedProductPage.Ready ->
+				importedActivityStructuralDisposition(importedPage.evaluations, request.scope)
+					?: readActivityRangeOwnership(request, revision, cursor, localRows, localPrepared, importedPage)
 		}
-		if (request.scope is ActivityHistoryRangeScope.StructuralDays) {
+	}
+
+	private fun importedActivityStructuralDisposition(
+		importedOrdered: List<ImportedActivityOrderedProductEvaluation>,
+		scope: ActivityHistoryRangeScope,
+	): ActivityHistoryRangePage? {
+		if (scope is ActivityHistoryRangeScope.StructuralDays) {
 			if (importedOrdered.any { ordered ->
 					(ordered.evaluation as? ImportedActivityProductEvaluation.Retained)
 						?.hasTemporalAuthority == false
@@ -486,19 +561,21 @@ internal class DefaultActivityHistoryRepository private constructor(
 				)
 			}
 		}
-		val localLogicalIds = localPrepared.mapTo(linkedSetOf()) {
-			it.composed.logicalTrackingId
-		}
-		val localOpaqueIdentities = localLogicalIds.associateBy { logicalId ->
-			PortableActivityOpaqueIdentity.derive(
-				PortableActivityIdentityKind.LOGICAL_ENTRY,
-				logicalId,
-			).value
-		}
-		if (localOpaqueIdentities.size != localLogicalIds.size) {
-			return ActivityHistoryRangePage.Failed(ActivityHistoryCause.ORIGIN_IDENTITY_CONFLICT)
-		}
-		val importedEvaluations = importedOrdered.map { it.evaluation }
+		return null
+	}
+
+	private suspend fun readActivityRangeOwnership(
+		request: ActivityHistoryRangeRequest,
+		revision: ActivityHistorySnapshotRevision,
+		cursor: ActivityHistoryRangeContinuationSnapshot,
+		localRows: List<ActivityLogicalRangeCandidate>,
+		localPrepared: List<ActivityRangeWorkItem.Local>,
+		importedPage: ImportedActivityOrderedProductPage.Ready,
+	): ActivityHistoryRangePage {
+		val localLogicalIds = localPrepared.mapTo(linkedSetOf()) { it.composed.logicalTrackingId }
+		val localOpaqueIdentities = activityLogicalOpaqueIdentities(localLogicalIds)
+			?: return ActivityHistoryRangePage.Failed(ActivityHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+		val importedEvaluations = importedPage.evaluations.map { it.evaluation }
 		val localPortableEntries = try {
 			loadLocalPortableOwnershipSnapshot(
 				hasImportedOwnership = importedEvaluations.any {
@@ -506,7 +583,7 @@ internal class DefaultActivityHistoryRepository private constructor(
 						it is ImportedActivityProductEvaluation.Retained
 				},
 				localEntries = localPrepared.map { it.composed },
-				localEntryIdentities = localOpaqueIdentities.keys,
+				localEntryIdentities = localOpaqueIdentities,
 			)
 		} catch (_: ActivityLocalOwnershipBudgetExceeded) {
 			return ActivityHistoryRangePage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
@@ -515,6 +592,21 @@ internal class DefaultActivityHistoryRepository private constructor(
 				ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
 			)
 		}
+		return composeActivityRangeOrigins(request, revision, cursor, localRows, localPrepared,
+			importedPage, localPortableEntries)
+	}
+
+	// Carry this one immutable source snapshot across ownership qualification without another context model.
+	@Suppress("LongParameterList")
+	private suspend fun composeActivityRangeOrigins(
+		request: ActivityHistoryRangeRequest,
+		revision: ActivityHistorySnapshotRevision,
+		cursor: ActivityHistoryRangeContinuationSnapshot,
+		localRows: List<ActivityLogicalRangeCandidate>,
+		localPrepared: List<ActivityRangeWorkItem.Local>,
+		importedPage: ImportedActivityOrderedProductPage.Ready,
+		localPortableEntries: Map<String, PortableActivityEntryV1>,
+	): ActivityHistoryRangePage {
 		val localProtectedIdentities = try {
 			loadValueFreeLocalProtectedOwnership(
 				localPrepared.map(ActivityRangeWorkItem.Local::composed),
@@ -529,8 +621,8 @@ internal class DefaultActivityHistoryRepository private constructor(
 		}
 		val mappedImported = try {
 			ActivityHistoryOriginComposer.composeImported(
-				liveLogicalTrackingIds = localLogicalIds,
-				imported = importedEvaluations,
+				liveLogicalTrackingIds = localPrepared.mapTo(linkedSetOf()) { it.composed.logicalTrackingId },
+				imported = importedPage.evaluations.map { it.evaluation },
 				localPortableEntriesByIdentity = localPortableEntries,
 				localProtectedIdentitiesByEntry = localProtectedIdentities,
 			)
@@ -539,65 +631,94 @@ internal class DefaultActivityHistoryRepository private constructor(
 				ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
 			)
 		}
+		return prepareImportedActivityRange(request, revision, cursor, localRows,
+			localPrepared, importedPage, mappedImported)
+	}
+
+	// Keep the selected source pages and issued continuation together through final import projection.
+	@Suppress("LongParameterList")
+	private suspend fun prepareImportedActivityRange(
+		request: ActivityHistoryRangeRequest,
+		revision: ActivityHistorySnapshotRevision,
+		cursor: ActivityHistoryRangeContinuationSnapshot,
+		localRows: List<ActivityLogicalRangeCandidate>,
+		localPrepared: List<ActivityRangeWorkItem.Local>,
+		importedPage: ImportedActivityOrderedProductPage.Ready,
+		mappedImported: List<ComposedImportedActivityEntry>,
+	): ActivityHistoryRangePage {
+		val selectionReadSnapshot = ActivityImportedHistoryReadSnapshot(
+			collectedDataEpoch = revision.collectedDataEpoch,
+			sourceEvidenceRevision = revision.evidenceRevision,
+		)
 		val mappedByIdentity = mappedImported.associateBy { it.evaluation.candidate.identity }
-		val importedPrepared = importedOrdered.map { ordered ->
+		val importedPrepared = importedPage.evaluations.map { ordered ->
 			val mapped = mappedByIdentity[ordered.evaluation.candidate.identity]
-				?: return ActivityHistoryRangePage.Failed(
-					ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
-				)
-			val temporal = try {
-				importedActivityTemporalAuthority(ordered.evaluation)
-			} catch (_: ActivityHistoryRangeLimitExceeded) {
-				return ActivityHistoryRangePage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
-			} catch (_: RuntimeException) {
-				if (request.scope is ActivityHistoryRangeScope.StructuralDays) {
-					return ActivityHistoryRangePage.Failed(
-						ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
-					)
-				}
-				null
+				?: return ActivityHistoryRangePage.Failed(ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+			val projection = importedActivityRangeProjection(mapped, ordered.evaluation, selectionReadSnapshot, request.scope)
+			if (projection !is ActivityHistoryRangePage.Available) {
+				return projection
 			}
-			val rangeEntry = mapped.entry?.let { publicEntry ->
-				val selectedEntry = publicEntry.copy(
-					importedSelection =
-						if (publicEntry.state == ActivityHistoryProductState.FAILED) {
-							null
-						} else {
-							mapped.evaluation.toPublicSelection(
-								key = publicEntry.key,
-								readSnapshot = selectionReadSnapshot,
-							)
-						},
-				)
-				try {
-					activityHistoryRangeEntry(selectedEntry, temporal, request.scope)
-				} catch (_: ActivityHistoryRangeLimitExceeded) {
-					return ActivityHistoryRangePage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
-				} catch (_: ArithmeticException) {
-					return ActivityHistoryRangePage.Failed(ActivityHistoryCause.VALUE_OVERFLOW)
-				} catch (_: RuntimeException) {
-					return ActivityHistoryRangePage.Failed(
-						ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
-					)
-				}
-			}
-			ActivityRangeWorkItem.Imported(ordered, rangeEntry)
+			ActivityRangeWorkItem.Imported(ordered, projection.entries.singleOrNull())
 		}
+		return completeActivityRangePage(request, revision, cursor, localRows,
+			localPrepared, importedPage, importedPrepared)
+	}
+
+	private fun importedActivityRangeProjection(
+		mapped: ComposedImportedActivityEntry,
+		evaluation: ImportedActivityProductEvaluation,
+		selectionReadSnapshot: ActivityImportedHistoryReadSnapshot,
+		scope: ActivityHistoryRangeScope,
+	): ActivityHistoryRangePage {
+		val temporal = try {
+			importedActivityTemporalAuthority(evaluation)
+		} catch (_: ActivityHistoryRangeLimitExceeded) {
+			return ActivityHistoryRangePage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+		} catch (_: RuntimeException) {
+			if (scope is ActivityHistoryRangeScope.StructuralDays) {
+				return ActivityHistoryRangePage.Failed(ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+			}
+			null
+		}
+		val publicEntry = mapped.entry ?: return ActivityHistoryRangePage.Available(emptyList(), null)
+		val selectedEntry = publicEntry.copy(
+			importedSelection = if (publicEntry.state == ActivityHistoryProductState.FAILED) {
+				null
+			} else {
+				mapped.evaluation.toPublicSelection(key = publicEntry.key, readSnapshot = selectionReadSnapshot)
+			},
+		)
+		return projectedActivityRangePage(selectedEntry, temporal, scope,
+			ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+	}
+
+	// Keep the same issued snapshot, source frontiers and cursor inputs without a second paging model.
+	@Suppress("LongParameterList")
+	private suspend fun completeActivityRangePage(
+		request: ActivityHistoryRangeRequest,
+		revision: ActivityHistorySnapshotRevision,
+		cursor: ActivityHistoryRangeContinuationSnapshot,
+		localRows: List<ActivityLogicalRangeCandidate>,
+		localPrepared: List<ActivityRangeWorkItem.Local>,
+		importedPage: ImportedActivityOrderedProductPage.Ready,
+		importedPrepared: List<ActivityRangeWorkItem.Imported>,
+	): ActivityHistoryRangePage {
 		val work = (localPrepared + importedPrepared).sortedWith(ACTIVITY_RANGE_WORK_ORDER)
 		val localHasMore = localRows.size > RANGE_SOURCE_CANDIDATE_LIMIT
-		val importedHasMore =
-			(importedPage as ImportedActivityOrderedProductPage.Ready).hasMore
+		val importedHasMore = importedPage.hasMore
 		val localFrontier = localPrepared.takeIf { localHasMore }
 			?.lastOrNull()?.orderKey()
 		val importedFrontier = importedPrepared.takeIf { importedHasMore }
 			?.lastOrNull()?.orderKey()
-		val output = mutableListOf<com.adsamcik.tracker.stats.api.repository.ActivityHistoryRangeEntry>()
+		val output = mutableListOf<ActivityHistoryRangeEntry>()
 		var localCursor = cursor.localCursor
 		var importedCursor = cursor.importedCursor
 		var consumed = 0
 		for (item in work) {
 			currentCoroutineContext().ensureActive()
-			if (!item.orderKey().isSafeBeforeUnseen(localFrontier, importedFrontier)) break
+			if (!item.orderKey().isSafeBeforeUnseen(localFrontier, importedFrontier)) {
+				break
+			}
 			when (item) {
 				is ActivityRangeWorkItem.Local -> {
 					localCursor = ActivityLocalRangeCursor(
@@ -614,27 +735,36 @@ internal class DefaultActivityHistoryRepository private constructor(
 			}
 			item.rangeEntry?.let(output::add)
 			consumed++
-			if (output.size == request.limit) break
+			if (output.size == request.limit) {
+				break
+			}
 		}
 		val hasMore = consumed < work.size ||
 			localHasMore || importedHasMore
-		val continuation = if (hasMore) {
-			ActivityHistoryRangeContinuationSnapshot(
-				issuer = rangeIssuer,
-				scope = request.scope,
-				revision = revision,
-				localCursor = localCursor,
-				importedCursor = importedCursor,
-			)
-		} else {
-			null
-		}
+		val continuation = activityRangeContinuation(request, revision, localCursor, importedCursor, hasMore)
 		return ActivityHistoryRangePage.Available(output, continuation)
+	}
+
+	private fun activityRangeContinuation(
+		request: ActivityHistoryRangeRequest, revision: ActivityHistorySnapshotRevision,
+		localCursor: ActivityLocalRangeCursor?, importedCursor: ActivityImportedRangeCursor?, hasMore: Boolean,
+	): ActivityHistoryRangeContinuationSnapshot? = if (hasMore) {
+		ActivityHistoryRangeContinuationSnapshot(
+			issuer = rangeIssuer,
+			scope = request.scope,
+			revision = revision,
+			localCursor = localCursor,
+			importedCursor = importedCursor,
+		)
+	} else {
+		null
 	}
 
 	private suspend fun currentRangeRevision(): ActivityHistorySnapshotRevision? {
 		val evidence = database.sourceEvidenceStateDao().get() ?: return null
-		if (evidence.revision < 0L || evidence.collectedDataEpoch < 0L) return null
+		if (evidence.revision < 0L || evidence.collectedDataEpoch < 0L) {
+			return null
+		}
 		return ActivityHistorySnapshotRevision(
 			evidenceRevision = evidence.revision,
 			collectedDataEpoch = evidence.collectedDataEpoch,
@@ -677,10 +807,10 @@ internal class DefaultActivityHistoryRepository private constructor(
 			is ImportedActivityProductScanPage.Ready -> importedPage.evaluations
 			is ImportedActivityProductScanPage.Unverifiable -> return unavailable(
 				when (importedPage.reason) {
-					com.adsamcik.tracker.shared.base.database.ImportedActivityProductFailure
+					ImportedActivityProductFailure
 						.DEPENDENCY_OVERFLOW ->
 						SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
-					com.adsamcik.tracker.shared.base.database.ImportedActivityProductFailure
+					ImportedActivityProductFailure
 						.TEMPORAL_AUTHORITY_UNAVAILABLE ->
 						SourceAwareHistoryPageUnavailableReason
 							.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE
@@ -694,7 +824,7 @@ internal class DefaultActivityHistoryRepository private constructor(
 	/** Arbitrary-range keys reuse the same ownership, origin and selection qualification. */
 	internal suspend fun selectedImportedForSharedHistoryInTransaction(
 		identities: List<String>,
-		range: com.adsamcik.tracker.stats.api.repository.HistoryRange,
+		range: HistoryRange,
 	): ImportedHistoryEligiblePage<ActivityImportedHistoryEligibleEntry> {
 		require(identities.size in 1..MAX_ACTIVITY_HISTORY_RESULTS)
 		require(identities.distinct().size == identities.size)
@@ -703,79 +833,25 @@ internal class DefaultActivityHistoryRepository private constructor(
 			importedProductReader.selectIdentityInTransaction(PortableActivityOpaqueIdentity(identity))
 				?: return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
 		}
-		return qualifyImportedForSharedHistoryInTransaction(imported, identities.size, range, includeActivityOnly = true)
+		return qualifyImportedForSharedHistoryInTransaction(imported, identities.size, range, includeActivityOnly =
+            true)
 	}
 
 	private suspend fun qualifyImportedForSharedHistoryInTransaction(
 		imported: List<ImportedActivityProductEvaluation>,
 		limit: Int,
-		range: com.adsamcik.tracker.stats.api.repository.HistoryRange? = null,
+		range: HistoryRange? = null,
 		includeActivityOnly: Boolean = false,
 	): ImportedHistoryEligiblePage<ActivityImportedHistoryEligibleEntry> {
-		val selectionSnapshot = if (
-			imported.any { it is ImportedActivityProductEvaluation.Readable }
-		) {
+		val selectionSnapshot = if (imported.any { it is ImportedActivityProductEvaluation.Readable }) {
 			currentImportedSelectionReadSnapshot()
-				?: return unavailable(
-					SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-				)
+				?: return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
 		} else {
 			null
 		}
-		val authenticated = imported.map { evaluation ->
-			when (evaluation) {
-				is ImportedActivityProductEvaluation.Retained -> {
-					if (!evaluation.hasTemporalAuthority) {
-						return unavailable(
-							SourceAwareHistoryPageUnavailableReason
-								.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE,
-						)
-					}
-					AuthenticatedImportedActivityEligibility(
-						evaluation = evaluation,
-						identity = PortableActivityOpaqueIdentity(evaluation.candidate.identity),
-						contentChecksum = PortableActivityDigest(
-							evaluation.candidate.contentChecksum,
-						),
-						newestMemberStartTimeMs = requireNotNull(
-							evaluation.latestMemberStartTimeMs,
-						),
-						newestMemberTieIdentity = requireNotNull(
-							evaluation.latestMemberIdentity,
-						).value,
-					)
-				}
-				is ImportedActivityProductEvaluation.Unverifiable -> return unavailable(
-					when (evaluation.reason) {
-						com.adsamcik.tracker.shared.base.database.ImportedActivityProductFailure
-							.DEPENDENCY_OVERFLOW ->
-							SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
-						else -> SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE
-					},
-				)
-				is ImportedActivityProductEvaluation.Readable -> {
-					val newestRun = evaluation.entry.runs.maxWith(
-						compareBy({ it.startTimeMs }, { it.identity.value }),
-					)
-					if (evaluation.candidate.identity != evaluation.entry.identity.value ||
-						evaluation.candidate.importRevision <= 0L ||
-						evaluation.candidate.contentChecksum != evaluation.entry.contentChecksum.value ||
-						newestRun.startTimeMs !in
-						evaluation.entry.startTimeMs..evaluation.entry.endTimeMs
-					) {
-						return unavailable(
-							SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-						)
-					}
-					AuthenticatedImportedActivityEligibility(
-						evaluation = evaluation,
-						identity = evaluation.entry.identity,
-						contentChecksum = evaluation.entry.contentChecksum,
-						newestMemberStartTimeMs = newestRun.startTimeMs,
-						newestMemberTieIdentity = newestRun.identity.value,
-					)
-				}
-			}
+		val authenticated = when (val page = authenticateImportedActivityEligibility(imported)) {
+			is ImportedHistoryEligiblePage.Unavailable -> return page
+			is ImportedHistoryEligiblePage.Available -> page.entries
 		}
 		val local = when (val page = loadLocalOwnershipForImportedEligibility(imported)) {
 			is ActivityComposedPage.Failed -> return unavailable(
@@ -787,14 +863,20 @@ internal class DefaultActivityHistoryRepository private constructor(
 			)
 			is ActivityComposedPage.Available -> page.entries
 		}
+		return qualifyImportedActivityNativeOwnership(authenticated, local, selectionSnapshot,
+			limit, range, includeActivityOnly)
+	}
+
+	private suspend fun qualifyImportedActivityNativeOwnership(
+		authenticated: List<AuthenticatedImportedActivityEligibility>,
+		local: List<ComposedActivityEntry>,
+		selectionSnapshot: ActivityImportedHistoryReadSnapshot?,
+		limit: Int,
+		range: HistoryRange?,
+		includeActivityOnly: Boolean,
+	): ImportedHistoryEligiblePage<ActivityImportedHistoryEligibleEntry> {
 		val localLogicalIds = local.mapTo(linkedSetOf(), ComposedActivityEntry::logicalTrackingId)
-		val localIdentities = localLogicalIds.associateBy { logicalId ->
-			PortableActivityOpaqueIdentity.derive(
-				PortableActivityIdentityKind.LOGICAL_ENTRY,
-				logicalId,
-			).value
-		}
-		if (localIdentities.size != localLogicalIds.size) {
+		if (activityLogicalOpaqueIdentities(localLogicalIds) == null) {
 			return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
 		}
 		val localProtectedIdentities = try {
@@ -804,22 +886,32 @@ internal class DefaultActivityHistoryRepository private constructor(
 		} catch (_: ImportedActivityHistoryCompositionFailure) {
 			return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
 		}
-		val importedEntryIdentities = authenticated.mapTo(linkedSetOf()) {
-			it.identity
-		}
-		val collisionIdentities = localProtectedIdentities.keys
-			.filterTo(linkedSetOf()) { it in importedEntryIdentities }
-		val collisionLocal = local.filter { composed ->
+		return qualifyImportedActivityCollisions(authenticated, local, selectionSnapshot,
+			localProtectedIdentities, limit, range, includeActivityOnly)
+	}
+
+	// Preserve the captured native/imported ownership and selection inputs without an extra context model.
+	@Suppress("LongParameterList")
+	private suspend fun qualifyImportedActivityCollisions(
+		authenticated: List<AuthenticatedImportedActivityEligibility>,
+		local: List<ComposedActivityEntry>,
+		selectionSnapshot: ActivityImportedHistoryReadSnapshot?,
+		localProtectedIdentities: Map<PortableActivityOpaqueIdentity, List<RetainedImportedActivityIdentity>>,
+		limit: Int,
+		range: HistoryRange?,
+		includeActivityOnly: Boolean,
+	): ImportedHistoryEligiblePage<ActivityImportedHistoryEligibleEntry> {
+		val collisionLocal = activityCollisionEntries(authenticated, local, localProtectedIdentities)
+		val collisionIdentities = collisionLocal.mapTo(linkedSetOf()) {
 			PortableActivityOpaqueIdentity.derive(
-				PortableActivityIdentityKind.LOGICAL_ENTRY,
-				composed.logicalTrackingId,
-			) in collisionIdentities
+				PortableActivityIdentityKind.LOGICAL_ENTRY, it.logicalTrackingId,
+			).value
 		}
 		val localPortableEntries = try {
 			loadLocalPortableOwnershipSnapshot(
 				hasImportedOwnership = collisionIdentities.isNotEmpty(),
 				localEntries = collisionLocal,
-				localEntryIdentities = collisionIdentities.mapTo(linkedSetOf()) { it.value },
+				localEntryIdentities = collisionIdentities,
 			)
 		} catch (_: ActivityLocalOwnershipBudgetExceeded) {
 			return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED)
@@ -829,10 +921,13 @@ internal class DefaultActivityHistoryRepository private constructor(
 		val remainingLocalProtectedIdentities = localProtectedIdentities.filterKeys {
 			it.value !in localPortableEntries
 		}
-		val visibleLocalLogicalIds = if (range == null) localLogicalIds else {
+		val visibleLocalLogicalIds = if (range == null) {
+			local.mapTo(linkedSetOf(), ComposedActivityEntry::logicalTrackingId)
+		} else {
 			// Only selected exact collisions need a metadata visibility probe; qualification is above.
 			database.nativeLogicalIdsVisibleInRange(collisionLocal.mapTo(linkedSetOf()) {
-				it.logicalTrackingId }, range)
+				it.logicalTrackingId
+			}, range)
 		}
 		val mapped = try {
 			ActivityHistoryOriginComposer.composeImported(
@@ -844,45 +939,7 @@ internal class DefaultActivityHistoryRepository private constructor(
 		} catch (_: ImportedActivityHistoryCompositionFailure) {
 			return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
 		}
-		val authenticatedByIdentity = authenticated.associateBy {
-			it.evaluation.candidate.identity
-		}
-		val accepted = mapped.mapNotNull { result ->
-			val entry = result.entry ?: return@mapNotNull null
-			if (entry.origin != com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin.IMPORTED ||
-				(!includeActivityOnly && entry.capturesOnlyActivity) ||
-				entry.state == com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState.FAILED
-			) {
-				return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
-			}
-			val source = authenticatedByIdentity[result.evaluation.candidate.identity]
-				?: return unavailable(
-					SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-				)
-			val selectedEntry = entry.copy(
-				importedSelection = source.evaluation.toPublicSelection(
-					key = entry.key,
-					readSnapshot = selectionSnapshot,
-				),
-			)
-			ActivityImportedHistoryEligibleEntry(
-				entry = selectedEntry,
-				selector = selectedEntry.key,
-				identity = source.identity,
-				importRevision = source.evaluation.candidate.importRevision,
-				contentChecksum = source.contentChecksum,
-				recency = ImportedHistoryRecency(
-					source = HistorySource.ACTIVITY,
-					newestMemberStartTimeMs = source.newestMemberStartTimeMs,
-					newestMemberTieIdentity = ImportedHistoryRecencyTieIdentity(
-						source.newestMemberTieIdentity,
-					),
-				),
-			)
-		}.sortedWith { left, right ->
-			importedHistoryRecencyOrder.compare(left.recency, right.recency)
-		}
-		return ImportedHistoryEligiblePage.Available(accepted.take(limit))
+		return acceptedImportedActivityPage(mapped, authenticated, selectionSnapshot, limit, includeActivityOnly)
 	}
 
 	private suspend fun loadLocalPortableOwnershipSnapshot(
@@ -890,103 +947,101 @@ internal class DefaultActivityHistoryRepository private constructor(
 		localEntries: List<ComposedActivityEntry>,
 		localEntryIdentities: Set<String>,
 	): Map<String, PortableActivityEntryV1> {
-		if (!hasImportedOwnership || localEntryIdentities.isEmpty()) return emptyMap()
+		if (!hasImportedOwnership || localEntryIdentities.isEmpty()) {
+			return emptyMap()
+		}
 		if (localEntries.size != localEntryIdentities.size) {
 			throw ImportedActivityHistoryCompositionFailure()
 		}
 		// Factless qualified owners still participate in the value-free collision checks.
 		// Strict portable completeness applies only to owners with retained measurements.
 		val valuedEntries = localEntries.filter { it.entry.activeTime != null || it.entry.fragments.isNotEmpty() }
-		if (valuedEntries.isEmpty()) return emptyMap()
+		if (valuedEntries.isEmpty()) {
+			return emptyMap()
+		}
+		return qualifiedLocalActivityPortableSnapshot(
+			readValuedLocalActivityOwnership(valuedEntries),
+			localEntryIdentities,
+		)
+	}
+
+	private suspend fun readValuedLocalActivityOwnership(
+		valuedEntries: List<ComposedActivityEntry>,
+	): ReadLocalPortableCapturedActivityResult {
 		val epoch = database.sourceEvidenceStateDao().get()?.collectedDataEpoch
 			?: throw ImportedActivityHistoryCompositionFailure()
 		val seeds = valuedEntries.map { entry ->
 			entry.physicalSegmentIds.firstOrNull() ?: throw ImportedActivityHistoryCompositionFailure()
 		}
-		return when (val result = localPortableReader.read(
+		return localPortableReader.read(
 			ExportSelectedPortableCapturedActivityRequest(seeds, emptyList(), epoch),
-		)) {
-			is ReadLocalPortableCapturedActivityResult.Ready -> {
-				val completeSnapshot = result.envelope.entries.associateBy { it.identity.value }
-				if (completeSnapshot.size != result.envelope.entries.size ||
-					completeSnapshot.keys.any { it !in localEntryIdentities }
-				) {
-					throw ImportedActivityHistoryCompositionFailure()
-				}
-				completeSnapshot
-			}
-			is ReadLocalPortableCapturedActivityResult.Unverifiable -> if (result.reason ==
-				com.adsamcik.tracker.shared.base.database.PortableActivityExportUnverifiableReason.DEPENDENCY_OVERFLOW
+		)
+	}
+
+	private fun qualifiedLocalActivityPortableSnapshot(
+		result: ReadLocalPortableCapturedActivityResult,
+		localEntryIdentities: Set<String>,
+	): Map<String, PortableActivityEntryV1> = when (result) {
+		is ReadLocalPortableCapturedActivityResult.Ready ->
+			completeLocalActivityPortableSnapshot(result.envelope.entries, localEntryIdentities)
+		else -> {
+			if (result is ReadLocalPortableCapturedActivityResult.Unverifiable &&
+				result.reason == PortableActivityExportUnverifiableReason.DEPENDENCY_OVERFLOW
 			) {
 				throw ActivityLocalOwnershipBudgetExceeded()
-			} else {
-				throw ImportedActivityHistoryCompositionFailure()
 			}
-			ReadLocalPortableCapturedActivityResult.StorageUnavailable -> throw ImportedActivityHistoryCompositionFailure()
-			ReadLocalPortableCapturedActivityResult.NoEntries -> throw ImportedActivityHistoryCompositionFailure()
+			throw ImportedActivityHistoryCompositionFailure()
 		}
+	}
+
+	private fun completeLocalActivityPortableSnapshot(
+		entries: List<PortableActivityEntryV1>,
+		localEntryIdentities: Set<String>,
+	): Map<String, PortableActivityEntryV1> {
+		val completeSnapshot = entries.associateBy { it.identity.value }
+		if (completeSnapshot.size != entries.size ||
+			completeSnapshot.keys.any { it !in localEntryIdentities }
+		) {
+			throw ImportedActivityHistoryCompositionFailure()
+		}
+		return completeSnapshot
 	}
 
 	private suspend fun loadLocalProtectedOwnership(
 		local: List<ComposedActivityEntry>,
 	): Map<PortableActivityOpaqueIdentity, List<RetainedImportedActivityIdentity>> {
-		if (local.isEmpty()) return emptyMap()
+		if (local.isEmpty()) {
+			return emptyMap()
+		}
+		val segments = loadActivityOwnershipSegments(local)
+		val segmentsByLogical = segments.groupBy(SessionSegment::logicalTrackingId)
+		val logicalIds = local.map(ComposedActivityEntry::logicalTrackingId)
+		val runIds = segments.mapNotNull(SessionSegment::serviceRunId).distinct()
+		val revisionLoad = loadActivityRevisionPages(runIds, logicalIds)
+		if (revisionLoad.overflow) {
+			throw ActivityLocalOwnershipBudgetExceeded()
+		}
+		return local.associate { composed ->
+			protectedActivityIdentities(
+				composed,
+				segmentsByLogical[composed.logicalTrackingId].orEmpty(),
+				revisionLoad.revisions,
+			)
+		}
+	}
+
+	private suspend fun loadActivityOwnershipSegments(
+		local: List<ComposedActivityEntry>,
+	): List<SessionSegment> {
 		val segmentIds = local.flatMap(ComposedActivityEntry::physicalSegmentIds).distinct()
 		if (segmentIds.size > MAX_ACTIVITY_LOGICAL_MEMBERS) {
 			throw ImportedActivityHistoryCompositionFailure()
 		}
 		val segments = database.trackingHistoryReadDao().segments(segmentIds)
-		if (segments.size != segmentIds.size) throw ImportedActivityHistoryCompositionFailure()
-		val segmentsByLogical = segments.groupBy(SessionSegment::logicalTrackingId)
-		val logicalIds = local.map(ComposedActivityEntry::logicalTrackingId)
-		val runIds = segments.mapNotNull(SessionSegment::serviceRunId).distinct()
-		val revisionLoad = loadActivityRevisionPages(runIds, logicalIds)
-		if (revisionLoad.overflow) throw ActivityLocalOwnershipBudgetExceeded()
-		return local.associate { composed ->
-			val entryIdentity = PortableActivityOpaqueIdentity.derive(
-				PortableActivityIdentityKind.LOGICAL_ENTRY,
-				composed.logicalTrackingId,
-			)
-			val members = segmentsByLogical[composed.logicalTrackingId].orEmpty()
-			if (members.size != composed.physicalSegmentIds.size ||
-				members.map(SessionSegment::id).toSet() != composed.physicalSegmentIds.toSet()
-			) throw ImportedActivityHistoryCompositionFailure()
-			entryIdentity to buildList {
-				add(RetainedImportedActivityIdentity.Entry(entryIdentity))
-				members.forEach { segment ->
-					val runId = segment.serviceRunId ?: throw ImportedActivityHistoryCompositionFailure()
-					add(
-						RetainedImportedActivityIdentity.Run(
-							PortableActivityOpaqueIdentity.derive(
-								PortableActivityIdentityKind.PHYSICAL_RUN,
-								runId,
-							),
-						),
-					)
-					add(
-						RetainedImportedActivityIdentity.DeletionScope(
-							com.adsamcik.tracker.shared.base.database
-								.PortableActivityDeletionScopeDigest.derive(
-									composed.logicalTrackingId,
-									runId,
-								),
-						),
-					)
-				}
-				revisionLoad.revisions.asSequence()
-					.filter { it.logicalTrackingId == composed.logicalTrackingId }
-					.map { revision ->
-						RetainedImportedActivityIdentity.Window(
-							PortableActivityOpaqueIdentity.derive(
-								PortableActivityIdentityKind.CAPTURE_WINDOW,
-								revision.logicalWindowId,
-							),
-						)
-					}
-					.distinct()
-					.forEach(::add)
-			}
+		if (segments.size != segmentIds.size) {
+			throw ImportedActivityHistoryCompositionFailure()
 		}
+		return segments
 	}
 
 	private suspend fun loadValueFreeLocalProtectedOwnership(
@@ -998,7 +1053,9 @@ internal class DefaultActivityHistoryRepository private constructor(
 				PortableActivityIdentityKind.LOGICAL_ENTRY,
 				composed.logicalTrackingId,
 			)
-			if (entryIdentity.value in portableEntriesByIdentity) return@filter false
+			if (entryIdentity.value in portableEntriesByIdentity) {
+				return@filter false
+			}
 			if (composed.entry.activeTime != null || composed.entry.fragments.isNotEmpty()) {
 				throw ImportedActivityHistoryCompositionFailure()
 			}
@@ -1013,11 +1070,15 @@ internal class DefaultActivityHistoryRepository private constructor(
 	): ActivityComposedPage {
 		require(segmentIds.size <= MAX_ACTIVITY_HISTORY_RESULTS)
 		require(segmentIds.all { it > 0L } && segmentIds.distinct().size == segmentIds.size)
-		if (segmentIds.isEmpty()) return ActivityComposedPage.Available(emptyList())
+		if (segmentIds.isEmpty()) {
+			return ActivityComposedPage.Available(emptyList())
+		}
 		val seeds = database.trackingHistoryReadDao().segments(segmentIds)
 		val expansion = expandActivityMembership(seeds)
 		val snapshot = loadActivitySnapshot(expansion)
-		if (snapshot.overflow) return ActivityComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+		if (snapshot.overflow) {
+			return ActivityComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+		}
 		val logicalIds = seeds.mapNotNull(SessionSegment::logicalTrackingId).toSet()
 		return ActivityComposedPage.Available(
 			ActivityHistoryComposer.composeRecent(snapshot, laneExecutionAuthority)
@@ -1028,14 +1089,40 @@ internal class DefaultActivityHistoryRepository private constructor(
 	/** Exact measured lineage qualification; the outer facade owns the Room read transaction. */
 	internal suspend fun selectMeasuredWindowsInTransaction(keys: List<ActivityRevisionKey>): ActivityMeasuredWindowsRead {
 		require(keys.size <= MAX_ACTIVITY_HISTORY_RESULTS && keys.distinct().size == keys.size &&
-			keys.map { Triple(it.writerProjectionId, it.writerProjectionVersion, it.logicalWindowId) }.distinct().size == keys.size)
-		if (keys.isEmpty()) return ActivityMeasuredWindowsRead()
+			keys.map { Triple(it.writerProjectionId, it.writerProjectionVersion,
+                it.logicalWindowId) }.distinct().size == keys.size)
+		if (keys.isEmpty()) {
+			return ActivityMeasuredWindowsRead()
+		}
 		val revisionLoad = loadMeasuredActivityLineages(keys)
-		if (revisionLoad.overflow) return ActivityMeasuredWindowsRead(causes = setOf(ActivityHistoryCause.READ_BUDGET_EXCEEDED))
+		if (revisionLoad.overflow) {
+			return ActivityMeasuredWindowsRead(causes = setOf(ActivityHistoryCause.READ_BUDGET_EXCEEDED))
+		}
+		val snapshot = loadMeasuredActivitySnapshot(revisionLoad)
+		if (snapshot.overflow) {
+			return ActivityMeasuredWindowsRead(causes = setOf(ActivityHistoryCause.READ_BUDGET_EXCEEDED))
+		}
+		return qualifyMeasuredActivityWindows(keys, revisionLoad, snapshot)
+	}
+
+	private suspend fun loadMeasuredActivitySnapshot(
+		revisionLoad: ActivityRevisionLoad,
+	): ActivityHistorySnapshot {
 		val segmentIds = revisionLoad.revisions.map(ActivityCapturedWindowRevisionEntity::sessionSegmentId).distinct()
-		val seeds = if (segmentIds.isEmpty()) emptyList() else database.trackingHistoryReadDao().segments(segmentIds)
-		val snapshot = loadActivitySnapshot(ActivityMembershipExpansion(seeds, emptyMap(), overflow = false), revisionLoad)
-		if (snapshot.overflow) return ActivityMeasuredWindowsRead(causes = setOf(ActivityHistoryCause.READ_BUDGET_EXCEEDED))
+		val seeds = if (segmentIds.isEmpty()) {
+			emptyList()
+		} else {
+			database.trackingHistoryReadDao().segments(segmentIds)
+		}
+		return loadActivitySnapshot(ActivityMembershipExpansion(seeds, emptyMap(), overflow = false),
+            revisionLoad)
+	}
+
+	private fun qualifyMeasuredActivityWindows(
+		keys: List<ActivityRevisionKey>,
+		revisionLoad: ActivityRevisionLoad,
+		snapshot: ActivityHistorySnapshot,
+	): ActivityMeasuredWindowsRead {
 		val qualified = linkedMapOf<ActivityRevisionKey, ActivityMeasuredWindow>()
 		val causes = linkedSetOf<ActivityHistoryCause>()
 		val logicalIds = revisionLoad.revisions.map(ActivityCapturedWindowRevisionEntity::logicalTrackingId).distinct()
@@ -1045,23 +1132,40 @@ internal class DefaultActivityHistoryRepository private constructor(
 				causes += composed?.causes ?: setOf(ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
 				continue
 			}
-			for (key in keys) {
-				val current = snapshot.revisions.filter { it.writerProjectionId == key.writerProjectionId &&
-					it.writerProjectionVersion == key.writerProjectionVersion && it.logicalWindowId == key.logicalWindowId }
-					.maxByOrNull(ActivityCapturedWindowRevisionEntity::semanticRevision) ?: continue
-				if (current.logicalTrackingId != logicalId) continue
-				if (revisionKey(current) != key) {
-					causes += ActivityHistoryCause.FACT_INTEGRITY_FAILED
-					continue
-				}
-				val saved = snapshot.fragmentsByRevision[key].orEmpty().sortedBy(ActivityCapturedFragmentEntity::fragmentOrdinal)
-				val fragments = ActivityHistoryComposer.toPublicFragments(current, snapshot)
-				qualified[key] = ActivityMeasuredWindow(current, saved.zip(fragments).associate { (row, fragment) ->
-					row.fragmentOrdinal to fragment })
-			}
+			appendMeasuredActivityWindows(logicalId, keys, snapshot, qualified, causes)
 		}
-		if (qualified.keys != keys.toSet() && causes.isEmpty()) causes += ActivityHistoryCause.FACT_INTEGRITY_FAILED
+		if (qualified.keys != keys.toSet() && causes.isEmpty()) {
+			causes += ActivityHistoryCause.FACT_INTEGRITY_FAILED
+		}
 		return ActivityMeasuredWindowsRead(qualified, causes)
+	}
+
+	private fun appendMeasuredActivityWindows(
+		logicalId: String,
+		keys: List<ActivityRevisionKey>,
+		snapshot: ActivityHistorySnapshot,
+		qualified: MutableMap<ActivityRevisionKey, ActivityMeasuredWindow>,
+		causes: MutableSet<ActivityHistoryCause>,
+	) {
+		for (key in keys) {
+			val current = snapshot.revisions.filter { it.writerProjectionId == key.writerProjectionId &&
+				it.writerProjectionVersion == key.writerProjectionVersion &&
+                        it.logicalWindowId == key.logicalWindowId }
+				.maxByOrNull(ActivityCapturedWindowRevisionEntity::semanticRevision) ?: continue
+			if (current.logicalTrackingId != logicalId) {
+				continue
+			}
+			if (revisionKey(current) != key) {
+				causes += ActivityHistoryCause.FACT_INTEGRITY_FAILED
+				continue
+			}
+			val saved =
+				snapshot.fragmentsByRevision[key].orEmpty()
+					.sortedBy(ActivityCapturedFragmentEntity::fragmentOrdinal)
+			val fragments = ActivityHistoryComposer.toPublicFragments(current, snapshot)
+			qualified[key] = ActivityMeasuredWindow(current, saved.zip(fragments).associate { (row, fragment) ->
+				row.fragmentOrdinal to fragment })
+		}
 	}
 
 	private suspend fun loadMeasuredActivityLineages(keys: List<ActivityRevisionKey>): ActivityRevisionLoad {
@@ -1071,7 +1175,9 @@ internal class DefaultActivityHistoryRepository private constructor(
 			val remaining = MAX_ACTIVITY_REVISIONS - revisions.size
 			val lineage = database.activityCapturedFactDao().revisionsForWindow(key.writerProjectionId,
 				key.writerProjectionVersion, key.logicalWindowId, remaining + 1)
-			if (lineage.size > remaining) return ActivityRevisionLoad(revisions, overflow = true)
+			if (lineage.size > remaining) {
+				return ActivityRevisionLoad(revisions, overflow = true)
+			}
 			revisions += lineage
 		}
 		return ActivityRevisionLoad(revisions, overflow = false)
@@ -1086,27 +1192,18 @@ internal class DefaultActivityHistoryRepository private constructor(
 	private suspend fun loadLocalOwnershipForImportedEligibility(
 		imported: List<ImportedActivityProductEvaluation>,
 	): ActivityComposedPage {
-		val identities = imported.asSequence().flatMap { evaluation ->
-			when (evaluation) {
-				is ImportedActivityProductEvaluation.Readable -> sequence {
-					yield(evaluation.entry.identity.value)
-					for (run in evaluation.entry.runs) {
-						yield(run.identity.value)
-						yield(run.deletionScopeDigest.value)
-						run.windows.forEach { yield(it.identity.value) }
-					}
-				}
-				is ImportedActivityProductEvaluation.Retained -> evaluation.protectedIdentities.asSequence().map { it.value }
-				is ImportedActivityProductEvaluation.Unverifiable -> emptySequence()
-			}
-		}
+		val identities = importedActivityProtectedIdentities(imported)
 		return try {
 			val seeds = database.nativePortableOwnerSeeds(ACTIVITY_SOURCE, identities, MAX_ACTIVITY_HISTORY_RESULTS)
 			when (val selected = selectBySegmentIdsInTransaction(seeds.map(SessionSegment::id))) {
 				is ActivityComposedPage.Failed -> selected
 				is ActivityComposedPage.Available -> if (selected.entries.map { it.logicalTrackingId }.toSet() ==
-					seeds.map { it.logicalTrackingId }.toSet()) selected
-				else ActivityComposedPage.Failed(ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+					seeds.map { it.logicalTrackingId }.toSet()) {
+					selected
+				}
+				else {
+					ActivityComposedPage.Failed(ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+				}
 			}
 		} catch (_: NativePortableOwnerBudgetExceeded) {
 			ActivityComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
@@ -1137,7 +1234,9 @@ internal class DefaultActivityHistoryRepository private constructor(
 				beforeSegmentId = beforeSegmentId,
 				activitySourceKind = ACTIVITY_SOURCE,
 			)
-			if (page.isEmpty()) break
+			if (page.isEmpty()) {
+				break
+			}
 			if (page.size > pageLimit) {
 				return ActivityComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
 			}
@@ -1155,7 +1254,9 @@ internal class DefaultActivityHistoryRepository private constructor(
 			val last = page.last()
 			beforeStartTimeMs = last.logicalRecencyStartMs
 			beforeSegmentId = last.logicalRecencySegmentId
-			if (page.size < pageLimit) break
+			if (page.size < pageLimit) {
+				break
+			}
 		}
 		return ActivityComposedPage.Available(accepted.take(limit))
 	}
@@ -1166,7 +1267,29 @@ internal class DefaultActivityHistoryRepository private constructor(
 		val logicalIds = seeds.mapNotNull(SessionSegment::logicalTrackingId)
 			.filter(String::isNotBlank)
 			.distinct()
-		if (logicalIds.isEmpty()) return ActivityMembershipExpansion(seeds, emptyMap(), false)
+		if (logicalIds.isEmpty()) {
+			return ActivityMembershipExpansion(seeds, emptyMap(), false)
+		}
+		val runs = loadLogicalActivityRuns(logicalIds)
+			?: return ActivityMembershipExpansion(seeds, emptyMap(), overflow = true)
+		currentCoroutineContext().ensureActive()
+		val segmentIds = runs.mapNotNull(SourceServiceRunEntity::sessionSegmentId).distinct()
+		val loadedSegments = if (segmentIds.isEmpty()) {
+			emptyList()
+		} else {
+			database.trackingHistoryReadDao().segments(segmentIds)
+		}
+		val segments = (loadedSegments + seeds).distinctBy(SessionSegment::id)
+		return ActivityMembershipExpansion(
+			segments,
+			activityMembershipFailures(logicalIds, runs, segments, seeds),
+			overflow = false,
+		)
+	}
+
+	private suspend fun loadLogicalActivityRuns(
+		logicalIds: List<String>,
+	): List<SourceServiceRunEntity>? {
 		val runs = mutableListOf<SourceServiceRunEntity>()
 		var afterLogicalId: String? = null
 		var afterStartedAtMs: Long? = null
@@ -1183,58 +1306,38 @@ internal class DefaultActivityHistoryRepository private constructor(
 				afterServiceRunId = afterRunId,
 			)
 			if (page.size > remaining) {
-				return ActivityMembershipExpansion(seeds, emptyMap(), overflow = true)
+				return null
 			}
-			if (page.isEmpty()) break
+			if (page.isEmpty()) {
+				break
+			}
 			runs += page
 			val last = page.last()
 			afterLogicalId = last.logicalTrackingId
 			afterStartedAtMs = last.startedAtMs
 			afterRunId = last.serviceRunId
-			if (page.size < pageLimit) break
-		}
-		currentCoroutineContext().ensureActive()
-		val segmentIds = runs.mapNotNull(SourceServiceRunEntity::sessionSegmentId).distinct()
-		val loadedSegments = if (segmentIds.isEmpty()) {
-			emptyList()
-		} else {
-			database.trackingHistoryReadDao().segments(segmentIds)
-		}
-		val segments = (loadedSegments + seeds).distinctBy(SessionSegment::id)
-		val segmentsById = segments.associateBy(SessionSegment::id)
-		val failures = linkedMapOf<String, ActivityHistoryCause>()
-		val runsByLogical = runs.groupBy(SourceServiceRunEntity::logicalTrackingId)
-		logicalIds.forEach { logicalId ->
-			if (runsByLogical[logicalId].isNullOrEmpty()) {
-				failures[logicalId] = ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID
+			if (page.size < pageLimit) {
+				break
 			}
 		}
-		runs.forEach { run ->
-			val segment = run.sessionSegmentId?.let(segmentsById::get)
-			if (segment == null || segment.serviceRunId != run.serviceRunId ||
-				segment.logicalTrackingId != run.logicalTrackingId
-			) failures[run.logicalTrackingId] = ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID
-		}
-		seeds.forEach { seed ->
-			val logicalId = seed.logicalTrackingId ?: return@forEach
-			val run = runs.singleOrNull { it.serviceRunId == seed.serviceRunId }
-			if (run == null || run.logicalTrackingId != logicalId || run.sessionSegmentId != seed.id) {
-				failures[logicalId] = ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID
-			}
-		}
-		return ActivityMembershipExpansion(segments, failures, overflow = false)
+		return runs
 	}
 
+	// One fixed Room snapshot reads its dependencies in order and assembles the source-owned projection.
 	@Suppress("LongMethod")
 	private suspend fun loadActivitySnapshot(
 		expansion: ActivityMembershipExpansion,
 		selectedLineages: ActivityRevisionLoad? = null,
 	): ActivityHistorySnapshot {
-		if (expansion.overflow) return ActivityHistorySnapshot.overflow(expansion)
+		if (expansion.overflow) {
+			return ActivityHistorySnapshot.overflow(expansion)
+		}
 		val segments = expansion.segments
 		val runIds = segments.mapNotNull(SessionSegment::serviceRunId)
 			.filter(String::isNotBlank).distinct()
-		if (runIds.isEmpty()) return ActivityHistorySnapshot.empty(expansion)
+		if (runIds.isEmpty()) {
+			return ActivityHistorySnapshot.empty(expansion)
+		}
 		val readDao = database.trackingHistoryReadDao()
 		val runs = readDao.serviceRuns(runIds)
 		val manifests = readDao.manifests(runIds, MAX_ACTIVITY_MANIFESTS + 1)
@@ -1249,46 +1352,10 @@ internal class DefaultActivityHistoryRepository private constructor(
 		val revisions = revisionLoad.revisions
 		currentCoroutineContext().ensureActive()
 		val windowIds = revisions.map(ActivityCapturedWindowRevisionEntity::logicalWindowId).distinct()
-		val cursors = if (windowIds.isEmpty()) emptyList() else if (selectedLineages == null) {
-			factDao.historyCursors(windowIds, MAX_ACTIVITY_CURSORS + 1)
-		} else revisions.distinctBy { Triple(it.writerProjectionId, it.writerProjectionVersion, it.logicalWindowId) }
-			.mapNotNull { factDao.cursor(it.writerProjectionId, it.writerProjectionVersion, it.logicalWindowId) }
-		val fragments = if (windowIds.isEmpty()) emptyList() else if (selectedLineages == null) {
-			factDao.historyFragments(windowIds, MAX_ACTIVITY_FRAGMENTS + 1)
-		} else {
-			val selected = mutableListOf<ActivityCapturedFragmentEntity>()
-			for (revision in revisions) {
-				if (selected.size > MAX_ACTIVITY_FRAGMENTS) break
-				currentCoroutineContext().ensureActive()
-				selected += factDao.maintenanceFragments(revision.writerProjectionId, revision.writerProjectionVersion,
-					revision.logicalWindowId, revision.semanticRevision, MAX_ACTIVITY_FRAGMENTS - selected.size + 1)
-			}
-			selected
-		}
-		val evidence = if (windowIds.isEmpty()) emptyList() else if (selectedLineages == null) {
-			factDao.historyEvidence(windowIds, MAX_ACTIVITY_EVIDENCE + 1)
-		} else {
-			val selected = mutableListOf<ActivityCapturedEvidenceEntity>()
-			for (revision in revisions) {
-				if (selected.size > MAX_ACTIVITY_EVIDENCE) break
-				currentCoroutineContext().ensureActive()
-				selected += factDao.maintenanceEvidence(revision.writerProjectionId, revision.writerProjectionVersion,
-					revision.logicalWindowId, revision.semanticRevision, MAX_ACTIVITY_EVIDENCE - selected.size + 1)
-			}
-			selected
-		}
-		val activityEventIds = evidence.map(ActivityCapturedEvidenceEntity::sourceEventId).distinct()
-		val activityWalRows = mutableListOf<SourceEventWalEntity>()
-		for (eventIds in activityEventIds.chunked(ACTIVITY_WAL_ID_BATCH_SIZE)) {
-			currentCoroutineContext().ensureActive()
-			activityWalRows += database.sourceEventWalDao().boundedPayloadsByEventIds(
-				sourceKind = ACTIVITY_SOURCE,
-				eventIds = eventIds,
-				maximumPayloadBytes = MAX_ACTIVITY_WAL_PAYLOAD_BYTES,
-				limit = eventIds.size,
-			)
-		}
-		val walByEventId = activityWalRows.associateBy(SourceEventWalEntity::eventId)
+		val cursors = factDao.readActivityHistoryCursors(windowIds, selectedLineages, revisions)
+		val fragments = factDao.readActivityHistoryFragments(windowIds, selectedLineages, revisions)
+		val evidence = factDao.readActivityHistoryEvidence(windowIds, selectedLineages, revisions)
+		val walByEventId = readActivityHistoryWal(evidence)
 		currentCoroutineContext().ensureActive()
 		val activityCompleteness = completeness.filter { it.sourceKind == ACTIVITY_SOURCE }
 		val sourceInstanceIds = sequenceOf(
@@ -1301,23 +1368,23 @@ internal class DefaultActivityHistoryRepository private constructor(
 			activityCompleteness.asSequence().map(SourceSessionCompletenessEntity::registrationGeneration)
 				.filter { it > 0L },
 		).flatten().distinct().toList()
-		val registrationPlans = if (sourceInstanceIds.isEmpty() || registrationGenerations.isEmpty()) {
+		val registrationPlans = factDao.readActivityHistoryRegistrationPlans(
+			sourceInstanceIds, registrationGenerations,
+		)
+		val planRevisions = manifests.map(SessionManifestVersionEntity::acquisitionPlanRevision).distinct()
+		val acquisitionPlanRevisions = if (planRevisions.isEmpty()) {
 			emptyList()
 		} else {
-			factDao.historyRegistrationPlans(
-				sourceInstanceIds,
-				registrationGenerations,
-				MAX_ACTIVITY_REGISTRATION_PLANS + 1,
-			)
-		}
-		val planRevisions = manifests.map(SessionManifestVersionEntity::acquisitionPlanRevision).distinct()
-		val acquisitionPlanRevisions = if (planRevisions.isEmpty()) emptyList() else {
 			factDao.historyAcquisitionPlanRevisions(planRevisions, MAX_ACTIVITY_ACQUISITION_PLANS + 1)
 		}
-		val desiredPlans = if (planRevisions.isEmpty()) emptyList() else {
+		val desiredPlans = if (planRevisions.isEmpty()) {
+			emptyList()
+		} else {
 			factDao.historyDesiredPlans(ACTIVITY_SOURCE, planRevisions, MAX_ACTIVITY_DESIRED_PLANS + 1)
 		}
-		val providerRegistrations = if (registrationGenerations.isEmpty()) emptyList() else {
+		val providerRegistrations = if (registrationGenerations.isEmpty()) {
+			emptyList()
+		} else {
 			factDao.historyProviderRegistrations(
 				ACTIVITY_SOURCE, registrationGenerations, MAX_ACTIVITY_PROVIDER_REGISTRATIONS + 1,
 			)
@@ -1332,89 +1399,42 @@ internal class DefaultActivityHistoryRepository private constructor(
 		)
 		val currentProviderRegistrations = (currentProviderRows + retiringProviderRows)
 			.distinctBy(ProviderRegistrationGenerationEntity::registrationGeneration)
-		val authorizations = if (registrationGenerations.isEmpty()) emptyList() else {
+		val authorizations = if (registrationGenerations.isEmpty()) {
+			emptyList()
+		} else {
 			factDao.historyAuthorizations(
 				ACTIVITY_SOURCE, registrationGenerations, MAX_ACTIVITY_AUTHORIZATIONS + 1,
 			)
 		}
-		val consentEpochs = manifestSources.asSequence()
-			.filter(::isActivityCaptureMembership)
-			.map(SessionManifestSourceEntity::consentEpoch)
-			.distinct().toList()
-		val consents = if (consentEpochs.isEmpty()) emptyList() else {
-			database.sourcePolicyDao().consentEpochs(
-				ACTIVITY_SOURCE,
-				SessionManifestPurposeCode.SESSION_CAPTURE,
-				consentEpochs,
-			)
-		}
-		val deletionDigests = segments.mapNotNull { segment ->
-			val logicalId = segment.logicalTrackingId?.takeIf(String::isNotBlank)
-			val runId = segment.serviceRunId?.takeIf(String::isNotBlank)
-			if (logicalId == null || runId == null) null else {
-				SourceDeletionFenceEntity.logicalServiceRunIdentity(
-					ACTIVITY_SOURCE,
-					SessionManifestPurposeCode.SESSION_CAPTURE,
-					logicalId,
-					runId,
-				)
-			}
-		}.distinct()
-		val deletionFences = if (deletionDigests.isEmpty()) emptyList() else {
-			readDao.deletionFences(
-				ACTIVITY_SOURCE,
-				SessionManifestPurposeCode.SESSION_CAPTURE,
-				SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
-				deletionDigests,
-			)
-		}
+		val consents = readActivityHistoryConsents(manifestSources)
+		val deletionFences = readDao.readActivityHistoryDeletionFences(segments)
 		currentCoroutineContext().ensureActive()
 		val lanes = readDao.productLanesForServiceRuns(
 			ACTIVITY_SOURCE,
 			SessionManifestPurposeCode.SESSION_CAPTURE,
 			runIds,
 		)
-		val afterOrdinal = lanes.mapNotNull { it.activationOrdinal.takeIf { ordinal -> ordinal > 0L } }
-			.minOrNull()?.minus(1L)
-		val throughOrdinal = sequenceOf(
-			evidence.maxOfOrNull(ActivityCapturedEvidenceEntity::sourceAdmissionOrdinal),
-			completeness.asSequence().filter { it.sourceKind == ACTIVITY_SOURCE }
-				.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull(),
-		).filterNotNull().maxOrNull()
-		val terminalFailures = if (selectedLineages != null) {
-			val projectionDao = database.sourceProjectionStateDao()
-			evidence.map(ActivityCapturedEvidenceEntity::sourceAdmissionOrdinal).distinct().mapNotNull { ordinal ->
-				currentCoroutineContext().ensureActive()
-				projectionDao.failure(SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
-					SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION, ordinal)?.takeIf { it.terminal }
-			}
-		} else if (afterOrdinal == null || throughOrdinal == null ||
-			afterOrdinal >= throughOrdinal
-		) emptyList() else {
-			readDao.terminalFailuresForServiceRuns(
-				ACTIVITY_SOURCE,
-				SessionManifestPurposeCode.SESSION_CAPTURE,
-				runIds,
-				afterOrdinal,
-				throughOrdinal,
-				MAX_ACTIVITY_TERMINAL_FAILURES + 1,
-			)
-		}
-		val overflow = revisionLoad.overflow ||
-			manifests.size > MAX_ACTIVITY_MANIFESTS ||
-			manifestSources.size > MAX_ACTIVITY_MANIFEST_SOURCES ||
-			completeness.size > MAX_ACTIVITY_COMPLETENESS ||
-			revisions.size > MAX_ACTIVITY_REVISIONS || cursors.size > MAX_ACTIVITY_CURSORS ||
-			fragments.size > MAX_ACTIVITY_FRAGMENTS || evidence.size > MAX_ACTIVITY_EVIDENCE ||
-			registrationPlans.size > MAX_ACTIVITY_REGISTRATION_PLANS ||
-			acquisitionPlanRevisions.size > MAX_ACTIVITY_ACQUISITION_PLANS ||
-			desiredPlans.size > MAX_ACTIVITY_DESIRED_PLANS ||
-			providerRegistrations.size > MAX_ACTIVITY_PROVIDER_REGISTRATIONS ||
-			currentProviderRows.size > MAX_ACTIVITY_PROVIDER_REGISTRATIONS ||
-			retiringProviderRows.size > MAX_ACTIVITY_PROVIDER_REGISTRATIONS ||
-			currentProviderRegistrations.size > MAX_ACTIVITY_PROVIDER_REGISTRATIONS ||
-			authorizations.size > MAX_ACTIVITY_AUTHORIZATIONS ||
-			terminalFailures.size > MAX_ACTIVITY_TERMINAL_FAILURES
+		val terminalFailures = readDao.readActivityHistoryTerminalFailures(
+			runIds, lanes, evidence, completeness, selectedLineages,
+		)
+		val overflow = revisionLoad.overflow || listOf(
+			manifests.size to MAX_ACTIVITY_MANIFESTS,
+			manifestSources.size to MAX_ACTIVITY_MANIFEST_SOURCES,
+			completeness.size to MAX_ACTIVITY_COMPLETENESS,
+			revisions.size to MAX_ACTIVITY_REVISIONS,
+			cursors.size to ACTIVITY_HISTORY_MAX_CURSORS,
+			fragments.size to ACTIVITY_HISTORY_MAX_FRAGMENTS,
+			evidence.size to ACTIVITY_HISTORY_MAX_EVIDENCE,
+			registrationPlans.size to ACTIVITY_HISTORY_MAX_REGISTRATION_PLANS,
+			acquisitionPlanRevisions.size to MAX_ACTIVITY_ACQUISITION_PLANS,
+			desiredPlans.size to MAX_ACTIVITY_DESIRED_PLANS,
+			providerRegistrations.size to MAX_ACTIVITY_PROVIDER_REGISTRATIONS,
+			currentProviderRows.size to MAX_ACTIVITY_PROVIDER_REGISTRATIONS,
+			retiringProviderRows.size to MAX_ACTIVITY_PROVIDER_REGISTRATIONS,
+			currentProviderRegistrations.size to MAX_ACTIVITY_PROVIDER_REGISTRATIONS,
+			authorizations.size to MAX_ACTIVITY_AUTHORIZATIONS,
+			terminalFailures.size to MAX_ACTIVITY_TERMINAL_FAILURES,
+		).any { (size, maximum) -> size > maximum }
 		return ActivityHistorySnapshot(
 			expansion = expansion,
 			sessions = sessions.associateBy(LogicalTrackingSessionEntity::logicalTrackingId),
@@ -1430,11 +1450,11 @@ internal class DefaultActivityHistoryRepository private constructor(
 			completenessByRun = completeness.take(MAX_ACTIVITY_COMPLETENESS)
 				.groupBy(SourceSessionCompletenessEntity::serviceRunId),
 			revisions = revisions.take(MAX_ACTIVITY_REVISIONS),
-			cursors = cursors.take(MAX_ACTIVITY_CURSORS),
-			fragmentsByRevision = fragments.take(MAX_ACTIVITY_FRAGMENTS).groupBy(::revisionKey),
-			evidenceByRevision = evidence.take(MAX_ACTIVITY_EVIDENCE).groupBy(::revisionKey),
+			cursors = cursors.take(ACTIVITY_HISTORY_MAX_CURSORS),
+			fragmentsByRevision = fragments.take(ACTIVITY_HISTORY_MAX_FRAGMENTS).groupBy(::revisionKey),
+			evidenceByRevision = evidence.take(ACTIVITY_HISTORY_MAX_EVIDENCE).groupBy(::revisionKey),
 			walByEventId = walByEventId,
-			registrationPlans = registrationPlans.take(MAX_ACTIVITY_REGISTRATION_PLANS)
+			registrationPlans = registrationPlans.take(ACTIVITY_HISTORY_MAX_REGISTRATION_PLANS)
 				.associateBy { it.sourceInstanceId to it.registrationGeneration },
 			acquisitionPlanRevisions = acquisitionPlanRevisions.take(MAX_ACTIVITY_ACQUISITION_PLANS)
 				.associateBy(AcquisitionPlanRevisionEntity::revision),
@@ -1444,10 +1464,7 @@ internal class DefaultActivityHistoryRepository private constructor(
 				.associateBy(ProviderRegistrationGenerationEntity::registrationGeneration),
 			currentProviderRegistrations =
 				currentProviderRegistrations.take(MAX_ACTIVITY_PROVIDER_REGISTRATIONS),
-			currentClockDomainId = currentClockDomainProvider?.invoke()
-				?: currentProviderRegistrations.singleOrNull {
-					it.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE
-				}?.clockDomainId,
+			currentClockDomainId = activityHistoryClockDomain(currentProviderRegistrations),
 			authorizationsByRegistration = authorizations.take(MAX_ACTIVITY_AUTHORIZATIONS)
 				.groupBy(SourceAuthorizationEntity::registrationGeneration),
 			deletionFenceDigests = deletionFences.mapTo(hashSetOf()) { it.scopeIdentityDigest },
@@ -1456,6 +1473,85 @@ internal class DefaultActivityHistoryRepository private constructor(
 			evidenceState = database.sourceEvidenceStateDao().get(),
 			overflow = overflow,
 		)
+	}
+
+	private suspend fun TrackingHistoryReadDao.readActivityHistoryTerminalFailures(
+		runIds: List<String>,
+		lanes: List<SourceProductProjectionLaneEntity>,
+		evidence: List<ActivityCapturedEvidenceEntity>,
+		completeness: List<SourceSessionCompletenessEntity>,
+		selectedLineages: ActivityRevisionLoad?,
+	): List<SourceProjectionFailureEntity> {
+		val afterOrdinal = lanes.mapNotNull { it.activationOrdinal.takeIf { ordinal -> ordinal > 0L } }
+			.minOrNull()?.minus(1L)
+		val throughOrdinal = sequenceOf(
+			evidence.maxOfOrNull(ActivityCapturedEvidenceEntity::sourceAdmissionOrdinal),
+			completeness.asSequence().filter { it.sourceKind == ACTIVITY_SOURCE }
+				.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull(),
+		).filterNotNull().maxOrNull()
+		return if (selectedLineages != null) {
+			val projectionDao = database.sourceProjectionStateDao()
+			evidence.map(ActivityCapturedEvidenceEntity::sourceAdmissionOrdinal).distinct().mapNotNull { ordinal ->
+				currentCoroutineContext().ensureActive()
+				projectionDao.failure(SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
+					SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION, ordinal)?.takeIf { it.terminal }
+			}
+		} else if (afterOrdinal == null || throughOrdinal == null ||
+			afterOrdinal >= throughOrdinal
+		) {
+			emptyList()
+		} else {
+			terminalFailuresForServiceRuns(
+				ACTIVITY_SOURCE,
+				SessionManifestPurposeCode.SESSION_CAPTURE,
+				runIds,
+				afterOrdinal,
+				throughOrdinal,
+				MAX_ACTIVITY_TERMINAL_FAILURES + 1,
+			)
+		}
+	}
+
+	private suspend fun readActivityHistoryConsents(
+		manifestSources: List<SessionManifestSourceEntity>,
+	): List<SourceConsentEpochEntity> {
+		val consentEpochs = manifestSources.asSequence()
+			.filter(::isActivityCaptureMembership)
+			.map(SessionManifestSourceEntity::consentEpoch)
+			.distinct().toList()
+		return if (consentEpochs.isEmpty()) {
+			emptyList()
+		} else {
+			database.sourcePolicyDao().consentEpochs(
+				ACTIVITY_SOURCE,
+				SessionManifestPurposeCode.SESSION_CAPTURE,
+				consentEpochs,
+			)
+		}
+	}
+
+	private fun activityHistoryClockDomain(
+		currentProviderRegistrations: List<ProviderRegistrationGenerationEntity>,
+	): String? = currentClockDomainProvider?.invoke()
+		?: currentProviderRegistrations.singleOrNull {
+			it.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+		}?.clockDomainId
+
+	private suspend fun readActivityHistoryWal(
+		evidence: List<ActivityCapturedEvidenceEntity>,
+	): Map<String, SourceEventWalEntity> {
+		val activityEventIds = evidence.map(ActivityCapturedEvidenceEntity::sourceEventId).distinct()
+		val activityWalRows = mutableListOf<SourceEventWalEntity>()
+		for (eventIds in activityEventIds.chunked(ACTIVITY_WAL_ID_BATCH_SIZE)) {
+			currentCoroutineContext().ensureActive()
+			activityWalRows += database.sourceEventWalDao().boundedPayloadsByEventIds(
+				sourceKind = ACTIVITY_SOURCE,
+				eventIds = eventIds,
+				maximumPayloadBytes = MAX_ACTIVITY_WAL_PAYLOAD_BYTES,
+				limit = eventIds.size,
+			)
+		}
+		return activityWalRows.associateBy(SourceEventWalEntity::eventId)
 	}
 
 	private suspend fun loadActivityRevisionPages(
@@ -1477,18 +1573,26 @@ internal class DefaultActivityHistoryRepository private constructor(
 				afterLogicalWindowId = cursor?.logicalWindowId,
 				afterSemanticRevision = cursor?.semanticRevision,
 			)
-			if (page.isEmpty()) return ActivityRevisionLoad(revisions, overflow = false)
-			if (page.size > remaining) return ActivityRevisionLoad(revisions, overflow = true)
+			if (page.isEmpty()) {
+				return ActivityRevisionLoad(revisions, overflow = false)
+			}
+			if (page.size > remaining) {
+				return ActivityRevisionLoad(revisions, overflow = true)
+			}
 			revisions += page
 			cursor = revisionKey(page.last())
-			if (page.size < pageLimit) return ActivityRevisionLoad(revisions, overflow = false)
+			if (page.size < pageLimit) {
+				return ActivityRevisionLoad(revisions, overflow = false)
+			}
 		}
 	}
 
 	private suspend fun currentImportedSelectionReadSnapshot():
 		ActivityImportedHistoryReadSnapshot? {
 		val state = database.sourceEvidenceStateDao().get() ?: return null
-		if (state.revision < 0L || state.collectedDataEpoch < 0L) return null
+		if (state.revision < 0L || state.collectedDataEpoch < 0L) {
+			return null
+		}
 		return ActivityImportedHistoryReadSnapshot(
 			collectedDataEpoch = state.collectedDataEpoch,
 			sourceEvidenceRevision = state.revision,
@@ -1605,35 +1709,14 @@ internal data class ActivityRevisionKey(
 	val semanticRevision: Long,
 )
 
-internal fun revisionKey(entity: ActivityCapturedWindowRevisionEntity) = ActivityRevisionKey(
-	entity.writerProjectionId,
-	entity.writerProjectionVersion,
-	entity.logicalWindowId,
-	entity.semanticRevision,
-)
-
 private const val ACTIVITY_WAL_ID_BATCH_SIZE = 400
-
-private fun revisionKey(entity: ActivityCapturedFragmentEntity) = ActivityRevisionKey(
-	entity.writerProjectionId,
-	entity.writerProjectionVersion,
-	entity.logicalWindowId,
-	entity.semanticRevision,
-)
-
-private fun revisionKey(entity: ActivityCapturedEvidenceEntity) = ActivityRevisionKey(
-	entity.writerProjectionId,
-	entity.writerProjectionVersion,
-	entity.logicalWindowId,
-	entity.semanticRevision,
-)
 
 internal data class ComposedActivityEntry(
 	val logicalTrackingId: String,
 	val recencyStartTimeMs: Long,
 	val recencySegmentId: Long,
 	val physicalSegmentIds: List<Long>,
-	val entry: com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry,
+	val entry: ActivityHistoryEntry,
 )
 
 internal sealed interface ActivityComposedPage {
@@ -1756,7 +1839,7 @@ private fun ActivityOrderKey.isSafeBeforeUnseen(
 	.all { frontier -> ACTIVITY_ORDER_KEY_COMPARATOR.compare(this, frontier) <= 0 }
 
 private fun isValidLocalRecentPage(
-	rows: List<com.adsamcik.tracker.shared.base.database.dao.ActivityLogicalHistoryCandidate>,
+	rows: List<ActivityLogicalHistoryCandidate>,
 ): Boolean = rows.size <= MAX_ACTIVITY_HISTORY_RESULTS + 1 &&
 	rows.mapNotNull { it.segment.logicalTrackingId }.distinct().size == rows.size &&
 	rows.all {
@@ -1776,14 +1859,10 @@ private fun isValidLocalRangePage(
 ): Boolean {
 	if (rows.size > RANGE_SOURCE_CANDIDATE_LIMIT + 1 ||
 		rows.mapNotNull { it.segment.logicalTrackingId }.distinct().size != rows.size ||
-		rows.any {
-			it.segment.logicalTrackingId.isNullOrBlank() ||
-				it.logicalStartTimeMs < 0L ||
-				it.logicalEndTimeMs < it.logicalStartTimeMs ||
-				it.logicalRecencyStartMs != it.segment.startTimeMs ||
-				it.logicalRecencySegmentId != it.segment.id
-		}
-	) return false
+		rows.any { !it.hasValidActivityRangeMembership() }
+	) {
+		return false
+	}
 	val tuples = buildList {
 		cursor?.let { add(it.recencyStartTimeMs to it.recencySegmentId) }
 		addAll(rows.map { it.logicalRecencyStartMs to it.logicalRecencySegmentId })
@@ -1792,6 +1871,276 @@ private fun isValidLocalRangePage(
 		left.first > right.first || left.first == right.first && left.second > right.second
 	}
 }
+
+private fun authenticateImportedActivityEligibility(
+	imported: List<ImportedActivityProductEvaluation>,
+): ImportedHistoryEligiblePage<AuthenticatedImportedActivityEligibility> {
+	val authenticated = imported.map { evaluation ->
+		when (evaluation) {
+			is ImportedActivityProductEvaluation.Retained -> {
+				if (!evaluation.hasTemporalAuthority) {
+					return unavailable(
+						SourceAwareHistoryPageUnavailableReason
+							.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE,
+					)
+				}
+				AuthenticatedImportedActivityEligibility(
+					evaluation = evaluation,
+					identity = PortableActivityOpaqueIdentity(evaluation.candidate.identity),
+					contentChecksum = PortableActivityDigest(
+						evaluation.candidate.contentChecksum,
+					),
+					newestMemberStartTimeMs = requireNotNull(
+						evaluation.latestMemberStartTimeMs,
+					),
+					newestMemberTieIdentity = requireNotNull(
+						evaluation.latestMemberIdentity,
+					).value,
+				)
+			}
+			is ImportedActivityProductEvaluation.Unverifiable -> return unavailable(
+				when (evaluation.reason) {
+					ImportedActivityProductFailure
+						.DEPENDENCY_OVERFLOW ->
+						SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
+					else -> SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE
+				},
+			)
+			is ImportedActivityProductEvaluation.Readable -> evaluation.activityEligibility()
+				?: return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+		}
+	}
+	return ImportedHistoryEligiblePage.Available(authenticated)
+}
+
+private fun ImportedActivityProductEvaluation.Readable.activityEligibility():
+	AuthenticatedImportedActivityEligibility? {
+	val newestRun = entry.runs.maxWith(
+		compareBy({ it.startTimeMs }, { it.identity.value }),
+	)
+	if (candidate.identity != entry.identity.value ||
+		candidate.importRevision <= 0L ||
+		candidate.contentChecksum != entry.contentChecksum.value ||
+		newestRun.startTimeMs !in
+		entry.startTimeMs..entry.endTimeMs
+	) {
+		return null
+	}
+	return AuthenticatedImportedActivityEligibility(
+		evaluation = this,
+		identity = entry.identity,
+		contentChecksum = entry.contentChecksum,
+		newestMemberStartTimeMs = newestRun.startTimeMs,
+		newestMemberTieIdentity = newestRun.identity.value,
+	)
+}
+
+private fun acceptedImportedActivityPage(
+	mapped: List<ComposedImportedActivityEntry>,
+	authenticated: List<AuthenticatedImportedActivityEligibility>,
+	selectionSnapshot: ActivityImportedHistoryReadSnapshot?,
+	limit: Int,
+	includeActivityOnly: Boolean,
+): ImportedHistoryEligiblePage<ActivityImportedHistoryEligibleEntry> {
+	val authenticatedByIdentity = authenticated.associateBy {
+		it.evaluation.candidate.identity
+	}
+	val accepted = mapped.mapNotNull { result ->
+		val entry = result.entry ?: return@mapNotNull null
+		if (entry.origin != ActivityHistoryOrigin.IMPORTED ||
+			(!includeActivityOnly && entry.capturesOnlyActivity) ||
+			entry.state == ActivityHistoryProductState.FAILED
+		) {
+			return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+		}
+		val source = authenticatedByIdentity[result.evaluation.candidate.identity]
+			?: return unavailable(
+				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+			)
+		val selectedEntry = entry.copy(
+			importedSelection = source.evaluation.toPublicSelection(
+				key = entry.key,
+				readSnapshot = selectionSnapshot,
+			),
+		)
+		ActivityImportedHistoryEligibleEntry(
+			entry = selectedEntry,
+			selector = selectedEntry.key,
+			identity = source.identity,
+			importRevision = source.evaluation.candidate.importRevision,
+			contentChecksum = source.contentChecksum,
+			recency = ImportedHistoryRecency(
+				source = HistorySource.ACTIVITY,
+				newestMemberStartTimeMs = source.newestMemberStartTimeMs,
+				newestMemberTieIdentity = ImportedHistoryRecencyTieIdentity(
+					source.newestMemberTieIdentity,
+				),
+			),
+		)
+	}.sortedWith { left, right ->
+		importedHistoryRecencyOrder.compare(left.recency, right.recency)
+	}
+	return ImportedHistoryEligiblePage.Available(accepted.take(limit))
+}
+
+private fun activityCollisionEntries(
+	authenticated: List<AuthenticatedImportedActivityEligibility>,
+	local: List<ComposedActivityEntry>,
+	localProtectedIdentities: Map<PortableActivityOpaqueIdentity, List<RetainedImportedActivityIdentity>>,
+): List<ComposedActivityEntry> {
+	val importedEntryIdentities = authenticated.mapTo(linkedSetOf()) { it.identity }
+	val collisionIdentities = localProtectedIdentities.keys.filterTo(linkedSetOf()) { it in importedEntryIdentities }
+	return local.filter { composed ->
+		PortableActivityOpaqueIdentity.derive(
+			PortableActivityIdentityKind.LOGICAL_ENTRY, composed.logicalTrackingId,
+		) in collisionIdentities
+	}
+}
+
+private fun recentActivityFrontierPage(
+	localPage: ActivityLocalOrderedPage.Ready,
+	importedPage: ImportedActivityOrderedProductPage.Ready,
+	combined: List<ActivitySourceComposedEntry>,
+	limit: Int,
+): ActivitySourceComposedPage {
+	val local = localPage.entries
+	val imported = importedPage.evaluations
+	val localFrontier = local.takeIf { localPage.hasMore }?.lastOrNull()
+		?.let { ActivitySourceComposedEntry.Local(it).orderKey() }
+	val importedFrontier = imported.takeIf { importedPage.hasMore }?.lastOrNull()?.orderKey()
+	val safe = combined.takeWhile {
+		it.orderKey().isSafeBeforeUnseen(localFrontier, importedFrontier)
+	}.take(limit)
+	return if (safe.size < limit && (localPage.hasMore || importedPage.hasMore)) {
+		ActivitySourceComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+	} else {
+		ActivitySourceComposedPage.Available(safe)
+	}
+}
+
+private fun activityLogicalOpaqueIdentities(logicalIds: Set<String>): Set<String>? {
+	val identities = logicalIds.associateBy { logicalId ->
+		PortableActivityOpaqueIdentity.derive(
+			PortableActivityIdentityKind.LOGICAL_ENTRY,
+			logicalId,
+		).value
+	}
+	return identities.keys.takeIf { identities.size == logicalIds.size }
+}
+
+private fun ActivityLogicalRangeCandidate.hasValidActivityRangeMembership(): Boolean {
+	if (segment.logicalTrackingId.isNullOrBlank() ||
+		logicalStartTimeMs < 0L || logicalEndTimeMs < logicalStartTimeMs
+	) {
+		return false
+	}
+	return logicalRecencyStartMs == segment.startTimeMs && logicalRecencySegmentId == segment.id
+}
+
+private fun importedActivityProtectedIdentities(
+	imported: List<ImportedActivityProductEvaluation>,
+): Sequence<String> {
+	return imported.asSequence().flatMap { evaluation ->
+		when (evaluation) {
+			is ImportedActivityProductEvaluation.Readable -> sequence {
+				yield(evaluation.entry.identity.value)
+				for (run in evaluation.entry.runs) {
+					yield(run.identity.value)
+					yield(run.deletionScopeDigest.value)
+					run.windows.forEach { yield(it.identity.value) }
+				}
+			}
+			is ImportedActivityProductEvaluation.Retained ->
+                    evaluation.protectedIdentities.asSequence().map { it.value }
+			is ImportedActivityProductEvaluation.Unverifiable -> emptySequence()
+		}
+	}
+}
+
+private fun protectedActivityIdentities(
+	composed: ComposedActivityEntry,
+	members: List<SessionSegment>,
+	revisions: List<ActivityCapturedWindowRevisionEntity>,
+): Pair<PortableActivityOpaqueIdentity, List<RetainedImportedActivityIdentity>> {
+	val entryIdentity = PortableActivityOpaqueIdentity.derive(
+		PortableActivityIdentityKind.LOGICAL_ENTRY,
+		composed.logicalTrackingId,
+	)
+	if (members.size != composed.physicalSegmentIds.size ||
+		members.map(SessionSegment::id).toSet() != composed.physicalSegmentIds.toSet()
+	) {
+		throw ImportedActivityHistoryCompositionFailure()
+	}
+	return entryIdentity to buildList {
+		add(RetainedImportedActivityIdentity.Entry(entryIdentity))
+		members.forEach { segment ->
+			val runId = segment.serviceRunId ?: throw ImportedActivityHistoryCompositionFailure()
+			add(
+				RetainedImportedActivityIdentity.Run(
+					PortableActivityOpaqueIdentity.derive(
+						PortableActivityIdentityKind.PHYSICAL_RUN,
+						runId,
+					),
+				),
+			)
+			add(
+				RetainedImportedActivityIdentity.DeletionScope(
+					com.adsamcik.tracker.shared.base.database
+						.PortableActivityDeletionScopeDigest.derive(
+							composed.logicalTrackingId,
+							runId,
+						),
+				),
+			)
+		}
+		revisions.asSequence()
+			.filter { it.logicalTrackingId == composed.logicalTrackingId }
+			.map { revision ->
+				RetainedImportedActivityIdentity.Window(
+					PortableActivityOpaqueIdentity.derive(
+						PortableActivityIdentityKind.CAPTURE_WINDOW,
+						revision.logicalWindowId,
+					),
+				)
+			}
+			.distinct()
+			.forEach(::add)
+	}
+}
+
+private fun activityMembershipFailures(
+	logicalIds: List<String>,
+	runs: List<SourceServiceRunEntity>,
+	segments: List<SessionSegment>,
+	seeds: List<SessionSegment>,
+): Map<String, ActivityHistoryCause> {
+	val segmentsById = segments.associateBy(SessionSegment::id)
+	val runsByLogical = runs.groupBy(SourceServiceRunEntity::logicalTrackingId)
+	val failures = logicalIds.filter { runsByLogical[it].isNullOrEmpty() }
+		.associateWithTo(linkedMapOf()) { ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID }
+	runs.forEach { run ->
+		if (!run.ownsActivitySegment(run.sessionSegmentId?.let(segmentsById::get))) {
+			failures[run.logicalTrackingId] = ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID
+		}
+	}
+	seeds.forEach { seed ->
+		val logicalId = seed.logicalTrackingId ?: return@forEach
+		val run = runs.singleOrNull { it.serviceRunId == seed.serviceRunId }
+		if (!run.ownsActivitySegment(seed)) {
+			failures[logicalId] = ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID
+		}
+	}
+	return failures
+}
+
+private fun SourceServiceRunEntity?.ownsActivitySegment(segment: SessionSegment?): Boolean {
+	if (this == null || segment == null) {
+		return false
+	}
+	return segment.serviceRunId == serviceRunId &&
+		segment.logicalTrackingId == logicalTrackingId && sessionSegmentId == segment.id
+}
+
 private data class AuthenticatedImportedActivityEligibility(
 	val evaluation: ImportedActivityProductEvaluation,
 	val identity: PortableActivityOpaqueIdentity,
@@ -1841,10 +2190,6 @@ private const val MAX_ACTIVITY_MANIFESTS = 512
 private const val MAX_ACTIVITY_MANIFEST_SOURCES = 4_096
 private const val MAX_ACTIVITY_COMPLETENESS = 512
 private const val MAX_ACTIVITY_REVISIONS = 512
-private const val MAX_ACTIVITY_CURSORS = 512
-private const val MAX_ACTIVITY_FRAGMENTS = 8_192
-private const val MAX_ACTIVITY_EVIDENCE = 16_384
-private const val MAX_ACTIVITY_REGISTRATION_PLANS = 512
 private const val MAX_ACTIVITY_ACQUISITION_PLANS = 512
 private const val MAX_ACTIVITY_DESIRED_PLANS = 512
 private const val MAX_ACTIVITY_PROVIDER_REGISTRATIONS = 512
@@ -1855,7 +2200,7 @@ private const val RANGE_SOURCE_CANDIDATE_LIMIT = 100
 /** A qualified immutable window's actual fragments, before optional date selection. */
 internal data class ActivityMeasuredWindow(
 	val revision: ActivityCapturedWindowRevisionEntity,
-	val fragments: Map<Int, com.adsamcik.tracker.stats.api.repository.ActivityHistoryFragment>,
+	val fragments: Map<Int, ActivityHistoryFragment>,
 )
 internal data class ActivityMeasuredWindowsRead(
 	val windows: Map<ActivityRevisionKey, ActivityMeasuredWindow> = emptyMap(),

@@ -9,7 +9,6 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletedIdentit
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionReceiptEntity
-import com.adsamcik.tracker.shared.base.database.data.ImportedCellObservationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -22,6 +21,10 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
+/**
+ * Exact original Cell identity/revision/checksum and data epoch, with UTC millisecond deletion
+ * time.
+ */
 data class DeleteSelectedImportedCellRequest(
 	val identity: PortableCellOpaqueIdentity,
 	val expectedImportRevision: Long,
@@ -35,29 +38,66 @@ data class DeleteSelectedImportedCellRequest(
 	}
 }
 
+/**
+ * Deletes and replay-fences the exact selected imported Cell hierarchy.
+ */
 fun interface DeleteSelectedImportedCell {
+	/**
+	 * Atomically rechecks, fences and removes only the selected imported Cell
+	 * identity/revision/checksum scope.
+	 */
 	suspend fun delete(
 		request: DeleteSelectedImportedCellRequest,
 	): DeleteSelectedImportedCellResult
 }
 
+/**
+ * Exact imported Cell deletion outcome with removed membership counts or a named
+ * stale/invalid/retry boundary.
+ */
 sealed interface DeleteSelectedImportedCellResult {
+	/**
+	 * The exact selected payload was fenced and removed; reports original removed scope counts.
+	 */
 	data class Deleted(
 		val importRevisionCount: Int,
 		val physicalRunCount: Int,
 		val observationIdentityCount: Int,
 	) : DeleteSelectedImportedCellResult
 
+	/**
+	 * The exact selected source scope was already deleted and remains represented by its original
+	 * deletion authority.
+	 */
 	data object AlreadyDeleted : DeleteSelectedImportedCellResult
+	/**
+	 * No matching saved source entry or retained original deletion selection exists.
+	 */
 	data object NotFound : DeleteSelectedImportedCellResult
+	/**
+	 * Changed or invalid scope/authority prevents the requested operation; the exact reason remains
+	 * explicit.
+	 */
 	data class Blocked(val reason: ImportedCellDeletionBlockedReason) :
 		DeleteSelectedImportedCellResult
+	/**
+	 * The stored scope or original source lineage could not be verified; this is not an empty or
+	 * measured-zero result.
+	 */
 	data class Unverifiable(val reason: ImportedCellProductFailure) :
 		DeleteSelectedImportedCellResult
+	/**
+	 * A transient concurrent-state, ownership or storage problem prevents completion and permits
+	 * retry.
+	 */
 	data class RetryableFailure(val reason: ImportedCellDeletionRetryableReason) :
 		DeleteSelectedImportedCellResult
 }
 
+/**
+ * Changed epoch/selection/floor, stale action time or partial deletion state preventing imported
+ * Cell erasure.
+ */
 enum class ImportedCellDeletionBlockedReason {
 	COLLECTED_DATA_EPOCH_CHANGED,
 	STALE_SELECTION,
@@ -66,11 +106,18 @@ enum class ImportedCellDeletionBlockedReason {
 	PARTIAL_DELETION_STATE,
 }
 
+/**
+ * Concurrent-state or storage failures permitting retry of imported Cell deletion.
+ */
 enum class ImportedCellDeletionRetryableReason {
 	CONCURRENT_STATE_CHANGE,
 	STORAGE_UNAVAILABLE,
 }
 
+/**
+ * Performs selected imported Cell deletion atomically on the injected disk dispatcher, retaining
+ * original replay fences.
+ */
 @Singleton
 class RoomDeleteSelectedImportedCell internal constructor(
 	private val database: AppDatabase,
@@ -83,6 +130,10 @@ class RoomDeleteSelectedImportedCell internal constructor(
 		@IoDispatcher ioDispatcher: CoroutineDispatcher,
 	) : this(database, ioDispatcher, { currentCoroutineContext().ensureActive() })
 
+	/**
+	 * Performs the exact imported Cell erase on the disk dispatcher, preserving original membership
+	 * receipts for replay rejection.
+	 */
 	override suspend fun delete(
 		request: DeleteSelectedImportedCellRequest,
 	): DeleteSelectedImportedCellResult = withContext(ioDispatcher) {
@@ -148,11 +199,15 @@ class RoomDeleteSelectedImportedCell internal constructor(
 		}
 		if (readable.candidate.importRevision != request.expectedImportRevision ||
 			readable.candidate.contentChecksum != request.expectedContentChecksum.value
-		) blocked(ImportedCellDeletionBlockedReason.STALE_SELECTION)
+		) {
+			blocked(ImportedCellDeletionBlockedReason.STALE_SELECTION)
+		}
 		if (readable.entryDeleted || readable.deletedRunIdentities.isNotEmpty() ||
 			dao.entryDeletionReceipt(request.identity.value) != null ||
 			dao.deletedIdentitiesForEntry(request.identity.value, 1).isNotEmpty()
-		) blocked(ImportedCellDeletionBlockedReason.PARTIAL_DELETION_STATE)
+		) {
+			blocked(ImportedCellDeletionBlockedReason.PARTIAL_DELETION_STATE)
+		}
 		if (readable.retentionLimited || readable.retainedFromMs != state.retainedFromMs) {
 			blocked(ImportedCellDeletionBlockedReason.RETENTION_BOUNDARY)
 		}
@@ -178,13 +233,17 @@ class RoomDeleteSelectedImportedCell internal constructor(
 			?: unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
 		if (latest.entry != readable.entry || latest.header.importRevision !=
 			request.expectedImportRevision
-		) blocked(ImportedCellDeletionBlockedReason.STALE_SELECTION)
+		) {
+			blocked(ImportedCellDeletionBlockedReason.STALE_SELECTION)
+		}
 		val markers = buildDeletedIdentityMarkers(lineage)
 		val runMarkers = dao.deletionGenerationsForHistory(
 			listOf(request.identity.value),
 			ImportedCellDao.MAX_RUN_ROWS_PER_LINEAGE + 1,
 		)
-		if (runMarkers.isNotEmpty()) blocked(ImportedCellDeletionBlockedReason.PARTIAL_DELETION_STATE)
+		if (runMarkers.isNotEmpty()) {
+			blocked(ImportedCellDeletionBlockedReason.PARTIAL_DELETION_STATE)
+		}
 		val latestDurableTimeMs = maxOf(
 			state.updatedAtMs,
 			latest.header.receivedAtMs,
@@ -237,13 +296,18 @@ class RoomDeleteSelectedImportedCell internal constructor(
 		}
 		checkpoint(ImportedCellDeletionCheckpoint.MARKERS_RECORDED)
 
-		if (dao.deleteEntryRevisions(request.identity.value) != headers.size) concurrentMutation()
-		database.importedRadioFileMembershipDao().deleteEntry(SourceDestinationOwnerEntity.SOURCE_CELL, request.identity.value)
+		if (dao.deleteEntryRevisions(request.identity.value) != headers.size) {
+			concurrentMutation()
+		}
+		database.importedRadioFileMembershipDao().deleteEntry(SourceDestinationOwnerEntity.SOURCE_CELL,
+            request.identity.value)
 		if (dao.boundedEntryRevisions(request.identity.value).isNotEmpty() ||
 			dao.receiptsForAdmission(request.identity.value).isNotEmpty() ||
 			dao.allRunsForAdmission(request.identity.value).isNotEmpty() ||
 			dao.allObservationsForAdmission(request.identity.value).isNotEmpty()
-		) concurrentMutation()
+		) {
+			concurrentMutation()
+		}
 		authenticateReplay(request, state, dao, entryDeletion, deletionReceipt)
 		checkpoint(ImportedCellDeletionCheckpoint.HIERARCHY_REMOVED)
 		return DeleteSelectedImportedCellResult.Deleted(
@@ -262,56 +326,18 @@ class RoomDeleteSelectedImportedCell internal constructor(
 		deletion: ImportedCellEntryDeletionEntity,
 		receipt: ImportedCellEntryDeletionReceiptEntity,
 	): DeleteSelectedImportedCellResult {
-		if (deletion.entryIdentity != receipt.entryIdentity ||
-			deletion.collectedDataEpoch != receipt.collectedDataEpoch ||
-			deletion.deletedImportRevision != receipt.deletedImportRevision ||
-			deletion.deletedAtMs != receipt.deletedAtMs ||
-			receipt.entryIdentity != request.identity.value ||
-			!state.acceptsRetainedEpoch(receipt.collectedDataEpoch)
-		) unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
-		if (receipt.deletedImportRevision != request.expectedImportRevision ||
-			receipt.deletedContentChecksum != request.expectedContentChecksum.value
-		) blocked(ImportedCellDeletionBlockedReason.STALE_SELECTION)
-		if (receipt.retainedFromMs != state.retainedFromMs) {
-			blocked(ImportedCellDeletionBlockedReason.RETENTION_BOUNDARY)
-		}
-		val markers = dao.deletedIdentitiesForEntry(
-			request.identity.value,
-			receipt.expectedProtectedIdentityCount + 1,
-		)
-		if (markers.size != receipt.expectedProtectedIdentityCount ||
-			ImportedCellEntryDeletionReceiptEntity.checksumProtectedIdentities(markers) !=
-			receipt.protectedIdentitySetChecksum
-		) unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
-		val entryMarkers = markers.filter {
-			it.identityKind == ImportedCellDeletedIdentityEntity.ENTRY
-		}
-		if (entryMarkers.singleOrNull()?.protectedIdentity != request.identity.value) {
-			unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
-		}
-		val runMarkers = dao.deletionGenerationsForHistory(
-			listOf(request.identity.value),
-			receipt.expectedRunCount + 1,
-		)
-		val protectedRuns = markers.filter {
-			it.identityKind == ImportedCellDeletedIdentityEntity.RUN
-		}.mapTo(linkedSetOf(), ImportedCellDeletedIdentityEntity::protectedIdentity)
-		if (runMarkers.size != protectedRuns.size ||
-			runMarkers.mapTo(linkedSetOf(), ImportedCellDeletionGenerationEntity::runIdentity) !=
-			protectedRuns ||
-			runMarkers.any {
-				it.entryIdentity != request.identity.value ||
-					it.collectedDataEpoch != receipt.collectedDataEpoch ||
-					it.generation != 1L
-			}
-		) unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		authenticateReplaySelection(request, state, deletion, receipt)
+		val markers = loadReplayIdentityMarkers(request, dao, receipt)
+		val runMarkers = loadReplayRunMarkers(request, dao, receipt, markers)
 		authenticateAbsentOwnership(dao, markers)
 		if (request.deletedAtMs < maxOf(
 				state.updatedAtMs,
 				deletion.deletedAtMs,
 				runMarkers.maxOfOrNull { it.deletedAtMs } ?: 0L,
 			)
-		) blocked(ImportedCellDeletionBlockedReason.STALE_REQUEST)
+		) {
+			blocked(ImportedCellDeletionBlockedReason.STALE_REQUEST)
+		}
 		when (database.authenticateDeletedImportedCellSelectionInTransaction(
 			request.identity,
 			request.expectedImportRevision,
@@ -325,6 +351,78 @@ class RoomDeleteSelectedImportedCell internal constructor(
 			-> unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
 		}
 		return DeleteSelectedImportedCellResult.AlreadyDeleted
+	}
+
+
+	private fun authenticateReplaySelection(
+		request: DeleteSelectedImportedCellRequest, state: SourceEvidenceState,
+		deletion: ImportedCellEntryDeletionEntity, receipt: ImportedCellEntryDeletionReceiptEntity,
+	) {
+		if (!deletion.hasExactImportedCellDeletionReceipt(receipt) ||
+			receipt.entryIdentity != request.identity.value ||
+			!state.acceptsRetainedEpoch(receipt.collectedDataEpoch)
+		) {
+			unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		if (receipt.deletedImportRevision != request.expectedImportRevision ||
+			receipt.deletedContentChecksum != request.expectedContentChecksum.value
+		) {
+			blocked(ImportedCellDeletionBlockedReason.STALE_SELECTION)
+		}
+		if (receipt.retainedFromMs != state.retainedFromMs) {
+			blocked(ImportedCellDeletionBlockedReason.RETENTION_BOUNDARY)
+		}
+	}
+
+	private suspend fun loadReplayIdentityMarkers(
+		request: DeleteSelectedImportedCellRequest, dao: ImportedCellDao,
+		receipt: ImportedCellEntryDeletionReceiptEntity,
+	): List<ImportedCellDeletedIdentityEntity> {
+		val markers = dao.deletedIdentitiesForEntry(
+			request.identity.value,
+			receipt.expectedProtectedIdentityCount + 1,
+		)
+		if (markers.size != receipt.expectedProtectedIdentityCount ||
+			ImportedCellEntryDeletionReceiptEntity.checksumProtectedIdentities(markers) !=
+			receipt.protectedIdentitySetChecksum
+		) {
+			unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		val entryMarkers = markers.filter {
+			it.identityKind == ImportedCellDeletedIdentityEntity.ENTRY
+		}
+		if (entryMarkers.singleOrNull()?.protectedIdentity != request.identity.value) {
+			unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		return markers
+	}
+
+	private suspend fun loadReplayRunMarkers(
+		request: DeleteSelectedImportedCellRequest, dao: ImportedCellDao,
+		receipt: ImportedCellEntryDeletionReceiptEntity, markers: List<ImportedCellDeletedIdentityEntity>,
+	): List<ImportedCellDeletionGenerationEntity> {
+		val runMarkers = dao.deletionGenerationsForHistory(
+			listOf(request.identity.value),
+			receipt.expectedRunCount + 1,
+		)
+		val protectedRuns = markers.filter {
+			it.identityKind == ImportedCellDeletedIdentityEntity.RUN
+		}.mapTo(linkedSetOf(), ImportedCellDeletedIdentityEntity::protectedIdentity)
+		if (runMarkers.size != protectedRuns.size ||
+			runMarkers.mapTo(linkedSetOf(), ImportedCellDeletionGenerationEntity::runIdentity) !=
+			protectedRuns
+		) {
+			unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		if (runMarkers.any {
+				it.entryIdentity != request.identity.value ||
+					it.collectedDataEpoch != receipt.collectedDataEpoch ||
+					it.generation != 1L
+			}
+		) {
+			unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		return runMarkers
 	}
 
 	private suspend fun authenticateAbsentOwnership(
@@ -345,7 +443,9 @@ class RoomDeleteSelectedImportedCell internal constructor(
 						identities,
 						markers.size + 1,
 					).isNotEmpty()
-				) unverifiable(ImportedCellProductFailure.ORIGIN_IDENTITY_CONFLICT)
+				) {
+					unverifiable(ImportedCellProductFailure.ORIGIN_IDENTITY_CONFLICT)
+				}
 				val retained = dao.deletedIdentityOwners(identities, markers.size + 1)
 				if (retained.any { markerByIdentity[it.protectedIdentity] != it }) {
 					unverifiable(ImportedCellProductFailure.ORIGIN_IDENTITY_CONFLICT)
@@ -372,30 +472,7 @@ class RoomDeleteSelectedImportedCell internal constructor(
 		))
 		val latestRevision = lineage.revisions.last()
 		latestRevision.entry.runs.forEach { run ->
-			bind(ImportedCellDeletedIdentityEntity.create(
-				run.identity.value,
-				entryIdentity,
-				ImportedCellDeletedIdentityEntity.RUN,
-				run.identity.value,
-				deletionScopeDigest = run.deletionScopeDigest.value,
-				runStartTimeMs = run.startTimeMs,
-				runEndTimeMs = run.endTimeMs,
-				contentChecksum = run.contentChecksum.value,
-				includedInLatest = true,
-				captureCoverage = run.captureCoverage.name,
-				availability = run.availability.name,
-				acquisitionCompleteness = run.acquisitionCompleteness.name,
-				retentionLoss = run.retentionLoss,
-				subscriptionGrouping = run.subscriptionGrouping.name,
-			))
-			bind(ImportedCellDeletedIdentityEntity.create(
-				run.deletionScopeDigest.value,
-				entryIdentity,
-				ImportedCellDeletedIdentityEntity.DELETION_SCOPE,
-				run.identity.value,
-				deletionScopeDigest = run.deletionScopeDigest.value,
-				includedInLatest = true,
-			))
+			bindDeletedRunIdentityMarkers(run, entryIdentity, ::bind)
 		}
 		val terminalObservations =
 			linkedMapOf<String, Pair<String, PortableCapturedCellObservationV1>>()
@@ -432,11 +509,44 @@ class RoomDeleteSelectedImportedCell internal constructor(
 		return markers.values.toList()
 	}
 
+	private fun bindDeletedRunIdentityMarkers(
+		run: PortableCapturedCellRunV1, entryIdentity: String, bind: (ImportedCellDeletedIdentityEntity) -> Unit,
+	) {
+		bind(ImportedCellDeletedIdentityEntity.create(
+			run.identity.value,
+			entryIdentity,
+			ImportedCellDeletedIdentityEntity.RUN,
+			run.identity.value,
+			deletionScopeDigest = run.deletionScopeDigest.value,
+			runStartTimeMs = run.startTimeMs,
+			runEndTimeMs = run.endTimeMs,
+			contentChecksum = run.contentChecksum.value,
+			includedInLatest = true,
+			captureCoverage = run.captureCoverage.name,
+			availability = run.availability.name,
+			acquisitionCompleteness = run.acquisitionCompleteness.name,
+			retentionLoss = run.retentionLoss,
+			subscriptionGrouping = run.subscriptionGrouping.name,
+		))
+		bind(ImportedCellDeletedIdentityEntity.create(
+			run.deletionScopeDigest.value,
+			entryIdentity,
+			ImportedCellDeletedIdentityEntity.DELETION_SCOPE,
+			run.identity.value,
+			deletionScopeDigest = run.deletionScopeDigest.value,
+			includedInLatest = true,
+		))
+	}
+
 	private fun authenticateState(state: SourceEvidenceState) {
+		// The saved evidence-state row has one singleton identity and nonnegative scalar shape.
+		@Suppress("ComplexCondition")
 		if (state.id != SourceEvidenceState.SINGLETON_ID || state.revision < 0L ||
 			state.collectedDataEpoch < 0L || state.retainedFromMs?.let { it < 0L } == true ||
 			state.deletedSourceEventHighWaterOrdinal < 0L || state.updatedAtMs < 0L
-		) unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		) {
+			unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		}
 	}
 
 	private fun blocked(reason: ImportedCellDeletionBlockedReason): Nothing =
@@ -481,427 +591,30 @@ private fun PortableCellImportUnverifiableReason.toDeletionFailure(): ImportedCe
 		-> ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE
 	}
 
+/**
+ * Absent, exact, stale or unverifiable imported Cell deletion receipt for one revision/checksum
+ * selection.
+ */
 sealed interface DeletedImportedCellSelectionAuthentication {
+	/**
+	 * No original registration, owner or deletion/retention witness matches this exact source
+	 * selection.
+	 */
 	data object Absent : DeletedImportedCellSelectionAuthentication
+	/**
+	 * The original retained deletion receipt exactly matches the selected source hierarchy.
+	 */
 	data class Exact(
 		val receipt: ImportedCellEntryDeletionReceiptEntity,
 	) : DeletedImportedCellSelectionAuthentication
+	/**
+	 * The selected original revision/checksum no longer matches the retained source receipt.
+	 */
 	data object Stale : DeletedImportedCellSelectionAuthentication
+	/**
+	 * The stored scope or original source lineage could not be verified; this is not an empty or
+	 * measured-zero result.
+	 */
 	data object Unverifiable : DeletedImportedCellSelectionAuthentication
 }
 
-suspend fun AppDatabase.authenticateDeletedImportedCellSelectionInTransaction(
-	identity: PortableCellOpaqueIdentity,
-	expectedImportRevision: Long,
-	expectedContentChecksum: PortableCellDigest,
-): DeletedImportedCellSelectionAuthentication {
-	val state = sourceEvidenceStateDao().get()
-		?: return DeletedImportedCellSelectionAuthentication.Unverifiable
-	if (!state.hasValidDeletedCellAuthorityShape()) {
-		return DeletedImportedCellSelectionAuthentication.Unverifiable
-	}
-	val dao = importedCellDao()
-	val deletion = dao.entryDeletion(identity.value)
-	val receipt = dao.entryDeletionReceipt(identity.value)
-	if (deletion == null && receipt == null) return DeletedImportedCellSelectionAuthentication.Absent
-	if (deletion == null || receipt == null ||
-		deletion.entryIdentity != receipt.entryIdentity ||
-		deletion.collectedDataEpoch != receipt.collectedDataEpoch ||
-		deletion.deletedImportRevision != receipt.deletedImportRevision ||
-		deletion.deletedAtMs != receipt.deletedAtMs ||
-		!state.acceptsRetainedEpoch(deletion.collectedDataEpoch) ||
-		receipt.retainedFromMs != state.retainedFromMs ||
-		dao.boundedEntryRevisions(identity.value).isNotEmpty() ||
-		dao.receiptsForAdmission(identity.value).isNotEmpty() ||
-		dao.allRunsForAdmission(identity.value).isNotEmpty() ||
-		dao.allObservationsForAdmission(identity.value).isNotEmpty()
-	) return DeletedImportedCellSelectionAuthentication.Unverifiable
-	val staleSelection = receipt.deletedImportRevision != expectedImportRevision ||
-		receipt.deletedContentChecksum != expectedContentChecksum.value
-	val markers = dao.deletedIdentitiesForEntry(
-		identity.value,
-		receipt.expectedProtectedIdentityCount + 1,
-	)
-	if (markers.size != receipt.expectedProtectedIdentityCount ||
-		ImportedCellEntryDeletionReceiptEntity.checksumProtectedIdentities(markers) !=
-		receipt.protectedIdentitySetChecksum ||
-		markers.filter { it.identityKind == ImportedCellDeletedIdentityEntity.ENTRY }
-			.singleOrNull()?.protectedIdentity != identity.value
-	) return DeletedImportedCellSelectionAuthentication.Unverifiable
-	val markerByIdentity = markers.associateBy(ImportedCellDeletedIdentityEntity::protectedIdentity)
-	if (markerByIdentity.size != markers.size) {
-		return DeletedImportedCellSelectionAuthentication.Unverifiable
-	}
-	val runIdentities = markers.filter {
-		it.identityKind == ImportedCellDeletedIdentityEntity.RUN
-	}.mapTo(linkedSetOf(), ImportedCellDeletedIdentityEntity::protectedIdentity)
-	val runMarkers = dao.deletionGenerationsForHistory(
-		listOf(identity.value),
-		runIdentities.size + 1,
-	)
-	if (runMarkers.size != runIdentities.size ||
-		runMarkers.mapTo(linkedSetOf(), ImportedCellDeletionGenerationEntity::runIdentity) !=
-		runIdentities ||
-		runMarkers.any {
-			it.entryIdentity != identity.value ||
-				it.collectedDataEpoch != receipt.collectedDataEpoch || it.generation != 1L
-		}
-	) return DeletedImportedCellSelectionAuthentication.Unverifiable
-	if (!hasValidDeletedCellTopology(deletion, receipt, markers, runMarkers)) {
-		return DeletedImportedCellSelectionAuthentication.Unverifiable
-	}
-	for (identities in markerByIdentity.keys.chunked(ImportedCellDao.MAX_IDENTITY_QUERY_CHUNK)) {
-		val limit = identities.size + 1
-		if (dao.existingEntryIdentities(identities, limit).isNotEmpty() ||
-			dao.existingRunIdentityOwners(identities, limit).isNotEmpty() ||
-			dao.existingRunScopeOwners(identities, limit).isNotEmpty() ||
-			dao.existingObservationIdentityOwners(identities, markers.size + 1).isNotEmpty() ||
-			dao.deletedIdentityOwners(identities, markers.size + 1).any {
-				markerByIdentity[it.protectedIdentity] != it
-			}
-		) return DeletedImportedCellSelectionAuthentication.Unverifiable
-		val sourceFences = dao.sourceFenceOwners(identities, limit)
-		if (sourceFences.size >= limit || sourceFences.any { fence ->
-			val marker = markerByIdentity[fence.scopeIdentityDigest]
-			marker?.identityKind != ImportedCellDeletedIdentityEntity.DELETION_SCOPE ||
-				fence.sourceKind !=
-				com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity.SOURCE_CELL ||
-				fence.purpose !=
-				com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode.SESSION_CAPTURE ||
-				fence.scopeKind !=
-				com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
-					.SCOPE_LOGICAL_SERVICE_RUN ||
-				!state.acceptsRetainedEpoch(fence.collectedDataEpoch)
-		}) return DeletedImportedCellSelectionAuthentication.Unverifiable
-	}
-	val liveLimit = ImportedCellDao.MAX_LIVE_OWNER_ROWS + 1
-	val logicalIds = dao.liveLogicalTrackingIds(liveLimit)
-	val liveRuns = dao.liveServiceRunOwners(liveLimit)
-	val liveFacts = dao.liveCellFactOwners(liveLimit)
-	val liveCompleteness = dao.liveCellCompletenessOwners(
-		com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity.SOURCE_CELL,
-		liveLimit,
-	)
-	val liveGenerations = dao.liveCellDeletionGenerations(liveLimit)
-	if (listOf(
-			logicalIds.size,
-			liveRuns.size,
-			liveFacts.size,
-			liveCompleteness.size,
-			liveGenerations.size,
-		).any {
-			it > ImportedCellDao.MAX_LIVE_OWNER_ROWS
-		}
-	) return DeletedImportedCellSelectionAuthentication.Unverifiable
-	val logicalByEntry = logicalIds.associateBy { logicalId ->
-		PortableCellOpaqueIdentity.derive(
-			PortableCellIdentityKind.LOGICAL_ENTRY,
-			logicalId,
-		).value
-	}
-	for ((entryIdentity, _) in logicalByEntry) {
-		val marker = markerByIdentity[entryIdentity] ?: continue
-		if (marker.identityKind != ImportedCellDeletedIdentityEntity.ENTRY ||
-			marker.entryIdentity != entryIdentity
-		) return DeletedImportedCellSelectionAuthentication.Unverifiable
-	}
-	val liveRunById = liveRuns.associateBy { it.serviceRunId }
-	if (liveRunById.size != liveRuns.size) {
-		return DeletedImportedCellSelectionAuthentication.Unverifiable
-	}
-	for (run in liveRuns) {
-		val entryIdentity = PortableCellOpaqueIdentity.derive(
-			PortableCellIdentityKind.LOGICAL_ENTRY,
-			run.logicalTrackingId,
-		).value
-		val runIdentity = PortableCellOpaqueIdentity.derive(
-			PortableCellIdentityKind.PHYSICAL_RUN,
-			run.serviceRunId,
-		).value
-		val scope = PortableCellDeletionScopeDigest.derive(
-			run.logicalTrackingId,
-			run.serviceRunId,
-		).value
-		val intersections = listOf(entryIdentity, runIdentity, scope)
-			.mapNotNull(markerByIdentity::get)
-		if (intersections.any { marker ->
-			when (marker.identityKind) {
-				ImportedCellDeletedIdentityEntity.ENTRY ->
-					marker.protectedIdentity != entryIdentity
-				ImportedCellDeletedIdentityEntity.RUN ->
-					marker.protectedIdentity != runIdentity ||
-						marker.entryIdentity != entryIdentity || marker.runIdentity != runIdentity
-				ImportedCellDeletedIdentityEntity.DELETION_SCOPE ->
-					marker.protectedIdentity != scope ||
-						marker.entryIdentity != entryIdentity || marker.runIdentity != runIdentity
-				else -> true
-			}
-		}) return DeletedImportedCellSelectionAuthentication.Unverifiable
-	}
-	for (row in liveCompleteness) {
-		val run = liveRunById[row.serviceRunId]
-			?: return DeletedImportedCellSelectionAuthentication.Unverifiable
-		if (run.logicalTrackingId != row.logicalTrackingId) {
-			return DeletedImportedCellSelectionAuthentication.Unverifiable
-		}
-	}
-	for (fact in liveFacts) {
-		val run = liveRunById[fact.serviceRunId]
-			?: return DeletedImportedCellSelectionAuthentication.Unverifiable
-		if (run.logicalTrackingId != fact.logicalTrackingId) {
-			return DeletedImportedCellSelectionAuthentication.Unverifiable
-		}
-		val entryIdentity = PortableCellOpaqueIdentity.derive(
-			PortableCellIdentityKind.LOGICAL_ENTRY,
-			fact.logicalTrackingId,
-		).value
-		val runIdentity = PortableCellOpaqueIdentity.derive(
-			PortableCellIdentityKind.PHYSICAL_RUN,
-			fact.serviceRunId,
-		).value
-		val observationIdentity = PortableCellOpaqueIdentity.derive(
-			PortableCellIdentityKind.OBSERVATION,
-			fact.logicalFactId,
-		).value
-		val ownerIdentity = fact.aggregateOwnerLogicalFactId?.let { owner ->
-			PortableCellOpaqueIdentity.derive(
-				PortableCellIdentityKind.OBSERVATION,
-				owner,
-			).value
-		}
-		val direct = markerByIdentity[observationIdentity]
-		val owner = ownerIdentity?.let(markerByIdentity::get)
-		if (direct != null && (
-			direct.identityKind != ImportedCellDeletedIdentityEntity.OBSERVATION ||
-				direct.entryIdentity != entryIdentity || direct.runIdentity != runIdentity ||
-				direct.aggregateOwnerIdentity != ownerIdentity
-			) || owner != null && (
-			owner.identityKind != ImportedCellDeletedIdentityEntity.OBSERVATION ||
-				owner.entryIdentity != entryIdentity || owner.runIdentity != runIdentity ||
-				owner.aggregateOwnerIdentity != null
-			)
-		) return DeletedImportedCellSelectionAuthentication.Unverifiable
-	}
-	val scopeMarkers = markers.filter {
-		it.identityKind == ImportedCellDeletedIdentityEntity.DELETION_SCOPE
-	}.associateBy(ImportedCellDeletedIdentityEntity::protectedIdentity)
-	val relevantLiveGenerations = linkedMapOf<String, Long>()
-	for (generation in liveGenerations) {
-		if (!state.acceptsRetainedEpoch(generation.collectedDataEpoch) ||
-			generation.logicalTrackingId.isBlank() || generation.serviceRunId.isBlank() ||
-			generation.generation <= 0L
-		) return DeletedImportedCellSelectionAuthentication.Unverifiable
-		val entryIdentity = PortableCellOpaqueIdentity.derive(
-			PortableCellIdentityKind.LOGICAL_ENTRY,
-			generation.logicalTrackingId,
-		).value
-		val runIdentity = PortableCellOpaqueIdentity.derive(
-			PortableCellIdentityKind.PHYSICAL_RUN,
-			generation.serviceRunId,
-		).value
-		val scope = PortableCellDeletionScopeDigest.derive(
-			generation.logicalTrackingId,
-			generation.serviceRunId,
-		).value
-		if (listOf(entryIdentity, runIdentity, scope).none(markerByIdentity::containsKey)) continue
-		val runMarker = markerByIdentity[runIdentity]
-		val scopeMarker = scopeMarkers[scope]
-		if (runMarker == null || scopeMarker == null ||
-			runMarker.identityKind != ImportedCellDeletedIdentityEntity.RUN ||
-			runMarker.entryIdentity != entryIdentity ||
-			runMarker.deletionScopeDigest != scope ||
-			scopeMarker.entryIdentity != entryIdentity ||
-			scopeMarker.runIdentity != runIdentity ||
-			relevantLiveGenerations.put(scope, generation.generation) != null
-		) return DeletedImportedCellSelectionAuthentication.Unverifiable
-	}
-	val selectedScopes = scopeMarkers.keys.toList()
-	val sourceFences = selectedScopes.chunked(ImportedCellDao.MAX_IDENTITY_QUERY_CHUNK)
-		.flatMap { scopes -> dao.sourceFenceOwners(scopes, scopes.size + 1) }
-	if (sourceFences.distinctBy { it.scopeIdentityDigest }.size != sourceFences.size ||
-		sourceFences.any { fence ->
-			fence.scopeIdentityDigest !in scopeMarkers ||
-				fence.sourceKind !=
-				com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity.SOURCE_CELL ||
-				fence.purpose !=
-				com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode.SESSION_CAPTURE ||
-				fence.scopeKind !=
-				com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
-					.SCOPE_LOGICAL_SERVICE_RUN ||
-				!state.acceptsRetainedEpoch(fence.collectedDataEpoch) || fence.fenceGeneration <= 0L
-		}
-	) return DeletedImportedCellSelectionAuthentication.Unverifiable
-	val fenceGenerations = sourceFences.associate {
-		it.scopeIdentityDigest to it.fenceGeneration
-	}
-	if (fenceGenerations != relevantLiveGenerations) {
-		return DeletedImportedCellSelectionAuthentication.Unverifiable
-	}
-	return if (staleSelection) {
-		DeletedImportedCellSelectionAuthentication.Stale
-	} else {
-		DeletedImportedCellSelectionAuthentication.Exact(receipt)
-	}
-}
-
-private fun SourceEvidenceState.hasValidDeletedCellAuthorityShape(): Boolean =
-	id == SourceEvidenceState.SINGLETON_ID && revision >= 0L && collectedDataEpoch >= 0L &&
-		retainedFromMs?.let { it >= 0L } != false && deletedSourceEventHighWaterOrdinal >= 0L &&
-		updatedAtMs >= 0L
-
-private fun hasValidDeletedCellTopology(
-	deletion: ImportedCellEntryDeletionEntity,
-	receipt: ImportedCellEntryDeletionReceiptEntity,
-	markers: List<ImportedCellDeletedIdentityEntity>,
-	runDeletions: List<ImportedCellDeletionGenerationEntity>,
-): Boolean {
-	if (deletion.deletedAtMs != receipt.deletedAtMs) return false
-	val entry = markers.filter {
-		it.identityKind == ImportedCellDeletedIdentityEntity.ENTRY
-	}.singleOrNull() ?: return false
-	if (entry.protectedIdentity != receipt.entryIdentity || entry.entryIdentity != receipt.entryIdentity) {
-		return false
-	}
-	val runs = markers.filter {
-		it.identityKind == ImportedCellDeletedIdentityEntity.RUN
-	}
-	val scopes = markers.filter {
-		it.identityKind == ImportedCellDeletedIdentityEntity.DELETION_SCOPE
-	}
-	val observations = markers.filter {
-		it.identityKind == ImportedCellDeletedIdentityEntity.OBSERVATION
-	}
-	if (runs.size != receipt.expectedRunCount || scopes.size != receipt.expectedRunCount ||
-		(receipt.expectedObservationCount > 0 && observations.isEmpty()) ||
-		observations.size > receipt.expectedObservationCount ||
-		runs.map { it.protectedIdentity }.distinct().size != runs.size ||
-		scopes.map { it.protectedIdentity }.distinct().size != scopes.size ||
-		markers.singleOrNull {
-			it.identityKind == ImportedCellDeletedIdentityEntity.ENTRY
-		}?.contentChecksum != receipt.deletedContentChecksum
-	) return false
-	val runByIdentity = runs.associateBy(ImportedCellDeletedIdentityEntity::protectedIdentity)
-	val scopeByRun = scopes.groupBy(ImportedCellDeletedIdentityEntity::runIdentity)
-	if (runs.any { run ->
-			run.entryIdentity != receipt.entryIdentity ||
-				run.runIdentity != run.protectedIdentity ||
-				run.deletionScopeDigest == null ||
-				scopeByRun[run.protectedIdentity].orEmpty().singleOrNull()?.let { scope ->
-					scope.entryIdentity == receipt.entryIdentity &&
-						scope.protectedIdentity == run.deletionScopeDigest &&
-						scope.deletionScopeDigest == run.deletionScopeDigest
-				} != true
-		}
-	) return false
-	if (runs.minOf { requireNotNull(it.runStartTimeMs) } != receipt.startTimeMs ||
-		runs.maxOf { requireNotNull(it.runEndTimeMs) } != receipt.endTimeMs
-	) return false
-	if (runs.any { run ->
-			run.contentChecksum == null || !run.includedInLatest
-		} || scopes.any { !it.includedInLatest }
-	) return false
-	if (observations.any { observation ->
-			val parent = observation.runIdentity?.let(runByIdentity::get) ?: return@any true
-			if (parent.entryIdentity != observation.entryIdentity) return@any true
-			if (observation.contentChecksum == null) return@any true
-			val ownerIdentity = observation.aggregateOwnerIdentity ?: return@any false
-			val owner = markers.singleOrNull {
-				it.protectedIdentity == ownerIdentity &&
-					it.identityKind == ImportedCellDeletedIdentityEntity.OBSERVATION
-			} ?: return@any true
-			owner.runIdentity != observation.runIdentity ||
-				owner.entryIdentity != observation.entryIdentity ||
-				owner.aggregateOwnerIdentity != null
-		}
-	) return false
-	val latestRuns = runs.map { run ->
-		val latestObservations = observations.filter {
-			it.runIdentity == run.protectedIdentity && it.includedInLatest
-		}.sortedBy(ImportedCellDeletedIdentityEntity::protectedIdentity)
-		val expectedRunChecksum = deletedCellRunChecksum(run, latestObservations) ?: return false
-		if (expectedRunChecksum != run.contentChecksum) return false
-		run to latestObservations
-	}
-	val expectedEntryChecksum = deletedCellEntryChecksum(receipt, latestRuns) ?: return false
-	if (expectedEntryChecksum != receipt.deletedContentChecksum) return false
-	val deletionByRun = runDeletions.associateBy(ImportedCellDeletionGenerationEntity::runIdentity)
-	if (deletionByRun.size != receipt.expectedRunCount ||
-		deletionByRun.keys != runByIdentity.keys ||
-		runDeletions.any { marker ->
-			val run = runByIdentity[marker.runIdentity] ?: return@any true
-			marker.entryIdentity != receipt.entryIdentity ||
-				marker.deletionScopeDigest != run.deletionScopeDigest ||
-				marker.collectedDataEpoch != receipt.collectedDataEpoch ||
-				marker.generation != 1L || marker.deletedAtMs != receipt.deletedAtMs
-		}
-	) return false
-	return true
-}
-
-private fun deletedCellRunChecksum(
-	run: ImportedCellDeletedIdentityEntity,
-	observations: List<ImportedCellDeletedIdentityEntity>,
-): String? {
-	val identity = run.runIdentity ?: return null
-	val scope = run.deletionScopeDigest ?: return null
-	val start = run.runStartTimeMs ?: return null
-	val end = run.runEndTimeMs ?: return null
-	val ordered = observations.sortedBy { it.observationOrdinal }
-	if (ordered.map { it.observationOrdinal } != ordered.indices.toList()) return null
-	return portableCellChecksum("tracker-portable-cell-run-v1") {
-		writeCellString(identity)
-		writeCellString(scope)
-		writeLong(start)
-		writeLong(end)
-		writeCellString(run.captureCoverage)
-		writeCellString(run.availability)
-		writeCellString(run.acquisitionCompleteness)
-		writeBoolean(requireNotNull(run.retentionLoss))
-		writeCellString(run.subscriptionGrouping)
-		writeInt(ordered.size)
-		ordered.forEach { observation ->
-			writeCellString(observation.protectedIdentity)
-			writeCellString(requireNotNull(observation.contentChecksum))
-		}
-	}
-}
-
-private fun deletedCellEntryChecksum(
-	receipt: ImportedCellEntryDeletionReceiptEntity,
-	runs: List<Pair<ImportedCellDeletedIdentityEntity, List<ImportedCellDeletedIdentityEntity>>>,
-): String? = portableCellChecksum("tracker-portable-cell-entry-v1") {
-	writeCellString(CellCapturedPortableFormatV1.FORMAT)
-	writeInt(CellCapturedPortableFormatV1.SCHEMA_VERSION)
-	writeCellString(receipt.entryIdentity)
-	writeCellString(receipt.sessionMode)
-	writeLong(receipt.startTimeMs)
-	writeLong(receipt.endTimeMs)
-	writeCellString(receipt.subscriptionGrouping)
-	writeInt(runs.size)
-	runs.sortedWith(compareBy({ requireNotNull(it.first.runStartTimeMs) }, {
-		requireNotNull(it.first.runIdentity)
-	})).forEach { (run, _) ->
-		writeCellString(requireNotNull(run.runIdentity))
-		writeCellString(requireNotNull(run.contentChecksum))
-	}
-}
-
-private fun portableCellChecksum(
-	namespace: String,
-	body: java.io.DataOutputStream.() -> Unit,
-): String {
-	val bytes = java.io.ByteArrayOutputStream().use { buffer ->
-		java.io.DataOutputStream(buffer).use { output ->
-			output.writeUTF(namespace)
-			output.body()
-		}
-		buffer.toByteArray()
-	}
-	return java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
-		.joinToString(separator = "") { byte -> "%02x".format(byte) }
-}
-
-private fun java.io.DataOutputStream.writeCellString(value: String?) {
-	writeBoolean(value != null)
-	if (value != null) writeUTF(value)
-}

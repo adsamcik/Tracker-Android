@@ -75,10 +75,14 @@ internal class AndroidCellSourceBackend internal constructor(
 	@Synchronized
 	@SuppressLint("MissingPermission")
 	fun start(requestedSubscriptionIds: Set<Int>, callback: (CellBackendSnapshot) -> Unit): Boolean {
-		if (baseManager == null) return false
+		if (baseManager == null) {
+			return false
+		}
 		// Removal is an explicit runtime operation because RETIRING must be durable first. A failed
 		// unregister therefore blocks start without implicitly retrying or losing its exact handle.
-		if (registrations.isNotEmpty()) return false
+		if (registrations.isNotEmpty()) {
+			return false
+		}
 		return try {
 			resolveSubscriptionIds(requestedSubscriptionIds).forEach { subscriptionId ->
 				val manager = managerFor(subscriptionId)
@@ -132,8 +136,12 @@ internal class AndroidCellSourceBackend internal constructor(
 	@Synchronized
 	@SuppressLint("MissingPermission")
 	fun requestRefresh(callback: (CellBackendSnapshot) -> Unit): CellRefreshRequestOutcome {
-		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return CellRefreshRequestOutcome.NOT_SUPPORTED
-		if (registrations.isEmpty()) return CellRefreshRequestOutcome.PROVIDER_FAILED
+		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+			return CellRefreshRequestOutcome.NOT_SUPPORTED
+		}
+		if (registrations.isEmpty()) {
+			return CellRefreshRequestOutcome.PROVIDER_FAILED
+		}
 		return try {
 			registrations.forEach { (subscriptionId, registration) ->
 				registration.manager.requestCellInfoUpdate(
@@ -169,8 +177,12 @@ internal class AndroidCellSourceBackend internal constructor(
 	}
 
 	private fun managerFor(subscriptionId: Int?): TelephonyManager =
-		if (subscriptionId == null) requireNotNull(baseManager)
-		else requireNotNull(baseManager).createForSubscriptionId(subscriptionId)
+		if (subscriptionId == null) {
+			requireNotNull(baseManager)
+		}
+		else {
+			requireNotNull(baseManager).createForSubscriptionId(subscriptionId)
+		}
 }
 
 /**
@@ -248,7 +260,7 @@ private fun List<CellInfo>.toBackendSnapshot(subscriptionId: Int?) = CellBackend
 	providerItemCount = size,
 )
 
-@Suppress("DEPRECATION")
+@Suppress("DEPRECATION", "CyclomaticComplexMethod", "LongMethod")
 private fun CellInfo.toBackendObservation(): CellBackendObservation? {
 	if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && this is CellInfoTdscdma) {
 		val identity = cellIdentity
@@ -314,20 +326,22 @@ private fun canonicalCellTowerIdentifier(
 	unavailableCellId: Long,
 	parts: Array<out Any?>,
 ): String {
-	if (primaryCellId < 0L || primaryCellId == unavailableCellId || primaryCellId == Long.MAX_VALUE) return ""
-	return parts.joinToString(":") { part ->
-		when (part) {
-			is Int -> part.takeUnless { it < 0 || it == Int.MAX_VALUE }?.toString().orEmpty()
-			is Long -> part.takeUnless { it < 0L || it == Long.MAX_VALUE }?.toString().orEmpty()
-			is String -> part.split(':').joinToString(":") { component ->
-				component.takeUnless {
-					it == "null" || it == Int.MAX_VALUE.toString() || it == "-1"
-				}.orEmpty()
-			}
-			else -> ""
-		}
+	if (primaryCellId < 0L || primaryCellId == unavailableCellId || primaryCellId == Long.MAX_VALUE) {
+		return ""
 	}
+	return parts.joinToString(":", transform = ::canonicalCellIdentifierPart)
 }
+
+private fun canonicalCellIdentifierPart(part: Any?): String = when (part) {
+	is Int -> part.takeUnless { it < 0 || it == Int.MAX_VALUE }?.toString().orEmpty()
+	is Long -> part.takeUnless { it < 0L || it == Long.MAX_VALUE }?.toString().orEmpty()
+	is String -> part.split(':').joinToString(":") { component ->
+		component.takeUnless { it in UNAVAILABLE_CELL_IDENTIFIER_COMPONENTS }.orEmpty()
+	}
+	else -> ""
+}
+
+private val UNAVAILABLE_CELL_IDENTIFIER_COMPONENTS = setOf("null", Int.MAX_VALUE.toString(), "-1")
 
 @Suppress("DEPRECATION")
 private fun CellInfo.backendObservation(

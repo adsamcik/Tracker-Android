@@ -61,6 +61,7 @@ import org.robolectric.annotation.Config
 /** Room-backed portable lineage scenarios; execution remains deferred to convergence. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Suppress("LargeClass") // Shared lineages cover import, correction, history, re-export, retention and replay.
 class RoomAmbientRadioPortableTransferTest {
 	private lateinit var database: AppDatabase
 	private val dispatcher = UnconfinedTestDispatcher()
@@ -322,6 +323,9 @@ class RoomAmbientRadioPortableTransferTest {
 	}
 
 	@Test
+	// Keep the same imported Cell lineage through child completion, re-export, failed output and corruption
+	// checks together.
+	@Suppress("LongMethod")
 	fun `Cell import uses portable retention authority without local ambient consent`() = runTest {
 		val repository = RoomAmbientCellRepository(database, dispatcher)
 		val transfer = RoomAmbientCellPortableTransfer(database, repository, dispatcher)
@@ -426,6 +430,8 @@ class RoomAmbientRadioPortableTransferTest {
 		assertEquals(AmbientCellReadResult.StorageUnavailable, repository.read(detailRequest))
 	}
 
+	// Follow one correction lineage through retention, range/day reads, and re-export of the surviving revisions.
+	@Suppress("LongMethod")
 	@Test
 	fun `retention uses effective correction time and preserves its complete lineage`() =
 		runTest {
@@ -622,7 +628,11 @@ class RoomAmbientRadioPortableTransferTest {
 					0,
 					-40,
 					-80,
-					if (revision == 1L) -60.0 else -55.0,
+					if (revision == 1L) {
+						-60.0
+					} else {
+						-55.0
+					},
 					revision,
 					revision.takeIf { it > 1L }?.minus(1L),
 				),

@@ -23,6 +23,11 @@ interface SourceEvidenceStateDao {
 	)
 	suspend fun incrementRevision(updatedAtMs: Long): Int
 
+	/**
+	 * Updates `source_evidence_state` rows matching the supplied scope. Query conditions include `id
+	 * = 1`, `revision = :expectedRevision`, `collected_data_epoch = :expectedCollectedDataEpoch`,
+	 * `retained_from_ms = :expectedRetainedFromMs`. Returns the affected row count.
+	 */
 	@Query(
 		"""
 		UPDATE source_evidence_state
@@ -59,6 +64,12 @@ interface SourceEvidenceStateDao {
 		updatedAtMs: Long,
 	): Int
 
+	/**
+	 * Updates `source_evidence_state` rows matching the supplied scope. Query conditions include `id
+	 * = 1`, `revision = :expectedRevision`, `collected_data_epoch = :expectedEpoch`,
+	 * `retained_from_ms = :expectedRetainedFromMs`. Returns the affected row count. Timestamp bounds
+	 * use UTC milliseconds.
+	 */
 	@Query(
 		"""
 		UPDATE source_evidence_state
@@ -84,6 +95,10 @@ interface SourceEvidenceStateDao {
 		updatedAtMs: Long,
 	): Int
 
+	/**
+	 * Updates `source_evidence_state` rows matching the supplied scope. Query conditions include `id
+	 * = 1`. Timestamp bounds use UTC milliseconds.
+	 */
 	@Query(
 		"""
 		UPDATE source_evidence_state

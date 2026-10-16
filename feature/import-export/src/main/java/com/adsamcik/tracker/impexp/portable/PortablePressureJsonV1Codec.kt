@@ -285,7 +285,8 @@ internal class PortablePressureJsonV1Codec(
 			sink.emit(entry)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (failure: Exception) {
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+			// Keep every nonfatal sink failure distinct from malformed JSON; decode rethrows its cause.
 			throw PressureSinkFailure(failure)
 		}
 	}
@@ -971,13 +972,17 @@ private class BoundedPressureInputStream(
 
 	override fun read(): Int {
 		val value = transportRead { super.read() }
-		if (value >= 0) record(1L)
+		if (value >= 0) {
+			record(1L)
+		}
 		return value
 	}
 
 	override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
 		val count = transportRead { super.read(buffer, offset, length) }
-		if (count > 0) record(count.toLong())
+		if (count > 0) {
+			record(count.toLong())
+		}
 		return count
 	}
 

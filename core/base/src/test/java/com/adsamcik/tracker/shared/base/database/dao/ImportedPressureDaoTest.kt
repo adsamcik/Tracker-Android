@@ -4,6 +4,7 @@ import android.app.Application
 import android.database.sqlite.SQLiteConstraintException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.deleteAllCollectedData
 import com.adsamcik.tracker.shared.base.database.createTrackingOwnerValidationTriggers
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity

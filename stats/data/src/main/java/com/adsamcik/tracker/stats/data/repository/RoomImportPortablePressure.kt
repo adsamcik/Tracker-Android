@@ -1,5 +1,11 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureRetainedFootprint
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureRunIdentityOwner
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureWindowIdentityOwner
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
+
 import android.database.sqlite.SQLiteConstraintException
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -77,7 +83,6 @@ internal class RoomImportPortablePressure internal constructor(
 		}
 	}
 
-	@Suppress("LongMethod")
 	private suspend fun importInTransaction(
 		request: ImportPortablePressureRequest,
 	): ImportPortablePressureResult {
@@ -90,12 +95,26 @@ internal class RoomImportPortablePressure internal constructor(
 		}
 
 		val entry = request.entry
+		authenticateEntryImportState(dao, state, entry)
+		authenticateIncomingIdentities(dao, state, entry)
+		val lineage = authenticateStoredLineage(
+			dao = dao,
+			identity = entry.identity.value,
+			expectedCollectedDataEpoch = request.expectedCollectedDataEpoch,
+		)
+		authenticateRetainedImportRuns(dao, state, entry, lineage)
+
+		return importAgainstLineage(dao, request, lineage)
+	}
+
+	private suspend fun authenticateEntryImportState(
+		dao: ImportedPressureDao, state: SourceEvidenceState, entry: PortablePressureEntryV1,
+	) {
 		preflightKnownIdentityAuthority(dao, listOf(entry.identity.value))
 		val retainedFootprint = storedValue { dao.retainedFootprint(entry.identity.value) }
-		if (retainedFootprint.receiptCount !in 0L..1L ||
-			retainedFootprint.receiptTextBytes < 0L || retainedFootprint.markerTextBytes < 0L ||
-			retainedFootprint.totalTextBytes > ImportedPressureDao.MAX_LINEAGE_TEXT_BYTES
-		) unverifiable(PortablePressureImportUnverifiableReason.DEPENDENCY_OVERFLOW)
+		if (!retainedFootprint.isBoundedImportFootprint()) {
+			unverifiable(PortablePressureImportUnverifiableReason.DEPENDENCY_OVERFLOW)
+		}
 		if (retainedFootprint.receiptCount == 0L && retainedFootprint.markerCount != 0L) {
 			unverifiable(PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 		}
@@ -116,6 +135,11 @@ internal class RoomImportPortablePressure internal constructor(
 			}
 			blocked(PortablePressureImportBlockedReason.DELETED_ENTRY)
 		}
+	}
+
+	private suspend fun authenticateIncomingIdentities(
+		dao: ImportedPressureDao, state: SourceEvidenceState, entry: PortablePressureEntryV1,
+	) {
 		val runIdentities = entry.runs.map { it.identity.value }
 		val incomingIdentities = buildList {
 			add(entry.identity.value)
@@ -142,11 +166,12 @@ internal class RoomImportPortablePressure internal constructor(
 			blocked(PortablePressureImportBlockedReason.DELETED_RUN)
 		}
 		authenticateOpaqueIdentityOwnership(dao, state, entry)
-		val lineage = authenticateStoredLineage(
-			dao = dao,
-			identity = entry.identity.value,
-			expectedCollectedDataEpoch = request.expectedCollectedDataEpoch,
-		)
+	}
+
+	private suspend fun authenticateRetainedImportRuns(
+		dao: ImportedPressureDao, state: SourceEvidenceState, entry: PortablePressureEntryV1,
+		lineage: AuthenticatedImportedPressureLineage,
+	) {
 		val retainedRunIdentities = lineage.revisions.flatMapTo(linkedSetOf()) { revision ->
 			revision.entry.runs.map { it.identity.value }
 		}
@@ -176,9 +201,17 @@ internal class RoomImportPortablePressure internal constructor(
 		state.retainedFromMs?.let { floor ->
 			if (lineage.revisions.any { it.entry.crossesImportedPressureFloor(floor) } ||
 				entry.crossesImportedPressureFloor(floor)
-			) blocked(PortablePressureImportBlockedReason.RETENTION_TRUNCATED)
+			) {
+				blocked(PortablePressureImportBlockedReason.RETENTION_TRUNCATED)
+			}
 		}
+	}
 
+	private suspend fun importAgainstLineage(
+		dao: ImportedPressureDao, request: ImportPortablePressureRequest,
+		lineage: AuthenticatedImportedPressureLineage,
+	): ImportPortablePressureResult {
+		val entry = request.entry
 		val receiptBinding = storedValue {
 			dao.receipt(request.receipt.jobId, request.receipt.entryKey)
 		}
@@ -207,6 +240,13 @@ internal class RoomImportPortablePressure internal constructor(
 		authenticateCorrectionCompatibility(lineage, entry)
 		val revision = lineage.revisions.size.toLong() + 1L
 
+		return writeImportRevision(dao, request, revision)
+	}
+
+	private suspend fun writeImportRevision(
+		dao: ImportedPressureDao, request: ImportPortablePressureRequest, revision: Long,
+	): ImportPortablePressureResult {
+		val entry = request.entry
 		val epoch = request.expectedCollectedDataEpoch
 		dao.insertEntryRevision(entry.toEntity(request, revision))
 		writeCheckpoint(PressureImportWriteCheckpoint.ENTRY_INSERTED)
@@ -251,7 +291,6 @@ internal class RoomImportPortablePressure internal constructor(
 		return ImportPortablePressureResult.Duplicate(stored.entryImportRevision)
 	}
 
-	@Suppress("ComplexCondition")
 	private suspend fun authenticateOpaqueIdentityOwnership(
 		dao: ImportedPressureDao,
 		state: SourceEvidenceState,
@@ -271,105 +310,42 @@ internal class RoomImportPortablePressure internal constructor(
 			run.windows.map { window -> window.identity.value to run.identity.value }
 		}.toMap()
 		kinds.keys.chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { identities ->
-			val limit = identities.size + 1
-			val entries = storedValue { dao.existingEntryIdentities(identities, limit) }
-			val runs = storedValue { dao.existingRunIdentityOwners(identities, limit) }
-			val windows = storedValue { dao.existingWindowIdentityOwners(identities, limit) }
-			val deletedEntries = storedValue { dao.entryDeletions(identities) }
-			val deletedRuns = storedValue { dao.deletionGenerations(identities) }
-			val retained = storedValue { dao.retainedIdentityOwners(identities, limit) }
-			val permanentFences = storedValue { dao.identityFences(identities, limit) }
-			if (entries.size >= limit || runs.size >= limit || windows.size >= limit ||
-				retained.size >= limit || permanentFences.size >= limit
-			) {
-				unverifiable(PortablePressureImportUnverifiableReason.DEPENDENCY_OVERFLOW)
-			}
-			retained.map { it.entryIdentity }.distinct().forEach { retainedEntry ->
-				authenticateRetainedOwner(state, retainedEntry)
-			}
-			permanentFences.forEach { fence ->
-				val expectedKind = when (kinds[fence.protectedIdentity]) {
-					PortablePressureIdentityKind.LOGICAL_ENTRY ->
-						ImportedPressureIdentityFenceEntity.ENTRY
-					PortablePressureIdentityKind.PHYSICAL_RUN ->
-						ImportedPressureIdentityFenceEntity.RUN
-					PortablePressureIdentityKind.WINDOW ->
-						ImportedPressureIdentityFenceEntity.WINDOW
-					null -> null
-				}
-				val expectedRun = when (expectedKind) {
-					ImportedPressureIdentityFenceEntity.RUN -> fence.protectedIdentity
-					ImportedPressureIdentityFenceEntity.WINDOW ->
-						windowOwners[fence.protectedIdentity]
-					else -> null
-				}
-				if (!fence.hasSameOwner(expectedKind ?: "", entry.identity.value, expectedRun)) {
-					blocked(PortablePressureImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
-				}
-				when (fence.identityKind) {
-					ImportedPressureIdentityFenceEntity.ENTRY ->
-						blocked(PortablePressureImportBlockedReason.DELETED_ENTRY)
-					ImportedPressureIdentityFenceEntity.RUN ->
-						blocked(PortablePressureImportBlockedReason.DELETED_RUN)
-					ImportedPressureIdentityFenceEntity.WINDOW ->
-						blocked(PortablePressureImportBlockedReason.DELETED_WINDOW)
-				}
-			}
-			val permanentByIdentity = permanentFences.associateBy { it.protectedIdentity }
-			deletedEntries.forEach { marker ->
-				if (permanentByIdentity[marker.entryIdentity]?.hasSameOwner(
-						ImportedPressureIdentityFenceEntity.ENTRY,
-						marker.entryIdentity,
-						null,
-					) != true
-				) {
-					unverifiable(
-						PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
-					)
-				}
-			}
-			deletedRuns.forEach { marker ->
-				val owner = permanentByIdentity[marker.runIdentity]
-				if (owner == null ||
-					owner.identityKind != ImportedPressureIdentityFenceEntity.RUN ||
-					owner.runIdentity != marker.runIdentity
-				) {
-					unverifiable(
-						PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
-					)
-				}
-			}
-			if (retained.any { it.entryIdentity == entry.identity.value }) {
-				blocked(PortablePressureImportBlockedReason.RETENTION_TRUNCATED)
-			}
-			if (entries.any { kinds[it] != PortablePressureIdentityKind.LOGICAL_ENTRY } ||
-				runs.any { owner ->
-					kinds[owner.identity] != PortablePressureIdentityKind.PHYSICAL_RUN ||
-						runOwners[owner.identity] != owner.entryIdentity
-				} || windows.any { owner ->
-					kinds[owner.identity] != PortablePressureIdentityKind.WINDOW ||
-						owner.entryIdentity != entry.identity.value ||
-						windowOwners[owner.identity] != owner.runIdentity
-				} || deletedEntries.any { marker ->
-					kinds[marker.entryIdentity] != PortablePressureIdentityKind.LOGICAL_ENTRY
-				} || deletedRuns.any { marker ->
-					kinds[marker.runIdentity] != PortablePressureIdentityKind.PHYSICAL_RUN
-				} || retained.any { marker ->
-					val expectedKind = when (marker.identityKind) {
-						ImportedPressureRetainedIdentityEntity.ENTRY ->
-							PortablePressureIdentityKind.LOGICAL_ENTRY
-						ImportedPressureRetainedIdentityEntity.RUN_SCOPE ->
-							PortablePressureIdentityKind.PHYSICAL_RUN
-						ImportedPressureRetainedIdentityEntity.WINDOW ->
-							PortablePressureIdentityKind.WINDOW
-						else -> null
-					}
-					kinds[marker.protectedIdentity] != expectedKind ||
-						marker.entryIdentity != entry.identity.value
-				}
-			) {
-				blocked(PortablePressureImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
-			}
+			authenticateIncomingIdentityChunk(dao, state, entry, identities, kinds, runOwners, windowOwners)
+		}
+	}
+
+	// Original immutable entry, ownership maps, state and identity page for one complete admission.
+	@Suppress("LongParameterList")
+	private suspend fun authenticateIncomingIdentityChunk(
+		dao: ImportedPressureDao, state: SourceEvidenceState, entry: PortablePressureEntryV1,
+		identities: List<String>, kinds: Map<String, PortablePressureIdentityKind>,
+		runOwners: Map<String, String>, windowOwners: Map<String, String>,
+	) {
+		val limit = identities.size + 1
+		val entries = storedValue { dao.existingEntryIdentities(identities, limit) }
+		val runs = storedValue { dao.existingRunIdentityOwners(identities, limit) }
+		val windows = storedValue { dao.existingWindowIdentityOwners(identities, limit) }
+		val deletedEntries = storedValue { dao.entryDeletions(identities) }
+		val deletedRuns = storedValue { dao.deletionGenerations(identities) }
+		val retained = storedValue { dao.retainedIdentityOwners(identities, limit) }
+		val permanentFences = storedValue { dao.identityFences(identities, limit) }
+		if (listOf(entries.size, runs.size, windows.size, retained.size, permanentFences.size)
+			.any { it >= limit }) {
+			unverifiable(PortablePressureImportUnverifiableReason.DEPENDENCY_OVERFLOW)
+		}
+		retained.map { it.entryIdentity }.distinct().forEach { retainedEntry ->
+			authenticateRetainedOwner(state, retainedEntry)
+		}
+		authenticatePressureImportFences(permanentFences, kinds, windowOwners, entry.identity.value)
+		authenticatePressureImportMarkers(permanentFences, deletedEntries, deletedRuns)
+		if (retained.any { it.entryIdentity == entry.identity.value }) {
+			blocked(PortablePressureImportBlockedReason.RETENTION_TRUNCATED)
+		}
+		if (hasConflictingPressureImportOwners(entries, runs, windows, kinds, runOwners, windowOwners,
+				entry.identity.value) ||
+			hasConflictingPressureImportPrivacyOwners(deletedEntries, deletedRuns, retained, kinds, entry.identity.value)
+		) {
+			blocked(PortablePressureImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
 		}
 	}
 
@@ -459,112 +435,225 @@ internal class RoomImportPortablePressure internal constructor(
 		}
 	}
 
-	private fun snapshot(request: ImportPortablePressureRequest): ImportPortablePressureRequest =
-		incomingValue {
-			val rawRuns = request.entry.runs
-			if (rawRuns.size > PressurePortableFormatV1.MAX_RUNS_PER_ENTRY) {
-				unverifiable(PortablePressureImportUnverifiableReason.RUN_OVERFLOW)
-			}
-			if (rawRuns.any { it.windows.size > PressurePortableFormatV1.MAX_WINDOWS_PER_RUN }) {
-				unverifiable(PortablePressureImportUnverifiableReason.WINDOW_OVERFLOW)
-			}
-			val totalWindows = rawRuns.fold(0L) { count, run -> count + run.windows.size }
-			if (totalWindows > PressurePortableFormatV1.MAX_TOTAL_WINDOWS) {
-				unverifiable(PortablePressureImportUnverifiableReason.TOTAL_WINDOW_OVERFLOW)
-			}
-			val runs = rawRuns.map { run ->
-				val windows = run.windows.map { it.copy() }.toList()
-				windows.forEach { window ->
-					require(window.intervalStartTimeMs >= run.startTimeMs)
-					require(window.intervalEndTimeMs <= run.endTimeMs)
-				}
-				run.copy(windows = windows)
-			}.toList()
-			val allIdentities = buildList {
-				add(request.entry.identity.value)
-				runs.forEach { run ->
-					add(run.identity.value)
-					addAll(run.windows.map { it.identity.value })
-				}
-			}
-			require(allIdentities.distinct().size == allIdentities.size)
-			request.copy(entry = request.entry.copy(runs = runs))
-		}
-
-	private fun authenticateCorrectionCompatibility(
-		lineage: AuthenticatedImportedPressureLineage,
-		incoming: PortablePressureEntryV1,
-	) {
-		try {
-			val retainedRuns = lineage.revisions.flatMap { it.entry.runs }
-				.associateBy { it.identity.value }
-			val retainedWindows = lineage.revisions.flatMap { it.entry.runs }.flatMap { run ->
-				run.windows.map { window -> window.identity.value to (run to window) }
-			}.toMap()
-			incoming.runs.forEach { run ->
-				retainedRuns[run.identity.value]?.let { retained ->
-					require(retained.startTimeMs == run.startTimeMs)
-					require(retained.endTimeMs == run.endTimeMs)
-				}
-				run.windows.forEach { window ->
-					retainedWindows[window.identity.value]?.let { (retainedRun, retainedWindow) ->
-						require(retainedRun.identity == run.identity)
-						require(retainedWindow.intervalStartTimeMs == window.intervalStartTimeMs)
-						require(retainedWindow.intervalEndTimeMs == window.intervalEndTimeMs)
-						require(retainedWindow.observedDurationNanos == window.observedDurationNanos)
-						require(
-							retainedWindow.effectiveSamplePeriodMicros ==
-								window.effectiveSamplePeriodMicros,
-						)
-						require(
-							retainedWindow.effectiveMaximumReportLatencyMicros ==
-								window.effectiveMaximumReportLatencyMicros,
-						)
-						require(
-							retainedWindow.targetWindowDurationNanos ==
-								window.targetWindowDurationNanos,
-						)
-						require(retainedWindow.zoneId == window.zoneId)
-					}
-				}
-			}
-		} catch (_: IllegalArgumentException) {
-			unverifiable(PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-		} catch (_: ArithmeticException) {
-			unverifiable(PortablePressureImportUnverifiableReason.VALUE_OVERFLOW)
-		}
-	}
-
-	private suspend inline fun <T> storedValue(crossinline block: suspend () -> T): T = try {
-		block()
-	} catch (abort: PressureImportAbort) {
-		throw abort
-	} catch (_: IllegalArgumentException) {
-		unverifiable(PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-	}
-
-	private inline fun <T> incomingValue(block: () -> T): T = try {
-		block()
-	} catch (abort: PressureImportAbort) {
-		throw abort
-	} catch (_: RuntimeException) {
-		unverifiable(PortablePressureImportUnverifiableReason.ENTRY_INVALID)
-	}
-
-	private fun blocked(reason: PortablePressureImportBlockedReason): Nothing =
-		throw PressureImportAbort(ImportPortablePressureResult.Blocked(reason))
-
-	private fun unverifiable(reason: PortablePressureImportUnverifiableReason): Nothing =
-		throw PressureImportAbort(ImportPortablePressureResult.Unverifiable(reason))
-
-	private class PressureImportAbort(
-		val result: ImportPortablePressureResult,
-	) : RuntimeException(null, null, false, false)
-
 	private companion object {
 		const val IDENTITY_QUERY_CHUNK_SIZE = 256
 	}
 }
+
+private fun snapshot(request: ImportPortablePressureRequest): ImportPortablePressureRequest =
+	incomingValue {
+		val rawRuns = request.entry.runs
+		if (rawRuns.size > PressurePortableFormatV1.MAX_RUNS_PER_ENTRY) {
+			unverifiable(PortablePressureImportUnverifiableReason.RUN_OVERFLOW)
+		}
+		if (rawRuns.any { it.windows.size > PressurePortableFormatV1.MAX_WINDOWS_PER_RUN }) {
+			unverifiable(PortablePressureImportUnverifiableReason.WINDOW_OVERFLOW)
+		}
+		val totalWindows = rawRuns.fold(0L) { count, run -> count + run.windows.size }
+		if (totalWindows > PressurePortableFormatV1.MAX_TOTAL_WINDOWS) {
+			unverifiable(PortablePressureImportUnverifiableReason.TOTAL_WINDOW_OVERFLOW)
+		}
+		val runs = rawRuns.map { run ->
+			val windows = run.windows.map { it.copy() }.toList()
+			windows.forEach { window ->
+				require(window.intervalStartTimeMs >= run.startTimeMs)
+				require(window.intervalEndTimeMs <= run.endTimeMs)
+			}
+			run.copy(windows = windows)
+		}.toList()
+		val allIdentities = buildList {
+			add(request.entry.identity.value)
+			runs.forEach { run ->
+				add(run.identity.value)
+				addAll(run.windows.map { it.identity.value })
+			}
+		}
+		require(allIdentities.distinct().size == allIdentities.size)
+		request.copy(entry = request.entry.copy(runs = runs))
+	}
+
+private fun authenticateCorrectionCompatibility(
+	lineage: AuthenticatedImportedPressureLineage,
+	incoming: PortablePressureEntryV1,
+) {
+	try {
+		val retainedRuns = lineage.revisions.flatMap { it.entry.runs }
+			.associateBy { it.identity.value }
+		val retainedWindows = lineage.revisions.flatMap { it.entry.runs }.flatMap { run ->
+			run.windows.map { window -> window.identity.value to (run to window) }
+		}.toMap()
+		incoming.runs.forEach { run ->
+			retainedRuns[run.identity.value]?.let { retained ->
+				require(retained.startTimeMs == run.startTimeMs)
+				require(retained.endTimeMs == run.endTimeMs)
+			}
+			run.windows.forEach { window ->
+				retainedWindows[window.identity.value]?.let { (retainedRun, retainedWindow) ->
+					require(retainedRun.identity == run.identity)
+					require(retainedWindow.intervalStartTimeMs == window.intervalStartTimeMs)
+					require(retainedWindow.intervalEndTimeMs == window.intervalEndTimeMs)
+					require(retainedWindow.observedDurationNanos == window.observedDurationNanos)
+					require(
+						retainedWindow.effectiveSamplePeriodMicros ==
+							window.effectiveSamplePeriodMicros,
+					)
+					require(
+						retainedWindow.effectiveMaximumReportLatencyMicros ==
+							window.effectiveMaximumReportLatencyMicros,
+					)
+					require(
+						retainedWindow.targetWindowDurationNanos ==
+							window.targetWindowDurationNanos,
+					)
+					require(retainedWindow.zoneId == window.zoneId)
+				}
+			}
+		}
+	} catch (_: IllegalArgumentException) {
+		unverifiable(PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+	} catch (_: ArithmeticException) {
+		unverifiable(PortablePressureImportUnverifiableReason.VALUE_OVERFLOW)
+	}
+}
+
+private suspend inline fun <T> storedValue(crossinline block: suspend () -> T): T = try {
+	block()
+} catch (abort: PressureImportAbort) {
+	throw abort
+} catch (_: IllegalArgumentException) {
+	unverifiable(PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+}
+
+
+private inline fun <T> incomingValue(block: () -> T): T = try {
+	block()
+} catch (abort: PressureImportAbort) {
+	throw abort
+} catch (_: RuntimeException) {
+	unverifiable(PortablePressureImportUnverifiableReason.ENTRY_INVALID)
+}
+
+
+private fun blocked(reason: PortablePressureImportBlockedReason): Nothing =
+	throw PressureImportAbort(ImportPortablePressureResult.Blocked(reason))
+
+private fun unverifiable(reason: PortablePressureImportUnverifiableReason): Nothing =
+	throw PressureImportAbort(ImportPortablePressureResult.Unverifiable(reason))
+
+private class PressureImportAbort(
+	val result: ImportPortablePressureResult,
+) : RuntimeException(null, null, false, false)
+
+
+private fun authenticatePressureImportFences(
+	permanentFences: List<ImportedPressureIdentityFenceEntity>,
+	kinds: Map<String, PortablePressureIdentityKind>, windowOwners: Map<String, String>, entryIdentity: String,
+) {
+	permanentFences.forEach { fence ->
+		val expectedKind = kinds[fence.protectedIdentity].pressureImportFenceKind()
+		val expectedRun = when (expectedKind) {
+			ImportedPressureIdentityFenceEntity.RUN -> fence.protectedIdentity
+			ImportedPressureIdentityFenceEntity.WINDOW ->
+				windowOwners[fence.protectedIdentity]
+			else -> null
+		}
+		if (!fence.hasSameOwner(expectedKind ?: "", entryIdentity, expectedRun)) {
+			blocked(PortablePressureImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
+		}
+		when (fence.identityKind) {
+			ImportedPressureIdentityFenceEntity.ENTRY ->
+				blocked(PortablePressureImportBlockedReason.DELETED_ENTRY)
+			ImportedPressureIdentityFenceEntity.RUN ->
+				blocked(PortablePressureImportBlockedReason.DELETED_RUN)
+			ImportedPressureIdentityFenceEntity.WINDOW ->
+				blocked(PortablePressureImportBlockedReason.DELETED_WINDOW)
+		}
+	}
+}
+
+private fun authenticatePressureImportMarkers(
+	permanentFences: List<ImportedPressureIdentityFenceEntity>,
+	deletedEntries: List<ImportedPressureEntryDeletionEntity>,
+	deletedRuns: List<ImportedPressureDeletionGenerationEntity>,
+) {
+	val permanentByIdentity = permanentFences.associateBy { it.protectedIdentity }
+	deletedEntries.forEach { marker ->
+		if (permanentByIdentity[marker.entryIdentity]?.hasSameOwner(
+				ImportedPressureIdentityFenceEntity.ENTRY,
+				marker.entryIdentity,
+				null,
+			) != true
+		) {
+			unverifiable(
+				PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+	}
+	deletedRuns.forEach { marker ->
+		val owner = permanentByIdentity[marker.runIdentity]
+		if (owner == null ||
+			owner.identityKind != ImportedPressureIdentityFenceEntity.RUN ||
+			owner.runIdentity != marker.runIdentity
+		) {
+			unverifiable(
+				PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+	}
+}
+
+// Complete source-owned identity correspondence across the original three native row sets.
+@Suppress("LongParameterList")
+private fun hasConflictingPressureImportOwners(
+	entries: List<String>, runs: List<ImportedPressureRunIdentityOwner>,
+	windows: List<ImportedPressureWindowIdentityOwner>, kinds: Map<String, PortablePressureIdentityKind>,
+	runOwners: Map<String, String>, windowOwners: Map<String, String>, entryIdentity: String,
+): Boolean = entries.any { kinds[it] != PortablePressureIdentityKind.LOGICAL_ENTRY } ||
+		runs.any { owner ->
+			kinds[owner.identity] != PortablePressureIdentityKind.PHYSICAL_RUN ||
+				runOwners[owner.identity] != owner.entryIdentity
+		} || windows.any { owner ->
+			kinds[owner.identity] != PortablePressureIdentityKind.WINDOW ||
+				owner.entryIdentity != entryIdentity ||
+				windowOwners[owner.identity] != owner.runIdentity
+		}
+
+private fun hasConflictingPressureImportPrivacyOwners(
+	deletedEntries: List<ImportedPressureEntryDeletionEntity>,
+	deletedRuns: List<ImportedPressureDeletionGenerationEntity>,
+	retained: List<ImportedPressureRetainedIdentityEntity>,
+	kinds: Map<String, PortablePressureIdentityKind>, entryIdentity: String,
+): Boolean = deletedEntries.any { marker ->
+			kinds[marker.entryIdentity] != PortablePressureIdentityKind.LOGICAL_ENTRY
+		} || deletedRuns.any { marker ->
+			kinds[marker.runIdentity] != PortablePressureIdentityKind.PHYSICAL_RUN
+		} || retained.any { marker ->
+			val expectedKind = when (marker.identityKind) {
+				ImportedPressureRetainedIdentityEntity.ENTRY ->
+					PortablePressureIdentityKind.LOGICAL_ENTRY
+				ImportedPressureRetainedIdentityEntity.RUN_SCOPE ->
+					PortablePressureIdentityKind.PHYSICAL_RUN
+				ImportedPressureRetainedIdentityEntity.WINDOW ->
+					PortablePressureIdentityKind.WINDOW
+				else -> null
+			}
+			kinds[marker.protectedIdentity] != expectedKind ||
+				marker.entryIdentity != entryIdentity
+		}
+
+private fun PortablePressureIdentityKind?.pressureImportFenceKind(): String? = when (this) {
+			PortablePressureIdentityKind.LOGICAL_ENTRY ->
+				ImportedPressureIdentityFenceEntity.ENTRY
+			PortablePressureIdentityKind.PHYSICAL_RUN ->
+				ImportedPressureIdentityFenceEntity.RUN
+			PortablePressureIdentityKind.WINDOW ->
+				ImportedPressureIdentityFenceEntity.WINDOW
+			null -> null
+		}
+
+private fun ImportedPressureRetainedFootprint.isBoundedImportFootprint(): Boolean =
+	receiptCount in 0L..1L && receiptTextBytes >= 0L && markerTextBytes >= 0L &&
+		totalTextBytes <= ImportedPressureDao.MAX_LINEAGE_TEXT_BYTES
 
 internal enum class PressureImportWriteCheckpoint {
 	TRANSACTION_STARTED,
@@ -593,7 +682,11 @@ private fun PortablePressureEntryV1.toEntity(
 ) = ImportedPressureEntryRevisionEntity(
 	identity = identity.value,
 	importRevision = revision,
-	supersedesImportRevision = if (revision == 1L) null else revision - 1L,
+	supersedesImportRevision = if (revision == 1L) {
+		null
+	} else {
+		revision - 1L
+	},
 	contentChecksum = contentChecksum.value,
 	sourceFormat = ImportedPressureEntryRevisionEntity.SOURCE_FORMAT,
 	sourceSchemaVersion = ImportedPressureEntryRevisionEntity.SOURCE_SCHEMA_VERSION,

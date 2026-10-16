@@ -25,10 +25,18 @@ class SavedLocationMetricsReader @Inject constructor(
 ) {
     private val summaries by lazy { SavedLocationSummaryReader(database, dispatchers.io) }
 
+    /**
+     * Measures current saved Location over inclusive UTC-millisecond bounds, preserving gaps and reporting
+     * incomplete results.
+     */
     suspend fun read(fromMs: Long = 0L, toMs: Long = Long.MAX_VALUE): SavedLocationMetrics =
         withContext(dispatchers.io) {
             require(fromMs >= 0L && toMs >= fromMs)
-            val window = HistoryObservationWindow(fromMs, if (toMs == Long.MAX_VALUE) toMs else toMs + 1L)
+            val window = HistoryObservationWindow(fromMs, if (toMs == Long.MAX_VALUE) {
+                toMs
+            } else {
+                toMs + 1L
+            })
             val zone = ZoneId.systemDefault()
             database.withTransaction {
                 val state = checkNotNull(database.sourceEvidenceStateDao().get())
@@ -41,55 +49,56 @@ class SavedLocationMetricsReader @Inject constructor(
                         maxSpeed = maxOf(maxSpeed ?: it, it)
                     }
                 }.measuredSummary()
-                var onFoot = 0.0
-                var cycling = 0.0
-                var vehicle = 0.0
-                var maxSession: Double? = null
-                var maxCycle: Double? = null
-                var maxMovingAverage: Double? = null
-                var hasActivityDistances = false
-                var partial = total.partial
-                var afterId: Long? = null
-                while (true) {
-                    currentCoroutineContext().ensureActive()
-                    val page = database.sessionSegmentDao().locationMetricCandidatePage(fromMs, toMs, afterId, 64)
-                    for (segment in page) {
-                        val summary = try { summaries.readSessionWindow(segment.id, window).measuredSummary() }
-                            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-                            catch (_: Exception) { partial = true; continue }
-                        val distance = summary.distanceMeters ?: continue
-                        partial = partial || summary.partial
-                        maxSession = maxOf(maxSession ?: distance, distance)
-                        summary.movingAverageSpeedMetersPerSecond?.let {
-                            maxMovingAverage = maxOf(maxMovingAverage ?: it, it)
-                        }
-                        when (segment.primaryActivity) {
-                            in SessionActivityIds.ON_FOOT -> { onFoot += distance; hasActivityDistances = true }
-                            in SessionActivityIds.CYCLING -> {
-                                cycling += distance
-                                maxCycle = maxOf(maxCycle ?: distance, distance)
-                                hasActivityDistances = true
-                            }
-                            in SessionActivityIds.IN_VEHICLE -> { vehicle += distance; hasActivityDistances = true }
-                        }
-                    }
-                    if (page.size < 64) break
-                    afterId = page.last().id
-                }
-                SavedLocationMetrics(total.distanceMeters, total.pointCount, onFoot, cycling, vehicle,
-                    maxSession, maxCycle, maxMovingAverage, daily.bestMeters, maxSpeed, hasActivityDistances, partial)
+                readSessionMetrics(fromMs, toMs, window, total, daily, maxSpeed)
             }
         }
 
+    private suspend fun readSessionMetrics(
+        fromMs: Long,
+        toMs: Long,
+        window: HistoryObservationWindow,
+        total: SavedLocationSummary,
+        daily: SavedDailyDistanceAccumulator,
+        maxSpeed: Double?,
+    ): SavedLocationMetrics {
+        val totals = SavedActivityDistanceTotals(total.partial)
+        var afterId: Long? = null
+        while (true) {
+            currentCoroutineContext().ensureActive()
+            val page = database.sessionSegmentDao().locationMetricCandidatePage(
+                fromMs, toMs, afterId, LOCATION_METRIC_SESSION_PAGE_SIZE,
+            )
+            for (segment in page) {
+                val summary = try { summaries.readSessionWindow(segment.id, window).measuredSummary() }
+                    catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                    catch (_: Exception) { totals.partial = true; continue }
+                totals.add(segment.primaryActivity, summary)
+            }
+            if (page.size < LOCATION_METRIC_SESSION_PAGE_SIZE) {
+                break
+            }
+            afterId = page.last().id
+        }
+        return totals.finish(total, daily.bestMeters, maxSpeed)
+    }
+
+    /**
+     * Returns measured distance and moving average from the segment’s saved points; missing measurements
+     * remain null.
+     */
     suspend fun readTrip(segmentId: Long): SavedLocationSummary = summaries.readSession(segmentId).measuredSummary()
 
     /** A visible calendar range uses one Room snapshot and the existing bounded point stream. */
-    suspend fun readDays(fromDay: Long, toDay: Long, zone: ZoneId = ZoneId.systemDefault()): Map<Long, SavedLocationDayMetrics> =
+    suspend fun readDays(fromDay: Long, toDay: Long, zone: ZoneId = ZoneId.systemDefault()): Map<Long,
+        SavedLocationDayMetrics> =
         withContext(dispatchers.io) {
             require(fromDay <= toDay)
-            val from = java.time.LocalDate.ofEpochDay(fromDay).atStartOfDay(zone).toInstant().toEpochMilli().coerceAtLeast(0L)
+            val from =
+                java.time.LocalDate.ofEpochDay(fromDay).atStartOfDay(zone).toInstant().toEpochMilli().coerceAtLeast(0L)
             val to = java.time.LocalDate.ofEpochDay(toDay).plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-            if (to <= from) return@withContext emptyMap()
+            if (to <= from) {
+                return@withContext emptyMap()
+            }
             database.withTransaction {
                 val state = checkNotNull(database.sourceEvidenceStateDao().get())
                 val days = linkedMapOf<Long, SavedLocationDayAccumulator>()
@@ -102,7 +111,9 @@ class SavedLocationMetricsReader @Inject constructor(
                 val read = summaries.readWindowInTransaction(HistoryObservationWindow(from, to),
                     TrackingHistoryReadSnapshot(state.collectedDataEpoch, state.revision),
                     onGap = { time -> dayAt(time).gap() },
-                    onPoint = { point -> if (point != null) dayAt(point.sample.timeMs).add(point) })
+                    onPoint = { point -> if (point != null) {
+                        dayAt(point.sample.timeMs).add(point)
+                    } })
                 read.measuredSummary()
                 // A failed continuation can leave more of the last day unread. Completed earlier
                 // days keep their own measured state; dated qualification gaps mark their own day.
@@ -113,6 +124,7 @@ class SavedLocationMetricsReader @Inject constructor(
             }
         }
 
+    /** Emits on saved Location, correction, ownership or deletion changes so existing summaries can be refreshed. */
     fun observeChanges(): Flow<Unit> = database.invalidationTracker.createFlow(*SAVED_LOCATION_TABLES).map { }
 
     internal fun onSavedDataChange(onChange: () -> Unit): () -> Unit {
@@ -138,6 +150,43 @@ class SavedLocationMetricsReader @Inject constructor(
     }
 }
 
+/** Per-read activity totals own the eight dependent accumulators; no cache, query or shared lifetime. */
+private class SavedActivityDistanceTotals(var partial: Boolean) {
+    private var onFoot = 0.0
+    private var cycling = 0.0
+    private var vehicle = 0.0
+    private var maxSession: Double? = null
+    private var maxCycle: Double? = null
+    private var maxMovingAverage: Double? = null
+    private var hasActivityDistances = false
+
+    fun add(primaryActivity: Int?, summary: SavedLocationSummary) {
+        val distance = summary.distanceMeters ?: return
+        partial = partial || summary.partial
+        maxSession = maxOf(maxSession ?: distance, distance)
+        summary.movingAverageSpeedMetersPerSecond?.let {
+            maxMovingAverage = maxOf(maxMovingAverage ?: it, it)
+        }
+        when (primaryActivity) {
+            in SessionActivityIds.ON_FOOT -> { onFoot += distance; hasActivityDistances = true }
+            in SessionActivityIds.CYCLING -> {
+                cycling += distance
+                maxCycle = maxOf(maxCycle ?: distance, distance)
+                hasActivityDistances = true
+            }
+            in SessionActivityIds.IN_VEHICLE -> { vehicle += distance; hasActivityDistances = true }
+        }
+    }
+
+    fun finish(total: SavedLocationSummary, bestDayMeters: Double?, maxSpeed: Double?): SavedLocationMetrics =
+        SavedLocationMetrics(total.distanceMeters, total.pointCount, onFoot, cycling, vehicle,
+            maxSession, maxCycle, maxMovingAverage, bestDayMeters, maxSpeed, hasActivityDistances, partial)
+}
+
+/**
+ * Saved-route measurements in meters and meters/second; nullable values lack sufficient data, and partial
+ * preserves known gaps.
+ */
 data class SavedLocationMetrics(
     val distanceMeters: Double?,
     val pointCount: Long,
@@ -153,6 +202,7 @@ data class SavedLocationMetrics(
     val partial: Boolean = false,
 )
 
+/** One local day’s valid point count and measured meters; null distance is unknown, while partial signals gaps. */
 data class SavedLocationDayMetrics(val pointCount: Long, val distanceMeters: Double?, val partial: Boolean)
 
 private class SavedLocationDayAccumulator {
@@ -166,9 +216,12 @@ private class SavedLocationDayAccumulator {
         if (sample.latE7?.let { it in -900_000_000..900_000_000 } == true &&
             sample.lonE7?.let { it in -1_800_000_000..1_800_000_000 } == true) {
             count = Math.addExact(count, 1L)
-        } else partial = true
+        } else {
+            partial = true
+        }
     }
-    fun snapshot() = SavedLocationDayMetrics(count, distance.measuredMeters, partial || distance.hasDisconnectedSections)
+    fun snapshot() = SavedLocationDayMetrics(count, distance.measuredMeters, partial ||
+        distance.hasDisconnectedSections)
 }
 
 /** Chronological measured points make local-day measurement constant-memory, including DST. */
@@ -192,3 +245,5 @@ internal class SavedDailyDistanceAccumulator(private val zone: ZoneId) {
         accumulator.add(row)
     }
 }
+
+private const val LOCATION_METRIC_SESSION_PAGE_SIZE = 64

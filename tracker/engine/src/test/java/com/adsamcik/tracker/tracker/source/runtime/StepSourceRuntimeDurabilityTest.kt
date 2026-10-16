@@ -969,6 +969,36 @@ class StepSourceRuntimeDurabilityTest {
 	}
 
 	@Test
+	fun `batched provider uncertainty cannot skip entered WAL before terminal publication`() = runTest {
+		val ack = exactTerminalAck().copy(
+			providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
+		)
+		val calls = mutableListOf<String>()
+
+		assertFailsWith<StepsCanonicalCompletionPendingException> {
+			settleStepsTerminalProjection(
+				ack = ack,
+				drainCanonicalThrough = { ordinal ->
+					calls += "drain:$ordinal"
+					StepsSessionFactDrainResult.Complete(ordinal - 1L, 0, 0)
+				},
+				publishTerminalCheckpoint = { calls += "publish" },
+			)
+		}
+		assertEquals(listOf("drain:9"), calls)
+
+		settleStepsTerminalProjection(
+			ack = ack,
+			drainCanonicalThrough = { ordinal ->
+				calls += "drain:$ordinal"
+				StepsSessionFactDrainResult.Complete(ordinal, 1, 1)
+			},
+			publishTerminalCheckpoint = { calls += "publish" },
+		)
+		assertEquals(listOf("drain:9", "drain:9", "publish"), calls)
+		assertEquals(ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE, ack.providerCoverage)
+	}
+	@Test
 	fun `genuinely incomplete retirement publishes terminal unproven without canonical bind`() = runTest {
 		val ack = exactTerminalAck().copy(
 			appDrainComplete = false,

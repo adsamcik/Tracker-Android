@@ -9,6 +9,10 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
  * retain a provider, repair a projection, or authorize a writer.
  */
 interface TrackingProductQuery {
+	/**
+	 * Reads one bounded source-qualified product page under the requested scope and continuation
+	 * snapshot.
+	 */
 	suspend fun read(request: TrackingProductQueryRequest): TrackingProductQueryResult
 }
 
@@ -103,6 +107,9 @@ class TrackingProductQueryRequestIdentity private constructor(
 	}
 }
 
+/**
+ * Bounded saved-product scope and an optional continuation from the same query snapshot.
+ */
 class TrackingProductQueryRequest(
 	val scope: TrackingProductQueryScope,
 	val limit: Int,
@@ -236,6 +243,10 @@ class TrackingProductAuthorityScope(
 	override fun toString(): String = "TrackingProductAuthorityScope"
 }
 
+/**
+ * Qualified saved-product page or a typed unavailable result, keeping read authority separate from
+ * collection.
+ */
 sealed interface TrackingProductQueryResult {
 	/**
 	 * One immutable page bound to the exact originating [requestIdentity].
@@ -275,16 +286,25 @@ sealed interface TrackingProductQueryResult {
 		}
 	}
 
+	/**
+	 * The requested data or authority is unavailable; any named reason preserves the original failure
+	 * cause.
+	 */
 	data class Unavailable(
 		val reason: TrackingProductQueryUnavailableReason,
 		val source: HistorySource? = null,
 	) : TrackingProductQueryResult {
 		init {
-			if (reason.requiresSource) require(source != null)
+			if (reason.requiresSource) {
+				require(source != null)
+			}
 		}
 	}
 }
 
+/**
+ * Scope, capability, state, integrity or read-limit boundary preventing the product query.
+ */
 enum class TrackingProductQueryUnavailableReason(
 	internal val requiresSource: Boolean = false,
 ) {
@@ -315,6 +335,9 @@ class TrackingProductIdentity private constructor(
 	}
 }
 
+/**
+ * Native session, imported or all-day origin used to qualify product actions and enrichment.
+ */
 enum class TrackingProductOriginKind {
 	SESSION,
 	IMPORTED,
@@ -534,6 +557,9 @@ class TrackingProductSelectionAuthority private constructor(
 	}
 }
 
+/**
+ * Supported exact saved-data actions advertised by the source-owned product reader.
+ */
 enum class TrackingProductAction {
 	DETAIL,
 	EXPORT,
@@ -606,6 +632,9 @@ data class TrackingProductSourceSnapshot(
 	}
 }
 
+/**
+ * Whether the saved product hierarchy was structurally verified for actions.
+ */
 enum class TrackingProductStructuralVerification {
 	EXACT,
 	PARTIAL,
@@ -643,6 +672,10 @@ class TrackingProductSnapshot(
 	}
 }
 
+/**
+ * Which snapshot, producer revision or content checksum has changed since the selection was
+ * issued.
+ */
 enum class TrackingProductSelectionStaleness {
 	COLLECTED_DATA_EPOCH_CHANGED,
 	SOURCE_EVIDENCE_REVISION_CHANGED,
@@ -650,6 +683,10 @@ enum class TrackingProductSelectionStaleness {
 	CONTENT_CHECKSUM_CHANGED,
 }
 
+/**
+ * Returns the first changed data epoch, source revision, producer revision or content checksum, or
+ * null when all still match.
+ */
 fun TrackingProductSelectionAuthority.stalenessAgainst(
 	currentSnapshot: TrackingProductReadSnapshot,
 	currentProducerRevision: Long,
@@ -669,6 +706,10 @@ fun TrackingProductSelectionAuthority.stalenessAgainst(
 	}
 }
 
+/**
+ * A requested action paired with the exact source-issued authority that advertises that
+ * capability.
+ */
 data class TrackingProductActionRequest(
 	val authority: TrackingProductActionAuthority,
 	val action: TrackingProductAction,
@@ -686,19 +727,41 @@ data class TrackingProductActionRequest(
  * fields are never sufficient authority.
  */
 interface TrackingProductActionDispatcher {
+	/**
+	 * Rechecks the exact advertised action capability and selected source authority before
+	 * dispatching the saved-data operation.
+	 */
 	suspend fun dispatch(request: TrackingProductActionRequest): TrackingProductActionResult
 }
 
+/**
+ * Completed action, rejected authority/capability or retryable failure without inventing a
+ * successful mutation.
+ */
 sealed interface TrackingProductActionResult {
+	/**
+	 * The advertised saved-data action completed under its source-issued authority.
+	 */
 	data object Applied : TrackingProductActionResult
+	/**
+	 * The advertised action was rejected because its capability, scope or selected data is no longer
+	 * valid.
+	 */
 	data class Rejected(
 		val reason: TrackingProductActionRejectionReason,
 	) : TrackingProductActionResult
+	/**
+	 * A transient storage or concurrent-state failure prevents completion and permits retry.
+	 */
 	data class RetryableFailure(
 		val reason: TrackingProductActionRetryableReason,
 	) : TrackingProductActionResult
 }
 
+/**
+ * Unsupported action or changed/invalid selection authority requiring a new source-issued
+ * selection.
+ */
 enum class TrackingProductActionRejectionReason {
 	FOREIGN_CAPABILITY,
 	ACTION_NOT_AUTHORIZED,
@@ -716,6 +779,9 @@ internal fun TrackingProductActionAuthority.producerRejection(
 		TrackingProductActionRejectionReason.FOREIGN_CAPABILITY
 	}
 
+/**
+ * Temporary storage or concurrent-state failure while dispatching a saved-data action.
+ */
 enum class TrackingProductActionRetryableReason {
 	CONCURRENT_STATE_CHANGE,
 	STORAGE_UNAVAILABLE,

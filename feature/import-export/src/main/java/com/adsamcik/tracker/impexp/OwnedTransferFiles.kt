@@ -11,10 +11,13 @@ import java.nio.file.Files
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.LinkOption
 
+/** Identifies the app-owned path still awaiting transfer cleanup so the existing cleanup journal can retry it. */
 class OwnedTransferCleanupException(val residualPath: String, cause: Throwable? = null) :
     IOException("Transfer cleanup remains pending at $residualPath", cause)
 
 /** Private, disposable transfer copies. Call only after import and export writers are stopped. */
+// Keeps all checks and operations on the same small, explicitly app-owned transfer directories together.
+@Suppress("TooManyFunctions")
 object OwnedTransferFiles {
     private const val PRIVATE_SCHEDULED_EXPORT_DIRECTORY = "exports"
     private val SHARE_REQUEST_DIRECTORY_PATTERN =
@@ -48,18 +51,17 @@ object OwnedTransferFiles {
     ): File {
         val requested = privateScheduledExportFile(context, destination, fileName)
         val directory = requireNotNull(requested.parentFile)
-        if (!directory.exists() && !directory.mkdirs()) {
-            throw IOException("Unable to create private export directory")
-        }
-        if (directory.canonicalFile != directory.absoluteFile) {
-            throw IOException("Private export directory is no longer app-owned")
-        }
+        preparePrivateExportDirectory(directory)
         val extensionAt = fileName.lastIndexOf('.').takeIf { it > 0 } ?: fileName.length
         repeat(MAX_PRIVATE_FILE_NAME_ATTEMPTS) { attempt ->
-            val candidate = if (attempt == 0) requested else File(
+            val candidate = if (attempt == 0) {
+                requested
+            } else {
+                File(
                 directory,
                 fileName.substring(0, extensionAt) + "-$attempt" + fileName.substring(extensionAt),
             )
+            }
             try {
                 Files.createFile(candidate.toPath())
                 return candidate
@@ -98,54 +100,85 @@ object OwnedTransferFiles {
         try {
             val canonicalRoot = root.canonicalFile
             val directory = File(canonicalRoot, name)
-            if (!Files.exists(directory.toPath(), LinkOption.NOFOLLOW_LINKS)) return
-            if (directory.canonicalFile != directory.absoluteFile || !directory.isDirectory) {
-                throw OwnedTransferCleanupException(directory.absolutePath)
+            if (!Files.exists(directory.toPath(), LinkOption.NOFOLLOW_LINKS)) {
+                return
             }
-            val children = directory.listFiles()
-                ?: throw OwnedTransferCleanupException(directory.absolutePath)
-            children.forEach { child ->
-                if (child.canonicalFile.parentFile != directory ||
-                    child.canonicalFile != child.absoluteFile
-                ) {
-                    throw OwnedTransferCleanupException(child.absolutePath)
-                }
-                if (name == "sharable" && child.isDirectory && isShareRequestDirectoryName(child.name)) {
-                    removeShareRequestDirectory(child) { file ->
-                        deleteOwnedFile(context, file, child, revokeShareGrant)
-                    }
-                } else {
-                    deleteOwnedFile(context, child, directory, revokeShareGrant)
-                }
-            }
-            if (!directory.delete()) {
-                throw OwnedTransferCleanupException(directory.absolutePath)
-            }
+            val children = ownedDirectoryFiles(directory)
+            clearDirectoryChildren(context, directory, name, revokeShareGrant, children)
+            removeEmptyDirectory(directory)
         } catch (failure: OwnedTransferCleanupException) {
             throw failure
-        } catch (failure: Exception) {
+        } catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+            // Android metadata/grant failures retain the exact cleanup path for full-clear recovery.
             throw OwnedTransferCleanupException(intendedPath, failure)
         }
     }
 
     /** Only the exact request directory and its immediate regular files belong to this job. */
     internal fun removeShareRequestDirectory(directory: File) = removeShareRequestDirectory(directory) { file ->
-        if (!file.delete()) throw OwnedTransferCleanupException(file.absolutePath)
+        if (!file.delete()) {
+            throw OwnedTransferCleanupException(file.absolutePath)
+        }
     }
 
     private fun removeShareRequestDirectory(directory: File, deleteFile: (File) -> Unit) {
-        if (!isShareRequestDirectoryName(directory.name)) throw OwnedTransferCleanupException(directory.absolutePath)
-        if (!Files.exists(directory.toPath(), LinkOption.NOFOLLOW_LINKS)) return
+        if (!isShareRequestDirectoryName(directory.name)) {
+            throw OwnedTransferCleanupException(directory.absolutePath)
+        }
+        if (!Files.exists(directory.toPath(), LinkOption.NOFOLLOW_LINKS)) {
+            return
+        }
         val parent = directory.parentFile ?: throw OwnedTransferCleanupException(directory.absolutePath)
-        if (directory.canonicalFile != directory.absoluteFile ||
-            directory.canonicalFile.parentFile != parent.canonicalFile || !directory.isDirectory
-        ) throw OwnedTransferCleanupException(directory.absolutePath)
-        val files = directory.listFiles() ?: throw OwnedTransferCleanupException(directory.absolutePath)
+        val files = ownedDirectoryFiles(directory, parent)
         // Validate the entire one-level membership before deleting any of it. Unexpected nested
         // content or links remain intact and report the existing cleanup failure.
         files.forEach { requireOwnedFile(it, directory) }
         files.forEach(deleteFile)
-        if (!directory.delete()) throw OwnedTransferCleanupException(directory.absolutePath)
+        removeEmptyDirectory(directory)
+    }
+
+    private fun preparePrivateExportDirectory(directory: File) {
+        if (!directory.exists() && !directory.mkdirs()) {
+            throw IOException("Unable to create private export directory")
+        }
+        if (directory.canonicalFile != directory.absoluteFile) {
+            throw IOException("Private export directory is no longer app-owned")
+        }
+    }
+
+    private fun ownedDirectoryFiles(directory: File, expectedParent: File? = null): Array<File> {
+        if (directory.canonicalFile != directory.absoluteFile ||
+            (expectedParent != null && directory.canonicalFile.parentFile != expectedParent.canonicalFile) ||
+            !directory.isDirectory
+        ) {
+            throw OwnedTransferCleanupException(directory.absolutePath)
+        }
+        return directory.listFiles() ?: throw OwnedTransferCleanupException(directory.absolutePath)
+    }
+
+    private fun clearDirectoryChildren(
+        context: Context, directory: File, name: String, revokeShareGrant: Boolean, children: Array<File>,
+    ) {
+        children.forEach { child ->
+            if (child.canonicalFile.parentFile != directory ||
+                child.canonicalFile != child.absoluteFile
+            ) {
+                throw OwnedTransferCleanupException(child.absolutePath)
+            }
+            if (name == "sharable" && child.isDirectory && isShareRequestDirectoryName(child.name)) {
+                removeShareRequestDirectory(child) { file ->
+                    deleteOwnedFile(context, file, child, revokeShareGrant)
+                }
+            } else {
+                deleteOwnedFile(context, child, directory, revokeShareGrant)
+            }
+        }
+    }
+
+    private fun removeEmptyDirectory(directory: File) {
+        if (!directory.delete()) {
+            throw OwnedTransferCleanupException(directory.absolutePath)
+        }
     }
 
     private fun requireOwnedFile(file: File, parent: File) {
@@ -160,11 +193,14 @@ object OwnedTransferFiles {
             try {
                 val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
                 context.revokeUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            } catch (failure: Exception) {
+            } catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+                // Provider/grant revocation failures must preserve this file for the existing retry.
                 throw OwnedTransferCleanupException(file.absolutePath, failure)
             }
         }
-        if (!file.delete()) throw OwnedTransferCleanupException(file.absolutePath)
+        if (!file.delete()) {
+            throw OwnedTransferCleanupException(file.absolutePath)
+        }
     }
 
     private const val MAX_PRIVATE_FILE_NAME_ATTEMPTS = 1_000

@@ -113,8 +113,10 @@ suspend fun TrackingHistoryReadDao.loadSelectedStepsFactCandidateStatesByRun(
     serviceRuns: List<SourceServiceRunEntity>,
     identities: List<StepsFactCandidateIdentity>,
 ): Map<String, Map<StepsFactCandidateIdentity, StepsFactCandidateState>> {
-    require(identities.size <= 100 && identities.distinct().size == identities.size)
-    if (identities.isEmpty() || serviceRuns.isEmpty()) return emptyMap()
+    require(identities.size <= MAX_SELECTED_STEPS_FACT_IDENTITIES && identities.distinct().size == identities.size)
+    if (identities.isEmpty() || serviceRuns.isEmpty()) {
+        return emptyMap()
+    }
     val selected = identities.map { "${it.writerProjectionId.length}:${it.writerProjectionId}:" +
         "${it.writerProjectionVersion}:${it.logicalFactId.length}:${it.logicalFactId}" }
     val states = linkedMapOf<String, MutableMap<StepsFactCandidateIdentity, StepsFactCandidateState>>()
@@ -203,3 +205,5 @@ private const val STEPS_FACT_CANDIDATE_PAGE_SIZE = 256
 // The DAO expands run ids in three predicates. Keep 3N plus scalar binds below SQLite's
 // historical 999-variable ceiling on every supported Android release.
 private const val STEPS_FACT_QUERY_RUN_BATCH_SIZE = 64
+
+private const val MAX_SELECTED_STEPS_FACT_IDENTITIES = 100

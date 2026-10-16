@@ -34,6 +34,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /** Focused Room authority/retention source; execution is deferred to final convergence. */
+// One Room fixture follows all-day radio authority through consent, retention and replay fences.
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class AmbientRadioAuthorityRoomTest {
@@ -120,6 +122,8 @@ class AmbientRadioAuthorityRoomTest {
 		)
 	}
 
+	// Keep consent grant, revocation, fence installation and idempotent deletion in one Room scenario.
+	@Suppress("LongMethod")
 	@Test
 	fun `zero-row consent deletion still advances the authenticated source fence`() = runTest {
 		database.sourceEvidenceStateDao().ensure(
@@ -318,6 +322,8 @@ class AmbientRadioAuthorityRoomTest {
 		)
 	}
 
+	// Keep original consent, reboot, unrelated settings change and both preserved radio grants together.
+	@Suppress("LongMethod")
 	@Test
 	fun `radio grants preserve unchanged consent across policy revision and reboot`() = runTest {
 		database.sourceEvidenceStateDao().ensure(
@@ -561,6 +567,8 @@ class AmbientRadioAuthorityRoomTest {
 			assertEquals(0L, database.ambientWifiFactDao().importedFactCount())
 		}
 
+	// Keep the old/new revoked policies, original gap and resulting retention deletion together.
+	@Suppress("LongMethod")
 	@Test
 	fun `revoked local Cell policy rows are pruned while the scope remains revoked`() =
 		runTest {

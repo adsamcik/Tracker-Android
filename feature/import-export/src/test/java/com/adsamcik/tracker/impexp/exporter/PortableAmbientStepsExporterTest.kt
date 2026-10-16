@@ -633,7 +633,11 @@ class PortableAmbientStepsExporterTest {
 		val intervalSize = (end - start) / factCount
 		val facts = (0 until factCount).map { index ->
 			val factStart = start + intervalSize * index
-			val factEnd = if (index == factCount - 1) end else factStart + intervalSize
+			val factEnd = if (index == factCount - 1) {
+				end
+			} else {
+				factStart + intervalSize
+			}
 			PortableAmbientStepsFactV1.create(
 				AmbientStepsPortableOpaqueIdentity.derive(
 					AmbientStepsPortableIdentityKind.FACT,

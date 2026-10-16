@@ -92,9 +92,11 @@ class LocationSavedFileSelectionTest {
             override fun write(value: Int) = error("Copy must use bounded byte blocks")
             override fun write(buffer: ByteArray, offset: Int, length: Int) {
                 database.inTransaction() shouldBe false
-                if (writes++ == 0) runBlocking {
+                if (writes++ == 0) {
+                    runBlocking {
                     // This real DAO write can finish because the snapshot was released.
                     database.locationSampleDao().insert(sample(2_000L))
+                }
                 }
                 bytes.write(buffer, offset, length)
             }
@@ -176,7 +178,11 @@ class LocationSavedFileSelectionTest {
         val result = LocationFileExporter().exportAfter(
             context, emptySequence(), bytes, range, null, null, database, {},
         )
-        return result to if (result.isSuccess) read(bytes) else emptyList()
+        return result to if (result.isSuccess) {
+            read(bytes)
+        } else {
+            emptyList()
+        }
     }
 
     private suspend fun read(bytes: ByteArrayOutputStream): List<LocationFilePointV1> {

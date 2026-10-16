@@ -33,6 +33,10 @@ internal fun CanonicalTrackingSource.toApiTrackingSource(): TrackingSource = whe
 	CanonicalTrackingSource.CELL -> TrackingSource.CELL
 }
 
+/**
+ * Exact source-purpose authority, including consent, data epoch, execution and owner token; retainedFromMs
+ * is UTC milliseconds.
+ */
 data class TrackingPurposeLeaseIdentity(
 	val sourcePurpose: CanonicalIdentity,
 	val policyRevision: Long,
@@ -81,7 +85,12 @@ data class TrackingPurposeLeaseIdentity(
 	val purpose: TrackingPurpose
 		get() = sourcePurpose.purpose
 
+	/** Java-compatible constructors for canonical and legacy source names. */
 	companion object {
+		/**
+		 * Builds an exact canonical purpose identity; construction alone does not grant collection
+		 * authority.
+		 */
 		@JvmStatic
 		fun create(
 			source: CanonicalTrackingSource,
@@ -104,6 +113,10 @@ data class TrackingPurposeLeaseIdentity(
 			null,
 		)
 
+		/**
+		 * Builds an exact canonical purpose identity; construction alone does not grant collection
+		 * authority.
+		 */
 		@JvmStatic
 		fun create(
 			source: CanonicalTrackingSource,
@@ -126,6 +139,9 @@ data class TrackingPurposeLeaseIdentity(
 			retainedFromMs = retainedFromMs,
 		)
 
+		/**
+		 * Converts the legacy source name to its canonical purpose identity without issuing a lease.
+		 */
 		@JvmStatic
 		fun createLegacy(
 			source: TrackingSource,
@@ -148,6 +164,9 @@ data class TrackingPurposeLeaseIdentity(
 			null,
 		)
 
+		/**
+		 * Converts the legacy source name to its canonical purpose identity without issuing a lease.
+		 */
 		@JvmStatic
 		fun createLegacy(
 			source: TrackingSource,

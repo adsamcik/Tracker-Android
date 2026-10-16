@@ -125,20 +125,9 @@ internal class StepWindowAccumulator(
 		// discarded counter domain through the first value in the new domain. Keeping that boundary
 		// lets the sole fact writer distinguish a reset from a newly authorized baseline.
 		val payloadBaseline = authorizedPrevious
-		val payload = StepCounterWindowPayload(
-			bootClockDomainId = bootClockDomainId,
-			firstCumulativeCount = payloadBaseline?.cumulativeCount ?: cumulativeCount,
-			lastCumulativeCount = cumulativeCount,
-			deltaCount = delta,
-			windowStartElapsedRealtimeNanos =
-				payloadBaseline?.elapsedRealtimeNanos ?: elapsedRealtimeNanos,
-			windowEndElapsedRealtimeNanos = elapsedRealtimeNanos,
-			firstProviderSequence = payloadBaseline?.providerSequence ?: providerSequence,
-			lastProviderSequence = providerSequence,
-			boundaryKind = boundaryKind,
-			counterDomainToken = payloadCounterDomainToken,
-			counterEpochGeneration = nextCounterEpochGeneration,
-		)
+		val payload = previewPayload(bootClockDomainId, cumulativeCount, elapsedRealtimeNanos,
+			providerSequence, payloadBaseline, boundaryKind, delta, payloadCounterDomainToken,
+			nextCounterEpochGeneration)
 		return StepWindowPreview(
 			payload = payload,
 			expectedBaseline = previous,
@@ -153,6 +142,25 @@ internal class StepWindowAccumulator(
 			),
 		)
 	}
+
+	private fun previewPayload(
+		bootClockDomainId: String, cumulativeCount: Long, elapsedRealtimeNanos: Long, providerSequence: Long,
+		authorizedPrevious: StepBaseline?, boundaryKind: StepBoundaryKind, delta: Long,
+		counterDomainToken: StepsCounterDomainToken?, counterEpochGeneration: Long,
+	): StepCounterWindowPayload = StepCounterWindowPayload(
+		bootClockDomainId = bootClockDomainId,
+		firstCumulativeCount = authorizedPrevious?.cumulativeCount ?: cumulativeCount,
+		lastCumulativeCount = cumulativeCount,
+		deltaCount = delta,
+		windowStartElapsedRealtimeNanos =
+			authorizedPrevious?.elapsedRealtimeNanos ?: elapsedRealtimeNanos,
+		windowEndElapsedRealtimeNanos = elapsedRealtimeNanos,
+		firstProviderSequence = authorizedPrevious?.providerSequence ?: providerSequence,
+		lastProviderSequence = providerSequence,
+		boundaryKind = boundaryKind,
+		counterDomainToken = counterDomainToken,
+		counterEpochGeneration = counterEpochGeneration,
+	)
 
 	/** Commits exactly one preview whose predecessor is still the current durable baseline. */
 	fun commit(preview: StepWindowPreview): Boolean {
@@ -236,39 +244,43 @@ internal fun decodeStepBaseline(
 			StepBaselineBoundary(registrationGeneration)
 		}
 		if (expectedBoundary != null && boundary != expectedBoundary) return@runCatching null
-		val authorizationBoundary = if (input.readBoolean()) {
-			StepAuthorizationBoundary(
-				authorizationRevision = input.readLong(),
-				authorizationFingerprint = input.readUTF(),
-				purposeEligibilityMask = input.readLong(),
-				effectiveElapsedRealtimeNanos = input.readLong(),
-			)
-		} else {
-			null
-		}
-		val counterEpochGeneration = if (version >= STEP_BASELINE_VERSION) {
-			input.readLong().also { require(it > 0L) }
-		} else {
-			INITIAL_COUNTER_EPOCH_GENERATION
-		}
-		val counterDomainToken = if (
-			version >= STEP_COUNTER_DOMAIN_BASELINE_VERSION && input.readBoolean()
-		) {
-			StepsCounterDomainToken.opaque(input.readUTF())
-		} else {
-			null
-		}
-		StepBaseline(
-			input.readLong(),
-			input.readLong(),
-			input.readLong(),
-			boundary,
-			authorizationBoundary,
-			counterDomainToken,
-			counterEpochGeneration,
-		).also { require(input.available() == 0) }
+		input.readBaseline(version, boundary)
 	}
 }.getOrNull()
+
+private fun DataInputStream.readBaseline(version: Int, boundary: StepBaselineBoundary?): StepBaseline {
+	val authorizationBoundary = if (readBoolean()) {
+		StepAuthorizationBoundary(
+			authorizationRevision = readLong(),
+			authorizationFingerprint = readUTF(),
+			purposeEligibilityMask = readLong(),
+			effectiveElapsedRealtimeNanos = readLong(),
+		)
+	} else {
+		null
+	}
+	val counterEpochGeneration = if (version >= STEP_BASELINE_VERSION) {
+		readLong().also { require(it > 0L) }
+	} else {
+		INITIAL_COUNTER_EPOCH_GENERATION
+	}
+	val counterDomainToken = if (
+		version >= STEP_COUNTER_DOMAIN_BASELINE_VERSION && readBoolean()
+	) {
+		StepsCounterDomainToken.opaque(readUTF())
+	} else {
+		null
+	}
+	return StepBaseline(
+		readLong(),
+		readLong(),
+		readLong(),
+		boundary,
+		authorizationBoundary,
+		counterDomainToken,
+		counterEpochGeneration,
+	).also { require(available() == 0) }
+}
 
 internal const val STEP_BASELINE_VERSION = 7
 private const val STEP_COUNTER_DOMAIN_BASELINE_VERSION = 6

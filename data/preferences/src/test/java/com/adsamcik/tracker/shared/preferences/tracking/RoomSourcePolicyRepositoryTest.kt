@@ -25,6 +25,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Suppress("LargeClass") // Shared policy/consent transactions keep sibling source decisions comparable.
 class RoomSourcePolicyRepositoryTest {
 	@Test
 	fun `Steps alone can authorize temporary automatic control without Activity capture or epoch churn`() = runTest {
@@ -942,6 +943,9 @@ class RoomSourcePolicyRepositoryTest {
 		source: TrackingSourceComponent,
 	) = installLiveAuthority(snapshot, source, SourceBrokerPurpose.SESSION_CAPTURE)
 
+	// Keep one live-purpose fixture with its matching demand, provider registration and historical
+	// authorization rows together.
+	@Suppress("LongMethod")
 	private suspend fun installLiveAuthority(
 		snapshot: SourcePolicySnapshot,
 		source: TrackingSourceComponent,
@@ -956,8 +960,16 @@ class RoomSourcePolicyRepositoryTest {
 			SourceBrokerPurpose.AMBIENT_PRODUCT -> policy.ambientConsentEpoch
 			else -> error("Unsupported test purpose $purpose")
 		}
-		val demandId = if (sessionScoped) TEST_DEMAND_ID else TEST_AMBIENT_DEMAND_ID
-		val consumerId = if (sessionScoped) TEST_CONSUMER_ID else TEST_AMBIENT_CONSUMER_ID
+		val demandId = if (sessionScoped) {
+			TEST_DEMAND_ID
+		} else {
+			TEST_AMBIENT_DEMAND_ID
+		}
+		val consumerId = if (sessionScoped) {
+			TEST_CONSUMER_ID
+		} else {
+			TEST_AMBIENT_CONSUMER_ID
+		}
 		val demand = SourceDemandEntity(
 			demandId = demandId,
 			consumerId = consumerId,
@@ -990,10 +1002,14 @@ class RoomSourcePolicyRepositoryTest {
 				ownerScope = "source-broker:${source.stableCode}",
 				providerResidency = if (source == TrackingSourceComponent.ACTIVITY) {
 					ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE
-				} else ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+				} else {
+					ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND
+				},
 				providerProcessIncarnationId = if (source == TrackingSourceComponent.ACTIVITY) {
 					null
-				} else "test-process",
+				} else {
+					"test-process"
+				},
 				clockDomainId = TEST_BOOT_ID,
 				physicalConfigurationFingerprint = "physical-1",
 				collectedDataEpoch = collectedDataEpoch,

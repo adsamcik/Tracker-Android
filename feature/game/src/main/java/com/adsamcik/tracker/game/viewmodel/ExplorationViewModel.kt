@@ -122,21 +122,7 @@ internal fun achievementSummaryState(
 	val unlocked = availableDefinitions.filter { definition ->
 		(progressByMetric[definition.metric]?.lastTierIndex ?: -1) >= definition.tierIndex
 	}
-	val recentUnlocks = progressRows.asSequence()
-		.filter { it.lastTierIndex >= 0 && it.unlockedAt != null }
-		.sortedByDescending { requireNotNull(it.unlockedAt) }
-		.mapNotNull { row ->
-			val definition = AchievementCatalog.byMetric(row.metric).getOrNull(row.lastTierIndex)
-				?: return@mapNotNull null
-			ExplorationViewModel.AchievementListItem(
-				definition.id,
-				definition.nameRes,
-				definition.tier,
-				requireNotNull(row.unlockedAt),
-			)
-		}
-		.take(3)
-		.toList()
+	val recentUnlocks = recentAchievementUnlocks(progressRows)
 	// Pick the user's NEXT tier per metric series (lowest tierIndex not yet
 	// unlocked), then surface the top 5 closest-to-completion across DIFFERENT
 	// series. One-per-series reads like a real to-do list of variety.
@@ -176,3 +162,23 @@ internal fun achievementSummaryState(
 		nextUp = nextUp,
 	)
 }
+
+private fun recentAchievementUnlocks(progressRows: List<AchievementProgress>):
+	List<ExplorationViewModel.AchievementListItem> =
+	progressRows.asSequence()
+		.filter { it.lastTierIndex >= 0 && it.unlockedAt != null }
+		.sortedByDescending { requireNotNull(it.unlockedAt) }
+		.mapNotNull { row ->
+			val definition = AchievementCatalog.byMetric(row.metric).getOrNull(row.lastTierIndex)
+				?: return@mapNotNull null
+			ExplorationViewModel.AchievementListItem(
+				definition.id,
+				definition.nameRes,
+				definition.tier,
+				requireNotNull(row.unlockedAt),
+			)
+		}
+		.take(RECENT_UNLOCK_LIMIT)
+		.toList()
+
+private const val RECENT_UNLOCK_LIMIT = 3

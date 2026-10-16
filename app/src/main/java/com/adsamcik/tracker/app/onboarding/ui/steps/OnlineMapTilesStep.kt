@@ -44,6 +44,8 @@ import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
  * uses the default provider (`OpenFreeMap`); they can change it later.
  */
 @Composable
+// Keep one map-choice step with its completion state, two choices and always-visible disclosure together.
+@Suppress("LongMethod")
 fun OnlineMapTilesStep(
 	enabled: Boolean,
 	onEnabledChange: (Boolean) -> Unit,

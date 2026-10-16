@@ -93,8 +93,12 @@ class DevelopmentV28SQLiteXContainmentInstrumentedTest {
 	)
 
 	private fun deleteFileFamily() {
-		if (::context.isInitialized) context.deleteDatabase(DATABASE_NAME)
-		if (::databaseFile.isInitialized) fileFamily().forEach { it.delete() }
+		if (::context.isInitialized) {
+			context.deleteDatabase(DATABASE_NAME)
+		}
+		if (::databaseFile.isInitialized) {
+			fileFamily().forEach { it.delete() }
+		}
 	}
 
 	private fun sha256(file: File): String = MessageDigest.getInstance("SHA-256")

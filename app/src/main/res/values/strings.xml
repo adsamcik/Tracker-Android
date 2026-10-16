@@ -256,12 +256,12 @@
     <string name="export_format_json_name">JSON</string>
     <string name="export_format_json_desc">Locations, legacy Wi-Fi and Cell readings, and session summaries. Includes whole sessions that overlap chosen dates; other sources are omitted.</string>
     <string name="export_format_db_name">Database</string>
-    <string name="export_format_db_desc">Raw SQLite backup with all data and settings; import merges compatible rows, not a full restore</string>
+    <string name="export_format_db_desc">All saved data. Settings are excluded.</string>
     <string name="export_sensitivity_dialog_title">Export precise location data?</string>
     <string name="export_sensitivity_gpx_message">This GPX export contains full-precision route points. Only save or share it with people and apps you trust.</string>
     <string name="export_sensitivity_kml_message">This KML export contains full-precision route points. Only save or share it with people and apps you trust.</string>
     <string name="export_sensitivity_json_message">This JSON export contains precise locations, Wi-Fi and Cell identifiers, and session summaries. It can include complete sessions outside the chosen dates. Only save or share it with destinations you trust.</string>
-    <string name="export_sensitivity_db_message">This raw database backup may include precise locations, Wi-Fi/cell radio data, activity, and settings. Keep it private and only store it somewhere you trust.</string>
+    <string name="export_sensitivity_db_message">This backup contains your saved tracking data, which may include locations and network details. Settings are excluded.</string>
     <string name="export_sensitivity_confirm">Continue export</string>
 
     <string name="settings_export_title">Export</string>

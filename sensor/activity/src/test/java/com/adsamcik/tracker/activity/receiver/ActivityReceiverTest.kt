@@ -718,7 +718,6 @@ class ActivityReceiverTest {
 		val disposition = finalizeActivityCallbackAuthority(
 			terminallyOwnedOrRejected = false,
 			durablyRetryOwned = false,
-			gapCode = ActivityCallbackGapCode.RETRY_BYTE_BUDGET_EXHAUSTED,
 			recordGap = { false },
 			completePermit = { completeCount += 1 },
 		)

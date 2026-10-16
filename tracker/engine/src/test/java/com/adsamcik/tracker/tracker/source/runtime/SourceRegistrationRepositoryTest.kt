@@ -8,7 +8,6 @@ import com.adsamcik.tracker.tracker.source.coordinator.SourceWriterTransitionEng
 import com.adsamcik.tracker.tracker.source.coordinator.SourceWriterTransitionTestDependencies
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
-import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
 import com.adsamcik.tracker.tracker.source.model.WifiPlan
@@ -17,7 +16,7 @@ import com.adsamcik.tracker.tracker.source.model.CellPlan
 import com.adsamcik.tracker.tracker.source.model.CellMode
 import com.adsamcik.tracker.tracker.source.model.RetryBackoff
 import android.app.Application
-import android.location.Location
+import com.adsamcik.tracker.testing.fake.FakeLocationSource
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -71,6 +70,8 @@ import io.mockk.every
 import io.mockk.mockk
 import javax.inject.Provider
 import kotlin.test.assertIs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.CompletableDeferred
@@ -87,6 +88,9 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+// One Room registration fixture keeps reserve, accept, refresh and retirement against the same durable
+// source owner.
+@Suppress("LargeClass")
 class SourceRegistrationRepositoryTest {
 	private lateinit var database: AppDatabase
 	private lateinit var subject: SourceRegistrationRepository
@@ -122,7 +126,7 @@ class SourceRegistrationRepositoryTest {
 	fun tearDown() = database.close()
 
 	@Test
-	fun `radio session successor stays monotonic through later CONTROL capture cleanup`() = runTest {
+	fun `radio session successor stays monotonic through later CONTROL capture cleanup`(): Unit = runTest {
 		for (kind in listOf(SourceKind.WIFI, SourceKind.CELL)) {
 			val capture = demand("session-prefix-${kind.name}", "session:${kind.name}",
 				SourceBrokerPurpose.SESSION_CAPTURE, "prefix-${kind.name}", 1L, true, kind)
@@ -142,7 +146,9 @@ class SourceRegistrationRepositoryTest {
 			val acknowledged = current.authorization.authorizationRevision
 			if (kind == SourceKind.CELL) {
 				subject.publishCellCaptureCallbackBarrier(current, 3L) shouldBe CellCaptureCallbackBarrierPublication.Established(acknowledged)
-			} else subject.publishWifiCaptureCallbackBarrier(current, 3L) shouldBe WifiCaptureCallbackBarrierPublication.Established(acknowledged)
+			} else {
+				subject.publishWifiCaptureCallbackBarrier(current, 3L) shouldBe WifiCaptureCallbackBarrierPublication.Established(acknowledged)
+			}
 			database.sourceBrokerDao().registration(kind.stableCode, current.state.registrationGeneration)
 				?.captureCallbackBarrierAuthorizationRevision shouldBe acknowledged
 			database.sourceBrokerDao().demandsByIds(listOf(control.demandId)) shouldBe listOf(control)
@@ -150,7 +156,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `radio session setup fence preserves Ambient while generic product fence stays strict`() = runTest {
+	fun `radio session setup fence preserves Ambient while generic product fence stays strict`(): Unit = runTest {
 		for (kind in listOf(SourceKind.WIFI, SourceKind.CELL)) {
 			val capture = demand("ambient-prefix-${kind.name}", "session:${kind.name}",
 				SourceBrokerPurpose.SESSION_CAPTURE, "ambient-prefix-${kind.name}", 1L, true, kind)
@@ -177,7 +183,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `renewed radio CAPTURE refuses the old session boundary without stopping Ambient`() = runTest {
+	fun `renewed radio CAPTURE refuses the old session boundary without stopping Ambient`(): Unit = runTest {
 		val kind = SourceKind.CELL
 		val capture = cellDemand("first-radio-capture", "session:first", SourceBrokerPurpose.SESSION_CAPTURE, "first", 1L, true)
 		database.sourceBrokerDao().insertDemands(listOf(capture))
@@ -203,7 +209,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `radio setup refuses forged missing and out-of-range no-CAP acknowledgements`() = runTest {
+	fun `radio setup refuses forged missing and out-of-range no-CAP acknowledgements`(): Unit = runTest {
 		for (kind in listOf(SourceKind.WIFI, SourceKind.CELL)) {
 			val capture = demand("checked-prefix-${kind.name}", "session:${kind.name}",
 				SourceBrokerPurpose.SESSION_CAPTURE, "checked-${kind.name}", 1L, true, kind)
@@ -241,7 +247,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `Cell capture callback barrier keeps exact current Ambient after capture removal`() = runTest {
+	fun `Cell capture callback barrier keeps exact current Ambient after capture removal`(): Unit = runTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_policy SET balance_profile_version = 1, balance_level = 3, overall_balance_level = 3 " +
 				"WHERE policy_revision = 5 AND source_kind = ?", arrayOf(SourceKind.CELL.stableCode))
@@ -266,7 +272,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `Cell capture callback barrier refuses revoked Ambient without borrowing capture consent`() = runTest {
+	fun `Cell capture callback barrier refuses revoked Ambient without borrowing capture consent`(): Unit = runTest {
 		val ambient = cellDemand("cell-ambient", "app:ambient:cell", SourceBrokerPurpose.AMBIENT_PRODUCT, null, null, true)
 			.copy(qosCode = 0)
 		database.sourceBrokerDao().insertDemands(listOf(ambient))
@@ -283,14 +289,14 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `registration fails closed without a durable active demand`() = runTest {
+	fun `registration fails closed without a durable active demand`(): Unit = runTest {
 		shouldThrow<IllegalArgumentException> {
 			subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
 		}
 	}
 
 	@Test
-	fun `restored non-session pressure demands cannot reserve or authorize a provider`() = runTest {
+	fun `restored non-session pressure demands cannot reserve or authorize a provider`(): Unit = runTest {
 		enablePressureRegistrationForTest()
 		database.sourceBrokerDao().insertDemands(
 			listOf(
@@ -323,7 +329,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `non-session pressure demand blocks reserved provider acceptance`() = runTest {
+	fun `non-session pressure demand blocks reserved provider acceptance`(): Unit = runTest {
 		enablePressureRegistrationForTest()
 		database.sourceBrokerDao().insertDemands(
 			listOf(pressureCaptureDemand()),
@@ -355,7 +361,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `non-session pressure demand blocks active authorization refresh`() = runTest {
+	fun `non-session pressure demand blocks active authorization refresh`(): Unit = runTest {
 		enablePressureRegistrationForTest()
 		database.sourceBrokerDao().insertDemands(listOf(pressureCaptureDemand()))
 		val registration = subject.begin(SourceKind.PRESSURE, 1L, PHYSICAL_CONFIG, 100L, 100L)
@@ -387,7 +393,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `contained rollout rejects a stale durable demand before reservation`() = runTest {
+	fun `contained rollout rejects a stale durable demand before reservation`(): Unit = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
 		)
@@ -403,7 +409,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `rollout containment between reserve and accept leaves no active generation`() = runTest {
+	fun `rollout containment between reserve and accept leaves no active generation`(): Unit = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
 		)
@@ -424,14 +430,14 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `system rearmable activity cannot enter the process bound repository`() = runTest {
+	fun `system rearmable activity cannot enter the process bound repository`(): Unit = runTest {
 		shouldThrow<IllegalArgumentException> {
 			subject.begin(SourceKind.ACTIVITY, 1L, PHYSICAL_CONFIG, 100L, 100L)
 		}
 	}
 
 	@Test
-	fun `new process reconciles stale reservation before replacement`() = runTest {
+	fun `new process reconciles stale reservation before replacement`(): Unit = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
 		)
@@ -487,7 +493,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `registration snapshots the exact merged purpose vector before provider acceptance`() = runTest {
+	fun `registration snapshots the exact merged purpose vector before provider acceptance`(): Unit = runTest {
 		val demands = listOf(
 			demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 4L, true),
 			demand("control", "app:automation", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false),
@@ -516,8 +522,10 @@ class SourceRegistrationRepositoryTest {
 			ProviderRegistrationGenerationEntity.STATUS_ACTIVE
 	}
 
+	// Keep both Steps provider reservations and ambient-only fencing in one ownership scenario.
+	@Suppress("LongMethod")
 	@Test
-	fun `incompatible Steps providers retain isolated purpose authority and owner pointers`() = runTest {
+	fun `incompatible Steps providers retain isolated purpose authority and owner pointers`(): Unit = runTest {
 		val capture = demand(
 			"capture",
 			"session:s1",
@@ -601,7 +609,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `ambient provider acceptance revalidates exact retention identity`() = runTest {
+	fun `ambient provider acceptance revalidates exact retention identity`(): Unit = runTest {
 		val ambient = demand(
 			"ambient-retention",
 			"app:ambient:steps",
@@ -631,7 +639,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `provider acceptance authenticates the exact lifecycle epoch before Room mutation`() = runTest {
+	fun `provider acceptance authenticates the exact lifecycle epoch before Room mutation`(): Unit = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(
 				demand(
@@ -658,7 +666,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `provider reservation obtains retention serialization before entering Room`() = runTest {
+	fun `provider reservation obtains retention serialization before entering Room`(): Unit = runTest {
 		val ambient = demand(
 			"ambient-lock-order",
 			"app:ambient:steps",
@@ -724,9 +732,9 @@ class SourceRegistrationRepositoryTest {
 			)
 		}
 		readerEntered.await()
-		withTimeout(1_000L) {
-			database.withTransaction {
-				database.sourceEvidenceStateDao().get()
+		withContext(Dispatchers.IO) {
+			withTimeout(1_000L) {
+				database.withTransaction { database.sourceEvidenceStateDao().get() }
 			}
 		}
 		roomProbeComplete.complete(Unit)
@@ -735,7 +743,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `provider acceptance rejects a retention revision changed after snapshot capture`() = runTest {
+	fun `provider acceptance rejects a retention revision changed after snapshot capture`(): Unit = runTest {
 		val ambient = demand(
 			"ambient-retention-race",
 			"app:ambient:steps",
@@ -818,7 +826,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `manifest and global plan revisions rotate authorization without physical generation churn`() = runTest {
+	fun `manifest and global plan revisions rotate authorization without physical generation churn`(): Unit = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("capture-v1", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
 		)
@@ -846,7 +854,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `active authorization refresh never reserves an incompatible replacement`() = runTest {
+	fun `active authorization refresh never reserves an incompatible replacement`(): Unit = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
 		)
@@ -880,8 +888,10 @@ class SourceRegistrationRepositoryTest {
 			?.appliedRevision shouldBe 2L
 	}
 
+	// Keep physical replacement reservation, acceptance and the exact observed-time handoff together.
+	@Suppress("LongMethod")
 	@Test
-	fun `physical configuration change alone rotates generation`() = runTest {
+	fun `physical configuration change alone rotates generation`(): Unit = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
 		)
@@ -950,7 +960,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `failed replacement preserves accepted generation and pointer`() = runTest {
+	fun `failed replacement preserves accepted generation and pointer`(): Unit = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
 		)
@@ -977,7 +987,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `unaccepted failure cannot terminalize an accepted provider`() = runTest {
+	fun `unaccepted failure cannot terminalize an accepted provider`(): Unit = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
 		)
@@ -1020,7 +1030,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `retirement token is idempotent exact and blocks replacement until completion`() = runTest {
+	fun `retirement token is idempotent exact and blocks replacement until completion`(): Unit = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
 		)
@@ -1085,7 +1095,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `reserved provider can enter exact retirement when cleanup remains required`() = runTest {
+	fun `reserved provider can enter exact retirement when cleanup remains required`(): Unit = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
 		)
@@ -1107,7 +1117,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `terminal checkpoint and exact run completeness commit or roll back together`() = runTest {
+	fun `terminal checkpoint and exact run completeness commit or roll back together`(): Unit = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
 		)
@@ -1154,14 +1164,19 @@ class SourceRegistrationRepositoryTest {
 			terminal,
 			200L,
 			terminalCompleteness = completeness,
+			terminalStepsCountDomainEvidence = StepsCountDomainRetirementEvidence(
+				providerFlushOutcome = ProviderFlushOutcome.COMPLETE.name,
+				registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED.name,
+			),
 		) shouldBe SourceRuntimeStateSaveResult.Saved
 		subject.loadRuntimeState(registration).shouldNotBeNull()
 		database.sourceSessionDao().completenessForServiceRun("s1", "run-s1") shouldBe listOf(completeness)
 	}
 
+	// Keep the full completeness backlog and failed checkpoint transaction in one Room scenario.
+	@Suppress("LongMethod")
 	@Test
-	fun `raw Steps completeness overflow returns typed unverifiable and rolls back checkpoint`() =
-		runTest {
+	fun `raw Steps completeness overflow returns typed unverifiable and rolls back checkpoint`(): Unit = runTest {
 			StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
 				StepsCountDomainSchemaState.ValidV2
 			database.sourceBrokerDao().insertDemands(
@@ -1235,8 +1250,10 @@ class SourceRegistrationRepositoryTest {
 		}
 
 	@Test
-	fun `maximum completeness wall time and revision headroom return typed unverifiable`() =
-		runTest {
+	// Keep terminal checkpoint overflow through both unchanged-storage assertions in the same registration
+	// journey.
+	@Suppress("LongMethod")
+	fun `maximum completeness wall time and revision headroom return typed unverifiable`(): Unit = runTest {
 			StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
 				StepsCountDomainSchemaState.ValidV2
 			database.sourceBrokerDao().insertDemands(
@@ -1324,7 +1341,7 @@ class SourceRegistrationRepositoryTest {
 		}
 
 	@Test
-	fun `terminal Steps evidence revision uses wall time instead of checkpoint uptime`() = runTest {
+	fun `terminal Steps evidence revision uses wall time instead of checkpoint uptime`(): Unit = runTest {
 		StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
 			StepsCountDomainSchemaState.ValidV2
 		database.sourceBrokerDao().insertDemands(
@@ -1373,7 +1390,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `sensor checkpoint merge is monotonic and rejects a superseded registration`() = runTest {
+	fun `sensor checkpoint merge is monotonic and rejects a superseded registration`(): Unit = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
 		)
@@ -1437,7 +1454,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `Cell callback barrier publishes only after authorization becomes CONTROL-only`() = runTest {
+	fun `Cell callback barrier publishes only after authorization becomes CONTROL-only`(): Unit = runTest {
 		val capture = cellDemand(
 			"cell-capture",
 			"session:cell",
@@ -1486,7 +1503,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `CONTROL-only Cell generation authenticates an exact zero capture barrier`() = runTest {
+	fun `CONTROL-only Cell generation authenticates an exact zero capture barrier`(): Unit = runTest {
 		val control = cellDemand(
 			"cell-control",
 			"app:cell-control",
@@ -1508,7 +1525,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `Cell callback barrier rejects active capture and stale lifecycle`() = runTest {
+	fun `Cell callback barrier rejects active capture and stale lifecycle`(): Unit = runTest {
 		val capture = cellDemand(
 			"cell-capture",
 			"session:cell",
@@ -1536,7 +1553,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `Cell callback barrier rejects a stale in-memory registration identity`() = runTest {
+	fun `Cell callback barrier rejects a stale in-memory registration identity`(): Unit = runTest {
 		val control = cellDemand(
 			"cell-control",
 			"app:cell-control",
@@ -1563,8 +1580,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `canonical Android boot domain fences a live generation at the revocation boundary`() =
-		runTest {
+	fun `canonical Android boot domain fences a live generation at the revocation boundary`(): Unit = runTest {
 			val context = ApplicationProvider.getApplicationContext<Application>()
 			val bootProvider = AndroidBootClockDomainProvider(context)
 			val concreteRepository = SourceRegistrationRepository(
@@ -1622,8 +1638,7 @@ class SourceRegistrationRepositoryTest {
 		}
 
 	@Test
-	fun `Wi-Fi callback barrier authenticates exact ambient successor without retiring demands`() =
-		runTest {
+	fun `Wi-Fi callback barrier authenticates exact ambient successor without retiring demands`(): Unit = runTest {
 			val capture = wifiDemand(
 				id = "wifi-capture",
 				purpose = SourceBrokerPurpose.SESSION_CAPTURE,
@@ -1678,8 +1693,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `Wi-Fi callback barrier rejects stale lifecycle and stale registration without publication`() =
-		runTest {
+	fun `Wi-Fi callback barrier rejects stale lifecycle and stale registration without publication`(): Unit = runTest {
 			val ambient = wifiDemand(
 				id = "wifi-ambient",
 				purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
@@ -1723,8 +1737,7 @@ class SourceRegistrationRepositoryTest {
 		}
 
 	@Test
-	fun `Wi-Fi callback barrier rejects an active demand not represented by current authorization`() =
-		runTest {
+	fun `Wi-Fi callback barrier rejects an active demand not represented by current authorization`(): Unit = runTest {
 			val ambient = wifiDemand(
 				id = "wifi-ambient",
 				purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
@@ -1762,7 +1775,7 @@ class SourceRegistrationRepositoryTest {
 		}
 
 	@Test
-	fun `actual Location request is durable before first provider acceptance and rejects stale active pointer`() = runTest {
+	fun `actual Location request is durable before first provider acceptance and rejects stale active pointer`(): Unit = runTest {
 		val plan = LocationPlan(1L, LocationBackend.FRAMEWORK, LocationMode.HIGH_ACCURACY,
 			10_000L, 10_000L, 0f, 50_000L, null, true)
 		database.sourceBrokerDao().insertDemands(listOf(demand("location", "session:s1",
@@ -1780,7 +1793,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `superseded Location reservation cannot publish an actual request`() = runTest {
+	fun `superseded Location reservation cannot publish an actual request`(): Unit = runTest {
 		val plan = LocationPlan(1L, LocationBackend.FRAMEWORK, LocationMode.HIGH_ACCURACY,
 			10_000L, 10_000L, 0f, 50_000L, null, true)
 		database.sourceBrokerDao().insertDemands(listOf(demand("location", "session:s1",
@@ -1793,7 +1806,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `cold passive Location delivery stops at Off and never borrows a later consent`() = runTest {
+	fun `cold passive Location delivery stops at Off and never borrows a later consent`(): Unit = runTest {
 		val plan = installPassiveLocationRegistrationForTest()
 		val reserved = subject.beginSystemRearmableLocation(plan, 110L, 110L)
 		subject.recordLocationPlan(reserved, plan)
@@ -1806,11 +1819,15 @@ class SourceRegistrationRepositoryTest {
 		val policyDao = database.sourcePolicyDao()
 		val enabled = requireNotNull(policyDao.policyAtRevision(6L, SourceKind.LOCATION.stableCode))
 		policyDao.insertPolicies(policyDao.policiesAtRevision(6L).map { policy ->
-			if (policy.sourceKind != SourceKind.LOCATION.stableCode) policy.copy(policyRevision = 7L)
-			else enabled.copy(policyRevision = 7L, enabled = false,
+			if (policy.sourceKind != SourceKind.LOCATION.stableCode) {
+				policy.copy(policyRevision = 7L)
+			}
+			else {
+				enabled.copy(policyRevision = 7L, enabled = false,
 				ambientPersistenceEligible = false, ambientConsentEpoch = null,
 				effectiveElapsedRealtimeNanos = 140L, effectiveWallTimeMs = 140L,
 				changeReason = "TEST_OFF")
+			}
 		})
 		policyDao.insertConsentEpochs(listOf(SourceConsentEpochEntity(
 			SourceKind.LOCATION.stableCode, SourceBrokerPurpose.AMBIENT_PRODUCT, 9L, false,
@@ -1821,10 +1838,14 @@ class SourceRegistrationRepositoryTest {
 		subject.passiveLocationAdmissionAt(identity, 130L) shouldBe null
 
 		policyDao.insertPolicies(policyDao.policiesAtRevision(7L).map { policy ->
-			if (policy.sourceKind != SourceKind.LOCATION.stableCode) policy.copy(policyRevision = 8L)
-			else enabled.copy(policyRevision = 8L, ambientConsentEpoch = 10L,
+			if (policy.sourceKind != SourceKind.LOCATION.stableCode) {
+				policy.copy(policyRevision = 8L)
+			}
+			else {
+				enabled.copy(policyRevision = 8L, ambientConsentEpoch = 10L,
 				effectiveElapsedRealtimeNanos = 150L, effectiveWallTimeMs = 150L,
 				changeReason = "TEST_ON_AGAIN")
+			}
 		})
 		policyDao.insertConsentEpochs(listOf(SourceConsentEpochEntity(
 			SourceKind.LOCATION.stableCode, SourceBrokerPurpose.AMBIENT_PRODUCT, 10L, true,
@@ -1835,7 +1856,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `cold passive Location delivery requires live retention and original data epoch`() = runTest {
+	fun `cold passive Location delivery requires live retention and original data epoch`(): Unit = runTest {
 		val plan = installPassiveLocationRegistrationForTest()
 		val reserved = subject.beginSystemRearmableLocation(plan, 110L, 110L)
 		subject.recordLocationPlan(reserved, plan)
@@ -1855,7 +1876,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `unaccepted system Location reservation cannot be reused as an active request`() = runTest {
+	fun `unaccepted system Location reservation cannot be reused as an active request`(): Unit = runTest {
 		val plan = installPassiveLocationRegistrationForTest()
 		val reserved = subject.beginSystemRearmableLocation(plan, 110L, 110L)
 		val row = requireNotNull(database.sourceBrokerDao().registration(SourceKind.LOCATION.stableCode,
@@ -1867,7 +1888,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `passive recovery uses only the latest plan of its exact registration`() = runTest {
+	fun `passive recovery uses only the latest plan of its exact registration`(): Unit = runTest {
 		val plan = installPassiveLocationRegistrationForTest()
 		val reserved = subject.beginSystemRearmableLocation(plan, 110L, 110L)
 		val row = requireNotNull(database.sourceBrokerDao().registration(
@@ -1905,7 +1926,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `passive Location ingress fences Off atomically after receiver precheck`() = runTest {
+	fun `passive Location ingress fences Off atomically after receiver precheck`(): Unit = runTest {
 		val plan = installPassiveLocationRegistrationForTest()
 		val reserved = subject.beginSystemRearmableLocation(plan, 110L, 110L)
 		subject.recordLocationPlan(reserved, plan)
@@ -1925,7 +1946,7 @@ class SourceRegistrationRepositoryTest {
 		val ingress = RoomDurableSourceIngress(database, lifecycleStore,
 			DefaultSourcePayloadCodec(), catalog, Provider { startup })
 		suspend fun delivery(observed: Long): com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate {
-			val fix = Location("passive").apply {
+			val fix = FakeLocationSource.createLocation(0.0, 0.0, time = 0L, provider = "passive").apply {
 				latitude = 50.0 + observed / 1_000.0
 				longitude = 14.0
 				accuracy = 10f
@@ -1943,10 +1964,14 @@ class SourceRegistrationRepositoryTest {
 		val policyDao = database.sourcePolicyDao()
 		val enabled = requireNotNull(policyDao.policyAtRevision(6L, SourceKind.LOCATION.stableCode))
 		policyDao.insertPolicies(policyDao.policiesAtRevision(6L).map { policy ->
-			if (policy.sourceKind != SourceKind.LOCATION.stableCode) policy.copy(policyRevision = 7L)
-			else enabled.copy(policyRevision = 7L, ambientPersistenceEligible = false,
+			if (policy.sourceKind != SourceKind.LOCATION.stableCode) {
+				policy.copy(policyRevision = 7L)
+			}
+			else {
+				enabled.copy(policyRevision = 7L, ambientPersistenceEligible = false,
 				ambientConsentEpoch = null, effectiveElapsedRealtimeNanos = 140L,
 				effectiveWallTimeMs = 140L, changeReason = "TEST_OFF")
+			}
 		})
 		policyDao.insertConsentEpochs(listOf(SourceConsentEpochEntity(
 			SourceKind.LOCATION.stableCode, SourceBrokerPurpose.AMBIENT_PRODUCT, 9L, false,
@@ -1965,7 +1990,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `passive Location ingress fences retention revoke after receiver precheck`() = runTest {
+	fun `passive Location ingress fences retention revoke after receiver precheck`(): Unit = runTest {
 		val plan = installPassiveLocationRegistrationForTest()
 		val reserved = subject.beginSystemRearmableLocation(plan, 110L, 110L)
 		subject.recordLocationPlan(reserved, plan)
@@ -1973,7 +1998,7 @@ class SourceRegistrationRepositoryTest {
 		val row = requireNotNull(database.sourceBrokerDao().registration(SourceKind.LOCATION.stableCode,
 			reserved.state.registrationGeneration))
 		val identity = requireNotNull(subject.passiveLocationIdentity(row))
-		val fix = Location("passive").apply {
+		val fix = FakeLocationSource.createLocation(0.0, 0.0, time = 0L, provider = "passive").apply {
 			latitude = 50.0
 			longitude = 14.0
 			accuracy = 10f
@@ -2007,7 +2032,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `delayed passive Location survives unrelated policy rotation with unchanged consent`() = runTest {
+	fun `delayed passive Location survives unrelated policy rotation with unchanged consent`(): Unit = runTest {
 		val plan = installPassiveLocationRegistrationForTest()
 		val reserved = subject.beginSystemRearmableLocation(plan, 110L, 110L)
 		subject.recordLocationPlan(reserved, plan)
@@ -2016,7 +2041,7 @@ class SourceRegistrationRepositoryTest {
 			SourceKind.LOCATION.stableCode, reserved.state.registrationGeneration))
 		val identity = requireNotNull(subject.passiveLocationIdentity(row))
 		val attribution = requireNotNull(subject.passiveLocationAdmissionAt(identity, 130L)).attribution
-		val fix = Location("passive").apply {
+		val fix = FakeLocationSource.createLocation(0.0, 0.0, time = 0L, provider = "passive").apply {
 			latitude = 50.0; longitude = 14.0; accuracy = 10f
 			time = 130L; elapsedRealtimeNanos = 130L
 		}
@@ -2033,7 +2058,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `later passive approval cannot replace missing observed-time approval in WAL admission`() = runTest {
+	fun `later passive approval cannot replace missing observed-time approval in WAL admission`(): Unit = runTest {
 		val plan = installPassiveLocationRegistrationForTest()
 		val reserved = subject.beginSystemRearmableLocation(plan, 110L, 110L)
 		subject.recordLocationPlan(reserved, plan)
@@ -2042,7 +2067,7 @@ class SourceRegistrationRepositoryTest {
 			SourceKind.LOCATION.stableCode, reserved.state.registrationGeneration))
 		val identity = requireNotNull(subject.passiveLocationIdentity(row))
 		val attribution = requireNotNull(subject.passiveLocationAdmissionAt(identity, 130L)).attribution
-		val fix = Location("passive").apply {
+		val fix = FakeLocationSource.createLocation(0.0, 0.0, time = 0L, provider = "passive").apply {
 			latitude = 50.0; longitude = 14.0; accuracy = 10f
 			time = 130L; elapsedRealtimeNanos = 130L
 		}
@@ -2061,7 +2086,11 @@ class SourceRegistrationRepositoryTest {
 		val policyDao = database.sourcePolicyDao()
 		policyDao.insertPolicies(policyDao.policiesAtRevision(6L).map { policy ->
 			policy.copy(policyRevision = 7L,
-				qosCode = if (policy.sourceKind == SourceKind.WIFI.stableCode) (policy.qosCode + 1) % 5 else policy.qosCode,
+				qosCode = if (policy.sourceKind == SourceKind.WIFI.stableCode) {
+					(policy.qosCode + 1) % 5
+				} else {
+					policy.qosCode
+				},
 				effectiveElapsedRealtimeNanos = 150L, effectiveWallTimeMs = 150L,
 				changeReason = "TEST_UNRELATED_WIFI_QUALITY")
 		})
@@ -2090,12 +2119,16 @@ class SourceRegistrationRepositoryTest {
 		val policyDao = database.sourcePolicyDao()
 		val location = requireNotNull(policyDao.policyAtRevision(5L, SourceKind.LOCATION.stableCode))
 		policyDao.insertPolicies(policyDao.policiesAtRevision(5L).map { policy ->
-			if (policy.sourceKind != SourceKind.LOCATION.stableCode) policy.copy(policyRevision = 6L)
-			else location.copy(policyRevision = 6L, enabled = false,
+			if (policy.sourceKind != SourceKind.LOCATION.stableCode) {
+				policy.copy(policyRevision = 6L)
+			}
+			else {
+				location.copy(policyRevision = 6L, enabled = false,
 				capturePersistenceEligible = false, captureConsentEpoch = null,
 				ambientPersistenceEligible = true, ambientConsentEpoch = 8L,
 				effectiveElapsedRealtimeNanos = 90L,
 				effectiveWallTimeMs = 90L, changeReason = "TEST_PASSIVE_LOCATION")
+			}
 		})
 		policyDao.insertConsentEpochs(listOf(SourceConsentEpochEntity(
 			SourceKind.LOCATION.stableCode, SourceBrokerPurpose.AMBIENT_PRODUCT, 8L, true,
@@ -2113,8 +2146,12 @@ class SourceRegistrationRepositoryTest {
 
 
 	@Test
-	fun `Location session fence requires the complete removal revision while all-day demand stays active`() = runTest {
-		val (capture, ambient, before, after) = locationSessionRemovalFixture(acknowledgeBeforeRemoval = true)
+	fun `Location session fence requires the complete removal revision while all-day demand stays active`(): Unit = runTest {
+		val fixture = locationSessionRemovalFixture(acknowledgeBeforeRemoval = true)
+		val capture = fixture.capture
+		val ambient = fixture.ambient
+		val before = fixture.before
+		val after = fixture.after
 		val dao = database.sourceBrokerDao()
 		dao.maximumLocationSessionCaptureAuthorizationRevision(after.state.registrationGeneration) shouldBe
 			before.authorization.authorizationRevision
@@ -2125,19 +2162,27 @@ class SourceRegistrationRepositoryTest {
 		subject.publishLocationSessionCaptureCallbackBarrier(after) shouldBe true
 		dao.registration(SourceKind.LOCATION.stableCode, after.state.registrationGeneration)
 			?.captureCallbackBarrierAuthorizationRevision shouldBe after.authorization.authorizationRevision
-		database.withTransaction { database.isLocationSessionCaptureAdmissionFenced() } shouldBe true
+		// Callback publication fences admission; the lifecycle owner still finishes the old demand.
+		database.withTransaction { database.isLocationSessionCaptureAdmissionFenced() } shouldBe false
 		val retained = dao.demandsByIds(listOf(capture.demandId, ambient.demandId)).associateBy { it.demandId }
 		retained.getValue(capture.demandId).status shouldBe SourceDemandEntity.STATUS_RETIRING
 		retained.getValue(ambient.demandId).status shouldBe SourceDemandEntity.STATUS_ACTIVE
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET status = 'RETIRED' WHERE demand_id = ?", arrayOf(capture.demandId))
+		database.withTransaction { database.isLocationSessionCaptureAdmissionFenced() } shouldBe true
 		dao.registration(SourceKind.LOCATION.stableCode, after.state.registrationGeneration)
 			?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
 	}
 
 	@Test
-	fun `later ambient-only Location refresh keeps a proven session fence but renewed capture invalidates it`() = runTest {
-		val (_, ambient, _, after) = locationSessionRemovalFixture()
+	fun `later ambient-only Location refresh keeps a proven session fence but renewed capture invalidates it`(): Unit = runTest {
+		val fixture = locationSessionRemovalFixture()
+		val ambient = fixture.ambient
+		val after = fixture.after
 		subject.publishLocationSessionCaptureCallbackBarrier(after) shouldBe true
 		val dao = database.sourceBrokerDao()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET status = 'RETIRED' WHERE demand_id = ?", arrayOf(fixture.capture.demandId))
 		val changedAmbient = ambient.copy(demandId = "location-ambient-quality", consumerId = "app:location-quality",
 			requestedAtMs = 300L, requestedElapsedRealtimeNanos = 300L)
 		dao.insertDemands(listOf(changedAmbient))
@@ -2158,12 +2203,17 @@ class SourceRegistrationRepositoryTest {
 			PHYSICAL_CONFIG, 510L, 510L))
 		database.withTransaction { database.isLocationSessionCaptureAdmissionFenced() } shouldBe false
 		subject.publishLocationSessionCaptureCallbackBarrier(endedAgain) shouldBe true
+		database.withTransaction { database.isLocationSessionCaptureAdmissionFenced() } shouldBe false
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET status = 'RETIRED' WHERE demand_id = ?", arrayOf(renewed.demandId))
 		database.withTransaction { database.isLocationSessionCaptureAdmissionFenced() } shouldBe true
 	}
 
 	@Test
-	fun `Location callback publication rejects stale owner epoch and incomplete current authorization`() = runTest {
-		val (_, ambient, _, after) = locationSessionRemovalFixture()
+	fun `Location callback publication rejects stale owner epoch and incomplete current authorization`(): Unit = runTest {
+		val fixture = locationSessionRemovalFixture()
+		val ambient = fixture.ambient
+		val after = fixture.after
 		subject.publishLocationSessionCaptureCallbackBarrier(after.copy(
 			state = after.state.copy(sourceInstanceId = "wrong-owner"))) shouldBe false
 		val staleEpochRepository = SourceRegistrationRepository(database,
@@ -2179,17 +2229,49 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `actual Wi-Fi resident prefix publication unblocks chosen final writer while Ambient stays alive`() = runBlocking {
+	fun `actual Wi-Fi resident prefix publication unblocks chosen final writer while Ambient stays alive`(): Unit = runBlocking {
 		withTimeout(10_000L) { exerciseResidentRadioChosenSetup(SourceKind.WIFI) }
 	}
 
 	@Test
-	fun `actual Cell resident prefix publication unblocks chosen final writer while Ambient stays alive`() = runBlocking {
+	fun `actual Cell resident prefix publication unblocks chosen final writer while Ambient stays alive`(): Unit = runBlocking {
 		withTimeout(10_000L) { exerciseResidentRadioChosenSetup(SourceKind.CELL) }
 	}
 
 	@Test
-	fun `radio setup read-only preflight leaves acknowledgement zero and rejects new CAP or stale owner`() = runTest {
+	fun `queued radio receipt refresh preserves its original owner through retirement`(): Unit = runTest {
+		for (kind in listOf(SourceKind.WIFI, SourceKind.CELL)) {
+			val capture = demand("receipt-capture-${kind.name}", "session:${kind.name}",
+				SourceBrokerPurpose.SESSION_CAPTURE, "receipt-${kind.name}", 1L, true, kind)
+			database.sourceBrokerDao().insertDemands(listOf(capture))
+			val initial = subject.begin(kind, 1L, PHYSICAL_CONFIG, 120L, 120L)
+			subject.markAccepted(initial, 130L, 130L)
+			val accepted = initial.copy(providerAcceptedElapsedRealtimeNanos = 130L, requiresProviderAcceptance = false)
+			database.withTransaction {
+				database.fenceSourcePurposesInTransaction(kind.stableCode,
+					listOf(SourceBrokerPurpose.SESSION_CAPTURE), "boot-7", 200L, 200L)
+			}
+			val received = requireNotNull(subject.radioCallbackAuthorizationAtReceipt(accepted, 250L))
+			received.authorization.isDenied shouldBe true
+			received.state shouldBe accepted.state
+			received.physicalConfigurationFingerprint shouldBe accepted.physicalConfigurationFingerprint
+			received.providerAcceptedElapsedRealtimeNanos shouldBe 130L
+			val stateBefore = database.sourceRegistrationStateDao().get(kind.stableCode, accepted.ownerScope)
+			val token = subject.beginRetirement(accepted, "ORDERLY_STOP", 300L, 300L)
+			subject.completeRetirement(token) shouldBe true
+			subject.radioCallbackAuthorizationAtReceipt(accepted, 250L) shouldBe received
+			subject.radioCallbackAuthorizationAtReceipt(accepted, 129L) shouldBe null
+			subject.radioCallbackAuthorizationAtReceipt(accepted, 300L) shouldBe null
+			subject.radioCallbackAuthorizationAtReceipt(accepted.copy(state =
+				accepted.state.copy(sourceInstanceId = "other-owner")), 250L) shouldBe null
+			subject.radioCallbackAuthorizationAtReceipt(accepted.copy(physicalConfigurationFingerprint =
+				"b".repeat(64)), 250L) shouldBe null
+			database.sourceRegistrationStateDao().get(kind.stableCode, accepted.ownerScope) shouldBe stateBefore
+		}
+	}
+
+	@Test
+	fun `radio setup read-only preflight leaves acknowledgement zero and rejects new CAP or stale owner`(): Unit = runTest {
 		for (kind in listOf(SourceKind.WIFI, SourceKind.CELL)) {
 			val capture = demand("preflight-capture-${kind.name}", "session:${kind.name}",
 				SourceBrokerPurpose.SESSION_CAPTURE, "preflight-${kind.name}", 1L, true, kind)
@@ -2221,6 +2303,9 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	/** Constructed policy/demands and Android edges; real broker/owner/FIFO/Room/setup transitions. */
+	// Keep the resident radio from capture removal through final writer setup and unchanged background owner
+	// assertions.
+	@Suppress("LongMethod")
 	private suspend fun exerciseResidentRadioChosenSetup(kind: SourceKind) {
 		org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofSeconds(1))
 		val spec = SourceWriterTransitionSpec.entries.single { it.source == kind }
@@ -2262,15 +2347,27 @@ class SourceRegistrationRepositoryTest {
 			emptySet(), RetryBackoff(0L, 0L))
 		val runtimeJob = kotlinx.coroutines.SupervisorJob()
 		val runtimeScope = kotlinx.coroutines.CoroutineScope(runtimeJob + kotlinx.coroutines.Dispatchers.Default)
-		val wifiRuntime = if (kind == SourceKind.WIFI) WifiSourceRuntime(runtimeScope, subject, wifiBackend,
-			devices, wakeups, allowance) else null
-		val cellRuntime = if (kind == SourceKind.CELL) CellSourceRuntime(runtimeScope, subject, cellBackend,
-			devices, wakeups, allowance) else null
+		val wifiRuntime = if (kind == SourceKind.WIFI) {
+			WifiSourceRuntime(runtimeScope, subject, wifiBackend,
+			devices, wakeups, allowance)
+		} else {
+			null
+		}
+		val cellRuntime = if (kind == SourceKind.CELL) {
+			CellSourceRuntime(runtimeScope, subject, cellBackend,
+			devices, wakeups, allowance)
+		} else {
+			null
+		}
 		val wifi = wifiRuntime?.let { SharedWifiSourceController(it, retentionBroker(), sinkFactory) }
 		val cell = cellRuntime?.let { SharedCellSourceController(it, retentionBroker(), sinkFactory) }
 		try {
-			if (wifiRuntime != null) assertIs<SourceStartResult.Started>(wifiRuntime.start(wifiPlan, sink))
-			else assertIs<SourceStartResult.Started>(requireNotNull(cellRuntime).start(cellPlan, sink))
+			if (wifiRuntime != null) {
+				assertIs<SourceStartResult.Started>(wifiRuntime.start(wifiPlan, sink))
+			}
+			else {
+				assertIs<SourceStartResult.Started>(requireNotNull(cellRuntime).start(cellPlan, sink))
+			}
 			val original = requireNotNull(database.sourceBrokerDao().currentPhysicalRegistration(kind.stableCode))
 			val cutoffNanos = android.os.SystemClock.elapsedRealtimeNanos()
 			database.withTransaction {
@@ -2281,8 +2378,12 @@ class SourceRegistrationRepositoryTest {
 				database.openHelper.writableDatabase.execSQL("UPDATE source_demand SET status = 'RETIRED' WHERE demand_id = ?",
 					arrayOf(capture.demandId))
 			}
-			val refreshed = if (wifiRuntime != null) wifiRuntime.refreshShared(wifiPlan, sink)
-				else requireNotNull(cellRuntime).refreshShared(cellPlan, sink)
+			val refreshed = if (wifiRuntime != null) {
+				wifiRuntime.refreshShared(wifiPlan, sink)
+			}
+				else {
+				requireNotNull(cellRuntime).refreshShared(cellPlan, sink)
+			}
 			assertIs<SourceApplyResult.Applied>(refreshed)
 			val noCapture = requireNotNull(database.sourceBrokerDao().registration(kind.stableCode,
 				original.registrationGeneration))
@@ -2292,16 +2393,26 @@ class SourceRegistrationRepositoryTest {
 				override val isReady = true
 				override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0L)
 			}
-			val clock = FixedClock(1_000L, 1_000L)
+			val clock = com.adsamcik.tracker.shared.base.time.SystemClock
 			val setup = ChosenSourceWriterSetup(database, catalog, rolloutStore,
 				SourceWriterTransitionEngineFactory.forTest(database, catalog,
-					SourceWriterTransitionTestDependencies(gate, clock = clock)),
+					SourceWriterTransitionTestDependencies(gate, BootClockDomainProvider { "boot-7" }, clock = clock)),
 				io.mockk.mockk(), io.mockk.mockk(), io.mockk.mockk(), Provider { gate }, clock,
 				TestDispatchersProvider(kotlinx.coroutines.Dispatchers.IO),
 				Provider { requireNotNull(wifi) { "Unchosen Wi-Fi must stay lazy" } },
 				Provider { requireNotNull(cell) { "Unchosen Cell must stay lazy" } })
 			val result = withTimeout(5_000L) { setup.ensure(setOf(kind)) }
-			result.readySources shouldBe setOf(kind)
+			val clue = if (result.readySources == setOf(kind)) {
+				result.toString()
+			} else {
+				// Only failed preparation reads bounded exact owner/lane snapshots.
+				val registration = database.sourceBrokerDao().registration(kind.stableCode, original.registrationGeneration)
+				val lane = database.sourceProjectionStateDao().activeProductLane(kind.stableCode)
+				val owner = database.sourceDestinationOwnerDao().get(kind.stableCode, spec.destination)
+				val rollout = database.trackingRolloutStateDao().get()
+				"$result registration=$registration lane=$lane owner=$owner rollout=$rollout"
+			}
+			io.kotest.assertions.withClue(clue) { result.readySources shouldBe setOf(kind) }
 			val final = requireNotNull(database.sourceProjectionStateDao().activeProductLane(kind.stableCode))
 			final.bindingGeneration shouldBe 2L
 			final.captureModeMask shouldBe 3L
@@ -2314,8 +2425,16 @@ class SourceRegistrationRepositoryTest {
 				.maximumAuthorizationRevision(kind.stableCode)
 			database.sourceBrokerDao().demandsByIds(listOf(ambient.demandId)) shouldBe listOf(ambient)
 			database.isSourceCaptureAdmissionFenced(kind.stableCode) shouldBe false
-			io.mockk.verify(exactly = if (kind == SourceKind.WIFI) 1 else 0) { wifiBackend.start(any()) }
-			io.mockk.verify(exactly = if (kind == SourceKind.CELL) 1 else 0) { cellBackend.start(any(), any()) }
+			io.mockk.verify(exactly = if (kind == SourceKind.WIFI) {
+				1
+			} else {
+				0
+			}) { wifiBackend.start(any()) }
+			io.mockk.verify(exactly = if (kind == SourceKind.CELL) {
+				1
+			} else {
+				0
+			}) { cellBackend.start(any(), any()) }
 			io.mockk.verify(exactly = 0) { wifiBackend.stop() }
 			io.mockk.verify(exactly = 0) { cellBackend.stop() }
 		} finally {
@@ -2345,9 +2464,11 @@ class SourceRegistrationRepositoryTest {
 		database.sourceBrokerDao().insertDemands(listOf(capture, ambient))
 		val before = subject.begin(SourceKind.LOCATION, 1L, PHYSICAL_CONFIG, 110L, 110L)
 		subject.markAccepted(before, 120L, 120L)
-		if (acknowledgeBeforeRemoval) database.sourceBrokerDao().acknowledgeCaptureCallbackBarrier(
+		if (acknowledgeBeforeRemoval) {
+			database.sourceBrokerDao().acknowledgeCaptureCallbackBarrier(
 			SourceKind.LOCATION.stableCode, before.state.registrationGeneration,
 			before.state.sourceInstanceId, before.authorization.authorizationRevision) shouldBe 1
+		}
 		database.withTransaction { database.fenceSourcePurposesInTransaction(SourceKind.LOCATION.stableCode,
 			listOf(SourceBrokerPurpose.SESSION_CAPTURE), "boot-7", 200L, 200L) }
 		val after = requireNotNull(subject.refreshActiveAuthorization(SourceKind.LOCATION, before, 2L,
@@ -2403,6 +2524,8 @@ class SourceRegistrationRepositoryTest {
 		retentionReader,
 	)
 
+	// Keep the shared test epoch, source policies, consent rows and matching retention grants together.
+	@Suppress("LongMethod")
 	private suspend fun installTestPolicyAndRetention() {
 		database.sourceEvidenceStateDao().ensure(
 			com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState(
@@ -2492,9 +2615,16 @@ class SourceRegistrationRepositoryTest {
 
 	private suspend fun enablePressureRegistrationForTest() {
 		database.sourceProjectionStateDao().deleteAllProductLanes()
+		val binding = ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS
+		database.sourceDestinationOwnerDao().insertIfAbsent(SourceDestinationOwnerEntity(
+			SourceKind.PRESSURE.stableCode, SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+			com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract.canonicalOwnerGeneration(binding.bindingGeneration),
+			100L,
+		))
 		rolloutStore = installCanonicalProductLanesForTest(
 			database = database,
-			bindings = listOf(ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS),
+			bindings = listOf(binding),
 			rolloutRevision = 100L,
 		)
 		subject = SourceRegistrationRepository(
@@ -2557,17 +2687,40 @@ class SourceRegistrationRepositoryTest {
 }
 
 private suspend fun activateAllSourceProductLanes(database: AppDatabase): RoomTrackingRolloutStateStore {
-	val bindings = SourceKind.entries
-		.filterNot { source -> source == SourceKind.PRESSURE }
-		.map { source ->
-			ExecutableSourceLaneBinding(
-				source = source,
-				bindingGeneration = 1L,
-				projectionId = "test-${source.name.lowercase()}-product",
-				projectionVersion = 1,
-				captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
-			)
+	val bindings = listOf(
+		ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V1,
+		ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1,
+		ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS_V1,
+		ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS_V1,
+		ExecutableSourceLaneCatalog.CELL_SESSION_FACTS_V1,
+	)
+	bindings.forEach { binding ->
+		val (destination, owner) = when (binding.source) {
+			SourceKind.LOCATION -> SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION to
+				SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE
+			SourceKind.STEPS -> SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS to
+				SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
+			SourceKind.ACTIVITY -> SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY to
+				SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS
+			SourceKind.PRESSURE -> SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE to
+				SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS
+			SourceKind.WIFI -> SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI to
+				SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS
+			SourceKind.CELL -> SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL to
+				SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS
 		}
+		database.sourceDestinationOwnerDao().insertIfAbsent(SourceDestinationOwnerEntity(
+			sourceKind = binding.source.stableCode,
+			destination = destination,
+			owner = owner,
+			ownerGeneration = if (binding.source == SourceKind.LOCATION) {
+				SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION
+			} else {
+				2L
+			},
+			updatedAtMs = 1L,
+		))
+	}
 	return installCanonicalProductLanesForTest(
 		database = database,
 		bindings = bindings,

@@ -420,7 +420,9 @@ class SavedLocationLiveSummaryReaderRoomTest {
         withTimeout(5_000L) {
             while (true) {
                 val read = awaitItem()
-                if (read is SavedLocationSummaryRead.Snapshot && read.summary.pointCount == count) return@withTimeout read
+                if (read is SavedLocationSummaryRead.Snapshot && read.summary.pointCount == count) {
+                    return@withTimeout read
+                }
             }
             error("Unreachable")
         }

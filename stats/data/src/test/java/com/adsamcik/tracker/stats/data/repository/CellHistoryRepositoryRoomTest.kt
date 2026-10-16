@@ -1,5 +1,9 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import com.adsamcik.tracker.shared.base.database.dao.CellCapturedFactDao
+
+import com.adsamcik.tracker.shared.base.database.dao.SourceSessionDao
+
 import android.app.Application
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactCursorEntity
@@ -12,6 +16,8 @@ import kotlinx.coroutines.Dispatchers
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.CellCapturedSelectedDeletionResult
+import com.adsamcik.tracker.shared.base.database.deleteSelectedCapturedCellFactsInTransaction
 import com.adsamcik.tracker.shared.base.database.PortableCapturedCellEntryV1
 import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedCellResult
 import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedCellRequest
@@ -287,7 +293,11 @@ class CellHistoryRepositoryRoomTest {
         val grants = run.authorizations.groupBy { it.authorizationRevision }.flatMap { (revision, rows) ->
             val first = rows.first()
             SourceBrokerAuthorization.rows(CELL_SOURCE, requireNotNull(run.provider).registrationGeneration,
-                revision, if (first.purposeEligibilityMask == 0L) emptyList() else demands, BOOT_ID,
+                revision, if (first.purposeEligibilityMask == 0L) {
+                    emptyList()
+                } else {
+                    demands
+                }, BOOT_ID,
                 first.effectiveElapsedRealtimeNanos, first.effectiveWallTimeMs)
         }
         val facts = run.facts.map { original ->
@@ -377,7 +387,7 @@ class CellHistoryRepositoryRoomTest {
 		val entry = (repository { true }.session(group.runs.single().segment.id) as CellHistoryQuery.Found).entry
 		entry.observations.isNotEmpty() shouldBe true
 		entry.observations.map { it.observedTime.raw } shouldBe group.runs.single().facts.map { it.observedWallTimeMs }.distinct()
-		val fact = group.runs.single().facts.first()
+		val fact = group.runs.single().facts.maxBy { it.semanticRevision }
 		val selected = database.withTransaction { repository { true }.measuredFactInTransaction(fact.logicalFactId, fact.semanticRevision) }
 		selected?.observation shouldBe entry.observations.first()
 		selected?.children?.isNotEmpty() shouldBe true
@@ -680,9 +690,14 @@ class CellHistoryRepositoryRoomTest {
 		database.withTransaction { capture.importedNativeMembership(HistorySource.CELL,
 			children.first().entryIdentity, keys, range).positions.size } shouldBe 2
 		val run = group.runs.single()
-		database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
-			CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, group.session.logicalTrackingId,
-			run.run.serviceRunId, 1L, 0L, run.segment.endTimeMs + 1L))
+		database.withTransaction {
+			database.deleteSelectedCapturedCellFactsInTransaction(
+				logicalTrackingId = group.session.logicalTrackingId,
+				serviceRunIds = listOf(run.run.serviceRunId),
+				expectedCollectedDataEpoch = 0L,
+				deletedAtMs = run.segment.endTimeMs + 1L,
+			)
+		} shouldBe CellCapturedSelectedDeletionResult.Deleted(2, 3, 1)
 		database.withTransaction { capture.importedNativeMembership(HistorySource.CELL,
 			children.first().entryIdentity, keys, range).positions } shouldBe emptySet()
 	}
@@ -1000,6 +1015,8 @@ class CellHistoryRepositoryRoomTest {
 			SourceFactLookupResult.NotFound(SourceProofReason.STALE)
 	}
 
+	// Keep the forged WAL, revised facts, and cursor together to verify both readers reject the same forged lineage.
+	@Suppress("LongMethod")
 	@Test
 	fun `rehashed Cell fact and cursor cannot replace recorded WAL identity or payload`() = runTest {
 		val group = buildGroup(905, 1, setOf(0))
@@ -1331,6 +1348,9 @@ class CellHistoryRepositoryRoomTest {
 		}
 	}
 
+	// Keep cross-database import and newer local candidates together to verify imported recency before the page
+	// limit.
+	@Suppress("LongMethod")
 	@Test
 	fun `eligible imported page is not starved by newer local candidates and uses newest run recency`() =
 		runTest {
@@ -1421,6 +1441,8 @@ class CellHistoryRepositoryRoomTest {
 		everyCheckWasTransactional shouldBe true
 	}
 
+	// Follow one bounded Cell page sequence through continuation checks and the structural-day view of its same rows.
+	@Suppress("LongMethod")
 	@Test
 	fun `bounded wall and structural ranges find older local Cell entries before applying page limit`() =
 		runTest {
@@ -1660,6 +1682,8 @@ class CellHistoryRepositoryRoomTest {
 			assertInvalidLocalSelection(repository, selection)
 		}
 
+	// Follow one saved Cell selection through deletion, repeat reads, and corruption of its matching deletion fence.
+	@Suppress("LongMethod")
 	@Test
 	fun `authenticated local deletion receipt returns deleted until one fence pair is corrupt`() =
 		runTest {
@@ -1945,7 +1969,17 @@ class CellHistoryRepositoryRoomTest {
 			val first = run.authorizations.first { it.authorizationRevision == 1L }
 			val denied = SourceBrokerAuthorization.rows(CELL_SOURCE, first.registrationGeneration,
 				1L, emptyList(), BOOT_ID, first.effectiveElapsedRealtimeNanos, first.effectiveWallTimeMs)
-			run.copy(authorizations = denied + run.authorizations.filter { it.authorizationRevision != 1L })
+			val prematureFacts = run.facts.map { fact ->
+				val premature = fact.copy(authorizationEffectStartNanos = first.effectiveElapsedRealtimeNanos)
+				premature.copy(effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(premature))
+			}
+			run.copy(
+				authorizations = denied + run.authorizations.filter { it.authorizationRevision != 1L },
+				facts = prematureFacts,
+				cursors = prematureFacts.groupBy { it.logicalFactId }.values.map { lineage ->
+					cursor(lineage.maxBy { it.semanticRevision })
+				},
+			)
 		})
 		persist(listOf(group))
 		persistPerReadingChildren(group)
@@ -2024,7 +2058,9 @@ class CellHistoryRepositoryRoomTest {
 			val unsigned = original.copy(payloadVersion = CELL_WAL_PAYLOAD_VERSION,
 				logicalFactId = id, mutationId = CellCapturedFactRevisionIntegrity.mutationId(id, original.semanticRevision),
 				aggregateOwnerLogicalFactId = original.aggregateOwnerLogicalFactId?.let(ids::getValue),
-				sourceDeliveryIdentity = delivery(original), authorizationRevision = 2L,
+				sourceDeliveryIdentity = delivery(original), canonicalProviderSemanticsDigest = delivery(original),
+				authorizationRevision = 2L,
+				authorizationEffectStartNanos = rotated.first().effectiveElapsedRealtimeNanos,
 				authorizationFingerprint = rotated.first().authorizationFingerprint)
 			val wal = walFor(unsigned)
 			val withWal = unsigned.copy(walIntegrityIdentity = wal.integrityIdentity, payloadChecksum = wal.payloadChecksum)
@@ -2076,7 +2112,11 @@ class CellHistoryRepositoryRoomTest {
 
 	/** Source-only original/final contract fixture; no Android or setup activation. */
 	private fun withWriterContract(group: Group, generation: Long, mode: String): Group {
-		val origin = if (mode == "AUTOMATIC") "AUTOMATIC_BACKGROUND_START" else START_ORIGIN
+		val origin = if (mode == "AUTOMATIC") {
+			"AUTOMATIC_BACKGROUND_START"
+		} else {
+			START_ORIGIN
+		}
 		return group.copy(session = group.session.copy(sessionMode = mode, startOrigin = origin),
 			runs = group.runs.map { run ->
 				val source = run.source.copy(writerBindingGeneration = generation, writerOwnerGeneration = generation * 2L)
@@ -2094,6 +2134,88 @@ class CellHistoryRepositoryRoomTest {
 			})
 	}
 
+	// Follow one real Cell write through retirement and bound tampering without rewriting the saved fact.
+	@Suppress("LongMethod")
+	@Test
+	fun `real live Cell writer history survives provider retirement without rewriting saved facts`() = runTest {
+		val closed = buildGroup(994, 1, setOf(0))
+		val built = closed.runs.single()
+		val originalProvider = requireNotNull(built.provider)
+		val wal = walFor(built.facts.first())
+		val live = closed.copy(session = closed.session.copy(state = "ACTIVE", currentServiceRunId = built.run.serviceRunId,
+			cutoffAtMs = null, cutoffElapsedNanos = null, completedAtMs = null, finalAdmissionOrdinal = null),
+			runs = listOf(built.copy(run = built.run.copy(state = "ACTIVE", completedAtMs = null, completionReason = null,
+				runtimeAcknowledgement = "START_ACCEPTED", presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+				presentationAcknowledgedAtMs = null), provider = originalProvider.copy(
+				status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE, retiredAtMs = null,
+				retiredElapsedRealtimeNanos = null, captureCallbackBarrierAuthorizationRevision = 0L),
+				demands = built.demands.map { it.copy(status = SourceDemandEntity.STATUS_ACTIVE,
+					retireBootId = null, retireElapsedRealtimeNanos = null, retiredAtMs = null) },
+				authorizations = built.authorizations.filter { it.authorizationRevision == 1L },
+				facts = emptyList(), cursors = emptyList(), completeness = built.completeness.copy(
+					lastAdmissionOrdinal = wal.admissionOrdinal, lastSourceSequence = wal.sourceSequence))))
+		persist(listOf(live))
+		database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(wal)
+		writeCellWithRealProducer(wal.eventId)
+		val dao = database.cellCapturedFactDao()
+		val saved = dao.currentRevisionsForWriterAdmission(SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION, wal.admissionOrdinal, 2).single()
+		saved.providerAcceptanceEndNanos shouldBe Long.MAX_VALUE
+		saved.authorizationEffectEndNanos shouldBe Long.MAX_VALUE
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_product_projection_lane SET contiguous_admission_ordinal = ? WHERE source_kind = ?",
+			arrayOf<Any?>(wal.admissionOrdinal, CELL_SOURCE))
+		val before = (repository(BOOT_ID) { true }.session(built.segment.id) as CellHistoryQuery.Found).entry
+		before.observations shouldHaveSize 1
+
+		val providerEnd = requireNotNull(originalProvider.retiredElapsedRealtimeNanos)
+		database.withTransaction {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE provider_registration_generation SET status = 'RETIRED', retired_at_ms = ?, " +
+					"retired_elapsed_realtime_nanos = ? WHERE source_kind = ? AND registration_generation = ?",
+				arrayOf<Any?>(originalProvider.retiredAtMs, providerEnd, CELL_SOURCE, saved.registrationGeneration))
+			database.sourceBrokerDao().insertAuthorizations(built.authorizations.filter { it.authorizationRevision > 1L })
+			database.sourceSessionDao().updateServiceRun(built.run)
+			val stopped = closed.session.copy(finalAdmissionOrdinal = wal.admissionOrdinal)
+			database.sourceSessionDao().updateSession(stopped)
+			database.installOriginalStopFixture(stopped, built.manifest)
+		}
+		val after = (repository(BOOT_ID) { true }.session(built.segment.id) as CellHistoryQuery.Found).entry
+		after.observations shouldBe before.observations
+		dao.revision(saved.writerProjectionId, saved.writerProjectionVersion, saved.logicalFactId, 1L) shouldBe saved
+
+		// Original open bounds never authorize a reading at or beyond the actual retirement.
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET retired_elapsed_realtime_nanos = ? WHERE source_kind = ?",
+			arrayOf<Any?>(saved.coverageIntervalEndNanos, CELL_SOURCE))
+		(repository(BOOT_ID) { true }.session(built.segment.id) as CellHistoryQuery.Found).entry.observations shouldBe emptyList()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET retired_elapsed_realtime_nanos = ? WHERE source_kind = ?",
+			arrayOf<Any?>(providerEnd, CELL_SOURCE))
+		val altered = saved.copy(providerAcceptanceEndNanos = providerEnd + 1L)
+		val checksum = CellCapturedFactRevisionIntegrity.effectChecksum(altered)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE cell_captured_fact_revision SET provider_acceptance_end_nanos = ?, effect_checksum = ? WHERE logical_fact_id = ?",
+			arrayOf<Any?>(altered.providerAcceptanceEndNanos, checksum, saved.logicalFactId))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE cell_captured_fact_cursor SET latest_effect_checksum = ? WHERE logical_fact_id = ?",
+			arrayOf<Any?>(checksum, saved.logicalFactId))
+		(repository(BOOT_ID) { true }.session(built.segment.id) as CellHistoryQuery.Found).entry.observations shouldBe emptyList()
+	}
+
+	/** JVM access keeps the real tracker writer internal to its production module. */
+	private suspend fun writeCellWithRealProducer(eventId: String) {
+		val adapterType = Class.forName("com.adsamcik.tracker.tracker.source.cell.CellWalQualificationAdapter")
+		val adapter = adapterType.constructors.single { it.parameterCount == 3 }.newInstance(database,
+			com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec(), BootClockDomainProvider { BOOT_ID })
+		val writerType = Class.forName("com.adsamcik.tracker.tracker.source.cell.CellCapturedFactWriter")
+		val writer = writerType.getConstructor(AppDatabase::class.java, adapterType).newInstance(database, adapter)
+		val write = writerType.methods.single { it.name.startsWith("write-") && it.parameterCount == 2 &&
+			it.parameterTypes[0] == String::class.java }
+		kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn<Any?> { continuation ->
+			write.invoke(writer, eventId, continuation)
+		}
+	}
 	private suspend fun persist(
 		groups: List<Group>,
 		evidenceState: SourceEvidenceState = SourceEvidenceState(collectedDataEpoch = 0L),
@@ -2131,6 +2253,13 @@ class CellHistoryRepositoryRoomTest {
 		runs.mapNotNull(BuiltRun::provider).sortedBy(ProviderRegistrationGenerationEntity::registrationGeneration)
 			.forEach { brokerDao.insertRegistration(it) }
 		brokerDao.insertAuthorizations(runs.flatMap(BuiltRun::authorizations))
+		persistCapturedCellFixture(runs, target, writerBindingGeneration, sessionDao, factDao)
+	}
+
+	private suspend fun persistCapturedCellFixture(
+		runs: List<BuiltRun>, target: AppDatabase, writerBindingGeneration: Long,
+		sessionDao: SourceSessionDao, factDao: CellCapturedFactDao,
+	) {
 		target.sourceProjectionStateDao().installProductLane(lane(runs.flatMap(BuiltRun::facts)
 			.maxOfOrNull(CellCapturedFactRevisionEntity::sourceAdmissionOrdinal) ?: 1L).copy(
 			bindingGeneration = writerBindingGeneration, captureModeMask = requireNotNull(SourceWriterGenerationContract.captureModeMaskForKnownBinding(writerBindingGeneration))))
@@ -2505,11 +2634,31 @@ class CellHistoryRepositoryRoomTest {
 		val base = baseFact(authority, admissionOrdinal, OWNER_OFFSET_NANOS)
 		val identified = base.copy(
 			mutationId = CellCapturedFactRevisionIntegrity.mutationId(base.logicalFactId, 1L),
-			providerAcceptanceEndNanos = if (correctionOpen) Long.MAX_VALUE else authority.runEndElapsed,
-			authorizationEffectEndNanos = if (correctionOpen) Long.MAX_VALUE else authority.runEndElapsed,
-			consentEffectEndNanos = if (correctionOpen) Long.MAX_VALUE else authority.runEndElapsed,
-			sessionRunEffectEndNanos = if (correctionOpen) Long.MAX_VALUE else authority.runEndElapsed,
-			deletionEffectEndNanos = if (correctionOpen) Long.MAX_VALUE else authority.sessionEndElapsed,
+			providerAcceptanceEndNanos = if (correctionOpen) {
+				Long.MAX_VALUE
+			} else {
+				authority.runEndElapsed
+			},
+			authorizationEffectEndNanos = if (correctionOpen) {
+				Long.MAX_VALUE
+			} else {
+				authority.runEndElapsed
+			},
+			consentEffectEndNanos = if (correctionOpen) {
+				Long.MAX_VALUE
+			} else {
+				authority.runEndElapsed
+			},
+			sessionRunEffectEndNanos = if (correctionOpen) {
+				Long.MAX_VALUE
+			} else {
+				authority.runEndElapsed
+			},
+			deletionEffectEndNanos = if (correctionOpen) {
+				Long.MAX_VALUE
+			} else {
+				authority.sessionEndElapsed
+			},
 		)
 		return identified.copy(effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(identified))
 	}
@@ -2814,9 +2963,17 @@ class CellHistoryRepositoryRoomTest {
 			logicalTrackingId = logicalId,
 			serviceRunId = spec.runId,
 			sourceKind = CELL_SOURCE,
-			sourceInstanceId = if (lastOrdinal == null) "cell-unregistered-${spec.globalRevision}" else
-				"cell-instance-${spec.globalRevision}",
-			registrationGeneration = if (lastOrdinal == null) 0L else spec.globalRevision,
+			sourceInstanceId = if (lastOrdinal == null) {
+				"cell-unregistered-${spec.globalRevision}"
+			} else
+				{
+				"cell-instance-${spec.globalRevision}"
+			},
+			registrationGeneration = if (lastOrdinal == null) {
+				0L
+			} else {
+				spec.globalRevision
+			},
 			lastAdmissionOrdinal = lastOrdinal,
 			lastSourceSequence = lastOrdinal,
 			appDrainComplete = true,

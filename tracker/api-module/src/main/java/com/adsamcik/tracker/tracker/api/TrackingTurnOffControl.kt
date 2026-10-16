@@ -10,6 +10,10 @@ enum class TrackingTurnOffResult {
 	UNAVAILABLE,
 }
 
+/**
+ * Coordinates durable Off reservation, source fencing and acknowledged owner closure across every UI entry
+ * point.
+ */
 interface TrackingTurnOffController {
 	/** Null means no durable Off/STOP command could be reserved. */
 	suspend fun reserveAndFence(expectedStartGeneration: Long? = null): TrackingTurnOffReservation?

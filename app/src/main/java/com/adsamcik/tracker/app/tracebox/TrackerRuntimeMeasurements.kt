@@ -79,59 +79,91 @@ internal class TrackerRuntimeMeasurements(
 				logger.error(error, TrackerTraceboxTemplates.APPLICATION_RESOURCE_MEASUREMENT_FAILED)
 				return@launch
 			}
-			logger.performanceEvent(
-				TrackerTraceboxTemplates.APPLICATION_BATTERY_POWER_MEASUREMENT,
-				public(foreground),
-				public(foregroundEntryCount),
-				public(snapshot.batteryServiceAvailable),
-				public(snapshot.batteryPercent != null),
-				public(snapshot.batteryPercent ?: 0),
-				public(snapshot.charging),
-				public(snapshot.chargeCounterUah != null),
-				public(snapshot.chargeCounterUah ?: 0),
-				public(snapshot.energyCounterNwh != null),
-				public(snapshot.energyCounterNwh ?: 0L),
-				public(snapshot.interactive),
-				public(snapshot.deviceIdle),
-				public(snapshot.powerSave),
-			)
-			logger.performanceEvent(
-				TrackerTraceboxTemplates.APPLICATION_MEMORY_MEASUREMENT,
-				public(foreground),
-				public(foregroundEntryCount),
-				public(snapshot.processPssKiB),
-				public(snapshot.javaHeapUsedKiB),
-				public(snapshot.nativeHeapAllocatedKiB),
-				public(snapshot.trimLevel),
-			)
-			logger.performanceEvent(
-				TrackerTraceboxTemplates.APPLICATION_PLATFORM_RESTRICTION_MEASUREMENT,
-				public(foreground),
-				public(foregroundEntryCount),
-				public(snapshot.batteryOptimizationsExempt != null),
-				public(snapshot.batteryOptimizationsExempt ?: false),
-				public(snapshot.backgroundRestricted != null),
-				public(snapshot.backgroundRestricted ?: false),
-				public(snapshot.appStandbyBucket != null),
-				public(snapshot.appStandbyBucket ?: 0),
-			)
-			logger.performanceEvent(
-				TrackerTraceboxTemplates.APPLICATION_LOCATION_CAPABILITY_MEASUREMENT,
-				public(foreground),
-				public(foregroundEntryCount),
-				public(snapshot.locationServiceAvailable),
-				public(snapshot.locationServicesEnabled != null),
-				public(snapshot.locationServicesEnabled ?: false),
-				public(snapshot.gpsProviderAvailable != null),
-				public(snapshot.gpsProviderAvailable ?: false),
-				public(snapshot.gpsProviderEnabled != null),
-				public(snapshot.gpsProviderEnabled ?: false),
-				public(snapshot.networkProviderAvailable != null),
-				public(snapshot.networkProviderAvailable ?: false),
-				public(snapshot.networkProviderEnabled != null),
-				public(snapshot.networkProviderEnabled ?: false),
-			)
+			recordBatteryPowerSnapshot(foreground, foregroundEntryCount, snapshot)
+			recordMemorySnapshot(foreground, foregroundEntryCount, snapshot)
+			recordRestrictionSnapshot(foreground, foregroundEntryCount, snapshot)
+			recordLocationCapabilitySnapshot(foreground, foregroundEntryCount, snapshot)
 		}
+	}
+
+	private fun recordBatteryPowerSnapshot(
+		foreground: Boolean,
+		foregroundEntryCount: Long,
+		snapshot: TrackerResourceSnapshot,
+	) {
+		logger.performanceEvent(
+			TrackerTraceboxTemplates.APPLICATION_BATTERY_POWER_MEASUREMENT,
+			public(foreground),
+			public(foregroundEntryCount),
+			public(snapshot.batteryServiceAvailable),
+			public(snapshot.batteryPercent != null),
+			public(snapshot.batteryPercent ?: 0),
+			public(snapshot.charging),
+			public(snapshot.chargeCounterUah != null),
+			public(snapshot.chargeCounterUah ?: 0),
+			public(snapshot.energyCounterNwh != null),
+			public(snapshot.energyCounterNwh ?: 0L),
+			public(snapshot.interactive),
+			public(snapshot.deviceIdle),
+			public(snapshot.powerSave),
+		)
+	}
+
+	private fun recordMemorySnapshot(
+		foreground: Boolean,
+		foregroundEntryCount: Long,
+		snapshot: TrackerResourceSnapshot,
+	) {
+		logger.performanceEvent(
+			TrackerTraceboxTemplates.APPLICATION_MEMORY_MEASUREMENT,
+			public(foreground),
+			public(foregroundEntryCount),
+			public(snapshot.processPssKiB),
+			public(snapshot.javaHeapUsedKiB),
+			public(snapshot.nativeHeapAllocatedKiB),
+			public(snapshot.trimLevel),
+		)
+	}
+
+	private fun recordRestrictionSnapshot(
+		foreground: Boolean,
+		foregroundEntryCount: Long,
+		snapshot: TrackerResourceSnapshot,
+	) {
+		logger.performanceEvent(
+			TrackerTraceboxTemplates.APPLICATION_PLATFORM_RESTRICTION_MEASUREMENT,
+			public(foreground),
+			public(foregroundEntryCount),
+			public(snapshot.batteryOptimizationsExempt != null),
+			public(snapshot.batteryOptimizationsExempt ?: false),
+			public(snapshot.backgroundRestricted != null),
+			public(snapshot.backgroundRestricted ?: false),
+			public(snapshot.appStandbyBucket != null),
+			public(snapshot.appStandbyBucket ?: 0),
+		)
+	}
+
+	private fun recordLocationCapabilitySnapshot(
+		foreground: Boolean,
+		foregroundEntryCount: Long,
+		snapshot: TrackerResourceSnapshot,
+	) {
+		logger.performanceEvent(
+			TrackerTraceboxTemplates.APPLICATION_LOCATION_CAPABILITY_MEASUREMENT,
+			public(foreground),
+			public(foregroundEntryCount),
+			public(snapshot.locationServiceAvailable),
+			public(snapshot.locationServicesEnabled != null),
+			public(snapshot.locationServicesEnabled ?: false),
+			public(snapshot.gpsProviderAvailable != null),
+			public(snapshot.gpsProviderAvailable ?: false),
+			public(snapshot.gpsProviderEnabled != null),
+			public(snapshot.gpsProviderEnabled ?: false),
+			public(snapshot.networkProviderAvailable != null),
+			public(snapshot.networkProviderAvailable ?: false),
+			public(snapshot.networkProviderEnabled != null),
+			public(snapshot.networkProviderEnabled ?: false),
+		)
 	}
 
 	private fun performanceMeasurementsEnabled(): Boolean =
@@ -238,7 +270,9 @@ internal class AndroidTrackerRuntimeMeasurementSource(context: Context) :
 	}
 
 	private fun readAppStandbyBucket(): Int? {
-		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return null
+		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+			return null
+		}
 		return try {
 			usageStatsManager?.appStandbyBucket
 		} catch (_: SecurityException) {
@@ -266,7 +300,9 @@ internal class AndroidTrackerRuntimeMeasurementSource(context: Context) :
 
 	private fun providerEnabled(provider: String, available: Boolean?): Boolean? {
 		val manager = locationManager ?: return null
-		if (available != true) return null
+		if (available != true) {
+			return null
+		}
 		return try {
 			manager.isProviderEnabled(provider)
 		} catch (_: SecurityException) {

@@ -59,6 +59,10 @@ data class CollectedDataDeletionOperationEntity(
 		)
 	}
 
+	/**
+	 * Stable persisted codes, including `PHASE_DATABASE_CLEARED`, `PHASE_WRITERS_REARMED`,
+	 * `PHASE_RETENTION_PREPARED`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val PHASE_DATABASE_CLEARED = "DATABASE_CLEARED"
 		const val PHASE_WRITERS_REARMED = "WRITERS_REARMED"
@@ -107,6 +111,9 @@ data class CollectedDataDeletionOperationEntity(
 	}
 }
 
+/**
+ * Reports whether the persisted operation has reached the supplied ordered retention phase.
+ */
 fun CollectedDataDeletionOperationEntity.hasReachedRetentionPhase(expected: String): Boolean {
 	val currentIndex = CollectedDataDeletionOperationEntity.RETENTION_PHASES.indexOf(phase)
 	val expectedIndex = CollectedDataDeletionOperationEntity.RETENTION_PHASES.indexOf(expected)

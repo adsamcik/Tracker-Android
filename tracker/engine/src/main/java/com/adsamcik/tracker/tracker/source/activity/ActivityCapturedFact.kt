@@ -253,8 +253,12 @@ internal data class ActivityCapturedWindowMutation(
 	init {
 		require(semanticRevision > 0L)
 		require(
-			if (semanticRevision == 1L) supersedesSemanticRevision == null
-			else supersedesSemanticRevision == semanticRevision - 1L,
+			if (semanticRevision == 1L) {
+				supersedesSemanticRevision == null
+			}
+			else {
+				supersedesSemanticRevision == semanticRevision - 1L
+			},
 		)
 	}
 }
@@ -349,16 +353,20 @@ internal data class ActivityCapturedBand(
 		)
 		if (wallTimeRange.startInclusive.authority.kind ==
 			ActivityWallTimeBoundaryKind.EXACT_PROVIDER_OBSERVATION
-		) require(
+		) {
+			require(
 			wallTimeRange.startInclusive.authority.anchorProviderElapsedRealtimeNanos ==
 				intervalStartElapsedRealtimeNanos,
 		)
+		}
 		if (wallTimeRange.endExclusive.authority.kind ==
 			ActivityWallTimeBoundaryKind.EXACT_PROVIDER_OBSERVATION
-		) require(
+		) {
+			require(
 			wallTimeRange.endExclusive.authority.anchorProviderElapsedRealtimeNanos ==
 				intervalEndExclusiveElapsedRealtimeNanos,
 		)
+		}
 		val sampledEvidence = evidence.filter {
 			it.observationKind == ActivityCapturedObservationKind.SAMPLED_CLASSIFICATION
 		}

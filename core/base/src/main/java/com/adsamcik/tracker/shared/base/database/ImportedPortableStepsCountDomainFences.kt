@@ -108,7 +108,9 @@ suspend fun AppDatabase.refreshImportedLegacySessionCountDomainBinding(
 	) {
 		"Imported Steps graph binding changed during retention"
 	}
-	if (previous.binding.sourceSchemaVersion != 1) return
+	if (previous.binding.sourceSchemaVersion != 1) {
+		return
+	}
 	val retained = when (
 		val read = ImportedStepsRetainedReader(this)
 			.readEntriesForRetentionInTransaction(listOf(entryIdentity))
@@ -122,7 +124,9 @@ suspend fun AppDatabase.refreshImportedLegacySessionCountDomainBinding(
 			error("Retained imported Steps product is unverifiable after pruning")
 	}
 	val replacement = retained.legacyUnprovenCountDomainGraph()
-	if (replacement == previous.graph) return
+	if (replacement == previous.graph) {
+		return
+	}
 	replaceImportedLegacySessionGraph(
 		entryIdentity = entryIdentity,
 		previous = previous,
@@ -139,7 +143,9 @@ internal suspend fun AppDatabase.reconcilePreviouslyTruncatedLegacySessionBindin
 ): Boolean {
 	val binding = loaded.binding
 	val graph = loaded.graph
-	if (binding.sourceSchemaVersion != 1 || graph == expected) return false
+	if (binding.sourceSchemaVersion != 1 || graph == expected) {
+		return false
+	}
 	require(binding.productKind ==
 		ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY)
 	require(binding.productIdentity == entry.metadata.identity)
@@ -371,7 +377,9 @@ private suspend fun AppDatabase.fenceImportedPortableSessionRoots(
 internal suspend fun AppDatabase.insertOrAuthenticateImportedPortableOwnerFences(
 	fences: List<ImportedPortableStepsCountDomainOwnerFenceEntity>,
 ) {
-	if (fences.isEmpty()) return
+	if (fences.isEmpty()) {
+		return
+	}
 	val dao = importedPortableStepsCountDomainDao()
 	val existing = fences.chunked(OWNER_QUERY_BATCH).flatMap { batch ->
 		dao.ownerFences(batch.map { it.ownerIdentity }, batch.size + 1)
@@ -390,7 +398,9 @@ internal suspend fun AppDatabase.insertOrAuthenticateImportedPortableOwnerFences
 			false
 		} ?: true
 	}
-	if (missing.isNotEmpty()) dao.insertOwnerFences(missing)
+	if (missing.isNotEmpty()) {
+		dao.insertOwnerFences(missing)
+	}
 }
 
 /**
@@ -470,6 +480,39 @@ internal fun authenticatedImportedPortableSelectedOwnerFences(
 	fencedAtMs: Long,
 	maximumFenceCount: Int,
 ): List<ImportedPortableStepsCountDomainOwnerFenceEntity> {
+	val appearances = selectedImportedPortableOwnerAppearances(selections, maximumFenceCount)
+
+	return appearances.values
+		.groupBy { it.owner.ownerKind to it.owner.ownerIdentity }
+		.map { (_, lineage) ->
+			require(lineage.map { it.owner.scopeIdentity }.distinct().size == 1)
+			require(lineage.map { it.binding.productKind }.distinct().size == 1)
+			require(lineage.map { it.binding.productIdentity }.distinct().size == 1)
+			val latest = lineage.maxWith(
+				compareBy<PortableOwnerAppearance> { it.owner.ownerRevision }
+					.thenBy { it.binding.productRevision },
+			)
+			ImportedPortableStepsCountDomainOwnerFenceEntity.create(
+				ownerKind = latest.owner.ownerKind.name,
+				ownerIdentity = latest.owner.ownerIdentity.value,
+				scopeIdentity = latest.owner.scopeIdentity.value,
+				latestSourceRevision = latest.owner.ownerRevision,
+				latestOwnerEffectChecksum = latest.owner.ownerEffectChecksum.value,
+				productKind = latest.binding.productKind,
+				productIdentity = latest.binding.productIdentity,
+				graphIdentity = latest.binding.graphIdentity,
+				fenceKind = fenceKind,
+				collectedDataEpoch = collectedDataEpoch,
+				fencedAtMs = fencedAtMs,
+			)
+		}
+		.also { require(it.size <= maximumFenceCount) }
+}
+
+private fun selectedImportedPortableOwnerAppearances(
+	selections: List<AuthenticatedImportedPortableRootSelection>,
+	maximumFenceCount: Int,
+): Map<PortableOwnerRevisionKey, PortableOwnerAppearance> {
 	val appearances = linkedMapOf<PortableOwnerRevisionKey, PortableOwnerAppearance>()
 	selections.sortedBy { it.authenticated.binding.productRevision }.forEach { selection ->
 		val authenticated = selection.authenticated
@@ -507,32 +550,7 @@ internal fun authenticatedImportedPortableSelectedOwnerFences(
 			require(appearances.size <= maximumFenceCount)
 		}
 	}
-
-	return appearances.values
-		.groupBy { it.owner.ownerKind to it.owner.ownerIdentity }
-		.map { (_, lineage) ->
-			require(lineage.map { it.owner.scopeIdentity }.distinct().size == 1)
-			require(lineage.map { it.binding.productKind }.distinct().size == 1)
-			require(lineage.map { it.binding.productIdentity }.distinct().size == 1)
-			val latest = lineage.maxWith(
-				compareBy<PortableOwnerAppearance> { it.owner.ownerRevision }
-					.thenBy { it.binding.productRevision },
-			)
-			ImportedPortableStepsCountDomainOwnerFenceEntity.create(
-				ownerKind = latest.owner.ownerKind.name,
-				ownerIdentity = latest.owner.ownerIdentity.value,
-				scopeIdentity = latest.owner.scopeIdentity.value,
-				latestSourceRevision = latest.owner.ownerRevision,
-				latestOwnerEffectChecksum = latest.owner.ownerEffectChecksum.value,
-				productKind = latest.binding.productKind,
-				productIdentity = latest.binding.productIdentity,
-				graphIdentity = latest.binding.graphIdentity,
-				fenceKind = fenceKind,
-				collectedDataEpoch = collectedDataEpoch,
-				fencedAtMs = fencedAtMs,
-			)
-		}
-		.also { require(it.size <= maximumFenceCount) }
+	return appearances
 }
 
 private fun PortableCountDomainRootV2.portableRootSelectionKey(): List<Any> = listOf(

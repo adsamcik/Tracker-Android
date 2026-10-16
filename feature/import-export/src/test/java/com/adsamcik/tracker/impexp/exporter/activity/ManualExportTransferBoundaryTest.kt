@@ -70,8 +70,12 @@ class ManualExportTransferBoundaryTest {
             model.exportToDocument(DocumentFile.fromFile(folder), true,
                 exporter { output -> output.write(7); gate.closed = true; ExportResult.Success },
                 "data", null, prepareDirectory = { folder.mkdirs() }) { result ->
-                if (result is ExportDocumentResult.Success) model.handOffExport(result) { finished = true }
-                else failure = true
+                if (result is ExportDocumentResult.Success) {
+                    model.handOffExport(result) { finished = true }
+                }
+                else {
+                    failure = true
+                }
             }
             advanceUntilIdle()
             finished shouldBe false
@@ -147,7 +151,9 @@ class ManualExportTransferBoundaryTest {
                 exporter { output -> output.write(8); secondWriting.complete(Unit); finishSecond.await(); ExportResult.Success },
                 "same-name", null,
                 prepareDirectory = { prepareShareRequestDirectory(secondDirectory) },
-                cleanupDirectory = { if (!secondHandedOff) removeShareRequestDirectory(secondDirectory) }) { result ->
+                cleanupDirectory = { if (!secondHandedOff) {
+                    removeShareRequestDirectory(secondDirectory)
+                } }) { result ->
                 secondHandedOff = second.handOffExport(result.shouldBeInstanceOf<ExportDocumentResult.Success>()) { }
             }
             secondWriting.await()
@@ -203,7 +209,11 @@ class ManualExportTransferBoundaryTest {
             try {
                 request.setLastModified(System.currentTimeMillis() - 25L * 60L * 60L * 1_000L)
                 shouldThrow<OwnedTransferCleanupException> {
-                    if (aging) cleanupShareableDirectory(root) else removeShareRequestDirectory(request)
+                    if (aging) {
+                        cleanupShareableDirectory(root)
+                    } else {
+                        removeShareRequestDirectory(request)
+                    }
                 }
                 direct.readText() shouldBe "owned"
                 nested.readText() shouldBe "keep"
@@ -224,7 +234,11 @@ class ManualExportTransferBoundaryTest {
                 assumeTrue("Host cannot create symbolic links", created)
                 outside.setLastModified(System.currentTimeMillis() - 25L * 60L * 60L * 1_000L)
                 shouldThrow<OwnedTransferCleanupException> {
-                    if (aging) cleanupShareableDirectory(root) else removeShareRequestDirectory(request)
+                    if (aging) {
+                        cleanupShareableDirectory(root)
+                    } else {
+                        removeShareRequestDirectory(request)
+                    }
                 }
                 retained.readText() shouldBe "keep"
                 Files.isSymbolicLink(request.toPath()) shouldBe true
@@ -379,14 +393,22 @@ class ManualExportTransferBoundaryTest {
         override val isReady get() = !closed && !collectionStopped
         override val permitsNewCollection = false
         override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult {
-            if (advanceOnReconcile) generation++
+            if (advanceOnReconcile) {
+                generation++
+            }
             return TrackingStartupResult.Ready(false, 0L)
         }
         override fun <T> withRetainedDataGeneration(expectedGeneration: Long, operation: () -> T): T? =
-            if (!closed && generation == expectedGeneration) operation() else null
+            if (!closed && generation == expectedGeneration) {
+                operation()
+            } else {
+                null
+            }
         override suspend fun <T> withReadyGenerationTransfer(expectedGeneration: Long,
             operation: suspend () -> T): T? = coroutineScope {
-            if (withRetainedDataGeneration(expectedGeneration) { true } != true) return@coroutineScope null
+            if (withRetainedDataGeneration(expectedGeneration) { true } != true) {
+                return@coroutineScope null
+            }
             val transfer = async {
                 transferCount++; inside = true
                 try { operation() } finally { inside = false }

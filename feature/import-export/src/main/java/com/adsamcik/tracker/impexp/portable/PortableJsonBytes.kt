@@ -43,35 +43,58 @@ internal suspend fun readPortableBytes(
 	while (true) {
 		currentCoroutineContext().ensureActive()
 		if (size == buffer.size) {
-			val next = input.read()
-			if (next < 0) break
-			if (size == maximumSize) {
-				portableBytesFailure("Portable document exceeds its byte bound")
-			}
-			val expandedSize = minOf(
-				maximumBytes,
-				maxOf(size.toLong() + 1L, size.toLong() * 2L),
-			).toInt()
-			val expanded = allocate(expandedSize)
-			require(expanded.size == expandedSize)
-			buffer.copyInto(expanded, endIndex = size)
-			buffer = expanded
-			buffer[size++] = next.toByte()
+			buffer = buffer.readAndGrow(input, size, maximumBytes, allocate) ?: break
+			size++
 			continue
 		}
-		val read = input.read(buffer, size, buffer.size - size)
-		when {
-			read < 0 -> break
-			read > 0 -> size = Math.addExact(size, read)
-			else -> {
-				val next = input.read()
-				if (next < 0) break
-				buffer[size++] = next.toByte()
-			}
+		val read = input.readPortableChunk(buffer, size)
+		if (read < 0) {
+			break
 		}
+		size = Math.addExact(size, read)
 	}
-	if (size == 0) portableBytesFailure("Portable document is empty")
+	if (size == 0) {
+		portableBytesFailure("Portable document is empty")
+	}
 	return PortableJsonBytes.loaded(buffer, size)
+}
+
+/** Progresses even when a source returns zero without reaching its end. */
+private fun InputStream.readPortableChunk(buffer: ByteArray, size: Int): Int {
+	val read = read(buffer, size, buffer.size - size)
+	if (read != 0) {
+		return read
+	}
+	val next = read()
+	if (next < 0) {
+		return -1
+	}
+	buffer[size] = next.toByte()
+	return 1
+}
+
+private fun ByteArray.readAndGrow(
+	input: InputStream,
+	size: Int,
+	maximumBytes: Long,
+	allocate: (Int) -> ByteArray,
+): ByteArray? {
+	val next = input.read()
+	if (next < 0) {
+		return null
+	}
+	if (size == maximumBytes.toInt()) {
+		portableBytesFailure("Portable document exceeds its byte bound")
+	}
+	val expandedSize = minOf(
+		maximumBytes,
+		maxOf(size.toLong() + 1L, size.toLong() * 2L),
+	).toInt()
+	val expanded = allocate(expandedSize)
+	require(expanded.size == expandedSize)
+	copyInto(expanded, endIndex = size)
+	expanded[size] = next.toByte()
+	return expanded
 }
 
 private fun portableBytesFailure(message: String): Nothing =

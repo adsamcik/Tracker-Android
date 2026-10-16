@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+
 import com.adsamcik.tracker.shared.base.database.SavedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthenticator
@@ -58,8 +60,10 @@ internal object ActivityHistoryComposer {
 	): ActivityHistoryEntry? {
 		val logicalId = seed.logicalTrackingId?.takeIf(String::isNotBlank)
 			?: return legacy(seed)
-		if (seed.serviceRunId.isNullOrBlank()) return failed(logicalId, listOf(seed),
+		if (seed.serviceRunId.isNullOrBlank()) {
+			return failed(logicalId, listOf(seed),
 			ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+		}
 		return composeGroup(logicalId, snapshot, laneExecutionAuthority)
 	}
 
@@ -94,17 +98,22 @@ internal object ActivityHistoryComposer {
 			}.toList()
 
 	/** Presentation bounds belong to the logical recording, never its surviving physical members. */
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	private fun composeGroup(
 		logicalId: String,
 		snapshot: ActivityHistorySnapshot,
 		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
 	): ActivityHistoryEntry? {
 		val composed = composeGroupEvidence(logicalId, snapshot, laneExecutionAuthority) ?: return null
-		if (composed.state == ActivityHistoryProductState.FAILED) return composed
+		if (composed.state == ActivityHistoryProductState.FAILED) {
+			return composed
+		}
 		val session = snapshot.sessions[logicalId] ?: return composed
 		val start = session.startedAtMs
 		val cutoff = session.cutoffAtMs
 		val end = cutoff ?: composed.endTime.raw
+		// One saved logical header must have valid original bounds and complete terminal cutoff fields.
+		@Suppress("ComplexCondition")
 		if (start < 0L || end < start ||
 			(session.state in TERMINAL_RUN_STATES &&
 				(cutoff == null || session.cutoffElapsedNanos == null))
@@ -123,8 +132,12 @@ internal object ActivityHistoryComposer {
 		measuredOnly: Boolean = false,
 	): ActivityHistoryEntry? {
 		val segments = members(logicalId, snapshot)
-		if (segments.isEmpty()) return null
-		if (snapshot.overflow) return failed(logicalId, segments, ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+		if (segments.isEmpty()) {
+			return null
+		}
+		if (snapshot.overflow) {
+			return failed(logicalId, segments, ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+		}
 		snapshot.expansion.failures[logicalId]?.let { return failed(logicalId, segments, it) }
 
 		val runIds = segments.mapNotNull(SessionSegment::serviceRunId)
@@ -141,14 +154,22 @@ internal object ActivityHistoryComposer {
 		val hasActiveRun = runs.any(::isNonTerminalRun)
 		val session = snapshot.sessions[logicalId]
 		val savedCutoff = snapshot.savedSessionCutoffs[logicalId]
+		// Keep the complete saved logical header, supplied live-run state and cutoff-clock shape together.
+		@Suppress("ComplexCondition")
 		if (session == null || session.logicalTrackingId != logicalId ||
 			!hasConsistentCompletion(session.state, session.completedAtMs) ||
 			(!measuredOnly || hasActiveRun) && (session.state !in TERMINAL_RUN_STATES) != hasActiveRun ||
 			session.lifecycleRevision <= 0L || session.desiredPlanRevision <= 0L ||
 			session.rolloutRevision <= 0L || session.startedElapsedNanos < 0L ||
-			((if (savedCutoff == null) session.lifecycleBootId else savedCutoff.bootId) == session.clockDomainId &&
+			((if (savedCutoff == null) {
+				session.lifecycleBootId
+			} else {
+				savedCutoff.bootId
+			}) == session.clockDomainId &&
 			session.cutoffElapsedNanos?.let { it < session.startedElapsedNanos } == true)
-		) return failed(logicalId, segments, ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+		) {
+			return failed(logicalId, segments, ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+		}
 		val manifestsByRun = runs.associate { run ->
 			run.serviceRunId to snapshot.manifestsByRun[run.serviceRunId].orEmpty()
 				.sortedBy(SessionManifestVersionEntity::manifestRevision)
@@ -169,8 +190,10 @@ internal object ActivityHistoryComposer {
 		val bindings = manifests.values.mapNotNull { manifest ->
 			val matching = snapshot.sourcesByManifest[ActivityManifestKey(logicalId, manifest.manifestRevision)]
 				.orEmpty().filter(::isActivityCaptureMembership)
-			if (matching.size > 1) return failedWithIntent(
+			if (matching.size > 1) {
+				return failedWithIntent(
 				ActivityHistoryCause.MANIFEST_INTEGRITY_FAILED)
+			}
 			matching.singleOrNull()?.let { manifest.manifestRevision to it }
 		}.toMap()
 		val relevantLineages = snapshot.revisions.groupBy(ActivityCapturedWindowRevisionEntity::logicalWindowId)
@@ -186,7 +209,8 @@ internal object ActivityHistoryComposer {
 		if (!hasValidCaptureAuthority(manifests, bindings, snapshot)) {
 			return failedWithIntent(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
 		}
-		val originalBinding = bindings.values.map(SessionManifestSourceEntity::writerBindingGeneration).distinct().singleOrNull()
+		val originalBinding =
+            bindings.values.map(SessionManifestSourceEntity::writerBindingGeneration).distinct().singleOrNull()
 		val lane = snapshot.lanes.singleOrNull { isActivityLane(it) && it.bindingGeneration == originalBinding }
 		val captureModeMask = manifests.values.fold(0L) { mask, manifest ->
 			mask or when (manifest.sessionMode) {
@@ -195,8 +219,10 @@ internal object ActivityHistoryComposer {
 				else -> 0L
 			}
 		}
-		if (lane == null || !laneExecutionAuthority.owns(lane) || !isValidHistoricalLane(lane) ||
-			captureModeMask == 0L || lane.captureModeMask and captureModeMask != captureModeMask ||
+		if (lane == null || !laneExecutionAuthority.owns(lane) || !isValidHistoricalLane(lane)) {
+			return failedWithIntent(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+		}
+		if (captureModeMask == 0L || lane.captureModeMask and captureModeMask != captureModeMask ||
 			manifests.values.any { lane.activatedRolloutRevision > it.rolloutRevision }) {
 			return failedWithIntent(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
 		}
@@ -220,15 +246,20 @@ internal object ActivityHistoryComposer {
 		}
 		if (!active && completeness.mapTo(hashSetOf(), SourceSessionCompletenessEntity::serviceRunId) !=
 			runIds.toSet()
-		) return failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+		) {
+			return failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+		}
 		val targetByRun = completeness.groupBy(SourceSessionCompletenessEntity::serviceRunId)
-			.mapValues { (_, rows) -> rows.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull() }
+			.mapValues { (_, rows) ->
+                rows.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull() }
 		val laneTarget = targetByRun.values.filterNotNull().maxOrNull()
 		if (!hasValidLogicalSessionSettlement(session, runs, manifestsByRun, laneTarget, savedCutoff, measuredOnly) ||
 			laneTarget?.let { it < lane.activationOrdinal ||
 			lane.captureAdmissionCutoffOrdinal?.let { cutoff -> it > cutoff } == true } == true ||
 			snapshot.terminalFailures.isNotEmpty()
-		) return failedWithIntent(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+		) {
+			return failedWithIntent(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+		}
 		val effective = mutableListOf<ActivityCapturedWindowRevisionEntity>()
 		val minimumWallTimeByWindow = mutableMapOf<String, Long?>()
 		for ((_, lineage) in relevantLineages) {
@@ -265,8 +296,10 @@ internal object ActivityHistoryComposer {
 			val cutoff = snapshot.savedSessionCutoffs[logicalId]
 				?: SavedSessionCutoff(session.lifecycleBootId, session.cutoffElapsedNanos)
 			val expectedSessionRunEnd = cutoff.retainedEnd(latest.clockDomainId, latest.sessionRunEffectEndNanos)
-			if (manifest == null || binding == null || run == null || plan == null || desiredPlan == null ||
-				provider == null ||
+			if (manifest == null || binding == null || run == null || plan == null) {
+				return failedWithIntent(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+			}
+			if (desiredPlan == null || provider == null ||
 				!factHasExactAuthority(
 					latest, manifest, nextManifest, binding, run, plan, desiredPlan, provider,
 					authorizations, expectedSessionRunEnd, actualObservations, snapshot,
@@ -315,11 +348,17 @@ internal object ActivityHistoryComposer {
 			revisions.zipWithNext().any { (left, right) ->
 				left.windowEndElapsedRealtimeNanos > right.windowStartElapsedRealtimeNanos
 			}
-		}) return failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+		}) {
+			return failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+		}
 		val timeline = runCatching {
-			if (measuredOnly) ActivityCaptureTimeline(ordered.flatMap { toPublicFragments(it, snapshot) }, 0L, false)
-			else composeCaptureTimeline(ordered, manifests.values.sortedBy { it.manifestRevision }, bindings, session,
+			if (measuredOnly) {
+				ActivityCaptureTimeline(ordered.flatMap { toPublicFragments(it, snapshot) }, 0L, false)
+			}
+			else {
+				composeCaptureTimeline(ordered, manifests.values.sortedBy { it.manifestRevision }, bindings, session,
 				snapshot, active)
+			}
 		}.getOrNull() ?: return failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
 		val fragments = timeline.fragments
 		val activeTime = try {
@@ -339,7 +378,9 @@ internal object ActivityHistoryComposer {
 		if (snapshot.savedSessionCutoffs[logicalId]?.clockUnknown == true) {
 			causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
 		}
-		if (bindings.size != manifests.size) causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
+		if (bindings.size != manifests.size) {
+			causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
+		}
 		if (completeness.isEmpty() || completeness.any { !it.appDrainComplete || it.stopStatus != COMPLETE_STOP }) {
 			causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
 		}
@@ -351,19 +392,28 @@ internal object ActivityHistoryComposer {
 			causes += ActivityHistoryCause.PROVIDER_GAP
 		}
 		val laneBehind = laneTarget != null && lane.contiguousAdmissionOrdinal < laneTarget
-		if (laneBehind) causes += ActivityHistoryCause.MATERIALIZATION_BEHIND
-		val coverage = if (!measuredOnly && ordered.all { it.coverage == "COMPLETE" } && timeline.externalGapDurationNanos == 0L &&
+		if (laneBehind) {
+			causes += ActivityHistoryCause.MATERIALIZATION_BEHIND
+		}
+		// Project the already-composed saved coverage, gap duration, pending flag and causes as one result.
+		@Suppress("ComplexCondition")
+		val coverage = if (!measuredOnly && ordered.all { it.coverage == "COMPLETE" } &&
+            timeline.externalGapDurationNanos == 0L &&
 			!timeline.hasPendingUnboundedCaptureInterval &&
 			ActivityHistoryCause.ACQUISITION_INCOMPLETE !in causes) {
 			ActivityHistoryCoverage.COMPLETE
-		} else ActivityHistoryCoverage.PARTIAL
+		} else {
+			ActivityHistoryCoverage.PARTIAL
+		}
 		val state = when {
 			active || laneBehind -> ActivityHistoryProductState.MATERIALIZING
 			ActivityHistoryCause.ACQUISITION_INCOMPLETE in causes ||
 				ActivityHistoryCause.PROVIDER_GAP in causes -> ActivityHistoryProductState.PARTIAL
 			else -> ActivityHistoryProductState.READY
 		}
-		if (active) causes += ActivityHistoryCause.SESSION_ACTIVE
+		if (active) {
+			causes += ActivityHistoryCause.SESSION_ACTIVE
+		}
 		return entry(
 			logicalId, segments, zones, state, coverage, activeTime, fragments, causes,
 			capturesOnlyActivity = capturesOnlyActivity,
@@ -385,7 +435,7 @@ internal object ActivityHistoryComposer {
 	}
 
 	private fun hasValidLogicalSessionSettlement(
-		session: com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity,
+		session: LogicalTrackingSessionEntity,
 		runs: List<SourceServiceRunEntity>,
 		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 		targetOrdinal: Long?,
@@ -394,40 +444,95 @@ internal object ActivityHistoryComposer {
 	): Boolean {
 		val nonTerminalRuns = runs.filter(::isNonTerminalRun)
 		if (nonTerminalRuns.isNotEmpty()) {
-			val currentRun = nonTerminalRuns.singleOrNull() ?: return false
-			val currentManifest = manifestsByRun[currentRun.serviceRunId]
-				.orEmpty().maxByOrNull(SessionManifestVersionEntity::manifestRevision) ?: return false
-			val stopping = session.state == STOPPING_RUN_STATE
-			val hasAnyCutoff = session.cutoffAtMs != null || session.cutoffElapsedNanos != null
-			val hasExactCutoff = session.cutoffAtMs != null && session.cutoffElapsedNanos != null &&
-				requireNotNull(session.cutoffAtMs) >= session.startedAtMs &&
-				((if (cutoff == null) session.lifecycleBootId else cutoff.bootId) != session.clockDomainId ||
-					requireNotNull(session.cutoffElapsedNanos) >= session.startedElapsedNanos)
-			val validCutoff = if (stopping) hasExactCutoff else !hasAnyCutoff
-			return hasValidLiveLifecyclePair(session.state, currentRun.state) && validCutoff &&
-				session.completedAtMs == null && session.finalAdmissionOrdinal == null &&
-				session.currentServiceRunId == currentRun.serviceRunId &&
-				session.currentManifestRevision == currentManifest.manifestRevision &&
-				session.lifecycleLeaseGeneration == currentRun.leaseGeneration &&
-				session.lifecycleBootId == currentRun.bootId
+			return hasValidLiveSessionSettlement(session, nonTerminalRuns, manifestsByRun, cutoff)
 		}
-		// A completed selected parent keeps its original authority while a different run is live.
-		// Selected live parents still pass the exact operation pair above.
+		// Completed selected parents keep their original authority while a different run is live.
 		if (measuredOnly && session.state in LIVE_RUN_STATES) {
-			val currentManifestRevision = session.currentManifestRevision ?: return false
-			val lastManifestRevision = manifestsByRun.values.flatten()
-				.maxOfOrNull(SessionManifestVersionEntity::manifestRevision) ?: return false
-			return !session.currentServiceRunId.isNullOrBlank() &&
-				runs.none { it.serviceRunId == session.currentServiceRunId } &&
-				lastManifestRevision < currentManifestRevision &&
-				runs.all { it.leaseGeneration <= session.lifecycleLeaseGeneration } &&
-				session.completedAtMs == null && session.finalAdmissionOrdinal == null
+			return hasValidSelectedRunSettlement(session, runs, manifestsByRun)
 		}
-		return session.cutoffAtMs != null && session.cutoffElapsedNanos != null &&
-			session.completedAtMs?.let { it >= session.startedAtMs } == true &&
-		session.finalAdmissionOrdinal?.let { finalOrdinal ->
-			targetOrdinal == null || targetOrdinal <= finalOrdinal
-		} == true &&
+		return hasValidClosedSessionSettlement(session, targetOrdinal)
+	}
+
+	private fun hasValidLiveSessionSettlement(
+		session: LogicalTrackingSessionEntity,
+		nonTerminalRuns: List<SourceServiceRunEntity>,
+		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
+		cutoff: SavedSessionCutoff?,
+	): Boolean {
+		val currentRun = nonTerminalRuns.singleOrNull() ?: return false
+		val currentManifest = manifestsByRun[currentRun.serviceRunId]
+			.orEmpty().maxByOrNull(SessionManifestVersionEntity::manifestRevision) ?: return false
+		val stopping = session.state == STOPPING_RUN_STATE
+		val hasAnyCutoff = session.cutoffAtMs != null || session.cutoffElapsedNanos != null
+		val hasExactCutoff = hasExactSessionCutoff(session, cutoff)
+		val validCutoff = if (stopping) {
+			hasExactCutoff
+		} else {
+			!hasAnyCutoff
+		}
+		return hasExactLiveSessionOwner(session, currentRun, currentManifest, validCutoff)
+	}
+
+	private fun hasExactSessionCutoff(
+		session: LogicalTrackingSessionEntity,
+		cutoff: SavedSessionCutoff?,
+	): Boolean {
+		if (session.cutoffAtMs == null || session.cutoffElapsedNanos == null ||
+			requireNotNull(session.cutoffAtMs) < session.startedAtMs) {
+			return false
+		}
+		return (if (cutoff == null) { session.lifecycleBootId } else { cutoff.bootId }) != session.clockDomainId ||
+			requireNotNull(session.cutoffElapsedNanos) >= session.startedElapsedNanos
+	}
+
+	private fun hasExactLiveSessionOwner(
+		session: LogicalTrackingSessionEntity,
+		currentRun: SourceServiceRunEntity,
+		currentManifest: SessionManifestVersionEntity,
+		validCutoff: Boolean,
+	): Boolean {
+		if (!hasValidLiveLifecyclePair(session.state, currentRun.state) || !validCutoff ||
+			session.completedAtMs != null || session.finalAdmissionOrdinal != null) {
+			return false
+		}
+		return session.currentServiceRunId == currentRun.serviceRunId &&
+			session.currentManifestRevision == currentManifest.manifestRevision &&
+			session.lifecycleLeaseGeneration == currentRun.leaseGeneration &&
+			session.lifecycleBootId == currentRun.bootId
+	}
+
+	// Missing revisions, current ownership and selected-run lineage reject before terminal-marker comparison.
+	@Suppress("ReturnCount")
+	private fun hasValidSelectedRunSettlement(
+		session: LogicalTrackingSessionEntity,
+		runs: List<SourceServiceRunEntity>,
+		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
+	): Boolean {
+		val currentManifestRevision = session.currentManifestRevision ?: return false
+		val lastManifestRevision = manifestsByRun.values.flatten()
+			.maxOfOrNull(SessionManifestVersionEntity::manifestRevision) ?: return false
+		if (session.currentServiceRunId.isNullOrBlank()) {
+			return false
+		}
+		if (runs.any { it.serviceRunId == session.currentServiceRunId } ||
+			lastManifestRevision >= currentManifestRevision ||
+			runs.any { it.leaseGeneration > session.lifecycleLeaseGeneration }) {
+			return false
+		}
+		return session.completedAtMs == null && session.finalAdmissionOrdinal == null
+	}
+
+	private fun hasValidClosedSessionSettlement(
+		session: LogicalTrackingSessionEntity,
+		targetOrdinal: Long?,
+	): Boolean {
+		if (session.cutoffAtMs == null || session.cutoffElapsedNanos == null) {
+			return false
+		}
+		return session.completedAtMs?.let { it >= session.startedAtMs } == true &&
+			session.finalAdmissionOrdinal?.let { finalOrdinal ->
+				targetOrdinal == null || targetOrdinal <= finalOrdinal
+			} == true &&
 			session.currentServiceRunId == null
 	}
 
@@ -437,11 +542,15 @@ internal object ActivityHistoryComposer {
 		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 		snapshot: ActivityHistorySnapshot,
 		measuredOnly: Boolean = false,
-	): Boolean = (if (measuredOnly) SessionManifestIntegrity.hasValidLogicalManifestRevisionSliceUnion(
+	): Boolean = (if (measuredOnly) {
+		SessionManifestIntegrity.hasValidLogicalManifestRevisionSliceUnion(
 		manifestsByRun.values.map { it.map(SessionManifestVersionEntity::manifestRevision) },
-	) else SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(
+	)
+	} else {
+		SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(
 		manifestsByRun.values.map { it.map(SessionManifestVersionEntity::manifestRevision) },
-	)) && runs.all { run ->
+	)
+	}) && runs.all { run ->
 		val manifests = manifestsByRun[run.serviceRunId].orEmpty()
 		SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) && manifests.all { manifest ->
 			manifest.logicalTrackingId == logicalId && manifest.serviceRunId == run.serviceRunId &&
@@ -458,12 +567,22 @@ internal object ActivityHistoryComposer {
 		snapshot: ActivityHistorySnapshot,
 	): Boolean = bindings.all { (revision, binding) ->
 		val manifest = manifests[revision] ?: return@all false
+		hasValidCaptureBinding(manifest, binding, snapshot)
+	}
+
+	// One historical binding agrees with its saved manifest, policy, consent and encoded plan.
+	@Suppress("CyclomaticComplexMethod")
+	private fun hasValidCaptureBinding(
+		manifest: SessionManifestVersionEntity,
+		binding: SessionManifestSourceEntity,
+		snapshot: ActivityHistorySnapshot,
+	): Boolean {
 		val policy = snapshot.policies[manifest.sourcePolicyRevision]
 		val consent = snapshot.consents[binding.consentEpoch]
 		val planHeader = snapshot.acquisitionPlanRevisions[manifest.acquisitionPlanRevision]
 		val desiredPlan = snapshot.desiredPlans[manifest.acquisitionPlanRevision]
 		val decodedPlan = desiredPlan?.let(ActivityCapturedPlanIntegrity::decode)
-		isActivityWriter(binding) && policy != null && consent != null && planHeader != null &&
+		return isActivityWriter(binding) && policy != null && consent != null && planHeader != null &&
 			desiredPlan != null && decodedPlan != null && decodedPlan.enabled &&
 			planHeader.revision == manifest.acquisitionPlanRevision &&
 			planHeader.sourcePolicyRevision == manifest.sourcePolicyRevision &&
@@ -498,13 +617,17 @@ internal object ActivityHistoryComposer {
 
 	private fun SourcePolicyEntity.captureConsentLiteral(): Long? = captureConsentEpoch
 
+	// Checks one immutable writer-binding tuple against the existing named storage contract.
+	@Suppress("CyclomaticComplexMethod")
 	private fun isActivityWriter(binding: SessionManifestSourceEntity): Boolean =
 		binding.sourceKind == ACTIVITY_SOURCE && binding.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
 			binding.persistenceEligible &&
 			binding.outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY &&
 			binding.writerOwner == SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS &&
-			SourceWriterGenerationContract.captureModeMaskForKnownBinding(binding.writerBindingGeneration ?: -1L) != null &&
-			binding.writerOwnerGeneration == binding.writerBindingGeneration?.let(SourceWriterGenerationContract::canonicalOwnerGeneration) &&
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(binding.writerBindingGeneration ?:
+                -1L) != null &&
+			binding.writerOwnerGeneration == binding.writerBindingGeneration
+				?.let(SourceWriterGenerationContract::canonicalOwnerGeneration) &&
 			binding.writerProjectionId == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID &&
 			binding.writerProjectionVersion == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION &&
 			binding.writerBindingGeneration != null
@@ -527,7 +650,9 @@ internal object ActivityHistoryComposer {
 					ActivityWalCarrierAuthenticator.authenticates(revision, row, wal)
 				} != true
 			}
-		}) return null
+		}) {
+			return null
+		}
 		val latest = ordered.last()
 		val matchingCursors = snapshot.cursors.filter { cursor ->
 			cursor.writerProjectionId == latest.writerProjectionId &&
@@ -546,7 +671,6 @@ internal object ActivityHistoryComposer {
 		latestEffectChecksum == revision.effectChecksum && cursorRevision == revision.semanticRevision &&
 		collectedDataEpoch == revision.collectedDataEpoch && updatedAtMs == revision.appliedAtMs
 
-	@Suppress("ComplexCondition")
 	private fun factHasExactAuthority(
 		fact: ActivityCapturedWindowRevisionEntity,
 		manifest: SessionManifestVersionEntity,
@@ -579,39 +703,86 @@ internal object ActivityHistoryComposer {
 			currentClockDomainId = snapshot.currentClockDomainId,
 			currentProviderRegistrations = snapshot.currentProviderRegistrations,
 		) as? ProviderRegistrationIntervalAuthentication.Authenticated ?: return false
-		return fact.writerProjectionId == binding.writerProjectionId &&
-		fact.writerProjectionVersion == binding.writerProjectionVersion &&
-		fact.writerBindingGeneration == binding.writerBindingGeneration &&
-		fact.writerOwnerGeneration == binding.writerOwnerGeneration &&
-		fact.sessionSegmentId == run.sessionSegmentId && fact.logicalTrackingId == run.logicalTrackingId &&
-		fact.serviceRunId == run.serviceRunId && fact.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
-		fact.manifestRevision == manifest.manifestRevision && fact.sourcePolicyRevision == manifest.sourcePolicyRevision &&
-		fact.captureConsentEpoch == binding.consentEpoch && SessionManifestIntegrity.hasRetainedLeaseGeneration(run, fact.lifecycleLeaseGeneration) &&
-		fact.clockDomainId == manifest.effectiveBootId &&
-		fact.storedZoneId == manifest.zoneId && fact.windowStartElapsedRealtimeNanos >= run.startedElapsedNanos &&
-		fact.sessionRunEffectStartNanos == run.startedElapsedNanos &&
-		(fact.sessionRunEffectEndNanos == expectedSessionRunEndNanos ||
-			fact.sessionRunEffectEndNanos == Long.MAX_VALUE) &&
-		fact.windowEndElapsedRealtimeNanos <= expectedSessionRunEndNanos &&
-		fact.windowStartElapsedRealtimeNanos >= manifest.effectiveElapsedRealtimeNanos &&
-		(nextManifest == null || fact.windowEndElapsedRealtimeNanos <=
-			nextManifest.effectiveElapsedRealtimeNanos) &&
-		fact.sourceInstanceId == plan.sourceInstanceId && fact.registrationGeneration == plan.registrationGeneration &&
-		fact.configurationRevision == plan.configurationRevision &&
-		plan.configurationRevision == manifest.acquisitionPlanRevision &&
-		plan.desiredPlanPayloadVersion == desiredPlan.payloadVersion &&
-		plan.desiredPlanPayloadChecksum == desiredPlan.payloadChecksum &&
-		fact.physicalConfigurationFingerprint == plan.physicalConfigurationFingerprint &&
-		ActivityCapturedPlanIntegrity.decode(desiredPlan)?.physicalConfigurationFingerprint ==
-			plan.physicalConfigurationFingerprint &&
-		plan.appliedAtElapsedRealtimeNanos <= fact.windowStartElapsedRealtimeNanos &&
-		provider.sourceKind == ACTIVITY_SOURCE && provider.registrationGeneration == fact.registrationGeneration &&
-		provider.sourceInstanceId == fact.sourceInstanceId && provider.clockDomainId == fact.clockDomainId &&
-		provider.physicalConfigurationFingerprint == fact.physicalConfigurationFingerprint &&
-		provider.collectedDataEpoch == fact.collectedDataEpoch &&
-		provider.acceptedElapsedRealtimeNanos == fact.providerAcceptanceStartNanos &&
-		providerAuthentication.interval.endExclusiveNanos == fact.providerAcceptanceEndNanos &&
-		hasExactAuthorization(fact, authorizations) && isActivityWriter(binding)
+		if (!fact.matchesCapturedWriter(binding) || !fact.matchesCapturedRun(manifest, run) ||
+			!fact.matchesCapturedWindow(manifest, nextManifest, run, expectedSessionRunEndNanos)) {
+			return false
+		}
+		return fact.matchesRegistrationPlan(manifest, plan, desiredPlan) &&
+			fact.matchesProviderInterval(provider, providerAuthentication) &&
+			hasExactAuthorization(fact, authorizations) && isActivityWriter(binding)
+	}
+
+	private fun ActivityCapturedWindowRevisionEntity.matchesCapturedWriter(
+		binding: SessionManifestSourceEntity,
+	): Boolean {
+		if (writerProjectionId != binding.writerProjectionId || writerProjectionVersion != binding.writerProjectionVersion) {
+			return false
+		}
+		return writerBindingGeneration == binding.writerBindingGeneration &&
+			writerOwnerGeneration == binding.writerOwnerGeneration && captureConsentEpoch == binding.consentEpoch
+	}
+
+	private fun ActivityCapturedWindowRevisionEntity.matchesCapturedRun(
+		manifest: SessionManifestVersionEntity,
+		run: SourceServiceRunEntity,
+	): Boolean {
+		if (sessionSegmentId != run.sessionSegmentId || logicalTrackingId != run.logicalTrackingId ||
+			serviceRunId != run.serviceRunId || purpose != SourceBrokerPurpose.SESSION_CAPTURE) {
+			return false
+		}
+		return manifestRevision == manifest.manifestRevision && sourcePolicyRevision == manifest.sourcePolicyRevision &&
+			SessionManifestIntegrity.hasRetainedLeaseGeneration(run, lifecycleLeaseGeneration)
+	}
+
+	private fun ActivityCapturedWindowRevisionEntity.matchesCapturedWindow(
+		manifest: SessionManifestVersionEntity,
+		nextManifest: SessionManifestVersionEntity?,
+		run: SourceServiceRunEntity,
+		expectedSessionRunEndNanos: Long,
+	): Boolean {
+		if (clockDomainId != manifest.effectiveBootId || storedZoneId != manifest.zoneId ||
+			windowStartElapsedRealtimeNanos < run.startedElapsedNanos || sessionRunEffectStartNanos != run.startedElapsedNanos) {
+			return false
+		}
+		if ((sessionRunEffectEndNanos != expectedSessionRunEndNanos && sessionRunEffectEndNanos != Long.MAX_VALUE) ||
+			windowEndElapsedRealtimeNanos > expectedSessionRunEndNanos ||
+			windowStartElapsedRealtimeNanos < manifest.effectiveElapsedRealtimeNanos) {
+			return false
+		}
+		return nextManifest == null || windowEndElapsedRealtimeNanos <= nextManifest.effectiveElapsedRealtimeNanos
+	}
+
+	private fun ActivityCapturedWindowRevisionEntity.matchesRegistrationPlan(
+		manifest: SessionManifestVersionEntity,
+		plan: ActivityCapturedRegistrationPlanEntity,
+		desiredPlan: SourceDesiredPlanEntity,
+	): Boolean {
+		if (sourceInstanceId != plan.sourceInstanceId || registrationGeneration != plan.registrationGeneration ||
+			configurationRevision != plan.configurationRevision ||
+			plan.configurationRevision != manifest.acquisitionPlanRevision) {
+			return false
+		}
+		if (plan.desiredPlanPayloadVersion != desiredPlan.payloadVersion ||
+			plan.desiredPlanPayloadChecksum != desiredPlan.payloadChecksum ||
+			physicalConfigurationFingerprint != plan.physicalConfigurationFingerprint) {
+			return false
+		}
+		return ActivityCapturedPlanIntegrity.decode(desiredPlan)?.physicalConfigurationFingerprint ==
+			plan.physicalConfigurationFingerprint && plan.appliedAtElapsedRealtimeNanos <= windowStartElapsedRealtimeNanos
+	}
+
+	private fun ActivityCapturedWindowRevisionEntity.matchesProviderInterval(
+		provider: ProviderRegistrationGenerationEntity,
+		authentication: ProviderRegistrationIntervalAuthentication.Authenticated,
+	): Boolean {
+		if (provider.sourceKind != ACTIVITY_SOURCE || provider.registrationGeneration != registrationGeneration ||
+			provider.sourceInstanceId != sourceInstanceId || provider.clockDomainId != clockDomainId) {
+			return false
+		}
+		return provider.physicalConfigurationFingerprint == physicalConfigurationFingerprint &&
+			provider.collectedDataEpoch == collectedDataEpoch &&
+			provider.acceptedElapsedRealtimeNanos == providerAcceptanceStartNanos &&
+			authentication.interval.endExclusiveNanos == providerAcceptanceEndNanos
 	}
 
 	private fun hasExactAuthorization(
@@ -620,18 +791,12 @@ internal object ActivityHistoryComposer {
 	): Boolean {
 		val exact = rows.filter { it.authorizationRevision == fact.authorizationRevision }
 		if (exact.isEmpty() || exact.any { row ->
-			row.sourceKind != ACTIVITY_SOURCE || row.registrationGeneration != fact.registrationGeneration ||
-				row.authorizationFingerprint != fact.authorizationFingerprint ||
-				row.purposeEligibilityMask != fact.purposeEligibilityMask ||
-				row.effectiveBootId != fact.clockDomainId ||
-				row.effectiveElapsedRealtimeNanos != fact.authorizationEffectStartNanos
-		}) return false
+			authorizationStampConflictsWithFact(row, fact)
+		}) {
+			return false
+		}
 		val memberMatches = exact.any { row ->
-			!row.isDenyAll && row.purpose == SourceBrokerPurpose.SESSION_CAPTURE && row.persistenceEligible &&
-				row.logicalTrackingId == fact.logicalTrackingId && row.serviceRunId == fact.serviceRunId &&
-				row.manifestRevision == fact.manifestRevision &&
-				row.lifecycleLeaseGeneration == fact.lifecycleLeaseGeneration &&
-				row.sourcePolicyRevision == fact.sourcePolicyRevision && row.consentEpoch == fact.captureConsentEpoch
+			authorizationGrantsCapturedFact(row, fact)
 		}
 		val nextBoundary = rows.asSequence().filter { row ->
 			row.effectiveBootId == fact.clockDomainId &&
@@ -643,6 +808,24 @@ internal object ActivityHistoryComposer {
 		return memberMatches && nextBoundary == fact.authorizationEffectEndNanos
 	}
 
+	private fun authorizationStampConflictsWithFact(
+		row: SourceAuthorizationEntity,
+		fact: ActivityCapturedWindowRevisionEntity,
+	): Boolean = row.sourceKind != ACTIVITY_SOURCE || row.registrationGeneration != fact.registrationGeneration ||
+		row.authorizationFingerprint != fact.authorizationFingerprint ||
+		row.purposeEligibilityMask != fact.purposeEligibilityMask ||
+		row.effectiveBootId != fact.clockDomainId ||
+		row.effectiveElapsedRealtimeNanos != fact.authorizationEffectStartNanos
+
+	private fun authorizationGrantsCapturedFact(
+		row: SourceAuthorizationEntity,
+		fact: ActivityCapturedWindowRevisionEntity,
+	): Boolean = !row.isDenyAll && row.purpose == SourceBrokerPurpose.SESSION_CAPTURE && row.persistenceEligible &&
+		row.logicalTrackingId == fact.logicalTrackingId && row.serviceRunId == fact.serviceRunId &&
+		row.manifestRevision == fact.manifestRevision &&
+		row.lifecycleLeaseGeneration == fact.lifecycleLeaseGeneration &&
+		row.sourcePolicyRevision == fact.sourcePolicyRevision && row.consentEpoch == fact.captureConsentEpoch
+
 	private fun hasValidCompleteness(
 		rows: List<SourceSessionCompletenessEntity>,
 		logicalId: String,
@@ -652,22 +835,36 @@ internal object ActivityHistoryComposer {
 			runRows.size && runRows.sortedBy(SourceSessionCompletenessEntity::registrationGeneration)
 				.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).zipWithNext()
 				.all { (left, right) -> right > left } && runRows.all { row ->
-				row.logicalTrackingId == logicalId && row.sourceInstanceId.isNotBlank() &&
-					row.registrationGeneration >= 0L && row.lastAdmissionOrdinal?.let { it > 0L } != false &&
-					row.lastSourceSequence?.let { it >= 0L } != false &&
-					(row.unresolvedSequenceStart == null) == (row.unresolvedSequenceEnd == null) &&
-					row.unresolvedSequenceStart?.let { it > 0L && it <= requireNotNull(row.unresolvedSequenceEnd) } != false &&
-					row.providerCoverage in PROVIDER_COVERAGES && row.stopStatus in STOP_STATUSES &&
-					(row.stopStatus != COMPLETE_STOP || row.appDrainComplete) && row.hasValidGenerationShape() &&
-					row.updatedAtMs >= 0L
+				hasValidCompletenessRow(row, logicalId)
 			}
 	}
 
+	// Validates the complete fixed saved-row shape; run uniqueness and ordinal chronology stay in the caller.
+	@Suppress("CyclomaticComplexMethod")
+	private fun hasValidCompletenessRow(
+		row: SourceSessionCompletenessEntity,
+		logicalId: String,
+	): Boolean = row.logicalTrackingId == logicalId && row.sourceInstanceId.isNotBlank() &&
+		row.registrationGeneration >= 0L && row.lastAdmissionOrdinal?.let { it > 0L } != false &&
+		row.lastSourceSequence?.let { it >= 0L } != false &&
+		(row.unresolvedSequenceStart == null) == (row.unresolvedSequenceEnd == null) &&
+		row.unresolvedSequenceStart?.let { it > 0L &&
+			it <= requireNotNull(row.unresolvedSequenceEnd) } != false &&
+		row.providerCoverage in PROVIDER_COVERAGES && row.stopStatus in STOP_STATUSES &&
+		(row.stopStatus != COMPLETE_STOP || row.appDrainComplete) && row.hasValidGenerationShape() &&
+		row.updatedAtMs >= 0L
+
+	// One saved row must match a real registration or one of the three fixed synthetic registration shapes.
+	@Suppress("CyclomaticComplexMethod", "ComplexCondition")
 	private fun SourceSessionCompletenessEntity.hasValidGenerationShape(): Boolean {
-		if (registrationGeneration > 0L) return sourceInstanceId !in SYNTHETIC_ACTIVITY_INSTANCES
+		if (registrationGeneration > 0L) {
+			return sourceInstanceId !in SYNTHETIC_ACTIVITY_INSTANCES
+		}
 		if (lastAdmissionOrdinal != null || lastSourceSequence != null || unresolvedSequenceStart != null ||
 			unresolvedSequenceEnd != null || providerCoverage != UNOBSERVABLE_COVERAGE
-		) return false
+		) {
+			return false
+		}
 		return when (sourceInstanceId) {
 			"not-owned-activity" -> stopStatus == COMPLETE_STOP && appDrainComplete
 			"unresolved-activity" -> stopStatus in PROVIDER_UNAVAILABLE_STATUSES && !appDrainComplete
@@ -680,12 +877,21 @@ internal object ActivityHistoryComposer {
 		rows: List<SourceSessionCompletenessEntity>,
 		snapshot: ActivityHistorySnapshot,
 	): Boolean = rows.filter { it.registrationGeneration > 0L }.all { row ->
+		hasValidCompletenessRegistration(row, snapshot)
+	}
+
+	// One saved completeness row names its exact immutable registration, plan and provider.
+	@Suppress("CyclomaticComplexMethod", "ReturnCount")
+	private fun hasValidCompletenessRegistration(
+		row: SourceSessionCompletenessEntity,
+		snapshot: ActivityHistorySnapshot,
+	): Boolean {
 		val plan = snapshot.registrationPlans[row.sourceInstanceId to row.registrationGeneration]
-			?: return@all false
-		val desired = snapshot.desiredPlans[plan.configurationRevision] ?: return@all false
-		val decoded = ActivityCapturedPlanIntegrity.decode(desired) ?: return@all false
-		val provider = snapshot.providerRegistrations[row.registrationGeneration] ?: return@all false
-		plan.sourceInstanceId == row.sourceInstanceId &&
+			?: return false
+		val desired = snapshot.desiredPlans[plan.configurationRevision] ?: return false
+		val decoded = ActivityCapturedPlanIntegrity.decode(desired) ?: return false
+		val provider = snapshot.providerRegistrations[row.registrationGeneration] ?: return false
+		return plan.sourceInstanceId == row.sourceInstanceId &&
 			plan.registrationGeneration == row.registrationGeneration &&
 			plan.desiredPlanPayloadVersion == desired.payloadVersion &&
 			plan.desiredPlanPayloadChecksum == desired.payloadChecksum && decoded.enabled &&
@@ -700,7 +906,7 @@ internal object ActivityHistoryComposer {
 		revisions: List<ActivityCapturedWindowRevisionEntity>,
 		manifests: List<SessionManifestVersionEntity>,
 		bindings: Map<Long, SessionManifestSourceEntity>,
-		session: com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity,
+		session: LogicalTrackingSessionEntity,
 		snapshot: ActivityHistorySnapshot,
 		active: Boolean,
 	): ActivityCaptureTimeline {
@@ -708,18 +914,13 @@ internal object ActivityHistoryComposer {
 		var externalGapNanos = 0L
 		var hasPendingUnboundedCaptureInterval = false
 		manifests.forEachIndexed { index, manifest ->
-			if (bindings[manifest.manifestRevision] == null) return@forEachIndexed
-			val next = manifests.getOrNull(index + 1)
-			val exactEnd = when {
-				next?.effectiveBootId == manifest.effectiveBootId -> next.effectiveElapsedRealtimeNanos
-				session.lifecycleBootId == manifest.effectiveBootId -> session.cutoffElapsedNanos
-				else -> null
+			if (bindings[manifest.manifestRevision] == null) {
+				return@forEachIndexed
 			}
+			val next = manifests.getOrNull(index + 1)
 			val manifestRevisions = revisions.filter { it.manifestRevision == manifest.manifestRevision }
 				.sortedBy(ActivityCapturedWindowRevisionEntity::windowStartElapsedRealtimeNanos)
-			val end = exactEnd ?: if (active) {
-				manifestRevisions.maxOfOrNull(ActivityCapturedWindowRevisionEntity::windowEndElapsedRealtimeNanos)
-			} else null
+			val end = captureIntervalEnd(manifest, next, manifestRevisions, session, snapshot, active)
 			if (end == null && active && manifestRevisions.isEmpty()) {
 				hasPendingUnboundedCaptureInterval = true
 				return@forEachIndexed
@@ -752,6 +953,30 @@ internal object ActivityHistoryComposer {
 			}
 		}
 		return ActivityCaptureTimeline(public, externalGapNanos, hasPendingUnboundedCaptureInterval)
+	}
+
+	private fun captureIntervalEnd(
+		manifest: SessionManifestVersionEntity,
+		next: SessionManifestVersionEntity?,
+		manifestRevisions: List<ActivityCapturedWindowRevisionEntity>,
+		session: LogicalTrackingSessionEntity,
+		snapshot: ActivityHistorySnapshot,
+		active: Boolean,
+	): Long? {
+		val cutoff = snapshot.savedSessionCutoffs[session.logicalTrackingId]
+		val originalFactEnd = manifestRevisions.map(ActivityCapturedWindowRevisionEntity::sessionRunEffectEndNanos)
+			.filter { it != Long.MAX_VALUE }.distinct().singleOrNull()
+		val exactEnd = when {
+			next?.effectiveBootId == manifest.effectiveBootId -> next.effectiveElapsedRealtimeNanos
+			cutoff?.bootId == manifest.effectiveBootId -> cutoff.elapsedNanos
+			cutoff == null && session.lifecycleBootId == manifest.effectiveBootId -> session.cutoffElapsedNanos
+			else -> originalFactEnd
+		}
+		return exactEnd ?: if (active) {
+			manifestRevisions.maxOfOrNull(ActivityCapturedWindowRevisionEntity::windowEndElapsedRealtimeNanos)
+		} else {
+			null
+		}
 	}
 
 	internal fun toPublicFragments(
@@ -868,30 +1093,61 @@ internal object ActivityHistoryComposer {
 				SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
 
 	private fun isValidHistoricalLane(lane: SourceProductProjectionLaneEntity): Boolean {
-		if (lane.captureModeMask != SourceWriterGenerationContract.captureModeMaskForKnownBinding(lane.bindingGeneration) || lane.activatedRolloutRevision <= 0L ||
-			lane.activationOrdinal <= 0L || lane.installedAtMs < 0L ||
-			lane.updatedAtMs < lane.installedAtMs
-		) return false
+		if (!hasValidHistoricalLaneHeader(lane)) {
+			return false
+		}
 		val minimumCursor = lane.activationOrdinal - 1L
 		val cutoff = lane.captureAdmissionCutoffOrdinal
-		if (lane.contiguousAdmissionOrdinal < minimumCursor ||
-			(cutoff != null && (cutoff < minimumCursor || lane.contiguousAdmissionOrdinal > cutoff))
-		) return false
-		if ((lane.terminalDisposition == null) != (lane.terminalAtMs == null)) return false
+		if (!hasValidHistoricalLaneProgress(lane, minimumCursor, cutoff)) {
+			return false
+		}
 		return when (lane.status) {
 			SourceProductProjectionLaneEntity.STATUS_ACTIVE ->
 				lane.retentionRequired && lane.terminalDisposition == null && cutoff == null
-			SourceProductProjectionLaneEntity.STATUS_RETIRED -> {
-				if (lane.retentionRequired) return false
-				if (lane.terminalDisposition == null) return cutoff == null
-				val terminalAt = lane.terminalAtMs ?: return false
-				lane.terminalDisposition ==
-					SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN &&
-					cutoff != null && lane.contiguousAdmissionOrdinal == cutoff &&
-					terminalAt >= lane.installedAtMs && lane.updatedAtMs >= terminalAt
-			}
+			SourceProductProjectionLaneEntity.STATUS_RETIRED -> hasValidRetiredLaneSettlement(lane, cutoff)
 			else -> false
 		}
+	}
+
+	private fun hasValidHistoricalLaneHeader(lane: SourceProductProjectionLaneEntity): Boolean =
+		!(lane.captureModeMask !=
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(lane.bindingGeneration) ||
+			lane.activatedRolloutRevision <= 0L ||
+			lane.activationOrdinal <= 0L || lane.installedAtMs < 0L ||
+			lane.updatedAtMs < lane.installedAtMs
+		)
+
+	private fun hasValidHistoricalLaneProgress(
+		lane: SourceProductProjectionLaneEntity,
+		minimumCursor: Long,
+		cutoff: Long?,
+	): Boolean {
+		if (lane.contiguousAdmissionOrdinal < minimumCursor ||
+			(cutoff != null && (cutoff < minimumCursor || lane.contiguousAdmissionOrdinal > cutoff))
+		) {
+			return false
+		}
+		if ((lane.terminalDisposition == null) != (lane.terminalAtMs == null)) {
+			return false
+		}
+		return true
+	}
+
+	private fun hasValidRetiredLaneSettlement(
+		lane: SourceProductProjectionLaneEntity,
+		cutoff: Long?,
+	): Boolean {
+		if (lane.retentionRequired) {
+			return false
+		}
+		if (lane.terminalDisposition == null) {
+			return cutoff == null
+		}
+		val terminalAt = lane.terminalAtMs ?: return false
+		return lane.terminalDisposition ==
+			SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN &&
+			cutoff != null && lane.contiguousAdmissionOrdinal == cutoff &&
+			terminalAt >= lane.installedAtMs && lane.updatedAtMs >= terminalAt
 	}
 
 	private fun isValidZone(value: String): Boolean = try {

@@ -103,6 +103,12 @@ data class PressureFactRetentionAuthorityEntity(
 	@ColumnInfo(name = "effect_checksum")
 	val effectChecksum: String,
 ) {
+	/**
+	 * Checks the record's stored identity, value constraints and deterministic digest before using
+	 * retained metadata.
+	 */
+	// Checks one immutable retained row and its digest; explicit fields expose the stored format.
+	@Suppress("CyclomaticComplexMethod")
 	fun hasValidStoredIntegrity(): Boolean =
 		writerProjectionId == SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID &&
 			writerProjectionVersion ==
@@ -140,6 +146,9 @@ data class PressureFactRetentionAuthorityEntity(
 			reason == REASON_RETENTION_EXPIRED &&
 			effectChecksum == calculatedEffectChecksum()
 
+	/**
+	 * Recomputes the digest from this record's persisted values for replay and corruption checks.
+	 */
 	fun calculatedEffectChecksum(): String = checksum(
 		CONTRACT,
 		writerProjectionId,
@@ -169,14 +178,32 @@ data class PressureFactRetentionAuthorityEntity(
 		reason,
 	)
 
+	/**
+	 * Requires the complete ordered Pressure revision-witness set to match this parent's count,
+	 * ownership and lineage digest.
+	 */
 	fun authenticatesRevisionAuthorities(
 		authorities: List<PressureFactRetentionRevisionAuthorityEntity>,
 	): Boolean {
-		if (!hasValidStoredIntegrity() || authorities.size != lineageRevisionCount) return false
+		if (!hasValidStoredIntegrity() || authorities.size != lineageRevisionCount) {
+			return false
+		}
 		val ordered = authorities.sortedBy(
 			PressureFactRetentionRevisionAuthorityEntity::semanticRevision,
 		)
-		if (ordered.map(PressureFactRetentionRevisionAuthorityEntity::semanticRevision) !=
+		if (!hasCompleteAuthoritySet(ordered)
+		) {
+			return false
+		}
+		val current = ordered.last()
+		val trigger = ordered.firstOrNull { it.semanticRevision == triggerSemanticRevision }
+			?: return false
+		return matchesCurrentAndTriggerAuthorities(current, trigger)
+	}
+
+	private fun hasCompleteAuthoritySet(
+		ordered: List<PressureFactRetentionRevisionAuthorityEntity>,
+	): Boolean = !(ordered.map(PressureFactRetentionRevisionAuthorityEntity::semanticRevision) !=
 			(1L..lineageRevisionCount.toLong()).toList() ||
 			ordered.map(PressureFactRetentionRevisionAuthorityEntity::sourceEventId)
 				.distinct().size != ordered.size ||
@@ -185,13 +212,13 @@ data class PressureFactRetentionAuthorityEntity(
 			ordered.any { authority -> !authority.hasValidStoredIntegrity(this) } ||
 			PressureFactRetentionRevisionAuthorityEntity.authoritySetChecksum(ordered) !=
 			revisionAuthoritySetChecksum
-		) {
-			return false
-		}
-		val current = ordered.last()
-		val trigger = ordered.firstOrNull { it.semanticRevision == triggerSemanticRevision }
-			?: return false
-		return current.sourceEventId == currentSourceEventId &&
+	)
+
+	private fun matchesCurrentAndTriggerAuthorities(
+		current: PressureFactRetentionRevisionAuthorityEntity,
+		trigger: PressureFactRetentionRevisionAuthorityEntity,
+	): Boolean =
+		current.sourceEventId == currentSourceEventId &&
 			current.sourceAdmissionOrdinal == currentSourceAdmissionOrdinal &&
 			current.sourcePolicyRevision == currentSourcePolicyRevision &&
 			current.captureConsentEpoch == currentCaptureConsentEpoch &&
@@ -199,14 +226,21 @@ data class PressureFactRetentionAuthorityEntity(
 			trigger.sourceAdmissionOrdinal == triggerSourceAdmissionOrdinal &&
 			trigger.sourcePolicyRevision == triggerSourcePolicyRevision &&
 			trigger.captureConsentEpoch == triggerCaptureConsentEpoch
-	}
 
+	/**
+	 * Stable persisted codes, including `REASON_RETENTION_EXPIRED`, `CONTRACT`, `LINEAGE_CONTRACT`,
+	 * and any identity-bound record factories.
+	 */
 	companion object {
 		const val REASON_RETENTION_EXPIRED = "RETENTION_EXPIRED"
 		private const val CONTRACT = "pressure-fact-retention-authority-v2"
 		private const val LINEAGE_CONTRACT = "pressure-fact-retention-lineage-v1"
 		private val SHA_256_HEX = Regex("[0-9a-f]{64}")
 
+		/**
+		 * Builds a retained Pressure parent only from a nonempty bounded contiguous revision lineage
+		 * with matching original ownership.
+		 */
 		@Suppress("LongMethod")
 		fun create(
 			revisions: List<PressureFactRevisionEntity>,
@@ -298,7 +332,11 @@ data class PressureFactRetentionAuthorityEntity(
 		private fun checksum(vararg values: Any?): String {
 			val canonical = values.joinToString(separator = "") { value ->
 				val text = value?.toString()
-				if (text == null) "-1:" else "${text.length}:$text"
+				if (text == null) {
+					"-1:"
+				} else {
+					"${text.length}:$text"
+				}
 			}
 			return MessageDigest.getInstance("SHA-256")
 				.digest(canonical.toByteArray(Charsets.UTF_8))

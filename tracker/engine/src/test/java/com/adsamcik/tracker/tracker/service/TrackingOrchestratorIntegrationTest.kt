@@ -77,6 +77,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.PersistenceLegacySourceWriterTransitionBoundary
 import com.adsamcik.tracker.tracker.source.coordinator.PressureSessionFactWriterTransitionCoordinator
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.SourceWriterTransitionResult
 import com.adsamcik.tracker.tracker.source.coordinator.SourceWriterTransitionTestDependencies
@@ -105,6 +106,7 @@ import kotlin.test.assertIs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
@@ -116,7 +118,6 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -131,6 +132,9 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)
+// One real orchestrator fixture keeps pipeline persistence, shutdown and recovery on the same Room
+// lifecycle.
+@Suppress("LargeClass")
 class TrackingOrchestratorIntegrationTest {
 
 	private lateinit var context: Application
@@ -189,7 +193,7 @@ class TrackingOrchestratorIntegrationTest {
 			serviceRunId = RUN_ID,
 			rolloutState = allEventCanonical(),
 		)
-		advanceUntilIdle()
+		runCurrent()
 
 		val first = location(timeMs = 1_000L, latitude = 50.0, longitude = 14.0)
 		orchestrator.onCycleUpdate(
@@ -220,7 +224,7 @@ class TrackingOrchestratorIntegrationTest {
 			),
 		) shouldBe 1
 		val shutdownResult = orchestrator.shutdown(context)
-		advanceUntilIdle()
+		runCurrent()
 
 		shutdownResult.dailySummaryMaterialized shouldBe false
 		shutdownResult.fallbackEnqueued shouldBe true
@@ -314,17 +318,18 @@ class TrackingOrchestratorIntegrationTest {
 			)
 			insertPresentationOwner(LOGICAL_ID, RUN_ID)
 			failedController.updateServiceRunning(true)
-			val failedSessionJob = SupervisorJob()
+			val failedSessionJob = SupervisorJob(backgroundScope.coroutineContext[Job])
 			val binding = requireNotNull(failedOrchestrator.initialize(
 				context = context,
 				isSessionUserInitiated = true,
 				initialTier = PolicyTier.PRECISION,
-				scope = CoroutineScope(testDispatcher + failedSessionJob),
+				scope = CoroutineScope(backgroundScope.coroutineContext + failedSessionJob),
 				logicalTrackingId = LOGICAL_ID,
 				serviceRunId = RUN_ID,
 				rolloutState = allEventCanonical(),
 			))
-			advanceUntilIdle()
+			failedController.updateSessionInfo(TrackerSessionInfo(isInitiatedByUser = true))
+			runCurrent()
 
 			val accepted = protectedLocationCommand(
 				eventId = "protected-location-accepted",
@@ -354,7 +359,7 @@ class TrackingOrchestratorIntegrationTest {
 			)
 			failedSessionJob.cancel()
 			failedController.updateServiceRunning(false)
-			advanceUntilIdle()
+			runCurrent()
 
 			val lifecycleLease = ExclusiveTrackingPersistenceLifecycleLease()
 			val recoveredPersistence = newPersistence(RoomPersistenceTransactor(database))
@@ -378,18 +383,26 @@ class TrackingOrchestratorIntegrationTest {
 				persistenceLifecycleLease = lifecycleLease,
 			)
 			recoveredController.updateServiceRunning(true)
-			val recoveredBinding = requireNotNull(recoveredOrchestrator.initialize(
-				context = context,
-				isSessionUserInitiated = true,
-				initialTier = PolicyTier.PRECISION,
-				scope = backgroundScope,
-				logicalTrackingId = LOGICAL_ID,
-				serviceRunId = RUN_ID,
-				resumeSessionSegmentId = binding.sessionSegmentId,
-				rolloutState = allEventCanonical(),
-			))
-			advanceUntilIdle()
-			database.pendingSignalDao().countAll() shouldBe 0
+			// Room uses real workers; keep the existing persistence deadline on a real dispatcher.
+			val recoveredBinding = withContext(Dispatchers.Default) {
+				requireNotNull(recoveredOrchestrator.initialize(
+					context = context,
+					isSessionUserInitiated = true,
+					initialTier = PolicyTier.PRECISION,
+					scope = backgroundScope,
+					logicalTrackingId = LOGICAL_ID,
+					serviceRunId = RUN_ID,
+					resumeSessionSegmentId = binding.sessionSegmentId,
+					rolloutState = allEventCanonical(),
+				))
+			}
+			recoveredController.updateSessionInfo(TrackerSessionInfo(isInitiatedByUser = true))
+			runCurrent()
+			val recoveryFailure = PersistenceProcessor::class.java.getDeclaredField("lastPersistenceFailure")
+				.apply { isAccessible = true }.get(recoveredPersistence) as? Throwable
+			io.kotest.assertions.withClue("Pending recovery failure: $recoveryFailure") {
+				database.pendingSignalDao().countAll() shouldBe 0
+			}
 			val recoveredReceipt = assertIs<ProtectedLocationCanonicalReceipt.Complete>(
 				database.readProtectedLocationCanonicalReceipt(
 					accepted,
@@ -412,10 +425,9 @@ class TrackingOrchestratorIntegrationTest {
 				verticalAccuracyMeters = 3f,
 			)
 			commands[teleport.mutation.identity.sourceEventId.value] = teleport
-			recoveredOrchestrator.write(
-				teleport,
-				PROTECTED_LOCATION_ACQUISITION,
-			) shouldBe ProtectedLocationCanonicalWriteResult.Committed
+			withContext(Dispatchers.Default) {
+				recoveredOrchestrator.write(teleport, PROTECTED_LOCATION_ACQUISITION)
+			} shouldBe ProtectedLocationCanonicalWriteResult.Committed
 			val rejectedReceipt = assertIs<ProtectedLocationCanonicalReceipt.Complete>(
 				database.readProtectedLocationCanonicalReceipt(
 					teleport,
@@ -441,10 +453,9 @@ class TrackingOrchestratorIntegrationTest {
 				verticalAccuracyMeters = 3f,
 			)
 			commands[corroborating.mutation.identity.sourceEventId.value] = corroborating
-			recoveredOrchestrator.write(
-				corroborating,
-				PROTECTED_LOCATION_ACQUISITION,
-			) shouldBe ProtectedLocationCanonicalWriteResult.Committed
+			withContext(Dispatchers.Default) {
+				recoveredOrchestrator.write(corroborating, PROTECTED_LOCATION_ACQUISITION)
+			} shouldBe ProtectedLocationCanonicalWriteResult.Committed
 			requireNotNull(
 				assertIs<ProtectedLocationCanonicalReceipt.Complete>(
 					database.readProtectedLocationCanonicalReceipt(
@@ -454,10 +465,9 @@ class TrackingOrchestratorIntegrationTest {
 				).acceptedSample,
 			)
 
-			recoveredOrchestrator.write(
-				accepted,
-				PROTECTED_LOCATION_ACQUISITION,
-			) shouldBe ProtectedLocationCanonicalWriteResult.Committed
+			withContext(Dispatchers.Default) {
+				recoveredOrchestrator.write(accepted, PROTECTED_LOCATION_ACQUISITION)
+			} shouldBe ProtectedLocationCanonicalWriteResult.Committed
 			val afterOlderReceipt = protectedLocationCommand(
 				eventId = "protected-location-after-older-receipt",
 				admissionOrdinal = 13L,
@@ -470,10 +480,9 @@ class TrackingOrchestratorIntegrationTest {
 				verticalAccuracyMeters = 3f,
 			)
 			commands[afterOlderReceipt.mutation.identity.sourceEventId.value] = afterOlderReceipt
-			recoveredOrchestrator.write(
-				afterOlderReceipt,
-				PROTECTED_LOCATION_ACQUISITION,
-			) shouldBe ProtectedLocationCanonicalWriteResult.Committed
+			withContext(Dispatchers.Default) {
+				recoveredOrchestrator.write(afterOlderReceipt, PROTECTED_LOCATION_ACQUISITION)
+			} shouldBe ProtectedLocationCanonicalWriteResult.Committed
 			requireNotNull(
 				assertIs<ProtectedLocationCanonicalReceipt.Complete>(
 					database.readProtectedLocationCanonicalReceipt(
@@ -560,7 +569,7 @@ class TrackingOrchestratorIntegrationTest {
 			scope = backgroundScope,
 			rolloutState = allEventCanonical(),
 		)
-		advanceUntilIdle()
+		runCurrent()
 		val activeAfterFirstInitialize = activeChildJobs()
 
 		orchestrator.initialize(
@@ -570,12 +579,12 @@ class TrackingOrchestratorIntegrationTest {
 			scope = backgroundScope,
 			rolloutState = allEventCanonical(),
 		)
-		advanceUntilIdle()
+		runCurrent()
 
 		activeChildJobs() shouldBe activeAfterFirstInitialize
 
 		orchestrator.shutdown(context)
-		advanceUntilIdle()
+		runCurrent()
 
 		activeChildJobs() shouldBe 0
 	}
@@ -930,6 +939,8 @@ class TrackingOrchestratorIntegrationTest {
 		)
 	}
 
+	// Keep the complete protected Location command, captured authority and linked durable evidence together.
+	@Suppress("LongMethod")
 	private fun protectedLocationCommand(
 		eventId: String,
 		admissionOrdinal: Long,
@@ -979,14 +990,22 @@ class TrackingOrchestratorIntegrationTest {
 			),
 		)
 		val deliveryIdentity = SourceDeliveryIdentity(
-			if (admissionOrdinal % 2L == 0L) "a".repeat(64) else "b".repeat(64),
+			if (admissionOrdinal % 2L == 0L) {
+				"a".repeat(64)
+			} else {
+				"b".repeat(64)
+			},
 		)
 		val evidence = LocationDurableObservationEvidence(
 			sourceEventId = SourceEventId(eventId),
 			sourceAdmissionOrdinal = admissionOrdinal,
 			sourceSequence = admissionOrdinal,
 			walIntegrityIdentity =
-				if (admissionOrdinal % 2L == 0L) "c".repeat(64) else "d".repeat(64),
+				if (admissionOrdinal % 2L == 0L) {
+					"c".repeat(64)
+				} else {
+					"d".repeat(64)
+				},
 			sourceDeliveryIdentity = deliveryIdentity,
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 1,
@@ -1056,6 +1075,7 @@ class TrackingOrchestratorIntegrationTest {
 				domainEventRepository = RecordingDomainEventRepository(),
 				dispatchers = testDispatcherProvider,
 				appDatabase = unavailableDatabase,
+				trackingRolloutStateStore = mockk(),
 				trackingParamsRepository = FakeTrackingParamsRepository(TrackingParamsState()),
 				dailySummaryFallbackEnqueuer = { fallbackEnqueueCount += 1 },
 				enableNotifications = false,
@@ -1173,7 +1193,9 @@ class TrackingOrchestratorIntegrationTest {
 			private set
 
 		override suspend fun onStart(context: ProcessorContext) {
-			if (failStart) error("simulated persistence start failure")
+			if (failStart) {
+				error("simulated persistence start failure")
+			}
 		}
 
 		override fun onSignal(signal: TrackingSignal) = Unit

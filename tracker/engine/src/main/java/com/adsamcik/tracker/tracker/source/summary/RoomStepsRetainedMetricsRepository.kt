@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.RetainedStepsWallBounds
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.StepsRetainedMetrics
@@ -58,7 +59,9 @@ class RoomStepsRetainedMetricsRepository @Inject constructor(
 			}
 		} catch (cancellation: CancellationException) {
 			currentCoroutineContext().ensureActive()
-			if (database.isOpen) throw cancellation
+			if (database.isOpen) {
+				throw cancellation
+			}
 			StepsRetainedMetricsDecision.StorageUnavailable
 		} catch (_: Exception) {
 			StepsRetainedMetricsDecision.StorageUnavailable
@@ -78,7 +81,9 @@ class RoomStepsRetainedMetricsRepository @Inject constructor(
 		) ||
 			historyDao.hasLegacyUnverifiableStepsPresentation(retainedFromMs) ||
 			database.stepFactRevisionDao().hasUndiscoverableRetainedStepsFacts(retainedFromMs)
-		) return unavailable(digester, StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		) {
+			return unavailable(digester, StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		}
 
 		val nativeBounds = retainedNativeBounds(retainedFromMs)
 			?: return unavailable(digester, StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
@@ -136,39 +141,47 @@ class RoomStepsRetainedMetricsRepository @Inject constructor(
 				lastEpochDayInclusive = pageLastDay,
 				retainedFromMs = retainedFromMs,
 			)
-			if (discovery !is StepsRetainedDayAuthorityDiscovery.Ready) {
-				terminal = sourceUnavailable()
+			val discoveredZones = if (discovery is StepsRetainedDayAuthorityDiscovery.Ready) {
+				discovery.zoneByDay
 			} else {
-				for ((epochDay, zoneId) in discovery.zoneByDay) {
-					if (epochDay !in pageFirstDay..pageLastDay ||
-						priorEpochDay?.let { epochDay <= it } == true
-					) return unavailable(digester, StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE)
-					digester.addAuthority(epochDay, zoneId.id)
-					val previousDay = priorEpochDay
-					val isContiguous = previousDay != null && previousDay != Long.MAX_VALUE &&
-						epochDay == previousDay + 1L
-					if (isContiguous && stepsNumericReadQueryBounds(
-							linkedMapOf(previousDay to requireNotNull(priorZoneId), epochDay to zoneId),
-						) == null
-					) return unavailable(digester, StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE)
-					if (pendingZones.isNotEmpty() &&
-						(!isContiguous || pendingZones.size == AUTHORITY_PAGE_DAYS.toInt())
-					) {
-						terminal = composePending(
-							composer,
-							pendingZones,
-							accumulator,
-							terminal,
-							retainedFromMs,
-						)
-						pendingZones.clear()
-					}
-					pendingZones[epochDay] = zoneId
-					priorEpochDay = epochDay
-					priorZoneId = zoneId
-				}
+				terminal = sourceUnavailable()
+				emptyMap()
 			}
-			if (pageLastDay == lastEpochDay) break
+			for ((epochDay, zoneId) in discoveredZones) {
+				if (epochDay !in pageFirstDay..pageLastDay ||
+					priorEpochDay?.let { epochDay <= it } == true
+				) {
+					return unavailable(digester, StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE)
+				}
+				digester.addAuthority(epochDay, zoneId.id)
+				val previousDay = priorEpochDay
+				val isContiguous = previousDay != null && previousDay != Long.MAX_VALUE &&
+					epochDay == previousDay + 1L
+				if (isContiguous && stepsNumericReadQueryBounds(
+						linkedMapOf(previousDay to requireNotNull(priorZoneId), epochDay to zoneId),
+					) == null
+				) {
+					return unavailable(digester, StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE)
+				}
+				if (pendingZones.isNotEmpty() &&
+					(!isContiguous || pendingZones.size == AUTHORITY_PAGE_DAYS.toInt())
+				) {
+					terminal = composePending(
+						composer,
+						pendingZones,
+						accumulator,
+						terminal,
+						retainedFromMs,
+					)
+					pendingZones.clear()
+				}
+				pendingZones[epochDay] = zoneId
+				priorEpochDay = epochDay
+				priorZoneId = zoneId
+			}
+			if (pageLastDay == lastEpochDay) {
+				break
+			}
 			pageFirstDay = try {
 				Math.addExact(pageLastDay, 1L)
 			} catch (_: ArithmeticException) {
@@ -194,7 +207,9 @@ class RoomStepsRetainedMetricsRepository @Inject constructor(
 		current: StepsRetainedMetrics?,
 		retainedFromMs: Long?,
 	): StepsRetainedMetrics? {
-		if (current is StepsRetainedMetrics.Unverifiable) return current
+		if (current is StepsRetainedMetrics.Unverifiable) {
+			return current
+		}
 		return when (
 			val preflight = composer.composeForRetainedNumericRead(zoneByDay, retainedFromMs)
 		) {
@@ -216,39 +231,60 @@ class RoomStepsRetainedMetricsRepository @Inject constructor(
 				afterServiceRunId = afterServiceRunId,
 				limit = READ_PAGE_SIZE,
 			)
-			val ordered = afterServiceRunId?.let { prior -> listOf(prior) + page } ?: page
-			if (page.any(String::isBlank) || ordered.zipWithNext().any { (left, right) -> right <= left }) {
+			if (!page.hasIncreasingRetainedRunIds(afterServiceRunId)) {
 				return null
 			}
 			val runs = dao.serviceRuns(page)
-			if (runs.size != page.size || runs.map { it.serviceRunId }.toSet() != page.toSet()) return null
-			for (run in runs) {
-				if (run.startedAtMs < 0L || run.completedAtMs?.let { it < run.startedAtMs } == true) return null
-				val endMs = run.completedAtMs ?: try {
-					maxOf(
-						Math.addExact(run.startedAtMs, 1L),
-						retainedFromMs?.let { floor -> Math.addExact(floor, MILLIS_PER_DAY) }
-							?: Long.MIN_VALUE,
-					)
-				} catch (_: ArithmeticException) {
-					return null
-				}
-				result += CandidateBounds(
-					firstWallTimeMs = run.startedAtMs,
-					lastWallTimeMs = endMs,
-					candidateCount = 1L,
-					hasOpenNativeRun = run.completedAtMs == null,
-				)
+			if (runs.size != page.size || runs.map { it.serviceRunId }.toSet() != page.toSet()) {
+				return null
 			}
-			if (page.size < READ_PAGE_SIZE) return result
+			for (run in runs) {
+				result += run.retainedCandidateBounds(retainedFromMs) ?: return null
+			}
+			if (page.size < READ_PAGE_SIZE) {
+				return result
+			}
 			afterServiceRunId = page.last()
 		}
 	}
 
+	private fun List<String>.hasIncreasingRetainedRunIds(afterServiceRunId: String?): Boolean {
+		val ordered = afterServiceRunId?.let { prior -> listOf(prior) + this } ?: this
+		return none(String::isBlank) && ordered.zipWithNext().all { (left, right) -> right > left }
+	}
+
+	private fun SourceServiceRunEntity.retainedCandidateBounds(retainedFromMs: Long?): CandidateBounds? {
+		if (startedAtMs < 0L || completedAtMs?.let { it < startedAtMs } == true) {
+			return null
+		}
+		val endMs = completedAtMs ?: try {
+			maxOf(
+				Math.addExact(startedAtMs, 1L),
+				retainedFromMs?.let { floor -> Math.addExact(floor, MILLIS_PER_DAY) }
+					?: Long.MIN_VALUE,
+			)
+		} catch (_: ArithmeticException) {
+			return null
+		}
+		return CandidateBounds(
+			firstWallTimeMs = startedAtMs,
+			lastWallTimeMs = endMs,
+			candidateCount = 1L,
+			hasOpenNativeRun = completedAtMs == null,
+		)
+	}
+
+	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	private fun RetainedStepsWallBounds.toCandidateBounds(): CandidateBounds? {
-		if (candidateCount < 0L || invalidCount != 0L) return null
+		if (candidateCount < 0L || invalidCount != 0L) {
+			return null
+		}
 		if (candidateCount == 0L) {
-			return if (firstWallTimeMs == null && lastWallTimeMs == null) CandidateBounds.EMPTY else null
+			return if (firstWallTimeMs == null && lastWallTimeMs == null) {
+				CandidateBounds.EMPTY
+			} else {
+				null
+			}
 		}
 		val first = firstWallTimeMs ?: return null
 		val last = lastWallTimeMs ?: return null
@@ -304,7 +340,9 @@ private data class CandidateBounds(
 	val hasOpenNativeRun: Boolean = false,
 ) {
 	operator fun plus(other: CandidateBounds): CandidateBounds {
-		if (candidateCount < 0L || other.candidateCount < 0L) return INVALID
+		if (candidateCount < 0L || other.candidateCount < 0L) {
+			return INVALID
+		}
 		val totalCount = try {
 			Math.addExact(candidateCount, other.candidateCount)
 		} catch (_: ArithmeticException) {
@@ -342,7 +380,9 @@ internal class StepsRetainedMetricsAccumulator {
 		val orderedPlans = plans.sortedBy(StepsDayRepairPlan::epochDay)
 		if (orderedPlans.map(StepsDayRepairPlan::epochDay) != zoneByDay.keys.sorted() ||
 			orderedPlans.any { plan -> zoneByDay[plan.epochDay] != plan.zoneId }
-		) return sourceUnavailableResult()
+		) {
+			return sourceUnavailableResult()
+		}
 		for (plan in orderedPlans) {
 			when (val numeric = plan.numericSteps) {
 				is StepsDayNumericComposition.Complete -> {
@@ -442,9 +482,11 @@ private fun DataOutputStream.writeSizedUtf8(value: String) {
 private fun ByteArray.toLowerHex(): String = buildString(size * 2) {
 	for (byte in this@toLowerHex) {
 		val unsigned = byte.toInt() and 0xff
-		append(HEX_DIGITS[unsigned ushr 4])
+		append(HEX_DIGITS[unsigned ushr BITS_PER_HEX_DIGIT])
 		append(HEX_DIGITS[unsigned and 0x0f])
 	}
 }
 
 private const val HEX_DIGITS = "0123456789abcdef"
+
+private const val BITS_PER_HEX_DIGIT = 4

@@ -55,6 +55,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
+// One Room Activity carrier fixture keeps original plan, session-window and retained admission checks
+// comparable.
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ActivityCapturedWalAdmissionAdapterTest {
@@ -644,7 +647,11 @@ class ActivityCapturedWalAdmissionAdapterTest {
 		ownerGeneration: Long = SourceWriterGenerationContract.canonicalOwnerGeneration(bindingGeneration),
 		sessionMode: String = "MANUAL",
 	) {
-		val activityPlan = if (sampled) SAMPLED_ACTIVITY_PLAN else ACTIVITY_PLAN
+		val activityPlan = if (sampled) {
+			SAMPLED_ACTIVITY_PLAN
+		} else {
+			ACTIVITY_PLAN
+		}
 		val physicalFingerprint = activityPlan.physicalConfigurationFingerprint()
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
 		database.sourceDestinationOwnerDao().insertIfAbsent(
@@ -710,10 +717,18 @@ class ActivityCapturedWalAdmissionAdapterTest {
 				serviceRunId = SERVICE_RUN_ID,
 			),
 		)
-		installSession(segmentId, settled, if (sampled) 1L else 2L, sessionMode)
+		installSession(segmentId, settled, if (sampled) {
+			1L
+		} else {
+			2L
+		}, sessionMode)
 		installManifest(bindingGeneration, sessionMode)
 
-		val demand = if (controlOnly) controlDemand() else captureDemand()
+		val demand = if (controlOnly) {
+			controlDemand()
+		} else {
+			captureDemand()
+		}
 		database.sourceBrokerDao().insertDemands(listOf(demand))
 		database.sourceBrokerDao().insertRegistration(registration(settled, physicalFingerprint))
 		val authorizationRows = SourceBrokerAuthorization.rows(
@@ -739,14 +754,21 @@ class ActivityCapturedWalAdmissionAdapterTest {
 				receivedElapsedRealtimeNanos = RECEIVED_NANOS,
 				receivedWallTimeMs = RECEIVED_WALL_MS,
 				registrationIdentity = identity,
-				recognitions = if (sampled) listOf(
+				recognitions = if (sampled) {
+					listOf(
 					ActivityRecognitionEvidence(
 						DetectedActivityType.RUNNING,
 						90,
 						FIRST_EVENT_NANOS,
 					),
-				) else emptyList(),
-				transitions = if (sampled) emptyList() else listOf(
+				)
+				} else {
+					emptyList()
+				},
+				transitions = if (sampled) {
+					emptyList()
+				} else {
+					listOf(
 					ActivityTransitionEvidence(
 						DetectedActivityType.WALKING,
 						ActivityTransitionType.ENTER,
@@ -757,7 +779,8 @@ class ActivityCapturedWalAdmissionAdapterTest {
 						ActivityTransitionType.EXIT,
 						SECOND_EVENT_NANOS,
 					),
-				),
+				)
+				},
 			),
 			identity = identity,
 			automationAuthority = ActivityAutomationEpochEntity(),
@@ -768,7 +791,11 @@ class ActivityCapturedWalAdmissionAdapterTest {
 			val encoded = payloadCodec.encode(unit.evidence.payload, unit.evidence.payloadVersion)
 			val unsigned = SourceEventWalEntity(
 				admissionOrdinal = index + 1L,
-				eventId = if (index == 0) EVENT_ID.value else "activity-event-${index + 1}",
+				eventId = if (index == 0) {
+					EVENT_ID.value
+				} else {
+					"activity-event-${index + 1}"
+				},
 				providerDedupKey = null,
 				deliveryIdentity = delivery.candidate.identity.value,
 				deliveryUnitIndex = index,
@@ -838,7 +865,11 @@ class ActivityCapturedWalAdmissionAdapterTest {
 					controlPersistenceEligible = false,
 					ambientPersistenceEligible = false,
 					captureConsentEpoch = CONSENT_EPOCH.takeUnless { controlOnly },
-					controlConsentEpoch = if (controlOnly) CONSENT_EPOCH else null,
+					controlConsentEpoch = if (controlOnly) {
+						CONSENT_EPOCH
+					} else {
+						null
+					},
 					ambientConsentEpoch = null,
 					effectiveBootId = BOOT_ID,
 					effectiveElapsedRealtimeNanos = RUN_START_NANOS,
@@ -867,6 +898,8 @@ class ActivityCapturedWalAdmissionAdapterTest {
 		}
 	}
 
+	// Keep the fixed manual/automatic and active/settled session rows with their matching completeness.
+	@Suppress("CyclomaticComplexMethod", "LongMethod")
 	private suspend fun installSession(
 		segmentId: Long,
 		settled: Boolean,
@@ -874,27 +907,55 @@ class ActivityCapturedWalAdmissionAdapterTest {
 		sessionMode: String,
 	) {
 		val automatic = sessionMode == "AUTOMATIC"
-		val origin = if (automatic) "AUTOMATIC_BACKGROUND_START" else "MANUAL_FOREGROUND_START"
+		val origin = if (automatic) {
+			"AUTOMATIC_BACKGROUND_START"
+		} else {
+			"MANUAL_FOREGROUND_START"
+		}
 		database.sourceSessionDao().insertSession(
 			LogicalTrackingSessionEntity(
 				logicalTrackingId = LOGICAL_TRACKING_ID,
-				state = if (settled) "FINALIZED" else "ACTIVE",
-				lifecycleRevision = if (settled) 2L else 1L,
+				state = if (settled) {
+					"FINALIZED"
+				} else {
+					"ACTIVE"
+				},
+				lifecycleRevision = if (settled) {
+					2L
+				} else {
+					1L
+				},
 				desiredPlanRevision = PLAN_REVISION,
 				rolloutRevision = 1L,
 				startOrigin = origin,
 				clockDomainId = BOOT_ID,
 				startedAtMs = 1_000L,
 				startedElapsedNanos = RUN_START_NANOS,
-				cutoffAtMs = if (settled) 2_000L else null,
-				cutoffElapsedNanos = if (settled) SESSION_END_NANOS else null,
-				completedAtMs = if (settled) 2_000L else null,
+				cutoffAtMs = if (settled) {
+					2_000L
+				} else {
+					null
+				},
+				cutoffElapsedNanos = if (settled) {
+					SESSION_END_NANOS
+				} else {
+					null
+				},
+				completedAtMs = if (settled) {
+					2_000L
+				} else {
+					null
+				},
 				finalAdmissionOrdinal = finalAdmissionOrdinal.takeIf { settled },
 				failureCode = null,
 				sessionMode = sessionMode,
 				currentManifestRevision = MANIFEST_REVISION,
 				currentIntentRevision = 1L,
-				currentServiceRunId = if (settled) null else SERVICE_RUN_ID,
+				currentServiceRunId = if (settled) {
+					null
+				} else {
+					SERVICE_RUN_ID
+				},
 				lifecycleLeaseGeneration = LEASE_GENERATION,
 				lifecycleBootId = BOOT_ID,
 				automationEpoch = 1L.takeIf { automatic },
@@ -904,22 +965,42 @@ class ActivityCapturedWalAdmissionAdapterTest {
 			SourceServiceRunEntity(
 				serviceRunId = SERVICE_RUN_ID,
 				logicalTrackingId = LOGICAL_TRACKING_ID,
-				state = if (settled) "FINALIZED" else "ACTIVE",
+				state = if (settled) {
+					"FINALIZED"
+				} else {
+					"ACTIVE"
+				},
 				desiredPlanRevision = PLAN_REVISION,
 				rolloutRevision = 1L,
 				foregroundCapabilityFlags = 0L,
 				startedAtMs = 1_000L,
 				startedElapsedNanos = RUN_START_NANOS,
-				completedAtMs = if (settled) 2_000L else null,
-				completionReason = if (settled) "USER_STOP" else null,
+				completedAtMs = if (settled) {
+					2_000L
+				} else {
+					null
+				},
+				completionReason = if (settled) {
+					"USER_STOP"
+				} else {
+					null
+				},
 				bootId = BOOT_ID,
 				leaseGeneration = LEASE_GENERATION,
 				startOrigin = origin,
 				desiredForegroundCapabilityFlags = 0L,
 				appliedForegroundCapabilityFlags = 0L,
-				runtimeAcknowledgement = if (settled) "STOPPED" else "RUNNING",
+				runtimeAcknowledgement = if (settled) {
+					"STOPPED"
+				} else {
+					"RUNNING"
+				},
 				runtimeFailureCode = null,
-				runRevision = if (settled) 2L else 1L,
+				runRevision = if (settled) {
+					2L
+				} else {
+					1L
+				},
 				startDeliveryToken = "activity-start-token",
 				startCommandGeneration = 1L,
 				preparedManifestRevision = MANIFEST_REVISION,
@@ -967,7 +1048,11 @@ class ActivityCapturedWalAdmissionAdapterTest {
 				intentRevision = intentRevision,
 				manifestRevision = MANIFEST_REVISION,
 				desiredState = desiredState,
-				startOrigin = if (desiredState == "ACTIVE") "RECOVERY" else "POLICY_RECONCILIATION",
+				startOrigin = if (desiredState == "ACTIVE") {
+					"RECOVERY"
+				} else {
+					"POLICY_RECONCILIATION"
+				},
 				requestBootId = BOOT_ID,
 				requestedElapsedRealtimeNanos = SESSION_END_NANOS,
 				requestedWallTimeMs = 2_000L,
@@ -979,9 +1064,17 @@ class ActivityCapturedWalAdmissionAdapterTest {
 				triggerReceivedElapsedRealtimeNanos = null,
 				triggerExpiresElapsedRealtimeNanos = null,
 				stopReason = "TEST_SETTLED_STOPPING",
-				stopDeadlineBootId = if (desiredState == "FINALIZED") BOOT_ID else null,
+				stopDeadlineBootId = if (desiredState == "FINALIZED") {
+					BOOT_ID
+				} else {
+					null
+				},
 				stopDeadlineElapsedRealtimeNanos =
-					if (desiredState == "FINALIZED") SESSION_END_NANOS + 1_000L else null,
+					if (desiredState == "FINALIZED") {
+						SESSION_END_NANOS + 1_000L
+					} else {
+						null
+					},
 				intentChecksum = "settled-stopping-intent",
 			),
 		)
@@ -1029,13 +1122,21 @@ class ActivityCapturedWalAdmissionAdapterTest {
 			sourcePolicyRevision = POLICY_REVISION,
 			acquisitionPlanRevision = PLAN_REVISION,
 			rolloutRevision = 1L,
-			startOrigin = if (automatic) "AUTOMATIC_BACKGROUND_START" else "MANUAL_FOREGROUND_START",
+			startOrigin = if (automatic) {
+				"AUTOMATIC_BACKGROUND_START"
+			} else {
+				"MANUAL_FOREGROUND_START"
+			},
 			effectiveBootId = BOOT_ID,
 			effectiveElapsedRealtimeNanos = RUN_START_NANOS,
 			effectiveWallTimeMs = 1_000L,
 			zoneId = "Europe/Prague",
 			automationEpoch = 1L.takeIf { automatic },
-			changeReason = if (automatic) "AUTOMATIC_START" else "MANUAL_START",
+			changeReason = if (automatic) {
+				"AUTOMATIC_START"
+			} else {
+				"MANUAL_START"
+			},
 			manifestChecksum = "",
 		)
 		database.sourceSessionDao().insertManifest(
@@ -1066,10 +1167,22 @@ class ActivityCapturedWalAdmissionAdapterTest {
 		reservedElapsedRealtimeNanos = 90L,
 		acceptedAtMs = 1_050L,
 		acceptedElapsedRealtimeNanos = REGISTRATION_START_NANOS,
-		retiredAtMs = if (settled) 1_900L else null,
-		retiredElapsedRealtimeNanos = if (settled) REGISTRATION_END_NANOS else null,
+		retiredAtMs = if (settled) {
+			1_900L
+		} else {
+			null
+		},
+		retiredElapsedRealtimeNanos = if (settled) {
+			REGISTRATION_END_NANOS
+		} else {
+			null
+		},
 		failureCode = null,
-		captureCallbackBarrierAuthorizationRevision = if (settled) AUTHORIZATION_REVISION else 0L,
+		captureCallbackBarrierAuthorizationRevision = if (settled) {
+			AUTHORIZATION_REVISION
+		} else {
+			0L
+		},
 	)
 
 	private fun captureDemand() = SourceDemandEntity(

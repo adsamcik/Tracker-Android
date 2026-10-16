@@ -40,14 +40,14 @@ class SavedTripDistanceReaderRoomTest {
 	private lateinit var database: AppDatabase
 	private lateinit var reader: SavedTripDistanceReader
 
-	@Before fun setup() = runBlocking {
+	@Before fun setup(): Unit = runBlocking {
 		database = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>())
 		database.sourceEvidenceStateDao().ensure()
 		reader = SavedTripDistanceReader(database, TestDispatchersProvider(Dispatchers.Unconfined))
 	}
 	@After fun close() = database.close()
 
-	@Test fun `January counts all replacement runs of a trip starting in January and excludes February starts`() = runBlocking {
+	@Test fun `January counts all replacement runs of a trip starting in January and excludes February starts`(): Unit = runBlocking {
 		val januaryEnd = Instant.parse("2026-01-31T23:59:59.999Z").toEpochMilli()
 		val firstStart = januaryEnd - 30_000
 		val secondStart = januaryEnd + 30_000
@@ -70,18 +70,22 @@ class SavedTripDistanceReaderRoomTest {
 		assertEquals(9_000_000f, requireNotNull(database.sessionSegmentDao().getById(first.id)).distanceM)
 	}
 
-	@Test fun `equal original starts paginate logical identities without grouping distinct trips`() = runBlocking {
+	@Test fun `equal original starts paginate logical identities without grouping distinct trips`(): Unit = runBlocking {
 		for (index in 0..64) {
 			val identity = "trip:${index.toString().padStart(3, '0')}"
 			logical(identity, 1_000, 10_000)
 			val member = run(identity, "run:$index", 1_000, 10_000)
 			nativePoint(member, 2_000, 0, 1)
-			nativePoint(member, 3_000, if (index == 64) 300_000 else 100_000, 2)
+			nativePoint(member, 3_000, if (index == 64) {
+				300_000
+			} else {
+				100_000
+			}, 2)
 		}
 		assertEquals(distance(0, 300_000).toLong(), reader.longestDistanceMeters(1_000, 1_000).getOrNull())
 	}
 
-	@Test fun `Steps-only and active logical siblings do not change a valid Location maximum`() = runBlocking {
+	@Test fun `Steps-only and active logical siblings do not change a valid Location maximum`(): Unit = runBlocking {
 		logical("steps-only", 1_000, 9_000)
 		logical("location", 1_000, 9_000)
 		val member = run("location", "location-run", 1_000, 9_000)
@@ -95,7 +99,7 @@ class SavedTripDistanceReaderRoomTest {
 		assertEquals(distance(0, 100_000).toLong(), reader.longestDistanceMeters(0, 10_000).getOrNull())
 	}
 
-	@Test fun `legacy and imported saved points recalculate after correction and deletion without native proof`() = runBlocking {
+	@Test fun `legacy and imported saved points recalculate after correction and deletion without native proof`(): Unit = runBlocking {
 		legacySegment(1_000, 10_000)
 		val first = savedPoint(2_000, 0)
 		val second = savedPoint(3_000, 100_000)
@@ -107,24 +111,28 @@ class SavedTripDistanceReaderRoomTest {
 		assertIs<StatsError.NotFound>(reader.longestDistanceMeters(0, 10_000).leftOrNull())
 	}
 
-	@Test fun `point pages preserve the anchor while candidates continue beyond a history page`() = runBlocking {
+	@Test fun `point pages preserve the anchor while candidates continue beyond a history page`(): Unit = runBlocking {
 		for (index in 0..64) {
 			val start = 1_000L + index * 1_000_000L
 			legacySegment(start, start + 300_000)
-			val count = if (index == 64) 270 else 2
+			val count = if (index == 64) {
+				270
+			} else {
+				2
+			}
 			for (point in 0 until count) savedPoint(start + point * 1_000L, point * 1_000)
 		}
 		assertEquals((distance(0, 1_000) * 269).toLong(), reader.longestDistanceMeters(0, Long.MAX_VALUE).getOrNull())
 	}
 
-	@Test fun `zero legacy summary cycles cannot hide its saved Location measurements`() = runBlocking {
+	@Test fun `zero legacy summary cycles cannot hide its saved Location measurements`(): Unit = runBlocking {
 		database.sessionSegmentDao().insert(segment(1_000, 10_000).copy(sampleCount = 0))
 		savedPoint(2_000, 0)
 		savedPoint(3_000, 100_000)
 		assertEquals(distance(0, 100_000).toLong(), reader.longestDistanceMeters(0, 10_000).getOrNull())
 	}
 
-	@Test fun `old imported archives withhold points until an exact current archive copy exists`() = runBlocking {
+	@Test fun `old imported archives withhold points until an exact current archive copy exists`(): Unit = runBlocking {
 		legacySegment(1_000, 10_000)
 		val points = listOf(savedPoint(2_000, 0), savedPoint(3_000, 100_000))
 		val identities = points.mapIndexed { index, point ->
@@ -152,7 +160,7 @@ class SavedTripDistanceReaderRoomTest {
 		assertEquals(distance(0, 100_000).toLong(), reader.longestDistanceMeters(0, 10_000).getOrNull())
 	}
 
-	@Test fun `missing sequences and separately allowed ambient points never bridge a native route`() = runBlocking {
+	@Test fun `missing sequences and separately allowed ambient points never bridge a native route`(): Unit = runBlocking {
 		logical("native", 1_000, 20_000)
 		val member = run("native", "native-run", 1_000, 20_000)
 		nativePoint(member, 2_000, 0, 1)
@@ -163,7 +171,7 @@ class SavedTripDistanceReaderRoomTest {
 		assertEquals(distance(900_000, 1_000_000).toLong(), reader.longestDistanceMeters(0, 30_000).getOrNull())
 	}
 
-	@Test fun `broken reciprocal membership is unavailable rather than a smaller maximum`() = runBlocking {
+	@Test fun `broken reciprocal membership is unavailable rather than a smaller maximum`(): Unit = runBlocking {
 		logical("native", 1_000, 20_000)
 		val member = run("native", "native-run", 1_000, 20_000)
 		nativePoint(member, 2_000, 0, 1)
@@ -173,7 +181,7 @@ class SavedTripDistanceReaderRoomTest {
 		assertIs<StatsError.ValidationError>(reader.longestDistanceMeters(0, 30_000).leftOrNull())
 	}
 
-	@Test fun `native saved coordinates are current user data and a deleted fix breaks its sequence`() = runBlocking {
+	@Test fun `native saved coordinates are current user data and a deleted fix breaks its sequence`(): Unit = runBlocking {
 		logical("native", 1_000, 20_000)
 		val member = run("native", "native-run", 1_000, 20_000)
 		nativePoint(member, 2_000, 0, 1)
@@ -188,7 +196,7 @@ class SavedTripDistanceReaderRoomTest {
 		assertIs<StatsError.NotFound>(reader.longestDistanceMeters(0, 30_000).leftOrNull())
 	}
 
-	@Test fun `retention truncation and old native data epochs are not complete trip distance`() = runBlocking {
+	@Test fun `retention truncation and old native data epochs are not complete trip distance`(): Unit = runBlocking {
 		logical("native", 1_000, 20_000)
 		val member = run("native", "native-run", 1_000, 20_000)
 		nativePoint(member, 2_000, 0, 1)
@@ -199,7 +207,7 @@ class SavedTripDistanceReaderRoomTest {
 		assertIs<StatsError.NotFound>(reader.longestDistanceMeters(0, 30_000).leftOrNull())
 	}
 
-	@Test fun `erased native purpose does not borrow another saved purpose or invent a zero`() = runBlocking {
+	@Test fun `erased native purpose does not borrow another saved purpose or invent a zero`(): Unit = runBlocking {
 		logical("native", 1_000, 20_000)
 		val member = run("native", "native-run", 1_000, 20_000)
 		nativePoint(member, 2_000, 0, 1)
@@ -210,7 +218,7 @@ class SavedTripDistanceReaderRoomTest {
 		assertIs<StatsError.NotFound>(reader.longestDistanceMeters(0, 30_000).leftOrNull())
 	}
 
-	@Test fun `exact saved session point keeps its descriptive background origin without changing distance`() = runBlocking {
+	@Test fun `exact saved session point keeps its descriptive background origin without changing distance`(): Unit = runBlocking {
 		logical("native", 1_000, 20_000)
 		val member = run("native", "native-run", 1_000, 20_000)
 		nativePoint(member, 2_000, 0, 1)
@@ -238,7 +246,7 @@ class SavedTripDistanceReaderRoomTest {
 		assertEquals(listOf(after[1]), database.locationPurposeDao().savedFileSamples(after.map { it.sample.id }))
 	}
 
-	@Test fun `membership overflow and storage failure remain typed instead of becoming a maximum`() = runBlocking {
+	@Test fun `membership overflow and storage failure remain typed instead of becoming a maximum`(): Unit = runBlocking {
 		logical("many", 1_000, 30_000)
 		val first = run("many", "run:0", 1_000, 20_000)
 		nativePoint(first, 2_000, 0, 1)

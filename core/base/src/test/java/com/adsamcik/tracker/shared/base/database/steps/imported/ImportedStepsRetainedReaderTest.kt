@@ -6,6 +6,7 @@ import androidx.room.useReaderConnection
 import androidx.room.deferredTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.deleteAllCollectedData
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
@@ -105,6 +106,8 @@ class ImportedStepsRetainedReaderTest {
 	}
 
 	@Test
+	// Both maximum-size entries and the exact load/consume order form one traversal.
+	@Suppress("LongMethod")
 	fun `retention keyset traversal releases each maximum run entry before loading the next`() =
 		runTest {
 			val events = mutableListOf<String>()
@@ -470,6 +473,9 @@ class ImportedStepsRetainedReaderTest {
 		),
 	)
 
+	// Keep one maximum-size portable Steps graph fixture with its deterministic run/fact bounds and identities
+	// visible together.
+	@Suppress("LongMethod")
 	private fun maximumRunEntry(
 		index: Int,
 		baseTime: Long = 1_000L + index * 10_000L,

@@ -42,6 +42,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
+// One Room automatic-action fixture keeps reservation, lifecycle acceptance and terminal expiry checks
+// comparable.
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ActivityAutomaticStartActionRepositoryTest {

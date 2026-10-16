@@ -36,39 +36,48 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 
+/** Named work and execution IDs whose cancellation remains unconfirmed. */
 data class RetentionWorkCancellationDebt(
 	val uniqueWorkNames: Set<String>,
 	val executionIds: Set<String>,
 	val failure: RetentionWorkCancellationFailure,
 )
 
+/** Concrete reason physical work cancellation or its durable acknowledgement is incomplete. */
 sealed interface RetentionWorkCancellationFailure {
+	/** Existing work could not be read before cancellation. */
 	data class SnapshotUnavailable(
 		val cause: Exception,
 	) : RetentionWorkCancellationFailure
 
+	/** Android could not acknowledge cancellation of the exact work request. */
 	data class CancellationApiFailed(
 		val workRequestId: String,
 		val cause: Exception,
 	) : RetentionWorkCancellationFailure
 
+	/** Cancellation state could not be read after requesting cancellation. */
 	data class ConfirmationUnavailable(
 		val cause: Exception,
 	) : RetentionWorkCancellationFailure
 
+	/** The listed requests remained active at the bounded cancellation deadline. */
 	data class ConfirmationTimedOut(
 		val activeWorkRequestIds: Set<String>,
 	) : RetentionWorkCancellationFailure
 
+	/** Durable execution receipts still show active workers after cancellation. */
 	data class ActiveExecutionsRemain(
 		val activeWorkRequestIds: Set<String>,
 	) : RetentionWorkCancellationFailure
 }
 
+/** Preserves unconfirmed cancellation obligations instead of claiming workers are stopped. */
 class RetentionWorkCancellationPendingException(
 	val debt: RetentionWorkCancellationDebt,
 ) : IllegalStateException("Retention WorkManager cancellation remains pending")
 
+/** Current retention preferences have no exact approved schedule authority. */
 class RetentionScheduleAuthorityUnavailableException(
 	val authority: ExactApprovedRetentionConfigRead,
 ) : IllegalStateException("Exact approved retention schedule authority is unavailable") {
@@ -78,20 +87,26 @@ class RetentionScheduleAuthorityUnavailableException(
 }
 
 @Singleton
+/** Serializes retention schedule changes with durable cancellation and settlement recovery. */
+// One mutex owns this durable receipt, WorkManager cancellation and recovery scheduling handshake.
+@Suppress("TooManyFunctions")
 class RetentionWorkScheduler @Inject constructor(
 	private val appDatabaseProvider: Provider<AppDatabase>,
 	private val workManager: WorkManager,
 ) {
 	private val schedulingMutex = Mutex()
 
+	/** Keeps one periodic retention worker after reconciling older cancellation receipts. */
 	suspend fun ensureScheduled() {
 		executeWithRecovery(enabled = true)
 	}
 
+	/** Cancels periodic retention workers while preserving a required settlement finisher. */
 	suspend fun cancel() {
 		executeWithRecovery(enabled = false)
 	}
 
+	/** Reads the latest approved preference inside scheduling ownership before enabling or cancelling work. */
 	suspend fun reconcileCurrentPreference(retentionConfigStore: RetentionConfigStore) {
 		schedulingMutex.withLock {
 			val recoveryOwnerId = establishCancellationRecoveryOwner()
@@ -197,7 +212,8 @@ class RetentionWorkScheduler @Inject constructor(
 					).await()
 				}
 				null
-			} catch (error: Exception) {
+			} catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
+				// Recovery enqueue failures, including its bounded timeout, retain their cause on the existing failure.
 				error
 			}
 		}
@@ -236,29 +252,31 @@ class RetentionWorkScheduler @Inject constructor(
 			RetentionPipelineWorker.WORK_NAME,
 			RetentionPipelineWorker.LEGACY_WORK_NAME,
 		)
-		val database = try {
+		val database = withCancellationDebt(
+			onFailure = { error ->
+				cancellationPending(
+					uniqueWorkNames = allUniqueWorkNames,
+					executionIds = emptySet(),
+					failure = RetentionWorkCancellationFailure.SnapshotUnavailable(error),
+				)
+			},
+		) {
 			appDatabaseProvider.get()
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (error: Exception) {
-			throw cancellationPending(
-				uniqueWorkNames = allUniqueWorkNames,
-				executionIds = emptySet(),
-				failure = RetentionWorkCancellationFailure.SnapshotUnavailable(error),
-			)
 		}
-		val pending = try {
+		val pending = withCancellationDebt(
+			onFailure = { error ->
+				cancellationPending(
+					uniqueWorkNames = allUniqueWorkNames,
+					executionIds = emptySet(),
+					failure = RetentionWorkCancellationFailure.SnapshotUnavailable(error),
+				)
+			},
+		) {
 			database.pendingRetentionWorkExecutionCancellations(workerKinds)
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (error: Exception) {
-			throw cancellationPending(
-				uniqueWorkNames = allUniqueWorkNames,
-				executionIds = emptySet(),
-				failure = RetentionWorkCancellationFailure.SnapshotUnavailable(error),
-			)
 		}
-		if (pending.isEmpty()) return
+		if (pending.isEmpty()) {
+			return
+		}
 
 		val uniqueWorkNames = pending.mapTo(linkedSetOf()) {
 			it.workerKind.uniqueWorkName()
@@ -271,18 +289,18 @@ class RetentionWorkScheduler @Inject constructor(
 				executionIds,
 			)
 		}
-		try {
+		withCancellationDebt(
+			onFailure = { error ->
+				cancellationPending(
+					uniqueWorkNames,
+					executionIds,
+					RetentionWorkCancellationFailure.ConfirmationUnavailable(error),
+				)
+			},
+		) {
 			database.confirmRetentionWorkExecutionCancellations(
 				executionIds = executionIds,
 				confirmedAtMs = System.currentTimeMillis(),
-			)
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (error: Exception) {
-			throw cancellationPending(
-				uniqueWorkNames,
-				executionIds,
-				RetentionWorkCancellationFailure.ConfirmationUnavailable(error),
 			)
 		}
 	}
@@ -303,12 +321,8 @@ class RetentionWorkScheduler @Inject constructor(
 		}
 		val initial = exactWorkInfo(requestId, uniqueWorkNames, executionIds)
 		if (initial?.state in ACTIVE_WORK_STATES) {
-			val cancellation = try {
-				workManager.cancelWorkById(requestId)
-			} catch (cancelled: CancellationException) {
-				throw cancelled
-			} catch (error: Exception) {
-				throw cancellationPending(
+			val cancellationFailure: (Exception) -> RetentionWorkCancellationPendingException = { error ->
+				cancellationPending(
 					uniqueWorkNames,
 					executionIds,
 					RetentionWorkCancellationFailure.CancellationApiFailed(
@@ -317,19 +331,11 @@ class RetentionWorkScheduler @Inject constructor(
 					),
 				)
 			}
-			try {
+			val cancellation = withCancellationDebt(cancellationFailure) {
+				workManager.cancelWorkById(requestId)
+			}
+			withCancellationDebt(cancellationFailure) {
 				cancellation.await()
-			} catch (cancelled: CancellationException) {
-				throw cancelled
-			} catch (error: Exception) {
-				throw cancellationPending(
-					uniqueWorkNames,
-					executionIds,
-					RetentionWorkCancellationFailure.CancellationApiFailed(
-						receipt.workRequestId,
-						error,
-					),
-				)
 			}
 		}
 		val terminal = withTimeoutOrNull(CANCELLATION_CONFIRMATION_TIMEOUT_MS) {
@@ -360,7 +366,8 @@ class RetentionWorkScheduler @Inject constructor(
 		workManager.getWorkInfoByIdFlow(requestId).first()
 	} catch (cancelled: CancellationException) {
 		throw cancelled
-	} catch (error: Exception) {
+	} catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
+		// WorkManager observation failures are a retryable snapshot failure for this exact request.
 		throw cancellationPending(
 			uniqueWorkNames,
 			executionIds,
@@ -373,72 +380,134 @@ class RetentionWorkScheduler @Inject constructor(
 	) {
 		val initial = workInfos(schedules)
 		val active = initial.filter { it.workInfo.state in ACTIVE_WORK_STATES }
-		val database = try {
+		val database = withCancellationDebt(
+			onFailure = { error ->
+				cancellationPending(
+					schedules,
+					emptySet(),
+					RetentionWorkCancellationFailure.SnapshotUnavailable(error),
+				)
+			},
+		) {
 			appDatabaseProvider.get()
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (error: Exception) {
-			throw cancellationPending(
-				schedules,
-				emptySet(),
-				RetentionWorkCancellationFailure.SnapshotUnavailable(error),
-			)
 		}
-		val requested = try {
-			database.requestRetentionWorkExecutionCancellations(
-				targets = initial.map {
-					RetentionWorkCancellationTarget(
-						workRequestId = it.workInfo.id.toString(),
-						workerKind = it.workerKind,
-					)
-				},
-				activeWorkRequestIds = active.map { it.workInfo.id.toString() },
-				workerKinds = schedules.values,
-				requestedAtMs = System.currentTimeMillis(),
-			)
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (error: Exception) {
-			throw cancellationPending(
-				schedules,
-				emptySet(),
-				RetentionWorkCancellationFailure.SnapshotUnavailable(error),
-			)
-		}
+		val requested = requestCancellationCheckpoint(database, schedules, initial, active, emptySet())
 		val requestedExecutionIds = requested.mapTo(linkedSetOf()) { it.executionId }
-		val cancellationOperations = active.map { scheduled ->
-			try {
-				scheduled.workInfo.id to workManager.cancelWorkById(scheduled.workInfo.id)
-			} catch (cancelled: CancellationException) {
-				throw cancelled
-			} catch (error: Exception) {
-				throw cancellationPending(
+		cancelAndAwaitActiveWork(schedules, active, requestedExecutionIds)
+		confirmScheduleCancellation(schedules, active, requestedExecutionIds)
+		// A running worker may have opened its receipt after the first database transaction.
+		val finalSnapshot = workInfos(schedules)
+		val finalActive = finalSnapshot.filter { it.workInfo.state in ACTIVE_WORK_STATES }
+		val lateRequested = requestCancellationCheckpoint(
+			database, schedules, finalSnapshot, finalActive, requestedExecutionIds,
+		)
+		requestedExecutionIds += lateRequested.map { it.executionId }
+		if (finalActive.isNotEmpty()) {
+			throw cancellationPending(
+				schedules,
+				requestedExecutionIds,
+				RetentionWorkCancellationFailure.ActiveExecutionsRemain(
+					finalActive.mapTo(linkedSetOf()) { it.workInfo.id.toString() },
+				),
+			)
+		}
+		withCancellationDebt(
+			onFailure = { error ->
+				cancellationPending(
 					schedules,
 					requestedExecutionIds,
-					RetentionWorkCancellationFailure.CancellationApiFailed(
-						scheduled.workInfo.id.toString(),
-						error,
-					),
+					RetentionWorkCancellationFailure.ConfirmationUnavailable(error),
 				)
+			},
+		) {
+			database.confirmRetentionWorkExecutionCancellations(
+				executionIds = requestedExecutionIds,
+				confirmedAtMs = System.currentTimeMillis(),
+			)
+		}
+	}
+
+	private suspend fun requestCancellationCheckpoint(
+		database: AppDatabase,
+		schedules: Map<String, String>,
+		snapshot: List<ScheduledWorkInfo>,
+		active: List<ScheduledWorkInfo>,
+		executionIds: Set<String>,
+	): List<RetentionWorkExecutionReceipt> = withCancellationDebt(
+		onFailure = { error ->
+			cancellationPending(
+				schedules,
+				executionIds,
+				RetentionWorkCancellationFailure.SnapshotUnavailable(error),
+			)
+		},
+	) {
+		database.requestRetentionWorkExecutionCancellations(
+			targets = snapshot.map {
+				RetentionWorkCancellationTarget(
+					workRequestId = it.workInfo.id.toString(),
+					workerKind = it.workerKind,
+				)
+			},
+			activeWorkRequestIds = active.map { it.workInfo.id.toString() },
+			workerKinds = schedules.values,
+			requestedAtMs = System.currentTimeMillis(),
+		)
+	}
+
+	private suspend fun cancelAndAwaitActiveWork(
+		schedules: Map<String, String>,
+		active: List<ScheduledWorkInfo>,
+		executionIds: Set<String>,
+	) {
+		val cancellationOperations = active.map { scheduled ->
+			withCancellationDebt(
+				onFailure = { error ->
+					cancellationPending(
+						schedules,
+						executionIds,
+						RetentionWorkCancellationFailure.CancellationApiFailed(
+							scheduled.workInfo.id.toString(),
+							error,
+						),
+					)
+				},
+			) {
+				scheduled.workInfo.id to workManager.cancelWorkById(scheduled.workInfo.id)
 			}
 		}
 		cancellationOperations.forEach { (workRequestId, operation) ->
-			try {
+			withCancellationDebt(
+				onFailure = { error ->
+					cancellationPending(
+						schedules,
+						executionIds,
+						RetentionWorkCancellationFailure.CancellationApiFailed(
+							workRequestId.toString(),
+							error,
+						),
+					)
+				},
+			) {
 				operation.await()
-			} catch (cancelled: CancellationException) {
-				throw cancelled
-			} catch (error: Exception) {
-				throw cancellationPending(
-					schedules,
-					requestedExecutionIds,
-					RetentionWorkCancellationFailure.CancellationApiFailed(
-						workRequestId.toString(),
-						error,
-					),
-				)
 			}
 		}
-		val confirmed = try {
+	}
+
+	private suspend fun confirmScheduleCancellation(
+		schedules: Map<String, String>,
+		active: List<ScheduledWorkInfo>,
+		executionIds: Set<String>,
+	) {
+		val confirmed = withCancellationDebt(
+			onFailure = { error ->
+				cancellationPending(
+					schedules,
+					executionIds,
+					RetentionWorkCancellationFailure.ConfirmationUnavailable(error),
+				)
+			},
+		) {
 			withTimeoutOrNull(CANCELLATION_CONFIRMATION_TIMEOUT_MS) {
 				schedules.keys.forEach { uniqueWorkName ->
 					workManager.getWorkInfosForUniqueWorkFlow(uniqueWorkName)
@@ -448,14 +517,6 @@ class RetentionWorkScheduler @Inject constructor(
 				}
 				true
 			}
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (error: Exception) {
-			throw cancellationPending(
-				schedules,
-				requestedExecutionIds,
-				RetentionWorkCancellationFailure.ConfirmationUnavailable(error),
-			)
 		}
 		if (confirmed != true) {
 			val activeWorkRequestIds = try {
@@ -467,60 +528,24 @@ class RetentionWorkScheduler @Inject constructor(
 			}
 			throw cancellationPending(
 				schedules,
-				requestedExecutionIds,
+				executionIds,
 				RetentionWorkCancellationFailure.ConfirmationTimedOut(
 					activeWorkRequestIds,
 				),
 			)
 		}
-		// A running worker may have opened its receipt after the first database transaction.
-		val finalSnapshot = workInfos(schedules)
-		val finalActive = finalSnapshot.filter { it.workInfo.state in ACTIVE_WORK_STATES }
-		val lateRequested = try {
-			database.requestRetentionWorkExecutionCancellations(
-				targets = finalSnapshot.map {
-					RetentionWorkCancellationTarget(
-						workRequestId = it.workInfo.id.toString(),
-						workerKind = it.workerKind,
-					)
-				},
-				activeWorkRequestIds = finalActive.map { it.workInfo.id.toString() },
-				workerKinds = schedules.values,
-				requestedAtMs = System.currentTimeMillis(),
-			)
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (error: Exception) {
-			throw cancellationPending(
-				schedules,
-				requestedExecutionIds,
-				RetentionWorkCancellationFailure.SnapshotUnavailable(error),
-			)
-		}
-		requestedExecutionIds += lateRequested.map { it.executionId }
-		if (finalActive.isNotEmpty()) {
-			throw cancellationPending(
-				schedules,
-				requestedExecutionIds,
-				RetentionWorkCancellationFailure.ActiveExecutionsRemain(
-					finalActive.mapTo(linkedSetOf()) { it.workInfo.id.toString() },
-				),
-			)
-		}
-		try {
-			database.confirmRetentionWorkExecutionCancellations(
-				executionIds = requestedExecutionIds,
-				confirmedAtMs = System.currentTimeMillis(),
-			)
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (error: Exception) {
-			throw cancellationPending(
-				schedules,
-				requestedExecutionIds,
-				RetentionWorkCancellationFailure.ConfirmationUnavailable(error),
-			)
-		}
+	}
+
+	private suspend inline fun <T> withCancellationDebt(
+		onFailure: (Exception) -> RetentionWorkCancellationPendingException,
+		operation: () -> T,
+	): T = try {
+		operation()
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
+		// Preserve the operation's exact durable debt while cancellation and fatal errors propagate.
+		throw onFailure(error)
 	}
 
 	private suspend fun workInfos(
@@ -534,7 +559,8 @@ class RetentionWorkScheduler @Inject constructor(
 		throw cancelled
 	} catch (error: RetentionWorkCancellationPendingException) {
 		throw error
-	} catch (error: Exception) {
+	} catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
+		// WorkManager snapshot failures retain the requested schedule scope in the existing debt result.
 		throw cancellationPending(
 			schedules,
 			emptySet(),
@@ -615,6 +641,7 @@ class RetentionWorkScheduler @Inject constructor(
 		else -> error("Unsupported retention worker kind: $this")
 	}
 
+	/** Bounded cancellation deadlines and work-input keys used by recovery workers. */
 	companion object {
 		private const val RETENTION_PERIOD_DAYS = 7L
 		private const val CANCELLATION_CONFIRMATION_TIMEOUT_MS = 30_000L

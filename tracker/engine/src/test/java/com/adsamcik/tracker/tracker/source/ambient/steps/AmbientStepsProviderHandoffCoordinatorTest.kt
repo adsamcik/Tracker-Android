@@ -48,6 +48,9 @@ class AmbientStepsProviderHandoffCoordinatorTest {
 	private var policyElapsedRealtimeNanos = 1L
 
 	@Before
+	// Keep the real Steps handoff fixture in its policy, retention, demand and predecessor-registration
+	// acceptance order.
+	@Suppress("LongMethod")
 	fun setUp() = runTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
@@ -89,8 +92,7 @@ class AmbientStepsProviderHandoffCoordinatorTest {
 			)
 		}.bootstrapFromLegacy(
 			TrackingParamsState(
-				stepsEnabled = false,
-				ambientStepsEnabled = true,
+				stepsEnabled = true,
 				legacySettingsMigrationCompleted = true,
 			),
 		)
@@ -271,7 +273,11 @@ class AmbientStepsProviderHandoffCoordinatorTest {
 			AmbientStepsProviderAggregate(
 				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
 				window,
-				if (window.endTimeMs == 4_000L) 10L else 12L,
+				if (window.endTimeMs == 4_000L) {
+					10L
+				} else {
+					12L
+				},
 				observedAtMs,
 			)
 		}

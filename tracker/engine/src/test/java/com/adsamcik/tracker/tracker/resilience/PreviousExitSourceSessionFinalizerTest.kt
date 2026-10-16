@@ -39,6 +39,7 @@ import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -48,6 +49,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import javax.inject.Provider
 
+// One Room exit-recovery fixture keeps session, run and prepared-join finalization checks comparable.
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class PreviousExitSourceSessionFinalizerTest {
@@ -57,6 +60,7 @@ class PreviousExitSourceSessionFinalizerTest {
 	fun setUp() {
 		val application = ApplicationProvider.getApplicationContext<Application>()
 		database = AppDatabase.testDatabase(application)
+		runBlocking { database.sourceEvidenceStateDao().ensure() }
 	}
 
 	@After
@@ -853,6 +857,9 @@ class PreviousExitSourceSessionFinalizerTest {
 		}
 	}
 
+	// Keep one exit-recovery envelope with its matching manifest, lifecycle intent and session/run pointers
+	// together.
+	@Suppress("LongMethod")
 	private suspend fun insertRecoveryAuthorityEnvelope(
 		logicalTrackingId: String,
 		serviceRunId: String = runId(logicalTrackingId),

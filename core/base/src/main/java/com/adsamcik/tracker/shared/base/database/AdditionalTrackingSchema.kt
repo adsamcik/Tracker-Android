@@ -1158,9 +1158,12 @@ internal fun createLocationPurposeTables(database: SupportSQLiteDatabase) {
 			FOREIGN KEY(sample_id) REFERENCES location_sample(id) ON UPDATE NO ACTION ON DELETE CASCADE
 		)
 	""".trimIndent())
-	database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_location_receipt_event ON location_accepted_receipt(source_event_id)")
-	database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_location_receipt_sequence ON location_accepted_receipt(source_instance_id, source_sequence)")
-	database.execSQL("CREATE INDEX IF NOT EXISTS idx_location_receipt_time ON location_accepted_receipt(observed_wall_time_ms, sample_id)")
+	database.execSQL(("CREATE UNIQUE INDEX IF NOT EXISTS idx_location_receipt_event ON " +
+        "location_accepted_receipt(source_event_id)"))
+	database.execSQL(("CREATE UNIQUE INDEX IF NOT EXISTS idx_location_receipt_sequence ON " +
+        "location_accepted_receipt(source_instance_id, source_sequence)"))
+	database.execSQL(("CREATE INDEX IF NOT EXISTS idx_location_receipt_time ON " +
+        "location_accepted_receipt(observed_wall_time_ms, sample_id)"))
 	database.execSQL("""
 		CREATE TABLE IF NOT EXISTS location_sample_purpose_authority (
 			sample_id INTEGER NOT NULL, purpose TEXT NOT NULL, authority_id TEXT NOT NULL,
@@ -1174,7 +1177,8 @@ internal fun createLocationPurposeTables(database: SupportSQLiteDatabase) {
 			FOREIGN KEY(sample_id) REFERENCES location_accepted_receipt(sample_id) ON UPDATE NO ACTION ON DELETE CASCADE
 		)
 	""".trimIndent())
-	database.execSQL("CREATE INDEX IF NOT EXISTS idx_location_purpose_authority ON location_sample_purpose_authority(purpose, authority_id, sample_id)")
+	database.execSQL(("CREATE INDEX IF NOT EXISTS idx_location_purpose_authority ON " +
+        "location_sample_purpose_authority(purpose, authority_id, sample_id)"))
 	database.execSQL(
 		"""
 		CREATE TABLE IF NOT EXISTS ambient_location_retention_authority (

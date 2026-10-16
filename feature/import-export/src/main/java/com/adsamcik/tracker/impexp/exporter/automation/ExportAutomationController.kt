@@ -112,6 +112,7 @@ class ExportAutomationController(
         }
     }
 
+    /** Fences new scheduled enqueues and waits for WorkManager cancellation before collected-data cleanup proceeds. */
     suspend fun pauseForDataDeletion() {
         admissionFence.pause { Unit }
         withContext(dispatchers.io) { workManager.cancelAllWorkByTag(WORK_TAG_PLAN).await() }

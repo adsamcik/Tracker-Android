@@ -6,10 +6,23 @@ import com.adsamcik.tracker.map.layers.base.BaseMapLayer
 import com.adsamcik.tracker.map.layers.base.SupportsDateRange
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
-import com.adsamcik.tracker.stats.api.repository.*
+import com.adsamcik.tracker.stats.api.repository.OptionalRetainedLocationContext
+import com.adsamcik.tracker.stats.api.repository.RadioContextObservation
+import com.adsamcik.tracker.stats.api.repository.RadioContextReadGap
+import com.adsamcik.tracker.stats.api.repository.RadioContextSource
+import com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult
+import com.adsamcik.tracker.stats.api.repository.RadioLocationContextRepository
+import com.adsamcik.tracker.stats.api.repository.RadioLocationContextRequest
+import com.adsamcik.tracker.stats.api.repository.RetainedLocationContext
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import kotlin.math.*
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.asin
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.floor
+import kotlin.math.sin
 import kotlinx.coroutines.CancellationException
 
 /** Existing radio view, adding actual observed device points without feeding AP/tower estimators. */
@@ -18,11 +31,16 @@ internal class RetainedRadioContextLayer<Feature, F : SpatialData>(
     private val repository: RadioLocationContextRepository,
     private val source: RadioContextSource,
     dispatchers: DispatchersProvider = DefaultDispatchersProvider,
-) : BaseMapLayer<RetainedRadioLayerInput<Feature>, RetainedRadioLayerOutput<F>>(dispatchers = dispatchers), SupportsDateRange {
+) : BaseMapLayer<RetainedRadioLayerInput<Feature>, RetainedRadioLayerOutput<F>>(dispatchers = dispatchers),
+    SupportsDateRange {
     override var dateRange: LongRange = 0L..Long.MAX_VALUE
 
     override suspend fun loadData(context: Context, bounds: Bounds?): RetainedRadioLayerInput<Feature> {
-        val end = if (dateRange.last == Long.MAX_VALUE) Long.MAX_VALUE else dateRange.last + 1L
+        val end = if (dateRange.last == Long.MAX_VALUE) {
+            Long.MAX_VALUE
+        } else {
+            dateRange.last + 1L
+        }
         val read = try {
             repository.read(RadioLocationContextRequest(source, maxOf(0L, dateRange.first), end))
         } catch (cancelled: CancellationException) {
@@ -31,26 +49,35 @@ internal class RetainedRadioContextLayer<Feature, F : SpatialData>(
             RadioLocationContextReadResult.StorageUnavailable
         }
         val snapshot = read as? RadioLocationContextReadResult.Ready
-        val legacy = try {
-            pipeline.source.load(VizRequest(dateRange, bounds, currentPerformanceBudgets().maxPoints))
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (error: Exception) {
-            if (snapshot == null) throw error
-            emptyList()
-        }
+        val legacy = loadLegacy(bounds, snapshot)
         val visible = snapshot?.observations.orEmpty().filter { observation ->
             val point = (observation.location as? OptionalRetainedLocationContext.Located)?.value ?: return@filter false
-            val latitude = point.latitudeE7 / 10_000_000.0
-            val longitude = point.longitudeE7 / 10_000_000.0
+            val latitude = point.latitudeE7 / E7_COORDINATE_SCALE
+            val longitude = point.longitudeE7 / E7_COORDINATE_SCALE
             bounds == null || latitude in bounds.south..bounds.north && bounds.containsLongitude(longitude)
         }
         return RetainedRadioLayerInput(legacy, visible, snapshot?.gaps.orEmpty(), read)
     }
 
+    private suspend fun loadLegacy(
+        bounds: Bounds?,
+        snapshot: RadioLocationContextReadResult.Ready?,
+    ): List<Feature> = try {
+        pipeline.source.load(VizRequest(dateRange, bounds, currentPerformanceBudgets().maxPoints))
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
+        // Keep qualified retained points when the legacy layer fails; cancellation still escapes above.
+        if (snapshot == null) {
+            throw error
+        }
+        emptyList()
+    }
+
     override fun processData(input: RetainedRadioLayerInput<Feature>, budgets: PerformanceManager.PerformanceBudgets) =
         RetainedRadioLayerOutput(pipeline.aggregator.aggregate(input.legacy,
-            AggContext(zoom, quality, budgets.maxPoints)), input.observations.take(budgets.maxPoints), input.gaps, input.contextRead)
+            AggContext(zoom, quality, budgets.maxPoints)), input.observations.take(budgets.maxPoints),
+                input.gaps, input.contextRead)
 
     override fun produceConfig(processed: RetainedRadioLayerOutput<F>): MapLibreLayerConfig? {
         val configurations = listOfNotNull(pipeline.encoder.encode(processed.legacy, RenderContext(quality)),
@@ -76,17 +103,26 @@ internal object RetainedRadioContextEncoder {
     fun encode(observations: List<RadioContextObservation>): MapLibreLayerConfig? {
         val points = observations.mapNotNull { (it.location as? OptionalRetainedLocationContext.Located)?.value }
             .distinctBy { it.sourceEventId }
-        if (points.isEmpty()) return null
+        if (points.isEmpty()) {
+            return null
+        }
         val markers = points.joinToString(",") { point ->
-            """{"type":"Feature","geometry":{"type":"Point","coordinates":[${point.longitudeE7 / 10_000_000.0},${point.latitudeE7 / 10_000_000.0}]},"properties":{"weight":1.0,"accuracyMeters":${point.horizontalAccuracyMeters},"observedTimeMs":${point.observedWallTimeMs},"timeUncertaintyMs":${point.wallTimeUncertaintyMs}}}"""
+            """{"type":"Feature","geometry":{"type":"Point","coordinates":[""" +
+                """${point.longitudeE7 / E7_COORDINATE_SCALE},""" +
+                """${point.latitudeE7 / E7_COORDINATE_SCALE}]},"properties":""" +
+                """{"weight":1.0,"accuracyMeters":${point.horizontalAccuracyMeters},"observedTimeMs":""" +
+                """${point.observedWallTimeMs},"timeUncertaintyMs":${point.wallTimeUncertaintyMs}}}"""
         }
         val polygons = points.flatMap(::accuracyRings).joinToString(",") { ring ->
             val coordinates = ring.joinToString(",") { (longitude, latitude) -> "[$longitude,$latitude]" }
             """{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[$coordinates]]},"properties":{"weight":1.0}}"""
         }
         return MapLibreLayerConfig.Composite(listOfNotNull(
-            polygons.takeIf(String::isNotEmpty)?.let { MapLibreLayerConfig.Fill(collection(it), colorStops, opacity = 0.12f) },
-            MapLibreLayerConfig.Circle(collection(markers), colorStops, 3.5f, 3.5f, opacity = 0.95f),
+            polygons.takeIf(String::isNotEmpty)?.let { MapLibreLayerConfig.Fill(collection(it),
+                colorStops, opacity = ACCURACY_OPACITY) },
+            MapLibreLayerConfig.Circle(
+                collection(markers), colorStops, MARKER_RADIUS, MARKER_RADIUS, opacity = MARKER_OPACITY,
+            ),
         ))
     }
 
@@ -94,40 +130,76 @@ internal object RetainedRadioContextEncoder {
 
     /** Geodesic accuracy footprint; split at the date line instead of drawing across the world. */
     internal fun accuracyRings(point: RetainedLocationContext): List<List<Pair<Double, Double>>> {
-        if (point.horizontalAccuracyMeters == 0f) return emptyList()
+        if (point.horizontalAccuracyMeters == 0f) {
+            return emptyList()
+        }
         val angular = point.horizontalAccuracyMeters.toDouble() / EARTH_RADIUS_METERS
-        if (angular >= Math.PI) return listOf(listOf(-180.0 to -90.0, 180.0 to -90.0,
-            180.0 to 90.0, -180.0 to 90.0, -180.0 to -90.0))
-        val latitude = Math.toRadians(point.latitudeE7 / 10_000_000.0)
-        val longitude = point.longitudeE7 / 10_000_000.0
+        if (angular >= Math.PI) {
+            return listOf(listOf(
+                -MAX_LONGITUDE_DEGREES to -MAX_LATITUDE_DEGREES,
+                MAX_LONGITUDE_DEGREES to -MAX_LATITUDE_DEGREES,
+                MAX_LONGITUDE_DEGREES to MAX_LATITUDE_DEGREES,
+                -MAX_LONGITUDE_DEGREES to MAX_LATITUDE_DEGREES,
+                -MAX_LONGITUDE_DEGREES to -MAX_LATITUDE_DEGREES,
+            ))
+        }
+        val latitude = Math.toRadians(point.latitudeE7 / E7_COORDINATE_SCALE)
+        val longitude = point.longitudeE7 / E7_COORDINATE_SCALE
         val ring = mutableListOf<Pair<Double, Double>>()
         for (index in 0..CIRCLE_SEGMENTS) {
             val bearing = index * 2.0 * Math.PI / CIRCLE_SEGMENTS
-            val targetLatitude = asin((sin(latitude) * cos(angular) + cos(latitude) * sin(angular) * cos(bearing)).coerceIn(-1.0, 1.0))
+            val targetLatitude =
+                asin((sin(latitude) * cos(angular) + cos(latitude) * sin(angular) * cos(bearing)).coerceIn(-1.0, 1.0))
             var targetLongitude = longitude + Math.toDegrees(atan2(sin(bearing) * sin(angular) * cos(latitude),
                 cos(angular) - sin(latitude) * sin(targetLatitude)))
             val reference = ring.lastOrNull()?.first ?: longitude
-            while (targetLongitude - reference > 180.0) targetLongitude -= 360.0
-            while (targetLongitude - reference < -180.0) targetLongitude += 360.0
+            while (targetLongitude - reference > MAX_LONGITUDE_DEGREES) targetLongitude -= FULL_TURN_DEGREES
+            while (targetLongitude - reference < -MAX_LONGITUDE_DEGREES) targetLongitude += FULL_TURN_DEGREES
             ring += targetLongitude to Math.toDegrees(targetLatitude)
         }
-        if (abs(ring.last().first - ring.first().first) > 180.0) {
-            val pole = if (latitude >= 0.0) 90.0 else -90.0
+        if (abs(ring.last().first - ring.first().first) > MAX_LONGITUDE_DEGREES) {
+            val pole = if (latitude >= 0.0) {
+                MAX_LATITUDE_DEGREES
+            } else {
+                -MAX_LATITUDE_DEGREES
+            }
             ring += ring.last().first to pole
             ring += ring.first().first to pole
         }
-        val firstWorld = floor((ring.minOf { it.first } + 180.0) / 360.0).toInt()
-        val lastWorld = floor((ring.maxOf { it.first } + 180.0) / 360.0).toInt()
+        return splitAtDateLine(ring)
+    }
+
+    private fun splitAtDateLine(ring: List<Pair<Double, Double>>): List<List<Pair<Double, Double>>> {
+        val firstWorld = floor((ring.minOf { it.first } + MAX_LONGITUDE_DEGREES) / FULL_TURN_DEGREES).toInt()
+        val lastWorld = floor((ring.maxOf { it.first } + MAX_LONGITUDE_DEGREES) / FULL_TURN_DEGREES).toInt()
         return (firstWorld..lastWorld).mapNotNull { world ->
-            val clipped = clipLongitude(clipLongitude(ring, -180.0 + world * 360.0, true), 180.0 + world * 360.0, false)
-                .map { (lng, lat) -> (lng - world * 360.0).coerceIn(-180.0, 180.0) to lat }
-            if (clipped.size < 3) null else clipped + clipped.first()
+            val clipped = clipLongitude(
+                clipLongitude(ring, -MAX_LONGITUDE_DEGREES + world * FULL_TURN_DEGREES, true),
+                MAX_LONGITUDE_DEGREES + world * FULL_TURN_DEGREES,
+                false,
+            )
+                .map { (lng, lat) ->
+                    (lng - world * FULL_TURN_DEGREES)
+                        .coerceIn(-MAX_LONGITUDE_DEGREES, MAX_LONGITUDE_DEGREES) to lat
+                }
+            if (clipped.size < MIN_POLYGON_VERTICES) {
+                null
+            } else {
+                clipped + clipped.first()
+            }
         }
     }
 
-    private fun clipLongitude(ring: List<Pair<Double, Double>>, boundary: Double, keepGreater: Boolean): List<Pair<Double, Double>> {
-        if (ring.isEmpty()) return emptyList()
-        fun inside(point: Pair<Double, Double>) = if (keepGreater) point.first >= boundary else point.first <= boundary
+    private fun clipLongitude(ring: List<Pair<Double, Double>>, boundary: Double,
+        keepGreater: Boolean): List<Pair<Double, Double>> {
+        if (ring.isEmpty()) {
+            return emptyList()
+        }
+        fun inside(point: Pair<Double, Double>) = if (keepGreater) {
+            point.first >= boundary
+        } else {
+            point.first <= boundary
+        }
         return buildList {
             var previous = ring.last()
             for (point in ring) {
@@ -135,12 +207,23 @@ internal object RetainedRadioContextEncoder {
                     val fraction = (boundary - previous.first) / (point.first - previous.first)
                     add(boundary to previous.second + fraction * (point.second - previous.second))
                 }
-                if (inside(point)) add(point)
+                if (inside(point)) {
+                    add(point)
+                }
                 previous = point
             }
         }
     }
 
+    private const val MAX_LONGITUDE_DEGREES = 180.0
+    private const val MAX_LATITUDE_DEGREES = 90.0
+    private const val FULL_TURN_DEGREES = 360.0
+    private const val ACCURACY_OPACITY = 0.12f
+    private const val MARKER_OPACITY = 0.95f
+    private const val MARKER_RADIUS = 3.5f
+    private const val MIN_POLYGON_VERTICES = 3
     private const val EARTH_RADIUS_METERS = 6_371_008.8
     private const val CIRCLE_SEGMENTS = 32
 }
+
+private const val E7_COORDINATE_SCALE = 10_000_000.0

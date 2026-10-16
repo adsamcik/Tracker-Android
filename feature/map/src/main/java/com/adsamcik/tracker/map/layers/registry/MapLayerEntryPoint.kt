@@ -20,6 +20,10 @@ import dagger.hilt.components.SingletonComponent
 interface MapLayerEntryPoint {
 	fun skiRunSegmentRepository(): SkiRunSegmentRepository
 	fun locationSampleRepository(): LocationSampleRepository
+	/**
+	 * Supplies the read-only qualified Location context used by Wi-Fi and Cell map layers; it never starts
+	 * Location.
+	 */
 	fun radioLocationContextRepository(): com.adsamcik.tracker.stats.api.repository.RadioLocationContextRepository
 }
 

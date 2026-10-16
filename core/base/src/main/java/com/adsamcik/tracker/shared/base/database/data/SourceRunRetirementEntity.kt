@@ -134,7 +134,12 @@ data class SourceRunRetirementEntity(
 		@ColumnInfo(name = "stop_status") val stopStatus: String?,
 		@ColumnInfo(name = "updated_at_ms") val updatedAtMs: Long?,
 	) {
-		@Suppress("ReturnCount")
+		/**
+		 * Builds the typed record only when raw SQL values have the expected types and satisfy its
+		 * constructor constraints; otherwise returns null.
+		 */
+		// Keep all 24 raw columns and acknowledgement variants together before constructing the receipt.
+		@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 		fun validatedOrNull(): SourceRunRetirementEntity? {
 			val storageClasses = storageClassSignature?.split(STORAGE_CLASS_SEPARATOR)
 				?.takeIf { it.size == STORAGE_CLASS_COUNT }
@@ -278,7 +283,9 @@ data class SourceRunRetirementEntity(
 					unresolvedSequenceStart,
 					unresolvedSequenceEnd,
 				) + requiredAcknowledgement
-				if (payload.any { it != null }) return null
+				if (payload.any { it != null }) {
+					return null
+				}
 				if (
 					validatedState == STATE_CLEANUP_ONLY_COMPLETED &&
 					validatedSourceKind != SourceDestinationOwnerEntity.SOURCE_STEPS
@@ -286,7 +293,9 @@ data class SourceRunRetirementEntity(
 					return null
 				}
 			} else {
-				if (requiredAcknowledgement.any { it == null }) return null
+				if (requiredAcknowledgement.any { it == null }) {
+					return null
+				}
 				if (
 					(validatedState == STATE_INTERRUPTED) !=
 					(stopStatus == STOP_STATUS_PROCESS_RESTARTED)
@@ -333,7 +342,11 @@ data class SourceRunRetirementEntity(
 			index: Int,
 			value: Any?,
 			presentClass: String,
-		): Boolean = getOrNull(index) == if (value == null) SQLITE_NULL else presentClass
+		): Boolean = getOrNull(index) == if (value == null) {
+			SQLITE_NULL
+		} else {
+			presentClass
+		}
 
 		private companion object {
 			const val STORAGE_CLASS_SEPARATOR = '|'
@@ -390,6 +403,10 @@ data class SourceRunRetirementEntity(
 		}
 	}
 
+	/**
+	 * Stable persisted codes, including `STATE_REQUESTED`, `STATE_CLEANUP_ONLY_COMPLETED`,
+	 * `STATE_ACKNOWLEDGED`, and any identity-bound record factories.
+	 */
 	companion object {
 		const val STATE_REQUESTED = "REQUESTED"
 		const val STATE_CLEANUP_ONLY_COMPLETED = "CLEANUP_ONLY_COMPLETED"

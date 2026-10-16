@@ -25,6 +25,8 @@ import kotlinx.coroutines.withContext
  * Every callback uses the unbound durable sink. Room authorization, not a process-local session
  * sink, decides whether the same provider delivery may materialize capture, ambient, or both.
  */
+// These operations share one mutex and physical runtime; keep method-level algorithm checks active.
+@Suppress("TooManyFunctions")
 @Singleton
 class SharedLocationSourceController @Inject constructor(
 	private val physicalRuntime: LocationSourceRuntime,
@@ -58,7 +60,10 @@ class SharedLocationSourceController @Inject constructor(
 		physicalRuntime.prepareUiLease()
 		val accepted = try {
 			reconcileAfterUiLeaseChange()
-		} catch (failure: Throwable) {
+		} catch (
+			// Retire this temporary UI request before propagating its original failure.
+			@Suppress("TooGenericExceptionCaught") failure: Throwable
+		) {
 			uiLeases.remove(leaseId)
 			withContext(NonCancellable) { runCatching { reconcileAfterUiLeaseChange() } }
 			throw failure
@@ -72,10 +77,17 @@ class SharedLocationSourceController @Inject constructor(
 	}
 
 	internal suspend fun releaseUiLease(leaseId: Long) = mutex.withLock {
-		if (uiLeases.remove(leaseId) == null) return@withLock
+		if (uiLeases.remove(leaseId) == null) {
+			return@withLock
+		}
 		try {
-			if (!reconcileAfterUiLeaseChange()) physicalRuntime.failUiLeases()
-		} catch (failure: Throwable) {
+			if (!reconcileAfterUiLeaseChange()) {
+				physicalRuntime.failUiLeases()
+			}
+		} catch (
+			// Release UI elevation before propagating the same failure.
+			@Suppress("TooGenericExceptionCaught") failure: Throwable
+		) {
 			// If authority cannot be read, stop physical work rather than keep an
 			// elevated request alive after its explicit consumer has gone away.
 			uiLeases.clear()
@@ -85,6 +97,12 @@ class SharedLocationSourceController @Inject constructor(
 		}
 		Unit
 	}
+
+	// Fixed settings/demand identity; caller holds the shared owner mutex.
+	@Suppress("ComplexCondition")
+	private fun isSuspendedAmbientDemand(demand: SourceDemandEntity): Boolean =
+		baselinePlan?.enabled == false && baselinePolicyRevision == demand.sourcePolicyRevision &&
+			demand.consumerId == "ambient:location" && demand.logicalTrackingId == null && demand.serviceRunId == null
 
 	private suspend fun reconcileAfterUiLeaseChange(): Boolean {
 		val demands = selectedDemands()
@@ -98,31 +116,39 @@ class SharedLocationSourceController @Inject constructor(
 			if (sourceBroker.authorizationDemands(source).any { demand ->
 				demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE ||
 					(demand.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && !(
-						baselinePlan?.enabled == false &&
-							baselinePolicyRevision == demand.sourcePolicyRevision &&
-							demand.consumerId == "ambient:location" &&
-							demand.logicalTrackingId == null && demand.serviceRunId == null
+						isSuspendedAmbientDemand(demand)
 					))
-			}) return false
+			}) {
+				return false
+			}
 			val nextUiPlan = uiPlan()
 			if (nextUiPlan == null) {
 				return physicalRuntime.closeShared().toOwnedShutdown() is OwnedSourceShutdown.Released
 			}
-			if (physicalRuntime.applyUiOnly(nextUiPlan)) return true
-			val retired = physicalRuntime.closeShared()
-			return retired.toOwnedShutdown() is OwnedSourceShutdown.Released &&
-				physicalRuntime.applyUiOnly(nextUiPlan)
+			return if (physicalRuntime.applyUiOnly(nextUiPlan)) {
+				true
+			} else {
+				val retired = physicalRuntime.closeShared()
+				retired.toOwnedShutdown() is OwnedSourceShutdown.Released &&
+					physicalRuntime.applyUiOnly(nextUiPlan)
+			}
 		}
 	}
 
 	private fun uiPlan(): LocationPlan? {
 		val requests = uiLeases.values
-		if (requests.isEmpty()) return null
+		if (requests.isEmpty()) {
+			return null
+		}
 		return LocationPlan(
 			revision = 0L,
 			backend = LocationBackend.FUSED,
-			mode = if (requests.any(UiLocationRequest::highAccuracy)) LocationMode.HIGH_ACCURACY
-				else LocationMode.BALANCED,
+			mode = if (requests.any(UiLocationRequest::highAccuracy)) {
+				LocationMode.HIGH_ACCURACY
+			}
+				else {
+				LocationMode.BALANCED
+			},
 			requestedIntervalMs = requests.minOf(UiLocationRequest::intervalMillis),
 			minimumUpdateIntervalMs = requests.minOf(UiLocationRequest::minUpdateIntervalMillis),
 			minimumDisplacementMeters = requests.minOf(UiLocationRequest::minimumDisplacementMeters),
@@ -149,14 +175,19 @@ class SharedLocationSourceController @Inject constructor(
 		sink: SourceEventSink,
 	): SourceStartResult {
 		@Suppress("UNUSED_VARIABLE") val sessionSinkCannotRelabelSharedEvidence = sink
-		if (!plan.enabled) return SourceStartResult.Started(disabledState(plan))
+		if (!plan.enabled) {
+			return SourceStartResult.Started(disabledState(plan))
+		}
 		val previousPlan = sessionPlan
 		val previousClaim = sessionClaim
 		sessionPlan = plan
 		sessionClaim = claim
 		val demands = try {
 			selectedDemands()
-		} catch (failure: Throwable) {
+		} catch (
+			// Restore this owner's previous state before propagating the same failure.
+			@Suppress("TooGenericExceptionCaught") failure: Throwable
+		) {
 			sessionPlan = previousPlan
 			sessionClaim = previousClaim
 			throw failure
@@ -176,7 +207,10 @@ class SharedLocationSourceController @Inject constructor(
 				sessionClaim = previousClaim
 			}
 			result.toStartResult()
-		} catch (failure: Throwable) {
+		} catch (
+			// Restore this owner's previous state before propagating the same failure.
+			@Suppress("TooGenericExceptionCaught") failure: Throwable
+		) {
 			sessionPlan = previousPlan
 			sessionClaim = previousClaim
 			throw failure
@@ -202,41 +236,7 @@ class SharedLocationSourceController @Inject constructor(
 	): SourceApplyResult {
 		@Suppress("UNUSED_VARIABLE") val sessionSinkCannotRelabelSharedEvidence = sink
 		if (!plan.enabled) {
-			if (claim != null && sessionClaim != null && claim != sessionClaim) {
-				return SourceApplyResult.Failed(blockedState(plan), retryable = false)
-			}
-			val claim = sessionClaim
-			if (claim != null) {
-				val cutoff = SessionCutoff(
-					logicalTrackingId = claim.logicalTrackingId,
-					elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
-					wallTimeMs = System.currentTimeMillis(),
-					deadlineElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos() + 3_000_000_000L,
-				)
-				val acknowledgement = quiesceLocked(cutoff)
-				return if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) {
-					if (sessionClaim == claim) sessionClaim = null
-					SourceApplyResult.Applied(disabledState(plan), stopAck = acknowledgement)
-				} else {
-					SourceApplyResult.Failed(
-						disabledState(plan),
-						retryable = true,
-						stopAck = acknowledgement,
-					)
-				}
-			}
-			sessionPlan = null
-			val demands = selectedDemands()
-			val effective = effectivePlan(demands)
-			return if (effective == null) {
-				val retired = physicalRuntime.closeShared()
-				if (retired.toOwnedShutdown() is OwnedSourceShutdown.Released &&
-					(uiPlan() == null || physicalRuntime.applyUiOnly(requireNotNull(uiPlan())))) {
-					SourceApplyResult.Applied(disabledState(plan), stopAck = retired)
-				} else SourceApplyResult.Failed(disabledState(plan), retryable = true, stopAck = retired)
-			} else {
-				applyEffective(effective, claim = null, demands = demands)
-			}
+			return disableSessionPlanLocked(claim, plan)
 		}
 		val previousPlan = sessionPlan
 		val previousClaim = sessionClaim
@@ -244,7 +244,10 @@ class SharedLocationSourceController @Inject constructor(
 		sessionClaim = claim
 		val demands = try {
 			selectedDemands()
-		} catch (failure: Throwable) {
+		} catch (
+			// Restore this owner's previous state before propagating the same failure.
+			@Suppress("TooGenericExceptionCaught") failure: Throwable
+		) {
 			sessionPlan = previousPlan
 			sessionClaim = previousClaim
 			throw failure
@@ -266,7 +269,10 @@ class SharedLocationSourceController @Inject constructor(
 					sessionClaim = previousClaim
 				}
 			}
-		} catch (failure: Throwable) {
+		} catch (
+			// Restore this owner's previous state before propagating the same failure.
+			@Suppress("TooGenericExceptionCaught") failure: Throwable
+		) {
 			sessionPlan = previousPlan
 			sessionClaim = previousClaim
 			throw failure
@@ -281,6 +287,56 @@ class SharedLocationSourceController @Inject constructor(
 		}
 	}
 
+	private suspend fun disableSessionPlanLocked(
+		claim: SourceRuntimeClaim?, plan: LocationPlan,
+	): SourceApplyResult {
+		if (claim != null && sessionClaim != null && claim != sessionClaim) {
+			return SourceApplyResult.Failed(blockedState(plan), retryable = false)
+		}
+		val retiringClaim = sessionClaim
+		if (retiringClaim != null) {
+			return retireSessionClaimLocked(retiringClaim, plan)
+		}
+		sessionPlan = null
+		val demands = selectedDemands()
+		val effective = effectivePlan(demands)
+		return if (effective == null) {
+			val retired = physicalRuntime.closeShared()
+			if (retired.toOwnedShutdown() is OwnedSourceShutdown.Released &&
+				(uiPlan() == null || physicalRuntime.applyUiOnly(requireNotNull(uiPlan())))) {
+				SourceApplyResult.Applied(disabledState(plan), stopAck = retired)
+			} else {
+				SourceApplyResult.Failed(disabledState(plan), retryable = true, stopAck = retired)
+			}
+		} else {
+			applyEffective(effective, claim = null, demands = demands)
+		}
+	}
+
+	private suspend fun retireSessionClaimLocked(
+		claim: SourceRuntimeClaim, plan: LocationPlan,
+	): SourceApplyResult {
+		val cutoff = SessionCutoff(
+			logicalTrackingId = claim.logicalTrackingId,
+			elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
+			wallTimeMs = System.currentTimeMillis(),
+			deadlineElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos() + 3_000_000_000L,
+		)
+		val acknowledgement = quiesceLocked(cutoff)
+		return if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) {
+			if (sessionClaim == claim) {
+				sessionClaim = null
+			}
+			SourceApplyResult.Applied(disabledState(plan), stopAck = acknowledgement)
+		} else {
+			SourceApplyResult.Failed(
+				disabledState(plan),
+				retryable = true,
+				stopAck = acknowledgement,
+			)
+		}
+	}
+
 	private suspend fun quiesceLocked(cutoff: SessionCutoff): SourceStopAck {
 		val previousPlan = sessionPlan
 		val retiringClaim = sessionClaim
@@ -289,7 +345,10 @@ class SharedLocationSourceController @Inject constructor(
 		}
 		return try {
 			settleSessionCutoffLocked(cutoff)
-		} catch (failure: Throwable) {
+		} catch (
+			// Restore this owner's previous state before propagating the same failure.
+			@Suppress("TooGenericExceptionCaught") failure: Throwable
+		) {
 			sessionPlan = previousPlan
 			throw failure
 		}
@@ -303,14 +362,45 @@ class SharedLocationSourceController @Inject constructor(
 		val ambientPlan = effectivePlan(demands)
 		if (ambientPlan == null) {
 			return physicalRuntime.quiesce(cutoff).withSessionMembership(retiringClaim).also {
-				if (it.toOwnedShutdown() is OwnedSourceShutdown.Incomplete) sessionPlan = priorPlan
-				else uiPlan()?.let { temporary -> physicalRuntime.applyUiOnly(temporary) }
+				if (it.toOwnedShutdown() is OwnedSourceShutdown.Incomplete) {
+					sessionPlan = priorPlan
+				}
+				else {
+					uiPlan()?.let { temporary -> physicalRuntime.applyUiOnly(temporary) }
+				}
 			}
 		}
 		val maximumAgeMs = demands.maxOf(SourceDemandEntity::maximumAgeMs)
+		val acknowledgement = continueAmbientAfterSession(cutoff, ambientPlan, maximumAgeMs)
+		return acknowledgement.withSessionMembership(retiringClaim).also {
+			if (it.toOwnedShutdown() is OwnedSourceShutdown.Incomplete) {
+				sessionPlan = priorPlan
+			}
+		}
+	}
+
+	override suspend fun shutdownIfOwned(
+		claim: SourceRuntimeClaim,
+		cutoff: SessionCutoff,
+	): OwnedSourceShutdown = mutex.withLock {
+		require(claim.source == source)
+		if (sessionClaim != claim) {
+			return@withLock physicalRuntime.shutdownIfOwned(claim, cutoff)
+		}
+		quiesceLocked(cutoff).toOwnedShutdown().also { shutdown ->
+			if (shutdown is OwnedSourceShutdown.Released) {
+				sessionClaim = null
+			}
+		}
+	}
+
+	/** Reconciles only the durable ambient join; no caller fabricates a session identity. */
+	private suspend fun continueAmbientAfterSession(
+		cutoff: SessionCutoff, ambientPlan: LocationPlan, maximumAgeMs: Long,
+	): SourceStopAck {
 		val physicalAmbientPlan = joinUiLocationPlan(ambientPlan, uiPlan())
 		val refreshed = physicalRuntime.refreshShared(physicalAmbientPlan, unboundSink, null, maximumAgeMs)
-		val acknowledgement = if (
+		return if (
 			refreshed is SourceApplyResult.Applied || refreshed is SourceApplyResult.Degraded
 		) {
 			ambientAttached = true
@@ -324,23 +414,8 @@ class SharedLocationSourceController @Inject constructor(
 			}
 			stopped
 		}
-		return acknowledgement.withSessionMembership(retiringClaim).also {
-			if (it.toOwnedShutdown() is OwnedSourceShutdown.Incomplete) sessionPlan = priorPlan
-		}
 	}
 
-	override suspend fun shutdownIfOwned(
-		claim: SourceRuntimeClaim,
-		cutoff: SessionCutoff,
-	): OwnedSourceShutdown = mutex.withLock {
-		require(claim.source == source)
-		if (sessionClaim != claim) return@withLock physicalRuntime.shutdownIfOwned(claim, cutoff)
-		quiesceLocked(cutoff).toOwnedShutdown().also { shutdown ->
-			if (shutdown is OwnedSourceShutdown.Released) sessionClaim = null
-		}
-	}
-
-	/** Reconciles only the durable ambient join; no caller fabricates a session identity. */
 	internal suspend fun reconcileAmbientJoin(
 		plan: LocationPlan?,
 		expectedPolicyRevision: Long,
@@ -353,14 +428,7 @@ class SharedLocationSourceController @Inject constructor(
 		// A disabled exact plan suspends provider work without revoking the durable purpose.
 		// Null exclusively means that the caller has retired its durable purpose authority.
 		val requested = plan
-		val stale = baselinePolicyRevision?.let { expectedPolicyRevision < it } == true
-		val exactDemand = ambientDemands.singleOrNull()?.takeIf {
-			it.sourcePolicyRevision == expectedPolicyRevision &&
-				it.logicalTrackingId == null && it.serviceRunId == null
-		}
-		if (stale || (requested != null && exactDemand == null) ||
-			(requested == null && ambientDemands.isNotEmpty())
-		) {
+		if (!canApplyAmbientJoin(requested, expectedPolicyRevision, ambientDemands)) {
 			return@withLock if (!ambientAttached && sessionPlan == null) {
 				AmbientLocationRuntimeJoinResult.Inactive(null)
 			} else {
@@ -369,56 +437,52 @@ class SharedLocationSourceController @Inject constructor(
 		}
 		baselinePlan = requested
 		baselinePolicyRevision = expectedPolicyRevision
+		applyAmbientJoinLocked()
+	}
+
+	private suspend fun applyAmbientJoinLocked(): AmbientLocationRuntimeJoinResult {
 		val demands = selectedDemands()
 		val ambientDemand = demands.singleOrNull {
 			it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT
 		}
 		val ambientEnabled = ambientDemand != null && baselinePlan?.enabled == true
 		if (ambientDemand == null && !ambientAttached && sessionPlan == null) {
-			return@withLock AmbientLocationRuntimeJoinResult.Inactive(providerKey = null)
+			return AmbientLocationRuntimeJoinResult.Inactive(providerKey = null)
 		}
 		val effective = effectivePlan(demands)
 		if (effective == null) {
-			if (uiPlan() != null) {
-				val temporaryStillActive = reconcileAfterUiLeaseChange()
-				return@withLock if (temporaryStillActive) {
-					ambientAttached = false
-					AmbientLocationRuntimeJoinResult.Inactive(providerKey = null)
-				} else AmbientLocationRuntimeJoinResult.Unavailable(
-					providerKey = null, reasons = emptySet(), retryable = true,
-				)
-			}
-			val acknowledgement = physicalRuntime.closeShared()
-			return@withLock if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) {
-				ambientAttached = false
-				AmbientLocationRuntimeJoinResult.Inactive(acknowledgement.providerKeyOrNull())
-			} else {
-				AmbientLocationRuntimeJoinResult.Unavailable(
-					acknowledgement.providerKeyOrNull(),
-					emptySet(),
-					retryable = true,
-				)
-			}
+			return settleInactiveAmbientLocked()
 		}
-		val result = applyEffective(effective, sessionClaim, demands)
-		when (result) {
+		return publishAmbientJoin(applyEffective(effective, sessionClaim, demands), ambientEnabled)
+	}
+
+	private fun publishAmbientJoin(
+		result: SourceApplyResult, ambientEnabled: Boolean,
+	): AmbientLocationRuntimeJoinResult {
+		return when (result) {
 			is SourceApplyResult.Applied -> {
 				ambientAttached = ambientEnabled
 				if (!ambientEnabled) {
 					AmbientLocationRuntimeJoinResult.Inactive(result.state.providerKeyOrNull())
-				} else AmbientLocationRuntimeJoinResult.Active(
+				} else {
+					AmbientLocationRuntimeJoinResult.Active(
 					result.state.sourceInstanceId,
 					result.state.registrationGeneration,
 				)
+				}
 			}
 			is SourceApplyResult.Degraded -> {
 				ambientAttached = ambientEnabled
-				if (!ambientEnabled) AmbientLocationRuntimeJoinResult.Inactive(result.state.providerKeyOrNull())
-				else AmbientLocationRuntimeJoinResult.Degraded(
+				if (!ambientEnabled) {
+					AmbientLocationRuntimeJoinResult.Inactive(result.state.providerKeyOrNull())
+				}
+				else {
+					AmbientLocationRuntimeJoinResult.Degraded(
 					result.state.sourceInstanceId,
 					result.state.registrationGeneration,
 					result.state.degradedReasons,
 				)
+				}
 			}
 			is SourceApplyResult.Failed -> AmbientLocationRuntimeJoinResult.Unavailable(
 				result.state.providerKeyOrNull(),
@@ -437,11 +501,17 @@ class SharedLocationSourceController @Inject constructor(
 		val ambientDemand = selectedDemands().any {
 			it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT
 		}
-		if (ambientDemand) return@withLock false
+		if (ambientDemand) {
+			return@withLock false
+		}
 		ambientAttached = false
-		if (sessionPlan != null) return@withLock false
+		if (sessionPlan != null) {
+			return@withLock false
+		}
 		val released = physicalRuntime.closeShared().toOwnedShutdown() is OwnedSourceShutdown.Released
-		if (released) uiPlan()?.let { temporary -> physicalRuntime.applyUiOnly(temporary) }
+		if (released) {
+			uiPlan()?.let { temporary -> physicalRuntime.applyUiOnly(temporary) }
+		}
 		released
 	}
 
@@ -453,7 +523,9 @@ class SharedLocationSourceController @Inject constructor(
 				SessionCutoff(retiringClaim.logicalTrackingId, now, System.currentTimeMillis(),
 					now + 3_000_000_000L),
 			)
-			if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) sessionClaim = null
+			if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) {
+				sessionClaim = null
+			}
 			return@withLock Unit
 		}
 		sessionPlan = null
@@ -462,8 +534,12 @@ class SharedLocationSourceController @Inject constructor(
 		val effective = effectivePlan(demands)
 		if (effective == null) {
 			val temporary = uiPlan()
-			if (temporary == null) physicalRuntime.close()
-			else reconcileAfterUiLeaseChange()
+			if (temporary == null) {
+				physicalRuntime.close()
+			}
+			else {
+				reconcileAfterUiLeaseChange()
+			}
 			ambientAttached = false
 		} else {
 			val result = applyEffective(effective, claim = null, demands = demands)
@@ -474,20 +550,67 @@ class SharedLocationSourceController @Inject constructor(
 		Unit
 	}
 
+	private suspend fun settleInactiveAmbientLocked(): AmbientLocationRuntimeJoinResult {
+		if (uiPlan() != null) {
+			val temporaryStillActive = reconcileAfterUiLeaseChange()
+			return if (temporaryStillActive) {
+				ambientAttached = false
+				AmbientLocationRuntimeJoinResult.Inactive(providerKey = null)
+			} else {
+				AmbientLocationRuntimeJoinResult.Unavailable(
+				providerKey = null, reasons = emptySet(), retryable = true,
+			)
+			}
+		}
+		val acknowledgement = physicalRuntime.closeShared()
+		return if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) {
+			ambientAttached = false
+			AmbientLocationRuntimeJoinResult.Inactive(acknowledgement.providerKeyOrNull())
+		} else {
+			AmbientLocationRuntimeJoinResult.Unavailable(
+				acknowledgement.providerKeyOrNull(),
+				emptySet(),
+				retryable = true,
+			)
+		}
+	}
+
+	// The final condition compares one incoming plan/revision with its selected durable demand.
+	@Suppress("ComplexCondition")
+	private fun canApplyAmbientJoin(
+		requested: LocationPlan?, expectedPolicyRevision: Long, ambientDemands: List<SourceDemandEntity>,
+	): Boolean {
+		val stale = baselinePolicyRevision?.let { expectedPolicyRevision < it } == true
+		val exactDemand = ambientDemands.singleOrNull()?.takeIf {
+			it.matchesAmbientRevision(expectedPolicyRevision)
+		}
+		return !(stale || (requested != null && exactDemand == null) ||
+			(requested == null && ambientDemands.isNotEmpty()))
+	}
+
 	private suspend fun selectedDemands(): List<SourceDemandEntity> =
 		sourceBroker.authorizationDemands(source).filter { demand ->
 			when (demand.purpose) {
-				SourceBrokerPurpose.AMBIENT_PRODUCT -> baselinePlan != null &&
-					demand.consumerId == "ambient:location" &&
-					demand.sourcePolicyRevision == baselinePolicyRevision &&
-					demand.logicalTrackingId == null && demand.serviceRunId == null
-				SourceBrokerPurpose.SESSION_CAPTURE -> sessionPlan != null &&
-					(sessionClaim == null || (demand.logicalTrackingId == sessionClaim?.logicalTrackingId &&
-						demand.serviceRunId == sessionClaim?.serviceRunId &&
-						demand.lifecycleLeaseGeneration == sessionClaim?.leaseGeneration))
+				SourceBrokerPurpose.AMBIENT_PRODUCT -> isSelectedAmbientDemand(demand)
+				SourceBrokerPurpose.SESSION_CAPTURE -> isSelectedSessionDemand(demand)
 				else -> false
 			}
 		}
+
+	private fun isSelectedAmbientDemand(demand: SourceDemandEntity): Boolean =
+		baselinePlan != null && demand.consumerId == "ambient:location" &&
+			demand.matchesAmbientRevision(baselinePolicyRevision)
+
+	private fun SourceDemandEntity.matchesAmbientRevision(revision: Long?): Boolean =
+		sourcePolicyRevision == revision && logicalTrackingId == null && serviceRunId == null
+
+	// Fixed current-session identity; no collection, clocks or owner mutation.
+	@Suppress("ComplexCondition")
+	private fun isSelectedSessionDemand(demand: SourceDemandEntity): Boolean =
+		sessionPlan != null && (sessionClaim == null ||
+			(demand.logicalTrackingId == sessionClaim?.logicalTrackingId &&
+				demand.serviceRunId == sessionClaim?.serviceRunId &&
+				demand.lifecycleLeaseGeneration == sessionClaim?.leaseGeneration))
 
 	private fun effectivePlan(demands: List<SourceDemandEntity>): LocationPlan? {
 		val capture = sessionPlan.takeIf { demands.any { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE } }
@@ -534,12 +657,18 @@ class SharedLocationSourceController @Inject constructor(
 
 /** Explicit foreground use can raise the physical request without granting a durable purpose. */
 internal fun joinUiLocationPlan(durable: LocationPlan, ui: LocationPlan?): LocationPlan {
-	if (ui == null) return durable
+	if (ui == null) {
+		return durable
+	}
 	return durable.copy(
 		backend = ui.backend,
 		mode = if (ui.mode == LocationMode.HIGH_ACCURACY ||
 			durable.mode == LocationMode.HIGH_ACCURACY || durable.mode == LocationMode.PROBE
-		) LocationMode.HIGH_ACCURACY else LocationMode.BALANCED,
+		) {
+			LocationMode.HIGH_ACCURACY
+		} else {
+			LocationMode.BALANCED
+		},
 		requestedIntervalMs = minOf(durable.requestedIntervalMs, ui.requestedIntervalMs),
 		minimumUpdateIntervalMs = minOf(durable.minimumUpdateIntervalMs, ui.minimumUpdateIntervalMs),
 		minimumDisplacementMeters = minOf(durable.minimumDisplacementMeters, ui.minimumDisplacementMeters),
@@ -551,17 +680,38 @@ internal fun joinUiLocationPlan(durable: LocationPlan, ui: LocationPlan?): Locat
 }
 
 /** One physical request covers both independently authorized purposes; passive adds no acquisition. */
+@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 internal fun joinLocationPlans(capture: LocationPlan?, background: LocationPlan?): LocationPlan? {
-	if (capture?.enabled == false) return background?.takeIf { it.enabled }
-	if (background?.enabled == false) return capture?.takeIf { it.enabled }
-	if (capture == null) return background
-	if (background == null) return capture
-	if (background.mode == LocationMode.PASSIVE) return capture
-	if (capture.mode == LocationMode.PASSIVE) return background.copy(revision = capture.revision)
-	val mode = if (capture.mode.ordinal >= background.mode.ordinal) capture.mode else background.mode
+	if (capture?.enabled == false) {
+		return background?.takeIf { it.enabled }
+	}
+	if (background?.enabled == false) {
+		return capture?.takeIf { it.enabled }
+	}
+	if (capture == null) {
+		return background
+	}
+	if (background == null) {
+		return capture
+	}
+	if (background.mode == LocationMode.PASSIVE) {
+		return capture
+	}
+	if (capture.mode == LocationMode.PASSIVE) {
+		return background.copy(revision = capture.revision)
+	}
+	val mode = if (capture.mode.ordinal >= background.mode.ordinal) {
+		capture.mode
+	} else {
+		background.mode
+	}
 	// A continuing active background purpose must not inherit a finite session probe lifetime.
 	return capture.copy(
-		mode = if (mode == LocationMode.PROBE) LocationMode.HIGH_ACCURACY else mode,
+		mode = if (mode == LocationMode.PROBE) {
+			LocationMode.HIGH_ACCURACY
+		} else {
+			mode
+		},
 		requestedIntervalMs = minOf(capture.requestedIntervalMs, background.requestedIntervalMs),
 		minimumUpdateIntervalMs = minOf(capture.minimumUpdateIntervalMs, background.minimumUpdateIntervalMs),
 		minimumDisplacementMeters = minOf(capture.minimumDisplacementMeters, background.minimumDisplacementMeters),

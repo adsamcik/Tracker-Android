@@ -5,6 +5,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.model.pressure.portable.PortablePressureIdentityKind
+import com.adsamcik.tracker.shared.model.pressure.portable.PortablePressureOpaqueIdentity
 import io.kotest.matchers.shouldBe
 import org.junit.After
 import org.junit.Before
@@ -27,6 +30,8 @@ class RadioObservationChildMigrationTest {
 		context.deleteDatabase(DATABASE_NAME)
 	}
 
+	// Keep one v28 upgrade and its original-row, ownership and cascade assertions together.
+	@Suppress("LongMethod")
 	@Test fun `v28 upgrade retains known radio identity clock and device coordinate origin`() {
 		val helper = FrameworkSQLiteOpenHelperFactory().create(
 			SupportSQLiteOpenHelper.Configuration.builder(context).name(DATABASE_NAME)
@@ -93,6 +98,7 @@ class RadioObservationChildMigrationTest {
 				"source_kind=2 AND identity_kind='CAPTURE_WINDOW' AND raw_identity='activity-window'") shouldBe 1L
 			readLong(db, "SELECT count(*) FROM native_portable_ownership WHERE " +
 				"source_kind=4 AND identity_kind='WINDOW' AND raw_identity='pressure-window'") shouldBe 1L
+			assertOriginalPressureOwnership(db)
 			readLong(db, "SELECT count(*) FROM pragma_table_info('wifi_captured_fact_revision') WHERE " +
 				"name='payload_version' AND type='INTEGER' AND \"notnull\"=0 AND dflt_value='NULL'") shouldBe 1L
 			readLong(db, "SELECT count(*) FROM wifi_captured_fact_revision WHERE " +
@@ -207,14 +213,31 @@ class RadioObservationChildMigrationTest {
 		db.execSQL("CREATE TABLE source_service_run (service_run_id TEXT NOT NULL PRIMARY KEY, " +
 			"logical_tracking_id TEXT NOT NULL)")
 		db.execSQL("INSERT INTO source_service_run VALUES ('original-run', 'original-logical')")
+		// The v28 source tables already identify their original writer; migration must reuse it.
+		val writerColumns = "writer_projection_id TEXT NOT NULL, writer_projection_version INTEGER NOT NULL"
 		db.execSQL("CREATE TABLE activity_captured_window_revision (logical_window_id TEXT NOT NULL, " +
-			"logical_tracking_id TEXT NOT NULL, service_run_id TEXT NOT NULL)")
+			"logical_tracking_id TEXT NOT NULL, service_run_id TEXT NOT NULL, $writerColumns)")
 		db.execSQL("INSERT INTO activity_captured_window_revision VALUES " +
-			"('activity-window', 'original-logical', 'original-run')")
+			"('activity-window', 'original-logical', 'original-run', ?, ?)",
+			arrayOf<Any>(SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION))
 		db.execSQL("CREATE TABLE pressure_fact_revision (logical_fact_id TEXT NOT NULL, " +
-			"logical_tracking_id TEXT NOT NULL, service_run_id TEXT NOT NULL)")
+			"logical_tracking_id TEXT NOT NULL, service_run_id TEXT NOT NULL, $writerColumns)")
 		db.execSQL("INSERT INTO pressure_fact_revision VALUES " +
-			"('pressure-window', 'original-logical', 'original-run')")
+			"('pressure-window', 'original-logical', 'original-run', ?, ?)",
+			arrayOf<Any>(SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION))
+	}
+
+	private fun assertOriginalPressureOwnership(db: SupportSQLiteDatabase) {
+		val expected = PortablePressureOpaqueIdentity.derive(PortablePressureIdentityKind.WINDOW,
+			"22:pressure-session-facts:1:15:pressure-window").value
+		readString(db, "SELECT opaque_identity FROM native_portable_ownership WHERE " +
+			"source_kind=4 AND identity_kind='WINDOW' AND raw_identity='pressure-window'") shouldBe expected
+		readString(db, "SELECT writer_projection_id FROM pressure_fact_revision WHERE " +
+			"logical_fact_id='pressure-window'") shouldBe "pressure-session-facts"
+		readLong(db, "SELECT writer_projection_version FROM pressure_fact_revision WHERE " +
+			"logical_fact_id='pressure-window'") shouldBe 1L
 	}
 
 	private fun createEarlierRadioRetentionEventIndex(db: SupportSQLiteDatabase) {
@@ -228,10 +251,18 @@ class RadioObservationChildMigrationTest {
 	}
 
 	private fun readString(db: SupportSQLiteDatabase, sql: String): String? =
-		db.query(sql).use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+		db.query(sql).use { cursor -> if (cursor.moveToFirst()) {
+			cursor.getString(0)
+		} else {
+			null
+		} }
 
 	private fun readLong(db: SupportSQLiteDatabase, sql: String): Long? =
-		db.query(sql).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else null }
+		db.query(sql).use { cursor -> if (cursor.moveToFirst()) {
+			cursor.getLong(0)
+		} else {
+			null
+		} }
 
 	private companion object { const val DATABASE_NAME = "radio-child-migration-test.db" }
 }

@@ -238,7 +238,9 @@ class FileBackedExportSpoolTest {
 		id: Char,
 		size: Int,
 	): File {
-		if (!directory.isDirectory) check(directory.mkdirs())
+		if (!directory.isDirectory) {
+			check(directory.mkdirs())
+		}
 		return File(
 			directory,
 			"$OWNED_PREFIX$purpose-$createdAtMs-${id.toString().repeat(32)}.tmp",

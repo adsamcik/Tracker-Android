@@ -145,7 +145,9 @@ class TripDetailPresenterViewModel @Inject constructor(
 	fun exportTripGpx(context: Context) {
 		viewModelScope.launch {
 			val loaded = state.value as? TripDetailState.Loaded ?: return@launch
-			if (!loaded.supportsLocationPresentation) return@launch
+			if (!loaded.supportsLocationPresentation) {
+				return@launch
+			}
 			val trip = loaded.trip
 			if (trip.source == SegmentSource.PORTABLE_STEPS_IMPORT) {
 				return@launch
@@ -203,7 +205,9 @@ private suspend fun loadSampleInsights(
 			afterId = afterId,
 			limit = SAMPLE_CHUNK_SIZE,
 		)
-		if (chunk.isEmpty()) break
+		if (chunk.isEmpty()) {
+			break
+		}
 
 		for (sample in chunk) {
 			providerCounts[normalizeProviderLabel(sample.provider)] =
@@ -215,7 +219,11 @@ private suspend fun loadSampleInsights(
 					val previous = requireNotNull(previousAltitudeSample?.altitudeM).toDouble()
 					val delta = altitude - previous
 					if (abs(delta) >= 1.0) {
-						if (delta > 0) elevationGain += delta else elevationLoss += -delta
+						if (delta > 0) {
+							elevationGain += delta
+						} else {
+							elevationLoss += -delta
+						}
 						previousAltitudeSample = sample
 					}
 				} else {
@@ -281,7 +289,11 @@ private fun buildInsights(
 				val previous = requireNotNull(previousAltitudeSample?.altitudeM).toDouble()
 				val delta = altitude - previous
 				if (abs(delta) >= 1.0) {
-					if (delta > 0) gain += delta else loss += -delta
+					if (delta > 0) {
+						gain += delta
+					} else {
+						loss += -delta
+					}
 					previousAltitudeSample = sample
 				}
 			} else {
@@ -433,9 +445,13 @@ private const val MAX_TRUSTED_SPEED_ACCURACY_MPS = 3.0
  * unreliable speed independently of position accuracy.
  */
 private fun LocationSample.hasTrustworthySpeed(): Boolean {
-	if (quality == SampleQuality.LOW || quality == SampleQuality.COARSE) return false
+	if (quality == SampleQuality.LOW || quality == SampleQuality.COARSE) {
+		return false
+	}
 	val speedAccuracy = speedAccuracyMps
-	if (speedAccuracy != null && speedAccuracy > MAX_TRUSTED_SPEED_ACCURACY_MPS) return false
+	if (speedAccuracy != null && speedAccuracy > MAX_TRUSTED_SPEED_ACCURACY_MPS) {
+		return false
+	}
 	return true
 }
 

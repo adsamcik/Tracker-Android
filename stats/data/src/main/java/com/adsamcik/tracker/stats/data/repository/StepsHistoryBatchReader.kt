@@ -140,7 +140,9 @@ internal suspend fun loadStepsHistoryBatchSnapshot(
 		lane.activationOrdinal.takeIf { it > 0L }?.minus(1L)
 	}.minOrNull()
 	val throughOrdinal = completeness.mapNotNull { it.lastAdmissionOrdinal }.maxOrNull()
-	val terminalFailures = if (selectedFactStatesByRun != null) emptyList() else if (
+	val terminalFailures = if (selectedFactStatesByRun != null) {
+		emptyList()
+	} else if (
 		serviceRunIds.isEmpty() || afterOrdinal == null || throughOrdinal == null ||
 		afterOrdinal >= throughOrdinal
 	) {
@@ -224,6 +226,14 @@ internal suspend fun loadStepsCarrierAuthority(
 			StepsCarrierAuthorityState.UNVERIFIABLE,
 		)
 	}
+	return loadStepsCountDomainOwners(database, facts, walByEventId)
+}
+
+private suspend fun loadStepsCountDomainOwners(
+	database: AppDatabase,
+	facts: List<StepFactRevisionEntity>,
+	walByEventId: Map<String, SourceEventWalEntity>,
+): StepsCarrierAuthorityLoad {
 	val ownerKeys = mutableListOf<StepsCountDomainOwnerLookupKey>()
 	for (fact in facts) {
 		val wal = walByEventId[requireNotNull(fact.sourceEventId)]

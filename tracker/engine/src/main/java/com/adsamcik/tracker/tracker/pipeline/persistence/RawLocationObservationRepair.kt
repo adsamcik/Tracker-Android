@@ -35,6 +35,8 @@ import javax.inject.Singleton
  * commit through the existing serialized canonical writer.
  */
 @Singleton
+// One legacy Location repair transaction owns decoding, admission and idempotent insertion.
+@Suppress("TooManyFunctions")
 class RawLocationObservationRepair @Inject constructor(
 	private val database: AppDatabase,
 	private val payloadCodec: DefaultSourcePayloadCodec,
@@ -75,7 +77,7 @@ class RawLocationObservationRepair @Inject constructor(
 			)) {
 				"Existing canonical Location writer does not own legacy observation repair"
 			}
-			insertEligibleCandidates(candidates, state)
+			insertEligibleCandidates(candidates)
 		}
 	}
 
@@ -89,7 +91,6 @@ class RawLocationObservationRepair @Inject constructor(
 
 	private suspend fun insertEligibleCandidates(
 		candidates: List<RawLocationRepairCandidate>,
-		state: SourceEvidenceState,
 	): Int {
 		val stateDao = database.sourceEvidenceStateDao()
 		if (candidates.isEmpty()) return 0
@@ -169,6 +170,8 @@ class RawLocationObservationRepair @Inject constructor(
 	 * observation would create a misleading partial product before route curation and its terminal
 	 * decision have committed through the existing writer.
 	 */
+	// Keep the complete protected-carrier nullability tuple visible; this reads only saved fields.
+	@Suppress("CyclomaticComplexMethod")
 	private fun SourceEventWalEntity.isProtectedLocationCapture(): Boolean =
 		providerDedupKey == null &&
 			deliveryIdentity != null &&
@@ -184,6 +187,8 @@ class RawLocationObservationRepair @Inject constructor(
 			sessionManifestRevision != null &&
 			lifecycleLeaseGeneration != null
 
+	// Keep the legacy wire-version, checksum-marker and absent-binding shape together.
+	@Suppress("CyclomaticComplexMethod")
 	private fun SourceEventWalEntity.isReleasedLegacyObservation(): Boolean =
 		!isProtectedLocationCapture() &&
 			payloadVersion < LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION &&

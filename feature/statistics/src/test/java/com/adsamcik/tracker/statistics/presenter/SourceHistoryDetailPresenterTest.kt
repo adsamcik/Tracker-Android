@@ -109,7 +109,7 @@ class SourceHistoryDetailPresenterTest {
         coEvery { wifiRepository.lookup(requireNotNull(entry.selection)) } returns WifiHistoryQuery.Found(entry)
         val file = mockk<com.adsamcik.tracker.feature.statistics.api.export.SourceHistoryFileExporter>()
         val uri = android.net.Uri.parse("content://test/wifi")
-        coEvery { file.export(uri, selection) } returns com.adsamcik.tracker.feature.statistics.api.export.SourceHistoryFileExportResult.SAVED
+        coEvery { file.export(uri.toString(), selection) } returns com.adsamcik.tracker.feature.statistics.api.export.SourceHistoryFileExportResult.SAVED
         val route = SourceHistoryDetailHandoff.register(selection)
         val vm = SourceHistoryDetailViewModel(presenter, SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
             mockk(relaxed = true), file)
@@ -118,7 +118,7 @@ class SourceHistoryDetailPresenterTest {
         vm.exportTo(uri); runCurrent()
         vm.actionResult.value shouldBe SourceHistoryActionResult.EXPORTED
         vm.exportTo(uri); runCurrent()
-        coVerify(exactly = 1) { file.export(uri, selection) }
+        coVerify(exactly = 1) { file.export(uri.toString(), selection) }
         vm.prepareExport() shouldBe true
         vm.close(); vm.exportTo(uri); runCurrent()
         coVerify(exactly = 1) { file.export(any(), any()) }

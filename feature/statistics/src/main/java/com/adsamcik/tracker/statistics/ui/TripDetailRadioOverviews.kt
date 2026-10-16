@@ -50,6 +50,8 @@ import java.time.format.FormatStyle
 
 /** Saved Wi-Fi readings; counts describe observations rather than unique networks. */
 @Composable
+// Keep this cohesive Compose declaration together; its operation and condition checks remain active.
+@Suppress("LongMethod")
 internal fun TripDetailWifiOverview(
 	history: WifiHistoryEntry,
 ) {
@@ -147,6 +149,8 @@ internal fun TripDetailWifiOverview(
 
 /** Saved Cell readings describe phone observations rather than tower positions. */
 @Composable
+// Keep this cohesive Compose declaration together; its operation and condition checks remain active.
+@Suppress("LongMethod")
 internal fun TripDetailCellOverview(
 	history: CellHistoryEntry,
 ) {

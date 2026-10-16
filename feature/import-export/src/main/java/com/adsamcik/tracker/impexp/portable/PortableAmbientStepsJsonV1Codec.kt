@@ -56,15 +56,7 @@ internal class PortableAmbientStepsJsonV1Codec @JvmOverloads constructor(
 				if (archive != null) {
 					formatFailure("Portable Ambient Steps exporter emitted more than one archive")
 				}
-				val counts = preflight(candidate)
-				val snapshot = authenticatedSnapshot(candidate)
-				if (snapshot.days.size.toLong() != counts.days ||
-					snapshot.days.sumOf { it.facts.size.toLong() } != counts.facts ||
-					snapshot.days.sumOf { it.gaps.size.toLong() } != counts.gaps
-				) {
-					formatFailure("Portable Ambient Steps archive changed while being snapshotted")
-				}
-				claimArchive(snapshot)
+				val snapshot = snapshotForExport(candidate)
 				archive = snapshot
 			},
 		)
@@ -93,6 +85,19 @@ internal class PortableAmbientStepsJsonV1Codec @JvmOverloads constructor(
 		}
 	}
 
+	private suspend fun snapshotForExport(candidate: PortableAmbientStepsArchiveV1): PortableAmbientStepsArchiveV1 {
+		val counts = preflight(candidate)
+		val snapshot = authenticatedSnapshot(candidate)
+		if (snapshot.days.size.toLong() != counts.days ||
+			snapshot.days.sumOf { it.facts.size.toLong() } != counts.facts ||
+			snapshot.days.sumOf { it.gaps.size.toLong() } != counts.gaps
+		) {
+			formatFailure("Portable Ambient Steps archive changed while being snapshotted")
+		}
+		claimArchive(snapshot)
+		return snapshot
+	}
+
 	suspend fun decode(bytes: ByteArray): PortableAmbientStepsDecodedArchive =
 		decode(PortableJsonBytes.wrap(bytes))
 
@@ -102,70 +107,72 @@ internal class PortableAmbientStepsJsonV1Codec @JvmOverloads constructor(
 	suspend fun decode(inputStream: InputStream): PortableAmbientStepsDecodedArchive {
 		val bounded = BoundedAmbientInputStream(inputStream, limits.maxFileBytes)
 		val tokenLimited = PortableJsonTokenLimitInputStream(bounded, AMBIENT_TOKEN_LIMITS)
-		val reader = JsonReader(InputStreamReader(tokenLimited, Charsets.UTF_8)).apply {
-			isLenient = false
-		}
+		val reader = JsonReader(InputStreamReader(tokenLimited, Charsets.UTF_8))
+		reader.isLenient = false
 		return try {
-			val counts = AmbientDecodeCounts()
-			val archive = readArchive(reader, counts)
-			if (reader.peek() != JsonToken.END_DOCUMENT) {
-				formatFailure("Portable Ambient Steps document contains trailing content")
-			}
-			claimArchive(archive)
-			PortableAmbientStepsDecodedArchive(
-				archive = archive,
-				metadata = PortableAmbientStepsImportMetadata(
-					encodedByteCount = bounded.bytesRead,
-					archiveContentChecksum = archive.contentChecksum,
-					dayCount = counts.days,
-					factCount = counts.facts,
-					gapCount = counts.gaps,
-				),
-			)
+			readCheckedArchive(reader, bounded)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (failure: AmbientStepsTransportIOException) {
 			throw failure.original
-		} catch (format: PortableAmbientStepsFormatException) {
-			throw format
 		} catch (failure: PortableJsonTokenLimitException) {
-			throw PortableAmbientStepsFormatException(
+			formatFailure(
 				"Portable Ambient Steps JSON token exceeds its lexical bound",
 				failure,
 			)
 		} catch (failure: MalformedJsonException) {
-			throw PortableAmbientStepsFormatException(
+			formatFailure(
 				"Malformed portable Ambient Steps document",
 				failure,
 			)
 		} catch (failure: EOFException) {
-			throw PortableAmbientStepsFormatException(
+			formatFailure(
 				"Truncated portable Ambient Steps document",
 				failure,
 			)
-		} catch (failure: IOException) {
-			throw failure
 		} catch (failure: ArithmeticException) {
-			throw PortableAmbientStepsFormatException(
+			formatFailure(
 				"Portable Ambient Steps count overflow",
 				failure,
 			)
 		} catch (failure: DateTimeException) {
-			throw PortableAmbientStepsFormatException(
+			formatFailure(
 				"Invalid portable Ambient Steps structural date",
 				failure,
 			)
 		} catch (failure: IllegalArgumentException) {
-			throw PortableAmbientStepsFormatException(
+			formatFailure(
 				"Invalid portable Ambient Steps document",
 				failure,
 			)
 		} catch (failure: IllegalStateException) {
-			throw PortableAmbientStepsFormatException(
+			formatFailure(
 				"Invalid portable Ambient Steps document",
 				failure,
 			)
 		}
+	}
+
+	private suspend fun readCheckedArchive(
+		reader: JsonReader,
+		bounded: BoundedAmbientInputStream,
+	): PortableAmbientStepsDecodedArchive {
+		val counts = AmbientDecodeCounts()
+		val archive = readArchive(reader, counts)
+		if (reader.peek() != JsonToken.END_DOCUMENT) {
+			formatFailure("Portable Ambient Steps document contains trailing content")
+		}
+		claimArchive(archive)
+		return PortableAmbientStepsDecodedArchive(
+			archive = archive,
+			metadata = PortableAmbientStepsImportMetadata(
+				encodedByteCount = bounded.bytesRead,
+				archiveContentChecksum = archive.contentChecksum,
+				dayCount = counts.days,
+				factCount = counts.facts,
+				gapCount = counts.gaps,
+			),
+		)
 	}
 
 	private fun preflight(archive: PortableAmbientStepsArchiveV1): AmbientArchiveCounts {
@@ -485,7 +492,16 @@ internal class PortableAmbientStepsJsonV1Codec @JvmOverloads constructor(
 			}
 		}
 		reader.endObject()
-		return PortableAmbientStepsFactV1(
+		return assembleFact(identity, checksum, startTimeMs, endTimeMs, stepCount)
+	}
+
+	private fun assembleFact(
+		identity: AmbientStepsPortableOpaqueIdentity?,
+		checksum: AmbientStepsPortableDigest?,
+		startTimeMs: Long?,
+		endTimeMs: Long?,
+		stepCount: Long?,
+	): PortableAmbientStepsFactV1 = PortableAmbientStepsFactV1(
 			identity = identity ?: formatFailure("Portable Ambient Steps fact identity is missing"),
 			contentChecksum = checksum
 				?: formatFailure("Portable Ambient Steps fact checksum is missing"),
@@ -495,7 +511,6 @@ internal class PortableAmbientStepsJsonV1Codec @JvmOverloads constructor(
 				?: formatFailure("Portable Ambient Steps fact end is missing"),
 			stepCount = stepCount ?: formatFailure("Portable Ambient Steps count is missing"),
 		)
-	}
 
 	private fun readGap(reader: JsonReader): PortableAmbientStepsGapV1 {
 		expect(reader, JsonToken.BEGIN_OBJECT, "gap")
@@ -517,7 +532,16 @@ internal class PortableAmbientStepsJsonV1Codec @JvmOverloads constructor(
 			}
 		}
 		reader.endObject()
-		return PortableAmbientStepsGapV1(
+		return assembleGap(identity, checksum, startTimeMs, endTimeMs, reason)
+	}
+
+	private fun assembleGap(
+		identity: AmbientStepsPortableOpaqueIdentity?,
+		checksum: AmbientStepsPortableDigest?,
+		startTimeMs: Long?,
+		endTimeMs: Long?,
+		reason: PortableAmbientStepsGapReason?,
+	): PortableAmbientStepsGapV1 = PortableAmbientStepsGapV1(
 			identity = identity ?: formatFailure("Portable Ambient Steps gap identity is missing"),
 			contentChecksum = checksum
 				?: formatFailure("Portable Ambient Steps gap checksum is missing"),
@@ -527,7 +551,6 @@ internal class PortableAmbientStepsJsonV1Codec @JvmOverloads constructor(
 				?: formatFailure("Portable Ambient Steps gap end is missing"),
 			reason = reason ?: formatFailure("Portable Ambient Steps gap reason is missing"),
 		)
-	}
 
 	private fun claimArchive(archive: PortableAmbientStepsArchiveV1) {
 		val claims = mutableMapOf<AmbientStepsPortableOpaqueIdentity, AmbientIdentityClaim>()
@@ -752,8 +775,8 @@ private data class AmbientIdentityClaim(
 	val owner: String,
 )
 
-private fun formatFailure(message: String): Nothing =
-	throw PortableAmbientStepsFormatException(message)
+private fun formatFailure(message: String, cause: Throwable? = null): Nothing =
+	throw PortableAmbientStepsFormatException(message, cause)
 
 private class BoundedAmbientInputStream(
 	input: InputStream,
@@ -764,13 +787,17 @@ private class BoundedAmbientInputStream(
 
 	override fun read(): Int {
 		val value = transportRead { super.read() }
-		if (value >= 0) record(1L)
+		if (value >= 0) {
+			record(1L)
+		}
 		return value
 	}
 
 	override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
 		val count = transportRead { super.read(buffer, offset, length) }
-		if (count > 0) record(count.toLong())
+		if (count > 0) {
+			record(count.toLong())
+		}
 		return count
 	}
 

@@ -279,6 +279,8 @@ class ArchitecturalFitnessTest {
 		}
 
 		@Test
+		// Keep the finite release-build and evidence requirements visible in one assertion matrix.
+		@Suppress("CyclomaticComplexMethod")
 		fun `release retains useful local stacks and records deterministic build identity`() {
 			val appBuild = projectRoot.resolve("app/build.gradle.kts").readText()
 			val proguard = projectRoot.resolve("app/proguard-rules.pro").readText()
@@ -754,6 +756,8 @@ class ArchitecturalFitnessTest {
 		}
 
 		@Test
+		// Keep the fixed recorder binding, storage visibility and adapter requirements together.
+		@Suppress("CyclomaticComplexMethod", "LongMethod")
 		fun `tracking recorder binding and storage boundary remain module owned`() {
 			val diagnosticsBuild = projectRoot.resolve("core/diagnostics/build.gradle.kts").readText()
 			val moduleSource = projectRoot.resolve(
@@ -992,6 +996,8 @@ class ArchitecturalFitnessTest {
 		}
 
 		@Test
+		// Keep this source-call privacy scenario and its final combined assertion together.
+		@Suppress("LongMethod")
 		fun `tracking diagnostic calls cannot carry exceptions messages or paths`() {
 			val trackingSources = listOf(
 				projectRoot.resolve("tracker/engine/src/main"),
@@ -1008,25 +1014,7 @@ class ArchitecturalFitnessTest {
 					.flatMap { file ->
 						val source = file.readText()
 						callStart.findAll(source).mapNotNull { match ->
-							var cursor = match.range.last + 1
-							while (cursor < source.length && source[cursor].isWhitespace()) cursor++
-							if (cursor >= source.length || source[cursor] != '(') return@mapNotNull null
-							val end = matchingParenthesis(source, cursor) ?: return@mapNotNull null
-							val arguments = source.substring(cursor + 1, end)
-							val method = match.groupValues[1]
-							val missingTypedReason = when (method) {
-								"failure", "trackingProviderTeardownFailed" ->
-									"TrackingDiagnosticFailureReason." !in arguments
-								"rejected" -> "TrackingDiagnosticRejectedReason." !in arguments
-								else -> false
-							}
-							when {
-								prohibitedArgument.containsMatchIn(arguments) ->
-									"${file.relativeTo(projectRoot)}: $method carries free-form failure data"
-								missingTypedReason ->
-									"${file.relativeTo(projectRoot)}: $method lacks a typed reason"
-								else -> null
-							}
+							diagnosticCallViolation(file, source, match, prohibitedArgument)
 						}
 					}
 					.toList()
@@ -1052,6 +1040,36 @@ class ArchitecturalFitnessTest {
 			}
 
 			(callViolations + boundaryViolations).shouldBeEmpty()
+		}
+
+		private fun diagnosticReasonMissing(method: String, arguments: String): Boolean = when (method) {
+			"failure", "trackingProviderTeardownFailed" -> "TrackingDiagnosticFailureReason." !in arguments
+			"rejected" -> "TrackingDiagnosticRejectedReason." !in arguments
+			else -> false
+		}
+
+		private fun diagnosticCallViolation(
+			file: File,
+			source: String,
+			match: MatchResult,
+			prohibitedArgument: Regex,
+		): String? {
+			var cursor = match.range.last + 1
+			while (cursor < source.length && source[cursor].isWhitespace()) cursor++
+			if (cursor >= source.length || source[cursor] != '(') {
+				return null
+			}
+			val end = matchingParenthesis(source, cursor) ?: return null
+			val arguments = source.substring(cursor + 1, end)
+			val method = match.groupValues[1]
+			val missingTypedReason = diagnosticReasonMissing(method, arguments)
+			return when {
+				prohibitedArgument.containsMatchIn(arguments) ->
+					"${file.relativeTo(projectRoot)}: $method carries free-form failure data"
+				missingTypedReason ->
+					"${file.relativeTo(projectRoot)}: $method lacks a typed reason"
+				else -> null
+			}
 		}
 
 		@Test
@@ -1107,6 +1125,8 @@ class ArchitecturalFitnessTest {
 	}
 
 	@Nested
+	// Keep this shared-fixture contract suite together; individual test algorithms remain checked.
+	@Suppress("LargeClass")
 	inner class `Source caller authority` {
 		@Test
 		fun `every production demand mutation reaches SourceBroker only through caller guard dispatcher`() {
@@ -1165,6 +1185,8 @@ class ArchitecturalFitnessTest {
 		}
 
 		@Test
+		// Keep all manual, automatic, foreground and recovery ordering assertions together.
+		@Suppress("LongMethod")
 		fun `manual automatic foreground and recovery starts share the guarded coordinator path`() {
 			val api = projectRoot.resolve(
 				"tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/" +
@@ -1194,7 +1216,9 @@ class ArchitecturalFitnessTest {
 			buildList {
 				if ("requestManualTrackingStart" !in api ||
 					"startServiceAndAwaitEnqueue" !in api
-				) add("manual start must use the prepared-start coordinator")
+				) {
+					add("manual start must use the prepared-start coordinator")
+				}
 				addAll(
 					orderedMarkerViolations(
 						coordinator,
@@ -1211,20 +1235,28 @@ class ArchitecturalFitnessTest {
 						"authenticated recovery caller-authority replay",
 						listOf(
 							"currentRecoverySourceCallerAuthority(",
-							"activeTrackingSessionStore.replaceExact(",
+							"rebindDescriptor(reconciled, authority.reference)",
 							"replayPreparedSession(",
 							"SourceCallerReplayKind.PROCESS_RECOVERY",
 						),
 					),
 				)
+				addAll(orderedMarkerViolations(
+					reconciler, "recovery exact descriptor persistence",
+					listOf(
+						"return replaceDescriptor(", "activeTrackingSessionStore.replaceExact(descriptor, replacement)",
+						"persisted.descriptor == replacement",
+						"ActiveTrackingCallerAuthorityReconciliation.Ready(replacement)",
+					),
+				))
 				addAll(
 					orderedMarkerViolations(
 						authoritativeCoordinator,
 						"Room-authenticated recovery caller authority",
 						listOf(
-							"currentRecoverySourceCallerAuthorityCandidate(",
+							"readRecoverySourceCallerAuthorityCandidate(logicalTrackingId, serviceRunId)",
 							"authenticatePreparedSession(",
-							"if (readCandidate() == candidate)",
+							"if (readRecoverySourceCallerAuthorityCandidate(logicalTrackingId, serviceRunId) == candidate)",
 						),
 					),
 				)
@@ -1241,10 +1273,14 @@ class ArchitecturalFitnessTest {
 				)
 				if ("authenticated.rejection.reason.isRetryable" !in authoritativeCoordinator ||
 					"replay.rejection.reason.toFailureDisposition()" !in reconciler
-				) add("recovery caller rejection disposition must derive from the guard reason")
+				) {
+					add("recovery caller rejection disposition must derive from the guard reason")
+				}
 				if ("replayPreparedSession(" !in coordinator ||
 					"SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY" !in coordinator
-				) add("foreground-service claim must replay exact caller authority")
+				) {
+					add("foreground-service claim must replay exact caller authority")
+				}
 				if ("startServiceAndAwaitEnqueueResult(" !in automaticOutbox) {
 					add("automatic transition start must use the guarded prepared-start coordinator")
 				}
@@ -1280,10 +1316,14 @@ class ArchitecturalFitnessTest {
 					"getSharedPreferences(" in source ||
 					"ByteArrayOutputStream" in source ||
 					"Base64" in source
-				) add("accepted caller authority must remain in normalized Room rows")
+				) {
+					add("accepted caller authority must remain in normalized Room rows")
+				}
 				if ("RoomSourceCallerAcceptedAuthorityRepository" !in source ||
 					"SourceCallerAcceptedAuthorityEffectChecksum" !in source
-				) add("normalized Room caller authority repository is missing")
+				) {
+					add("normalized Room caller authority repository is missing")
+				}
 			}.shouldBeEmpty()
 		}
 
@@ -1306,17 +1346,23 @@ class ArchitecturalFitnessTest {
 				if ("effect_checksum" !in entity ||
 					"row.reference" !in entity ||
 					"row.formatVersion" !in entity
-				) add("caller authority effect checksum must bind reference and format")
+				) {
+					add("caller authority effect checksum must bind reference and format")
+				}
 				if ("retiredReferencesForPrune" !in dao || "LIMIT :limit" !in dao) {
 					add("caller authority retirement pruning must remain bounded")
 				}
 				if ("throw CorruptionException(" !in activeStore ||
 					"ActiveTrackingSessionStoreFailureKind.CORRUPT" !in activeStore
-				) add("active-session proto corruption must remain typed and fail closed")
+				) {
+					add("active-session proto corruption must remain typed and fail closed")
+				}
 			}.shouldBeEmpty()
 		}
 
 		@Test
+		// Keep the fixed live-retention snapshot, transaction and activation requirements together.
+		@Suppress("CyclomaticComplexMethod", "LongMethod")
 		fun `LIVE AMBIENT broker snapshots before Room and revalidates persisted authority`() {
 			val broker = projectRoot.resolve(
 				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
@@ -1347,6 +1393,11 @@ class ArchitecturalFitnessTest {
 				broker.indexOf("internal fun buildSessionDemands("),
 			)
 
+			val persistedRevalidation = broker.substring(
+				broker.indexOf("private suspend fun isLiveAmbientRetentionCurrentInTransaction("),
+				broker.indexOf("private suspend fun readPersistedLiveAmbientRetention("),
+			)
+
 			buildList {
 				if ("captureLiveAmbientRetentionSnapshot(" !in broker ||
 					"retentionAuthorityReader.currentLiveAmbient(" !in broker ||
@@ -1357,10 +1408,14 @@ class ArchitecturalFitnessTest {
 				if ("retentionAuthorityReader.isCurrentLiveAmbientAt(" !in broker) {
 					add("SourceBroker must invoke the exact LIVE_AMBIENT retention predicate")
 				}
-				if ("retentionAuthorityReader." in transactionRevalidation) {
+				if ("retentionAuthorityReader." in transactionRevalidation ||
+					"retentionAuthorityReader." in persistedRevalidation
+				) {
 					add("Room retention revalidation must not enter the retention producer mutex")
 				}
-				if ("readPersistedLiveAmbientRetention(" !in transactionRevalidation) {
+				if ("isLiveAmbientRetentionCurrentInTransaction(" !in transactionRevalidation ||
+					"readPersistedLiveAmbientRetention(" !in persistedRevalidation
+				) {
 					add("Room mutation must exact-CAS the persisted retention identity")
 				}
 				if ("matchesActiveSettlementInTransaction(" !in transactionRevalidation ||
@@ -1377,7 +1432,9 @@ class ArchitecturalFitnessTest {
 					"areLiveAmbientDemandsCurrentInTransaction(" !in registrations ||
 					"captureLiveAmbientRetentionSnapshot(" !in stepsRegistrations ||
 					"areLiveAmbientDemandsCurrentInTransaction(" !in stepsRegistrations
-				) add("provider activation must revalidate LIVE_AMBIENT retention authority")
+				) {
+					add("provider activation must revalidate LIVE_AMBIENT retention authority")
+				}
 				if ("current.effectiveBootId == bootId" !in authorizationTransactions) {
 					add("broker authorization must rotate across boot identity")
 				}
@@ -1400,6 +1457,10 @@ class ArchitecturalFitnessTest {
 				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/" +
 					"TrackerServiceSourceSession.kt",
 			).readText()
+			val callerAuthority = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/" +
+					"SourceSessionCallerAuthority.kt",
+			).readText()
 			val dispatcher = projectRoot.resolve(
 				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
 					"SourceCallerDemandDispatcher.kt",
@@ -1409,20 +1470,24 @@ class ArchitecturalFitnessTest {
 				if ("sourceCallerAuthorityReference: SourceCallerReplayReference" !in coordinator) {
 					add("reconfigure result must expose the newly accepted caller reference")
 				}
-				if ("activeSessionDescriptor = replacement" !in service) {
+				if ("activeSessionDescriptor = persisted" !in service) {
 					add("TrackerService must mirror the reconfigured caller reference in memory")
 				}
 				addAll(
 					orderedMarkerViolations(
 						sourceSession,
 						"reconfiguration caller authority handoff",
-						listOf(
-							"activeTrackingSessionStore.replaceExact(",
-							"session.sourceCallerAuthorityReference = replacementReference",
-							"coordinator.retireSupersededSourceCallerAuthority(",
-						),
+						listOf("persistSourceCallerAuthority(", "retireRecordedSupersededAuthority("),
 					),
 				)
+				addAll(orderedMarkerViolations(
+					callerAuthority, "reconfiguration durable caller publication",
+					listOf(
+						"activeTrackingSessionStore.replaceExact(", "if (persisted != replacement)",
+						"session.sourceCallerAuthorityReference = replacementReference",
+						"coordinator.retireSupersededSourceCallerAuthority(",
+					),
+				))
 				if ("request.startOrigin != SessionStartOrigin.POLICY_RECONCILIATION" !in dispatcher) {
 					add("policy reconfiguration must defer predecessor authority retirement")
 				}
@@ -1454,14 +1519,19 @@ class ArchitecturalFitnessTest {
 					"DefaultActiveTrackingSessionStore.kt",
 			).readText()
 
-			fun functionSection(source: String, start: String, end: String): String =
-				source.substring(source.indexOf(start), source.indexOf(end))
+			fun functionSection(source: String, start: String, end: String): String {
+				val startIndex = source.indexOf(start)
+				require(startIndex >= 0) { "Missing function declaration: $start" }
+				val endIndex = source.indexOf(end, startIndex + start.length)
+				require(endIndex >= 0) { "Missing following declaration: $end" }
+				return source.substring(startIndex, endIndex)
+			}
 
 			val blockBodyContracts = listOf(
 				functionSection(
 					broker,
-					"private suspend fun retireExactCallerAuthority(",
-					"private suspend fun loadCallerAuthorityForRetirement(",
+					"suspend fun retireExact(",
+					"suspend fun load(",
 				) to "): SourceCallerAuthorityRetirementOutcome {",
 				functionSection(
 					broker,
@@ -1481,6 +1551,9 @@ class ArchitecturalFitnessTest {
 			)
 
 			buildList {
+				if ("private class CallerAuthorityRetirementOperations(" !in broker) {
+					add("caller authority retirement helpers must remain tracker-engine private")
+				}
 				if ("internal suspend fun retireSupersededSourceCallerAuthority(" !in coordinator) {
 					add("caller authority retirement outcomes must remain tracker-engine internal")
 				}
@@ -1527,7 +1600,9 @@ class ArchitecturalFitnessTest {
 					}
 					.forEach { file ->
 						val source = file.readText()
-						if ("SourceCallerDemandDispatcher" !in source) return@forEach
+						if ("SourceCallerDemandDispatcher" !in source) {
+							return@forEach
+						}
 						val classIsInternal = Regex("""\binternal\s+class\s+\w+""")
 							.containsMatchIn(source)
 						Regex(
@@ -1548,6 +1623,8 @@ class ArchitecturalFitnessTest {
 		}
 
 		@Test
+		// Keep the finite Room-boundary and lock-order requirements in one architecture scenario.
+		@Suppress("CyclomaticComplexMethod", "LongMethod")
 		fun `purpose caller preparation and retention reads stay outside Room mutations`() {
 			val dispatcher = projectRoot.resolve(
 				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
@@ -1570,8 +1647,14 @@ class ArchitecturalFitnessTest {
 					"TrackingPurposePublicationRuntime.kt",
 			).readText()
 
-			fun section(source: String, start: String, end: String): String =
-				source.substring(source.indexOf(start), source.indexOf(end))
+			fun section(source: String, start: String, end: String): String {
+				val startIndex = source.indexOf(start)
+				val endIndex = source.indexOf(end, startIndex.coerceAtLeast(0))
+				check(startIndex >= 0 && endIndex > startIndex) {
+					"Missing or reordered architecture boundary: $start -> $end"
+				}
+				return source.substring(startIndex, endIndex)
+			}
 
 			val purposeDispatchSections = listOf(
 				section(
@@ -1587,7 +1670,7 @@ class ArchitecturalFitnessTest {
 				section(
 					dispatcher,
 					"private suspend fun <T> dispatchAmbientRadioUnderHeldLease(",
-					"private suspend fun reduceAmbientRadioAfterRejectedAuthority(",
+					"private suspend fun <T> reduceAmbientRadioAfterRejectedAuthority(",
 				),
 			)
 			val roomOnlyBrokerSections = listOf(
@@ -2001,10 +2084,22 @@ class ArchitecturalFitnessTest {
 				excludeDirs = STANDARD_EXCLUDES,
 				onlyInDirs = listOf("src/test"),
 			)
+			PLATFORM_LOCATION_BOUNDARY_TESTS.forEach { path ->
+				val source = projectRoot.resolve(path).readText()
+				check("import org.junit.Test" in source &&
+					"import org.junit.runner.RunWith" in source &&
+					"import org.robolectric.RobolectricTestRunner" in source &&
+					Regex("""@RunWith\s*\(\s*RobolectricTestRunner::class\s*\)""").containsMatchIn(source) &&
+					Regex("""@Config\s*\(\s*sdk\s*=\s*\[34]\s*\)""").containsMatchIn(source)) {
+					"$path must exercise the real native boundary using the existing SDK34 Robolectric runner"
+				}
+			}
+
 			// Allow current legacy tests until they migrate to FakeLocationSource.
 			val filtered = violations.filterNot { violation ->
 				val normalizedViolation = violation.replace('\\', '/')
-				LEGACY_TEST_LOCATION_IMPORT_ALLOWLIST.any { allowed -> normalizedViolation.startsWith(allowed) }
+				LEGACY_TEST_LOCATION_IMPORT_ALLOWLIST.any { allowed -> normalizedViolation.startsWith(allowed) } ||
+					PLATFORM_LOCATION_BOUNDARY_TESTS.any { path -> normalizedViolation.startsWith("$path:") }
 			}
 			filtered.shouldBeEmpty()
 		}
@@ -2095,31 +2190,40 @@ class ArchitecturalFitnessTest {
 		fun `accepted operation guard does not permit missing or reordered startup fences`() {
 			val generation = "val generation = trackingStartupGate.currentGeneration"
 			val reconcile = "trackingStartupGate.reconcile()"
-			val acceptedGuard = "trackingStartupGate.withReadyGenerationOperation(generation)"
 			val resolution = "databaseProvider.get()"
-			val valid = "$generation\n$reconcile\n$acceptedGuard { $resolution }"
-			check(providerResolutionIsFenced(valid, valid.indexOf(resolution)))
-			val invalid = listOf(
-				valid.replace(reconcile, ""),
-				valid.replace(generation, ""),
-				valid.replace(acceptedGuard, "run"),
-				"$reconcile\n$generation\n$acceptedGuard { $resolution }",
-				"$generation\n$reconcile\n$resolution\n$acceptedGuard { }",
-				"$resolution\n$generation\n$reconcile\n$acceptedGuard { }",
-			)
-			invalid.forEach { source ->
-				check(!providerResolutionIsFenced(source, source.indexOf(resolution)))
+			listOf(
+				"trackingStartupGate.withReadyGenerationOperation(generation)",
+				"trackingStartupGate.withReadyGenerationTransfer(generation)",
+			).forEach { acceptedGuard ->
+				val valid = "$generation\n$reconcile\n$acceptedGuard { $resolution }"
+				check(providerResolutionIsFenced(valid, valid.indexOf(resolution)))
+				val invalid = listOf(
+					valid.replace(reconcile, ""),
+					valid.replace(generation, ""),
+					valid.replace(acceptedGuard, "run"),
+					"$reconcile\n$generation\n$acceptedGuard { $resolution }",
+					"$generation\n$reconcile\n$resolution\n$acceptedGuard { }",
+					"$resolution\n$generation\n$reconcile\n$acceptedGuard { }",
+				)
+				invalid.forEach { source ->
+					check(!providerResolutionIsFenced(source, source.indexOf(resolution)))
+				}
 			}
 		}
 
 		@Test
 		fun `accepted operation guard does not excuse eager persistence injection`() {
-			val source = """
-				private val database: AppDatabase
-				trackingStartupGate.withReadyGenerationOperation(generation) { database.tripDao() }
-			""".trimIndent()
-			check(readinessGuardIndex(source) >= 0)
-			check(EAGER_COLLECTED_DATA_PROPERTY_PATTERN.containsMatchIn(source))
+			listOf(
+				"trackingStartupGate.withReadyGenerationOperation(generation)",
+				"trackingStartupGate.withReadyGenerationTransfer(generation)",
+			).forEach { acceptedGuard ->
+				val source = """
+					private val database: AppDatabase
+					$acceptedGuard { database.tripDao() }
+				""".trimIndent()
+				check(readinessGuardIndex(source) >= 0)
+				check(EAGER_COLLECTED_DATA_PROPERTY_PATTERN.containsMatchIn(source))
+			}
 		}
 
 		private fun readinessGuardIndex(source: String): Int = listOf(
@@ -2127,6 +2231,7 @@ class ArchitecturalFitnessTest {
 			"isReadyGeneration(",
 			"requireReadyGeneration(",
 			"trackingStartupGate.withReadyGenerationOperation(",
+			"trackingStartupGate.withReadyGenerationTransfer(",
 		).map(source::indexOf).filter { it >= 0 }.minOrNull() ?: -1
 
 		private fun providerResolutionIsFenced(source: String, resolutionIndex: Int): Boolean {
@@ -2223,7 +2328,9 @@ class ArchitecturalFitnessTest {
 		excludeFiles: List<String> = emptyList(),
 		onlyInDirs: List<String> = emptyList(),
 	): List<String> {
-		if (!sourceDir.exists()) return emptyList()
+		if (!sourceDir.exists()) {
+			return emptyList()
+		}
 
 		return sourceDir.walkTopDown()
 			.onEnter { directory ->
@@ -2233,7 +2340,9 @@ class ArchitecturalFitnessTest {
 			.filterNot { file -> file.isInExcludedDirectory(excludeDirs) }
 			.filter { file -> excludeFiles.none { name -> file.name == name } }
 			.filter { file ->
-				if (onlyInDirs.isEmpty()) return@filter true
+				if (onlyInDirs.isEmpty()) {
+					return@filter true
+				}
 				val normalized = file.absolutePath.replace('\\', '/')
 				onlyInDirs.any { dir -> "/$dir/" in normalized }
 			}
@@ -2257,7 +2366,9 @@ class ArchitecturalFitnessTest {
 		excludeFiles: List<String> = emptyList(),
 		skipComments: Boolean = false,
 	): List<String> {
-		if (!sourceDir.exists()) return emptyList()
+		if (!sourceDir.exists()) {
+			return emptyList()
+		}
 
 		return sourceDir.walkTopDown()
 			.onEnter { directory ->
@@ -2269,8 +2380,12 @@ class ArchitecturalFitnessTest {
 			.flatMap { file ->
 				file.readLines()
 					.mapIndexedNotNull { index, line ->
-						if (!pattern.containsMatchIn(line)) return@mapIndexedNotNull null
-						if (skipComments && isCommentLine(line)) return@mapIndexedNotNull null
+						if (!pattern.containsMatchIn(line)) {
+							return@mapIndexedNotNull null
+						}
+						if (skipComments && isCommentLine(line)) {
+							return@mapIndexedNotNull null
+						}
 						"${file.relativeTo(sourceDir)}:${index + 1}: $line"
 					}
 			}
@@ -2306,7 +2421,9 @@ class ArchitecturalFitnessTest {
 		TRACEBOX_LOG_CALL_START_PATTERN.findAll(source).forEach { match ->
 			var cursor = match.range.last + 1
 			while (cursor < source.length && source[cursor].isWhitespace()) cursor++
-			if (cursor >= source.length || source[cursor] != '(') return@forEach
+			if (cursor >= source.length || source[cursor] != '(') {
+				return@forEach
+			}
 			val end = matchingParenthesis(source, cursor) ?: return@forEach
 			yield(source.substring(match.range.first, end + 1))
 		}
@@ -2332,7 +2449,9 @@ class ArchitecturalFitnessTest {
 				'(' -> depth++
 				')' -> {
 					depth--
-					if (depth == 0) return index
+					if (depth == 0) {
+						return index
+					}
 				}
 			}
 		}
@@ -2372,7 +2491,9 @@ class ArchitecturalFitnessTest {
 
 	@Suppress("CyclomaticComplexMethod")
 	private fun splitTopLevelArguments(arguments: String): List<String> {
-		if (arguments.isBlank()) return emptyList()
+		if (arguments.isBlank()) {
+			return emptyList()
+		}
 		val result = mutableListOf<String>()
 		var start = 0
 		var depth = 0
@@ -2406,7 +2527,11 @@ class ArchitecturalFitnessTest {
 		// worktrees contain other branches' source trees that aren't part of the
 		// current branch's compilation unit but otherwise look like real sources
 		// and trip every fitness check.
-		private val STANDARD_EXCLUDES = listOf("build", ".gradle", ".idea", ".git", ".worktrees")
+		private val STANDARD_EXCLUDES = listOf(
+            "build", ".gradle", ".idea", ".git", ".worktrees",
+            // Preserved before/after review packets are not application compilation inputs.
+            "docs/tracking-infrastructure/convergence/2026-10-03",
+        )
 
 		private val COLLECTED_DATA_WORKER_PATHS = setOf(
 			"app/src/main/java/com/adsamcik/tracker/app/maintenance/RetentionPipelineWorker.kt",
@@ -2572,6 +2697,12 @@ class ArchitecturalFitnessTest {
 		// over tech debt; intentionally short to make every entry visible.
 		private val LEGACY_DISPATCHERS_DIRECT_USE_ALLOWLIST = emptyList<String>()
 
+		// These tests deliberately verify native copies and optional-field mutation, which domain fakes cannot model.
+		private val PLATFORM_LOCATION_BOUNDARY_TESTS = setOf(
+			"tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationDeliveryAdmissionTest.kt",
+			"tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SharedUiLocationProviderTest.kt",
+		)
+
 		private val LEGACY_TEST_LOCATION_IMPORT_ALLOWLIST = listOf(
 			"tracker/engine/src/test/java/com/adsamcik/tracker/tracker/altitude/AltitudeProcessorTest.kt:",
 			"tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/data/LocationTrackerComponentTest.kt:",
@@ -2599,7 +2730,9 @@ private fun orderedMarkerViolations(
 	var nextIndex = 0
 	markers.forEach { marker ->
 		val markerIndex = source.indexOf(marker, startIndex = nextIndex)
-		if (markerIndex < 0) return listOf("$contract -> missing or out-of-order marker: $marker")
+		if (markerIndex < 0) {
+			return listOf("$contract -> missing or out-of-order marker: $marker")
+		}
 		nextIndex = markerIndex + marker.length
 	}
 	return emptyList()

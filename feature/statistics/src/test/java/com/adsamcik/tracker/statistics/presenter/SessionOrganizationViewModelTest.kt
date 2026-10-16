@@ -144,9 +144,13 @@ class SessionOrganizationViewModelTest {
 			request.range.organizationSessionId shouldBe session().id
 			when (request.range.sources.single()) {
 				HistorySource.LOCATION -> page(listOf(locationRow()))
-				HistorySource.STEPS -> if (request.after == null) page(emptyList(),
+				HistorySource.STEPS -> if (request.after == null) {
+					page(emptyList(),
 					HistoryContinuation(request.range, HistoryPosition(190, "local", "steps-frontier")))
-					else page(listOf(locationRow().copy(measurement = HistoryMeasurement.Gap(HistorySource.STEPS, "provider gap"))))
+				}
+					else {
+					page(listOf(locationRow().copy(measurement = HistoryMeasurement.Gap(HistorySource.STEPS, "provider gap"))))
+				}
 				HistorySource.WIFI -> HistoryRangeRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
 				else -> page(emptyList())
 			}
@@ -157,10 +161,10 @@ class SessionOrganizationViewModelTest {
 		vm.exportChoices.value?.availableSources shouldBe setOf(HistorySource.LOCATION, HistorySource.STEPS)
 		vm.exportChoices.value?.unavailableSources shouldBe setOf(HistorySource.WIFI)
 		val uri = mockk<android.net.Uri>()
-		coEvery { exporter.export(uri, any()) } returns SessionBundleExportResult.Success()
+		coEvery { exporter.export(uri.toString(), any()) } returns SessionBundleExportResult.Success()
 		vm.prepareExport(setOf(HistorySource.LOCATION)) shouldBe true
 		vm.exportTo(uri); advanceUntilIdle()
-		coVerify(exactly = 1) { exporter.export(uri, match {
+		coVerify(exactly = 1) { exporter.export(uri.toString(), match {
 			it.sessionId == session().id && it.expectedOrganizationRevision == 1L &&
 				it.expectedCollectedDataEpoch == 0L && it.sources == setOf(HistorySource.LOCATION)
 		}) }
@@ -171,7 +175,11 @@ class SessionOrganizationViewModelTest {
 	@Test fun `clear invalidates contents and a prepared file choice before an old result can write`() = runTest(dispatcher) {
 		coEvery { history.readRange(any()) } answers {
 			val request = firstArg<HistoryRangeRequest>()
-			page(if (HistorySource.LOCATION in request.range.sources) listOf(locationRow()) else emptyList())
+			page(if (HistorySource.LOCATION in request.range.sources) {
+				listOf(locationRow())
+			} else {
+				emptyList()
+			})
 		}
 		val vm = SessionOrganizationViewModel(repo, FixedClock(1_000), lifecycle, history, exporter)
 		advanceUntilIdle(); vm.showContents(session()); advanceUntilIdle()

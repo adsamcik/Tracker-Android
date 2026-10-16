@@ -34,6 +34,8 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import org.junit.After
@@ -134,6 +136,8 @@ class RoomSourceCallerAcceptedAuthorityRepositoryTest {
 		repository.load(reference) shouldBe StoredSourceCallerAuthorityLoadResult.Missing
 	}
 
+	// Keep suspended caller sampling and the concurrent bounded Room transaction in one race scenario.
+	@Suppress("LongMethod")
 	@Test
 	fun `concurrent retention Room reconciliation is not blocked by Ambient Steps caller sampling`() =
 		runTest {
@@ -259,8 +263,10 @@ class RoomSourceCallerAcceptedAuthorityRepositoryTest {
 				)
 			}
 			authorityReadStarted.await()
-			withTimeout(1_000L) {
-				database.withTransaction { database.sourceEvidenceStateDao().get() }
+			withContext(Dispatchers.IO) {
+				withTimeout(1_000L) {
+					database.withTransaction { database.sourceEvidenceStateDao().get() }
+				}
 			}
 			allowAuthorityRead.complete(Unit)
 
@@ -323,6 +329,8 @@ class RoomSourceCallerAcceptedAuthorityRepositoryTest {
 		repository.load(active) shouldBe StoredSourceCallerAuthorityLoadResult.Missing
 	}
 
+	// Keep one accepted session through replay, recovery replacement and exact predecessor retirement.
+	@Suppress("LongMethod")
 	@Test
 	fun `real dispatcher separates redelivery recovery and policy reconfiguration authority`() = runTest {
 		val originalManifest = SourceCallerManifestIdentity("logical-recovery", 1L)
@@ -425,7 +433,7 @@ class RoomSourceCallerAcceptedAuthorityRepositoryTest {
 				purpose = SourceBrokerPurpose.SESSION_CAPTURE,
 				consentEpoch = 4L,
 				persistenceEligible = true,
-				qosCode = 0,
+				qosCode = 2,
 			),
 		),
 		sessionMode = SessionMode.MANUAL,

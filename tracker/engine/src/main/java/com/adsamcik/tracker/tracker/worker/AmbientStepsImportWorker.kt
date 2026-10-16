@@ -24,6 +24,10 @@ import javax.inject.Singleton
 class AmbientStepsImportWorkScheduler @Inject constructor(
 	private val workManager: WorkManager,
 ) {
+	/**
+	 * Keeps one hourly import when background access permits it, cancels that schedule otherwise, and
+	 * optionally requests a copy now.
+	 */
 	suspend fun reconcile(backgroundAllowed: Boolean, requestNow: Boolean) {
 		if (backgroundAllowed) {
 			workManager.enqueueUniquePeriodicWork(PERIODIC_WORK, ExistingPeriodicWorkPolicy.KEEP,
@@ -32,15 +36,21 @@ class AmbientStepsImportWorkScheduler @Inject constructor(
 		} else {
 			workManager.cancelUniqueWork(PERIODIC_WORK).await()
 		}
-		if (requestNow) this.requestNow()
+		if (requestNow) {
+			this.requestNow()
+		}
 	}
 
+	/**
+	 * Enqueues one immediate system Steps copy; repeated requests coalesce into the existing pending work.
+	 */
 	suspend fun requestNow() {
 		workManager.enqueueUniqueWork(IMMEDIATE_WORK, ExistingWorkPolicy.KEEP,
 			OneTimeWorkRequestBuilder<AmbientStepsImportWorker>()
 				.setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1, TimeUnit.MINUTES).build()).await()
 	}
 
+	/** Cancels both hourly and immediate Steps import work without altering saved counts. */
 	suspend fun cancel() {
 		workManager.cancelUniqueWork(PERIODIC_WORK).await()
 		workManager.cancelUniqueWork(IMMEDIATE_WORK).await()
@@ -52,6 +62,9 @@ class AmbientStepsImportWorkScheduler @Inject constructor(
 	}
 }
 
+/**
+ * Runs a bounded copy of supported system Steps counts into local storage, with limited transient retries.
+ */
 @HiltWorker
 class AmbientStepsImportWorker @AssistedInject constructor(
 	@Assisted context: Context,
@@ -61,7 +74,11 @@ class AmbientStepsImportWorker @AssistedInject constructor(
 	override suspend fun doWork(): Result = when (runner.run()) {
 		AmbientStepsImportAttemptResult.COMPLETE,
 		AmbientStepsImportAttemptResult.DEFERRED -> Result.success()
-		AmbientStepsImportAttemptResult.RETRY -> if (runAttemptCount < MAX_RETRIES) Result.retry() else Result.success()
+		AmbientStepsImportAttemptResult.RETRY -> if (runAttemptCount < MAX_RETRIES) {
+			Result.retry()
+		} else {
+			Result.success()
+		}
 	}
 
 	private companion object { const val MAX_RETRIES = 2 }

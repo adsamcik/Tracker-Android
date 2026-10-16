@@ -29,84 +29,162 @@ internal class StepsWriterTransitionEngine @Inject constructor(
 			ready to rollout
 		}
 		initial.first?.let { lane ->
-			val owner = state.database.sourceDestinationOwnerDao().get(StepsWriterDestination.SOURCE, StepsWriterDestination.DESTINATION)
+			val owner = state.database.sourceDestinationOwnerDao().get(StepsWriterDestination.SOURCE,
+                StepsWriterDestination.DESTINATION)
 			return StepsWriterTransitionResult.AlreadyApplied(StepsWriterTransitionPhase.ACTIVATE_CANDIDATE,
 				initial.second.revision, requireNotNull(owner).ownerGeneration, lane.captureAdmissionCutoffOrdinal)
 		}
-		var active = state.exactActiveLane()
-		if (active != null && state.executableLaneCatalog.bindingFor(active) == ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1) {
-			if (active.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL) {
-				if (active.captureAdmissionCutoffOrdinal == null) {
-					val begun = beginCandidateRollback(currentRolloutRevision(), updatedAtMs)
-					if (begun !is StepsWriterTransitionResult.Applied && begun !is StepsWriterTransitionResult.AlreadyApplied) return begun
-				}
-				active = state.exactActiveLane()
-				val cutoff = active?.captureAdmissionCutoffOrdinal ?: return StepsWriterTransitionResult.Blocked(
-					StepsWriterTransitionPhase.COMPLETE_CANDIDATE_ROLLBACK, StepsWriterTransitionBlocker.ACTIVE_LANE_CHANGED)
-				if (active?.contiguousAdmissionOrdinal != cutoff) return StepsWriterTransitionResult.Blocked(
-					StepsWriterTransitionPhase.COMPLETE_CANDIDATE_ROLLBACK, StepsWriterTransitionBlocker.ROLLBACK_CURSOR_BEHIND)
-				val completed = completeCandidateRollback(currentRolloutRevision(), cutoff, updatedAtMs)
-				if (completed !is StepsWriterTransitionResult.Applied && completed !is StepsWriterTransitionResult.AlreadyApplied) return completed
-			} else if (active.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW) {
-				var needsDrain = false
-				val retired = boundary.run(StepsWriterTransitionPhase.COMPLETE_CANDIDATE_ROLLBACK) { lease ->
-					state.database.withTransaction {
-						boundary.requireLease(lease); state.requireRunBoundary()
-						var shadow = state.exactActiveLane() ?: blocked(StepsWriterTransitionBlocker.ACTIVE_LANE_CHANGED)
-						if (state.executableLaneCatalog.bindingFor(shadow) != ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1 ||
-							shadow.productStage != SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW)
-							blocked(StepsWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
-						val owner = state.database.sourceDestinationOwnerDao().get(StepsWriterDestination.SOURCE, StepsWriterDestination.DESTINATION)
-						if (owner?.owner != StepsWriterDestination.LEGACY_OWNER) blocked(StepsWriterTransitionBlocker.DESTINATION_OWNER_CONFLICT)
-						val store = RoomTrackingRolloutStateStore(state.database, state.executableLaneCatalog)
-						if (shadow.captureAdmissionCutoffOrdinal == null) shadow = store.beginLaneContainment(
-							ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1, currentRolloutRevision() + 1L, updatedAtMs).lane
-						val cutoff = requireNotNull(shadow.captureAdmissionCutoffOrdinal)
-						if (shadow.contiguousAdmissionOrdinal != cutoff) {
-							needsDrain = true
-							return@withTransaction StepsWriterTransitionResult.Blocked(StepsWriterTransitionPhase.COMPLETE_CANDIDATE_ROLLBACK,
-								StepsWriterTransitionBlocker.SHADOW_CURSOR_BEHIND)
-						}
-						val rollout = store.finishLaneRetirement(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1, cutoff, updatedAtMs)
-						StepsWriterTransitionResult.Applied(StepsWriterTransitionPhase.COMPLETE_CANDIDATE_ROLLBACK,
-							rollout.revision, owner.ownerGeneration, cutoff)
-					}
-				}
-				if (needsDrain) hooks.requestStepsDrain()
-				if (retired !is StepsWriterTransitionResult.Applied && retired !is StepsWriterTransitionResult.AlreadyApplied) return retired
-			} else return StepsWriterTransitionResult.Blocked(StepsWriterTransitionPhase.ACTIVATE_CANDIDATE, StepsWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
-		}
-		active = state.exactActiveLane()
-		if (active == null) {
-			val installed = boundary.run(StepsWriterTransitionPhase.ACTIVATE_CANDIDATE) { lease ->
-				state.database.withTransaction {
-					boundary.requireLease(lease); state.requireRunBoundary()
-					val rollout = state.database.trackingRolloutStateDao().get()?.decodeCurrentModelOrNull()
-						?: blocked(StepsWriterTransitionBlocker.ROLLOUT_MISSING_OR_UNREADABLE)
-					state.requireContainedSteps(rollout)
-					val owner = state.database.sourceDestinationOwnerDao().get(StepsWriterDestination.SOURCE, StepsWriterDestination.DESTINATION)
-						?: blocked(StepsWriterTransitionBlocker.DESTINATION_OWNER_MISSING)
-					if (owner.owner != StepsWriterDestination.LEGACY_OWNER) blocked(StepsWriterTransitionBlocker.DESTINATION_OWNER_CONFLICT)
-					val latest = state.database.sourceProjectionStateDao().latestProductLane(StepsWriterDestination.SOURCE)
-					val store = RoomTrackingRolloutStateStore(state.database, state.executableLaneCatalog)
-					if (latest == null) store.installInertShadowLane(desired, currentRolloutRevision() + 1L, updatedAtMs)
-					else {
-						if (state.executableLaneCatalog.bindingFor(latest) != ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1 ||
-							latest.status != SourceProductProjectionLaneEntity.STATUS_RETIRED || latest.retentionRequired ||
-							latest.terminalDisposition != SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN ||
-							latest.terminalAtMs == null || latest.captureAdmissionCutoffOrdinal == null ||
-							latest.contiguousAdmissionOrdinal != latest.captureAdmissionCutoffOrdinal)
-							blocked(StepsWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
-						store.rearmInertShadowLane(desired, currentRolloutRevision() + 1L, updatedAtMs)
-					}
-					StepsWriterTransitionResult.Applied(StepsWriterTransitionPhase.ACTIVATE_CANDIDATE, currentRolloutRevision(), owner.ownerGeneration, null)
-				}
+		settleOriginalForPreferredWriter(state.exactActiveLane(), updatedAtMs)?.let { retired ->
+			if (retired !is StepsWriterTransitionResult.Applied &&
+				retired !is StepsWriterTransitionResult.AlreadyApplied) {
+				return retired
 			}
-			if (installed !is StepsWriterTransitionResult.Applied && installed !is StepsWriterTransitionResult.AlreadyApplied) return installed
+		}
+		return installAndActivatePreferredWriter(state.exactActiveLane(), desired, updatedAtMs)
+	}
+
+	private suspend fun settleOriginalForPreferredWriter(
+		active: SourceProductProjectionLaneEntity?,
+		updatedAtMs: Long,
+	): StepsWriterTransitionResult? {
+		if (active != null &&
+			state.executableLaneCatalog.bindingFor(active) == ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1) {
+			return if (active.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL) {
+				retireOriginalCanonicalWriter(active, updatedAtMs)
+			} else if (active.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW) {
+				retireOriginalShadowWriter(updatedAtMs)
+			} else {
+				return StepsWriterTransitionResult.Blocked(StepsWriterTransitionPhase.ACTIVATE_CANDIDATE,
+                    StepsWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
+			}
+		}
+		return null
+	}
+
+	private suspend fun retireOriginalCanonicalWriter(
+		original: SourceProductProjectionLaneEntity,
+		updatedAtMs: Long,
+	): StepsWriterTransitionResult {
+		if (original.captureAdmissionCutoffOrdinal == null) {
+			val begun = beginCandidateRollback(currentRolloutRevision(), updatedAtMs)
+			if (begun !is StepsWriterTransitionResult.Applied &&
+                begun !is StepsWriterTransitionResult.AlreadyApplied) {
+				return begun
+			}
+		}
+		val active = state.exactActiveLane()
+		val cutoff = active?.captureAdmissionCutoffOrdinal ?: return StepsWriterTransitionResult.Blocked(
+			StepsWriterTransitionPhase.COMPLETE_CANDIDATE_ROLLBACK,
+                StepsWriterTransitionBlocker.ACTIVE_LANE_CHANGED)
+		if (active?.contiguousAdmissionOrdinal != cutoff) {
+			return StepsWriterTransitionResult.Blocked(
+			StepsWriterTransitionPhase.COMPLETE_CANDIDATE_ROLLBACK,
+                StepsWriterTransitionBlocker.ROLLBACK_CURSOR_BEHIND)
+		}
+		return completeCandidateRollback(currentRolloutRevision(), cutoff, updatedAtMs)
+	}
+
+	private suspend fun retireOriginalShadowWriter(updatedAtMs: Long): StepsWriterTransitionResult {
+		var needsDrain = false
+		val retired = boundary.run(StepsWriterTransitionPhase.COMPLETE_CANDIDATE_ROLLBACK) { lease ->
+			state.database.withTransaction {
+				boundary.requireLease(lease); state.requireRunBoundary()
+				var shadow = state.exactActiveLane() ?:
+                    blocked(StepsWriterTransitionBlocker.ACTIVE_LANE_CHANGED)
+				if (state.executableLaneCatalog.bindingFor(shadow) != ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1 ||
+					shadow.productStage != SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW)
+					{
+					blocked(StepsWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
+				}
+				val owner = state.database.sourceDestinationOwnerDao().get(StepsWriterDestination.SOURCE,
+                    StepsWriterDestination.DESTINATION)
+				if (owner?.owner != StepsWriterDestination.LEGACY_OWNER) {
+					blocked(StepsWriterTransitionBlocker.DESTINATION_OWNER_CONFLICT)
+				}
+				val store = RoomTrackingRolloutStateStore(state.database, state.executableLaneCatalog)
+				if (shadow.captureAdmissionCutoffOrdinal == null) {
+					shadow = store.beginLaneContainment(
+					ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1, currentRolloutRevision() + 1L,
+                        updatedAtMs).lane
+				}
+				val cutoff = requireNotNull(shadow.captureAdmissionCutoffOrdinal)
+				if (shadow.contiguousAdmissionOrdinal != cutoff) {
+					needsDrain = true
+					return@withTransaction StepsWriterTransitionResult.Blocked(
+						StepsWriterTransitionPhase.COMPLETE_CANDIDATE_ROLLBACK,
+						StepsWriterTransitionBlocker.SHADOW_CURSOR_BEHIND,
+					)
+				}
+				val rollout = store.finishLaneRetirement(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1,
+                    cutoff,
+                    updatedAtMs)
+				StepsWriterTransitionResult.Applied(StepsWriterTransitionPhase.COMPLETE_CANDIDATE_ROLLBACK,
+					rollout.revision, owner.ownerGeneration, cutoff)
+			}
+		}
+		if (needsDrain) {
+			hooks.requestStepsDrain()
+		}
+		return retired
+	}
+
+	private suspend fun installAndActivatePreferredWriter(
+		active: SourceProductProjectionLaneEntity?,
+		desired: ExecutableSourceLaneBinding,
+		updatedAtMs: Long,
+	): StepsWriterTransitionResult {
+		if (active == null) {
+			val installed = installPreferredShadow(desired, updatedAtMs)
+			if (installed !is StepsWriterTransitionResult.Applied &&
+                installed !is StepsWriterTransitionResult.AlreadyApplied) {
+				return installed
+			}
 		} else if (state.executableLaneCatalog.bindingFor(active) != desired ||
-			active.productStage != SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW) return StepsWriterTransitionResult.Blocked(
+			active.productStage != SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW) {
+			return StepsWriterTransitionResult.Blocked(
 				StepsWriterTransitionPhase.ACTIVATE_CANDIDATE, StepsWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
+		}
 		return activateCandidate(currentRolloutRevision(), updatedAtMs)
+	}
+
+	private suspend fun installPreferredShadow(
+		desired: ExecutableSourceLaneBinding,
+		updatedAtMs: Long,
+	): StepsWriterTransitionResult = boundary.run(StepsWriterTransitionPhase.ACTIVATE_CANDIDATE) { lease ->
+		state.database.withTransaction {
+			boundary.requireLease(lease); state.requireRunBoundary()
+			val rollout = state.database.trackingRolloutStateDao().get()?.decodeCurrentModelOrNull()
+				?: blocked(StepsWriterTransitionBlocker.ROLLOUT_MISSING_OR_UNREADABLE)
+			state.requireContainedSteps(rollout)
+			val owner = state.database.sourceDestinationOwnerDao().get(
+				StepsWriterDestination.SOURCE, StepsWriterDestination.DESTINATION,
+			) ?: blocked(StepsWriterTransitionBlocker.DESTINATION_OWNER_MISSING)
+			if (owner.owner != StepsWriterDestination.LEGACY_OWNER) {
+				blocked(StepsWriterTransitionBlocker.DESTINATION_OWNER_CONFLICT)
+			}
+			val latest = state.database.sourceProjectionStateDao().latestProductLane(StepsWriterDestination.SOURCE)
+			val store = RoomTrackingRolloutStateStore(state.database, state.executableLaneCatalog)
+			if (latest == null) {
+				store.installInertShadowLane(desired, currentRolloutRevision() + 1L, updatedAtMs)
+			} else {
+				requireRetiredOriginal(latest)
+				store.rearmInertShadowLane(desired, currentRolloutRevision() + 1L, updatedAtMs)
+			}
+			StepsWriterTransitionResult.Applied(StepsWriterTransitionPhase.ACTIVATE_CANDIDATE,
+				currentRolloutRevision(), owner.ownerGeneration, null)
+		}
+	}
+
+	private fun requireRetiredOriginal(latest: SourceProductProjectionLaneEntity) {
+		if (state.executableLaneCatalog.bindingFor(latest) != ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1 ||
+			latest.status != SourceProductProjectionLaneEntity.STATUS_RETIRED || latest.retentionRequired ||
+			latest.terminalDisposition != SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN) {
+			blocked(StepsWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
+		}
+		if (latest.terminalAtMs == null || latest.captureAdmissionCutoffOrdinal == null ||
+			latest.contiguousAdmissionOrdinal != latest.captureAdmissionCutoffOrdinal) {
+			blocked(StepsWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
+		}
 	}
 
 	private suspend fun currentRolloutRevision(): Long = state.database.trackingRolloutStateDao().get()?.revision

@@ -322,6 +322,9 @@ class RoomStepsCountDomainCompatibilityQueryRoomTest {
 			)
 		}
 
+	// Keep one count-domain fixture with its matching receipt, owner row, optional completeness marker and
+	// public reference together.
+	@Suppress("LongMethod")
 	private fun insertEvidence(
 		kind: StepsCountDomainOwnerKind,
 		identityDigit: Char,
@@ -419,6 +422,9 @@ class RoomStepsCountDomainCompatibilityQueryRoomTest {
 		)
 	}
 
+	// Keep one imported Steps day and its exact count-domain graph, receipt, archive import and resulting
+	// owner reference together.
+	@Suppress("LongMethod")
 	private suspend fun insertImportedAmbientEvidence(
 		identityDigit: Char,
 		tokenDigit: Char,

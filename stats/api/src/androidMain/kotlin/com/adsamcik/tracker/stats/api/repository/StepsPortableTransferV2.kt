@@ -2,11 +2,19 @@ package com.adsamcik.tracker.stats.api.repository
 
 /** Complete v2 archive sink reached only after source evidence and graph authentication. */
 fun interface PortableStepsArchiveV2Sink {
+	/**
+	 * Accepts the complete v2 Steps archive with its original count-domain graph after source
+	 * snapshot preparation.
+	 */
 	suspend fun emit(archive: PortableStepsArchiveV2)
 }
 
 /** Read-only authenticated export; it cannot acquire a provider or create session authority. */
 interface ExportPortableStepsV2 {
+	/**
+	 * Prepares a bounded v2 Steps archive from the requested saved range and emits only a complete
+	 * verified snapshot; cancellation propagates.
+	 */
 	suspend fun export(
 		request: ExportPortableStepsRequest,
 		sink: PortableStepsArchiveV2Sink,
@@ -58,6 +66,10 @@ data class PortableStepsImportMetadataV2(
 	}
 }
 
+/**
+ * One archive entry and ordinal with matching decoder checksum metadata, file provenance and the
+ * original job data epoch.
+ */
 data class ImportPortableStepsV2Request(
 	val archiveContentChecksum: PortableStepsDigest,
 	val entryOrdinal: Int,
@@ -76,11 +88,19 @@ data class ImportPortableStepsV2Request(
 
 /** Atomic v2 product-and-graph admission into imported-origin storage only. */
 interface ImportPortableStepsV2 {
+	/**
+	 * Admits the selected v2 archive entry and graph atomically, preserving original file provenance
+	 * and rechecking the job data epoch.
+	 */
 	suspend fun importEntry(request: ImportPortableStepsV2Request): ImportPortableStepsResult
 }
 
 /** Legacy v1 file admission with durable provenance and an explicitly UNPROVEN graph. */
 interface ImportPortableStepsV1WithReceipt {
+	/**
+	 * Admits a legacy v1 entry with its file receipt/ordinal and expected data epoch, retaining an
+	 * explicitly unproven count-domain graph.
+	 */
 	suspend fun importEntry(
 		entry: PortableStepsEntryV1,
 		receipt: PortableStepsImportReceipt,
