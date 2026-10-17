@@ -185,9 +185,11 @@ class PostDeletionRecoveryWorker @AssistedInject constructor(
 					.resumeAfterCollectedDataDeletion()
 			},
 			reconcileAutomaticControl = {
-				BackgroundTrackingApi.reconcileAutomaticControlDemandAfterStartup(
-					applicationContext,
-				)
+				startupGate.withReadyGenerationWork(startupGeneration) {
+					BackgroundTrackingApi.reconcileAutomaticControlDemandAfterStartup(
+						applicationContext,
+					)
+				} ?: AutomaticControlRecoveryResult.RETRYABLE
 			},
 		)
 	} catch (cancelled: CancellationException) {
@@ -259,8 +261,8 @@ internal suspend fun runPostDeletionRecovery(
 	reconcileStartup: suspend () -> TrackingStartupResult,
 	withReadyGenerationOperation: suspend (
 		Long,
-		suspend () -> AutomaticControlRecoveryResult?,
-	) -> AutomaticControlRecoveryResult? =
+		suspend () -> Unit?,
+	) -> Unit? =
 		{ _, operation -> operation() },
 	reconcileSourcePolicyGeneration: (suspend (
 		Long,
@@ -293,7 +295,7 @@ internal suspend fun runPostDeletionRecovery(
 	// work/update scheduling and consumes its restore flags on the first resume; the Activity arbiter
 	// mutex reconciles the same durable desired state without replacing an identical registration.
 	var stepsDebt = false
-	val controlRecovery = try {
+	try {
 		withReadyGenerationOperation(startupGeneration) {
 			if (currentEpoch() != expectedEpoch || isDeletionClosed() ||
 				!isStartupReady() || currentStartupGeneration() != startupGeneration
@@ -307,7 +309,7 @@ internal suspend fun runPostDeletionRecovery(
 				// This reopens process-local deletion latches used by captured Activity as well as
 				// optional automatic control. Failure therefore retains durable retry ownership.
 				resumeActivityArbiter()
-				runOptionalControlRecovery(reconcileAutomaticControl)
+				Unit
 			}
 		}
 	} catch (cancelled: CancellationException) {
@@ -317,10 +319,15 @@ internal suspend fun runPostDeletionRecovery(
 	} catch (_: Exception) {
 		return PostDeletionRecoveryOutcome.DURABLE_RETRY
 	} ?: return PostDeletionRecoveryOutcome.DURABLE_RETRY
-
-	// Deletion closure waits for the protected handoff above; if it wins after the handoff it owns
-	// the matching quiesce/removal. Optional control containment is terminal while explicitly
-	// transient failures retain retry work.
+	// Automatic recovery awaits another coroutine's Ready operation. Its cancellation/epoch
+	// scope remains tracked, but the short writer-reopen operation must release its lock first.
+	// Deletion closure owns the matching quiesce/removal if it wins after the protected handoff.
+	if (currentEpoch() != expectedEpoch || isDeletionClosed() ||
+		!isStartupReady() || currentStartupGeneration() != startupGeneration
+	) {
+		return PostDeletionRecoveryOutcome.DURABLE_RETRY
+	}
+	val controlRecovery = runOptionalControlRecovery(reconcileAutomaticControl)
 	if (currentEpoch() != expectedEpoch || isDeletionClosed() ||
 		!isStartupReady() || currentStartupGeneration() != startupGeneration
 	) {

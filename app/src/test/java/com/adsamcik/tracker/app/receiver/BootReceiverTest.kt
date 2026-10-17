@@ -9,7 +9,9 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryResult
+import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationDebt
@@ -21,6 +23,7 @@ import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
 import dagger.hilt.android.EntryPointAccessors
 import io.kotest.matchers.shouldBe
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -29,6 +32,9 @@ import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
@@ -243,7 +249,7 @@ class BootReceiverTest {
 					durableWrites++
 					AutomaticControlRecoveryResult.ACCEPTED
 				},
-				withReadyGenerationOperation = { expectedGeneration, operation ->
+				withReadyGenerationWork = { expectedGeneration, operation ->
 					if (!ready || generation != expectedGeneration) {
 						null
 					} else {
@@ -414,6 +420,43 @@ class BootReceiverTest {
 		worker(30).doWork() shouldBe ListenableWorker.Result.retry()
 	}
 
+	@Test
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	fun `boot worker lets asynchronous automatic recovery acquire Ready authority`() = runTest {
+		val gate = BootRecoveryReadyGate()
+		mockkObject(BackgroundTrackingApi)
+		coEvery {
+			BackgroundTrackingApi.reconcileAutomaticControlDemandAfterStartup(any())
+		} coAnswers {
+			backgroundScope.async {
+				gate.withReadyGenerationOperation(gate.currentGeneration) {
+					AutomaticControlRecoveryResult.ACCEPTED
+				}
+			}.await() ?: AutomaticControlRecoveryResult.RETRYABLE
+		}
+
+		val recovery = backgroundScope.async { readyBootWorker(gate).doWork() }
+		runCurrent()
+
+		recovery.isCompleted shouldBe true
+		recovery.await() shouldBe ListenableWorker.Result.success()
+	}
+
+	private fun readyBootWorker(gate: TrackingStartupGate): BootTrackingRecoveryWorker =
+		BootTrackingRecoveryWorker(
+			appContext = mockk(relaxed = true),
+			params = mockk(relaxed = true),
+			trackingStartupGate = gate,
+			trackingStartupGuard = mockk(relaxed = true),
+			lockManager = mockk(relaxed = true),
+			sourcePipelineRecovery = mockk {
+				coEvery { drainActivityAutomationEffects() } returns ActivityAutomationDrainResult.Complete(0, 0)
+			},
+			purposeSettingsReconciler = TrackingPurposeSettingsReconciler {
+				TrackingPurposeSettingsReconciliationResult.Complete(emptySet())
+			},
+		)
+
 	private fun configuredContext(scheduler: BootTrackingRecoveryScheduler): Context {
 		val context = mockk<Context>()
 		val entryPoint = mockk<BootReceiver.BootReceiverEntryPoint>()
@@ -427,5 +470,34 @@ class BootReceiverTest {
 			)
 		} returns entryPoint
 		return context
+	}
+}
+
+/** Ready work permits another coroutine to enter the exclusive preparation boundary. */
+private class BootRecoveryReadyGate : TrackingStartupGate {
+	private val operationMutex = Mutex()
+	override val isReady = true
+	override val currentGeneration = 3L
+	override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+		TrackingStartupResult.Ready(false, 0L)
+
+	override suspend fun <T> withReadyGenerationOperation(
+		expectedGeneration: Long,
+		operation: suspend () -> T,
+	): T? = operationMutex.withLock {
+		if (expectedGeneration == currentGeneration) {
+			operation()
+		} else {
+			null
+		}
+	}
+
+	override suspend fun <T> withReadyGenerationWork(
+		expectedGeneration: Long,
+		operation: suspend () -> T,
+	): T? = if (expectedGeneration == currentGeneration) {
+		operation()
+	} else {
+		null
 	}
 }

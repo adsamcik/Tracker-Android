@@ -202,7 +202,9 @@ class AuthoritativeTrackingParamsRepository(
 			SourcePolicyMutation(effective.revision, reconciliation)
 		}
 		if (mutation.reconciliation is SourcePolicyRevisionReconciliationResult.Complete) {
-			data.first { state -> state.sourcePolicyRevision == mutation.revision }
+			// Room/Flow may conflate this revision with a newer accepted policy while its mirror
+			// is committing. A superseded revision must not leave an already-saved edit waiting.
+			data.first { state -> state.sourcePolicyRevision?.let { it >= mutation.revision } == true }
 		}
 	}
 
@@ -338,7 +340,7 @@ class AuthoritativeTrackingParamsRepository(
 			SourcePolicyMutation(effective.revision, reconciliation)
 		}
 		if (mutation.reconciliation is SourcePolicyRevisionReconciliationResult.Complete) {
-			data.first { state -> state.sourcePolicyRevision == mutation.revision }
+			data.first { state -> state.sourcePolicyRevision?.let { it >= mutation.revision } == true }
 		}
 	}
 

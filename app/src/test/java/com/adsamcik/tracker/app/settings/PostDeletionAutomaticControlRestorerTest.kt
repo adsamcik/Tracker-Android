@@ -27,6 +27,9 @@ import io.mockk.unmockkObject
 import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import javax.inject.Provider
@@ -549,11 +552,14 @@ class PostDeletionAutomaticControlRestorerTest {
 			every { startupGate.isReady } returns true
 			coEvery { startupGate.reconcile() } returns TrackingStartupResult.Ready(false, 0L)
 			coEvery {
-				startupGate.withReadyGenerationOperation<AutomaticControlRecoveryResult?>(
+				startupGate.withReadyGenerationOperation<Unit?>(
 					2L,
 					any(),
 				)
-			} coAnswers { secondArg<suspend () -> AutomaticControlRecoveryResult?>().invoke() }
+			} coAnswers { secondArg<suspend () -> Unit?>().invoke() }
+			coEvery {
+				startupGate.withReadyGenerationWork<AutomaticControlRecoveryResult>(2L, any())
+			} coAnswers { secondArg<suspend () -> AutomaticControlRecoveryResult>().invoke() }
 			val arbiter = mockk<ActivityRegistrationArbiter>(relaxed = true)
 
 			val worker = PostDeletionRecoveryWorker(
@@ -591,11 +597,11 @@ class PostDeletionAutomaticControlRestorerTest {
 		every { startupGate.isReady } returns true
 		coEvery { startupGate.reconcile() } returns TrackingStartupResult.Ready(false, 0L)
 		coEvery {
-			startupGate.withReadyGenerationOperation<AutomaticControlRecoveryResult?>(
+			startupGate.withReadyGenerationOperation<Unit?>(
 				2L,
 				any(),
 			)
-		} coAnswers { secondArg<suspend () -> AutomaticControlRecoveryResult?>().invoke() }
+		} coAnswers { secondArg<suspend () -> Unit?>().invoke() }
 		val writerQuiescer = mockk<CollectedDataWriterQuiescer>(relaxed = true)
 		val arbiter = mockk<ActivityRegistrationArbiter>()
 		coEvery { arbiter.resumeAfterCollectedDataDeletion() } throws
@@ -621,6 +627,51 @@ class PostDeletionAutomaticControlRestorerTest {
 		worker.doWork() shouldBe ListenableWorker.Result.retry()
 		verify(exactly = 1) { writerQuiescer.resume() }
 	}
+
+	@Test
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	fun `post deletion worker releases exclusive Ready before asynchronous control recovery`() = runTest {
+		val gate = PostDeletionRecoveryReadyGate()
+		mockkObject(BackgroundTrackingApi)
+		try {
+			coEvery {
+				BackgroundTrackingApi.reconcileAutomaticControlDemandAfterStartup(any())
+			} coAnswers {
+				backgroundScope.async {
+					gate.withReadyGenerationOperation(gate.currentGeneration) {
+						AutomaticControlRecoveryResult.ACCEPTED
+					}
+				}.await() ?: AutomaticControlRecoveryResult.RETRYABLE
+			}
+
+			val recovery = backgroundScope.async { readyPostDeletionWorker(gate).doWork() }
+			runCurrent()
+
+			recovery.isCompleted shouldBe true
+			recovery.await() shouldBe ListenableWorker.Result.success()
+		} finally {
+			unmockkObject(BackgroundTrackingApi)
+		}
+	}
+
+	private fun readyPostDeletionWorker(gate: PostDeletionRecoveryReadyGate): PostDeletionRecoveryWorker {
+		val lifecycleStore = mockk<CollectedDataLifecycleStore>()
+		coEvery { lifecycleStore.snapshot() } returns CollectedDataLifecycleSnapshot(8L, null)
+		val writers = mockk<CollectedDataWriterQuiescer>()
+		every { writers.resume() } answers { gate.operationIsLocked shouldBe true }
+		return PostDeletionRecoveryWorker(
+			appContext = mockk(relaxed = true),
+			params = mockk(relaxed = true) {
+				every { inputData } returns workDataOf(PostDeletionRecoveryWorker.COLLECTED_DATA_EPOCH_KEY to 8L)
+			},
+			startupGate = gate,
+			deletionBarrier = mockk { every { isClosed } returns false },
+			lifecycleStore = lifecycleStore,
+			writerQuiescer = writers,
+			activityRegistrationArbiterProvider = Provider { mockk<ActivityRegistrationArbiter>(relaxed = true) },
+			automaticControlRestorer = mockk(relaxed = true),
+		)
+	}
 }
 
 private class LatchingReadyGenerationOperation {
@@ -629,10 +680,40 @@ private class LatchingReadyGenerationOperation {
 
 	suspend fun run(
 		@Suppress("UNUSED_PARAMETER") expectedGeneration: Long,
-		operation: suspend () -> AutomaticControlRecoveryResult?,
-	): AutomaticControlRecoveryResult? {
+		operation: suspend () -> Unit?,
+	): Unit? {
 		requested.complete(Unit)
 		allowEntry.await()
 		return operation()
+	}
+}
+
+/** Models exclusive preparation separately from work that awaits another coroutine's preparation. */
+private class PostDeletionRecoveryReadyGate : TrackingStartupGate {
+	private val operationMutex = Mutex()
+	val operationIsLocked: Boolean get() = operationMutex.isLocked
+	override val isReady = true
+	override val currentGeneration = 2L
+	override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+		TrackingStartupResult.Ready(false, 0L)
+
+	override suspend fun <T> withReadyGenerationOperation(
+		expectedGeneration: Long,
+		operation: suspend () -> T,
+	): T? = operationMutex.withLock {
+		if (expectedGeneration == currentGeneration) {
+			operation()
+		} else {
+			null
+		}
+	}
+
+	override suspend fun <T> withReadyGenerationWork(
+		expectedGeneration: Long,
+		operation: suspend () -> T,
+	): T? = if (expectedGeneration == currentGeneration) {
+		operation()
+	} else {
+		null
 	}
 }

@@ -21,6 +21,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
@@ -509,6 +510,89 @@ class AuthoritativeTrackingParamsRepositoryTest {
 	}
 
 	@Test
+	fun `settings save completes when a newer policy supersedes its replay during mirror commit`() =
+		assertSupersededSaveCompletes(ambient = false)
+
+	@Test
+	fun `all-day setting save completes when a newer policy supersedes its replay during mirror commit`() =
+		assertSupersededSaveCompletes(ambient = true)
+
+	private fun assertSupersededSaveCompletes(ambient: Boolean) = runTest {
+		val context = ApplicationProvider.getApplicationContext<Application>()
+		val isolatedDatabase = AppDatabase.inMemoryBuilder(context).allowMainThreadQueries().build()
+		val isolatedScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+		try {
+			val initial = TrackingParamsState(
+				stepsEnabled = false,
+				sourceCollectionSettings = SourceCollectionSettings(steps = SourceCollectionFrequency.OFF),
+				legacySettingsMigrationCompleted = true,
+			)
+			val savedLegacy = FakeTrackingParamsRepository(initial)
+			val blockingLegacy = BlockingUpdateTrackingParamsRepository(savedLegacy)
+			val roomPolicy = RoomSourcePolicyRepository(isolatedDatabase) {
+				SourcePolicyEffectiveTime("save-boot", 10L, 20L)
+			}
+			val delayedPolicy = DelayedPolicyObservation(roomPolicy, expectedRevision = 3L)
+			val isolated = AuthoritativeTrackingParamsRepository(
+				blockingLegacy, delayedPolicy, isolatedScope, startupGate,
+				RecordingRetentionAuthorityProducer { false }, TestNoOpAmbientStepsPolicyRevisionReconciler,
+			)
+			isolated.data.first { it.sourcePolicyRevision == 1L }
+			delayedPolicy.pause()
+
+			val save = async {
+				if (ambient) {
+					isolated.setAmbientWifiEnabled(true)
+				} else {
+					isolated.setWifiEnabled(true)
+				}
+			}
+			blockingLegacy.updateEntered.await()
+			val committed = (roomPolicy.currentState() as SourcePolicyAuthorityState.Active).snapshot
+			committed.revision shouldBe 2L
+			committed[TrackingSourceComponent.WIFI].enabled shouldBe !ambient
+			(committed[TrackingSourceComponent.WIFI].ambientConsentEpoch != null) shouldBe ambient
+
+			roomPolicy.replaceCaptureSettings(
+				expectedPolicyRevision = committed.revision,
+				settings = wifiAndCellSettings(initial, ambientWifi = ambient),
+				reason = "Concurrent source selection",
+			)
+			delayedPolicy.expectedRevisionObserved.await()
+			delayedPolicy.resume()
+			blockingLegacy.releaseUpdate.complete(Unit)
+
+			val latest = isolated.data.first { it.sourcePolicyRevision == 3L }
+			runCurrent()
+			latest.locationEnabled.shouldBeTrue()
+			latest.wifiEnabled shouldBe !ambient
+			latest.ambientWifiEnabled shouldBe ambient
+			latest.cellEnabled.shouldBeTrue()
+			latest.stepsEnabled.shouldBeFalse()
+			save.isCompleted.shouldBeTrue()
+			save.await()
+		} finally {
+			isolatedScope.cancel()
+			isolatedDatabase.close()
+		}
+	}
+
+	private fun wifiAndCellSettings(initial: TrackingParamsState, ambientWifi: Boolean): TrackingParamsState =
+		initial.copy(
+			wifiEnabled = !ambientWifi,
+			ambientWifiEnabled = ambientWifi,
+			cellEnabled = true,
+			sourceCollectionSettings = initial.sourceCollectionSettings.copy(
+				wifi = if (ambientWifi) {
+					SourceCollectionFrequency.OFF
+				} else {
+					SourceCollectionFrequency.BALANCED
+				},
+				cell = SourceCollectionFrequency.BALANCED,
+			),
+		)
+
+	@Test
 	fun `upstream failure replaces an enabled replay with fail closed state`() = runTest {
 		repository.data.first { it.sourcePolicyRevision == 1L }
 		val failingLegacy = OneShotFailingTrackingParamsRepository(legacy)
@@ -864,6 +948,30 @@ private class BlockingUpdateTrackingParamsRepository(
 		releaseUpdate.await()
 		delegate.update(block)
 	}
+}
+
+/** Delays observation, allowing a superseded Room revision to be conflated before delivery. */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+private class DelayedPolicyObservation(
+	delegate: SourcePolicyRepository,
+	expectedRevision: Long,
+) : SourcePolicyRepository by delegate {
+	val expectedRevisionObserved = CompletableDeferred<Unit>()
+	private val resumeObservation = CompletableDeferred<Unit>()
+	@Volatile private var paused = false
+
+	override val states = delegate.states.transformLatest { authority ->
+		if (paused) {
+			if ((authority as? SourcePolicyAuthorityState.Active)?.snapshot?.revision == expectedRevision) {
+				expectedRevisionObserved.complete(Unit)
+			}
+			resumeObservation.await()
+		}
+		emit(authority)
+	}
+
+	fun pause() { paused = true }
+	fun resume() { resumeObservation.complete(Unit) }
 }
 
 private class OneShotFailingTrackingParamsRepository(

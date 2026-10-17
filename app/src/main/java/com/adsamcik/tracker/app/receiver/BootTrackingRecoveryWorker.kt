@@ -54,8 +54,8 @@ class BootTrackingRecoveryWorker @AssistedInject constructor(
 					)
 				},
 				reconcileCurrentPurposes = purposeSettingsReconciler::reconcileCurrentSettings,
-				withReadyGenerationOperation = { generation, operation ->
-					trackingStartupGate.withReadyGenerationOperation(generation, operation)
+				withReadyGenerationWork = { generation, operation ->
+					trackingStartupGate.withReadyGenerationWork(generation, operation)
 				},
 				drainActivityAutomationEffects =
 					sourcePipelineRecovery::drainActivityAutomationEffects,
@@ -103,7 +103,7 @@ internal suspend fun runBootTrackingRecovery(
 	reconcileCurrentPurposes: suspend () -> TrackingPurposeSettingsReconciliationResult = {
 		TrackingPurposeSettingsReconciliationResult.Complete(emptySet())
 	},
-	withReadyGenerationOperation: suspend (
+	withReadyGenerationWork: suspend (
 		expectedGeneration: Long,
 		operation: suspend () -> AutomaticControlRecoveryResult?,
 	) -> AutomaticControlRecoveryResult? = { _, operation -> operation() },
@@ -140,9 +140,11 @@ internal suspend fun runBootTrackingRecovery(
 		return BootTrackingRecoveryOutcome.COMPLETE
 	}
 	val control = try {
-		withReadyGenerationOperation(startupGeneration) {
+		// Recovery awaits app-scoped jobs that acquire Ready themselves. Keep deletion-aware
+		// cancellation without holding the exclusive startup/Stop operation across that wait.
+		withReadyGenerationWork(startupGeneration) {
 			if (!isReady() || currentGeneration() != startupGeneration || isSuppressed()) {
-				return@withReadyGenerationOperation null
+				return@withReadyGenerationWork null
 			}
 			try {
 				rearmAutomaticControl()
