@@ -33,6 +33,7 @@ import com.adsamcik.tracker.shared.model.Location
 internal fun SessionPathPreview(
 	points: List<Location>,
 	modifier: Modifier = Modifier,
+	sectionStartIndices: Set<Int> = emptySet(),
 ) {
 	val primaryColor = MaterialTheme.colorScheme.primary
 	val startColor = MaterialTheme.colorScheme.tertiary
@@ -41,7 +42,7 @@ internal fun SessionPathPreview(
 
 	val pathProgress = remember { Animatable(0f) }
 
-	LaunchedEffect(points) {
+	LaunchedEffect(points, sectionStartIndices) {
 		pathProgress.snapTo(0f)
 		pathProgress.animateTo(
 			targetValue = 1f,
@@ -64,7 +65,7 @@ internal fun SessionPathPreview(
 
 		val path = Path()
 		screenPoints.take(pointsToDraw).forEachIndexed { index, offset ->
-			if (index == 0) {
+			if (index == 0 || index in sectionStartIndices) {
 				path.moveTo(offset.x, offset.y)
 			} else {
 				path.lineTo(offset.x, offset.y)
@@ -135,7 +136,9 @@ internal fun sessionPreviewScreenPoints(points: List<Location>, width: Float, he
 	}
 	val latRange = maxLat - minLat
 	val lonRange = maxLon - minLon
-	if (latRange == 0.0 && lonRange == 0.0) return emptyList()
+	if (latRange == 0.0 && lonRange == 0.0) {
+		return points.map { Offset(width / 2f, height / 2f) }
+	}
 	val latPadding = if (latRange == 0.0) 0.001 else latRange * 0.1
 	val lonPadding = if (lonRange == 0.0) 0.001 else lonRange * 0.1
 	val drawMinLat = minLat - latPadding

@@ -2,6 +2,7 @@ package com.adsamcik.tracker.dashboard.ui.compose
 
 import com.adsamcik.tracker.tracker.controller.hasLiveCapture
 import com.adsamcik.tracker.tracker.controller.hasLiveCaptureFlow
+import com.adsamcik.tracker.tracker.controller.forLiveSegment
 import android.Manifest
 import android.app.Activity
 import android.os.Build
@@ -160,6 +161,7 @@ fun DashboardRoute(
 	val policyTier by trackerState.policyTierFlow.collectAsState()
 	val sessionData by trackerState.sessionFlow.collectAsState()
 	val collectionSnapshot by trackerState.collectionDataFlow.collectAsState()
+	val savedLocation by trackerState.savedLocationSummaryFlow.collectAsStateWithLifecycle()
 	val pathPoints by trackerState.pathPointsFlow.collectAsState()
 	val lastSessionData by trackerState.lastSessionFlow.collectAsState()
 	val lastPathPoints by trackerState.lastPathPointsFlow.collectAsState()
@@ -432,6 +434,9 @@ fun DashboardRoute(
 		policyTier = policyTier,
 		sessionData = displaySession,
 		collectionSnapshot = collectionSnapshot,
+		savedLocation = savedLocation.forLiveSegment(
+			sessionData?.id, isTracking && trackingParams.locationEnabled,
+		),
 		pathPoints = relevantPathPoints,
 		liveSessionPresentation = liveSessionPresentation,
 		stepsToday = stepsToday,

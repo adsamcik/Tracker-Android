@@ -9,6 +9,8 @@ import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+import com.adsamcik.tracker.tracker.controller.forLiveSegment
 import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.insights.SessionInsight
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
@@ -37,6 +39,7 @@ data class DashboardUiState(
 	// ─── Live session data (tracking mode) ───────────────────────────
 	val sessionData: TrackerSessionSnapshot? = null,
 	val collectionSnapshot: TrackerCollectionSnapshot? = null,
+	val savedLocation: SavedLocationSummaryRead = SavedLocationSummaryRead.NotFound,
 	val pathPoints: List<Location>? = null,
 	val liveSessionPresentation: DashboardLiveSessionPresentation =
 		DashboardLiveSessionPresentation.Inactive,
@@ -104,6 +107,10 @@ data class DashboardUiState(
 		)
 	}
 }
+
+/** Shares the tracker screen's saved measurements and fences a previous physical segment. */
+internal val DashboardUiState.liveSavedLocation: SavedLocationSummaryRead
+	get() = savedLocation.forLiveSegment(sessionData?.id, isTracking)
 
 @Immutable
 enum class DashboardMode {

@@ -45,8 +45,13 @@ class SessionPreviewGeometryTest {
 	}
 
 	@Test
-	fun identicalNegativePointsDoNotInventARoute() {
-		assertTrue(project(listOf(point(-34.0, -58.0), point(-34.0, -58.0))).isEmpty())
+	fun identicalNegativePointsShowTheMeasuredPositionWithoutInventingMovement() {
+		val positions = project(listOf(point(-34.0, -58.0), point(-34.0, -58.0)))
+		assertEquals(2, positions.size)
+		positions.forEach {
+			assertEquals(120f, it.x, 0.01f)
+			assertEquals(60f, it.y, 0.01f)
+		}
 	}
 
 	private fun project(points: List<Location>) = sessionPreviewScreenPoints(points, 240f, 120f)

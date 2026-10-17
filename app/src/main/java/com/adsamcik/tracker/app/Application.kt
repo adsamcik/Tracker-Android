@@ -91,7 +91,8 @@ class Application : AndroidApplication(), Configuration.Provider {
 	lateinit var appScope: CoroutineScope
 
 	@Inject
-	lateinit var dataRetentionScheduler: DataRetentionScheduler
+	// Retention constructs Room-backed authority; resolve it only in Ready-gated IO maintenance.
+	lateinit var dataRetentionSchedulerProvider: Provider<DataRetentionScheduler>
 
 	@Inject
 	lateinit var activityWatcherController: ActivityWatcherServiceController
@@ -238,7 +239,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 			// Retire the unsafe legacy six-hour empty-segment cleanup. Component-owned teardown
 			// remains the only writer that may remove its preinserted session row.
 			maintenanceSchedulingFailure { DatabaseMaintenanceWorker.cancel(this) },
-			maintenanceSchedulingFailure { dataRetentionScheduler.initialize() },
+			maintenanceSchedulingFailure { dataRetentionSchedulerProvider.get().initialize() },
 			maintenanceSchedulingFailure { DailySummaryMaterializationWorker.schedule(this) },
 			maintenanceSchedulingFailure { GoalNotificationWorker.schedule(this) },
 		).firstOrNull()

@@ -14,6 +14,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.stats.api.error.StatsError
+import com.adsamcik.tracker.stats.api.repository.SavedLocationFix
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -262,6 +263,7 @@ internal data class SavedTripDistanceState(
 	val disconnected: Boolean = false,
 	val movingDistanceMeters: Double = 0.0,
 	val movingDurationSeconds: Double = 0.0,
+	val routePreview: List<List<SavedLocationFix>> = emptyList(),
 ) {
 	init {
 		require(totalMeters.isFinite() && totalMeters >= 0.0)
@@ -276,8 +278,11 @@ internal class SavedTripDistanceAccumulator(state: SavedTripDistanceState = Save
 	private var hasMeasuredPair = state.hasMeasuredPair
 	private var movingDistanceMeters = state.movingDistanceMeters
 	private var movingDurationSeconds = state.movingDurationSeconds
+	private val previewSections = state.routePreview.map { it.toMutableList() }.toMutableList()
+	private var previewCount = previewSections.sumOf { it.size }
+	val routePreview: List<List<SavedLocationFix>> get() = previewSections.map { it.toList() }
 	fun snapshotState() = SavedTripDistanceState(previous, totalMeters, hasMeasuredPair,
-		hasDisconnectedSections, movingDistanceMeters, movingDurationSeconds)
+		hasDisconnectedSections, movingDistanceMeters, movingDurationSeconds, routePreview)
 	var hasDisconnectedSections: Boolean = state.disconnected
 		private set
 	val measuredMeters: Double? get() = totalMeters.takeIf { hasMeasuredPair }
@@ -295,7 +300,7 @@ internal class SavedTripDistanceAccumulator(state: SavedTripDistanceState = Save
 		previous = null
 	}
 
-	fun add(row: LocationPathSampleRow) {
+	fun add(row: LocationPathSampleRow, previewFix: SavedLocationFix? = null) {
 		val point = row.sample
 		val lat = point.latE7 ?: return breakContinuity()
 		val lon = point.lonE7 ?: return breakContinuity()
@@ -304,14 +309,31 @@ internal class SavedTripDistanceAccumulator(state: SavedTripDistanceState = Save
 			return
 		}
 		val old = previous
+		val connected = old != null && continuous(old, row)
 		if (old != null) {
-			if (continuous(old, row)) {
+			if (connected) {
 				addMeasuredPair(old, row, lat, lon)
 			} else {
 				hasDisconnectedSections = true
 			}
 		}
 		previous = row
+		previewFix?.let { appendPreview(it, connected) }
+	}
+
+	private fun appendPreview(fix: SavedLocationFix, connected: Boolean) {
+		if (!connected || previewSections.isEmpty()) {
+			previewSections.add(mutableListOf())
+		}
+		previewSections.last().add(fix)
+		previewCount++
+		if (previewCount > MAX_PREVIEW_POINTS) {
+			previewSections.first().removeAt(0)
+			if (previewSections.first().isEmpty()) {
+				previewSections.removeAt(0)
+			}
+			previewCount--
+		}
 	}
 
 	private fun addMeasuredPair(old: LocationPathSampleRow, current: LocationPathSampleRow, lat: Int, lon: Int) {
@@ -350,6 +372,7 @@ internal class SavedTripDistanceAccumulator(state: SavedTripDistanceState = Save
 	}
 
 	private companion object {
+		const val MAX_PREVIEW_POINTS = 512
 		const val NANOSECONDS_PER_SECOND = 1_000_000_000.0
 		const val MILLISECONDS_PER_SECOND = 1_000.0
 		const val MAX_GAP_MS = 120_000L

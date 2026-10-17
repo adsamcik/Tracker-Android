@@ -23,6 +23,7 @@ import com.adsamcik.tracker.tracker.resilience.TrackingLifecycleCommandAuthority
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason
 import com.adsamcik.tracker.tracker.resilience.TrackingStopCommand
+import com.adsamcik.tracker.tracker.service.TrackerRuntimeStopDispatcher
 import com.adsamcik.tracker.tracker.source.coordinator.LegacyV27ProjectionRecoveryNotReadyException
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
@@ -475,6 +476,43 @@ class DefaultTrackingStartupGateTest {
 			inactiveStopHandler.finalizeStoredSession(stop)
 			resolver.apply(ApplicationStartupRecoveryAction.None, 0L)
 			sourceRecovery.recoverStartupAuthority()
+		}
+	}
+
+	@Test
+	fun `pending stop leaves live and retiring runtime ownership intact before inactive recovery`() = runTest {
+		prepareRetainedGate()
+		val stop = pendingStop()
+		var pending: TrackingStopCommand? = stop
+		every { lifecycleAuthority.latestUnhandledStop() } answers { pending }
+		coEvery { inactiveStopHandler.finalizeStoredSession(stop) } coAnswers {
+			pending = null
+			InactiveTrackingSessionStopOutcome.FINALIZED
+		}
+		val owner = Any()
+		TrackerRuntimeStopDispatcher.register(owner) { true }
+		try {
+			val waiting = TrackingStartupResult.RetryableFailure(
+				TrackingStartupStage.PREVIOUS_EXIT,
+				"PENDING_STOP_NOT_HANDLED",
+			)
+			gate.reconcile() shouldBe waiting
+			pending shouldBe stop
+			coVerify(exactly = 0) { inactiveStopHandler.finalizeStoredSession(any()) }
+			coVerify(exactly = 0) { sourceRecovery.recoverStartupAuthority() }
+
+			TrackerRuntimeStopDispatcher.beginTeardown(owner) shouldBe true
+			gate.reconcile() shouldBe waiting
+			pending shouldBe stop
+			coVerify(exactly = 0) { inactiveStopHandler.finalizeStoredSession(any()) }
+
+			TrackerRuntimeStopDispatcher.completeTeardown(owner) shouldBe true
+			gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+			coVerify(exactly = 1) { inactiveStopHandler.finalizeStoredSession(stop) }
+			pending shouldBe null
+		} finally {
+			TrackerRuntimeStopDispatcher.unregister(owner)
+			TrackerRuntimeStopDispatcher.completeTeardown(owner)
 		}
 	}
 

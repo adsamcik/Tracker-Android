@@ -118,7 +118,7 @@ android {
             }
         }
 
-        // Installable alongside production: non-debuggable, unique appId/label
+        // Installable alongside production with a distinct identity and local debugging support.
         create("dev") {
             // Base on release settings for closer-to-prod behavior
             initWith(release)
@@ -131,9 +131,11 @@ android {
             resValue("string", "app_name", "Advention Dev")
             // Sign with debug key for easy local installs (customize if you have a dev keystore)
             signingConfig = signingConfigs.getByName("debug")
-            isDebuggable = false
+            isDebuggable = true
             isMinifyEnabled = false
             isShrinkResources = false
+            // Run natively on the configured x86_64 emulator as well as ARM64 test phones.
+            ndk { abiFilters += "x86_64" }
             buildConfigField("boolean", "COMPOSE_MAIN", "true")
         }
 

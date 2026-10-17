@@ -94,6 +94,7 @@ internal class SavedLocationSummaryReader @Inject constructor(
     internal suspend fun readSessionInTransaction(segmentId: Long,
         snapshot: TrackingHistoryReadSnapshot,
         window: HistoryObservationWindow? = null,
+        includeRoutePreview: Boolean = false,
         onState: ((SavedTripDistanceState, SavedLocationPosition?) -> Unit)? = null): SavedLocationSummaryRead {
         val segment = database.trackingHistoryReadDao().segments(listOf(segmentId)).singleOrNull()
             ?: return SavedLocationSummaryRead.NotFound
@@ -111,6 +112,7 @@ internal class SavedLocationSummaryReader @Inject constructor(
             maxOf(segment.startTimeMs, window?.fromInclusiveMs ?: segment.startTimeMs) < it
         } == true
         val read = readPages(SavedLocationSummarySelection.Session(segmentId), snapshot, onState = onState,
+            includeRoutePreview = includeRoutePreview,
             scopeMatches = { it.matchesSavedSummarySession(segmentId, logicalId, runId) }, nextPage = { after ->
                 sessionCandidatePage(logicalId, runId, window, after)
             })
@@ -203,7 +205,8 @@ internal class SavedLocationSummaryReader @Inject constructor(
         nextPage: suspend (SavedLocationPosition?) -> List<SavedLocationCandidate>,
         onPoint: ((LocationPathSampleRow?) -> Unit)? = null,
         onState: ((SavedTripDistanceState, SavedLocationPosition?) -> Unit)? = null,
-        onGap: ((Long) -> Unit)? = null): SavedLocationSummaryRead {
+        onGap: ((Long) -> Unit)? = null,
+        includeRoutePreview: Boolean = false): SavedLocationSummaryRead {
         val accumulator = SavedTripDistanceAccumulator()
         var count = 0L
         var latest: SavedLocationFix? = null
@@ -228,7 +231,7 @@ internal class SavedLocationSummaryReader @Inject constructor(
                 onQualified = { gaps += it.gaps },
                 onCandidate = { candidate, row ->
                     processed = candidate.position
-                    val fix = appendSavedCandidate(candidate, row, accumulator, onPoint, onGap)
+                    val fix = appendSavedCandidate(candidate, row, accumulator, onPoint, onGap, includeRoutePreview)
                     if (fix == null) {
                         partial = true
                     } else {
@@ -282,7 +285,7 @@ internal class SavedLocationSummaryReader @Inject constructor(
     private fun appendSavedCandidate(
         candidate: SavedLocationCandidate, row: QualifiedRetainedLocationSample?,
         accumulator: SavedTripDistanceAccumulator, onPoint: ((LocationPathSampleRow?) -> Unit)?,
-        onGap: ((Long) -> Unit)?,
+        onGap: ((Long) -> Unit)?, includeRoutePreview: Boolean,
     ): SavedLocationFix? {
         val path = savedPath(candidate, row)
         if (path == null) {
@@ -292,9 +295,9 @@ internal class SavedLocationSummaryReader @Inject constructor(
             return null
         }
         val sample = path.sample
-        accumulator.add(path)
-        onPoint?.invoke(path)
         val fix = sample.toSavedFix(row?.receipt?.wallTimeUncertaintyMs ?: 0L)
+        accumulator.add(path, fix.takeIf { includeRoutePreview })
+        onPoint?.invoke(path)
         if (fix == null) {
             onGap?.invoke(sample.timeMs)
         }
@@ -371,7 +374,8 @@ internal fun savedLocationSummary(
     return SavedLocationSummaryRead.Snapshot(selection, snapshot,
         SavedLocationSummary(count, latest, meters,
             partial || accumulator.hasDisconnectedSections || gaps.isNotEmpty() || problem != null,
-            gaps.toSet(), accumulator.movingAverageSpeedMetersPerSecond.takeIf { meters != null }), problem)
+            gaps.toSet(), accumulator.movingAverageSpeedMetersPerSecond.takeIf { meters != null },
+            accumulator.routePreview), problem)
 }
 
 private fun com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState?.matchesSavedSummarySnapshot(

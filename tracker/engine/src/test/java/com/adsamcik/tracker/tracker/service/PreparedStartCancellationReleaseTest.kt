@@ -1,9 +1,20 @@
 package com.adsamcik.tracker.tracker.service
 
+import android.content.ComponentName
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.Intent
+import android.database.sqlite.SQLiteException
+import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
+import com.adsamcik.tracker.tracker.api.TrackerServiceApi
+import com.adsamcik.tracker.tracker.api.TrackerServiceContract
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
+import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionDescriptor
 import com.adsamcik.tracker.tracker.resilience.TrackingStartCommand
+import com.adsamcik.tracker.tracker.resilience.TrackingStartCommandDisposition
 import com.adsamcik.tracker.tracker.source.coordinator.SessionStartOrigin
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.matchers.shouldBe
@@ -11,14 +22,20 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
 import io.mockk.spyk
+import io.mockk.unmockkObject
 import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -42,6 +59,123 @@ import kotlin.concurrent.thread
 class PreparedStartCancellationReleaseTest {
 	private val token = PreparedTrackingStartToken("old-token")
 	private val command = TrackingStartCommand(1L)
+
+	@Test
+	fun `null Android foreground service result is not acknowledged as enqueued`() {
+		val context = object : ContextWrapper(ApplicationProvider.getApplicationContext()) {
+			override fun getApplicationContext(): Context = this
+			override fun startForegroundService(service: Intent): ComponentName? = null
+		}
+		TrackerServiceApi.enqueueBackgroundLocationHost(context, "host-ticket") shouldBe false
+	}
+
+	@Test
+	fun `foreground accepted shell permits a claim longer than the pre-promotion deadline`() = runTest {
+		val service = service(PreparedStartRuntimeState())
+		val coordinator = service.trackingStartRequestCoordinator
+		val serviceJob = Job()
+		every { service.coroutineContext } returns StandardTestDispatcher(testScheduler) + serviceJob
+		service.trackingLifecycleCommandAuthority = mockk(relaxed = true)
+		every { service.trackingLifecycleCommandAuthority.resolveStart(command) } returns TrackingStartCommandDisposition.Allowed
+		service.trackingStartupGate = mockk()
+		every { service.trackingStartupGate.isReady } returns true
+		every { service.trackingStartupGate.currentGeneration } returns 1L
+		coEvery { service.trackingStartupGate.awaitReady() } returns TrackingStartupResult.Ready(false, 0L)
+		coEvery { service.trackingStartupGate.withReadyGenerationWork<Unit>(1L, any()) } coAnswers {
+			secondArg<suspend () -> Unit>().invoke()
+		}
+		every { promoteStartup(service) } returns true
+		var claimCompleted = false
+		coEvery { service.trackingStartRequestCoordinator.claimForService(token, command.generation) } coAnswers {
+			delay(4_000L)
+			claimCompleted = true
+			TrackingServicePreparedStartClaim.Rejected("CONTROLLED_REJECTION", compensatePreparedState = false)
+		}
+		mockkObject(TrackerNotificationManager.Companion)
+		try {
+			every { TrackerNotificationManager.postStartFailedNotification(any()) } returns Unit
+			service.onStartCommand(preparedIntent(), 0, 7)
+			advanceUntilIdle()
+			claimCompleted shouldBe true
+			testScheduler.currentTime shouldBe 4_000L
+			verify(exactly = 1) { promoteStartup(service) }
+			coVerify(exactly = 0) { coordinator.compensate(any(), any(), any()) }
+		} finally {
+			serviceJob.cancel()
+			unmockkObject(TrackerNotificationManager.Companion)
+		}
+	}
+
+	@Test
+	fun `timed out real shell compensates its exact start before releasing local ownership`() = runTest {
+		val service = service(PreparedStartRuntimeState(token, command))
+		var compensated = false
+		coEvery { service.trackingStartRequestCoordinator.compensate(token, command,
+			"PREPARED_FOREGROUND_COMPLETION_TIMED_OUT") } coAnswers {
+			delay(100L)
+			compensated = true
+		}
+		mockkObject(TrackerNotificationManager.Companion)
+		try {
+			every { TrackerNotificationManager.postStartFailedNotification(any()) } returns Unit
+			val abandoned = launch { abandon(service) }
+			runCurrent()
+			readRuntime(service).token shouldBe token
+			verify(exactly = 0) { service.stopSelfResult(any()) }
+			advanceUntilIdle()
+			abandoned.isCompleted shouldBe true
+			compensated shouldBe true
+			readRuntime(service) shouldBe PreparedStartRuntimeState()
+			verify(exactly = 1) { service.stopSelfResult(7) }
+		} finally {
+			unmockkObject(TrackerNotificationManager.Companion)
+		}
+	}
+
+	@Test
+	fun `discarded prepared delivery compensates after Android cancels the service scope`() = runTest {
+		val service = service(PreparedStartRuntimeState())
+		val serviceJob = Job()
+		every { service.coroutineContext } returns StandardTestDispatcher(testScheduler) + serviceJob
+		service.applicationScope = backgroundScope
+		every { service.stopSelfResult(7) } answers { serviceJob.cancel(); true }
+		var compensated = false
+		coEvery { service.trackingStartRequestCoordinator.compensate(token, command, "CONTROLLED_REJECTION") } coAnswers {
+			delay(100L)
+			compensated = true
+		}
+		discard(service, "CONTROLLED_REJECTION")
+		serviceJob.isCancelled shouldBe true
+		runCurrent()
+		advanceTimeBy(100L)
+		runCurrent()
+		compensated shouldBe true
+		coVerify(exactly = 1) {
+			service.trackingStartRequestCoordinator.compensate(token, command, "CONTROLLED_REJECTION")
+		}
+	}
+
+	@Test
+	fun `compensation storage failure releases the shell without crashing either cleanup owner`() = runTest {
+		val service = service(PreparedStartRuntimeState(token, command))
+		service.applicationScope = backgroundScope
+		coEvery { service.trackingStartRequestCoordinator.compensate(token, command, any()) } throws
+			SQLiteException("Controlled compensation failure")
+		mockkObject(TrackerNotificationManager.Companion)
+		try {
+			every { TrackerNotificationManager.postStartFailedNotification(any()) } returns Unit
+			val abandoned = launch { abandon(service) }
+			advanceUntilIdle()
+			abandoned.isCancelled shouldBe false
+			readRuntime(service) shouldBe PreparedStartRuntimeState()
+			verify(exactly = 1) { service.stopSelfResult(7) }
+			discard(service, "CONTROLLED_REJECTION")
+			runCurrent()
+			coVerify(exactly = 2) { service.trackingStartRequestCoordinator.compensate(token, command, any()) }
+		} finally {
+			unmockkObject(TrackerNotificationManager.Companion)
+		}
+	}
 
 	@Test
 	fun `cancelled real shell finishes bounded compensation before releasing its exact runtime`() = runTest {
@@ -234,6 +368,8 @@ class PreparedStartCancellationReleaseTest {
 	private fun service(runtime: PreparedStartRuntimeState): TrackerService = spyk(TrackerService(), recordPrivateCalls = true).also {
 		it.trackingStartRequestCoordinator = mockk()
 		it.backgroundLocationHost = mockk()
+		it.controller = mockk()
+		every { it.controller.sessionInfoFlow } returns MutableStateFlow<TrackerSessionInfo?>(null)
 		every { it.backgroundLocationHost.hasActiveSources } returns false
 		every { it.stopSelfResult(any()) } returns true
 		writeRuntime(it, runtime)
@@ -248,6 +384,33 @@ class PreparedStartCancellationReleaseTest {
 			Set::class.java, Boolean::class.javaPrimitiveType, Boolean::class.javaObjectType,
 			Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
 			.apply { isAccessible = true }.invoke(service, sources, false, null, false, true) as Boolean
+
+	private fun promoteStartup(service: TrackerService): Boolean =
+		TrackerService::class.java.getDeclaredMethod("ensureForegroundStarted",
+			Set::class.java, Boolean::class.javaPrimitiveType, Boolean::class.javaObjectType,
+			Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
+			.apply { isAccessible = true }.invoke(service, setOf(SourceKind.LOCATION), false, true, true, false) as Boolean
+
+	private fun preparedIntent() = Intent(TrackerServiceContract.ACTION_PREPARED_START)
+		.putExtra(TrackerServiceContract.ARG_PREPARED_START_TOKEN, token.value)
+		.putExtra(TrackerServiceContract.ARG_LIFECYCLE_COMMAND_GENERATION, command.generation)
+		.putExtra(TrackerServiceContract.ARG_PREPARED_SOURCE_MASK_HINT, 1L)
+		.putExtra(TrackerServiceContract.ARG_PREPARED_USER_INITIATED_HINT, true)
+
+	private fun discard(service: TrackerService, failureCode: String): Int =
+		TrackerService::class.java.getDeclaredMethod("discardPreparedStart",
+			PreparedTrackingStartToken::class.java, TrackingStartCommand::class.java,
+			Int::class.javaPrimitiveType, String::class.java)
+			.apply { isAccessible = true }.invoke(service, token, command, 7, failureCode) as Int
+
+	private suspend fun abandon(service: TrackerService): Unit = suspendCoroutineUninterceptedOrReturn { continuation ->
+		val method = TrackerService::class.java.getDeclaredMethod("abandonPreparedStartShell",
+			PreparedTrackingStartToken::class.java, TrackingStartCommand::class.java,
+			Int::class.javaPrimitiveType, Continuation::class.java).apply { isAccessible = true }
+		try { method.invoke(service, token, command, 7, continuation) } catch (failure: InvocationTargetException) {
+			throw failure.targetException
+		}
+	}
 
 	private fun writeField(service: TrackerService, name: String, value: Any?) {
 		TrackerService::class.java.getDeclaredField(name).apply { isAccessible = true }.set(service, value)

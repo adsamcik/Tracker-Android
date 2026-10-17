@@ -23,6 +23,7 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.shared.base.extension.hasBackgroundLocationPermission
@@ -162,6 +163,10 @@ internal class TrackerService : CoreService() {
 
 	@Inject
 	lateinit var dispatchers: DispatchersProvider
+
+	@Inject
+	@ApplicationScope
+	lateinit var applicationScope: CoroutineScope
 
 	@Inject
 	lateinit var batteryAwarePolicy: BatteryAwarePolicy
@@ -395,7 +400,7 @@ internal class TrackerService : CoreService() {
 			}
 		}
 
-		val startupWasReadyAtDelivery = synchronized(preparedStartOwnershipMonitor) {
+		synchronized(preparedStartOwnershipMonitor) {
 			val recoveredSessionInfo = sessionInfo ?: controller.sessionInfoFlow.value
 			if (gracefulStopRequested) return discardPreparedStart(
 				preparedToken,
@@ -428,7 +433,6 @@ internal class TrackerService : CoreService() {
 				)
 			}
 			adoptPreparedStartRuntime(preparedToken, startCommand)
-			val wasReady = trackingStartupGate.isReady
 			val foregroundSources = if (isPassiveAndroidDelivery) {
 				resolveAcceptedForegroundSources(
 					requestedSources = foregroundHint.sources,
@@ -451,14 +455,9 @@ internal class TrackerService : CoreService() {
 					"PREPARED_FOREGROUND_PROMOTION_UNAVAILABLE",
 				)
 			}
-			wasReady
 		}
 		val startupCompletionDeadlineNanos = SystemClock.elapsedRealtimeNanos().saturatedAdd(
-			(if (startupWasReadyAtDelivery) {
-				PRE_FOREGROUND_START_BUDGET_MILLIS
-			} else {
-				STARTUP_FOREGROUND_SHELL_MAX_MILLIS
-			}) * NANOS_PER_MILLISECOND,
+			STARTUP_FOREGROUND_SHELL_MAX_MILLIS * NANOS_PER_MILLISECOND,
 		)
 		sessionRecoveryJob = launch {
 			var effectiveToken = preparedToken
@@ -793,15 +792,39 @@ internal class TrackerService : CoreService() {
 		return (remainingNanos / NANOS_PER_MILLISECOND).coerceAtLeast(1L)
 	}
 
-	/** Stops the providerless foreground shell without forcing Room through a closed startup gate. */
-	private fun abandonPreparedStartShell(token: PreparedTrackingStartToken, command: TrackingStartCommand,
+	/** Compensates the exact timed-out start before releasing its providerless foreground shell. */
+	private suspend fun abandonPreparedStartShell(token: PreparedTrackingStartToken, command: TrackingStartCommand,
         startId: Int) {
 		TrackerDiagnosticLog.failure(
 			TrackerDiagnosticFailureCode.TRACKING_PREPARED_SHELL_STOPPED,
 			TrackingDiagnosticFailureReason.TIMEOUT,
 		)
 		TrackerNotificationManager.postStartFailedNotification(this)
-		rollbackRejectedPreparedStartRuntime(token, command, startId)
+		try {
+			compensateRejectedPreparedStart(token, command, "PREPARED_FOREGROUND_COMPLETION_TIMED_OUT")
+		} finally {
+			rollbackRejectedPreparedStartRuntime(token, command, startId)
+		}
+	}
+
+	private suspend fun compensateRejectedPreparedStart(
+		token: PreparedTrackingStartToken,
+		command: TrackingStartCommand,
+		failureCode: String,
+	) {
+		try {
+			runBoundedStartPreparationCancellationCleanup(null) {
+				trackingStartRequestCoordinator.compensate(token, command, failureCode)
+			}
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+			// The exact durable start remains available for recovery if compensation cannot commit.
+			TrackerDiagnosticLog.failure(
+				TrackerDiagnosticFailureCode.TRACKING_PREPARED_START_FOREGROUND_FAILED,
+				TrackingDiagnosticFailureReason.STORAGE_UNAVAILABLE,
+			)
+		}
 	}
 
 	private fun adoptPreparedStartRuntime(token: PreparedTrackingStartToken, command: TrackingStartCommand) {
@@ -921,8 +944,8 @@ internal class TrackerService : CoreService() {
 		startId: Int,
 		failureCode: String,
 	): Int {
-		if (command != null) launch {
-			trackingStartRequestCoordinator.compensate(token, command, failureCode)
+		if (command != null) applicationScope.launch {
+			compensateRejectedPreparedStart(token, command, failureCode)
 		}
 		return if (shouldStopServiceForDiscardedPreparedStart(
 			activeRuntimePresent = sessionInfo != null || controller.sessionInfoFlow.value != null,

@@ -16,7 +16,6 @@ import kotlinx.coroutines.delay
 import android.app.Application
 import android.content.ComponentName
 import android.content.Intent
-import androidx.core.content.ContextCompat
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.api.registration.LocationMotionPurpose
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
@@ -37,7 +36,7 @@ import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkStatic
+import io.mockk.spyk
 import io.mockk.unmockkAll
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
@@ -60,7 +59,7 @@ class BackgroundLocationHostTest {
 	// assertions together.
 	@Suppress("LongMethod")
 	fun `host requires acknowledged foreground and exact release preserves successor`(): Unit = runBlocking {
-		val app = ApplicationProvider.getApplicationContext<Application>()
+		val app = spyk(ApplicationProvider.getApplicationContext<Application>())
 		val database = AppDatabase.testDatabase(app)
 		try {
 			val dao = database.sourcePolicyDao()
@@ -84,9 +83,9 @@ class BackgroundLocationHostTest {
 				every { latestUnhandledStop() } returns null
 			}
 			val delivered = Channel<Intent>(Channel.UNLIMITED)
-			mockkStatic(ContextCompat::class)
-			every { ContextCompat.startForegroundService(app, any()) } answers {
-				delivered.trySend(arg(1))
+			every { app.applicationContext } returns app
+			every { app.startForegroundService(any()) } answers {
+				delivered.trySend(arg(0))
 				ComponentName(app, TrackerService::class.java)
 			}
 			val host = BackgroundLocationHost(app, database, lifecycle, gate, commands,
@@ -153,7 +152,7 @@ class BackgroundLocationHostTest {
 	@Suppress("LongMethod")
 	@Test
 	fun `radio-only hosts coexist and exact retirement preserves a sibling and successor`(): Unit = runBlocking {
-		val app = ApplicationProvider.getApplicationContext<Application>()
+		val app = spyk(ApplicationProvider.getApplicationContext<Application>())
 		val database = AppDatabase.testDatabase(app)
 		try {
 			val dao = database.sourcePolicyDao()
@@ -177,9 +176,9 @@ class BackgroundLocationHostTest {
 				every { latestUnhandledStop() } returns null
 			}
 			val delivered = Channel<Intent>(Channel.UNLIMITED)
-			mockkStatic(ContextCompat::class)
-			every { ContextCompat.startForegroundService(app, any()) } answers {
-				delivered.trySend(arg(1)); ComponentName(app, TrackerService::class.java)
+			every { app.applicationContext } returns app
+			every { app.startForegroundService(any()) } answers {
+				delivered.trySend(arg(0)); ComponentName(app, TrackerService::class.java)
 			}
 			val status = AtomicTrackingPurposeAvailabilityStore()
 			val host = BackgroundLocationHost(app, database, lifecycle, gate, commands,

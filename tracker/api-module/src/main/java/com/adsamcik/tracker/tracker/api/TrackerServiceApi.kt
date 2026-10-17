@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.SystemClock
-import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
@@ -376,8 +375,7 @@ object TrackerServiceApi {
 
 	private fun startForegroundServiceSafely(context: Context, intent: Intent): Boolean {
 		return try {
-			ContextCompat.startForegroundService(context, intent)
-			true
+			context.startForegroundService(intent) != null
 		} catch (exception: SecurityException) {
 			false
 		} catch (exception: RuntimeException) {

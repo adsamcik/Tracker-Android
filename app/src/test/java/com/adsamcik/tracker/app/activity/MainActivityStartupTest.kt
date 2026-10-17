@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.activity
 
+import androidx.lifecycle.SavedStateHandle
 import com.adsamcik.tracker.app.startup.ApplicationStartupStateStore
 import com.adsamcik.tracker.app.driveTrackingStartup
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
@@ -30,6 +31,25 @@ import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainActivityStartupTest {
+	@Test
+	fun `restored navigation waits for current process startup before opening features`() {
+		val request = DeepNavigationRequest(MainActivityCompose.TARGET_GAME, "restored-request")
+		val state = SavedStateHandle(mapOf(
+			"main_startup_destination" to StartupDestination.Main.name,
+			MainActivityViewModel.KEY_SELECTED_TAB to "game",
+			MainActivityViewModel.KEY_DEEP_NAV_TARGET to request.target,
+			MainActivityViewModel.KEY_DEEP_NAV_REQUEST_ID to request.requestId,
+		))
+		val viewModel = MainActivityViewModel(state)
+
+		viewModel.startupDestination.value shouldBe StartupDestination.Pending
+		viewModel.selectedTab.value shouldBe com.adsamcik.tracker.feature.game.api.navigation.Game
+		viewModel.deepNavigationRequest.value shouldBe request
+		gatedDeepNavigationRequest(viewModel.startupDestination.value, request) shouldBe null
+
+		viewModel.setStartupDestination(StartupDestination.Main)
+		gatedDeepNavigationRequest(viewModel.startupDestination.value, request) shouldBe request
+	}
 
     @Test
     fun `completed onboarding resolves to main`() = runTest {

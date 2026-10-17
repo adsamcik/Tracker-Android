@@ -8,12 +8,16 @@ import java.util.IdentityHashMap
 /** Process-local delivery to the one TrackerService owner; never starts an absent service. */
 object TrackerRuntimeStopDispatcher {
 	private val lock = Any()
-	private val mainHandler = Handler(Looper.getMainLooper())
+	private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
 	private var owner: Any? = null
 	private var handler: ((TrackingStopCommand) -> Boolean)? = null
 	private val teardownFallbacks =
 		IdentityHashMap<Any, MutableList<PendingFallback>>()
 	private val teardownOrder = mutableListOf<Any>()
+
+	/** Inactive recovery must not finalize a session still owned by a live or retiring runtime. */
+	val hasRuntimeOwner: Boolean
+		get() = synchronized(lock) { owner != null || teardownFallbacks.isNotEmpty() }
 
 	fun register(owner: Any, handler: (TrackingStopCommand) -> Boolean) {
 		synchronized(lock) {

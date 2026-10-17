@@ -48,6 +48,8 @@ import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.extension.formatDistance
 import com.adsamcik.tracker.tracker.data.collection.TrackerActivityGroup
 import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
+import com.adsamcik.tracker.stats.api.repository.SavedLocationFix
+import com.adsamcik.tracker.shared.model.geo.GeoCoordinates
 
 /**
  * Three-level progressive disclosure card for sensor details.
@@ -60,15 +62,17 @@ import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
  * @param collectionSnapshot Current collection data snapshot
  * @param isTracking Whether tracking is currently active
  * @param isDebugBuild Whether the current build is a debug build (controls raw coordinate display)
+ * @param savedFix Location measured by the shared saved-data reader for the active segment
  */
 @Composable
 internal fun SensorDetailsCard(
 	collectionSnapshot: TrackerCollectionSnapshot?,
 	isTracking: Boolean,
 	isDebugBuild: Boolean = false,
+	savedFix: SavedLocationFix? = null,
 	modifier: Modifier = Modifier,
 ) {
-	if (!isTracking || collectionSnapshot == null) return
+	if (!isTracking || (collectionSnapshot == null && savedFix == null)) return
 
 	// 0 = collapsed, 1 = enthusiast, 2 = power user
 	var disclosureLevel by rememberSaveable { mutableIntStateOf(0) }
@@ -128,7 +132,7 @@ internal fun SensorDetailsCard(
 					verticalArrangement = Arrangement.spacedBy(8.dp),
 				) {
 					// Location accuracy
-					val accuracy = collectionSnapshot.location?.horizontalAccuracy
+					val accuracy = savedFix?.horizontalAccuracyMeters
 					if (accuracy != null) {
 						val accuracyText = "±${
 							context.resources.formatDistance(
@@ -143,7 +147,7 @@ internal fun SensorDetailsCard(
 					}
 
 					// Activity confidence
-					val activity = collectionSnapshot.activity
+					val activity = collectionSnapshot?.activity
 					if (activity != null) {
 						val activityName = ActivityInfo.getGroupedActivityName(
 							context,
@@ -157,7 +161,7 @@ internal fun SensorDetailsCard(
 					}
 
 					// WiFi count
-					val wifiCount = collectionSnapshot.wifi?.inRange?.size
+					val wifiCount = collectionSnapshot?.wifi?.inRange?.size
 					if (wifiCount != null && wifiCount > 0) {
 						SensorDetailRow(
 							icon = Icons.Default.Wifi,
@@ -167,7 +171,7 @@ internal fun SensorDetailsCard(
 					}
 
 					// Cell count
-					val cellCount = collectionSnapshot.cell?.totalCount
+					val cellCount = collectionSnapshot?.cell?.totalCount
 					if (cellCount != null && cellCount > 0) {
 						SensorDetailRow(
 							icon = Icons.Default.CellTower,
@@ -198,7 +202,7 @@ internal fun SensorDetailsCard(
 					Spacer(Modifier.height(4.dp))
 
 					// Altitude
-					val altitude = collectionSnapshot.androidModelMslAltitudeM
+					val altitude = savedFix?.altitudeMeters
 					if (altitude != null) {
 						SensorDetailRow(
 							icon = Icons.Default.Speed,
@@ -210,7 +214,7 @@ internal fun SensorDetailsCard(
 					}
 
 					// Speed
-					val speed = collectionSnapshot.location?.speed
+					val speed = savedFix?.speedMetersPerSecond
 					if (speed != null) {
 						SensorDetailRow(
 							icon = Icons.Default.Speed,
@@ -220,7 +224,7 @@ internal fun SensorDetailsCard(
 					}
 
 					// Cell type breakdown
-					val cells = collectionSnapshot.cell?.registeredCells
+					val cells = collectionSnapshot?.cell?.registeredCells
 					if (!cells.isNullOrEmpty()) {
 						val typeBreakdown = cells.groupBy { it.type.name }
 							.entries.joinToString { "${it.key}: ${it.value.size}" }
@@ -233,16 +237,16 @@ internal fun SensorDetailsCard(
 
 					// Raw coordinates — debug only, privacy protected
 					if (isDebugBuild) {
-						val location = collectionSnapshot.location
+						val location = savedFix
 						if (location != null) {
 							SensorDetailRow(
 								icon = Icons.Default.MyLocation,
 								label = stringResource(R.string.dashboard_sensor_raw_coords),
 								value = stringResource(
-R.string.dashboard_format_coordinates,
-location.latitude,
-location.longitude,
-),
+									R.string.dashboard_format_coordinates,
+									location.latitudeE7.toDouble() / GeoCoordinates.E7_PER_DEGREE,
+									location.longitudeE7.toDouble() / GeoCoordinates.E7_PER_DEGREE,
+								),
 							)
 						}
 					}

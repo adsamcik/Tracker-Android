@@ -49,6 +49,6 @@ private fun SavedLocationSummaryRead.formatSavedValue(
         snapshot?.summary?.partial == true -> context.getString(R.string.tracker_measurement_partial)
         this is SavedLocationSummaryRead.Unavailable ->
             context.getString(R.string.tracker_steps_value_unavailable)
-        else -> context.getString(R.string.tracker_component_waiting_data)
+        else -> context.getString(R.string.tracker_steps_today_waiting)
     }
 }

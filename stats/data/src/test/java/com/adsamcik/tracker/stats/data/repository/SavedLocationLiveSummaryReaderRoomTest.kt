@@ -15,6 +15,7 @@ import com.adsamcik.tracker.stats.api.repository.*
 import io.mockk.every
 import io.mockk.mockk
 import kotlin.test.*
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.cancelAndJoin
@@ -136,6 +137,7 @@ class SavedLocationLiveSummaryReaderRoomTest {
                 var corrected = awaitCount(2)
                 while (corrected.summary.distanceMeters != distance(0, 200_000)) corrected = awaitCount(2)
                 assertEquals(200_000, corrected.summary.latestFix?.longitudeE7)
+                assertEquals(listOf(0, 200_000), corrected.summary.routePreview.flatten().map { it.longitudeE7 })
                 assertEquals(last, database.locationSampleDao().byIds(listOf(last.id)).single())
                 cancelAndIgnoreRemainingEvents()
             }
@@ -192,6 +194,8 @@ class SavedLocationLiveSummaryReaderRoomTest {
             }
             val read = awaitCount(301)
             assertEquals(distance(0, 1_000) * 300, requireNotNull(read.summary.distanceMeters), 0.01)
+            assertEquals((0..300).map { it * 1_000 },
+                read.summary.routePreview.single().map { it.longitudeE7 })
             assertFalse(read.summary.partial)
             cancelAndIgnoreRemainingEvents()
         }
@@ -235,6 +239,8 @@ class SavedLocationLiveSummaryReaderRoomTest {
             assertEquals(distance(0, 100_000) * 2, requireNotNull(read.summary.distanceMeters), 0.01)
             assertFalse(read.summary.partial)
             assertEquals(4_000L, read.summary.latestFix?.measuredTimeMs)
+            assertEquals(listOf(2_000L, 3_000L, 4_000L),
+                read.summary.routePreview.single().map { it.measuredTimeMs })
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -254,6 +260,8 @@ class SavedLocationLiveSummaryReaderRoomTest {
             val read = awaitCount(2)
             assertNull(read.summary.distanceMeters)
             assertTrue(read.summary.partial)
+            assertEquals(listOf(listOf(2_000L), listOf(4_000L)),
+                read.summary.routePreview.map { section -> section.map { it.measuredTimeMs } })
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -295,6 +303,7 @@ class SavedLocationLiveSummaryReaderRoomTest {
             val read = awaitCount(0)
             assertNull(read.summary.distanceMeters)
             assertNull(read.summary.latestFix)
+            assertTrue(read.summary.routePreview.isEmpty())
             assertEquals(1L, read.readSnapshot.collectedDataEpoch)
             cancelAndIgnoreRemainingEvents()
         }
@@ -390,7 +399,8 @@ class SavedLocationLiveSummaryReaderRoomTest {
             assertTrue(read.summary.partial)
             assertEquals(distance(0, 100_000), requireNotNull(read.summary.distanceMeters), 0.01)
             val finite = snapshot(reader.readSession(selected.id))
-            assertEquals(read.summary, finite.summary)
+            assertTrue(finite.summary.routePreview.isEmpty())
+            assertEquals(read.summary.copy(routePreview = emptyList()), finite.summary)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -402,30 +412,37 @@ class SavedLocationLiveSummaryReaderRoomTest {
                 repeat(4_097) { index -> point(2_000L + index * 1_000L, 0, index + 1L, capture = selected) }
             }
             val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined, SavedLocationLiveUpdateSignal())
-            live.observeSession(selected.id).test {
-                val initial = awaitCount(4_097)
+            live.observeSession(selected.id).test(timeout = 90.seconds) {
+                // Full saved-history recovery shares this scenario's existing total budget.
+                val initial = awaitCount(4_097, timeoutMs = 90_000L)
                 assertEquals(0.0, initial.summary.distanceMeters)
                 assertFalse(initial.summary.partial)
+                assertEquals(512, initial.summary.routePreview.flatten().size)
+                assertEquals(initial.summary.latestFix, initial.summary.routePreview.last().last())
                 database.withTransaction { point(4_099_000, 0, 4_098, capture = selected) }
                 val appended = awaitCount(4_098)
                 assertEquals(0.0, appended.summary.distanceMeters)
                 assertFalse(appended.summary.partial)
                 assertEquals(4_099_000L, appended.summary.latestFix?.measuredTimeMs)
+                assertEquals(512, appended.summary.routePreview.flatten().size)
+                assertEquals(appended.summary.latestFix, appended.summary.routePreview.last().last())
                 cancelAndIgnoreRemainingEvents()
             }
         }
     }
 
-    private suspend fun ReceiveTurbine<SavedLocationSummaryRead>.awaitCount(count: Long): SavedLocationSummaryRead.Snapshot =
-        withTimeout(5_000L) {
-            while (true) {
-                val read = awaitItem()
-                if (read is SavedLocationSummaryRead.Snapshot && read.summary.pointCount == count) {
-                    return@withTimeout read
-                }
+    private suspend fun ReceiveTurbine<SavedLocationSummaryRead>.awaitCount(
+        count: Long,
+        timeoutMs: Long = 5_000L
+    ): SavedLocationSummaryRead.Snapshot = withTimeout(timeoutMs) {
+        while (true) {
+            val read = awaitItem()
+            if (read is SavedLocationSummaryRead.Snapshot && read.summary.pointCount == count) {
+                return@withTimeout read
             }
-            error("Unreachable")
         }
+        error("Unreachable")
+    }
 
     /** Only the page-fault boundary is artificial; all qualification DAOs and the outer transaction are real Room. */
     @Test fun `a coalesced post-purpose hint cannot lose same maximum receipt membership`() = runBlocking(Dispatchers.Unconfined) {

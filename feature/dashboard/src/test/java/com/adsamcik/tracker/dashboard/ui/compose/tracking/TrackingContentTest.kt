@@ -24,7 +24,7 @@ class TrackingContentTest {
 	val composeRule = createComposeRule()
 
 	@Test
-	fun withNullSessionData_showsAwaitingGpsText() {
+	fun withNullSessionData_showsTrackingWithoutGpsPlaceholder() {
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
 				TrackingContent(
@@ -39,9 +39,8 @@ class TrackingContentTest {
 			}
 		}
 
-		// No path points and no collection data → "Awaiting GPS signal…"
-		composeRule.onNodeWithText("Awaiting GPS signal", substring = true)
-			.assertIsDisplayed()
+		composeRule.onNodeWithText("Tracking").assertIsDisplayed()
+		composeRule.onNodeWithText("Awaiting GPS signal", substring = true).assertDoesNotExist()
 	}
 
 	@Test

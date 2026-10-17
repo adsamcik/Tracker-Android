@@ -41,10 +41,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveStepsValue
-import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
-import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.extension.formatDistance
@@ -54,6 +52,10 @@ import com.adsamcik.tracker.tracker.R as TrackerR
 import com.adsamcik.tracker.tracker.data.collection.TrackerActivityGroup
 import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+import com.adsamcik.tracker.tracker.controller.forLiveSegment
+import com.adsamcik.tracker.tracker.controller.formatSavedDistance
+import com.adsamcik.tracker.tracker.controller.formatSavedAverageSpeed
 
 /**
  * 3-column responsive stats grid showing secondary tracking metrics.
@@ -67,33 +69,24 @@ internal fun TrackingStatsGrid(
 	sessionData: TrackerSessionSnapshot,
 	collectionSnapshot: TrackerCollectionSnapshot?,
 	steps: DashboardLiveStepsValue?,
+	savedLocation: SavedLocationSummaryRead = SavedLocationSummaryRead.NotFound,
 	modifier: Modifier = Modifier,
 ) {
 	val context = LocalContext.current
 	val resources = context.resources
 	val settings = TrackerSettingsQuick.snapshot(context)
 
-	val sessionEnd = when {
-		sessionData.end > sessionData.start -> sessionData.end
-		else -> Time.nowMillis
+	val locationRead = savedLocation.forLiveSegment(sessionData.id, participating = true)
+	val fix = (locationRead as? SavedLocationSummaryRead.Snapshot)?.summary?.latestFix
+	val distanceText = locationRead.formatSavedDistance(context) { distance ->
+		resources.formatDistance(distance, if (distance >= 1000.0) 1 else 0, settings.lengthSystem)
 	}
-	val durationMillis = (sessionEnd - sessionData.start).coerceAtLeast(0L)
-
-	val distanceText = resources.formatDistance(
-		sessionData.distanceInM,
-		digits = if (sessionData.distanceInM >= 1000f) 1 else 0,
-		unit = settings.lengthSystem,
-	)
-
-	val avgSpeed = if (durationMillis > 0) {
-		sessionData.distanceInM.toDouble() / (durationMillis / 1000.0)
-	} else {
-		0.0
+	val avgSpeedText = locationRead.formatSavedAverageSpeed(context) { average ->
+		resources.formatSpeed(context, average, 1)
 	}
-	val avgSpeedText = resources.formatSpeed(context, avgSpeed, 1)
 
-	val altitude = collectionSnapshot?.androidModelMslAltitudeM
-	val accuracy = collectionSnapshot?.location?.horizontalAccuracy
+	val altitude = fix?.altitudeMeters
+	val accuracy = fix?.horizontalAccuracyMeters
 	val currentActivity = collectionSnapshot?.activity
 	val wifiCount = collectionSnapshot?.wifi?.inRange?.size
 	val cellCount = collectionSnapshot?.cell?.totalCount

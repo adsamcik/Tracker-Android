@@ -62,7 +62,7 @@ class SavedLocationNotificationUpdatesTest {
         reader.setSavedLocationSummary(SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE))
         awaitTitle(context.getString(R.string.distance_value, context.getString(R.string.tracker_steps_value_unavailable)))
         reader.setSavedLocationSummary(SavedLocationSummaryRead.NotFound)
-        awaitTitle(context.getString(R.string.distance_value, context.getString(R.string.tracker_component_waiting_data)))
+        awaitTitle(context.getString(R.string.distance_value, context.getString(R.string.tracker_steps_today_waiting)))
     }
 
     @Test fun `replacement segment cannot reuse the previous shared saved value`() = fixtureTest {
@@ -70,7 +70,7 @@ class SavedLocationNotificationUpdatesTest {
         reader.setSavedLocationSummary(saved())
         awaitTitle(context.getString(R.string.distance_value, formatted(123.0)))
         reader.updateSession(TrackerSessionSnapshot(id = 8, start = 1_000, distanceInM = 8_000_000f))
-        awaitTitle(context.getString(R.string.distance_value, context.getString(R.string.tracker_component_waiting_data)))
+        awaitTitle(context.getString(R.string.distance_value, context.getString(R.string.tracker_steps_today_waiting)))
         reader.setSavedLocationSummary(saved(id = 7, distance = 999.0))
         assertEquals(SavedLocationSummaryRead.NotFound, reader.savedLocationSummaryFlow.value)
         reader.setSavedLocationSummary(saved(id = 8, distance = 456.0))

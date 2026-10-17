@@ -33,9 +33,9 @@ class SavedLocationPresentationTest {
     }
 
     @Test fun `absent pair missing snapshot and failed read never fabricate zero`() {
-        assertEquals(context.getString(R.string.tracker_component_waiting_data),
+        assertEquals(context.getString(R.string.tracker_steps_today_waiting),
             saved(distance = null).formatSavedDistance(context) { error("No measured pair") })
-        assertEquals(context.getString(R.string.tracker_component_waiting_data),
+        assertEquals(context.getString(R.string.tracker_steps_today_waiting),
             SavedLocationSummaryRead.NotFound.formatSavedDistance(context) { error("Missing") })
         assertEquals(context.getString(R.string.tracker_steps_value_unavailable),
             SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
@@ -59,7 +59,7 @@ class SavedLocationPresentationTest {
         val partial = covered.copy(summary = covered.summary.copy(partial = true, movingAverageSpeedMetersPerSecond = 2.5))
         assertEquals("2.5 m/s · ${context.getString(R.string.tracker_measurement_partial)}",
             partial.formatSavedAverageSpeed(context) { "$it m/s" })
-        assertEquals(context.getString(R.string.tracker_component_waiting_data),
+        assertEquals(context.getString(R.string.tracker_steps_today_waiting),
             saved().formatSavedAverageSpeed(context) { error("No average") })
     }
 

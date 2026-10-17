@@ -30,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
@@ -45,6 +46,7 @@ import com.adsamcik.tracker.dashboard.ui.compose.components.SensorDetailsCard
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveSessionPresentation
 import com.adsamcik.tracker.dashboard.ui.compose.state.qualifiedMilestoneSteps
+import com.adsamcik.tracker.dashboard.ui.compose.state.liveSavedLocation
 import com.adsamcik.tracker.dashboard.ui.compose.visualization.AltitudeSparkline
 import com.adsamcik.tracker.dashboard.ui.compose.visualization.SessionPathPreview
 import com.adsamcik.tracker.dashboard.ui.compose.visualization.SpeedSparkline
@@ -57,6 +59,9 @@ import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
 import com.adsamcik.tracker.shared.preferences.extension.formatDistance
 import com.adsamcik.tracker.shared.preferences.extension.formatSpeed
 import com.adsamcik.tracker.shared.model.Location
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+import com.adsamcik.tracker.stats.api.repository.SavedLocationFix
+import com.adsamcik.tracker.tracker.controller.formatSavedDistance
 import com.adsamcik.tracker.tracker.R as TrackerR
 
 /**
@@ -74,6 +79,11 @@ internal fun TrackingContent(
 	onMapClick: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
+	val routePreview = (state.liveSavedLocation as? SavedLocationSummaryRead.Snapshot)
+		?.summary?.routePreview.orEmpty()
+	val pathSections = remember(routePreview) {
+		routePreview.map { section -> section.map { it.toPreviewLocation() } }
+	}
 	Box(modifier = modifier.fillMaxSize()) {
 		val standardPresentation = state.liveSessionPresentation
 			.asStandardFor(state.sessionData?.id)
@@ -86,7 +96,7 @@ internal fun TrackingContent(
 		) {
 			item(key = "map_hero") {
 				MapHeroCard(
-					pathPoints = state.pathPoints,
+					pathSections = pathSections,
 					state = state,
 					onMapClick = onMapClick,
 				)
@@ -98,12 +108,13 @@ internal fun TrackingContent(
 						sessionData = state.sessionData,
 						collectionSnapshot = state.collectionSnapshot,
 						steps = standardPresentation?.steps,
+						savedLocation = state.liveSavedLocation,
 					)
 				}
 			}
 
 			// Live Charts — speed and altitude sparklines from path data
-			val points = state.pathPoints
+			val points = pathSections.lastOrNull()
 			if (!points.isNullOrEmpty()) {
 				val speedHistory = points.mapNotNull { it.speed }
 				val altitudeHistory = points.mapNotNull { it.altitude?.toFloat() }
@@ -146,6 +157,8 @@ internal fun TrackingContent(
 				SensorDetailsCard(
 					collectionSnapshot = state.collectionSnapshot,
 					isTracking = state.isTracking,
+					savedFix = (state.liveSavedLocation as? SavedLocationSummaryRead.Snapshot)
+						?.summary?.latestFix,
 				)
 			}
 		}
@@ -171,7 +184,7 @@ private fun DashboardLiveSessionPresentation.asStandardFor(
  */
 @Composable
 private fun MapHeroCard(
-	pathPoints: List<Location>?,
+	pathSections: List<List<Location>>,
 	state: DashboardUiState,
 	onMapClick: () -> Unit,
 	modifier: Modifier = Modifier,
@@ -179,10 +192,18 @@ private fun MapHeroCard(
 	val context = LocalContext.current
 	val resources = context.resources
 	val settings = TrackerSettingsQuick.snapshot(context)
+	val pathPoints = remember(pathSections) { pathSections.flatten() }
+	val sectionStarts = remember(pathSections) {
+		buildSet {
+			var start = 0
+			pathSections.forEach { section -> add(start); start += section.size }
+		}
+	}
 
 	val sessionData = state.sessionData
-	val collectionSnapshot = state.collectionSnapshot
-	val currentSpeed = collectionSnapshot?.location?.speed
+	val locationRead = state.liveSavedLocation
+	val fix = (locationRead as? SavedLocationSummaryRead.Snapshot)?.summary?.latestFix
+	val currentSpeed = fix?.speedMetersPerSecond
 
 	val sessionEnd = when {
 		sessionData != null && sessionData.end > sessionData.start -> sessionData.end
@@ -206,35 +227,14 @@ private fun MapHeroCard(
 	) {
 		Box {
 			// Path preview background
-			if (!pathPoints.isNullOrEmpty() && pathPoints.size >= 2) {
+			if (pathPoints.size >= 2) {
 				SessionPathPreview(
 					points = pathPoints,
+					sectionStartIndices = sectionStarts,
 					modifier = Modifier
 						.fillMaxWidth()
 						.height(200.dp),
 				)
-			} else {
-				// Placeholder while path is being recorded.
-				// Distinguish between "no GPS fix yet" and "GPS acquired but < 2 path points".
-				val hasGpsFix = collectionSnapshot?.location != null
-				val placeholderText = if (hasGpsFix) {
-					stringResource(R.string.dashboard_tracking_recording_route)
-				} else {
-					stringResource(R.string.dashboard_tracking_awaiting_gps)
-				}
-				Box(
-					modifier = Modifier
-						.fillMaxWidth()
-						.height(200.dp)
-						.background(MaterialTheme.colorScheme.primaryContainer),
-					contentAlignment = Alignment.Center,
-				) {
-					Text(
-						text = placeholderText,
-						style = MaterialTheme.typography.bodyMedium,
-						color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f),
-					)
-				}
 			}
 
 			// Metric overlay at the bottom
@@ -292,11 +292,9 @@ private fun MapHeroCard(
 								color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
 							)
 						}
-						val distText = resources.formatDistance(
-							sessionData.distanceInM,
-							digits = if (sessionData.distanceInM >= 1000f) 1 else 0,
-							unit = settings.lengthSystem,
-						)
+						val distText = locationRead.formatSavedDistance(context) { distance ->
+							resources.formatDistance(distance, if (distance >= 1000.0) 1 else 0, settings.lengthSystem)
+						}
 						Text(
 							text = distText,
 							style = MaterialTheme.typography.labelMedium,
@@ -308,6 +306,17 @@ private fun MapHeroCard(
 		}
 	}
 }
+
+private fun SavedLocationFix.toPreviewLocation() = Location(
+	time = measuredTimeMs,
+	latitude = latitudeE7 / 10_000_000.0,
+	longitude = longitudeE7 / 10_000_000.0,
+	altitude = altitudeMeters?.toDouble(),
+	horizontalAccuracy = horizontalAccuracyMeters,
+	verticalAccuracy = verticalAccuracyMeters,
+	speed = speedMetersPerSecond,
+	speedAccuracy = speedAccuracyMetersPerSecond,
+)
 
 /**
  * Primary metric display row with animated value changes.

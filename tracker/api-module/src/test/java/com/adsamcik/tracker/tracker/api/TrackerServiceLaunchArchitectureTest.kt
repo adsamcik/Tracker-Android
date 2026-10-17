@@ -17,7 +17,7 @@ class TrackerServiceLaunchArchitectureTest {
 		).flatMap { root ->
 			root.walkTopDown()
 				.filter { it.isFile && it.extension == "kt" }
-				.filter { "ContextCompat.startForegroundService(" in it.readText() }
+				.filter { ".startForegroundService(" in it.readText() }
 				.map { it.relativeTo(projectRoot).invariantSeparatorsPath }
 				.toList()
 		}

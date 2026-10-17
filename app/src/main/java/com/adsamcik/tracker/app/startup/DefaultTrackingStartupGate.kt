@@ -28,6 +28,7 @@ import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreCorrupt
 import com.adsamcik.tracker.tracker.resilience.TrackingLifecycleCommandAuthority
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import com.adsamcik.tracker.tracker.resilience.TrackingStopCommand
+import com.adsamcik.tracker.tracker.service.TrackerRuntimeStopDispatcher
 import com.adsamcik.tracker.tracker.source.coordinator.LegacyV27ProjectionRecoveryNotReadyException
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecoveryResult
@@ -753,8 +754,13 @@ class DefaultTrackingStartupGate @Inject constructor(
 
 	private suspend fun finalizePendingStop(
 		command: TrackingStopCommand,
-	): Result<InactiveTrackingSessionStopOutcome> = try {
-		Result.success(inactiveSessionStopHandler.get().finalizeStoredSession(command))
+	): Result<InactiveTrackingSessionStopOutcome?> = try {
+		// End is already delivered through the runtime dispatcher. Never compete with its live
+		// cleanup, or await that cleanup while holding the startup recovery mutex.
+		Result.success(
+			if (TrackerRuntimeStopDispatcher.hasRuntimeOwner) null
+			else inactiveSessionStopHandler.get().finalizeStoredSession(command),
+		)
 	} catch (cancelled: CancellationException) {
 		throw cancelled
 	} catch (failure: Exception) {
@@ -785,7 +791,7 @@ class DefaultTrackingStartupGate @Inject constructor(
 	)
 
 	private fun pendingStopNotHandledFailure(
-		outcome: InactiveTrackingSessionStopOutcome,
+		outcome: InactiveTrackingSessionStopOutcome?,
 	) = TrackingStartupResult.RetryableFailure(
 		TrackingStartupStage.PREVIOUS_EXIT,
 		if (outcome == InactiveTrackingSessionStopOutcome.SESSION_MISMATCH) {

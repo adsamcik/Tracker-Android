@@ -1,7 +1,5 @@
 package com.adsamcik.tracker.app.activity
 
-import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
-import dev.tracebox.Tracebox
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -611,16 +609,8 @@ class MainActivityViewModel @Inject constructor(
     )
     val deepNavigationRequest: StateFlow<DeepNavigationRequest?> = _deepNavigationRequest.asStateFlow()
 
-    private val _startupDestination = MutableStateFlow(
-        savedStateHandle.get<String>(KEY_STARTUP_DESTINATION)?.let { name ->
-            try {
-                StartupDestination.valueOf(name)
-            } catch (_: IllegalArgumentException) {
-                Tracebox.log.warn(TrackerTraceboxTemplates.NAVIGATION_DESTINATION_REJECTED)
-                StartupDestination.Pending
-            }
-        } ?: StartupDestination.Pending
-    )
+    // Storage readiness belongs to this process. Saved navigation resumes after its startup gate.
+    private val _startupDestination = MutableStateFlow(StartupDestination.Pending)
     val startupDestination: StateFlow<StartupDestination> = _startupDestination.asStateFlow()
 
     fun setSelectedTab(route: Any) {
@@ -662,7 +652,6 @@ class MainActivityViewModel @Inject constructor(
 
     fun setStartupDestination(destination: StartupDestination) {
         _startupDestination.value = destination
-        savedStateHandle[KEY_STARTUP_DESTINATION] = destination.name
     }
 
     private fun SavedStateHandle.toDeepNavigationRequest(): DeepNavigationRequest? {
@@ -679,6 +668,5 @@ class MainActivityViewModel @Inject constructor(
         const val KEY_DEEP_NAV_TARGET = "main_deep_nav_target"
         const val KEY_DEEP_NAV_REQUEST_ID = "main_deep_nav_request_id"
         const val KEY_LAST_HANDLED_DEEP_NAV_REQUEST_ID = "main_last_handled_deep_nav_request_id"
-        const val KEY_STARTUP_DESTINATION = "main_startup_destination"
     }
 }

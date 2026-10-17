@@ -8,6 +8,8 @@ import android.hardware.Sensor
 import android.hardware.SensorManager
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.app.ApplicationStartupRecoveryAction
+import com.adsamcik.tracker.app.Application
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionCompletion
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
 import com.adsamcik.tracker.shared.base.assist.Assist
@@ -50,6 +52,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
@@ -62,6 +66,28 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ManualStartStartupRecoveryTest {
+	@Test
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	fun `pending Application startup leaves Room backed maintenance unconstructed`() = runTest {
+		var retentionConstructions = 0
+		val dispatcher = StandardTestDispatcher(testScheduler)
+		val application = Application().apply {
+			appScope = backgroundScope
+			dispatchers = mockk<DispatchersProvider> { every { io } returns dispatcher }
+			dataRetentionSchedulerProvider = Provider {
+				retentionConstructions++
+				error("Retention construction must wait for startup Ready")
+			}
+		}
+
+		application.startMaintenanceStartupIfNeeded()
+		application.startMaintenanceStartupIfNeeded()
+		runCurrent()
+
+		retentionConstructions shouldBe 0
+		application.isStartupReady shouldBe false
+	}
+
     private val storage = mockk<LegacyDatabaseUpgradeCoordinator>()
     private val deletion = mockk<CollectedDataDeletionService>()
     private val resolver = mockk<ApplicationStartupRecoveryResolver>()

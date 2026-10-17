@@ -237,10 +237,10 @@ internal class SavedLocationLiveSummaryReader(
                 distance.breakContinuity()
                 continue
             }
+            val fix = row.toSavedFix()
             distance.add(LocationPathSampleRow(row.sample,
                 row.receipt.sourceInstanceId + ":" + row.receipt.registrationGeneration,
-                row.receipt.sourceSequence, false))
-            val fix = row.toSavedFix()
+                row.receipt.sourceSequence, false), fix)
             if (fix != null) {
                 count = Math.addExact(count, 1L)
                 latestFix = fix
@@ -265,7 +265,9 @@ internal class SavedLocationLiveSummaryReader(
         snapshot: TrackingHistoryReadSnapshot): Next {
         var distance: SavedTripDistanceState? = null
         var position: SavedLocationPosition? = null
-        val read = summaries.readSessionInTransaction(scope.segmentId, snapshot) { state, last ->
+        val read = summaries.readSessionInTransaction(
+            scope.segmentId, snapshot, includeRoutePreview = true,
+        ) { state, last ->
             distance = state
             position = last
         }
