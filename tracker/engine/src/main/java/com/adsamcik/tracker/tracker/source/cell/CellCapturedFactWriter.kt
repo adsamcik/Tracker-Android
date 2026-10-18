@@ -908,7 +908,11 @@ internal class CellCapturedFactWriter @Inject constructor(
 					authorizationEnd,
 				),
 				consentEffect = CellProviderTimeInterval(
-					consent.effectiveElapsedRealtimeNanos,
+					if (consent.effectiveBootId == row.clockDomainId) {
+						consent.effectiveElapsedRealtimeNanos
+					} else {
+						0L
+					},
 					authorizationEnd,
 				),
 				sessionRunEffect = CellProviderTimeInterval(
@@ -1013,16 +1017,16 @@ internal class CellCapturedFactWriter @Inject constructor(
 	): Boolean = !policy.enabled || !policy.capturePersistenceEligible ||
 		policy.captureConsentEpoch != row.captureConsentEpoch ||
 		binding.qosCode != policy.qosCode ||
-		policy.effectiveBootId != row.clockDomainId ||
-		policy.effectiveElapsedRealtimeNanos > row.coverageIntervalStartNanos
+		(policy.effectiveBootId == row.clockDomainId &&
+			policy.effectiveElapsedRealtimeNanos > row.coverageIntervalStartNanos)
 
 	private fun hasInvalidOriginalCaptureConsent(
 		row: CellCapturedFactRevisionEntity,
 		consent: SourceConsentEpochEntity,
 	): Boolean = !consent.eligible || !consent.persistenceEligible ||
 		consent.policyRevision > row.sourcePolicyRevision ||
-		consent.effectiveBootId != row.clockDomainId ||
-		consent.effectiveElapsedRealtimeNanos > row.coverageIntervalStartNanos
+		(consent.effectiveBootId == row.clockDomainId &&
+			consent.effectiveElapsedRealtimeNanos > row.coverageIntervalStartNanos)
 
 	private fun CellCapturedFactRevisionEntity.persistedAuthority(
 		capturedSources: Set<SourceKind>,

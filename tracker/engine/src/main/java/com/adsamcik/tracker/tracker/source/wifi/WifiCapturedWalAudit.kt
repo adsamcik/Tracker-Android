@@ -510,6 +510,9 @@ internal suspend fun WifiCapturedFactMaintenance.authenticateCaptureWal(
 	if (run.startedElapsedNanos > qualifiedStart || qualifiedEnd >= sessionEnd) {
 		block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	}
+	if (!database.hasRetainedWifiInterruptedTail(wal, session, run, qualifiedEnd)) {
+		block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	}
 	val captureDemand = purposeItems?.immutableDemands?.get(captureMember.demandId)
 		?: demandsById[captureMember.demandId]
 		?: block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
@@ -547,11 +550,10 @@ internal suspend fun WifiCapturedFactMaintenance.authenticateCaptureWal(
 	if (policy == null || consent == null || !policy.enabled || !policy.capturePersistenceEligible ||
 		policy.captureConsentEpoch != consentEpoch ||
 		policy.qosCode != captureDemand.qosCode ||
-		policy.effectiveBootId != wal.clockDomainId ||
-		policy.effectiveElapsedRealtimeNanos > qualifiedStart || !consent.eligible ||
+		(policy.effectiveBootId == wal.clockDomainId && policy.effectiveElapsedRealtimeNanos > qualifiedStart) ||
+		!consent.eligible ||
 		!consent.persistenceEligible || consent.policyRevision > policyRevision ||
-		consent.effectiveBootId != wal.clockDomainId ||
-		consent.effectiveElapsedRealtimeNanos > qualifiedStart
+		(consent.effectiveBootId == wal.clockDomainId && consent.effectiveElapsedRealtimeNanos > qualifiedStart)
 	) {
 		block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	}

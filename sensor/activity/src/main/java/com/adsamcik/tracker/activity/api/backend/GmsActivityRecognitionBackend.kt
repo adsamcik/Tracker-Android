@@ -12,9 +12,12 @@ import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.receiver.ActivityReceiver
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationCleanupKey
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationCleanupKind
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationCleanupScheduler
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationCleanupStore
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.stats.api.threshold.ActivityTypeMapping
 import com.google.android.gms.location.ActivityRecognition
@@ -26,7 +29,6 @@ import com.google.android.gms.tasks.Tasks
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
@@ -36,7 +38,9 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
+import java.util.concurrent.Executor
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -52,6 +56,9 @@ import javax.inject.Singleton
 class GmsActivityRecognitionBackend @Inject constructor(
 	@ApplicationContext private val context: Context,
 	@ApplicationScope appScope: CoroutineScope,
+	private val cleanupStore: ActivityRegistrationCleanupStore,
+	private val cleanupScheduler: ActivityRegistrationCleanupScheduler,
+	private val dispatchers: DispatchersProvider,
 ) : ActivityRecognitionBackend {
 
 	override val name: String = "Google Play Services"
@@ -70,6 +77,10 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		private set
 
 	private val subscriptionMutex = Mutex()
+	// A timed-out request may still finish in GMS. Its existing journal key owns removal;
+	// this process-local fence prevents acknowledging that removal before the request settles.
+	private val pendingRegistrationLock = Any()
+	private val pendingRegistrations = mutableMapOf<PendingIntent, MutableSet<Task<*>>>()
 
 	private val activityUpdateQueue = Channel<ActivityUpdate>(
 		capacity = LIVE_UPDATE_BUFFER_CAPACITY,
@@ -104,7 +115,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 	internal suspend fun applyRegistration(
 		config: RecognitionConfig,
 		identity: ActivityRegistrationIdentity,
-	): Boolean =
+	): Boolean = withContext(dispatchers.io) {
 		subscriptionMutex.withLock {
 			if (!isAvailable) {
 				TrackerDiagnosticLog.warn(
@@ -115,40 +126,86 @@ class GmsActivityRecognitionBackend @Inject constructor(
 
 			val client = ActivityRecognition.getClient(context)
 			val intent = getActivityDetectionPendingIntent(identity, config)
-
-			val recognitionTask = if (config.intervalSeconds > 0) {
-				requestActivityRecognition(client, intent, config.intervalSeconds)
-			} else {
-				client.removeActivityUpdates(intent)
+			if (hasPendingRegistration(intent)) {
+				return@withLock registrationFailed()
 			}
-
-			val transitionTask = if (config.requestedTransitions.isNotEmpty()) {
-				requestActivityTransition(client, intent, config.requestedTransitions)
-			} else {
-				client.removeActivityTransitionUpdates(intent)
-			}
-
-			val subscriptionTask = Tasks.whenAll(recognitionTask, transitionTask)
+			val key = identity.cleanupKey()
+			cleanupStore.addPending(listOf(key))
 			try {
-				subscriptionTask.await()
-				true
+				val subscriptionTask = requestSubscriptions(client, intent, config)
+				if (withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) { subscriptionTask.await(); true } == true) {
+					cleanupStore.removePending(listOf(key))
+					true
+				} else {
+					registrationFailed()
+				}
 			} catch (e: CancellationException) {
-				withContext(NonCancellable) {
-					awaitTaskSettlement(subscriptionTask, e)
-					rollbackSubscriptions(client, intent, e)
-				}
+				scheduleCleanup()
 				throw e
-			} catch (e: Exception) {
-				TrackerDiagnosticLog.failure(
-					TrackerDiagnosticFailureCode.ACTIVITY_RECOGNITION_FAILED,
-					TrackingDiagnosticFailureReason.PROVIDER_FAILURE,
-				)
-				withContext(NonCancellable) {
-					rollbackSubscriptions(client, intent, e)
-				}
-				false
+			} catch (_: Exception) {
+				registrationFailed()
 			}
 		}
+	}
+
+	private fun requestSubscriptions(
+		client: ActivityRecognitionClient,
+		intent: PendingIntent,
+		config: RecognitionConfig,
+	): Task<Void> {
+		val recognition = trackRegistration(intent, if (config.intervalSeconds > 0) {
+			requestActivityRecognition(client, intent, config.intervalSeconds)
+		} else {
+			client.removeActivityUpdates(intent)
+		})
+		val transitions = trackRegistration(intent, if (config.requestedTransitions.isNotEmpty()) {
+			requestActivityTransition(client, intent, config.requestedTransitions)
+		} else {
+			client.removeActivityTransitionUpdates(intent)
+		})
+		return Tasks.whenAll(recognition, transitions)
+	}
+
+	private fun trackRegistration(intent: PendingIntent, task: Task<Void>): Task<Void> {
+		if (task.isComplete) {
+			return task
+		}
+		synchronized(pendingRegistrationLock) {
+			pendingRegistrations.getOrPut(intent) { mutableSetOf() }.add(task)
+		}
+		task.addOnCompleteListener(IMMEDIATE_EXECUTOR) {
+			synchronized(pendingRegistrationLock) {
+				pendingRegistrations[intent]?.let { pending ->
+					pending.remove(task)
+					if (pending.isEmpty()) {
+						pendingRegistrations.remove(intent)
+					}
+				}
+			}
+		}
+		return task
+	}
+
+	private fun hasPendingRegistration(intent: PendingIntent): Boolean = synchronized(pendingRegistrationLock) {
+		pendingRegistrations[intent]?.isNotEmpty() == true
+	}
+
+	private fun registrationFailed(): Boolean {
+		TrackerDiagnosticLog.failure(
+			TrackerDiagnosticFailureCode.ACTIVITY_RECOGNITION_FAILED,
+			TrackingDiagnosticFailureReason.PROVIDER_FAILURE,
+		)
+		scheduleCleanup()
+		return false
+	}
+
+	private fun scheduleCleanup() {
+		try {
+			cleanupScheduler.ensureScheduled()
+		} catch (_: IllegalStateException) {
+			// The exact journal key survives process death and is retried by the existing arbiter.
+		}
+	}
 
 	/**
 	 * Updates the callback-purpose extras carried by an existing PendingIntent without replacing
@@ -177,22 +234,37 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		removeRegistrationLocked(LEGACY_IDENTITY)
 	}
 
-	internal suspend fun removeRegistration(identity: ActivityRegistrationIdentity) = subscriptionMutex.withLock {
-		removeRegistrationLocked(identity)
+	internal suspend fun removeRegistration(identity: ActivityRegistrationIdentity): Unit = withContext(dispatchers.io) {
+		subscriptionMutex.withLock {
+			removeRegistrationLocked(identity)
+			cleanupStore.removePending(listOf(identity.cleanupKey()))
+			Unit
+		}
 	}
 
 	/** Removes a persisted cleanup obligation without consulting collected-data storage. */
-	internal suspend fun removePendingRegistration(key: ActivityRegistrationCleanupKey) =
+	internal suspend fun removePendingRegistration(
+		key: ActivityRegistrationCleanupKey,
+	): Unit = withContext(dispatchers.io) {
 		subscriptionMutex.withLock {
-			val intent = findPendingIntentForCleanup(key) ?: return@withLock
-			removeRegistrationLocked(intent)
+			val cleanup = cleanupStore.read()
+			if (key !in cleanup.pending &&
+				(key.kind != ActivityRegistrationCleanupKind.RELEASED_V27_STATIC || cleanup.releasedV27Checked)
+			) {
+				return@withLock
+			}
+			findPendingIntentForCleanup(key)?.let { removeRegistrationLocked(it) }
+			cleanupStore.removePending(listOf(key))
+			Unit
 		}
+	}
 
 	private suspend fun removeRegistrationLocked(identity: ActivityRegistrationIdentity) {
 		removeRegistrationLocked(getActivityDetectionPendingIntent(identity))
 	}
 
 	private suspend fun removeRegistrationLocked(intent: PendingIntent) {
+		check(!hasPendingRegistration(intent)) { "Activity provider registration has not settled" }
 		val client = ActivityRecognition.getClient(context)
 		try {
 			removeAllSubscriptions(client, intent)
@@ -216,37 +288,16 @@ class GmsActivityRecognitionBackend @Inject constructor(
 			client.removeActivityUpdates(intent),
 			client.removeActivityTransitionUpdates(intent),
 		)
-		try {
-			removalTask.await()
-		} catch (e: CancellationException) {
-			withContext(NonCancellable) {
-				awaitTaskSettlement(removalTask, e)
-			}
-			throw e
+		check(withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) { removalTask.await(); true } == true) {
+			"Activity provider removal timed out"
 		}
 	}
 
-	private suspend fun awaitTaskSettlement(task: Task<*>, originalFailure: Throwable) {
-		try {
-			task.await()
-		} catch (settlementFailure: Exception) {
-			if (settlementFailure !== originalFailure) {
-				originalFailure.addSuppressed(settlementFailure)
-			}
-		}
-	}
-
-	private suspend fun rollbackSubscriptions(
-		client: ActivityRecognitionClient,
-		intent: PendingIntent,
-		originalFailure: Throwable,
-	) {
-		try {
-			removeAllSubscriptions(client, intent)
-		} catch (rollbackFailure: Exception) {
-			originalFailure.addSuppressed(rollbackFailure)
-		}
-	}
+	private fun ActivityRegistrationIdentity.cleanupKey() = ActivityRegistrationCleanupKey(
+		kind = ActivityRegistrationCleanupKind.BROKERED,
+		sourceInstanceId = sourceInstanceId,
+		registrationGeneration = registrationGeneration,
+	)
 
 	// Called by ActivityReceiver when it receives an activity recognition result
 	internal fun onActivityResult(activity: RecognizedActivity, elapsedTimeMillis: Long) {
@@ -393,6 +444,8 @@ class GmsActivityRecognitionBackend @Inject constructor(
 			.setAction("${context.packageName}.ACTIVITY_RECOGNITION.$sourceInstanceId.$registrationGeneration")
 
 	companion object {
+		internal const val PROVIDER_OPERATION_TIMEOUT_MS = 10_000L
+		private val IMMEDIATE_EXECUTOR = Executor { it.run() }
 		internal const val EXTRA_DURABLE_RECOGNITION_ELIGIBLE = "activity_durable_recognition_eligible"
 		internal const val EXTRA_DURABLE_TRANSITION_FILTER = "activity_durable_transition_filter"
 		internal const val EXTRA_DURABLE_TRANSITION_ACTIVITY_TYPES = "activity_durable_transition_activity_types"

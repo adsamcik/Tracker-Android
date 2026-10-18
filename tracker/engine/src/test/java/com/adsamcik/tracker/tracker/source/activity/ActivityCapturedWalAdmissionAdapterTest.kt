@@ -8,6 +8,8 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatc
 import com.adsamcik.tracker.activity.api.ingress.ActivityTransitionEvidence
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ActivityCapturedRetentionResult
+import com.adsamcik.tracker.shared.base.database.pruneCapturedActivityFactsAffectedByRetentionFloor
 import com.adsamcik.tracker.tracker.source.advanceRetainedSourceOperations
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
@@ -32,6 +34,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntit
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
@@ -73,6 +76,212 @@ class ActivityCapturedWalAdmissionAdapterTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `adaptive Activity recorded after reboot recovers its terminal failure exactly once`() = runTest {
+		installFixture(adaptive = true, settingsBootId = "previous-boot", settingsElapsedNanos = 10_000L)
+		installProjectionLane()
+		installHistoricalPlanFailure()
+		val projection = ActivityCapturedFactProjectionLane(database, subject())
+
+		projection.drainAvailable() shouldBe ActivityCapturedFactDrainResult.Complete(2L, 1, 2)
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+		database.sourceProjectionStateDao().failure(
+			ActivityCapturedFactProjectionLane.WRITER_ID,
+			ActivityCapturedFactProjectionLane.WRITER_VERSION,
+			1L,
+		) shouldBe null
+		projection.drainAvailable() shouldBe ActivityCapturedFactDrainResult.Complete(2L, 0, 0)
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+		// The retained-data audit uses the same original settings after reboot as the writer.
+		database.sourceEvidenceStateDao().updateLifecycle(0L, 0L, System.currentTimeMillis()) shouldBe 1
+		database.pruneCapturedActivityFactsAffectedByRetentionFloor(
+			0L, 0L, System.currentTimeMillis() + 1_000L,
+		) shouldBe ActivityCapturedRetentionResult.NoChange
+	}
+
+	@Test
+	fun `same boot settings after the measurement leave its terminal failure and cursor intact`() = runTest {
+		installFixture(adaptive = true, settingsElapsedNanos = FIRST_EVENT_NANOS + 1L)
+		installProjectionLane()
+		installHistoricalPlanFailure()
+
+		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.POLICY_MISMATCH,
+		)
+		(ActivityCapturedFactProjectionLane(database, subject()).drainAvailable()
+			is ActivityCapturedFactDrainResult.Failed) shouldBe true
+		database.sourceProjectionStateDao().activeProductLane(ACTIVITY_SOURCE)
+			?.contiguousAdmissionOrdinal shouldBe 0L
+		database.sourceProjectionStateDao().failure(
+			ActivityCapturedFactProjectionLane.WRITER_ID,
+			ActivityCapturedFactProjectionLane.WRITER_VERSION,
+			1L,
+		)?.failureCode shouldBe "ACTIVITY_WAL_HISTORICAL_PLAN_MISMATCH"
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	@Test
+	fun `retired Activity seal recovers saved app tail without changing unknown provider coverage`() = runTest {
+		installFixture(adaptive = true, settingsBootId = "previous-boot", settingsElapsedNanos = 10_000L)
+		val completeness = database.sourceSessionDao().completenessForServiceRun(
+			LOGICAL_TRACKING_ID, SERVICE_RUN_ID,
+		).single()
+		database.sourceSessionDao().deleteAllCompleteness()
+		val interrupted = completeness.copy(
+			sourceInstanceId = "unresolved-activity",
+			registrationGeneration = 0L,
+			lastAdmissionOrdinal = null,
+			lastSourceSequence = null,
+			appDrainComplete = false,
+			stopStatus = "TIMED_OUT",
+		)
+		database.sourceSessionDao().saveCompleteness(interrupted)
+		sealCaptureTail()
+		installProjectionLane()
+		installHistoricalPlanFailure()
+
+		ActivityCapturedFactProjectionLane(database, subject()).drainAvailable() shouldBe
+			ActivityCapturedFactDrainResult.Complete(2L, 1, 2)
+		database.sourceSessionDao().completenessForServiceRun(
+			LOGICAL_TRACKING_ID, SERVICE_RUN_ID,
+		).single() shouldBe interrupted
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `interrupted Activity recovers its original sealed readings without inventing an elapsed Stop`() = runTest {
+		for (reason in listOf("FORCE_STOP_SUPPRESSED", "PREVIOUS_PROCESS_INTERRUPTED")) {
+			database.clearAllTables()
+			installFixture(adaptive = true, settingsBootId = "previous-boot", settingsElapsedNanos = 10_000L)
+			interruptSession(reason)
+			installProjectionLane()
+			installHistoricalPlanFailure("ACTIVITY_WAL_SESSION_MISMATCH")
+			val projection = ActivityCapturedFactProjectionLane(database, subject())
+
+			projection.drainAvailable() shouldBe ActivityCapturedFactDrainResult.Complete(2L, 1, 2)
+			val saved = database.activityCapturedFactDao().currentRevisionsForWriterAdmission(
+				ActivityCapturedFactProjectionLane.WRITER_ID,
+				ActivityCapturedFactProjectionLane.WRITER_VERSION, 1L, 2,
+			).single()
+			saved.sessionRunEffectEndNanos shouldBe Long.MAX_VALUE
+			database.activityCapturedFactDao().evidence(saved.writerProjectionId, saved.writerProjectionVersion,
+				saved.logicalWindowId, saved.semanticRevision).map { it.sourceEventId }.toSet() shouldBe
+				setOf(EVENT_ID.value, "activity-event-2")
+			val originalSession = requireNotNull(database.sourceSessionDao().session(LOGICAL_TRACKING_ID))
+			originalSession.cutoffElapsedNanos shouldBe null
+			originalSession.finalAdmissionOrdinal shouldBe null
+			database.sourceSessionDao().completenessForServiceRun(LOGICAL_TRACKING_ID, SERVICE_RUN_ID) shouldBe emptyList()
+			projection.drainAvailable() shouldBe ActivityCapturedFactDrainResult.Complete(2L, 0, 0)
+			database.activityCapturedFactDao().revisionCount() shouldBe 1L
+		}
+	}
+
+	@Test
+	fun `interrupted Activity cannot admit a reading at or after its known wall Stop`() = runTest {
+		installFixture()
+		interruptSession("FORCE_STOP_SUPPRESSED", cutoffAtMs = FIRST_EVENT_WALL_MS)
+		installProjectionLane()
+		installHistoricalPlanFailure("ACTIVITY_WAL_SESSION_MISMATCH")
+
+		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH,
+		)
+		(ActivityCapturedFactProjectionLane(database, subject()).drainAvailable()
+			is ActivityCapturedFactDrainResult.Failed) shouldBe true
+		database.sourceProjectionStateDao().activeProductLane(ACTIVITY_SOURCE)
+			?.contiguousAdmissionOrdinal shouldBe 0L
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	@Test
+	fun `interrupted Activity cannot borrow a different instance sealed tail`() = runTest {
+		installFixture()
+		interruptSession("PREVIOUS_PROCESS_INTERRUPTED")
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_capture_admission_barrier SET source_instance_id = ?",
+			arrayOf("different-activity-instance"),
+		)
+		installProjectionLane()
+		installHistoricalPlanFailure("ACTIVITY_WAL_SESSION_MISMATCH")
+
+		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Unavailable(
+			ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW,
+		)
+		(ActivityCapturedFactProjectionLane(database, subject()).drainAvailable()
+			is ActivityCapturedFactDrainResult.Failed) shouldBe true
+		database.sourceProjectionStateDao().activeProductLane(ACTIVITY_SOURCE)
+			?.contiguousAdmissionOrdinal shouldBe 0L
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	private suspend fun interruptSession(reason: String, cutoffAtMs: Long = 3_000L) {
+		val dao = database.sourceSessionDao()
+		val session = requireNotNull(dao.session(LOGICAL_TRACKING_ID))
+		val run = requireNotNull(dao.serviceRun(SERVICE_RUN_ID))
+		dao.updateSession(session.copy(cutoffAtMs = cutoffAtMs, cutoffElapsedNanos = null,
+			completedAtMs = cutoffAtMs, finalAdmissionOrdinal = null, failureCode = reason)) shouldBe 1
+		dao.updateServiceRun(run.copy(completedAtMs = cutoffAtMs, completionReason = reason,
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_QUIESCED,
+			presentationAcknowledgedAtMs = cutoffAtMs)) shouldBe 1
+		dao.deleteAllCompleteness()
+		sealCaptureTail()
+	}
+
+	@Test
+	fun `different Activity instance seal cannot substitute for missing app drain`() = runTest {
+		installFixture()
+		database.sourceSessionDao().deleteAllCompleteness()
+		sealCaptureTail()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_capture_admission_barrier SET source_instance_id = ?",
+			arrayOf("different-activity-instance"),
+		)
+
+		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Unavailable(
+			ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW,
+		)
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	private suspend fun installProjectionLane() {
+		database.sourceProjectionStateDao().installProductLane(SourceProductProjectionLaneEntity(
+			sourceKind = ACTIVITY_SOURCE,
+			bindingGeneration = 1L,
+			projectionId = ActivityCapturedFactProjectionLane.WRITER_ID,
+			projectionVersion = ActivityCapturedFactProjectionLane.WRITER_VERSION,
+			captureModeMask = 1L,
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			activatedRolloutRevision = 1L,
+			activationOrdinal = 1L,
+			contiguousAdmissionOrdinal = 0L,
+			captureAdmissionCutoffOrdinal = null,
+			retentionRequired = true,
+			status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+			installedAtMs = 1_000L,
+			updatedAtMs = 1_000L,
+		))
+	}
+
+	private suspend fun installHistoricalPlanFailure(failureCode: String = "ACTIVITY_WAL_HISTORICAL_PLAN_MISMATCH") {
+		database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
+			projectionId = ActivityCapturedFactProjectionLane.WRITER_ID,
+			projectionVersion = ActivityCapturedFactProjectionLane.WRITER_VERSION,
+			admissionOrdinal = 1L,
+			attemptCount = 1,
+			failureCode = failureCode,
+			terminal = true,
+			lastAttemptAtMs = 2_000L,
+		))
+	}
+
+	private suspend fun sealCaptureTail() {
+		database.sourceBrokerDao().sealCaptureAdmissionBarrier(
+			ACTIVITY_SOURCE, REGISTRATION_GENERATION, SOURCE_INSTANCE_ID,
+			AUTHORIZATION_REVISION, SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			SESSION_END_NANOS, 2_000L,
+		)
+	}
 
 	@Test
 	fun `actual original Activity lane coalesces separately decoded observations into one saved window`() = runTest {
@@ -646,13 +855,17 @@ class ActivityCapturedWalAdmissionAdapterTest {
 		bindingGeneration: Long = 1L,
 		ownerGeneration: Long = SourceWriterGenerationContract.canonicalOwnerGeneration(bindingGeneration),
 		sessionMode: String = "MANUAL",
+		adaptive: Boolean = false,
+		settingsBootId: String = BOOT_ID,
+		settingsElapsedNanos: Long = RUN_START_NANOS,
 	) {
 		val activityPlan = if (sampled) {
 			SAMPLED_ACTIVITY_PLAN
 		} else {
 			ACTIVITY_PLAN
 		}
-		val physicalFingerprint = activityPlan.physicalConfigurationFingerprint()
+		val originalPlan = activityPlan.copy(adaptiveProfileVersion = 1.takeIf { adaptive })
+		val physicalFingerprint = originalPlan.physicalConfigurationFingerprint()
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
 		database.sourceDestinationOwnerDao().insertIfAbsent(
 			SourceDestinationOwnerEntity(
@@ -663,8 +876,8 @@ class ActivityCapturedWalAdmissionAdapterTest {
 				updatedAtMs = 1_000L,
 			),
 		)
-		installPolicy(controlOnly)
-		val encodedPlan = planCodec.encode(activityPlan)
+		installPolicy(controlOnly, settingsBootId, settingsElapsedNanos)
+		val encodedPlan = planCodec.encode(originalPlan)
 		database.sourcePlanStateDao().insertRevision(
 			AcquisitionPlanRevisionEntity(
 				revision = PLAN_REVISION,
@@ -679,7 +892,7 @@ class ActivityCapturedWalAdmissionAdapterTest {
 				SourceDesiredPlanEntity(
 					revision = PLAN_REVISION,
 					sourceKind = ACTIVITY_SOURCE,
-					payloadVersion = 1,
+					payloadVersion = encodedPlan.formatVersion,
 					payload = encodedPlan.bytes,
 					payloadChecksum = encodedPlan.checksum,
 				),
@@ -691,7 +904,7 @@ class ActivityCapturedWalAdmissionAdapterTest {
 					sourceInstanceId = SOURCE_INSTANCE_ID,
 					registrationGeneration = REGISTRATION_GENERATION,
 					configurationRevision = PLAN_REVISION,
-					desiredPlanPayloadVersion = 1,
+					desiredPlanPayloadVersion = encodedPlan.formatVersion,
 					desiredPlanPayload = encodedPlan.bytes,
 					desiredPlanPayloadChecksum = encodedPlan.checksum,
 					physicalConfigurationFingerprint = physicalFingerprint,
@@ -842,7 +1055,7 @@ class ActivityCapturedWalAdmissionAdapterTest {
 		database.sourceEventWalDao().insertDeliveryUnits(rows)
 	}
 
-	private suspend fun installPolicy(controlOnly: Boolean) {
+	private suspend fun installPolicy(controlOnly: Boolean, settingsBootId: String, settingsElapsedNanos: Long) {
 		database.sourcePolicyDao().ensureAuthority(
 			SourcePolicyAuthorityEntity(
 				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
@@ -871,8 +1084,8 @@ class ActivityCapturedWalAdmissionAdapterTest {
 						null
 					},
 					ambientConsentEpoch = null,
-					effectiveBootId = BOOT_ID,
-					effectiveElapsedRealtimeNanos = RUN_START_NANOS,
+					effectiveBootId = settingsBootId,
+					effectiveElapsedRealtimeNanos = settingsElapsedNanos,
 					effectiveWallTimeMs = 1_000L,
 					changeReason = "TEST",
 				),
@@ -888,8 +1101,8 @@ class ActivityCapturedWalAdmissionAdapterTest {
 						eligible = true,
 						persistenceEligible = true,
 						policyRevision = POLICY_REVISION,
-						effectiveBootId = BOOT_ID,
-						effectiveElapsedRealtimeNanos = RUN_START_NANOS,
+						effectiveBootId = settingsBootId,
+						effectiveElapsedRealtimeNanos = settingsElapsedNanos,
 						effectiveWallTimeMs = 1_000L,
 						changeReason = "TEST",
 					),

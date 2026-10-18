@@ -48,6 +48,7 @@ import com.adsamcik.tracker.tracker.data.collection.LocationCanonicalCurationSta
 import com.adsamcik.tracker.tracker.altitude.AltitudeFusionState
 import com.adsamcik.tracker.tracker.altitude.AltitudeKalmanState
 import com.adsamcik.tracker.tracker.altitude.AltitudeProcessorState
+import com.adsamcik.tracker.tracker.presentation.SessionPresentationLifecycle
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -861,7 +862,16 @@ internal class ProtectedLocationCanonicalHandoff(
 		) {
 			return processAmbientCandidate(initialLane, expectedCursor, candidate, ambient.command)
 		}
-		return when (val adapted = qualifier.qualify(SourceEventId(candidate.eventId))) {
+		val initial = qualifier.qualify(SourceEventId(candidate.eventId))
+		val adapted = if (initial is LocationWalAdapterResult.Rejected &&
+			initial.reason == LocationWalAdapterRejection.MISSING_SEGMENT &&
+			SessionPresentationLifecycle(database).recoverMissingForRetainedEvent(candidate.eventId)
+		) {
+			qualifier.qualify(SourceEventId(candidate.eventId))
+		} else {
+			initial
+		}
+		return when (adapted) {
 			is LocationWalAdapterResult.Rejected ->
 				processRejectedAdapter(initialLane, expectedCursor, candidate, preflight, adapted, ambient)
 			is LocationWalAdapterResult.Evaluated -> processEvaluatedCandidate(

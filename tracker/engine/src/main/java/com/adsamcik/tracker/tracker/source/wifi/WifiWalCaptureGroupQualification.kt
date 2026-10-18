@@ -390,6 +390,9 @@ internal suspend fun qualifyWifiWalCaptureGroup(
 	if (run.startedElapsedNanos > qualifiedStart || qualifiedEnd >= sessionEnd) {
 		return rejectWifiWal(WifiWalAdapterRejection.SESSION_MISMATCH)
 	}
+	if (!database.hasRetainedWifiInterruptedTail(wal, session, run, qualifiedEnd)) {
+		return rejectWifiWal(WifiWalAdapterRejection.SESSION_MISMATCH)
+	}
 	val demandContracts = demands.map { demand ->
 		runCatching { demand.toSourceDemandContract() }.getOrNull()
 			?: return rejectWifiWal(
@@ -465,7 +468,7 @@ internal suspend fun qualifyWifiWalCaptureGroup(
 	if (!policy.enabled || !policy.capturePersistenceEligible || policy.captureConsentEpoch != consentEpoch) {
 		return rejectWifiWal(WifiWalAdapterRejection.POLICY_MISMATCH)
 	}
-	if (policy.effectiveBootId != wal.clockDomainId || policy.effectiveElapsedRealtimeNanos > qualifiedStart) {
+	if (policy.effectiveBootId == wal.clockDomainId && policy.effectiveElapsedRealtimeNanos > qualifiedStart) {
 		return rejectWifiWal(WifiWalAdapterRejection.POLICY_MISMATCH)
 	}
 	val consent = policyDao.consentEpoch(
@@ -476,7 +479,7 @@ internal suspend fun qualifyWifiWalCaptureGroup(
 	if (!consent.eligible || !consent.persistenceEligible || consent.policyRevision > policyRevision) {
 		return rejectWifiWal(WifiWalAdapterRejection.CONSENT_MISMATCH)
 	}
-	if (consent.effectiveBootId != wal.clockDomainId || consent.effectiveElapsedRealtimeNanos > qualifiedStart) {
+	if (consent.effectiveBootId == wal.clockDomainId && consent.effectiveElapsedRealtimeNanos > qualifiedStart) {
 		return rejectWifiWal(WifiWalAdapterRejection.CONSENT_MISMATCH)
 	}
 	val allManifestSources = database.trackingHistoryReadDao().manifestSources(

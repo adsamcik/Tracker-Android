@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources>
     <string name="app_name" translatable="false">Advention Dev</string>
-    <string name="settings_debug_seed_data_confirm_title">Add sample data?</string>
-    <string name="settings_debug_seed_data_confirm_message">Add three sample sessions in New York City?</string>
+    <string name="settings_debug_seed_data_confirm_title" translatable="false">Add sample data?</string>
+    <string name="settings_debug_seed_data_confirm_message" translatable="false">Add three sample sessions in New York City?</string>
 </resources>

@@ -218,7 +218,7 @@ internal class ActivityCapturedFactWriter(
 			policy.captureConsentEpoch != authority.captureConsentEpoch || policy.qosCode != binding.qosCode) {
 			reject(ActivityCapturedWriteRejection.POLICY_AUTHORITY_MISMATCH)
 		}
-		if (policy.effectiveBootId != authority.clockDomainId ||
+		if (policy.effectiveBootId == authority.clockDomainId &&
 			policy.effectiveElapsedRealtimeNanos > window.intervalStartElapsedRealtimeNanos) {
 			reject(ActivityCapturedWriteRejection.POLICY_AUTHORITY_MISMATCH)
 		}
@@ -231,7 +231,7 @@ internal class ActivityCapturedFactWriter(
 			consent.policyRevision > authority.sourcePolicyRevision) {
 			reject(ActivityCapturedWriteRejection.CONSENT_AUTHORITY_MISMATCH)
 		}
-		if (consent.effectiveBootId != authority.clockDomainId ||
+		if (consent.effectiveBootId == authority.clockDomainId &&
 			consent.effectiveElapsedRealtimeNanos > window.intervalStartElapsedRealtimeNanos) {
 			reject(ActivityCapturedWriteRejection.CONSENT_AUTHORITY_MISMATCH)
 		}
@@ -240,7 +240,9 @@ internal class ActivityCapturedFactWriter(
 			.desiredPlans(authority.configurationRevision)
 			.singleOrNull { it.sourceKind == SOURCE_KIND }
 		val decodedActivityPlan = desiredActivityPlan
-			?.takeIf { desired -> desired.payloadVersion == SOURCE_PLAN_PAYLOAD_VERSION }
+			?.takeIf { desired -> desired.payloadVersion in setOf(
+				SOURCE_PLAN_PAYLOAD_VERSION, SourcePlanCodec.ADAPTIVE_ACTIVITY_FORMAT_VERSION,
+			) }
 			?.let { desired -> runCatching { planCodec.decode(desired.payload) as? ActivityPlan }.getOrNull() }
 		val canonicalActivityPlan = decodedActivityPlan?.let(planCodec::encode)
 		val verifiedActivityPlan = desiredActivityPlan?.let(ActivityCapturedPlanIntegrity::decode)

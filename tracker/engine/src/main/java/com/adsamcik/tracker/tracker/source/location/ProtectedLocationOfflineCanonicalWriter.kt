@@ -118,7 +118,8 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 				terminal = false,
 			)
 		}
-		val permit = persistenceLifecycleLease.acquireOfflineLocationRecovery()
+		val permit = persistenceLifecycleLease.tryAcquireOfflineLocationRecovery()
+			?: return@withLock ProtectedLocationCanonicalWriteResult.Deferred("LOCATION_CANONICAL_PERSISTENCE_BUSY")
 		try {
 			try {
 				writeWithLifecycleLease(command, acquisitionMetadata, permit)

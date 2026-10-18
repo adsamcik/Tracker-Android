@@ -25,6 +25,9 @@ internal interface TrackingPersistenceLifecycleLease {
 	/** Explicit ownership for callers that may need to retain the permit across cleanup retries. */
 	suspend fun acquireOfflineLocationRecovery(): TrackingPersistenceLifecyclePermit
 
+	/** A drain must not hold its serializer waiting for a live pipeline it will later stop. */
+	suspend fun tryAcquireOfflineLocationRecovery(): TrackingPersistenceLifecyclePermit?
+
 	suspend fun <T> withOfflineLocationRecovery(block: suspend () -> T): T
 
 	/** Setup must not wait behind an offline cleanup permit retained for a later recovery attempt. */
@@ -46,16 +49,21 @@ internal class ExclusiveTrackingPersistenceLifecycleLease @Inject constructor() 
 	override suspend fun acquireOfflineLocationRecovery(): TrackingPersistenceLifecyclePermit =
 		acquire(TrackingPersistenceLifecycleMode.OFFLINE_LOCATION_RECOVERY)
 
+	override suspend fun tryAcquireOfflineLocationRecovery(): TrackingPersistenceLifecyclePermit? {
+		kotlinx.coroutines.currentCoroutineContext().ensureActive()
+		val owner = Any()
+		return if (mutex.tryLock(owner)) {
+			Permit(TrackingPersistenceLifecycleMode.OFFLINE_LOCATION_RECOVERY, mutex, owner)
+		} else {
+			null
+		}
+	}
+
 	override suspend fun <T> withOfflineLocationRecovery(block: suspend () -> T): T =
 		withPermit(TrackingPersistenceLifecycleMode.OFFLINE_LOCATION_RECOVERY, block)
 
 	override suspend fun <T : Any> tryWithOfflineLocationRecovery(block: suspend () -> T): T? {
-		kotlinx.coroutines.currentCoroutineContext().ensureActive()
-		val owner = Any()
-		if (!mutex.tryLock(owner)) {
-			return null
-		}
-		val permit = Permit(TrackingPersistenceLifecycleMode.OFFLINE_LOCATION_RECOVERY, mutex, owner)
+		val permit = tryAcquireOfflineLocationRecovery() ?: return null
 		return try { block() } finally {
 			withContext(NonCancellable) { permit.release() }
 		}

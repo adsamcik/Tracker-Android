@@ -10,8 +10,8 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.tracker.source.coordinator.EncodedSourcePlan
@@ -157,14 +157,15 @@ private suspend fun AppDatabase.hasWifiWalReplacementConsent(
 private fun SourcePolicyEntity.matchesWifiWalReplacementPolicy(
 	manifest: SessionManifestVersionEntity, wifiSource: SessionManifestSourceEntity,
 ): Boolean = enabled && capturePersistenceEligible && captureConsentEpoch == wifiSource.consentEpoch &&
-	qosCode == wifiSource.qosCode && effectiveBootId == manifest.effectiveBootId &&
-	effectiveElapsedRealtimeNanos <= manifest.effectiveElapsedRealtimeNanos
+	qosCode == wifiSource.qosCode &&
+	(effectiveBootId != manifest.effectiveBootId ||
+		effectiveElapsedRealtimeNanos <= manifest.effectiveElapsedRealtimeNanos)
 
 private fun SourceConsentEpochEntity.matchesWifiWalReplacementConsent(
 	manifest: SessionManifestVersionEntity, policy: SourcePolicyEntity,
 ): Boolean = eligible && persistenceEligible && policyRevision <= policy.policyRevision &&
-	effectiveBootId == manifest.effectiveBootId &&
-	effectiveElapsedRealtimeNanos <= manifest.effectiveElapsedRealtimeNanos
+	(effectiveBootId != manifest.effectiveBootId ||
+		effectiveElapsedRealtimeNanos <= manifest.effectiveElapsedRealtimeNanos)
 
 private suspend fun AppDatabase.hasWifiWalReplacementProvider(
 	session: LogicalTrackingSessionEntity, run: SourceServiceRunEntity, manifest: SessionManifestVersionEntity,
@@ -324,19 +325,20 @@ internal fun LogicalTrackingSessionEntity.hasValidWifiWalLifecycleShape(
 		return false
 	}
 	val terminal = state in WIFI_WAL_TERMINAL_SESSION_STATES
+	val interrupted = hasInterruptedWifiWalEnd()
 	if ((completedAtMs != null) != terminal) {
 		return false
 	}
 	if (completedAtMs?.let { it < startedAtMs } == true) {
 		return false
 	}
-	if ((cutoffAtMs == null) != (cutoffElapsedNanos == null)) {
+	if (!interrupted && (cutoffAtMs == null) != (cutoffElapsedNanos == null)) {
 		return false
 	}
 	if (terminal || state == "STOPPING") {
-		if (cutoffAtMs == null || cutoffElapsedNanos == null ||
+		if (cutoffAtMs == null || !interrupted && cutoffElapsedNanos == null ||
 			cutoffAtMs?.let { it < startedAtMs } != false ||
-			cutoffElapsedNanos?.let { it < startedElapsedNanos } != false
+			cutoffElapsedNanos?.let { it < startedElapsedNanos } == true
 		) {
 			return false
 		}
@@ -344,8 +346,8 @@ internal fun LogicalTrackingSessionEntity.hasValidWifiWalLifecycleShape(
 		return false
 	}
 	return if (terminal) {
-		currentServiceRunId == null && finalAdmissionOrdinal?.let { it >= 0L && (perReading ||
-            it >= admissionOrdinal) } == true
+		currentServiceRunId == null && (interrupted && finalAdmissionOrdinal == null ||
+			finalAdmissionOrdinal?.let { it >= 0L && (perReading || it >= admissionOrdinal) } == true)
 	} else {
 		!currentServiceRunId.isNullOrBlank() && finalAdmissionOrdinal == null
 	}

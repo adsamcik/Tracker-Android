@@ -651,16 +651,18 @@ internal object CellHistoryComposer {
 		policy: SourcePolicyEntity, manifest: SessionManifestVersionEntity, binding: SessionManifestSourceEntity,
 	): Boolean = policy.sourceKind == CELL_SOURCE && policy.policyRevision == manifest.sourcePolicyRevision &&
 		policy.enabled && policy.capturePersistenceEligible && policy.qosCode == binding.qosCode &&
-		policy.captureConsentEpoch == binding.consentEpoch && policy.effectiveBootId == manifest.effectiveBootId &&
-		policy.effectiveElapsedRealtimeNanos <= manifest.effectiveElapsedRealtimeNanos
+		policy.captureConsentEpoch == binding.consentEpoch &&
+		(policy.effectiveBootId != manifest.effectiveBootId ||
+			policy.effectiveElapsedRealtimeNanos <= manifest.effectiveElapsedRealtimeNanos)
 
 	private fun consentMatchesCapture(
 		consent: SourceConsentEpochEntity, policy: SourcePolicyEntity,
 		manifest: SessionManifestVersionEntity, binding: SessionManifestSourceEntity,
 	): Boolean = consent.sourceKind == CELL_SOURCE && consent.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
 		consent.epoch == binding.consentEpoch && consent.policyRevision <= policy.policyRevision &&
-		consent.eligible && consent.persistenceEligible && consent.effectiveBootId == manifest.effectiveBootId &&
-		consent.effectiveElapsedRealtimeNanos <= manifest.effectiveElapsedRealtimeNanos
+		consent.eligible && consent.persistenceEligible &&
+		(consent.effectiveBootId != manifest.effectiveBootId ||
+			consent.effectiveElapsedRealtimeNanos <= manifest.effectiveElapsedRealtimeNanos)
 
 	private fun validateLineage(
 		ordered: List<CellCapturedFactRevisionEntity>,
@@ -824,11 +826,18 @@ internal object CellHistoryComposer {
 
 	private fun factConsentAndManifestTimesMatch(
 		fact: CellCapturedFactRevisionEntity, authority: CellFactManifestAuthority, expectedEnd: Long,
-	): Boolean = fact.consentEffectStartNanos == authority.consent.effectiveElapsedRealtimeNanos &&
-		fact.consentEffectEndNanos == fact.authorizationEffectEndNanos &&
-		fact.sessionRunEffectStartNanos == authority.manifest.effectiveElapsedRealtimeNanos &&
-		(fact.sessionRunEffectEndNanos == expectedEnd || fact.sessionRunEffectEndNanos == Long.MAX_VALUE) &&
-		fact.coverageIntervalEndNanos < expectedEnd
+	): Boolean {
+		val consentStart = if (authority.consent.effectiveBootId == fact.clockDomainId) {
+			authority.consent.effectiveElapsedRealtimeNanos
+		} else {
+			0L
+		}
+		return fact.consentEffectStartNanos == consentStart &&
+			fact.consentEffectEndNanos == fact.authorizationEffectEndNanos &&
+			fact.sessionRunEffectStartNanos == authority.manifest.effectiveElapsedRealtimeNanos &&
+			(fact.sessionRunEffectEndNanos == expectedEnd || fact.sessionRunEffectEndNanos == Long.MAX_VALUE) &&
+			fact.coverageIntervalEndNanos < expectedEnd
+	}
 
 	private fun factSessionTimesMatch(
 		fact: CellCapturedFactRevisionEntity, authority: CellFactManifestAuthority, sessionEnd: Long,

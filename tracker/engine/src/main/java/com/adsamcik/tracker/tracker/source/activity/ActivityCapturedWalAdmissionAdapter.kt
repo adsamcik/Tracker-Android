@@ -6,7 +6,6 @@ import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
 import com.adsamcik.tracker.shared.base.database.authenticateHistoricalProviderRegistration
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventWalPayloadPreflightRow
-import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityWalCarrierAuthentication
 import com.adsamcik.tracker.shared.base.database.data.ActivityWalCarrierAuthenticator
@@ -14,7 +13,6 @@ import com.adsamcik.tracker.shared.base.database.data.ActivityWalPayload
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
-import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -22,8 +20,6 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
@@ -322,7 +318,9 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 				.singleOrNull { plan -> plan.sourceKind == ACTIVITY_SOURCE }
 			if (planHeader?.sourcePolicyRevision != sourcePolicyRevision || desiredPlan == null ||
 				desiredPlan.revision != configurationRevision ||
-				desiredPlan.payloadVersion != SOURCE_PLAN_PAYLOAD_VERSION
+				desiredPlan.payloadVersion !in setOf(
+					SOURCE_PLAN_PAYLOAD_VERSION, SourcePlanCodec.ADAPTIVE_ACTIVITY_FORMAT_VERSION,
+				)
 			) {
 				return@transaction rejected(
 				ActivityCapturedWalAdmissionRejection.HISTORICAL_PLAN_MISMATCH,
@@ -334,15 +332,7 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			) ?: return@transaction unavailable(
 				ActivityCapturedWalAdmissionUnavailable.MISSING_IMMUTABLE_REGISTRATION_PLAN,
 			)
-			// Compare the saved registration-plan payload, identity and applied boundary together.
-			@Suppress("ComplexCondition")
-			if (registrationPlan.configurationRevision != configurationRevision ||
-				registrationPlan.desiredPlanPayloadVersion != desiredPlan.payloadVersion ||
-				!registrationPlan.desiredPlanPayload.contentEquals(desiredPlan.payload) ||
-				registrationPlan.desiredPlanPayloadChecksum != desiredPlan.payloadChecksum ||
-				registrationPlan.physicalConfigurationFingerprint != physicalFingerprint ||
-				registrationPlan.appliedAtElapsedRealtimeNanos > selected.observedElapsedNanos
-			) {
+			if (!registrationPlan.matchesCapturedActivityPlan(desiredPlan, selected)) {
 				return@transaction rejected(
 				ActivityCapturedWalAdmissionRejection.HISTORICAL_PLAN_MISMATCH,
 			)
@@ -447,14 +437,14 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			val policyDao = database.sourcePolicyDao()
 			val policyAuthority = policyDao.authority()
 			val policy = policyDao.policyAtRevision(sourcePolicyRevision, ACTIVITY_SOURCE)
-			// Compare the historical policy eligibility and original boot/time boundary together.
+			// Saved choices survive reboot; elapsed boundaries are comparable only in the same boot.
 			@Suppress("ComplexCondition")
 			if (policyAuthority?.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE ||
 				policyAuthority.currentPolicyRevision < sourcePolicyRevision || policy == null ||
 				!policy.enabled || !policy.capturePersistenceEligible ||
 				policy.captureConsentEpoch != captureConsentEpoch ||
-				policy.effectiveBootId != selected.clockDomainId ||
-				policy.effectiveElapsedRealtimeNanos > selected.observedElapsedNanos
+				(policy.effectiveBootId == selected.clockDomainId &&
+					policy.effectiveElapsedRealtimeNanos > selected.observedElapsedNanos)
 			) {
 				return@transaction rejected(ActivityCapturedWalAdmissionRejection.POLICY_MISMATCH)
 			}
@@ -467,8 +457,8 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			@Suppress("ComplexCondition")
 			if (consent == null || !consent.eligible || !consent.persistenceEligible ||
 				consent.policyRevision > sourcePolicyRevision ||
-				consent.effectiveBootId != selected.clockDomainId ||
-				consent.effectiveElapsedRealtimeNanos > selected.observedElapsedNanos
+				(consent.effectiveBootId == selected.clockDomainId &&
+					consent.effectiveElapsedRealtimeNanos > selected.observedElapsedNanos)
 			) {
 				return@transaction rejected(ActivityCapturedWalAdmissionRejection.CONSENT_MISMATCH)
 			}
@@ -488,6 +478,7 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			}
 			val maximumDeliveryOrdinal = decodedDelivery.maxOf { unit -> unit.wal.admissionOrdinal }
 			val maximumDeliverySequence = decodedDelivery.maxOf { unit -> unit.wal.sourceSequence }
+			val interruptedTerminalRun = session.isInterruptedTerminalRun(run)
 			if (!session.hasValidLifecycleShape(maximumDeliveryOrdinal, run) ||
 				!run.hasValidLifecycleShape() || !run.hasValidRelationshipTo(session)
 			) {
@@ -499,17 +490,28 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 						row.sourceInstanceId == selected.sourceInstanceId &&
 						row.registrationGeneration == selected.registrationGeneration
 				}
-			if (completeness?.isExactSettledActivityTail(
+			val completenessSettled = completeness?.isExactSettledActivityTail(
 					maximumDeliveryOrdinal,
 					maximumDeliverySequence,
-				) != true
-			) {
+				) == true
+			// An interrupted old stop can miss its acknowledgement after callback admission was
+			// already sealed. The exact retired registration seal proves only the saved app tail;
+			// it does not turn the provider's unobservable completeness into complete coverage.
+			val sealedTail = if (completenessSettled && !interruptedTerminalRun) {
+				null
+			} else {
+				brokerDao.captureAdmissionBarrier(ACTIVITY_SOURCE, selected.registrationGeneration)
+			}
+			val sealedTailSettled = sealedTail.hasSettledActivityTail(
+				registration, selected, maximumDeliveryOrdinal, maximumDeliverySequence,
+			)
+			if (!completenessSettled && !sealedTailSettled) {
 				return@transaction unavailable(
 					ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW,
 				)
 			}
-			val terminalWindow = session.state in TERMINAL_LIFECYCLE_STATES &&
-				run.state in TERMINAL_LIFECYCLE_STATES
+			val terminalWindow = session.state in ACTIVITY_CAPTURED_TERMINAL_STATES &&
+				run.state in ACTIVITY_CAPTURED_TERMINAL_STATES
 			val currentIntent = session.currentIntentRevision?.let { intentRevision ->
 				sessionDao.lifecycleIntent(logicalTrackingId, intentRevision)
 			}
@@ -524,13 +526,18 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			)
 			}
 			val savedCutoff = database.savedSessionCutoff(session)
-			val sessionEnd = when {
-				savedCutoff.bootId == selected.clockDomainId -> savedCutoff.elapsedNanos
-				savedCutoff.bootId == null && session.lifecycleBootId == selected.clockDomainId ->
-					session.cutoffElapsedNanos
-				else -> null
-			}
+			val sessionEnd = session.capturedActivitySessionEnd(
+				savedCutoff, selected.clockDomainId, interruptedTerminalRun && sealedTailSettled,
+			)
 			val finalAdmissionOrdinal = session.finalAdmissionOrdinal
+				?: sealedTail?.lastAdmissionOrdinal?.takeIf { interruptedTerminalRun && sealedTailSettled }
+			// Process death may leave only a wall cutoff. Keep that uncertainty instead of borrowing
+			// another boot's elapsed clock; the retired registration seal bounds the saved app tail.
+			if (interruptedTerminalRun && session.cutoffElapsedNanos == null && decodedDelivery.any { unit ->
+				unit.wal.latestPossibleWallTimeMs()?.let { it >= requireNotNull(session.cutoffAtMs) } != false
+			}) {
+				return@transaction rejected(ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH)
+			}
 			if (sessionEnd == null || finalAdmissionOrdinal == null ||
 				maximumDeliveryOrdinal > finalAdmissionOrdinal
 			) {
@@ -633,49 +640,12 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 				ActivityCapturedWalAdmissionRejection.TEMPORAL_AUTHORITY_MISMATCH,
 			)
 			val captureAuthority = runCatching {
-				ActivityCaptureAuthority(
-					logicalTrackingId = LogicalTrackingId(logicalTrackingId),
-					serviceRunId = ServiceRunId(serviceRunId),
-					sourceInstanceId = SourceInstanceId(selected.sourceInstanceId),
-					registrationGeneration = selected.registrationGeneration,
-					configurationRevision = configurationRevision,
-					physicalConfigurationFingerprint = physicalFingerprint,
-					authorizationRevision = authorizationRevision,
-					authorizationFingerprint = authorizationFingerprint,
-					purposeEligibilityMask = selected.authorizationPurposeEligibilityMask,
-					sourcePolicyRevision = sourcePolicyRevision,
-					captureConsentEpoch = captureConsentEpoch,
-					sessionManifestRevision = manifestRevision,
-					lifecycleLeaseGeneration = leaseGeneration,
-					collectedDataEpoch = selected.capturedCollectedDataEpoch,
-					clockDomainId = selected.clockDomainId,
-					temporalAuthority = temporalAuthority,
-				)
+				selected.toCapturedActivityAuthority(temporalAuthority)
 			}.getOrNull() ?: return@transaction rejected(
 				ActivityCapturedWalAdmissionRejection.TEMPORAL_AUTHORITY_MISMATCH,
 			)
 			val acquisitionAuthority = runCatching {
-				ActivityCaptureAcquisitionAuthority(
-					captureAuthority = captureAuthority,
-					historicalConfiguration = ActivityHistoricalAcquisitionConfiguration.fromSerializedPlan(
-						identity = ActivityAcquisitionConfigurationIdentity(
-							sourceInstanceId = captureAuthority.sourceInstanceId,
-							registrationGeneration = captureAuthority.registrationGeneration,
-							configurationRevision = captureAuthority.configurationRevision,
-							physicalConfigurationFingerprint =
-								captureAuthority.physicalConfigurationFingerprint,
-							authorizationRevision = captureAuthority.authorizationRevision,
-							authorizationFingerprint = captureAuthority.authorizationFingerprint,
-						),
-						providerAcceptance = temporalAuthority.providerAcceptance,
-						authorizationEffect = temporalAuthority.authorizationEffect,
-						sessionRunEffect = temporalAuthority.sessionRunEffect,
-						desiredPlanPayloadVersion = desiredPlan.payloadVersion,
-						desiredPlanPayloadChecksum = desiredPlan.payloadChecksum,
-						desiredPlanPayload = desiredPlan.payload,
-						planCodec = planCodec,
-					),
-				)
+				captureAuthority.withHistoricalActivityConfiguration(desiredPlan, planCodec)
 			}.getOrNull() ?: return@transaction rejected(
 				ActivityCapturedWalAdmissionRejection.HISTORICAL_PLAN_MISMATCH,
 			)
@@ -684,8 +654,8 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 				authorization.effectiveElapsedRealtimeNanos,
 				run.startedElapsedNanos,
 				manifest.effectiveElapsedRealtimeNanos,
-				policy.effectiveElapsedRealtimeNanos,
-				consent.effectiveElapsedRealtimeNanos,
+				policy.effectiveElapsedRealtimeNanos.takeIf { policy.effectiveBootId == selected.clockDomainId } ?: 0L,
+				consent.effectiveElapsedRealtimeNanos.takeIf { consent.effectiveBootId == selected.clockDomainId } ?: 0L,
 				registrationPlan.appliedAtElapsedRealtimeNanos,
 			)
 			val settledEnd = minOf(registrationEnd, authorizationEnd, sessionEnd, nextManifestStart)
@@ -721,15 +691,13 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 				)
 			}
 		}
-
-	private fun rejected(reason: ActivityCapturedWalAdmissionRejection) =
-		ActivityCapturedWalAdmissionResult.Rejected(reason)
-
-	private fun unavailable(reason: ActivityCapturedWalAdmissionUnavailable) =
-		ActivityCapturedWalAdmissionResult.Unavailable(reason)
-
-
 }
+
+private fun rejected(reason: ActivityCapturedWalAdmissionRejection) =
+	ActivityCapturedWalAdmissionResult.Rejected(reason)
+
+private fun unavailable(reason: ActivityCapturedWalAdmissionUnavailable) =
+	ActivityCapturedWalAdmissionResult.Unavailable(reason)
 
 private fun SourceEventWalEntity.hasSamePersistedValueAs(other: SourceEventWalEntity): Boolean =
 	this == other.copy(payload = payload) && payload.contentEquals(other.payload)
@@ -740,140 +708,6 @@ private fun SourceEventWalPayloadPreflightRow.matches(wal: SourceEventWalEntity)
 	clockDomainId == wal.clockDomainId && deliveryIdentity == wal.deliveryIdentity &&
 	deliveryUnitIndex == wal.deliveryUnitIndex && deliveryUnitCount == wal.deliveryUnitCount &&
 	payloadBytes == wal.payload.size.toLong()
-
-@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
-private fun LogicalTrackingSessionEntity.hasValidLifecycleShape(
-	maximumAdmissionOrdinal: Long,
-	run: SourceServiceRunEntity,
-): Boolean {
-	if (!hasValidLifecycleHeader()) {
-		return false
-	}
-	val terminal = state in TERMINAL_LIFECYCLE_STATES
-	val stoppingRelationship = run.state == LIFECYCLE_STOPPING &&
-		run.serviceRunId == currentServiceRunId &&
-		state in SETTLED_STOPPING_SESSION_STATES
-	if ((completedAtMs != null) != terminal ||
-		completedAtMs?.let { completed -> completed < 0L } == true
-	) {
-		return false
-	}
-	if (!hasValidLifecycleCutoff(terminal, stoppingRelationship)) {
-		return false
-	}
-	return hasValidLifecycleOwnership(terminal, stoppingRelationship, run, maximumAdmissionOrdinal)
-}
-
-// Fixed persisted session header: IDs/revisions, original start and paired optional cutoff columns.
-@Suppress("CyclomaticComplexMethod", "ComplexCondition")
-private fun LogicalTrackingSessionEntity.hasValidLifecycleHeader(): Boolean =
-	state in ALL_LIFECYCLE_STATES && lifecycleRevision > 0L && desiredPlanRevision > 0L &&
-	startedAtMs >= 0L && startedElapsedNanos >= 0L && lifecycleLeaseGeneration > 0L &&
-	!lifecycleBootId.isNullOrBlank() && currentManifestRevision?.let { it <= 0L } == false &&
-	(cutoffAtMs == null) == (cutoffElapsedNanos == null)
-
-private fun LogicalTrackingSessionEntity.hasValidLifecycleCutoff(
-	terminal: Boolean,
-	stoppingRelationship: Boolean,
-): Boolean = if (terminal || state == LIFECYCLE_STOPPING) {
-	cutoffAtMs?.let { it < 0L } == false &&
-		cutoffElapsedNanos?.let { it < startedElapsedNanos } == false
-} else {
-	stoppingRelationship || (cutoffAtMs == null && cutoffElapsedNanos == null)
-}
-
-private fun LogicalTrackingSessionEntity.hasValidLifecycleOwnership(
-	terminal: Boolean,
-	stoppingRelationship: Boolean,
-	run: SourceServiceRunEntity,
-	maximumAdmissionOrdinal: Long,
-): Boolean {
-	val finalOrdinal = finalAdmissionOrdinal
-	return when {
-		terminal -> currentServiceRunId == null && finalOrdinal != null && finalOrdinal >= maximumAdmissionOrdinal
-		stoppingRelationship -> currentServiceRunId == run.serviceRunId &&
-			(finalOrdinal == null || finalOrdinal >= maximumAdmissionOrdinal)
-		else -> !currentServiceRunId.isNullOrBlank() && finalOrdinal == null
-	}
-}
-
-// Missing saved cutoff, final ordinal or requested state cannot establish the stopping window.
-@Suppress("ReturnCount")
-private fun LogicalTrackingSessionEntity.isExactSettledStoppingWindow(
-	run: SourceServiceRunEntity,
-	intent: SessionLifecycleIntentVersionEntity?,
-	maximumAdmissionOrdinal: Long,
-): Boolean {
-	val cutoffElapsed = cutoffElapsedNanos ?: return false
-	val cutoffWall = cutoffAtMs ?: return false
-	val finalOrdinal = finalAdmissionOrdinal ?: return false
-	val expectedDesiredState = when (state) {
-		LIFECYCLE_STOPPING -> "FINALIZED"
-		LIFECYCLE_ACTIVE -> "ACTIVE"
-		else -> return false
-	}
-	return run.matchesStoppingWindow(this, maximumAdmissionOrdinal, finalOrdinal) &&
-		intent.matchesStoppingWindow(this, run, expectedDesiredState, cutoffElapsed, cutoffWall)
-}
-
-// Exact saved current run and final-admission correspondence for this stopping settlement.
-@Suppress("ComplexCondition")
-private fun SourceServiceRunEntity.matchesStoppingWindow(
-	session: LogicalTrackingSessionEntity,
-	maximumAdmissionOrdinal: Long,
-	finalOrdinal: Long,
-): Boolean = state == LIFECYCLE_STOPPING && serviceRunId == session.currentServiceRunId &&
-	logicalTrackingId == session.logicalTrackingId && completedAtMs == null &&
-	finalOrdinal >= maximumAdmissionOrdinal
-
-// Exact immutable saved intent tuple; it does not perform a transition or consult current state.
-@Suppress("ComplexCondition", "CyclomaticComplexMethod")
-private fun SessionLifecycleIntentVersionEntity?.matchesStoppingWindow(
-	session: LogicalTrackingSessionEntity,
-	run: SourceServiceRunEntity,
-	expectedDesiredState: String,
-	cutoffElapsed: Long,
-	cutoffWall: Long,
-): Boolean = this != null && logicalTrackingId == session.logicalTrackingId &&
-	intentRevision == session.currentIntentRevision && manifestRevision == session.currentManifestRevision &&
-	desiredState == expectedDesiredState && requestBootId == run.bootId &&
-	requestedElapsedRealtimeNanos == cutoffElapsed && requestedWallTimeMs == cutoffWall &&
-	!stopReason.isNullOrBlank()
-
-private fun SourceSessionCompletenessEntity.isExactSettledActivityTail(
-	maximumAdmissionOrdinal: Long,
-	maximumSourceSequence: Long,
-): Boolean = appDrainComplete &&
-	stopStatus in SETTLED_STOP_STATUSES &&
-	unresolvedSequenceStart == null &&
-	unresolvedSequenceEnd == null &&
-	lastAdmissionOrdinal?.let { it >= maximumAdmissionOrdinal } == true &&
-	lastSourceSequence?.let { it >= maximumSourceSequence } == true
-
-// Validate the complete immutable service-run row and its terminal completion correspondence together.
-@Suppress("ComplexCondition", "CyclomaticComplexMethod")
-private fun SourceServiceRunEntity.hasValidLifecycleShape(): Boolean {
-	if (state !in ALL_LIFECYCLE_STATES || serviceRunId.isBlank() || logicalTrackingId.isBlank() ||
-		startedAtMs < 0L || startedElapsedNanos < 0L || leaseGeneration <= 0L ||
-		bootId.isBlank() || runRevision <= 0L
-	) {
-		return false
-	}
-	val terminal = state in TERMINAL_LIFECYCLE_STATES
-	return (completedAtMs != null) == terminal &&
-		completedAtMs?.let { completed -> completed >= 0L } != false
-}
-
-private fun SourceServiceRunEntity.hasValidRelationshipTo(
-	session: LogicalTrackingSessionEntity,
-): Boolean = when {
-	logicalTrackingId != session.logicalTrackingId -> false
-	state !in TERMINAL_LIFECYCLE_STATES ->
-		session.currentServiceRunId == serviceRunId &&
-			(session.state to state) in LIVE_SESSION_RUN_STATE_PAIRS
-	session.state in TERMINAL_LIFECYCLE_STATES -> session.currentServiceRunId == null
-	else -> true
-}
 
 // Compares the complete immutable delivery-authority tuple without consulting live state.
 @Suppress("CyclomaticComplexMethod")
@@ -904,6 +738,7 @@ private fun SourceEventWalEntity.earliestPossibleWallTimeMs(): Long? {
 		wall - uncertainty
 	}
 }
+
 
 private fun SessionManifestSourceEntity.belongsTo(
 	manifest: com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity,
@@ -1181,23 +1016,6 @@ private const val DELIVERY_HEADER_BYTES = Int.SIZE_BYTES * 3
 private const val DELIVERY_EVENT_BYTES = Long.SIZE_BYTES + Int.SIZE_BYTES * 4
 private const val KIND_RECOGNITION = 0
 private const val KIND_TRANSITION = 1
-private const val LIFECYCLE_STOPPING = "STOPPING"
-private const val LIFECYCLE_ACTIVE = "ACTIVE"
-private val SETTLED_STOP_STATUSES = setOf("COMPLETE", "PARTIAL_UNOBSERVABLE")
-private val TERMINAL_LIFECYCLE_STATES = setOf("FINALIZED", "CLOSED", "FAILED")
-private val ALL_LIFECYCLE_STATES = TERMINAL_LIFECYCLE_STATES +
-	setOf("STARTING", LIFECYCLE_ACTIVE, "RECONFIGURING", LIFECYCLE_STOPPING)
-private val SETTLED_STOPPING_SESSION_STATES = setOf(LIFECYCLE_ACTIVE, LIFECYCLE_STOPPING)
-private val LIVE_SESSION_RUN_STATE_PAIRS = setOf(
-	"STARTING" to "STARTING",
-	"STARTING" to "ACTIVE",
-	"ACTIVE" to "STARTING",
-	"ACTIVE" to "ACTIVE",
-	"RECONFIGURING" to "STARTING",
-	"RECONFIGURING" to "ACTIVE",
-	"ACTIVE" to LIFECYCLE_STOPPING,
-	LIFECYCLE_STOPPING to LIFECYCLE_STOPPING,
-)
 
 private fun ActivityWalPayload.toSourcePayload(): SourcePayload = when (this) {
 	is ActivityWalPayload.Transition -> ActivityTransitionPayload(

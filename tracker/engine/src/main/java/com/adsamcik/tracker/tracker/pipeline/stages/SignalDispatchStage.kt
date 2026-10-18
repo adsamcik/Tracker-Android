@@ -24,6 +24,8 @@ internal class SignalDispatchStage(
 	private val currentTierProvider: () -> PolicyTier,
 	private val currentPolicyNameProvider: () -> String? = { null },
 	private val beforeSignalAdmission: suspend (CycleContext, TrackingSignal) -> Unit = { _, _ -> },
+	/** Historical curation persists to its original session without updating live processors. */
+	private val durableSessionId: Long? = null,
 ) : PipelineStage {
 	private var lastEffectiveActivity: ActivityInfo? = null
 
@@ -184,8 +186,12 @@ internal class SignalDispatchStage(
 
 		cycleContext.signal = signal
 		beforeSignalAdmission(cycleContext, signal)
-		val admitted = pipeline.onSignal(signal) {
-			lastEffectiveActivity = effectiveActivity
+		val admitted = if (durableSessionId != null) {
+			pipeline.checkpointDurableSignals(listOf(signal), durableSessionId)
+		} else {
+			pipeline.onSignal(signal) {
+				lastEffectiveActivity = effectiveActivity
+			}
 		}
 		return if (admitted) {
 			StageResult.Continue

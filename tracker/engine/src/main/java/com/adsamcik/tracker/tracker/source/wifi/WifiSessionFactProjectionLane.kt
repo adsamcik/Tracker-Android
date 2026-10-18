@@ -181,8 +181,11 @@ class WifiSessionFactProjectionLane private constructor(
 								false
 							}
 						}
-					val readThroughOrdinal = terminal?.admissionOrdinal?.minus(1L)
-						?: targetAdmissionOrdinal
+					val readThroughOrdinal = when {
+						terminal == null -> targetAdmissionOrdinal
+						canRequalifyRetainedAuthority(terminal) -> terminal.admissionOrdinal
+						else -> terminal.admissionOrdinal - 1L
+					}
 					if (readThroughOrdinal <= cursor) {
 						return@withTransaction WifiProjectionPass.TerminalBlocked(
 							failure = requireNotNull(terminal),
@@ -319,6 +322,19 @@ class WifiSessionFactProjectionLane private constructor(
 			}
 		}
 		return WifiSessionFactDrainResult.Complete(cursor, factsInserted, eventsValidated)
+	}
+
+	/** Retry a corrected authority check only after the exact retained row fully qualifies. */
+	private suspend fun canRequalifyRetainedAuthority(failure: SourceProjectionFailureEntity): Boolean {
+		if (failure.failureCode !in setOf("WIFI_ADAPTER_POLICY_MISMATCH", "WIFI_ADAPTER_CONSENT_MISMATCH",
+			"WIFI_ADAPTER_SESSION_MISMATCH")) {
+			return false
+		}
+		val wal = database.sourceEventWalDao().getByAdmissionOrdinal(failure.admissionOrdinal) ?: return false
+		if (wal.sourceKind != SourceKind.WIFI.stableCode) {
+			return false
+		}
+		return adapter.qualify(SourceEventId(wal.eventId)).toProjectionResult().failureCode == null
 	}
 
 	private suspend fun persistFailure(

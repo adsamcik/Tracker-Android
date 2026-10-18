@@ -53,6 +53,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
@@ -76,6 +77,7 @@ import com.adsamcik.tracker.tracker.pipeline.persistence.TrackingPersistenceTran
 import com.adsamcik.tracker.tracker.component.consumer.data.LocationTrackerComponent
 import com.adsamcik.tracker.tracker.altitude.AltitudeProcessor
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
+import com.adsamcik.tracker.tracker.presentation.SessionPresentationLifecycle
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
@@ -297,6 +299,178 @@ class LocationWalQualificationAdapterTest {
 
 		assertTrue(qualified.command.productEffect.isMock)
 		assertTrue(requireNotNull(qualified.command.productEffect.payload.isMock))
+	}
+
+	@Test
+	fun `saved Location retries original facts after later lifecycle leases and clears its old failure`() = roomTest {
+		installValidFixture(payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false), locationPayload(false)))
+		val originals = listOf(EVENT_ID.value, "location-event-sibling-1").map { eventId ->
+			requireNotNull(database.sourceEventWalDao().getByEventId(eventId))
+		}
+		val firstOrdinal = originals.first().admissionOrdinal
+		val lastOrdinal = originals.last().admissionOrdinal
+		installProtectedHandoffAuthority(lastOrdinal, activationOrdinal = firstOrdinal)
+		val sessions = database.sourceSessionDao()
+		val run = requireNotNull(sessions.serviceRun(RUN_ID))
+		val session = requireNotNull(sessions.session(LOGICAL_ID))
+		// Reconfiguration and End advance operation authority; admitted facts retain their original generation.
+		for (generation in 2L..3L) {
+			sessions.updateServiceRun(run.copy(leaseGeneration = generation))
+			sessions.updateSession(session.copy(lifecycleLeaseGeneration = generation,
+				finalAdmissionOrdinal = lastOrdinal))
+			assertIs<LocationWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		}
+		val projectionId = SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID
+		val projectionVersion = SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION
+		database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
+			projectionId, projectionVersion, firstOrdinal, 1,
+			"LOCATION_ADAPTER_SESSION_MISMATCH", terminal = true, lastAttemptAtMs = 2_000L))
+		val dispatchers = TestDispatchersProvider(Dispatchers.Unconfined)
+		val writer = ProtectedLocationOfflineCanonicalWriter(context, database, dispatchers,
+			newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)))
+		val handoff = ProtectedLocationCanonicalHandoff(database, subject, writer)
+
+		val complete = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainHighWater())
+
+		assertEquals(lastOrdinal, complete.lastCommittedOrdinal)
+		assertEquals(null, database.sourceProjectionStateDao().failure(projectionId, projectionVersion, firstOrdinal))
+		for (original in originals) {
+			assertNotNull(database.locationObservationDao().getBySourceEventId(original.eventId))
+			assertNotNull(database.locationObservationDecisionDao().getBySourceEventId(original.eventId))
+			assertSavedWalUnchanged(original)
+		}
+		assertTrue(database.locationSampleDao().countAll() > 0L)
+	}
+
+	@Test
+	@Suppress("LongMethod")
+	fun `failed run missing presentation recovers saved Location without changing the newer run`() = roomTest {
+		installValidFixture(payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false), locationPayload(false)))
+		val originals = listOf(EVENT_ID.value, "location-event-sibling-1").map {
+			requireNotNull(database.sourceEventWalDao().getByEventId(it))
+		}
+		val unbound = removeFixturePresentation()
+		val sessions = database.sourceSessionDao()
+		val oldSession = requireNotNull(sessions.session(LOGICAL_ID))
+		sessions.insertSession(oldSession.copy(logicalTrackingId = "new-logical", state = "ACTIVE",
+			currentServiceRunId = "new-run", cutoffAtMs = null, cutoffElapsedNanos = null, completedAtMs = null))
+		val newer = unbound.copy(logicalTrackingId = "new-logical", serviceRunId = "new-run", state = "ACTIVE",
+			completedAtMs = null, completionReason = null, startDeliveryToken = "new-delivery", startCommandGeneration = 2L)
+		sessions.insertServiceRun(newer)
+		val lastOrdinal = originals.last().admissionOrdinal
+		installProtectedHandoffAuthority(lastOrdinal, activationOrdinal = originals.first().admissionOrdinal)
+		database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
+			ProtectedLocationCanonicalHandoff.WRITER_ID, ProtectedLocationCanonicalHandoff.WRITER_VERSION,
+			originals.first().admissionOrdinal, 8, "LOCATION_ADAPTER_MISSING_SEGMENT", true, 2_000L))
+		assertEquals(LocationWalAdapterRejection.MISSING_SEGMENT,
+			assertIs<LocationWalAdapterResult.Rejected>(subject.qualify(EVENT_ID)).reason)
+		val dispatchers = TestDispatchersProvider(Dispatchers.Unconfined)
+		val writer = ProtectedLocationOfflineCanonicalWriter(context, database, dispatchers,
+			newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)))
+		val handoff = ProtectedLocationCanonicalHandoff(database, subject, writer)
+
+		val complete = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainHighWater())
+
+		assertEquals(lastOrdinal, complete.lastCommittedOrdinal)
+		val recovered = requireNotNull(sessions.serviceRun(RUN_ID))
+		val recoveredSegment = requireNotNull(database.sessionSegmentDao().getById(requireNotNull(recovered.sessionSegmentId)))
+		assertEquals(unbound.startedAtMs, recoveredSegment.startTimeMs)
+		assertEquals(unbound.completedAtMs, recoveredSegment.endTimeMs)
+		assertEquals(unbound.runRevision, recovered.runRevision)
+		assertEquals(SourceServiceRunEntity.PRESENTATION_QUIESCED, recovered.presentationAcknowledgement)
+		assertEquals(newer, sessions.serviceRun("new-run"))
+		assertEquals(null, database.sourceProjectionStateDao().failure(ProtectedLocationCanonicalHandoff.WRITER_ID,
+			ProtectedLocationCanonicalHandoff.WRITER_VERSION, originals.first().admissionOrdinal))
+		for (original in originals) {
+			assertNotNull(database.locationObservationDao().getBySourceEventId(original.eventId))
+			assertNotNull(database.locationObservationDecisionDao().getBySourceEventId(original.eventId))
+			assertSavedWalUnchanged(original)
+		}
+		assertTrue(database.locationSampleDao().countAll() > 0L)
+		assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainHighWater())
+		assertEquals(recovered.sessionSegmentId, sessions.serviceRun(RUN_ID)?.sessionSegmentId)
+		assertEquals(1L, database.sessionSegmentDao().countTotal())
+	}
+
+	@Test
+	fun `missing presentation recovery compares a saved cutoff only within its original boot`() = roomTest {
+		installValidFixture(payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false)))
+		removeFixturePresentation()
+		val dao = database.sourceSessionDao()
+		val session = requireNotNull(dao.session(LOGICAL_ID))
+		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		val sameBootCutoff = session.copy(cutoffElapsedNanos = wal.observedElapsedNanos - 1L)
+		dao.updateSession(sameBootCutoff)
+		val lifecycle = SessionPresentationLifecycle(database)
+
+		assertEquals(false, lifecycle.recoverMissingForRetainedEvent(EVENT_ID.value))
+		dao.updateSession(sameBootCutoff.copy(lifecycleBootId = "later-boot"))
+		assertEquals(true, lifecycle.recoverMissingForRetainedEvent(EVENT_ID.value))
+		assertEquals(1L, database.sessionSegmentDao().countTotal())
+	}
+
+	@Test
+	fun `missing presentation recovery respects erase epoch retention and deleted event boundary`() = roomTest {
+		installValidFixture(payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false)))
+		removeFixturePresentation()
+		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		val lifecycle = SessionPresentationLifecycle(database)
+		database.sourceEvidenceStateDao().updateLifecycle(1L, null, 3_000L)
+		assertEquals(false, lifecycle.recoverMissingForRetainedEvent(EVENT_ID.value))
+		database.sourceEvidenceStateDao().updateLifecycle(0L, requireNotNull(wal.wallTimeMs) + 1L, 3_001L)
+		assertEquals(false, lifecycle.recoverMissingForRetainedEvent(EVENT_ID.value))
+		database.sourceEvidenceStateDao().updateLifecycle(0L, null, 3_002L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_evidence_state SET deleted_source_event_high_water_ordinal = ? WHERE id = 1",
+			arrayOf<Any>(wal.admissionOrdinal))
+		assertEquals(false, lifecycle.recoverMissingForRetainedEvent(EVENT_ID.value))
+		assertEquals(0L, database.sessionSegmentDao().countTotal())
+		assertEquals(0L, database.locationSampleDao().countAll())
+	}
+
+	@Test
+	fun `missing presentation recovery cannot lend another run identity or materialize a live start`() = roomTest {
+		installValidFixture(payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false)))
+		val unbound = removeFixturePresentation()
+		val lifecycle = SessionPresentationLifecycle(database)
+		database.sourceSessionDao().updateServiceRun(unbound.copy(logicalTrackingId = "another-logical"))
+		assertEquals(false, lifecycle.recoverMissingForRetainedEvent(EVENT_ID.value))
+		database.sourceSessionDao().updateServiceRun(unbound.copy(state = "STARTING", completedAtMs = null))
+		assertEquals(false, lifecycle.recoverMissingForRetainedEvent(EVENT_ID.value))
+		assertEquals(0L, database.sessionSegmentDao().countTotal())
+	}
+
+	private suspend fun removeFixturePresentation(): SourceServiceRunEntity {
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
+		val unbound = run.copy(state = "FAILED", completionReason = "INITIALIZATION_FAILURE", sessionSegmentId = null,
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING, presentationAcknowledgedAtMs = null)
+		database.sourceSessionDao().updateServiceRun(unbound)
+		database.sessionSegmentDao().deleteById(requireNotNull(run.sessionSegmentId))
+		return unbound
+	}
+
+	@Test
+	fun `later lifecycle lease cannot lend its generation to a different original authorization`() = roomTest {
+		installValidFixture(payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false)))
+		val sessions = database.sourceSessionDao()
+		sessions.updateServiceRun(requireNotNull(sessions.serviceRun(RUN_ID)).copy(leaseGeneration = 3L))
+		sessions.updateSession(requireNotNull(sessions.session(LOGICAL_ID)).copy(lifecycleLeaseGeneration = 3L))
+		val original = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		val mismatched = original.copy(lifecycleLeaseGeneration = 2L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET lifecycle_lease_generation = ?, integrity_identity = ? WHERE event_id = ?",
+			arrayOf<Any>(2L, mismatched.calculatedIntegrityIdentity(), original.eventId))
+
+		val rejected = assertIs<LocationWalAdapterResult.Rejected>(subject.qualify(EVENT_ID))
+
+		assertEquals(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH, rejected.reason)
+		assertEquals(0L, database.locationSampleDao().countAll())
 	}
 
 	@Test

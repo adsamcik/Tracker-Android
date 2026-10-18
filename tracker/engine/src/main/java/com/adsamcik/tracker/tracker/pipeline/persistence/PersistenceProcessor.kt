@@ -382,6 +382,12 @@ class PersistenceProcessor @Inject internal constructor(
 		durableBuffer.stage(signal)
 	}
 
+	override fun stageForSession(signal: TrackingSignal, sessionId: Long) {
+		if (signal.hasPersistablePayload()) {
+			durableBuffer.stage(signal, sessionId)
+		}
+	}
+
 	private fun TrackingSignal.hasPersistablePayload(): Boolean =
 		locationObservation != null ||
 			location != null ||

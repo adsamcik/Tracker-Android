@@ -68,11 +68,12 @@ class DurableSignalBuffer @Inject constructor(
 	 * `pending_signal` insert succeeds. Callers should therefore defer consuming
 	 * producer state or creating typed destination rows until checkpoint commit.
 	 */
-	fun stage(signal: TrackingSignal): StagedSignal {
+	fun stage(signal: TrackingSignal, sessionId: Long = this.sessionId): StagedSignal {
 		val stagedSignal = StagedSignal(
 			signalId = signal.persistenceSignalId?.takeIf(String::isNotBlank)
 				?: UUID.randomUUID().toString(),
 			signal = signal,
+			sessionId = sessionId,
 		)
 		stage(stagedSignal)
 		return stagedSignal
@@ -90,7 +91,7 @@ class DurableSignalBuffer @Inject constructor(
 			if (existing == null) {
 				staging.add(stagedSignal)
 			} else {
-				require(existing.signal == stagedSignal.signal) {
+				require(existing.signal == stagedSignal.signal && existing.sessionId == stagedSignal.sessionId) {
 					"Signal identity ${stagedSignal.signalId} was reused for a different staged payload"
 				}
 			}
@@ -141,7 +142,7 @@ class DurableSignalBuffer @Inject constructor(
 					acquiredAtMs = stagedSignal.signal.acquiredAtMs(now),
 					capturedEpoch = capturedLifecycle?.epoch ?: 0L,
 					entity = PendingSignalEntity(
-						sessionId = sessionId,
+						sessionId = stagedSignal.sessionId ?: sessionId,
 						signalId = stagedSignal.signalId,
 						envelopeVersion = encoded.envelopeVersion,
 						payloadChecksum = encoded.payloadChecksum,
@@ -495,6 +496,7 @@ class DurableSignalBuffer @Inject constructor(
 	data class StagedSignal(
 		val signalId: String,
 		val signal: TrackingSignal,
+		val sessionId: Long? = null,
 	)
 
 	/** A staged signal whose `pending_signal` row has committed. */

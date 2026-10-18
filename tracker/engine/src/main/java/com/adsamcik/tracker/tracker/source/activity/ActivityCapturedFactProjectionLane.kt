@@ -167,7 +167,7 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 							false
 						}
 					}
-					if (terminal != null) {
+					if (terminal != null && !failureNowAdmits(terminal.admissionOrdinal)) {
 						return@withTransaction ActivityProjectionPass.TerminalBlocked(
 							terminal,
 							cursor,
@@ -314,8 +314,7 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		seed: ActivityCapturedWalAdmissionResult.Admitted,
 	): ActivityProjectionPass {
 		val authority = seed.acquisitionAuthority.captureAuthority
-		val session = database.sourceSessionDao().session(authority.logicalTrackingId.value)
-		val finalOrdinal = session?.finalAdmissionOrdinal
+		val finalOrdinal = terminalAdmissionOrdinal(authority, seedEvent.admissionOrdinal)
 		if (finalOrdinal == null || finalOrdinal < seedEvent.admissionOrdinal ||
 			finalOrdinal > targetAdmissionOrdinal ||
 			lane.captureAdmissionCutoffOrdinal?.let { finalOrdinal > it } == true
@@ -346,6 +345,20 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 			validated++
 		}
 		return projectTerminalWindows(lane, originalCursor, finalOrdinal, preflight, groups, validated)
+	}
+
+	private suspend fun terminalAdmissionOrdinal(authority: ActivityCaptureAuthority, seedOrdinal: Long): Long? {
+		val session = database.sourceSessionDao().session(authority.logicalTrackingId.value)
+		// Interrupted sessions may lack a whole-session high-water. The adapter has already
+		// authenticated this original retired registration and its finite sealed app tail.
+		return session?.finalAdmissionOrdinal ?: database.sourceBrokerDao().captureAdmissionBarrier(
+			SourceKind.ACTIVITY.stableCode,
+			authority.registrationGeneration,
+		)?.takeIf { barrier ->
+			barrier.sourceInstanceId == authority.sourceInstanceId.value &&
+				barrier.throughAuthorizationRevision >= authority.authorizationRevision &&
+				barrier.lastAdmissionOrdinal >= seedOrdinal
+		}?.lastAdmissionOrdinal
 	}
 
 	private suspend fun admitTerminalEvent(
@@ -612,6 +625,13 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 	private suspend fun evidenceState(): SourceEvidenceState =
 		database.sourceEvidenceStateDao().get()
 			?: throw ActivityLaneAuthorityChangedException("SOURCE_EVIDENCE_STATE_MISSING")
+
+	/** Recheck repaired historical admission without clearing its failure or moving the cursor. */
+	private suspend fun failureNowAdmits(admissionOrdinal: Long): Boolean {
+		val event = projectionPage(admissionOrdinal - 1L, admissionOrdinal, 1).singleOrNull()
+			?: return false
+		return adapter.admit(SourceEventId(event.eventId)) is ActivityCapturedWalAdmissionResult.Admitted
+	}
 
 	private suspend fun failureIsLifecycleRejected(
 		admissionOrdinal: Long,

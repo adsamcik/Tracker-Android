@@ -842,6 +842,93 @@ class CellWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `Cell missing presentation retry preserves original facts and a newer active run`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		removeOriginalCellPresentation()
+		val lane = CellSessionFactProjectionLane(database, subject, writer)
+		assertEquals("CELL_ADAPTER_MISSING_SEGMENT", assertTerminalCellLaneFailure(lane).failureCode)
+		val newerRun = insertNewerActiveCellRun()
+		insertAdditionalWal(SourceEventId("later-retained-cell"), observations().map { observation ->
+			observation.copy(providerTimestampNanos = requireNotNull(observation.providerTimestampNanos) +
+				SECOND_DELIVERY_SHIFT_NANOS)
+		}, SOURCE_SEQUENCE + 1L)
+
+		val recovered = assertIs<CellSessionFactDrainResult.Complete>(lane.drainAvailable())
+
+		assertEquals(2L, recovered.lastCompletedOrdinal)
+		assertEquals(2L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(2L, database.cellCapturedFactDao().cursorCount())
+		val original = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
+		assertEquals(SourceServiceRunEntity.PRESENTATION_QUIESCED, original.presentationAcknowledgement)
+		assertTrue(original.sessionSegmentId != null)
+		assertEquals(newerRun, database.sourceSessionDao().serviceRun(newerRun.serviceRunId))
+		assertEquals(null, database.sourceProjectionStateDao().failure(
+			CellSessionFactProjectionLane.WRITER_ID, CellSessionFactProjectionLane.WRITER_VERSION, 1L))
+		assertIs<CellSessionFactDrainResult.Complete>(lane.drainAvailable())
+		assertEquals(original, database.sourceSessionDao().serviceRun(RUN_ID))
+		assertEquals(2L, database.cellCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `Cell missing presentation cannot recover a changed original authority`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		removeOriginalCellPresentation()
+		val lane = CellSessionFactProjectionLane(database, subject, writer)
+		assertTerminalCellLaneFailure(lane)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET lifecycle_lease_generation = lifecycle_lease_generation + 100 WHERE event_id = ?",
+			arrayOf(EVENT_ID.value),
+		)
+
+		assertEquals("CELL_ADAPTER_MISSING_SEGMENT", assertTerminalCellLaneFailure(lane).failureCode)
+		assertEquals(null, database.sourceSessionDao().serviceRun(RUN_ID)?.sessionSegmentId)
+	}
+
+	@Test
+	fun `Cell saved policy and consent remain usable after a reboot`() = runTest {
+		installValidFixture(candidateWriter = true)
+		for (table in listOf("source_policy", "source_consent_epoch")) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE $table SET effective_boot_id = ?, effective_elapsed_realtime_nanos = ?",
+				arrayOf<Any>("earlier-boot", OBSERVED_END_NANOS + 100_000_000_000L),
+			)
+		}
+		val applied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val saved = fact(applied.logicalFactId, applied.semanticRevision)
+		assertEquals(0L, saved.consentEffectStartNanos)
+		assertEquals(OBSERVED_END_NANOS, saved.observedElapsedNanos)
+		assertIs<CellCapturedWriteResult.Unchanged>(writer.write(EVENT_ID))
+	}
+
+	private suspend fun removeOriginalCellPresentation() {
+		val dao = database.sourceSessionDao()
+		val run = requireNotNull(dao.serviceRun(RUN_ID))
+		assertEquals(1, dao.updateServiceRun(run.copy(sessionSegmentId = null,
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+			presentationAcknowledgedAtMs = null)))
+		database.openHelper.writableDatabase.execSQL("DELETE FROM session_segment WHERE id = ?", arrayOf(SEGMENT_ID))
+	}
+
+	private suspend fun insertNewerActiveCellRun(): SourceServiceRunEntity {
+		val dao = database.sourceSessionDao()
+		val logicalId = "newer-active-cell-logical"
+		val runId = "newer-active-cell-run"
+		val session = requireNotNull(dao.session(LOGICAL_ID))
+		dao.insertSession(session.copy(logicalTrackingId = logicalId, state = "ACTIVE",
+			startedAtMs = SESSION_END_WALL_MS, startedElapsedNanos = SESSION_END_NANOS,
+			cutoffAtMs = null, cutoffElapsedNanos = null, completedAtMs = null,
+			finalAdmissionOrdinal = null, currentServiceRunId = runId))
+		val newerRun = requireNotNull(dao.serviceRun(RUN_ID)).copy(logicalTrackingId = logicalId,
+			serviceRunId = runId, state = "ACTIVE", startedAtMs = SESSION_END_WALL_MS,
+			startedElapsedNanos = SESSION_END_NANOS, completedAtMs = null, completionReason = null,
+			startDeliveryToken = "newer-active-cell-start-token")
+		dao.insertServiceRun(newerRun)
+		return newerRun
+	}
+
+	@Test
 	fun `shadow Cell lane validates without invoking the canonical writer`() = runTest {
 		installValidFixture(candidateWriter = false)
 		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW)

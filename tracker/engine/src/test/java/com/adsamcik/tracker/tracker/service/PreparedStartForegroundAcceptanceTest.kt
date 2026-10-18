@@ -5,12 +5,15 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
 import com.adsamcik.tracker.tracker.resilience.SharedPreferencesTrackingLifecycleCommandAuthority
 import com.adsamcik.tracker.tracker.resilience.TrackingStartCommand
 import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason
 import com.adsamcik.tracker.tracker.source.coordinator.AuthoritativeSessionCoordinator
 import com.adsamcik.tracker.tracker.source.coordinator.ClaimedPreparedSessionStart
+import com.adsamcik.tracker.tracker.source.coordinator.PreparedSessionClaimResult
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
@@ -18,7 +21,11 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Before
@@ -33,6 +40,7 @@ import org.robolectric.annotation.Config
 class PreparedStartForegroundAcceptanceTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val room = mockk<AuthoritativeSessionCoordinator>()
+    private val params = mockk<TrackingParamsRepository>()
     private lateinit var commands: SharedPreferencesTrackingLifecycleCommandAuthority
     private var workCalls = 0
     private var serializedCalls = 0
@@ -45,6 +53,34 @@ class PreparedStartForegroundAcceptanceTest {
         commands = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO,
             BootClockDomainProvider { "boot" })
         coEvery { room.markPreparedForegroundAccepted(token, any(), "boot", any(), any()) } returns true
+        every { params.data } returns flowOf(TrackingParamsState())
+    }
+
+    @Test
+    fun `claim reaches its lifecycle authority while unrelated settings hold the command lane`(): Unit = runBlocking {
+        val start = requireNotNull(commands.reserveStart())
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val settings = launch {
+            commands.runWithHandledStopGeneration(0L) {
+                entered.complete(Unit)
+                release.await()
+            }
+        }
+        coEvery { room.claimAndroidStart(token, start.generation, "boot", any(), any()) } returns
+            PreparedSessionClaimResult.Rejected("PREPARED_START_NOT_FOUND")
+        try {
+            withTimeout(5_000L) {
+                entered.await()
+                coordinator().claimForService(token, start.generation)
+            } shouldBe TrackingServicePreparedStartClaim.Rejected("PREPARED_START_NOT_FOUND")
+            coVerify(exactly = 1) { room.claimAndroidStart(token, start.generation, "boot", any(), any()) }
+            commands.isAcceptedStart(start) shouldBe false
+            serializedCalls shouldBe 0
+        } finally {
+            release.complete(Unit)
+            settings.cancelAndJoin()
+        }
     }
 
     @Test
@@ -180,7 +216,7 @@ class PreparedStartForegroundAcceptanceTest {
         }
         return DefaultTrackingStartRequestCoordinator(
             context = context, database = mockk(), trackingStartupGate = gate,
-            trackingParamsRepository = mockk(), activeTrackingSessionStore = mockk(),
+            trackingParamsRepository = params, activeTrackingSessionStore = mockk(),
             sourceSession = mockk(), authoritativeSessionCoordinator = room,
             trackingRolloutStateStore = mockk(),
             chosenSourceWriterSetup = mockk {

@@ -113,12 +113,13 @@ private suspend fun AppDatabase.authenticateActivityCapturedPolicy(
 	)
 	if (policy == null || consent == null || !policy.enabled ||
 		!policy.capturePersistenceEligible || policy.captureConsentEpoch != revision.captureConsentEpoch ||
-		policy.qosCode != binding.qosCode || policy.effectiveBootId != revision.clockDomainId ||
-		policy.effectiveElapsedRealtimeNanos > revision.windowStartElapsedRealtimeNanos ||
+		policy.qosCode != binding.qosCode ||
+		(policy.effectiveBootId == revision.clockDomainId &&
+			policy.effectiveElapsedRealtimeNanos > revision.windowStartElapsedRealtimeNanos) ||
 		!consent.eligible || !consent.persistenceEligible ||
 		consent.policyRevision > revision.sourcePolicyRevision ||
-		consent.effectiveBootId != revision.clockDomainId ||
-		consent.effectiveElapsedRealtimeNanos > revision.windowStartElapsedRealtimeNanos
+		(consent.effectiveBootId == revision.clockDomainId &&
+			consent.effectiveElapsedRealtimeNanos > revision.windowStartElapsedRealtimeNanos)
 	) {
 		blockCapturedActivityRetention(ActivityCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	}

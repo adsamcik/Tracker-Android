@@ -11,6 +11,7 @@ import com.adsamcik.tracker.tracker.source.projection.Projection
 import com.adsamcik.tracker.tracker.source.projection.ProjectionContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import android.app.Application
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
@@ -315,9 +316,17 @@ class AuthoritativeSessionCoordinatorTest {
 			.status shouldBe LifecycleActionStatus.CLEANUP_REQUIRED.name
 
 		runtime.stopProviderFlushOutcome = ProviderFlushOutcome.COMPLETE
+		leaseClock.setTime(22_000L, 20_002_000_000L)
+		val retryCutoffs = mutableListOf<SessionCutoff>()
+		runtime.onPhysicalShutdown = { _, cutoff -> retryCutoffs += cutoff }
 		subject.stop(SessionStopRequest(
-			"retry-provider-stop", "USER_STOP", 2_600L, 2_600_000L, "boot-1",
+			"retry-provider-stop", "USER_STOP", 2_000L, 2_000_000L, "boot-1",
 		)).shouldBeInstanceOf<SessionStopResult.Stopped>()
+		retryCutoffs.single().let { cutoff ->
+			cutoff.wallTimeMs shouldBe 2_000L
+			cutoff.elapsedRealtimeNanos shouldBe 2_000_000L
+			cutoff.deadlineElapsedRealtimeNanos shouldBeGreaterThan leaseClock.elapsedRealtimeNanos()
+		}
 
 		val terminalReceipt = dao.runRetirements(
 			started.logicalTrackingId, started.serviceRunId, SourceKind.STEPS.stableCode,
@@ -1836,6 +1845,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 	// One delayed foreground acceptance must retain the original lease through all catalog retries.
 	@Suppress("LongMethod")
 	fun `retryable prepared foreground wait renews one generation beyond thirty seconds`() = runTest {
@@ -4979,7 +4989,7 @@ class AuthoritativeSessionCoordinatorTest {
 				wallTimeMs = 2_000L,
 				elapsedRealtimeNanos = 2_000_000L,
 				clockDomainId = "boot-1",
-				perSourceTimeoutMs = 100L,
+				perSourceTimeoutMs = 5_000L,
 			),
 		).shouldBeInstanceOf<SessionStopResult.Stopped>()
 
@@ -5010,6 +5020,56 @@ class AuthoritativeSessionCoordinatorTest {
 		) shouldBe emptyList()
 		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
 			SessionLifecycleState.STOPPING.name
+	}
+
+	@Test
+	fun `unfinished source cleanup preserves healthy capture through reconfigure and End`() = runRoomTest {
+		runtime.startReturnsRetryableFailure = true
+		runtime.cleanupOnlyShutdown = true
+		val started = startCaptureRun(startRequest().copy(plan = stepsAndLocationPlan(1L, true)))
+			.shouldBeInstanceOf<SessionStartResult.Started>()
+		started.planStatus shouldBe DesiredPlanStatus.DEGRADED
+		val originalAction = database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
+			.single { it.sourceKind == SourceKind.STEPS.stableCode }
+		originalAction.status shouldBe LifecycleActionStatus.CLEANUP_REQUIRED.name
+		locationRuntime.isActive shouldBe true
+
+		val configured = subject.reconfigure(stepsAndLocationReconfigure(2L, true))
+			.shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+		configured.status shouldBe DesiredPlanStatus.DEGRADED
+		configured.applied.single { it.source == SourceKind.STEPS }.status shouldBe SourceApplyStatus.BLOCKED
+		runtime.startCount shouldBe 1
+		runtime.reconfigureCount shouldBe 0
+		locationRuntime.reconfigureCount shouldBe 1
+		locationRuntime.isActive shouldBe true
+		locationRuntime.quiesceCount shouldBe 0
+		database.sourceSessionDao().lifecycleAction(originalAction.actionId) shouldBe originalAction
+		runtime.shutdownClaims.size shouldBe 1
+		runtime.shutdownClaims.distinct().single().let { claim ->
+			claim.actionId shouldBe originalAction.actionId
+			claim.attemptCount shouldBe originalAction.attemptCount
+			claim.leaseGeneration shouldBe originalAction.leaseGeneration
+		}
+		val stopRequest = SessionStopRequest(
+			ownerToken = "partial-source-cleanup-stop", reason = "user-end",
+			wallTimeMs = 3_000L, elapsedRealtimeNanos = 3_000_000L,
+			clockDomainId = "boot-1", perSourceTimeoutMs = 5_000L,
+		)
+		subject.stop(stopRequest).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.STOPPING.name
+		database.sourceSessionDao().lifecycleAction(originalAction.actionId)?.status shouldBe
+			LifecycleActionStatus.CLEANUP_REQUIRED.name
+
+		runtime.cleanupOnlyReady = true
+		subject.stop(stopRequest.copy(wallTimeMs = 4_000L, elapsedRealtimeNanos = 4_000_000L))
+			.shouldBeInstanceOf<SessionStopResult.Stopped>()
+		runtime.isActive shouldBe false
+		locationRuntime.isActive shouldBe false
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.FINALIZED.name
+		database.sourceSessionDao().lifecycleAction(originalAction.actionId)?.status shouldBe
+			LifecycleActionStatus.SUPERSEDED.name
 	}
 
 	@Test
@@ -5182,7 +5242,7 @@ class AuthoritativeSessionCoordinatorTest {
 			runtime.cleanupOnlyReady = false
 			subject.reconfigure(
 				stepsAndLocationReconfigure(3L, stepsEnabled = true),
-			).shouldBeInstanceOf<SessionReconfigureResult.Failed>()
+			).shouldBeInstanceOf<SessionReconfigureResult.Applied>().status shouldBe DesiredPlanStatus.DEGRADED
 			val cleanupAction = database.sourceSessionDao()
 				.lifecycleActions(started.logicalTrackingId)
 				.single { action ->
@@ -5253,7 +5313,7 @@ class AuthoritativeSessionCoordinatorTest {
 		runtime.cleanupOnlyReady = false
 		subject.reconfigure(
 			stepsAndLocationReconfigure(3L, stepsEnabled = true),
-		).shouldBeInstanceOf<SessionReconfigureResult.Failed>()
+		).shouldBeInstanceOf<SessionReconfigureResult.Applied>().status shouldBe DesiredPlanStatus.DEGRADED
 		runtime.cleanupOnlyReady = true
 		replaceEventCoordinator(completedEventCoordinator(productOrdinal))
 		sourceProductDrainRouter.onDrain = { request ->
@@ -5321,7 +5381,7 @@ class AuthoritativeSessionCoordinatorTest {
 			runtime.cleanupOnlyReady = false
 			subject.reconfigure(
 				stepsAndLocationReconfigure(3L, stepsEnabled = true),
-			).shouldBeInstanceOf<SessionReconfigureResult.Failed>()
+			).shouldBeInstanceOf<SessionReconfigureResult.Applied>().status shouldBe DesiredPlanStatus.DEGRADED
 			runtime.cleanupOnlyReady = true
 			val crashingCoordinator = mockk<TrackingCoordinator>()
 			coEvery { crashingCoordinator.drainAvailable(any(), any()) } throws
@@ -5488,7 +5548,7 @@ class AuthoritativeSessionCoordinatorTest {
 			runtime.cleanupOnlyReady = false
 			subject.reconfigure(
 				stepsAndLocationReconfigure(3L, stepsEnabled = true),
-			).shouldBeInstanceOf<SessionReconfigureResult.Failed>()
+			).shouldBeInstanceOf<SessionReconfigureResult.Applied>().status shouldBe DesiredPlanStatus.DEGRADED
 
 			database.sourceSessionDao().deleteAllCompleteness()
 			database.sourceRuntimeStateDao().deleteAll()
@@ -7171,9 +7231,9 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	// One failed disable advances through pending End to the same provider retirement on retry.
+	// A healthy sibling continues while the failed disable still requires its exact retirement at End.
 	@Suppress("LongMethod")
-	fun `failed source disable blocks active and final states until predecessor provider retires`() = runRoomTest {
+	fun `failed source disable keeps healthy sibling active but blocks End until predecessor retires`() = runRoomTest {
 		StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
 			StepsCountDomainSchemaState.ValidV2
 		fun plan(revision: Long, locationEnabled: Boolean) = AcquisitionPlanRevision(
@@ -7221,11 +7281,11 @@ class AuthoritativeSessionCoordinatorTest {
 				zoneId = "Europe/Prague",
 				foregroundCapabilityFlags = 0L,
 			),
-		).shouldBeInstanceOf<SessionReconfigureResult.Failed>()
+		).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
 
-		reconfigured.failureCode shouldBe SOURCE_RUNTIME_CLEANUP_PENDING
+		reconfigured.status shouldBe DesiredPlanStatus.DEGRADED
 		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
-			SessionLifecycleState.RECONFIGURING.name
+			SessionLifecycleState.ACTIVE.name
 		database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
 			.last { action -> action.sourceKind == SourceKind.LOCATION.stableCode }
 			.status shouldBe LifecycleActionStatus.CLEANUP_REQUIRED.name
@@ -7297,6 +7357,184 @@ class AuthoritativeSessionCoordinatorTest {
 		locationRuntime.isActive shouldBe false
 		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
 			SessionLifecycleState.FINALIZED.name
+	}
+
+	@Test
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	fun `prepared apply renews its lease while catalog preparation is suspended`() = runRoomTest {
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		var suspendAvailability = false
+		val catalog = mockk<SourceImplementationCatalog>()
+		coEvery { catalog.availability(any()) } coAnswers {
+			if (suspendAvailability) {
+				entered.complete(Unit)
+				release.await()
+			}
+			SourceCatalogAvailability.Executable(SourceProviderAvailability.Available())
+		}
+		replaceRuntimeRegistry(SourceRuntimeRegistry(mapOf(SourceKind.STEPS to Provider { runtime }),
+			catalog, requireAllSources = false))
+		val prepared = prepareAndroidStart("slow-prepared-catalog", 73L,
+			"slow-prepared-logical", "slow-prepared-run")
+		subject.markAndroidStartEnqueued(prepared.token, 73L, 1_050L) shouldBe true
+		rebindPreparedStart(prepared, 73L)
+		subject.markPreparedForegroundAccepted(prepared.token, 73L, currentBootId,
+			leaseClock.elapsedRealtimeNanos(), leaseClock.currentTimeMillis()) shouldBe true
+		val original = requireNotNull(database.sourceSessionDao().serviceRun(prepared.serviceRunId))
+		suspendAvailability = true
+		val scheduler = TestCoroutineScheduler()
+		val applying = async(UnconfinedTestDispatcher(scheduler) + scheduler) {
+			subject.applyPreparedAndroidStart(prepared.token, 73L, currentBootId,
+				leaseClock.elapsedRealtimeNanos(), leaseClock.currentTimeMillis())
+		}
+		entered.await()
+		runtime.startCount shouldBe 0
+		advanceHeldProviderLease(scheduler)
+		release.complete(Unit)
+
+		applying.await().shouldBeInstanceOf<SessionStartResult.Started>()
+		val appliedRun = requireNotNull(database.sourceSessionDao().serviceRun(prepared.serviceRunId))
+		appliedRun.leaseGeneration shouldBe original.leaseGeneration
+		appliedRun.state shouldBe SessionLifecycleState.ACTIVE.name
+		runtime.isActive shouldBe true
+	}
+
+	@Test
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	fun `slow source start retains its exact lease beyond the original expiry`() = runRoomTest {
+		runtime.blockStart = true
+		val scheduler = TestCoroutineScheduler()
+		val starting = async(UnconfinedTestDispatcher(scheduler) + scheduler) {
+			startCaptureRun(startRequest().copy(plan = stepsAndLocationPlan(1L, true)))
+		}
+		runtime.startEntered.await()
+		locationRuntime.isActive shouldBe true
+		advanceHeldProviderLease(scheduler)
+		runtime.releaseStart.complete(Unit)
+
+		val started = starting.await().shouldBeInstanceOf<SessionStartResult.Started>()
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.ACTIVE.name
+		runtime.isActive shouldBe true
+		locationRuntime.isActive shouldBe true
+	}
+
+	@Test
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	fun `slow source reconfiguration retains its exact lease beyond the original expiry`() = runRoomTest {
+		val started = startCaptureRun(startRequest().copy(plan = stepsAndLocationPlan(1L, true)))
+			.shouldBeInstanceOf<SessionStartResult.Started>()
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		runtime.onReconfigure = { entered.complete(Unit); release.await() }
+		val scheduler = TestCoroutineScheduler()
+		val reconfiguring = async(UnconfinedTestDispatcher(scheduler) + scheduler) {
+			subject.reconfigure(stepsAndLocationReconfigure(2L, true))
+		}
+		entered.await()
+		advanceHeldProviderLease(scheduler)
+		release.complete(Unit)
+
+		reconfiguring.await().shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.ACTIVE.name
+		runtime.isActive shouldBe true
+		locationRuntime.isActive shouldBe true
+	}
+
+	@Test
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	fun `expired lease takeover rejects the old operation and preserves exact cleanup`() = runRoomTest {
+		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		val entered = CompletableDeferred<Unit>()
+		runtime.onReconfigure = { entered.complete(Unit); awaitCancellation() }
+		val scheduler = TestCoroutineScheduler()
+		val reconfiguring = async(UnconfinedTestDispatcher(scheduler) + scheduler) {
+			subject.reconfigure(stepsAndLocationReconfigure(2L, true, locationEnabled = false))
+		}
+		entered.await()
+		leaseClock.advance(31_000L)
+		val dao = database.sourceProjectionStateDao()
+		dao.acquireOrRenewLease("tracking-session-coordinator", "replacement-owner", currentBootId,
+			leaseClock.currentTimeMillis(), leaseClock.currentTimeMillis() + 30_000L,
+			leaseClock.elapsedRealtimeNanos(), leaseClock.elapsedRealtimeNanos() + 30_000_000_000L) shouldBe 1
+		val replacement = requireNotNull(dao.lease("tracking-session-coordinator"))
+		scheduler.advanceTimeBy(10_000L)
+		scheduler.runCurrent()
+
+		val rejected = reconfiguring.await().shouldBeInstanceOf<SessionReconfigureResult.Failed>()
+		rejected.failureCode shouldBe SOURCE_RUNTIME_CLEANUP_PENDING
+		rejected.requiresSourceSessionRuntimeCleanup shouldBe true
+		dao.lease(replacement.leaseName) shouldBe replacement
+		val manifestRevision = requireNotNull(database.sourceSessionDao().session(started.logicalTrackingId))
+			.currentManifestRevision
+		val applying = database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
+			.single { it.sourceKind == SourceKind.STEPS.stableCode && it.manifestRevision == manifestRevision }
+		applying.status shouldBe LifecycleActionStatus.APPLYING.name
+		dao.releaseLease(replacement.leaseName, replacement.ownerToken, replacement.bootId,
+			replacement.generation, leaseClock.currentTimeMillis(), leaseClock.elapsedRealtimeNanos()) shouldBe 1
+		subject.stop(SessionStopRequest("lease-loss-cleanup", "INTERNAL_FAILURE",
+			leaseClock.currentTimeMillis(), leaseClock.elapsedRealtimeNanos(), currentBootId))
+			.shouldBeInstanceOf<SessionStopResult.Stopped>()
+		runtime.isActive shouldBe false
+		runtime.shutdownClaims.single().actionId shouldBe applying.actionId
+	}
+
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	private suspend fun advanceHeldProviderLease(scheduler: TestCoroutineScheduler) {
+		val dao = database.sourceProjectionStateDao()
+		val original = requireNotNull(dao.lease("tracking-session-coordinator"))
+		repeat(4) {
+			val previousExpiry = requireNotNull(dao.lease(original.leaseName)).expiresElapsedRealtimeNanos
+			leaseClock.advance(10_000L)
+			scheduler.advanceTimeBy(10_000L)
+			scheduler.runCurrent()
+			// Only Room acknowledgement uses real time; provider suspension and lease time are controlled.
+			withTimeout(5_000L) {
+				while (requireNotNull(dao.lease(original.leaseName)).expiresElapsedRealtimeNanos <= previousExpiry) {
+					delay(1L)
+				}
+			}
+			val renewed = requireNotNull(dao.lease(original.leaseName))
+			renewed.ownerToken shouldBe original.ownerToken
+			renewed.generation shouldBe original.generation
+		}
+		leaseClock.elapsedRealtimeNanos() shouldBeGreaterThan original.expiresElapsedRealtimeNanos
+	}
+
+	@Test
+	fun `End keeps its durable cutoff and returns retryable Busy after lease loss`() = runRoomTest {
+		assertShutdownLeaseLossIsRetryable(suspendForRestart = false)
+	}
+
+	@Test
+	fun `suspend keeps its durable cutoff and returns retryable Busy after lease loss`() = runRoomTest {
+		assertShutdownLeaseLossIsRetryable(suspendForRestart = true)
+	}
+
+	private suspend fun assertShutdownLeaseLossIsRetryable(suspendForRestart: Boolean) {
+		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.onPhysicalShutdown = { _, _ -> leaseClock.advance(31_000L) }
+		val result = if (suspendForRestart) {
+			subject.suspendForRestart(SessionSuspendRequest("lease-loss-suspend", "SERVICE_DESTROYED",
+				2_000L, 2_000_000L, currentBootId))
+		} else {
+			subject.stop(SessionStopRequest("lease-loss-end", "USER_STOP",
+				2_000L, 2_000_000L, currentBootId))
+		}
+
+		result shouldBe if (suspendForRestart) {
+			SessionSuspendResult.Busy
+		} else {
+			SessionStopResult.Busy
+		}
+		val session = requireNotNull(database.sourceSessionDao().session(started.logicalTrackingId))
+		session.cutoffAtMs shouldBe 2_000L
+		session.cutoffElapsedNanos shouldBe 2_000_000L
+		session.completedAtMs shouldBe null
+		session.currentServiceRunId shouldBe started.serviceRunId
+		database.sourceSessionDao().serviceRun(started.serviceRunId)?.completedAtMs shouldBe null
 	}
 
 	@Test
@@ -8485,6 +8723,122 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `new manual command replaces an expired unaccepted handoff and fences its old token`() = runRoomTest {
+		val old = prepareAndroidStart("abandoned-token", 33L, "abandoned-logical", "abandoned-run")
+		subject.markAndroidStartEnqueued(old.token, 33L, 1_050L) shouldBe true
+		expiredPreparedLeaseElapsedNanos()
+
+		val replacement = prepareAndroidStart(
+			"replacement-token", 34L, "replacement-logical", "replacement-run",
+			startRequest().copy(
+				wallTimeMs = leaseClock.currentTimeMillis(),
+				elapsedRealtimeNanos = leaseClock.elapsedRealtimeNanos(),
+			),
+		)
+		val dao = database.sourceSessionDao()
+		dao.session(old.logicalTrackingId)?.state shouldBe SessionLifecycleState.FINALIZED.name
+		dao.serviceRun(old.serviceRunId)?.completionReason shouldBe "UNACCEPTED_START_SUPERSEDED"
+		dao.lifecycleActions(old.logicalTrackingId).map { it.status }.distinct() shouldBe
+			listOf(LifecycleActionStatus.SUPERSEDED.name)
+		database.sourceBrokerDao().currentDemands("session:${old.logicalTrackingId}") shouldBe emptyList()
+		runtime.startCount shouldBe 0
+		subject.claimAndroidStart(old.token, 33L, "boot-1",
+			leaseClock.elapsedRealtimeNanos(), leaseClock.currentTimeMillis()) shouldBe
+			PreparedSessionClaimResult.Rejected("PREPARED_START_TERMINAL")
+		subject.claimAndroidStart(replacement.token, 34L, "boot-1",
+			leaseClock.elapsedRealtimeNanos(), leaseClock.currentTimeMillis())
+			.shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+		subject.markPreparedForegroundAccepted(replacement.token, 34L, "boot-1",
+			leaseClock.elapsedRealtimeNanos(), leaseClock.currentTimeMillis()) shouldBe true
+		subject.applyPreparedAndroidStart(replacement.token, 34L, "boot-1",
+			leaseClock.elapsedRealtimeNanos(), leaseClock.currentTimeMillis())
+			.shouldBeInstanceOf<SessionStartResult.Started>()
+		dao.activeSession()?.logicalTrackingId shouldBe replacement.logicalTrackingId
+		runtime.startCount shouldBe 1
+	}
+
+	@Test
+	fun `same or older manual command cannot replace an unaccepted handoff`() = runRoomTest {
+		val old = prepareAndroidStart("duplicate-handoff", 33L, "duplicate-logical", "duplicate-run")
+		expiredPreparedLeaseElapsedNanos()
+		val session = database.sourceSessionDao().session(old.logicalTrackingId)
+		val run = database.sourceSessionDao().serviceRun(old.serviceRunId)
+
+		listOf(33L, 32L).forEach { command ->
+			subject.prepareAndroidStart(
+				startRequest().copy(logicalTrackingId = "duplicate-new-logical", serviceRunId = "duplicate-new-run"),
+				AndroidStartDeliveryMetadata(PreparedTrackingStartToken("duplicate-new-token-$command"),
+					command, true, false),
+			) shouldBe SessionStartPreparationResult.AlreadyActive
+		}
+		database.sourceSessionDao().session(old.logicalTrackingId) shouldBe session
+		database.sourceSessionDao().serviceRun(old.serviceRunId) shouldBe run
+		runtime.startCount shouldBe 0
+	}
+
+	@Test
+	fun `new manual command preserves a foreground accepted handoff`() = runRoomTest {
+		val old = prepareAndroidStart("foreground-handoff", 33L, "foreground-logical", "foreground-run")
+		subject.claimAndroidStart(old.token, 33L, "boot-1", 1_100_000L, 1_100L)
+			.shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+		subject.markPreparedForegroundAccepted(old.token, 33L, "boot-1", 1_200_000L, 1_200L) shouldBe true
+		expiredPreparedLeaseElapsedNanos()
+		val dao = database.sourceSessionDao()
+		val session = dao.session(old.logicalTrackingId)
+		val run = dao.serviceRun(old.serviceRunId)
+		val actions = dao.lifecycleActions(old.logicalTrackingId)
+
+		subject.prepareAndroidStart(
+			startRequest().copy(logicalTrackingId = "foreground-new-logical", serviceRunId = "foreground-new-run"),
+			AndroidStartDeliveryMetadata(PreparedTrackingStartToken("foreground-new-token"), 34L, true, false),
+		) shouldBe SessionStartPreparationResult.AlreadyActive
+		dao.session(old.logicalTrackingId) shouldBe session
+		dao.serviceRun(old.serviceRunId) shouldBe run
+		dao.lifecycleActions(old.logicalTrackingId) shouldBe actions
+		runtime.startCount shouldBe 0
+	}
+
+	@Test
+	fun `new manual command preserves a prepared provider attempt`() = runRoomTest {
+		val old = prepareAndroidStart("attempted-handoff", 33L, "attempted-logical", "attempted-run")
+		val dao = database.sourceSessionDao()
+		val action = dao.lifecycleActions(old.logicalTrackingId).single()
+		dao.updateLifecycleAction(action.copy(status = LifecycleActionStatus.APPLYING.name, attemptCount = 1)) shouldBe 1
+		expiredPreparedLeaseElapsedNanos()
+		val session = dao.session(old.logicalTrackingId)
+		val run = dao.serviceRun(old.serviceRunId)
+		val actions = dao.lifecycleActions(old.logicalTrackingId)
+
+		subject.prepareAndroidStart(
+			startRequest().copy(logicalTrackingId = "attempted-new-logical", serviceRunId = "attempted-new-run"),
+			AndroidStartDeliveryMetadata(PreparedTrackingStartToken("attempted-new-token"), 34L, true, false),
+		) shouldBe SessionStartPreparationResult.AlreadyActive
+		dao.session(old.logicalTrackingId) shouldBe session
+		dao.serviceRun(old.serviceRunId) shouldBe run
+		dao.lifecycleActions(old.logicalTrackingId) shouldBe actions
+		runtime.startCount shouldBe 0
+	}
+
+	@Test
+	fun `new manual command preserves an active accepted session`() = runRoomTest {
+		val old = activatePreparedAndroidRun("active-handoff", 33L, "active-logical", "active-run")
+		expiredPreparedLeaseElapsedNanos()
+		val dao = database.sourceSessionDao()
+		val session = dao.session(old.logicalTrackingId)
+		val run = dao.serviceRun(old.serviceRunId)
+		val actions = dao.lifecycleActions(old.logicalTrackingId)
+
+		subject.prepareAndroidStart(
+			startRequest().copy(logicalTrackingId = "active-new-logical", serviceRunId = "active-new-run"),
+			AndroidStartDeliveryMetadata(PreparedTrackingStartToken("active-new-token"), 34L, true, false),
+		) shouldBe SessionStartPreparationResult.AlreadyActive
+		dao.session(old.logicalTrackingId) shouldBe session
+		dao.serviceRun(old.serviceRunId) shouldBe run
+		dao.lifecycleActions(old.logicalTrackingId) shouldBe actions
+		runtime.startCount shouldBe 1
+	}
+
+	@Test
 	fun `terminal prepared cancellation releases the rebound lease`() = runRoomTest {
 		val prepared = prepareAndroidStart(
 			tokenValue = "terminal-release-token",
@@ -8835,7 +9189,7 @@ class AuthoritativeSessionCoordinatorTest {
 				2_000,
 				2_000_000,
 				"boot-1",
-				perSourceTimeoutMs = 100,
+				perSourceTimeoutMs = 5_000L,
 			),
 		).shouldBeInstanceOf<SessionSuspendResult.Suspended>()
 
@@ -10125,7 +10479,7 @@ class AuthoritativeSessionCoordinatorTest {
 					2_000L,
 					2_000_000L,
 					"boot-1",
-					perSourceTimeoutMs = 100L,
+					perSourceTimeoutMs = 5_000L,
 				),
 			)
 		}
@@ -10134,6 +10488,7 @@ class AuthoritativeSessionCoordinatorTest {
 			started.serviceRunId,
 			SourceKind.STEPS.stableCode,
 		).single()
+		receipt.state shouldBe SourceRunRetirementEntity.STATE_CLEANUP_ONLY_COMPLETED
 		return started to receipt
 	}
 
@@ -11572,6 +11927,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 	var startFailureAfterSideEffect: Throwable? = null
 	var startReturnsRetryableFailure = false
 	var reconfigureFailure: Throwable? = null
+	var onReconfigure: suspend () -> Unit = {}
 	var sinkAtStart: SourceEventSink? = null
 	var startCount = 0
 	var reconfigureCount = 0
@@ -11655,6 +12011,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 
 	override suspend fun reconfigure(plan: StepsPlan, sink: SourceEventSink): SourceApplyResult {
 		reconfigureCount += 1
+		onReconfigure()
 		reconfigureFailure?.let { throw it }
 		val stopAck = if (active && !plan.enabled) {
 			stopAck()

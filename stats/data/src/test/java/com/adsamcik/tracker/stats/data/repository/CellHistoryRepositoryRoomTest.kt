@@ -135,6 +135,34 @@ import org.robolectric.annotation.Config
 class CellHistoryRepositoryRoomTest {
 	private lateinit var database: AppDatabase
 
+	@Test
+	fun `Cell history keeps saved policy and consent from an earlier boot`() = runTest {
+		val original = buildGroup(985, 1, setOf(0))
+		val group = original.copy(runs = original.runs.map { run ->
+			val facts = run.facts.map { fact ->
+				val updated = fact.copy(consentEffectStartNanos = 0L)
+				updated.copy(effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(updated))
+			}
+			run.copy(policy = run.policy.copy(effectiveBootId = "earlier-boot",
+				effectiveElapsedRealtimeNanos = Long.MAX_VALUE - 1L),
+				consent = run.consent.copy(effectiveBootId = "earlier-boot",
+					effectiveElapsedRealtimeNanos = Long.MAX_VALUE - 1L),
+				facts = facts, cursors = facts.groupBy { it.logicalFactId }.values.map { lineage ->
+					cursor(lineage.maxBy { it.semanticRevision })
+				})
+		})
+		persist(listOf(group))
+
+		val entry = (repository { true }.recent(1) as CellHistoryPage.Available).entries.single()
+
+		entry.state shouldBe CellHistoryProductState.PARTIAL
+		entry.causes shouldBe setOf(
+			CellHistoryCause.ACQUISITION_INCOMPLETE,
+			CellHistoryCause.SUBSCRIPTION_GROUPING_UNKNOWN,
+		)
+		entry.observations shouldHaveSize 2
+	}
+
 	@Before
 	fun setUp() {
 		val application = ApplicationProvider.getApplicationContext<Application>()

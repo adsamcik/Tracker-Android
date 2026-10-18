@@ -375,7 +375,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 			return@withTransaction rejected(LocationWalAdapterRejection.MISSING_SESSION)
 		}
 		if (run.logicalTrackingId != logicalTrackingId || run.bootId != wal.clockDomainId ||
-			run.leaseGeneration != leaseGeneration
+			!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, leaseGeneration)
 		) {
 			return@withTransaction rejected(LocationWalAdapterRejection.SESSION_MISMATCH)
 		}

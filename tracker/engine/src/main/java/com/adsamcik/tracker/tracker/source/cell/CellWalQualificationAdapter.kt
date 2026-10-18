@@ -406,8 +406,11 @@ internal class CellWalQualificationAdapter @Inject constructor(
 		val policyDao = database.sourcePolicyDao()
 		val policy = policyDao.policyAtRevision(policyRevision, CELL_SOURCE)
 			?: return rejected(CellWalAdapterRejection.MISSING_POLICY)
+		val policyAppliesToObservation = policy.effectiveBootId != wal.clockDomainId ||
+			policy.effectiveElapsedRealtimeNanos <= wal.observedElapsedNanos
 		if (!policy.enabled || !policy.capturePersistenceEligible ||
-			policy.captureConsentEpoch != consentEpoch || policy.effectiveBootId != wal.clockDomainId
+			policy.captureConsentEpoch != consentEpoch ||
+			!policyAppliesToObservation
 		) {
 			return rejected(CellWalAdapterRejection.POLICY_MISMATCH)
 		}
@@ -417,7 +420,7 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			consentEpoch,
 		) ?: return rejected(CellWalAdapterRejection.MISSING_CONSENT)
 		if (!consent.eligible || !consent.persistenceEligible ||
-			consent.policyRevision > policyRevision || consent.effectiveBootId != wal.clockDomainId
+			consent.policyRevision > policyRevision
 		) {
 			return rejected(CellWalAdapterRejection.CONSENT_MISMATCH)
 		}
@@ -548,7 +551,13 @@ internal class CellWalQualificationAdapter @Inject constructor(
 					qualifiedPurpose?.continuousFromNanos ?: authorization.effectiveElapsedRealtimeNanos,
 					authorizationEnd,
 				),
-				consentEffect = interval(consent.effectiveElapsedRealtimeNanos, authorizationEnd),
+				consentEffect = interval(
+					if (consent.effectiveBootId == wal.clockDomainId) {
+						consent.effectiveElapsedRealtimeNanos
+					} else {
+						0L
+					}, authorizationEnd,
+				),
 				sessionRunEffect = interval(manifest.effectiveElapsedRealtimeNanos, manifestEnd),
 				deletionEffect = interval(run.startedElapsedNanos, sessionEnd),
 			)

@@ -67,6 +67,8 @@ import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalPe
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalReceipt
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalSignalIdentity
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWriteResult
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWriter
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWriterChain
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationOfflineCanonicalWriter
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationWalQualifier
 import com.adsamcik.tracker.tracker.source.location.PROTECTED_LOCATION_CANONICAL_CURATION_VERSION
@@ -147,6 +149,7 @@ class TrackingOrchestratorIntegrationTest {
 		Dispatchers.setMain(testDispatcher)
 		context = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
+		database.openHelper.writableDatabase
 		testDispatcherProvider = TestDispatchersProvider(testDispatcher)
 	}
 
@@ -526,7 +529,8 @@ class TrackingOrchestratorIntegrationTest {
 				pressureBarrier.establish(0L)
 			}
 			runCurrent()
-			offlineAttempt.isCompleted shouldBe false
+			offlineAttempt.await() shouldBe
+				ProtectedLocationCanonicalWriteResult.Deferred("LOCATION_CANONICAL_PERSISTENCE_BUSY")
 			pressureAttempt.isCompleted shouldBe false
 			coVerify(exactly = 0) { pressureRuntime.establishSourceEraseBarrier(0L) }
 
@@ -535,6 +539,67 @@ class TrackingOrchestratorIntegrationTest {
 			offlineAttempt.await()
 			assertIs<PressureSourceEraseBarrierResult.NoLocalProvider>(pressureAttempt.await())
 			coVerify(exactly = 1) { pressureRuntime.establishSourceEraseBarrier(0L) }
+		}
+
+	@Test
+	@Suppress("LongMethod")
+	fun `older Location replay shares live durability without changing the live route or delaying shutdown`() =
+		runTest(testDispatcher) {
+			installProtectedLocationWriterAuthority()
+			database.sourceEvidenceStateDao().ensure()
+			val commands = mutableMapOf<String, LocationCapturedFactCommand>()
+			val guard = ProtectedLocationCanonicalPersistenceGuard(database, ProtectedLocationWalQualifier { eventId ->
+				LocationWalAdapterResult.Evaluated(LocationObservationQualification.Qualified(
+					requireNotNull(commands[eventId.value])), PROTECTED_LOCATION_ACQUISITION)
+			}, Unit)
+			val persistence = realPersistenceProcessor(guard = guard)
+			val effects = RecordingLocationProcessor()
+			val lease = ExclusiveTrackingPersistenceLifecycleLease()
+			val controller = DefaultTrackerServiceController().apply { updateServiceRunning(true) }
+			val orchestrator = TrackingOrchestrator(
+				controller, setOf(persistence, effects), RecordingDomainEventRepository(), testDispatcherProvider,
+				database, FakeTrackingParamsRepository(TrackingParamsState()), dailySummaryFallbackEnqueuer = {},
+				enableNotifications = false,
+				persistenceLifecycleLease = lease,
+			)
+			insertPresentationOwner(LOGICAL_ID, RUN_ID)
+			val oldBinding = requireNotNull(orchestrator.initialize(context, true, PolicyTier.PRECISION,
+				backgroundScope, LOGICAL_ID, RUN_ID, rolloutState = allEventCanonical()))
+			orchestrator.shutdown(context)
+			insertPresentationOwner("new-logical", "new-run")
+			controller.updateServiceRunning(true)
+			val binding = requireNotNull(orchestrator.initialize(context, true, PolicyTier.PRECISION,
+				backgroundScope, "new-logical", "new-run", rolloutState = allEventCanonical()))
+			controller.updateSessionInfo(TrackerSessionInfo(isInitiatedByUser = true))
+			val live = protectedLocationCommand("new-first", 20L, binding.sessionSegmentId, 20_000L,
+				20_000_000_000L, 50.087, 14.421, logicalTrackingId = "new-logical", serviceRunId = "new-run")
+			val old = protectedLocationCommand("old-unfinished", 10L, oldBinding.sessionSegmentId, 10_000L,
+				10_000_000_000L, -33.8688, 151.2093)
+			val next = protectedLocationCommand("new-next", 21L, binding.sessionSegmentId, 21_000L,
+				21_000_000_000L, 50.08701, 14.42101, logicalTrackingId = "new-logical", serviceRunId = "new-run")
+			listOf(live, old, next).forEach { commands[it.mutation.identity.sourceEventId.value] = it }
+			var attached: ProtectedLocationCanonicalWriter? = null
+			val chain = ProtectedLocationCanonicalWriterChain({ attached },
+				ProtectedLocationOfflineCanonicalWriter(context, database, testDispatcherProvider, persistence, lease))
+			withContext(Dispatchers.Default) {
+				chain.write(old, PROTECTED_LOCATION_ACQUISITION) shouldBe
+					ProtectedLocationCanonicalWriteResult.Deferred("LOCATION_CANONICAL_PERSISTENCE_BUSY")
+				attached = orchestrator
+				chain.write(live, PROTECTED_LOCATION_ACQUISITION) shouldBe ProtectedLocationCanonicalWriteResult.Committed
+				chain.write(old, PROTECTED_LOCATION_ACQUISITION) shouldBe ProtectedLocationCanonicalWriteResult.Committed
+				chain.write(old, PROTECTED_LOCATION_ACQUISITION) shouldBe ProtectedLocationCanonicalWriteResult.Committed
+				chain.write(next, PROTECTED_LOCATION_ACQUISITION) shouldBe ProtectedLocationCanonicalWriteResult.Committed
+			}
+			for (command in listOf(old, live, next)) {
+				val receipt = assertIs<ProtectedLocationCanonicalReceipt.Complete>(
+					database.readProtectedLocationCanonicalReceipt(command, PROTECTED_LOCATION_ACQUISITION))
+				requireNotNull(receipt.acceptedSample)
+			}
+			effects.events shouldBe listOf("new-first", "new-next")
+			database.locationSampleDao().countAll() shouldBe 3L
+			database.pendingSignalDao().countAll() shouldBe 0
+			orchestrator.shutdown(context)
+			lease.withOfflineLocationRecovery { "released" } shouldBe "released"
 		}
 
 	@Test
@@ -721,7 +786,8 @@ class TrackingOrchestratorIntegrationTest {
 			}
 
 			runCurrent()
-			offlineAttempt.isCompleted shouldBe false
+			offlineAttempt.await() shouldBe
+				ProtectedLocationCanonicalWriteResult.Deferred("LOCATION_CANONICAL_PERSISTENCE_BUSY")
 			pressureAttempt.isCompleted shouldBe false
 			coVerify(exactly = 0) { pressureRuntime.establishSourceEraseBarrier(0L) }
 			offlineAttempt.cancelAndJoin()
@@ -845,6 +911,7 @@ class TrackingOrchestratorIntegrationTest {
 
 	private fun realPersistenceProcessor(
 		transactor: TrackingPersistenceTransactor = RoomPersistenceTransactor(database),
+		guard: ProtectedLocationCanonicalPersistenceGuard = ProtectedLocationCanonicalPersistenceGuard.unavailable(),
 	) = PersistenceProcessor(
 		locationSampleDao = database.locationSampleDao(),
 		locationObservationDao = database.locationObservationDao(),
@@ -866,6 +933,7 @@ class TrackingOrchestratorIntegrationTest {
 		transactor = transactor,
 		sourceDestinationOwnerDao = database.sourceDestinationOwnerDao(),
 		appDatabaseProvider = Provider { database },
+		protectedLocationCanonicalPersistenceGuardProvider = Provider { guard },
 	)
 
 	private suspend fun insertPresentationOwner(logicalTrackingId: String, serviceRunId: String) {
@@ -952,6 +1020,8 @@ class TrackingOrchestratorIntegrationTest {
 		accuracyMeters: Float = 5f,
 		altitudeMeters: Double? = null,
 		verticalAccuracyMeters: Float? = null,
+		logicalTrackingId: String = LOGICAL_ID,
+		serviceRunId: String = RUN_ID,
 	): LocationCapturedFactCommand {
 		val interval = LocationProviderTimeInterval(1L, Long.MAX_VALUE)
 		val temporal = LocationCaptureTemporalAuthority(
@@ -963,8 +1033,8 @@ class TrackingOrchestratorIntegrationTest {
 			lifecycleLease = interval,
 		)
 		val authority = LocationCaptureAuthority(
-			logicalTrackingId = LogicalTrackingId(LOGICAL_ID),
-			serviceRunId = ServiceRunId(RUN_ID),
+			logicalTrackingId = LogicalTrackingId(logicalTrackingId),
+			serviceRunId = ServiceRunId(serviceRunId),
 			sessionSegmentId = sessionSegmentId,
 			capturedSources = setOf(SourceKind.LOCATION),
 			controlSources = emptySet(),
@@ -1177,6 +1247,17 @@ class TrackingOrchestratorIntegrationTest {
 			upToTimestamp: EpochMs,
 			upToEventId: Long,
 		) = Unit
+	}
+
+	private class RecordingLocationProcessor : SignalProcessor {
+		override val descriptor = ProcessorDescriptor("recording-location", PolicyTier.AMBIENT, Long.MAX_VALUE, 100)
+		val events = mutableListOf<String>()
+		override suspend fun onStart(context: ProcessorContext) = Unit
+		override fun onSignal(signal: TrackingSignal) {
+			signal.location?.sourceEventId?.let(events::add)
+		}
+		override suspend fun onFlush(): List<DomainEvent> = emptyList()
+		override suspend fun onStop(): List<DomainEvent> = emptyList()
 	}
 
 	private class LifecycleFailureDurabilityProcessor(

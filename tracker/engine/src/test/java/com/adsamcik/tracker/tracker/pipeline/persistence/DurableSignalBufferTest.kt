@@ -570,6 +570,22 @@ class DurableSignalBufferTest {
 	}
 
 	@Test
+	fun replayKeepsOriginalSessionWithoutChangingLiveSession() = runTest {
+		buffer = createBufferWithDispatchers(TestDispatchersProvider(StandardTestDispatcher(testScheduler)))
+		val replay = buffer.stage(createSignal(1_700_000_000_000L), sessionId = 7L)
+		val live = buffer.stage(createSignal(1_700_000_001_000L))
+		buffer.setSessionId(99L)
+
+		buffer.checkpoint()
+
+		fakeDao.store.single { it.signalId == replay.signalId }.sessionId shouldBe 7L
+		fakeDao.store.single { it.signalId == live.signalId }.sessionId shouldBe sessionId
+		val next = buffer.stage(createSignal(1_700_000_002_000L))
+		buffer.checkpoint()
+		fakeDao.store.single { it.signalId == next.signalId }.sessionId shouldBe 99L
+	}
+
+	@Test
 	fun checkpointPersistsStableIdentityAndVerifiedEnvelope() = runTest {
 		val testDispatcher = StandardTestDispatcher(testScheduler)
 		buffer = createBufferWithDispatchers(TestDispatchersProvider(testDispatcher))
@@ -841,40 +857,43 @@ class DurableSignalBufferTest {
 	}
 
 	@Test
-	fun `ambiguous retry keeps the original durable Steps writer stamp`() = runTest {
+	fun `ambiguous retry keeps the original durable Steps writer stamp`() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		val database = AppDatabase.testDatabase(context)
 		try {
-			val signal = createStepsSignal("already-pruned-event")
-			val durable = currentPendingEntity(
-				signal = signal,
-				createdAt = 1_700_000_000_000L,
-				signalId = requireNotNull(signal.persistenceSignalId),
-			).copy(
-				stepsWriterOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
-				stepsWriterOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
-			)
-			database.pendingSignalDao().insertAll(listOf(durable))
-			val databaseBuffer = DurableSignalBuffer(
-				pendingSignalDao = database.pendingSignalDao(),
-				dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
-				pendingSignalClaimDao = database.pendingSignalClaimDao(),
-				appDatabase = database,
-			).also { it.setSessionId(sessionId) }
-			var committed = emptyList<DurableSignalBuffer.CheckpointedSignal>()
+			database.openHelper.writableDatabase
+			runTest {
+				val signal = createStepsSignal("already-pruned-event")
+				val durable = currentPendingEntity(
+					signal = signal,
+					createdAt = 1_700_000_000_000L,
+					signalId = requireNotNull(signal.persistenceSignalId),
+				).copy(
+					stepsWriterOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+					stepsWriterOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+				)
+				database.pendingSignalDao().insertAll(listOf(durable))
+				val databaseBuffer = DurableSignalBuffer(
+					pendingSignalDao = database.pendingSignalDao(),
+					dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
+					pendingSignalClaimDao = database.pendingSignalClaimDao(),
+					appDatabase = database,
+				).also { it.setSessionId(sessionId) }
+				var committed = emptyList<DurableSignalBuffer.CheckpointedSignal>()
 
-			databaseBuffer.stage(signal)
-			databaseBuffer.checkpoint { committed = it }
+				databaseBuffer.stage(signal)
+				databaseBuffer.checkpoint { committed = it }
 
-			database.pendingSignalDao().countAll() shouldBe 1
-			val resolved = database.pendingSignalDao().getBySignalIds(
-				listOf(requireNotNull(signal.persistenceSignalId)),
-			).single()
-			resolved.stepsWriterOwner shouldBe SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
-			resolved.stepsWriterOwnerGeneration shouldBe
-				SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
-			committed.single().stepsWriterOwner shouldBe resolved.stepsWriterOwner
-			committed.single().stepsWriterOwnerGeneration shouldBe resolved.stepsWriterOwnerGeneration
+				database.pendingSignalDao().countAll() shouldBe 1
+				val resolved = database.pendingSignalDao().getBySignalIds(
+					listOf(requireNotNull(signal.persistenceSignalId)),
+				).single()
+				resolved.stepsWriterOwner shouldBe SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
+				resolved.stepsWriterOwnerGeneration shouldBe
+					SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+				committed.single().stepsWriterOwner shouldBe resolved.stepsWriterOwner
+				committed.single().stepsWriterOwnerGeneration shouldBe resolved.stepsWriterOwnerGeneration
+			}
 		} finally {
 			database.close()
 		}

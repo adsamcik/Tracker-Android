@@ -2097,6 +2097,130 @@ class WifiWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `earlier boot choices replay a retained Wi-Fi failure through saved history exactly once`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installPortableClosingAuthorization()
+		setWifiAuthorityClock("earlier-boot", OBSERVED_END_NANOS + 20_000_000_000L)
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
+			projectionId = WifiSessionFactProjectionLane.WRITER_ID,
+			projectionVersion = WifiSessionFactProjectionLane.WRITER_VERSION,
+			admissionOrdinal = 1L, attemptCount = 1, failureCode = "WIFI_ADAPTER_POLICY_MISMATCH",
+			terminal = true, lastAttemptAtMs = OBSERVED_WALL_MS))
+		val lane = WifiSessionFactProjectionLane(database, subject, writer)
+
+		val replayed = assertIs<WifiSessionFactDrainResult.Complete>(lane.drainAvailable())
+		assertEquals(1L, replayed.lastCompletedOrdinal)
+		assertEquals(1, replayed.factsInserted)
+		assertEquals(null, database.sourceProjectionStateDao().failure(
+			WifiSessionFactProjectionLane.WRITER_ID, WifiSessionFactProjectionLane.WRITER_VERSION, 1L))
+		database.sourceSessionDao().saveCompleteness(wifiCompleteness())
+		assertIs<ExportPortableCapturedWifiResult.Exported>(portableExporter().export(
+			ExportPortableCapturedWifiRequest(LOGICAL_ID)) {})
+		assertEquals(0, assertIs<WifiSessionFactDrainResult.Complete>(lane.drainAvailable()).factsInserted)
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `interrupted Wi-Fi replays original retired provider facts and exports partial measured coverage`() = runTest {
+		installInterruptedWifiFixture()
+		setWifiAuthorityClock("earlier-boot", OBSERVED_END_NANOS + 20_000_000_000L)
+		database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
+			WifiSessionFactProjectionLane.WRITER_ID, WifiSessionFactProjectionLane.WRITER_VERSION,
+			1L, 1, "WIFI_ADAPTER_SESSION_MISMATCH", true, OBSERVED_WALL_MS))
+		val session = database.sourceSessionDao().session(LOGICAL_ID)
+		val run = database.sourceSessionDao().serviceRun(RUN_ID)
+		val lane = WifiSessionFactProjectionLane(database, subject, writer)
+
+		val drained = assertIs<WifiSessionFactDrainResult.Complete>(lane.drainAvailable())
+		assertEquals(1, drained.factsInserted)
+		assertEquals(1L, drained.lastCompletedOrdinal)
+		var exported: PortableCapturedWifiEntryV1? = null
+		assertIs<ExportPortableCapturedWifiResult.Exported>(portableExporter().export(
+			ExportPortableCapturedWifiRequest(LOGICAL_ID)) { exported = it })
+		val measured = requireNotNull(exported).runs.single()
+		assertEquals(com.adsamcik.tracker.stats.api.repository.PortableWifiAcquisitionCompleteness.PARTIAL,
+			measured.acquisitionCompleteness)
+		assertEquals(com.adsamcik.tracker.stats.api.repository.PortableWifiCaptureCoverage.PARTIAL_RUN,
+			measured.captureCoverage)
+		assertEquals(measured.observations.minOf { it.coverageStartTimeMs }, measured.startTimeMs)
+		assertEquals(measured.observations.maxOf { it.latestPossibleTimeMs }, measured.endTimeMs)
+		assertEquals(session, database.sourceSessionDao().session(LOGICAL_ID))
+		assertEquals(run, database.sourceSessionDao().serviceRun(RUN_ID))
+		assertEquals(0, assertIs<WifiSessionFactDrainResult.Complete>(lane.drainAvailable()).factsInserted)
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `interrupted Wi-Fi cannot borrow an open provider or a later wall stop`() = runTest {
+		installInterruptedWifiFixture("FORCE_STOP_SUPPRESSED")
+		assertIs<WifiWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		val dao = database.sourceSessionDao()
+		val session = requireNotNull(dao.session(LOGICAL_ID))
+		dao.updateSession(session.copy(cutoffAtMs = OBSERVED_WALL_MS - 1L))
+		assertEquals(WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.SESSION_MISMATCH), subject.qualify(EVENT_ID))
+		dao.updateSession(session)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET status = 'ACTIVE', retired_at_ms = NULL, " +
+				"retired_elapsed_realtime_nanos = NULL, failure_code = NULL WHERE source_kind = ?",
+			arrayOf(WIFI_SOURCE))
+		assertEquals(WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.SESSION_MISMATCH), subject.qualify(EVENT_ID))
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	private suspend fun installInterruptedWifiFixture(reason: String = "PREVIOUS_PROCESS_INTERRUPTED") {
+		installValidFixture(candidateWriter = true)
+		installPortableClosingAuthorization()
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val dao = database.sourceSessionDao()
+		val session = requireNotNull(dao.session(LOGICAL_ID))
+		dao.updateSession(session.copy(failureCode = reason,
+			cutoffElapsedNanos = null, finalAdmissionOrdinal = null))
+		val run = requireNotNull(dao.serviceRun(RUN_ID))
+		dao.updateServiceRun(run.copy(completionReason = reason))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET capture_callback_barrier_authorization_revision = 0, " +
+				"failure_code = 'PRIOR_PROCESS_INCARNATION_ENDED' WHERE source_kind = ?",
+			arrayOf(WIFI_SOURCE))
+	}
+
+	@Test
+	fun `same boot future policy cannot release a retained Wi-Fi failure`() = runTest {
+		installValidFixture(candidateWriter = true)
+		setWifiAuthorityClock(BOOT_ID, OBSERVED_END_NANOS + 20_000_000_000L)
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val lane = WifiSessionFactProjectionLane(database, subject, writer)
+
+		assertEquals("WIFI_ADAPTER_POLICY_MISMATCH", assertTerminalWifiLaneFailure(lane).failureCode)
+		assertEquals("WIFI_ADAPTER_POLICY_MISMATCH", assertTerminalWifiLaneFailure(lane).failureCode)
+		assertEquals(1, database.sourceProjectionStateDao().failure(
+			WifiSessionFactProjectionLane.WRITER_ID, WifiSessionFactProjectionLane.WRITER_VERSION, 1L)?.attemptCount)
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `same boot future consent cannot authorize an earlier Wi-Fi scan`() = runTest {
+		installValidFixture()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_consent_epoch SET effective_elapsed_realtime_nanos = ? " +
+				"WHERE source_kind = ? AND purpose = ? AND epoch = ?",
+			arrayOf<Any?>(OBSERVED_END_NANOS + 20_000_000_000L, WIFI_SOURCE,
+				SourceBrokerPurpose.SESSION_CAPTURE, CONSENT_EPOCH))
+
+		assertEquals(WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.CONSENT_MISMATCH),
+			subject.qualify(EVENT_ID))
+	}
+
+	@Test
+	fun `earlier boot choices also qualify a retained Wi-Fi run beside its live replacement`() = runTest {
+		installValidFixture()
+		installLiveReplacement()
+		setWifiAuthorityClock("earlier-boot", OBSERVED_END_NANOS + 20_000_000_000L)
+
+		assertIs<WifiWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+	}
+
+	@Test
 	fun `canonical Wi-Fi lane atomically commits captured fact and both cursors`() = runTest {
 		installValidFixture(candidateWriter = true)
 		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
@@ -5993,6 +6117,15 @@ class WifiWalQualificationAdapterTest {
 				SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS, 4L, OBSERVED_WALL_MS))
 			}
 		}
+	}
+
+	private fun setWifiAuthorityClock(bootId: String, elapsedNanos: Long) {
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_policy SET effective_boot_id = ?, effective_elapsed_realtime_nanos = ? WHERE source_kind = ?",
+			arrayOf<Any?>(bootId, elapsedNanos, WIFI_SOURCE))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_consent_epoch SET effective_boot_id = ?, effective_elapsed_realtime_nanos = ? WHERE source_kind = ?",
+			arrayOf<Any?>(bootId, elapsedNanos, WIFI_SOURCE))
 	}
 
 	private suspend fun installValidFixture(

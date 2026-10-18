@@ -70,6 +70,7 @@ import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWr
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationPreparedCanonicalOutput
 import com.adsamcik.tracker.tracker.source.location.prepareProtectedLocationCanonicalCurationState
 import com.adsamcik.tracker.tracker.source.location.loadPreparedProtectedLocationCanonicalCurationState
+import com.adsamcik.tracker.tracker.source.location.loadProtectedLocationCanonicalCurationState
 import com.adsamcik.tracker.tracker.source.location.loadProtectedLocationCommittedCurationState
 import com.adsamcik.tracker.tracker.source.location.readProtectedLocationCanonicalReceipt
 import com.adsamcik.tracker.tracker.source.location.toCanonicalCurationContext
@@ -514,15 +515,7 @@ internal class TrackingOrchestrator(
 			?: return@withLock ProtectedLocationCanonicalWriteResult.Inactive(
 				"LOCATION_CANONICAL_PIPELINE_INACTIVE",
 			)
-		if (!controller.hasCollectionHost || !controller.hasLiveCapture) {
-			return@withLock ProtectedLocationCanonicalWriteResult.Inactive(
-				"LOCATION_CANONICAL_SERVICE_INACTIVE",
-			)
-		}
 		val binding = pendingPresentationBinding
-			?: return@withLock ProtectedLocationCanonicalWriteResult.Inactive(
-				"LOCATION_CANONICAL_SESSION_UNBOUND",
-			)
 		writeBoundCanonicalLocation(context, command, acquisitionMetadata, binding)
 	}
 
@@ -532,16 +525,8 @@ internal class TrackingOrchestrator(
 		context: Context,
 		command: LocationCapturedFactCommand,
 		acquisitionMetadata: LocationWalAcquisitionMetadata,
-		binding: SessionPresentationBinding,
+		binding: SessionPresentationBinding?,
 	): ProtectedLocationCanonicalWriteResult {
-		if (binding.logicalTrackingId != command.authority.logicalTrackingId.value ||
-			binding.serviceRunId != command.authority.serviceRunId.value ||
-			binding.sessionSegmentId != command.authority.sessionSegmentId
-		) {
-			return ProtectedLocationCanonicalWriteResult.Inactive(
-				"LOCATION_CANONICAL_ACTIVE_RUN_MISMATCH",
-			)
-		}
 		val pipeline = processorPipeline
 			?: return ProtectedLocationCanonicalWriteResult.Inactive(
 				"LOCATION_CANONICAL_PROCESSOR_PIPELINE_INACTIVE",
@@ -551,6 +536,12 @@ internal class TrackingOrchestrator(
 				"LOCATION_CANONICAL_PERSISTENCE_PROCESSOR_UNAVAILABLE",
 				terminal = false,
 			)
+		if (binding == null || binding.logicalTrackingId != command.authority.logicalTrackingId.value ||
+			binding.serviceRunId != command.authority.serviceRunId.value ||
+			binding.sessionSegmentId != command.authority.sessionSegmentId
+		) {
+			return writeHistoricalCanonicalLocation(context, command, acquisitionMetadata, pipeline, persistence)
+		}
 		val locationComponent = dataComponentList.filterIsInstance<LocationTrackerComponent>()
 			.singleOrNull()
 			?: return ProtectedLocationCanonicalWriteResult.Failed(
@@ -562,6 +553,26 @@ internal class TrackingOrchestrator(
 		)
 	}
 
+	/** Replay shares the live durability owner but never changes the live route or its effects. */
+	private suspend fun writeHistoricalCanonicalLocation(
+		context: Context,
+		command: LocationCapturedFactCommand,
+		acquisitionMetadata: LocationWalAcquisitionMetadata,
+		pipeline: ProcessorPipeline,
+		persistence: PersistenceProcessor,
+	): ProtectedLocationCanonicalWriteResult {
+		val component = LocationTrackerComponent(trackingParamsRepository = null, dispatchers = dispatchers)
+		component.onEnable(context)
+		return try {
+			writeActiveCanonicalLocation(
+				context, command, acquisitionMetadata, pipeline, persistence, component, historical = true,
+			)
+		} finally {
+			component.onDisable(context)
+		}
+	}
+
+	@Suppress("LongParameterList")
 	private suspend fun writeActiveCanonicalLocation(
 		context: Context,
 		command: LocationCapturedFactCommand,
@@ -569,6 +580,7 @@ internal class TrackingOrchestrator(
 		pipeline: ProcessorPipeline,
 		persistence: PersistenceProcessor,
 		locationComponent: LocationTrackerComponent,
+		historical: Boolean = false,
 	): ProtectedLocationCanonicalWriteResult {
 		if (!persistence.flushProtectedLocationCanonicalHandoff()) {
 			return ProtectedLocationCanonicalWriteResult.Deferred(
@@ -579,11 +591,13 @@ internal class TrackingOrchestrator(
 			appDatabase.readProtectedLocationCanonicalReceipt(command, acquisitionMetadata)
 		}) {
 			is ProtectedLocationCanonicalReceipt.Complete -> {
-				applyCommittedProtectedLocationCuration(
-					locationComponent,
-					command.mutation.identity.sourceAdmissionOrdinal,
-					receipt.curationState,
-				)
+				if (!historical) {
+					applyCommittedProtectedLocationCuration(
+						locationComponent,
+						command.mutation.identity.sourceAdmissionOrdinal,
+						receipt.curationState,
+					)
+				}
 				return ProtectedLocationCanonicalWriteResult.Committed
 			}
 			is ProtectedLocationCanonicalReceipt.Invalid ->
@@ -593,12 +607,15 @@ internal class TrackingOrchestrator(
 				)
 			is ProtectedLocationCanonicalReceipt.Incomplete -> Unit
 		}
-		seedCommittedProtectedLocationCurationIfNeeded()
+		if (!historical) {
+			seedCommittedProtectedLocationCurationIfNeeded()
+		}
 		return prepareCanonicalLocationDecision(
-			context, command, acquisitionMetadata, pipeline, persistence, locationComponent,
+			context, command, acquisitionMetadata, pipeline, persistence, locationComponent, historical,
 		)
 	}
 
+	@Suppress("LongParameterList")
 	private suspend fun prepareCanonicalLocationDecision(
 		context: Context,
 		command: LocationCapturedFactCommand,
@@ -606,11 +623,17 @@ internal class TrackingOrchestrator(
 		pipeline: ProcessorPipeline,
 		persistence: PersistenceProcessor,
 		locationComponent: LocationTrackerComponent,
+		historical: Boolean,
 	): ProtectedLocationCanonicalWriteResult {
 		val curationStateBefore = try {
 			appDatabase.withTransaction {
 				appDatabase.loadPreparedProtectedLocationCanonicalCurationState(command)
 					?.stateBefore
+					?: if (historical) {
+						appDatabase.loadProtectedLocationCanonicalCurationState(command)
+					} else {
+						null
+					}
 			} ?: locationComponent.snapshotCanonicalState()
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -635,7 +658,7 @@ internal class TrackingOrchestrator(
 		}
 		return try {
 			writePreparedCanonicalLocation(
-				context, command, acquisitionMetadata, pipeline, persistence, locationComponent, curationContext,
+				context, command, acquisitionMetadata, pipeline, persistence, locationComponent, curationContext, historical,
 			)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -661,6 +684,7 @@ internal class TrackingOrchestrator(
 		persistence: PersistenceProcessor,
 		locationComponent: LocationTrackerComponent,
 		curationContext: LocationCanonicalCurationContext,
+		historical: Boolean,
 	): ProtectedLocationCanonicalWriteResult {
 		if (!pipeline.checkpointDurableSignals(
 			listOf(command.toProtectedLocationObservationSignal(
@@ -668,12 +692,15 @@ internal class TrackingOrchestrator(
 				policyTier = acquisitionMetadata.policyTier,
 				policyName = acquisitionMetadata.policyName,
 			)),
+			sessionId = command.authority.sessionSegmentId,
 		)) {
 			return ProtectedLocationCanonicalWriteResult.Deferred(
 				"LOCATION_CANONICAL_RAW_ADMISSION_DEFERRED",
 			)
 		}
-		if (!admitProtectedLocationDecision(context, command, acquisitionMetadata, curationContext, pipeline)) {
+		if (!admitProtectedLocationDecision(
+			context, command, acquisitionMetadata, curationContext, pipeline, locationComponent.takeIf { historical },
+		)) {
 			return ProtectedLocationCanonicalWriteResult.Deferred(
 				"LOCATION_CANONICAL_DECISION_ADMISSION_DEFERRED",
 			)
@@ -687,11 +714,13 @@ internal class TrackingOrchestrator(
 			appDatabase.readProtectedLocationCanonicalReceipt(command, acquisitionMetadata)
 		}) {
 			is ProtectedLocationCanonicalReceipt.Complete -> {
-				applyCommittedProtectedLocationCuration(
-					locationComponent,
-					command.mutation.identity.sourceAdmissionOrdinal,
-					receipt.curationState,
-				)
+				if (!historical) {
+					applyCommittedProtectedLocationCuration(
+						locationComponent,
+						command.mutation.identity.sourceAdmissionOrdinal,
+						receipt.curationState,
+					)
+				}
 				ProtectedLocationCanonicalWriteResult.Committed
 			}
 			is ProtectedLocationCanonicalReceipt.Incomplete ->
@@ -710,6 +739,7 @@ internal class TrackingOrchestrator(
 		acquisitionMetadata: LocationWalAcquisitionMetadata,
 		curationContext: LocationCanonicalCurationContext,
 		pipeline: ProcessorPipeline,
+		historicalComponent: LocationTrackerComponent?,
 	): Boolean {
 		if (command.productEffect.isMock) {
 			val decisionSignal = command.toProtectedLocationMockRejectionSignal(
@@ -728,11 +758,18 @@ internal class TrackingOrchestrator(
 					),
 				)
 			}
-			if (!pipeline.onSignal(decisionSignal)) {
+			val admitted = if (historicalComponent != null) {
+				pipeline.checkpointDurableSignals(listOf(decisionSignal), command.authority.sessionSegmentId)
+			} else {
+				pipeline.onSignal(decisionSignal)
+			}
+			if (!admitted) {
 				return false
 			}
 		} else {
-			admitCuratedProtectedLocationDecision(context, command, acquisitionMetadata, curationContext, pipeline)
+			admitCuratedProtectedLocationDecision(
+				context, command, acquisitionMetadata, curationContext, pipeline, historicalComponent,
+			)
 		}
 		return true
 	}
@@ -743,6 +780,7 @@ internal class TrackingOrchestrator(
 		acquisitionMetadata: LocationWalAcquisitionMetadata,
 		curationContext: LocationCanonicalCurationContext,
 		pipeline: ProcessorPipeline,
+		historicalComponent: LocationTrackerComponent?,
 	) {
 		val cycle = command.toProtectedLocationTrackingCycle(
 			acquisitionMetadata,
@@ -750,11 +788,12 @@ internal class TrackingOrchestrator(
 		)
 		TrackingPipeline(
 			stages = listOf(
-				DataCollectionStage(dataComponentList),
+				DataCollectionStage(historicalComponent?.let { listOf(it) } ?: dataComponentList),
 				SignalDispatchStage(
 					processorPipelineProvider = { pipeline },
 					currentTierProvider = { acquisitionMetadata.policyTier },
 					currentPolicyNameProvider = { acquisitionMetadata.policyName },
+					durableSessionId = command.authority.sessionSegmentId.takeIf { historicalComponent != null },
 					beforeSignalAdmission = { cycleContext, signal ->
 						check(
 							cycleContext.collectionData.location != null ||

@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.tracker.presentation.SessionPresentationLifecycle
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -45,6 +46,7 @@ class CellSessionFactProjectionLane private constructor(
 ) {
 	private val mutex = Mutex()
 	private val drainSignals = Channel<Unit>(Channel.CONFLATED)
+	private val presentation = SessionPresentationLifecycle(database)
 
 	@Inject
 	internal constructor(
@@ -178,7 +180,7 @@ class CellSessionFactProjectionLane private constructor(
 								releasedTerminalOrdinal = failure.admissionOrdinal
 								true
 							} else {
-								false
+								recoverMissingPresentation(failure)
 							}
 						}
 					val readThroughOrdinal = terminal?.admissionOrdinal?.minus(1L)
@@ -319,6 +321,22 @@ class CellSessionFactProjectionLane private constructor(
 			}
 		}
 		return CellSessionFactDrainResult.Complete(cursor, factsInserted, eventsValidated)
+	}
+
+	/** Recheck only the exact retained row; a recovered binding never advances a cursor by itself. */
+	private suspend fun recoverMissingPresentation(failure: SourceProjectionFailureEntity): Boolean {
+		if (failure.failureCode != "CELL_ADAPTER_MISSING_SEGMENT") {
+			return false
+		}
+		val candidate = database.sourceEventWalDao().sourceProjectionCandidatesAfterThrough(
+			sourceKind = SourceKind.CELL.stableCode,
+			afterOrdinal = failure.admissionOrdinal - 1L,
+			throughOrdinal = failure.admissionOrdinal,
+			limit = 1,
+		).singleOrNull() ?: return false
+		return candidate.admissionOrdinal == failure.admissionOrdinal &&
+			presentation.recoverMissingForRetainedEvent(candidate.eventId) &&
+			adapter.qualify(SourceEventId(candidate.eventId)).toProjectionResult().failureCode == null
 	}
 
 	private suspend fun persistFailure(

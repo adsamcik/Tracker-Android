@@ -2,8 +2,14 @@ package com.adsamcik.tracker.tracker.presentation
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState
 
 /** Exact Room identity joining one physical service run to its source-neutral presentation row. */
@@ -42,6 +48,83 @@ internal enum class PresentationQuiescenceResult {
 internal class SessionPresentationLifecycle(
 	private val database: AppDatabase,
 ) {
+	/** A failed initialization may have saved authorized facts before opening its presentation row. */
+	@Suppress("ReturnCount", "ComplexCondition", "CyclomaticComplexMethod", "LongMethod")
+	suspend fun recoverMissingForRetainedEvent(eventId: String): Boolean = database.withTransaction {
+		val wal = database.sourceEventWalDao().getByEventId(eventId) ?: return@withTransaction false
+		val logicalId = wal.logicalTrackingId ?: return@withTransaction false
+		val runId = wal.serviceRunId ?: return@withTransaction false
+		val dao = database.sourceSessionDao()
+		val run = dao.serviceRun(runId) ?: return@withTransaction false
+		val session = dao.session(logicalId) ?: return@withTransaction false
+		val cutoff = database.savedSessionCutoff(session)
+		val sessionEnd = if (cutoff.bootId != null) {
+			cutoff.endForBoot(wal.clockDomainId)
+		} else {
+			session.cutoffElapsedNanos.takeIf { session.lifecycleBootId == wal.clockDomainId } ?: Long.MAX_VALUE
+		}
+		if (!isRetainedRecording(wal) || run.logicalTrackingId != logicalId || run.bootId != wal.clockDomainId ||
+			!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, wal.lifecycleLeaseGeneration ?: 0L) ||
+			session.lifecycleLeaseGeneration < (wal.lifecycleLeaseGeneration ?: 0L) ||
+			run.startedElapsedNanos > wal.observedElapsedNanos ||
+			wal.observedElapsedNanos >= sessionEnd
+		) {
+			return@withTransaction false
+		}
+		val manifestRevision = wal.sessionManifestRevision ?: return@withTransaction false
+		val manifest = dao.manifest(logicalId, manifestRevision) ?: return@withTransaction false
+		val bindings = dao.manifestSources(logicalId, manifestRevision)
+		if (!SessionManifestIntegrity.verify(manifest, bindings) || manifest.serviceRunId != runId ||
+			manifest.sourcePolicyRevision != wal.sourcePolicyRevision ||
+			manifest.acquisitionPlanRevision != wal.configRevision ||
+			manifest.effectiveBootId != wal.clockDomainId || manifest.effectiveElapsedRealtimeNanos > wal.observedElapsedNanos ||
+			bindings.none { it.sourceKind == wal.sourceKind && it.persistenceEligible &&
+				it.purpose == SessionManifestPurposeCode.SESSION_CAPTURE && it.consentEpoch == wal.captureConsentEpoch }
+		) {
+			return@withTransaction false
+		}
+		run.sessionSegmentId?.let { boundId ->
+			val bound = database.sessionSegmentDao().getById(boundId)
+			return@withTransaction bound != null && bound.logicalTrackingId == logicalId && bound.serviceRunId == runId
+		}
+		val endTimeMs = run.completedAtMs ?: return@withTransaction false
+		if (run.state !in TERMINAL_RUN_STATES || session.currentServiceRunId == runId ||
+			run.presentationAcknowledgement != SourceServiceRunEntity.PRESENTATION_PENDING ||
+			run.startedAtMs < 0L || endTimeMs < run.startedAtMs || manifest.sessionMode !in setOf("MANUAL", "AUTOMATIC")
+		) {
+			return@withTransaction false
+		}
+		val segmentId = database.sessionSegmentDao().insert(SessionSegment(
+			startTimeMs = run.startedAtMs, endTimeMs = endTimeMs, distanceM = 0f, steps = null,
+			primaryActivity = null, activityConfidence = null, sampleCount = 0,
+			source = if (manifest.sessionMode == "MANUAL") {
+				SegmentSource.USER_CREATED
+			} else {
+				SegmentSource.INFERRED_LOW_CONFIDENCE
+			},
+			inferenceVersion = "tracker_v2", createdAt = run.startedAtMs, logicalTrackingId = logicalId, serviceRunId = runId,
+		))
+		check(segmentId > 0L)
+		check(dao.updateServiceRun(run.copy(sessionSegmentId = segmentId)) == 1)
+		check(acknowledgeQuiescedExact(SessionPresentationBinding(logicalId, runId, segmentId), endTimeMs) ==
+			PresentationQuiescenceResult.ACKNOWLEDGED)
+		true
+	}
+
+	private suspend fun isRetainedRecording(wal: SourceEventWalEntity): Boolean {
+		val evidence = database.sourceEvidenceStateDao().get() ?: return false
+		val observedTimeMs = wal.wallTimeMs
+		val uncertaintyMs = wal.wallTimeUncertaintyMs
+		if (observedTimeMs == null || uncertaintyMs == null) {
+			return false
+		}
+		val earliest = CanonicalRetentionBounds.location(observedTimeMs, uncertaintyMs) ?: return false
+		val retainedFromMs = evidence.retainedFromMs
+		return wal.hasQualifiedIntegrity() && wal.capturedCollectedDataEpoch == evidence.collectedDataEpoch &&
+			wal.admissionOrdinal > evidence.deletedSourceEventHighWaterOrdinal &&
+			(retainedFromMs == null || earliest >= retainedFromMs)
+	}
+
 	/**
 	 * Creates and binds a presentation segment atomically, or returns the exact same-run binding.
 	 * A replacement service run intentionally gets another segment under the same logical entry.

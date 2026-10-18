@@ -121,10 +121,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -251,6 +253,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	}
 	private class CompletenessAuthenticationBlockedException :
 		IllegalStateException("Stored source completeness is unverifiable")
+	private class SessionCoordinatorLeaseLostException :
+		CancellationException("Session coordinator lease lost")
 	private sealed interface RequestedStepsRetirementRecovery {
 		data class Authenticated(
 			val acknowledgement: SourceStopAck,
@@ -346,6 +350,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			val result = prepareAndroidStartUnderLease(request, delivery, lease, catalogDecisions)
 			keepLease = result is SessionStartPreparationResult.Prepared
 			result
+		} catch (_: SessionCoordinatorLeaseLostException) {
+			SessionStartPreparationResult.Busy
 		} finally {
 			if (!keepLease) {
 				releaseLease(lease)
@@ -370,6 +376,9 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		if (active != null && request.isRecoveryOfSession(active)) {
 			return prepareRecoveryAndroidStart(active, request, delivery, lease, catalogDecisions)
 		}
+		if (active != null && finalizeSupersededUnacceptedStart(active, request, delivery, lease)) {
+			active = database.sourceSessionDao().activeSession()
+		}
 		if (active != null && isStalePriorSession(active, request)) {
 			finalizeInterruptedSession(active, lease, request.wallTimeMs, "STALE_PRIOR_SESSION")
 			active = database.sourceSessionDao().activeSession()
@@ -377,15 +386,119 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		if (active != null) {
 			return SessionStartPreparationResult.AlreadyActive
 		}
-		return if (request.origin == SessionStartOrigin.RECOVERY || request.continuationAuthority != null) {
+		return prepareAndroidStartWithoutSession(request, delivery, lease, catalogDecisions)
+	}
+
+	private suspend fun prepareAndroidStartWithoutSession(
+		request: SessionStartRequest,
+		delivery: AndroidStartDeliveryMetadata,
+		lease: LifecycleLeaseToken,
+		catalogDecisions: CatalogPlanDecisions,
+	): SessionStartPreparationResult =
+		if (request.origin == SessionStartOrigin.RECOVERY || request.continuationAuthority != null) {
 			SessionStartPreparationResult.Rejected("RECOVERY_SESSION_MISSING")
 		} else {
 			prepareFreshAndroidStart(request, delivery, lease, catalogDecisions)
 		}
-	}
 
 	private fun SessionStartRequest.isRecoveryOfSession(active: LogicalTrackingSessionEntity): Boolean =
 		continuationAuthority != null && logicalTrackingId == active.logicalTrackingId
+
+	/** A later manual command may replace a failed handoff that never reached a provider. */
+	private suspend fun finalizeSupersededUnacceptedStart(
+		active: LogicalTrackingSessionEntity,
+		request: SessionStartRequest,
+		delivery: AndroidStartDeliveryMetadata,
+		lease: LifecycleLeaseToken,
+	): Boolean = database.withTransaction {
+		requireLeaseInTransaction(lease)
+		if (!request.isNewManualStart(delivery) || !request.hasCurrentManualStartSettings()) {
+			return@withTransaction false
+		}
+		val session = database.sourceSessionDao().session(active.logicalTrackingId)
+			?: return@withTransaction false
+		if (!isSupersededUnacceptedStart(session, delivery, lease)) {
+			return@withTransaction false
+		}
+		finalizeInterruptedSession(session, lease, request.wallTimeMs, "UNACCEPTED_START_SUPERSEDED")
+		true
+	}
+
+	private fun SessionStartRequest.isNewManualStart(delivery: AndroidStartDeliveryMetadata): Boolean =
+		origin == SessionStartOrigin.MANUAL_FOREGROUND_START && delivery.isUserInitiated &&
+			!delivery.isAmbient && continuationAuthority == null
+
+	private suspend fun SessionStartRequest.hasCurrentManualStartSettings(): Boolean =
+		validateSourcePolicyInTransaction(plan) == null &&
+			validateRolloutInTransaction(rolloutRevision, plan, SessionMode.MANUAL) == null &&
+			logicalTrackingId?.let { database.sourceSessionDao().session(it) != null } != true
+
+	private suspend fun isSupersededUnacceptedStart(
+		session: LogicalTrackingSessionEntity,
+		delivery: AndroidStartDeliveryMetadata,
+		lease: LifecycleLeaseToken,
+	): Boolean {
+		val run = session.currentServiceRunId?.let { database.sourceSessionDao().serviceRun(it) } ?: return false
+		return session.sessionMode == SessionMode.MANUAL.name && run.isOlderManualHandoff(delivery, lease) &&
+			run.isUnacceptedHandoff() && hasUnacceptedStartAuthority(session, run)
+	}
+
+	private fun SourceServiceRunEntity.isOlderManualHandoff(
+		delivery: AndroidStartDeliveryMetadata,
+		lease: LifecycleLeaseToken,
+	): Boolean {
+		val manual = startOrigin == SessionStartOrigin.MANUAL_FOREGROUND_START.name &&
+			startIsUserInitiated && !startIsAmbient
+		val earlierLease = bootId == lease.bootId && leaseGeneration < lease.generation
+		val earlierCommand = startDeliveryToken != delivery.token.value &&
+			startCommandGeneration in 1L until delivery.commandGeneration
+		return manual && earlierLease && earlierCommand
+	}
+
+	private fun SourceServiceRunEntity.isUnacceptedHandoff(): Boolean {
+		val unclaimed = completedAtMs == null && preparedManifestRevision == 1L && sessionSegmentId == null &&
+			runtimeAcknowledgement == LifecycleActionStatus.AWAITING_FOREGROUND.name
+		return unclaimed && androidDeliveryState in setOf(
+			AndroidStartDeliveryState.PREPARED.name,
+			AndroidStartDeliveryState.ENQUEUED.name,
+			AndroidStartDeliveryState.DELIVERED.name,
+		)
+	}
+
+	private suspend fun hasUnacceptedStartAuthority(
+		session: LogicalTrackingSessionEntity,
+		run: SourceServiceRunEntity,
+	): Boolean {
+		val manifest = verifiedManifest(run.logicalTrackingId, run.preparedManifestRevision, run.serviceRunId)
+			?: return false
+		val intent = database.sourceSessionDao().lifecycleIntent(run.logicalTrackingId, run.preparedIntentRevision)
+			?: return false
+		val matches = session.matchesPreparedStartRun(run, intent) &&
+			preparedRunMatchesLeaseRebind(run, manifest.manifest, intent) &&
+			intent.hasAuthenticStartEnvelope(manifest.manifest)
+		return matches && hasUnattemptedPreparedOwner(run, manifest, intent)
+	}
+
+	private suspend fun hasUnattemptedPreparedOwner(
+		run: SourceServiceRunEntity,
+		manifest: VerifiedSessionManifest,
+		intent: SessionLifecycleIntentVersionEntity,
+	): Boolean {
+		val actions = preparedLeaseRebindActions(run, intent) ?: return false
+		if (actions.any { it.status != LifecycleActionStatus.AWAITING_FOREGROUND.name } ||
+			database.sourceSessionDao().hasProviderJoinPublishedEvidence(run.logicalTrackingId, run.serviceRunId)
+		) {
+			return false
+		}
+		val originalToken = run.startDeliveryToken?.takeIf(String::isNotBlank)?.let(::PreparedTrackingStartToken)
+			?: return false
+		// Validate the saved envelope against its original identity; the new lease owns cleanup.
+		val envelopeLease = LifecycleLeaseToken(
+			SESSION_LEASE, preparedStartOwner(originalToken), run.bootId, run.leaseGeneration,
+		)
+		return hasExactPreparedStartOwner(run, manifest, intent, actions, envelopeLease)
+	}
+
 	private suspend fun prepareFreshAndroidStart(
 		request: SessionStartRequest,
 		delivery: AndroidStartDeliveryMetadata,
@@ -852,6 +965,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				terminal.state == SessionLifecycleState.FINALIZED.name &&
 					terminal.failureCode == failureCode
 			} == true
+		} catch (_: SessionCoordinatorLeaseLostException) {
+			false
 		} finally {
 			releaseLease(lease)
 		}
@@ -940,7 +1055,13 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		var rejectionShouldCompensate = true
 		var claimed: ClaimedPreparedSessionStart? = null
 		database.withTransaction {
-			requireLeaseInTransaction(lease)
+			try {
+				requireLeaseInTransaction(lease)
+			} catch (_: SessionCoordinatorLeaseLostException) {
+				rejection = "PREPARED_START_LEASE_UNAVAILABLE"
+				rejectionShouldCompensate = false
+				return@withTransaction
+			}
 			val dao = database.sourceSessionDao()
 			val run = dao.serviceRunByDeliveryToken(token.value)
 			if (run == null || run.startCommandGeneration != commandGeneration ||
@@ -1203,6 +1324,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			}
 			keepLease = accepted
 			accepted
+		} catch (_: SessionCoordinatorLeaseLostException) {
+			false
 		} finally {
 			if (!keepLease) {
 				releaseLease(lease)
@@ -1239,177 +1362,183 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		}
 		var keepLease = false
 		return try {
-			val currentRun = database.sourceSessionDao().serviceRunByDeliveryToken(token.value)
-				?: return SessionStartResult.InvalidIntent("PREPARED_START_NOT_FOUND")
-			val plan = planStore.load(currentRun.desiredPlanRevision)
-				?: return SessionStartResult.InvalidIntent("PREPARED_START_PLAN_MISSING")
-			val persisted = database.withTransaction {
-				val dao = database.sourceSessionDao()
-				val manifestEnvelope = verifiedManifest(
-					currentRun.logicalTrackingId,
-					currentRun.preparedManifestRevision,
-					currentRun.serviceRunId,
-				) ?: return@withTransaction null
-				val intent = dao.lifecycleIntent(currentRun.logicalTrackingId, currentRun.preparedIntentRevision)
-					?: return@withTransaction null
-				val session = dao.session(currentRun.logicalTrackingId) ?: return@withTransaction null
-				if (session.currentServiceRunId != currentRun.serviceRunId ||
-					session.currentManifestRevision != currentRun.preparedManifestRevision ||
-					session.currentIntentRevision != currentRun.preparedIntentRevision
-				) {
-					return@withTransaction null
+			withRenewingLease(lease) {
+				val currentRun = database.sourceSessionDao().serviceRunByDeliveryToken(token.value)
+					?: return@withRenewingLease SessionStartResult.InvalidIntent("PREPARED_START_NOT_FOUND")
+				val plan = planStore.load(currentRun.desiredPlanRevision)
+					?: return@withRenewingLease SessionStartResult.InvalidIntent("PREPARED_START_PLAN_MISSING")
+				val persisted = database.withTransaction {
+					val dao = database.sourceSessionDao()
+					val manifestEnvelope = verifiedManifest(
+						currentRun.logicalTrackingId,
+						currentRun.preparedManifestRevision,
+						currentRun.serviceRunId,
+					) ?: return@withTransaction null
+					val intent = dao.lifecycleIntent(currentRun.logicalTrackingId, currentRun.preparedIntentRevision)
+						?: return@withTransaction null
+					val session = dao.session(currentRun.logicalTrackingId) ?: return@withTransaction null
+					if (session.currentServiceRunId != currentRun.serviceRunId ||
+						session.currentManifestRevision != currentRun.preparedManifestRevision ||
+						session.currentIntentRevision != currentRun.preparedIntentRevision
+					) {
+						return@withTransaction null
+					}
+					PersistedLifecycleIntent(
+						manifest = manifestEnvelope.manifest,
+						bindings = manifestEnvelope.bindings,
+						intent = intent,
+						actions = dao.lifecycleActions(currentRun.logicalTrackingId).filter { action ->
+							action.serviceRunId == currentRun.serviceRunId &&
+								action.manifestRevision == currentRun.preparedManifestRevision
+						},
+						demands = database.sourceBrokerDao().currentDemands("session:${currentRun.logicalTrackingId}"),
+						foregroundCapabilityFlags = currentRun.desiredForegroundCapabilityFlags,
+					)
+				} ?: return@withRenewingLease SessionStartResult.InvalidIntent("PREPARED_START_MANIFEST_INTEGRITY_FAILED")
+				validateSourcePolicy(plan)?.let { return@withRenewingLease SessionStartResult.InvalidPolicy(it) }
+				val catalogDecisions = runtimes.catalogPlanDecisions(
+					plan,
+					SourceAvailabilityTier.SESSION_ALREADY_FOREGROUND,
+				).constrainedToAcceptedSources(persisted.activeCaptureSources())
+				catalogDecisions.retryableFailure()
+					?.takeIf { catalogDecisions.acceptedSources.isEmpty() }?.let { failure ->
+					keepLease = true
+					return@withRenewingLease SessionStartResult.InvalidIntent(
+						failure.failure.code,
+						failure.failure.disposition,
+					)
 				}
-				PersistedLifecycleIntent(
-					manifest = manifestEnvelope.manifest,
-					bindings = manifestEnvelope.bindings,
-					intent = intent,
-					actions = dao.lifecycleActions(currentRun.logicalTrackingId).filter { action ->
-						action.serviceRunId == currentRun.serviceRunId &&
-							action.manifestRevision == currentRun.preparedManifestRevision
-					},
-					demands = database.sourceBrokerDao().currentDemands("session:${currentRun.logicalTrackingId}"),
-					foregroundCapabilityFlags = currentRun.desiredForegroundCapabilityFlags,
-				)
-			} ?: return SessionStartResult.InvalidIntent("PREPARED_START_MANIFEST_INTEGRITY_FAILED")
-			validateSourcePolicy(plan)?.let { return SessionStartResult.InvalidPolicy(it) }
-			val catalogDecisions = runtimes.catalogPlanDecisions(
-				plan,
-				SourceAvailabilityTier.SESSION_ALREADY_FOREGROUND,
-			).constrainedToAcceptedSources(persisted.activeCaptureSources())
-			catalogDecisions.retryableFailure()
-				?.takeIf { catalogDecisions.acceptedSources.isEmpty() }?.let { failure ->
-				keepLease = true
-				return SessionStartResult.InvalidIntent(
-					failure.failure.code,
-					failure.failure.disposition,
-				)
-			}
-			val blockedSources = catalogDecisions.bySource
-				.filterValues { decision -> decision is CatalogSourcePlanDecision.Blocked }
-				.keys
-				.mapTo(linkedSetOf(), SourceKind::stableCode)
-			val demandsReconciled = database.withTransaction {
-				requireLeaseInTransaction(lease)
-				sourceBroker.retirePreparedSessionCaptureDemandsInTransaction(
-					logicalTrackingId = currentRun.logicalTrackingId,
-					serviceRunId = currentRun.serviceRunId,
-					manifestRevision = currentRun.preparedManifestRevision,
-					leaseGeneration = currentRun.leaseGeneration,
-					sourceKinds = blockedSources,
-					bootId = currentBootId,
-					elapsedRealtimeNanos = elapsedRealtimeNanos,
-					wallTimeMs = wallTimeMs,
-				)
-			}
-			if (!demandsReconciled) {
-				return SessionStartResult.InvalidIntent(
-					"PREPARED_START_DEMAND_RECONCILIATION_FAILED",
-				)
-			}
-			planStore.updateStatus(plan.revision, DesiredPlanStatus.APPLYING)
-			val sink = sinkFactory.forSession(currentRun.logicalTrackingId, currentRun.serviceRunId)
-			val executions = reconcileStartActions(
-				plan,
-				persisted,
-				sink,
-				lease,
-				wallTimeMs,
-				elapsedRealtimeNanos,
-				catalogDecisions,
-			)
-			var applied = executions.map(SourceActionExecution::applied)
-			if (executions.any { execution -> execution.status == LifecycleActionStatus.CLEANUP_REQUIRED }) {
+				val blockedSources = catalogDecisions.bySource
+					.filterValues { decision -> decision is CatalogSourcePlanDecision.Blocked }
+					.keys
+					.mapTo(linkedSetOf(), SourceKind::stableCode)
+				val demandsReconciled = database.withTransaction {
+					requireLeaseInTransaction(lease)
+					sourceBroker.retirePreparedSessionCaptureDemandsInTransaction(
+						logicalTrackingId = currentRun.logicalTrackingId,
+						serviceRunId = currentRun.serviceRunId,
+						manifestRevision = currentRun.preparedManifestRevision,
+						leaseGeneration = currentRun.leaseGeneration,
+						sourceKinds = blockedSources,
+						bootId = currentBootId,
+						elapsedRealtimeNanos = elapsedRealtimeNanos,
+						wallTimeMs = wallTimeMs,
+					)
+				}
+				if (!demandsReconciled) {
+					return@withRenewingLease SessionStartResult.InvalidIntent(
+						"PREPARED_START_DEMAND_RECONCILIATION_FAILED",
+					)
+				}
 				planStore.updateStatus(plan.revision, DesiredPlanStatus.APPLYING)
-				return SessionStartResult.Failed(
-					currentRun.logicalTrackingId,
-					currentRun.serviceRunId,
-					applied,
-					SOURCE_RUNTIME_CLEANUP_PENDING,
+				val sink = sinkFactory.forSession(currentRun.logicalTrackingId, currentRun.serviceRunId)
+				val executions = reconcileStartActions(
+					plan,
+					persisted,
+					sink,
+					lease,
+					wallTimeMs,
+					elapsedRealtimeNanos,
+					catalogDecisions,
 				)
-			}
-			val finalPolicyFailure = validateSourcePolicy(plan)
-			if (finalPolicyFailure != null) {
-				val rollback = rollbackStalePolicySources(plan, executions, elapsedRealtimeNanos, wallTimeMs)
-				applied = rollback.applied
-				if (rollback.cleanupRequired) {
+				var applied = executions.map(SourceActionExecution::applied)
+				if (executions.hasCleanupWithoutAcceptedSource(plan)) {
 					planStore.updateStatus(plan.revision, DesiredPlanStatus.APPLYING)
-					return SessionStartResult.Failed(
+					return@withRenewingLease SessionStartResult.Failed(
 						currentRun.logicalTrackingId,
 						currentRun.serviceRunId,
 						applied,
 						SOURCE_RUNTIME_CLEANUP_PENDING,
 					)
 				}
-			}
-			val effectiveStatus = applied.desiredStatus()
-			val hasRunningSource = applied.any { state ->
-				plan.plans[state.source]?.enabled == true &&
-					state.status in setOf(SourceApplyStatus.APPLIED, SourceApplyStatus.DEGRADED)
-			}
-			if (!hasRunningSource) {
-				val failureCode = catalogDecisions.failureIfNoAcceptedSource()?.code
-					?: "NO_SOURCE_STARTED"
-				markStartFailed(
-					currentRun.logicalTrackingId,
-					currentRun.serviceRunId,
-					wallTimeMs,
-					failureCode,
-					lease,
-				)
-				SessionStartResult.Failed(
-					currentRun.logicalTrackingId,
-					currentRun.serviceRunId,
-					applied,
-					failureCode,
-				)
-			} else {
-				val failure = markRunningIfPolicyCurrent(
-					currentRun.logicalTrackingId,
-					currentRun.serviceRunId,
-					plan,
-					currentRun.preparedManifestRevision,
-					lease,
-					currentRun.desiredForegroundCapabilityFlags,
-					effectiveStatus,
-				)
-				if (failure == null) {
-					SessionStartResult.Started(
-						currentRun.logicalTrackingId,
-						currentRun.serviceRunId,
-						applied,
-						effectiveStatus,
-						SourceCallerReplayReference(
-							requireNotNull(persisted.intent.sourceCallerAuthorityReference),
-						),
-					)
-				} else {
+				val finalPolicyFailure = validateSourcePolicy(plan)
+				if (finalPolicyFailure != null) {
 					val rollback = rollbackStalePolicySources(plan, executions, elapsedRealtimeNanos, wallTimeMs)
 					applied = rollback.applied
 					if (rollback.cleanupRequired) {
 						planStore.updateStatus(plan.revision, DesiredPlanStatus.APPLYING)
-						return SessionStartResult.Failed(
+						return@withRenewingLease SessionStartResult.Failed(
 							currentRun.logicalTrackingId,
 							currentRun.serviceRunId,
 							applied,
 							SOURCE_RUNTIME_CLEANUP_PENDING,
 						)
 					}
-					planStore.updateStatus(plan.revision, DesiredPlanStatus.FAILED)
+				}
+				val effectiveStatus = applied.desiredStatus()
+				val hasRunningSource = applied.any { state ->
+					plan.plans[state.source]?.enabled == true &&
+						state.status in setOf(SourceApplyStatus.APPLIED, SourceApplyStatus.DEGRADED)
+				}
+				if (!hasRunningSource) {
+					val failureCode = catalogDecisions.failureIfNoAcceptedSource()?.code
+						?: "NO_SOURCE_STARTED"
 					markStartFailed(
 						currentRun.logicalTrackingId,
 						currentRun.serviceRunId,
 						wallTimeMs,
-						failure,
+						failureCode,
 						lease,
 					)
 					SessionStartResult.Failed(
 						currentRun.logicalTrackingId,
 						currentRun.serviceRunId,
 						applied,
-						failure,
+						failureCode,
 					)
+				} else {
+					val failure = markRunningIfPolicyCurrent(
+						currentRun.logicalTrackingId,
+						currentRun.serviceRunId,
+						plan,
+						currentRun.preparedManifestRevision,
+						lease,
+						currentRun.desiredForegroundCapabilityFlags,
+						effectiveStatus,
+					)
+					if (failure == null) {
+						SessionStartResult.Started(
+							currentRun.logicalTrackingId,
+							currentRun.serviceRunId,
+							applied,
+							effectiveStatus,
+							SourceCallerReplayReference(
+								requireNotNull(persisted.intent.sourceCallerAuthorityReference),
+							),
+						)
+					} else {
+						val rollback = rollbackStalePolicySources(plan, executions, elapsedRealtimeNanos, wallTimeMs)
+						applied = rollback.applied
+						if (rollback.cleanupRequired) {
+							planStore.updateStatus(plan.revision, DesiredPlanStatus.APPLYING)
+							return@withRenewingLease SessionStartResult.Failed(
+								currentRun.logicalTrackingId,
+								currentRun.serviceRunId,
+								applied,
+								SOURCE_RUNTIME_CLEANUP_PENDING,
+							)
+						}
+						planStore.updateStatus(plan.revision, DesiredPlanStatus.FAILED)
+						markStartFailed(
+							currentRun.logicalTrackingId,
+							currentRun.serviceRunId,
+							wallTimeMs,
+							failure,
+							lease,
+						)
+						SessionStartResult.Failed(
+							currentRun.logicalTrackingId,
+							currentRun.serviceRunId,
+							applied,
+							failure,
+						)
+					}
 				}
 			}
+		} catch (_: SessionCoordinatorLeaseLostException) {
+			SessionStartResult.Failed(
+				run.logicalTrackingId, run.serviceRunId, emptyList(), SOURCE_RUNTIME_CLEANUP_PENDING,
+			)
 		} finally {
 			if (!keepLease) {
 				releaseLease(lease)
@@ -1561,6 +1690,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				}
 				true
 			}
+		} catch (_: SessionCoordinatorLeaseLostException) {
+			false
 		} finally {
 			releaseLease(lease)
 		}
@@ -1675,6 +1806,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		}
 		val lease = acquireLease(request.ownerToken)
 			?: return SessionStartResult.Busy
+		var persisted: PersistedLifecycleIntent? = null
 		return try {
 			validateSourcePolicy(request.plan)?.let { return SessionStartResult.InvalidPolicy(it) }
 			var active = database.sourceSessionDao().activeSession()
@@ -1706,7 +1838,6 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			var intentRolloutFailure: String? = null
 			var automaticActionFailure: String? = null
 			var automaticActionAlreadyAccepted = false
-			var persisted: PersistedLifecycleIntent? = null
 			if (request.automaticTrigger != null) {
 				activityAutomationEpochAuthority.currentForValidation()
 			}
@@ -1896,17 +2027,19 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			val lifecycleIntent = requireNotNull(persisted)
 			planStore.updateStatus(request.plan.revision, DesiredPlanStatus.APPLYING)
 			val sink = sinkFactory.forSession(logicalTrackingId, serviceRunId)
-			val executions = reconcileStartActions(
-				plan = request.plan,
-				intent = lifecycleIntent,
-				sink = sink,
-				lease = lease,
-				wallTimeMs = request.wallTimeMs,
-				elapsedRealtimeNanos = request.elapsedRealtimeNanos,
-				catalogDecisions = catalogDecisions,
-			)
+			val executions = withRenewingLease(lease) {
+				reconcileStartActions(
+					plan = request.plan,
+					intent = lifecycleIntent,
+					sink = sink,
+					lease = lease,
+					wallTimeMs = request.wallTimeMs,
+					elapsedRealtimeNanos = request.elapsedRealtimeNanos,
+					catalogDecisions = catalogDecisions,
+				)
+			}
 			var applied = executions.map(SourceActionExecution::applied)
-			if (executions.any { execution -> execution.status == LifecycleActionStatus.CLEANUP_REQUIRED }) {
+			if (executions.hasCleanupWithoutAcceptedSource(request.plan)) {
 				planStore.updateStatus(request.plan.revision, DesiredPlanStatus.APPLYING)
 				return SessionStartResult.Failed(
 					logicalTrackingId,
@@ -1983,6 +2116,16 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					markStartFailed(logicalTrackingId, serviceRunId, request.wallTimeMs, runningPolicyFailure, lease)
 					SessionStartResult.Failed(logicalTrackingId, serviceRunId, applied, runningPolicyFailure)
 				}
+			}
+		} catch (_: SessionCoordinatorLeaseLostException) {
+			val manifest = persisted?.manifest
+			if (manifest == null) {
+				SessionStartResult.InvalidIntent("SESSION_COORDINATOR_LEASE_LOST",
+					TrackingStartFailureDisposition.RETRYABLE)
+			} else {
+				SessionStartResult.Failed(
+					manifest.logicalTrackingId, manifest.serviceRunId, emptyList(), SOURCE_RUNTIME_CLEANUP_PENDING,
+				)
 			}
 		} finally {
 			releaseLease(lease)
@@ -2143,17 +2286,19 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		callerFailure?.let { return SessionStartResult.InvalidIntent(it) }
 		val lifecycleIntent = requireNotNull(persisted)
 		val sink = sinkFactory.forSession(session.logicalTrackingId, serviceRunId)
-		val executions = reconcileStartActions(
-			request.plan,
-			lifecycleIntent,
-			sink,
-			lease,
-			request.wallTimeMs,
-			request.elapsedRealtimeNanos,
-			catalogDecisions,
-		)
+		val executions = withRenewingLease(lease) {
+			reconcileStartActions(
+				request.plan,
+				lifecycleIntent,
+				sink,
+				lease,
+				request.wallTimeMs,
+				request.elapsedRealtimeNanos,
+				catalogDecisions,
+			)
+		}
 		var applied = executions.map(SourceActionExecution::applied)
-		if (executions.any { execution -> execution.status == LifecycleActionStatus.CLEANUP_REQUIRED }) {
+		if (executions.hasCleanupWithoutAcceptedSource(request.plan)) {
 			planStore.updateStatus(request.plan.revision, DesiredPlanStatus.APPLYING)
 			return SessionStartResult.Failed(
 				session.logicalTrackingId,
@@ -2541,7 +2686,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				stepsContinuation = stepsContinuation,
 			)
 			var applied = executions.map(SourceActionExecution::applied)
-			if (executions.any { execution -> execution.status == LifecycleActionStatus.CLEANUP_REQUIRED }) {
+			if (executions.hasCleanupWithoutAcceptedSource(plan)) {
 				planStore.updateStatus(plan.revision, DesiredPlanStatus.APPLYING)
 				return SessionReconfigureResult.Failed(
 					plan.revision,
@@ -2653,6 +2798,10 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					requireNotNull(persisted.intent.sourceCallerAuthorityReference),
 				),
 				catalogTransition.deferredSources,
+			)
+		} catch (_: SessionCoordinatorLeaseLostException) {
+			SessionReconfigureResult.Failed(
+				request.plan.revision, emptyList(), SOURCE_RUNTIME_CLEANUP_PENDING,
 			)
 		} finally {
 			releaseLease(lease)
@@ -3696,14 +3845,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				)
 			}
 			val runtimeClaim = claimed.toRuntimeClaim(sourcePlan.source)
-			val authorization = CaptureAuthorization(
-				logicalTrackingId = intent.manifest.logicalTrackingId,
-				serviceRunId = action.serviceRunId,
-				policyRevision = intent.manifest.sourcePolicyRevision,
-				captureConsentEpoch = binding.consentEpoch,
-				manifestRevision = intent.manifest.manifestRevision,
-				leaseGeneration = lease.generation,
-			)
+			val authorization = captureAuthorization(intent, action, binding, lease)
 			val execution = startSource(
 				acceptedDecision.effectivePlan,
 				sink,
@@ -3757,12 +3899,12 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		elapsedRealtimeNanos: Long,
 		catalogDecisions: CatalogPlanDecisions,
 		stepsContinuation: StepsRecordingContinuation? = null,
-	): List<SourceActionExecution> {
+	): List<SourceActionExecution> = withRenewingLease(lease) {
 		val actionBySource = intent.actions.associateBy { it.sourceKind }
 		val bindingBySource = intent.bindings
 			.filter { it.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
 			.associateBy { it.sourceKind }
-		return plan.plans.values.sortedBy { it.source.stableCode }.map { sourcePlan ->
+		plan.plans.values.sortedBy { it.source.stableCode }.map { sourcePlan ->
 			val catalogDecision = catalogDecisions.getValue(sourcePlan.source)
 			val action = requireNotNull(actionBySource[sourcePlan.source.stableCode])
 			val nowElapsed = monotonicNowAtLeast(elapsedRealtimeNanos)
@@ -3777,14 +3919,19 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			}
 			val runtimeClaim = claimed.toRuntimeClaim(sourcePlan.source)
 			val binding = bindingBySource[sourcePlan.source.stableCode]
-			val authorization = CaptureAuthorization(
-				logicalTrackingId = intent.manifest.logicalTrackingId,
-				serviceRunId = action.serviceRunId,
-				policyRevision = intent.manifest.sourcePolicyRevision,
-				captureConsentEpoch = binding?.consentEpoch ?: 0L,
-				manifestRevision = intent.manifest.manifestRevision,
-				leaseGeneration = lease.generation,
-			)
+			val authorization = captureAuthorization(intent, action, binding, lease)
+			if (hasPriorSourceCleanup(sourcePlan.source, intent)) {
+				return@map persistReconfiguredSourceExecution(
+					sourcePlan,
+					SourceActionExecution(
+						failedApplied(sourcePlan, nowElapsed, SourceApplyStatus.BLOCKED),
+						LifecycleActionStatus.TEMPORARILY_ILLEGAL,
+						SOURCE_RUNTIME_CLEANUP_PENDING,
+						RUNTIME_CLEANUP_RETRY,
+					),
+					null, claimed, lease, authorization, runtimeClaim, nowElapsed, wallTimeMs,
+				)
+			}
 			val existingRuntime = existing[sourcePlan.source.stableCode]?.sourceInstanceId != null
 			var attemptedEffectivePlan: SourcePlan? = null
 			suspend fun applyRuntimePlan(runtimePlan: SourcePlan): SourceActionExecution {
@@ -3841,6 +3988,20 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		}
 	}
 
+	private fun captureAuthorization(
+		intent: PersistedLifecycleIntent,
+		action: LifecycleDesiredActionEntity,
+		binding: SessionManifestSourceEntity?,
+		lease: LifecycleLeaseToken,
+	): CaptureAuthorization = CaptureAuthorization(
+		logicalTrackingId = intent.manifest.logicalTrackingId,
+		serviceRunId = action.serviceRunId,
+		policyRevision = intent.manifest.sourcePolicyRevision,
+		captureConsentEpoch = binding?.consentEpoch ?: 0L,
+		manifestRevision = intent.manifest.manifestRevision,
+		leaseGeneration = lease.generation,
+	)
+
 	private fun SourceActionExecution.withBlockedReconfigurationDecision(
 		decision: CatalogSourcePlanDecision.Blocked, nowElapsed: Long,
 	): SourceActionExecution = if (status == LifecycleActionStatus.STOP_ACCEPTED) {
@@ -3848,6 +4009,12 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	} else {
 		copy(applied = applied.copy(degradedReasons = applied.degradedReasons + decision.reasons))
 	}
+
+	private suspend fun hasPriorSourceCleanup(source: SourceKind, intent: PersistedLifecycleIntent): Boolean =
+		database.sourceSessionDao().lifecycleActions(intent.manifest.logicalTrackingId).any { action ->
+			action.serviceRunId == intent.manifest.serviceRunId && action.sourceKind == source.stableCode &&
+				action.status == LifecycleActionStatus.CLEANUP_REQUIRED.name
+		}
 
 	// These are the original immutable action inputs and result; keep one ordered persistence/acknowledgement phase.
 	@Suppress("LongParameterList")
@@ -4549,8 +4716,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				logicalTrackingId = cutoffSession.logicalTrackingId,
 				elapsedRealtimeNanos = requireNotNull(cutoffSession.cutoffElapsedNanos),
 				wallTimeMs = requireNotNull(cutoffSession.cutoffAtMs),
-				deadlineElapsedRealtimeNanos =
-                    request.elapsedRealtimeNanos + request.gracePeriodMs * NANOS_PER_MILLISECOND,
+				deadlineElapsedRealtimeNanos = monotonicNowAtLeast(request.elapsedRealtimeNanos) +
+					request.gracePeriodMs * NANOS_PER_MILLISECOND,
 			)
 			val retirement = when (
 				val read = runRetirementTargets(cutoffSession, bound.serviceRunId)
@@ -4696,6 +4863,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				return SessionStopResult.CleanupPending(cutoffSession.logicalTrackingId, finalOrdinal, acks)
 			}
 			SessionStopResult.Stopped(cutoffSession.logicalTrackingId, finalOrdinal, acks)
+		} catch (_: SessionCoordinatorLeaseLostException) {
+			SessionStopResult.Busy
 		} finally {
 			releaseLease(lease)
 		}
@@ -4734,7 +4903,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				logicalTrackingId = durableSession.logicalTrackingId,
 				elapsedRealtimeNanos = requireNotNull(durableSession.cutoffElapsedNanos),
 				wallTimeMs = requireNotNull(durableSession.cutoffAtMs),
-				deadlineElapsedRealtimeNanos = request.elapsedRealtimeNanos +
+				deadlineElapsedRealtimeNanos = monotonicNowAtLeast(request.elapsedRealtimeNanos) +
 					request.gracePeriodMs * NANOS_PER_MILLISECOND,
 			)
 			val retirement = when (
@@ -4905,6 +5074,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			} else {
 				SessionSuspendResult.InvalidIntent(rejection.failureCode)
 			}
+		} catch (_: SessionCoordinatorLeaseLostException) {
+			SessionSuspendResult.Busy
 		} finally {
 			releaseLease(lease)
 		}
@@ -7325,10 +7496,6 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			val exactActions = dao.lifecycleActions(session.logicalTrackingId).filter { action ->
 				action.serviceRunId == bound.serviceRunId && action.manifestRevision == manifestRevision
 			}
-			if (exactActions.any { action -> action.status == LifecycleActionStatus.CLEANUP_REQUIRED.name }) {
-				failure = SOURCE_RUNTIME_CLEANUP_PENDING
-				return@withTransaction
-			}
 			val acceptedSources = exactActions.filter { action ->
 				action.status == LifecycleActionStatus.START_ACCEPTED.name
 			}.mapNotNull(LifecycleDesiredActionEntity::sourceKind).toSet()
@@ -7406,10 +7573,6 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			val exactActions = database.sourceSessionDao().lifecycleActions(logicalTrackingId).filter { action ->
 				action.serviceRunId == serviceRunId &&
 					action.manifestRevision == manifestRevision
-			}
-			if (exactActions.any { action -> action.status == LifecycleActionStatus.CLEANUP_REQUIRED.name }) {
-				policyFailure = SOURCE_RUNTIME_CLEANUP_PENDING
-				return@withTransaction
 			}
 			val accepted = exactActions.any { action -> action.status == LifecycleActionStatus.START_ACCEPTED.name }
 			if (!accepted) {
@@ -8546,15 +8709,41 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		newLeaseGeneration,
 	)
 
-	private suspend fun renewLease(lease: LifecycleLeaseToken) {
+	/** Keeps the existing exact operation authority alive while Android provider work suspends. */
+	private suspend fun <T> withRenewingLease(
+		lease: LifecycleLeaseToken,
+		operation: suspend () -> T,
+	): T = coroutineScope {
+		val execution = async { operation() }
+		val renewal = launch {
+			while (execution.isActive) {
+				delay(LEASE_RENEWAL_INTERVAL_MILLIS)
+				try {
+					renewLease(lease)
+				} catch (lost: SessionCoordinatorLeaseLostException) {
+					execution.cancel(lost)
+					break
+				}
+			}
+		}
+		try {
+			execution.await()
+		} finally {
+			renewal.cancelAndJoin()
+		}
+	}
+
+	private suspend fun renewLease(lease: LifecycleLeaseToken): Unit = try {
 		val bootId = bootClockDomainProvider.current()
 		val leaseNowElapsedNanos = clock.elapsedRealtimeNanos()
 		val nowMs = clock.currentTimeMillis()
-		check(bootId.isNotBlank() && bootId == lease.bootId && leaseNowElapsedNanos >= 0L && nowMs >= 0L &&
-			leaseNowElapsedNanos <= Long.MAX_VALUE - LEASE_DURATION_NANOS &&
-			nowMs <= Long.MAX_VALUE - LEASE_DURATION_MILLIS
-		) { "Session coordinator lease clock unavailable" }
-		check(
+		if (bootId.isBlank() || bootId != lease.bootId ||
+			leaseNowElapsedNanos !in 0L..(Long.MAX_VALUE - LEASE_DURATION_NANOS) ||
+			nowMs !in 0L..(Long.MAX_VALUE - LEASE_DURATION_MILLIS)
+		) {
+			throw SessionCoordinatorLeaseLostException()
+		}
+		if (
 			database.sourceProjectionStateDao().renewExactLease(
 				lease.leaseName,
 				lease.ownerToken,
@@ -8564,16 +8753,32 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				nowMs + LEASE_DURATION_MILLIS,
 				leaseNowElapsedNanos,
 				leaseNowElapsedNanos + LEASE_DURATION_NANOS,
-			) == 1,
-		) { "Session coordinator lease lost" }
-		check(database.sourceProjectionStateDao().lease(lease.leaseName)?.generation == lease.generation) {
-			"Session coordinator lease generation changed"
+			) != 1
+		) {
+			throw SessionCoordinatorLeaseLostException()
 		}
+		Unit
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (failure: Exception) {
+		if (!failure.isTrackingOperationalFailure()) {
+			throw failure
+		}
+		throw SessionCoordinatorLeaseLostException().apply { initCause(failure) }
 	}
 
 	private suspend fun releaseLease(lease: LifecycleLeaseToken) {
-		database.withTransaction {
-			releaseLeaseInTransaction(lease)
+		try {
+			database.withTransaction {
+				releaseLeaseInTransaction(lease)
+			}
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (failure: Exception) {
+			if (!failure.isTrackingOperationalFailure()) {
+				throw failure
+			}
+			// No other owner is released; this exact lease expires if storage cannot record release.
 		}
 	}
 
@@ -8589,7 +8794,9 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	}
 
 	private suspend fun requireLeaseInTransaction(lease: LifecycleLeaseToken) {
-		check(leaseIsCurrentInTransaction(lease)) { "Session coordinator lease lost" }
+		if (!leaseIsCurrentInTransaction(lease)) {
+			throw SessionCoordinatorLeaseLostException()
+		}
 	}
 
 	private suspend fun leaseIsCurrentInTransaction(lease: LifecycleLeaseToken): Boolean {
@@ -8896,6 +9103,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		const val SESSION_LEASE = "tracking-session-coordinator"
 		const val LEASE_DURATION_NANOS = 30_000L * 1_000_000L
 		const val LEASE_DURATION_MILLIS = 30_000L
+		const val LEASE_RENEWAL_INTERVAL_MILLIS = LEASE_DURATION_MILLIS / 3L
 		const val NANOS_PER_MILLISECOND = 1_000_000L
 		const val ROLLBACK_QUIESCE_TIMEOUT_MS = 5_000L
 		const val CATALOG_RECONCILIATION_RETRY_DELAY_MS = 250L
@@ -9232,6 +9440,14 @@ private fun PersistedLifecycleIntent.activeCaptureSources(): Set<SourceKind> =
 		}
 		.mapNotNullTo(linkedSetOf()) { demand ->
 			SourceKind.entries.firstOrNull { source -> source.stableCode == demand.sourceKind }
+		}
+
+private fun List<SourceActionExecution>.hasCleanupWithoutAcceptedSource(plan: AcquisitionPlanRevision): Boolean =
+	any { it.status == LifecycleActionStatus.CLEANUP_REQUIRED || it.failureCode == SOURCE_RUNTIME_CLEANUP_PENDING } &&
+		none { execution ->
+			execution.status == LifecycleActionStatus.START_ACCEPTED &&
+				plan.plans[execution.applied.source]?.enabled == true &&
+				execution.applied.status in setOf(SourceApplyStatus.APPLIED, SourceApplyStatus.DEGRADED)
 		}
 
 private fun List<AppliedSourcePlan>.desiredStatus(): DesiredPlanStatus = when {

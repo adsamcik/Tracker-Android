@@ -145,6 +145,16 @@ class ActivityRegistrationCleanupStore private constructor(
 	}
 
 	@Synchronized
+	internal fun removePending(keys: Collection<ActivityRegistrationCleanupKey>): ActivityRegistrationCleanupState {
+		val current = read()
+		val next = current.copy(pending = current.pending - keys.toSet())
+		if (next != current) {
+			write(next)
+		}
+		return next
+	}
+
+	@Synchronized
 	internal fun write(state: ActivityRegistrationCleanupState) {
 		val output = try {
 			journal.startWrite()

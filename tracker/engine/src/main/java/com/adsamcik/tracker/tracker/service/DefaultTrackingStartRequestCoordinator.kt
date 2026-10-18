@@ -61,6 +61,7 @@ import com.adsamcik.tracker.tracker.resilience.TrackingStopCommand
 import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
 import com.adsamcik.tracker.tracker.source.control.acquisitionProfile
 import com.adsamcik.tracker.tracker.source.coordinator.AndroidStartDeliveryMetadata
+import com.adsamcik.tracker.tracker.source.coordinator.AndroidStartDeliveryState
 import com.adsamcik.tracker.tracker.source.coordinator.AuthoritativeSessionCoordinator
 import com.adsamcik.tracker.tracker.source.coordinator.ClaimedPreparedSessionStart
 import com.adsamcik.tracker.tracker.source.coordinator.PlanResolutionContext
@@ -68,6 +69,8 @@ import com.adsamcik.tracker.tracker.source.coordinator.PreparedCallerAuthorityRe
 import com.adsamcik.tracker.tracker.source.coordinator.PreparedSessionClaimResult
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterSetup
+import com.adsamcik.tracker.tracker.source.coordinator.LifecycleActionStatus
+import com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState
 import com.adsamcik.tracker.tracker.source.coordinator.SessionStartOrigin
 import com.adsamcik.tracker.tracker.source.coordinator.SessionStartPreparationResult
 import com.adsamcik.tracker.tracker.source.coordinator.SessionStartResult
@@ -799,7 +802,9 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		}
 		val startupGeneration = trackingStartupGate.currentGeneration
 		trackingParamsRepository.data.first()
-		return trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
+		// The exact lifecycle lease serializes this claim. Keep it cancellable by deletion
+		// without waiting behind unrelated settings work before the foreground deadline.
+		return trackingStartupGate.withReadyGenerationWork(startupGeneration) {
 			claimForServiceUnderReadyGeneration(token, commandGeneration, startupGeneration)
 		} ?: TrackingServicePreparedStartClaim.Deferred
 	}
@@ -1069,6 +1074,10 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			is ActiveTrackingSessionStoreResult.Failure -> return result.toDescriptorFailure()
 			is ActiveTrackingSessionStoreResult.Success -> result.descriptor
 		}
+		if (isUnacceptedPreparedRetry(stored, request, bootId)) {
+			val fresh = resolveTrackingStartDescriptor(request, null, bootId, System.currentTimeMillis())
+			return (fresh as TrackingStartDescriptorResolution.Resolved).copy(previousDescriptor = stored)
+		}
 		val recoveryCandidate = when {
 			request.recoveryDescriptor != null -> {
 				if (stored != request.recoveryDescriptor) {
@@ -1080,6 +1089,28 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			else -> null
 		}
 		return resolveReconciledDescriptor(request, stored, recoveryCandidate, bootId)
+	}
+
+	/** Routing only: Room preparation remains responsible for exact ownership and safe supersession. */
+	private suspend fun isUnacceptedPreparedRetry(
+		stored: ActiveTrackingSessionDescriptor?,
+		request: TrackingStartRequest,
+		bootId: String,
+	): Boolean {
+		if (stored == null || !isFreshManualStart(request)) {
+			return false
+		}
+		val run = database.sourceSessionDao().serviceRun(stored.serviceRunId) ?: return false
+		val priorCommand = run.logicalTrackingId == stored.logicalTrackingId && run.bootId == bootId &&
+			run.startCommandGeneration in 1L until request.command.generation
+		val unaccepted = run.state == SessionLifecycleState.STARTING.name &&
+			run.runtimeAcknowledgement == LifecycleActionStatus.AWAITING_FOREGROUND.name &&
+			run.completedAtMs == null
+		return priorCommand && unaccepted && run.androidDeliveryState in setOf(
+			AndroidStartDeliveryState.PREPARED.name,
+			AndroidStartDeliveryState.ENQUEUED.name,
+			AndroidStartDeliveryState.DELIVERED.name,
+		)
 	}
 
 	private suspend fun resolveReconciledDescriptor(

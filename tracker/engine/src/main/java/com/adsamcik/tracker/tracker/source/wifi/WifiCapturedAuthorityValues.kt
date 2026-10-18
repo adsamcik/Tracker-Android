@@ -311,7 +311,7 @@ private object WifiMaintenanceSessionChecks {
 
 	private fun completionMatches(session: LogicalTrackingSessionEntity, terminal: Boolean): Boolean =
 		(session.completedAtMs != null) == terminal && session.completedAtMs?.let { it >= session.startedAtMs } != false &&
-		(session.cutoffAtMs == null) == (session.cutoffElapsedNanos == null)
+		(session.hasInterruptedWifiWalEnd() || (session.cutoffAtMs == null) == (session.cutoffElapsedNanos == null))
 
 	private fun cutoffMatches(session: LogicalTrackingSessionEntity, terminal: Boolean, restored: Boolean,
 		cutoffClock: String?): Boolean {
@@ -322,15 +322,15 @@ private object WifiMaintenanceSessionChecks {
 	}
 
 	private fun cutoffBoundsMatch(session: LogicalTrackingSessionEntity, cutoffClock: String?): Boolean =
-		session.cutoffAtMs != null && session.cutoffElapsedNanos != null &&
+		session.cutoffAtMs != null && (session.hasInterruptedWifiWalEnd() || session.cutoffElapsedNanos != null) &&
 		session.cutoffAtMs?.let { it >= session.startedAtMs } == true &&
-		session.cutoffElapsedNanos?.let { it >= 0L &&
-			(cutoffClock != session.clockDomainId || it >= session.startedElapsedNanos) } == true
+		(session.cutoffElapsedNanos == null || session.cutoffElapsedNanos?.let { it >= 0L &&
+			(cutoffClock != session.clockDomainId || it >= session.startedElapsedNanos) } == true)
 
 	private fun stateMatches(session: LogicalTrackingSessionEntity, ordinal: Long, perReading: Boolean,
 		terminal: Boolean): Boolean = if (terminal) {
-		session.currentServiceRunId == null && session.finalAdmissionOrdinal?.let {
-			it >= 0L && (perReading || it >= ordinal) } == true
+		session.currentServiceRunId == null && (session.hasInterruptedWifiWalEnd() && session.finalAdmissionOrdinal == null ||
+			session.finalAdmissionOrdinal?.let { it >= 0L && (perReading || it >= ordinal) } == true)
 	} else { !session.currentServiceRunId.isNullOrBlank() && session.finalAdmissionOrdinal == null }
 }
 

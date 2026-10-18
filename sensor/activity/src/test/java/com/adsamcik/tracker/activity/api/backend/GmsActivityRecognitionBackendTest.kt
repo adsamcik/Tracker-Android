@@ -8,13 +8,17 @@ import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationCleanupKey
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationCleanupKind
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationCleanupScheduler
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationCleanupStore
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.activity.receiver.ActivityReceiver
 import com.adsamcik.tracker.shared.base.assist.Assist
+import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityRecognitionClient
 import com.google.android.gms.tasks.Tasks
+import com.google.android.gms.tasks.TaskCompletionSource
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.collections.shouldHaveSize
 import io.mockk.every
@@ -22,20 +26,26 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
+import io.mockk.verify
+import java.io.File
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.StandardTestDispatcher
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -54,17 +64,28 @@ class GmsActivityRecognitionBackendTest {
 
 	private lateinit var backend: GmsActivityRecognitionBackend
 	private lateinit var appScope: CoroutineScope
+	private lateinit var cleanupStore: ActivityRegistrationCleanupStore
+	private lateinit var cleanupFile: File
+	private val cleanupScheduler = mockk<ActivityRegistrationCleanupScheduler>(relaxed = true)
+	private val testDispatcher = StandardTestDispatcher()
 
 	@Before
 	fun setUp() {
 		appScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
-		backend = GmsActivityRecognitionBackend(context, appScope)
+		cleanupFile = File.createTempFile("activity-backend", ".cleanup", context.cacheDir).apply { delete() }
+		cleanupStore = ActivityRegistrationCleanupStore(cleanupFile)
+		backend = GmsActivityRecognitionBackend(
+			context, appScope, cleanupStore, cleanupScheduler, TestDispatchersProvider(testDispatcher),
+		)
 		mockkObject(Assist)
 	}
 
 	@After
 	fun tearDown() {
 		appScope.cancel()
+		cleanupFile.delete()
+		File("${cleanupFile.path}.bak").delete()
+		File("${cleanupFile.path}.new").delete()
 		unmockkAll()
 	}
 
@@ -93,7 +114,7 @@ class GmsActivityRecognitionBackendTest {
 
 	// region startUpdates
 	@Test
-	fun `startUpdates returns false when Play Services unavailable`() = runTest {
+	fun `startUpdates returns false when Play Services unavailable`() = runTest(testDispatcher) {
 		every { Assist.isPlayServicesAvailable(any<Context>()) } returns false
 
 		val result = backend.startUpdates(RecognitionConfig(intervalSeconds = 10))
@@ -143,7 +164,7 @@ class GmsActivityRecognitionBackendTest {
 	}
 
 	@Test
-	fun `metadata refresh updates existing pending intent without provider request`() = runTest {
+	fun `metadata refresh updates existing pending intent without provider request`() = runTest(testDispatcher) {
 		val identity = ActivityRegistrationIdentity(
 			sourceInstanceId = "activity-instance",
 			registrationGeneration = 7L,
@@ -219,7 +240,7 @@ class GmsActivityRecognitionBackendTest {
 	}
 
 	@Test
-	fun `failed GMS removal preserves pending intent for durable retry`() = runTest {
+	fun `failed GMS removal preserves pending intent for durable retry`() = runTest(testDispatcher) {
 		val client = mockk<ActivityRecognitionClient>()
 		mockkStatic(ActivityRecognition::class)
 		every { ActivityRecognition.getClient(any<Context>()) } returns client
@@ -241,7 +262,7 @@ class GmsActivityRecognitionBackendTest {
 	}
 
 	@Test
-	fun `successful GMS removal cancels the recovered pending intent`() = runTest {
+	fun `successful GMS removal cancels the recovered pending intent`() = runTest(testDispatcher) {
 		val client = mockk<ActivityRecognitionClient>()
 		mockkStatic(ActivityRecognition::class)
 		every { ActivityRecognition.getClient(any<Context>()) } returns client
@@ -260,6 +281,132 @@ class GmsActivityRecognitionBackendTest {
 		backend.findPendingIntentForCleanup(key) shouldBe null
 	}
 
+	@Test
+	fun `registration timeout retains exact cleanup until late registration settles`() = runTest(testDispatcher) {
+		val client = prepareClient()
+		val registration = TaskCompletionSource<Void>()
+		every { client.requestActivityUpdates(any(), any()) } returns registration.task
+		val identity = registrationIdentity()
+		val key = cleanupKey(identity)
+		val start = async { backend.applyRegistration(RecognitionConfig(intervalSeconds = 5), identity) }
+		runCurrent()
+
+		advanceTimeBy(GmsActivityRecognitionBackend.PROVIDER_OPERATION_TIMEOUT_MS + 1L)
+		start.await() shouldBe false
+		cleanupStore.read().pending shouldBe setOf(key)
+		runCatching { backend.removePendingRegistration(key) }.isFailure shouldBe true
+		verify(exactly = 0) { client.removeActivityUpdates(any()) }
+		verify { cleanupScheduler.ensureScheduled() }
+
+		registration.setResult(null)
+		backend.removePendingRegistration(key)
+		cleanupStore.read().pending shouldBe emptySet()
+		backend.findPendingIntentForCleanup(key) shouldBe null
+	}
+
+	@Test
+	fun `cancelled registration releases caller and preserves exact cleanup`() = runTest(testDispatcher) {
+		val client = prepareClient()
+		val registration = TaskCompletionSource<Void>()
+		every { client.requestActivityUpdates(any(), any()) } returns registration.task
+		val identity = registrationIdentity()
+		val start = launch { backend.applyRegistration(RecognitionConfig(intervalSeconds = 5), identity) }
+		runCurrent()
+
+		start.cancelAndJoin()
+
+		currentTime shouldBe 0L
+		cleanupStore.read().pending shouldBe setOf(cleanupKey(identity))
+		runCatching { backend.removePendingRegistration(cleanupKey(identity)) }.isFailure shouldBe true
+		registration.setResult(null)
+		backend.removePendingRegistration(cleanupKey(identity))
+		cleanupStore.read().pending shouldBe emptySet()
+	}
+
+	@Test
+	fun `removal timeout preserves pending intent and cleanup for a later retry`() = runTest(testDispatcher) {
+		val client = prepareClient()
+		val removal = TaskCompletionSource<Void>()
+		every { client.removeActivityUpdates(any()) } returns removal.task
+		val identity = registrationIdentity()
+		val key = cleanupKey(identity)
+		backend.refreshRegistrationMetadata(RecognitionConfig(intervalSeconds = 5), identity) shouldBe true
+		cleanupStore.addPending(listOf(key))
+		val original = requireNotNull(backend.findPendingIntentForCleanup(key))
+		val attempt = async { runCatching { backend.removePendingRegistration(key) } }
+		runCurrent()
+
+		advanceTimeBy(GmsActivityRecognitionBackend.PROVIDER_OPERATION_TIMEOUT_MS + 1L)
+		attempt.await().isFailure shouldBe true
+		cleanupStore.read().pending shouldBe setOf(key)
+		backend.findPendingIntentForCleanup(key) shouldBe original
+
+		removal.setResult(null)
+		every { client.removeActivityUpdates(any()) } returns Tasks.forResult(null)
+		backend.removePendingRegistration(key)
+		cleanupStore.read().pending shouldBe emptySet()
+		backend.findPendingIntentForCleanup(key) shouldBe null
+	}
+
+	@Test
+	fun `accepted registration clears only its temporary cleanup key`() = runTest(testDispatcher) {
+		prepareClient()
+		val identity = registrationIdentity()
+		cleanupStore.addPending(listOf(ActivityRegistrationCleanupKey.RELEASED_V27))
+
+		backend.applyRegistration(RecognitionConfig(intervalSeconds = 5), identity) shouldBe true
+
+		cleanupStore.read().pending shouldBe setOf(ActivityRegistrationCleanupKey.RELEASED_V27)
+		backend.findPendingIntentForCleanup(cleanupKey(identity))?.cancel()
+	}
+
+	@Test
+	fun `cleanup queued during registration cannot remove its later accepted request`() = runTest(testDispatcher) {
+		val client = prepareClient()
+		val registration = TaskCompletionSource<Void>()
+		every { client.requestActivityUpdates(any(), any()) } returns registration.task
+		val identity = registrationIdentity()
+		val key = cleanupKey(identity)
+		val start = async { backend.applyRegistration(RecognitionConfig(intervalSeconds = 5), identity) }
+		runCurrent()
+		cleanupStore.read().pending shouldBe setOf(key)
+		val cleanup = async { backend.removePendingRegistration(key) }
+		runCurrent()
+
+		registration.setResult(null)
+		start.await() shouldBe true
+		cleanup.await()
+
+		verify(exactly = 0) { client.removeActivityUpdates(any()) }
+		cleanupStore.read().pending shouldBe emptySet()
+		requireNotNull(backend.findPendingIntentForCleanup(key)).cancel()
+	}
+
+	private fun prepareClient(): ActivityRecognitionClient {
+		val client = mockk<ActivityRecognitionClient>()
+		mockkStatic(ActivityRecognition::class)
+		every { Assist.isPlayServicesAvailable(any<Context>()) } returns true
+		every { ActivityRecognition.getClient(any<Context>()) } returns client
+		every { client.requestActivityUpdates(any(), any()) } returns Tasks.forResult(null)
+		every { client.removeActivityUpdates(any()) } returns Tasks.forResult(null)
+		every { client.removeActivityTransitionUpdates(any()) } returns Tasks.forResult(null)
+		return client
+	}
+
+	private fun registrationIdentity() = ActivityRegistrationIdentity(
+		sourceInstanceId = "bounded-registration",
+		registrationGeneration = 9L,
+		collectedDataEpoch = 0L,
+		clockDomainId = "boot-9",
+		physicalConfigurationFingerprint = "physical-9",
+	)
+
+	private fun cleanupKey(identity: ActivityRegistrationIdentity) = ActivityRegistrationCleanupKey(
+		kind = ActivityRegistrationCleanupKind.BROKERED,
+		sourceInstanceId = identity.sourceInstanceId,
+		registrationGeneration = identity.registrationGeneration,
+	)
+
 	// region onActivityResult
 	@Test
 	fun `onActivityResult updates lastActivity`() {
@@ -272,7 +419,7 @@ class GmsActivityRecognitionBackendTest {
 	}
 
 	@Test
-	fun `transition activity updates last state and emits watcher update`() = runTest {
+	fun `transition activity updates last state and emits watcher update`() = runTest(testDispatcher) {
 		val activity = RecognizedActivity(DetectedActivityType.WALKING, 100)
 		val update = async { backend.activityUpdates.first() }
 		runCurrent()
@@ -288,7 +435,7 @@ class GmsActivityRecognitionBackendTest {
 	}
 
 	@Test
-	fun `activity burst is delivered without dropping updates`() = runTest {
+	fun `activity burst is delivered without dropping updates`() = runTest(testDispatcher) {
 		val releaseCollector = CompletableDeferred<Unit>()
 		val received = mutableListOf<ActivityUpdate>()
 		val collector = launch {
@@ -316,7 +463,7 @@ class GmsActivityRecognitionBackendTest {
 	}
 
 	@Test
-	fun `stalled activity subscriber keeps a bounded queue and receives the newest state`() = runTest {
+	fun `stalled activity subscriber keeps a bounded queue and receives the newest state`() = runTest(testDispatcher) {
 		val releaseCollector = CompletableDeferred<Unit>()
 		val received = mutableListOf<ActivityUpdate>()
 		val expectedCount = GmsActivityRecognitionBackend.LIVE_UPDATE_BUFFER_CAPACITY + 1
@@ -347,7 +494,7 @@ class GmsActivityRecognitionBackendTest {
 	}
 
 	@Test
-	fun `transition events are emitted as one ordered batch`() = runTest {
+	fun `transition events are emitted as one ordered batch`() = runTest(testDispatcher) {
 		val updates = listOf(
 			TransitionUpdate(
 				activityType = DetectedActivityType.STILL,

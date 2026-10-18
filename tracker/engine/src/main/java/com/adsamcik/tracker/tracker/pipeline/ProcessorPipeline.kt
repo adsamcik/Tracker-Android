@@ -28,6 +28,9 @@ enum class DurableAdmissionStatus {
 internal interface DurableSignalProcessor : SignalProcessor {
 	suspend fun checkpointStagedSignals(): Boolean
 
+	/** Replay retains its original session without changing the running processor context. */
+	fun stageForSession(signal: TrackingSignal, sessionId: Long) = onSignal(signal)
+
 	/**
 	 * Preserves the Boolean contract for existing implementations while allowing the persistence
 	 * processor to distinguish a terminal lifecycle discard from a storage failure.
@@ -352,7 +355,7 @@ class ProcessorPipeline(
 	 * out to analytical processors. They still need the same serialization as normal persistence:
 	 * the slow-path lock excludes flush/stop while [mutex] excludes concurrent signal buffering.
 	 */
-	suspend fun checkpointDurableSignals(signals: List<TrackingSignal>): Boolean {
+	suspend fun checkpointDurableSignals(signals: List<TrackingSignal>, sessionId: Long? = null): Boolean {
 		if (signals.isEmpty()) return true
 		return durableAdmissionSerializer.withLock {
 			slowPathSerializer.withLock {
@@ -364,7 +367,13 @@ class ProcessorPipeline(
 						?: return@withLock false
 					val id = processor.descriptor.id
 					try {
-						signals.forEach(processor::onSignal)
+						signals.forEach { signal ->
+							if (sessionId == null) {
+								processor.onSignal(signal)
+							} else {
+								processor.stageForSession(signal, sessionId)
+							}
+						}
 						val admission = processor.checkpointStagedSignalsStatus()
 						if (admission == DurableAdmissionStatus.ADMITTED) resetFailureCount(id)
 						admission == DurableAdmissionStatus.ADMITTED

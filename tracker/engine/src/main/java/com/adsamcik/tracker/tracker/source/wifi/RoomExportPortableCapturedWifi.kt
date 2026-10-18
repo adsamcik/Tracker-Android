@@ -213,9 +213,10 @@ private suspend fun readPortableWifiInTransaction(
 		"AUTOMATIC" -> PortableWifiSessionMode.AUTOMATIC
 		else -> return outcome(unverifiableAttribution())
 	}
-	val interrupted = session.state == "FAILED" && session.failureCode == "RESTORED_INTERRUPTED_SESSION"
-	val interruptedRunIds = runs.filter { it.state == "FAILED" &&
-		it.completionReason == "RESTORED_INTERRUPTED_SESSION" && it.completedAtMs == null }
+	val interrupted = session.hasInterruptedWifiWalEnd() ||
+		(session.state == "FAILED" && session.failureCode == "RESTORED_INTERRUPTED_SESSION")
+	val interruptedRunIds = runs.filter { it.hasInterruptedWifiWalEnd() || (it.state == "FAILED" &&
+		it.completionReason == "RESTORED_INTERRUPTED_SESSION" && it.completedAtMs == null) }
 		.mapTo(mutableSetOf()) { it.serviceRunId }
 	if (!session.hasPortableShape(runs, interrupted)) {
 		return outcome(unverifiableAttribution())
@@ -829,7 +830,7 @@ private fun LogicalTrackingSessionEntity.hasPortableSessionHeader(
 		desiredPlanRevision <= 0L || rolloutRevision <= 0L || startOrigin.isBlank() ||
 		clockDomainId.isBlank() || lifecycleBootId.isNullOrBlank() || lifecycleLeaseGeneration <= 0L ||
 		startedAtMs < 0L || startedElapsedNanos < 0L ||
-		(cutoffAtMs == null) != (cutoffElapsedNanos == null)
+		(!hasInterruptedWifiWalEnd() && (cutoffAtMs == null) != (cutoffElapsedNanos == null))
 	) {
 		return false
 	}
@@ -1411,9 +1412,7 @@ private fun com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity.ma
 	binding: SessionManifestSourceEntity,
 ): Boolean = sourceKind == WIFI_SOURCE && policyRevision == manifest.sourcePolicyRevision && enabled &&
 	capturePersistenceEligible && qosCode == binding.qosCode && captureConsentEpoch == binding.consentEpoch &&
-	effectiveBootId == manifest.effectiveBootId &&
-	effectiveElapsedRealtimeNanos in 0L..manifest.effectiveElapsedRealtimeNanos &&
-	effectiveWallTimeMs >= 0L && changeReason.isNotBlank()
+	hasPortableWifiIntentTime(effectiveBootId, effectiveElapsedRealtimeNanos, effectiveWallTimeMs, changeReason, manifest)
 
 private fun com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity.matchesPortableWifiIntent(
 	manifest: SessionManifestVersionEntity,
@@ -1421,9 +1420,17 @@ private fun com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEnt
 	policy: com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity,
 ): Boolean = sourceKind == WIFI_SOURCE && purpose == CAPTURE_PURPOSE && epoch == binding.consentEpoch &&
 	policyRevision <= policy.policyRevision && eligible && persistenceEligible &&
-	effectiveBootId == manifest.effectiveBootId &&
-	effectiveElapsedRealtimeNanos in 0L..manifest.effectiveElapsedRealtimeNanos &&
-	effectiveWallTimeMs >= 0L && changeReason.isNotBlank()
+	hasPortableWifiIntentTime(effectiveBootId, effectiveElapsedRealtimeNanos, effectiveWallTimeMs, changeReason, manifest)
+
+private fun hasPortableWifiIntentTime(
+	bootId: String,
+	elapsedNanos: Long,
+	wallTimeMs: Long,
+	changeReason: String,
+	manifest: SessionManifestVersionEntity,
+): Boolean = bootId.isNotBlank() && elapsedNanos >= 0L &&
+	(bootId != manifest.effectiveBootId || elapsedNanos <= manifest.effectiveElapsedRealtimeNanos) &&
+	wallTimeMs >= 0L && changeReason.isNotBlank()
 
 private fun WifiPlan.hasPortableShape(): Boolean = revision > 0L && mode in setOf(
 	WifiMode.BROADCAST_DRIVEN,
