@@ -1,0 +1,246 @@
+{
+  "status": "HOST_VERIFIED_RUNTIME_BLOCKED",
+  "date": "2026-10-18",
+  "branch": "dev/v10",
+  "base_commit": "14e90ca43a089fec81a55190256c2f1edd44045d",
+  "source_hash_match": true,
+  "source_files": [
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/RawSourceSessionCompletenessTest.kt",
+      "sha256": "800A55E4EC2D1B017E91C3515C55BEA7B9596DD6EFA1BFCA341961ECFF794A6D"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationCaptureContinuity.kt",
+      "sha256": "A75485C070D3354F7A74A6FF9322D9904B54B822B40EC6653D45EA15D0D3F8B8"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientWifiAuthority.kt",
+      "sha256": "B3C187B0AFDD54F2B81E3E9C70C227DC61D993181619232EDA1FF52CBE73BE2E"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LocationAcceptedReceiptIntegrity.kt",
+      "sha256": "1748DA7F8713D3AD072C917243CE4B937B9586455CE29326521CCAC335D02F01"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LocationRegistrationPlan.kt",
+      "sha256": "DEAADC036DEABA0D0A174AEA65F4456E0C43F7DA2DECA8CF633AC86F0C50410F"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt",
+      "sha256": "7C38BEA87BF254575119D974C988E4B6A18954C50E0281A15D81F84995CE7552"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceBrokerEntities.kt",
+      "sha256": "EB204A34528000DD452843FD13BCA9D661012A8A8DBA9CA32E522DEB8BCE7BAA"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceEventWalEntity.kt",
+      "sha256": "2391E23A6D04B2A464BAD3FB3D343D5D7C70B7695028B688070DB377089AEDE9"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceRunRetirementEntity.kt",
+      "sha256": "A6115222A0F0EC0A8F77AE8136A6101DF4B849F09520D66B456967D6DFD733E8"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceSessionRawEvidence.kt",
+      "sha256": "6E49E39B1EC333480813C7E1321FB4301A1AC647AB346A3D2240CA7671A74D46"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/SourceRunRetirementEntityTest.kt",
+      "sha256": "166D351DA2A8F9352F8A749BB849F93F8F5E23FF62A4E7BF5682838BF6DEF2F5"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerService.kt",
+      "sha256": "798C0050A6D3600D13D462771CBADCA5E84DE21CF2DE1B6C5CEB760F6C31FD9E"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt",
+      "sha256": "D609C9CE54F10B1DDF2F30DAF4C438A3F4796587ECE56E9CA31BF836B29EB823"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePlanCodec.kt",
+      "sha256": "A13A9C0890E86F665FBD210CF4FB0C2AAC4389C0239CBCA9F986A45EA9F016FF"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/SourcePayloadCodec.kt",
+      "sha256": "7FEA947DFDCAA2C53F9FCEFCDD82DD5B17A5FA25C1933F969F1357F31A5772F8"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt",
+      "sha256": "D2C574D430649A009662E9B800EDFA3D4FD43FB5E93E84B3A811911DC74044AC"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+      "sha256": "B3B0E52E7B62C603CDD3C307D023C3DA924F4829DC1321779F75805A8082B055"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourceDelivery.kt",
+      "sha256": "D103398E30115D1D4DA0A570779DF35CCCF9078B8ED8F64959F95CEB1EBE6486"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourcePlan.kt",
+      "sha256": "C578290A4F0362DA1B6B33D2F9C2A6BBAB3E7B302E3EF3DC21794F5708DB1FDA"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt",
+      "sha256": "0914C9ED301B3CF1987C49497B804F8F1554971463A1E2E1435F4B82B282319D"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiSessionFactProjectionLane.kt",
+      "sha256": "7967C8F91FA3DEE5D93B9DEB288614B1B4DE55C175508E3C2B28A977BC6B776C"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+      "sha256": "96B2A8CC1D80AE1A5E02CE88C8D7C1D163FC9ED001934A45BE83D10B70D9D779"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
+      "sha256": "BE2E41F83628D2D21C1256A633B0D066C6A0EB7588CBB00EA1ADC5B56B2D97B6"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/SourcePayloadCodecTest.kt",
+      "sha256": "B78ED9D26AA2AC1BEF2B585DA9295E28EE7B9744B407FEF5EDF7B6AD46DA6CA6"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt",
+      "sha256": "33ED8A8C5DB8B157668217FDCB801BA500BC79FEF01FEAFFA8429BC9C9216BB1"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoffTest.kt",
+      "sha256": "4DA6AF910D9CB1FF3D1D403F4653C21E9B3C334B81FFAD2BEC395705711D2E35"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+      "sha256": "32FBC4F7ED22B4ED6C69B8E7587ADABAFE705B99A5F8843A3E3C29CCB2050ECB"
+    }
+  ],
+  "verification": {
+    "log": "build/verification-20261018/recovery-host-checks-r6b.log",
+    "exit_code": 0,
+    "gradle_tasks": [
+      ":app:assembleDev",
+      ":core:base:testDebugUnitTest",
+      ":tracker:engine:testDebugUnitTest",
+      ":app:lintDev",
+      "detekt"
+    ],
+    "reused_unchanged_suites": [
+      {
+        "suite": "com.adsamcik.tracker.tracker.source.cell.CellWalQualificationAdapterTest",
+        "tests": 84,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "receipt": "build/verification-20261018/r4-results/tracker-engine/TEST-com.adsamcik.tracker.tracker.source.cell.CellWalQualificationAdapterTest.xml",
+        "receipt_sha256": "7B97D4F7BBC561A50009A8E8FA3C959F3A60D2F4F94F0E6666CFE785B72FCED7"
+      },
+      {
+        "suite": "com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodecTest",
+        "tests": 20,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "receipt": "build/verification-20261018/r4-results/tracker-engine/TEST-com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodecTest.xml",
+        "receipt_sha256": "0EEF881625BA2F24337FE87E3CB83B9C0027BEAD60F632B46ADB7397B7EAD3EF"
+      },
+      {
+        "suite": "com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodecTest",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "receipt": "build/verification-20261018/r4-results/tracker-engine/TEST-com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodecTest.xml",
+        "receipt_sha256": "DF9A76047D024805856ED5EE8ECB75D1D44C1B28BF562FC3908F483A6AC8B90B"
+      }
+    ],
+    "reused_tests": 108,
+    "distinct_tests": 678,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "lint_warnings": 45,
+    "lint_baseline_changed": false,
+    "full_repository_ci_rerun": false,
+    "affected_suites": [
+      {
+        "module": "core/base",
+        "suite": "com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptIntegrityTest",
+        "tests": 8,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "module": "core/base",
+        "suite": "com.adsamcik.tracker.shared.base.database.data.RawSourceSessionCompletenessTest",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "module": "core/base",
+        "suite": "com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntityTest",
+        "tests": 6,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "module": "tracker/engine",
+        "suite": "com.adsamcik.tracker.tracker.source.coordinator.AuthoritativeSessionCoordinatorTest",
+        "tests": 230,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "module": "tracker/engine",
+        "suite": "com.adsamcik.tracker.tracker.source.location.LocationWalQualificationAdapterTest",
+        "tests": 95,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "module": "tracker/engine",
+        "suite": "com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalHandoffTest",
+        "tests": 31,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "module": "tracker/engine",
+        "suite": "com.adsamcik.tracker.tracker.source.wifi.WifiWalQualificationAdapterTest",
+        "tests": 196,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    ],
+    "affected_tests": 570,
+    "executed_in_final_batch": 552,
+    "unchanged_core_tests_reused_from_r5": 18
+  },
+  "apk": {
+    "path": "build/verification-20261018/advention-dev-controls-r5.apk",
+    "sha256": "FD1FC3F6E22FE5E6A1CD94D2E592A4705067502B48FF344D999FFF6E8276F081",
+    "bytes": 146420950,
+    "built_at": "2026-10-18T14:25:40.4037024+02:00",
+    "package": "com.adsamcik.tracker.dev",
+    "label": "Advention Dev",
+    "debuggable": true
+  },
+  "runtime": {
+    "target": "Existing Android_17_Google_Play API 37 Android 17 x86_64 16 KB AVD",
+    "replacement_or_older_avd_used": false,
+    "app_data_cleared": false,
+    "final_apk_installed": false,
+    "final_manual_start_route_end": "UNVERIFIED",
+    "prior_r4_my_location": "PASSED: centered marker at 50 m scale; tracking Off; zero new saved Location observations",
+    "blocker": "D: disappeared from Windows; existing AVD and API 37.2 image unavailable; emulator-5554 offline; install -r failed before deployment",
+    "physical_sensor_and_battery_validation": "NOT_PERFORMED"
+  },
+  "independent_review": "PASSED: source and actual host receipts reviewed independently; runtime acceptance remains blocked"
+}

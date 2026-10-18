@@ -68,6 +68,8 @@ import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
+import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
@@ -89,6 +91,7 @@ import com.adsamcik.tracker.tracker.source.runtime.RegistrationRemovalOutcome
 import com.adsamcik.tracker.tracker.source.runtime.RuntimeCheckpointLifecycle
 import com.adsamcik.tracker.tracker.source.runtime.SENSOR_RUNTIME_CHECKPOINT_VERSION
 import com.adsamcik.tracker.tracker.source.runtime.SensorRuntimeCheckpoint
+import com.adsamcik.tracker.tracker.source.runtime.SensorAdmissionCheckpoint
 import com.adsamcik.tracker.tracker.source.runtime.SessionCutoff
 import com.adsamcik.tracker.tracker.source.runtime.SessionDemandMutation
 import com.adsamcik.tracker.tracker.source.runtime.SessionSourceDemandDispatchRequest
@@ -101,6 +104,7 @@ import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementOutcome
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementRetryReason
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerDemandDispatcher
+import com.adsamcik.tracker.tracker.source.runtime.SourceDeliveryAdmissionHandoff
 import com.adsamcik.tracker.tracker.source.runtime.SourceEventSink
 import com.adsamcik.tracker.tracker.source.runtime.SourceProviderKey
 import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeClaim
@@ -5385,14 +5389,42 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	private fun registrationFencedSink(
 		delegate: SourceEventSink,
 		source: SourceKind,
-	) = SourceEventSink { candidate ->
-		if (candidate.source != source) {
-			SourceAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.SOURCE_POLICY_STALE)
-		} else {
-			// Purpose, consent, policy, and manifest are resolved durably at the observation's
-			// boot/elapsed time. A mutable session sink must never relabel a delayed callback.
-			delegate.admit(candidate)
-		}
+	): SourceEventSink = object : SourceEventSink {
+		// Preserve every atomic handoff. Durable admission resolves each observation's original
+		// purpose, consent, policy and manifest; this wrapper fences only the runtime's source.
+		override suspend fun admit(candidate: SourceEvidenceCandidate<*>): SourceAdmissionHandoff =
+			if (candidate.source == source) {
+				delegate.admit(candidate)
+			} else {
+				SourceAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.SOURCE_POLICY_STALE)
+			}
+
+		override suspend fun admit(
+			candidate: SourceEvidenceCandidate<*>,
+			checkpoint: SensorAdmissionCheckpoint,
+		): SourceAdmissionHandoff =
+			if (candidate.source == source && checkpoint.source == source) {
+				delegate.admit(candidate, checkpoint)
+			} else {
+				SourceAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.SOURCE_POLICY_STALE)
+			}
+
+		override suspend fun admit(delivery: SourceDeliveryCandidate): SourceDeliveryAdmissionHandoff =
+			if (delivery.units.all { it.evidence.source == source }) {
+				delegate.admit(delivery)
+			} else {
+				SourceDeliveryAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.SOURCE_POLICY_STALE)
+			}
+
+		override suspend fun admit(
+			delivery: SourceDeliveryCandidate,
+			checkpoint: SensorAdmissionCheckpoint,
+		): SourceDeliveryAdmissionHandoff =
+			if (delivery.units.all { it.evidence.source == source } && checkpoint.source == source) {
+				delegate.admit(delivery, checkpoint)
+			} else {
+				SourceDeliveryAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.SOURCE_POLICY_STALE)
+			}
 	}
 
 	private suspend fun rollbackStalePolicySources(
@@ -9862,7 +9894,8 @@ data class SessionStopRequest(
 	val elapsedRealtimeNanos: Long,
 	val clockDomainId: String,
 	val gracePeriodMs: Long = 10_000L,
-	val perSourceTimeoutMs: Long = 2_000L,
+	// Shared owners may need the full grace period for Android removal and its durable receipt.
+	val perSourceTimeoutMs: Long = gracePeriodMs,
 )
 
 sealed interface SessionStopResult {
@@ -9897,7 +9930,7 @@ data class SessionSuspendRequest(
 	val elapsedRealtimeNanos: Long,
 	val clockDomainId: String,
 	val gracePeriodMs: Long = 10_000L,
-	val perSourceTimeoutMs: Long = 2_000L,
+	val perSourceTimeoutMs: Long = gracePeriodMs,
 )
 
 sealed interface SessionSuspendResult {

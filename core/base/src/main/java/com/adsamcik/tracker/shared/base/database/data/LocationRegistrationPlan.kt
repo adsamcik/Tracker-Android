@@ -64,7 +64,7 @@ object LocationRegistrationPlanIntegrity {
 		version: Int, payloadChecksum: String, payload: ByteArray): String = AmbientWifiAuthorityIntegrity.digest(
 		"location-registration-plan-v1", generation, instance, revision, authorizationRevision, fingerprint, version,
             payloadChecksum,
-		java.security.MessageDigest.getInstance("SHA-256").digest(payload).joinToString("") { "%02x".format(it) },
+		java.security.MessageDigest.getInstance("SHA-256").digest(payload).toHexString(),
 	)
 }
 

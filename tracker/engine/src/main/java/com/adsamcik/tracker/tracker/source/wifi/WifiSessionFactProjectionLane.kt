@@ -327,7 +327,8 @@ class WifiSessionFactProjectionLane private constructor(
 	/** Retry a corrected authority check only after the exact retained row fully qualifies. */
 	private suspend fun canRequalifyRetainedAuthority(failure: SourceProjectionFailureEntity): Boolean {
 		if (failure.failureCode !in setOf("WIFI_ADAPTER_POLICY_MISMATCH", "WIFI_ADAPTER_CONSENT_MISMATCH",
-			"WIFI_ADAPTER_SESSION_MISMATCH")) {
+			"WIFI_ADAPTER_SESSION_MISMATCH", "WIFI_ADAPTER_MISSING_SEGMENT",
+			"WIFI_WRITE_REVISION_CHAIN_MISMATCH")) {
 			return false
 		}
 		val wal = database.sourceEventWalDao().getByAdmissionOrdinal(failure.admissionOrdinal) ?: return false

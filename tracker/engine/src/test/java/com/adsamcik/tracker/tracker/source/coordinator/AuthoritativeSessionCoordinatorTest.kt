@@ -71,6 +71,8 @@ import com.adsamcik.tracker.tracker.source.ingress.AdmissionResult
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
+import com.adsamcik.tracker.tracker.source.ingress.DurableSourceDeliveryIngress
+import com.adsamcik.tracker.tracker.source.ingress.DeliveryAdmissionResult
 import com.adsamcik.tracker.tracker.source.ingress.RoomDurableSourceIngress
 import com.adsamcik.tracker.tracker.source.catalog.SourceAvailabilityTier
 import com.adsamcik.tracker.tracker.source.catalog.SourceAvailabilityRequest
@@ -92,6 +94,9 @@ import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.RetryBackoff
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryUnit
+import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
@@ -125,6 +130,7 @@ import com.adsamcik.tracker.tracker.source.runtime.RegistrationRemovalOutcome
 import com.adsamcik.tracker.tracker.source.runtime.RuntimeAdmissionSnapshot
 import com.adsamcik.tracker.tracker.source.runtime.RuntimeCheckpointLifecycle
 import com.adsamcik.tracker.tracker.source.runtime.SensorRuntimeCheckpoint
+import com.adsamcik.tracker.tracker.source.runtime.SensorAdmissionCheckpoint
 import com.adsamcik.tracker.tracker.source.runtime.SENSOR_RUNTIME_CHECKPOINT_VERSION
 import com.adsamcik.tracker.tracker.source.runtime.SessionCutoff
 import com.adsamcik.tracker.tracker.source.runtime.SourceApplyResult
@@ -132,6 +138,8 @@ import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementOutcome
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementRetryReason
 import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionHandoff
+import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionFailureCode
+import com.adsamcik.tracker.tracker.source.runtime.SourceDeliveryAdmissionHandoff
 import com.adsamcik.tracker.tracker.source.runtime.SourceCapabilities
 import com.adsamcik.tracker.tracker.source.runtime.SourceEventSink
 import com.adsamcik.tracker.tracker.source.runtime.ClaimedSourceRuntime
@@ -185,6 +193,7 @@ class AuthoritativeSessionCoordinatorTest {
 	private lateinit var sourceProductDrainRouter: RecordingSourceProductDrainRouter
 	private lateinit var leaseClock: FixedClock
 	private lateinit var rolloutSnapshot: TrackingRolloutState
+	private lateinit var initialIngress: DurableSourceIngress
 	private var currentBootId = "boot-1"
 	private var activityLocked = false
 
@@ -225,7 +234,8 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 		runtime = FakeStepsRuntime(database)
 		locationRuntime = FakeLocationRuntime()
-		val ingress = mockk<DurableSourceIngress>()
+		val ingress = mockk<DurableSourceIngress>(moreInterfaces = arrayOf(DurableSourceDeliveryIngress::class))
+		initialIngress = ingress
 		coEvery { ingress.admit(any()) } returns
 			AdmissionResult.Admitted(SourceEventId("test-admitted-event"), 1L)
 		coEvery { ingress.committedBatch(any(), any()) } returns emptyList()
@@ -266,6 +276,60 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `runtime captured registration sink preserves every scalar and delivery handoff`() = runRoomTest {
+		startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		val sink = requireNotNull(runtime.sinkAtStart)
+		val candidate = stepsCandidate()
+		val checkpoint = mockk<SensorAdmissionCheckpoint> { every { source } returns SourceKind.STEPS }
+		val delivery = SourceDeliveryCandidate(sourceDeliveryIdentity(byteArrayOf(1)),
+			listOf(SourceDeliveryUnit(0, candidate)))
+		val deliveryIngress = initialIngress as DurableSourceDeliveryIngress
+		coEvery { initialIngress.admit(any(), checkpoint) } returns AdmissionResult.Admitted(SourceEventId("atomic"), 2L)
+		coEvery { deliveryIngress.admit(any<SourceDeliveryCandidate>()) } returns DeliveryAdmissionResult.Admitted(
+			listOf(DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("delivery"), 3L)))
+		coEvery { deliveryIngress.admit(any<SourceDeliveryCandidate>(), checkpoint) } returns DeliveryAdmissionResult.Admitted(
+			listOf(DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("atomic-delivery"), 4L)))
+
+		sink.admit(candidate) shouldBe SourceAdmissionHandoff.Durable(1L)
+		sink.admit(candidate, checkpoint) shouldBe SourceAdmissionHandoff.Durable(2L)
+		sink.admit(delivery) shouldBe SourceDeliveryAdmissionHandoff.Durable(listOf(3L))
+		sink.admit(delivery, checkpoint) shouldBe SourceDeliveryAdmissionHandoff.Durable(listOf(4L))
+		coVerify(exactly = 1) { initialIngress.admit(any()) }
+		coVerify(exactly = 1) { initialIngress.admit(any(), checkpoint) }
+		coVerify(exactly = 1) { deliveryIngress.admit(any<SourceDeliveryCandidate>()) }
+		coVerify(exactly = 1) { deliveryIngress.admit(any<SourceDeliveryCandidate>(), checkpoint) }
+	}
+
+	@Test
+	fun `runtime registration sink rejects another source or checkpoint before admission`() = runRoomTest {
+		startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		val sink = requireNotNull(runtime.sinkAtStart)
+		val candidate = stepsCandidate()
+		val other = mockk<SourceEvidenceCandidate<*>> { every { source } returns SourceKind.PRESSURE }
+		val checkpoint = mockk<SensorAdmissionCheckpoint> { every { source } returns SourceKind.STEPS }
+		val otherCheckpoint = mockk<SensorAdmissionCheckpoint> { every { source } returns SourceKind.PRESSURE }
+		val delivery = SourceDeliveryCandidate(sourceDeliveryIdentity(byteArrayOf(1)),
+			listOf(SourceDeliveryUnit(0, candidate)))
+		val otherDelivery = mockk<SourceDeliveryCandidate> {
+			every { units } returns listOf(mockk<SourceDeliveryUnit> { every { evidence } returns other })
+		}
+		val scalarFailure = SourceAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.SOURCE_POLICY_STALE)
+		val deliveryFailure = SourceDeliveryAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.SOURCE_POLICY_STALE)
+
+		sink.admit(other) shouldBe scalarFailure
+		sink.admit(other, checkpoint) shouldBe scalarFailure
+		sink.admit(candidate, otherCheckpoint) shouldBe scalarFailure
+		sink.admit(otherDelivery) shouldBe deliveryFailure
+		sink.admit(otherDelivery, checkpoint) shouldBe deliveryFailure
+		sink.admit(delivery, otherCheckpoint) shouldBe deliveryFailure
+		coVerify(exactly = 0) { initialIngress.admit(any()) }
+		coVerify(exactly = 0) { initialIngress.admit(any(), any()) }
+		val deliveryIngress = initialIngress as DurableSourceDeliveryIngress
+		coVerify(exactly = 0) { deliveryIngress.admit(any<SourceDeliveryCandidate>()) }
+		coVerify(exactly = 0) { deliveryIngress.admit(any<SourceDeliveryCandidate>(), any()) }
+	}
 
 	@Test
 	fun `actual End advances operation authority while retaining original recording generation and Stop clock`() = runRoomTest {
@@ -342,6 +406,79 @@ class AuthoritativeSessionCoordinatorTest {
 		runtime.shutdownClaims.count { it.actionId == originalReceipt.actionId } shouldBe 2
 		dao.session(started.logicalTrackingId)?.state shouldBe SessionLifecycleState.FINALIZED.name
 	}
+
+	@Test
+	fun `empty Activity retirement and completeness settle zero high water through Room`() = runRoomTest {
+		val (prepared, receipt) = prepareEmptyActivitySettlement()
+		val dao = database.sourceSessionDao()
+		val raw = dao.rawRunRetirements(prepared.logicalTrackingId, prepared.serviceRunId,
+			SourceKind.ACTIVITY.stableCode, limit = 2).single()
+		raw.validatedOrNull() shouldBe receipt
+		val plan = buildSourceProductDrainPlan(
+			database, prepared.logicalTrackingId, prepared.serviceRunId, 2_000_000L, 2_000L, 0L,
+			SourceProductDrainAuthority(
+				captureBindings = mapOf(SourceKind.ACTIVITY.stableCode to
+					dao.manifestSources(prepared.logicalTrackingId, prepared.manifestRevision)),
+				retirementClaims = listOf(SourceDrainRetirementClaim(
+					SourceKind.ACTIVITY, receipt.sourceInstanceId, receipt.registrationGeneration,
+					receipt.actionId, receipt.attemptCount, receipt.leaseGeneration, cleanupOnly = false,
+				)),
+			),
+		).shouldBeInstanceOf<SourceProductDrainPlan.Ready>()
+
+		val request = plan.requests.single()
+		request.source shouldBe SourceKind.ACTIVITY
+		request.sourceHighWaterAdmissionOrdinal shouldBe 0L
+		request.memberships.single().lastAdmissionOrdinal shouldBe 0L
+		request.memberships.single().lastSourceSequence shouldBe 0L
+		authenticateSourceProductDrainRequest(database, request) shouldBe null
+		database.sourceEventWalDao().getByAdmissionOrdinal(0L) shouldBe null
+	}
+
+	/** Actual Activity manifest and Room rows for an owner that stopped before its first callback. */
+	private suspend fun prepareEmptyActivitySettlement(): Pair<PreparedSessionStart, SourceRunRetirementEntity> {
+		installExactCandidateRollout(SourceWriterTransitionSpec.ACTIVITY)
+		val prepared = subject.prepareAndroidStart(
+			manualSourceStartRequest(SourceKind.ACTIVITY, "empty-activity", "empty-activity-run", 1L),
+			AndroidStartDeliveryMetadata(PreparedTrackingStartToken("empty-activity-token"),
+				commandGeneration = 1L, isUserInitiated = true, isAmbient = false),
+		).shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+		val dao = database.sourceSessionDao()
+		val session = requireNotNull(dao.session(prepared.logicalTrackingId))
+		val run = requireNotNull(dao.serviceRun(prepared.serviceRunId))
+		dao.updateSession(session.copy(state = SessionLifecycleState.STOPPING.name,
+			cutoffAtMs = 2_000L, cutoffElapsedNanos = 2_000_000L, finalAdmissionOrdinal = 0L)) shouldBe 1
+		dao.updateServiceRun(run.copy(state = SessionLifecycleState.STOPPING.name)) shouldBe 1
+		val receipt = emptyActivityRetirement(prepared, run.leaseGeneration)
+		dao.insertRunRetirementIntent(receipt)
+		dao.saveCompleteness(SourceSessionCompletenessEntity(
+			logicalTrackingId = prepared.logicalTrackingId, serviceRunId = prepared.serviceRunId,
+			sourceKind = SourceKind.ACTIVITY.stableCode, sourceInstanceId = receipt.sourceInstanceId,
+			registrationGeneration = receipt.registrationGeneration,
+			lastAdmissionOrdinal = 0L, lastSourceSequence = 0L, appDrainComplete = true,
+			providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE.name,
+			stopStatus = SourceStopStatus.PARTIAL_UNOBSERVABLE.name,
+			unresolvedSequenceStart = null, unresolvedSequenceEnd = null, updatedAtMs = 2_000L,
+		))
+		return prepared to receipt
+	}
+
+	private fun emptyActivityRetirement(prepared: PreparedSessionStart, leaseGeneration: Long) =
+		SourceRunRetirementEntity(
+			logicalTrackingId = prepared.logicalTrackingId, serviceRunId = prepared.serviceRunId,
+			sourceKind = SourceKind.ACTIVITY.stableCode, sourceInstanceId = "empty-activity-owner",
+			registrationGeneration = 1L, actionId = "empty-activity-stop", attemptCount = 1,
+			leaseGeneration = leaseGeneration, cutoffElapsedRealtimeNanos = 2_000_000L,
+			cutoffWallTimeMs = 2_000L, state = SourceRunRetirementEntity.STATE_ACKNOWLEDGED,
+			appliedRevision = 1L, callbackEntryBarrierSequence = 0L,
+			lastSourceSequence = 0L, lastAdmissionOrdinal = 0L, failedAdmissionCount = 0L,
+			unresolvedSequenceStart = null, unresolvedSequenceEnd = null,
+			registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED.name,
+			providerFlushOutcome = ProviderFlushOutcome.NOT_SUPPORTED.name,
+			providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE.name,
+			appDrainComplete = true, stopStatus = SourceStopStatus.PARTIAL_UNOBSERVABLE.name,
+			updatedAtMs = 2_000L,
+		)
 
 	@Test
 	fun `Steps-only End completes with pending Wi-Fi and Cell background consumers`() = runRoomTest {
@@ -7165,6 +7302,32 @@ class AuthoritativeSessionCoordinatorTest {
 		sourceProductDrainRouter.requests.single { request ->
 			request.source == SourceKind.STEPS
 		}.memberships.map(SourceDrainMembership::registrationGeneration) shouldBe listOf(1L, 2L)
+	}
+
+	@Test
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	fun `End allows a shared provider to finish within its normal grace period`() = runRoomTest {
+		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		val timeoutScheduler = TestCoroutineScheduler()
+		val removalEntered = CompletableDeferred<Unit>()
+		val removalFinished = CompletableDeferred<Unit>()
+		runtime.onPhysicalShutdown = { _, _ ->
+			removalEntered.complete(Unit)
+			removalFinished.await()
+		}
+		val stopping = async(UnconfinedTestDispatcher(timeoutScheduler) + timeoutScheduler) {
+			subject.stop(SessionStopRequest("normal-provider-stop", "USER_STOP", 2_000L,
+				2_000_000L, "boot-1"))
+		}
+		removalEntered.await()
+		timeoutScheduler.advanceTimeBy(2_100L)
+		timeoutScheduler.runCurrent()
+		stopping.isCompleted shouldBe false
+		removalFinished.complete(Unit)
+		stopping.await().shouldBeInstanceOf<SessionStopResult.Stopped>()
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.FINALIZED.name
+		runtime.shutdownAttemptCount shouldBe 1
 	}
 
 	@Test

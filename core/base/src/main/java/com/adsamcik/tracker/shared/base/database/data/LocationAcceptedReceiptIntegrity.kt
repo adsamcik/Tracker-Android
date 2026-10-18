@@ -67,7 +67,7 @@ object LocationAcceptedReceiptIntegrity {
 	/** Exactly the encoding already used by both qualified Location canonical writers. */
 	fun canonicalChecksum(sample: LocationSample): String = MessageDigest.getInstance("SHA-256")
 		.digest(sample.protectedLocationCanonicalReceiptBytes())
-		.joinToString("") { "%02x".format(it) }
+		.toHexString()
 
 	/**
 	 * Compares the stored Location receipt with the sample's measured values and canonical identity.

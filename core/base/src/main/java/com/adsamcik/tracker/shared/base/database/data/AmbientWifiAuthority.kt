@@ -381,7 +381,7 @@ object AmbientWifiAuthorityIntegrity {
 		}
 		return MessageDigest.getInstance("SHA-256")
 			.digest("$namespace\u001f$canonical".toByteArray())
-			.joinToString("") { byte -> "%02x".format(byte) }
+			.toHexString()
 	}
 
 	internal fun isDigest(value: String): Boolean = DIGEST.matches(value)

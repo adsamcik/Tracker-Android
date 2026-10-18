@@ -151,7 +151,7 @@ object SourceBrokerAuthorization {
 		}
 		return MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray(Charsets.UTF_8))
-			.joinToString("") { byte -> "%02x".format(byte) }
+			.toHexString()
 	}
 
 	fun memberId(demandId: String): String = "demand:$demandId"

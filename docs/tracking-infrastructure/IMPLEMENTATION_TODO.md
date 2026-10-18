@@ -7,10 +7,13 @@ current execution order. Complete the full scope, including source files and dat
 **Implementation assembly and host verification are complete.** The [October 16 assembly freeze](convergence/2026-10-16/ASSEMBLY_FREEZE.md) records the all-25 source trace and preserved drafts; the [final host result](convergence/2026-10-16/FINAL_HOST_RESULT.json) records passing APK/Hilt, ciUnitTest, ciCheck, lint, schema/migration and SQLite checks: 15,667 tests, zero failures/errors and seven existing skips. Fresh final evidence review has no remaining findings. The verified implementation is committed and integrated into local `dev/v10` at `f294192264d6f8186ccc2b737fc4905cf61c174f`. The user explicitly deferred device testing on October 16. Historical unchecked rows below retain their original checkpoint status.
 
 **October 18 control repair:** the [Dev control verification](convergence/2026-10-17/DEV_CONTROL_VERIFICATION.md)
-records Start/End recovery and retained-data fixes, a debug-signed Dev APK, 484 passing affected host
-tests, Dev lint and scoped Detekt. Final installation and My location/Start/End acceptance remain
-unchecked: the existing Android 17 emulator's D: data/configuration and system image are unreadable,
-including after the user's requested retry. Host results do not establish final runtime behavior.
+records source admission forwarding, empty-provider End completion, retained Location and Wi-Fi
+recovery, and a debug-signed Dev APK. The final affected batch passes 570 tests, APK/Hilt, Dev lint
+and scoped Detekt; 108 unchanged Cell/codec results are also reused. All 27 source hashes match the
+tested input. Independent source and result review has no remaining findings. Reconnection restored
+the existing API 37 emulator and R4 My location worked without saving tracking data. D: then
+disappeared again, leaving the emulator offline and final APK installation/My location/Start/End
+acceptance unchecked. Host results do not establish final runtime behavior.
 
 ## Historical continuation notes
 

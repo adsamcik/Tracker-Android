@@ -1244,6 +1244,7 @@ internal class ProtectedLocationCanonicalHandoff(
 			LocationWalAdapterRejection.RETAINED_EVIDENCE -> state.retainedFromMs != null
 			LocationWalAdapterRejection.MISSING_EVENT ->
 				candidate.admissionOrdinal <= state.deletedSourceEventHighWaterOrdinal
+			LocationWalAdapterRejection.AFTER_SESSION_CUTOFF -> settlePostSessionCallback(candidate)
 			else -> false
 		}
 		if (!settled) {
@@ -1256,6 +1257,19 @@ internal class ProtectedLocationCanonicalHandoff(
 		)
 		advanceCursor(initialLane, expectedCursor, candidate.admissionOrdinal)
 		true
+	}
+
+	private suspend fun settlePostSessionCallback(candidate: ProtectedLocationNext.Candidate): Boolean {
+		val current = database.sourceEventWalDao().boundedPayloadByEventId(candidate.eventId,
+			LocationWalQualificationAdapter.MAX_LOCATION_PAYLOAD_BYTES)
+		return if (current != null && current.admissionOrdinal == candidate.admissionOrdinal &&
+			qualifier.qualify(SourceEventId(candidate.eventId)) ==
+				LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.AFTER_SESSION_CUTOFF)) {
+			database.saveLocationContinuityAnchor(current)
+			true
+		} else {
+			false
+		}
 	}
 
 	private suspend fun saveFailure(
@@ -3033,6 +3047,7 @@ private fun LocationWalAdapterRejection.isLifecycleSettlement(): Boolean = this 
 	LocationWalAdapterRejection.DELETED_EVIDENCE,
 	LocationWalAdapterRejection.RETAINED_EVIDENCE,
 	LocationWalAdapterRejection.MISSING_EVENT,
+	LocationWalAdapterRejection.AFTER_SESSION_CUTOFF,
 )
 
 private fun Throwable.safeCode(): String =

@@ -62,7 +62,7 @@ object SessionManifestIntegrity {
 		)
 		return MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray(Charsets.UTF_8))
-			.joinToString(separator = "") { byte -> "%02x".format(byte) }
+			.toHexString()
 	}
 
 	fun verify(

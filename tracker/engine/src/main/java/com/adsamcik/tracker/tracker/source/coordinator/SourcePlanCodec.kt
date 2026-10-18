@@ -226,7 +226,7 @@ class SourcePlanCodec @Inject constructor() {
 
 	private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
 		.digest(bytes)
-		.joinToString("") { byte -> "%02x".format(byte) }
+		.toHexString()
 
 	/**
 	 * Current encoding version and bounds used to reject unsupported or oversized acquisition plans.

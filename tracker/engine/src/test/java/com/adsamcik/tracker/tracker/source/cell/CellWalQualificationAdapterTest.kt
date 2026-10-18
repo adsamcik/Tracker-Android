@@ -871,6 +871,36 @@ class CellWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `Cell missing presentation retries after the same run binds its segment without receipt wall time`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = CELL_WAL_PAYLOAD_VERSION)
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		assertEquals(null, wal.receivedWallTimeMs)
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
+		assertEquals(1, database.sourceSessionDao().updateServiceRun(run.copy(
+			sessionSegmentId = null,
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+			presentationAcknowledgedAtMs = null,
+		)))
+		val lane = CellSessionFactProjectionLane(database, subject, writer)
+		assertEquals("CELL_ADAPTER_MISSING_SEGMENT", assertTerminalCellLaneFailure(lane).failureCode)
+
+		assertEquals(1, database.sourceSessionDao().updateServiceRun(run))
+		val recovered = assertIs<CellSessionFactDrainResult.Complete>(lane.drainAvailable())
+
+		assertEquals(1L, recovered.lastCompletedOrdinal)
+		assertEquals(1, recovered.factsInserted)
+		val retainedWal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		assertTrue(wal.payload.contentEquals(retainedWal.payload))
+		assertEquals(wal, retainedWal.copy(payload = wal.payload))
+		assertEquals(run, database.sourceSessionDao().serviceRun(RUN_ID))
+		assertEquals(null, database.sourceProjectionStateDao().failure(
+			CellSessionFactProjectionLane.WRITER_ID, CellSessionFactProjectionLane.WRITER_VERSION, 1L))
+		assertEquals(0, assertIs<CellSessionFactDrainResult.Complete>(lane.drainAvailable()).factsInserted)
+		assertEquals(1L, database.cellCapturedFactDao().revisionCount())
+	}
+
+	@Test
 	fun `Cell missing presentation cannot recover a changed original authority`() = runTest {
 		installValidFixture(candidateWriter = true)
 		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)

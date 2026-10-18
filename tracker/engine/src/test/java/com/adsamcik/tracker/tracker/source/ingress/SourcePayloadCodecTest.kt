@@ -20,6 +20,7 @@ import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
 import com.adsamcik.tracker.tracker.source.model.RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
+import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
 import com.adsamcik.tracker.tracker.source.model.WifiAccessPointEvidence
@@ -33,6 +34,14 @@ import org.junit.Test
 
 class SourcePayloadCodecTest {
 	private val codec = DefaultSourcePayloadCodec()
+
+	@Test
+	fun `delivery identity keeps fixed lowercase SHA digests with zero padding and signed bytes`() {
+		sourceDeliveryIdentity(byteArrayOf()).value shouldBe
+			"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+		sourceDeliveryIdentity("s".encodeToByteArray()).value shouldBe
+			"043a718774c572bd8a25adbeb1bfcd5c0256ae11cecf9f9c3f925d0e52beaf89"
+	}
 
 	@Test
 	fun `shared Cell mapping preserves every observed field and the canonical bytes`() {

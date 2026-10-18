@@ -555,7 +555,7 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 
 	private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256")
 		.digest(this)
-		.joinToString(separator = "") { byte -> "%02x".format(byte) }
+		.toHexString()
 
 	private companion object {
 		const val MINIMUM_VERSION = 1

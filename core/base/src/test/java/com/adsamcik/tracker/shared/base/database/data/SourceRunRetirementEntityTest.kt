@@ -46,6 +46,31 @@ class SourceRunRetirementEntityTest {
 	}
 
 	@Test
+	fun `raw retirement accepts zero admission high water without inventing observations`() {
+		for (sequence in listOf(null, 0L)) {
+			val empty = acknowledged(SourceDestinationOwnerEntity.SOURCE_ACTIVITY).copy(
+				callbackEntryBarrierSequence = 0L,
+				lastSourceSequence = sequence,
+				lastAdmissionOrdinal = 0L,
+			)
+
+			empty.raw().validatedOrNull() shouldBe empty
+		}
+	}
+
+	@Test
+	fun `raw retirement still rejects negative high water and incorrect SQL storage types`() {
+		val raw = acknowledged(SourceDestinationOwnerEntity.SOURCE_ACTIVITY).raw()
+
+		raw.validatedOrNull() shouldBe acknowledged(SourceDestinationOwnerEntity.SOURCE_ACTIVITY)
+		raw.copy(lastAdmissionOrdinal = -1L).validatedOrNull() shouldBe null
+		val malformedTypes = requireNotNull(raw.storageClassSignature).split('|').toMutableList()
+		malformedTypes[14] = "real"
+		raw.copy(lastAdmissionOrdinal = 0L, storageClassSignature = malformedTypes.joinToString("|"))
+			.validatedOrNull() shouldBe null
+	}
+
+	@Test
 	fun `Steps and non-Steps retirement state corresponds exactly to process restart status`() {
 		shouldThrow<IllegalArgumentException> {
 			acknowledged(SourceDestinationOwnerEntity.SOURCE_STEPS).copy(
@@ -64,6 +89,49 @@ class SourceRunRetirementEntityTest {
 		)
 		interruptedLocation.state shouldBe SourceRunRetirementEntity.STATE_INTERRUPTED
 		interruptedLocation.stopStatus shouldBe "PROCESS_RESTARTED"
+	}
+
+	private fun SourceRunRetirementEntity.raw(): SourceRunRetirementEntity.RawSourceRunRetirement {
+		val values = listOf(logicalTrackingId, serviceRunId, sourceKind, sourceInstanceId,
+			registrationGeneration, actionId, attemptCount, leaseGeneration, cutoffElapsedRealtimeNanos,
+			cutoffWallTimeMs, state, appliedRevision, callbackEntryBarrierSequence, lastSourceSequence,
+			lastAdmissionOrdinal, failedAdmissionCount, unresolvedSequenceStart, unresolvedSequenceEnd,
+			registrationRemovalOutcome, providerFlushOutcome, providerCoverage, appDrainComplete,
+			stopStatus, updatedAtMs)
+		val signature = values.joinToString("|") { value ->
+			when (value) {
+				null -> "null"
+				is String -> "text"
+				else -> "integer"
+			}
+		}
+		return SourceRunRetirementEntity.RawSourceRunRetirement(
+			storageClassSignature = signature,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceKind = sourceKind.toLong(),
+			sourceInstanceId = sourceInstanceId,
+			registrationGeneration = registrationGeneration,
+			actionId = actionId,
+			attemptCount = attemptCount.toLong(),
+			leaseGeneration = leaseGeneration,
+			cutoffElapsedRealtimeNanos = cutoffElapsedRealtimeNanos,
+			cutoffWallTimeMs = cutoffWallTimeMs,
+			state = state,
+			appliedRevision = appliedRevision,
+			callbackEntryBarrierSequence = callbackEntryBarrierSequence,
+			lastSourceSequence = lastSourceSequence,
+			lastAdmissionOrdinal = lastAdmissionOrdinal,
+			failedAdmissionCount = failedAdmissionCount,
+			unresolvedSequenceStart = unresolvedSequenceStart,
+			unresolvedSequenceEnd = unresolvedSequenceEnd,
+			registrationRemovalOutcome = registrationRemovalOutcome,
+			providerFlushOutcome = providerFlushOutcome,
+			providerCoverage = providerCoverage,
+			appDrainComplete = appDrainComplete?.let { if (it) { 1L } else { 0L } },
+			stopStatus = stopStatus,
+			updatedAtMs = updatedAtMs,
+		)
 	}
 
 	private fun SourceRunRetirementEntity.acknowledgementFields(): List<Any?> = listOf(

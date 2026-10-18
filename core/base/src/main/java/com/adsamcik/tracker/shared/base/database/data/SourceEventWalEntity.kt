@@ -180,7 +180,7 @@ data class SourceEventWalEntity(
 		}
 		return MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray())
-			.joinToString("") { byte -> "%02x".format(byte) }
+			.toHexString()
 	}
 
 	fun hasQualifiedIntegrity(): Boolean = integrityIdentity !in LEGACY_INTEGRITY_IDENTITIES &&
@@ -208,4 +208,4 @@ data class SourceEventWalEntity(
 
 private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256")
 	.digest(this)
-	.joinToString(separator = "") { byte -> "%02x".format(byte) }
+	.toHexString()

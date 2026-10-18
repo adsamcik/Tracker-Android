@@ -295,7 +295,7 @@ fun SourcePlan.physicalConfigurationFingerprint(): String {
 	}.joinToString("\u001f")
 	return MessageDigest.getInstance("SHA-256")
 		.digest(canonical.toByteArray(Charsets.UTF_8))
-		.joinToString("") { byte -> "%02x".format(byte) }
+		.toHexString()
 }
 
 internal const val ADAPTIVE_PROVIDER_ITEM_MAXIMUM_AGE_MS = 120_000L

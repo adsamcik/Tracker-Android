@@ -387,7 +387,7 @@ data class RawSourceSessionCompleteness(
 		val status = stopStatus?.takeIf { it in STOP_STATUSES } ?: return null
 		val updatedAt = updatedAtMs?.takeIf { it in 0L until Long.MAX_VALUE } ?: return null
 		if (
-			lastAdmissionOrdinal?.let { it <= 0L } == true ||
+			lastAdmissionOrdinal?.let { it < 0L } == true ||
 			lastSourceSequence?.let { it < 0L } == true ||
 			(lastAdmissionOrdinal == null) != (lastSourceSequence == null) ||
 			unresolvedSequenceStart?.let { it <= 0L } == true ||

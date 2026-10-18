@@ -165,9 +165,16 @@ internal class WifiCapturedFactWriter @Inject constructor(
 		cursor: WifiCapturedFactCursorEntity,
 		authority: WifiCaptureAuthority,
 	): WifiReusableFact.DirectAggregateOwner? = try {
-		when (val reusable = loadReusableFact(row, cursor, authority)) {
-			is WifiReusableFact.DirectAggregateOwner -> reusable
-			is WifiReusableFact.CoverageOnly -> reusable.directAggregateOwner
+		requireCurrentWriteAuthority(row)
+		requireExactRevisionLineage(row, cursor)
+		// A valid scan with different authority or bounds needs its own aggregate.
+		if (!row.hasCompatibleAuthority(authority)) {
+			null
+		} else {
+			when (val reusable = loadReusableFact(row, authority)) {
+				is WifiReusableFact.DirectAggregateOwner -> reusable
+				is WifiReusableFact.CoverageOnly -> reusable.directAggregateOwner
+			}
 		}
 	} catch (rejected: WifiCapturedWriteRejectedException) {
 		if (rejected.reason == WifiCapturedWriteRejection.RETAINED_DATA) {
@@ -184,7 +191,9 @@ internal class WifiCapturedFactWriter @Inject constructor(
 		current: WifiCapturedFactRevisionEntity,
 		exactCursor: WifiCapturedFactCursorEntity,
 	): WifiCapturedFactClassification {
-		val base = loadReusableFact(current, exactCursor, authority)
+		requireCurrentWriteAuthority(current)
+		requireExactRevisionLineage(current, exactCursor)
+		val base = loadReusableFact(current, authority)
 		if (exactCursor.latestSemanticRevision == Long.MAX_VALUE) {
 			reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 		}
@@ -412,11 +421,8 @@ internal class WifiCapturedFactWriter @Inject constructor(
 
 	private suspend fun loadReusableFact(
 		row: WifiCapturedFactRevisionEntity,
-		cursor: WifiCapturedFactCursorEntity,
 		currentAuthority: WifiCaptureAuthority,
 	): WifiReusableFact {
-		requireCurrentWriteAuthority(row)
-		requireExactRevisionLineage(row, cursor)
 		return try {
 			val authority = row.persistedAuthority(currentAuthority)
 			val mutation = row.persistedMutation()
@@ -717,6 +723,13 @@ private fun SessionManifestSourceEntity.isExactWifiWriter(consentEpoch: Long, se
 			"AUTOMATIC" -> writerBindingGeneration == SourceWriterGenerationContract.FINAL_CAPTURE_BINDING_GENERATION
 			else -> false
 		}
+
+private fun WifiCapturedFactRevisionEntity.hasCompatibleAuthority(authority: WifiCaptureAuthority): Boolean = try {
+	persistedAuthority(authority)
+	true
+} catch (_: IllegalArgumentException) {
+	false
+}
 
 private fun WifiAggregateFactReference.logicalFactId(): String =
 	WifiCapturedFactRevisionIntegrity.logicalFactId(

@@ -948,6 +948,67 @@ class ProtectedLocationCanonicalHandoffTest {
 	}
 
 	@Test
+	fun `settled post End tail preserves WAL and lets the next run save its own point`() = runTest {
+		val ended = command()
+		insertWal(ended)
+		val next = command(eventId = "next-run-point", admissionOrdinal = ADMISSION_ORDINAL + 1L,
+			sourceSequence = 1L, observedNanos = OBSERVED_NANOS + 1L, receivedNanos = RECEIVED_NANOS + 1L,
+			logicalTrackingId = "next-logical", serviceRunId = "next-run")
+		val writer = ReceiptWriter(database, accepted = true)
+		val qualifier = ProtectedLocationWalQualifier { eventId ->
+			if (eventId == ended.mutation.identity.sourceEventId) {
+				LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.AFTER_SESSION_CUTOFF)
+			} else {
+				LocationWalAdapterResult.Evaluated(LocationObservationQualification.Qualified(next),
+					TEST_ACQUISITION_METADATA)
+			}
+		}
+		val handoff = ProtectedLocationCanonicalHandoff(database, qualifier, writer)
+		val settled = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainHighWater())
+		assertEquals(1, settled.lifecycleSettled)
+		assertEquals(ADMISSION_ORDINAL, settled.lastCommittedOrdinal)
+		assertEquals(0, writer.writeCount)
+		assertNull(database.locationObservationDao().getBySourceEventId(EVENT_ID))
+		assertNull(database.locationObservationDecisionDao().getBySourceEventId(EVENT_ID))
+		assertEquals(ADMISSION_ORDINAL, database.sourceEventWalDao().getByEventId(EVENT_ID)?.admissionOrdinal)
+
+		insertWal(next)
+		val complete = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainHighWater())
+		assertEquals(ADMISSION_ORDINAL + 1L, complete.lastCommittedOrdinal)
+		assertEquals(1, complete.acceptedSamplesCommitted)
+		assertEquals(1, writer.writeCount)
+		val receipt = requireNotNull(database.locationPurposeDao().receiptByEvent("next-run-point"))
+		val purpose = database.locationPurposeDao().purposes(receipt.sampleId, 3).single()
+		assertEquals("next-logical", purpose.logicalTrackingId)
+		assertEquals("next-run", purpose.serviceRunId)
+		assertNull(database.locationPurposeDao().receiptByEvent(EVENT_ID))
+		assertEquals(1L, database.locationSampleDao().countAll())
+	}
+
+	@Test
+	fun `post End settlement rechecks the same reason before advancing its cursor`() = runTest {
+		insertWal(command())
+		var qualifications = 0
+		val qualifier = ProtectedLocationWalQualifier {
+			qualifications++
+			LocationWalAdapterResult.Rejected(if (qualifications == 1) {
+				LocationWalAdapterRejection.AFTER_SESSION_CUTOFF
+			} else {
+				LocationWalAdapterRejection.AUTHORIZATION_MISMATCH
+			})
+		}
+		val writer = ReceiptWriter(database, accepted = true)
+		val failed = assertIs<ProtectedLocationCanonicalDrainResult.Failed>(
+			ProtectedLocationCanonicalHandoff(database, qualifier, writer).drainHighWater())
+		assertEquals(ADMISSION_ORDINAL - 1L, failed.lastCommittedOrdinal)
+		assertEquals(2, qualifications)
+		assertEquals(0, writer.writeCount)
+		assertEquals(0L, database.locationSampleDao().countAll())
+		assertEquals(ADMISSION_ORDINAL - 1L,
+			database.sourceProjectionStateDao().activeProductLane(SourceKind.LOCATION.stableCode)?.contiguousAdmissionOrdinal)
+	}
+
+	@Test
 	fun `destination owner race preserves receipt but reports authority change before cursor`() =
 		runTest {
 			val command = command()
@@ -1198,8 +1259,8 @@ class ProtectedLocationCanonicalHandoffTest {
 					deliveryIdentity = command.mutation.identity.sourceDeliveryIdentity.value,
 					deliveryUnitIndex = 0,
 					deliveryUnitCount = 1,
-					logicalTrackingId = LOGICAL_ID,
-					serviceRunId = RUN_ID,
+					logicalTrackingId = command.authority.logicalTrackingId.value,
+					serviceRunId = command.authority.serviceRunId.value,
 					sourceKind = SourceKind.LOCATION.stableCode,
 					sourceInstanceId = command.authority.sourceInstanceId.value,
 					registrationGeneration = command.authority.registrationGeneration,
@@ -1259,6 +1320,8 @@ class ProtectedLocationCanonicalHandoffTest {
 		sourceInstanceId: String = "location-runtime",
 		registrationGeneration: Long = 3L,
 		speedMetersPerSecond: Float? = 1.25f,
+		logicalTrackingId: String = LOGICAL_ID,
+		serviceRunId: String = RUN_ID,
 	): LocationCapturedFactCommand {
 		val temporal = LocationCaptureTemporalAuthority(
 			providerRegistration = interval(),
@@ -1269,8 +1332,8 @@ class ProtectedLocationCanonicalHandoffTest {
 			lifecycleLease = interval(),
 		)
 		val authority = LocationCaptureAuthority(
-			logicalTrackingId = LogicalTrackingId(LOGICAL_ID),
-			serviceRunId = ServiceRunId(RUN_ID),
+			logicalTrackingId = LogicalTrackingId(logicalTrackingId),
+			serviceRunId = ServiceRunId(serviceRunId),
 			sessionSegmentId = 7L,
 			capturedSources = setOf(SourceKind.LOCATION),
 			controlSources = emptySet(),

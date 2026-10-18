@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.data.LocationPermissionPrecision
 import com.adsamcik.tracker.shared.base.data.LocationRequestPriority
 import com.adsamcik.tracker.shared.model.AltitudeContractVersions
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventWalDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventWalPayloadPreflightRow
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventWalDeliveryPayloadPreflightRow
@@ -13,9 +14,11 @@ import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAut
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalFailure
 import com.adsamcik.tracker.shared.base.database.authenticateHistoricalProviderRegistration
 import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
@@ -25,6 +28,7 @@ import com.adsamcik.tracker.shared.base.database.data.LocationRegistrationPlanEn
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.preferences.tracking.SourceQos
@@ -77,6 +81,7 @@ internal enum class LocationWalAdapterRejection {
 	CONSENT_MISMATCH,
 	MISSING_SESSION,
 	SESSION_MISMATCH,
+	AFTER_SESSION_CUTOFF,
 	MANIFEST_TIMELINE_UNVERIFIABLE,
 	MANIFEST_MISMATCH,
 	MISSING_SEGMENT,
@@ -273,12 +278,6 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 			authorizationRevision,
 		).toAuthorizationSnapshotOrNull()
 			?: return@withTransaction rejected(LocationWalAdapterRejection.MISSING_AUTHORIZATION)
-		val observedAuthorization = brokerDao.authorizationAt(
-			LOCATION_SOURCE,
-			wal.registrationGeneration,
-			wal.clockDomainId,
-			wal.observedElapsedNanos,
-		).toAuthorizationSnapshotOrNull()
 		val captureMember = authorization.authorizedMembers.singleOrNull { member ->
 			member.purpose == SourceBrokerPurpose.SESSION_CAPTURE && member.persistenceEligible &&
 				member.logicalTrackingId == logicalTrackingId && member.serviceRunId == serviceRunId &&
@@ -302,7 +301,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		if (authorizationDemandIds.distinct().size != authorization.authorizedMembers.size ||
 			authorizationDemands.size != authorization.authorizedMembers.size ||
 			recomputedAuthorization?.sortedBy { it.memberId } !=
-				authorization.members.sortedBy { it.memberId } || observedAuthorization != authorization
+				authorization.members.sortedBy { it.memberId }
 		) {
 			return@withTransaction rejected(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH)
 		}
@@ -317,18 +316,6 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		) {
 			return@withTransaction rejected(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH)
 		}
-		val nextAuthorization = brokerDao.nextAuthorizationRevision(
-			LOCATION_SOURCE,
-			wal.registrationGeneration,
-			authorization.authorizationRevision,
-		).toAuthorizationSnapshotOrNull()
-		val authorizationEnd = authorizationEndExclusive(
-			registrationEnd,
-			authorization,
-			nextAuthorization,
-		)
-			?: return@withTransaction rejected(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH)
-
 		val policyDao = database.sourcePolicyDao()
 		val policyAuthority = policyDao.authority()
 		val policy = policyDao.policyAtRevision(policyRevision, LOCATION_SOURCE)
@@ -380,8 +367,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 			return@withTransaction rejected(LocationWalAdapterRejection.SESSION_MISMATCH)
 		}
 		if (session.logicalTrackingId != logicalTrackingId || session.lifecycleLeaseGeneration < leaseGeneration ||
-			run.startedElapsedNanos > wal.observedElapsedNanos ||
-			session.cutoffElapsedNanos?.let { wal.observedElapsedNanos >= it } == true
+			run.startedElapsedNanos > wal.observedElapsedNanos
 		) {
 			return@withTransaction rejected(LocationWalAdapterRejection.SESSION_MISMATCH)
 		}
@@ -480,7 +466,32 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 			return@withTransaction rejected(LocationWalAdapterRejection.DELETED_EVIDENCE)
 		}
 		val sessionEnd = session.cutoffElapsedNanos ?: Long.MAX_VALUE
-		val manifestEnd = manifests.getOrNull(manifestIndex + 1)?.effectiveElapsedRealtimeNanos
+		if (wal.observedElapsedNanos >= sessionEnd) {
+			return@withTransaction rejected(if (hasAuthenticatedSessionCutoff(wal, authorization, session, run, manifest)) {
+				LocationWalAdapterRejection.AFTER_SESSION_CUTOFF
+			} else {
+				LocationWalAdapterRejection.SESSION_MISMATCH
+			})
+		}
+		val observedAuthorization = brokerDao.authorizationAt(
+			LOCATION_SOURCE, wal.registrationGeneration, wal.clockDomainId, wal.observedElapsedNanos,
+		).toAuthorizationSnapshotOrNull()
+		val authorizationTimeline = database.compatibleLocationCaptureAuthorizations(authorization, observedAuthorization)
+			?: return@withTransaction rejected(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH)
+		if (authorizationTimeline.any { !SessionManifestIntegrity.hasRetainedLeaseGeneration(run,
+			it.locationCaptureMember()?.lifecycleLeaseGeneration) }) {
+			return@withTransaction rejected(LocationWalAdapterRejection.SESSION_MISMATCH)
+		}
+		val observedCaptureAuthorization = authorizationTimeline.last()
+		val nextAuthorization = brokerDao.nextAuthorizationRevision(
+			LOCATION_SOURCE, wal.registrationGeneration, observedCaptureAuthorization.authorizationRevision,
+		).toAuthorizationSnapshotOrNull()
+		val authorizationEnd = authorizationEndExclusive(registrationEnd, observedCaptureAuthorization, nextAuthorization)
+			?: return@withTransaction rejected(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH)
+		val observedManifestIndex = compatibleLocationCaptureManifestIndex(
+			manifests, allManifestSources, manifestIndex, authorizationTimeline, locationManifestSource,
+		) ?: return@withTransaction rejected(LocationWalAdapterRejection.MANIFEST_MISMATCH)
+		val manifestEnd = manifests.getOrNull(observedManifestIndex + 1)?.effectiveElapsedRealtimeNanos
 			?: minOf(sessionEnd, registrationEnd, authorizationEnd)
 		val temporal = runCatching {
 			LocationCaptureTemporalAuthority(
@@ -680,6 +691,25 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 
 	private suspend fun authenticatePhysical(eventId: SourceEventId): LocationPhysicalEvidence =
 		LocationWalPhysicalEvidenceReader.authenticate(database, payloadCodec, eventId)
+
+	/** A saved End rejects this original run's late callbacks without lending them recording authority. */
+	private suspend fun hasAuthenticatedSessionCutoff(
+		wal: SourceEventWalEntity,
+		authorization: SourceAuthorizationSnapshot,
+		session: LogicalTrackingSessionEntity,
+		run: SourceServiceRunEntity,
+		manifest: SessionManifestVersionEntity,
+	): Boolean {
+		val cutoff = database.savedSessionCutoff(session)
+		val elapsed = cutoff.elapsedNanos ?: return false
+		val stop = database.sourceSessionDao().firstStopIntent(session.logicalTrackingId) ?: return false
+		val stopManifest = database.sourceSessionDao().manifest(session.logicalTrackingId, stop.manifestRevision)
+		val sameRun = cutoff.bootId == wal.clockDomainId && run.bootId == cutoff.bootId &&
+			stopManifest?.serviceRunId == run.serviceRunId
+		val beganBeforeEnd = authorization.effectiveElapsedRealtimeNanos <= elapsed &&
+			manifest.effectiveElapsedRealtimeNanos <= elapsed && run.startedElapsedNanos <= elapsed
+		return sameRun && beganBeforeEnd && wal.observedElapsedNanos >= elapsed
+	}
 
 	private fun authorizationEndExclusive(
 		registrationEnd: Long,

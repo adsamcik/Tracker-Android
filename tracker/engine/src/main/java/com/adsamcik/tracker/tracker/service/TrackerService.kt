@@ -1214,6 +1214,13 @@ internal class TrackerService : CoreService() {
 						}
 						descriptor = mirrorPresentationBinding(descriptor, presentationBinding)
 						locationLiveWriterRegistry.attach(orchestrator)
+						// Initial callbacks may arrive before the presentation segment is bound.
+						sourcePipelineRecovery.requestProtectedLocationCanonicalDrain()
+						sourcePipelineRecovery.requestStepsSessionFactDrain()
+						sourcePipelineRecovery.requestPressureSessionFactDrain()
+						sourcePipelineRecovery.requestActivityCapturedFactDrain()
+						sourcePipelineRecovery.requestWifiSessionFactDrain()
+						sourcePipelineRecovery.requestCellSessionFactDrain()
 						observeDescriptorTierChanges(descriptor)
 						reconcileLocationMotionScope()
 						sourcePipelineRecovery.drainCommittedWork()

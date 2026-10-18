@@ -1,4 +1,4 @@
-# Dev tracking control verification — 2026-10-17
+# Dev tracking control verification — updated 2026-10-18
 
 Scope: repair the existing emulator and verify My location, manual Start, saved Location delivery,
 and End in the Dev app. This is not a claim that every provider or physical-device battery and
@@ -34,6 +34,15 @@ or their processing cursors skipped to obtain a passing Start.
   after Room accepts the new Start, preserving it on refusal.
 - [x] Claim the prepared envelope through cancellable startup work and the existing lifecycle lease,
   leaving foreground admission under the current Start/Stop checks.
+- [x] Forward all four source admission methods, including atomic sensor checkpoints and deliveries.
+- [x] Accept a genuinely empty provider's zero high water in raw retirement and completeness readers.
+- [x] Preserve Location identity through metadata-only manifest/lease refreshes of the same grant.
+- [x] Settle authenticated post-End Location callbacks without saving them or blocking later sessions;
+  preserve the raw callback and independently qualified all-day observations.
+- [x] Start a new Wi-Fi aggregate when valid readings have different authority or bounds; retry exact
+  retained missing-segment cases through the existing writer after presentation binding.
+- [x] Use the existing cleanup grace period for source retirement and remove per-byte Formatter
+  allocations from the hot digest paths without changing their output.
 - [x] Independent review of the production changes and regression sources; findings addressed.
 
 ## Final acceptance
@@ -46,7 +55,7 @@ or their processing cursors skipped to obtain a passing Start.
 - [x] Commit and integrate the host-verified changes into local `dev/v10`; runtime acceptance remains blocked.
 
 The final APK is built (SHA-256
-`EFDC11F0D8EEE12C17579EA5101DD744560B9B0511443CE295B30A43467BE894`), with version
+`FD1FC3F6E22FE5E6A1CD94D2E592A4705067502B48FF344D999FFF6E8276F081`), with version
 `10.0.0-dev`, package `com.adsamcik.tracker.dev`, label `Advention Dev`, debug signing and
 ARM64/x86_64 support. Host checks passed; runtime acceptance is blocked below.
 Earlier screenshots of Recording and recovered old samples are not acceptance evidence for fresh
@@ -58,23 +67,38 @@ saved-data delivery or successful End.
 | --- | --- |
 | Dev compilation, Hilt and APK packaging | Passed; exact final APK signature verified |
 | Dev lint | Passed, 45 warnings; baseline unchanged |
-| Scoped Detekt | Passed; unchanged Kotlin inputs reused by the final batch |
-| Cross-boot Cell history regression | One passed; unchanged result reused by the final batch |
-| Affected engine regressions | 483 passed, zero failures/errors/skips |
+| Scoped Detekt | Passed on all 27 changed Kotlin files |
+| Affected engine regressions | 552 passed in the final batch |
+| Affected database regressions | 18 passed; unchanged result reused by the final batch |
+| Unchanged Cell and codec regressions | 108 passed in R4; valid results reused |
 
-The current source freeze is `runtime-controls-acceptance-input.json` (79 files). The final batch is
-`runtime-controls-acceptance-checks-r3.log` (exit 0). Including the unchanged Cell history result,
-484 tests passed with zero failures, errors or skips. `FINAL_CONTROL_HOST_RESULT.json` records the
-exact suites, source-hash match and APK identity. The failed prior batches and their original XML remain
-preserved; they are not reported as passing. Broader October 16 host gates are historical receipts,
-not a claim that the entire repository suite was rerun for this control repair.
-`FINAL_CONTROL_CHECKPOINT_INPUT.json` records the final commit inputs; their only difference from
-the tested freeze is removal of one extra EOF blank line caught by staged whitespace checking.
+The current source freeze is `build/verification-20261018/recovery-input-r6.json` (27 Kotlin files).
+The final batch is `recovery-host-checks-r6b.log` (exit 0, 9m 14s). All 27 source hashes match.
+The [current result](CONTROL_RECOVERY_RESULT.json) records exact suites, source hashes, APK identity
+and the runtime limitation. There are 678 distinct passing tests across the final affected results
+and unchanged R4 results, with zero failures, errors or skips. No failed result is counted as passing.
+R5's test-compilation error was fixed by declaring the SQL fixture's mixed values as `arrayOf<Any>`;
+the final engine test compilation and execution passed. No rule, assertion or baseline was weakened.
+The failed prior batches and original XML remain preserved under `build/verification-20261018`.
+The prior 484-test control checkpoint and the broader October 16 gates remain historical receipts;
+the full repository aggregates were not rerun for this repair.
 
 ### Runtime blocker — October 18
 
-The existing emulator is unavailable because its D: storage now reports fatal device hardware
-errors. An independent read-only check found Windows Application Error 1005/1000 and disk 153 I/O
+The user's reconnection restored D: readability, and the same existing API 37 AVD booted successfully.
+The R4 Dev APK installed in place and My location displayed a centered marker, rendered street tiles
+and a 50 m scale. With tracking Off, consistent before/after database snapshots showed zero new
+Location WAL entries, saved points or accepted observations after the tap. That is R4 evidence,
+not acceptance of the final R5 APK.
+
+Before final installation, D: disappeared again. Windows `.NET Directory.GetLogicalDrives()` lists
+only C:, `Get-Item`/`Get-PSDrive` report that D: does not exist, and `emulator-5554` is offline.
+ADB reconnect was attempted; `install -r` failed before deploying the final APK. The final APK,
+host results and source are on C:. Final My location/Start/saved-route/End acceptance therefore
+remains unchecked. No replacement, cloned or older-API AVD was used, and no data was cleared.
+The same D: AVD/image must be readable again before these runtime checks can finish.
+
+Earlier in this run, an independent read-only check found Windows Application Error 1005/1000 and disk 153 I/O
 retries, with `0xC0000483` / `0xC0000006` failures. Reads fail for the emulator/QEMU binaries, the
 AVD's live `userdata-qemu.img.qcow2`, `config.ini`, `hardware-qemu.ini`, and its API 37.2 image directory.
 No app data was cleared to bypass this failure.

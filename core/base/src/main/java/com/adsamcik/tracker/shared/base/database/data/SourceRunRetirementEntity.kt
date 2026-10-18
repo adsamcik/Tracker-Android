@@ -251,7 +251,7 @@ data class SourceRunRetirementEntity(
 			if (appliedRevision?.let { it < 0L } == true ||
 				callbackEntryBarrierSequence?.let { it < 0L } == true ||
 				lastSourceSequence?.let { it < 0L } == true ||
-				lastAdmissionOrdinal?.let { it <= 0L } == true ||
+				lastAdmissionOrdinal?.let { it < 0L } == true ||
 				failedAdmissionCount?.let { it < 0L } == true ||
 				unresolvedSequenceStart?.let { it <= 0L } == true ||
 				unresolvedSequenceEnd?.let { it <= 0L } == true ||

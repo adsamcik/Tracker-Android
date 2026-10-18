@@ -31,7 +31,7 @@ fun sourceDeliveryIdentity(canonicalSourceBytes: ByteArray): SourceDeliveryIdent
 	SourceDeliveryIdentity(
 		MessageDigest.getInstance("SHA-256")
 			.digest(canonicalSourceBytes)
-			.joinToString(separator = "") { byte -> "%02x".format(byte) },
+			.toHexString(),
 	)
 
 data class SourceDeliveryUnit(

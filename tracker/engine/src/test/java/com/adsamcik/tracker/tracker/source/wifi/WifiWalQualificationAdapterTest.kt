@@ -2097,6 +2097,73 @@ class WifiWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `later v6 scan keeps both readings when its measurement authority differs`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		val first = assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val original = requireNotNull(database.wifiCapturedFactDao().revision(
+			WifiSessionFactProjectionLane.WRITER_ID, WifiSessionFactProjectionLane.WRITER_VERSION,
+			first.logicalFactId, 1L))
+		val secondId = insertSecondWal()
+
+		val second = assertIs<WifiCapturedWriteResult.Applied>(writer.write(secondId))
+		val saved = requireNotNull(database.wifiCapturedFactDao().revision(
+			WifiSessionFactProjectionLane.WRITER_ID, WifiSessionFactProjectionLane.WRITER_VERSION,
+			second.logicalFactId, 1L))
+		assertTrue(saved.authorizationEffectStartNanos > original.authorizationEffectStartNanos)
+		assertEquals(WifiCapturedFactRevisionEntity.FACT_KIND_AGGREGATE, saved.factKind)
+		assertEquals(original, database.wifiCapturedFactDao().revision(
+			WifiSessionFactProjectionLane.WRITER_ID, WifiSessionFactProjectionLane.WRITER_VERSION,
+			first.logicalFactId, 1L))
+		assertIs<WifiCapturedWriteResult.Unchanged>(writer.write(EVENT_ID))
+		assertIs<WifiCapturedWriteResult.Unchanged>(writer.write(secondId))
+		assertEquals(2L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `v6 lane retries retained incompatible aggregate failure through the real writer`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		insertSecondWal()
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
+			WifiSessionFactProjectionLane.WRITER_ID, WifiSessionFactProjectionLane.WRITER_VERSION,
+			2L, 1, "WIFI_WRITE_REVISION_CHAIN_MISMATCH", true, OBSERVED_WALL_MS))
+		val lane = WifiSessionFactProjectionLane(database, subject, writer)
+
+		val drained = assertIs<WifiSessionFactDrainResult.Complete>(lane.drainAvailable())
+		assertEquals(2L, drained.lastCompletedOrdinal)
+		assertEquals(1, drained.factsInserted)
+		assertEquals(null, database.sourceProjectionStateDao().failure(
+			WifiSessionFactProjectionLane.WRITER_ID, WifiSessionFactProjectionLane.WRITER_VERSION, 2L))
+		assertEquals(0, assertIs<WifiSessionFactDrainResult.Complete>(lane.drainAvailable()).factsInserted)
+		assertEquals(2L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `Wi-Fi first scan retries after its current run binds the presentation segment`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
+		assertEquals(1, database.sourceSessionDao().updateServiceRun(run.copy(
+			sessionSegmentId = null,
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+			presentationAcknowledgedAtMs = null)))
+		val lane = WifiSessionFactProjectionLane(database, subject, writer)
+		assertEquals("WIFI_ADAPTER_MISSING_SEGMENT", assertTerminalWifiLaneFailure(lane).failureCode)
+
+		assertEquals(1, database.sourceSessionDao().updateServiceRun(run))
+		val recovered = assertIs<WifiSessionFactDrainResult.Complete>(lane.drainAvailable())
+
+		assertEquals(1L, recovered.lastCompletedOrdinal)
+		assertEquals(1, recovered.factsInserted)
+		assertEquals(run, database.sourceSessionDao().serviceRun(RUN_ID))
+		assertEquals(null, database.sourceProjectionStateDao().failure(
+			WifiSessionFactProjectionLane.WRITER_ID, WifiSessionFactProjectionLane.WRITER_VERSION, 1L))
+		assertEquals(0, assertIs<WifiSessionFactDrainResult.Complete>(lane.drainAvailable()).factsInserted)
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
 	fun `earlier boot choices replay a retained Wi-Fi failure through saved history exactly once`() = runTest {
 		installValidFixture(candidateWriter = true)
 		installPortableClosingAuthorization()
