@@ -45,6 +45,7 @@ import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.LiveSessionHistorySnapshot
+import com.adsamcik.tracker.stats.api.repository.LiveSessionHistoryDetail
 import com.adsamcik.tracker.stats.api.repository.PressureHistory
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
@@ -141,12 +142,14 @@ class DashboardViewModel @Inject constructor(
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
 	/**
-	 * The idle history subscription exists only while tracking is stopped. Starting tracking
-	 * cancels the coordinated Room/Stats page and removes stale history from presentation.
+	 * Idle history yields to an enqueued Start as well as live capture, so its finite database
+	 * snapshot cannot compete with provider setup before the live session is published.
 	 */
 	@OptIn(ExperimentalCoroutinesApi::class)
 	val recentHistory: StateFlow<DashboardRecentHistoryState> =
-		trackerStateReader.hasLiveCaptureFlow
+		combine(trackerStateReader.hasLiveCaptureFlow, trackerStateReader.startingSessionGenerationFlow) {
+			isRunning, starting -> isRunning || starting != null
+		}.distinctUntilChanged()
 			.flatMapLatest { isRunning ->
 				if (isRunning) {
 					flowOf(DashboardRecentHistoryState.Loading)
@@ -191,7 +194,7 @@ class DashboardViewModel @Inject constructor(
 			if (segmentId == null) {
 				flowOf(DashboardLiveSessionPresentation.Inactive)
 			} else {
-				trackingHistoryRepository.observeLiveSession(segmentId)
+				trackingHistoryRepository.observeLiveSession(segmentId, LiveSessionHistoryDetail.COMPACT)
 					.map { snapshot -> toLivePresentation(segmentId, snapshot) }
 					.onStart {
 						emit(DashboardLiveSessionPresentation.Resolving(segmentId))

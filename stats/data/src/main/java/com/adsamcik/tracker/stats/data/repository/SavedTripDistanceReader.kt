@@ -272,7 +272,8 @@ internal data class SavedTripDistanceState(
 	}
 }
 
-internal class SavedTripDistanceAccumulator(state: SavedTripDistanceState = SavedTripDistanceState()) {
+internal class SavedTripDistanceAccumulator(state: SavedTripDistanceState = SavedTripDistanceState(),
+    private val retainWholeRoutePreview: Boolean = false) {
 	private var previous: LocationPathSampleRow? = state.previous
 	private var totalMeters = state.totalMeters
 	private var hasMeasuredPair = state.hasMeasuredPair
@@ -328,13 +329,36 @@ internal class SavedTripDistanceAccumulator(state: SavedTripDistanceState = Save
 		previewSections.last().add(fix)
 		previewCount++
 		if (previewCount > MAX_PREVIEW_POINTS) {
-			previewSections.first().removeAt(0)
-			if (previewSections.first().isEmpty()) {
-				previewSections.removeAt(0)
+			if (retainWholeRoutePreview) {
+				compactWholeRoutePreview()
+			} else {
+				previewSections.first().removeAt(0)
+				if (previewSections.first().isEmpty()) {
+					previewSections.removeAt(0)
+				}
+				previewCount--
 			}
-			previewCount--
 		}
 	}
+
+    /** Keep the complete route's endpoints without joining sections omitted by bounded sampling. */
+    private fun compactWholeRoutePreview() {
+        val indexed = previewSections.flatMapIndexed { section, fixes -> fixes.map { section to it } }
+        val target = MAX_PREVIEW_POINTS / 2
+        val selected = (0 until target).map { index ->
+            indexed[index * (indexed.size - 1) / (target - 1)]
+        }
+        previewSections.clear()
+        var previousSection: Int? = null
+        for ((section, fix) in selected) {
+            if (section != previousSection) {
+                previewSections.add(mutableListOf())
+            }
+            previewSections.last().add(fix)
+            previousSection = section
+        }
+        previewCount = target
+    }
 
 	private fun addMeasuredPair(old: LocationPathSampleRow, current: LocationPathSampleRow, lat: Int, lon: Int) {
 		val point = current.sample

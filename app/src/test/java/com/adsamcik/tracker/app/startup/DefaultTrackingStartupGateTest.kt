@@ -232,6 +232,8 @@ class DefaultTrackingStartupGateTest {
 		)
 		gate.isReady shouldBe false
 		gate.withRetainedDataGeneration(0L) { "unrecovered-data" } shouldBe null
+		gate.isAdmissionReady shouldBe false
+		gate.permitsEvidenceAdmission shouldBe false
 		coVerify(exactly = 0) { resolver.apply(any(), any()) }
 		coVerify(exactly = 0) { sourceRecovery.recoverStartupAuthority() }
 	}
@@ -686,6 +688,39 @@ class DefaultTrackingStartupGateTest {
 	}
 
 	@Test
+	fun `pending End keeps recovered observation admission open without reopening collection`() = runTest {
+		prepareRetainedGate()
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		val generation = gate.currentGeneration
+		val stop = pendingStop()
+		every { lifecycleAuthority.latestUnhandledStop() } returns stop
+		val owner = Any()
+		TrackerRuntimeStopDispatcher.register(owner) { true }
+		try {
+			gate.isReady shouldBe false
+			gate.permitsNewCollection shouldBe false
+			gate.withReadyGeneration(generation) { "provider-start" } shouldBe null
+			gate.isAdmissionReady shouldBe true
+			gate.isAdmissionReadyGeneration(generation) shouldBe true
+			gate.permitsEvidenceAdmission shouldBe true
+			gate.reconcileAdmission() shouldBe
+				com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult.Ready
+			gate.reconcile() shouldBe TrackingStartupResult.RetryableFailure(
+				TrackingStartupStage.PREVIOUS_EXIT, "PENDING_STOP_NOT_HANDLED")
+			gate.isAdmissionReady shouldBe true
+			every { lifecycleAuthority.pendingCollectionResumeExitId } returns "user-off"
+			gate.reconcileAdmission() shouldBe
+				com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult.Ready
+			gate.permitsEvidenceAdmission shouldBe false
+			coVerify(exactly = 1) { sourceRecovery.recoverStartupAuthority() }
+			coVerify(exactly = 0) { inactiveStopHandler.finalizeStoredSession(any()) }
+		} finally {
+			TrackerRuntimeStopDispatcher.unregister(owner)
+			TrackerRuntimeStopDispatcher.completeTeardown(owner)
+		}
+	}
+
+	@Test
 	fun `admission compatibility call waits for released projection recovery`() = runTest {
 		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
 		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
@@ -707,12 +742,20 @@ class DefaultTrackingStartupGateTest {
 		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
 
 		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		val generation = gate.currentGeneration
+		gate.isAdmissionReadyGeneration(generation) shouldBe true
 		deletionBarrier.close()
 		gate.isAdmissionReady shouldBe false
+		gate.isAdmissionReadyGeneration(generation) shouldBe false
+		gate.permitsEvidenceAdmission shouldBe false
 		gate.isReady shouldBe false
 
 		deletionBarrier.reopen()
+		gate.isAdmissionReady shouldBe false
+		gate.isAdmissionReadyGeneration(generation) shouldBe false
 		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		gate.isAdmissionReadyGeneration(gate.currentGeneration) shouldBe true
+		gate.isAdmissionReadyGeneration(generation) shouldBe false
 		coVerify(exactly = 2) { sourceRecovery.recoverStartupAuthority() }
 	}
 

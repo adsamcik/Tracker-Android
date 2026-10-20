@@ -37,6 +37,8 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 	@Volatile private var commandState = readPersistedState()
 	private val acceptedStarts = MutableStateFlow(commandState.latestAcceptedStartGeneration)
 	override val acceptedStartGeneration = acceptedStarts.asStateFlow()
+	private val handledStops = MutableStateFlow(commandState.handledStopGeneration)
+	override val handledStopGeneration = handledStops.asStateFlow()
 
 	override val pendingCollectionResumeExitId: String?
 		get() = commandState.handledUserExitId.takeIf { commandState.collectionResumeRequired }
@@ -477,6 +479,7 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 			if (committed) {
 				commandState = state
 				acceptedStarts.value = state.latestAcceptedStartGeneration
+				handledStops.value = state.handledStopGeneration
 			}
 			committed
 		}

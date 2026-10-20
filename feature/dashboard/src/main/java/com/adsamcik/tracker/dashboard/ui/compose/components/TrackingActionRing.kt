@@ -39,6 +39,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -73,9 +74,14 @@ internal fun TrackingActionRing(
 	goalProgress: GoalProgressState,
 	onToggleTracking: () -> Unit,
 	onRequestPermission: () -> Unit,
+	isStarting: Boolean = false,
 	compact: Boolean = false,
 	modifier: Modifier = Modifier,
 ) {
+	if (isStarting) {
+		StartingTrackingAction(compact, modifier)
+		return
+	}
 	val showRings = goalProgress.gamificationEnabled &&
 		goalProgress.dailyGoalSteps > 0 &&
 		goalProgress.dailySteps is QualifiedStepCount.Ready
@@ -138,6 +144,24 @@ internal fun TrackingActionRing(
 			color = statusColor,
 			modifier = Modifier.padding(top = 4.dp),
 		)
+	}
+}
+
+@Composable
+private fun StartingTrackingAction(compact: Boolean, modifier: Modifier) {
+	val sizing = if (compact) TrackingActionRingSizing.Compact else TrackingActionRingSizing.Default
+	val label = stringResource(com.adsamcik.tracker.tracker.R.string.notification_tracking_restoring_title)
+	Column(
+		modifier = modifier.testTag("tracking_action_ring").semantics {
+			contentDescription = label
+			disabled()
+		},
+		horizontalAlignment = Alignment.CenterHorizontally,
+	) {
+		Box(Modifier.size(sizing.outerSize), contentAlignment = Alignment.Center) {
+			CircularProgressIndicator(Modifier.size(sizing.iconSize), strokeWidth = 2.dp)
+		}
+		Text(label, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
 	}
 }
 

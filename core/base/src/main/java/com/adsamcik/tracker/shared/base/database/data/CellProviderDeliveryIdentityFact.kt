@@ -60,7 +60,7 @@ fun canonicalCellProviderDeliveryIdentity(
 	}.toByteArray()
 	return MessageDigest.getInstance("SHA-256")
 		.digest(canonical)
-		.joinToString(separator = "") { byte -> "%02x".format(byte) }
+		.toHexString()
 }
 
 private fun DataOutputStream.writeCanonicalString(value: String) {

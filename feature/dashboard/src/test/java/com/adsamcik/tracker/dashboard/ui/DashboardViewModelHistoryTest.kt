@@ -122,12 +122,13 @@ class DashboardViewModelHistoryTest {
 	}
 
 	@Test
-	fun `recent history is observed only while tracking is false and old collection is cancelled`() =
+	fun `pending Start cancels idle history and hands its gate to live capture`() =
 		runTest {
 			val mainDispatcher = StandardTestDispatcher(testScheduler)
 			Dispatchers.setMain(mainDispatcher)
 			try {
 				val tracking = MutableStateFlow(false)
+				val starting = MutableStateFlow<Long?>(null)
 				var starts = 0
 				var cancellations = 0
 				val repository = QueuedDashboardHistoryRepository(
@@ -142,7 +143,7 @@ class DashboardViewModelHistoryTest {
 						}
 					},
 				)
-				val viewModel = createViewModel(repository, tracking)
+				val viewModel = createViewModel(repository, tracking, startingGeneration = starting)
 				val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
 					viewModel.recentHistory.collect()
 				}
@@ -151,9 +152,18 @@ class DashboardViewModelHistoryTest {
 				starts shouldBe 1
 				viewModel.recentHistory.value shouldBe DashboardRecentHistoryState.Content(emptyList())
 
-				tracking.value = true
+				starting.value = 69L
 				advanceUntilIdle()
 				viewModel.recentHistory.value shouldBe DashboardRecentHistoryState.Loading
+				cancellations shouldBe 1
+				starts shouldBe 1
+
+				// Publishing the live session clears the same Start without restarting idle work.
+				tracking.value = true
+				advanceUntilIdle()
+				starting.value = null
+				advanceUntilIdle()
+				starts shouldBe 1
 				cancellations shouldBe 1
 
 				tracking.value = false
@@ -370,10 +380,12 @@ class DashboardViewModelHistoryTest {
 		historyRepository: DashboardHistoryRepository,
 		isTracking: MutableStateFlow<Boolean> = MutableStateFlow(false),
 		collectionHost: MutableStateFlow<Boolean> = isTracking,
+		startingGeneration: MutableStateFlow<Long?> = MutableStateFlow(null),
 	): DashboardViewModel {
 		val layoutRepository = mockk<DashboardLayoutStore>()
 		every { layoutRepository.layout } returns flowOf(DashboardLayout())
 		val trackerStateReader = mockk<TrackerStateReader>()
+		every { trackerStateReader.startingSessionGenerationFlow } returns startingGeneration
 		every { trackerStateReader.isServiceRunningFlow } returns collectionHost
 		val sessionInfo = MutableStateFlow<TrackerSessionInfo?>(
 			if (isTracking.value) {

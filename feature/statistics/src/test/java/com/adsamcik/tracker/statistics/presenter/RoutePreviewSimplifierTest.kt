@@ -37,4 +37,26 @@ class RoutePreviewSimplifierTest {
         simplified.first() shouldBe route.first()
         simplified.last() shouldBe route.last()
     }
+
+    @Test
+    fun `simplification keeps separate measured sections when reducing a route`() {
+        val route = (0..99).map { RoutePoint(50.0, 14.0 + it * 0.00001, section = 0) } +
+            (0..99).map { RoutePoint(52.0, 13.0 + it * 0.00001, section = 1) }
+
+        val simplified = RoutePreviewSimplifier.simplify(route, toleranceMeters = 8.0, maxPoints = 4)
+
+        simplified shouldBe listOf(route[0], route[99], route[100], route[199])
+    }
+
+    @Test
+    fun `a budget smaller than isolated sections never relabels sampled points as connected`() {
+        val route = (0..99).map { RoutePoint(50.0, 14.0 + it * 0.00001, section = it) }
+
+        val simplified = RoutePreviewSimplifier.simplify(route, toleranceMeters = 8.0, maxPoints = 5)
+
+        simplified.size shouldBe 5
+        simplified.first() shouldBe route.first()
+        simplified.last() shouldBe route.last()
+        simplified.map { it.section }.distinct().size shouldBe 5
+    }
 }

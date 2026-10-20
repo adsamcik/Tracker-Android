@@ -600,6 +600,36 @@ class SharedPreferencesTrackingLifecycleCommandAuthorityTest {
 	}
 
 	@Test
+	fun `handled Stop signal follows the exact durable terminal receipt and survives recreation`(): Unit = runBlocking {
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+		authority.handledStopGeneration.value shouldBe 0L
+		val first = requireNotNull(authority.reserveStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 1_000L))
+		authority.handledStopGeneration.value shouldBe 0L
+		authority.completeActionableStop(first) {
+			TrackingStopActionResult.StillActionable("pending")
+		} shouldBe LockedTrackingStopResult.StillActionable("pending")
+		authority.handledStopGeneration.value shouldBe 0L
+
+		val current = requireNotNull(authority.reserveStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 2_000L))
+		authority.markStopHandled(first) shouldBe false
+		authority.completeActionableStop<String>(first) {
+			error("Superseded STOP must not execute")
+		} shouldBe LockedTrackingStopResult.Superseded
+		authority.handledStopGeneration.value shouldBe 0L
+		authority.completeActionableStop(current) {
+			TrackingStopActionResult.Terminal("done")
+		} shouldBe LockedTrackingStopResult.Handled("done")
+		authority.handledStopGeneration.value shouldBe current.generation
+		SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+			.handledStopGeneration.value shouldBe current.generation
+
+		val next = requireNotNull(authority.reserveStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 3_000L))
+		authority.handledStopGeneration.value shouldBe current.generation
+		authority.markStopHandled(next) shouldBe true
+		authority.handledStopGeneration.value shouldBe next.generation
+	}
+
+	@Test
 	fun `accepted Start signal follows durable acceptance rather than reservation`(): Unit = runBlocking {
 		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
 		authority.acceptedStartGeneration.value shouldBe 0L

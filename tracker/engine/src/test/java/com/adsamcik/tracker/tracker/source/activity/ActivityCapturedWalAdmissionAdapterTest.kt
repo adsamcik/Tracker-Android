@@ -35,21 +35,33 @@ import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
+import com.adsamcik.tracker.tracker.source.coordinator.RoomSourceProductDrainRouter
+import com.adsamcik.tracker.tracker.source.coordinator.SourceDrainRetirementClaim
+import com.adsamcik.tracker.tracker.source.coordinator.SourceProductDrainAuthority
+import com.adsamcik.tracker.tracker.source.coordinator.SourceProductDrainPlan
+import com.adsamcik.tracker.tracker.source.coordinator.SourceProductDrainRequest
+import com.adsamcik.tracker.tracker.source.coordinator.SourceProductDrainResult
+import com.adsamcik.tracker.tracker.source.coordinator.authenticateSourceProductDrainRequest
+import com.adsamcik.tracker.tracker.source.coordinator.buildSourceProductDrainPlan
 import com.adsamcik.tracker.tracker.source.ingress.ActivitySourceDeliveryFactory
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
+import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.tracker.source.model.toStableFlags
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -76,6 +88,125 @@ class ActivityCapturedWalAdmissionAdapterTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `retired interrupted Activity drains saved readings and settles with unknown coverage`() = runTest {
+		val request = prepareInterruptedActivityDrain()
+		request.sourceHighWaterAdmissionOrdinal shouldBe 2L
+		request.settlementHighWaterAdmissionOrdinal shouldBe 3L
+		val receipt = database.sourceSessionDao().rawRunRetirements(
+			LOGICAL_TRACKING_ID, SERVICE_RUN_ID, ACTIVITY_SOURCE, 2,
+		).single().validatedOrNull()
+		val router = activityDrainRouter()
+
+		authenticateSourceProductDrainRequest(database, request) shouldBe null
+		router.drainThrough(request).shouldBeInstanceOf<SourceProductDrainResult.Unavailable>()
+			.reason shouldBe "ACTIVITY_PRODUCT_TERMINALLY_UNAVAILABLE"
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+		database.sourceProjectionStateDao().activeProductLane(ACTIVITY_SOURCE)
+			?.contiguousAdmissionOrdinal shouldBe 3L
+		database.sourceSessionDao().rawRunRetirements(
+			LOGICAL_TRACKING_ID, SERVICE_RUN_ID, ACTIVITY_SOURCE, 2,
+		).single().validatedOrNull() shouldBe receipt
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_TRACKING_ID))
+		session.cutoffElapsedNanos shouldBe SESSION_END_NANOS
+		session.cutoffAtMs shouldBe 2_000L
+		router.drainThrough(request).shouldBeInstanceOf<SourceProductDrainResult.Unavailable>()
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `retired interrupted Activity with no callbacks settles without inventing readings`() = runTest {
+		val request = prepareInterruptedActivityDrain(withReadings = false)
+		request.sourceHighWaterAdmissionOrdinal shouldBe 0L
+		activityDrainRouter().drainThrough(request).shouldBeInstanceOf<SourceProductDrainResult.Unavailable>()
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+		database.sourceEventWalDao().getByAdmissionOrdinal(0L) shouldBe null
+	}
+
+	@Test
+	fun `interrupted Activity cannot settle a changed receipt or unfinished provider`() = runTest {
+		val request = prepareInterruptedActivityDrain()
+		val db = database.openHelper.writableDatabase
+		db.execSQL("UPDATE source_run_retirement SET cutoff_wall_time_ms = 2001")
+		authenticateSourceProductDrainRequest(database, request) shouldBe "SOURCE_DRAIN_SETTLEMENT_INCOMPLETE"
+		db.execSQL("UPDATE source_run_retirement SET cutoff_wall_time_ms = 2000, app_drain_complete = 1")
+		authenticateSourceProductDrainRequest(database, request) shouldBe "SOURCE_DRAIN_SETTLEMENT_INCOMPLETE"
+		db.execSQL("UPDATE source_run_retirement SET app_drain_complete = 0")
+		db.execSQL("UPDATE provider_registration_generation SET status = 'RETIRING'")
+		authenticateSourceProductDrainRequest(database, request) shouldBe "SOURCE_DRAIN_SETTLEMENT_INCOMPLETE"
+		db.execSQL("UPDATE provider_registration_generation SET status = 'RETIRED'")
+		db.execSQL("UPDATE source_run_retirement SET action_id = 'different-action'")
+		authenticateSourceProductDrainRequest(database, request) shouldBe "SOURCE_DRAIN_RETIREMENT_AUTHORITY_CHANGED"
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+		database.sourceProjectionStateDao().activeProductLane(ACTIVITY_SOURCE)
+			?.contiguousAdmissionOrdinal shouldBe 0L
+	}
+
+	private fun activityDrainRouter() = RoomSourceProductDrainRouter(
+		database = database, stepsLane = mockk(), pressureLane = mockk(),
+		activityLane = ActivityCapturedFactProjectionLane(database, subject()),
+		wifiLane = mockk(), cellLane = mockk(), protectedLocationDrain = mockk(),
+	)
+
+	private suspend fun prepareInterruptedActivityDrain(withReadings: Boolean = true): SourceProductDrainRequest {
+		installFixture()
+		if (withReadings) {
+			insertLaterLocationWal()
+		} else {
+			database.openHelper.writableDatabase.execSQL("DELETE FROM source_event_wal")
+		}
+		sealCaptureTail()
+		installProjectionLane()
+		installSettledStoppingWindow("STOPPING", "FINALIZED")
+		val dao = database.sourceSessionDao()
+		val original = dao.completenessForServiceRun(LOGICAL_TRACKING_ID, SERVICE_RUN_ID).single()
+		val complete = original.copy(lastAdmissionOrdinal = if (withReadings) { 2L } else { 0L },
+			lastSourceSequence = if (withReadings) { 1L } else { 0L }, appDrainComplete = false,
+			stopStatus = "PROCESS_RESTARTED", unresolvedSequenceStart = 1L.takeIf { withReadings },
+			unresolvedSequenceEnd = 1L.takeIf { withReadings })
+		dao.saveCompleteness(complete)
+		val session = requireNotNull(dao.session(LOGICAL_TRACKING_ID))
+		val finalOrdinal = database.sourceEventWalDao().maximumAdmissionOrdinal() ?: 0L
+		dao.updateSession(session.copy(finalAdmissionOrdinal = finalOrdinal)) shouldBe 1
+		val receipt = SourceRunRetirementEntity(
+			logicalTrackingId = LOGICAL_TRACKING_ID, serviceRunId = SERVICE_RUN_ID,
+			sourceKind = ACTIVITY_SOURCE, sourceInstanceId = SOURCE_INSTANCE_ID,
+			registrationGeneration = REGISTRATION_GENERATION, actionId = "retired-activity-action",
+			attemptCount = 1, leaseGeneration = LEASE_GENERATION,
+			cutoffElapsedRealtimeNanos = SESSION_END_NANOS, cutoffWallTimeMs = 2_000L,
+			state = SourceRunRetirementEntity.STATE_INTERRUPTED, appliedRevision = null,
+			callbackEntryBarrierSequence = requireNotNull(complete.lastSourceSequence),
+			lastSourceSequence = complete.lastSourceSequence, lastAdmissionOrdinal = complete.lastAdmissionOrdinal,
+			failedAdmissionCount = if (withReadings) { 1L } else { 0L },
+			unresolvedSequenceStart = complete.unresolvedSequenceStart, unresolvedSequenceEnd = complete.unresolvedSequenceEnd,
+			registrationRemovalOutcome = "REMOVED", providerFlushOutcome = "NOT_REQUESTED",
+			providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE", appDrainComplete = false,
+			stopStatus = "PROCESS_RESTARTED", updatedAtMs = 2_000L,
+		)
+		dao.insertRunRetirementIntent(receipt)
+		val authority = SourceProductDrainAuthority(
+			captureBindings = mapOf(ACTIVITY_SOURCE to dao.manifestSources(LOGICAL_TRACKING_ID, MANIFEST_REVISION)),
+			retirementClaims = listOf(SourceDrainRetirementClaim(SourceKind.ACTIVITY, SOURCE_INSTANCE_ID,
+				REGISTRATION_GENERATION, receipt.actionId, 1, LEASE_GENERATION, cleanupOnly = false)),
+		)
+		return buildSourceProductDrainPlan(database, LOGICAL_TRACKING_ID, SERVICE_RUN_ID,
+			SESSION_END_NANOS, 2_000L, finalOrdinal, authority)
+			.shouldBeInstanceOf<SourceProductDrainPlan.Ready>()
+			.requests.single()
+	}
+
+	private suspend fun insertLaterLocationWal() {
+		val payload = payloadCodec.encode(LocationFixPayload(50.0, 14.0, 5f, null, null, null, null, "test"), 1)
+		val first = requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(1L))
+		val location = first.copy(admissionOrdinal = 3L, eventId = "later-location", sourceKind = SourceKind.LOCATION.stableCode,
+			sourceInstanceId = "location-instance", sourceSequence = 0L, deliveryIdentity = "later-location-delivery",
+			deliveryUnitIndex = 0, deliveryUnitCount = 1, payloadVersion = 1, payload = payload.bytes,
+			payloadChecksum = payload.checksum, integrityIdentity = SourceEventWalEntity.LEGACY_PENDING_CHECKSUM)
+		val qualified = location.copy(integrityIdentity = location.calculatedIntegrityIdentity())
+		qualified.hasQualifiedIntegrity() shouldBe true
+		database.sourceEventWalDao().insertIgnoringDuplicate(qualified) shouldBe 3L
+	}
 
 	@Test
 	fun `adaptive Activity recorded after reboot recovers its terminal failure exactly once`() = runTest {
@@ -187,10 +318,26 @@ class ActivityCapturedWalAdmissionAdapterTest {
 		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
 			ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH,
 		)
-		(ActivityCapturedFactProjectionLane(database, subject()).drainAvailable()
-			is ActivityCapturedFactDrainResult.Failed) shouldBe true
+		val rawIdentities = (1L..2L).map { ordinal ->
+			requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(ordinal)).let {
+				it.eventId to it.integrityIdentity
+			}
+		}
+		ActivityCapturedFactProjectionLane(database, subject()).drainAvailable() shouldBe
+			ActivityCapturedFactDrainResult.Complete(2L, 0, 0)
 		database.sourceProjectionStateDao().activeProductLane(ACTIVITY_SOURCE)
-			?.contiguousAdmissionOrdinal shouldBe 0L
+			?.contiguousAdmissionOrdinal shouldBe 2L
+		(1L..2L).map { ordinal ->
+			val rejected = requireNotNull(database.sourceProjectionStateDao().failure(
+				ActivityCapturedFactProjectionLane.WRITER_ID,
+				ActivityCapturedFactProjectionLane.WRITER_VERSION, ordinal,
+			))
+			rejected.failureCode shouldBe "ACTIVITY_WAL_SESSION_MISMATCH"
+			rejected.terminal shouldBe true
+			requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(ordinal)).let {
+				it.eventId to it.integrityIdentity
+			}
+		} shouldBe rawIdentities
 		database.activityCapturedFactDao().revisionCount() shouldBe 0L
 	}
 

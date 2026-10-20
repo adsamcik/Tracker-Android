@@ -1415,7 +1415,7 @@ internal object CellHistoryPlanIntegrity {
 	}
 
 	private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
-		.digest(bytes).joinToString("") { "%02x".format(it) }
+		.digest(bytes).toHexString()
 
 	private const val MAX_PAYLOAD_BYTES = 64 * 1024
 	private const val MAX_SUBSCRIPTIONS = 10_000

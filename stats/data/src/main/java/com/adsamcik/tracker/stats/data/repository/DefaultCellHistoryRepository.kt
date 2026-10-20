@@ -186,13 +186,15 @@ internal class DefaultCellHistoryRepository internal constructor(
 	}
 
 	/** Cell groups selected from the caller's bounded physical candidates. */
-	internal suspend fun selectBySegmentIdsInTransaction(segmentIds: List<Long>): CellComposedPage =
-		native.selectBySegmentIdsInTransaction(segmentIds)
+	internal suspend fun selectBySegmentIdsInTransaction(
+		segmentIds: List<Long>,
+		sourceOnly: Boolean = false,
+	): CellComposedPage = native.selectBySegmentIdsInTransaction(segmentIds, sourceOnly)
 
 	/** Entries whose original chosen capture sources contain only Cell. */
 	internal suspend fun recentCellOnlyInTransaction(limit: Int): CellComposedPage {
 		require(limit in 1..MAX_RESULTS)
-		return native.loadRecentCellCompositions(limit) { it.capturesOnlyCell }
+		return native.loadRecentCellCompositions(limit, sourceOnly = true) { it.capturesOnlyCell }
 	}
 
 	/** Local and imported Cell groups, retaining native ownership for exact duplicates. */
@@ -567,6 +569,7 @@ private class CellNativeHistoryReader(
 	/** Exact local Cell groups for one bounded caller-owned physical candidate generation. */
 	suspend fun selectBySegmentIdsInTransaction(
 		segmentIds: List<Long>,
+		sourceOnly: Boolean = false,
 	): CellComposedPage {
 		require(segmentIds.size <= MAX_RESULTS)
 		require(segmentIds.all { it > 0L } && segmentIds.distinct().size == segmentIds.size)
@@ -574,7 +577,12 @@ private class CellNativeHistoryReader(
 			return CellComposedPage.Available(emptyList())
 		}
 		val seeds = database.trackingHistoryReadDao().segments(segmentIds)
-		val expansion = snapshots.expandMembership(seeds)
+		val selectedSeeds = if (sourceOnly) {
+			database.sourceOnlyHistoryCandidates(seeds, CELL_SOURCE)
+		} else {
+			seeds
+		}
+		val expansion = snapshots.expandMembership(selectedSeeds)
 		val snapshot = snapshots.loadSnapshot(expansion)
 		if (snapshot.overflow) {
 			return CellComposedPage.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
@@ -590,6 +598,7 @@ private class CellNativeHistoryReader(
 	@Suppress("CyclomaticComplexMethod")
 	suspend fun loadRecentCellCompositions(
 		limit: Int,
+		sourceOnly: Boolean = false,
 		accept: (ComposedCellEntry) -> Boolean,
 	): CellComposedPage {
 		val accepted = mutableListOf<ComposedCellEntry>()
@@ -623,7 +632,12 @@ private class CellNativeHistoryReader(
 			}
 			scanned += page.size
 			val seeds = page.map { it.segment }
-			val snapshot = snapshots.loadSnapshot(snapshots.expandMembership(seeds))
+			val selectedSeeds = if (sourceOnly) {
+				database.sourceOnlyHistoryCandidates(seeds, CELL_SOURCE)
+			} else {
+				seeds
+			}
+			val snapshot = snapshots.loadSnapshot(snapshots.expandMembership(selectedSeeds))
 			if (snapshot.overflow) {
 				return CellComposedPage.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
 			}

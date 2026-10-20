@@ -607,7 +607,7 @@ private fun cellDeletionDigest(namespace: String, vararg values: Any?): String {
 		.joinToString(separator = "") { "${it.length}:$it" }
 	return MessageDigest.getInstance("SHA-256")
 		.digest(canonical.toByteArray(Charsets.UTF_8))
-		.joinToString(separator = "") { byte -> "%02x".format(byte) }
+		.toHexString()
 }
 
 private val CELL_DELETION_SHA_256 = Regex("[0-9a-f]{64}")
@@ -859,7 +859,7 @@ object CellCapturedFactRevisionIntegrity {
 		}
 		return MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray(Charsets.UTF_8))
-			.joinToString(separator = "") { byte -> "%02x".format(byte) }
+			.toHexString()
 	}
 
 }

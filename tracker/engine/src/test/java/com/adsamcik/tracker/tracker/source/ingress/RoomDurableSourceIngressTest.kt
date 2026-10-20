@@ -39,6 +39,7 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsWalCarrierAuthentication
 import com.adsamcik.tracker.shared.base.database.data.StepsWalCarrierAuthenticator
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
@@ -1103,6 +1104,9 @@ class RoomDurableSourceIngressTest {
 
 	@Test
 	fun `stopping delivery admits exact cutoff and returns typed cutoff for mixed interval`() = runTest {
+		startupGate.admissionReady = true
+		startupGate.result = TrackingStartupResult.RetryableFailure(
+			TrackingStartupStage.PREVIOUS_EXIT, "PENDING_STOP_NOT_HANDLED")
 		installSession(
 			sessionState = "STOPPING",
 			runState = "STOPPING",
@@ -1532,9 +1536,38 @@ class RoomDurableSourceIngressTest {
 	}
 
 	@Test
-	fun `suppressed collection rejects new single and batch WAL even while recovery remains ready`() = runTest {
+	fun `recovered admission preserves all-day Steps and atomic pre-End capture while collection is paused`() = runTest {
+		startupGate.admissionReady = true
+		startupGate.result = TrackingStartupResult.RetryableFailure(
+			TrackingStartupStage.PREVIOUS_EXIT, "PENDING_STOP_NOT_HANDLED")
+		installSession(sessionState = "STOPPING", runState = "STOPPING", cutoffElapsedNanos = 100L)
+		installStepRegistrationGeneration()
+		startupGate.permitsNewCollection shouldBe false
+		startupGate.permitsEvidenceAdmission shouldBe true
+
+		subject.admit(stepCandidate(startNanos = 101L, endNanos = 102L))
+			.shouldBeInstanceOf<AdmissionResult.Admitted>()
+		var notifications = 0
+		subject.withAtomicAdmission(afterCommit = { notifications++ }) { transaction ->
+			transaction.admit(delivery(candidate(sequence = 0L, observedElapsedNanos = 100L)))
+				.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		}
+
+		notifications shouldBe 1
+		val rows = database.sourceEventWalDao().eventsAfter(0L, 10)
+		rows.map { it.sourceKind } shouldBe listOf(SourceKind.STEPS.stableCode, SourceKind.ACTIVITY.stableCode)
+		rows.first().logicalTrackingId shouldBe null
+		rows.first().observedElapsedNanos shouldBe 102L
+		rows.last().logicalTrackingId shouldBe TEST_SESSION_ID
+	}
+
+	@Test
+	fun `suppressed collection rejects new single and batch WAL while End is pending`() = runTest {
+		startupGate.admissionReady = true
+		startupGate.result = TrackingStartupResult.RetryableFailure(
+			TrackingStartupStage.PREVIOUS_EXIT, "PENDING_STOP_NOT_HANDLED")
 		startupGate.collectionAllowed = false
-		startupGate.isReady shouldBe true
+		startupGate.isReady shouldBe false
 		subject.admit(candidate(sequence = 900L)) shouldBe AdmissionResult.PermanentFailure(AdmissionFailureCode.COLLECTION_SUPPRESSED)
 		subject.admit(delivery(candidate(sequence = 901L))) shouldBe
 			DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.COLLECTION_SUPPRESSED)
@@ -1579,6 +1612,9 @@ class RoomDurableSourceIngressTest {
 
 	@Test
 	fun `startup generation closing after reconciliation rejects transactional admission`() = runTest {
+		startupGate.admissionReady = true
+		startupGate.result = TrackingStartupResult.RetryableFailure(
+			TrackingStartupStage.PREVIOUS_EXIT, "PENDING_STOP_NOT_HANDLED")
 		startupGate.allowReadyGeneration = false
 
 		subject.admit(candidate(sequence = 902L)) shouldBe AdmissionResult.RetryableFailure(
@@ -3178,6 +3214,9 @@ private class FakeTrackingStartupGate(
 		private set
 	var allowReadyGeneration: Boolean = true
 	var collectionAllowed: Boolean = true
+	var admissionReady: Boolean? = null
+	override val isAdmissionReady: Boolean get() = admissionReady ?: isReady
+	override val permitsEvidenceAdmission: Boolean get() = isAdmissionReady && collectionAllowed
 	override var collectionResumeBoundary: com.adsamcik.tracker.shared.base.startup.TrackingCollectionResumeBoundary? = null
 	override val permitsNewCollection: Boolean get() = isReady && collectionAllowed
 
@@ -3186,6 +3225,16 @@ private class FakeTrackingStartupGate(
 
 	override fun isReadyGeneration(expectedGeneration: Long): Boolean =
 		allowReadyGeneration && isReady && currentGeneration == expectedGeneration
+
+	override fun isAdmissionReadyGeneration(expectedGeneration: Long): Boolean =
+		allowReadyGeneration && isAdmissionReady && currentGeneration == expectedGeneration
+
+	override suspend fun reconcileAdmission(retryFailedStorage: Boolean): TrackingAdmissionStartupResult =
+		if (admissionReady == true) {
+			TrackingAdmissionStartupResult.Ready
+		} else {
+			super.reconcileAdmission(retryFailedStorage)
+		}
 
 	override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult {
 		reconcileCalls += 1

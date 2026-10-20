@@ -18,7 +18,6 @@ import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEnti
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
-import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
@@ -82,6 +81,7 @@ internal enum class LocationWalAdapterRejection {
 	MISSING_SESSION,
 	SESSION_MISMATCH,
 	AFTER_SESSION_CUTOFF,
+	AFTER_AUTHORIZATION_DENIAL,
 	MANIFEST_TIMELINE_UNVERIFIABLE,
 	MANIFEST_MISMATCH,
 	MISSING_SEGMENT,
@@ -467,7 +467,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		}
 		val sessionEnd = session.cutoffElapsedNanos ?: Long.MAX_VALUE
 		if (wal.observedElapsedNanos >= sessionEnd) {
-			return@withTransaction rejected(if (hasAuthenticatedSessionCutoff(wal, authorization, session, run, manifest)) {
+			return@withTransaction rejected(if (hasAuthenticatedSessionCutoff(wal, authorization, session, run)) {
 				LocationWalAdapterRejection.AFTER_SESSION_CUTOFF
 			} else {
 				LocationWalAdapterRejection.SESSION_MISMATCH
@@ -476,6 +476,9 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		val observedAuthorization = brokerDao.authorizationAt(
 			LOCATION_SOURCE, wal.registrationGeneration, wal.clockDomainId, wal.observedElapsedNanos,
 		).toAuthorizationSnapshotOrNull()
+		if (hasExactObservedAuthorizationDenial(wal, authorization, observedAuthorization)) {
+			return@withTransaction rejected(LocationWalAdapterRejection.AFTER_AUTHORIZATION_DENIAL)
+		}
 		val authorizationTimeline = database.compatibleLocationCaptureAuthorizations(authorization, observedAuthorization)
 			?: return@withTransaction rejected(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH)
 		if (authorizationTimeline.any { !SessionManifestIntegrity.hasRetainedLeaseGeneration(run,
@@ -692,13 +695,33 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 	private suspend fun authenticatePhysical(eventId: SourceEventId): LocationPhysicalEvidence =
 		LocationWalPhysicalEvidenceReader.authenticate(database, payloadCodec, eventId)
 
-	/** A saved End rejects this original run's late callbacks without lending them recording authority. */
+	/** The verified original grant ended before this fix; no recording purpose can use it. */
+	private fun hasExactObservedAuthorizationDenial(
+		wal: SourceEventWalEntity,
+		original: SourceAuthorizationSnapshot,
+		observed: SourceAuthorizationSnapshot?,
+	): Boolean {
+		if (observed?.isDenied != true || observed.authorizationRevision <= original.authorizationRevision) {
+			return false
+		}
+		if (observed.effectiveBootId != wal.clockDomainId ||
+			observed.effectiveElapsedRealtimeNanos < original.effectiveElapsedRealtimeNanos ||
+			observed.effectiveElapsedRealtimeNanos > wal.observedElapsedNanos) {
+			return false
+		}
+		return observed.members == SourceBrokerAuthorization.rows(
+			LOCATION_SOURCE, wal.registrationGeneration, observed.authorizationRevision, emptyList(),
+			observed.effectiveBootId, observed.effectiveElapsedRealtimeNanos,
+			observed.members.first().effectiveWallTimeMs,
+		)
+	}
+
+	/** A saved End rejects this run's late callbacks even if a queued refresh publishes a newer grant. */
 	private suspend fun hasAuthenticatedSessionCutoff(
 		wal: SourceEventWalEntity,
 		authorization: SourceAuthorizationSnapshot,
 		session: LogicalTrackingSessionEntity,
 		run: SourceServiceRunEntity,
-		manifest: SessionManifestVersionEntity,
 	): Boolean {
 		val cutoff = database.savedSessionCutoff(session)
 		val elapsed = cutoff.elapsedNanos ?: return false
@@ -706,9 +729,10 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		val stopManifest = database.sourceSessionDao().manifest(session.logicalTrackingId, stop.manifestRevision)
 		val sameRun = cutoff.bootId == wal.clockDomainId && run.bootId == cutoff.bootId &&
 			stopManifest?.serviceRunId == run.serviceRunId
-		val beganBeforeEnd = authorization.effectiveElapsedRealtimeNanos <= elapsed &&
-			manifest.effectiveElapsedRealtimeNanos <= elapsed && run.startedElapsedNanos <= elapsed
-		return sameRun && beganBeforeEnd && wal.observedElapsedNanos >= elapsed
+		val originalGrantPredatesObservation =
+			authorization.effectiveElapsedRealtimeNanos <= wal.observedElapsedNanos
+		return sameRun && originalGrantPredatesObservation && run.startedElapsedNanos <= elapsed &&
+			wal.observedElapsedNanos >= elapsed
 	}
 
 	private fun authorizationEndExclusive(
@@ -787,13 +811,26 @@ private object LocationWalPhysicalEvidenceReader {
 		val delivery = loadDelivery(database, wal, deliveryIdentity, deliveryUnitIndex, deliveryUnitCount)
 		val decodedDelivery = decodeAndAuthenticateDelivery(payloadCodec, delivery, wal)
 			?: reject(LocationWalAdapterRejection.MALFORMED_DELIVERY)
-		if (decodedDelivery.getOrNull(deliveryUnitIndex)?.wal?.hasSamePersistedValueAs(wal) != true) {
+		val selected = decodedDelivery.singleOrNull { it.wal.deliveryUnitIndex == deliveryUnitIndex }
+			?: reject(LocationWalAdapterRejection.MALFORMED_DELIVERY)
+		if (!selected.wal.hasSamePersistedValueAs(wal)) {
 			reject(LocationWalAdapterRejection.MALFORMED_DELIVERY)
 		}
-		if (sourceDeliveryIdentity(canonicalDeliveryBytes(decodedDelivery)).value != deliveryIdentity.value) {
+		authenticateCompleteDeliveryIdentity(decodedDelivery, deliveryUnitCount, deliveryIdentity)
+		return LocationPhysicalEvidence(wal, selected.payload, deliveryIdentity)
+	}
+
+	private fun authenticateCompleteDeliveryIdentity(
+		decodedDelivery: List<DecodedLocationDeliveryUnit>,
+		deliveryUnitCount: Int,
+		deliveryIdentity: SourceDeliveryIdentity,
+	) {
+		// Admission and retention may leave a sparse batch; every retained point keeps its own proof.
+		if (decodedDelivery.size == deliveryUnitCount &&
+			sourceDeliveryIdentity(canonicalDeliveryBytes(decodedDelivery)).value != deliveryIdentity.value
+		) {
 			reject(LocationWalAdapterRejection.DELIVERY_IDENTITY_MISMATCH)
 		}
-		return LocationPhysicalEvidence(wal, decodedDelivery[deliveryUnitIndex].payload, deliveryIdentity)
 	}
 
 	private suspend fun loadSelected(database: AppDatabase, eventId: SourceEventId): SourceEventWalEntity {
@@ -911,13 +948,13 @@ private object LocationWalPhysicalEvidenceReader {
 		) {
 			reject(LocationWalAdapterRejection.DELIVERY_TOO_LARGE)
 		}
-		if (deliveryPreflight.size != deliveryUnitCount ||
+		if (deliveryPreflight.size !in 1..deliveryUnitCount ||
 			deliveryPreflight.any { it.payloadBytes <= 0L || it.deliveryUnitCount != deliveryUnitCount }
 		) {
 			reject(LocationWalAdapterRejection.MALFORMED_DELIVERY)
 		}
-		if (deliveryPreflight.mapNotNull { it.deliveryUnitIndex } != deliveryPreflight.indices.toList() ||
-			deliveryPreflight[deliveryUnitIndex].eventId != wal.eventId
+		if (!hasOrderedDeliveryIndexes(deliveryPreflight.map { it.deliveryUnitIndex }, deliveryUnitCount) ||
+			deliveryPreflight.singleOrNull { it.deliveryUnitIndex == deliveryUnitIndex }?.eventId != wal.eventId
 		) {
 			reject(LocationWalAdapterRejection.MALFORMED_DELIVERY)
 		}
@@ -929,40 +966,57 @@ private object LocationWalPhysicalEvidenceReader {
 		delivery: List<SourceEventWalEntity>,
 		target: SourceEventWalEntity,
 	): List<DecodedLocationDeliveryUnit>? {
-		val firstSequence = firstDeliverySequence(delivery, target) ?: return null
+		if (!hasValidDeliveryStructure(delivery, target)) {
+			return null
+		}
 		val declaredCount = requireNotNull(target.deliveryUnitCount)
 		val targetIndex = requireNotNull(target.deliveryUnitIndex)
-		val decoded = delivery.mapIndexed { index, row ->
-			if (!row.matchesDeliveryBinding(target, declaredCount, firstSequence, index)) {
+		val decoded = delivery.map { row ->
+			if (!row.matchesDeliveryBinding(target, declaredCount)) {
 				return null
 			}
 			decodeDeliveryUnit(payloadCodec, row) ?: return null
 		}
-		return decoded.takeIf { units -> units[targetIndex].wal.hasSamePersistedValueAs(target) }
+		return decoded.takeIf { units ->
+			units.singleOrNull { it.wal.deliveryUnitIndex == targetIndex }?.wal?.hasSamePersistedValueAs(target) == true
+		}
 	}
 
 	// Ordered metadata rejection keeps index, cardinality and checked sequence bounds together.
 	@Suppress("ReturnCount")
-	private fun firstDeliverySequence(
+	private fun hasValidDeliveryStructure(
 		delivery: List<SourceEventWalEntity>,
 		target: SourceEventWalEntity,
-	): Long? {
-		val declaredCount = target.deliveryUnitCount ?: return null
-		val targetIndex = target.deliveryUnitIndex ?: return null
+	): Boolean {
+		val declaredCount = target.deliveryUnitCount ?: return false
+		val targetIndex = target.deliveryUnitIndex ?: return false
 		if (declaredCount !in 1..MAX_LOCATION_DELIVERY_UNITS || targetIndex !in 0 until declaredCount ||
-			delivery.size != declaredCount ||
-			delivery.mapNotNull(SourceEventWalEntity::deliveryUnitIndex) != delivery.indices.toList()
+			delivery.size !in 1..declaredCount ||
+			!hasOrderedDeliveryIndexes(delivery.map { it.deliveryUnitIndex }, declaredCount)
 		) {
-			return null
+			return false
 		}
+		return hasOrderedDeliverySequences(delivery, declaredCount)
+	}
+
+	private fun hasOrderedDeliveryIndexes(indexes: List<Int?>, declaredCount: Int): Boolean =
+		indexes.all { it != null && it in 0 until declaredCount } &&
+			indexes.filterNotNull().let { it == it.distinct().sorted() }
+
+	private fun hasOrderedDeliverySequences(delivery: List<SourceEventWalEntity>, declaredCount: Int): Boolean {
 		val firstSequence = delivery.first().sourceSequence
+		if (firstSequence < 0L || delivery.last().sourceSequence > MAX_DURABLE_SOURCE_SEQUENCE ||
+			delivery.zipWithNext().any { (prior, next) -> prior.sourceSequence >= next.sourceSequence }
+		) {
+			return false
+		}
+		if (delivery.size < declaredCount) {
+			return true
+		}
 		val lastSequence = runCatching {
 			Math.addExact(firstSequence, declaredCount.toLong() - 1L)
-		}.getOrNull() ?: return null
-		if (firstSequence < 0L || lastSequence > MAX_DURABLE_SOURCE_SEQUENCE) {
-			return null
-		}
-		return firstSequence
+		}.getOrNull() ?: return false
+		return delivery.last().sourceSequence == lastSequence
 	}
 
 	// One saved delivery-binding tuple; checks stay ordered and short-circuit before decoding.
@@ -970,8 +1024,6 @@ private object LocationWalPhysicalEvidenceReader {
 	private fun SourceEventWalEntity.matchesDeliveryBinding(
 		target: SourceEventWalEntity,
 		declaredCount: Int,
-		firstSequence: Long,
-		index: Int,
 	): Boolean = !(
 		payload.size !in 1..MAX_LOCATION_PAYLOAD_BYTES ||
 		!hasQualifiedIntegrity() || deliveryUnitCount != declaredCount ||
@@ -990,8 +1042,7 @@ private object LocationWalPhysicalEvidenceReader {
 			receivedWallTimeMs == null) ||
 		receivedWallTimeMs != target.receivedWallTimeMs ||
 		wallTimeMs == null || wallTimeUncertaintyMs == null ||
-		wallTimeUncertaintyMs !in 0L..1L ||
-		sourceSequence != runCatching { Math.addExact(firstSequence, index.toLong()) }.getOrNull()
+		wallTimeUncertaintyMs !in 0L..1L
 	)
 
 	private fun decodeDeliveryUnit(

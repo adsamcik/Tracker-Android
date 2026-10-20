@@ -17,6 +17,7 @@ import com.adsamcik.tracker.shared.base.database.ActiveDatabaseRetryableReason
 import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseRetryable
 import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseRetryableReason
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseContainment
 import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseContainmentReason
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
@@ -338,6 +339,22 @@ class DefaultTrackingStartupGate @Inject constructor(
 
 	override val permitsNewCollection: Boolean
 		get() = isReady && lifecycleCommandAuthority.pendingCollectionResumeExitId == null
+
+	override val permitsEvidenceAdmission: Boolean
+		get() = isAdmissionReady && lifecycleCommandAuthority.pendingCollectionResumeExitId == null
+
+	override val isAdmissionReady: Boolean
+		get() = isAdmissionReadyGeneration(currentGeneration)
+
+	override fun isAdmissionReadyGeneration(expectedGeneration: Long): Boolean =
+		withRetainedDataGeneration(expectedGeneration) { true } == true
+
+	override suspend fun reconcileAdmission(retryFailedStorage: Boolean): TrackingAdmissionStartupResult =
+		if (isAdmissionReady) {
+			TrackingAdmissionStartupResult.Ready
+		} else {
+			super.reconcileAdmission(retryFailedStorage)
+		}
 
 	override fun permitsPendingManualStart(commandGeneration: Long): Boolean =
 		commandGeneration > 0L && isReady && lifecycleCommandAuthority.isPendingCollectionStart(

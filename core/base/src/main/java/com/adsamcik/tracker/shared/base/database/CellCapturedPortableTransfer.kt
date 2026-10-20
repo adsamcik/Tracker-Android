@@ -2546,12 +2546,12 @@ private fun canonicalDigest(namespace: String, body: DataOutputStream.() -> Unit
 		buffer.toByteArray()
 	}
 	return MessageDigest.getInstance("SHA-256").digest(bytes)
-		.joinToString(separator = "") { byte -> "%02x".format(byte) }
+		.toHexString()
 }
 
 private fun sha256Portable(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
 	.digest(bytes)
-	.joinToString(separator = "") { byte -> "%02x".format(byte) }
+	.toHexString()
 
 private fun DataOutputStream.writeString(value: String?) {
 	writeBoolean(value != null)

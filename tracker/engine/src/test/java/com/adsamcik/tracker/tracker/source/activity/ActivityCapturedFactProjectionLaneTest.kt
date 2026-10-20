@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
@@ -213,7 +214,7 @@ class ActivityCapturedFactProjectionLaneTest {
 	}
 
 	@Test
-	fun `later oversized payload poisons its own ordinal without writing the valid prefix`() = runTest {
+	fun `later rejected payload retains its decision while the valid prefix is written`() = runTest {
 		installLane()
 		insertTerminalSession(finalAdmissionOrdinal = 2L)
 		insertWalIdentity()
@@ -225,21 +226,64 @@ class ActivityCapturedFactProjectionLaneTest {
 		coEvery { adapter.admit(oversizedId) } returns ActivityCapturedWalAdmissionResult.Rejected(
 			ActivityCapturedWalAdmissionRejection.DELIVERY_TOO_LARGE,
 		)
+		coEvery { writer.write(any()) } returns ActivityCapturedWriteResult.Applied("valid-prefix", 1L, 1L)
 
 		lane(adapter, writer).drainThrough(2L) shouldBe
-			ActivityCapturedFactDrainResult.Failed(
-				lastCompletedOrdinal = 0L,
-				failedOrdinal = 2L,
-				failureCode = "ACTIVITY_WAL_DELIVERY_TOO_LARGE",
-				terminal = true,
-			)
+			ActivityCapturedFactDrainResult.Complete(2L, windowsApplied = 1, eventsValidated = 1)
 
-		activeLane()?.contiguousAdmissionOrdinal shouldBe 0L
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 2L
 		database.sourceProjectionStateDao().failure(
 			ActivityCapturedFactProjectionLane.WRITER_ID,
 			ActivityCapturedFactProjectionLane.WRITER_VERSION,
 			2L,
 		)?.terminal shouldBe true
+		database.sourceEventWalDao().getByAdmissionOrdinal(2L)?.payload?.toList() shouldBe ByteArray(22).toList()
+		coVerify(exactly = 1) { writer.write(any()) }
+	}
+
+	@Test
+	fun `saved rejection is processed once and later physical run still reaches its writer`() = runTest {
+		installLane()
+		insertTerminalSession(finalAdmissionOrdinal = 2L)
+		insertWalIdentity()
+		val later = SourceEventId("later-valid-activity")
+		insertWalIdentity(2L, later, REPLACEMENT_SERVICE_RUN_ID)
+		val adapter = mockk<ActivityCapturedWalAdmissionAdapter>()
+		val writer = mockk<ActivityCapturedFactWriter>()
+		coEvery { adapter.admit(EVENT_ID) } returns ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.AUTHORIZATION_MISMATCH)
+		coEvery { adapter.admit(later) } returns admitted(2L, later, REPLACEMENT_SERVICE_RUN_ID)
+		coEvery { writer.write(any()) } returns ActivityCapturedWriteResult.Applied("later-window", 1L, 1L)
+		val rejection = SourceProjectionFailureEntity(ActivityCapturedFactProjectionLane.WRITER_ID,
+			ActivityCapturedFactProjectionLane.WRITER_VERSION, 1L, 1, "ACTIVITY_WAL_AUTHORIZATION_MISMATCH", true, 1L)
+		database.sourceProjectionStateDao().saveFailure(rejection)
+		val subject = lane(adapter, writer)
+
+		subject.drainThrough(2L) shouldBe ActivityCapturedFactDrainResult.Complete(2L, 1, 1)
+		subject.drainThrough(2L) shouldBe ActivityCapturedFactDrainResult.Complete(2L, 0, 0)
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 2L
+		database.sourceProjectionStateDao().failure(rejection.projectionId, rejection.projectionVersion, 1L)
+			?.failureCode shouldBe rejection.failureCode
+		database.sourceEventWalDao().getByAdmissionOrdinal(1L)?.eventId shouldBe EVENT_ID.value
+		coVerify(exactly = 1) { writer.write(any()) }
+	}
+
+	@Test
+	fun `unknown saved failure cannot be acknowledged by a different rejection`() = runTest {
+		installLane()
+		insertWalIdentity()
+		val adapter = mockk<ActivityCapturedWalAdmissionAdapter>()
+		val writer = mockk<ActivityCapturedFactWriter>()
+		coEvery { adapter.admit(EVENT_ID) } returns ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.AUTHORIZATION_MISMATCH)
+		database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
+			ActivityCapturedFactProjectionLane.WRITER_ID, ActivityCapturedFactProjectionLane.WRITER_VERSION,
+			1L, 1, "UNKNOWN_ACTIVITY_CAPTURED_PROJECTION_FAILURE", true, 1L))
+
+		lane(adapter, writer).drainThrough(1L) shouldBe ActivityCapturedFactDrainResult.Failed(
+			0L, 1L, "UNKNOWN_ACTIVITY_CAPTURED_PROJECTION_FAILURE", terminal = true)
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 0L
+		database.sourceEventWalDao().getByAdmissionOrdinal(1L)?.eventId shouldBe EVENT_ID.value
 		coVerify(exactly = 0) { writer.write(any()) }
 	}
 
@@ -262,7 +306,7 @@ class ActivityCapturedFactProjectionLaneTest {
 		}
 
 	@Test
-	fun `committed deletion releases a later oversized poison on cleanup retry`() = runTest {
+	fun `committed deletion releases missing acquisition authority on cleanup retry`() = runTest {
 		installLane()
 		insertTerminalSession(finalAdmissionOrdinal = 2L)
 		insertWalIdentity()
@@ -271,14 +315,14 @@ class ActivityCapturedFactProjectionLaneTest {
 		val adapter = mockk<ActivityCapturedWalAdmissionAdapter>()
 		val writer = mockk<ActivityCapturedFactWriter>()
 		coEvery { adapter.admit(EVENT_ID) } returns admitted()
-		coEvery { adapter.admit(oversizedId) } returns ActivityCapturedWalAdmissionResult.Rejected(
-			ActivityCapturedWalAdmissionRejection.DELIVERY_TOO_LARGE,
+		coEvery { adapter.admit(oversizedId) } returns ActivityCapturedWalAdmissionResult.Unavailable(
+			ActivityCapturedWalAdmissionUnavailable.MISSING_IMMUTABLE_REGISTRATION_PLAN,
 		)
 		val subject = lane(adapter, writer)
 		subject.drainThrough(2L) shouldBe ActivityCapturedFactDrainResult.Failed(
 			0L,
 			2L,
-			"ACTIVITY_WAL_DELIVERY_TOO_LARGE",
+			"MISSING_IMMUTABLE_REGISTRATION_PLAN",
 			terminal = true,
 		)
 

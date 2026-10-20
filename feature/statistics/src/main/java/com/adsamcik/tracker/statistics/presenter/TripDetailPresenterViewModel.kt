@@ -16,6 +16,9 @@ import com.adsamcik.tracker.shared.model.isAltitudeContinuousAfter
 import com.adsamcik.tracker.statistics.export.GpxShareHelper
 import com.adsamcik.tracker.statistics.viewmodel.activityLabel
 import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummarySelection
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.SkiRunSegmentRepository
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.stats.api.repository.TripRepository
@@ -47,6 +50,7 @@ class TripDetailPresenterViewModel @Inject constructor(
 	private val tripPresentationRepository: TripPresentationRepository,
 	private val skiRunSegmentRepository: SkiRunSegmentRepository,
 	private val locationSampleRepository: LocationSampleRepository,
+	private val trackingHistoryRepository: TrackingHistoryRepository,
 	private val gpxShareHelper: GpxShareHelper,
 	private val dispatchers: DispatchersProvider,
 	savedStateHandle: SavedStateHandle,
@@ -120,6 +124,14 @@ class TripDetailPresenterViewModel @Inject constructor(
 		val sampleInsights = withContext(dispatchers.io) {
 			loadSampleInsights(locationSampleRepository, tripStart, tripEnd)
 		}
+		val routePoints = withContext(dispatchers.io) {
+			val read = trackingHistoryRepository.readSavedLocationSummary(
+				SavedLocationSummarySelection.Session(tripId), includeRoutePreview = true)
+			(read as? SavedLocationSummaryRead.Snapshot)?.summary?.routePreview.orEmpty()
+				.flatMapIndexed { section, fixes ->
+					fixes.map { RoutePoint(it.latitudeE7 / E7_DIVISOR, it.longitudeE7 / E7_DIVISOR, section) }
+				}
+		}
 		val segments = withContext(dispatchers.io) {
 			skiRunSegmentRepository.getSegmentsByTimeRange(tripStart, tripEnd)
 		}
@@ -128,7 +140,7 @@ class TripDetailPresenterViewModel @Inject constructor(
 		_insights.value = buildInsights(
 			trip = trip,
 			projection = projection,
-			sampleInsights = sampleInsights,
+			sampleInsights = sampleInsights.copy(routePoints = simplifyRoutePoints(routePoints)),
 		)
 	}
 
@@ -188,7 +200,6 @@ private suspend fun loadSampleInsights(
 	toMs: Long,
 ): SampleInsights {
 	val providerCounts = linkedMapOf<String, Int>()
-	val routePoints = ArrayList<RoutePoint>(ROUTE_PREVIEW_MAX_POINTS)
 	var maxSpeed: Double? = null
 	var elevationGain = 0.0
 	var elevationLoss = 0.0
@@ -242,17 +253,6 @@ private suspend fun loadSampleInsights(
 				maxSpeed = maxOf(maxSpeed ?: speed, speed)
 			}
 
-			val lat = sample.latE7
-			val lon = sample.lonE7
-			if (lat != null && lon != null) {
-				routePoints.add(RoutePoint(lat / E7_DIVISOR, lon / E7_DIVISOR))
-			}
-		}
-
-		if (routePoints.size > ROUTE_PREVIEW_MAX_POINTS * ROUTE_COMPACTION_FACTOR) {
-			val compacted = simplifyRoutePoints(routePoints)
-			routePoints.clear()
-			routePoints.addAll(compacted)
 		}
 
 		val lastSample = chunk.last()
@@ -269,7 +269,6 @@ private suspend fun loadSampleInsights(
 		elevationGainM = elevationGain,
 		elevationLossM = elevationLoss,
 		maxAltitudeM = maxAltitude,
-		routePoints = simplifyRoutePoints(routePoints),
 	)
 }
 
@@ -423,7 +422,6 @@ private fun resolveSourceLabel(
 
 private const val SAMPLE_CHUNK_SIZE = 2_000
 private const val ROUTE_PREVIEW_MAX_POINTS = 1_500
-private const val ROUTE_COMPACTION_FACTOR = 4
 private const val ROUTE_PREVIEW_TOLERANCE_METERS = 8.0
 private const val E7_DIVISOR = 1e7
 private const val HISTORY_STOP_TIMEOUT_MS = 5_000L

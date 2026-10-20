@@ -3,6 +3,9 @@ package com.adsamcik.tracker.stats.api.repository
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import kotlinx.coroutines.flow.Flow
 
+/** Amount of source detail requested for a live session snapshot. */
+enum class LiveSessionHistoryDetail { FULL, COMPACT }
+
 /**
  * Read-only history facade for source-qualified tracking products.
  *
@@ -23,8 +26,9 @@ interface TrackingHistoryRepository {
     /** Saved-data changes that may alter completed recording awards. Observing starts no sensor. */
     fun observeSessionRewardChanges(): Flow<Unit> = kotlinx.coroutines.flow.emptyFlow()
 
-    /** Finite read of saved Location; no provider, writer or live total is started. */
-    suspend fun readSavedLocationSummary(selection: SavedLocationSummarySelection): SavedLocationSummaryRead =
+    /** Finite read; optional bounded whole-route sections start no provider, writer or live total. */
+    suspend fun readSavedLocationSummary(selection: SavedLocationSummarySelection,
+        includeRoutePreview: Boolean = false): SavedLocationSummaryRead =
         SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
 
     /**
@@ -67,6 +71,10 @@ interface TrackingHistoryRepository {
 	 * changes which controls are visible.
 	 */
 	fun observeLiveSession(segmentId: Long): Flow<LiveSessionHistorySnapshot>
+
+	/** Allows omitting detailed Location companion products; implementations may retain the full read. */
+	fun observeLiveSession(segmentId: Long, detail: LiveSessionHistoryDetail): Flow<LiveSessionHistorySnapshot> =
+		observeLiveSession(segmentId)
 
 	/**
 	 * Observe recent logical entries whose exact capture set was Steps and no other source.

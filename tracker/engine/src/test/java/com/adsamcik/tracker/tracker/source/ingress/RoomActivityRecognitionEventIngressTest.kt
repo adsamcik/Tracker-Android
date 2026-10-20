@@ -67,7 +67,7 @@ class RoomActivityRecognitionEventIngressTest {
 		motionController = mockk(relaxed = true)
 		context = mockk(relaxed = true)
 		startupGate = mockk()
-		every { startupGate.permitsNewCollection } returns true
+		every { startupGate.permitsEvidenceAdmission } returns true
 		coEvery { startupGate.reconcileAdmission(any()) } returns
 			TrackingAdmissionStartupResult.Ready
 		database = mockk()
@@ -148,6 +148,18 @@ class RoomActivityRecognitionEventIngressTest {
 	}
 
 	@Test
+	fun `Off rejects an Activity callback before reading its registration`() = runTest {
+		every { startupGate.permitsEvidenceAdmission } returns false
+
+		val result = subject.admit(batch(recognitions = listOf(recognition(30L))))
+
+		result.isDurable shouldBe false
+		result.failureCode shouldBe "COLLECTION_SUPPRESSED"
+		coVerify(exactly = 0) { sourceBrokerDao.registration(any(), any()) }
+		coVerify(exactly = 0) { deliveryIngress.admit(any()) }
+	}
+
+	@Test
 	fun `cold callback reaches startup recovery before automation Room authority`() = runTest {
 		coEvery { startupGate.reconcileAdmission(any()) } returns
 			TrackingAdmissionStartupResult.RetryableFailure(
@@ -165,7 +177,9 @@ class RoomActivityRecognitionEventIngressTest {
 	}
 
 	@Test
-	fun `one atomic call maps sparse canonical units to selected original events`() = runTest {
+	fun `pending End still admits an authenticated Activity callback with collection paused`() = runTest {
+		every { startupGate.isReady } returns false
+		every { startupGate.permitsNewCollection } returns false
 		val units = listOf(
 			DeliveryAdmissionResult.AdmittedUnit(2, SourceEventId("event-2"), 12L),
 			DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("event-0"), 10L),

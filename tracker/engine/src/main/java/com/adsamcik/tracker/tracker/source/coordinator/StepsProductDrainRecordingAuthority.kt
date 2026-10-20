@@ -18,21 +18,33 @@ internal suspend fun stepsProductActionIdentities(
 	logicalTrackingId: String,
 	serviceRunId: String,
 	retirementClaims: List<SourceDrainRetirementClaim>,
+): Set<SourceDrainActionIdentity> = sourceProductActionIdentities(
+	database, SourceKind.STEPS, logicalTrackingId, serviceRunId, retirementClaims,
+)
+
+/** Earlier accepted capture actions remain recording authority when the same provider is retired later. */
+internal suspend fun sourceProductActionIdentities(
+	database: AppDatabase,
+	source: SourceKind,
+	logicalTrackingId: String,
+	serviceRunId: String,
+	retirementClaims: List<SourceDrainRetirementClaim>,
 ): Set<SourceDrainActionIdentity> = database.withTransaction {
-	val productClaims = retirementClaims.filterNot(SourceDrainRetirementClaim::cleanupOnly)
+	val productClaims = retirementClaims.filter { !it.cleanupOnly && it.source == source }
 	val exactRetirementActions = productClaims.mapTo(linkedSetOf()) { claim ->
 		SourceDrainActionIdentity(claim.sourceInstanceId, claim.registrationGeneration, claim.leaseGeneration)
 	}
 	if (productClaims.isEmpty()) {
 		return@withTransaction exactRetirementActions
 	}
-	val recordingActions = database.readAcceptedStepsRecordingActions(
-		logicalTrackingId, serviceRunId, productClaims,
+	val recordingActions = database.readAcceptedSourceRecordingActions(
+		source, logicalTrackingId, serviceRunId, productClaims,
 	) ?: return@withTransaction exactRetirementActions
 	exactRetirementActions + recordingActions
 }
 
-private suspend fun AppDatabase.readAcceptedStepsRecordingActions(
+private suspend fun AppDatabase.readAcceptedSourceRecordingActions(
+	source: SourceKind,
 	logicalTrackingId: String,
 	serviceRunId: String,
 	productClaims: List<SourceDrainRetirementClaim>,
@@ -49,11 +61,11 @@ private suspend fun AppDatabase.readAcceptedStepsRecordingActions(
 		val action = raw.validatedOrNull()?.takeIf {
 			it.logicalTrackingId == logicalTrackingId && it.serviceRunId == serviceRunId
 		} ?: return null
-		if (!action.isAcceptedStepsRecordingAction()) {
+		if (!action.isAcceptedSourceRecordingAction(source)) {
 			continue
 		}
-		val provider = productClaims.singleOrNull { it.matchesStepsRecordingProvider(action) } ?: continue
-		if (!hasAcceptedStepsRecordingManifest(action)) {
+		val provider = productClaims.singleOrNull { it.matchesRecordingProvider(action, source) } ?: continue
+		if (!hasAcceptedSourceRecordingManifest(action, source)) {
 			return null
 		}
 		recordingActions += SourceDrainActionIdentity(
@@ -63,17 +75,22 @@ private suspend fun AppDatabase.readAcceptedStepsRecordingActions(
 	return recordingActions
 }
 
-private fun SourceDrainRetirementClaim.matchesStepsRecordingProvider(action: LifecycleDesiredActionEntity): Boolean =
-	source == SourceKind.STEPS && sourceInstanceId == action.sourceInstanceId &&
+private fun SourceDrainRetirementClaim.matchesRecordingProvider(
+	action: LifecycleDesiredActionEntity,
+	source: SourceKind,
+): Boolean = this.source == source && sourceInstanceId == action.sourceInstanceId &&
 		registrationGeneration == action.registrationGeneration
 
 // This fixed saved action shape checks only immutable scalar fields.
 @Suppress("ComplexCondition")
-private fun LifecycleDesiredActionEntity.isAcceptedStepsRecordingAction(): Boolean =
-	sourceKind == SourceKind.STEPS.stableCode && actionFamily == LifecycleActionFamily.SOURCE_RUNTIME.name &&
+private fun LifecycleDesiredActionEntity.isAcceptedSourceRecordingAction(source: SourceKind): Boolean =
+	sourceKind == source.stableCode && actionFamily == LifecycleActionFamily.SOURCE_RUNTIME.name &&
 		desiredState == "STARTED" && status == LifecycleActionStatus.START_ACCEPTED.name && attemptCount > 0
 
-private suspend fun AppDatabase.hasAcceptedStepsRecordingManifest(action: LifecycleDesiredActionEntity): Boolean {
+private suspend fun AppDatabase.hasAcceptedSourceRecordingManifest(
+	action: LifecycleDesiredActionEntity,
+	source: SourceKind,
+): Boolean {
 	val dao = sourceSessionDao()
 	val manifest = dao.manifestByServiceRunRevision(action.serviceRunId, action.manifestRevision) ?: return false
 	val rawBindings = dao.rawManifestSourcesForRevisions(
@@ -84,7 +101,7 @@ private suspend fun AppDatabase.hasAcceptedStepsRecordingManifest(action: Lifecy
 	}
 	val bindings = rawBindings.map { it.validatedOrNull() ?: return false }
 	return SessionManifestIntegrity.verify(manifest, bindings) && bindings.singleOrNull {
-		it.sourceKind == SourceKind.STEPS.stableCode &&
+		it.sourceKind == source.stableCode &&
 			it.purpose == SessionManifestPurposeCode.SESSION_CAPTURE && it.persistenceEligible
 	}?.let { binding ->
 		action.hasAcceptedRecordingEnvelope(manifest, binding) &&
@@ -106,7 +123,7 @@ private fun LifecycleDesiredActionEntity.hasAcceptedRecordingEnvelope(
 	acknowledgedAtMs?.let { it >= requestedAtMs } == true &&
 	acknowledgedElapsedRealtimeNanos?.let { it >= requestedElapsedRealtimeNanos } == true
 
-/** Reuses the established Steps action-v2 and active-intent encodings; no new proof is stored. */
+/** Reuses the established source action and active-intent encodings; no new proof is stored. */
 private suspend fun hasCanonicalAcceptedRecordingAction(
 	database: AppDatabase,
 	action: LifecycleDesiredActionEntity,
@@ -123,10 +140,14 @@ private suspend fun hasCanonicalAcceptedRecordingAction(
 }
 
 private fun LifecycleDesiredActionEntity.canonicalRecordingActionId(intentRevision: Long): String =
-	stableLifecycleChecksum("STEPS_ACTION_V2", intentRevision, logicalTrackingId, serviceRunId,
-		manifestRevision, actionRevision, actionFamily, sourceKind, desiredState, desiredPlanRevision,
-		sourcePolicyRevision, consentEpoch, startOrigin, bootId, leaseGeneration, requestedAtMs,
-		requestedElapsedRealtimeNanos)
+	if (sourceKind == SourceKind.STEPS.stableCode) {
+		stableLifecycleChecksum("STEPS_ACTION_V2", intentRevision, logicalTrackingId, serviceRunId,
+			manifestRevision, actionRevision, actionFamily, sourceKind, desiredState, desiredPlanRevision,
+			sourcePolicyRevision, consentEpoch, startOrigin, bootId, leaseGeneration, requestedAtMs,
+			requestedElapsedRealtimeNanos)
+	} else {
+		stableLifecycleChecksum(logicalTrackingId, intentRevision, sourceKind, desiredState)
+	}
 
 private fun SessionLifecycleIntentVersionEntity.hasAcceptedRecordingEnvelope(
 	manifest: SessionManifestVersionEntity,

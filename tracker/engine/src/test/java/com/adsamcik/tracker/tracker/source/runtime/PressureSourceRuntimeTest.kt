@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.tracker.source.ingress.PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
@@ -45,7 +46,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -642,22 +642,143 @@ class PressureSourceRuntimeTest {
 	}
 
 	@Test
-	fun `process restart gap checkpoint failure prevents provider registration`() = runTest {
-		val activePlan = plan(revision = 1L)
-		val fixture = fixture(
-			scope = this,
-			registrationsToReturn = listOf(registration(activePlan, authorizationRevision = 1L)),
-			failRuntimeCheckpoint = true,
-		)
-
-		val result = fixture.runtime.start(activePlan) { SourceAdmissionHandoff.Durable(1L) }
-
-		assertTrue(result is SourceStartResult.Failed)
-		verify(exactly = 0) {
-			fixture.sensorManager.registerListener(
-				any<SensorEventListener>(), fixture.sensor, any<Int>(), any<Int>(),
-			)
+	fun `recovery checkpoint failure drains early queued and partial callbacks before replacement`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(10))
+		val activePlan = plan(revision = 1L, aggregationWindowMs = 100L)
+		val fixture = fixture(this, listOf(
+			registration(activePlan, 1L, requiresAcceptance = true),
+			registration(activePlan, 1L, requiresAcceptance = true, generation = 10L),
+		))
+		coEvery { fixture.registrations.loadRuntimeState(any()) } returns interruptedPressureCheckpoint()
+		var checkpointAttempts = 0
+		coEvery {
+			fixture.registrations.saveRuntimeState(any(), any(), any(), any(), any(), any(), any(), any())
+		} coAnswers {
+			if (++checkpointAttempts == 1) {
+				val now = android.os.SystemClock.elapsedRealtimeNanos()
+				fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, now - 200_000_000L, 1_000f))
+				fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, now - 150_000_000L, 1_001f))
+				fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, now - 50_000_000L, 1_002f))
+				throw IllegalStateException("checkpoint unavailable")
+			}
+			SourceRuntimeStateSaveResult.Saved
 		}
+		val sink = RecordingPressureSink()
+
+		assertIs<SourceStartResult.Failed>(fixture.runtime.start(activePlan, sink))
+		assertEquals(listOf(2, 1), sink.windows.map { it.sampleCount })
+		assertEquals(listOf(2L, 4L), sink.windows.map { it.firstProviderSequence })
+		assertEquals(listOf(3L, 4L), sink.windows.map { it.lastProviderSequence })
+		assertTrue(sink.candidates.all { it.registrationGeneration == 9L })
+		verify(exactly = 1) { fixture.sensorManager.unregisterListener(fixture.listeners.single()) }
+		coVerify(exactly = 1) { fixture.registrations.completeRetirement(any()) }
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(activePlan, RecordingPressureSink()))
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `restarted replacement saves its own checkpoint only after provider acceptance`() = runTest {
+		val activePlan = plan(revision = 1L)
+		val replacement = registration(activePlan, authorizationRevision = 1L, requiresAcceptance = true)
+		val fixture = fixture(this, listOf(replacement))
+		val previous = interruptedPressureCheckpoint()
+		coEvery { fixture.registrations.loadRuntimeState(any()) } returns previous
+		var acceptedGeneration: Long? = null
+		var saved: SourceRuntimeStateEntity? = null
+		coEvery { fixture.registrations.markAccepted(any(), any(), any()) } coAnswers {
+			acceptedGeneration = firstArg<SourceRegistration>().state.registrationGeneration
+			null
+		}
+		coEvery {
+			fixture.registrations.saveRuntimeState(any(), any(), any(), any(), any(), any(), any(), any())
+		} coAnswers {
+			val incoming = firstArg<SourceRegistration>()
+			check(acceptedGeneration == incoming.state.registrationGeneration)
+			saved = previous.copy(registrationGeneration = incoming.state.registrationGeneration,
+				lastProviderSequence = arg(1), lastAdmittedSourceSequence = arg(2), lastAdmissionOrdinal = arg(3),
+				stateVersion = arg(4), payload = arg(5), updatedAtMs = arg(6))
+			SourceRuntimeStateSaveResult.Saved
+		}
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(activePlan, RecordingPressureSink()))
+		val restored = requireNotNull(decodeSensorRuntimeCheckpoint(saved, PRESSURE_RUNTIME_COMPONENT_VERSION))
+		assertNull(restored.metrics.lastDurablyAdmittedSequence)
+		assertNull(restored.metrics.lastAdmissionOrdinal)
+		assertEquals(1L, restored.metrics.failedAdmissionCount)
+		assertEquals(1L, restored.metrics.unresolvedSequenceStart)
+		assertEquals(1L, restored.metrics.unresolvedSequenceEndInclusive)
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `same registration recovery preserves its original admission endpoint and gaps`() {
+		val previous = interruptedPressureCheckpoint()
+		val recovered = recoverPressureRuntimeState(previous, previous.registrationGeneration, true)
+		val metrics = requireNotNull(recovered.metrics)
+		assertEquals(7L, metrics.lastDurablyAdmittedSequence)
+		assertEquals(77L, metrics.lastAdmissionOrdinal)
+		assertEquals(9L, recovered.callbackEntrySequence)
+		assertEquals(2L, metrics.failedAdmissionCount)
+		assertEquals(8L, metrics.unresolvedSequenceStart)
+		assertEquals(9L, metrics.unresolvedSequenceEndInclusive)
+	}
+
+	@Test
+	fun `cancelled recovery checkpoint drains early partial callback before propagating cancellation`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(10))
+		val activePlan = plan(revision = 1L)
+		val fixture = fixture(this, listOf(
+			registration(activePlan, 1L, requiresAcceptance = true),
+			registration(activePlan, 1L, requiresAcceptance = true, generation = 10L),
+		))
+		coEvery { fixture.registrations.loadRuntimeState(any()) } returns interruptedPressureCheckpoint()
+		var checkpointAttempts = 0
+		coEvery {
+			fixture.registrations.saveRuntimeState(any(), any(), any(), any(), any(), any(), any(), any())
+		} coAnswers {
+			if (++checkpointAttempts == 1) {
+				fixture.listener().onSensorChanged(pressureEvent(fixture.sensor,
+					android.os.SystemClock.elapsedRealtimeNanos(), 1_000f))
+				throw CancellationException("checkpoint cancelled")
+			}
+			SourceRuntimeStateSaveResult.Saved
+		}
+		val sink = RecordingPressureSink()
+		assertFailsWith<CancellationException> { fixture.runtime.start(activePlan, sink) }
+		assertEquals(1, sink.windows.single().sampleCount)
+		assertEquals(9L, sink.candidates.single().registrationGeneration)
+		verify(exactly = 1) { fixture.sensorManager.unregisterListener(fixture.listeners.single()) }
+		coVerify(exactly = 1) { fixture.registrations.completeRetirement(any()) }
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(activePlan, RecordingPressureSink()))
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `failed acceptance rejects early queued callbacks without blocking replacement`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(10))
+		val activePlan = plan(revision = 1L, aggregationWindowMs = 100L)
+		val fixture = fixture(this, listOf(
+			registration(activePlan, 1L, requiresAcceptance = true),
+			registration(activePlan, 1L, requiresAcceptance = true, generation = 10L),
+		))
+		var acceptanceAttempts = 0
+		coEvery { fixture.registrations.markAccepted(any(), any(), any()) } coAnswers {
+			if (++acceptanceAttempts == 1) {
+				val now = android.os.SystemClock.elapsedRealtimeNanos()
+				fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, now - 200_000_000L, 1_000f))
+				fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, now - 150_000_000L, 1_001f))
+				fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, now - 50_000_000L, 1_002f))
+				throw IllegalStateException("registration no longer current")
+			}
+			null
+		}
+		val sink = RecordingPressureSink()
+		assertIs<SourceStartResult.Failed>(fixture.runtime.start(activePlan, sink))
+		assertTrue(sink.deliveries.isEmpty())
+		verify(exactly = 1) { fixture.sensorManager.unregisterListener(fixture.listeners.single()) }
+		coVerify(exactly = 1) { fixture.registrations.completeRetirement(any()) }
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(activePlan, sink))
+		fixture.runtime.close()
+		assertTrue(sink.deliveries.isEmpty())
 	}
 
 	@Test
@@ -811,71 +932,122 @@ class PressureSourceRuntimeTest {
 	}
 
 	@Test
-	fun `hung retirement begin times out before listener removal and retries retained intent`() = runTest {
+	fun `slow retirement begin waits for Room before removing the exact listener`() = runTest {
 		val activePlan = plan(1L)
-		val replacementPlan = activePlan.copy(revision = 2L)
-		var beginCalls = 0
+		val beginEntered = CompletableDeferred<Unit>()
+		val releaseBegin = CompletableDeferred<Unit>()
 		val fixture = fixture(
 			scope = this,
-			registrationsToReturn = listOf(
-				registration(activePlan, 1L, requiresAcceptance = true),
-				registration(replacementPlan, 2L, requiresAcceptance = true, generation = 10L),
-			),
+			registrationsToReturn = listOf(registration(activePlan, 1L, requiresAcceptance = true)),
 			beginRetirement = { registration, reason, retiredAtMs, boundary ->
-				if (beginCalls++ == 0) awaitCancellation()
+				beginEntered.complete(Unit)
+				releaseBegin.await()
 				retirementToken(registration, reason, retiredAtMs, boundary)
 			},
 		)
-		val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
-		assertTrue(fixture.runtime.start(activePlan, sink) is SourceStartResult.Started)
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(activePlan) { SourceAdmissionHandoff.Durable(1L) })
 		val exactListener = fixture.listener()
-		val now = android.os.SystemClock.elapsedRealtimeNanos()
-
-		val ack = fixture.runtime.quiesce(
-			SessionCutoff("pressure-hung-begin", Long.MAX_VALUE, 1L, now + 10_000_000L),
-		)
-
-		assertEquals(SourceStopStatus.TIMED_OUT, ack.status)
-		verify(exactly = 0) { fixture.sensorManager.unregisterListener(exactListener) }
-		assertTrue(fixture.runtime.start(replacementPlan, sink) is SourceStartResult.Started)
-		coVerify(exactly = 2) { fixture.registrations.beginRetirement(any(), any(), any(), any()) }
+		val cutoff = SessionCutoff("pressure-slow-begin", Long.MAX_VALUE, 1L,
+			android.os.SystemClock.elapsedRealtimeNanos() + 10_000_000_000L)
+		val stopping = async { fixture.runtime.quiesce(cutoff) }
+		beginEntered.await()
+		try {
+			testScheduler.advanceTimeBy(2_000L)
+			testScheduler.runCurrent()
+			assertFalse(stopping.isCompleted)
+			verify(exactly = 0) { fixture.sensorManager.unregisterListener(exactListener) }
+		} finally {
+			releaseBegin.complete(Unit)
+		}
+		assertEquals(SourceStopStatus.COMPLETE, stopping.await().status)
+		coVerify(exactly = 1) { fixture.registrations.beginRetirement(any(), any(), any(), any()) }
 		verify(exactly = 1) { fixture.sensorManager.unregisterListener(exactListener) }
-		fixture.runtime.close()
 	}
 
 	@Test
-	fun `hung retirement completion retries exact token without removing listener twice`() = runTest {
+	fun `slow retirement completion keeps its exact token and does not remove the listener twice`() = runTest {
 		val activePlan = plan(1L)
-		val replacementPlan = activePlan.copy(revision = 2L)
-		var completionCalls = 0
+		val completionEntered = CompletableDeferred<Unit>()
+		val releaseCompletion = CompletableDeferred<Unit>()
 		val completionTokens = mutableListOf<SourceRegistrationRetirementToken>()
 		val fixture = fixture(
 			scope = this,
-			registrationsToReturn = listOf(
-				registration(activePlan, 1L, requiresAcceptance = true),
-				registration(replacementPlan, 2L, requiresAcceptance = true, generation = 10L),
-			),
+			registrationsToReturn = listOf(registration(activePlan, 1L, requiresAcceptance = true)),
 			completeRetirement = { token ->
 				completionTokens += token
-				if (completionCalls++ == 0) awaitCancellation()
+				completionEntered.complete(Unit)
+				releaseCompletion.await()
 				true
 			},
 		)
-		val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
-		assertTrue(fixture.runtime.start(activePlan, sink) is SourceStartResult.Started)
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(activePlan) { SourceAdmissionHandoff.Durable(1L) })
 		val exactListener = fixture.listener()
-		val now = android.os.SystemClock.elapsedRealtimeNanos()
-
-		val ack = fixture.runtime.quiesce(
-			SessionCutoff("pressure-hung-complete", Long.MAX_VALUE, 1L, now + 10_000_000L),
-		)
-
-		assertEquals(SourceStopStatus.TIMED_OUT, ack.status)
-		assertTrue(fixture.runtime.start(replacementPlan, sink) is SourceStartResult.Started)
-		assertEquals(2, completionTokens.size)
-		assertSame(completionTokens.first(), completionTokens.last())
+		val cutoff = SessionCutoff("pressure-slow-completion", Long.MAX_VALUE, 1L,
+			android.os.SystemClock.elapsedRealtimeNanos() + 10_000_000_000L)
+		val stopping = async { fixture.runtime.quiesce(cutoff) }
+		completionEntered.await()
+		try {
+			testScheduler.advanceTimeBy(2_000L)
+			testScheduler.runCurrent()
+			assertFalse(stopping.isCompleted)
+			verify(exactly = 1) { fixture.sensorManager.unregisterListener(exactListener) }
+		} finally {
+			releaseCompletion.complete(Unit)
+		}
+		assertEquals(SourceStopStatus.COMPLETE, stopping.await().status)
+		assertEquals(1, completionTokens.size)
 		coVerify(exactly = 1) { fixture.registrations.beginRetirement(any(), any(), any(), any()) }
+		coVerify(exactly = 1) { fixture.registrations.completeRetirement(completionTokens.single()) }
 		verify(exactly = 1) { fixture.sensorManager.unregisterListener(exactListener) }
+	}
+
+	@Test
+	fun `timed out Pressure drain resumes pending atomic window on the next Stop`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+		val activePlan = plan(1L)
+		val fixture = fixture(this, listOf(registration(activePlan, 1L, requiresAcceptance = true)))
+		var storageAvailable = false
+		val deliveries = mutableListOf<SourceDeliveryCandidate>()
+		val checkpoints = mutableListOf<SensorAdmissionCheckpoint>()
+		val sink = object : SourceEventSink {
+			override suspend fun admit(candidate: SourceEvidenceCandidate<*>): SourceAdmissionHandoff =
+				error("Pressure requires atomic admission")
+			override suspend fun admit(delivery: SourceDeliveryCandidate,
+				checkpoint: SensorAdmissionCheckpoint): SourceDeliveryAdmissionHandoff {
+				deliveries += delivery
+				checkpoints += checkpoint
+				return if (storageAvailable) {
+					SourceDeliveryAdmissionHandoff.Durable(listOf(91L))
+				} else {
+					SourceDeliveryAdmissionHandoff.RetryableFailure(SourceAdmissionFailureCode.STORAGE_UNAVAILABLE)
+				}
+			}
+		}
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(activePlan, sink))
+		val listener = fixture.listener()
+		val now = android.os.SystemClock.elapsedRealtimeNanos()
+		listener.onSensorChanged(pressureEvent(fixture.sensor, now, 1_000f))
+		val cutoff = SessionCutoff("pressure-retry", Long.MAX_VALUE, 1L, now + 1_000_000L)
+		val first = fixture.runtime.quiesce(cutoff)
+		assertEquals(SourceStopStatus.TIMED_OUT, first.status)
+		assertFalse(first.appDrainComplete)
+		assertEquals(0L, first.failedAdmissionCount)
+		coVerify(exactly = 0) {
+			fixture.registrations.saveRuntimeState(any(), any(), any(), any(), any(), any(), any(), any())
+		}
+
+		storageAvailable = true
+		ShadowSystemClock.advanceBy(Duration.ofMillis(10))
+		val retried = fixture.runtime.quiesce(cutoff.copy(deadlineElapsedRealtimeNanos =
+			android.os.SystemClock.elapsedRealtimeNanos() + 1_000_000_000L))
+		assertEquals(SourceStopStatus.COMPLETE, retried.status)
+		assertTrue(retried.appDrainComplete)
+		assertEquals(91L, retried.lastAdmissionOrdinal)
+		assertEquals(0L, retried.failedAdmissionCount)
+		assertTrue(deliveries.size >= 2)
+		deliveries.forEach { assertSame(deliveries.first(), it) }
+		checkpoints.forEach { assertSame(checkpoints.first(), it) }
+		verify(exactly = 1) { fixture.sensorManager.unregisterListener(listener) }
 		fixture.runtime.close()
 	}
 
@@ -1005,7 +1177,7 @@ class PressureSourceRuntimeTest {
 				pressureEvent(fixture.sensor, android.os.SystemClock.elapsedRealtimeNanos(), 1_002f),
 			)
 			val replayedAck = fixture.runtime.quiesce(cutoff)
-			assertSame(firstAck, replayedAck)
+			assertEquals(firstAck, replayedAck)
 			assertEquals(2L, firstAck.callbackEntryBarrierSequence)
 			assertEquals(2L, firstAck.failedAdmissionCount)
 			assertFalse(firstAck.appDrainComplete)
@@ -1176,6 +1348,10 @@ class PressureSourceRuntimeTest {
 		assertEquals(activeRegistration.state.registrationGeneration, ack.registrationGeneration)
 		assertEquals(65L, ack.callbackEntryBarrierSequence)
 		assertEquals(1L, ack.failedAdmissionCount)
+		assertEquals(65L, ack.unresolvedSequenceStart)
+		assertEquals(65L, ack.unresolvedSequenceEndInclusive)
+		assertTrue(ack.appDrainComplete)
+		assertEquals(SourceStopStatus.COMPLETE, ack.status)
 		assertEquals(RegistrationRemovalOutcome.REMOVED, ack.registrationRemovalOutcome)
 		coVerify(exactly = 1) {
 			fixture.registrations.beginRetirement(activeRegistration, any(), any(), any())
@@ -1675,6 +1851,9 @@ class PressureSourceRuntimeTest {
 		}
 		coEvery { registrations.loadRuntimeState(any()) } returns null
 		coEvery {
+			registrations.saveRuntimeState(any(), any(), any(), any(), any(), any(), any(), any())
+		} returns SourceRuntimeStateSaveResult.Saved
+		coEvery {
 			registrations.verifySourceEraseProviderSettled(SourceKind.PRESSURE, any(), any())
 		} returns true
 		coEvery { registrations.beginRetirement(any(), any(), any(), any()) } coAnswers {
@@ -1704,6 +1883,17 @@ class PressureSourceRuntimeTest {
 			listener = { listenerSlot.captured },
 			listeners = listeners,
 		)
+	}
+
+	private fun interruptedPressureCheckpoint(): SourceRuntimeStateEntity {
+		val metrics = RuntimeAdmissionSnapshot(7L, 77L, 1L, 8L, 8L,
+			setOf(RuntimeGapClassification.ADMISSION_FAILED))
+		return SourceRuntimeStateEntity(SourceKind.PRESSURE.stableCode, "source-broker:4", "pressure-1",
+			"boot-1", registrationGeneration = 8L, lastProviderSequence = 8L,
+			lastAdmittedSourceSequence = 7L, lastAdmissionOrdinal = 77L,
+			stateVersion = SENSOR_RUNTIME_CHECKPOINT_VERSION,
+			payload = encodeSensorRuntimeCheckpoint(SensorRuntimeCheckpoint(RuntimeCheckpointLifecycle.ACTIVE,
+				metrics, PRESSURE_RUNTIME_COMPONENT_VERSION, ByteArray(0))), updatedAtMs = 1L)
 	}
 
 	private fun plan(

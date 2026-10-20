@@ -501,7 +501,7 @@ class TrackerServiceSourceSessionTest {
 	// Keep the saved applied identity beside restarted adoption to prove unchanged inputs avoid reconfiguration.
 	@Suppress("LongMethod")
 	@Test
-	fun `restarted prepared exact applied identity remains unchanged without reconfiguration`() =
+	fun `prepared caller lease rebind preserves exact applied identity without reconfiguration`() =
 		runTest {
 		installCanonicalProductLanesForTest(
 			database = database,
@@ -531,6 +531,7 @@ class TrackerServiceSourceSessionTest {
 			),
 		)
 		val reference = SourceCallerReplayReference("prepared-exact-authority")
+		val reboundReference = SourceCallerReplayReference("prepared-rebound-authority")
 		var descriptor = ActiveTrackingSessionDescriptor(
 			isUserInitiated = true,
 			isAmbient = false,
@@ -560,8 +561,16 @@ class TrackerServiceSourceSessionTest {
 			descriptor.serviceRunId,
 			appliedStates(plan),
 			DesiredPlanStatus.EFFECTIVE,
-			reference,
+			reboundReference,
 		)
+		coEvery {
+			localLifecycle.retireSupersededSourceCallerAuthority("prepared-exact-logical",
+				reboundReference, reference, any())
+		} answers {
+			descriptor.sourceCallerAuthorityReference shouldBe reboundReference
+			descriptor.pendingRetirementSourceCallerAuthorityReference shouldBe reference
+			SourceCallerAuthorityRetirementOutcome.Completed
+		}
 		val localSubject = sourceSession(localLifecycle, store)
 		val intent = mockk<SessionLifecycleIntentVersionEntity>()
 		every { intent.sourceCallerAuthorityReference } returns reference.value
@@ -580,9 +589,61 @@ class TrackerServiceSourceSessionTest {
 
 		descriptor.appliedSourcePlanIdentity shouldBe desiredIdentity
 		descriptor.desiredSourcePlanIdentity shouldBe desiredIdentity
+		descriptor.sourceCallerAuthorityReference shouldBe reboundReference
+		descriptor.pendingRetirementSourceCallerAuthorityReference shouldBe null
 		localSubject.reconfigure(baselineInputs) shouldBe
 			SourceSessionReconfigureOutcome.Unchanged
 		coVerify(exactly = 0) { localLifecycle.reconfigure(any()) }
+	}
+
+	@Test
+	fun `prepared partial apply does not repeat reconciliation for unchanged intent`() = runTest {
+		val planInputs = inputs(settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 7L))
+		val rollout = allEventCanonical(5L)
+		val plan = resolvedPlanForFingerprint(planInputs, rollout, revision = 1L)
+		val desired = sourcePlanIdentity(planInputs, rollout, plan)
+		val applying = TrackerServiceSourceSession.ActiveSession(
+			rollout = rollout, ownerToken = "owner", logicalTrackingId = "logical", serviceRunId = "run",
+			origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+			captureMode = CaptureReachabilityMode.MANUAL_SESSION_CAPTURE, automaticTrigger = null,
+			foregroundCapabilityFlags = 1L, desiredInputs = planInputs, coordinatorStarted = true,
+			sourceCallerAuthorityReference = null,
+			appliedSourcePlanIdentity = desired.copy(planFingerprint = "a".repeat(64)),
+			desiredSourcePlanIdentity = desired,
+		)
+
+		subject.requiresPreparedSourceReconfiguration(applying, planInputs, desired) shouldBe false
+		val changed = planInputs.copy(resolutionContext = planInputs.resolutionContext.copy(powerSaver = true))
+		subject.requiresPreparedSourceReconfiguration(applying, changed, desired) shouldBe true
+	}
+
+	@Test
+	fun `prepared caller rebind cannot replace another run descriptor`() = runTest {
+		val reference = SourceCallerReplayReference("prepared-old-authority")
+		val rebound = SourceCallerReplayReference("prepared-new-authority")
+		val planInputs = inputs(settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 7L))
+		val applying = TrackerServiceSourceSession.ActiveSession(
+			rollout = allEventCanonical(5L), ownerToken = "owner", logicalTrackingId = "logical",
+			serviceRunId = "run", origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+			captureMode = CaptureReachabilityMode.MANUAL_SESSION_CAPTURE, automaticTrigger = null,
+			foregroundCapabilityFlags = 1L, desiredInputs = planInputs, coordinatorStarted = true,
+			sourceCallerAuthorityReference = reference,
+		)
+		val descriptor = ActiveTrackingSessionDescriptor(isUserInitiated = true, isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical", serviceRunId = "other-run", sourceCallerAuthorityReference = reference)
+		coEvery { activeSessionStore.read() } returns ActiveTrackingSessionStoreResult.Success(descriptor)
+		val intent = mockk<SessionLifecycleIntentVersionEntity>()
+		every { intent.sourceCallerAuthorityReference } returns reference.value
+
+		subject.restoreStartedSourceSession(applying, preparedClaim("logical", "run", 1L, intent),
+			planInputs, null, SessionStartResult.Started("logical", "run", emptyList(),
+				DesiredPlanStatus.EFFECTIVE, rebound)) shouldBe SessionStartResult.InvalidIntent(
+				SOURCE_SESSION_SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED)
+		applying.runtimeCleanupRequired shouldBe true
+		applying.sourceCallerAuthorityReference shouldBe reference
+		coVerify(exactly = 0) { activeSessionStore.replaceExact(any(), any()) }
+		coVerify(exactly = 0) { lifecycle.retireSupersededSourceCallerAuthority(any(), any(), any(), any()) }
 	}
 
 	@Test
@@ -1329,6 +1390,27 @@ class TrackerServiceSourceSessionTest {
 			SessionReconfigureResult.InvalidState("STARTUP_RECOVERY_NOT_READY"),
 		)
 		coVerify(exactly = 0) { lifecycle.reconfigure(any()) }
+	}
+
+	@Test
+	fun `source Start losing readiness withholds success while retaining exact cleanup ownership`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
+		coEvery { lifecycle.start(any()) } coAnswers {
+			startupGate.result = TrackingStartupResult.Blocked(TrackingStartupStage.LIVE_V2, "STOP_PENDING")
+			SessionStartResult.Started("logical", "run", emptyList(), DesiredPlanStatus.EFFECTIVE)
+		}
+		coEvery { lifecycle.suspendForRestart(any()) } returns SessionSuspendResult.NoActiveSession
+
+		subject.start(SourceSessionStartRequest(
+			rollout = rollout, ownership = TrackingSessionOwnership.resolve(rollout, enabled),
+			logicalTrackingId = "logical", serviceRunId = "run",
+			origin = SessionStartOrigin.MANUAL_FOREGROUND_START, foregroundCapabilityFlags = 1L,
+			planInputs = inputs(enabled), ownerToken = "owner",
+		)) shouldBe SourceSessionStartOutcome.Rejected(SessionStartResult.InvalidIntent("STARTUP_RECOVERY_NOT_READY"))
+
+		subject.stop(reason = "PROCESS_RESTART", preserveLogicalSession = true)
+		coVerify(exactly = 1) { lifecycle.suspendForRestart(match { it.ownerToken == "owner" }) }
 	}
 
 	// Follow the active session through retryable and deferred reconfiguration while retaining the same saved retry.
@@ -2889,6 +2971,14 @@ private class FakeTrackingStartupGate(
 
 	override val isReady: Boolean
 		get() = result is TrackingStartupResult.Ready
+
+	override suspend fun <T> withReadyGenerationWork(expectedGeneration: Long, operation: suspend () -> T): T? {
+		if (!isReadyGeneration(expectedGeneration)) {
+			return null
+		}
+		val value = operation()
+		return value.takeIf { isReadyGeneration(expectedGeneration) }
+	}
 
 	override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult {
 		reconcileCalls += 1

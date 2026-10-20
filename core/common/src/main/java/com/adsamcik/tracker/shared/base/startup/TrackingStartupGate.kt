@@ -8,14 +8,14 @@ import kotlinx.coroutines.flow.flow
  * Process-wide boundary between storage/recovery work and live tracking work.
  *
  * Implementations may retry durable recovery, but must cache only [TrackingStartupResult.Ready].
- * A closed gate means policy observers, provider registrations, source admission, and collected
- * Room workers must remain fail-closed; provider-only cleanup and deletion paths are deliberately
- * outside this contract.
+ * Unrecovered storage keeps providers and observation admission closed. Once full recovery has
+ * completed, collection Stop may close acquisition while existing observations still reach their
+ * ordinary authorization checks. Provider-only cleanup and deletion remain outside this contract.
  */
 interface TrackingStartupGate {
 	/**
-	 * Compatibility name for admission call sites. Admission is intentionally not a weaker startup
-	 * milestone: released-v27 recovery must be terminal before any live-v2 WAL mutation.
+	 * Full recovery completed in the current storage generation. This permits ordinary observation
+	 * admission checks during collection Stop; it never authorizes a new provider or purpose.
 	 */
 	val isAdmissionReady: Boolean
 		get() = isReady
@@ -33,6 +33,9 @@ interface TrackingStartupGate {
 	/** User-requested system stopping suppresses acquisition while allowing cleanup and history. */
 	val permitsNewCollection: Boolean get() = isReady
 
+	/** Allows owned observations to reach authorization checks; explicit Off still suppresses them. */
+	val permitsEvidenceAdmission: Boolean get() = permitsNewCollection
+
 	/** Exact fresh manual preparation/delivery only; never authorizes providers or background work. */
 	fun permitsPendingManualStart(commandGeneration: Long): Boolean = false
 
@@ -46,6 +49,10 @@ interface TrackingStartupGate {
 	/** True only while [expectedGeneration] is the currently admitted runtime generation. */
 	fun isReadyGeneration(expectedGeneration: Long): Boolean =
 		isReady && currentGeneration == expectedGeneration
+
+	/** Storage recovery remains valid for this observation's captured deletion generation. */
+	fun isAdmissionReadyGeneration(expectedGeneration: Long): Boolean =
+		isReadyGeneration(expectedGeneration)
 
 	/**
 	 * Linearizes one short, non-suspending external handoff with deletion closure. Production gates
@@ -114,7 +121,8 @@ interface TrackingStartupGate {
 	}
 
 	/**
-	 * Compatibility entry point for live admission. It deliberately reconciles the full gate.
+	 * Reconciles full recovery before first admission. Implementations may reuse completed storage
+	 * recovery during collection Stop; per-observation permission and purpose checks still apply.
 	 */
 	suspend fun reconcileAdmission(
 		retryFailedStorage: Boolean = false,

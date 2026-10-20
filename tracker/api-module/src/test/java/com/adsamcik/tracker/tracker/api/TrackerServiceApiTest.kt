@@ -13,6 +13,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.mockk
 import io.mockk.verifyOrder
+import io.mockk.verify
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -23,6 +24,24 @@ import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrackerServiceApiTest {
+	@Test
+	fun `accepted enqueue keeps starting feedback until the service completes`() {
+		val controller = mockk<TrackerServiceController>(relaxed = true)
+		enqueueWithSessionStartFeedback(controller, 7L, true) { true } shouldBe true
+		verify(exactly = 1) { controller.updateSessionStart(7L, starting = true) }
+		verify(exactly = 0) { controller.updateSessionStart(7L, starting = false) }
+	}
+
+	@Test
+	fun `failed enqueue clears only its own starting feedback`() {
+		val controller = mockk<TrackerServiceController>(relaxed = true)
+		enqueueWithSessionStartFeedback(controller, 7L, true) { false } shouldBe false
+		verifyOrder {
+			controller.updateSessionStart(7L, starting = true)
+			controller.updateSessionStart(7L, starting = false)
+		}
+	}
+
 	@Test
 	fun providerSourceJoinUsesOriginalCommandAndSharedEnqueue() = runTest {
 		val events = mutableListOf<String>()
@@ -92,14 +111,6 @@ class TrackerServiceApiTest {
 		events shouldBe listOf("prepare", "resolve", "compensate:START_WITHOUT_SERVICE_NOT_ACCEPTED")
 	}
 
-	@Test
-	fun `no-service End bypasses an independent background service stop dispatcher`() = runTest {
-		reserveRouteAndAwaitDurableStop(reserve = { stopCommand() },
-			finalizeWithoutService = { it shouldBe stopCommand(); true },
-			deliverToRunningService = { _, _ -> error("All-day host must remain running") },
-			finalizeInactiveService = { error("Provider session was already closed") },
-			isCurrent = { true }, isActionable = { false }) shouldBe TrackingStopQuiescenceResult.HANDLED
-	}
 
 	@Test
 	fun `user exit after manual preparation prevents Android delivery of the original command`() = runTest {
@@ -499,131 +510,6 @@ class TrackerServiceApiTest {
 	}
 
 	@Test
-	fun `unavailable runtime stop finalizes durable state without starting an Android service`() {
-		var deliveryAttempts = 0
-		var inactiveFinalizations = 0
-		val command = stopCommand()
-
-		TrackerServiceApi.routeDurableStop(
-			command = command,
-			deliverToRunningService = { _, _ ->
-				deliveryAttempts += 1
-				false
-			},
-			finalizeInactiveService = {
-				it shouldBe command
-				inactiveFinalizations += 1
-			},
-		)
-
-		deliveryAttempts shouldBe 1
-		inactiveFinalizations shouldBe 1
-	}
-
-	@Test
-	fun `running service stop never falls through to inactive finalization`() {
-		var deliveryAttempts = 0
-		var inactiveFinalizations = 0
-
-		TrackerServiceApi.routeDurableStop(
-			command = stopCommand(),
-			deliverToRunningService = { _, _ ->
-				deliveryAttempts += 1
-				true
-			},
-			finalizeInactiveService = { inactiveFinalizations += 1 },
-		)
-
-		deliveryAttempts shouldBe 1
-		inactiveFinalizations shouldBe 0
-	}
-
-	@Test
-	fun `runtime disappearing after dispatch falls back to the same exact finalizer`() {
-		var fallback: ((TrackingStopCommand) -> Unit)? = null
-		var finalized: TrackingStopCommand? = null
-		val command = stopCommand()
-
-		TrackerServiceApi.routeDurableStop(
-			command = command,
-			deliverToRunningService = { _, onUndelivered ->
-				fallback = onUndelivered
-				true
-			},
-			finalizeInactiveService = { finalized = it },
-		)
-		fallback?.invoke(command)
-
-		finalized shouldBe command
-	}
-
-	@Test
-	fun `awaitable stop completes only after the exact running-runtime command is handled`() = runTest {
-		val command = stopCommand()
-		var actionable = true
-		var pauseCount = 0
-		var inactiveFinalizations = 0
-
-		reserveRouteAndAwaitDurableStop(
-			reserve = { command },
-			deliverToRunningService = { delivered, _ ->
-				delivered shouldBe command
-				true
-			},
-			finalizeInactiveService = { inactiveFinalizations += 1 },
-			isCurrent = { it == command },
-			isActionable = { actionable },
-			pauseBeforeRetry = {
-				pauseCount += 1
-				if (pauseCount == 2) actionable = false
-			},
-		) shouldBe TrackingStopQuiescenceResult.HANDLED
-
-		pauseCount shouldBe 2
-		inactiveFinalizations shouldBe 0
-	}
-
-	@Test
-	fun `awaitable stop finalizes an absent runtime before reporting quiescence`() = runTest {
-		val command = stopCommand()
-		var actionable = true
-		var finalized: TrackingStopCommand? = null
-
-		reserveRouteAndAwaitDurableStop(
-			reserve = { command },
-			deliverToRunningService = { _, _ -> false },
-			finalizeInactiveService = {
-				finalized = it
-				actionable = false
-			},
-			isCurrent = { it == command },
-			isActionable = { actionable },
-			pauseBeforeRetry = { error("terminal inactive finalization must not poll") },
-		) shouldBe TrackingStopQuiescenceResult.HANDLED
-
-		finalized shouldBe command
-	}
-
-	@Test
-	fun `awaitable stop never treats a superseding generation as quiescence`() = runTest {
-		val command = stopCommand()
-		var actionable = true
-		var current = true
-
-		reserveRouteAndAwaitDurableStop(
-			reserve = { command },
-			deliverToRunningService = { _, _ -> true },
-			finalizeInactiveService = { error("running runtime must own the stop") },
-			isCurrent = { current },
-			isActionable = { actionable },
-			pauseBeforeRetry = {
-				actionable = false
-				current = false
-			},
-		) shouldBe TrackingStopQuiescenceResult.SUPERSEDED
-	}
-
-	@Test
 	fun `stale service repair restarts automatic tracking watcher evaluation`() {
 		val controller = mockk<TrackerServiceController>(relaxed = true)
 		val activityWatcherController = mockk<ActivityWatcherController>(relaxed = true)
@@ -643,12 +529,6 @@ class TrackerServiceApiTest {
 			activityWatcherController.poke()
 		}
 	}
-
-	private fun stopCommand() = TrackingStopCommand(
-		generation = 2L,
-		reason = TrackingStopCandidateReason.EXPLICIT_REQUEST,
-		requestedAtEpochMs = 1_000L,
-	)
 
 	private fun automaticRequest(
 		trigger: AutomaticTrackingStartTrigger = automaticTrigger(),

@@ -9,6 +9,11 @@ import com.adsamcik.tracker.shared.base.database.PortableActivityDigest
 import com.adsamcik.tracker.shared.base.database.PortableActivityOpaqueIdentity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
@@ -32,6 +37,7 @@ import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.LiveSessionHistoryDetail
 import com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryDigest
 import com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryIdentity
 import com.adsamcik.tracker.stats.api.repository.ImportedCellHistorySelection
@@ -511,6 +517,68 @@ class TrackingHistorySourceUnionRepositoryTest {
 		session.history.qualifiedSources shouldBe emptySet()
 		snapshot.readSnapshot?.collectedDataEpoch shouldBe 3L
 		snapshot.readSnapshot?.sourceEvidenceRevision shouldBe 4L
+		repository.observeLiveSession(41L, LiveSessionHistoryDetail.COMPACT).first() shouldBe snapshot
+		sourceReader.sessionCalls shouldBe 2
+	}
+
+	@Test
+	fun `compact Location live snapshot skips unused products while full read preserves them`() = runTest {
+		installExactLiveOwner(setOf(SourceDestinationOwnerEntity.SOURCE_LOCATION, SourceDestinationOwnerEntity.SOURCE_CELL))
+		val cell = CellHistoryQuery.Found(localUnavailableCell())
+		sourceReader.session = HistoricalSessionSourceRead.Available(41L, WifiHistoryQuery.NotFound, cell,
+			ActivityHistoryQuery.NotFound, PressureSessionHistoryQuery.NotFound)
+
+		val compact = repository.observeLiveSession(41L, LiveSessionHistoryDetail.COMPACT).first()
+		val compactHistory = (compact.session as SessionHistoryQuery.Found).history
+		(compactHistory.capture as HistoryCapture.Exact).revisions.single().capturedSources shouldBe
+			setOf(HistorySource.LOCATION, HistorySource.CELL)
+		compactHistory.sourceProducts shouldBe null
+		compact.readSnapshot?.collectedDataEpoch shouldBe 3L
+		compact.readSnapshot?.sourceEvidenceRevision shouldBe 4L
+		sourceReader.sessionCalls shouldBe 0
+
+		val full = repository.observeLiveSession(41L).first()
+		full.cell shouldBe cell
+		(full.session as SessionHistoryQuery.Found).history.steps shouldBe compactHistory.steps
+		sourceReader.sessionCalls shouldBe 1
+	}
+
+	@Test
+	fun `compact Location-free live snapshot retains complete source products`() = runTest {
+		installExactLiveOwner(setOf(SourceDestinationOwnerEntity.SOURCE_CELL))
+		val cell = CellHistoryQuery.Found(localUnavailableCell())
+		sourceReader.session = HistoricalSessionSourceRead.Available(41L, WifiHistoryQuery.NotFound, cell,
+			ActivityHistoryQuery.NotFound, PressureSessionHistoryQuery.NotFound)
+
+		val compact = repository.observeLiveSession(41L, LiveSessionHistoryDetail.COMPACT).first()
+
+		compact.cell shouldBe cell
+		(compact.session as SessionHistoryQuery.Found).history.sourceProducts?.cell shouldBe cell
+		sourceReader.sessionCalls shouldBe 1
+	}
+
+	@Test
+	fun `live snapshots refresh their epoch after full deletion authority changes`() = runTest {
+		installExactLiveOwner(setOf(SourceDestinationOwnerEntity.SOURCE_LOCATION))
+		val firstEmission = CompletableDeferred<Unit>()
+		val collection = async {
+			repository.observeLiveSession(41L, LiveSessionHistoryDetail.COMPACT)
+				.onEach { firstEmission.complete(Unit) }
+				.take(2)
+				.toList()
+		}
+		firstEmission.await()
+		database.sourceEvidenceStateDao().updateAfterFullDeletion(
+			epoch = 4L,
+			retainedFromMs = null,
+			deletedSourceEventHighWaterOrdinal = 12L,
+			updatedAtMs = 30L,
+		) shouldBe 1
+
+		val snapshots = collection.await().map { it.readSnapshot }
+		snapshots.map { it?.sourceEvidenceRevision } shouldContainExactly listOf(4L, 5L)
+		snapshots.map { it?.collectedDataEpoch } shouldContainExactly listOf(3L, 4L)
+		sourceReader.sessionCalls shouldBe 0
 	}
 
 	@Test
@@ -799,6 +867,23 @@ class TrackingHistorySourceUnionRepositoryTest {
 		causes = setOf(PressureHistoryCause.SOURCE_NOT_CAPTURED),
 	)
 
+	private suspend fun installExactLiveOwner(sourceKinds: Set<Int>) {
+		val segment = legacySegment(41L, 0).copy(logicalTrackingId = "live-logical", serviceRunId = "live-run")
+		database.sessionSegmentDao().insert(segment)
+		val sessions = database.sourceSessionDao()
+		sessions.insertServiceRun(SourceServiceRunEntity("live-run", "live-logical", "ACTIVE", 1L, 1L,
+			0L, 100L, 10L, null, null, bootId = "boot", leaseGeneration = 1L,
+			startOrigin = "MANUAL_FOREGROUND_START", runRevision = 1L, startDeliveryToken = "live-delivery",
+			startCommandGeneration = 1L, preparedManifestRevision = 1L, preparedIntentRevision = 1L,
+			sessionSegmentId = segment.id))
+		val sources = sourceKinds.map { kind -> SessionManifestSourceEntity("live-logical", 1L, kind,
+			SessionManifestPurposeCode.SESSION_CAPTURE, 1L, true, 1) }
+		val unsigned = SessionManifestVersionEntity("live-logical", 1L, "live-run", "MANUAL", 1L, 1L,
+			1L, "MANUAL_FOREGROUND_START", "boot", 10L, 100L, "UTC", null, "SESSION_START", "")
+		sessions.insertManifest(unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, sources)))
+		sessions.insertManifestSources(sources)
+	}
+
 	private fun legacySegment(id: Long, sampleCount: Int) = SessionSegment(
 		id = id,
 		startTimeMs = 100L,
@@ -828,10 +913,14 @@ class TrackingHistorySourceUnionRepositoryTest {
 		var lifecycleTriggeredRecent: HistoricalSourceUnionEntry? = null
 		var candidateCalls = 0
 		var recentCalls = 0
+		var sessionCalls = 0
 
 		override suspend fun sessionInTransaction(
 			segment: SessionSegment,
-		): HistoricalSessionSourceRead = session
+		): HistoricalSessionSourceRead {
+			sessionCalls += 1
+			return session
+		}
 
 		override suspend fun candidateNativeOnlyInTransaction(
 			segmentIds: List<Long>,

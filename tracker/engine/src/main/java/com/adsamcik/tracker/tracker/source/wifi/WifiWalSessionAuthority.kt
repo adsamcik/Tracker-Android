@@ -349,9 +349,14 @@ internal fun LogicalTrackingSessionEntity.hasValidWifiWalLifecycleShape(
 		currentServiceRunId == null && (interrupted && finalAdmissionOrdinal == null ||
 			finalAdmissionOrdinal?.let { it >= 0L && (perReading || it >= admissionOrdinal) } == true)
 	} else {
-		!currentServiceRunId.isNullOrBlank() && finalAdmissionOrdinal == null
+		!currentServiceRunId.isNullOrBlank() && hasValidWifiWalLiveHighWater(admissionOrdinal, perReading)
 	}
 }
+
+/** End freezes the shared admission bound before the source writer finishes its own rows. */
+internal fun LogicalTrackingSessionEntity.hasValidWifiWalLiveHighWater(ordinal: Long, perReading: Boolean): Boolean =
+	finalAdmissionOrdinal == null || state == "STOPPING" &&
+		finalAdmissionOrdinal?.let { it >= 0L && (perReading || it >= ordinal) } == true
 
 internal fun SourceServiceRunEntity.hasValidWifiWalLifecycleShape(): Boolean {
 	// One saved run header has these required scalar fields.
@@ -389,7 +394,7 @@ private fun SourceServiceRunEntity.hasValidWifiWalCurrentRelationshipTo(
 	session.currentServiceRunId == serviceRunId && bootId == session.lifecycleBootId &&
 	leaseGeneration == session.lifecycleLeaseGeneration &&
 	desiredPlanRevision == session.desiredPlanRevision &&
-	preparedManifestRevision == session.currentManifestRevision &&
+	preparedManifestRevision in 1L..(session.currentManifestRevision ?: 0L) &&
 	startedAtMs >= session.startedAtMs && startedElapsedNanos >= session.startedElapsedNanos &&
 	((session.state in WIFI_WAL_ADMISSION_SESSION_STATES && state in WIFI_WAL_ADMISSION_RUN_STATES) ||
 		(session.state == "ACTIVE" && state == "STOPPING") ||

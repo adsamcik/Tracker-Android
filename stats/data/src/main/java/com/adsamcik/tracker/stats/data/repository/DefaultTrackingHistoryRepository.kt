@@ -3,8 +3,11 @@ package com.adsamcik.tracker.stats.data.repository
 import com.adsamcik.tracker.stats.api.repository.SavedLocationSummarySelection
 
 import androidx.room.withTransaction
+import androidx.room.deferredTransaction
+import androidx.room.useReaderConnection
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.TRACKING_HISTORY_INVALIDATION_TABLES
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsReadFailure
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
@@ -27,6 +30,7 @@ import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.ImportedStepsHistoryMember
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.LiveSessionHistorySnapshot
+import com.adsamcik.tracker.stats.api.repository.LiveSessionHistoryDetail
 import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.PressureHistory
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
@@ -62,8 +66,10 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -104,14 +110,15 @@ internal class DefaultTrackingHistoryRepository private constructor(
         savedLocationUpdates,
         savedLocationSummaries) }
 
-    override suspend fun readSavedLocationSummary(selection: SavedLocationSummarySelection) =
+    override suspend fun readSavedLocationSummary(selection: SavedLocationSummarySelection,
+        includeRoutePreview: Boolean) =
         when (selection) {
             is SavedLocationSummarySelection.Session ->
-                savedLocationSummaries.readSession(selection.segmentId)
+                savedLocationSummaries.readSession(selection.segmentId, includeRoutePreview)
             is SavedLocationSummarySelection.Window ->
-                savedLocationSummaries.readWindow(selection.window)
+                savedLocationSummaries.readWindow(selection.window, includeRoutePreview)
             is SavedLocationSummarySelection.LogicalSession ->
-                savedLocationSummaries.readLogicalSession(selection.logicalTrackingId)
+                savedLocationSummaries.readLogicalSession(selection.logicalTrackingId, includeRoutePreview)
         }
 
     override fun observeLiveSavedLocationSummary(segmentId: Long) = liveLocationSummaries.observeSession(segmentId)
@@ -295,12 +302,18 @@ internal class DefaultTrackingHistoryRepository private constructor(
 		}
 	}
 
-	@OptIn(ExperimentalCoroutinesApi::class)
-	override fun observeLiveSession(segmentId: Long): Flow<LiveSessionHistorySnapshot> {
+	override fun observeLiveSession(segmentId: Long): Flow<LiveSessionHistorySnapshot> =
+		observeLiveSession(segmentId, LiveSessionHistoryDetail.FULL)
+
+	override fun observeLiveSession(
+		segmentId: Long,
+		detail: LiveSessionHistoryDetail,
+	): Flow<LiveSessionHistorySnapshot> {
 		require(segmentId > 0L) { "Live session segment id must be positive" }
-		return historyInvalidations().mapLatest {
-			database.withTransaction {
-				selectLiveSessionInTransaction(segmentId)
+		// Finish one finite snapshot; frequent sensor writes must not cancel every live result.
+		return historyInvalidations().conflate().map {
+			database.useReaderConnection { connection ->
+				connection.deferredTransaction { selectLiveSessionInTransaction(segmentId, detail) }
 			}
 		}.distinctUntilChanged()
 			.flowOn(ioDispatcher)
@@ -310,6 +323,7 @@ internal class DefaultTrackingHistoryRepository private constructor(
 	@Suppress("ReturnCount")
 	private suspend fun selectLiveSessionInTransaction(
 		segmentId: Long,
+		detail: LiveSessionHistoryDetail = LiveSessionHistoryDetail.FULL,
 	): LiveSessionHistorySnapshot {
 		val readSnapshot = database.sourceEvidenceStateDao().get()
 			?.takeIf { it.hasValidHistorySnapshotShape() }
@@ -344,7 +358,7 @@ internal class DefaultTrackingHistoryRepository private constructor(
 				HistorySource.STEPS,
 				readSnapshot,
 			)
-		return when (val sourceRead = sourceUnionReader.sessionInTransaction(segment)) {
+		return when (val sourceRead = readLiveSessionSources(segment, selected, detail)) {
 			is HistoricalSessionSourceRead.Unavailable -> unavailableLiveSession(
 				segmentId,
 				sourceRead.reason,
@@ -366,6 +380,26 @@ internal class DefaultTrackingHistoryRepository private constructor(
 					readSnapshot = readSnapshot,
 				)
 			}
+		}
+	}
+
+	private suspend fun readLiveSessionSources(
+		segment: SessionSegment,
+		selected: HistoricalSegmentEvidence,
+		detail: LiveSessionHistoryDetail,
+	): HistoricalSessionSourceRead {
+		val capture = selected.captureAuthority as? HistoricalCaptureAuthority.Exact
+		return if (detail == LiveSessionHistoryDetail.COMPACT && capture?.revisions?.any {
+			TrackingSourceComponent.LOCATION in it.capturedSources } == true) {
+			HistoricalSessionSourceRead.Available(
+				segmentId = segment.id,
+				wifi = null,
+				cell = null,
+				activity = ActivityHistoryQuery.NotFound,
+				pressure = PressureSessionHistoryQuery.NotFound,
+			)
+		} else {
+			sourceUnionReader.sessionInTransaction(segment)
 		}
 	}
 
@@ -527,7 +561,9 @@ internal class DefaultTrackingHistoryRepository private constructor(
 	): Flow<SourceAwareHistoryPageQuery> {
 		validateSourceAwarePageRequest(candidateSegmentIds, limit)
 		val stableCandidateSegmentIds = candidateSegmentIds.toList()
-		return historyInvalidations().mapLatest { invalidatedTables ->
+		// Finish the bounded snapshot before rereading. Cancelling it for every saved fact
+		// can keep Room's transaction queue busy without ever publishing a page.
+		return historyInvalidations().conflate().map { invalidatedTables ->
 			if ("lifecycle_desired_action" in invalidatedTables) {
 				integrationObserver.record(
 					TrackingHistoryIntegrationCheckpoint
@@ -538,8 +574,10 @@ internal class DefaultTrackingHistoryRepository private constructor(
 				TrackingHistoryIntegrationCheckpoint.SOURCE_AWARE_READ_STARTED,
 			)
 			val result = try {
-				database.withTransaction {
-					selectSourceAwarePageInTransaction(stableCandidateSegmentIds, limit)
+				database.useReaderConnection { connection ->
+					connection.deferredTransaction<SourceAwareHistoryPageQuery> {
+						selectSourceAwarePageInTransaction(stableCandidateSegmentIds, limit)
+					}
 				}
 			} catch (overflow: LogicalHistoryPageDependencyOverflow) {
 				SourceAwareHistoryPageQuery.Unavailable(

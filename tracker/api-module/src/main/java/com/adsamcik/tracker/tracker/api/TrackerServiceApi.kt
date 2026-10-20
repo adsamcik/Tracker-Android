@@ -272,10 +272,13 @@ object TrackerServiceApi {
 		context: Context,
 		prepared: TrackingStartPreparationResult.Prepared,
 		command: TrackingStartCommand,
-	): Boolean = startForegroundServiceSafely(
-		context.applicationContext,
-		createPreparedStartIntent(context.applicationContext, prepared, command.generation),
-	)
+	): Boolean = enqueueWithSessionStartFeedback(
+		getEntryPoint(context).trackerServiceController(), command.generation,
+		prepared.preparedStartIsUserInitiatedHint,
+	) {
+		startForegroundServiceSafely(context.applicationContext,
+			createPreparedStartIntent(context.applicationContext, prepared, command.generation))
+	}
 
 	/** Enqueues an in-process Location host ticket without creating a tracking session. */
 	fun enqueueBackgroundLocationHost(context: Context, ticket: String): Boolean {
@@ -298,14 +301,19 @@ object TrackerServiceApi {
 		context: Context,
 		prepared: TrackingStartPreparationResult.Prepared,
 		command: TrackingStartCommand,
-	): Boolean = try {
-		context.applicationContext.startService(
-			createPreparedStartIntent(context.applicationContext, prepared, command.generation),
-		) != null
-	} catch (_: SecurityException) {
-		false
-	} catch (_: IllegalStateException) {
-		false
+	): Boolean = enqueueWithSessionStartFeedback(
+		getEntryPoint(context).trackerServiceController(), command.generation,
+		prepared.preparedStartIsUserInitiatedHint,
+	) {
+		try {
+			context.applicationContext.startService(
+				createPreparedStartIntent(context.applicationContext, prepared, command.generation),
+			) != null
+		} catch (_: SecurityException) {
+			false
+		} catch (_: IllegalStateException) {
+			false
+		}
 	}
 
 	/** Foreground repair attaches sources to the existing session using its accepted Start. */
@@ -548,7 +556,7 @@ object TrackerServiceApi {
 				requestedAtEpochMs = System.currentTimeMillis(),
 				requestedElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
 			) ?: return@launch
-			if (entryPoint.inactiveTrackingSessionStopHandler().finalizeWithoutService(command)) return@launch
+			entryPoint.trackerServiceController().updateSessionStart(command.generation, starting = false)
 			routeDurableStop(
 				command = command,
 				deliverToRunningService = TrackerRuntimeStopDispatcher::dispatch,
@@ -604,6 +612,7 @@ object TrackerServiceApi {
 			scheduleTurnOffRecovery(entryPoint, pendingExitId)
 			return TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING
 		}
+		entryPoint.trackerServiceController().updateSessionStart(reserved.stop.generation, starting = false)
 		val result = finishPendingTurnOff(entryPoint, reserved.exitId)
 		if (result == TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING) {
 			scheduleTurnOffRecovery(entryPoint, reserved.exitId)
@@ -783,10 +792,10 @@ internal suspend fun reserveRouteAndAwaitDurableStop(
 	pauseBeforeRetry: suspend () -> Unit = { delay(STOP_QUIESCENCE_POLL_MILLIS) },
 ): TrackingStopQuiescenceResult {
 	val command = reserve() ?: return TrackingStopQuiescenceResult.RESERVATION_FAILED
-	if (finalizeWithoutService(command)) return TrackingStopQuiescenceResult.HANDLED
 	val undelivered = Channel<TrackingStopCommand>(Channel.UNLIMITED)
 	try {
 		if (!deliverToRunningService(command) { candidate -> undelivered.trySend(candidate) }) {
+			if (finalizeWithoutService(command)) return TrackingStopQuiescenceResult.HANDLED
 			finalizeInactiveService(command)
 		}
 		while (true) {
@@ -1006,6 +1015,27 @@ private class PreparedStartDispatch(
 			compensate()
 		} else {
 			withContext(NonCancellable) { compensate() }
+		}
+	}
+}
+
+/** Keeps accepted Android work visible until the service publishes its actual outcome. */
+internal inline fun enqueueWithSessionStartFeedback(
+	controller: TrackerServiceController,
+	generation: Long,
+	isUserInitiated: Boolean,
+	enqueue: () -> Boolean,
+): Boolean {
+	if (isUserInitiated) {
+		controller.updateSessionStart(generation, starting = true)
+	}
+	var enqueued = false
+	try {
+		enqueued = enqueue()
+		return enqueued
+	} finally {
+		if (!enqueued && isUserInitiated) {
+			controller.updateSessionStart(generation, starting = false)
 		}
 	}
 }

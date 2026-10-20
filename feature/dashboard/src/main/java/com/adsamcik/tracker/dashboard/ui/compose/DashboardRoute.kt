@@ -156,6 +156,8 @@ fun DashboardRoute(
 
 	// Observe tracking state
 	val isTracking by trackerState.hasLiveCaptureFlow.collectAsState(initial = trackerState.hasLiveCapture)
+	val enqueuedStartGeneration by trackerState.startingSessionGenerationFlow.collectAsState(initial = null)
+	val isStarting = !isTracking && (manualStartInFlight || pendingManualStartSetup || enqueuedStartGeneration != null)
 	val sessionInfo by trackerState.sessionInfoFlow.collectAsState()
 	val isLocked by lockManager.isLockedFlow.collectAsState()
 	val policyTier by trackerState.policyTierFlow.collectAsState()
@@ -276,7 +278,7 @@ fun DashboardRoute(
 		onContinue = { requestManualStart(it) },
 	)
 	DashboardManualStartFeedbackEffect(
-		pending = (manualStartInFlight || pendingManualStartSetup) && !isTracking,
+		pending = isStarting,
 		snackbarHostState = snackbarHostState,
 		onCancel = {
 			userRequestedStop = true
@@ -429,6 +431,7 @@ fun DashboardRoute(
 	val dashboardState = DashboardUiState(
 		dashboardMode = dashboardMode,
 		isTracking = isTracking,
+		isStarting = isStarting,
 		isLocked = isLocked,
 		hasLocationPermission = manualStartPermissionSatisfied,
 		policyTier = policyTier,

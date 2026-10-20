@@ -174,15 +174,23 @@ internal class SessionTrackerComponent(
 		preferenceJobs.clear()
 
 		sessionMutex.withLock {
-			mutableSession.apply {
-				end = Time.nowMillis
+			if (!job.isActive) {
+				return@withLock
 			}
-
 			// Persist the final presentation row before downstream SessionEnded consumers run. Physical
 			// reclamation cannot be decided from this component's counters: Wi-Fi and Cell facts live in
 			// their own ledgers, and a rejected cycle is not qualified evidence. The exact run is marked
 			// quiescent only after every presentation writer has stopped.
-			withContext(coroutineContext) { upsertSessionSegment(mutableSession) }
+			withContext(coroutineContext) {
+				val binding = presentationBinding
+				if (binding == null) {
+					mutableSession.end = Time.nowMillis
+					upsertSessionSegment(mutableSession)
+				} else {
+					val closed = requireNotNull(presentationLifecycle).closeExact(binding)
+					restoreSession(closed, closed.endTimeMs)
+				}
+			}
 		}
 		job.cancel()
 	}
@@ -349,10 +357,10 @@ internal class SessionTrackerComponent(
 		}
 		presentationBinding = opened.binding
 		if (opened.created) {
-			mutableSession = MutableTrackerSession(now, isUserInitiated).apply {
+			mutableSession = MutableTrackerSession(opened.segment.startTimeMs, isUserInitiated).apply {
 				id = opened.binding.sessionSegmentId
 			}
-			sessionCreatedAt = now
+			sessionCreatedAt = opened.segment.createdAt
 			restoredDominantActivity = null
 			isNewSession = true
 		} else {

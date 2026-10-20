@@ -17,7 +17,7 @@ object SessionLifecycleIntegrity {
         }
         return MessageDigest.getInstance("SHA-256")
             .digest(canonical.toByteArray(Charsets.UTF_8))
-            .joinToString(separator = "") { byte -> "%02x".format(byte) }
+            .toHexString()
     }
 
     /** A retry has a FINALIZED predecessor and cannot supply the original cutoff clock. */

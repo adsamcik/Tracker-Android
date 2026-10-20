@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.stats.data.repository
 
-import androidx.room.withTransaction
+import androidx.room.deferredTransaction
+import androidx.room.useReaderConnection
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
 import com.adsamcik.tracker.shared.base.database.dao.LocationPurposeDao
@@ -64,8 +65,12 @@ internal class SavedLocationLiveSummaryReader(
             }.conflate().collect { wakeup ->
                 currentCoroutineContext().ensureActive()
                 val next = try {
-                    database.withTransaction { refresh(segmentId, progress,
-                        wakeup.pointVersion != handledPointVersion, wakeup.rebuildVersion != handledRebuildVersion) }
+                    database.useReaderConnection { connection ->
+                        connection.deferredTransaction {
+                            refresh(segmentId, progress, wakeup.pointVersion != handledPointVersion,
+                                wakeup.rebuildVersion != handledRebuildVersion)
+                        }
+                    }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: android.database.sqlite.SQLiteException) {

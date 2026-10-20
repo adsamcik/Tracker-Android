@@ -6,6 +6,13 @@ import java.security.MessageDigest
 object SessionManifestIntegrity {
 	private const val FORMAT = "session-manifest-v2"
 	private const val POLICY_RECONCILIATION = "POLICY_RECONCILIATION"
+	private const val MAX_VERIFIED_MANIFESTS = 256
+	private val verifiedManifests = linkedMapOf<ManifestInputs, Boolean>()
+
+	private data class ManifestInputs(
+		val manifest: SessionManifestVersionEntity,
+		val sources: List<SessionManifestSourceEntity>,
+	)
 
 	fun compute(
 		manifest: SessionManifestVersionEntity,
@@ -37,7 +44,7 @@ object SessionManifestIntegrity {
 				manifest.zoneId,
 				manifest.automationEpoch,
 				manifest.changeReason,
-				sources.sortedBy(::sourceIdentity).map { source ->
+				sources.map { sourceIdentity(it) to it }.sortedBy { it.first }.map { (_, source) ->
 					listOf(
 						source.purpose,
 						source.sourceKind,
@@ -68,8 +75,21 @@ object SessionManifestIntegrity {
 	fun verify(
 		manifest: SessionManifestVersionEntity,
 		sources: Collection<SessionManifestSourceEntity>,
-	): Boolean = runCatching { compute(manifest, sources) }
-		.getOrNull() == manifest.manifestChecksum
+	): Boolean {
+		// The immutable checksum inputs repeat across facts and source readers. Reuse only
+		// this pure comparison; callers still qualify permission, retention and ownership.
+		val inputs = ManifestInputs(manifest, sources.toList())
+		return synchronized(verifiedManifests) {
+			verifiedManifests[inputs] ?: (
+				runCatching { compute(inputs.manifest, inputs.sources) }.getOrNull() == manifest.manifestChecksum
+			).also { verified ->
+				if (verifiedManifests.size >= MAX_VERIFIED_MANIFESTS) {
+					verifiedManifests.remove(verifiedManifests.keys.first())
+				}
+				verifiedManifests[inputs] = verified
+			}
+		}
+	}
 
 	/**
 	 * Verifies that immutable manifests form the exact timeline owned by one physical service run.

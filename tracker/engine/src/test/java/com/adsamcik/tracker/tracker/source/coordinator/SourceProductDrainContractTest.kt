@@ -62,7 +62,7 @@ class SourceProductDrainContractTest {
 			target = SourceProductDrainTarget.ProtectedLocationWriter,
 		)
 		every { handoff.requestDrain() } returns Unit
-		coEvery { handoff.drainThrough("logical", "run", 7L) } returns
+		coEvery { handoff.drainThrough("logical", "run", 7L, request) } returns
 			ProtectedLocationCanonicalDrainResult.Complete(
 				lastCommittedOrdinal = 7L,
 				observationsCommitted = 1,
@@ -81,7 +81,7 @@ class SourceProductDrainContractTest {
 		)
 
 		verify(exactly = 1) { handoff.requestDrain() }
-		coVerify(exactly = 1) { handoff.drainThrough("logical", "run", 7L) }
+		coVerify(exactly = 1) { handoff.drainThrough("logical", "run", 7L, request) }
 	}
 
 	@Test
@@ -91,7 +91,7 @@ class SourceProductDrainContractTest {
 			source = SourceKind.LOCATION,
 			target = SourceProductDrainTarget.ProtectedLocationWriter,
 		)
-		coEvery { handoff.drainThrough(any(), any(), any()) } returnsMany listOf(
+		coEvery { handoff.drainThrough("logical", "run", 7L, request) } returnsMany listOf(
 			ProtectedLocationCanonicalDrainResult.Deferred(3L, 4L, "ACTIVE_SESSION_CHANGED"),
 			ProtectedLocationCanonicalDrainResult.Inactive(
 				3L,
@@ -115,6 +115,7 @@ class SourceProductDrainContractTest {
 		)
 		adapter.drainThrough(request).shouldBeInstanceOf<SourceProductDrainResult.Deferred>()
 			.reason shouldBe "LOCATION_CANONICAL_PENDING_COMMIT"
+		coVerify(exactly = 3) { handoff.drainThrough("logical", "run", 7L, request) }
 	}
 
 	@Test
@@ -124,7 +125,7 @@ class SourceProductDrainContractTest {
 			source = SourceKind.LOCATION,
 			target = SourceProductDrainTarget.ProtectedLocationWriter,
 		)
-		coEvery { handoff.drainThrough(any(), any(), any()) } returnsMany listOf(
+		coEvery { handoff.drainThrough("logical", "run", 7L, request) } returnsMany listOf(
 			ProtectedLocationCanonicalDrainResult.Failed(
 				5L,
 				6L,
@@ -147,6 +148,7 @@ class SourceProductDrainContractTest {
 			reason = "LOCATION_CANONICAL_ACTIVE_SESSION_CHANGED",
 			lastMaterializedAdmissionOrdinal = 5L,
 		)
+		coVerify(exactly = 2) { handoff.drainThrough("logical", "run", 7L, request) }
 	}
 
 	private fun request(

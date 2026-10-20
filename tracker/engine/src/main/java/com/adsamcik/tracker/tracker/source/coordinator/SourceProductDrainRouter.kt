@@ -305,6 +305,7 @@ internal class ProtectedLocationCanonicalSourceDrain(
 			logicalTrackingId = request.logicalTrackingId,
 			serviceRunId = request.serviceRunId,
 			throughAdmissionOrdinal = request.sourceHighWaterAdmissionOrdinal,
+			settlementRequest = request,
 		)) {
 			is ProtectedLocationCanonicalDrainResult.Complete -> completeResult(
 				request = request,
@@ -366,7 +367,7 @@ class RoomSourceProductDrainRouter @Inject internal constructor(
 		}
 		return when (request.source) {
 			SourceKind.LOCATION -> protectedLocationDrain.drainThrough(request)
-			SourceKind.ACTIVITY -> activityLane.drainThrough(request.sourceHighWaterAdmissionOrdinal)
+			SourceKind.ACTIVITY -> activityLane.drainThrough(request.settlementHighWaterAdmissionOrdinal)
 				.toSourceResult(request)
 			SourceKind.STEPS -> stepsLane.drainThrough(
 				throughAdmissionOrdinal = request.sourceHighWaterAdmissionOrdinal,
@@ -385,11 +386,30 @@ class RoomSourceProductDrainRouter @Inject internal constructor(
 		}
 	}
 
-	private fun ActivityCapturedFactDrainResult.toSourceResult(
+	private suspend fun ActivityCapturedFactDrainResult.toSourceResult(
 		request: SourceProductDrainRequest,
 	): SourceProductDrainResult = when (this) {
-		is ActivityCapturedFactDrainResult.Complete ->
-			completeResult(request, lastCompletedOrdinal, windowsApplied, eventsValidated)
+		is ActivityCapturedFactDrainResult.Complete -> {
+			val rejection = database.trackingHistoryReadDao().terminalFailuresForServiceRuns(
+				sourceKind = SourceKind.ACTIVITY.stableCode,
+				capturePurpose = SourceBrokerPurpose.SESSION_CAPTURE,
+				serviceRunIds = listOf(request.serviceRunId),
+				afterOrdinal = 0L,
+				throughOrdinal = request.sourceHighWaterAdmissionOrdinal,
+				limit = 1,
+			).firstOrNull()
+			if (lastCompletedOrdinal < request.sourceHighWaterAdmissionOrdinal) {
+				completeResult(request, lastCompletedOrdinal, windowsApplied, eventsValidated)
+			} else if (rejection == null) {
+				if (request.memberships.any { !it.isExactCompleteSettlement() }) {
+					SourceProductDrainResult.Unavailable(request, "ACTIVITY_PRODUCT_TERMINALLY_UNAVAILABLE")
+				} else {
+					completeResult(request, lastCompletedOrdinal, windowsApplied, eventsValidated)
+				}
+			} else {
+				SourceProductDrainResult.Unavailable(request, rejection.failureCode)
+			}
+		}
 		is ActivityCapturedFactDrainResult.Deferred -> SourceProductDrainResult.Deferred(
 			request,
 			lastCompletedOrdinal,
@@ -715,6 +735,11 @@ private class SourceProductDrainPlanner(
 			stepsTerminalDrainPlan(database, request, completenessRows, sourceWalHighWater)
 		request.memberships.all(SourceDrainMembership::isExactCompleteSettlement) ->
 			SourceProductDrainPlan.Ready(listOf(request))
+		request.source == SourceKind.ACTIVITY && retirementDrainSettlementFailure(database, request) == null ->
+			SourceProductDrainPlan.Ready(listOf(request))
+		request.source in setOf(SourceKind.LOCATION, SourceKind.PRESSURE, SourceKind.WIFI, SourceKind.CELL) &&
+			retirementDrainSettlementFailure(database, request) == null ->
+			SourceProductDrainPlan.Ready(listOf(request))
 		else -> SourceProductDrainPlan.Failed(
 			source = request.source,
 			reason = "SOURCE_DRAIN_SETTLEMENT_INCOMPLETE",
@@ -916,7 +941,7 @@ private class SourceProductDrainPlanner(
 	}
 }
 
-private fun SourceDrainMembership.isExactCompleteSettlement(): Boolean =
+internal fun SourceDrainMembership.isExactCompleteSettlement(): Boolean =
 	appDrainComplete &&
 		stopStatus in setOf("COMPLETE", "PARTIAL_UNOBSERVABLE") &&
 		unresolvedSequenceStart == null &&
@@ -980,7 +1005,7 @@ private class SourceRunAssociationAudit(
 	private val serviceRunId: String,
 	private val throughOrdinal: Long,
 ) {
-	private var acceptedStepsActions: Set<SourceDrainActionIdentity>? = null
+	private var acceptedRecordingActions: Set<SourceDrainActionIdentity>? = null
 	private var highWater = 0L
 	private var cleanupOnlyProductEvidence = false
 
@@ -1230,11 +1255,8 @@ private class SourceRunAssociationAudit(
 		retirementClaims: List<SourceDrainRetirementClaim>,
 	): Boolean {
 		if (retirementClaims.isNotEmpty() && exactClaims.isEmpty()) {
-			if (source != SourceKind.STEPS) {
-				return false
-			}
-			val accepted = acceptedStepsActions ?: stepsProductActionIdentities(database, logicalTrackingId,
-				serviceRunId, retirementClaims).also { acceptedStepsActions = it }
+			val accepted = acceptedRecordingActions ?: sourceProductActionIdentities(database, source,
+				logicalTrackingId, serviceRunId, retirementClaims).also { acceptedRecordingActions = it }
 			if (SourceDrainActionIdentity(provider.sourceInstanceId, provider.registrationGeneration,
 				lifecycleLeaseGeneration) !in accepted) {
 				return false
@@ -1409,7 +1431,7 @@ private fun LogicalTrackingSessionEntity.hasChangedDrainFence(
 /** Exact physical provider, action attempt and acknowledged retirement disposition. */
 // Keep the complete saved receipt/claim tuple and its two terminal-state alternatives together.
 @Suppress("CyclomaticComplexMethod")
-private fun SourceRunRetirementEntity?.doesNotMatchDrainClaim(
+internal fun SourceRunRetirementEntity?.doesNotMatchDrainClaim(
 	expectedLogicalTrackingId: String,
 	expectedServiceRunId: String,
 	expectedSourceKind: Int,
@@ -1599,6 +1621,7 @@ internal suspend fun authenticateSourceProductDrainRequest(
 	drainMembershipAuthorityFailure(request, memberships, cleanupOnlyClaims)?.let {
 		return@withTransaction it
 	}
+	retirementDrainSettlementFailure(database, request)?.let { return@withTransaction it }
 	authenticateDrainProductEvidence(database, request, memberships, cleanupOnlyClaims)
 }
 

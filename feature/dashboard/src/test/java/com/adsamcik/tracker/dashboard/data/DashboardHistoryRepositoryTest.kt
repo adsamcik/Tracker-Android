@@ -63,7 +63,11 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -181,6 +185,38 @@ class DashboardHistoryRepositoryTest {
 				limit = RECENT_HISTORY_LIMIT,
 			)
 		}
+	}
+
+	@Test
+	fun `identical physical rows keep the in-flight recent page read`() = runTest {
+		val candidateRows = MutableSharedFlow<List<Trip>>(replay = 1)
+		candidateRows.emit(listOf(trip(1L)))
+		val finishRead = CompletableDeferred<Unit>()
+		var reads = 0
+		var cancelledReads = 0
+		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns candidateRows
+		every {
+			trackingHistoryRepository.observeRecentSourceAwarePage(listOf(1L), RECENT_HISTORY_LIMIT)
+		} returns flow {
+			reads++
+			try {
+				finishRead.await()
+			} catch (cancelled: CancellationException) {
+				cancelledReads++
+				throw cancelled
+			}
+			emit(SourceAwareHistoryPageQuery.Content(listOf(SourceAwareHistoryPageEntry.Physical(1L))))
+		}
+		val result = async { repository(testScheduler).observeRecentHistory().first() }
+		advanceUntilIdle()
+
+		candidateRows.emit(listOf(trip(1L).copy()))
+		advanceUntilIdle()
+
+		reads shouldBe 1
+		cancelledReads shouldBe 0
+		finishRead.complete(Unit)
+		result.await() shouldContainExactly listOf(DashboardRecentHistoryEntry.Physical(trip(1L).toModel()))
 	}
 
 	@Test

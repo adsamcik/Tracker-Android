@@ -1047,7 +1047,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		commandGeneration: Long,
 	): SessionStartResult? {
 		while (true) {
-			val result = trackingStartupGate.withReadyGenerationOperation(
+			val result = trackingStartupGate.withReadyGenerationWork(
 				prepared.startupGeneration,
 			) {
 				sourceSession.applyPreparedAndroidStart(

@@ -33,6 +33,19 @@ class PressureWindowLaneTest {
 	}
 
 	@Test
+	fun `recorded failure coverage settles a synthetic tail but preserves sparse holes`() {
+		val coverage = PressureFailureRangeCoverage()
+		assertTrue(coverage.coversAfter(4L, 4L))
+		assertFalse(coverage.coversAfter(4L, 7L))
+		coverage.recordAndReturnUnaccounted(5L..5L)
+		coverage.recordAndReturnUnaccounted(7L..7L)
+		assertFalse(coverage.coversAfter(4L, 7L))
+		assertEquals(listOf(6L..6L), coverage.recordAndReturnUnaccounted(5L..7L))
+		assertTrue(coverage.coversAfter(4L, 7L))
+		assertTrue(coverage.coversAfter(Long.MAX_VALUE, Long.MAX_VALUE))
+	}
+
+	@Test
 	fun `default resume retry grows to a power-safe saturated in-process delay`() = runTest {
 		var attempts = 0
 		val waits = mutableListOf<Long>()
@@ -143,6 +156,36 @@ class PressureWindowLaneTest {
 		assertEquals(PressureResumeAttempt.STALE, result)
 		assertEquals(1, attempts)
 		assertEquals(0, activeListeners)
+	}
+
+	@Test
+	fun `a fresh drain attempt resumes the same prepared FIFO head after its deadline`() = runTest {
+		var now = 0L
+		var deadline = 1L
+		var preparations = 0
+		var admissions = 0
+		val prepared = Any()
+		val result = processPressureWindowHead(
+			deadlineElapsedRealtimeNanos = { deadline }, nowElapsedRealtimeNanos = { now },
+			prepare = { preparations++; prepared },
+			admit = {
+				assertSame(prepared, it)
+				if (++admissions == 1) {
+					now = 2L
+					SourceAdmissionHandoff.RetryableFailure(SourceAdmissionFailureCode.STORAGE_UNAVAILABLE)
+				} else SourceAdmissionHandoff.Durable(91L)
+			},
+			onAdmissionResolved = { _, _ -> },
+			persistTerminalOutcome = { error("Atomic success needs no terminal checkpoint") },
+			awaitNextDrainAttempt = { expired ->
+				assertEquals(1L, expired)
+				deadline = 10L
+				true
+			},
+		)
+		assertEquals(PressureWindowHeadResolution.SETTLED, result)
+		assertEquals(1, preparations)
+		assertEquals(2, admissions)
 	}
 
 	@Test

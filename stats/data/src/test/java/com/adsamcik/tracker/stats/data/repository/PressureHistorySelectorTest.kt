@@ -79,6 +79,8 @@ import io.mockk.mockk
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.security.MessageDigest
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executor
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -114,6 +116,10 @@ class PressureHistorySelectorTest {
 	fun setUp() = runTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
+		prepareDatabase()
+	}
+
+	private suspend fun prepareDatabase() {
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState())
 		database.sourcePolicyDao().ensureAuthority(
 			SourcePolicyAuthorityEntity(
@@ -129,6 +135,33 @@ class PressureHistorySelectorTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun mixedCaptureSkipsSourceOnlyFactLoadingWithoutHidingSessionPressure() = runTest {
+		database.close()
+		val queries = CopyOnWriteArrayList<String>()
+		database = AppDatabase.inMemoryBuilder(ApplicationProvider.getApplicationContext<Application>())
+			.allowMainThreadQueries().setQueryCallback(
+				{ sql, _ -> queries.add(sql) }, Executor { command -> command.run() },
+			).build()
+		prepareDatabase()
+		val activity = SessionManifestSourceEntity(LOGICAL_ID, 1L, SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE, 1L, true, 1)
+		val fixture = insertFixture(factSemanticRevision = 1L, additionalManifestSources = listOf(activity))
+		queries.clear()
+
+		database.withTransaction {
+			selector.selectLogicalBySegmentIdsInTransaction(listOf(fixture.segmentId), sourceOnly = true)
+		} shouldBe emptyList()
+		queries.none { it.contains("pressure_fact_revision", ignoreCase = true) } shouldBe true
+		val recent = database.withTransaction { selector.discoverRecentPressureOnlyIntentInTransaction(1) }
+		(recent as PressureOnlyDiscoveryResult.Content).entries shouldBe emptyList()
+		queries.none { it.contains("SELECT * FROM pressure_fact_revision", ignoreCase = true) } shouldBe true
+
+		val saved = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		saved.windows.size shouldBe 1
+		saved.hasQualifiedRetainedProof shouldBe true
+	}
 
 	@Test
 	fun `final automatic Pressure original contract authenticates actual Room proof and saved windows`() = runTest {
@@ -2675,6 +2708,7 @@ class PressureHistorySelectorTest {
 		unavailablePressure: Boolean = false,
 		writerBindingGeneration: Long = 1L,
 		sessionMode: String = MANUAL_SESSION_MODE,
+		additionalManifestSources: List<SessionManifestSourceEntity> = emptyList(),
 	): PressureFixture {
 		val segment = segment()
 		database.sessionSegmentDao().insert(segment)
@@ -2705,11 +2739,12 @@ class PressureHistorySelectorTest {
 			changeReason = "TEST",
 			manifestChecksum = "",
 		)
+		val manifestSources = listOf(binding) + additionalManifestSources
 		val manifest = unsignedManifest.copy(
-			manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, listOf(binding)),
+			manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, manifestSources),
 		)
 		database.sourceSessionDao().insertManifest(manifest)
-		database.sourceSessionDao().insertManifestSources(listOf(binding))
+		database.sourceSessionDao().insertManifestSources(manifestSources)
 		database.installOriginalStopFixture(requireNotNull(database.sourceSessionDao().session(unsignedManifest.logicalTrackingId)), unsignedManifest)
 		database.sourcePolicyDao().insertPolicies(listOf(pressurePolicy()))
 		database.sourcePolicyDao().insertConsentEpochs(listOf(pressureConsent()))

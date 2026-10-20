@@ -893,6 +893,68 @@ class RoomSourcePolicyRepositoryTest {
 	}
 
 	@Test
+	fun `batched consent heads keep each source and purpose independent`() = runTest {
+		val initial = repository.bootstrapFromLegacy(
+			readySettings().copy(ambientWifiEnabled = true, ambientCellEnabled = true),
+		)
+		val revoked = repository.setNonCaptureConsent(initial.revision, TrackingSourceComponent.WIFI,
+			SourcePurpose.AMBIENT_PRODUCT, false, false, "TEST_REVOKE")
+		val reenabled = repository.setNonCaptureConsent(revoked.revision, TrackingSourceComponent.WIFI,
+			SourcePurpose.AMBIENT_PRODUCT, true, true, "TEST_REENABLE")
+		val heads = database.sourcePolicyDao().latestConsentEpochs(
+			TrackingSourceComponent.entries.map { it.stableCode },
+			SourcePurpose.entries.map { it.stableName },
+		).associateBy { it.sourceKind to it.purpose }
+
+		heads.size shouldBe TrackingSourceComponent.entries.size * SourcePurpose.entries.size
+		heads[TrackingSourceComponent.WIFI.stableCode to SourcePurpose.AMBIENT_PRODUCT.stableName]
+			?.epoch shouldBe 3L
+		heads[TrackingSourceComponent.CELL.stableCode to SourcePurpose.AMBIENT_PRODUCT.stableName]
+			?.epoch shouldBe 1L
+		heads[TrackingSourceComponent.WIFI.stableCode to SourcePurpose.SESSION_CAPTURE.stableName]
+			?.epoch shouldBe 0L
+		repository.currentState() shouldBe SourcePolicyAuthorityState.Active(reenabled)
+	}
+
+	@Test
+	fun `newer consent denial still fences an existing eligible policy reference`() = runTest {
+		repository.bootstrapFromLegacy(readySettings())
+		val previous = requireNotNull(database.sourcePolicyDao().latestConsentEpoch(
+			TrackingSourceComponent.STEPS.stableCode, SourcePurpose.SESSION_CAPTURE.stableName))
+		database.sourcePolicyDao().insertConsentEpochs(listOf(previous.copy(
+			epoch = previous.epoch + 1L, eligible = false, persistenceEligible = false,
+			changeReason = "TEST_NEWER_DENIAL")))
+
+		repository.currentState().shouldBeInstanceOf<SourcePolicyAuthorityState.Invalid>()
+		database.sourcePolicyDao().consentEpoch(previous.sourceKind, previous.purpose, previous.epoch)
+			.shouldBe(previous)
+	}
+
+	@Test
+	fun `batched consent validation rejects a current persistence mismatch`() = runTest {
+		repository.bootstrapFromLegacy(readySettings())
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_consent_epoch SET persistence_eligible = 0 " +
+				"WHERE source_kind = ${TrackingSourceComponent.STEPS.stableCode} " +
+				"AND purpose = '${SourcePurpose.SESSION_CAPTURE.stableName}' AND epoch = 1",
+		)
+
+		repository.currentState().shouldBeInstanceOf<SourcePolicyAuthorityState.Invalid>()
+	}
+
+	@Test
+	fun `batched consent validation rejects an unreferenced eligible head`() = runTest {
+		repository.bootstrapFromLegacy(readySettings())
+		val previous = requireNotNull(database.sourcePolicyDao().latestConsentEpoch(
+			TrackingSourceComponent.WIFI.stableCode, SourcePurpose.SESSION_CAPTURE.stableName))
+		database.sourcePolicyDao().insertConsentEpochs(listOf(previous.copy(
+			epoch = previous.epoch + 1L, eligible = true, persistenceEligible = true,
+			changeReason = "TEST_UNREFERENCED_GRANT")))
+
+		repository.currentState().shouldBeInstanceOf<SourcePolicyAuthorityState.Invalid>()
+	}
+
+	@Test
 	fun `radio hosting changes execution policy without adding or rotating recording consent`() = runTest {
 		val settings = readySettings().copy(ambientWifiEnabled = true, ambientCellEnabled = true)
 		val before = repository.bootstrapFromLegacy(settings)

@@ -301,11 +301,17 @@ class WifiDurableSourceIngressTest {
 				"WHERE source_kind = ? AND registration_generation = 1",
 			arrayOf<Any?>(plan.physicalConfigurationFingerprint(), SourceKind.WIFI.stableCode))
 		val fixture = wifiCutoffRuntimeFixture(backgroundScope)
-		fixture.runtime.start(fixture.plan, DurableSourceEventSinkFactory(ingress).unbound)
+		val roomSink = DurableSourceEventSinkFactory(ingress).unbound
+		val admission = CompletableDeferred<SourceDeliveryAdmissionHandoff>()
+		val observedSink = object : SourceEventSink by roomSink {
+			override suspend fun admit(delivery: SourceDeliveryCandidate): SourceDeliveryAdmissionHandoff =
+				roomSink.admit(delivery).also { admission.complete(it) }
+		}
+		fixture.runtime.start(fixture.plan, observedSink)
 			.shouldBeInstanceOf<SourceStartResult.Started>()
 
 		requireNotNull(fixture.callback())(wifiRetryEvent())
-		runCurrent()
+		admission.await().shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
 
 		val wal = database.sourceEventWalDao().eventsAfter(0L, 10).single()
 		wal.configRevision shouldBe fixture.plan.revision

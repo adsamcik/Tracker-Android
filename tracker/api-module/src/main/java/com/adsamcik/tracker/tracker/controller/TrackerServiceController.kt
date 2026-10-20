@@ -22,6 +22,10 @@ import kotlinx.coroutines.flow.StateFlow
  * - Maintains clean module boundaries
  */
 interface TrackerStateReader {
+    /** Exact enqueued session Start still awaiting live publication; background hosting is separate. */
+    val startingSessionGenerationFlow: kotlinx.coroutines.flow.Flow<Long?>
+        get() = kotlinx.coroutines.flow.flowOf(null)
+
     /** Shared saved native Location measurements for the exact currently published live segment. */
     val savedLocationSummaryFlow: StateFlow<SavedLocationSummaryRead>
 
@@ -120,6 +124,9 @@ interface TrackerStateReader {
  * intentionally need to repair or mutate tracker lifecycle state.
  */
 interface TrackerServiceController : TrackerStateReader {
+    /** Presentation only. An older completion cannot clear a newer Start; Stop fences older work. */
+    fun updateSessionStart(generation: Long, starting: Boolean) = Unit
+
 	/** Rehydrates a bounded live route after exact-session process recovery. */
 	fun restorePathPoints(sessionId: Long, points: List<Location>) = Unit
 

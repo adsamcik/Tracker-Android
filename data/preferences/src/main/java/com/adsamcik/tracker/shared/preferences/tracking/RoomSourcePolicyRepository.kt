@@ -641,6 +641,10 @@ class RoomSourcePolicyRepository(
 		check(policies.size == TrackingSourceComponent.entries.size) {
 			"Active source policy does not contain all supported sources"
 		}
+		val latestConsent = dao.latestConsentEpochs(
+			TrackingSourceComponent.entries.map { it.stableCode },
+			SourcePurpose.entries.map { it.stableName },
+		).associateBy { it.sourceKind to it.purpose }
 		val mapped = policies.associate { entity ->
 			val source = TrackingSourceComponent.fromStableCode(entity.sourceKind)
 			val policy = SourcePolicy(
@@ -671,9 +675,9 @@ class RoomSourcePolicyRepository(
 				backgroundNotificationHostEnabled = entity.backgroundNotificationHostEnabled,
 			)
 			validatePurposeMatrix(policy)
-			validateConsentReference(policy, SourcePurpose.SESSION_CAPTURE)
-			validateConsentReference(policy, SourcePurpose.CONTROL)
-			validateConsentReference(policy, SourcePurpose.AMBIENT_PRODUCT)
+			SourcePurpose.entries.forEach { purpose ->
+				validateConsentReference(policy, purpose, latestConsent[entity.sourceKind to purpose.stableName])
+			}
 			source to policy
 		}
 		return SourcePolicySnapshot(authority.currentPolicyRevision, mapped)
@@ -697,9 +701,12 @@ class RoomSourcePolicyRepository(
 		}
 	}
 
-	private suspend fun validateConsentReference(policy: SourcePolicy, purpose: SourcePurpose) {
+	private fun validateConsentReference(
+		policy: SourcePolicy,
+		purpose: SourcePurpose,
+		latest: SourceConsentEpochEntity?,
+	) {
 		val referencedEpoch = policy.consentEpoch(purpose)
-		val latest = dao.latestConsentEpoch(policy.source.stableCode, purpose.stableName)
 		check(latest != null) { "Missing consent history for ${policy.source}/$purpose" }
 		if (referencedEpoch == null) {
 			check(!latest.eligible) { "Unreferenced eligible consent for ${policy.source}/$purpose" }
@@ -708,18 +715,16 @@ class RoomSourcePolicyRepository(
 			}
 			return
 		}
-		val referenced = dao.consentEpoch(policy.source.stableCode, purpose.stableName, referencedEpoch)
-		check(referenced != null) {
-			"Missing referenced consent epoch $referencedEpoch for ${policy.source}/$purpose"
+		// A current reference must be the latest row. Its composite primary key also makes it the
+		// exact referenced row; querying that same row again adds no validation.
+		check(latest.epoch == referencedEpoch) {
+			"Referenced consent epoch is fenced by newer history for ${policy.source}/$purpose"
 		}
-		check(referenced.eligible) {
+		check(latest.eligible) {
 			"Referenced consent epoch is ineligible for ${policy.source}/$purpose"
 		}
-		check(referenced.persistenceEligible == policy.persistenceEligible(purpose)) {
+		check(latest.persistenceEligible == policy.persistenceEligible(purpose)) {
 			"Consent persistence mismatch for ${policy.source}/$purpose"
-		}
-		check(latest.epoch == referencedEpoch && latest.eligible) {
-			"Referenced consent epoch is fenced by newer history for ${policy.source}/$purpose"
 		}
 	}
 

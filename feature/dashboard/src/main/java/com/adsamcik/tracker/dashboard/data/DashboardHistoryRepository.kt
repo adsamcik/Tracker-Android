@@ -188,6 +188,7 @@ internal class RoomDashboardHistoryRepository @Inject constructor(
 	@OptIn(ExperimentalCoroutinesApi::class)
 	override fun observeRecentHistory(): Flow<List<DashboardRecentHistoryEntry>> =
 		tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_BUDGET + 1)
+			.distinctUntilChanged()
 			.map { rows ->
 				DashboardPhysicalCandidateGeneration(rows.map { row -> row.toModel() })
 			}

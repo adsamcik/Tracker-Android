@@ -331,7 +331,9 @@ private object WifiMaintenanceSessionChecks {
 		terminal: Boolean): Boolean = if (terminal) {
 		session.currentServiceRunId == null && (session.hasInterruptedWifiWalEnd() && session.finalAdmissionOrdinal == null ||
 			session.finalAdmissionOrdinal?.let { it >= 0L && (perReading || it >= ordinal) } == true)
-	} else { !session.currentServiceRunId.isNullOrBlank() && session.finalAdmissionOrdinal == null }
+	} else {
+		!session.currentServiceRunId.isNullOrBlank() && session.hasValidWifiWalLiveHighWater(ordinal, perReading)
+	}
 }
 
 private object WifiMaintenanceRunChecks {
@@ -376,7 +378,7 @@ private object WifiMaintenanceRunChecks {
 
 	private fun currentPlanMatches(run: SourceServiceRunEntity, session: LogicalTrackingSessionEntity): Boolean =
 		run.desiredPlanRevision == session.desiredPlanRevision &&
-			run.preparedManifestRevision == session.currentManifestRevision &&
+			run.preparedManifestRevision in 1L..(session.currentManifestRevision ?: 0L) &&
 		run.startedAtMs >= session.startedAtMs && run.startedElapsedNanos >= session.startedElapsedNanos
 
 	private fun currentStatesMatch(run: SourceServiceRunEntity, session: LogicalTrackingSessionEntity): Boolean =

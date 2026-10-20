@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -254,10 +255,12 @@ internal fun GettingStartedCard(
 internal fun EmptyStateStartHintCard(
 	onStart: () -> Unit,
 	hasPermission: Boolean,
+	isStarting: Boolean = false,
 	modifier: Modifier = Modifier,
 ) {
 	Card(
 		onClick = onStart,
+		enabled = !isStarting,
 		modifier = modifier
 			.fillMaxWidth()
 			.testTag("dashboard_ready_when_you_are_card"),
@@ -272,39 +275,51 @@ internal fun EmptyStateStartHintCard(
 			horizontalArrangement = Arrangement.spacedBy(12.dp),
 			verticalAlignment = Alignment.CenterVertically,
 		) {
-			Icon(
-				imageVector = if (hasPermission) Icons.Filled.PlayArrow else Icons.Default.LocationSearching,
-				contentDescription = null,
-				tint = MaterialTheme.colorScheme.onSecondaryContainer,
-				modifier = Modifier.size(28.dp),
-			)
-			Column(
-				modifier = Modifier.weight(1f),
-				verticalArrangement = Arrangement.spacedBy(4.dp),
-			) {
-				Text(
-					text = stringResource(R.string.dashboard_empty_fab_hint_title),
-					style = MaterialTheme.typography.titleMedium,
-					fontWeight = FontWeight.SemiBold,
-					color = MaterialTheme.colorScheme.onSecondaryContainer,
-				)
-				Text(
-					text = stringResource(
-						if (hasPermission) {
-							R.string.dashboard_empty_fab_hint_desc
-						} else {
-							R.string.dashboard_empty_fab_hint_desc_no_permission
-						},
-					),
-					style = MaterialTheme.typography.bodyMedium,
-					color = MaterialTheme.colorScheme.onSecondaryContainer,
+			if (isStarting) {
+				CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 2.dp)
+			} else {
+				Icon(
+					imageVector = if (hasPermission) Icons.Filled.PlayArrow else Icons.Default.LocationSearching,
+					contentDescription = null,
+					tint = MaterialTheme.colorScheme.onSecondaryContainer,
+					modifier = Modifier.size(28.dp),
 				)
 			}
-			Icon(
-				imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-				contentDescription = null,
-				tint = MaterialTheme.colorScheme.onSecondaryContainer,
-				modifier = Modifier.size(24.dp),
+			StartHintLabel(hasPermission, isStarting, Modifier.weight(1f))
+			if (!isStarting) {
+				Icon(
+					imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+					contentDescription = null,
+					tint = MaterialTheme.colorScheme.onSecondaryContainer,
+					modifier = Modifier.size(24.dp),
+				)
+			}
+		}
+	}
+}
+
+@Composable
+private fun StartHintLabel(hasPermission: Boolean, isStarting: Boolean, modifier: Modifier) {
+	Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+		Text(
+			text = stringResource(if (isStarting) {
+				com.adsamcik.tracker.tracker.R.string.notification_tracking_restoring_title
+			} else {
+				R.string.dashboard_empty_fab_hint_title
+			}),
+			style = MaterialTheme.typography.titleMedium,
+			fontWeight = FontWeight.SemiBold,
+			color = MaterialTheme.colorScheme.onSecondaryContainer,
+		)
+		if (!isStarting) {
+			Text(
+				text = stringResource(if (hasPermission) {
+					R.string.dashboard_empty_fab_hint_desc
+				} else {
+					R.string.dashboard_empty_fab_hint_desc_no_permission
+				}),
+				style = MaterialTheme.typography.bodyMedium,
+				color = MaterialTheme.colorScheme.onSecondaryContainer,
 			)
 		}
 	}

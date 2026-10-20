@@ -1053,9 +1053,8 @@ class LocationSourceRuntime @Inject internal constructor(
 	 * effect, so admission of a replacement remains fenced.
 	 */
 	private suspend fun reconcilePendingRetirementLocked(): Boolean = withContext(NonCancellable) {
-		val pending = withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
-			runCatchingNonCancellation { registrations.pendingRetirements(source) }.getOrNull()
-		} ?: return@withContext false
+		val pending = runCatchingNonCancellation { registrations.pendingRetirements(source) }.getOrNull()
+			?: return@withContext false
 		if (pending.size > 1) return@withContext false
 
 		val retainedBackends = retainedBackendsOrNull() ?: return@withContext false
@@ -1106,16 +1105,15 @@ class LocationSourceRuntime @Inject internal constructor(
 				RegistrationRemovalOutcome.FAILED,
 			)
 		}
-		val token = existingToken ?: withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
-			runCatchingNonCancellation {
-				registrations.beginRetirement(
-					activeRegistration,
-					reason,
-					retiredAtMs,
-					retiredElapsedRealtimeNanos,
-				)
-			}.getOrNull()
-		} ?: return@withContext LocationRetirementAttempt(
+		// The durable fence may wait for Room; Android provider timeouts apply only to removal.
+		val token = existingToken ?: runCatchingNonCancellation {
+			registrations.beginRetirement(
+				activeRegistration,
+				reason,
+				retiredAtMs,
+				retiredElapsedRealtimeNanos,
+			)
+		}.getOrNull() ?: return@withContext LocationRetirementAttempt(
 			LocationRetirementDurability.NOT_DURABLE,
 			RegistrationRemovalOutcome.FAILED,
 		)
@@ -1163,9 +1161,7 @@ class LocationSourceRuntime @Inject internal constructor(
 			)
 		) return LocationRetirementAttempt(LocationRetirementDurability.PENDING, removal)
 
-		val completed = withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
-			runCatchingNonCancellation { registrations.completeRetirement(token) }.getOrDefault(false)
-		} == true
+		val completed = runCatchingNonCancellation { registrations.completeRetirement(token) }.getOrDefault(false)
 		return if (completed) {
 			pendingRetirementToken = null
 			LocationRetirementAttempt(LocationRetirementDurability.COMPLETE, removal)
@@ -1221,9 +1217,7 @@ class LocationSourceRuntime @Inject internal constructor(
 		token: SourceRegistrationRetirementToken,
 		removal: RegistrationRemovalOutcome,
 	): LocationRetirementAttempt {
-		val complete = withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
-			registrations.completeRetirement(token)
-		} == true
+		val complete = registrations.completeRetirement(token)
 		if (complete) pendingRetirementToken = null
 		return LocationRetirementAttempt(if (complete) LocationRetirementDurability.COMPLETE
 			else LocationRetirementDurability.PENDING, removal)

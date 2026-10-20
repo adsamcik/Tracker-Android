@@ -372,6 +372,9 @@ interface TrackingLifecycleCommandAuthority {
 	/** Read-only signal from the existing receipt; Room session visibility follows durable acceptance. */
 	val acceptedStartGeneration: Flow<Long> get() = flowOf(0L)
 
+	/** Read-only signal from the existing durable terminal STOP receipt. */
+	val handledStopGeneration: Flow<Long> get() = flowOf(0L)
+
 	/**
 	 * Reserves a delayed user Start only if no START, STOP or user-exit command appeared since
 	 * [expectedGeneration] was captured. Durable implementations must compare and reserve under

@@ -80,6 +80,7 @@ internal class PressureHistorySelector private constructor(
 	/** Caller must hold the Room transaction defining this logical-membership snapshot. */
 	internal suspend fun selectLogicalBySegmentIdsInTransaction(
 		segmentIds: List<Long>,
+		sourceOnly: Boolean = false,
 	): List<PressureLogicalHistoryEntry> {
 		val distinctIds = segmentIds.distinct()
 		if (distinctIds.isEmpty()) {
@@ -89,7 +90,12 @@ internal class PressureHistorySelector private constructor(
 			"At most $PRESSURE_HISTORY_SEGMENT_BATCH_CAP Pressure history rows may be selected"
 		}
 		val seeds = database.trackingHistoryReadDao().segments(distinctIds)
-		return selectLogicalFromSeedsInTransaction(seeds)
+		val selectedSeeds = if (sourceOnly) {
+			database.sourceOnlyHistoryCandidates(seeds, SourceDestinationOwnerEntity.SOURCE_PRESSURE)
+		} else {
+			seeds
+		}
+		return selectLogicalFromSeedsInTransaction(selectedSeeds)
 	}
 
 	/**
@@ -233,7 +239,7 @@ internal class PressureHistorySelector private constructor(
 		accepted: MutableMap<PressureHistoryEntryIdentity, PressureLogicalHistoryEntry>,
 	): PressureOnlyDiscoveryResult.Unavailable? {
 		val resolvedEntries = selectLogicalFromSeedsInTransaction(
-			seeds = seeds,
+			seeds = database.sourceOnlyHistoryCandidates(seeds, SourceDestinationOwnerEntity.SOURCE_PRESSURE),
 			memberBudget = memberBudget,
 		)
 		if (resolvedEntries.any { entry ->

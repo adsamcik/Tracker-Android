@@ -52,8 +52,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -545,45 +545,36 @@ class CellSourceRuntimeTest {
 	}
 
 	@Test
-	fun `retirement begin timeout never removes provider and later retries immutable intent`() = runTest {
+	fun `slow retirement journal waits for Room and preserves the exact token before replacement`() = runTest {
 		val initialPlan = cellPlan(revision = 1L)
-		val replacementPlan = cellPlan(
-			revision = 2L,
-			mode = CellMode.OBSERVE_AND_SPARSE_REFRESH,
-		)
+		val replacementPlan = cellPlan(revision = 2L, mode = CellMode.OBSERVE_AND_SPARSE_REFRESH)
 		val initial = registration(initialPlan, authorizationRevision = 1L, generation = 8L)
 		val replacement = registration(replacementPlan, authorizationRevision = 2L, generation = 9L)
 		val fixture = runtimeFixture(this, initialPlan, listOf(initial, replacement))
 		fixture.start(SourceEventSink { SourceAdmissionHandoff.Durable(1L) })
-		var firstBoundary: Pair<Long, Long>? = null
-		coEvery {
-			fixture.registrations.beginRetirement(any(), any(), any(), any())
-		} coAnswers {
-			firstBoundary = thirdArg<Long>() to arg<Long>(3)
-			awaitCancellation()
+		var exactToken: SourceRegistrationRetirementToken? = null
+		coEvery { fixture.registrations.beginRetirement(any(), any(), any(), any()) } coAnswers {
+			delay(3_000L)
+			retirementToken(firstArg(), secondArg(), thirdArg(), arg(3)).also { exactToken = it }
 		}
+		coEvery { fixture.registrations.completeRetirement(any()) } coAnswers {
+			assertSame(exactToken, firstArg())
+			delay(3_000L)
+			true
+		}
+		val stopping = async { fixture.quiesce(deadlineOffsetNanos = 10_000_000_000L) }
+		runCurrent()
+		advanceTimeBy(2_500L)
+		runCurrent()
 
-		val firstStop = fixture.quiesce(deadlineOffsetNanos = 10_000_000_000L)
-
-		assertEquals(SourceStopStatus.PROVIDER_FAILED, firstStop.status)
+		assertFalse(stopping.isCompleted)
 		verify(exactly = 0) { fixture.backend.stop() }
-		coEvery {
-			fixture.registrations.beginRetirement(any(), any(), any(), any())
-		} answers {
-			if (firstArg<SourceRegistration>().state.registrationGeneration ==
-				initial.state.registrationGeneration
-			) {
-				assertEquals(firstBoundary, thirdArg<Long>() to arg<Long>(3))
-			}
-			retirementToken(firstArg(), secondArg(), thirdArg(), arg(3))
-		}
-
-		val applied = fixture.runtime.reconfigure(
-			replacementPlan,
-			SourceEventSink { SourceAdmissionHandoff.Durable(2L) },
-		)
-		assertTrue(applied is SourceApplyResult.Applied)
+		assertEquals(SourceStopStatus.COMPLETE, stopping.await().status)
+		coVerify(exactly = 1) { fixture.registrations.beginRetirement(initial, any(), any(), any()) }
+		coVerify(exactly = 1) { fixture.registrations.completeRetirement(requireNotNull(exactToken)) }
 		verify(exactly = 1) { fixture.backend.stop() }
+		assertTrue(fixture.runtime.reconfigure(replacementPlan,
+			SourceEventSink { SourceAdmissionHandoff.Durable(2L) }) is SourceApplyResult.Applied)
 		fixture.runtime.close()
 	}
 

@@ -167,7 +167,7 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 							false
 						}
 					}
-					if (terminal != null && !failureNowAdmits(terminal.admissionOrdinal)) {
+					if (terminal != null && !failureCanBeProcessed(terminal)) {
 						return@withTransaction ActivityProjectionPass.TerminalBlocked(
 							terminal,
 							cursor,
@@ -213,11 +213,8 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 									throw ActivityLaneAuthorityChangedException(
 										"ACTIVITY_DESTINATION_OWNER_CHANGED",
 									)
-								else -> return@withTransaction terminalFailure(
-									lane,
-									cursor,
-									event.admissionOrdinal,
-									admission.reason.failureCode(),
+								else -> return@withTransaction settleRejectedEvent(
+									lane, cursor, event.admissionOrdinal, admission,
 								)
 							}
 							is ActivityCapturedWalAdmissionResult.Unavailable -> {
@@ -239,11 +236,8 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 								)
 							}
 							is ActivityCapturedWalAdmissionResult.ObservationRejected ->
-								return@withTransaction terminalFailure(
-									lane,
-									cursor,
-									event.admissionOrdinal,
-									"ACTIVITY_OBSERVATION_${admission.reason.name}",
+								return@withTransaction settleRejectedEvent(
+									lane, cursor, event.admissionOrdinal, admission,
 								)
 						}
 					}
@@ -339,12 +333,11 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		}
 
 		val groups = linkedMapOf<ActivityProjectionWindowKey, ActivityProjectionWindowAccumulator>()
-		var validated = 0
 		for (event in preflight) {
 			admitTerminalEvent(lane, originalCursor, skippedThrough, event, authority, groups)?.let { return it }
-			validated++
 		}
-		return projectTerminalWindows(lane, originalCursor, finalOrdinal, preflight, groups, validated)
+		return projectTerminalWindows(lane, originalCursor, finalOrdinal, groups,
+			groups.values.sumOf { it.observations.size })
 	}
 
 	private suspend fun terminalAdmissionOrdinal(authority: ActivityCaptureAuthority, seedOrdinal: Long): Long? {
@@ -388,12 +381,13 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 				null
 			}
 			is ActivityCapturedWalAdmissionResult.Rejected ->
-				rejectedTerminalEvent(lane, originalCursor, event.admissionOrdinal, admission.reason)
+				rejectedTerminalEvent(lane, originalCursor, event.admissionOrdinal, admission)
 			is ActivityCapturedWalAdmissionResult.Unavailable ->
 				unavailableTerminalEvent(lane, originalCursor, skippedThrough, event.admissionOrdinal, admission.reason)
-			is ActivityCapturedWalAdmissionResult.ObservationRejected -> terminalFailure(
-				lane, originalCursor, event.admissionOrdinal, "ACTIVITY_OBSERVATION_${admission.reason.name}",
-			)
+			is ActivityCapturedWalAdmissionResult.ObservationRejected -> {
+				saveFailure(event.admissionOrdinal, requireNotNull(admission.terminalRejectionCode()), terminal = true)
+				null
+			}
 		}
 	}
 
@@ -401,15 +395,23 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		lane: SourceProductProjectionLaneEntity,
 		originalCursor: Long,
 		admissionOrdinal: Long,
-		reason: ActivityCapturedWalAdmissionRejection,
-	): ActivityProjectionPass? = when (reason) {
+		admission: ActivityCapturedWalAdmissionResult.Rejected,
+	): ActivityProjectionPass? = when (admission.reason) {
 		ActivityCapturedWalAdmissionRejection.CONTROL_ONLY -> null
 		ActivityCapturedWalAdmissionRejection.DESTINATION_OWNER_MISMATCH ->
 			throw ActivityLaneAuthorityChangedException("ACTIVITY_DESTINATION_OWNER_CHANGED")
 		ActivityCapturedWalAdmissionRejection.DELETED_EVIDENCE,
 		ActivityCapturedWalAdmissionRejection.RETAINED_EVIDENCE,
 		-> throw ActivityLaneAuthorityChangedException("ACTIVITY_TERMINAL_RUN_EVIDENCE_REDACTED")
-		else -> terminalFailure(lane, originalCursor, admissionOrdinal, reason.failureCode())
+		else -> {
+			val rejection = admission.terminalRejectionCode()
+			if (rejection == null) {
+				terminalFailure(lane, originalCursor, admissionOrdinal, admission.reason.failureCode())
+			} else {
+				saveFailure(admissionOrdinal, rejection, terminal = true)
+				null
+			}
+		}
 	}
 
 	private suspend fun unavailableTerminalEvent(
@@ -429,7 +431,6 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		lane: SourceProductProjectionLaneEntity,
 		originalCursor: Long,
 		finalOrdinal: Long,
-		preflight: List<SourceProjectionEventIdentityRow>,
 		groups: Map<ActivityProjectionWindowKey, ActivityProjectionWindowAccumulator>,
 		validated: Int,
 	): ActivityProjectionPass {
@@ -462,8 +463,10 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		}
 		val applied = applyTerminalWindows(windows)
 		val projectionDao = database.sourceProjectionStateDao()
-		preflight.forEach { event ->
-			projectionDao.deleteFailure(WRITER_ID, WRITER_VERSION, event.admissionOrdinal)
+		groups.values.forEach { group ->
+			group.observations.forEach { observation ->
+				projectionDao.deleteFailure(WRITER_ID, WRITER_VERSION, observation.reference.admissionOrdinal)
+			}
 		}
 		advanceCursor(lane, finalOrdinal)
 		return ActivityProjectionPass.Applied(finalOrdinal, applied, validated)
@@ -626,11 +629,42 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		database.sourceEvidenceStateDao().get()
 			?: throw ActivityLaneAuthorityChangedException("SOURCE_EVIDENCE_STATE_MISSING")
 
-	/** Recheck repaired historical admission without clearing its failure or moving the cursor. */
-	private suspend fun failureNowAdmits(admissionOrdinal: Long): Boolean {
-		val event = projectionPage(admissionOrdinal - 1L, admissionOrdinal, 1).singleOrNull()
+	/** Recheck the exact input; unknown failures and missing acquisition authority remain blocked. */
+	private suspend fun failureCanBeProcessed(failure: SourceProjectionFailureEntity): Boolean {
+		val event = projectionPage(failure.admissionOrdinal - 1L, failure.admissionOrdinal, 1).singleOrNull()
 			?: return false
-		return adapter.admit(SourceEventId(event.eventId)) is ActivityCapturedWalAdmissionResult.Admitted
+		val admission = adapter.admit(SourceEventId(event.eventId))
+		return admission is ActivityCapturedWalAdmissionResult.Admitted ||
+			admission.terminalRejectionCode() == failure.failureCode
+	}
+
+	private suspend fun settleRejectedEvent(
+		lane: SourceProductProjectionLaneEntity,
+		cursor: Long,
+		admissionOrdinal: Long,
+		admission: ActivityCapturedWalAdmissionResult,
+	): ActivityProjectionPass {
+		val code = admission.terminalRejectionCode()
+			?: return terminalFailure(lane, cursor, admissionOrdinal, "ACTIVITY_REJECTION_UNVERIFIABLE")
+		// Processing is settled, not successful capture. Keep the exact rejection and original WAL.
+		saveFailure(admissionOrdinal, code, terminal = true)
+		advanceCursor(lane, admissionOrdinal)
+		return ActivityProjectionPass.Applied(admissionOrdinal, windowsApplied = 0, eventsValidated = 0)
+	}
+
+	private fun ActivityCapturedWalAdmissionResult.terminalRejectionCode(): String? = when (this) {
+		is ActivityCapturedWalAdmissionResult.Rejected -> when (reason) {
+			ActivityCapturedWalAdmissionRejection.MISSING_EVENT,
+			ActivityCapturedWalAdmissionRejection.WRONG_SOURCE,
+			ActivityCapturedWalAdmissionRejection.DESTINATION_OWNER_MISMATCH,
+			ActivityCapturedWalAdmissionRejection.CONTROL_ONLY,
+			ActivityCapturedWalAdmissionRejection.DELETED_EVIDENCE,
+			ActivityCapturedWalAdmissionRejection.RETAINED_EVIDENCE,
+			-> null
+			else -> reason.failureCode()
+		}
+		is ActivityCapturedWalAdmissionResult.ObservationRejected -> "ACTIVITY_OBSERVATION_${reason.name}"
+		else -> null
 	}
 
 	private suspend fun failureIsLifecycleRejected(
@@ -641,9 +675,9 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 			return true
 		}
 		val raw = database.sourceEventWalDao()
-			.projectionEligibilityByAdmissionOrdinal(admissionOrdinal) ?: return true
+			.projectionEligibilityByAdmissionOrdinal(admissionOrdinal) ?: return false
 		if (raw.sourceKind != SourceKind.ACTIVITY.stableCode) {
-			return true
+			return false
 		}
 		return raw.isLifecycleRejected(evidenceState) || raw.isDeletedScope()
 	}

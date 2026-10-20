@@ -5,11 +5,50 @@ import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
+import com.adsamcik.tracker.stats.api.repository.SavedLocationFix
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import org.junit.jupiter.api.Test
 
 class SavedTripDistanceAccumulatorTest {
+
+    @Test fun `finite whole route preview stays bounded and preserves both sides of a saved gap`() {
+        val route = SavedTripDistanceAccumulator(retainWholeRoutePreview = true)
+        for (index in 1..2_000) {
+            val owner = if (index <= 1_000) { "owner:1" } else { "owner:2" }
+            val row = point(index * 1_000L, index * 100, owner, index.toLong())
+            route.add(row, previewFix(row))
+        }
+        val sections = route.routePreview
+        kotlin.test.assertTrue(sections.sumOf { it.size } <= 512)
+        assertEquals(1_000L, sections.first().first().measuredTimeMs)
+        assertEquals(2_000_000L, sections.last().last().measuredTimeMs)
+        assertEquals(2, sections.size)
+        kotlin.test.assertTrue(sections.first().all { it.measuredTimeMs <= 1_000_000 })
+        kotlin.test.assertTrue(sections.last().all { it.measuredTimeMs > 1_000_000 })
+        kotlin.test.assertTrue(route.hasDisconnectedSections)
+    }
+
+    @Test fun `bounded whole route never joins isolated sections even when some are omitted`() {
+        val route = SavedTripDistanceAccumulator(retainWholeRoutePreview = true)
+        for (index in 1..2_000) {
+            val row = point(index * 1_000L, index * 100, "owner:$index", 1)
+            route.add(row, previewFix(row))
+        }
+        val sections = route.routePreview
+        kotlin.test.assertTrue(sections.sumOf { it.size } <= 512)
+        kotlin.test.assertTrue(sections.all { it.size == 1 })
+        assertEquals(1_000L, sections.first().single().measuredTimeMs)
+        assertEquals(2_000_000L, sections.last().single().measuredTimeMs)
+        assertNull(route.measuredMeters)
+    }
+
+    private fun previewFix(row: LocationPathSampleRow): SavedLocationFix = row.sample.let { sample ->
+        SavedLocationFix(sample.timeMs, sample.timeMs, 0, requireNotNull(sample.latE7),
+            requireNotNull(sample.lonE7), null, null, null, null,
+            com.adsamcik.tracker.shared.model.AltitudeDatum.UNKNOWN_LEGACY,
+            com.adsamcik.tracker.shared.model.AltitudeSource.UNKNOWN_LEGACY, null)
+    }
 	@Test fun `legacy gaps reversed times and invalid coordinates do not manufacture an edge`() {
 		for (boundary in listOf(point(200_000, 900_000), point(1_000, 900_000),
 			point(2_000, null), point(2_000, 900_000).copy(sample = point(2_000, 900_000).sample.copy(latE7 = 1_000_000_000)))) {

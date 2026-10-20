@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.ActivityTrackerComponent
@@ -49,8 +50,9 @@ internal class TrackerComponentFactory(
 	private val trackingParamsRepository: TrackingParamsRepository,
 	private val dispatchers: DispatchersProvider,
 	private val enableNotifications: Boolean = true,
+	private val trackingHistoryRepository: TrackingHistoryRepository? = null,
 ) {
-	private val sessionPresentationLifecycle = SessionPresentationLifecycle(appDatabase)
+	private val sessionPresentationLifecycle = SessionPresentationLifecycle(appDatabase, trackingHistoryRepository)
 
 	/**
 	 * Build and enable all tracker components for a new session.

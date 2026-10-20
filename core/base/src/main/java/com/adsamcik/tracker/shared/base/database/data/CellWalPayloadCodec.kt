@@ -217,7 +217,7 @@ private fun DataInputStream.readNullableLong(): Long? = if (readBoolean()) {
 
 private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256")
 	.digest(this)
-	.joinToString(separator = "") { byte -> "%02x".format(byte) }
+	.toHexString()
 
 private const val TYPE_CELL_SNAPSHOT = 8
 const val MAX_CELL_WAL_PAYLOAD_BYTES = 65_536

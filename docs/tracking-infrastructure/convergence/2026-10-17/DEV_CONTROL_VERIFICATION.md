@@ -1,4 +1,73 @@
-# Dev tracking control verification — updated 2026-10-18
+# Dev tracking control verification — updated 2026-10-20
+
+## Verified controls
+
+Scope: My location, manual Start, saved route data and End on the existing API37.2 emulator.
+D: is accessible. The AVD and app data were preserved; no new/clone AVD or older API was used.
+
+- [x] Build/Hilt/APK and scoped Detekt pass for R59 (115 Kotlin paths).
+- [x] Pass all six affected test classes: 81 fresh cases; reconcile 1,938 distinct passing affected cases with 1,857 carried results.
+- [x] Install and hash-check Advention Dev / com.adsamcik.tracker.dev / 10.0.0-dev in place.
+- [x] My location shows a centered green marker and street-level 50 m scale while tracking is Off.
+  A stable saved-data snapshot shows zero new Location points, receipts or Location WAL observations.
+- [x] Fresh manual Start reaches Recording; moving fixes reach saved canonical data.
+- [x] End finalizes that exact session with its original cutoff and returns to Ready.
+- [x] Reopen the same saved session and visually confirm its fitted route, timestamps and positive distance.
+- [x] Reopen the earlier disconnected route and verify the false connecting line is gone.
+- [x] Complete final independent result review; the enclosing local dev/v10 commit records delivery.
+
+APK SHA-256: `DBDBFCC1A5713EE7AC9821B9869F2D258C5F9CD28193754F43305CFFF522010E`. Built, archived and installed hashes match; debug label,
+package/version suffix, debuggable flag and signer are verified. R59 passed in 6m 41s.
+The six fresh classes contain 18 live-summary Room, 31 finite-summary Room, nine distance-accumulator,
+four simplifier, 12 presenter and seven preview-state cases. Carried results keep their original
+receipts; failed classes are not relabelled as passing. This is **not** a full CI rerun.
+October16 repository gates remain historical.
+
+### Runtime evidence
+
+The exact installed R59 build passed My location and the fresh `r59-flow` test on boot9, with no
+debugger, profiler, app pause, forced process stop, database edit or cursor skip during acceptance.
+Start was observed after **44.8 s** and End after **60.3 s**; this emulator remains slow.
+
+Fresh segment 31: **13 saved points**, 9
+distinct positions after Recording, **103.15 m · partial**, and the final injected position
+saved within 0.43 m. Cached point count/distance match canonical data.
+The same run is FINALIZED / STOP_ACCEPTED / QUIESCED with zero post-End session manifests and the
+original wall/elapsed/boot cutoff intact. Coverage is `STOP_PARTIAL`.
+The same app process stayed alive through Start, recording and End. Normal Turn off was used after acceptance.
+
+Raw evidence is under `build/verification-20261019`: the R59 source freeze, gate log,
+reconciled test inventory/XML, installed APK hash, My location proof, `r59-flow` events/strict
+SQL proof/process proof, saved-detail screenshot and `r59-gap-detail-proof.json`.
+The [machine-readable result](CONTROL_RECOVERY_RESULT.json) keeps source hashes and evidence identities;
+tracked reports contain no coordinates or observation payloads.
+
+### Repairs and preserved failures
+
+- Shared startup and command ownership preserve Start/End/Off fences while slow provider work runs.
+- Retirement drains admitted data through the real writers; missing callbacks retain honest Partial coverage.
+- Session close uses the qualified saved route and original End cutoff for count, distance and presentation.
+- Embedded maps use TextureView and the supported bounds jump. Saved previews reuse the qualified
+  whole-route sections and preserve breaks through bounded sampling/simplification; live previews keep their recent tail.
+
+Earlier failed attempts remain separate from acceptance. R53 exposed the Location handoff guard;
+R54 exposed old contract stubs. Those failed whole classes are excluded; corrected complete classes passed.
+The first R56 flow lost emulator/ADB during End. A later R56 flow passed controls/storage, but opening
+detail exposed the disabled-Vulkan emulator setting and then the false route connector. The same AVD
+was restarted with Vulkan enabled, preserving data. R59 verifies both the repaired old preview and a
+fresh full session. Recovery of an old End is never counted as a fresh End pass.
+R57 stopped at three quality findings, and R58 at a trailing-callback signature mismatch; neither ran
+tests or produced an accepted APK. R59 includes their small repairs and passes the affected batch.
+The first R59 My location snapshot saw concurrent WAL writes; a retry after normal Home navigation
+succeeded without pausing or modifying the app. The earlier mistyped R56 local-repository invocation
+is also retained separately from its successful rerun.
+
+Physical-phone sensors, all-six-hardware delivery, battery behavior and long background runs remain
+unverified. No lossless-coverage or full-MVP validation claim is made. Older damaged test recordings
+and a pre-existing AchievementWorker vendor-SQLite upsert error are outside this control repair.
+The enclosing local dev/v10 commit records delivery; no remote push.
+
+## Historical October 18 record
 
 Scope: repair the existing emulator and verify My location, manual Start, saved Location delivery,
 and End in the Dev app. This is not a claim that every provider or physical-device battery and
@@ -8,7 +77,7 @@ Older damaged test sessions with incomplete terminal presentation/export metadat
 to be portable-export ready by this control repair. Their stored readings have not been discarded
 or their processing cursors skipped to obtain a passing Start.
 
-## Repair
+### Repair
 
 - [x] Preserve the existing AVD's paired data/encryption disks before its approved reset.
 - [x] Restore the same configured `Android_17_Google_Play` AVD; no new AVD or API matrix.
@@ -45,7 +114,7 @@ or their processing cursors skipped to obtain a passing Start.
   allocations from the hot digest paths without changing their output.
 - [x] Independent review of the production changes and regression sources; findings addressed.
 
-## Final acceptance
+### Final acceptance
 
 - [x] Build and verify the debug-signed `Advention Dev` / `com.adsamcik.tracker.dev` APK.
 - [ ] Install that final APK in place on the existing emulator.
@@ -61,7 +130,7 @@ ARM64/x86_64 support. Host checks passed; runtime acceptance is blocked below.
 Earlier screenshots of Recording and recovered old samples are not acceptance evidence for fresh
 saved-data delivery or successful End.
 
-### Host checks
+#### Host checks
 
 | Check | Result |
 | --- | --- |
@@ -83,7 +152,7 @@ The failed prior batches and original XML remain preserved under `build/verifica
 The prior 484-test control checkpoint and the broader October 16 gates remain historical receipts;
 the full repository aggregates were not rerun for this repair.
 
-### Runtime blocker — October 18
+#### Runtime blocker â€” October 18
 
 The user's reconnection restored D: readability, and the same existing API 37 AVD booted successfully.
 The R4 Dev APK installed in place and My location displayed a centered marker, rendered street tiles
@@ -111,7 +180,7 @@ runtime acceptance. The user requested a retry on October 18; both Python and .N
 retried, and .NET again reported a fatal device hardware error for the same `config.ini`. Host checks
 continue without a replacement AVD.
 
-### Intermediate receipts
+#### Intermediate receipts
 
 The Dev APK built at 19:29 on October 17 (SHA-256
 `F1B7B2505EF37872586F4A7EBE3994E90E302005BC7F210B08D057D5B283F1A2`)
@@ -151,7 +220,7 @@ corrections, but the later runtime repairs change Activity/Wi-Fi and coordinator
 affected classes and the corrected cases are being rerun. The superseded batch was cancelled after
 the final recovery sources were assembled; its unfinished lint is not a passing result.
 
-## Environment and limits
+### Environment and limits
 
 The target is the pre-existing Android 17 / API 37 Google Play x86_64 AVD with 16 KB pages,
 hardware graphics and injected GPS fixes. The Dev package is debuggable, debug signed and retains

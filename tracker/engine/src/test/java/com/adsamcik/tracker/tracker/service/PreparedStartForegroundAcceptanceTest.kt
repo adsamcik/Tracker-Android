@@ -14,6 +14,9 @@ import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason
 import com.adsamcik.tracker.tracker.source.coordinator.AuthoritativeSessionCoordinator
 import com.adsamcik.tracker.tracker.source.coordinator.ClaimedPreparedSessionStart
 import com.adsamcik.tracker.tracker.source.coordinator.PreparedSessionClaimResult
+import com.adsamcik.tracker.tracker.source.coordinator.DesiredPlanStatus
+import com.adsamcik.tracker.tracker.source.coordinator.SessionStartResult
+import com.adsamcik.tracker.tracker.source.coordinator.TrackerServiceSourceSession
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
@@ -23,6 +26,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -41,10 +45,12 @@ class PreparedStartForegroundAcceptanceTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val room = mockk<AuthoritativeSessionCoordinator>()
     private val params = mockk<TrackingParamsRepository>()
+    private val sourceSession = mockk<TrackerServiceSourceSession>()
     private lateinit var commands: SharedPreferencesTrackingLifecycleCommandAuthority
     private var workCalls = 0
     private var serializedCalls = 0
     private var beforeWork: suspend () -> Unit = {}
+    private var validateWorkReadiness = false
     private val token = PreparedTrackingStartToken("exact-token")
 
     @Before
@@ -191,6 +197,34 @@ class PreparedStartForegroundAcceptanceTest {
             .pendingCollectionResumeExitId shouldBe "off"
     }
 
+    @Test
+    fun `End reserves while prepared providers wait and withholds their stale Start result`(): Unit = runBlocking {
+        val start = requireNotNull(commands.reserveStart())
+        commands.withCurrentStart(start, acceptWhen = { it }) { true }
+        validateWorkReadiness = true
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        coEvery { sourceSession.applyPreparedAndroidStart(any(), any(), any(), any()) } coAnswers {
+            entered.complete(Unit)
+            release.await()
+            SessionStartResult.Started("logical", "run", emptyList(), DesiredPlanStatus.EFFECTIVE)
+        }
+        val applying = async { coordinator().apply(prepared(), start.generation) }
+        try {
+            entered.await()
+            val stop = withTimeout(2_000L) {
+                requireNotNull(commands.reserveStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 2_000L))
+            }
+            commands.latestUnhandledStop() shouldBe stop
+            release.complete(Unit)
+            applying.await() shouldBe null
+            serializedCalls shouldBe 0
+        } finally {
+            release.complete(Unit)
+            applying.cancelAndJoin()
+        }
+    }
+
     private fun prepared(): TrackingServicePreparedStartClaim.Claimed {
         val claim = mockk<ClaimedPreparedSessionStart>()
         every { claim.token } returns token
@@ -200,12 +234,16 @@ class PreparedStartForegroundAcceptanceTest {
 
     private fun coordinator(): DefaultTrackingStartRequestCoordinator {
         val gate = object : TrackingStartupGate {
-            override val isReady = true
+            override val isReady get() = !validateWorkReadiness || commands.latestUnhandledStop() == null
             override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0L)
             override suspend fun <T> withReadyGenerationWork(expectedGeneration: Long, operation: suspend () -> T): T? {
                 workCalls++
                 beforeWork()
-                return operation()
+                if (!isReady) {
+                    return null
+                }
+                val result = operation()
+                return result.takeIf { isReady }
             }
             override suspend fun <T> withReadyGenerationOperation(expectedGeneration: Long, operation: suspend () -> T): T? {
                 serializedCalls++
@@ -217,7 +255,7 @@ class PreparedStartForegroundAcceptanceTest {
         return DefaultTrackingStartRequestCoordinator(
             context = context, database = mockk(), trackingStartupGate = gate,
             trackingParamsRepository = params, activeTrackingSessionStore = mockk(),
-            sourceSession = mockk(), authoritativeSessionCoordinator = room,
+            sourceSession = sourceSession, authoritativeSessionCoordinator = room,
             trackingRolloutStateStore = mockk(),
             chosenSourceWriterSetup = mockk {
                 coEvery { ensure(any()) } coAnswers {

@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -53,6 +54,7 @@ internal fun TrackingPill(
 	sessionData: TrackerSessionSnapshot?,
 	onToggleTracking: () -> Unit,
 	onRequestPermission: () -> Unit,
+	isStarting: Boolean = false,
 	modifier: Modifier = Modifier,
 ) {
 	AnimatedVisibility(
@@ -69,6 +71,7 @@ internal fun TrackingPill(
 	) {
 		PillContent(
 			isTracking = isTracking,
+			isStarting = isStarting,
 			hasPermission = hasPermission,
 			sessionData = sessionData,
 			onClick = {
@@ -81,6 +84,7 @@ internal fun TrackingPill(
 @Composable
 private fun PillContent(
 	isTracking: Boolean,
+	isStarting: Boolean,
 	hasPermission: Boolean,
 	sessionData: TrackerSessionSnapshot?,
 	onClick: () -> Unit,
@@ -106,6 +110,7 @@ private fun PillContent(
 	}
 
 	val label = when {
+		isStarting -> stringResource(com.adsamcik.tracker.tracker.R.string.notification_tracking_restoring_title)
 		isTracking -> stringResource(com.adsamcik.tracker.tracker.R.string.shortcut_end_session)
 		!hasPermission -> stringResource(R.string.dashboard_pill_enable_location)
 		else -> stringResource(R.string.dashboard_pill_start)
@@ -113,6 +118,7 @@ private fun PillContent(
 
 	Surface(
 		onClick = onClick,
+		enabled = !isStarting,
 		shape = MaterialTheme.shapes.extraLarge,
 		color = containerColor,
 		shadowElevation = 4.dp,
@@ -126,12 +132,16 @@ private fun PillContent(
 			horizontalArrangement = Arrangement.spacedBy(8.dp),
 			verticalAlignment = Alignment.CenterVertically,
 		) {
-			Icon(
-				imageVector = icon,
-				contentDescription = null,
-				tint = contentColor,
-				modifier = Modifier.size(20.dp),
-			)
+			if (isStarting) {
+				CircularProgressIndicator(Modifier.size(20.dp), color = contentColor, strokeWidth = 2.dp)
+			} else {
+				Icon(
+					imageVector = icon,
+					contentDescription = null,
+					tint = contentColor,
+					modifier = Modifier.size(20.dp),
+				)
+			}
 			Text(
 				text = label,
 				style = MaterialTheme.typography.labelLarge,

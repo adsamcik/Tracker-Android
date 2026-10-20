@@ -1263,7 +1263,7 @@ interface TrackingHistoryReadDao {
 		serviceRunIds: List<String>,
 	): List<SourceProductProjectionLaneEntity>
 
-	/** Reads relevant terminal failures only for referenced Steps writers and ordinal bounds. */
+	/** Exact source/run failures; missing or inconsistent WAL attribution remains unavailable. */
 	@Query(
 		"""
 		SELECT failure.*
@@ -1271,6 +1271,25 @@ interface TrackingHistoryReadDao {
 		WHERE failure.terminal = 1
 		  AND failure.admission_ordinal > :afterOrdinal
 		  AND failure.admission_ordinal <= :throughOrdinal
+		  AND (
+			EXISTS (
+			  SELECT 1 FROM source_event_wal AS event
+			  JOIN source_service_run AS run
+				ON run.service_run_id = event.service_run_id
+			   AND run.logical_tracking_id = event.logical_tracking_id
+			  WHERE event.admission_ordinal = failure.admission_ordinal
+				AND event.source_kind = :sourceKind
+				AND run.service_run_id IN (:serviceRunIds)
+			)
+			OR NOT EXISTS (
+			  SELECT 1 FROM source_event_wal AS event
+			  JOIN source_service_run AS run
+				ON run.service_run_id = event.service_run_id
+			   AND run.logical_tracking_id = event.logical_tracking_id
+			  WHERE event.admission_ordinal = failure.admission_ordinal
+				AND event.source_kind = :sourceKind
+			)
+		  )
 		  AND EXISTS (
 			SELECT 1
 			FROM session_manifest_source AS source

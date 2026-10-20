@@ -57,6 +57,20 @@ internal object RoutePreviewSimplifier {
         points: List<RoutePoint>,
         toleranceMeters: Double,
     ): List<RoutePoint> {
+        val sections = mutableListOf<MutableList<RoutePoint>>()
+        for (point in points) {
+            if (sections.lastOrNull()?.lastOrNull()?.section != point.section) {
+                sections.add(mutableListOf())
+            }
+            sections.last().add(point)
+        }
+        return sections.flatMap { simplifySection(it, toleranceMeters) }
+    }
+
+    private fun simplifySection(
+        points: List<RoutePoint>,
+        toleranceMeters: Double,
+    ): List<RoutePoint> {
         if (points.size < 3) return points
 
         val keep = BooleanArray(points.size)

@@ -134,7 +134,9 @@ internal suspend fun TrackerServiceSourceSession.restoreStartedSourceSession(
 ): SessionStartResult? {
 	val appliedReference = result.sourceCallerAuthorityReference
 		?: applyingSession.sourceCallerAuthorityReference
-	if (appliedReference != applyingSession.sourceCallerAuthorityReference) {
+	if (appliedReference != applyingSession.sourceCallerAuthorityReference &&
+		!propagateSourceCallerAuthority(applyingSession, appliedReference)
+	) {
 		applyingSession.runtimeCleanupRequired = true
 		settingsStatusProvider.publishFailure(
 			SOURCE_SESSION_SOURCE_CALLER_REFERENCE_PROPAGATION_FAILED,
@@ -170,8 +172,10 @@ internal fun TrackerServiceSourceSession.requiresPreparedSourceReconfiguration(
 		return false
 	}
 	val currentInputsFingerprint = applyingSession.inputsFingerprint(planInputs)
+	// A source can be unavailable or use an effective provider configuration different from
+	// the requested plan. That does not change the intent already applied by this Start.
 	return currentInputsFingerprint != preparedIdentity.inputsFingerprint ||
-		applyingSession.appliedSourcePlanIdentity != preparedIdentity
+		applyingSession.desiredSourcePlanIdentity != preparedIdentity
 }
 
 internal suspend fun TrackerServiceSourceSession.publishPreparedSourceSession(

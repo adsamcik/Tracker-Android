@@ -51,6 +51,7 @@ import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import com.adsamcik.tracker.tracker.permission.RuntimePermissionChange
 import com.adsamcik.tracker.tracker.permission.RuntimePermissionReconciler
 import com.adsamcik.tracker.tracker.permission.RuntimePermissionSnapshot
+import com.adsamcik.tracker.tracker.resilience.TrackingLifecycleCommandAuthority
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import dagger.hilt.android.HiltAndroidApp
 import dev.tracebox.Tracebox
@@ -60,6 +61,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicBoolean
@@ -132,6 +135,9 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	@Inject
 	lateinit var trackingStartupDeletionBarrier: TrackingStartupDeletionBarrier
+
+	@Inject
+	lateinit var trackingLifecycleCommandAuthorityProvider: Provider<TrackingLifecycleCommandAuthority>
 
 	@Inject
 	lateinit var runtimePermissionReconciler: RuntimePermissionReconciler
@@ -267,30 +273,30 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	private fun startBackgroundStartup() {
 		appScope.launch(dispatchers.io) {
-			trackingStartupDeletionBarrier.openGenerations.collect { startupGeneration ->
+			val startupGenerations = combine(
+				trackingStartupDeletionBarrier.openGenerations,
+				trackingLifecycleCommandAuthorityProvider.get().handledStopGeneration,
+			) { startupGeneration, _ -> startupGeneration }.conflate()
+			startupGenerations.collect { startupGeneration ->
+				val alreadyReady = startupState.snapshots.value.let { snapshot ->
+					snapshot.generation == startupGeneration && snapshot.result is TrackingStartupResult.Ready
+				}
 				startupState.beginGeneration(startupGeneration)
-				isStartupReady = false
+				if (!alreadyReady) {
+					isStartupReady = false
+				}
 				var terminalResult: TrackingStartupResult? = null
 				try {
-					terminalResult = driveTrackingStartup(
+					val startup = driveTrackingStartup(
 						reconcile = { reconcileTrackingStartup() },
 						onRetryableVisible = { result ->
-							publishStartupResolution(startupGeneration, result)
+							if (!alreadyReady) {
+								publishStartupResolution(startupGeneration, result)
+							}
 						},
 					)
-					when (val startup = terminalResult) {
-						is TrackingStartupResult.Ready -> Unit
-						is TrackingStartupResult.Blocked -> Tracebox.log.error(
-							TrackerTraceboxTemplates.APPLICATION_STARTUP_BLOCKED,
-							public(startup.stage.name),
-							public(startup.failureCode),
-						)
-						is TrackingStartupResult.RetryableFailure -> Tracebox.log.error(
-							TrackerTraceboxTemplates.APPLICATION_STARTUP_RETRYABLE_FAILURE,
-							public(startup.stage.name),
-							public(startup.failureCode),
-						)
-					}
+					terminalResult = startup
+					logStartupResolution(startup)
 				} catch (cancelled: CancellationException) {
 					throw cancelled
 				} catch (error: Throwable) {
@@ -303,11 +309,29 @@ class Application : AndroidApplication(), Configuration.Provider {
 						"APPLICATION_STARTUP_FAILED:${error.javaClass.simpleName}",
 					)
 				} finally {
-					terminalResult?.let { result ->
-						publishStartupResolution(startupGeneration, result)
+					if (!alreadyReady) {
+						terminalResult?.let { result ->
+							publishStartupResolution(startupGeneration, result)
+						}
 					}
 				}
 			}
+		}
+	}
+
+	private fun logStartupResolution(startup: TrackingStartupResult) {
+		when (startup) {
+			is TrackingStartupResult.Ready -> Unit
+			is TrackingStartupResult.Blocked -> Tracebox.log.error(
+				TrackerTraceboxTemplates.APPLICATION_STARTUP_BLOCKED,
+				public(startup.stage.name),
+				public(startup.failureCode),
+			)
+			is TrackingStartupResult.RetryableFailure -> Tracebox.log.error(
+				TrackerTraceboxTemplates.APPLICATION_STARTUP_RETRYABLE_FAILURE,
+				public(startup.stage.name),
+				public(startup.failureCode),
+			)
 		}
 	}
 

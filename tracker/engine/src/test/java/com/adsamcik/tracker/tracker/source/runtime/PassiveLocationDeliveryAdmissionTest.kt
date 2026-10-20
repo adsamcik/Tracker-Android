@@ -51,10 +51,12 @@ class PassiveLocationDeliveryAdmissionTest {
 		"boot", "a".repeat(64), 7)
 
 	@Test
-	fun `only independently authenticated fixes reach unbound durable ingress`() = runTest {
+	fun `pending End admits only independently authenticated all-day fixes with collection paused`() = runTest {
 		val startup = mockk<TrackingStartupGate>()
+		every { startup.isReady } returns false
+		every { startup.permitsNewCollection } returns false
 		coEvery { startup.reconcileAdmission(any()) } returns TrackingAdmissionStartupResult.Ready
-		every { startup.permitsNewCollection } returns true
+		every { startup.permitsEvidenceAdmission } returns true
 		every { startup.collectionResumeBoundary } returns null
 		val device = mockk<LocationDeviceStateProvider>()
 		every { device.snapshot() } returns state()
@@ -80,10 +82,23 @@ class PassiveLocationDeliveryAdmissionTest {
 	}
 
 	@Test
+	fun `Off rejects a recovered passive delivery before reading its registration`() = runTest {
+		val fixture = AdmissionFixture()
+		fixture.collectionAllowed = false
+
+		val outcome = fixture.subject.admit(identity, listOf(fix(100)), 300, 1_000)
+
+		assertEquals(PassiveLocationDeliveryOutcome(0, 1), outcome)
+		coVerify(exactly = 0) { fixture.registrations.passiveLocationAdmissionAt(any(), any()) }
+		assertTrue(fixture.ingress.attempts.isEmpty())
+		fixture.verifyNoHints()
+	}
+
+	@Test
 	fun `background permission loss blocks a cold delivery before storage admission`() = runTest {
 		val startup = mockk<TrackingStartupGate>()
 		coEvery { startup.reconcileAdmission(any()) } returns TrackingAdmissionStartupResult.Ready
-		every { startup.permitsNewCollection } returns true
+		every { startup.permitsEvidenceAdmission } returns true
 		val device = mockk<LocationDeviceStateProvider>()
 		every { device.snapshot() } returns state().copy(backgroundLocationPermission = false)
 		val repository = mockk<SourceRegistrationRepository>()
@@ -100,7 +115,7 @@ class PassiveLocationDeliveryAdmissionTest {
 	fun `oversized cold delivery authenticates every fix and reports unavailable originals`() = runTest {
 		val startup = mockk<TrackingStartupGate>()
 		coEvery { startup.reconcileAdmission(any()) } returns TrackingAdmissionStartupResult.Ready
-		every { startup.permitsNewCollection } returns true
+		every { startup.permitsEvidenceAdmission } returns true
 		every { startup.collectionResumeBoundary } returns null
 		val device = mockk<LocationDeviceStateProvider>()
 		every { device.snapshot() } returns state()
@@ -357,7 +372,7 @@ class PassiveLocationDeliveryAdmissionTest {
 
 		init {
 			coEvery { startup.reconcileAdmission(any()) } returns TrackingAdmissionStartupResult.Ready
-			every { startup.permitsNewCollection } answers { collectionAllowed }
+			every { startup.permitsEvidenceAdmission } answers { collectionAllowed }
 			every { startup.collectionResumeBoundary } returns null
 			every { device.snapshot() } answers { state().copy(backgroundLocationPermission = backgroundPermission) }
 			coEvery { registrations.passiveLocationAdmissionAt(identity, any()) } returns allowed

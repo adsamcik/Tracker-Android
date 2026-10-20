@@ -41,6 +41,24 @@ import kotlinx.coroutines.flow.onStart
  * Replaces TrackerService companion object static state.
  */
 class DefaultTrackerServiceController : TrackerServiceController {
+    private val startingSessionGeneration = MutableStateFlow<Long?>(null)
+    override val startingSessionGenerationFlow: StateFlow<Long?> get() = startingSessionGeneration
+    private var lastSessionStartFeedbackGeneration = 0L
+
+    @Synchronized
+    override fun updateSessionStart(generation: Long, starting: Boolean) {
+        require(generation > 0L)
+        if (generation < lastSessionStartFeedbackGeneration) {
+            return
+        }
+        if (starting && generation == lastSessionStartFeedbackGeneration &&
+            startingSessionGeneration.value != generation) {
+            return
+        }
+        lastSessionStartFeedbackGeneration = generation
+        startingSessionGeneration.value = generation.takeIf { starting }
+    }
+
     private val _savedLocationSummary = MutableStateFlow<SavedLocationSummaryRead>(
         SavedLocationSummaryRead.NotFound)
     override val savedLocationSummaryFlow: StateFlow<SavedLocationSummaryRead>

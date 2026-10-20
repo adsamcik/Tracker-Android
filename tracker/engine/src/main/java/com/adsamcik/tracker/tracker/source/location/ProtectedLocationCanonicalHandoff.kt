@@ -49,6 +49,9 @@ import com.adsamcik.tracker.tracker.altitude.AltitudeFusionState
 import com.adsamcik.tracker.tracker.altitude.AltitudeKalmanState
 import com.adsamcik.tracker.tracker.altitude.AltitudeProcessorState
 import com.adsamcik.tracker.tracker.presentation.SessionPresentationLifecycle
+import com.adsamcik.tracker.tracker.source.coordinator.SourceProductDrainRequest
+import com.adsamcik.tracker.tracker.source.coordinator.authenticateSourceProductDrainRequest
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -427,11 +430,13 @@ internal class ProtectedLocationCanonicalHandoff(
 	 *
 	 * Earlier Location events cannot be skipped merely because they belong to another run or
 	 * are sessionless. The acknowledged physical prefix is drained with each row's own authority.
+	 * An exact retired settlement can prove a partial retained prefix without claiming full acquisition coverage.
 	 */
 	suspend fun drainThrough(
 		logicalTrackingId: String,
 		serviceRunId: String,
 		throughAdmissionOrdinal: Long,
+		settlementRequest: SourceProductDrainRequest? = null,
 	): ProtectedLocationCanonicalDrainResult = mutex.withLock {
 		require(logicalTrackingId.isNotBlank())
 		require(serviceRunId.isNotBlank())
@@ -462,6 +467,7 @@ internal class ProtectedLocationCanonicalHandoff(
 					logicalTrackingId = logicalTrackingId,
 					serviceRunId = serviceRunId,
 					lastCommittedOrdinal = lane.contiguousAdmissionOrdinal,
+					settlementRequest = settlementRequest,
 				)
 			}
 			if (endpointFailure != null) {
@@ -495,9 +501,12 @@ internal class ProtectedLocationCanonicalHandoff(
 		logicalTrackingId: String,
 		serviceRunId: String,
 		lastCommittedOrdinal: Long,
+		settlementRequest: SourceProductDrainRequest?,
 	): ProtectedLocationCanonicalDrainResult? {
-		verifyExplicitSessionEndpoint(targetAdmissionOrdinal, logicalTrackingId, serviceRunId, lastCommittedOrdinal)
-			?.let { return it }
+		val authorityFailure = explicitSettlementFailure(settlementRequest, logicalTrackingId, serviceRunId,
+			targetAdmissionOrdinal, lastCommittedOrdinal) ?: verifyExplicitSessionEndpoint(
+				targetAdmissionOrdinal, logicalTrackingId, serviceRunId, lastCommittedOrdinal)
+		authorityFailure?.let { return it }
 		val evidence = database.sourceEvidenceStateDao().get()
 			?: return ProtectedLocationCanonicalDrainResult.AuthorityChanged(
 				lastCommittedOrdinal,
@@ -510,13 +519,34 @@ internal class ProtectedLocationCanonicalHandoff(
 				.projectionEligibilityByAdmissionOrdinal(targetAdmissionOrdinal)
 		return if (endpoint != null) {
 			verifyPresentLocationEndpoint(
-				targetAdmissionOrdinal, logicalTrackingId, serviceRunId, lastCommittedOrdinal, endpoint, locationCompleteness,
+				logicalTrackingId, serviceRunId, lastCommittedOrdinal, endpoint, locationCompleteness,
+				settlementValidated = settlementRequest != null,
 			)
 		} else {
 			verifyMissingLocationEndpoint(
 				targetAdmissionOrdinal, lastCommittedOrdinal, locationCompleteness, evidence.deletedSourceEventHighWaterOrdinal,
 			)
 		}
+	}
+
+	private suspend fun explicitSettlementFailure(
+		request: SourceProductDrainRequest?,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		throughAdmissionOrdinal: Long,
+		lastCommittedOrdinal: Long,
+	): ProtectedLocationCanonicalDrainResult.AuthorityChanged? {
+		if (request == null) {
+			return null
+		}
+		val failure = if (request.source != SourceKind.LOCATION || request.logicalTrackingId != logicalTrackingId ||
+			request.serviceRunId != serviceRunId || request.sourceHighWaterAdmissionOrdinal != throughAdmissionOrdinal
+		) {
+			"LOCATION_DRAIN_SETTLEMENT_REQUEST_MISMATCH"
+		} else {
+			authenticateSourceProductDrainRequest(database, request)
+		}
+		return failure?.let { ProtectedLocationCanonicalDrainResult.AuthorityChanged(lastCommittedOrdinal, it) }
 	}
 
 	private suspend fun verifyExplicitSessionEndpoint(
@@ -553,13 +583,14 @@ internal class ProtectedLocationCanonicalHandoff(
 	}
 
 	private suspend fun verifyPresentLocationEndpoint(
-		targetAdmissionOrdinal: Long,
 		logicalTrackingId: String,
 		serviceRunId: String,
 		lastCommittedOrdinal: Long,
 		endpoint: SourceEventProjectionEligibilityRow,
 		locationCompleteness: List<SourceSessionCompletenessEntity>,
+		settlementValidated: Boolean,
 	): ProtectedLocationCanonicalDrainResult? {
+		val targetAdmissionOrdinal = endpoint.admissionOrdinal
 		if (!endpoint.hasLocationEndpointIdentity(logicalTrackingId, serviceRunId)) {
 			return ProtectedLocationCanonicalDrainResult.Failed(
 				lastCommittedOrdinal,
@@ -568,7 +599,9 @@ internal class ProtectedLocationCanonicalHandoff(
 				terminal = true,
 			)
 		}
-		if (locationCompleteness.none { it.acknowledgesLocationEndpoint(endpoint, targetAdmissionOrdinal) }) {
+		if (locationCompleteness.none {
+			it.acknowledgesLocationEndpoint(endpoint, targetAdmissionOrdinal, settlementValidated)
+		}) {
 			return ProtectedLocationCanonicalDrainResult.Deferred(
 				lastCommittedOrdinal,
 				targetAdmissionOrdinal,
@@ -581,6 +614,7 @@ internal class ProtectedLocationCanonicalHandoff(
 			logicalTrackingId = logicalTrackingId,
 			serviceRunId = serviceRunId,
 			lastCommittedOrdinal = lastCommittedOrdinal,
+			settlementValidated = settlementValidated,
 		)
 	}
 
@@ -625,10 +659,11 @@ internal class ProtectedLocationCanonicalHandoff(
 		logicalTrackingId: String,
 		serviceRunId: String,
 		lastCommittedOrdinal: Long,
+		settlementValidated: Boolean,
 	): ProtectedLocationCanonicalDrainResult? {
 		val completeness = database.sourceSessionDao().completenessForServiceRun(logicalTrackingId, serviceRunId)
 			.filter { it.sourceKind == SOURCE_LOCATION }
-		if (completeness.any { !it.hasSettledLocationContinuity() }) {
+		if (!settlementValidated && completeness.any { !it.hasSettledLocationContinuity() }) {
 			return ProtectedLocationCanonicalDrainResult.Deferred(lastCommittedOrdinal, throughOrdinal,
 				"LOCATION_DRAIN_COMPLETENESS_UNSETTLED")
 		}
@@ -1226,6 +1261,8 @@ internal class ProtectedLocationCanonicalHandoff(
         }.let { sampleId -> sampleId?.let(onSavedPointCommitted) }
     }
 
+	// Keep requalification, failure disposition and cursor advance in one transaction.
+	@Suppress("CyclomaticComplexMethod")
 	private suspend fun settleLifecycleRejection(
 		initialLane: SourceProductProjectionLaneEntity,
 		expectedCursor: Long,
@@ -1244,27 +1281,31 @@ internal class ProtectedLocationCanonicalHandoff(
 			LocationWalAdapterRejection.RETAINED_EVIDENCE -> state.retainedFromMs != null
 			LocationWalAdapterRejection.MISSING_EVENT ->
 				candidate.admissionOrdinal <= state.deletedSourceEventHighWaterOrdinal
-			LocationWalAdapterRejection.AFTER_SESSION_CUTOFF -> settlePostSessionCallback(candidate)
+			LocationWalAdapterRejection.AFTER_SESSION_CUTOFF,
+			LocationWalAdapterRejection.AFTER_AUTHORIZATION_DENIAL -> settleEndedCaptureCallback(candidate, reason)
 			else -> false
 		}
 		if (!settled) {
 			return@withTransaction false
 		}
-		database.sourceProjectionStateDao().deleteFailure(
-			WRITER_ID,
-			WRITER_VERSION,
-			candidate.admissionOrdinal,
-		)
+		if (reason == LocationWalAdapterRejection.AFTER_AUTHORIZATION_DENIAL) {
+			saveFailure(initialLane, expectedCursor, candidate.admissionOrdinal,
+				"LOCATION_ADAPTER_${reason.name}", terminal = true)
+		} else {
+			database.sourceProjectionStateDao().deleteFailure(WRITER_ID, WRITER_VERSION, candidate.admissionOrdinal)
+		}
 		advanceCursor(initialLane, expectedCursor, candidate.admissionOrdinal)
 		true
 	}
 
-	private suspend fun settlePostSessionCallback(candidate: ProtectedLocationNext.Candidate): Boolean {
+	private suspend fun settleEndedCaptureCallback(
+		candidate: ProtectedLocationNext.Candidate,
+		reason: LocationWalAdapterRejection,
+	): Boolean {
 		val current = database.sourceEventWalDao().boundedPayloadByEventId(candidate.eventId,
 			LocationWalQualificationAdapter.MAX_LOCATION_PAYLOAD_BYTES)
 		return if (current != null && current.admissionOrdinal == candidate.admissionOrdinal &&
-			qualifier.qualify(SourceEventId(candidate.eventId)) ==
-				LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.AFTER_SESSION_CUTOFF)) {
+			qualifier.qualify(SourceEventId(candidate.eventId)) == LocationWalAdapterResult.Rejected(reason)) {
 			database.saveLocationContinuityAnchor(current)
 			true
 		} else {
@@ -3048,6 +3089,7 @@ private fun LocationWalAdapterRejection.isLifecycleSettlement(): Boolean = this 
 	LocationWalAdapterRejection.RETAINED_EVIDENCE,
 	LocationWalAdapterRejection.MISSING_EVENT,
 	LocationWalAdapterRejection.AFTER_SESSION_CUTOFF,
+	LocationWalAdapterRejection.AFTER_AUTHORIZATION_DENIAL,
 )
 
 private fun Throwable.safeCode(): String =
@@ -3132,10 +3174,11 @@ private fun SourceEventProjectionEligibilityRow.hasLocationEndpointIdentity(
 private fun SourceSessionCompletenessEntity.acknowledgesLocationEndpoint(
 	endpoint: SourceEventProjectionEligibilityRow,
 	targetAdmissionOrdinal: Long,
+	settlementValidated: Boolean,
 ): Boolean = sourceInstanceId == endpoint.sourceInstanceId &&
 	registrationGeneration == endpoint.registrationGeneration &&
 	lastAdmissionOrdinal == targetAdmissionOrdinal && lastSourceSequence == endpoint.sourceSequence &&
-	hasSettledLocationContinuity()
+	(settlementValidated || hasSettledLocationContinuity())
 
 private fun SourceSessionCompletenessEntity.coversObservedLocation(row: SourceEventContinuityRow): Boolean =
 	sourceInstanceId == row.sourceInstanceId && registrationGeneration == row.registrationGeneration &&

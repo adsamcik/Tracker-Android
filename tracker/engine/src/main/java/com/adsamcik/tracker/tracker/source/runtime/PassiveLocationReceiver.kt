@@ -60,7 +60,7 @@ internal class PassiveLocationReceiver : BroadcastReceiver() {
 				withTimeoutOrNull(remainingMs) {
 					val gate = entry.trackingStartupGate()
 					if (gate.reconcileAdmission() !is TrackingAdmissionStartupResult.Ready ||
-						!gate.permitsNewCollection) {
+						!gate.permitsEvidenceAdmission) {
 						return@withTimeoutOrNull
 					}
 					val decoded = intent.passiveLocations(identity.backend)
@@ -126,7 +126,7 @@ internal class PassiveLocationDeliveryAdmission @Inject constructor(
 			return PassiveLocationDeliveryOutcome(0, 0)
 		}
 		if (startup.reconcileAdmission() !is TrackingAdmissionStartupResult.Ready ||
-			!startup.permitsNewCollection || !permissionsAllowAdmission(device.snapshot())
+			!startup.permitsEvidenceAdmission || !permissionsAllowAdmission(device.snapshot())
 		) {
 			return PassiveLocationDeliveryOutcome(0, locations.size)
 		}
@@ -157,7 +157,7 @@ internal class PassiveLocationDeliveryAdmission @Inject constructor(
 		receivedWallTimeMs: Long, sink: SourceEventSink,
 	): Boolean {
 		currentCoroutineContext().ensureActive()
-		if (!startup.permitsNewCollection || !permissionsAllowAdmission(device.snapshot())) {
+		if (!startup.permitsEvidenceAdmission || !permissionsAllowAdmission(device.snapshot())) {
 			return false
 		}
 		val observed = location.qualifiedObservedElapsedRealtimeNanos(receivedElapsedNanos)

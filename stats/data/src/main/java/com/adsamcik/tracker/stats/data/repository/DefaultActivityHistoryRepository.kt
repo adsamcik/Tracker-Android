@@ -1067,6 +1067,7 @@ internal class DefaultActivityHistoryRepository private constructor(
 	/** Exact Activity groups for a bounded caller-owned physical candidate generation. */
 	internal suspend fun selectBySegmentIdsInTransaction(
 		segmentIds: List<Long>,
+		sourceOnly: Boolean = false,
 	): ActivityComposedPage {
 		require(segmentIds.size <= MAX_ACTIVITY_HISTORY_RESULTS)
 		require(segmentIds.all { it > 0L } && segmentIds.distinct().size == segmentIds.size)
@@ -1074,7 +1075,12 @@ internal class DefaultActivityHistoryRepository private constructor(
 			return ActivityComposedPage.Available(emptyList())
 		}
 		val seeds = database.trackingHistoryReadDao().segments(segmentIds)
-		val expansion = expandActivityMembership(seeds)
+		val selectedSeeds = if (sourceOnly) {
+			database.sourceOnlyHistoryCandidates(seeds, ACTIVITY_SOURCE)
+		} else {
+			seeds
+		}
+		val expansion = expandActivityMembership(selectedSeeds)
 		val snapshot = loadActivitySnapshot(expansion)
 		if (snapshot.overflow) {
 			return ActivityComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
@@ -1242,7 +1248,8 @@ internal class DefaultActivityHistoryRepository private constructor(
 			}
 			scanned += page.size
 			val seeds = page.map { it.segment }
-			val expansion = expandActivityMembership(seeds)
+			val selectedSeeds = database.sourceOnlyHistoryCandidates(seeds, ACTIVITY_SOURCE)
+			val expansion = expandActivityMembership(selectedSeeds)
 			val snapshot = loadActivitySnapshot(expansion)
 			if (snapshot.overflow) {
 				return ActivityComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)

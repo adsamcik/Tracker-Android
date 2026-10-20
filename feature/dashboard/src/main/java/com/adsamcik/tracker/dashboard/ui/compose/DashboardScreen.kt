@@ -124,7 +124,10 @@ internal fun DashboardScreen(
 	)
 
 	// Haptic-wrapped callbacks
-	val wrappedToggle: () -> Unit = {
+	val wrappedToggle: () -> Unit = toggle@ {
+		if (state.isStarting) {
+			return@toggle
+		}
 		if (state.isTracking) {
 			haptics.performHapticFeedback(
 				androidx.compose.ui.hapticfeedback.HapticFeedbackType.Reject,
@@ -137,7 +140,10 @@ internal fun DashboardScreen(
 		onToggleTracking(!state.isTracking)
 	}
 
-	val wrappedPermission: () -> Unit = {
+	val wrappedPermission: () -> Unit = permission@ {
+		if (state.isStarting) {
+			return@permission
+		}
 		haptics.performHapticFeedback(
 			androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress,
 		)
@@ -219,6 +225,7 @@ internal fun DashboardScreen(
 						onToggleTracking = wrappedToggle,
 						onRequestPermission = wrappedPermission,
 						isTracking = state.isTracking,
+						isStarting = state.isStarting,
 						hasPermission = state.hasLocationPermission,
 					)
 					DashboardMode.IDLE -> IdleContent(
@@ -382,6 +389,7 @@ internal fun DashboardScreen(
 			TrackingPill(
 				visible = showPill,
 				isTracking = state.isTracking,
+				isStarting = state.isStarting,
 				hasPermission = state.hasLocationPermission,
 				sessionData = state.sessionData,
 				onToggleTracking = wrappedToggle,
@@ -419,6 +427,7 @@ private fun EmptyStateContent(
 	onToggleTracking: () -> Unit,
 	onRequestPermission: () -> Unit,
 	isTracking: Boolean,
+	isStarting: Boolean,
 	hasPermission: Boolean,
 	modifier: Modifier = Modifier,
 ) {
@@ -452,6 +461,7 @@ private fun EmptyStateContent(
 			EmptyStateStartHintCard(
 				onStart = startTrackingAction,
 				hasPermission = hasPermission,
+				isStarting = isStarting,
 			)
 		}
 		item {

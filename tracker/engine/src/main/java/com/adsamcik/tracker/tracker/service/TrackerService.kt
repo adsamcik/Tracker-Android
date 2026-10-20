@@ -159,6 +159,9 @@ internal class TrackerService : CoreService() {
 	lateinit var trackingParamsRepository: TrackingParamsRepository
 
 	@Inject
+	lateinit var trackingHistoryRepository: com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+
+	@Inject
 	lateinit var appDatabase: AppDatabase
 
 	@Inject
@@ -812,6 +815,7 @@ internal class TrackerService : CoreService() {
 		command: TrackingStartCommand,
 		failureCode: String,
 	) {
+		controller.updateSessionStart(command.generation, starting = false)
 		try {
 			runBoundedStartPreparationCancellationCleanup(null) {
 				trackingStartRequestCoordinator.compensate(token, command, failureCode)
@@ -879,6 +883,7 @@ internal class TrackerService : CoreService() {
 		command: TrackingStartCommand,
 		startId: Int,
 	) {
+		controller.updateSessionStart(command.generation, starting = false)
 		val providerless = synchronized(preparedStartOwnershipMonitor) {
 			val current = preparedStartRuntime
 			current.matches(token, command) && !current.platformOwned && !current.applyStarted && !current.applied
@@ -913,6 +918,7 @@ internal class TrackerService : CoreService() {
 		startId: Int,
 		failureCode: String,
 	) {
+		controller.updateSessionStart(command.generation, starting = false)
 		try {
 			trackingStartRequestCoordinator.compensate(token, command, failureCode)
 		} finally {
@@ -944,6 +950,7 @@ internal class TrackerService : CoreService() {
 		startId: Int,
 		failureCode: String,
 	): Int {
+		command?.let { controller.updateSessionStart(it.generation, starting = false) }
 		if (command != null) applicationScope.launch {
 			compensateRejectedPreparedStart(token, command, failureCode)
 		}
@@ -1028,6 +1035,7 @@ internal class TrackerService : CoreService() {
 				val preparedToken = preparedTrackingStart.claim.token
 				val preparedCommand = TrackingStartCommand(startCommandGeneration)
 				suspend fun compensatePreparedStart(failureCode: String) {
+					controller.updateSessionStart(preparedCommand.generation, starting = false)
 					if (withPreparedStartOwnership(preparedToken,
                         preparedCommand) { !preparedStartRuntime.applied } != true) return
 					trackingStartRequestCoordinator.compensate(
@@ -1171,6 +1179,7 @@ internal class TrackerService : CoreService() {
 								controller.updateServiceRunning(true)
 								this@TrackerService.sessionInfo = TrackerSessionInfo(isUserInitiated)
 								controller.updateSessionInfo(this@TrackerService.sessionInfo)
+								controller.updateSessionStart(preparedCommand.generation, starting = false)
 								updateLiveTrackingShortcut(active = true)
 								startSingleFlight.set(false)
 								true
@@ -1409,6 +1418,7 @@ internal class TrackerService : CoreService() {
 		dispatchers = dispatchers,
 		appDatabase = appDatabase,
 		trackingParamsRepository = trackingParamsRepository,
+		trackingHistoryRepository = trackingHistoryRepository,
 		trackingRolloutStateStore = trackingRolloutStateStore,
 		persistenceLifecycleLease = persistenceLifecycleLease,
 		runtimeTierAdjuster = { requestedTier ->
@@ -2038,17 +2048,24 @@ internal class TrackerService : CoreService() {
 			) {
 				return
 			}
+			// A durable End may still be queued for main-thread delivery when an internal
+			// reconciliation fails. Preserve that already-issued user's cutoff and ownership.
+			val effectiveCommand = externalCommand ?: trackingLifecycleCommandAuthority.pendingStopForTeardown(
+				preparedStartRuntime.applyStarted,
+			)
+			val effectiveReason = effectiveCommand?.reason ?: reason
 			if (gracefulStopRequested) {
-				if (externalCommand != null) {
-					handleRepeatedExternalStopRequest(startId, reason, externalCommand)
+				if (effectiveCommand != null) {
+					handleRepeatedExternalStopRequest(startId, effectiveReason, effectiveCommand)
 				}
 				return
 			}
 			TrackerDiagnosticLog.trackingStopRequested()
 			gracefulStopRequested = true
+			finishStartingSessionForStop(effectiveCommand)
 			val stopGeneration = ++stopRequestGeneration
-			stopReason = reason
-			activeExternalStop = externalCommand?.let { command ->
+			stopReason = effectiveReason
+			activeExternalStop = effectiveCommand?.let { command ->
 				ActiveExternalStop(
 					command = command,
 					cutoff = command.toLiveSourceSessionStopCutoff(
@@ -2066,7 +2083,7 @@ internal class TrackerService : CoreService() {
 			// terminal descriptor with the provisional ACTIVE record.
 			initializationJob?.cancel()
 			val stopCandidate = activeSessionDescriptor?.proposeStop(
-				reason = reason,
+				reason = effectiveReason,
 				changedAtEpochMs = activeExternalStop?.cutoff?.wallTimeMs ?: System.currentTimeMillis(),
 			)
 			activeSessionDescriptor = stopCandidate
@@ -2080,6 +2097,12 @@ internal class TrackerService : CoreService() {
 				durableStopReadyGeneration = stopGeneration
 				releaseStoppedService(startId)
 			}
+		}
+	}
+
+	private fun finishStartingSessionForStop(command: TrackingStopCommand?) {
+		(command?.generation ?: preparedStartRuntime.command?.generation)?.let {
+			controller.updateSessionStart(it, starting = false)
 		}
 	}
 
@@ -2333,6 +2356,7 @@ internal class TrackerService : CoreService() {
 			(lifecycleState == requested.lifecycleState && lifecycleRevision >= requested.lifecycleRevision))
 
 	override fun onDestroy() {
+		preparedStartRuntime.command?.let { controller.updateSessionStart(it.generation, starting = false) }
 		pendingBackgroundRetirement = backgroundLocationHost.detachAll(this)
 			.firstOrNull { it.source == com.adsamcik.tracker.tracker.api.AmbientTrackingSource.LOCATION }
 		backgroundHostObservationJob?.cancel()
@@ -2596,10 +2620,10 @@ internal class TrackerService : CoreService() {
 	}
 
 	private suspend fun acknowledgePresentationQuiescence(shutdownResult: ShutdownResult) {
-		val receipt = shutdownResult.presentationReceipt ?: return
+		val binding = shutdownResult.presentationReceipt?.binding ?: recoveredFailedInitializationBinding() ?: return
 		when (
 			sessionPresentationLifecycle.acknowledgeQuiescedExact(
-				binding = receipt.binding,
+				binding = binding,
 				acknowledgedAtMs = System.currentTimeMillis(),
 			)
 		) {
@@ -2614,6 +2638,22 @@ internal class TrackerService : CoreService() {
 				TrackerDiagnosticFailureCode.TRACKING_PERSISTENCE_WRITE_FAILED,
 				TrackingDiagnosticFailureReason.INTERNAL_INVARIANT,
 			)
+		}
+	}
+
+	private suspend fun recoveredFailedInitializationBinding(): SessionPresentationBinding? {
+		val descriptor = activeSessionDescriptor
+		if (descriptor != null) {
+			return sessionPresentationLifecycle.recoveredInitializationBinding(
+				descriptor.logicalTrackingId, descriptor.serviceRunId)
+		}
+		val runtime = preparedStartRuntime
+		val token = runtime.token ?: return null
+		val command = runtime.command ?: return null
+		val run = appDatabase.sourceSessionDao().serviceRunByDeliveryToken(token.value)
+			?.takeIf { it.startCommandGeneration == command.generation }
+		return run?.let {
+			sessionPresentationLifecycle.recoveredInitializationBinding(it.logicalTrackingId, it.serviceRunId)
 		}
 	}
 
@@ -2783,6 +2823,15 @@ internal const val AUTOMATIC_START_EPOCH_STALE = "AUTOMATIC_START_EPOCH_STALE"
  */
 internal fun isPassivePreparedStartDelivery(flags: Int): Boolean =
 	flags and (Service.START_FLAG_REDELIVERY or Service.START_FLAG_RETRY) != 0
+
+/** An internal failure must honor an End already saved before its main-thread delivery. */
+internal fun TrackingLifecycleCommandAuthority.pendingStopForTeardown(
+	hasAppliedSources: Boolean,
+): TrackingStopCommand? = if (hasAppliedSources) {
+	latestUnhandledStop()?.takeIf(::isStopActionable)
+} else {
+	null
+}
 
 /** A repeated stop may refresh ownership, but an older delivery can never reclaim it. */
 internal fun selectLatestExternalStopCommand(

@@ -67,6 +67,7 @@ import com.adsamcik.tracker.tracker.api.TrackingStartFailureDisposition
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.resilience.PreviousExitSourceSessionFinalizer
+import com.adsamcik.tracker.tracker.resilience.TrackingLifecycleCommandAuthority
 import com.adsamcik.tracker.tracker.source.ingress.AdmissionResult
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
@@ -74,6 +75,7 @@ import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceDeliveryIngress
 import com.adsamcik.tracker.tracker.source.ingress.DeliveryAdmissionResult
 import com.adsamcik.tracker.tracker.source.ingress.RoomDurableSourceIngress
+import com.adsamcik.tracker.tracker.source.ingress.PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.catalog.SourceAvailabilityTier
 import com.adsamcik.tracker.tracker.source.catalog.SourceAvailabilityRequest
 import com.adsamcik.tracker.tracker.source.catalog.SourceCatalogAvailability
@@ -88,10 +90,15 @@ import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
 import com.adsamcik.tracker.tracker.source.model.CellMode
 import com.adsamcik.tracker.tracker.source.model.CellPlan
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
+import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
+import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
+import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
+import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
+import com.adsamcik.tracker.tracker.source.runtime.pressureProviderDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.model.RetryBackoff
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
@@ -112,6 +119,8 @@ import com.adsamcik.tracker.tracker.source.model.WifiPlan
 import com.adsamcik.tracker.tracker.source.projection.ProjectionDispatcher
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
+import com.adsamcik.tracker.tracker.source.projection.PressureSessionFactDrainResult
+import com.adsamcik.tracker.tracker.source.projection.PressureSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomaticStartActionRepository
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomaticStartServiceValidation
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainSignal
@@ -141,6 +150,9 @@ import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionHandoff
 import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionFailureCode
 import com.adsamcik.tracker.tracker.source.runtime.SourceDeliveryAdmissionHandoff
 import com.adsamcik.tracker.tracker.source.runtime.SourceCapabilities
+import com.adsamcik.tracker.tracker.source.runtime.SourceCallerDemandDispatcher
+import com.adsamcik.tracker.tracker.source.runtime.SessionSourceDemandDispatchRequest
+import com.adsamcik.tracker.tracker.source.runtime.SessionSourceDemandDispatchResult
 import com.adsamcik.tracker.tracker.source.runtime.SourceEventSink
 import com.adsamcik.tracker.tracker.source.runtime.ClaimedSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeClaim
@@ -160,6 +172,7 @@ import io.mockk.every
 import io.mockk.mockk
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
+import java.util.concurrent.Executor
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -196,16 +209,24 @@ class AuthoritativeSessionCoordinatorTest {
 	private lateinit var initialIngress: DurableSourceIngress
 	private var currentBootId = "boot-1"
 	private var activityLocked = false
+	private var latestStopGeneration = 0L
+	private var afterSessionDemandDispatch: suspend (SessionSourceDemandDispatchRequest) -> Unit = {}
+	private var onDatabaseQuery: (String) -> Unit = {}
 
 	@Before
 	@Suppress("LongMethod") // Shared exact-authority fixture for the coordinator test matrix.
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		activityLocked = false
+		latestStopGeneration = 0L
+		afterSessionDemandDispatch = {}
+		onDatabaseQuery = {}
 		currentBootId = "boot-1"
 		rolloutSnapshot = fixedEventRollout()
 		leaseClock = FixedClock(fixedTimeMillis = 1_000L, fixedRealtimeNanos = 1_000_000L)
-		database = AppDatabase.testDatabase(context)
+		database = AppDatabase.inMemoryBuilder(context).allowMainThreadQueries()
+			.setQueryCallback({ sql, _ -> onDatabaseQuery(sql) }, Executor(Runnable::run))
+			.build()
 		policy = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("boot-1", 1_000_000, 1_000)
 		}
@@ -252,6 +273,10 @@ class AuthoritativeSessionCoordinatorTest {
 			BootClockDomainProvider { currentBootId },
 		)
 		sourceProductDrainRouter = RecordingSourceProductDrainRouter()
+		val commandAuthority = mockk<TrackingLifecycleCommandAuthority> {
+			every { latestStopGeneration() } answers { this@AuthoritativeSessionCoordinatorTest.latestStopGeneration }
+		}
+		val demandDispatcher = FakeSourceCallerDemandDispatcher(database, SourceBroker(database))
 		subject = AuthoritativeSessionCoordinator(
 			database,
 			RoomSourcePlanStore(database, SourcePlanCodec()),
@@ -263,9 +288,16 @@ class AuthoritativeSessionCoordinatorTest {
 			activityAutomationEpochAuthority,
 			BootClockDomainProvider { currentBootId },
 			leaseClock,
-			FakeSourceCallerDemandDispatcher(database, SourceBroker(database)),
+			object : SourceCallerDemandDispatcher by demandDispatcher {
+				override suspend fun dispatchSession(
+					request: SessionSourceDemandDispatchRequest,
+				): SessionSourceDemandDispatchResult = demandDispatcher.dispatchSession(request).also {
+					afterSessionDemandDispatch(request)
+				}
+			},
 			rolloutStore = fixedEventRolloutStore(),
 			sourceProductDrainRouter = sourceProductDrainRouter,
+			lifecycleCommandAuthority = commandAuthority,
 		)
 	}
 
@@ -408,6 +440,35 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `retirement replay time does not consume the provider drain budget or move the End cutoff`() = runRoomTest {
+		runtime.hasNoAdmittedStepEvents = true
+		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		var replayDelayed = false
+		onDatabaseQuery = { sql ->
+			if (!replayDelayed && sql.startsWith("SELECT ") && " FROM source_run_retirement " in sql) {
+				replayDelayed = true
+				leaseClock.advance(20_000L)
+			}
+		}
+		val receivedCutoffs = mutableListOf<SessionCutoff>()
+		runtime.onPhysicalShutdown = { _, cutoff ->
+			receivedCutoffs += cutoff
+			cutoff.deadlineElapsedRealtimeNanos shouldBe leaseClock.elapsedRealtimeNanos() + 10_000_000_000L
+		}
+
+		subject.stop(SessionStopRequest("slow-replay-stop", "USER_STOP", 2_000L, 2_000_000L, "boot-1"))
+			.shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+		replayDelayed shouldBe true
+		receivedCutoffs.single().let { cutoff ->
+			cutoff.logicalTrackingId shouldBe started.logicalTrackingId
+			cutoff.wallTimeMs shouldBe 2_000L
+			cutoff.elapsedRealtimeNanos shouldBe 2_000_000L
+		}
+		database.sourceSessionDao().session(started.logicalTrackingId)?.cutoffElapsedNanos shouldBe 2_000_000L
+	}
+
+	@Test
 	fun `empty Activity retirement and completeness settle zero high water through Room`() = runRoomTest {
 		val (prepared, receipt) = prepareEmptyActivitySettlement()
 		val dao = database.sourceSessionDao()
@@ -479,6 +540,596 @@ class AuthoritativeSessionCoordinatorTest {
 			appDrainComplete = true, stopStatus = SourceStopStatus.PARTIAL_UNOBSERVABLE.name,
 			updatedAtMs = 2_000L,
 		)
+
+	@Test
+	fun `retired Pressure failed tail drains admitted windows on first attempt and replay`() = runRoomTest {
+		val (prepared, receipt) = prepareRetirementGapSettlement()
+		val first = retirementGapDrainPlan(prepared, receipt).shouldBeInstanceOf<SourceProductDrainPlan.Ready>()
+		val request = first.requests.single()
+		request.sourceHighWaterAdmissionOrdinal shouldBe 1L
+		request.memberships.single().lastSourceSequence shouldBe 200L
+		request.memberships.single().unresolvedSequenceStart shouldBe 201L
+		request.memberships.single().unresolvedSequenceEndInclusive shouldBe 263L
+		authenticateSourceProductDrainRequest(database, request) shouldBe null
+		retirementGapDrainPlan(prepared, receipt) shouldBe first
+		database.sourceSessionDao().rawRunRetirement(prepared.logicalTrackingId, prepared.serviceRunId,
+			SourceKind.PRESSURE.stableCode, receipt.sourceInstanceId, receipt.registrationGeneration)
+			.single().validatedOrNull() shouldBe receipt
+		database.sourceEventWalDao().getByAdmissionOrdinal(1L)?.sourceSequence shouldBe 3L
+	}
+
+	@Test
+	fun `retired Pressure sparse loss preserves admitted windows inside its gap envelope`() = runRoomTest {
+		val (prepared, original) = prepareRetirementGapSettlement()
+		val receipt = original.copy(unresolvedSequenceStart = 190L, unresolvedSequenceEnd = 250L,
+			failedAdmissionCount = 2L, providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE.name)
+		database.sourceSessionDao().updateRunRetirement(receipt) shouldBe 1
+		val completeness = database.sourceSessionDao().completenessForServiceRun(
+			prepared.logicalTrackingId, prepared.serviceRunId).single()
+		database.sourceSessionDao().saveCompleteness(completeness.copy(
+			unresolvedSequenceStart = 190L, unresolvedSequenceEnd = 250L,
+			providerCoverage = requireNotNull(receipt.providerCoverage)))
+		val request = retirementGapDrainPlan(prepared, receipt)
+			.shouldBeInstanceOf<SourceProductDrainPlan.Ready>().requests.single()
+		authenticateSourceProductDrainRequest(database, request) shouldBe null
+		request.memberships.single().lastSourceSequence shouldBe 200L
+		request.memberships.single().unresolvedSequenceStart shouldBe 190L
+		database.sourceEventWalDao().getByAdmissionOrdinal(1L)?.sourceSequence shouldBe 3L
+	}
+
+	@Test
+	fun `retired Location callback loss does not block draining its distinct WAL sequence`() = runRoomTest {
+		val (prepared, receipt) = prepareRetirementGapSettlement(source = SourceKind.LOCATION)
+		val request = retirementGapDrainPlan(prepared, receipt)
+			.shouldBeInstanceOf<SourceProductDrainPlan.Ready>().requests.single()
+		request.target shouldBe SourceProductDrainTarget.ProtectedLocationWriter
+		request.memberships.single().lastSourceSequence shouldBe 3L
+		request.memberships.single().unresolvedSequenceStart shouldBe 201L
+		authenticateSourceProductDrainRequest(database, request) shouldBe null
+		database.sourceSessionDao().updateRunRetirement(receipt.copy(appDrainComplete = false)) shouldBe 1
+		retirementGapDrainPlan(prepared, receipt).shouldBeInstanceOf<SourceProductDrainPlan.Failed>()
+		(authenticateSourceProductDrainRequest(database, request) != null) shouldBe true
+	}
+
+	@Test
+	fun `retired Location with finite callback loss and no WAL remains empty only until actual admission`() = runRoomTest {
+		val (prepared, receipt) = prepareRetirementGapSettlement(source = SourceKind.LOCATION, withEndpoint = false)
+		val first = retirementGapDrainPlan(prepared, receipt).shouldBeInstanceOf<SourceProductDrainPlan.Ready>()
+		val request = first.requests.single()
+		request.sourceHighWaterAdmissionOrdinal shouldBe 0L
+		authenticateSourceProductDrainRequest(database, request) shouldBe null
+		retirementGapDrainPlan(prepared, receipt) shouldBe first
+		insertRetirementGapEndpoint(prepared, receipt)
+		retirementGapDrainPlan(prepared, receipt).shouldBeInstanceOf<SourceProductDrainPlan.Failed>()
+		(authenticateSourceProductDrainRequest(database, request) != null) shouldBe true
+	}
+
+	@Test
+	fun `Pressure gap remains pending until actor flush and finite loss are settled`() = runRoomTest {
+		val (prepared, receipt) = prepareRetirementGapSettlement()
+		val request = retirementGapDrainPlan(prepared, receipt)
+			.shouldBeInstanceOf<SourceProductDrainPlan.Ready>().requests.single()
+		val unsettled = listOf(
+			receipt.copy(appDrainComplete = false),
+			receipt.copy(providerFlushOutcome = ProviderFlushOutcome.TIMED_OUT.name),
+			receipt.copy(callbackEntryBarrierSequence = 262L),
+			receipt.copy(failedAdmissionCount = 64L),
+		)
+		for (changed in unsettled) {
+			withClue(changed) {
+				database.sourceSessionDao().updateRunRetirement(changed) shouldBe 1
+				retirementGapDrainPlan(prepared, receipt).shouldBeInstanceOf<SourceProductDrainPlan.Failed>()
+				(authenticateSourceProductDrainRequest(database, request) != null) shouldBe true
+			}
+		}
+		database.sourceSessionDao().updateRunRetirement(receipt) shouldBe 1
+		authenticateSourceProductDrainRequest(database, request) shouldBe null
+	}
+
+	@Test
+	fun `Pressure failed tail cannot hide a later admitted provider window`() = runRoomTest {
+		val (prepared, receipt) = prepareRetirementGapSettlement()
+		val request = retirementGapDrainPlan(prepared, receipt)
+			.shouldBeInstanceOf<SourceProductDrainPlan.Ready>().requests.single()
+		val endpoint = requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(1L))
+		val later = endpoint.copy(admissionOrdinal = 2L, eventId = "late-pressure-window", sourceSequence = 4L,
+			deliveryIdentity = "b".repeat(64))
+		database.sourceEventWalDao().insertIgnoringDuplicate(later.copy(
+			integrityIdentity = later.calculatedIntegrityIdentity())) shouldBe 2L
+		retirementGapDrainPlan(prepared, receipt).shouldBeInstanceOf<SourceProductDrainPlan.Failed>()
+		authenticateSourceProductDrainRequest(database, request) shouldBe "SOURCE_DRAIN_SETTLEMENT_INCOMPLETE"
+	}
+
+	@Test
+	fun `Pressure End saves admitted data and finalizes with the recorded failed tail`() = runRoomTest {
+		val (prepared, _) = prepareRetirementGapSettlement(startRuntime = true)
+		val lane = PressureSessionFactProjectionLane(database, RoomDurableSourceIngress(database,
+			mockk(relaxed = true), DefaultSourcePayloadCodec(), ExecutableSourceLaneCatalog(), mockk(relaxed = true)))
+		sourceProductDrainRouter.onDrain = { request ->
+			authenticateSourceProductDrainRequest(database, request) shouldBe null
+			val drained = lane.drainThrough(request.sourceHighWaterAdmissionOrdinal)
+				.shouldBeInstanceOf<PressureSessionFactDrainResult.Complete>()
+			SourceProductDrainResult.Complete(request, drained.lastCompletedOrdinal,
+				drained.factsInserted, drained.eventsValidated)
+		}
+		subject.stop(SessionStopRequest("test-owner", "manual", 2_000L, 2_000_000_000L, "boot-1"))
+			.shouldBeInstanceOf<SessionStopResult.Stopped>()
+		val dao = database.sourceSessionDao()
+		dao.session(prepared.logicalTrackingId)?.state shouldBe SessionLifecycleState.FINALIZED.name
+		dao.session(prepared.logicalTrackingId)?.failureCode shouldBe "STOP_PARTIAL"
+		dao.serviceRun(prepared.serviceRunId)?.runtimeAcknowledgement shouldBe LifecycleActionStatus.STOP_ACCEPTED.name
+		val receipt = dao.rawRunRetirements(prepared.logicalTrackingId, prepared.serviceRunId,
+			SourceKind.PRESSURE.stableCode, 2).single().validatedOrNull()
+		receipt?.unresolvedSequenceStart shouldBe 201L
+		receipt?.unresolvedSequenceEnd shouldBe 263L
+		database.pressureFactRevisionDao().count() shouldBe 1L
+		database.sourceEventWalDao().getByAdmissionOrdinal(1L)?.sourceSequence shouldBe 3L
+	}
+
+	@Test
+	fun `retired interrupted Pressure drains saved windows and completes End with unknown coverage`() = runRoomTest {
+		val (prepared, original) = prepareRetirementGapSettlement(startRuntime = true)
+		installRetiredPressureRegistration(original)
+		// The old claimed owner is gone; only its physically retired registration and saved WAL remain.
+		replaceRuntimeRegistry(SourceRuntimeRegistry(setOf(runtime, locationRuntime)))
+		val lane = PressureSessionFactProjectionLane(database, RoomDurableSourceIngress(database,
+			mockk(relaxed = true), DefaultSourcePayloadCodec(), ExecutableSourceLaneCatalog(), mockk(relaxed = true)))
+		sourceProductDrainRouter.onDrain = { request ->
+			authenticateSourceProductDrainRequest(database, request) shouldBe null
+			request.memberships.single().lastSourceSequence shouldBe 3L
+			request.memberships.single().appDrainComplete shouldBe false
+			val drained = lane.drainThrough(request.sourceHighWaterAdmissionOrdinal)
+				.shouldBeInstanceOf<PressureSessionFactDrainResult.Complete>()
+			authenticateSourceProductDrainRequest(database, request) shouldBe null
+			lane.drainThrough(request.sourceHighWaterAdmissionOrdinal)
+				.shouldBeInstanceOf<PressureSessionFactDrainResult.Complete>()
+			SourceProductDrainResult.Complete(request, drained.lastCompletedOrdinal,
+				drained.factsInserted, drained.eventsValidated)
+		}
+		subject.stop(SessionStopRequest("test-owner", "manual", 2_000L, 2_000_000_000L, "boot-1",
+			perSourceTimeoutMs = 5_000L)).shouldBeInstanceOf<SessionStopResult.Stopped>()
+		sourceProductDrainRouter.requests.isNotEmpty() shouldBe true
+		val dao = database.sourceSessionDao()
+		dao.session(prepared.logicalTrackingId)?.state shouldBe SessionLifecycleState.FINALIZED.name
+		dao.session(prepared.logicalTrackingId)?.failureCode shouldBe "STOP_PARTIAL"
+		dao.session(prepared.logicalTrackingId)?.cutoffElapsedNanos shouldBe 2_000_000_000L
+		val receipt = dao.rawRunRetirements(prepared.logicalTrackingId, prepared.serviceRunId,
+			SourceKind.PRESSURE.stableCode, 2).single().validatedOrNull()
+		receipt?.state shouldBe SourceRunRetirementEntity.STATE_INTERRUPTED
+		receipt?.appDrainComplete shouldBe false
+		receipt?.lastSourceSequence shouldBe 3L
+		receipt?.providerCoverage shouldBe ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE.name
+		database.pressureFactRevisionDao().count() shouldBe 1L
+		database.sourceEventWalDao().getByAdmissionOrdinal(1L)?.sourceSequence shouldBe 3L
+	}
+
+	@Test
+	fun `End drains earlier and current accepted leases of the same physical provider`() = runRoomTest {
+		val prepared = prepareReconfiguredPressureRecording()
+		val dao = database.sourceSessionDao()
+		val accepted = dao.lifecycleActions(prepared.logicalTrackingId)
+			.filter { it.sourceKind == SourceKind.PRESSURE.stableCode && it.desiredState == "STARTED" }
+		accepted.map { it.registrationGeneration }.distinct() shouldBe listOf(1L)
+		accepted.map { it.leaseGeneration }.distinct().size shouldBe 2
+		val originals = (1L..2L).map { requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(it)) }
+		val lane = PressureSessionFactProjectionLane(database, RoomDurableSourceIngress(database,
+			mockk(relaxed = true), DefaultSourcePayloadCodec(), ExecutableSourceLaneCatalog(), mockk(relaxed = true)))
+		sourceProductDrainRouter.onDrain = { request ->
+			authenticateSourceProductDrainRequest(database, request) shouldBe null
+			request.sourceHighWaterAdmissionOrdinal shouldBe 2L
+			request.memberships.single().lastSourceSequence shouldBe 204L
+			val drained = lane.drainThrough(request.sourceHighWaterAdmissionOrdinal)
+				.shouldBeInstanceOf<PressureSessionFactDrainResult.Complete>()
+			SourceProductDrainResult.Complete(request, drained.lastCompletedOrdinal,
+				drained.factsInserted, drained.eventsValidated)
+		}
+
+		subject.stop(SessionStopRequest("test-owner", "manual", 2_000L, 2_000_000_000L, "boot-1",
+			perSourceTimeoutMs = 5_000L)).shouldBeInstanceOf<SessionStopResult.Stopped>()
+		sourceProductDrainRouter.requests.isNotEmpty() shouldBe true
+		dao.session(prepared.logicalTrackingId)?.state shouldBe SessionLifecycleState.FINALIZED.name
+		dao.session(prepared.logicalTrackingId)?.cutoffElapsedNanos shouldBe 2_000_000_000L
+		dao.serviceRun(prepared.serviceRunId)?.runtimeAcknowledgement shouldBe LifecycleActionStatus.STOP_ACCEPTED.name
+		database.pressureFactRevisionDao().count() shouldBe 2L
+		for (original in originals) {
+			val retained = requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(original.admissionOrdinal))
+			retained.copy(payload = original.payload) shouldBe original
+			retained.payload.contentEquals(original.payload) shouldBe true
+		}
+	}
+
+	@Test
+	fun `earlier recording lease still requires its accepted action intent and physical provider`() = runRoomTest {
+		val prepared = prepareReconfiguredPressureRecording()
+		sourceProductDrainRouter.onDrain = { request ->
+			SourceProductDrainResult.Deferred(request, 0L, 1L, "TEST_KEEP_DRAIN_PENDING")
+		}
+		subject.stop(SessionStopRequest("test-owner", "manual", 2_000L, 2_000_000_000L, "boot-1",
+			perSourceTimeoutMs = 5_000L)).shouldBeInstanceOf<SessionStopResult.DrainPending>()
+		val request = sourceProductDrainRouter.requests.single()
+		val dao = database.sourceSessionDao()
+		val old = dao.lifecycleActions(prepared.logicalTrackingId).single {
+			it.sourceKind == SourceKind.PRESSURE.stableCode && it.manifestRevision == 1L
+		}
+		val sql = database.openHelper.writableDatabase
+		for ((column, changed, original) in listOf(
+			Triple("status", "APPLYING", old.status),
+			Triple("source_instance_id", "another-provider", requireNotNull(old.sourceInstanceId)),
+		)) {
+			sql.execSQL("UPDATE lifecycle_desired_action SET $column = ? WHERE action_id = ?",
+				arrayOf<Any>(changed, old.actionId))
+			authenticateSourceProductDrainRequest(database, request) shouldBe "SOURCE_DRAIN_HIGH_WATER_UNVERIFIABLE"
+			sql.execSQL("UPDATE lifecycle_desired_action SET $column = ? WHERE action_id = ?",
+				arrayOf<Any>(original, old.actionId))
+		}
+		val intent = dao.lifecycleIntents(prepared.logicalTrackingId).single { it.manifestRevision == 1L }
+		sql.execSQL("UPDATE session_lifecycle_intent_version SET intent_checksum = ? " +
+			"WHERE logical_tracking_id = ? AND intent_revision = ?",
+			arrayOf<Any>("a".repeat(64), prepared.logicalTrackingId, intent.intentRevision))
+		authenticateSourceProductDrainRequest(database, request) shouldBe "SOURCE_DRAIN_HIGH_WATER_UNVERIFIABLE"
+		sql.execSQL("UPDATE session_lifecycle_intent_version SET intent_checksum = ? " +
+			"WHERE logical_tracking_id = ? AND intent_revision = ?",
+			arrayOf<Any>(intent.intentChecksum, prepared.logicalTrackingId, intent.intentRevision))
+		authenticateSourceProductDrainRequest(database, request) shouldBe null
+		dao.session(prepared.logicalTrackingId)?.cutoffElapsedNanos shouldBe 2_000_000_000L
+		database.pressureFactRevisionDao().count() shouldBe 0L
+		database.sourceEventWalDao().countAll() shouldBe 2L
+	}
+
+	private suspend fun prepareReconfiguredPressureRecording(): PreparedSessionStart {
+		installExactCandidateRollout(SourceWriterTransitionSpec.PRESSURE)
+		val pressure = installPressureTailRuntime()
+		val initial = pressureStartRequest("recording-leases", "recording-leases-run", rolloutSnapshot.revision)
+		val prepared = subject.prepareAndroidStart(initial,
+			AndroidStartDeliveryMetadata(PreparedTrackingStartToken("recording-leases-token"),
+				commandGeneration = 1L, isUserInitiated = true, isAmbient = false))
+			.shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+		acceptPressureTailStart(prepared)
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(prepared.serviceRunId))
+		insertRetirementGapEndpoint(prepared,
+			retirementGapReceipt(prepared, run.leaseGeneration, SourceKind.PRESSURE, true, 1L))
+		val nextPlan = (initial.plan.plans.getValue(SourceKind.PRESSURE) as PressurePlan).copy(revision = 2L)
+		coEvery { pressure.reconfigure(any(), any(), any()) } returns SourceApplyResult.Applied(
+			AppliedSourcePlan(2L, 2L, SourceKind.PRESSURE, SourceInstanceId("pressure-tail-owner"), 1L,
+				1_200_000_000L, SourceApplyStatus.APPLIED))
+		subject.reconfigure(SessionReconfigureRequest("test-owner", initial.plan.copy(revision = 2L,
+			planId = "recording-leases-2", createdAtMs = 1_200L, plans = mapOf(SourceKind.PRESSURE to nextPlan)),
+			1_200L, 1_200_000_000L, "boot-1", "Europe/Prague", 0L))
+			.shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+		insertReconfiguredPressureWindow(prepared)
+		coEvery { pressure.shutdownIfOwned(any(), any()) } coAnswers {
+			val claim = firstArg<SourceRuntimeClaim>()
+			OwnedSourceShutdown.Released(provider = null, stopAck = SourceStopAck(SourceKind.PRESSURE,
+				SourceInstanceId("pressure-tail-owner"), 1L, 2L, 204L, 204L, 2L, 0L, null, null,
+				RegistrationRemovalOutcome.REMOVED, ProviderFlushOutcome.NOT_SUPPORTED,
+				ProviderCoverage.CALLBACKS_ENTERED_BEFORE_BARRIER, true, SourceStopStatus.COMPLETE,
+				claim.logicalTrackingId, claim.serviceRunId))
+		}
+		return prepared
+	}
+
+	private suspend fun insertReconfiguredPressureWindow(prepared: PreparedSessionStart) {
+		val original = requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(1L))
+		val codec = DefaultSourcePayloadCodec()
+		val payload = (codec.decode(SourceKind.PRESSURE, original.payloadVersion, original.payload) as PressureWindowPayload)
+			.copy(windowStartElapsedRealtimeNanos = 1_200_000_000L, windowEndElapsedRealtimeNanos = 1_350_000_000L,
+				firstProviderSequence = 201L, lastProviderSequence = 204L)
+		val encoded = codec.encode(payload, original.payloadVersion)
+		val action = database.sourceSessionDao().lifecycleActions(prepared.logicalTrackingId).single {
+			it.sourceKind == SourceKind.PRESSURE.stableCode && it.manifestRevision == 2L
+		}
+		val unsigned = original.copy(admissionOrdinal = 0L, eventId = "reconfigured-pressure-window",
+			deliveryIdentity = pressureProviderDeliveryIdentity("boot-1", payload).value, sourceSequence = 4L,
+			configRevision = 2L, observedElapsedNanos = payload.windowEndElapsedRealtimeNanos,
+			observedIntervalStartNanos = payload.windowStartElapsedRealtimeNanos, receivedElapsedNanos = 1_350_001_000L,
+			wallTimeMs = 1_350L, sessionManifestRevision = 2L, lifecycleLeaseGeneration = action.leaseGeneration,
+			acquiredAtMs = 1_350L, payload = encoded.bytes, payloadChecksum = encoded.checksum, createdAtMs = 1_350L)
+		database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(unsigned.copy(
+			integrityIdentity = unsigned.calculatedIntegrityIdentity())) shouldBe 2L
+	}
+
+	@Test
+	fun `interrupted Pressure still requires exact retired ownership cutoff and saved endpoint`() = runRoomTest {
+		val (prepared, original) = prepareRetirementGapSettlement()
+		installRetiredPressureRegistration(original)
+		val receipt = original.copy(state = SourceRunRetirementEntity.STATE_INTERRUPTED, appliedRevision = null,
+			callbackEntryBarrierSequence = 3L, lastSourceSequence = 3L, failedAdmissionCount = 1L,
+			unresolvedSequenceStart = 1L, unresolvedSequenceEnd = 3L, appDrainComplete = false,
+			stopStatus = SourceStopStatus.PROCESS_RESTARTED.name,
+			providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE.name)
+		val dao = database.sourceSessionDao()
+		dao.updateRunRetirement(receipt) shouldBe 1
+		val completeness = dao.completenessForServiceRun(prepared.logicalTrackingId, prepared.serviceRunId).single()
+		dao.saveCompleteness(completeness.copy(lastSourceSequence = 3L, appDrainComplete = false,
+			stopStatus = requireNotNull(receipt.stopStatus), providerCoverage = requireNotNull(receipt.providerCoverage),
+			unresolvedSequenceStart = 1L, unresolvedSequenceEnd = 3L))
+		val request = retirementGapDrainPlan(prepared, receipt)
+			.shouldBeInstanceOf<SourceProductDrainPlan.Ready>().requests.single()
+		authenticateSourceProductDrainRequest(database, request) shouldBe null
+		for (changed in listOf(receipt.copy(cutoffElapsedRealtimeNanos = 1_999_999_999L),
+			receipt.copy(leaseGeneration = receipt.leaseGeneration + 1L))) {
+			dao.updateRunRetirement(changed) shouldBe 1
+			(authenticateSourceProductDrainRequest(database, request) != null) shouldBe true
+		}
+		dao.updateRunRetirement(receipt) shouldBe 1
+		database.openHelper.writableDatabase.execSQL("UPDATE provider_registration_generation SET status = 'ACTIVE' " +
+			"WHERE source_kind = ? AND registration_generation = ?", arrayOf<Any>(SourceKind.PRESSURE.stableCode, 1L))
+		(authenticateSourceProductDrainRequest(database, request) != null) shouldBe true
+		database.openHelper.writableDatabase.execSQL("UPDATE provider_registration_generation SET status = 'RETIRED' " +
+			"WHERE source_kind = ? AND registration_generation = ?", arrayOf<Any>(SourceKind.PRESSURE.stableCode, 1L))
+		authenticateSourceProductDrainRequest(database, request) shouldBe null
+		val endpoint = requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(1L)).copy(sourceSequence = 4L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET source_sequence = ?, integrity_identity = ? " +
+			"WHERE admission_ordinal = 1", arrayOf<Any>(4L, endpoint.calculatedIntegrityIdentity()))
+		(authenticateSourceProductDrainRequest(database, request) != null) shouldBe true
+	}
+
+	private suspend fun installRetiredPressureRegistration(receipt: SourceRunRetirementEntity) {
+		database.sourceBrokerDao().insertRegistration(ProviderRegistrationGenerationEntity(
+			sourceKind = SourceKind.PRESSURE.stableCode, registrationGeneration = receipt.registrationGeneration,
+			sourceInstanceId = receipt.sourceInstanceId, ownerScope = "source-broker:${SourceKind.PRESSURE.stableCode}",
+			clockDomainId = "boot-1", physicalConfigurationFingerprint = "pressure-config", collectedDataEpoch = 0L,
+			providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+			providerProcessIncarnationId = "retired-pressure-process",
+			status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+			reservedAtMs = 1_000L, reservedElapsedRealtimeNanos = 1_000_000L,
+			acceptedAtMs = 1_000L, acceptedElapsedRealtimeNanos = 1_000_000L,
+			retiredAtMs = 2_000L, retiredElapsedRealtimeNanos = 2_000_000_000L, failureCode = "ORDERLY_STOP"))
+	}
+
+	@Test
+	fun `Wi-Fi only End preserves known callback loss as partial coverage`() = runRoomTest {
+		assertRadioGapEnd(SourceKind.WIFI)
+	}
+
+	@Test
+	fun `Cell only End preserves known callback loss as partial coverage`() = runRoomTest {
+		assertRadioGapEnd(SourceKind.CELL)
+	}
+
+	private suspend fun assertRadioGapEnd(source: SourceKind) {
+		val revision = enableRadioPolicy(wifi = source == SourceKind.WIFI, cell = source == SourceKind.CELL)
+		val spec = if (source == SourceKind.WIFI) {
+			SourceWriterTransitionSpec.WIFI
+		} else {
+			SourceWriterTransitionSpec.CELL
+		}
+		installExactCandidateRollout(spec)
+		installRadioGapRuntime(source)
+		val id = "${source.name.lowercase()}-retired-gap"
+		val prepared = subject.prepareAndroidStart(manualSourceStartRequest(source, id, "$id-run", revision),
+			AndroidStartDeliveryMetadata(PreparedTrackingStartToken("$id-token"),
+				commandGeneration = 1L, isUserInitiated = true, isAmbient = false))
+			.shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+		acceptPressureTailStart(prepared)
+		sourceProductDrainRouter.onDrain = { request ->
+			authenticateSourceProductDrainRequest(database, request) shouldBe null
+			request.source shouldBe source
+			request.sourceHighWaterAdmissionOrdinal shouldBe 0L
+			SourceProductDrainResult.Complete(request, 0L, 0, 0)
+		}
+		subject.stop(SessionStopRequest("test-owner", "manual", 2_000L, 2_000_000_000L, "boot-1",
+			perSourceTimeoutMs = 5_000L)).shouldBeInstanceOf<SessionStopResult.Stopped>()
+		sourceProductDrainRouter.requests.isNotEmpty() shouldBe true
+		val dao = database.sourceSessionDao()
+		dao.session(id)?.state shouldBe SessionLifecycleState.FINALIZED.name
+		dao.session(id)?.failureCode shouldBe "STOP_PARTIAL"
+		dao.session(id)?.cutoffElapsedNanos shouldBe 2_000_000_000L
+		val receipt = dao.rawRunRetirements(id, prepared.serviceRunId, source.stableCode, 2)
+			.single().validatedOrNull()
+		receipt?.failedAdmissionCount shouldBe 2L
+		receipt?.appDrainComplete shouldBe true
+		database.sourceEventWalDao().getByAdmissionOrdinal(1L) shouldBe null
+	}
+
+	private fun installRadioGapRuntime(source: SourceKind) {
+		val radio = mockk<ClaimedSourceRuntime<SourcePlan>>(relaxed = true)
+		val instance = SourceInstanceId("${source.name.lowercase()}-gap-owner")
+		every { radio.source } returns source
+		every { radio.capabilities } returns MutableStateFlow(SourceCapabilities(true, true, true, 100, 1))
+		coEvery { radio.start(any(), any(), any()) } returns SourceStartResult.Started(AppliedSourcePlan(
+			1L, 1L, source, instance, 1L, 1_000_000L, SourceApplyStatus.APPLIED))
+		coEvery { radio.shutdownIfOwned(any(), any()) } coAnswers {
+			val claim = firstArg<SourceRuntimeClaim>()
+			OwnedSourceShutdown.Released(provider = null, stopAck = SourceStopAck(source, instance, 1L, 1L,
+				2L, 0L, 0L, 2L, 1L, 2L, RegistrationRemovalOutcome.REMOVED,
+				ProviderFlushOutcome.NOT_SUPPORTED, ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
+				true, SourceStopStatus.COMPLETE, claim.logicalTrackingId, claim.serviceRunId))
+		}
+		replaceRuntimeRegistry(SourceRuntimeRegistry(setOf(radio)))
+	}
+
+	private suspend fun prepareRetirementGapSettlement(
+		startRuntime: Boolean = false,
+		source: SourceKind = SourceKind.PRESSURE,
+		withEndpoint: Boolean = true,
+	): Pair<PreparedSessionStart, SourceRunRetirementEntity> {
+		if (source == SourceKind.LOCATION) {
+			installProtectedLocationCandidateRollout(ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V2)
+		} else {
+			installExactCandidateRollout(SourceWriterTransitionSpec.PRESSURE)
+		}
+		if (startRuntime) {
+			installPressureTailRuntime()
+		}
+		val request = if (source == SourceKind.LOCATION) {
+			startRequest().copy(plan = locationOnlyPlan(1L), rolloutRevision = rolloutSnapshot.revision,
+				logicalTrackingId = "location-gap", serviceRunId = "location-gap-run")
+		} else {
+			pressureStartRequest("pressure-tail", "pressure-tail-run", rolloutSnapshot.revision)
+		}
+		val prepared = subject.prepareAndroidStart(
+			request,
+			AndroidStartDeliveryMetadata(PreparedTrackingStartToken("pressure-tail-token"),
+				commandGeneration = 1L, isUserInitiated = true, isAmbient = false),
+		).shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+		if (startRuntime) {
+			acceptPressureTailStart(prepared)
+		}
+		val dao = database.sourceSessionDao()
+		val session = requireNotNull(dao.session(prepared.logicalTrackingId))
+		val run = requireNotNull(dao.serviceRun(prepared.serviceRunId))
+		val receipt = retirementGapReceipt(prepared, run.leaseGeneration, source, withEndpoint,
+			request.plan.revision)
+		if (!startRuntime) {
+			dao.updateSession(session.copy(state = SessionLifecycleState.STOPPING.name,
+				cutoffAtMs = 2_000L, cutoffElapsedNanos = 2_000_000_000L,
+				finalAdmissionOrdinal = receipt.lastAdmissionOrdinal)) shouldBe 1
+			dao.updateServiceRun(run.copy(state = SessionLifecycleState.STOPPING.name)) shouldBe 1
+			persistRetirementGapReceipt(receipt)
+		}
+		if (withEndpoint) {
+			insertRetirementGapEndpoint(prepared, receipt)
+		}
+		return prepared to receipt
+	}
+
+	private fun retirementGapReceipt(
+		prepared: PreparedSessionStart,
+		leaseGeneration: Long,
+		source: SourceKind,
+		withEndpoint: Boolean,
+		appliedRevision: Long,
+	): SourceRunRetirementEntity {
+		val pressure = emptyActivityRetirement(prepared, leaseGeneration).copy(
+			sourceKind = SourceKind.PRESSURE.stableCode, sourceInstanceId = "pressure-tail-owner",
+			cutoffElapsedRealtimeNanos = 2_000_000_000L, callbackEntryBarrierSequence = 263L,
+			lastSourceSequence = 200L, lastAdmissionOrdinal = 1L, failedAdmissionCount = 63L,
+			unresolvedSequenceStart = 201L, unresolvedSequenceEnd = 263L,
+			providerCoverage = ProviderCoverage.CALLBACKS_ENTERED_BEFORE_BARRIER.name,
+			appliedRevision = appliedRevision, stopStatus = SourceStopStatus.COMPLETE.name,
+		)
+		val receipt = if (source == SourceKind.LOCATION) {
+			pressure.copy(sourceKind = source.stableCode, sourceInstanceId = "location-instance",
+				lastSourceSequence = 3L, providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE.name)
+		} else {
+			pressure
+		}
+		return if (withEndpoint) {
+			receipt
+		} else {
+			receipt.copy(callbackEntryBarrierSequence = 3L, lastSourceSequence = 0L, lastAdmissionOrdinal = 0L,
+				failedAdmissionCount = 3L, unresolvedSequenceStart = 1L, unresolvedSequenceEnd = 3L)
+		}
+	}
+
+	private suspend fun persistRetirementGapReceipt(receipt: SourceRunRetirementEntity) {
+		val dao = database.sourceSessionDao()
+		dao.insertRunRetirementIntent(receipt)
+		dao.saveCompleteness(SourceSessionCompletenessEntity(
+			logicalTrackingId = receipt.logicalTrackingId, serviceRunId = receipt.serviceRunId,
+			sourceKind = receipt.sourceKind, sourceInstanceId = receipt.sourceInstanceId,
+			registrationGeneration = receipt.registrationGeneration,
+			lastAdmissionOrdinal = receipt.lastAdmissionOrdinal, lastSourceSequence = receipt.lastSourceSequence,
+			appDrainComplete = receipt.appDrainComplete == true,
+			providerCoverage = requireNotNull(receipt.providerCoverage), stopStatus = requireNotNull(receipt.stopStatus),
+			unresolvedSequenceStart = receipt.unresolvedSequenceStart,
+			unresolvedSequenceEnd = receipt.unresolvedSequenceEnd, updatedAtMs = 2_000L,
+		))
+	}
+
+	private suspend fun acceptPressureTailStart(prepared: PreparedSessionStart) {
+		subject.markAndroidStartEnqueued(prepared.token, 1L, 1_000L) shouldBe true
+		subject.claimAndroidStart(prepared.token, 1L, "boot-1", 1_000_000L, 1_000L)
+			.shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+		subject.markPreparedForegroundAccepted(prepared.token, 1L, "boot-1", 1_000_000L, 1_000L) shouldBe true
+		subject.applyPreparedAndroidStart(prepared.token, 1L, "boot-1", 1_000_000L, 1_000L)
+			.shouldBeInstanceOf<SessionStartResult.Started>()
+	}
+
+	private fun installPressureTailRuntime(): ClaimedSourceRuntime<PressurePlan> {
+		val pressure = mockk<ClaimedSourceRuntime<PressurePlan>>(relaxed = true)
+		every { pressure.source } returns SourceKind.PRESSURE
+		every { pressure.capabilities } returns MutableStateFlow(SourceCapabilities(true, true, true, 100, 1))
+		coEvery { pressure.start(any(), any(), any()) } returns SourceStartResult.Started(AppliedSourcePlan(
+			1L, 1L, SourceKind.PRESSURE, SourceInstanceId("pressure-tail-owner"), 1L,
+			1_000_000L, SourceApplyStatus.APPLIED))
+		coEvery { pressure.shutdownIfOwned(any(), any()) } coAnswers {
+			val claim = firstArg<SourceRuntimeClaim>()
+			OwnedSourceShutdown.Released(provider = null, stopAck = SourceStopAck(
+				SourceKind.PRESSURE, SourceInstanceId("pressure-tail-owner"), 1L, 1L,
+				263L, 200L, 1L, 63L, 201L, 263L, RegistrationRemovalOutcome.REMOVED,
+				ProviderFlushOutcome.NOT_REQUESTED, ProviderCoverage.CALLBACKS_ENTERED_BEFORE_BARRIER,
+				true, SourceStopStatus.COMPLETE, claim.logicalTrackingId, claim.serviceRunId))
+		}
+		replaceRuntimeRegistry(SourceRuntimeRegistry(setOf(pressure)))
+		return pressure
+	}
+
+	private suspend fun retirementGapDrainPlan(prepared: PreparedSessionStart, receipt: SourceRunRetirementEntity) =
+		buildSourceProductDrainPlan(database, prepared.logicalTrackingId, prepared.serviceRunId,
+			2_000_000_000L, 2_000L, receipt.lastAdmissionOrdinal ?: 0L, SourceProductDrainAuthority(
+				captureBindings = mapOf(receipt.sourceKind to database.sourceSessionDao()
+					.manifestSources(prepared.logicalTrackingId, prepared.manifestRevision)),
+				retirementClaims = listOf(SourceDrainRetirementClaim(SourceKind.entries.single { it.stableCode == receipt.sourceKind },
+					receipt.sourceInstanceId, receipt.registrationGeneration, receipt.actionId,
+					receipt.attemptCount, receipt.leaseGeneration, cleanupOnly = false)),
+			))
+
+	private suspend fun insertRetirementGapEndpoint(prepared: PreparedSessionStart, receipt: SourceRunRetirementEntity) {
+		val payload = PressureWindowPayload(
+			sampleCount = 4, meanHectopascals = 1_001.5, sumSquaredDeviations = 5.0,
+			minimumHectopascals = 1_000f, maximumHectopascals = 1_003f,
+			windowStartElapsedRealtimeNanos = 1_000_000_000L, windowEndElapsedRealtimeNanos = 1_150_000_000L,
+			firstProviderSequence = 197L, lastProviderSequence = 200L, firstHectopascals = 1_000f,
+			lastHectopascals = 1_003f, slopeHectopascalsPerSecond = 20.0, rSquared = 1.0,
+			sensorAccuracy = PressureSensorAccuracy.HIGH, effectiveSamplePeriodMicros = 50_000,
+			effectiveMaximumReportLatencyMicros = 200_000, targetWindowDurationNanos = 200_000_000L,
+			expectedSampleCount = 4, maximumInterSampleGapNanos = 50_000_000L,
+			closureKind = PressureWindowClosureKind.TARGET_ELAPSED,
+		)
+		val binding = database.sourceSessionDao().manifestSources(prepared.logicalTrackingId,
+			prepared.manifestRevision).single()
+		val location = receipt.sourceKind == SourceKind.LOCATION.stableCode
+		val (sourcePayload, payloadVersion) = if (location) {
+			LocationFixPayload(50.0, 14.0, 5f, null, null, null, null, "test") to 1
+		} else {
+			payload to PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION
+		}
+		val encoded = DefaultSourcePayloadCodec().encode(sourcePayload, payloadVersion)
+		val wal = SourceEventWalEntity(admissionOrdinal = 1L, eventId = "retirement-gap-endpoint",
+			providerDedupKey = null, deliveryIdentity = pressureProviderDeliveryIdentity("boot-1", payload).value,
+			deliveryUnitIndex = 0, deliveryUnitCount = 1, logicalTrackingId = prepared.logicalTrackingId,
+			serviceRunId = prepared.serviceRunId, sourceKind = receipt.sourceKind,
+			sourceInstanceId = receipt.sourceInstanceId, registrationGeneration = receipt.registrationGeneration,
+			physicalConfigurationFingerprint = "pressure-config", authorizationRevision = 1L,
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			authorizationFingerprint = "a".repeat(64), sourceSequence = 3L,
+			configRevision = requireNotNull(receipt.appliedRevision),
+			planAttribution = PlanAttribution.CAPTURED_REGISTRATION.ordinal, clockDomainId = "boot-1",
+			observedElapsedNanos = payload.windowEndElapsedRealtimeNanos,
+			observedIntervalStartNanos = payload.windowStartElapsedRealtimeNanos,
+			receivedElapsedNanos = 1_150_001_000L, wallTimeMs = 1_150L, wallTimeUncertaintyMs = 0L,
+			capturedCollectedDataEpoch = 0L, sourcePolicyRevision = 1L,
+			captureConsentEpoch = binding.consentEpoch, sessionManifestRevision = prepared.manifestRevision,
+			lifecycleLeaseGeneration = receipt.leaseGeneration, acquiredAtMs = 1_150L, qualityFlags = 2L,
+			qualityConfidence = 0.75f, payloadVersion = payloadVersion,
+			payload = encoded.bytes, payloadChecksum = encoded.checksum, createdAtMs = 1_150L)
+		database.sourceEventWalDao().insertIgnoringDuplicate(wal.copy(
+			integrityIdentity = wal.calculatedIntegrityIdentity())) shouldBe 1L
+	}
+
+	@Test
+	fun `settled unavailable source product completes End with partial status`() = runRoomTest {
+		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+		val started = startCaptureRun(startRequest().copy(rolloutRevision = rolloutSnapshot.revision))
+			.shouldBeInstanceOf<SessionStartResult.Started>()
+		val admissionOrdinal = insertTerminalStepsWal(started)
+		runtime.lastAdmissionOrdinal = admissionOrdinal
+		runtime.onPhysicalShutdown = { acknowledgement, cutoff ->
+			persistStepsPhysicalRetirement(acknowledgement, cutoff)
+		}
+		replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
+		sourceProductDrainRouter.onDrain = { request ->
+			SourceProductDrainResult.Unavailable(request, "SOURCE_PRODUCT_REJECTED")
+		}
+		subject.stop(SessionStopRequest("test-owner", "manual", 2_000L, 2_000_000L, "boot-1",
+			perSourceTimeoutMs = 5_000L))
+			.shouldBeInstanceOf<SessionStopResult.Stopped>()
+		sourceProductDrainRouter.requests.single().serviceRunId shouldBe started.serviceRunId
+		database.sourceSessionDao().session(started.logicalTrackingId)?.failureCode shouldBe "STOP_PARTIAL"
+	}
 
 	@Test
 	fun `Steps-only End completes with pending Wi-Fi and Cell background consumers`() = runRoomTest {
@@ -1191,7 +1842,7 @@ class AuthoritativeSessionCoordinatorTest {
 					wallTimeMs = 2_000L,
 					elapsedRealtimeNanos = 2_000_000L,
 					clockDomainId = "boot-1",
-					perSourceTimeoutMs = 100L,
+					perSourceTimeoutMs = 5_000L,
 				),
 			).shouldBeInstanceOf<SessionStopResult.Stopped>()
 			database.sourcePlanStateDao().appliedStates() shouldBe emptyList()
@@ -5004,7 +5655,7 @@ class AuthoritativeSessionCoordinatorTest {
 				2_000L,
 				2_000_000L,
 				"boot-1",
-				perSourceTimeoutMs = 100L,
+				perSourceTimeoutMs = 5_000L,
 			),
 		).shouldBeInstanceOf<SessionSuspendResult.Suspended>()
 		persistRolloutRevision(2L)
@@ -5232,7 +5883,7 @@ class AuthoritativeSessionCoordinatorTest {
 					2_000L,
 					2_000_000L,
 					"boot-1",
-					perSourceTimeoutMs = 100L,
+					perSourceTimeoutMs = 5_000L,
 				),
 			)
 		}
@@ -5251,7 +5902,7 @@ class AuthoritativeSessionCoordinatorTest {
 				2_500L,
 				2_500_000L,
 				"boot-1",
-				perSourceTimeoutMs = 100L,
+				perSourceTimeoutMs = 5_000L,
 			),
 		).shouldBeInstanceOf<SessionStopResult.Stopped>()
 
@@ -6027,7 +6678,7 @@ class AuthoritativeSessionCoordinatorTest {
 				2_000L,
 				2_000_000L,
 				"boot-1",
-				perSourceTimeoutMs = 100L,
+				perSourceTimeoutMs = 5_000L,
 			),
 		).shouldBeInstanceOf<SessionStopResult.Stopped>()
 
@@ -6210,7 +6861,7 @@ class AuthoritativeSessionCoordinatorTest {
 				2_500L,
 				2_500_000L,
 				"boot-1",
-				perSourceTimeoutMs = 100L,
+				perSourceTimeoutMs = 5_000L,
 			),
 		).shouldBeInstanceOf<SessionStopResult.Stopped>()
 
@@ -7037,6 +7688,167 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `pending End prevents reconfiguration without changing saved session or all-day authority`() = runRoomTest {
+		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		val background = installIndependentBackgroundStepsDemand(started.logicalTrackingId)
+		val dao = database.sourceSessionDao()
+		val originalSession = dao.session(started.logicalTrackingId)
+		val originalManifests = dao.manifests(started.logicalTrackingId)
+		val originalIntents = dao.lifecycleIntents(started.logicalTrackingId)
+		val originalDemands = database.sourceBrokerDao().currentDemands("session:${started.logicalTrackingId}")
+		latestStopGeneration = 2L
+
+		subject.reconfigure(stepsAndLocationReconfigure(2L, true)) shouldBe
+			SessionReconfigureResult.InvalidIntent("SESSION_STOP_REQUESTED")
+
+		dao.session(started.logicalTrackingId) shouldBe originalSession
+		dao.manifests(started.logicalTrackingId) shouldBe originalManifests
+		dao.lifecycleIntents(started.logicalTrackingId) shouldBe originalIntents
+		database.sourceBrokerDao().currentDemands("session:${started.logicalTrackingId}") shouldBe originalDemands
+		database.sourceBrokerDao().currentDemands("ambient-steps") shouldBe listOf(background)
+		runtime.reconfigureCount shouldBe 0
+		locationRuntime.reconfigureCount shouldBe 0
+		locationRuntime.isActive shouldBe false
+	}
+
+	@Test
+	fun `End saved during reconfiguration publication rolls back the new manifest and grants`() = runRoomTest {
+		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		val dao = database.sourceSessionDao()
+		val originalSession = dao.session(started.logicalTrackingId)
+		val originalDemands = database.sourceBrokerDao().demandHistory("session:${started.logicalTrackingId}")
+		val originalAuthorityCount = acceptedCallerRowCount()
+		afterSessionDemandDispatch = { request ->
+			if (request.startOrigin == SessionStartOrigin.POLICY_RECONCILIATION) {
+				latestStopGeneration = 2L
+			}
+		}
+
+		subject.reconfigure(stepsAndLocationReconfigure(2L, true)) shouldBe
+			SessionReconfigureResult.InvalidIntent("SESSION_STOP_REQUESTED")
+
+		dao.session(started.logicalTrackingId) shouldBe originalSession
+		dao.manifests(started.logicalTrackingId).map { it.manifestRevision } shouldBe listOf(1L)
+		dao.lifecycleIntents(started.logicalTrackingId).map { it.intentRevision } shouldBe listOf(1L)
+		database.sourceBrokerDao().demandHistory("session:${started.logicalTrackingId}") shouldBe originalDemands
+		acceptedCallerRowCount() shouldBe originalAuthorityCount
+		runtime.reconfigureCount shouldBe 0
+		locationRuntime.reconfigureCount shouldBe 0
+		locationRuntime.isActive shouldBe false
+	}
+
+	@Test
+	fun `a handled End from an earlier run does not block a newer generated start`() = runRoomTest {
+		activatePreparedAndroidRun("new-run-token", 3L, "new-run-logical", "new-run")
+		latestStopGeneration = 2L
+
+		subject.reconfigure(stepsAndLocationReconfigure(2L, true))
+			.shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+
+		runtime.reconfigureCount shouldBe 1
+		locationRuntime.isActive shouldBe true
+	}
+
+	@Test
+	fun `End during prepared provider start retains cleanup without publishing an active run`() = runRoomTest {
+		runtime.blockStart = true
+		val starting = async { startCaptureRun(startRequest()) }
+		runtime.startEntered.await()
+		latestStopGeneration = 2L
+		runtime.releaseStart.complete(Unit)
+
+		val failed = starting.await().shouldBeInstanceOf<SessionStartResult.Failed>()
+		failed.code shouldBe SOURCE_RUNTIME_CLEANUP_PENDING
+		val dao = database.sourceSessionDao()
+		dao.session(failed.logicalTrackingId)?.state shouldBe SessionLifecycleState.STARTING.name
+		runtime.isActive shouldBe false
+		runtime.closed shouldBe true
+		subject.stop(SessionStopRequest(
+			ownerToken = "end-start", reason = "EXPLICIT_REQUEST", clockDomainId = "boot-1",
+			wallTimeMs = 2_000L, elapsedRealtimeNanos = 2_000_000L, gracePeriodMs = 5_000L,
+		)).shouldBeInstanceOf<SessionStopResult.Stopped>()
+		runtime.closed shouldBe true
+		dao.session(failed.logicalTrackingId)?.cutoffAtMs shouldBe 2_000L
+	}
+
+	@Test
+	fun `End during provider reconfiguration prevents later source activation and preserves owned retirement`() = runRoomTest {
+		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		val background = installIndependentBackgroundStepsDemand(started.logicalTrackingId)
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		locationRuntime.onStart = { entered.complete(Unit); release.await() }
+		val changing = async { subject.reconfigure(stepsAndLocationReconfigure(2L, true)) }
+		entered.await()
+		latestStopGeneration = 2L
+		release.complete(Unit)
+
+		changing.await().shouldBeInstanceOf<SessionReconfigureResult.Failed>()
+			.failureCode shouldBe SOURCE_RUNTIME_CLEANUP_PENDING
+		val dao = database.sourceSessionDao()
+		dao.session(started.logicalTrackingId)?.state shouldBe SessionLifecycleState.RECONFIGURING.name
+		locationRuntime.isActive shouldBe false
+		runtime.reconfigureCount shouldBe 0
+		runtime.isActive shouldBe true
+		subject.stop(SessionStopRequest(
+			ownerToken = "end-reconfigure", reason = "EXPLICIT_REQUEST", clockDomainId = "boot-1",
+			wallTimeMs = 3_000L, elapsedRealtimeNanos = 3_000_000L, gracePeriodMs = 5_000L,
+		)).shouldBeInstanceOf<SessionStopResult.Stopped>()
+		dao.session(started.logicalTrackingId)?.cutoffAtMs shouldBe 3_000L
+		database.sourceBrokerDao().currentDemands("ambient-steps") shouldBe listOf(background)
+	}
+
+	@Test
+	fun `queued reconfiguration does not reauthorize earlier observations retroactively`() = runRoomTest {
+		seedActiveStepsRegistration(sourceInstanceId = "steps-instance")
+		val started = startCaptureRun(
+			startRequest().copy(logicalTrackingId = "queued-manifest", serviceRunId = "queued-run"),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val broker = database.sourceBrokerDao()
+		val observedBeforePublication = 3_000_000L
+		val originalAuthorization = broker.authorizationAt(
+			SourceKind.STEPS.stableCode, 1L, "boot-1", observedBeforePublication,
+		).single()
+		originalAuthorization.manifestRevision shouldBe 1L
+		// Preflight was queued after the request was made; callbacks can commit before publication.
+		leaseClock.setTime(5_000L, 5_000_000L)
+
+		subject.reconfigure(
+			SessionReconfigureRequest(
+				ownerToken = "queued-reconfigure",
+				plan = startRequest().plan.copy(
+					revision = 2L,
+					planId = "queued-plan",
+					createdAtMs = 2_000L,
+					plans = mapOf(SourceKind.STEPS to StepsPlan(2L, true, 60_000, 15_000, false)),
+				),
+				wallTimeMs = 2_000L,
+				elapsedRealtimeNanos = 2_000_000L,
+				clockDomainId = "boot-1",
+				zoneId = "Europe/Prague",
+				foregroundCapabilityFlags = 0L,
+			),
+		).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+
+		broker.authorizationAt(SourceKind.STEPS.stableCode, 1L, "boot-1", observedBeforePublication)
+			.single() shouldBe originalAuthorization
+		val publishedAuthorization = broker.authorizationAt(
+			SourceKind.STEPS.stableCode, 1L, "boot-1", 5_000_000L,
+		).single()
+		publishedAuthorization.manifestRevision shouldBe 2L
+		publishedAuthorization.effectiveElapsedRealtimeNanos shouldBe 5_000_000L
+		publishedAuthorization.effectiveWallTimeMs shouldBe 5_000L
+		val manifest = requireNotNull(database.sourceSessionDao().manifest(started.logicalTrackingId, 2L))
+		manifest.effectiveElapsedRealtimeNanos shouldBe 5_000_000L
+		manifest.effectiveWallTimeMs shouldBe 5_000L
+		val intent = database.sourceSessionDao().lifecycleIntents(started.logicalTrackingId).last()
+		intent.requestedElapsedRealtimeNanos shouldBe 5_000_000L
+		intent.requestedWallTimeMs shouldBe 5_000L
+		broker.currentDemands("session:${started.logicalTrackingId}").single()
+			.requestedElapsedRealtimeNanos shouldBe 5_000_000L
+	}
+
+	@Test
 	fun `reconfiguration rejects persisted manifest tampering before runtime action`() = runRoomTest {
 		val started = startCaptureRun(
 			startRequest().copy(logicalTrackingId = "tampered-reconfigure-logical", serviceRunId = "tampered-reconfigure-run"),
@@ -7124,7 +7936,7 @@ class AuthoritativeSessionCoordinatorTest {
 				wallTimeMs = 3_000L,
 				elapsedRealtimeNanos = 3_000_000L,
 				clockDomainId = "boot-1",
-				perSourceTimeoutMs = 100L,
+				perSourceTimeoutMs = 5_000L,
 			),
 		).shouldBeInstanceOf<SessionStopResult.Stopped>()
 
@@ -9319,7 +10131,7 @@ class AuthoritativeSessionCoordinatorTest {
 			startRequest().copy(logicalTrackingId = "terminal-logical", serviceRunId = "terminal-run"),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
 		subject.stop(
-			SessionStopRequest("test-owner", "manual", 2_000, 2_000_000, "boot-1", perSourceTimeoutMs = 100),
+			SessionStopRequest("test-owner", "manual", 2_000, 2_000_000, "boot-1", perSourceTimeoutMs = 5_000L),
 		).shouldBeInstanceOf<SessionStopResult.Stopped>()
 
 		val recovery = startRequest().copy(
@@ -10546,7 +11358,7 @@ class AuthoritativeSessionCoordinatorTest {
 				2_000L,
 				2_000_000L,
 				"boot-1",
-				perSourceTimeoutMs = 100L,
+				perSourceTimeoutMs = 5_000L,
 			),
 		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
 		val receipt = database.sourceSessionDao().runRetirements(
@@ -12372,6 +13184,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 }
 
 private class FakeLocationRuntime : ClaimedSourceRuntime<LocationPlan> {
+	var onStart: suspend () -> Unit = {}
 	override val source = SourceKind.LOCATION
 	override val capabilities = MutableStateFlow(SourceCapabilities(true, true, true, 100, 1))
 	var failRetirement = false
@@ -12393,6 +13206,7 @@ private class FakeLocationRuntime : ClaimedSourceRuntime<LocationPlan> {
 	}
 
 	override suspend fun start(plan: LocationPlan, sink: SourceEventSink): SourceStartResult {
+		onStart()
 		active = plan.enabled
 		return SourceStartResult.Started(applied(plan))
 	}

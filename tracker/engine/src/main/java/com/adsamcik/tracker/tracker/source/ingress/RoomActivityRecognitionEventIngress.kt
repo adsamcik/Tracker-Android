@@ -53,7 +53,7 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 		if (startup !is TrackingAdmissionStartupResult.Ready) {
 			return ActivityIngressResult.retryable(0, 0, STARTUP_RECOVERY_NOT_READY)
 		}
-		if (!trackingStartupGateProvider.get().permitsNewCollection) {
+		if (!trackingStartupGateProvider.get().permitsEvidenceAdmission) {
 			return ActivityIngressResult.rejected(0, 0, "COLLECTION_SUPPRESSED")
 		}
 		val registration = runCatchingNonCancellation {

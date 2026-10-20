@@ -43,12 +43,12 @@ import org.maplibre.compose.map.GestureOptions
 import org.maplibre.compose.map.MapOptions
 import org.maplibre.compose.map.MaplibreMap
 import org.maplibre.compose.map.OrnamentOptions
+import org.maplibre.compose.map.RenderOptions
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
 import org.maplibre.compose.style.BaseStyle
 import org.maplibre.spatialk.geojson.BoundingBox
 import org.maplibre.spatialk.geojson.Position
-import kotlin.time.Duration.Companion.milliseconds
 
 private const val MIN_SPAN_DEGREES = 0.001
 
@@ -62,7 +62,7 @@ object MapRoutePreviewRenderer : RoutePreviewRenderer {
 		modifier: Modifier,
 	) {
 		TripRouteMapPreview(
-			points = points.map { point -> LatLngModel(point.lat, point.lng) },
+			points = points,
 			modifier = modifier,
 		)
 	}
@@ -87,7 +87,7 @@ private val NO_GESTURES = GestureOptions(
  */
 @Composable
 fun TripRouteMapPreview(
-	points: List<LatLngModel>,
+	points: List<RoutePoint>,
 	modifier: Modifier = Modifier,
 ) {
 	val context = LocalContext.current
@@ -138,7 +138,7 @@ fun TripRouteMapPreview(
 	}
 
 	val routeCoords = remember(points) {
-		points.filter { it.lat.isFinite() && it.lng.isFinite() }
+		points.filter { it.lat.isFinite() && it.lng.isFinite() }.map { LatLngModel(it.lat, it.lng) }
 	}
 
 	val bounds = remember(routeCoords) {
@@ -192,10 +192,9 @@ fun TripRouteMapPreview(
 	LaunchedEffect(mapReady, bounds) {
 		if (mapReady && bounds != null) {
 			try {
-				cameraState.animateTo(
+				cameraState.jumpTo(
 					boundingBox = bounds,
 					padding = PaddingValues(24.dp),
-					duration = 0.milliseconds,
 				)
 			} catch (_: CancellationException) {
 				throw CancellationException()
@@ -224,6 +223,7 @@ fun TripRouteMapPreview(
 					cameraState = cameraState,
 					logger = null,
 					options = MapOptions(
+						renderOptions = RenderOptions(renderMode = RenderOptions.RenderMode.TextureView),
 						gestureOptions = NO_GESTURES,
 						ornamentOptions = OrnamentOptions(
 							isScaleBarEnabled = false,
@@ -237,7 +237,7 @@ fun TripRouteMapPreview(
 						mapLoadFailed = true
 					},
 				) {
-					RouteLineLayer(routeCoords)
+					RouteLineLayer(points)
 					RouteEndpointLayers(routeCoords)
 				}
 				}
@@ -286,9 +286,9 @@ internal fun tripPreviewContentState(
 }
 
 @Composable
-private fun RouteLineLayer(routeCoords: List<LatLngModel>) {
-	val geoJson = remember(routeCoords) {
-		GeoJsonConverter.lineToFeatureCollection(routeCoords)
+private fun RouteLineLayer(points: List<RoutePoint>) {
+	val geoJson = remember(points) {
+		GeoJsonConverter.segmentsToFeatureCollection(routePreviewSections(points))
 	}
 	val source = rememberGeoJsonSource(data = GeoJsonData.JsonString(geoJson))
 	LineLayer(
@@ -298,6 +298,24 @@ private fun RouteLineLayer(routeCoords: List<LatLngModel>) {
 		width = const(4.dp),
 		opacity = const(0.85f),
 	)
+}
+
+/** Invalid coordinates and distinct measured sections can never create a connecting line. */
+internal fun routePreviewSections(points: List<RoutePoint>): List<List<LatLngModel>> {
+	val sections = mutableListOf<MutableList<LatLngModel>>()
+	var previousSection: Int? = null
+	for (point in points) {
+		if (!point.lat.isFinite() || !point.lng.isFinite()) {
+			previousSection = null
+			continue
+		}
+		if (point.section != previousSection) {
+			sections.add(mutableListOf())
+		}
+		sections.last().add(LatLngModel(point.lat, point.lng))
+		previousSection = point.section
+	}
+	return sections
 }
 
 @Composable

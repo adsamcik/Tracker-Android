@@ -32,6 +32,7 @@ data class DashboardUiState(
 
 	// ─── Tracking state ──────────────────────────────────────────────
 	val isTracking: Boolean = false,
+	val isStarting: Boolean = false,
 	val isLocked: Boolean = false,
 	val hasLocationPermission: Boolean = false,
 	val policyTier: PolicyTier = PolicyTier.OFF,

@@ -89,6 +89,20 @@ interface SourcePolicyDao {
 	)
 	suspend fun latestConsentEpoch(sourceKind: Int, purpose: String): SourceConsentEpochEntity?
 
+	/** One latest row for each requested source/purpose, without loading their retained history. */
+	@Query(
+		"SELECT consent.* FROM source_consent_epoch AS consent " +
+			"INNER JOIN (SELECT source_kind, purpose, MAX(epoch) AS epoch FROM source_consent_epoch " +
+			"WHERE source_kind IN (:sourceKinds) AND purpose IN (:purposes) " +
+			"GROUP BY source_kind, purpose) AS latest " +
+			"ON consent.source_kind = latest.source_kind AND consent.purpose = latest.purpose " +
+			"AND consent.epoch = latest.epoch ORDER BY consent.source_kind, consent.purpose",
+	)
+	suspend fun latestConsentEpochs(
+		sourceKinds: List<Int>,
+		purposes: List<String>,
+	): List<SourceConsentEpochEntity>
+
 	@Query(
 		"SELECT * FROM source_consent_epoch " +
 			"WHERE source_kind = :sourceKind AND purpose = :purpose AND epoch = :epoch LIMIT 1",

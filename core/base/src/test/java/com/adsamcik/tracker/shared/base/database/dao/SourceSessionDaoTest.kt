@@ -13,6 +13,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEnti
 import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
@@ -97,6 +98,25 @@ class SourceSessionDaoTest {
 		val unsigned = manifest(revision = 1L, serviceRunId = "run-a")
 		SessionManifestIntegrity.compute(unsigned, all) shouldBe
 			SessionManifestIntegrity.compute(unsigned, sources.reversed())
+	}
+
+	@Test
+	fun `verified manifests reject changed inputs and duplicate sources after reuse`() {
+		val source = candidateStepsManifestSource()
+		val sources = mutableListOf(source)
+		val unsigned = manifest(revision = 1L, serviceRunId = "run-cache-inputs")
+		val signed = unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, sources))
+		SessionManifestIntegrity.verify(signed, sources) shouldBe true
+		SessionManifestIntegrity.verify(signed, sources) shouldBe true
+
+		sources[0] = source.copy(consentEpoch = source.consentEpoch + 1L)
+		SessionManifestIntegrity.verify(signed, sources) shouldBe false
+		sources[0] = source
+		SessionManifestIntegrity.verify(signed, sources) shouldBe true
+		SessionManifestIntegrity.verify(signed, listOf(source, source)) shouldBe false
+		SessionManifestIntegrity.verify(signed.copy(effectiveWallTimeMs = signed.effectiveWallTimeMs + 1L), sources)
+			.shouldBe(false)
+		SessionManifestIntegrity.verify(signed.copy(manifestChecksum = "changed"), sources) shouldBe false
 	}
 
 	@Test
@@ -331,6 +351,56 @@ class SourceSessionDaoTest {
 				Triple(5L, "a-writer", 3),
 			)
 	}
+
+	@Test
+	fun `Activity failures belong to their WAL run while missing or corrupt attribution stays unavailable`() = runTest {
+		listOf("old-run", "new-run").forEachIndexed { index, runId ->
+			dao.insertServiceRun(serviceRun(runId))
+			dao.insertManifest(manifest(revision = index + 1L, serviceRunId = runId))
+			dao.insertManifestSources(listOf(activityFailureManifestSource(index + 1L)))
+		}
+		val wal = database.sourceEventWalDao()
+		wal.insertIgnoringDuplicate(activityFailureWal(1L, "old-run")) shouldBe 1L
+		wal.insertIgnoringDuplicate(activityFailureWal(2L, "new-run")) shouldBe 2L
+		wal.insertIgnoringDuplicate(activityFailureWal(4L, "old-run").copy(
+			logicalTrackingId = "inconsistent-logical")) shouldBe 4L
+		(1L..4L).forEach { ordinal ->
+			database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
+				SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID, 1, ordinal, 1,
+				"rejected-$ordinal", true, ordinal))
+		}
+		val history = database.trackingHistoryReadDao()
+		suspend fun read(runId: String) = history.terminalFailuresForServiceRuns(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY, SessionManifestPurposeCode.SESSION_CAPTURE,
+			listOf(runId), 0L, 4L, 5).map { it.admissionOrdinal }
+
+		read("old-run") shouldContainExactly listOf(1L, 3L, 4L)
+		read("new-run") shouldContainExactly listOf(2L, 3L, 4L)
+		database.sourceProjectionStateDao().failure(
+			SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID, 1, 1L)?.terminal shouldBe true
+	}
+
+	private fun activityFailureManifestSource(revision: Long) = SessionManifestSourceEntity(
+		logicalTrackingId = LOGICAL_ID, manifestRevision = revision,
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+		purpose = SourceBrokerPurpose.SESSION_CAPTURE, consentEpoch = 1L, persistenceEligible = true, qosCode = 1,
+		outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
+		writerOwner = SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS, writerOwnerGeneration = 2L,
+		writerProjectionId = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
+		writerProjectionVersion = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION,
+		writerBindingGeneration = SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION,
+	)
+
+	private fun activityFailureWal(ordinal: Long, runId: String) = SourceEventWalEntity(
+		admissionOrdinal = ordinal, eventId = "activity-failure-$ordinal", providerDedupKey = null,
+		logicalTrackingId = LOGICAL_ID, serviceRunId = runId,
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY, sourceInstanceId = "activity-provider",
+		registrationGeneration = 1L, sourceSequence = ordinal, configRevision = 1L, planAttribution = 0,
+		clockDomainId = "boot-1", observedElapsedNanos = ordinal, receivedElapsedNanos = ordinal,
+		wallTimeMs = ordinal, wallTimeUncertaintyMs = 0L, capturedCollectedDataEpoch = 0L,
+		acquiredAtMs = ordinal, qualityFlags = 0L, qualityConfidence = null, payloadVersion = 1,
+		payload = byteArrayOf(1), payloadChecksum = "scope-fixture", createdAtMs = ordinal,
+	)
 
 	@Test
 	fun `completeness rows for two runs and two generations do not overwrite`() = runTest {

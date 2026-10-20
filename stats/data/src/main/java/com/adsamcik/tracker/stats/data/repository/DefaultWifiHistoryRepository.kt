@@ -438,6 +438,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 	@Suppress("ReturnCount") // Keep ordered missing-reference and rejection exits together.
 	internal suspend fun selectBySegmentIdsInTransaction(
 		segmentIds: List<Long>,
+		sourceOnly: Boolean = false,
 	): WifiComposedPage {
 		require(segmentIds.size <= MAX_RESULTS)
 		require(segmentIds.all { it > 0L } && segmentIds.distinct().size == segmentIds.size)
@@ -448,7 +449,12 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 		if (seeds.size != segmentIds.size) {
 			return WifiComposedPage.Failed(WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
 		}
-		val expansion = expandMembership(seeds)
+		val selectedSeeds = if (sourceOnly) {
+			database.sourceOnlyHistoryCandidates(seeds, WIFI_SOURCE)
+		} else {
+			seeds
+		}
+		val expansion = expandMembership(selectedSeeds)
 		expansion.failures.values.firstOrNull()?.let { return WifiComposedPage.Failed(it) }
 		val snapshot = loadSnapshot(expansion)
 		if (snapshot.overflow) {
@@ -524,7 +530,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 		return if (seeds.size != seedIds.size) {
 			WifiComposedPage.Failed(WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
 		} else {
-			composeLocalSeeds(seeds)
+			composeLocalSeeds(database.sourceOnlyHistoryCandidates(seeds, WIFI_SOURCE))
 		}
 	}
 

@@ -9,4 +9,6 @@ import androidx.compose.runtime.Immutable
 data class RoutePoint(
     val lat: Double,
     val lng: Double,
+    /** Points in different measured sections must never be connected. */
+    val section: Int = 0,
 )

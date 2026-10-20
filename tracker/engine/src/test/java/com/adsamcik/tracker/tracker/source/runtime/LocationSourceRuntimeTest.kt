@@ -60,6 +60,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
@@ -1089,13 +1091,14 @@ class LocationSourceRuntimeTest {
 	}
 
 	@Test
-	fun `retirement is durable before provider removal and completes after removal`() = runTest {
+	fun `slow retirement journal stays ordered before provider removal and after it`() = runTest {
 		val fixture = locationRuntimeFixture(backgroundScope)
 		val events = mutableListOf<String>()
 		coEvery {
 			fixture.registrations.beginRetirement(any(), any(), any(), any())
-		} answers {
+		} coAnswers {
 			events += "RETIRING"
+			delay(3_000L)
 			retirementToken(
 				firstArg<SourceRegistration>(),
 				secondArg<String>(),
@@ -1103,12 +1106,13 @@ class LocationSourceRuntimeTest {
 				arg<Long>(3),
 			)
 		}
-		coEvery { fixture.fusedBackend.stop() } answers {
+		coEvery { fixture.fusedBackend.stop() } coAnswers {
 			events += "REMOVE"
 			RegistrationRemovalOutcome.REMOVED
 		}
-		coEvery { fixture.registrations.completeRetirement(any()) } answers {
+		coEvery { fixture.registrations.completeRetirement(any()) } coAnswers {
 			events += "COMPLETE"
+			delay(3_000L)
 			true
 		}
 
@@ -1117,6 +1121,20 @@ class LocationSourceRuntimeTest {
 
 		assertEquals(SourceStopStatus.COMPLETE, ack.status)
 		assertEquals(listOf("RETIRING", "REMOVE", "COMPLETE"), events)
+	}
+
+	@Test
+	fun `Android provider removal remains bounded when its callback never completes`() = runTest {
+		val fixture = locationRuntimeFixture(backgroundScope)
+		assertTrue(fixture.runtime.start(fixture.plan, fixture.sink) is SourceStartResult.Started)
+		coEvery { fixture.fusedBackend.stop() } coAnswers { awaitCancellation() }
+		val startedAt = testScheduler.currentTime
+
+		val ack = fixture.runtime.quiesce(sessionCutoff(Long.MAX_VALUE))
+
+		assertEquals(SourceStopStatus.PROVIDER_FAILED, ack.status)
+		assertEquals(2_000L, testScheduler.currentTime - startedAt)
+		coVerify(exactly = 0) { fixture.registrations.completeRetirement(any()) }
 	}
 
 	@Test

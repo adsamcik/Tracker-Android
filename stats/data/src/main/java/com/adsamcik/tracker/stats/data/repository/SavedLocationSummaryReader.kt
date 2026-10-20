@@ -33,18 +33,21 @@ internal class SavedLocationSummaryReader @Inject constructor(
 ) {
     private val retained = RetainedLocationContextReader(database)
 
-    suspend fun readSession(segmentId: Long): SavedLocationSummaryRead {
+    suspend fun readSession(segmentId: Long, includeRoutePreview: Boolean = false): SavedLocationSummaryRead {
         require(segmentId > 0L)
-        return read { readSessionInTransaction(segmentId, it) }
+        return read { readSessionInTransaction(segmentId, it, includeRoutePreview = includeRoutePreview,
+            retainWholeRoutePreview = includeRoutePreview) }
     }
 
-    suspend fun readWindow(window: HistoryObservationWindow): SavedLocationSummaryRead =
-        read { readWindowInTransaction(window, it) }
+    suspend fun readWindow(window: HistoryObservationWindow,
+        includeRoutePreview: Boolean = false): SavedLocationSummaryRead =
+        read { readWindowInTransaction(window, it, includeRoutePreview = includeRoutePreview) }
 
     suspend fun readSessionWindow(segmentId: Long, window: HistoryObservationWindow): SavedLocationSummaryRead =
         read { readSessionInTransaction(segmentId, it, window = window) }
 
-    suspend fun readLogicalSession(logicalId: String): SavedLocationSummaryRead = read { snapshot ->
+    suspend fun readLogicalSession(logicalId: String,
+        includeRoutePreview: Boolean = false): SavedLocationSummaryRead = read { snapshot ->
         val session = database.sourceSessionDao().session(logicalId) ?: return@read SavedLocationSummaryRead.NotFound
         val runs = mutableListOf<String>()
         var after: String? = null
@@ -70,6 +73,7 @@ internal class SavedLocationSummaryReader @Inject constructor(
                 null, null, false))
         }
         val result = readPages(SavedLocationSummarySelection.LogicalSession(logicalId), snapshot,
+            includeRoutePreview = includeRoutePreview, retainWholeRoutePreview = includeRoutePreview,
             scopeMatches = { (it as? RadioContextScope.Session)?.owner?.logicalTrackingId == logicalId },
             nextPage = { cursor ->
                 // Keep SQLite argument batches finite while merging each run's next ordered page.
@@ -95,13 +99,18 @@ internal class SavedLocationSummaryReader @Inject constructor(
         snapshot: TrackingHistoryReadSnapshot,
         window: HistoryObservationWindow? = null,
         includeRoutePreview: Boolean = false,
+        retainWholeRoutePreview: Boolean = false,
         onState: ((SavedTripDistanceState, SavedLocationPosition?) -> Unit)? = null): SavedLocationSummaryRead {
         val segment = database.trackingHistoryReadDao().segments(listOf(segmentId)).singleOrNull()
             ?: return SavedLocationSummaryRead.NotFound
         val logicalId = segment.logicalTrackingId
         val runId = segment.serviceRunId
         if (logicalId.isNullOrBlank() || runId.isNullOrBlank()) {
-            return readLegacySessionInTransaction(segmentId, segment, snapshot, window, onState)
+            return readPages(SavedLocationSummarySelection.Session(segmentId), snapshot,
+                includeRoutePreview = includeRoutePreview, retainWholeRoutePreview = retainWholeRoutePreview,
+                scopeMatches = { false }, onState = onState, nextPage = { after ->
+                    legacyCandidatePage(segment, window, after)
+                })
         }
         val candidates = database.locationPurposeDao().savedSessionCandidateCount(logicalId, runId, segmentId,
             window?.fromInclusiveMs, window?.toExclusiveMs?.minus(1L))
@@ -113,6 +122,7 @@ internal class SavedLocationSummaryReader @Inject constructor(
         } == true
         val read = readPages(SavedLocationSummarySelection.Session(segmentId), snapshot, onState = onState,
             includeRoutePreview = includeRoutePreview,
+            retainWholeRoutePreview = retainWholeRoutePreview,
             scopeMatches = { it.matchesSavedSummarySession(segmentId, logicalId, runId) }, nextPage = { after ->
                 sessionCandidatePage(logicalId, runId, window, after)
             })
@@ -124,20 +134,13 @@ internal class SavedLocationSummaryReader @Inject constructor(
         }
     }
 
-    private suspend fun readLegacySessionInTransaction(
-        segmentId: Long, segment: SessionSegment, snapshot: TrackingHistoryReadSnapshot,
-        window: HistoryObservationWindow?,
-        onState: ((SavedTripDistanceState, SavedLocationPosition?) -> Unit)?,
-    ): SavedLocationSummaryRead {
-        return readPages(SavedLocationSummarySelection.Session(segmentId), snapshot,
-            scopeMatches = { false }, onState = onState, nextPage = { after ->
-                database.locationPurposeDao().savedLegacyTripPointPage(maxOf(segment.startTimeMs,
-                    window?.fromInclusiveMs ?: 0L), minOf(segment.endTimeMs,
-                    window?.toExclusiveMs?.minus(1L) ?: Long.MAX_VALUE), after?.timeMs,
-                        after?.sampleId, POINT_PAGE_SIZE)
-                    .map { SavedLocationCandidate(null, it.sample.timeMs, it) }
-            })
-    }
+    private suspend fun legacyCandidatePage(segment: SessionSegment, window: HistoryObservationWindow?,
+        after: SavedLocationPosition?): List<SavedLocationCandidate> =
+        database.locationPurposeDao().savedLegacyTripPointPage(maxOf(segment.startTimeMs,
+            window?.fromInclusiveMs ?: 0L), minOf(segment.endTimeMs,
+            window?.toExclusiveMs?.minus(1L) ?: Long.MAX_VALUE), after?.timeMs,
+            after?.sampleId, POINT_PAGE_SIZE)
+            .map { SavedLocationCandidate(null, it.sample.timeMs, it) }
 
     private suspend fun sessionCandidatePage(
         logicalId: String, runId: String, window: HistoryObservationWindow?, after: SavedLocationPosition?,
@@ -158,9 +161,11 @@ internal class SavedLocationSummaryReader @Inject constructor(
     /** Native, imported and older saved data use the same current measured-date window. */
     internal suspend fun readWindowInTransaction(window: HistoryObservationWindow,
         snapshot: TrackingHistoryReadSnapshot,
+        includeRoutePreview: Boolean = false,
         onGap: ((Long) -> Unit)? = null,
         onPoint: ((LocationPathSampleRow?) -> Unit)? = null): SavedLocationSummaryRead =
         readPages(SavedLocationSummarySelection.Window(window), snapshot, scopeMatches = { true },
+            includeRoutePreview = includeRoutePreview, retainWholeRoutePreview = includeRoutePreview,
             onPoint = onPoint,
             onGap = onGap,
             nextPage = { after ->
@@ -206,8 +211,9 @@ internal class SavedLocationSummaryReader @Inject constructor(
         onPoint: ((LocationPathSampleRow?) -> Unit)? = null,
         onState: ((SavedTripDistanceState, SavedLocationPosition?) -> Unit)? = null,
         onGap: ((Long) -> Unit)? = null,
-        includeRoutePreview: Boolean = false): SavedLocationSummaryRead {
-        val accumulator = SavedTripDistanceAccumulator()
+        includeRoutePreview: Boolean = false,
+        retainWholeRoutePreview: Boolean = false): SavedLocationSummaryRead {
+        val accumulator = SavedTripDistanceAccumulator(retainWholeRoutePreview = retainWholeRoutePreview)
         var count = 0L
         var latest: SavedLocationFix? = null
         var partial = false

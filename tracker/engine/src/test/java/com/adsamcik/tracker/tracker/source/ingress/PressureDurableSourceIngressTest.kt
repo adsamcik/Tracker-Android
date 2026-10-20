@@ -17,6 +17,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLan
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
@@ -92,16 +93,42 @@ class PressureDurableSourceIngressTest {
 		)
 	}
 
-	private fun createIngress() = RoomDurableSourceIngress(
+	private fun createIngress(startupGate: TrackingStartupGate = PressureIngressStartupGate()) = RoomDurableSourceIngress(
 		database = database,
 		lifecycleStore = lifecycleStore,
 		payloadCodec = DefaultSourcePayloadCodec(),
 		executableLaneCatalog = PRESSURE_EXECUTABLE_LANE_CATALOG,
-		trackingStartupGateProvider = Provider { PressureIngressStartupGate() },
+		trackingStartupGateProvider = Provider { startupGate },
 	)
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `queued Pressure reaches its saved session cutoff while End is pending`() = runTest {
+		ingress = createIngress(PressureIngressStartupGate(isReady = false, isAdmissionReady = true))
+		val sessions = database.sourceSessionDao()
+		val session = requireNotNull(sessions.session(LOGICAL_TRACKING_ID))
+		val run = requireNotNull(sessions.serviceRun(SERVICE_RUN_ID))
+		sessions.updateSession(session.copy(state = "STOPPING", cutoffAtMs = 105L, cutoffElapsedNanos = 105L)) shouldBe 1
+		sessions.updateServiceRun(run.copy(state = "STOPPING")) shouldBe 1
+		val payload = pressurePayload()
+
+		ingress.admit(pressureDeliveryCandidate(payload = payload), pressureCheckpoint(1L, payload, 120L)) shouldBe
+			DeliveryAdmissionResult.SessionCutoff(105L)
+		assertNoAdmission()
+	}
+
+	@Test
+	fun `queued Pressure is terminally suppressed by Off after recovery`() = runTest {
+		ingress = createIngress(PressureIngressStartupGate(
+			isReady = false, isAdmissionReady = true, evidenceAllowed = false))
+		val payload = pressurePayload()
+
+		ingress.admit(pressureDeliveryCandidate(payload = payload), pressureCheckpoint(1L, payload, 120L)) shouldBe
+			DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.COLLECTION_SUPPRESSED)
+		assertNoAdmission()
+	}
 
 	@Test
 	fun `Pressure ingress replacement retries exactly and rejects a stale generation`() = runTest {
@@ -829,8 +856,20 @@ private class PressureIngressLifecycleStore : CollectedDataLifecycleStore {
 	}
 }
 
-private class PressureIngressStartupGate : TrackingStartupGate {
-	override val isReady: Boolean = true
+private class PressureIngressStartupGate(
+	override val isReady: Boolean = true,
+	override val isAdmissionReady: Boolean = isReady,
+	private val evidenceAllowed: Boolean = true,
+) : TrackingStartupGate {
+	override val permitsEvidenceAdmission: Boolean get() = isAdmissionReady && evidenceAllowed
+	override fun isAdmissionReadyGeneration(expectedGeneration: Long): Boolean =
+		isAdmissionReady && currentGeneration == expectedGeneration
+	override suspend fun reconcileAdmission(retryFailedStorage: Boolean): TrackingAdmissionStartupResult =
+		if (isAdmissionReady) {
+			TrackingAdmissionStartupResult.Ready
+		} else {
+			super.reconcileAdmission(retryFailedStorage)
+		}
 	override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
 		TrackingStartupResult.Ready(
 			legacyRecoveryPartial = false,

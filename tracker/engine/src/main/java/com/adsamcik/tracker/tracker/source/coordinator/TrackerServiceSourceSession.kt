@@ -234,7 +234,7 @@ class TrackerServiceSourceSession @Inject constructor(
 			return startupRejectedStart()
 		}
 		val startupGeneration = startupGate.currentGeneration
-		return startupGate.withReadyGenerationOperation(startupGeneration) {
+		return startupGate.withReadyGenerationWork(startupGeneration) {
 			startUnderReadyGeneration(request)
 		} ?: startupRejectedStart()
 	}
@@ -259,7 +259,7 @@ class TrackerServiceSourceSession @Inject constructor(
 			return startupRejectedReconfigure()
 		}
 		val startupGeneration = startupGate.currentGeneration
-		return startupGate.withReadyGenerationOperation(startupGeneration) {
+		return startupGate.withReadyGenerationWork(startupGeneration) {
 			reconfigureUnderReadyGeneration(inputs)
 		} ?: startupRejectedReconfigure()
 	}
@@ -273,7 +273,7 @@ class TrackerServiceSourceSession @Inject constructor(
 			return null
 		}
 		val startupGeneration = startupGate.currentGeneration
-		return startupGate.withReadyGenerationOperation(startupGeneration) {
+		return startupGate.withReadyGenerationWork(startupGeneration) {
 			retryDurableCatalogReconfiguration()
 		}
 	}

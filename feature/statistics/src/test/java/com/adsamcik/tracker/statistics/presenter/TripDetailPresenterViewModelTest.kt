@@ -21,6 +21,11 @@ import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository
+import com.adsamcik.tracker.stats.api.repository.SavedLocationFix
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummary
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummarySelection
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistoryCaptureRevision
@@ -105,6 +110,8 @@ class TripDetailPresenterViewModelTest {
 		every { trackingHistoryRepository.observeLiveSession(any()) } returns flowOf(
 			locationHistory(TRIP_ID),
 		)
+		coEvery { trackingHistoryRepository.readSavedLocationSummary(any(), true) } returns
+			SavedLocationSummaryRead.NotFound
 	}
 
 	@AfterEach
@@ -179,6 +186,7 @@ class TripDetailPresenterViewModelTest {
 			sample(id = 2L, timeMs = TRIP_START_MS + 1_000L, latE7 = 500_100_000, lonE7 = 140_100_000),
 			sample(id = 3L, timeMs = TRIP_END_MS, latE7 = 500_200_000, lonE7 = 140_200_000),
 		)
+		stubSavedRoute(listOf(persistedSamples))
 		coEvery { tripRepository.getTripDetail(TRIP_ID) } returns trip.right()
 		coEvery { tripPresentationRepository.getTripProjection(TRIP_ID) } returns null
 		coEvery {
@@ -215,6 +223,29 @@ class TripDetailPresenterViewModelTest {
 			)
 		}
 		stateCollector.cancel()
+	}
+
+	@Test
+	fun `route preview keeps every qualified section instead of connecting overlapping raw samples`() = runTest {
+		val trip = sessionTrip()
+		val first = sample(1, TRIP_START_MS, 370_000_000, -1_220_000_000)
+		val second = sample(2, TRIP_START_MS + 1_000, 520_000_000, 130_000_000)
+		coEvery { tripRepository.getTripDetail(TRIP_ID) } returns trip.right()
+		coEvery { tripPresentationRepository.getTripProjection(TRIP_ID) } returns null
+		stubEmptySupplementalData()
+		stubSavedRoute(listOf(listOf(first), listOf(second)))
+		val viewModel = createViewModel()
+		val collector = backgroundScope.launch { viewModel.state.collect() }
+		advanceUntilIdle()
+
+		viewModel.loadSupplementalData()
+		advanceUntilIdle()
+
+		viewModel.insights.value.routePoints shouldBe listOf(
+			RoutePoint(37.0, -122.0, section = 0), RoutePoint(52.0, 13.0, section = 1))
+		coVerify(exactly = 1) { trackingHistoryRepository.readSavedLocationSummary(
+			SavedLocationSummarySelection.Session(TRIP_ID), includeRoutePreview = true) }
+		collector.cancel()
 	}
 
 	@Test
@@ -391,6 +422,7 @@ class TripDetailPresenterViewModelTest {
 	fun `history observer failure clears stale Location supplements and keeps retry state`() = runTest {
 		val trip = sessionTrip().copy(distance = DistanceM(1_000f))
 		val failHistory = CompletableDeferred<Unit>()
+		stubSavedRoute(listOf(listOf(sample(1, TRIP_START_MS, 500_000_000, 140_000_000))))
 		coEvery { tripRepository.getTripDetail(TRIP_ID) } returns trip.right()
 		every { trackingHistoryRepository.observeLiveSession(TRIP_ID) } returns flow {
 			emit(
@@ -523,6 +555,7 @@ class TripDetailPresenterViewModelTest {
 			tripPresentationRepository = tripPresentationRepository,
 			skiRunSegmentRepository = skiRunSegmentRepository,
 			locationSampleRepository = locationSampleRepository,
+			trackingHistoryRepository = trackingHistoryRepository,
 			gpxShareHelper = gpxShareHelper,
 			dispatchers = dispatchers,
 			savedStateHandle = SavedStateHandle(mapOf("tripId" to TRIP_ID)),
@@ -819,6 +852,19 @@ class TripDetailPresenterViewModelTest {
 		coEvery {
 			skiRunSegmentRepository.getSegmentsByTimeRange(TRIP_START_MS, TRIP_END_MS)
 		} returns emptyList()
+	}
+
+	private fun stubSavedRoute(sections: List<List<LocationSample>>) {
+		val fixes = sections.map { section -> section.map { sample ->
+			SavedLocationFix(sample.id, sample.timeMs, 0, requireNotNull(sample.latE7),
+				requireNotNull(sample.lonE7), sample.speedMps, sample.speedAccuracyMps, sample.hAccM,
+				sample.altitudeM, sample.altitudeDatum, sample.altitudeSource, sample.vAccM)
+		} }
+		coEvery { trackingHistoryRepository.readSavedLocationSummary(
+			SavedLocationSummarySelection.Session(TRIP_ID), true) } returns SavedLocationSummaryRead.Snapshot(
+			SavedLocationSummarySelection.Session(TRIP_ID), TrackingHistoryReadSnapshot(0, 0),
+			SavedLocationSummary(fixes.sumOf { it.size }.toLong(), fixes.lastOrNull()?.lastOrNull(),
+				null, partial = sections.size > 1, routePreview = fixes))
 	}
 
 	private data class ChunkRequest(

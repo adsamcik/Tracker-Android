@@ -242,7 +242,7 @@ class RoomDurableSourceIngress @Inject constructor(
 				if (!startupGate.permitsNewEvidence(candidate)) {
 					return@transaction AdmissionResult.PermanentFailure(AdmissionFailureCode.COLLECTION_SUPPRESSED)
 				}
-				if (!startupGate.isReadyGeneration(startupGeneration)) {
+				if (!startupGate.isAdmissionReadyGeneration(startupGeneration)) {
 					return@transaction AdmissionResult.RetryableFailure(
 						AdmissionFailureCode.STARTUP_RECOVERY_NOT_READY,
 					)
@@ -672,7 +672,7 @@ class RoomDurableSourceIngress @Inject constructor(
 		val generation = gate.currentGeneration
 		return withContext(NonCancellable) {
 			val result = database.withTransaction {
-				if (!gate.isReadyGeneration(generation)) {
+				if (!gate.isAdmissionReadyGeneration(generation)) {
 					throw AtomicSourceDeliveryAdmissionException(AdmissionFailureCode.STARTUP_RECOVERY_NOT_READY)
 				}
 				// Reconciliation can need Room. Do it before this transaction, then verify the
@@ -717,7 +717,7 @@ class RoomDurableSourceIngress @Inject constructor(
 			)
 		}
 		val startupGate = trackingStartupGateProvider.get()
-		if (expectedStartupGeneration?.let { !startupGate.isReadyGeneration(it) } ?: (
+		if (expectedStartupGeneration?.let { !startupGate.isAdmissionReadyGeneration(it) } ?: (
 			startupGate.reconcileAdmission() !is TrackingAdmissionStartupResult.Ready
 		)) {
 			return DeliveryAdmissionResult.RetryableFailure(
@@ -752,7 +752,7 @@ class RoomDurableSourceIngress @Inject constructor(
 				if (delivery.units.any { !startupGate.permitsNewEvidence(it.evidence) }) {
 					return@transaction DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.COLLECTION_SUPPRESSED)
 				}
-				if (!startupGate.isReadyGeneration(startupGeneration)) {
+				if (!startupGate.isAdmissionReadyGeneration(startupGeneration)) {
 					return@transaction DeliveryAdmissionResult.RetryableFailure(
 						AdmissionFailureCode.STARTUP_RECOVERY_NOT_READY,
 					)
@@ -2307,7 +2307,7 @@ private const val RADIO_DEMAND_QUERY_CHUNK = 400
 
 /** Suppressed observations are terminally omitted; a later resume cannot turn a retry into backfill. */
 internal fun TrackingStartupGate.permitsNewEvidence(candidate: SourceEvidenceCandidate<*>): Boolean {
-	if (!permitsNewCollection) {
+	if (!permitsEvidenceAdmission) {
 		return false
 	}
 	val boundary = collectionResumeBoundary ?: return true

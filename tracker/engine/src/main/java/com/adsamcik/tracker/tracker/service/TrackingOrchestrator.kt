@@ -81,6 +81,8 @@ import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationOutcome
 import com.adsamcik.tracker.tracker.worker.materializeDailySummaryDayInTransaction
 import kotlinx.coroutines.CancellationException
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+import com.adsamcik.tracker.stats.api.metric.MetricSnapshot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -139,6 +141,7 @@ internal class TrackingOrchestrator(
 	private val onSourcePlanInputsChanged: suspend (TrackingParamsState, List<SourceDemand>) -> Unit = { _, _ -> },
 	private val persistenceLifecycleLease: TrackingPersistenceLifecycleLease =
 		ExclusiveTrackingPersistenceLifecycleLease(),
+	private val trackingHistoryRepository: TrackingHistoryRepository? = null,
 ) : ProtectedLocationCanonicalWriter {
 	private val componentMutex = Mutex()
 
@@ -174,6 +177,7 @@ internal class TrackingOrchestrator(
 			trackingParamsRepository = trackingParamsRepository,
 			dispatchers = dispatchers,
 			enableNotifications = enableNotifications,
+			trackingHistoryRepository = trackingHistoryRepository,
 		)
 	}
 	private val policyFeeder = TrackerPolicyFeeder()
@@ -268,15 +272,6 @@ internal class TrackingOrchestrator(
 				delay(POLICY_LIFECYCLE_TICK_MILLIS)
 			}
 		}
-		sessionScope.launch {
-			combine(
-				trackingParamsRepository.data,
-				policyManager.sourceDemands,
-			) { settings, demands -> settings to demands }
-				.distinctUntilChanged()
-				.collect { (settings, demands) -> onSourcePlanInputsChanged(settings, demands) }
-		}
-
 		// Observe engine state changes for UI and timer updates
 		sessionScope.launch {
 			escalationEngine.policyState.collect { state ->
@@ -454,6 +449,16 @@ internal class TrackingOrchestrator(
 
 			// Wire mutable references into tier escalation handler
 			tierEscalationHandler.processorPipeline = processorPipeline
+			// Initial policy evidence may change acquisition. Bind the saved session first so
+			// that this reconciliation cannot hold up its presentation or canonical writers.
+			sessionScope.launch {
+				combine(
+					trackingParamsRepository.data,
+					policyManager.sourceDemands,
+				) { settings, demands -> settings to demands }
+					.distinctUntilChanged()
+					.collect { (settings, demands) -> onSourcePlanInputsChanged(settings, demands) }
+			}
 			pendingPresentationBinding
 		} catch (@Suppress("TooGenericExceptionCaught") failure: Throwable) {
 			// Stop partial startup before rethrowing the same failure, with cleanup failure kept suppressed.
@@ -1022,6 +1027,25 @@ internal class TrackingOrchestrator(
 		)
 	}
 
+	private suspend fun restoreClosedDurableSessionTotals(component: SessionTrackerComponent) {
+		if (component.presentationBinding == null) {
+			return
+		}
+		val aggregator = signalProcessors.filterIsInstance<AggregatorProcessor>().singleOrNull() ?: return
+		if (aggregator.snapshotMetrics() == MetricSnapshot.Empty) {
+			return
+		}
+		val session = component.session
+		val seed = withContext(dispatchers.io) { appDatabase.liveStatsRecoverySeed(session, isResuming = true) }
+		aggregator.restoreSessionTotals(
+			distanceM = session.distanceInM, steps = session.steps,
+			durationMs = (session.end - session.start).coerceAtLeast(0L),
+			sampleCount = session.collections, lastUpdateMs = session.end,
+			dayDistanceM = seed.restoredDayDistanceM, daySteps = seed.restoredDaySteps,
+			dayDurationMs = seed.restoredDayDurationMs,
+		)
+	}
+
 	private suspend fun destroyComponents(context: Context): ShutdownResult {
 		completedShutdownResult?.let { return it }
 		var shutdownFailure: IllegalStateException? = null
@@ -1039,6 +1063,7 @@ internal class TrackingOrchestrator(
 			sessionComponent?.let { component ->
 				try {
 					component.onDisable(context)
+					restoreClosedDurableSessionTotals(component)
 					component.presentationBinding?.let { binding ->
 						check(pendingPresentationBinding == null || pendingPresentationBinding == binding) {
 							"Presentation binding changed during shutdown"

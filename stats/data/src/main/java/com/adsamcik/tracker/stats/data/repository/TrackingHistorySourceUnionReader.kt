@@ -227,23 +227,23 @@ internal class DefaultTrackingHistorySourceUnionReader @Inject constructor(
 	override suspend fun candidateNativeOnlyInTransaction(
 		segmentIds: List<Long>,
 	): HistoricalSourceUnionRead<List<HistoricalSourceOnlyMembership>> {
-		val wifiGroups = when (val page = wifi.selectBySegmentIdsInTransaction(segmentIds)) {
+		val wifiGroups = when (val page = wifi.selectBySegmentIdsInTransaction(segmentIds, sourceOnly = true)) {
 			is WifiComposedPage.Available -> page.entries.filter { it.entry.capturesOnlyWifi }
 			is WifiComposedPage.Failed ->
 				return page.cause.toUnionFailure(HistorySource.WIFI)
 		}
-		val cellGroups = when (val page = cell.selectBySegmentIdsInTransaction(segmentIds)) {
+		val cellGroups = when (val page = cell.selectBySegmentIdsInTransaction(segmentIds, sourceOnly = true)) {
 			is CellComposedPage.Available -> page.entries.filter(ComposedCellEntry::capturesOnlyCell)
 			is CellComposedPage.Failed ->
 				return page.cause.toUnionFailure(HistorySource.CELL)
 		}
-		val activityGroups = when (val page = activity.selectBySegmentIdsInTransaction(segmentIds)) {
+		val activityGroups = when (val page = activity.selectBySegmentIdsInTransaction(segmentIds, sourceOnly = true)) {
 			is ActivityComposedPage.Available ->
 				page.entries.filter { it.entry.capturesOnlyActivity }
 			is ActivityComposedPage.Failed ->
 				return page.cause.toUnionFailure(HistorySource.ACTIVITY)
 		}
-		val pressureGroups = pressureSelector.selectLogicalBySegmentIdsInTransaction(segmentIds)
+		val pressureGroups = pressureSelector.selectLogicalBySegmentIdsInTransaction(segmentIds, sourceOnly = true)
 		if (pressureGroups.hasDependencyOverflow) {
 			return HistoricalSourceUnionRead.Unavailable(
 				SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
@@ -374,13 +374,13 @@ internal class LegacyTrackingHistorySourceUnionReader(
 	override suspend fun candidateNativeOnlyInTransaction(
 		segmentIds: List<Long>,
 	): HistoricalSourceUnionRead<List<HistoricalSourceOnlyMembership>> {
-		val activityGroups = when (val page = activity.selectBySegmentIdsInTransaction(segmentIds)) {
+		val activityGroups = when (val page = activity.selectBySegmentIdsInTransaction(segmentIds, sourceOnly = true)) {
 			is ActivityComposedPage.Available ->
 				page.entries.filter { it.entry.capturesOnlyActivity }
 			is ActivityComposedPage.Failed ->
 				return page.cause.toUnionFailure(HistorySource.ACTIVITY)
 		}
-		val pressureGroups = pressureSelector.selectLogicalBySegmentIdsInTransaction(segmentIds)
+		val pressureGroups = pressureSelector.selectLogicalBySegmentIdsInTransaction(segmentIds, sourceOnly = true)
 		if (pressureGroups.hasDependencyOverflow) {
 			return HistoricalSourceUnionRead.Unavailable(
 				SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,

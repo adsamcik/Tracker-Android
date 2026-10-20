@@ -176,15 +176,6 @@ private interface MapScreenEntryPoint {
     fun uiLocationProvider(): UiLocationProvider
 }
 /**
- * Maximum initial zoom for a user with no data on the active layer. Above this,
- * the bundled basemap (z0-z6 PMTiles) has no detail and the user sees only a
- * solid background colour — a confusing first-frame for someone who just
- * navigated to the map. Capping to z=4 gives a country/region overview that
- * always renders real geography. User gestures override immediately after.
- */
-private const val MAX_EMPTY_STATE_ZOOM = 4f
-
-/**
  * Maximum zoom to restore from saved camera state. The bundled basemap is z0-z6,
  * so anything past z=6 renders as solid colour. Capping the restored zoom to z=8
  * gives the user a recognisable city-level view they can quickly zoom into rather
@@ -411,7 +402,6 @@ fun MapScreen(
 
     val cameraState = rememberCameraState(firstPosition = initialCameraPosition)
     var suppressNextCameraPersistence by remember { mutableStateOf(false) }
-    var hasAppliedEmptyStateZoomCap by rememberSaveable { mutableStateOf(false) }
     // Dismiss state for the empty-data banner. Keyed to the active layer so switching to a
     // different (still empty) layer surfaces the banner again instead of staying hidden.
     var emptyStateDismissed by remember(activeLayerId) { mutableStateOf(false) }
@@ -435,17 +425,6 @@ fun MapScreen(
             suppressNextCameraPersistence = true
             cameraState.position = capped
         }
-    }
-
-    LaunchedEffect(hasNoData, cameraState) {
-        if (!hasNoData || hasAppliedEmptyStateZoomCap) return@LaunchedEffect
-
-        cameraState.awaitProjection()
-        cameraState.position.cappedAt(MAX_EMPTY_STATE_ZOOM)?.let { capped ->
-            suppressNextCameraPersistence = true
-            cameraState.position = capped
-        }
-        hasAppliedEmptyStateZoomCap = true
     }
 
     val selectedTripBounds = remember(state.selectedTripContext, state.layerConfig) {

@@ -215,8 +215,16 @@ class SessionTrackerComponentTest {
 		} answers {
 			OpenSessionPresentation(
 				binding = SessionPresentationBinding("logical-7", "run-11", 71L),
-				segment = proposed.captured.copy(id = 71L),
+				segment = proposed.captured.copy(
+					id = 71L, startTimeMs = 1_000L, endTimeMs = 1_000L, createdAt = 1_000L,
+				),
 				created = true,
+			)
+		}
+		coEvery { lifecycle.closeExact(SessionPresentationBinding("logical-7", "run-11", 71L)) } answers {
+			proposed.captured.copy(
+				id = 71L, startTimeMs = 1_000L, endTimeMs = 2_000L, createdAt = 1_000L,
+				sampleCount = 13, distanceM = 102f,
 			)
 		}
 		val repository: TrackingParamsRepository = mockk {
@@ -237,7 +245,15 @@ class SessionTrackerComponentTest {
 		proposed.captured.serviceRunId shouldBe "run-11"
 		component.session.id shouldBe 71L
 		component.presentationBinding shouldBe SessionPresentationBinding("logical-7", "run-11", 71L)
+		component.session.start shouldBe 1_000L
+		component.session.end shouldBe 1_000L
 		component.onDisable(context)
+		component.session.end shouldBe 2_000L
+		component.session.collections shouldBe 13
+		component.session.distanceInM shouldBe 102f
+		component.onDisable(context)
+		coVerify(exactly = 1) { lifecycle.closeExact(SessionPresentationBinding("logical-7", "run-11", 71L)) }
+		coVerify(exactly = 0) { mockSegmentDao.update(any<SessionSegment>()) }
 	}
 
 	@Test

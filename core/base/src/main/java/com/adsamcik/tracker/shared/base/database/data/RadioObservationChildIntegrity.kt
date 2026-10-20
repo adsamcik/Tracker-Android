@@ -58,7 +58,6 @@ data class CellChildChecksumInput(
 
 /** Stable checksums bind detail content to one purpose-owned fact revision. */
 object RadioObservationChildIntegrity {
-	private const val UNSIGNED_BYTE_MASK = 0xff
 
 	/**
 	 * Hashes the Location child's original owner/purpose/epoch, measured time and available
@@ -96,6 +95,6 @@ object RadioObservationChildIntegrity {
 				sha256.update(bytes)
 			}
 		}
-		return sha256.digest().joinToString("") { "%02x".format(it.toInt() and UNSIGNED_BYTE_MASK) }
+		return sha256.digest().toHexString()
 	}
 }

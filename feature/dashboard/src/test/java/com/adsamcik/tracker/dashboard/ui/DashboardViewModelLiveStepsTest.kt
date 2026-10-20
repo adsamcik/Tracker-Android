@@ -44,6 +44,7 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistoryIdentity
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
 import com.adsamcik.tracker.stats.api.repository.LiveSessionHistorySnapshot
+import com.adsamcik.tracker.stats.api.repository.LiveSessionHistoryDetail
 import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.PressureHistory
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
@@ -152,6 +153,7 @@ class DashboardViewModelLiveStepsTest {
 					capturedSources = setOf(HistorySource.STEPS, HistorySource.WIFI),
 					steps = DashboardLiveStepsValue.Materializing,
 				)
+			repository.liveDetails shouldContainExactly listOf(LiveSessionHistoryDetail.COMPACT)
 			collection.cancel()
 		} finally {
 			Dispatchers.resetMain()
@@ -363,6 +365,7 @@ class DashboardViewModelLiveStepsTest {
 			advanceUntilIdle()
 			viewModel.liveSessionPresentation.value shouldBe
 				DashboardLiveSessionPresentation.Standard(FIRST_SEGMENT_ID)
+			repository.liveDetails shouldContainExactly listOf(LiveSessionHistoryDetail.COMPACT)
 			collection.cancel()
 		} finally {
 			Dispatchers.resetMain()
@@ -667,6 +670,7 @@ class DashboardViewModelLiveStepsTest {
 		val layoutRepository = mockk<DashboardLayoutStore>()
 		every { layoutRepository.layout } returns flowOf(DashboardLayout())
 		val trackerStateReader = mockk<TrackerStateReader>()
+		every { trackerStateReader.startingSessionGenerationFlow } returns MutableStateFlow<Long?>(null)
 		every { trackerStateReader.isServiceRunningFlow } returns running
 		val sessionInfo = MutableStateFlow<TrackerSessionInfo?>(
 			if (running.value) {
@@ -1092,6 +1096,7 @@ private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 	private val liveRejections = mutableMapOf<Long, String>()
 	val liveStarted = mutableListOf<Long>()
 	val liveCancelled = mutableListOf<Long>()
+	val liveDetails = mutableListOf<LiveSessionHistoryDetail>()
 
 	override suspend fun lookupSourceFact(
 		request: com.adsamcik.tracker.stats.api.repository.SourceFactLookupRequest,
@@ -1100,6 +1105,11 @@ private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 
 	override fun observeSession(segmentId: Long): Flow<SessionHistoryQuery> =
 		flowOf(SessionHistoryQuery.NotFound)
+
+	override fun observeLiveSession(segmentId: Long, detail: LiveSessionHistoryDetail): Flow<LiveSessionHistorySnapshot> {
+		liveDetails += detail
+		return observeLiveSession(segmentId)
+	}
 
 	override fun observeLiveSession(segmentId: Long): Flow<LiveSessionHistorySnapshot> = flow {
 		liveStarted += segmentId

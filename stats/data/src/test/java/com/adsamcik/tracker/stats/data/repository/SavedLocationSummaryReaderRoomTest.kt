@@ -54,6 +54,23 @@ class SavedLocationSummaryReaderRoomTest {
     }
     @After fun close() = database.close()
 
+    @Test fun `finite session preview shares distance qualification and preserves a gap across pages`(): Unit = runBlocking {
+        val selected = session("preview-pages", endTimeMs = 300_000)
+        repeat(256) { index -> point(2_000 + index * 1_000L, index * 100, index + 1L, capture = selected) }
+        val final = point(258_000, 9_000_000, 1, capture = selected, instance = "another-registration")
+
+        val ordinary = snapshot(reader.readSession(selected.id)).summary
+        val preview = snapshot(reader.readSession(selected.id, includeRoutePreview = true)).summary
+
+        assertEquals(ordinary, preview.copy(routePreview = emptyList()))
+        assertEquals(257L, preview.pointCount)
+        assertEquals(listOf(256, 1), preview.routePreview.map { it.size })
+        assertEquals(final.id, preview.routePreview.last().single().sampleId)
+        assertTrue(preview.partial)
+        assertEquals(257L, database.locationSampleDao().countAll())
+        Unit
+    }
+
     @Test fun `saved session totals survive quality End and retry generations with original point identities`(): Unit = runBlocking {
         val selected = session("historical")
         val first = point(2_000, 0, 1, capture = selected)
@@ -178,6 +195,9 @@ class SavedLocationSummaryReaderRoomTest {
         val oldSummary = snapshot(reader.readSession(id)).summary
         assertEquals(2L, oldSummary.pointCount)
         assertEquals(distance(300_000, 400_000), oldSummary.distanceMeters)
+        val oldPreview = snapshot(reader.readSession(id, includeRoutePreview = true)).summary
+        assertEquals(oldSummary, oldPreview.copy(routePreview = emptyList()))
+        assertEquals(listOf(300_000, 400_000), oldPreview.routePreview.single().map { it.longitudeE7 })
         val day = snapshot(reader.readWindow(HistoryObservationWindow(0, 10_000))).summary
         assertEquals(3L, day.pointCount)
         assertEquals(distance(300_000, 400_000), day.distanceMeters)

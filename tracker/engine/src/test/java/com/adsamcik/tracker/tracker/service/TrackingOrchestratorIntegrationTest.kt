@@ -29,12 +29,18 @@ import com.adsamcik.tracker.stats.api.processor.ProcessorContext
 import com.adsamcik.tracker.stats.api.processor.ProcessorDescriptor
 import com.adsamcik.tracker.stats.api.processor.SignalProcessor
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummary
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummarySelection
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.UnconsumedEvent
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.api.value.StepCount
+import com.adsamcik.tracker.stats.engine.processor.AggregatorProcessor
 import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
 import com.adsamcik.tracker.tracker.controller.LivePlaneState
 import com.adsamcik.tracker.tracker.controller.LiveSailingState
@@ -163,13 +169,28 @@ class TrackingOrchestratorIntegrationTest {
 	@Suppress("LongMethod")
 	fun `shutdown persists final session then defers summary until presentation settles`() =
 		runTest(testDispatcher) {
+		val startTimeMs = java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault())
+			.toInstant().toEpochMilli() + 1_000L
+		val endTimeMs = startTimeMs + 1_000L
 		val controller = DefaultTrackerServiceController()
 		val domainEvents = RecordingDomainEventRepository()
 		val stopProcessor = SessionEndProcessor(database)
+		val aggregator = AggregatorProcessor(mockk(relaxed = true))
+		val history = mockk<TrackingHistoryRepository>()
+		database.sourceEvidenceStateDao().ensure()
+		coEvery { history.readSavedLocationSummary(any()) } coAnswers {
+			val evidence = requireNotNull(database.sourceEvidenceStateDao().get())
+			SavedLocationSummaryRead.Snapshot(
+				firstArg<SavedLocationSummarySelection>(),
+				TrackingHistoryReadSnapshot(evidence.collectedDataEpoch, evidence.revision),
+				SavedLocationSummary(13L, mockk(), 102.0, partial = true),
+			)
+		}
 		var fallbackEnqueueCount = 0
+		val observedBinding = CompletableDeferred<Long>()
 		val orchestrator = TrackingOrchestrator(
 			controller = controller,
-			signalProcessors = setOf(stopProcessor),
+			signalProcessors = setOf(stopProcessor, aggregator),
 			domainEventRepository = domainEvents,
 			dispatchers = testDispatcherProvider,
 			appDatabase = database,
@@ -183,9 +204,13 @@ class TrackingOrchestratorIntegrationTest {
 			),
 			dailySummaryFallbackEnqueuer = { fallbackEnqueueCount++ },
 			enableNotifications = false,
+			onSourcePlanInputsChanged = { _, _ ->
+				observedBinding.complete(requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID)?.sessionSegmentId))
+			},
+			trackingHistoryRepository = history,
 		)
 
-		insertPresentationOwner(LOGICAL_ID, RUN_ID)
+		insertPresentationOwner(LOGICAL_ID, RUN_ID, startTimeMs)
 		controller.updateServiceRunning(true)
 		val binding = orchestrator.initialize(
 			context = context,
@@ -197,32 +222,36 @@ class TrackingOrchestratorIntegrationTest {
 			rolloutState = allEventCanonical(),
 		)
 		runCurrent()
+		observedBinding.await() shouldBe requireNotNull(binding).sessionSegmentId
 
-		val first = location(timeMs = 1_000L, latitude = 50.0, longitude = 14.0)
+		val first = location(timeMs = startTimeMs, latitude = 50.0, longitude = 14.0)
 		orchestrator.onCycleUpdate(
 			context = context,
 			cycle = TrackingCycle(
-				timestampMs = 1_000L,
+				timestampMs = startTimeMs,
 				elapsedRealtimeNanos = 1_000_000_000L,
 				location = LocationData(listOf(first), previousLocation = null, distance = null),
 			),
 		)
-		val second = location(timeMs = 2_000L, latitude = 50.0001, longitude = 14.0001)
+		val second = location(timeMs = endTimeMs, latitude = 50.0001, longitude = 14.0001)
 		orchestrator.onCycleUpdate(
 			context = context,
 			cycle = TrackingCycle(
-				timestampMs = 2_000L,
+				timestampMs = endTimeMs,
 				elapsedRealtimeNanos = 2_000_000_000L,
 				location = LocationData(listOf(second), previousLocation = first, distance = 13f),
 			),
 		)
 
 		val sourceSessionDao = database.sourceSessionDao()
+		sourceSessionDao.updateSession(requireNotNull(sourceSessionDao.session(LOGICAL_ID)).copy(
+			cutoffAtMs = endTimeMs,
+		)) shouldBe 1
 		val activeRun = requireNotNull(sourceSessionDao.serviceRun(RUN_ID))
 		sourceSessionDao.updateServiceRun(
 			activeRun.copy(
 				state = SessionLifecycleState.FINALIZED.name,
-				completedAtMs = 3_000L,
+				completedAtMs = endTimeMs,
 				completionReason = "TEST_STOP",
 			),
 		) shouldBe 1
@@ -235,7 +264,7 @@ class TrackingOrchestratorIntegrationTest {
 		orchestrator.shutdown(context) shouldBe shutdownResult
 		SessionPresentationLifecycle(database).acknowledgeQuiescedExact(
 			requireNotNull(binding),
-			acknowledgedAtMs = 3_100L,
+			acknowledgedAtMs = endTimeMs + 1_100L,
 		) shouldBe PresentationQuiescenceResult.ACKNOWLEDGED
 		fallbackEnqueueCount shouldBe 1
 		stopProcessor.segmentCountWhenSessionEnded shouldBe 1L
@@ -243,7 +272,18 @@ class TrackingOrchestratorIntegrationTest {
 			.single()
 		orchestrator.resetMetadata()
 		controller.lastSessionFlow.value?.end shouldBe persistedSegment.endTimeMs
-		domainEvents.persisted.filterIsInstance<DomainEvent.SessionEnded>() shouldHaveSize 1
+		persistedSegment.endTimeMs shouldBe endTimeMs
+		persistedSegment.sampleCount shouldBe 13
+		persistedSegment.distanceM shouldBe 102f
+		controller.lastSessionFlow.value?.collections shouldBe 13
+		controller.lastSessionFlow.value?.distanceInM shouldBe 102f
+		val endEvents = domainEvents.persisted.filterIsInstance<DomainEvent.SessionEnded>()
+		endEvents shouldHaveSize 2
+		val savedEnd = endEvents.single { it.processorId == aggregator.descriptor.id }
+		savedEnd.timestampMs.raw shouldBe endTimeMs
+		savedEnd.duration.raw shouldBe 1_000L
+		savedEnd.totalDistance.raw shouldBe 102f
+		savedEnd.sessionId shouldBe persistedSegment.id
 	}
 
 	@Test
@@ -936,7 +976,11 @@ class TrackingOrchestratorIntegrationTest {
 		protectedLocationCanonicalPersistenceGuardProvider = Provider { guard },
 	)
 
-	private suspend fun insertPresentationOwner(logicalTrackingId: String, serviceRunId: String) {
+	private suspend fun insertPresentationOwner(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		startedAtMs: Long = 1_000L,
+	) {
 		val dao = database.sourceSessionDao()
 		dao.insertSession(
 			LogicalTrackingSessionEntity(
@@ -947,7 +991,7 @@ class TrackingOrchestratorIntegrationTest {
 				rolloutRevision = 1L,
 				startOrigin = "MANUAL_FOREGROUND_START",
 				clockDomainId = "boot-test",
-				startedAtMs = 1_000L,
+				startedAtMs = startedAtMs,
 				startedElapsedNanos = 1_000L,
 				cutoffAtMs = null,
 				cutoffElapsedNanos = null,
@@ -965,7 +1009,7 @@ class TrackingOrchestratorIntegrationTest {
 				desiredPlanRevision = 1L,
 				rolloutRevision = 1L,
 				foregroundCapabilityFlags = 0L,
-				startedAtMs = 1_000L,
+				startedAtMs = startedAtMs,
 				startedElapsedNanos = 1_000L,
 				completedAtMs = null,
 				completionReason = null,

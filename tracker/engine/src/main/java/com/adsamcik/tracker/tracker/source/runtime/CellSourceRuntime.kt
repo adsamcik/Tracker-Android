@@ -1011,16 +1011,15 @@ class CellSourceRuntime @Inject internal constructor(
 				retiredElapsedRealtimeNanos = retiredElapsedRealtimeNanos,
 			).also { retirementIntent = it }
 		}
-		val token = intent.token ?: withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
-			runCatchingNonCancellation {
-				registrations.beginRetirement(
-					intent.registration,
-					intent.reason,
-					intent.retiredAtMs,
-					intent.retiredElapsedRealtimeNanos,
-				)
-			}.getOrNull()
-		} ?: return@withContext CellProviderRetirement.NOT_DURABLE
+		// Storage contention must not masquerade as a timed-out Android provider operation.
+		val token = intent.token ?: runCatchingNonCancellation {
+			registrations.beginRetirement(
+				intent.registration,
+				intent.reason,
+				intent.retiredAtMs,
+				intent.retiredElapsedRealtimeNanos,
+			)
+		}.getOrNull() ?: return@withContext CellProviderRetirement.NOT_DURABLE
 		intent.token = token
 		val removed = withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
 			runCatchingNonCancellation { backend.stop() }.getOrDefault(false)
@@ -1028,11 +1027,9 @@ class CellSourceRuntime @Inject internal constructor(
 		if (!removed) {
 			return@withContext CellProviderRetirement.PENDING
 		}
-		val completed = withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
-			runCatchingNonCancellation {
-				registrations.completeRetirement(token)
-			}.getOrDefault(false)
-		} == true
+		val completed = runCatchingNonCancellation {
+			registrations.completeRetirement(token)
+		}.getOrDefault(false)
 		if (completed) {
 			CellProviderRetirement.COMPLETE
 		} else {
@@ -1042,11 +1039,9 @@ class CellSourceRuntime @Inject internal constructor(
 
 	private suspend fun reconcilePendingProviderRetirements(): Boolean {
 		val reconciled = withContext(NonCancellable) {
-			val pending = withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
-				runCatchingNonCancellation {
-					registrations.pendingRetirements(source)
-				}.getOrNull()
-			} ?: return@withContext false
+			val pending = runCatchingNonCancellation {
+				registrations.pendingRetirements(source)
+			}.getOrNull() ?: return@withContext false
 			if (pending.isEmpty()) {
 				return@withContext !backend.hasRetainedRegistrations
 			}
@@ -1064,11 +1059,9 @@ class CellSourceRuntime @Inject internal constructor(
 			if (!removed) {
 				return@withContext false
 			}
-			withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
-				runCatchingNonCancellation {
-					registrations.completeRetirement(token)
-				}.getOrDefault(false)
-			} == true
+			runCatchingNonCancellation {
+				registrations.completeRetirement(token)
+			}.getOrDefault(false)
 		}
 		currentCoroutineContext().ensureActive()
 		return reconciled

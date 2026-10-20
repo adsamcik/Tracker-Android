@@ -1,19 +1,18 @@
 # Tracking Infrastructure Completion TODO
 
-Last updated: 2026-10-18
+Last updated: 2026-10-20
 
 [Current completion plan](convergence/2026-10-07/COMPLETION_PLAN.md) (2026-10-07) consolidates all outstanding work and is the
 current execution order. Complete the full scope, including source files and data-only backup/restore, before freezing. Preserve this ledger and its historical source receipts.
 **Implementation assembly and host verification are complete.** The [October 16 assembly freeze](convergence/2026-10-16/ASSEMBLY_FREEZE.md) records the all-25 source trace and preserved drafts; the [final host result](convergence/2026-10-16/FINAL_HOST_RESULT.json) records passing APK/Hilt, ciUnitTest, ciCheck, lint, schema/migration and SQLite checks: 15,667 tests, zero failures/errors and seven existing skips. Fresh final evidence review has no remaining findings. The verified implementation is committed and integrated into local `dev/v10` at `f294192264d6f8186ccc2b737fc4905cf61c174f`. The user explicitly deferred device testing on October 16. Historical unchecked rows below retain their original checkpoint status.
 
-**October 18 control repair:** the [Dev control verification](convergence/2026-10-17/DEV_CONTROL_VERIFICATION.md)
-records source admission forwarding, empty-provider End completion, retained Location and Wi-Fi
-recovery, and a debug-signed Dev APK. The final affected batch passes 570 tests, APK/Hilt, Dev lint
-and scoped Detekt; 108 unchanged Cell/codec results are also reused. All 27 source hashes match the
-tested input. Independent source and result review has no remaining findings. Reconnection restored
-the existing API 37 emulator and R4 My location worked without saving tracking data. D: then
-disappeared again, leaving the emulator offline and final APK installation/My location/Start/End
-acceptance unchecked. Host results do not establish final runtime behavior.
+**October 19 control repair:** Completed October 20. [Dev control verification](convergence/2026-10-17/DEV_CONTROL_VERIFICATION.md)
+records R59 APK/Hilt/scoped quality success, 81 fresh affected tests and 1,938 reconciled passes.
+The final Advention Dev build is installed on the existing API37.2 AVD with data preserved.
+My location while Off, fresh Start, saved route data, accepted End and that same session's visible
+route pass. Disconnected saved routes no longer gain a false connector. Slow observed timings,
+partial coverage, earlier failures and historical full-suite results remain explicit.
+Independent source, host, runtime and result review is complete. The enclosing local dev/v10 commit records delivery; no remote push.
 
 ## Historical continuation notes
 
@@ -455,13 +454,13 @@ passed test, assembly freeze, activation, new dev/v10 integration or whole-task 
 
 ## 2026-09-20 exact authority and Steps P5 completions
 
-- [x] `integration-retention-authority-20260919` —
+- [x] `integration-retention-authority-20260919` â€”
   **IMPLEMENTED_UNVALIDATED**: preserve reviewed
   `ad234dd27c5dddd19b3fc1e5bd7a1ad66646e38c` at
   `handover/reviewed/ti-retention-authority-20260919`; retain its local composed counterpart
   `352dc074bc7a45f536acd4bf7aa5ef87895bbdc0` through merge
   `9b81db5b00ec12c3a9c5bb507696fa0ab2d88db8`.
-- [x] `WI-SOURCE-CALLER-GUARD-001` —
+- [x] `WI-SOURCE-CALLER-GUARD-001` â€”
   **IMPLEMENTED_UNVALIDATED**: preserve final accepted reviewed
   `484839083510d3ce8a828e171dc6575b02d92855` at
   `handover/reviewed/ti-caller-authority-20260919` through merge
@@ -469,7 +468,7 @@ passed test, assembly freeze, activation, new dev/v10 integration or whole-task 
   engine-owned accepted-authority storage, opaque checksum-bound references, fresh/replay
   dispatch, current-authority reads, mutation leases, transactional retirement/compensation, and
   fail-closed recovery.
-- [x] `WI-STEPS-AMBIENT-P5-RECEIPT-001` / `TODO-STEPS-NUM-006` —
+- [x] `WI-STEPS-AMBIENT-P5-RECEIPT-001` / `TODO-STEPS-NUM-006` â€”
   **IMPLEMENTED_UNVALIDATED**: preserve source-reviewed
   `4ad78ef8086cade4aedd6963e0af7432fba0fe36` at
   `handover/reviewed/ti-steps-p5-source-20260919`, accepted assembled
@@ -479,12 +478,12 @@ passed test, assembly freeze, activation, new dev/v10 integration or whole-task 
   count-domain token/owner/receipt contracts, Room storage and compatibility query, terminal
   completeness authentication, bounded maintenance/pruning, retirement, legacy-v27 WAL fencing,
   and full-clear handling.
-- [x] `WI-STEPS-NUMERIC-001` exact P5 dependency — the qualified numeric/effect infrastructure no
+- [x] `WI-STEPS-NUMERIC-001` exact P5 dependency â€” the qualified numeric/effect infrastructure no
   longer lacks the native session/Ambient count-domain receipt. This does not complete portable
   count-domain adoption or the wider Ambient Steps product.
-- [ ] `impl-broker-provider-bindings` — next ready wave: bind dormant per-source physical owners to
+- [ ] `impl-broker-provider-bindings` â€” next ready wave: bind dormant per-source physical owners to
   the integrated caller and retention authority; do not activate providers or writers.
-- [ ] `impl-ambient-steps-p5-portable` — next ready wave: authenticate portable domains separately,
+- [ ] `impl-ambient-steps-p5-portable` â€” next ready wave: authenticate portable domains separately,
   prohibit imported facts from borrowing native-provider authority, and compose truthful session,
   between-session, and total Steps states.
 
@@ -498,7 +497,7 @@ Provider/writer activation remains unauthorized.
 
 ## 2026-09-17 development-v28 containment leaf
 
-- [x] `impl-dev-v28-containment` — **IMPLEMENTED_UNVALIDATED**: add the read-only active-database
+- [x] `impl-dev-v28-containment` â€” **IMPLEMENTED_UNVALIDATED**: add the read-only active-database
   preflight, final Room-master assembly marker, bounded table/column/index sentinels, guarded
   production open, typed startup containment, payload-free reason logging, preservation-only UI
   guidance, and focused source tests. Version 28 remains unshipped; this is not a release migration,
@@ -507,11 +506,11 @@ Provider/writer activation remains unauthorized.
   authored fresh/reopen/v27 migration/containment tests in the frozen final validation batch.
 - Remaining remediation dependency: an explicit user-initiated active-database export/rename
   surface. Do not reuse the legacy-v26 delete flow or add an automatic destructive path.
-- [x] Review8a correction — **IMPLEMENTED_UNVALIDATED**: replace every framework SQLite inspection
+- [x] Review8a correction â€” **IMPLEMENTED_UNVALIDATED**: replace every framework SQLite inspection
   open with an explicit no-op corruption handler; preserve corrupt main/WAL/SHM/journal files; map
   lock/busy and temporary operational failures to typed retryable startup state; keep consumers
   closed until retry succeeds; reserve permanent guidance for confirmed containment only.
-- [x] Definitive review00a correction — **IMPLEMENTED_UNVALIDATED**: opt only active AppDatabase's
+- [x] Definitive review00a correction â€” **IMPLEMENTED_UNVALIDATED**: opt only active AppDatabase's
   SQLiteX delegate into non-destructive corruption handling; bypass Room's deleting corruption
   callback and data-loss recovery; propagate admitted corruption to typed containment; replace
   one-shot UI completion with generation/revision startup StateFlow and automatic Retryable ->
@@ -830,7 +829,7 @@ or check the broader assembly/completion items. Test sources are authored, never
 
 - [x] TODO-HANDOVER-20260915-001 Close in-progress Cell/Wi-Fi import static-review corrections
   (`f8dd5d6d1`, `315ac6a83`) and Activity real-worker retention invocation (`b13765db7`), authoring
-  regression sources without execution. TI-D252–254 / TI-B315–317 are static acceptance only.
+  regression sources without execution. TI-D252â€“254 / TI-B315â€“317 are static acceptance only.
 - [x] TODO-HANDOVER-20260915-002 Locally assemble reviewed family histories and shared source
   unions for the requested dev/v10 transport checkpoint; retain original refs and unaccepted drafts.
 - [x] TODO-HANDOVER-20260915-003 Write zero-context prompt, source map, dependency-ordered

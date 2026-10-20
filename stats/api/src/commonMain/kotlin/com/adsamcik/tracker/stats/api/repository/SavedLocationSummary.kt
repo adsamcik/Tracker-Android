@@ -65,7 +65,7 @@ data class SavedLocationSummary(
     val qualificationGaps: Set<RadioLocationContextGap> = emptySet(),
     /** Measured continuous moving pairs; null without a pair, zero for measured stationary data. */
     val movingAverageSpeedMetersPerSecond: Double? = null,
-    /** Bounded recent live measurements, divided at the same saved gaps as distance. */
+    /** Bounded measured sections with distance's saved gaps; live reads retain the recent tail. */
     val routePreview: List<List<SavedLocationFix>> = emptyList(),
 ) {
     init {

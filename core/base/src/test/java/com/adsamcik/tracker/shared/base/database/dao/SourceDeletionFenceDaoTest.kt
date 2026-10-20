@@ -35,6 +35,7 @@ class SourceDeletionFenceDaoTest {
 		val first = identity(logicalTrackingId = "logical-secret", serviceRunId = "run-secret")
 
 		first shouldBe identity("logical-secret", "run-secret")
+		first shouldBe "0f11a409114f463bf27855efff10a25ccb1ed6bff35a96d2ffda00f9bb8ed899"
 		first.length shouldBe 64
 		first.contains("logical-secret") shouldBe false
 		first.contains("run-secret") shouldBe false
