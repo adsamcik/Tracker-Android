@@ -151,6 +151,9 @@ class PersistenceProcessor @Inject internal constructor(
 		Provider { ProtectedLocationCanonicalPersistenceGuard.unavailable() },
 ) : DurableSignalProcessor {
 
+	// The guard stores dependencies only; each call still reads fresh destination authority.
+	private val protectedLocationGuard by lazy { protectedLocationCanonicalPersistenceGuardProvider.get() }
+
 	override val descriptor = ProcessorDescriptor(
 		id = PROCESSOR_ID,
 		requiredTier = PolicyTier.AMBIENT,
@@ -219,7 +222,7 @@ class PersistenceProcessor @Inject internal constructor(
 		command: com.adsamcik.tracker.tracker.source.location.LocationAmbientFactCommand,
 	): Boolean =
 		appDatabaseProvider.get().withTransaction {
-			protectedLocationCanonicalPersistenceGuardProvider.get().verifyAmbientInCurrentWriterTransaction(command)
+			protectedLocationGuard.verifyAmbientInCurrentWriterTransaction(command)
 			appDatabaseProvider.get().readLocationAmbientReceipt(command) != null
 		}
 
@@ -230,7 +233,7 @@ class PersistenceProcessor @Inject internal constructor(
 	 */
 	internal suspend fun commitProtectedAmbientLocation(write: ProtectedLocationAmbientWrite) {
 		appDatabaseProvider.get().withTransaction {
-			protectedLocationCanonicalPersistenceGuardProvider.get()
+			protectedLocationGuard
 				.verifyAmbientInCurrentWriterTransaction(write.command)
 			val db = appDatabaseProvider.get()
 			if (db.readLocationAmbientReceipt(write.command) != null) {
@@ -246,7 +249,7 @@ class PersistenceProcessor @Inject internal constructor(
 			val observation = write.observation.copy(sourceRevision = revision)
 			val rejectedCapture =
                 if (db.locationObservationDao().getBySourceEventId(write.command.wal.eventId) != null) {
-				protectedLocationCanonicalPersistenceGuardProvider.get()
+				protectedLocationGuard
 					.rejectedCaptureInCurrentWriterTransaction(write.command.wal.eventId)
 			} else {
 				null
@@ -1392,7 +1395,7 @@ class PersistenceProcessor @Inject internal constructor(
 			return emptyList()
 		}
 
-		val guard = protectedLocationCanonicalPersistenceGuardProvider.get()
+		val guard = protectedLocationGuard
 		return eventIds.sorted().map { eventId ->
 			verifyProtectedLocationEvent(eventId, observations, locations, decisions, qualifiedByEvent, guard)
 		}
@@ -1507,13 +1510,10 @@ class PersistenceProcessor @Inject internal constructor(
 		bufferedDecisions: List<BufferedLocationDecision>,
 		sourceRevision: Long?,
 	): PreparedLocationDecisions {
-		val qualifiedByEvent = linkedMapOf<String, ProtectedLocationQualifiedCandidate>()
-		for (eventId in bufferedDecisions.filter { it.canonicalWriterProvenance }
+		val eventIds = bufferedDecisions.filter { it.canonicalWriterProvenance }
 			.map { it.signal.sourceEventId }.distinct()
-		) {
-			qualifiedByEvent[eventId] = protectedLocationCanonicalPersistenceGuardProvider.get()
-				.qualifyInCurrentWriterTransaction(eventId)
-		}
+		val qualifiedByEvent = protectedLocationGuard
+			.qualifyBatchInCurrentWriterTransaction(eventIds)
 		val decisions = bufferedDecisions.map { buffered ->
 			LocationObservationDecision(
 				observationSourceEventId = buffered.signal.sourceEventId,

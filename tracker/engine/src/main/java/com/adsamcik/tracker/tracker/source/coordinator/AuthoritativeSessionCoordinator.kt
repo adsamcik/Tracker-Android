@@ -3857,33 +3857,78 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		wallTimeMs: Long,
 		elapsedRealtimeNanos: Long,
 		catalogDecisions: CatalogPlanDecisions,
-	): List<SourceActionExecution> {
+	): List<SourceActionExecution> = coroutineScope {
 		val actionBySource = intent.actions.associateBy { it.sourceKind }
 		val bindingBySource = intent.bindings
 			.filter { it.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
 			.associateBy { it.sourceKind }
-		return plan.plans.values.sortedBy { it.source.stableCode }.map { sourcePlan ->
-			val catalogDecision = catalogDecisions.getValue(sourcePlan.source)
-			if (!sourcePlan.enabled) {
-				val state = disabledApplied(sourcePlan, elapsedRealtimeNanos)
-				planStore.saveApplied(state, sourcePlan, wallTimeMs)
-				return@map SourceActionExecution(state, LifecycleActionStatus.STOP_ACCEPTED)
-			}
-			if (catalogDecision is CatalogSourcePlanDecision.Blocked) {
-				val execution = catalogDecision.toBlockedExecution(elapsedRealtimeNanos)
-				val action = actionBySource[sourcePlan.source.stableCode]
-				if (action == null) {
-					planStore.saveApplied(execution.applied, null, wallTimeMs)
-					return@map execution
+		// Claims and acknowledgements stay source-owned; independent SDK waits can overlap.
+		plan.plans.values.sortedBy { it.source.stableCode }.map { sourcePlan ->
+			async {
+				val catalogDecision = catalogDecisions.getValue(sourcePlan.source)
+				if (!sourcePlan.enabled) {
+					val state = disabledApplied(sourcePlan, elapsedRealtimeNanos)
+					planStore.saveApplied(state, sourcePlan, wallTimeMs)
+					return@async SourceActionExecution(state, LifecycleActionStatus.STOP_ACCEPTED)
 				}
+				if (catalogDecision is CatalogSourcePlanDecision.Blocked) {
+					val execution = catalogDecision.toBlockedExecution(elapsedRealtimeNanos)
+					val action = actionBySource[sourcePlan.source.stableCode]
+					if (action == null) {
+						planStore.saveApplied(execution.applied, null, wallTimeMs)
+						return@async execution
+					}
+					val nowElapsed = monotonicNowAtLeast(elapsedRealtimeNanos)
+					renewLease(lease)
+					val claimed = claimLifecycleAction(action.actionId, lease, nowElapsed)
+					if (claimed == null) {
+						val failed = execution.copy(failureCode = "SOURCE_ACTION_CLAIM_FAILED")
+						planStore.saveApplied(failed.applied, null, wallTimeMs)
+						return@async failed
+					}
+					val acknowledged = acknowledgeLifecycleAction(
+						claimed,
+						execution,
+						lease,
+						wallTimeMs,
+						monotonicNowAtLeast(nowElapsed),
+					)
+					val settled = if (acknowledged) {
+						execution
+					} else {
+						execution.copy(failureCode = "SOURCE_ACTION_ACK_STALE")
+					}
+					planStore.saveApplied(settled.applied, null, wallTimeMs)
+					return@async settled
+				}
+				val acceptedDecision = catalogDecision as CatalogSourcePlanDecision.Accepted
+				val action = requireNotNull(actionBySource[sourcePlan.source.stableCode])
+				val binding = requireNotNull(bindingBySource[sourcePlan.source.stableCode])
 				val nowElapsed = monotonicNowAtLeast(elapsedRealtimeNanos)
 				renewLease(lease)
 				val claimed = claimLifecycleAction(action.actionId, lease, nowElapsed)
 				if (claimed == null) {
-					val failed = execution.copy(failureCode = "SOURCE_ACTION_CLAIM_FAILED")
-					planStore.saveApplied(failed.applied, null, wallTimeMs)
-					return@map failed
+					return@async SourceActionExecution(
+						failedApplied(sourcePlan, nowElapsed, SourceApplyStatus.FAILED),
+						LifecycleActionStatus.TERMINAL_FAILURE,
+						"SOURCE_ACTION_CLAIM_FAILED",
+					)
 				}
+				val runtimeClaim = claimed.toRuntimeClaim(sourcePlan.source)
+				val authorization = captureAuthorization(intent, action, binding, lease)
+				val execution = startSource(
+					acceptedDecision.effectivePlan,
+					sink,
+					authorization,
+					runtimeClaim,
+					nowElapsed,
+					wallTimeMs,
+				).withCatalogDecision(acceptedDecision)
+				planStore.saveApplied(
+					execution.applied,
+					execution.acceptedEffectivePlanOrNull(acceptedDecision.effectivePlan),
+					wallTimeMs,
+				)
 				val acknowledged = acknowledgeLifecycleAction(
 					claimed,
 					execution,
@@ -3891,70 +3936,28 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					wallTimeMs,
 					monotonicNowAtLeast(nowElapsed),
 				)
-				val settled = if (acknowledged) {
-					execution
+				if (!acknowledged) {
+					val staleExecution = settleRejectedRuntimeExecution(
+						acceptedDecision.effectivePlan,
+						authorization,
+						runtimeClaim,
+						nowElapsed,
+						wallTimeMs,
+						SourceActionExecution(
+							failedApplied(sourcePlan, nowElapsed, SourceApplyStatus.FAILED),
+							LifecycleActionStatus.TERMINAL_FAILURE,
+							"SOURCE_ACTION_ACK_STALE",
+							runtimeClaim = runtimeClaim,
+							captureAuthorization = authorization,
+						),
+					)
+					preserveCleanupRequiredAction(claimed, staleExecution, wallTimeMs, nowElapsed)
+					staleExecution
 				} else {
-					execution.copy(failureCode = "SOURCE_ACTION_ACK_STALE")
+					execution
 				}
-				planStore.saveApplied(settled.applied, null, wallTimeMs)
-				return@map settled
 			}
-			val acceptedDecision = catalogDecision as CatalogSourcePlanDecision.Accepted
-			val action = requireNotNull(actionBySource[sourcePlan.source.stableCode])
-			val binding = requireNotNull(bindingBySource[sourcePlan.source.stableCode])
-			val nowElapsed = monotonicNowAtLeast(elapsedRealtimeNanos)
-			renewLease(lease)
-			val claimed = claimLifecycleAction(action.actionId, lease, nowElapsed)
-			if (claimed == null) {
-				return@map SourceActionExecution(
-					failedApplied(sourcePlan, nowElapsed, SourceApplyStatus.FAILED),
-					LifecycleActionStatus.TERMINAL_FAILURE,
-					"SOURCE_ACTION_CLAIM_FAILED",
-				)
-			}
-			val runtimeClaim = claimed.toRuntimeClaim(sourcePlan.source)
-			val authorization = captureAuthorization(intent, action, binding, lease)
-			val execution = startSource(
-				acceptedDecision.effectivePlan,
-				sink,
-				authorization,
-				runtimeClaim,
-				nowElapsed,
-				wallTimeMs,
-			).withCatalogDecision(acceptedDecision)
-			planStore.saveApplied(
-				execution.applied,
-				execution.acceptedEffectivePlanOrNull(acceptedDecision.effectivePlan),
-				wallTimeMs,
-			)
-			val acknowledged = acknowledgeLifecycleAction(
-				claimed,
-				execution,
-				lease,
-				wallTimeMs,
-				monotonicNowAtLeast(nowElapsed),
-			)
-			if (!acknowledged) {
-				val staleExecution = settleRejectedRuntimeExecution(
-					acceptedDecision.effectivePlan,
-					authorization,
-					runtimeClaim,
-					nowElapsed,
-					wallTimeMs,
-					SourceActionExecution(
-						failedApplied(sourcePlan, nowElapsed, SourceApplyStatus.FAILED),
-						LifecycleActionStatus.TERMINAL_FAILURE,
-						"SOURCE_ACTION_ACK_STALE",
-						runtimeClaim = runtimeClaim,
-						captureAuthorization = authorization,
-					),
-				)
-				preserveCleanupRequiredAction(claimed, staleExecution, wallTimeMs, nowElapsed)
-				staleExecution
-			} else {
-				execution
-			}
-		}
+		}.awaitAll()
 	}
 
 	private suspend fun reconcileReconfigureActions(
@@ -4765,180 +4768,199 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		val lease = acquireLease(request.ownerToken)
 			?: return SessionStopResult.Busy
 		return try {
-			val session = database.sourceSessionDao().activeSession() ?: return SessionStopResult.NoActiveSession
-			val bound = database.withTransaction {
-				requireLeaseInTransaction(lease)
-				val current = requireNotNull(database.sourceSessionDao().session(session.logicalTrackingId))
-				if (current.state == SessionLifecycleState.STOPPING.name) {
-					persistStopRetryIntent(current, request, lease)
-				} else {
-					check(current.state in setOf(SessionLifecycleState.STARTING.name, SessionLifecycleState.ACTIVE.name,
-						SessionLifecycleState.RECONFIGURING.name)) { "Terminal session cannot stop again" }
-					persistStopIntent(current, request, lease)
-				}
-			} ?: return SessionStopResult.InvalidIntent("RUN_RETIREMENT_MANIFEST_INTEGRITY_FAILED")
-			val cutoffSession = bound.session
-			val stopActionsFailure = database.withTransaction {
-				requireLeaseInTransaction(lease)
-				requireBoundServiceRun(bound, SessionLifecycleState.STOPPING)
-				markStopActionsApplying(cutoffSession.logicalTrackingId, bound.serviceRunId, lease)
-			}
-			if (stopActionsFailure != null) {
-				return SessionStopResult.InvalidIntent(stopActionsFailure)
-			}
-			val cutoff = SessionCutoff(
-				logicalTrackingId = cutoffSession.logicalTrackingId,
-				elapsedRealtimeNanos = requireNotNull(cutoffSession.cutoffElapsedNanos),
-				wallTimeMs = requireNotNull(cutoffSession.cutoffAtMs),
-				deadlineElapsedRealtimeNanos = monotonicNowAtLeast(request.elapsedRealtimeNanos) +
-					request.gracePeriodMs * NANOS_PER_MILLISECOND,
-			)
-			val retirement = when (
-				val read = runRetirementTargets(cutoffSession, bound.serviceRunId)
-			) {
-				is RunRetirementTargetRead.Ready -> read
-				is RunRetirementTargetRead.Blocked ->
-					return SessionStopResult.InvalidIntent(read.reason)
-			}
-			val retirementTargets = retirement.targets
-			persistRunRetirementIntents(retirementTargets, cutoff, request.wallTimeMs)
-			val sourceRetirements =
-				retireRunSources(retirementTargets, cutoff, minOf(request.gracePeriodMs, request.perSourceTimeoutMs))
-			val acks = sourceRetirements.flatMap(RunSourceRetirementOutcome::acknowledgements)
-			val drainAuthority = retirement.drainAuthority.copy(
-				retirementClaims = sourceRetirements.flatMap(
-					RunSourceRetirementOutcome::retirementClaims,
-				),
-			)
-			val completenessAuthenticated = try {
-				database.withTransaction {
+			withRenewingLease(lease) {
+				val session = database.sourceSessionDao().activeSession()
+					?: return@withRenewingLease SessionStopResult.NoActiveSession
+				val bound = database.withTransaction {
 					requireLeaseInTransaction(lease)
-					acks.forEach { ack ->
-						if (ack.hasMembership(cutoffSession.logicalTrackingId, bound.serviceRunId)) {
-							saveCompleteness(
+					val current = requireNotNull(database.sourceSessionDao().session(session.logicalTrackingId))
+					if (current.state == SessionLifecycleState.STOPPING.name) {
+						persistStopRetryIntent(current, request, lease)
+					} else {
+						check(current.state in setOf(
+							SessionLifecycleState.STARTING.name,
+							SessionLifecycleState.ACTIVE.name,
+							SessionLifecycleState.RECONFIGURING.name,
+						)) { "Terminal session cannot stop again" }
+						persistStopIntent(current, request, lease)
+					}
+				} ?: return@withRenewingLease SessionStopResult.InvalidIntent(
+					"RUN_RETIREMENT_MANIFEST_INTEGRITY_FAILED",
+				)
+				val cutoffSession = bound.session
+				val stopActionsFailure = database.withTransaction {
+					requireLeaseInTransaction(lease)
+					requireBoundServiceRun(bound, SessionLifecycleState.STOPPING)
+					markStopActionsApplying(cutoffSession.logicalTrackingId, bound.serviceRunId, lease)
+				}
+				if (stopActionsFailure != null) {
+					return@withRenewingLease SessionStopResult.InvalidIntent(stopActionsFailure)
+				}
+				val cutoff = SessionCutoff(
+					logicalTrackingId = cutoffSession.logicalTrackingId,
+					elapsedRealtimeNanos = requireNotNull(cutoffSession.cutoffElapsedNanos),
+					wallTimeMs = requireNotNull(cutoffSession.cutoffAtMs),
+					deadlineElapsedRealtimeNanos = monotonicNowAtLeast(request.elapsedRealtimeNanos) +
+						request.gracePeriodMs * NANOS_PER_MILLISECOND,
+				)
+				val retirement = when (
+					val read = runRetirementTargets(cutoffSession, bound.serviceRunId)
+				) {
+					is RunRetirementTargetRead.Ready -> read
+					is RunRetirementTargetRead.Blocked ->
+						return@withRenewingLease SessionStopResult.InvalidIntent(read.reason)
+				}
+				val retirementTargets = retirement.targets
+				persistRunRetirementIntents(retirementTargets, cutoff, request.wallTimeMs)
+				val sourceRetirements = retireRunSources(
+					retirementTargets, cutoff, minOf(request.gracePeriodMs, request.perSourceTimeoutMs),
+				)
+				val acks = sourceRetirements.flatMap(RunSourceRetirementOutcome::acknowledgements)
+				val drainAuthority = retirement.drainAuthority.copy(
+					retirementClaims = sourceRetirements.flatMap(
+						RunSourceRetirementOutcome::retirementClaims,
+					),
+				)
+				val completenessAuthenticated = try {
+					database.withTransaction {
+						requireLeaseInTransaction(lease)
+						acks.forEach { ack ->
+							if (ack.hasMembership(cutoffSession.logicalTrackingId, bound.serviceRunId)) {
+								saveCompleteness(
+									cutoffSession.logicalTrackingId,
+									bound.serviceRunId,
+									ack,
+									request.wallTimeMs,
+								).requireStoredCompleteness()
+							}
+							acknowledgeStopAction(
 								cutoffSession.logicalTrackingId,
 								bound.serviceRunId,
 								ack,
-								request.wallTimeMs,
-							).requireStoredCompleteness()
+								lease,
+								request,
+							)
 						}
-						acknowledgeStopAction(
-							cutoffSession.logicalTrackingId,
-							bound.serviceRunId,
-							ack,
-							lease,
-							request,
-						)
+						true
 					}
-					true
+				} catch (_: CompletenessAuthenticationBlockedException) {
+					false
 				}
-			} catch (_: CompletenessAuthenticationBlockedException) {
-				false
-			}
-			if (!completenessAuthenticated) {
-				return SessionStopResult.InvalidIntent(
-					"SOURCE_COMPLETENESS_AUTHENTICATION_BLOCKED",
+				if (!completenessAuthenticated) {
+					return@withRenewingLease SessionStopResult.InvalidIntent(
+						"SOURCE_COMPLETENESS_AUTHENTICATION_BLOCKED",
+					)
+				}
+				val observedHighWaterOrdinal = durableSourceHighWater()
+				val finalOrdinal = freezeSettlementHighWater(
+					bound,
+					cutoff,
+					observedHighWaterOrdinal,
+					lease,
 				)
-			}
-			val observedHighWaterOrdinal = durableSourceHighWater()
-			val finalOrdinal = freezeSettlementHighWater(
-				bound,
-				cutoff,
-				observedHighWaterOrdinal,
-				lease,
-			)
-			when (val drain = eventCoordinator.drainAvailable("${request.ownerToken}:projection")) {
-				is CoordinatorDrainResult.Complete -> {
-					if (drain.lastCompletedOrdinal < finalOrdinal) {
-						return SessionStopResult.DrainPending(cutoffSession.logicalTrackingId, finalOrdinal)
+				when (val drain = eventCoordinator.drainAvailable(
+					"${request.ownerToken}:projection", throughOrdinal = finalOrdinal,
+				)) {
+					is CoordinatorDrainResult.Complete -> {
+						if (drain.lastCompletedOrdinal < finalOrdinal) {
+							return@withRenewingLease SessionStopResult.DrainPending(
+								cutoffSession.logicalTrackingId, finalOrdinal,
+							)
+						}
 					}
+					else -> return@withRenewingLease SessionStopResult.DrainPending(
+						cutoffSession.logicalTrackingId, finalOrdinal,
+					)
 				}
-				else -> return SessionStopResult.DrainPending(cutoffSession.logicalTrackingId, finalOrdinal)
-			}
-			val sourceDrain = drainSettledSourceProducts(
-				cutoffSession.logicalTrackingId,
-				bound.serviceRunId,
-				cutoff,
-				finalOrdinal,
-				drainAuthority,
-			)
-			val incomplete = terminalRetirementIncomplete(
-				acks,
-				cutoffSession.logicalTrackingId,
-				bound.serviceRunId,
-			)
-			if (!incomplete && sourceDrain is SettledSourceDrainBatch.Pending) {
-				return SessionStopResult.DrainPending(
-					logicalTrackingId = cutoffSession.logicalTrackingId,
-					requiredOrdinal = finalOrdinal,
-					source = sourceDrain.failedSource,
-					reason = sourceDrain.reason,
-					sourceResults = sourceDrain.results,
-					sourceMemberships = sourceDrain.memberships,
-				)
-			}
-			database.withTransaction {
-				requireLeaseInTransaction(lease)
-				sourceBroker.retireSessionDemands(
+				val sourceDrain = drainSettledSourceProducts(
 					cutoffSession.logicalTrackingId,
-					lease.bootId,
-					request.elapsedRealtimeNanos,
-					request.wallTimeMs,
+					bound.serviceRunId,
+					cutoff,
+					finalOrdinal,
+					drainAuthority,
 				)
-				val serviceRun = requireBoundServiceRun(bound, SessionLifecycleState.STOPPING)
-				val finalizing = requireNotNull(database.sourceSessionDao().session(cutoffSession.logicalTrackingId))
-				check(finalizing.state == SessionLifecycleState.STOPPING.name)
-				val partial = acks.any(SourceStopAck::hasPartialCapturedCoverage) ||
-					(sourceDrain is SettledSourceDrainBatch.Complete &&
-						sourceDrain.results.any { it is SourceProductDrainResult.Unavailable })
-				if (incomplete) {
+				val incomplete = terminalRetirementIncomplete(
+					acks,
+					cutoffSession.logicalTrackingId,
+					bound.serviceRunId,
+				)
+				if (!incomplete && sourceDrain is SettledSourceDrainBatch.Pending) {
+					return@withRenewingLease SessionStopResult.DrainPending(
+						logicalTrackingId = cutoffSession.logicalTrackingId,
+						requiredOrdinal = finalOrdinal,
+						source = sourceDrain.failedSource,
+						reason = sourceDrain.reason,
+						sourceResults = sourceDrain.results,
+						sourceMemberships = sourceDrain.memberships,
+					)
+				}
+				database.withTransaction {
+					requireLeaseInTransaction(lease)
+					sourceBroker.retireSessionDemands(
+						cutoffSession.logicalTrackingId,
+						lease.bootId,
+						request.elapsedRealtimeNanos,
+						request.wallTimeMs,
+					)
+					val serviceRun = requireBoundServiceRun(bound, SessionLifecycleState.STOPPING)
+					val finalizing = requireNotNull(
+						database.sourceSessionDao().session(cutoffSession.logicalTrackingId),
+					)
+					check(finalizing.state == SessionLifecycleState.STOPPING.name)
+					val partial = acks.any(SourceStopAck::hasPartialCapturedCoverage) ||
+						(sourceDrain is SettledSourceDrainBatch.Complete &&
+							sourceDrain.results.any { it is SourceProductDrainResult.Unavailable })
+					if (incomplete) {
+						check(database.sourceSessionDao().updateSession(
+							finalizing.copy(
+								lifecycleRevision = finalizing.lifecycleRevision + 1L,
+								failureCode = "STOP_INCOMPLETE",
+							),
+						) == 1)
+						check(database.sourceSessionDao().updateServiceRun(
+							serviceRun.copy(
+								runtimeAcknowledgement = LifecycleActionStatus.CLEANUP_REQUIRED.name,
+								runtimeFailureCode = "STOP_INCOMPLETE",
+								runRevision = serviceRun.runRevision + 1L,
+							),
+						) == 1)
+						return@withTransaction
+					}
+					resolveCleanupRequiredActions(
+						cutoffSession.logicalTrackingId,
+						bound.serviceRunId,
+						request.wallTimeMs,
+						request.elapsedRealtimeNanos,
+					)
+					planStore.clearAppliedInTransaction()
 					check(database.sourceSessionDao().updateSession(
 						finalizing.copy(
-							lifecycleRevision = finalizing.lifecycleRevision + 1L,
-							failureCode = "STOP_INCOMPLETE",
+							state = SessionLifecycleState.FINALIZED.name,
+							lifecycleRevision = finalizing.lifecycleRevision + 1,
+							finalAdmissionOrdinal = finalOrdinal,
+							completedAtMs = request.wallTimeMs,
+							failureCode = "STOP_PARTIAL".takeIf { partial },
+							currentServiceRunId = null,
 						),
 					) == 1)
 					check(database.sourceSessionDao().updateServiceRun(
-						serviceRun.copy(
-							runtimeAcknowledgement = LifecycleActionStatus.CLEANUP_REQUIRED.name,
-							runtimeFailureCode = "STOP_INCOMPLETE",
-							runRevision = serviceRun.runRevision + 1L,
-						),
-					) == 1)
-					return@withTransaction
+							serviceRun.copy(
+								state = SessionLifecycleState.FINALIZED.name,
+								completedAtMs = request.wallTimeMs,
+								completionReason = request.reason,
+								runtimeAcknowledgement = LifecycleActionStatus.STOP_ACCEPTED.name,
+								runtimeFailureCode = "STOP_PARTIAL".takeIf { partial },
+								runRevision = serviceRun.runRevision + 1L,
+							),
+						) == 1)
 				}
-				resolveCleanupRequiredActions(
-					cutoffSession.logicalTrackingId,
-					bound.serviceRunId,
-					request.wallTimeMs,
-					request.elapsedRealtimeNanos,
-				)
-				planStore.clearAppliedInTransaction()
-				check(database.sourceSessionDao().updateSession(
-					finalizing.copy(
-						state = SessionLifecycleState.FINALIZED.name,
-						lifecycleRevision = finalizing.lifecycleRevision + 1,
-						finalAdmissionOrdinal = finalOrdinal,
-						completedAtMs = request.wallTimeMs,
-						failureCode = "STOP_PARTIAL".takeIf { partial },
-						currentServiceRunId = null,
-					),
-				) == 1)
-				check(database.sourceSessionDao().updateServiceRun(
-						serviceRun.copy(
-							state = SessionLifecycleState.FINALIZED.name,
-							completedAtMs = request.wallTimeMs,
-							completionReason = request.reason,
-							runtimeAcknowledgement = LifecycleActionStatus.STOP_ACCEPTED.name,
-							runtimeFailureCode = "STOP_PARTIAL".takeIf { partial },
-							runRevision = serviceRun.runRevision + 1L,
-						),
-					) == 1)
+				if (incomplete) {
+					return@withRenewingLease SessionStopResult.CleanupPending(
+						cutoffSession.logicalTrackingId, finalOrdinal, acks,
+					)
+				}
+				SessionStopResult.Stopped(cutoffSession.logicalTrackingId, finalOrdinal, acks)
 			}
-			if (incomplete) {
-				return SessionStopResult.CleanupPending(cutoffSession.logicalTrackingId, finalOrdinal, acks)
-			}
-			SessionStopResult.Stopped(cutoffSession.logicalTrackingId, finalOrdinal, acks)
 		} catch (_: SessionCoordinatorLeaseLostException) {
 			SessionStopResult.Busy
 		} finally {
@@ -4957,195 +4979,200 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		val lease = acquireLease(request.ownerToken)
 			?: return SessionSuspendResult.Busy
 		return try {
-			val session = database.sourceSessionDao().activeSession()
-				?: return SessionSuspendResult.NoActiveSession
-			if (session.state != SessionLifecycleState.ACTIVE.name) {
-				return SessionSuspendResult.NoActiveSession
-			}
-			val bound = database.withTransaction {
-				requireLeaseInTransaction(lease)
-				persistServiceRunSuspendIntent(session, request, lease)
-			}
-			val durableSession = bound.session
-			val stopActionsFailure = database.withTransaction {
-				requireLeaseInTransaction(lease)
-				requireBoundServiceRun(bound, SessionLifecycleState.STOPPING)
-				markStopActionsApplying(durableSession.logicalTrackingId, bound.serviceRunId, lease)
-			}
-			if (stopActionsFailure != null) {
-				return SessionSuspendResult.InvalidIntent(stopActionsFailure)
-			}
-			val cutoff = SessionCutoff(
-				logicalTrackingId = durableSession.logicalTrackingId,
-				elapsedRealtimeNanos = requireNotNull(durableSession.cutoffElapsedNanos),
-				wallTimeMs = requireNotNull(durableSession.cutoffAtMs),
-				deadlineElapsedRealtimeNanos = monotonicNowAtLeast(request.elapsedRealtimeNanos) +
-					request.gracePeriodMs * NANOS_PER_MILLISECOND,
-			)
-			val retirement = when (
-				val read = runRetirementTargets(durableSession, bound.serviceRunId)
-			) {
-				is RunRetirementTargetRead.Ready -> read
-				is RunRetirementTargetRead.Blocked ->
-					return SessionSuspendResult.InvalidIntent(read.reason)
-			}
-			val retirementTargets = retirement.targets
-			persistRunRetirementIntents(retirementTargets, cutoff, request.wallTimeMs)
-			val sourceRetirements =
-				retireRunSources(retirementTargets, cutoff, minOf(request.gracePeriodMs, request.perSourceTimeoutMs))
-			val acks = sourceRetirements.flatMap(RunSourceRetirementOutcome::acknowledgements)
-			val drainAuthority = retirement.drainAuthority.copy(
-				retirementClaims = sourceRetirements.flatMap(
-					RunSourceRetirementOutcome::retirementClaims,
-				),
-			)
-			val completenessAuthenticated = try {
-				database.withTransaction {
+			withRenewingLease(lease) {
+				val session = database.sourceSessionDao().activeSession()
+					?: return@withRenewingLease SessionSuspendResult.NoActiveSession
+				if (session.state != SessionLifecycleState.ACTIVE.name) {
+					return@withRenewingLease SessionSuspendResult.NoActiveSession
+				}
+				val bound = database.withTransaction {
 					requireLeaseInTransaction(lease)
-					acks.forEach { ack ->
-						if (ack.hasMembership(durableSession.logicalTrackingId, bound.serviceRunId)) {
-							saveCompleteness(
+					persistServiceRunSuspendIntent(session, request, lease)
+				}
+				val durableSession = bound.session
+				val stopActionsFailure = database.withTransaction {
+					requireLeaseInTransaction(lease)
+					requireBoundServiceRun(bound, SessionLifecycleState.STOPPING)
+					markStopActionsApplying(durableSession.logicalTrackingId, bound.serviceRunId, lease)
+				}
+				if (stopActionsFailure != null) {
+					return@withRenewingLease SessionSuspendResult.InvalidIntent(stopActionsFailure)
+				}
+				val cutoff = SessionCutoff(
+					logicalTrackingId = durableSession.logicalTrackingId,
+					elapsedRealtimeNanos = requireNotNull(durableSession.cutoffElapsedNanos),
+					wallTimeMs = requireNotNull(durableSession.cutoffAtMs),
+					deadlineElapsedRealtimeNanos = monotonicNowAtLeast(request.elapsedRealtimeNanos) +
+						request.gracePeriodMs * NANOS_PER_MILLISECOND,
+				)
+				val retirement = when (
+					val read = runRetirementTargets(durableSession, bound.serviceRunId)
+				) {
+					is RunRetirementTargetRead.Ready -> read
+					is RunRetirementTargetRead.Blocked ->
+						return@withRenewingLease SessionSuspendResult.InvalidIntent(read.reason)
+				}
+				val retirementTargets = retirement.targets
+				persistRunRetirementIntents(retirementTargets, cutoff, request.wallTimeMs)
+				val sourceRetirements = retireRunSources(
+					retirementTargets, cutoff, minOf(request.gracePeriodMs, request.perSourceTimeoutMs),
+				)
+				val acks = sourceRetirements.flatMap(RunSourceRetirementOutcome::acknowledgements)
+				val drainAuthority = retirement.drainAuthority.copy(
+					retirementClaims = sourceRetirements.flatMap(
+						RunSourceRetirementOutcome::retirementClaims,
+					),
+				)
+				val completenessAuthenticated = try {
+					database.withTransaction {
+						requireLeaseInTransaction(lease)
+						acks.forEach { ack ->
+							if (ack.hasMembership(durableSession.logicalTrackingId, bound.serviceRunId)) {
+								saveCompleteness(
+									durableSession.logicalTrackingId,
+									bound.serviceRunId,
+									ack,
+									request.wallTimeMs,
+								).requireStoredCompleteness()
+							}
+							acknowledgeSuspendAction(
 								durableSession.logicalTrackingId,
 								bound.serviceRunId,
 								ack,
-								request.wallTimeMs,
-							).requireStoredCompleteness()
+								lease,
+								request,
+							)
 						}
-						acknowledgeSuspendAction(
+						true
+					}
+				} catch (_: CompletenessAuthenticationBlockedException) {
+					false
+				}
+				if (!completenessAuthenticated) {
+					return@withRenewingLease SessionSuspendResult.InvalidIntent(
+						"SOURCE_COMPLETENESS_AUTHENTICATION_BLOCKED",
+					)
+				}
+				val observedHighWaterOrdinal = durableSourceHighWater()
+				val finalOrdinal = freezeSettlementHighWater(
+					bound,
+					cutoff,
+					observedHighWaterOrdinal,
+					lease,
+				)
+				when (val drain = eventCoordinator.drainAvailable(
+					"${request.ownerToken}:projection", throughOrdinal = finalOrdinal,
+				)) {
+					is CoordinatorDrainResult.Complete -> if (drain.lastCompletedOrdinal < finalOrdinal) {
+						return@withRenewingLease SessionSuspendResult.DrainPending(
 							durableSession.logicalTrackingId,
-							bound.serviceRunId,
-							ack,
-							lease,
-							request,
+							finalOrdinal,
+							sourceCallerAuthorityReference = bound.sourceCallerAuthorityReference,
 						)
 					}
-					true
-				}
-			} catch (_: CompletenessAuthenticationBlockedException) {
-				false
-			}
-			if (!completenessAuthenticated) {
-				return SessionSuspendResult.InvalidIntent(
-					"SOURCE_COMPLETENESS_AUTHENTICATION_BLOCKED",
-				)
-			}
-			val observedHighWaterOrdinal = durableSourceHighWater()
-			val finalOrdinal = freezeSettlementHighWater(
-				bound,
-				cutoff,
-				observedHighWaterOrdinal,
-				lease,
-			)
-			when (val drain = eventCoordinator.drainAvailable("${request.ownerToken}:projection")) {
-				is CoordinatorDrainResult.Complete -> if (drain.lastCompletedOrdinal < finalOrdinal) {
-					return SessionSuspendResult.DrainPending(
+					else -> return@withRenewingLease SessionSuspendResult.DrainPending(
 						durableSession.logicalTrackingId,
 						finalOrdinal,
 						sourceCallerAuthorityReference = bound.sourceCallerAuthorityReference,
 					)
 				}
-				else -> return SessionSuspendResult.DrainPending(
-					durableSession.logicalTrackingId,
-					finalOrdinal,
-					sourceCallerAuthorityReference = bound.sourceCallerAuthorityReference,
-				)
-			}
-			val sourceDrain = drainSettledSourceProducts(
-				durableSession.logicalTrackingId,
-				bound.serviceRunId,
-				cutoff,
-				finalOrdinal,
-				drainAuthority,
-			)
-			val incomplete = terminalRetirementIncomplete(
-				acks,
-				durableSession.logicalTrackingId,
-				bound.serviceRunId,
-			)
-			if (!incomplete && sourceDrain is SettledSourceDrainBatch.Pending) {
-				return SessionSuspendResult.DrainPending(
-					logicalTrackingId = durableSession.logicalTrackingId,
-					requiredOrdinal = finalOrdinal,
-					source = sourceDrain.failedSource,
-					reason = sourceDrain.reason,
-					sourceResults = sourceDrain.results,
-					sourceMemberships = sourceDrain.memberships,
-					sourceCallerAuthorityReference = bound.sourceCallerAuthorityReference,
-				)
-			}
-			database.withTransaction {
-				requireLeaseInTransaction(lease)
-				val serviceRun = requireBoundServiceRun(bound, SessionLifecycleState.STOPPING)
-				val latest = requireNotNull(database.sourceSessionDao().session(durableSession.logicalTrackingId))
-				check(latest.state == SessionLifecycleState.ACTIVE.name)
-				val partial = acks.any(SourceStopAck::hasPartialCapturedCoverage) ||
-					(sourceDrain is SettledSourceDrainBatch.Complete &&
-						sourceDrain.results.any { it is SourceProductDrainResult.Unavailable })
-				if (incomplete) {
-					check(database.sourceSessionDao().updateSession(
-						latest.copy(
-							lifecycleRevision = latest.lifecycleRevision + 1L,
-							failureCode = "STOP_INCOMPLETE",
-						),
-					) == 1)
-					check(database.sourceSessionDao().updateServiceRun(
-						serviceRun.copy(
-							runtimeAcknowledgement = LifecycleActionStatus.CLEANUP_REQUIRED.name,
-							runtimeFailureCode = "STOP_INCOMPLETE",
-							runRevision = serviceRun.runRevision + 1L,
-						),
-					) == 1)
-					return@withTransaction
-				}
-				sourceBroker.retireSessionDemands(
-					durableSession.logicalTrackingId,
-					lease.bootId,
-					cutoff.elapsedRealtimeNanos,
-					cutoff.wallTimeMs,
-					retireCallerAuthority = false,
-				)
-				resolveCleanupRequiredActions(
+				val sourceDrain = drainSettledSourceProducts(
 					durableSession.logicalTrackingId,
 					bound.serviceRunId,
-					request.wallTimeMs,
-					request.elapsedRealtimeNanos,
+					cutoff,
+					finalOrdinal,
+					drainAuthority,
 				)
-				database.sourceSessionDao().updateSession(
-					latest.copy(
-						currentServiceRunId = null,
-						lifecycleRevision = latest.lifecycleRevision + 1L,
-						failureCode = "STOP_PARTIAL".takeIf { partial },
-						cutoffAtMs = null,
-						cutoffElapsedNanos = null,
-						finalAdmissionOrdinal = null,
-					),
+				val incomplete = terminalRetirementIncomplete(
+					acks,
+					durableSession.logicalTrackingId,
+					bound.serviceRunId,
 				)
-				database.sourceSessionDao().updateServiceRun(
-						serviceRun.copy(
-							state = SessionLifecycleState.FINALIZED.name,
-							completedAtMs = request.wallTimeMs,
-							completionReason = request.reason,
-							runtimeAcknowledgement = LifecycleActionStatus.STOP_ACCEPTED.name,
-							runtimeFailureCode = "STOP_PARTIAL".takeIf { partial },
-							runRevision = serviceRun.runRevision + 1L,
+				if (!incomplete && sourceDrain is SettledSourceDrainBatch.Pending) {
+					return@withRenewingLease SessionSuspendResult.DrainPending(
+						logicalTrackingId = durableSession.logicalTrackingId,
+						requiredOrdinal = finalOrdinal,
+						source = sourceDrain.failedSource,
+						reason = sourceDrain.reason,
+						sourceResults = sourceDrain.results,
+						sourceMemberships = sourceDrain.memberships,
+						sourceCallerAuthorityReference = bound.sourceCallerAuthorityReference,
+					)
+				}
+				database.withTransaction {
+					requireLeaseInTransaction(lease)
+					val serviceRun = requireBoundServiceRun(bound, SessionLifecycleState.STOPPING)
+					val latest = requireNotNull(database.sourceSessionDao().session(durableSession.logicalTrackingId))
+					check(latest.state == SessionLifecycleState.ACTIVE.name)
+					val partial = acks.any(SourceStopAck::hasPartialCapturedCoverage) ||
+						(sourceDrain is SettledSourceDrainBatch.Complete &&
+							sourceDrain.results.any { it is SourceProductDrainResult.Unavailable })
+					if (incomplete) {
+						check(database.sourceSessionDao().updateSession(
+							latest.copy(
+								lifecycleRevision = latest.lifecycleRevision + 1L,
+								failureCode = "STOP_INCOMPLETE",
+							),
+						) == 1)
+						check(database.sourceSessionDao().updateServiceRun(
+							serviceRun.copy(
+								runtimeAcknowledgement = LifecycleActionStatus.CLEANUP_REQUIRED.name,
+								runtimeFailureCode = "STOP_INCOMPLETE",
+								runRevision = serviceRun.runRevision + 1L,
+							),
+						) == 1)
+						return@withTransaction
+					}
+					sourceBroker.retireSessionDemands(
+						durableSession.logicalTrackingId,
+						lease.bootId,
+						cutoff.elapsedRealtimeNanos,
+						cutoff.wallTimeMs,
+						retireCallerAuthority = false,
+					)
+					resolveCleanupRequiredActions(
+						durableSession.logicalTrackingId,
+						bound.serviceRunId,
+						request.wallTimeMs,
+						request.elapsedRealtimeNanos,
+					)
+					database.sourceSessionDao().updateSession(
+						latest.copy(
+							currentServiceRunId = null,
+							lifecycleRevision = latest.lifecycleRevision + 1L,
+							failureCode = "STOP_PARTIAL".takeIf { partial },
+							cutoffAtMs = null,
+							cutoffElapsedNanos = null,
+							finalAdmissionOrdinal = null,
 						),
 					)
-			}
-			if (incomplete) {
-				return SessionSuspendResult.CleanupPending(
+					database.sourceSessionDao().updateServiceRun(
+							serviceRun.copy(
+								state = SessionLifecycleState.FINALIZED.name,
+								completedAtMs = request.wallTimeMs,
+								completionReason = request.reason,
+								runtimeAcknowledgement = LifecycleActionStatus.STOP_ACCEPTED.name,
+								runtimeFailureCode = "STOP_PARTIAL".takeIf { partial },
+								runRevision = serviceRun.runRevision + 1L,
+							),
+						)
+				}
+				if (incomplete) {
+					return@withRenewingLease SessionSuspendResult.CleanupPending(
+						durableSession.logicalTrackingId,
+						finalOrdinal,
+						acks,
+						bound.sourceCallerAuthorityReference,
+					)
+				}
+				SessionSuspendResult.Suspended(
 					durableSession.logicalTrackingId,
 					finalOrdinal,
 					acks,
+					acks.any { it.status != SourceStopStatus.COMPLETE },
 					bound.sourceCallerAuthorityReference,
 				)
 			}
-			SessionSuspendResult.Suspended(
-				durableSession.logicalTrackingId,
-				finalOrdinal,
-				acks,
-				acks.any { it.status != SourceStopStatus.COMPLETE },
-				bound.sourceCallerAuthorityReference,
-			)
 		} catch (rejection: SourceCallerDemandRejectedException) {
 			if (rejection.disposition == TrackingStartFailureDisposition.RETRYABLE) {
 				SessionSuspendResult.Retryable(rejection.failureCode)

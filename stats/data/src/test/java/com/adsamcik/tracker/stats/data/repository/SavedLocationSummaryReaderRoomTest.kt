@@ -54,6 +54,18 @@ class SavedLocationSummaryReaderRoomTest {
     }
     @After fun close() = database.close()
 
+    @Test fun `public finite summary reuses an existing writer snapshot during finalization`() = runBlocking {
+        val selected = session("nested-writer")
+        database.withTransaction {
+            val saved = point(2_000, 0, 1, capture = selected)
+            database.sourceEvidenceStateDao().incrementRevision(3_000)
+            val read = snapshot(reader.readSession(selected.id))
+            assertEquals(1L, read.summary.pointCount)
+            assertEquals(saved.id, read.summary.latestFix?.sampleId)
+            assertEquals(currentSnapshot(), read.readSnapshot)
+        }
+    }
+
     @Test fun `finite session preview shares distance qualification and preserves a gap across pages`(): Unit = runBlocking {
         val selected = session("preview-pages", endTimeMs = 300_000)
         repeat(256) { index -> point(2_000 + index * 1_000L, index * 100, index + 1L, capture = selected) }

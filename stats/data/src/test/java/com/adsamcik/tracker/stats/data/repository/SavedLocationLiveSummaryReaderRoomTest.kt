@@ -488,7 +488,7 @@ class SavedLocationLiveSummaryReaderRoomTest {
         } finally { release.complete(Unit); job.cancelAndJoin(); observed.close() }
     }
 
-    @Test fun `a coalesced hint cannot lose an authority dependency rebuild`() = runBlocking(Dispatchers.Unconfined) {
+    @Test fun `unchanged authority notice and coalesced hint keep the accepted prefix`() = runBlocking(Dispatchers.Unconfined) {
         val selected = session("coalesced-dependency")
         database.withTransaction {
             point(2_000, 0, 1, capture = selected)
@@ -522,14 +522,14 @@ class SavedLocationLiveSummaryReaderRoomTest {
             withTimeout(5_000L) { entered.await() }
             snapshot(withTimeout(5_000L) { observed.receive() })
             val seedPages = fullPages
-            // A source-table notice must trigger requalification even when its current values remain equal.
+            // A table notice is not evidence that this prefix's historical authority changed.
             notices.emit(setOf("session_manifest_source"))
             yield()
             hints.pointCommitted(actual.latestSavedReceiptSampleId())
             yield()
             release.complete(Unit)
-            withTimeout(5_000L) { while (fullPages <= seedPages) yield() }
-            assertTrue(fullPages > seedPages)
+            repeat(20) { yield() }
+            assertEquals(seedPages, fullPages)
         } finally { release.complete(Unit); job.cancelAndJoin(); observed.close() }
     }
 

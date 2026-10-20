@@ -8,6 +8,8 @@ import com.adsamcik.tracker.shared.base.database.liveSourceProjectionActivationO
 import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
+import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
+import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.projection.ProjectionDispatcher
 import java.util.UUID
 import javax.inject.Inject
@@ -25,9 +27,11 @@ class TrackingCoordinator @Inject constructor(
 	suspend fun drainAvailable(
 		ownerToken: String,
 		batchSize: Int = DEFAULT_BATCH_SIZE,
+		throughOrdinal: Long? = null,
 	): CoordinatorDrainResult {
 		require(ownerToken.isNotBlank())
 		require(batchSize > 0)
+		require(throughOrdinal == null || throughOrdinal >= 0L)
 		val startedAtNanos = System.nanoTime()
 		val lease = acquireLease(ownerToken)
 		if (lease == null) {
@@ -42,22 +46,17 @@ class TrackingCoordinator @Inject constructor(
 			cursor = projections.minimumGlobalCheckpoint()
 				?: database.sourceEventWalDao().maximumAdmissionOrdinal()
 				?: 0L
-			while (true) {
+			while (throughOrdinal == null || cursor < throughOrdinal) {
 				val batch = try {
-					ingress.committedBatch(cursor, batchSize)
+					readBatch(cursor, throughOrdinal, batchSize)
 				} catch (corrupt: CorruptSourceEventException) {
-					check(corrupt.admissionOrdinal == cursor + 1L) {
-						"Raw quarantine must advance the contiguous source-event cursor"
-					}
-					projections.quarantineRawEvent(
-						admissionOrdinal = corrupt.admissionOrdinal,
-						failureCode = "${corrupt.failureCode}_SOURCE_${corrupt.sourceKind}",
-					)
+					quarantineRawEvent(corrupt, cursor, throughOrdinal)
 					cursor = corrupt.admissionOrdinal
 					continue
 				}
 				if (batch.isEmpty()) break
 				for (event in batch) {
+					check(throughOrdinal == null || event.admissionOrdinal <= throughOrdinal)
 					if (!renewLease(lease)) {
 						return CoordinatorDrainResult.LeaseLost(cursor, count).also {
 							telemetry.recordProjectionDrain(count, System.nanoTime() - startedAtNanos)
@@ -85,6 +84,25 @@ class TrackingCoordinator @Inject constructor(
 		} finally {
 			releaseLease(lease)
 		}
+	}
+
+	private suspend fun readBatch(afterOrdinal: Long, throughOrdinal: Long?, limit: Int):
+		List<AdmittedSourceEvent<out SourcePayload>> =
+		if (throughOrdinal == null) {
+			ingress.committedBatch(afterOrdinal, limit)
+		} else {
+			ingress.committedBatchThrough(afterOrdinal, throughOrdinal, limit)
+		}
+
+	private suspend fun quarantineRawEvent(corrupt: CorruptSourceEventException, cursor: Long, throughOrdinal: Long?) {
+		check(throughOrdinal == null || corrupt.admissionOrdinal <= throughOrdinal)
+		check(corrupt.admissionOrdinal == cursor + 1L) {
+			"Raw quarantine must advance the contiguous source-event cursor"
+		}
+		projections.quarantineRawEvent(
+			admissionOrdinal = corrupt.admissionOrdinal,
+			failureCode = "${corrupt.failureCode}_SOURCE_${corrupt.sourceKind}",
+		)
 	}
 
 	/** Returns exact per-source progress and debt for old events no active consumer still requires. */

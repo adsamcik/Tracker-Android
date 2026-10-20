@@ -891,13 +891,14 @@ internal class ProtectedLocationCanonicalHandoff(
 		expectedServiceRunId: String?,
 	): ProtectedLocationCandidateEffect {
 		val preflight = database.sourceEventWalDao().payloadPreflightByEventId(candidate.eventId)
-		val ambient = qualifier.qualifyAmbient(SourceEventId(candidate.eventId))
+		val purposes = qualifier.qualifyForPurposes(SourceEventId(candidate.eventId))
+		val ambient = purposes.ambient
 		if (ambient is LocationAmbientQualification.Qualified &&
 			ambient.command.wal.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
 		) {
 			return processAmbientCandidate(initialLane, expectedCursor, candidate, ambient.command)
 		}
-		val initial = qualifier.qualify(SourceEventId(candidate.eventId))
+		val initial = requireNotNull(purposes.capture)
 		val adapted = if (initial is LocationWalAdapterResult.Rejected &&
 			initial.reason == LocationWalAdapterRejection.MISSING_SEGMENT &&
 			SessionPresentationLifecycle(database).recoverMissingForRetainedEvent(candidate.eventId)
@@ -1498,10 +1499,29 @@ internal class ProtectedLocationCanonicalPersistenceGuard private constructor(
 	) : this(database, qualifier)
 
 	/** Reused only within the caller's current Room destination transaction. */
-	suspend fun qualifyInCurrentWriterTransaction(sourceEventId: String): ProtectedLocationQualifiedCandidate {
-		val db = database ?: error("Protected Location persistence guard is not configured")
+	suspend fun qualifyInCurrentWriterTransaction(sourceEventId: String): ProtectedLocationQualifiedCandidate =
+		qualifyBatchInCurrentWriterTransaction(listOf(sourceEventId)).getValue(sourceEventId)
+
+	/** The writer starts a fresh snapshot, never reuses the handoff's preliminary authority. */
+	suspend fun qualifyBatchInCurrentWriterTransaction(
+		sourceEventIds: List<String>,
+	): Map<String, ProtectedLocationQualifiedCandidate> {
+		if (sourceEventIds.isEmpty()) {
+			return emptyMap()
+		}
 		val adapter = qualifier ?: error("Protected Location qualifier is not configured")
-		val qualified = when (val adapted = adapter.qualify(SourceEventId(sourceEventId))) {
+		val evaluated = adapter.qualifyBatch(sourceEventIds.map(::SourceEventId))
+		return sourceEventIds.distinct().associateWith { sourceEventId ->
+			requireQualified(sourceEventId, evaluated.getValue(SourceEventId(sourceEventId)))
+		}
+	}
+
+	private suspend fun requireQualified(
+		sourceEventId: String,
+		adapted: LocationWalAdapterResult,
+	): ProtectedLocationQualifiedCandidate {
+		val db = database ?: error("Protected Location persistence guard is not configured")
+		val qualified = when (adapted) {
 			is LocationWalAdapterResult.Rejected ->
 				error("Protected Location WAL authority rejected: ${adapted.reason.name}")
 			is LocationWalAdapterResult.Evaluated -> when (val result = adapted.qualification) {

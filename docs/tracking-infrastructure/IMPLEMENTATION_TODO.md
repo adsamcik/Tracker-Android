@@ -14,6 +14,21 @@ route pass. Disconnected saved routes no longer gain a false connector. Slow obs
 partial coverage, earlier failures and historical full-suite results remain explicit.
 Independent source, host, runtime and result review is complete. The enclosing local dev/v10 commit records delivery; no remote push.
 
+## October 20 performance pass
+
+- [x] Reuse bounded Location payload decoding through the normal handoff and live writer; keep commit-time authority checks fresh.
+- [x] Bound End/Suspend projection drains to their saved final ordinal.
+- [x] Start independent providers concurrently with their existing ownership and retirement rules.
+- [x] Extend live summaries incrementally without reseeding for unrelated metadata changes.
+- [x] Cache unchanged closed-trip measurements and keep finite Location reads off the serial writer queue.
+- [x] Complete independent source review, including the actual per-point persistence path and the two discovered End defects.
+- [x] Pass the final affected test and Dev build batch: 972 host cases, native SQLite 2; Dev/Hilt/APK R73, scoped quality R74.
+- [x] Verify the final Dev APK on the existing emulator: My location while Off, fresh Start 144, saved 14-point route and End 145; reopen matching detail.
+- [x] Commit the reviewed and verified changes into local `dev/v10` (enclosing local commit; no push).
+
+Earlier runtime failures remain separate from final acceptance. The current result is recorded in
+the existing [Dev control verification](convergence/2026-10-17/DEV_CONTROL_VERIFICATION.md).
+
 ## Historical continuation notes
 
 The latest user answer requires **all remaining implementation, including source files and data-only backup/restore, before the assembly freeze**. The earlier transfer deferral is superseded. Production and regression source are assembled in the current candidate. The user explicitly requested build/storage convergence on 2026-10-14; see convergence/2026-10-14/BUILD_STORAGE_VERIFICATION.md. This does not declare the full feature assembly complete.

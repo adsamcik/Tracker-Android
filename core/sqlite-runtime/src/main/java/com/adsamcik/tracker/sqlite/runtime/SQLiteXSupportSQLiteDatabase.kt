@@ -11,6 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteQuery
 import androidx.sqlite.db.SupportSQLiteStatement
 import java.util.Locale
+import org.sqlite.database.sqlite.SQLiteReadOnlyTransactionBridge
 import org.sqlite.database.sqlite.SQLiteCursor as VendorSQLiteCursor
 import org.sqlite.database.sqlite.SQLiteDatabase as VendorSQLiteDatabase
 import org.sqlite.database.sqlite.SQLiteQuery as VendorSQLiteQuery
@@ -42,13 +43,9 @@ internal class SQLiteXSupportSQLiteDatabase(
 		delegate.beginTransactionNonExclusive()
 	}
 
-	/**
-	 * The vendored public database API does not expose a read-only transaction
-	 * entry point. SupportSQLite explicitly permits this fallback, so preserve
-	 * transaction semantics by using the vendor's exclusive transaction method.
-	 */
+	/** Uses the pinned binding's deferred session mode and read-only pooled connection. */
 	override fun beginTransactionReadOnly() {
-		delegate.beginTransaction()
+		SQLiteReadOnlyTransactionBridge.begin(delegate, null)
 	}
 
 	override fun beginTransactionWithListener(transactionListener: SQLiteTransactionListener) {
@@ -64,7 +61,7 @@ internal class SQLiteXSupportSQLiteDatabase(
 	override fun beginTransactionWithListenerReadOnly(
 		transactionListener: SQLiteTransactionListener,
 	) {
-		delegate.beginTransactionWithListener(TransactionListenerAdapter(transactionListener))
+		SQLiteReadOnlyTransactionBridge.begin(delegate, TransactionListenerAdapter(transactionListener))
 	}
 
 	override fun endTransaction() {

@@ -92,6 +92,12 @@ interface DurableSourceIngress {
 		AdmissionFailureCode.ATOMIC_CHECKPOINT_UNSUPPORTED,
 	)
 	suspend fun committedBatch(afterOrdinal: Long, limit: Int): List<AdmittedSourceEvent<out SourcePayload>>
+	/** Applies the immutable endpoint before payload validation or decoding. */
+	suspend fun committedBatchThrough(
+		afterOrdinal: Long,
+		throughOrdinal: Long,
+		limit: Int,
+	): List<AdmittedSourceEvent<out SourcePayload>>
 	suspend fun committedSourceBatch(
 		source: SourceKind,
 		afterOrdinal: Long,
@@ -1570,6 +1576,17 @@ class RoomDurableSourceIngress @Inject constructor(
 		require(afterOrdinal >= 0L)
 		require(limit > 0)
 		return decodeCommittedRows(database.sourceEventWalDao().eventsAfter(afterOrdinal, limit))
+	}
+
+	override suspend fun committedBatchThrough(
+		afterOrdinal: Long,
+		throughOrdinal: Long,
+		limit: Int,
+	): List<AdmittedSourceEvent<out SourcePayload>> {
+		require(afterOrdinal >= 0L)
+		require(throughOrdinal >= afterOrdinal)
+		require(limit > 0)
+		return decodeCommittedRows(database.sourceEventWalDao().eventsAfterThrough(afterOrdinal, throughOrdinal, limit))
 	}
 
 	override suspend fun committedSourceBatch(

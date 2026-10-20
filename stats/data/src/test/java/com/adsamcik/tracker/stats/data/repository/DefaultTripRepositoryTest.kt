@@ -25,7 +25,14 @@ class DefaultTripRepositoryTest {
 	private val savedLocationMetrics = mockk<SavedLocationMetricsReader> {
         coEvery { readTrip(any()) } returns com.adsamcik.tracker.stats.api.repository.SavedLocationSummary(0L, null, null, false)
         io.mockk.every { observeChanges() } returns flowOf(Unit)
+        io.mockk.every { observeTableChanges() } returns flowOf(emptySet())
     }
+    private val measurements = mockk<SavedTripMeasurementCache> {
+        coEvery { changed(any()) } returns true
+        coEvery { keepOnly(any()) } returns false
+        coEvery { read(any()) } coAnswers { savedLocationMetrics.readTrip(firstArg()) }
+    }
+    init { io.mockk.every { savedLocationMetrics.tripMeasurements() } returns measurements }
     private val repository = DefaultTripRepository(tripDao, savedLocationMetrics)
 
 	@Test
@@ -145,9 +152,12 @@ class DefaultTripRepositoryTest {
 			coEvery { load(any()) } throws failure
 		}
 		io.mockk.every { tripDao.getAllPaged() } returns delegate
-		io.mockk.every { savedLocationMetrics.onSavedDataChange(any()) } returns {}
-		val result = repository.getPagedTrips().load(androidx.paging.PagingSource.LoadParams.Refresh(
+        io.mockk.every { savedLocationMetrics.onSavedTablesChange(any()) } returns {}
+        io.mockk.every { savedLocationMetrics.readDispatcher } returns kotlinx.coroutines.Dispatchers.Unconfined
+        val source = repository.getPagedTrips()
+		val result = source.load(androidx.paging.PagingSource.LoadParams.Refresh(
 			key = null, loadSize = 20, placeholdersEnabled = false))
 		(result as androidx.paging.PagingSource.LoadResult.Error<Int, com.adsamcik.tracker.shared.model.Trip>).throwable shouldBe failure
+        source.invalidate()
 	}
 }

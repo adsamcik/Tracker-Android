@@ -1,652 +1,1048 @@
 {
-  "status": "EMULATOR_CONTROLS_VERIFIED",
-  "date": "2026-10-20",
-  "generated_at": "2026-10-20T08:24:16.360529+00:00",
-  "branch": "dev/v10",
-  "base_commit": "35b339d94f7ab082d9c784d4ac9781903ebfed5f",
-  "source_files": [
-    {
-      "path": "app/src/main/java/com/adsamcik/tracker/app/Application.kt",
-      "sha256": "7F04E5865BA9072F79E71C77AF50066AA2BB014F94BF93EC890CC04625A2B565"
-    },
-    {
-      "path": "app/src/main/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGate.kt",
-      "sha256": "66C63A45FFD23DD10DB3DACB75A327FFDB7C8DE6D6A7603661F754F73E34E015"
-    },
-    {
-      "path": "app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt",
-      "sha256": "76C85316AC02FA31D998938263CA134F8999AA250CC6134EDF9CB95FD3FBEAD5"
-    },
-    {
-      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt",
-      "sha256": "1ACA5AA887DF721633F640C0C1681E176271AD2787ACC016F6114D8464F2C611"
-    },
-    {
-      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourcePolicyDao.kt",
-      "sha256": "B2D844F1AAD51AAFC342355D64FD96A9B7691C4E86576AAD3E110654C9EA0F41"
-    },
-    {
-      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/TrackingHistoryReadDao.kt",
-      "sha256": "5DF9BC6F366DF035ED1FEDA27DD9AADE67ADD8CDB309240C5AA79B9ADAE7230E"
-    },
-    {
-      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellCapturedFactEntities.kt",
-      "sha256": "0DB8A605B4263ABA91C106B3D7A6BB1509DB32ED731957E5F6D5DB43641935A6"
-    },
-    {
-      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellProviderDeliveryIdentityFact.kt",
-      "sha256": "9151DE5229D354C171584615970610E00946C256F950724CA49F2A4C552A6254"
-    },
-    {
-      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellWalPayloadCodec.kt",
-      "sha256": "8716A411A381664A33A5D1A66D7CF0C33BF6078AFB862179AF1457C89A545198"
-    },
-    {
-      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/RadioObservationChildIntegrity.kt",
-      "sha256": "3A37C1DBDA60453352C732ED362215EB6431BBDF7EF27303DAFBEA3BFBACAA97"
-    },
-    {
-      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionLifecycleIntegrity.kt",
-      "sha256": "49A50111E84438C84AB9388321F62EEE13C1FC68D7861A205C7B883D0943E314"
-    },
-    {
-      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt",
-      "sha256": "55ACE1983819254FD324F4C3A52CFEBF8EF9B2C6041FA66E4B46A00CFEFD58E4"
-    },
-    {
-      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDeletionFenceEntity.kt",
-      "sha256": "FFB95862A37E6939291978AFFACB6FD27751E976AE37A5C2799BC3D07F800B69"
-    },
-    {
-      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiCapturedFactEntities.kt",
-      "sha256": "EE1FA573086C3A1B09A6DD1456046D29416C3730F43CA80B26C5A718B31AABAE"
-    },
-    {
-      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/SourceDeletionFenceDaoTest.kt",
-      "sha256": "1425CBE224D739204F4BE39F5AF5BA6A644972270046E2AFF74573F0D6409667"
-    },
-    {
-      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDaoTest.kt",
-      "sha256": "9B3367B5B3202282E61B94E0AE5114F19CA07406864B7F1A514D0E92FCBE23DD"
-    },
-    {
-      "path": "core/common/src/main/java/com/adsamcik/tracker/shared/base/startup/TrackingStartupGate.kt",
-      "sha256": "02E318386F3B1D099AED36CEBE92D49CC6B3037D0A379E5D6C5A591F92794A92"
-    },
-    {
-      "path": "data/preferences/src/main/java/com/adsamcik/tracker/shared/preferences/tracking/RoomSourcePolicyRepository.kt",
-      "sha256": "04D903696D6C6B8262AB85123B29088FBF10DA963B44C5825088ACA966D95171"
-    },
-    {
-      "path": "data/preferences/src/test/java/com/adsamcik/tracker/shared/preferences/tracking/RoomSourcePolicyRepositoryTest.kt",
-      "sha256": "E74D6AA5A2ED3E485FEB4E994403CA0A50EFD1EE82BBE3FF80EBBEBEB8F91512"
-    },
-    {
-      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/data/DashboardHistoryRepository.kt",
-      "sha256": "AFB257D99630AF8BB1EEDAFD8486B4FEF317D1A8905A2D284C6AC752C913C33A"
-    },
-    {
-      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModel.kt",
-      "sha256": "E84DDEBA29C1BDD4514F127AE127DFC9A9AC00934FFE385C1E8218915C6AC7FA"
-    },
-    {
-      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt",
-      "sha256": "02A06BB5C619DB18C03D81CAD1BA87B92D0FB88969B7852BD075212A21108CBE"
-    },
-    {
-      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardScreen.kt",
-      "sha256": "2325A4104EE7AB127B2F04A4115C3BDAFD37B6F242F4A0F5B57A8E1647E7DC42"
-    },
-    {
-      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/cards/TodayProgressCard.kt",
-      "sha256": "B6BD0EDEB31439EB2381AB4C92C972FCCD4FEFFC88BE24391551AF17CB7F64D4"
-    },
-    {
-      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/components/EmptyStateCard.kt",
-      "sha256": "E1560B5A9F3D6BBEDF2ABECC7DAB409FC906A5349EE393570A946F8E210D1442"
-    },
-    {
-      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/components/TrackingActionRing.kt",
-      "sha256": "D54B3BB58E96D94EA2B3F2D43E2F0AE1F313F2282BC556008729D5CB517361DA"
-    },
-    {
-      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/components/TrackingPill.kt",
-      "sha256": "002FE8718BC4A7F497061128472B9599B795223B6B9FEF2E5F262E26B5A05489"
-    },
-    {
-      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/state/DashboardUiState.kt",
-      "sha256": "6009C3158ABFAB5B854930B424A18A94F1D039F584EA9EC70774AD099C3E5768"
-    },
-    {
-      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/data/DashboardHistoryRepositoryTest.kt",
-      "sha256": "52E44613A9256C965FFF2AE7E4700CF81A4DFD8AA0297B9773717B92C4D25C23"
-    },
-    {
-      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelHistoryTest.kt",
-      "sha256": "C203F4A8EFE9F70002AD358C3B08D839618A3BCD03E30C3948B5AF9626E32E20"
-    },
-    {
-      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelLiveStepsTest.kt",
-      "sha256": "7E22A03D6EB6118EBC2ED4A5EA8B917E0D42587972DABF37556519417E24B753"
-    },
-    {
-      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelPermissionTest.kt",
-      "sha256": "FD3E88AE0D820F9BAA94D56761AF95DEEEB14AF52614F6B1EF4C6954E8B1B275"
-    },
-    {
-      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelSessionInsightsTest.kt",
-      "sha256": "ED119D4EC66C15FF87B73EB6D22B02434522B5FC3AA1078E932CAC1AC48F62C0"
-    },
-    {
-      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardManualStartFeedbackEffectTest.kt",
-      "sha256": "2D08192E76B2D046334C7EFDF7C24105F917199F8FC8BC7812D93A274C5B2658"
-    },
-    {
-      "path": "feature/map/api/src/main/java/com/adsamcik/tracker/feature/map/api/preview/RoutePoint.kt",
-      "sha256": "163326BDA8F5222413FA12C75EF1550D7FB0E285130E460AF0C2FD886BD0280B"
-    },
-    {
-      "path": "feature/map/src/main/java/com/adsamcik/tracker/map/ui/MapScreen.kt",
-      "sha256": "CE268E56081D614C410AC90A7774FB5B5987E91FFCE8AF53345BF22E43D383F1"
-    },
-    {
-      "path": "feature/map/src/main/java/com/adsamcik/tracker/map/ui/TripRouteMapPreview.kt",
-      "sha256": "7289322B1E7DB5E781D02B2F4C687764A40585AC8A6CE678ACA491FB7D73F5E0"
-    },
-    {
-      "path": "feature/map/src/test/java/com/adsamcik/tracker/map/ui/TripRouteMapPreviewStateTest.kt",
-      "sha256": "104169FBFAD3562FED1163C610B22CA6ED0274B58C5D69FEE1E7D81CD7EC57B3"
-    },
-    {
-      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/RoutePreviewSimplifier.kt",
-      "sha256": "598670E779EBECE70AA72FAA3BD15CA0CEC2D2D2F5A2926CC7571AB314CBA790"
-    },
-    {
-      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/TripDetailPresenterViewModel.kt",
-      "sha256": "0B8145AD3A747453F336710C0720426F693EA2EF0AC6FE4028FA4F89CC094829"
-    },
-    {
-      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/RoutePreviewSimplifierTest.kt",
-      "sha256": "767923BDEC35E3834403D2789F60DF9D12A47143F90C3B58230F7B32E6D408E4"
-    },
-    {
-      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/TripDetailPresenterViewModelTest.kt",
-      "sha256": "387F9AD8CFFCD2F6F79660A7A038F41C86A5F9B581CDF273473EF4A6725184EF"
-    },
-    {
-      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/SavedLocationSummary.kt",
-      "sha256": "D1095F33AC7DF12EF58AA99EAE064E3E309EA3B8511F031E67E79683B4A7967D"
-    },
-    {
-      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/TrackingHistoryRepository.kt",
-      "sha256": "9F59EE7CDDDA2E844827A415E96C3F99CDA37C313E61A94FDE2E7F2924D0C9AF"
-    },
-    {
-      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/CellHistoryComposer.kt",
-      "sha256": "83D649FF3CBCABF5BC708EC183D7CED0E1501E083AA1B9FBA92B088060159815"
-    },
-    {
-      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt",
-      "sha256": "D5E8EAAC956BAB35D9535DF3B91D73F01D6EDADECB01E7298935C12F73A86729"
-    },
-    {
-      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultCellHistoryRepository.kt",
-      "sha256": "5E087733EBCD209C29334098171BFB925DA5330671CE6471F4345D35D55CC6CD"
-    },
-    {
-      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt",
-      "sha256": "A4F2215E51409C2788856A0FE48EEAACA62E5BDCE698D7A586AF57BEDDB783A6"
-    },
-    {
-      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWifiHistoryRepository.kt",
-      "sha256": "CC3E693097DB3FC1B2A0D8F00B1FEA214A5C343F2F425D49BB8DF318C4D6D8EF"
-    },
-    {
-      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelector.kt",
-      "sha256": "E8C3CA70677CB363EEB021B8E526D120F8D9096C5F24F4A6453C9CF60DB5B7BD"
-    },
-    {
-      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReader.kt",
-      "sha256": "3030398CE4206E906D4ED09C515B43B8E1ADE064CCA414160CB7B82535212703"
-    },
-    {
-      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReader.kt",
-      "sha256": "5B00D3265E36CCD6642DCB116AA4D4E894B4FD10AC84224902E57BE5420185C7"
-    },
-    {
-      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReader.kt",
-      "sha256": "80A09E7A10121D7BB153DDB98D1357220E7B4B50B460C456AAF191BEB4E6148E"
-    },
-    {
-      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SourceOnlyHistoryIntent.kt",
-      "sha256": "CD870E434AB1D7310137F54DCFEAD7121C4B108DE226399128DEDA33C3477080"
-    },
-    {
-      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/TrackingHistorySourceUnionReader.kt",
-      "sha256": "408E5B396F57AB60F0D35ADFC32EC11E9071F4F6FCD4374B8F3CE451B858330A"
-    },
-    {
-      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryComposer.kt",
-      "sha256": "EED76B0A91942F198BE5C7D6FAD4B92DFC5ECE3BAA7522B3CF4B1AD9087AAA4E"
-    },
-    {
-      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
-      "sha256": "782D2509D8EC066B2E7EA7106181CE3689AF36B3DAB64EF0F0963B1FCF5C2496"
-    },
-    {
-      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReaderRoomTest.kt",
-      "sha256": "BF82A41E9A2B8AEDF23E19465B4BA934F31E317D99E4384CF019CB11F9861218"
-    },
-    {
-      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceAccumulatorTest.kt",
-      "sha256": "899F41FD021F2D80457A6737C1CA2C47C55E98B2518DC6E5E97F0D0E2611E245"
-    },
-    {
-      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SourceOnlyHistoryIntentTest.kt",
-      "sha256": "F5484A4D01DD83DF9F6BCD04AB196363E9DDF3D28304A67BEBAA8BABF80FF44B"
-    },
-    {
-      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/TrackingHistorySourceUnionRepositoryTest.kt",
-      "sha256": "8130C74EBA7436C5EB55D1D2DB0FFB30F07BA495ACCB153C5357741688C7BD68"
-    },
-    {
-      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackerServiceApi.kt",
-      "sha256": "6AF1D039AADC5F0087F96D1A8ACBC3A4289663589B939B1D40E388407642EFB1"
-    },
-    {
-      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/controller/TrackerServiceController.kt",
-      "sha256": "E3CEC8925A5EA85176C4AAA637E4F0E024C77D70AC8EDB8883B6DC6E963F0B9B"
-    },
-    {
-      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/resilience/TrackingLifecycleCommandAuthority.kt",
-      "sha256": "FCB5888000A904265ECB0ABEA36ABF1D15399C9F1E6492E2E29FC94E1D230E4B"
-    },
-    {
-      "path": "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/api/TrackerServiceApiTest.kt",
-      "sha256": "0BE706D00F1BC0B915FC2B198421F6163682B0B37A9327B0FF00E3234C06F2F0"
-    },
-    {
-      "path": "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/api/TrackerStopRoutingTest.kt",
-      "sha256": "4CEC4C44E893670EBA11C5230740FE20DB0D821F95E49AE614F9198ED4BE2457"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/consumer/SessionTrackerComponent.kt",
-      "sha256": "C8F5B99B9B47857841226A85D2768917EE0350ED8AF7E7C43BF908439569423D"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/controller/DefaultTrackerServiceController.kt",
-      "sha256": "15DDC6C57A7DB36FEB9DD7149F8FA0F15F014EB703B51A9BF2306E86ED5DF2BB"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/presentation/SessionPresentationLifecycle.kt",
-      "sha256": "9979039805BA19FA831CD5AA211C23AC7819817DB69FEAD1CDFC33F90E745845"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/resilience/SharedPreferencesTrackingLifecycleCommandAuthority.kt",
-      "sha256": "C80C6FDCC9CE802341F27C69525E4A7A074B07054C27E40C4D8DEDC41A0D118B"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinator.kt",
-      "sha256": "9D8C8B555B1F2E4E091816650F37C84A69D12E81802AADAAC35C2DA7368A005A"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerComponentFactory.kt",
-      "sha256": "9E79AD30A7B15E881E0A4FBDB887998ED847BA65162F981C416CFA3DB3A1F78F"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerService.kt",
-      "sha256": "155F8EF5847462BE826E699267ABC37BCE119B5D64D5D87CD3A01F9A4B195765"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackingOrchestrator.kt",
-      "sha256": "2E2E6C71BB2AC90E646CEF17C947BA72EA576DDB30496BE1172093DB9A58C3A7"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFactProjectionLane.kt",
-      "sha256": "9047094DC3679CB99267AAF2A731126B9BF70CFB08E14EBA7B62FF239E6BAB42"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt",
-      "sha256": "FD6F5AD9985A3C6FE5A1D8590195038870F7FF75883DCE403C79259E14C93E98"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/RetirementDrain.kt",
-      "sha256": "2A4A26BD89F1CECA99AAEE2B2BD65BD265B7F646108FF4EDC4AB2DB2F16242D0"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourceProductDrainRouter.kt",
-      "sha256": "181F27E95FA64536B831B36E7DA5EE4F41112484581D4A5701C3BBAB8CCAA62D"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourceSessionPreparedStart.kt",
-      "sha256": "0692015752694D633C571233DFC1F4C0AAE2553D9B3F6DC71A8293B1638D5222"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/StepsProductDrainRecordingAuthority.kt",
-      "sha256": "3AA96E8B7A4C5C131359EBBCE5AB2E85FF315DD6DB9D539BA4C3F4556C38C3EC"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSession.kt",
-      "sha256": "5B5C7D2EE963D63BACABF5B061C87BFA12ECD0656F7E0CB8ABA8A01CE1224E92"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceIngress.kt",
-      "sha256": "2681F321969573FB7B561C73B175B682E18276A4B5956F58A302DF125045F6D3"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/RoomActivityRecognitionEventIngress.kt",
-      "sha256": "BB72341D3071D24650F14F7614638751AC971B1057BC481A4CDBF5039364B181"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt",
-      "sha256": "6CB2577D3D95814E2C587EE70123AFB9D08931E8116195962F2792FF0F9EAD4B"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
-      "sha256": "976691BABDA7AA985D4354F1A580B390271F6DF1A8EC18183484B5C7EDA9E7E2"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntime.kt",
-      "sha256": "64737830B6782D5F5D2D098135115EC30729FD9ACE841B64D09CE2DB3022CB93"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntime.kt",
-      "sha256": "51406E48EA443D0B783E372E624865812A1004E06FF63B823219D2B3259810C9"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationReceiver.kt",
-      "sha256": "FB2B6EA5F3E5862E605463268C37CD764B526EF837D5C115DAE7CA0AF766D156"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/PressureSourceRuntime.kt",
-      "sha256": "8061616B737BC047F1C284876A9B205165DCE02C626A0488FEF080E85EA7F54A"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedAuthorityValues.kt",
-      "sha256": "E58BDC90AA60C7DE48CA6CEAC5DA6D2416FA920CBCF274C6E6084E4DD96E3EF1"
-    },
-    {
-      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalSessionAuthority.kt",
-      "sha256": "E3F8D41C77A863AFC60323B3ED25EAAF0F288F1F2D0657E080C8BB8F5A78CA59"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/SessionTrackerComponentTest.kt",
-      "sha256": "DE1E4D038B3C1D435B4D3A6F3A7E7F6A71DA594B8EF1CE4EFA339EBF525E20A3"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/controller/TrackerSessionStartFeedbackTest.kt",
-      "sha256": "F61D260B2F68BCAD9EBD012A5D65F28FAEC84417477DC975011F5AB3D4CEE979"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/presentation/SessionPresentationLifecycleTest.kt",
-      "sha256": "D19CFEA421FBCE31EC5DB1342CD09B3087177C9CFB2349AA8EE29FA1B960A524"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/resilience/SharedPreferencesTrackingLifecycleCommandAuthorityTest.kt",
-      "sha256": "8727C6C884C40907B53F401BF96C1611AAAE17B1AB68AEBB7A4BA13E1C81B49F"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/PreparedStartForegroundAcceptanceTest.kt",
-      "sha256": "C10B61084425EDA57BC3F6466128704199413BCF30D253EDEF2705813102E0CE"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/TrackerServiceStopCommandOrderingTest.kt",
-      "sha256": "E91FB29195550BD1F021515D5D34A7CED7397CAA52D19C4F96A8055C88DC2FA9"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/TrackingOrchestratorIntegrationTest.kt",
-      "sha256": "30C641B7EFEC77B02DC60EB5B12D20F9EA5374B879A17E09A7373DDF3B8700C7"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFactProjectionLaneTest.kt",
-      "sha256": "7077BC2ED7B66EB7B0F18D507F3AC1DEC993DAB9E54870964746B3498529CDD3"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapterTest.kt",
-      "sha256": "EFC3BBFDCB499C4FE921344C8B1B494329FA24A463E18F5CC953467D4606BA21"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
-      "sha256": "15E6EC08CCE934D73B4B6CFD6254253395A984F6AB83CAEDAC8D647CF88F5379"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
-      "sha256": "EAC3BB54C052D7E77724A2150E79A96858D163DDE894E490C9FAFF7AB23C925C"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourceProductDrainContractTest.kt",
-      "sha256": "0A6A40606F119717E947FE51151063D1DE69154B42D253D19311796CF11BE14F"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSessionTest.kt",
-      "sha256": "38199664F9A169BB4C3153F4D18CCA33A1D7AF97EA0ED511BE9D817DD8B4BD0D"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/PressureDurableSourceIngressTest.kt",
-      "sha256": "5495FF42D35FF433317925B34690691E647EEAE1314C5E0F9CA9850F69D7F5E5"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/RoomActivityRecognitionEventIngressTest.kt",
-      "sha256": "719ACB9AB00C75BFF3CD6DEB7568D905DCE641A4C15FB9A2A00C4FF3C5D5EACF"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/RoomDurableSourceIngressTest.kt",
-      "sha256": "4EC1D9945B50C771E7BCBBE988A32BF47CBED6A9025DA9275BA222E93213BBAB"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/WifiDurableSourceIngressTest.kt",
-      "sha256": "B05D7F921E23C3B92718A7BEC6CC67CE45DCDF470C0309780C5A4AFF1BCC6775"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt",
-      "sha256": "06909EE354627E5EA4683F0646DC4C73354D4BDDD6CDF1EB6CA17ABEE5D2F47E"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt",
-      "sha256": "F0BD04DF5585BBD07AD5BD1DA468115CAF3AE19217694DF19BD590F40F9566EE"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt",
-      "sha256": "9A6AF9BDEC63686C573BED324E8C3C6EBCF0E2642DE122A8412BD3593D52F2D2"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationDeliveryAdmissionTest.kt",
-      "sha256": "17C8435230991D4B8FAD7F4DE852BD58DC5BAA5D789DB70FB485F2C1A5060D65"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PressureSourceRuntimeTest.kt",
-      "sha256": "A37F046DC89158A1399BE1D67C49B70AF4D1BB6BC0D8DB437827E22BA3A9E71A"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PressureWindowLaneTest.kt",
-      "sha256": "B0BB5F3E1B67D08CF522B86C94E4626FDD01587E0F37F07658C85F3778FDE8EC"
-    },
-    {
-      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
-      "sha256": "0566DFB52547137489A59EF6A8C30A75C73B7E499696AB833AB7FC4262215738"
-    }
-  ],
-  "source_freeze": {
-    "path": "build/verification-20261019/recovery-input-r59.json",
-    "sha256": "060ddd83ef3e5496af5034115427b43af021655b403d5a4365aac52d76cfedf8"
-  },
-  "host": {
-    "scope": "Affected controls and preview; not a full CI rerun",
-    "log": "build/verification-20261019/controls-recovery-r59.log",
-    "log_sha256": "f4060fb7468a59436ab592489123d9790810e5fc5bea023f228c33b49172c29c",
-    "duration": "6m 41s",
-    "distinct_passing_cases": 1938,
-    "fresh_cases": 81,
-    "carried_cases": 1857,
-    "fresh_suites": [
+  "status": "PASSED_WITH_RUNTIME_LIMITATIONS",
+  "updated_at": "2026-10-20T20:42:41.605916+00:00",
+  "scope": "Five shared tracking bottlenecks and two emulator-confirmed End defects; functional acceptance only",
+  "final_source": {
+    "head": "4014c4cf063b012699136487e536fa251668be92",
+    "frozen_at": "2026-10-20T20:32:42.551476+00:00",
+    "status": "FROZEN",
+    "files": [
       {
-        "module": "stats",
-        "name": "com.adsamcik.tracker.stats.data.repository.SavedLocationLiveSummaryReaderRoomTest",
-        "tests": 18,
-        "timestamp": "2026-10-20T08:14:37.436Z",
-        "suite_xml": "r59-test-results/stats/TEST-com.adsamcik.tracker.stats.data.repository.SavedLocationLiveSummaryReaderRoomTest.xml",
-        "sha256": "04f2ce97d90861c5af8a6e2291f1707a2cecc874093422d964d443ea12bb3e44"
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt",
+        "sha256": "03F00AF045232DF7CD6CD0F56D7E52401297244F5508344BAE4D33FB031CA8D5"
       },
       {
-        "module": "stats",
-        "name": "com.adsamcik.tracker.stats.data.repository.SavedLocationSummaryReaderRoomTest",
-        "tests": 31,
-        "timestamp": "2026-10-20T08:15:20.331Z",
-        "suite_xml": "r59-test-results/stats/TEST-com.adsamcik.tracker.stats.data.repository.SavedLocationSummaryReaderRoomTest.xml",
-        "sha256": "15da76e5d50933e9e4145a8f3e30d101d50161b01e6eecb02c3d60a51d92df3e"
+        "path": "core/sqlite-runtime/src/androidTest/java/com/adsamcik/tracker/sqlite/runtime/SQLiteXReadOnlySnapshotInstrumentedTest.kt",
+        "sha256": "DC0A0B9D02F47E5D3B6CE0733DD4E54F6BC7DDDA7B99E76166557030DFC88552"
       },
       {
-        "module": "stats",
-        "name": "com.adsamcik.tracker.stats.data.repository.SavedTripDistanceAccumulatorTest",
-        "tests": 9,
-        "timestamp": "2026-10-20T08:14:37.130Z",
-        "suite_xml": "r59-test-results/stats/TEST-com.adsamcik.tracker.stats.data.repository.SavedTripDistanceAccumulatorTest.xml",
-        "sha256": "bc126ac28e030572c7a859fd8e8f3f1a4af6e2d980acada2620f21ba7593bfe5"
+        "path": "core/sqlite-runtime/src/main/java/com/adsamcik/tracker/sqlite/runtime/SQLiteXSupportSQLiteDatabase.kt",
+        "sha256": "C2CCC1AE078144B18D61424E35166115B8AB0545FB13F37AB4E326DC5D2A3ADA"
       },
       {
-        "module": "statistics",
-        "name": "com.adsamcik.tracker.statistics.presenter.RoutePreviewSimplifierTest",
-        "tests": 4,
-        "timestamp": "2026-10-20T08:14:49.577Z",
-        "suite_xml": "r59-test-results/statistics/TEST-com.adsamcik.tracker.statistics.presenter.RoutePreviewSimplifierTest.xml",
-        "sha256": "2024ad9f78b2747336e7ee947df8d942ca5af2a88103a306281dfef550e35aa4"
+        "path": "core/sqlite-runtime/src/main/java/org/sqlite/database/sqlite/SQLiteReadOnlyTransactionBridge.java",
+        "sha256": "88F6E360C0B016DE3A642D2331AE0BF4322836823DB727FE0E5E48BD7D57A9A5"
       },
       {
-        "module": "statistics",
-        "name": "com.adsamcik.tracker.statistics.presenter.TripDetailPresenterViewModelTest",
-        "tests": 12,
-        "timestamp": "2026-10-20T08:14:51.045Z",
-        "suite_xml": "r59-test-results/statistics/TEST-com.adsamcik.tracker.statistics.presenter.TripDetailPresenterViewModelTest.xml",
-        "sha256": "e30df55f9e8b065b7205ece2a89f82aaaf1373e3be5c057e0f983d9eae195651"
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTripRepository.kt",
+        "sha256": "A210180B444CE2ACB1B68E8F38976AA0245E09764F181D7D0414EFC5DF9B0802"
       },
       {
-        "module": "map",
-        "name": "com.adsamcik.tracker.map.ui.TripRouteMapPreviewStateTest",
-        "tests": 7,
-        "timestamp": "2026-10-20T08:15:17.182Z",
-        "suite_xml": "r59-test-results/map/TEST-com.adsamcik.tracker.map.ui.TripRouteMapPreviewStateTest.xml",
-        "sha256": "ef636bca35f0b7dcbae4a43810311f7daeeee39203dff5e1f0c8cae31bda92a5"
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReader.kt",
+        "sha256": "E09514D914161E47F49B8443ABF9A669E214B4D39BABC301DE042A5F3658B0E0"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationMetricsReader.kt",
+        "sha256": "E23E7240704AFFCBB1189E2224E3E39C9C0AFA512F7F5AE1B51ABBEF353E7006"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationPrefixAuthority.kt",
+        "sha256": "D9AA930D52B26B70C72BEE1F776ACB50FA03CF7E453F8FE9AD2EB2890C73C44D"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationReadSnapshot.kt",
+        "sha256": "1F143372A72854952EAD8DF9E3D220CB742926C0042B2F8BEB852C3626919D9C"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReader.kt",
+        "sha256": "F9FB1C1FC60FFB611706273C8094E8B2F3951C8B3B565AF0A695BB2478C8D331"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripMeasurementCache.kt",
+        "sha256": "5D53E5C5677B70045D62B0976066744D391709D02D6AA2AADBCD90842686E9C9"
+      },
+      {
+        "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/DefaultTripRepositoryTest.kt",
+        "sha256": "6E173D4613419FA9B6C78FF52D57901732C18B7D0AE2006D5287B1A2CE75399F"
+      },
+      {
+        "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+        "sha256": "E006E2721E399EC1A3DF71B14E88EE8558C6D633BA5768AECAA8678ED20E9F30"
+      },
+      {
+        "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationMetricsReaderRoomTest.kt",
+        "sha256": "6740470C5DB6EA204C09D6382AD32F2F39B3A1C1F233F62F04EBF60B83215210"
+      },
+      {
+        "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationReadSnapshotRoomTest.kt",
+        "sha256": "27F150799AF69D60DB2800C41601A5553D4C3E1EE1863F7563AB8E7D2FA2B0B4"
+      },
+      {
+        "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReaderRoomTest.kt",
+        "sha256": "2C34154B1569D293B7E8EF2576EFB6CCD203EC51AF1DECEEF017B1A8971A5C18"
+      },
+      {
+        "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedTripMeasurementCacheRoomTest.kt",
+        "sha256": "8D0205F493419F40C85B0EEF3C7FA77902048F993D17BA9FA2A0953A9FCA0D25"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/persistence/PersistenceProcessor.kt",
+        "sha256": "DAE289D88E9A147CD77A92DBAAEC0F4024BC0B43DB12440725B3FC49F24B15A4"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt",
+        "sha256": "6984497C677CE46A3230CFDAB7FEDEC6FDA0DD2D6FDBB599D9095EBB63650648"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/RetirementDrain.kt",
+        "sha256": "01F4A8B280931206DB81182DCCA87C4491994F10B3B4E6FB8F420F839CC0F40C"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingCoordinator.kt",
+        "sha256": "61B7CEE7D384F28E0ADBF22868B8587E0E962C5A46B0F5B110D766563E5721E3"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceIngress.kt",
+        "sha256": "779072E51A2D38C5B7E1BAE4FA6A666DB8C5D1CEF0578C06E0739DD3BCBCA423"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationCaptureQualification.kt",
+        "sha256": "CEAC3AF2591EC21142242AAFAF4FF27FE6FC9DBD03B47724CCD67883E5A79BDD"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt",
+        "sha256": "BD116DD3D61D49FD79C76B67F2E97409A9154AB21AB72D29944A8F157770E098"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+        "sha256": "4A00A5FE5C852A3F6D8CF4B0456F5258D1A8B9A980B398344CD92C417BD8FFE4"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+        "sha256": "9F6ED54AEE8F057FED38DE65847352B367B18C439059F0E4F278270C22BAFE02"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
+        "sha256": "8DE4222F9213CD8610106C827863BA85E7110A29057FDDE1D66CA77536604CB9"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingCoordinatorTest.kt",
+        "sha256": "DF0AFBCD6B9B2FFC492D2BE6B6F95205DC6AAA01C189A22650D25DF74D921528"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/RoomDurableSourceIngressTest.kt",
+        "sha256": "F64B537D535A919E43E194D151EEF417247062B215B8A3EFCFF1CCE5D61E0C4E"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt",
+        "sha256": "2AECDE1B41C1C9780C6FD3B452E0217726F0B699C23138B422A8E6C4AE1E1358"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationDeliveryAdmissionTest.kt",
+        "sha256": "DBE7C10D022FC75894603948ED6B83E1E31D5A538D4A0DE0778740575DEDD81F"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+        "sha256": "85A83CF01A5D5F5449424A36F20E0EB423FCDBAA68B7EF9FE39E3515325D4681"
       }
-    ],
-    "inventory": "build/verification-20261019/reconciled-controls-tests-r59.json",
-    "inventory_sha256": "e3576d2a4ebaa4d8a0120a3707b8ec2cfa8fc5e43b08c4b5a495bb50d2962d90",
-    "engine_inputs_unchanged_from_r56": true,
-    "full_repository_gates": "October 16 results remain historical; not rerun for this repair"
+    ]
+  },
+  "compiled_apk_source": {
+    "head": "4014c4cf063b012699136487e536fa251668be92",
+    "frozen_at": "2026-10-20T20:25:41.344015+00:00",
+    "status": "FROZEN",
+    "files": [
+      {
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt",
+        "sha256": "03F00AF045232DF7CD6CD0F56D7E52401297244F5508344BAE4D33FB031CA8D5"
+      },
+      {
+        "path": "core/sqlite-runtime/src/androidTest/java/com/adsamcik/tracker/sqlite/runtime/SQLiteXReadOnlySnapshotInstrumentedTest.kt",
+        "sha256": "DC0A0B9D02F47E5D3B6CE0733DD4E54F6BC7DDDA7B99E76166557030DFC88552"
+      },
+      {
+        "path": "core/sqlite-runtime/src/main/java/com/adsamcik/tracker/sqlite/runtime/SQLiteXSupportSQLiteDatabase.kt",
+        "sha256": "C2CCC1AE078144B18D61424E35166115B8AB0545FB13F37AB4E326DC5D2A3ADA"
+      },
+      {
+        "path": "core/sqlite-runtime/src/main/java/org/sqlite/database/sqlite/SQLiteReadOnlyTransactionBridge.java",
+        "sha256": "88F6E360C0B016DE3A642D2331AE0BF4322836823DB727FE0E5E48BD7D57A9A5"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTripRepository.kt",
+        "sha256": "A210180B444CE2ACB1B68E8F38976AA0245E09764F181D7D0414EFC5DF9B0802"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReader.kt",
+        "sha256": "E09514D914161E47F49B8443ABF9A669E214B4D39BABC301DE042A5F3658B0E0"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationMetricsReader.kt",
+        "sha256": "E23E7240704AFFCBB1189E2224E3E39C9C0AFA512F7F5AE1B51ABBEF353E7006"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationPrefixAuthority.kt",
+        "sha256": "D9AA930D52B26B70C72BEE1F776ACB50FA03CF7E453F8FE9AD2EB2890C73C44D"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationReadSnapshot.kt",
+        "sha256": "1F143372A72854952EAD8DF9E3D220CB742926C0042B2F8BEB852C3626919D9C"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReader.kt",
+        "sha256": "F9FB1C1FC60FFB611706273C8094E8B2F3951C8B3B565AF0A695BB2478C8D331"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripMeasurementCache.kt",
+        "sha256": "5D53E5C5677B70045D62B0976066744D391709D02D6AA2AADBCD90842686E9C9"
+      },
+      {
+        "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/DefaultTripRepositoryTest.kt",
+        "sha256": "6E173D4613419FA9B6C78FF52D57901732C18B7D0AE2006D5287B1A2CE75399F"
+      },
+      {
+        "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+        "sha256": "E006E2721E399EC1A3DF71B14E88EE8558C6D633BA5768AECAA8678ED20E9F30"
+      },
+      {
+        "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationMetricsReaderRoomTest.kt",
+        "sha256": "6740470C5DB6EA204C09D6382AD32F2F39B3A1C1F233F62F04EBF60B83215210"
+      },
+      {
+        "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationReadSnapshotRoomTest.kt",
+        "sha256": "27F150799AF69D60DB2800C41601A5553D4C3E1EE1863F7563AB8E7D2FA2B0B4"
+      },
+      {
+        "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReaderRoomTest.kt",
+        "sha256": "2C34154B1569D293B7E8EF2576EFB6CCD203EC51AF1DECEEF017B1A8971A5C18"
+      },
+      {
+        "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedTripMeasurementCacheRoomTest.kt",
+        "sha256": "8D0205F493419F40C85B0EEF3C7FA77902048F993D17BA9FA2A0953A9FCA0D25"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/persistence/PersistenceProcessor.kt",
+        "sha256": "DAE289D88E9A147CD77A92DBAAEC0F4024BC0B43DB12440725B3FC49F24B15A4"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt",
+        "sha256": "6984497C677CE46A3230CFDAB7FEDEC6FDA0DD2D6FDBB599D9095EBB63650648"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/RetirementDrain.kt",
+        "sha256": "C9BA0F7F69D0FE28637C2E4129DAC18BB36CEFB1F665C930E8E54B4A74102191"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingCoordinator.kt",
+        "sha256": "61B7CEE7D384F28E0ADBF22868B8587E0E962C5A46B0F5B110D766563E5721E3"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceIngress.kt",
+        "sha256": "779072E51A2D38C5B7E1BAE4FA6A666DB8C5D1CEF0578C06E0739DD3BCBCA423"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationCaptureQualification.kt",
+        "sha256": "CEAC3AF2591EC21142242AAFAF4FF27FE6FC9DBD03B47724CCD67883E5A79BDD"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt",
+        "sha256": "BD116DD3D61D49FD79C76B67F2E97409A9154AB21AB72D29944A8F157770E098"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+        "sha256": "4A00A5FE5C852A3F6D8CF4B0456F5258D1A8B9A980B398344CD92C417BD8FFE4"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+        "sha256": "9F6ED54AEE8F057FED38DE65847352B367B18C439059F0E4F278270C22BAFE02"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
+        "sha256": "8DE4222F9213CD8610106C827863BA85E7110A29057FDDE1D66CA77536604CB9"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingCoordinatorTest.kt",
+        "sha256": "DF0AFBCD6B9B2FFC492D2BE6B6F95205DC6AAA01C189A22650D25DF74D921528"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/RoomDurableSourceIngressTest.kt",
+        "sha256": "F64B537D535A919E43E194D151EEF417247062B215B8A3EFCFF1CCE5D61E0C4E"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt",
+        "sha256": "2AECDE1B41C1C9780C6FD3B452E0217726F0B699C23138B422A8E6C4AE1E1358"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationDeliveryAdmissionTest.kt",
+        "sha256": "DBE7C10D022FC75894603948ED6B83E1E31D5A538D4A0DE0778740575DEDD81F"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+        "sha256": "85A83CF01A5D5F5449424A36F20E0EB423FCDBAA68B7EF9FE39E3515325D4681"
+      }
+    ]
+  },
+  "whitespace_only_reuse": {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/RetirementDrain.kt",
+    "before_sha256": "C9BA0F7F69D0FE28637C2E4129DAC18BB36CEFB1F665C930E8E54B4A74102191",
+    "after_sha256": "01F4A8B280931206DB81182DCCA87C4491994F10B3B4E6FB8F420F839CC0F40C",
+    "only_change": "Wrap the endpoint conjunction after &&",
+    "non_whitespace_characters_equal": true,
+    "compiled_apk_source": "R73",
+    "final_committed_source": "R74",
+    "verification_reuse": "R73 compilation, Hilt, APK and executable tests remain valid; R74 reruns scoped Detekt."
   },
   "apk": {
     "package": "com.adsamcik.tracker.dev",
-    "local_apk": "advention-dev-controls-r59.apk",
-    "installed_base_apk": "/data/app/~~aOtN01hwMhuz4EkeS7ccjg==/com.adsamcik.tracker.dev-Bn0yOP_NGvv20wqRnq0PtA==/base.apk",
-    "sha256": "DBDBFCC1A5713EE7AC9821B9869F2D258C5F9CD28193754F43305CFFF522010E",
+    "local_apk": "advention-dev-controls-r73.apk",
+    "sha256": "AAB3EBF484595AB4A9FD4495743854102BA45708817F7BD41E12E9CC817DF09E",
     "installed_hash_matches": true,
-    "install_mode": "adb install -r; existing data preserved",
-    "label": "Advention Dev",
-    "version": "10.0.0-dev",
-    "debuggable": true
+    "install_mode": "adb install -r; existing data preserved"
+  },
+  "checks": {
+    "Dev_Hilt_APK": "PASSED in R73",
+    "scoped_Detekt": "PASSED in R74,28seconds",
+    "host_unique": 972,
+    "native_emulator": 2,
+    "total_unique": 974,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "R71_full_classes": 656,
+    "R73_refreshed_cases": 12,
+    "unchanged_R66_R67_carried_cases": 316,
+    "full_CI_rerun": false,
+    "receipts": [
+      "performance-r71.log",
+      "r71-engine-test-results",
+      "performance-r73.log",
+      "r73-engine-test-results",
+      "performance-r74.log",
+      "r74-reconciled-tests.json",
+      "sqlite-native-r65-result.json"
+    ],
+    "git_diff_check": "PASSED; existing CRLF conversion warnings only"
   },
   "runtime": {
-    "target": "Existing Android_17_Google_Play AVD, Android 17/API37.2, x86_64, 16 KB pages",
-    "serial": "emulator-5554",
-    "boot_id": "android-boot-count:9",
+    "target": "Existing Android_17_Google_Play API37.2 x86_64 16KB, emulator-5554, boot9",
     "data_preserved": true,
-    "new_or_cloned_avd": false,
-    "my_location": {
+    "My_location": {
       "status": "PASSED",
       "tracking_off": true,
-      "marker_centering_and_street_zoom_verified": true,
-      "saved_data_check": {
-        "count": 384,
-        "max_id": 384,
-        "points_since": 0,
-        "accepted_observations_since": 0,
-        "location_wal_since": 0
-      },
-      "screenshot": "r59-my-location-settled.png",
-      "evidence": "r59-my-location-proof.json"
+      "new_location_points": 0,
+      "new_receipts": 0,
+      "new_location_wal": 0,
+      "stable_wal_attempt": 1,
+      "visual": "Centered green position marker and active My location button; basemap unavailable due emulator DNS",
+      "debugger_or_pause_used": false,
+      "source_apk": "AAB3EBF484595AB4A9FD4495743854102BA45708817F7BD41E12E9CC817DF09E",
+      "prior_R68_run": "FINALIZED with TERMINAL_FAILURE SERVICE_ABSENT_EXPLICIT_REQUEST after install/normal Off recovery; not counted as an accepted End"
     },
     "fresh_session": {
       "status": "PASSED",
-      "logical_id": "341aba16-a30c-4dd4-9797-8d5ecb655f88",
-      "service_run_id": "62a6aeb2-f2e8-4c19-80ed-2ec16b00f3d6",
-      "segment_id": 31,
-      "cached_point_count": 13,
-      "cached_distance_m": 103.14966583251953,
-      "start_generation": 130,
-      "end_generation": 131,
-      "original_end_cutoff_ms": 1792484459074,
+      "logical_id": "bac45ddc-d2b9-4547-8287-ca502ddffcdc",
+      "service_run_id": "3606c0f6-8cb6-466c-95e2-cab5e3c763a8",
+      "segment_id": 34,
+      "cached_point_count": 14,
+      "cached_distance_m": 103.76566314697266,
+      "start_generation": 144,
+      "end_generation": 145,
+      "original_end_cutoff_ms": 1792528671239,
       "post_end_session_manifests": 0,
-      "canonical_points": 13,
-      "points_measured_after_recording": 9,
-      "distinct_positions_after_recording": 9,
-      "last_saved_position_error_m": 0.42940881123934077,
+      "canonical_points": 14,
+      "points_measured_after_recording": 10,
+      "distinct_positions_after_recording": 10,
+      "last_saved_position_error_m": 0.43082578360461754,
       "runtime_ack": "STOP_ACCEPTED",
       "presentation_ack": "QUIESCED",
-      "coverage": "STOP_PARTIAL",
-      "start_observed_seconds": 44.815,
-      "end_observed_seconds": 60.269,
-      "process": {
-        "pid_before": "15690",
-        "pid_after": "15690",
-        "same_process": true,
-        "debugger_or_profiler_used": false,
-        "pause_used": false
-      },
-      "detail": {
-        "status": "PASSED",
-        "logical_id": "341aba16-a30c-4dd4-9797-8d5ecb655f88",
-        "segment_id": 31,
-        "distance_text": "103.15 m \u00b7 partial",
-        "screenshot": "r59-flow-saved-detail.png",
-        "evidence": "Selected the new Last Session after End131. Displayed Oct 20 10:19:26 to 10:20:59 matches segment31's original stored bounds. The route fits the card with separated start/end markers, a measured green section and its retained initial gap; displayed 1m32s and 103.15m match canonical totals.",
-        "route_visually_verified": true,
-        "positive_distance": true
-      }
+      "coverage": "STOP_PARTIAL"
     },
-    "saved_gap_rendering": {
-      "status": "PASSED",
-      "segment_id": 30,
-      "logical_id": "49daf842-e873-4836-a36b-e626abe88e37",
-      "screenshot": "r59-gap-detail.png",
-      "previous_failed_screenshot": "r56-final-flow-vulkan-detail.png",
-      "evidence": "Same saved session selected from Last Session; displayed Oct 20 09:41:37 to 09:43:03 and 119.23 m Partial match the SQL receipt. Both separated endpoints remain visible and the false connecting line is gone.",
-      "false_connector_removed": true,
-      "saved_data_preserved": true
+    "same_process": {
+      "pid_before": "20840",
+      "pid_after": "20840",
+      "same_process": true,
+      "debugger_or_profiler_used": false,
+      "pause_used": false
     },
-    "normal_ui_turn_off_after_acceptance": true
+    "start_observed_seconds": 49.492,
+    "end_observed_seconds": 102.218,
+    "observation_window_seconds": 300,
+    "latency_acceptance": false,
+    "saved_detail": "r73-saved-detail-confirmed.png and XML: matching timestamps,103.77m partial, fitted route and endpoints",
+    "live_preview_limit": "Before End, UI showed2 saved points and0m while later moving fixes were pending; final saved data includes all tested movement and last injected position",
+    "basemap_limit": "Emulator cannot resolve tiles.openfreemap.org; position marker and saved route render without tiles",
+    "physical_sensor_battery_background_validation": false,
+    "normal_Off_after_acceptance": {
+      "status": "STOPPED",
+      "stop_generation": 147,
+      "handled_stop_generation": 147,
+      "choices_and_history_preserved": true,
+      "receipt": "r73-after-controls-console.log"
+    }
   },
-  "repairs": [
-    "Shared startup, responsive preparation feedback, exact Start/End/Off command ownership and fencing",
-    "Finite provider retirement and real saved-data drain preserve original End cutoffs and partial coverage",
-    "Independent valid Location units and original accepted recording leases survive reconfiguration",
-    "Durable session close uses qualified saved points for exact count, distance and original end time",
-    "Embedded preview uses TextureView and supported camera bounds jump",
-    "Saved preview reuses qualified whole-route sections with bounded sampling; live tail unchanged"
-  ],
   "preserved_failures": [
-    "Earlier R30-R52 runtime and host failures remain separately preserved; old recovery is not fresh End acceptance",
-    "R53 Location integration failure and R54 old drain-contract fixture failures are excluded from passing classes",
-    "R56 initial build used a mistyped local repository; stopped before tests and was rerun correctly",
-    "R56 first final flow lost ADB/emulator during End; its recovery is not acceptance",
-    "Boot8 disabled Vulkan and opening detail crashed; same AVD restarted with Vulkan enabled and data preserved",
-    "R56 Trip30 preview bridged disconnected sections; R59 renders the same data without that line",
-    "R57 stopped at three Detekt findings; R58 stopped at callback-parameter compilation; neither ran tests",
-    "R59 first My location snapshot could not stabilize concurrent WAL writes; retry after normal Home navigation passed"
+    "R65 Start did not complete in its original window",
+    "R66 control run failed its original window",
+    "R68 End failed300s and remains failed; later install/normal-Off recovery finalized it as SERVICE_ABSENT_EXPLICIT_REQUEST, not accepted End",
+    "R67/R68 whole Location classes and R69 diagnostic failed due test fixture issues; excluded from passing inventory; R71 full corrected class passes",
+    "R71 overall quality failed27 findings despite656 passing cases",
+    "R72 freeze only: temporary cleanup script syntax error before any source mutation; no build or test receipt",
+    "R73 overall quality failed one line-length issue despite passed build and12 cases; whitespace-only fix passes R74",
+    "First current My location harness stopped before tapping Map because normal Off menu was still open; dismissed and fresh r73b test passes",
+    "Initial detail capture saved PNG/XML but console child lacked UTF8; fresh direct UTF8 capture succeeds"
   ],
-  "review": {
-    "status": "PASSED",
-    "reviewer": "/root/final_controls_review",
-    "source_and_host": "No blocking findings",
-    "final_result": "Independent source, host, runtime, rendered detail and final documentation review: no blocking findings"
-  },
-  "integration": {
-    "target": "local dev/v10",
-    "delivery_commit": "The enclosing Git commit identifies this delivery",
+  "delivery": {
+    "branch": "dev/v10",
+    "commit": "enclosing local dev/v10 commit",
     "remote_push": false
   },
-  "limits": [
-    "Start/End still take seconds on this emulator; observed times are recorded rather than called instant",
-    "Physical sensors, all-six-hardware coverage, long-running background behavior and battery use remain unverified",
-    "Partial coverage stays visible; no claim of lossless acquisition",
-    "Older damaged test sessions and the pre-existing AchievementWorker vendor-SQLite upsert issue are outside this repair"
-  ]
+  "prior_control_checkpoint": {
+    "status": "EMULATOR_CONTROLS_VERIFIED",
+    "date": "2026-10-20",
+    "generated_at": "2026-10-20T08:24:16.360529+00:00",
+    "branch": "dev/v10",
+    "base_commit": "35b339d94f7ab082d9c784d4ac9781903ebfed5f",
+    "source_files": [
+      {
+        "path": "app/src/main/java/com/adsamcik/tracker/app/Application.kt",
+        "sha256": "7F04E5865BA9072F79E71C77AF50066AA2BB014F94BF93EC890CC04625A2B565"
+      },
+      {
+        "path": "app/src/main/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGate.kt",
+        "sha256": "66C63A45FFD23DD10DB3DACB75A327FFDB7C8DE6D6A7603661F754F73E34E015"
+      },
+      {
+        "path": "app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt",
+        "sha256": "76C85316AC02FA31D998938263CA134F8999AA250CC6134EDF9CB95FD3FBEAD5"
+      },
+      {
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt",
+        "sha256": "1ACA5AA887DF721633F640C0C1681E176271AD2787ACC016F6114D8464F2C611"
+      },
+      {
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourcePolicyDao.kt",
+        "sha256": "B2D844F1AAD51AAFC342355D64FD96A9B7691C4E86576AAD3E110654C9EA0F41"
+      },
+      {
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/TrackingHistoryReadDao.kt",
+        "sha256": "5DF9BC6F366DF035ED1FEDA27DD9AADE67ADD8CDB309240C5AA79B9ADAE7230E"
+      },
+      {
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellCapturedFactEntities.kt",
+        "sha256": "0DB8A605B4263ABA91C106B3D7A6BB1509DB32ED731957E5F6D5DB43641935A6"
+      },
+      {
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellProviderDeliveryIdentityFact.kt",
+        "sha256": "9151DE5229D354C171584615970610E00946C256F950724CA49F2A4C552A6254"
+      },
+      {
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellWalPayloadCodec.kt",
+        "sha256": "8716A411A381664A33A5D1A66D7CF0C33BF6078AFB862179AF1457C89A545198"
+      },
+      {
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/RadioObservationChildIntegrity.kt",
+        "sha256": "3A37C1DBDA60453352C732ED362215EB6431BBDF7EF27303DAFBEA3BFBACAA97"
+      },
+      {
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionLifecycleIntegrity.kt",
+        "sha256": "49A50111E84438C84AB9388321F62EEE13C1FC68D7861A205C7B883D0943E314"
+      },
+      {
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt",
+        "sha256": "55ACE1983819254FD324F4C3A52CFEBF8EF9B2C6041FA66E4B46A00CFEFD58E4"
+      },
+      {
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDeletionFenceEntity.kt",
+        "sha256": "FFB95862A37E6939291978AFFACB6FD27751E976AE37A5C2799BC3D07F800B69"
+      },
+      {
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiCapturedFactEntities.kt",
+        "sha256": "EE1FA573086C3A1B09A6DD1456046D29416C3730F43CA80B26C5A718B31AABAE"
+      },
+      {
+        "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/SourceDeletionFenceDaoTest.kt",
+        "sha256": "1425CBE224D739204F4BE39F5AF5BA6A644972270046E2AFF74573F0D6409667"
+      },
+      {
+        "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDaoTest.kt",
+        "sha256": "9B3367B5B3202282E61B94E0AE5114F19CA07406864B7F1A514D0E92FCBE23DD"
+      },
+      {
+        "path": "core/common/src/main/java/com/adsamcik/tracker/shared/base/startup/TrackingStartupGate.kt",
+        "sha256": "02E318386F3B1D099AED36CEBE92D49CC6B3037D0A379E5D6C5A591F92794A92"
+      },
+      {
+        "path": "data/preferences/src/main/java/com/adsamcik/tracker/shared/preferences/tracking/RoomSourcePolicyRepository.kt",
+        "sha256": "04D903696D6C6B8262AB85123B29088FBF10DA963B44C5825088ACA966D95171"
+      },
+      {
+        "path": "data/preferences/src/test/java/com/adsamcik/tracker/shared/preferences/tracking/RoomSourcePolicyRepositoryTest.kt",
+        "sha256": "E74D6AA5A2ED3E485FEB4E994403CA0A50EFD1EE82BBE3FF80EBBEBEB8F91512"
+      },
+      {
+        "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/data/DashboardHistoryRepository.kt",
+        "sha256": "AFB257D99630AF8BB1EEDAFD8486B4FEF317D1A8905A2D284C6AC752C913C33A"
+      },
+      {
+        "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModel.kt",
+        "sha256": "E84DDEBA29C1BDD4514F127AE127DFC9A9AC00934FFE385C1E8218915C6AC7FA"
+      },
+      {
+        "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt",
+        "sha256": "02A06BB5C619DB18C03D81CAD1BA87B92D0FB88969B7852BD075212A21108CBE"
+      },
+      {
+        "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardScreen.kt",
+        "sha256": "2325A4104EE7AB127B2F04A4115C3BDAFD37B6F242F4A0F5B57A8E1647E7DC42"
+      },
+      {
+        "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/cards/TodayProgressCard.kt",
+        "sha256": "B6BD0EDEB31439EB2381AB4C92C972FCCD4FEFFC88BE24391551AF17CB7F64D4"
+      },
+      {
+        "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/components/EmptyStateCard.kt",
+        "sha256": "E1560B5A9F3D6BBEDF2ABECC7DAB409FC906A5349EE393570A946F8E210D1442"
+      },
+      {
+        "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/components/TrackingActionRing.kt",
+        "sha256": "D54B3BB58E96D94EA2B3F2D43E2F0AE1F313F2282BC556008729D5CB517361DA"
+      },
+      {
+        "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/components/TrackingPill.kt",
+        "sha256": "002FE8718BC4A7F497061128472B9599B795223B6B9FEF2E5F262E26B5A05489"
+      },
+      {
+        "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/state/DashboardUiState.kt",
+        "sha256": "6009C3158ABFAB5B854930B424A18A94F1D039F584EA9EC70774AD099C3E5768"
+      },
+      {
+        "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/data/DashboardHistoryRepositoryTest.kt",
+        "sha256": "52E44613A9256C965FFF2AE7E4700CF81A4DFD8AA0297B9773717B92C4D25C23"
+      },
+      {
+        "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelHistoryTest.kt",
+        "sha256": "C203F4A8EFE9F70002AD358C3B08D839618A3BCD03E30C3948B5AF9626E32E20"
+      },
+      {
+        "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelLiveStepsTest.kt",
+        "sha256": "7E22A03D6EB6118EBC2ED4A5EA8B917E0D42587972DABF37556519417E24B753"
+      },
+      {
+        "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelPermissionTest.kt",
+        "sha256": "FD3E88AE0D820F9BAA94D56761AF95DEEEB14AF52614F6B1EF4C6954E8B1B275"
+      },
+      {
+        "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModelSessionInsightsTest.kt",
+        "sha256": "ED119D4EC66C15FF87B73EB6D22B02434522B5FC3AA1078E932CAC1AC48F62C0"
+      },
+      {
+        "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardManualStartFeedbackEffectTest.kt",
+        "sha256": "2D08192E76B2D046334C7EFDF7C24105F917199F8FC8BC7812D93A274C5B2658"
+      },
+      {
+        "path": "feature/map/api/src/main/java/com/adsamcik/tracker/feature/map/api/preview/RoutePoint.kt",
+        "sha256": "163326BDA8F5222413FA12C75EF1550D7FB0E285130E460AF0C2FD886BD0280B"
+      },
+      {
+        "path": "feature/map/src/main/java/com/adsamcik/tracker/map/ui/MapScreen.kt",
+        "sha256": "CE268E56081D614C410AC90A7774FB5B5987E91FFCE8AF53345BF22E43D383F1"
+      },
+      {
+        "path": "feature/map/src/main/java/com/adsamcik/tracker/map/ui/TripRouteMapPreview.kt",
+        "sha256": "7289322B1E7DB5E781D02B2F4C687764A40585AC8A6CE678ACA491FB7D73F5E0"
+      },
+      {
+        "path": "feature/map/src/test/java/com/adsamcik/tracker/map/ui/TripRouteMapPreviewStateTest.kt",
+        "sha256": "104169FBFAD3562FED1163C610B22CA6ED0274B58C5D69FEE1E7D81CD7EC57B3"
+      },
+      {
+        "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/RoutePreviewSimplifier.kt",
+        "sha256": "598670E779EBECE70AA72FAA3BD15CA0CEC2D2D2F5A2926CC7571AB314CBA790"
+      },
+      {
+        "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/TripDetailPresenterViewModel.kt",
+        "sha256": "0B8145AD3A747453F336710C0720426F693EA2EF0AC6FE4028FA4F89CC094829"
+      },
+      {
+        "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/RoutePreviewSimplifierTest.kt",
+        "sha256": "767923BDEC35E3834403D2789F60DF9D12A47143F90C3B58230F7B32E6D408E4"
+      },
+      {
+        "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/TripDetailPresenterViewModelTest.kt",
+        "sha256": "387F9AD8CFFCD2F6F79660A7A038F41C86A5F9B581CDF273473EF4A6725184EF"
+      },
+      {
+        "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/SavedLocationSummary.kt",
+        "sha256": "D1095F33AC7DF12EF58AA99EAE064E3E309EA3B8511F031E67E79683B4A7967D"
+      },
+      {
+        "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/TrackingHistoryRepository.kt",
+        "sha256": "9F59EE7CDDDA2E844827A415E96C3F99CDA37C313E61A94FDE2E7F2924D0C9AF"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/CellHistoryComposer.kt",
+        "sha256": "83D649FF3CBCABF5BC708EC183D7CED0E1501E083AA1B9FBA92B088060159815"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt",
+        "sha256": "D5E8EAAC956BAB35D9535DF3B91D73F01D6EDADECB01E7298935C12F73A86729"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultCellHistoryRepository.kt",
+        "sha256": "5E087733EBCD209C29334098171BFB925DA5330671CE6471F4345D35D55CC6CD"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt",
+        "sha256": "A4F2215E51409C2788856A0FE48EEAACA62E5BDCE698D7A586AF57BEDDB783A6"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWifiHistoryRepository.kt",
+        "sha256": "CC3E693097DB3FC1B2A0D8F00B1FEA214A5C343F2F425D49BB8DF318C4D6D8EF"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelector.kt",
+        "sha256": "E8C3CA70677CB363EEB021B8E526D120F8D9096C5F24F4A6453C9CF60DB5B7BD"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReader.kt",
+        "sha256": "3030398CE4206E906D4ED09C515B43B8E1ADE064CCA414160CB7B82535212703"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReader.kt",
+        "sha256": "5B00D3265E36CCD6642DCB116AA4D4E894B4FD10AC84224902E57BE5420185C7"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReader.kt",
+        "sha256": "80A09E7A10121D7BB153DDB98D1357220E7B4B50B460C456AAF191BEB4E6148E"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SourceOnlyHistoryIntent.kt",
+        "sha256": "CD870E434AB1D7310137F54DCFEAD7121C4B108DE226399128DEDA33C3477080"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/TrackingHistorySourceUnionReader.kt",
+        "sha256": "408E5B396F57AB60F0D35ADFC32EC11E9071F4F6FCD4374B8F3CE451B858330A"
+      },
+      {
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryComposer.kt",
+        "sha256": "EED76B0A91942F198BE5C7D6FAD4B92DFC5ECE3BAA7522B3CF4B1AD9087AAA4E"
+      },
+      {
+        "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+        "sha256": "782D2509D8EC066B2E7EA7106181CE3689AF36B3DAB64EF0F0963B1FCF5C2496"
+      },
+      {
+        "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReaderRoomTest.kt",
+        "sha256": "BF82A41E9A2B8AEDF23E19465B4BA934F31E317D99E4384CF019CB11F9861218"
+      },
+      {
+        "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceAccumulatorTest.kt",
+        "sha256": "899F41FD021F2D80457A6737C1CA2C47C55E98B2518DC6E5E97F0D0E2611E245"
+      },
+      {
+        "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SourceOnlyHistoryIntentTest.kt",
+        "sha256": "F5484A4D01DD83DF9F6BCD04AB196363E9DDF3D28304A67BEBAA8BABF80FF44B"
+      },
+      {
+        "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/TrackingHistorySourceUnionRepositoryTest.kt",
+        "sha256": "8130C74EBA7436C5EB55D1D2DB0FFB30F07BA495ACCB153C5357741688C7BD68"
+      },
+      {
+        "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackerServiceApi.kt",
+        "sha256": "6AF1D039AADC5F0087F96D1A8ACBC3A4289663589B939B1D40E388407642EFB1"
+      },
+      {
+        "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/controller/TrackerServiceController.kt",
+        "sha256": "E3CEC8925A5EA85176C4AAA637E4F0E024C77D70AC8EDB8883B6DC6E963F0B9B"
+      },
+      {
+        "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/resilience/TrackingLifecycleCommandAuthority.kt",
+        "sha256": "FCB5888000A904265ECB0ABEA36ABF1D15399C9F1E6492E2E29FC94E1D230E4B"
+      },
+      {
+        "path": "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/api/TrackerServiceApiTest.kt",
+        "sha256": "0BE706D00F1BC0B915FC2B198421F6163682B0B37A9327B0FF00E3234C06F2F0"
+      },
+      {
+        "path": "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/api/TrackerStopRoutingTest.kt",
+        "sha256": "4CEC4C44E893670EBA11C5230740FE20DB0D821F95E49AE614F9198ED4BE2457"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/consumer/SessionTrackerComponent.kt",
+        "sha256": "C8F5B99B9B47857841226A85D2768917EE0350ED8AF7E7C43BF908439569423D"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/controller/DefaultTrackerServiceController.kt",
+        "sha256": "15DDC6C57A7DB36FEB9DD7149F8FA0F15F014EB703B51A9BF2306E86ED5DF2BB"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/presentation/SessionPresentationLifecycle.kt",
+        "sha256": "9979039805BA19FA831CD5AA211C23AC7819817DB69FEAD1CDFC33F90E745845"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/resilience/SharedPreferencesTrackingLifecycleCommandAuthority.kt",
+        "sha256": "C80C6FDCC9CE802341F27C69525E4A7A074B07054C27E40C4D8DEDC41A0D118B"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinator.kt",
+        "sha256": "9D8C8B555B1F2E4E091816650F37C84A69D12E81802AADAAC35C2DA7368A005A"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerComponentFactory.kt",
+        "sha256": "9E79AD30A7B15E881E0A4FBDB887998ED847BA65162F981C416CFA3DB3A1F78F"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerService.kt",
+        "sha256": "155F8EF5847462BE826E699267ABC37BCE119B5D64D5D87CD3A01F9A4B195765"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackingOrchestrator.kt",
+        "sha256": "2E2E6C71BB2AC90E646CEF17C947BA72EA576DDB30496BE1172093DB9A58C3A7"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFactProjectionLane.kt",
+        "sha256": "9047094DC3679CB99267AAF2A731126B9BF70CFB08E14EBA7B62FF239E6BAB42"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt",
+        "sha256": "FD6F5AD9985A3C6FE5A1D8590195038870F7FF75883DCE403C79259E14C93E98"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/RetirementDrain.kt",
+        "sha256": "2A4A26BD89F1CECA99AAEE2B2BD65BD265B7F646108FF4EDC4AB2DB2F16242D0"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourceProductDrainRouter.kt",
+        "sha256": "181F27E95FA64536B831B36E7DA5EE4F41112484581D4A5701C3BBAB8CCAA62D"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourceSessionPreparedStart.kt",
+        "sha256": "0692015752694D633C571233DFC1F4C0AAE2553D9B3F6DC71A8293B1638D5222"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/StepsProductDrainRecordingAuthority.kt",
+        "sha256": "3AA96E8B7A4C5C131359EBBCE5AB2E85FF315DD6DB9D539BA4C3F4556C38C3EC"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSession.kt",
+        "sha256": "5B5C7D2EE963D63BACABF5B061C87BFA12ECD0656F7E0CB8ABA8A01CE1224E92"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceIngress.kt",
+        "sha256": "2681F321969573FB7B561C73B175B682E18276A4B5956F58A302DF125045F6D3"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/RoomActivityRecognitionEventIngress.kt",
+        "sha256": "BB72341D3071D24650F14F7614638751AC971B1057BC481A4CDBF5039364B181"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt",
+        "sha256": "6CB2577D3D95814E2C587EE70123AFB9D08931E8116195962F2792FF0F9EAD4B"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+        "sha256": "976691BABDA7AA985D4354F1A580B390271F6DF1A8EC18183484B5C7EDA9E7E2"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntime.kt",
+        "sha256": "64737830B6782D5F5D2D098135115EC30729FD9ACE841B64D09CE2DB3022CB93"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntime.kt",
+        "sha256": "51406E48EA443D0B783E372E624865812A1004E06FF63B823219D2B3259810C9"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationReceiver.kt",
+        "sha256": "FB2B6EA5F3E5862E605463268C37CD764B526EF837D5C115DAE7CA0AF766D156"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/PressureSourceRuntime.kt",
+        "sha256": "8061616B737BC047F1C284876A9B205165DCE02C626A0488FEF080E85EA7F54A"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedAuthorityValues.kt",
+        "sha256": "E58BDC90AA60C7DE48CA6CEAC5DA6D2416FA920CBCF274C6E6084E4DD96E3EF1"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalSessionAuthority.kt",
+        "sha256": "E3F8D41C77A863AFC60323B3ED25EAAF0F288F1F2D0657E080C8BB8F5A78CA59"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/SessionTrackerComponentTest.kt",
+        "sha256": "DE1E4D038B3C1D435B4D3A6F3A7E7F6A71DA594B8EF1CE4EFA339EBF525E20A3"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/controller/TrackerSessionStartFeedbackTest.kt",
+        "sha256": "F61D260B2F68BCAD9EBD012A5D65F28FAEC84417477DC975011F5AB3D4CEE979"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/presentation/SessionPresentationLifecycleTest.kt",
+        "sha256": "D19CFEA421FBCE31EC5DB1342CD09B3087177C9CFB2349AA8EE29FA1B960A524"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/resilience/SharedPreferencesTrackingLifecycleCommandAuthorityTest.kt",
+        "sha256": "8727C6C884C40907B53F401BF96C1611AAAE17B1AB68AEBB7A4BA13E1C81B49F"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/PreparedStartForegroundAcceptanceTest.kt",
+        "sha256": "C10B61084425EDA57BC3F6466128704199413BCF30D253EDEF2705813102E0CE"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/TrackerServiceStopCommandOrderingTest.kt",
+        "sha256": "E91FB29195550BD1F021515D5D34A7CED7397CAA52D19C4F96A8055C88DC2FA9"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/TrackingOrchestratorIntegrationTest.kt",
+        "sha256": "30C641B7EFEC77B02DC60EB5B12D20F9EA5374B879A17E09A7373DDF3B8700C7"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFactProjectionLaneTest.kt",
+        "sha256": "7077BC2ED7B66EB7B0F18D507F3AC1DEC993DAB9E54870964746B3498529CDD3"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapterTest.kt",
+        "sha256": "EFC3BBFDCB499C4FE921344C8B1B494329FA24A463E18F5CC953467D4606BA21"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+        "sha256": "15E6EC08CCE934D73B4B6CFD6254253395A984F6AB83CAEDAC8D647CF88F5379"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
+        "sha256": "EAC3BB54C052D7E77724A2150E79A96858D163DDE894E490C9FAFF7AB23C925C"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourceProductDrainContractTest.kt",
+        "sha256": "0A6A40606F119717E947FE51151063D1DE69154B42D253D19311796CF11BE14F"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSessionTest.kt",
+        "sha256": "38199664F9A169BB4C3153F4D18CCA33A1D7AF97EA0ED511BE9D817DD8B4BD0D"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/PressureDurableSourceIngressTest.kt",
+        "sha256": "5495FF42D35FF433317925B34690691E647EEAE1314C5E0F9CA9850F69D7F5E5"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/RoomActivityRecognitionEventIngressTest.kt",
+        "sha256": "719ACB9AB00C75BFF3CD6DEB7568D905DCE641A4C15FB9A2A00C4FF3C5D5EACF"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/RoomDurableSourceIngressTest.kt",
+        "sha256": "4EC1D9945B50C771E7BCBBE988A32BF47CBED6A9025DA9275BA222E93213BBAB"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/WifiDurableSourceIngressTest.kt",
+        "sha256": "B05D7F921E23C3B92718A7BEC6CC67CE45DCDF470C0309780C5A4AFF1BCC6775"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt",
+        "sha256": "06909EE354627E5EA4683F0646DC4C73354D4BDDD6CDF1EB6CA17ABEE5D2F47E"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt",
+        "sha256": "F0BD04DF5585BBD07AD5BD1DA468115CAF3AE19217694DF19BD590F40F9566EE"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt",
+        "sha256": "9A6AF9BDEC63686C573BED324E8C3C6EBCF0E2642DE122A8412BD3593D52F2D2"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationDeliveryAdmissionTest.kt",
+        "sha256": "17C8435230991D4B8FAD7F4DE852BD58DC5BAA5D789DB70FB485F2C1A5060D65"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PressureSourceRuntimeTest.kt",
+        "sha256": "A37F046DC89158A1399BE1D67C49B70AF4D1BB6BC0D8DB437827E22BA3A9E71A"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PressureWindowLaneTest.kt",
+        "sha256": "B0BB5F3E1B67D08CF522B86C94E4626FDD01587E0F37F07658C85F3778FDE8EC"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+        "sha256": "0566DFB52547137489A59EF6A8C30A75C73B7E499696AB833AB7FC4262215738"
+      }
+    ],
+    "source_freeze": {
+      "path": "build/verification-20261019/recovery-input-r59.json",
+      "sha256": "060ddd83ef3e5496af5034115427b43af021655b403d5a4365aac52d76cfedf8"
+    },
+    "host": {
+      "scope": "Affected controls and preview; not a full CI rerun",
+      "log": "build/verification-20261019/controls-recovery-r59.log",
+      "log_sha256": "f4060fb7468a59436ab592489123d9790810e5fc5bea023f228c33b49172c29c",
+      "duration": "6m 41s",
+      "distinct_passing_cases": 1938,
+      "fresh_cases": 81,
+      "carried_cases": 1857,
+      "fresh_suites": [
+        {
+          "module": "stats",
+          "name": "com.adsamcik.tracker.stats.data.repository.SavedLocationLiveSummaryReaderRoomTest",
+          "tests": 18,
+          "timestamp": "2026-10-20T08:14:37.436Z",
+          "suite_xml": "r59-test-results/stats/TEST-com.adsamcik.tracker.stats.data.repository.SavedLocationLiveSummaryReaderRoomTest.xml",
+          "sha256": "04f2ce97d90861c5af8a6e2291f1707a2cecc874093422d964d443ea12bb3e44"
+        },
+        {
+          "module": "stats",
+          "name": "com.adsamcik.tracker.stats.data.repository.SavedLocationSummaryReaderRoomTest",
+          "tests": 31,
+          "timestamp": "2026-10-20T08:15:20.331Z",
+          "suite_xml": "r59-test-results/stats/TEST-com.adsamcik.tracker.stats.data.repository.SavedLocationSummaryReaderRoomTest.xml",
+          "sha256": "15da76e5d50933e9e4145a8f3e30d101d50161b01e6eecb02c3d60a51d92df3e"
+        },
+        {
+          "module": "stats",
+          "name": "com.adsamcik.tracker.stats.data.repository.SavedTripDistanceAccumulatorTest",
+          "tests": 9,
+          "timestamp": "2026-10-20T08:14:37.130Z",
+          "suite_xml": "r59-test-results/stats/TEST-com.adsamcik.tracker.stats.data.repository.SavedTripDistanceAccumulatorTest.xml",
+          "sha256": "bc126ac28e030572c7a859fd8e8f3f1a4af6e2d980acada2620f21ba7593bfe5"
+        },
+        {
+          "module": "statistics",
+          "name": "com.adsamcik.tracker.statistics.presenter.RoutePreviewSimplifierTest",
+          "tests": 4,
+          "timestamp": "2026-10-20T08:14:49.577Z",
+          "suite_xml": "r59-test-results/statistics/TEST-com.adsamcik.tracker.statistics.presenter.RoutePreviewSimplifierTest.xml",
+          "sha256": "2024ad9f78b2747336e7ee947df8d942ca5af2a88103a306281dfef550e35aa4"
+        },
+        {
+          "module": "statistics",
+          "name": "com.adsamcik.tracker.statistics.presenter.TripDetailPresenterViewModelTest",
+          "tests": 12,
+          "timestamp": "2026-10-20T08:14:51.045Z",
+          "suite_xml": "r59-test-results/statistics/TEST-com.adsamcik.tracker.statistics.presenter.TripDetailPresenterViewModelTest.xml",
+          "sha256": "e30df55f9e8b065b7205ece2a89f82aaaf1373e3be5c057e0f983d9eae195651"
+        },
+        {
+          "module": "map",
+          "name": "com.adsamcik.tracker.map.ui.TripRouteMapPreviewStateTest",
+          "tests": 7,
+          "timestamp": "2026-10-20T08:15:17.182Z",
+          "suite_xml": "r59-test-results/map/TEST-com.adsamcik.tracker.map.ui.TripRouteMapPreviewStateTest.xml",
+          "sha256": "ef636bca35f0b7dcbae4a43810311f7daeeee39203dff5e1f0c8cae31bda92a5"
+        }
+      ],
+      "inventory": "build/verification-20261019/reconciled-controls-tests-r59.json",
+      "inventory_sha256": "e3576d2a4ebaa4d8a0120a3707b8ec2cfa8fc5e43b08c4b5a495bb50d2962d90",
+      "engine_inputs_unchanged_from_r56": true,
+      "full_repository_gates": "October 16 results remain historical; not rerun for this repair"
+    },
+    "apk": {
+      "package": "com.adsamcik.tracker.dev",
+      "local_apk": "advention-dev-controls-r59.apk",
+      "installed_base_apk": "/data/app/~~aOtN01hwMhuz4EkeS7ccjg==/com.adsamcik.tracker.dev-Bn0yOP_NGvv20wqRnq0PtA==/base.apk",
+      "sha256": "DBDBFCC1A5713EE7AC9821B9869F2D258C5F9CD28193754F43305CFFF522010E",
+      "installed_hash_matches": true,
+      "install_mode": "adb install -r; existing data preserved",
+      "label": "Advention Dev",
+      "version": "10.0.0-dev",
+      "debuggable": true
+    },
+    "runtime": {
+      "target": "Existing Android_17_Google_Play AVD, Android 17/API37.2, x86_64, 16 KB pages",
+      "serial": "emulator-5554",
+      "boot_id": "android-boot-count:9",
+      "data_preserved": true,
+      "new_or_cloned_avd": false,
+      "my_location": {
+        "status": "PASSED",
+        "tracking_off": true,
+        "marker_centering_and_street_zoom_verified": true,
+        "saved_data_check": {
+          "count": 384,
+          "max_id": 384,
+          "points_since": 0,
+          "accepted_observations_since": 0,
+          "location_wal_since": 0
+        },
+        "screenshot": "r59-my-location-settled.png",
+        "evidence": "r59-my-location-proof.json"
+      },
+      "fresh_session": {
+        "status": "PASSED",
+        "logical_id": "341aba16-a30c-4dd4-9797-8d5ecb655f88",
+        "service_run_id": "62a6aeb2-f2e8-4c19-80ed-2ec16b00f3d6",
+        "segment_id": 31,
+        "cached_point_count": 13,
+        "cached_distance_m": 103.14966583251953,
+        "start_generation": 130,
+        "end_generation": 131,
+        "original_end_cutoff_ms": 1792484459074,
+        "post_end_session_manifests": 0,
+        "canonical_points": 13,
+        "points_measured_after_recording": 9,
+        "distinct_positions_after_recording": 9,
+        "last_saved_position_error_m": 0.42940881123934077,
+        "runtime_ack": "STOP_ACCEPTED",
+        "presentation_ack": "QUIESCED",
+        "coverage": "STOP_PARTIAL",
+        "start_observed_seconds": 44.815,
+        "end_observed_seconds": 60.269,
+        "process": {
+          "pid_before": "15690",
+          "pid_after": "15690",
+          "same_process": true,
+          "debugger_or_profiler_used": false,
+          "pause_used": false
+        },
+        "detail": {
+          "status": "PASSED",
+          "logical_id": "341aba16-a30c-4dd4-9797-8d5ecb655f88",
+          "segment_id": 31,
+          "distance_text": "103.15 m \u00b7 partial",
+          "screenshot": "r59-flow-saved-detail.png",
+          "evidence": "Selected the new Last Session after End131. Displayed Oct 20 10:19:26 to 10:20:59 matches segment31's original stored bounds. The route fits the card with separated start/end markers, a measured green section and its retained initial gap; displayed 1m32s and 103.15m match canonical totals.",
+          "route_visually_verified": true,
+          "positive_distance": true
+        }
+      },
+      "saved_gap_rendering": {
+        "status": "PASSED",
+        "segment_id": 30,
+        "logical_id": "49daf842-e873-4836-a36b-e626abe88e37",
+        "screenshot": "r59-gap-detail.png",
+        "previous_failed_screenshot": "r56-final-flow-vulkan-detail.png",
+        "evidence": "Same saved session selected from Last Session; displayed Oct 20 09:41:37 to 09:43:03 and 119.23 m Partial match the SQL receipt. Both separated endpoints remain visible and the false connecting line is gone.",
+        "false_connector_removed": true,
+        "saved_data_preserved": true
+      },
+      "normal_ui_turn_off_after_acceptance": true
+    },
+    "repairs": [
+      "Shared startup, responsive preparation feedback, exact Start/End/Off command ownership and fencing",
+      "Finite provider retirement and real saved-data drain preserve original End cutoffs and partial coverage",
+      "Independent valid Location units and original accepted recording leases survive reconfiguration",
+      "Durable session close uses qualified saved points for exact count, distance and original end time",
+      "Embedded preview uses TextureView and supported camera bounds jump",
+      "Saved preview reuses qualified whole-route sections with bounded sampling; live tail unchanged"
+    ],
+    "preserved_failures": [
+      "Earlier R30-R52 runtime and host failures remain separately preserved; old recovery is not fresh End acceptance",
+      "R53 Location integration failure and R54 old drain-contract fixture failures are excluded from passing classes",
+      "R56 initial build used a mistyped local repository; stopped before tests and was rerun correctly",
+      "R56 first final flow lost ADB/emulator during End; its recovery is not acceptance",
+      "Boot8 disabled Vulkan and opening detail crashed; same AVD restarted with Vulkan enabled and data preserved",
+      "R56 Trip30 preview bridged disconnected sections; R59 renders the same data without that line",
+      "R57 stopped at three Detekt findings; R58 stopped at callback-parameter compilation; neither ran tests",
+      "R59 first My location snapshot could not stabilize concurrent WAL writes; retry after normal Home navigation passed"
+    ],
+    "review": {
+      "status": "PASSED",
+      "reviewer": "/root/final_controls_review",
+      "source_and_host": "No blocking findings",
+      "final_result": "Independent source, host, runtime, rendered detail and final documentation review: no blocking findings"
+    },
+    "integration": {
+      "target": "local dev/v10",
+      "delivery_commit": "The enclosing Git commit identifies this delivery",
+      "remote_push": false
+    },
+    "limits": [
+      "Start/End still take seconds on this emulator; observed times are recorded rather than called instant",
+      "Physical sensors, all-six-hardware coverage, long-running background behavior and battery use remain unverified",
+      "Partial coverage stays visible; no claim of lossless acquisition",
+      "Older damaged test sessions and the pre-existing AchievementWorker vendor-SQLite upsert issue are outside this repair"
+    ]
+  },
+  "independent_review": {
+    "status": "NO_BLOCKING_FINDINGS",
+    "reviewer": "Fresh review-only performance reviewer, plus separate End-source reviewer",
+    "scope": "Original five bottlenecks, final End repairs, exact source/input differences, actual checks, APK identity and final emulator evidence",
+    "runtime_limit": "Functional pass only; responsiveness remains unproven with49.5s/102.2s controls and live-preview lag",
+    "completed_at": "2026-10-20T20:44:46.085657+00:00"
+  }
 }

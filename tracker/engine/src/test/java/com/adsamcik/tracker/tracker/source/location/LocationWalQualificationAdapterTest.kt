@@ -94,6 +94,16 @@ import com.adsamcik.tracker.tracker.source.coordinator.buildSourceProductDrainPl
 import com.adsamcik.tracker.tracker.presentation.SessionPresentationLifecycle
 import com.adsamcik.tracker.tracker.presentation.SessionPresentationBinding
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
+import com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodec
+import com.adsamcik.tracker.tracker.source.ingress.EncodedSourcePayload
+import com.adsamcik.tracker.tracker.source.model.SourcePayload
+import com.adsamcik.tracker.tracker.service.TrackingOrchestrator
+import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
+import kotlinx.coroutines.flow.flowOf
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
@@ -160,6 +170,7 @@ class LocationWalQualificationAdapterTest {
 	private lateinit var subject: LocationWalQualificationAdapter
 	private val walPayloadQueries = CopyOnWriteArrayList<String>()
 	private val walCoveringQueries = CopyOnWriteArrayList<String>()
+	private val manifestQueries = CopyOnWriteArrayList<String>()
 
 	@Before
 	fun setUp() {
@@ -167,6 +178,10 @@ class LocationWalQualificationAdapterTest {
 		database = AppDatabase.inMemoryBuilder(context)
 			.allowMainThreadQueries()
 			.setQueryCallback({ sql, _ ->
+				if (sql.startsWith("SELECT * FROM session_manifest_version WHERE service_run_id") ||
+					sql.startsWith("SELECT source.* FROM session_manifest_source AS source")) {
+					manifestQueries.add(sql)
+				}
 				if (sql.startsWith("SELECT ") && "FROM source_event_wal" in sql) {
 					if (sql.startsWith("SELECT * FROM source_event_wal")) {
 						walPayloadQueries.add(sql)
@@ -187,6 +202,204 @@ class LocationWalQualificationAdapterTest {
 	@After
 	fun tearDown() {
 		database.close()
+	}
+
+	@Test
+	fun `shared capture and all-day handoff authenticates physical delivery once before real writer`() = roomTest {
+		installValidFixture(payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION, mixedPurposes = true,
+			deliveryPayloads = listOf(locationPayload(false)))
+		val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value)).admissionOrdinal
+		installProtectedHandoffAuthority(ordinal)
+		val counting = CountingLocationCodec(payloadCodec)
+		subject = LocationWalQualificationAdapter(database, counting, planCodec, BootClockDomainProvider { BOOT_ID })
+		val dispatchers = TestDispatchersProvider(Dispatchers.Unconfined)
+		val realWriter = ProtectedLocationOfflineCanonicalWriter(context, database, dispatchers,
+			newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)))
+		var preliminaryDecodes = -1
+		var preliminaryEncodes = -1
+		var preliminaryBlobQueries = -1
+		val writer = ProtectedLocationCanonicalWriter { command, metadata ->
+			preliminaryDecodes = counting.decodes
+			preliminaryEncodes = counting.encodes
+			preliminaryBlobQueries = walPayloadQueries.size
+			realWriter.write(command, metadata)
+		}
+		walPayloadQueries.clear()
+		assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+			ProtectedLocationCanonicalHandoff(database, subject, writer).drainThrough(LOGICAL_ID, RUN_ID, ordinal))
+		assertEquals(1, preliminaryDecodes)
+		assertEquals(2, preliminaryBlobQueries)
+		assertEquals(1, counting.decodes, "Only immutable parsing may survive between snapshots")
+		assertTrue(counting.encodes > preliminaryEncodes, "The writer must still revalidate fresh WAL bytes")
+		assertEquals(1L, database.locationSampleDao().countAll())
+		assertNotNull(database.locationPurposeDao().receiptByEvent(EVENT_ID.value))
+	}
+
+	@Test
+	fun `writer transaction batch decodes sibling delivery and verifies manifest timeline once`() = roomTest {
+		installValidFixture(payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = List(3) { locationPayload(false).copy(latitudeDegrees = 50.087 + it * 0.0001) })
+		val rows = database.sourceEventWalDao().eventsAfter(0L, 10)
+		installProtectedHandoffAuthority(rows.last().admissionOrdinal, activationOrdinal = rows.first().admissionOrdinal)
+		val counting = CountingLocationCodec(payloadCodec)
+		subject = LocationWalQualificationAdapter(database, counting, planCodec, BootClockDomainProvider { BOOT_ID })
+		val guard = ProtectedLocationCanonicalPersistenceGuard(database, subject, Unit)
+		walPayloadQueries.clear()
+		manifestQueries.clear()
+		val qualified = database.withTransaction {
+			guard.qualifyBatchInCurrentWriterTransaction(rows.map { it.eventId })
+		}
+		assertEquals(rows.map { it.eventId }.toSet(), qualified.keys)
+		assertEquals(3, counting.decodes)
+		assertEquals(4, walPayloadQueries.size, "Three selected rows and one bounded sibling delivery")
+		assertEquals(2, manifestQueries.size, "One timeline header read and one source-membership read")
+		val dispatchers = TestDispatchersProvider(Dispatchers.Unconfined)
+		val writer = ProtectedLocationOfflineCanonicalWriter(context, database, dispatchers,
+			newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)))
+		for (candidate in qualified.values) {
+			assertEquals(ProtectedLocationCanonicalWriteResult.Committed,
+				writer.write(candidate.command, candidate.acquisitionMetadata))
+		}
+		assertTrue(rows.all { database.locationObservationDao().getBySourceEventId(it.eventId) != null })
+		assertEquals(3, counting.decodes)
+		assertTrue(counting.encodes > 3, "Independent writer transactions still revalidate every payload")
+	}
+
+	@Test
+	fun `combined purpose read keeps valid all-day data when capture manifest is missing`() = roomTest {
+		installValidFixture(payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION, mixedPurposes = true,
+			deliveryPayloads = listOf(locationPayload(false)))
+		database.openHelper.writableDatabase.execSQL("DELETE FROM session_manifest_version")
+		val counting = CountingLocationCodec(payloadCodec)
+		subject = LocationWalQualificationAdapter(database, counting, planCodec, BootClockDomainProvider { BOOT_ID })
+		val purposes = subject.qualifyForPurposes(EVENT_ID)
+		assertIs<LocationAmbientQualification.Qualified>(purposes.ambient)
+		assertIs<LocationWalAdapterResult.Rejected>(purposes.capture)
+		assertEquals(1, counting.decodes)
+	}
+
+	@Test
+	fun `normal handoff through registered live writer decodes a sibling delivery only once per qualifier`() = roomTest {
+		installValidFixture(payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = List(3) { locationPayload(false) }, observedTimes = listOf(500L, 600L, 700L),
+			receivedNanos = 750L)
+		val rows = database.sourceEventWalDao().eventsAfter(0L, 10)
+		installProtectedHandoffAuthority(rows.last().admissionOrdinal, activationOrdinal = rows.first().admissionOrdinal)
+		database.openHelper.writableDatabase.execSQL("UPDATE source_session_completeness SET last_source_sequence = 2")
+		val restoreFixture = activateLocationFixture()
+		val counting = CountingLocationCodec(payloadCodec)
+		subject = LocationWalQualificationAdapter(database, counting, planCodec, BootClockDomainProvider { BOOT_ID })
+		val guardProvider = Provider {
+			val writerQualifier = LocationWalQualificationAdapter(database, counting, planCodec, BootClockDomainProvider { BOOT_ID })
+			ProtectedLocationCanonicalPersistenceGuard(database, writerQualifier, Unit)
+		}
+		val dispatchers = TestDispatchersProvider(Dispatchers.Unconfined)
+		val persistence = newLocationPersistence(dispatchers, RoomPersistenceTransactor(database), guardProvider)
+		val orchestrator = liveLocationOrchestrator(dispatchers, persistence)
+		val registry = ProtectedLocationLiveWriterRegistry()
+		try {
+			assertNotNull(orchestrator.initialize(context, true, PolicyTier.PRECISION, this,
+				LOGICAL_ID, RUN_ID, SEGMENT_ID, TrackingRolloutState.eventCanonical(SourceKind.entries.toSet())))
+			registry.attach(orchestrator)
+			val writer = ProtectedLocationCanonicalWriterChain(registry::current,
+				ProtectedLocationCanonicalWriter { _, _ -> error("The registered live writer must own this delivery") })
+			val writes = mutableListOf<ProtectedLocationCanonicalWriteResult>()
+			val observedWriter = ProtectedLocationCanonicalWriter { command, metadata ->
+				writer.write(command, metadata).also(writes::add)
+			}
+			val drained = ProtectedLocationCanonicalHandoff(database, subject, observedWriter)
+				.drainThrough(LOGICAL_ID, RUN_ID, rows.last().admissionOrdinal)
+			val result = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(drained,
+				"Real live handoff: $drained; writer results: $writes")
+			assertEquals(3, result.observationsCommitted)
+			assertEquals(rows.last().admissionOrdinal, result.lastCommittedOrdinal)
+			assertTrue(rows.all { database.locationObservationDao().getBySourceEventId(it.eventId) != null })
+			assertTrue(rows.all { database.locationObservationDecisionDao().getBySourceEventId(it.eventId) != null })
+			assertEquals(0, database.pendingSignalDao().countAll())
+			assertEquals(6, counting.decodes, "Three units parsed once by each independent qualifier")
+			assertTrue(counting.encodes > counting.decodes, "Every per-point writer snapshot revalidates payload bytes")
+		} finally {
+			registry.detach(orchestrator)
+			restoreFixture()
+			orchestrator.shutdown(context)
+		}
+	}
+
+	@Test
+	fun `pure decode memo cannot hide changed sibling payload bytes`() = roomTest {
+		installValidFixture(payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false), locationPayload(false)))
+		val counting = CountingLocationCodec(payloadCodec)
+		subject = LocationWalQualificationAdapter(database, counting, planCodec, BootClockDomainProvider { BOOT_ID })
+		assertIs<LocationWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		val sibling = requireNotNull(database.sourceEventWalDao().getByEventId("location-event-sibling-1"))
+		val encoded = payloadCodec.encode(locationPayload(false).copy(latitudeDegrees = 50.1), sibling.payloadVersion)
+		val changed = sibling.copy(payload = encoded.bytes, payloadChecksum = encoded.checksum)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET payload = ?, payload_checksum = ?, integrity_identity = ? WHERE event_id = ?",
+			arrayOf(encoded.bytes, encoded.checksum, changed.calculatedIntegrityIdentity(), changed.eventId))
+		assertEquals(LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.DELIVERY_IDENTITY_MISMATCH),
+			subject.qualify(EVENT_ID))
+		assertEquals(3, counting.decodes, "Changed bytes must be parsed again rather than trusting the old hint")
+	}
+
+	@Test
+	fun `large valid deliveries remain usable when pure decode memo reaches its byte budget`() = roomTest {
+		installValidFixture(payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = List(17) { locationPayload(false).copy(provider = "p".repeat(65_500)) })
+		val counting = CountingLocationCodec(payloadCodec)
+		subject = LocationWalQualificationAdapter(database, counting, planCodec, BootClockDomainProvider { BOOT_ID })
+		assertIs<LocationWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		assertIs<LocationWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		assertTrue(counting.decodes > 17, "Uncached units use the original decoder without restricting valid data")
+	}
+
+	private suspend fun activateLocationFixture(): suspend () -> Unit {
+		val dao = database.sourceSessionDao()
+		val session = requireNotNull(dao.session(LOGICAL_ID))
+		val run = requireNotNull(dao.serviceRun(RUN_ID))
+		val stop = requireNotNull(dao.firstStopIntent(LOGICAL_ID))
+		dao.updateSession(session.copy(state = "ACTIVE", lifecycleRevision = 1L, cutoffAtMs = null,
+			cutoffElapsedNanos = null, completedAtMs = null, finalAdmissionOrdinal = null, failureCode = null,
+			currentServiceRunId = RUN_ID, currentIntentRevision = 1L))
+		dao.updateServiceRun(run.copy(state = "ACTIVE", completedAtMs = null, completionReason = null,
+			runtimeAcknowledgement = "START_ACCEPTED", runtimeFailureCode = null, runRevision = 1L,
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING, presentationAcknowledgedAtMs = null))
+		database.openHelper.writableDatabase.execSQL("DELETE FROM session_lifecycle_intent_version WHERE intent_revision = 2")
+		return {
+			dao.insertLifecycleIntent(stop)
+			dao.updateSession(session.copy(finalAdmissionOrdinal = database.sourceEventWalDao().maximumAdmissionOrdinal()))
+			dao.updateServiceRun(run.copy(presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+				presentationAcknowledgedAtMs = null))
+		}
+	}
+
+	private fun liveLocationOrchestrator(dispatchers: DispatchersProvider, persistence: PersistenceProcessor): TrackingOrchestrator {
+		val settings = mockk<TrackingParamsRepository>()
+		every { settings.data } returns flowOf(TrackingParamsState())
+		val events = mockk<DomainEventRepository>(relaxed = true)
+		return TrackingOrchestrator(DefaultTrackerServiceController().apply { updateServiceRunning(true) },
+			setOf(persistence), events, dispatchers, database, settings, dailySummaryFallbackEnqueuer = {},
+			enableNotifications = false, trackingHistoryRepository = realSavedLocationHistory())
+	}
+
+	private class CountingLocationCodec(private val delegate: SourcePayloadCodec) : SourcePayloadCodec by delegate {
+		var decodes = 0
+			private set
+		var encodes = 0
+			private set
+		override fun encode(payload: SourcePayload, payloadVersion: Int): EncodedSourcePayload {
+			if (payload is LocationFixPayload) {
+				encodes++
+			}
+			return delegate.encode(payload, payloadVersion)
+		}
+		override fun decode(source: SourceKind, payloadVersion: Int, bytes: ByteArray): SourcePayload {
+			if (source == SourceKind.LOCATION) {
+				decodes++
+			}
+			return delegate.decode(source, payloadVersion, bytes)
+		}
 	}
 
 	@Test
@@ -3399,6 +3612,7 @@ class LocationWalQualificationAdapterTest {
 	private fun newLocationPersistence(
 		dispatchers: DispatchersProvider,
 		transactor: TrackingPersistenceTransactor,
+		guardProvider: Provider<ProtectedLocationCanonicalPersistenceGuard>? = null,
 	): PersistenceProcessor {
 		val guard = ProtectedLocationCanonicalPersistenceGuard(database, subject, Unit)
 		return PersistenceProcessor(
@@ -3423,7 +3637,7 @@ class LocationWalQualificationAdapterTest {
 			sourceDestinationOwnerDao = database.sourceDestinationOwnerDao(),
 			rawLocationObservationRepair = RawLocationObservationRepair(database, payloadCodec),
 			appDatabaseProvider = Provider { database },
-			protectedLocationCanonicalPersistenceGuardProvider = Provider { guard },
+			protectedLocationCanonicalPersistenceGuardProvider = guardProvider ?: Provider { guard },
 		)
 	}
 

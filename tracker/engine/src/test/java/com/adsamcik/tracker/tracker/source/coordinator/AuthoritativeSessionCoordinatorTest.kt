@@ -260,6 +260,7 @@ class AuthoritativeSessionCoordinatorTest {
 		coEvery { ingress.admit(any()) } returns
 			AdmissionResult.Admitted(SourceEventId("test-admitted-event"), 1L)
 		coEvery { ingress.committedBatch(any(), any()) } returns emptyList()
+		coEvery { ingress.committedBatchThrough(any(), any(), any()) } returns emptyList()
 		val dispatcher = ProjectionDispatcher(database, emptySet())
 		activityAutomationDrainSignal = RecordingActivityAutomationDrainSignal()
 		val lockManager = mockk<LockManager>(relaxed = true)
@@ -1135,20 +1136,22 @@ class AuthoritativeSessionCoordinatorTest {
 	fun `Steps-only End completes with pending Wi-Fi and Cell background consumers`() = runRoomTest {
 		runtime.hasNoAdmittedStepEvents = true
 		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
-		installPendingBackgroundRadioCoordinator()
+		val ingress = installPendingBackgroundRadioCoordinator()
 
 		withContext(Dispatchers.IO) { subject.stop(SessionStopRequest("test-owner", "manual", 2_000L, 2_000_000L,
 			"boot-1", perSourceTimeoutMs = 5_000L)) }.shouldBeInstanceOf<SessionStopResult.Stopped>()
 		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
 			SessionLifecycleState.FINALIZED.name
 		assertBackgroundConsumersRemainPending()
+		coVerify { ingress.committedBatchThrough(0L, 1L, any()) }
+		coVerify(exactly = 0) { ingress.committedBatch(any(), any()) }
 	}
 
 	@Test
 	fun `Steps-only suspension completes with pending Wi-Fi and Cell background consumers`() = runRoomTest {
 		runtime.hasNoAdmittedStepEvents = true
 		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
-		installPendingBackgroundRadioCoordinator()
+		val ingress = installPendingBackgroundRadioCoordinator()
 
 		withContext(Dispatchers.IO) { subject.suspendForRestart(SessionSuspendRequest("test-owner", "ANDROID_RESTART", 2_000L,
 			2_000_000L, "boot-1", perSourceTimeoutMs = 5_000L)) }
@@ -1157,10 +1160,12 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceSessionDao().serviceRun(started.serviceRunId)?.state shouldBe
 			SessionLifecycleState.FINALIZED.name
 		assertBackgroundConsumersRemainPending()
+		coVerify { ingress.committedBatchThrough(0L, 1L, any()) }
+		coVerify(exactly = 0) { ingress.committedBatch(any(), any()) }
 	}
 
 	/** Real global coordinator plus retaining pending source consumers; no Android provider is used. */
-	private suspend fun installPendingBackgroundRadioCoordinator() {
+	private suspend fun installPendingBackgroundRadioCoordinator(): DurableSourceIngress {
 		fun background(source: SourceKind) = object : Projection {
 			override val id = if (source == SourceKind.WIFI) {
 				AmbientWifiFactRevisionEntity.WRITER_ID
@@ -1218,13 +1223,15 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 		val ingress = mockk<DurableSourceIngress>()
 		coEvery { ingress.committedBatch(any(), any()) } coAnswers {
-			if (firstArg<Long>() < 1L) {
-				listOf(admitted)
-			} else {
-				emptyList()
+			listOf(admitted).filter { it.admissionOrdinal > firstArg<Long>() }
+		}
+		coEvery { ingress.committedBatchThrough(any(), any(), any()) } coAnswers {
+			listOf(admitted).filter {
+				it.admissionOrdinal > firstArg<Long>() && it.admissionOrdinal <= secondArg<Long>()
 			}
 		}
 		replaceEventCoordinator(TrackingCoordinator(database, ingress, dispatcher))
+		return ingress
 	}
 
 	private suspend fun assertBackgroundConsumersRemainPending() {
@@ -2786,7 +2793,7 @@ class AuthoritativeSessionCoordinatorTest {
 		val binding = installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
 		val drainOrder = mutableListOf<String>()
 		val controlCoordinator = mockk<TrackingCoordinator>()
-		coEvery { controlCoordinator.drainAvailable(any(), any()) } coAnswers {
+		coEvery { controlCoordinator.drainAvailable(any(), any(), any()) } coAnswers {
 			drainOrder += "control"
 			CoordinatorDrainResult.Complete(database.sourceEventWalDao().maximumAdmissionOrdinal() ?: 0L, 0)
 		}
@@ -3980,7 +3987,7 @@ class AuthoritativeSessionCoordinatorTest {
 			val admissionOrdinal = insertTerminalStepsWal(started)
 			runtime.lastAdmissionOrdinal = admissionOrdinal
 			val eventCoordinator = completedEventCoordinator(admissionOrdinal)
-			coEvery { eventCoordinator.drainAvailable(any(), any()) } coAnswers {
+			coEvery { eventCoordinator.drainAvailable(any(), any(), any()) } coAnswers {
 				// Corrupt after terminal completeness so this isolates the raw high-water read.
 				database.openHelper.writableDatabase.execSQL(
 					"UPDATE source_event_wal SET logical_tracking_id = 'foreign-logical-owner' " +
@@ -6172,7 +6179,7 @@ class AuthoritativeSessionCoordinatorTest {
 			).shouldBeInstanceOf<SessionReconfigureResult.Applied>().status shouldBe DesiredPlanStatus.DEGRADED
 			runtime.cleanupOnlyReady = true
 			val crashingCoordinator = mockk<TrackingCoordinator>()
-			coEvery { crashingCoordinator.drainAvailable(any(), any()) } throws
+			coEvery { crashingCoordinator.drainAvailable(any(), any(), any()) } throws
 				CancellationException("simulated crash after mixed-generation retirement")
 			replaceEventCoordinator(crashingCoordinator)
 
@@ -6366,7 +6373,7 @@ class AuthoritativeSessionCoordinatorTest {
 			) shouldBe 1
 			runtime.cleanupOnlyReady = true
 			val crashingCoordinator = mockk<TrackingCoordinator>()
-			coEvery { crashingCoordinator.drainAvailable(any(), any()) } throws
+			coEvery { crashingCoordinator.drainAvailable(any(), any(), any()) } throws
 				CancellationException("simulated crash after all cleanup-only generations")
 			replaceEventCoordinator(crashingCoordinator)
 
@@ -6692,7 +6699,7 @@ class AuthoritativeSessionCoordinatorTest {
 	@Suppress("LongMethod")
 	fun `stopping retry resolves requested provider row past newer cleanup claim to start owner`() = runRoomTest {
 		val eventCoordinator = mockk<TrackingCoordinator>()
-		coEvery { eventCoordinator.drainAvailable(any(), any()) } returnsMany listOf(
+		coEvery { eventCoordinator.drainAvailable(any(), any(), any()) } returnsMany listOf(
 			CoordinatorDrainResult.LeaseUnavailable,
 			CoordinatorDrainResult.Complete(0L, 0),
 		)
@@ -7750,6 +7757,56 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `slow Location start does not hold up the independent Steps provider`() = runRoomTest {
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		locationRuntime.onStart = { entered.complete(Unit); release.await() }
+		val starting = async { startCaptureRun(startRequest().copy(plan = stepsAndLocationPlan(1L, true))) }
+		entered.await()
+		runtime.startCompleted.await()
+
+		runtime.isActive shouldBe true
+		locationRuntime.isActive shouldBe false
+		starting.isCompleted shouldBe false
+		release.complete(Unit)
+		val started = starting.await().shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.startCount shouldBe 1
+		locationRuntime.isActive shouldBe true
+		database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
+			.map { it.status }.distinct() shouldBe listOf(LifecycleActionStatus.START_ACCEPTED.name)
+	}
+
+	@Test
+	fun `End during overlapping provider starts retires both late completions without publishing Active`() = runRoomTest {
+		val locationEntered = CompletableDeferred<Unit>()
+		val releaseLocation = CompletableDeferred<Unit>()
+		locationRuntime.onStart = { locationEntered.complete(Unit); releaseLocation.await() }
+		runtime.blockStart = true
+		val starting = async { startCaptureRun(startRequest().copy(plan = stepsAndLocationPlan(1L, true))) }
+		locationEntered.await()
+		runtime.startEntered.await()
+		latestStopGeneration = 2L
+		runtime.releaseStart.complete(Unit)
+		releaseLocation.complete(Unit)
+
+		val failed = starting.await().shouldBeInstanceOf<SessionStartResult.Failed>()
+		failed.code shouldBe SOURCE_RUNTIME_CLEANUP_PENDING
+		runtime.isActive shouldBe false
+		locationRuntime.isActive shouldBe false
+		runtime.closed shouldBe true
+		locationRuntime.quiesceCount shouldBe 1
+		database.sourceSessionDao().session(failed.logicalTrackingId)?.state shouldBe SessionLifecycleState.STARTING.name
+
+		subject.stop(SessionStopRequest("end-overlapping-starts", "EXPLICIT_REQUEST", 2_000L,
+			2_000_000L, "boot-1", gracePeriodMs = 5_000L)).shouldBeInstanceOf<SessionStopResult.Stopped>()
+		val ended = requireNotNull(database.sourceSessionDao().session(failed.logicalTrackingId))
+		ended.state shouldBe SessionLifecycleState.FINALIZED.name
+		ended.cutoffAtMs shouldBe 2_000L
+		runtime.isActive shouldBe false
+		locationRuntime.isActive shouldBe false
+	}
+
+	@Test
 	fun `End during prepared provider start retains cleanup without publishing an active run`() = runRoomTest {
 		runtime.blockStart = true
 		val starting = async { startCaptureRun(startRequest()) }
@@ -8384,6 +8441,7 @@ class AuthoritativeSessionCoordinatorTest {
 			startCaptureRun(startRequest().copy(plan = stepsAndLocationPlan(1L, true)))
 		}
 		runtime.startEntered.await()
+		locationRuntime.startCompleted.await()
 		locationRuntime.isActive shouldBe true
 		advanceHeldProviderLease(scheduler)
 		runtime.releaseStart.complete(Unit)
@@ -8416,6 +8474,89 @@ class AuthoritativeSessionCoordinatorTest {
 			SessionLifecycleState.ACTIVE.name
 		runtime.isActive shouldBe true
 		locationRuntime.isActive shouldBe true
+	}
+
+	@Test
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	fun `slow End product drain retains its exact lease and original cutoff`() = runRoomTest {
+		val entered = CompletableDeferred<SourceProductDrainRequest>()
+		val release = CompletableDeferred<Unit>()
+		val started = prepareSlowShutdownProductDrain(entered, release)
+		val scheduler = TestCoroutineScheduler()
+		val stopping = async(UnconfinedTestDispatcher(scheduler) + scheduler) {
+			subject.stop(SessionStopRequest("slow-end", "USER_STOP", 2_000L, 2_000_000L, currentBootId))
+		}
+		val drain = entered.await()
+		database.sourceSessionDao().session(started.logicalTrackingId)?.cutoffElapsedNanos shouldBe 2_000_000L
+		advanceHeldProviderLease(scheduler)
+		release.complete(Unit)
+
+		val stopped = stopping.await().shouldBeInstanceOf<SessionStopResult.Stopped>()
+		stopped.finalAdmissionOrdinal shouldBe drain.sourceHighWaterAdmissionOrdinal
+		sourceProductDrainRouter.requests.single() shouldBe drain
+		drain.cutoffWallTimeMs shouldBe 2_000L
+		drain.cutoffElapsedRealtimeNanos shouldBe 2_000_000L
+		val session = requireNotNull(database.sourceSessionDao().session(started.logicalTrackingId))
+		session.state shouldBe SessionLifecycleState.FINALIZED.name
+		session.cutoffAtMs shouldBe 2_000L
+		session.cutoffElapsedNanos shouldBe 2_000_000L
+		session.completedAtMs shouldBe 2_000L
+		database.sourceSessionDao().serviceRun(started.serviceRunId)?.runtimeAcknowledgement shouldBe
+			LifecycleActionStatus.STOP_ACCEPTED.name
+	}
+
+	@Test
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	fun `slow suspension product drain retains its exact lease and original cutoff`() = runRoomTest {
+		val entered = CompletableDeferred<SourceProductDrainRequest>()
+		val release = CompletableDeferred<Unit>()
+		val started = prepareSlowShutdownProductDrain(entered, release)
+		val scheduler = TestCoroutineScheduler()
+		val suspending = async(UnconfinedTestDispatcher(scheduler) + scheduler) {
+			subject.suspendForRestart(SessionSuspendRequest("slow-suspend", "SERVICE_DESTROYED",
+				2_000L, 2_000_000L, currentBootId))
+		}
+		val drain = entered.await()
+		database.sourceSessionDao().session(started.logicalTrackingId)?.cutoffElapsedNanos shouldBe 2_000_000L
+		advanceHeldProviderLease(scheduler)
+		release.complete(Unit)
+
+		val suspended = suspending.await().shouldBeInstanceOf<SessionSuspendResult.Suspended>()
+		suspended.finalAdmissionOrdinal shouldBe drain.sourceHighWaterAdmissionOrdinal
+		sourceProductDrainRouter.requests.single() shouldBe drain
+		drain.cutoffWallTimeMs shouldBe 2_000L
+		drain.cutoffElapsedRealtimeNanos shouldBe 2_000_000L
+		val session = requireNotNull(database.sourceSessionDao().session(started.logicalTrackingId))
+		session.state shouldBe SessionLifecycleState.ACTIVE.name
+		session.currentServiceRunId shouldBe null
+		session.cutoffAtMs shouldBe null
+		session.cutoffElapsedNanos shouldBe null
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(started.serviceRunId))
+		run.state shouldBe SessionLifecycleState.FINALIZED.name
+		run.runtimeAcknowledgement shouldBe LifecycleActionStatus.STOP_ACCEPTED.name
+		run.completedAtMs shouldBe 2_000L
+		val intent = database.sourceSessionDao().lifecycleIntents(started.logicalTrackingId).last()
+		intent.requestedWallTimeMs shouldBe 2_000L
+		intent.requestedElapsedRealtimeNanos shouldBe 2_000_000L
+	}
+
+	private suspend fun prepareSlowShutdownProductDrain(
+		entered: CompletableDeferred<SourceProductDrainRequest>,
+		release: CompletableDeferred<Unit>,
+	): SessionStartResult.Started {
+		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+		val started = startCaptureRun(startRequest().copy(rolloutRevision = rolloutSnapshot.revision))
+			.shouldBeInstanceOf<SessionStartResult.Started>()
+		val admissionOrdinal = insertTerminalStepsWal(started)
+		runtime.lastAdmissionOrdinal = admissionOrdinal
+		replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
+		sourceProductDrainRouter.onDrain = { request ->
+			entered.complete(request)
+			release.await()
+			SourceProductDrainResult.Complete(request, request.sourceHighWaterAdmissionOrdinal,
+				factsInserted = 0, eventsValidated = 1)
+		}
+		return started
 	}
 
 	@Test
@@ -11442,7 +11583,7 @@ class AuthoritativeSessionCoordinatorTest {
 		runtime.cleanupOnlyReady = true
 		runtime.closeFailure = null
 		val crashingCoordinator = mockk<TrackingCoordinator>()
-		coEvery { crashingCoordinator.drainAvailable(any(), any()) } throws
+		coEvery { crashingCoordinator.drainAvailable(any(), any(), any()) } throws
 			CancellationException("simulated crash after cleanup-only completion")
 		replaceEventCoordinator(crashingCoordinator)
 
@@ -11613,7 +11754,7 @@ class AuthoritativeSessionCoordinatorTest {
 
 	private fun completedEventCoordinator(admissionOrdinal: Long): TrackingCoordinator =
 		mockk<TrackingCoordinator>().also { coordinator ->
-			coEvery { coordinator.drainAvailable(any(), any()) } returns
+			coEvery { coordinator.drainAvailable(any(), any(), any()) } returns
 				CoordinatorDrainResult.Complete(admissionOrdinal, 1)
 		}
 
@@ -12928,6 +13069,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 	val shutdownClaims = mutableListOf<SourceRuntimeClaim>()
 	var shutdownAttemptCount = 0
 	val startEntered = CompletableDeferred<Unit>()
+	val startCompleted = CompletableDeferred<Unit>()
 	val releaseStart = CompletableDeferred<Unit>()
 	private var active = false
 	val isActive: Boolean get() = active
@@ -12965,6 +13107,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 		active = plan.enabled && !failedStartWithoutProviderEvidence
 		startFailureAfterSideEffect?.let { throw it }
 		val applied = applied(plan)
+		startCompleted.complete(Unit)
 		return if (startReturnsRetryableFailure || failedStartWithoutProviderEvidence) {
 			SourceStartResult.Failed(applied.copy(status = SourceApplyStatus.FAILED), retryable = true)
 		} else {
@@ -13185,6 +13328,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 
 private class FakeLocationRuntime : ClaimedSourceRuntime<LocationPlan> {
 	var onStart: suspend () -> Unit = {}
+	val startCompleted = CompletableDeferred<Unit>()
 	override val source = SourceKind.LOCATION
 	override val capabilities = MutableStateFlow(SourceCapabilities(true, true, true, 100, 1))
 	var failRetirement = false
@@ -13208,6 +13352,7 @@ private class FakeLocationRuntime : ClaimedSourceRuntime<LocationPlan> {
 	override suspend fun start(plan: LocationPlan, sink: SourceEventSink): SourceStartResult {
 		onStart()
 		active = plan.enabled
+		startCompleted.complete(Unit)
 		return SourceStartResult.Started(applied(plan))
 	}
 

@@ -109,15 +109,14 @@ private suspend fun hasSettledRetirementEndpoint(
 	request: SourceProductDrainRequest,
 	receipt: SourceRunRetirementEntity,
 ): Boolean = if (
-	request.source in setOf(SourceKind.LOCATION, SourceKind.PRESSURE) &&
-		receipt.hasRemovedInterruptedRetirement(database, request)
+	receipt.hasRemovedInterruptedRetirement(database, request)
 ) {
-	hasExactInterruptedSensorEndpoint(database, request, receipt)
+	hasExactInterruptedEndpoint(database, request, receipt)
 } else {
 	receipt.hasSettledRetiredGap() && hasExactRetirementEndpoint(database, request, receipt)
 }
 
-private suspend fun hasExactInterruptedSensorEndpoint(
+private suspend fun hasExactInterruptedEndpoint(
 	database: AppDatabase,
 	request: SourceProductDrainRequest,
 	receipt: SourceRunRetirementEntity,
@@ -137,8 +136,15 @@ private suspend fun hasExactInterruptedSensorEndpoint(
 	val endpoint = receipt.lastAdmissionOrdinal?.takeIf { it == highWater.lastAdmissionOrdinal }
 		?.let { database.sourceEventWalDao().getByAdmissionOrdinal(it) } ?: return false
 	return endpoint.sourceSequence == receipt.lastSourceSequence &&
-		(request.source == SourceKind.LOCATION ||
-			PressureWalCarrierAuthenticator.authenticate(endpoint) is PressureWalCarrierAuthentication.Authenticated)
+		endpoint.hasAuthenticatedInterruptedCarrier(request.source)
+}
+
+private fun SourceEventWalEntity.hasAuthenticatedInterruptedCarrier(source: SourceKind): Boolean = when (source) {
+	SourceKind.LOCATION -> true
+	SourceKind.PRESSURE ->
+		PressureWalCarrierAuthenticator.authenticate(this) is PressureWalCarrierAuthentication.Authenticated
+	SourceKind.WIFI, SourceKind.CELL -> hasAuthenticatedRadioCarrier(source)
+	else -> false
 }
 
 private fun SourceRunRetirementEntity.matchesRetirementCutoff(request: SourceProductDrainRequest): Boolean =

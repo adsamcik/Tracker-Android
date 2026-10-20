@@ -441,6 +441,10 @@ class PassiveLocationDeliveryAdmissionTest {
 		override suspend fun committedBatch(afterOrdinal: Long, limit: Int): List<AdmittedSourceEvent<out SourcePayload>> =
 			error("No projection drain is claimed by this admission fixture")
 
+		override suspend fun committedBatchThrough(afterOrdinal: Long, throughOrdinal: Long,
+			limit: Int): List<AdmittedSourceEvent<out SourcePayload>> =
+			error("No projection drain is claimed by this admission fixture")
+
 		override suspend fun committedSourceBatch(source: SourceKind, afterOrdinal: Long,
 			throughOrdinal: Long, limit: Int): List<AdmittedSourceEvent<out SourcePayload>> =
 			error("No projection drain is claimed by this admission fixture")

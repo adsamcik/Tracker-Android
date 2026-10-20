@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.stats.data.repository
 
-import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
 import com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptEntity
@@ -19,7 +18,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.withContext
 
 /**
  * Read-only native saved measurements. One Room snapshot, keyset pages and constant-memory distance.
@@ -181,29 +179,28 @@ internal class SavedLocationSummaryReader @Inject constructor(
             })
 
     private suspend fun read(block: suspend (TrackingHistoryReadSnapshot) ->
-        SavedLocationSummaryRead): SavedLocationSummaryRead =
-        withContext(io) {
-            currentCoroutineContext().ensureActive()
-            if (!database.isOpen) {
-                return@withContext SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
-            }
-            try {
-                database.withTransaction {
-                    val state = database.sourceEvidenceStateDao().get()
-                    if (state == null || !state.hasValidRangeShape()) {
-                        SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
-                    } else {
-                        block(TrackingHistoryReadSnapshot(state.collectedDataEpoch, state.revision))
-                    }
-                }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: android.database.sqlite.SQLiteException) {
-                SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
-            } catch (_: RuntimeException) {
-                SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
-            }
+        SavedLocationSummaryRead): SavedLocationSummaryRead {
+        currentCoroutineContext().ensureActive()
+        if (!database.isOpen) {
+            return SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
         }
+        return try {
+            database.withSavedLocationReadSnapshot(io) {
+                val state = database.sourceEvidenceStateDao().get()
+                if (state == null || !state.hasValidRangeShape()) {
+                    SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+                } else {
+                    block(TrackingHistoryReadSnapshot(state.collectedDataEpoch, state.revision))
+                }
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: android.database.sqlite.SQLiteException) {
+            SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
+        } catch (_: RuntimeException) {
+            SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+        }
+    }
 
     private suspend fun readPages(selection: SavedLocationSummarySelection, snapshot: TrackingHistoryReadSnapshot,
         scopeMatches: (RadioContextScope) -> Boolean,

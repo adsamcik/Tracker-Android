@@ -2,33 +2,19 @@ package com.adsamcik.tracker.tracker.source.location
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.data.LocationAcquisitionMode
-import com.adsamcik.tracker.shared.base.data.LocationPermissionPrecision
 import com.adsamcik.tracker.shared.base.data.LocationRequestPriority
-import com.adsamcik.tracker.shared.model.AltitudeContractVersions
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventWalDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventWalPayloadPreflightRow
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventWalDeliveryPayloadPreflightRow
-import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
-import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalFailure
-import com.adsamcik.tracker.shared.base.database.authenticateHistoricalProviderRegistration
-import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
-import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
-import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
-import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
-import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
-import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.LocationRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
-import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
-import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.preferences.tracking.SourceQos
 import com.adsamcik.tracker.tracker.source.coordinator.EncodedSourcePlan
@@ -41,21 +27,15 @@ import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOA
 import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
-import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
-import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
-import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
-import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
-import com.adsamcik.tracker.tracker.source.model.sourceQualityFromStableFlags
 import com.adsamcik.tracker.stats.api.PolicyTier
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
-import java.time.ZoneId
 import javax.inject.Inject
 
 internal enum class LocationWalAdapterRejection {
@@ -147,7 +127,25 @@ internal fun interface ProtectedLocationWalQualifier {
 	suspend fun qualify(eventId: SourceEventId): LocationWalAdapterResult
 	suspend fun qualifyAmbient(eventId: SourceEventId): LocationAmbientQualification =
 		LocationAmbientQualification.NotEligible
+	suspend fun qualifyBatch(eventIds: List<SourceEventId>): Map<SourceEventId, LocationWalAdapterResult> =
+		eventIds.distinct().associateWith { qualify(it) }
+	suspend fun qualifyForPurposes(eventId: SourceEventId): LocationPurposeQualification {
+		val ambient = qualifyAmbient(eventId)
+		return LocationPurposeQualification(ambient, if (ambient.isAmbientOnly()) {
+			null
+		} else {
+			qualify(eventId)
+		})
+	}
 }
+
+internal data class LocationPurposeQualification(
+	val ambient: LocationAmbientQualification,
+	val capture: LocationWalAdapterResult?,
+)
+
+private fun LocationAmbientQualification.isAmbientOnly(): Boolean = this is LocationAmbientQualification.Qualified &&
+	command.wal.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
 
 /**
  * Dormant read-only bridge from the canonical source WAL to the pure Location qualifier.
@@ -164,478 +162,94 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 	private val planCodec: SourcePlanCodec,
 	private val bootClockDomainProvider: BootClockDomainProvider,
 ) : ProtectedLocationWalQualifier {
-	/** The same physical WAL authentication, with independent sessionless product authority. */
-	override suspend fun qualifyAmbient(eventId: SourceEventId): LocationAmbientQualification = database.withTransaction {
-		val physical = try {
-			authenticatePhysical(eventId)
-		} catch (failure: LocationPhysicalEvidenceRejected) {
-			return@withTransaction LocationAmbientQualification.Rejected(failure.reason)
-		}
-		database.qualifyAmbientLocationPhysical(
-			physical, ::actualRegistrationPlan, ::hasExactQualifiedMembership, bootClockDomainProvider,
-		)
+	private val physicalReader = LocationWalPhysicalEvidenceReader()
+
+	/** Each operation owns its snapshot; no authority survives a writer transaction. */
+	override suspend fun qualify(eventId: SourceEventId): LocationWalAdapterResult = database.withTransaction {
+		QualificationSnapshot().qualify(eventId)
 	}
 
-	@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount")
-	override suspend fun qualify(eventId: SourceEventId): LocationWalAdapterResult =
+	override suspend fun qualifyBatch(eventIds: List<SourceEventId>): Map<SourceEventId, LocationWalAdapterResult> =
 		database.withTransaction {
-		val physical = try { authenticatePhysical(eventId) } catch (failure: LocationPhysicalEvidenceRejected) {
-			return@withTransaction rejected(failure.reason)
-		}
-		val wal = physical.wal
-		val deliveryIdentity = physical.deliveryIdentity
-		val deliveryUnitIndex = requireNotNull(wal.deliveryUnitIndex)
-		val deliveryUnitCount = requireNotNull(wal.deliveryUnitCount)
-		val configRevision = wal.configRevision
-		val policyRevision = wal.sourcePolicyRevision
-		val consentEpoch = wal.captureConsentEpoch
-		val manifestRevision = wal.sessionManifestRevision
-		val leaseGeneration = wal.lifecycleLeaseGeneration
-		val logicalTrackingId = wal.logicalTrackingId
-		val serviceRunId = wal.serviceRunId
-		val physicalFingerprint = wal.physicalConfigurationFingerprint
-		val authorizationRevision = wal.authorizationRevision
-		val authorizationFingerprint = wal.authorizationFingerprint
-		// The saved capture binding is one required-field and attribution tuple.
-		@Suppress("ComplexCondition")
-		if (configRevision == null || policyRevision == null || consentEpoch == null ||
-			manifestRevision == null || leaseGeneration == null || logicalTrackingId == null ||
-			serviceRunId == null || physicalFingerprint == null || authorizationRevision == null ||
-			authorizationFingerprint == null || wal.planAttribution != PlanAttribution.CAPTURED_REGISTRATION.ordinal ||
-			wal.observedIntervalStartNanos != wal.observedElapsedNanos || wal.activityAutomationEpoch != null
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
+			val snapshot = QualificationSnapshot()
+			eventIds.distinct().associateWith { snapshot.qualify(it) }
 		}
 
-		val planDao = database.sourcePlanStateDao()
-		val planHeader = planDao.revision(configRevision)
-		val desiredPlan = planDao.desiredPlan(configRevision, LOCATION_SOURCE)
-		if (planHeader == null || desiredPlan == null) {
-			return@withTransaction rejected(LocationWalAdapterRejection.MISSING_HISTORICAL_PLAN)
-		}
-		val requestedPlan = runCatching { planCodec.decode(desiredPlan.payload) as? LocationPlan }.getOrNull()
-		val plan = try { actualRegistrationPlan(wal) } catch (failure: LocationPhysicalEvidenceRejected) {
-			return@withTransaction rejected(failure.reason)
-		} ?: requestedPlan
-		val reencodedPlan = requestedPlan?.let { runCatching { planCodec.encode(it) }.getOrNull() }
-		if (desiredPlan.payloadVersion != (if (requestedPlan?.adaptiveProfileVersion != null) {
-			SourcePlanCodec.ADAPTIVE_LOCATION_FORMAT_VERSION
-		} else {
-			PLAN_PAYLOAD_VERSION
-		}) || desiredPlan.revision != configRevision || desiredPlan.sourceKind != LOCATION_SOURCE) {
-			return@withTransaction rejected(LocationWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
-		}
-		if (plan == null || !plan.enabled || !plan.hasSupportedHistoricalShape() || plan.revision != configRevision) {
-			return@withTransaction rejected(LocationWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
-		}
-		if (reencodedPlan == null || !reencodedPlan.bytes.contentEquals(desiredPlan.payload) ||
-			reencodedPlan.checksum != desiredPlan.payloadChecksum) {
-			return@withTransaction rejected(LocationWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
-		}
-		if (plan.physicalConfigurationFingerprint() != physicalFingerprint ||
-			planHeader.sourcePolicyRevision != policyRevision
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
-		}
+	override suspend fun qualifyAmbient(eventId: SourceEventId): LocationAmbientQualification = database.withTransaction {
+		QualificationSnapshot().qualifyAmbient(eventId)
+	}
 
-		val brokerDao = database.sourceBrokerDao()
-		val registrationAuthentication = database.authenticateHistoricalProviderRegistration(
-			sourceKind = LOCATION_SOURCE,
-			registrationGeneration = wal.registrationGeneration,
-			sourceInstanceId = wal.sourceInstanceId,
-			clockDomainId = wal.clockDomainId,
-			physicalConfigurationFingerprint = physicalFingerprint,
-			collectedDataEpoch = wal.capturedCollectedDataEpoch,
-			expectedProviderResidency =
-				ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
-			observedStartNanos = wal.observedElapsedNanos,
-			observedEndNanos = wal.observedElapsedNanos,
-			observedWallTimeMs = wal.wallTimeMs
-				?: return@withTransaction rejected(LocationWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING),
-			currentClockDomainId = bootClockDomainProvider.current(),
-		)
-		val authenticatedRegistration = when (registrationAuthentication) {
-			is ProviderRegistrationIntervalAuthentication.Authenticated ->
-				registrationAuthentication
-			is ProviderRegistrationIntervalAuthentication.Rejected ->
-				return@withTransaction rejected(
-					if (registrationAuthentication.reason ==
-						ProviderRegistrationIntervalFailure.MISSING_REGISTRATION
-					) {
-						LocationWalAdapterRejection.MISSING_REGISTRATION
-					} else {
-						LocationWalAdapterRejection.REGISTRATION_MISMATCH
-					},
-				)
-		}
-		val registration = authenticatedRegistration.registration
-		val registrationStart = authenticatedRegistration.interval.startInclusiveNanos
-		val registrationEnd = authenticatedRegistration.interval.endExclusiveNanos
-
-		val authorization = brokerDao.authorizationRevision(
-			LOCATION_SOURCE,
-			wal.registrationGeneration,
-			authorizationRevision,
-		).toAuthorizationSnapshotOrNull()
-			?: return@withTransaction rejected(LocationWalAdapterRejection.MISSING_AUTHORIZATION)
-		val captureMember = authorization.authorizedMembers.singleOrNull { member ->
-			member.purpose == SourceBrokerPurpose.SESSION_CAPTURE && member.persistenceEligible &&
-				member.logicalTrackingId == logicalTrackingId && member.serviceRunId == serviceRunId &&
-				member.manifestRevision == manifestRevision &&
-				member.lifecycleLeaseGeneration == leaseGeneration &&
-				member.sourcePolicyRevision == policyRevision && member.consentEpoch == consentEpoch
-		}
-		val authorizationDemandIds = authorization.authorizedMembers.mapNotNull { it.demandId }
-		val authorizationDemands = brokerDao.demandsByIds(authorizationDemandIds)
-		val recomputedAuthorization = runCatching {
-			SourceBrokerAuthorization.rows(
-				sourceKind = LOCATION_SOURCE,
-				registrationGeneration = wal.registrationGeneration,
-				authorizationRevision = authorizationRevision,
-				demands = authorizationDemands,
-				effectiveBootId = authorization.effectiveBootId,
-				effectiveElapsedRealtimeNanos = authorization.effectiveElapsedRealtimeNanos,
-				effectiveWallTimeMs = authorization.members.first().effectiveWallTimeMs,
-			)
-		}.getOrNull()
-		if (authorizationDemandIds.distinct().size != authorization.authorizedMembers.size ||
-			authorizationDemands.size != authorization.authorizedMembers.size ||
-			recomputedAuthorization?.sortedBy { it.memberId } !=
-				authorization.members.sortedBy { it.memberId }
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH)
-		}
-		if (captureMember == null || authorization.isDenied ||
-			authorization.authorizationFingerprint != authorizationFingerprint ||
-			!hasExactQualifiedMembership(wal, authorization, authorizationDemands)
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH)
-		}
-		if (authorization.purposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
-			authorization.effectiveBootId != wal.clockDomainId
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH)
-		}
-		val policyDao = database.sourcePolicyDao()
-		val policyAuthority = policyDao.authority()
-		val policy = policyDao.policyAtRevision(policyRevision, LOCATION_SOURCE)
-		if (policy == null) {
-			return@withTransaction rejected(LocationWalAdapterRejection.MISSING_POLICY)
-		}
-		val maximumAccuracy = policy.locationRequiredAccuracyMeters
-		if (policyAuthority?.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE ||
-			policyAuthority.currentPolicyRevision < policyRevision || !policy.enabled
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.POLICY_MISMATCH)
-		}
-		if (!policy.capturePersistenceEligible || policy.captureConsentEpoch != consentEpoch ||
-			maximumAccuracy == null || maximumAccuracy <= 0
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.POLICY_MISMATCH)
-		}
-		if (policy.qosCode !in 1..3 || (policy.effectiveBootId == wal.clockDomainId &&
-			policy.effectiveElapsedRealtimeNanos > wal.observedElapsedNanos)
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.POLICY_MISMATCH)
-		}
-		val consent = policyDao.consentEpoch(
-			LOCATION_SOURCE,
-			SourceBrokerPurpose.SESSION_CAPTURE,
-			consentEpoch,
-		) ?: return@withTransaction rejected(LocationWalAdapterRejection.MISSING_CONSENT)
-		val latestConsent = policyDao.latestConsentEpoch(LOCATION_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE)
-		if (!consent.eligible || !consent.persistenceEligible || consent.policyRevision > policyRevision
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.CONSENT_MISMATCH)
-		}
-		if ((consent.effectiveBootId == wal.clockDomainId &&
-				consent.effectiveElapsedRealtimeNanos > wal.observedElapsedNanos) ||
-			latestConsent == null || latestConsent.epoch < consentEpoch
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.CONSENT_MISMATCH)
-		}
-
-		val sessionDao = database.sourceSessionDao()
-		val run = sessionDao.serviceRun(serviceRunId)
-		val session = sessionDao.session(logicalTrackingId)
-		if (run == null || session == null) {
-			return@withTransaction rejected(LocationWalAdapterRejection.MISSING_SESSION)
-		}
-		if (run.logicalTrackingId != logicalTrackingId || run.bootId != wal.clockDomainId ||
-			!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, leaseGeneration)
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.SESSION_MISMATCH)
-		}
-		if (session.logicalTrackingId != logicalTrackingId || session.lifecycleLeaseGeneration < leaseGeneration ||
-			run.startedElapsedNanos > wal.observedElapsedNanos
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.SESSION_MISMATCH)
-		}
-		val manifests = sessionDao.manifestsForServiceRun(serviceRunId, MAX_MANIFESTS_PER_RUN + 1)
-		if (manifests.size > MAX_MANIFESTS_PER_RUN ||
-			!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.MANIFEST_TIMELINE_UNVERIFIABLE)
-		}
-		val allManifestSources = database.trackingHistoryReadDao().manifestSources(
-			listOf(serviceRunId),
-			MAX_MANIFEST_SOURCE_ROWS + 1,
-		)
-		if (allManifestSources.size > MAX_MANIFEST_SOURCE_ROWS || manifests.any { manifest ->
-			!SessionManifestIntegrity.verify(
-				manifest,
-				allManifestSources.filter { source ->
-					source.logicalTrackingId == manifest.logicalTrackingId &&
-						source.manifestRevision == manifest.manifestRevision
-				},
-			)
-		}) {
-			return@withTransaction rejected(LocationWalAdapterRejection.MANIFEST_TIMELINE_UNVERIFIABLE)
-		}
-		val manifestIndex = manifests.indexOfFirst { it.manifestRevision == manifestRevision }
-		if (manifestIndex < 0) {
-			return@withTransaction rejected(LocationWalAdapterRejection.MANIFEST_MISMATCH)
-		}
-		val manifest = manifests[manifestIndex]
-		val manifestSources = allManifestSources.filter { source ->
-			source.logicalTrackingId == logicalTrackingId && source.manifestRevision == manifestRevision
-		}
-		if (manifestSources.any { source ->
-			SourceKind.entries.none { it.stableCode == source.sourceKind } ||
-				source.purpose !in SessionManifestPurposeCode.ALL
-		}) {
-			return@withTransaction rejected(LocationWalAdapterRejection.MANIFEST_MISMATCH)
-		}
-		val capturedSources = manifestSources
-			.filter { it.purpose == SessionManifestPurposeCode.SESSION_CAPTURE && it.persistenceEligible }
-			.mapNotNull { source -> SourceKind.entries.singleOrNull { it.stableCode == source.sourceKind } }
-			.toSet()
-		val controlSources = manifestSources
-			.filter { it.purpose == SessionManifestPurposeCode.CONTROL }
-			.mapNotNull { source -> SourceKind.entries.singleOrNull { it.stableCode == source.sourceKind } }
-			.toSet()
-		val locationManifestSource = manifestSources.singleOrNull { source ->
-			source.sourceKind == LOCATION_SOURCE &&
-				source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
-				source.persistenceEligible
-		}
-		if (manifest.logicalTrackingId != logicalTrackingId || manifest.serviceRunId != serviceRunId ||
-			manifest.sourcePolicyRevision != policyRevision
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.MANIFEST_MISMATCH)
-		}
-		if (manifest.acquisitionPlanRevision != configRevision || manifest.effectiveBootId != wal.clockDomainId ||
-			manifest.effectiveElapsedRealtimeNanos > wal.observedElapsedNanos
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.MANIFEST_MISMATCH)
-		}
-		if (locationManifestSource == null || locationManifestSource.consentEpoch != consentEpoch ||
-			locationManifestSource.qosCode != policy.qosCode || SourceKind.LOCATION !in capturedSources
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.MANIFEST_MISMATCH)
-		}
-		val writerBindingGeneration = locationManifestSource.locationCaptureBindingGenerationOrNull()
-			?: return@withTransaction rejected(LocationWalAdapterRejection.MANIFEST_MISMATCH)
-		val sessionModeMask = when (manifest.sessionMode) {
-			"MANUAL" -> 1L
-			"AUTOMATIC" -> 2L
-			else -> return@withTransaction rejected(LocationWalAdapterRejection.MANIFEST_MISMATCH)
-		}
-		if (requireNotNull(SourceWriterGenerationContract.captureModeMaskForKnownBinding(
-				writerBindingGeneration)) and sessionModeMask == 0L
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.MANIFEST_MISMATCH)
-		}
-		if (runCatching { ZoneId.of(manifest.zoneId) }.isFailure) {
-			return@withTransaction rejected(LocationWalAdapterRejection.INVALID_STORED_ZONE)
-		}
-		val segmentId = run.sessionSegmentId
-		val segment = segmentId?.let { database.sessionSegmentDao().getById(it) }
-		if (segment == null) {
-			return@withTransaction rejected(LocationWalAdapterRejection.MISSING_SEGMENT)
-		}
-		if (segment.logicalTrackingId != logicalTrackingId || segment.serviceRunId != serviceRunId) {
-			return@withTransaction rejected(LocationWalAdapterRejection.SEGMENT_MISMATCH)
-		}
-
-		val evidenceState = database.sourceEvidenceStateDao().get()
-			?: return@withTransaction rejected(LocationWalAdapterRejection.DELETED_EVIDENCE)
-		if (evidenceState.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
-			wal.admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.DELETED_EVIDENCE)
-		}
-		val sessionEnd = session.cutoffElapsedNanos ?: Long.MAX_VALUE
-		if (wal.observedElapsedNanos >= sessionEnd) {
-			return@withTransaction rejected(if (hasAuthenticatedSessionCutoff(wal, authorization, session, run)) {
-				LocationWalAdapterRejection.AFTER_SESSION_CUTOFF
+	override suspend fun qualifyForPurposes(eventId: SourceEventId): LocationPurposeQualification =
+		database.withTransaction {
+			val snapshot = QualificationSnapshot()
+			val ambient = snapshot.qualifyAmbient(eventId)
+			LocationPurposeQualification(ambient, if (ambient.isAmbientOnly()) {
+				null
 			} else {
-				LocationWalAdapterRejection.SESSION_MISMATCH
+				snapshot.qualify(eventId)
 			})
 		}
-		val observedAuthorization = brokerDao.authorizationAt(
-			LOCATION_SOURCE, wal.registrationGeneration, wal.clockDomainId, wal.observedElapsedNanos,
-		).toAuthorizationSnapshotOrNull()
-		if (hasExactObservedAuthorizationDenial(wal, authorization, observedAuthorization)) {
-			return@withTransaction rejected(LocationWalAdapterRejection.AFTER_AUTHORIZATION_DENIAL)
+
+	/** Bounded memo for the current delivery/run only, inside the surrounding Room transaction. */
+	private inner class QualificationSnapshot {
+		private var lastPhysical: LocationPhysicalEvidence? = null
+		private val delivery = LocationDeliverySnapshot()
+		private var lastPlanKey: Triple<Long, Long, Long>? = null
+		private var lastPlan: LocationPlan? = null
+		private var lastTimeline: Pair<SourceServiceRunEntity, LocationManifestTimeline>? = null
+
+		suspend fun physical(eventId: SourceEventId): LocationPhysicalEvidence {
+			lastPhysical?.takeIf { it.wal.eventId == eventId.value }?.let { return it }
+			return physicalReader.authenticate(database, payloadCodec, eventId, delivery)
+				.also { lastPhysical = it }
 		}
-		val authorizationTimeline = database.compatibleLocationCaptureAuthorizations(authorization, observedAuthorization)
-			?: return@withTransaction rejected(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH)
-		if (authorizationTimeline.any { !SessionManifestIntegrity.hasRetainedLeaseGeneration(run,
-			it.locationCaptureMember()?.lifecycleLeaseGeneration) }) {
-			return@withTransaction rejected(LocationWalAdapterRejection.SESSION_MISMATCH)
+
+		suspend fun registrationPlan(wal: SourceEventWalEntity): LocationPlan? {
+			val revision = wal.configRevision ?: return null
+			val authorization = wal.authorizationRevision ?: return null
+			val key = Triple(wal.registrationGeneration, revision, authorization)
+			if (lastPlanKey != key) {
+				lastPlan = actualRegistrationPlan(wal)
+				lastPlanKey = key
+			}
+			return lastPlan
 		}
-		val observedCaptureAuthorization = authorizationTimeline.last()
-		val nextAuthorization = brokerDao.nextAuthorizationRevision(
-			LOCATION_SOURCE, wal.registrationGeneration, observedCaptureAuthorization.authorizationRevision,
-		).toAuthorizationSnapshotOrNull()
-		val authorizationEnd = authorizationEndExclusive(registrationEnd, observedCaptureAuthorization, nextAuthorization)
-			?: return@withTransaction rejected(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH)
-		val observedManifestIndex = compatibleLocationCaptureManifestIndex(
-			manifests, allManifestSources, manifestIndex, authorizationTimeline, locationManifestSource,
-		) ?: return@withTransaction rejected(LocationWalAdapterRejection.MANIFEST_MISMATCH)
-		val manifestEnd = manifests.getOrNull(observedManifestIndex + 1)?.effectiveElapsedRealtimeNanos
-			?: minOf(sessionEnd, registrationEnd, authorizationEnd)
-		val temporal = runCatching {
-			LocationCaptureTemporalAuthority(
-				providerRegistration = interval(registrationStart, registrationEnd),
-				authorization = interval(authorization.effectiveElapsedRealtimeNanos, authorizationEnd),
-				sourcePolicy = interval(if (policy.effectiveBootId == wal.clockDomainId) {
-					policy.effectiveElapsedRealtimeNanos
-				} else {
-					0L
-				}, authorizationEnd),
-				captureConsent = interval(if (consent.effectiveBootId == wal.clockDomainId) {
-					consent.effectiveElapsedRealtimeNanos
-				} else {
-					0L
-				}, authorizationEnd),
-				sessionManifest = interval(manifest.effectiveElapsedRealtimeNanos, manifestEnd),
-				lifecycleLease = interval(run.startedElapsedNanos, minOf(sessionEnd, registrationEnd)),
+
+		suspend fun qualify(eventId: SourceEventId): LocationWalAdapterResult = try {
+			val physical = physical(eventId)
+			LocationCaptureQualification(database, planCodec, bootClockDomainProvider, ::hasExactQualifiedMembership)
+				.qualify(physical, ::registrationPlan, ::manifestTimeline)
+		} catch (failure: LocationPhysicalEvidenceRejected) {
+			rejected(failure.reason)
+		}
+
+		suspend fun qualifyAmbient(eventId: SourceEventId): LocationAmbientQualification = try {
+			database.qualifyAmbientLocationPhysical(
+				physical(eventId), ::registrationPlan, ::hasExactQualifiedMembership, bootClockDomainProvider,
 			)
-		}.getOrNull() ?: return@withTransaction rejected(
-			LocationWalAdapterRejection.TEMPORAL_AUTHORITY_UNVERIFIABLE,
-		)
-		val captureAuthority = runCatching {
-			LocationCaptureAuthority(
-				logicalTrackingId = LogicalTrackingId(logicalTrackingId),
-				serviceRunId = ServiceRunId(serviceRunId),
-				sessionSegmentId = segment.id,
-				capturedSources = capturedSources,
-				controlSources = controlSources,
-				sourceInstanceId = SourceInstanceId(wal.sourceInstanceId),
-				registrationGeneration = wal.registrationGeneration,
-				configurationRevision = configRevision,
-				physicalConfigurationFingerprint = physicalFingerprint,
-				authorizationRevision = authorizationRevision,
-				authorizationFingerprint = authorizationFingerprint,
-				purposeEligibilityMask = wal.authorizationPurposeEligibilityMask,
-				sourcePolicyRevision = policyRevision,
-				captureConsentEpoch = consentEpoch,
-				sessionManifestRevision = manifestRevision,
-				writerBindingGeneration = writerBindingGeneration,
-				lifecycleLeaseGeneration = leaseGeneration,
-				capturedCollectedDataEpoch = wal.capturedCollectedDataEpoch,
-				clockDomainId = wal.clockDomainId,
-				zoneId = manifest.zoneId,
-				permissionPrecision = if (plan.preciseLocationAvailable) {
-					LocationPermissionPrecision.PRECISE
-				} else {
-					LocationPermissionPrecision.APPROXIMATE
-				},
-				temporalAuthority = temporal,
-				acquisitionConfiguration = LocationHistoricalAcquisitionConfiguration(
-					maximumObservationAgeNanos = minOf(
-						requireNotNull(requestedPlan).maximumLocationEvidenceAgeNanos(),
-						runCatching { Math.multiplyExact(authorizationDemands.single {
-							it.demandId == captureMember.demandId
-						}.maximumAgeMs, LOCATION_WAL_NANOS_PER_MILLISECOND) }.getOrDefault(Long.MAX_VALUE),
-					),
-					maximumHorizontalAccuracyMeters = maximumAccuracy.toFloat(),
-				),
+		} catch (failure: LocationPhysicalEvidenceRejected) {
+			LocationAmbientQualification.Rejected(failure.reason)
+		}
+
+		suspend fun manifestTimeline(run: SourceServiceRunEntity): LocationManifestTimeline {
+			lastTimeline?.takeIf { it.first == run }?.let { return it.second }
+			val manifests = database.sourceSessionDao().manifestsForServiceRun(run.serviceRunId, MAX_MANIFESTS_PER_RUN + 1)
+			if (manifests.size > MAX_MANIFESTS_PER_RUN || !SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)) {
+				rejectLocation(LocationWalAdapterRejection.MANIFEST_TIMELINE_UNVERIFIABLE)
+			}
+			val sources = database.trackingHistoryReadDao().manifestSources(
+				listOf(run.serviceRunId), MAX_MANIFEST_SOURCE_ROWS + 1,
 			)
-		}.getOrNull() ?: return@withTransaction rejected(LocationWalAdapterRejection.MANIFEST_MISMATCH)
-		val wallTime = wal.wallTimeMs
-		val receivedWallTime = wal.receivedWallTimeMs
-		val wallUncertainty = wal.wallTimeUncertaintyMs
-		val knownQualityMask = SourceQualityFlag.entries.fold(0L) { mask, flag -> mask or flag.bit }
-		// Validate the fixed versioned wall-time and quality-field shape together.
-		@Suppress("ComplexCondition")
-		if (wallTime == null ||
-			(wal.payloadVersion >= LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION &&
-				(receivedWallTime == null || receivedWallTime < 0L)) ||
-			wallUncertainty == null || wallUncertainty < 0L ||
-			wal.qualityFlags and knownQualityMask != wal.qualityFlags ||
-			wal.qualityConfidence?.let { confidence -> !confidence.isFinite() || confidence !in 0f..1f } == true
-		) {
-			return@withTransaction rejected(LocationWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
+			val groupedSources = sources.groupBy { it.logicalTrackingId to it.manifestRevision }
+			if (sources.size > MAX_MANIFEST_SOURCE_ROWS || manifests.any {
+				!SessionManifestIntegrity.verify(it, groupedSources[it.logicalTrackingId to it.manifestRevision].orEmpty())
+			}) {
+				rejectLocation(LocationWalAdapterRejection.MANIFEST_TIMELINE_UNVERIFIABLE)
+			}
+			return LocationManifestTimeline(manifests, sources).also { lastTimeline = run to it }
 		}
-		val earliestPossibleWallTimeMs = CanonicalRetentionBounds.location(
-			wallTime,
-			wallUncertainty,
-		) ?: return@withTransaction rejected(LocationWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
-		if (evidenceState.retainedFromMs?.let { retainedFrom ->
-			earliestPossibleWallTimeMs < retainedFrom
-		} == true) {
-			return@withTransaction rejected(LocationWalAdapterRejection.RETAINED_EVIDENCE)
-		}
-		val selectedPayload = physical.payload
-		if (wal.payloadVersion < LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION ||
-			selectedPayload.isMock == null
-		) {
-			// Retained Location WAL payload v1 did not carry the platform mock-provider bit. Supplying
-			// `false` would manufacture immutable evidence, so legacy bytes remain typed unverifiable.
-			return@withTransaction rejected(LocationWalAdapterRejection.MOCK_PROVENANCE_UNVERIFIABLE)
-		}
-		val evidence = LocationDurableObservationEvidence(
-			sourceEventId = SourceEventId(wal.eventId),
-			sourceAdmissionOrdinal = wal.admissionOrdinal,
-			sourceSequence = wal.sourceSequence,
-			walIntegrityIdentity = wal.integrityIdentity,
-			sourceDeliveryIdentity = deliveryIdentity,
-			deliveryUnitIndex = deliveryUnitIndex,
-			deliveryUnitCount = deliveryUnitCount,
-			capturedAuthority = captureAuthority,
-			clockAuthority = LocationDurableClockAuthority(
-				clockDomainId = wal.clockDomainId,
-				observedElapsedRealtimeNanos = wal.observedElapsedNanos,
-				receivedElapsedRealtimeNanos = wal.receivedElapsedNanos,
-				observedWallTimeMs = wallTime,
-				receivedWallTimeMs = receivedWallTime,
-				wallTimeUncertaintyMs = wallUncertainty,
-			),
-			payloadVersion = wal.payloadVersion,
-			payload = selectedPayload,
-			quality = sourceQualityFromStableFlags(wal.qualityFlags, wal.qualityConfidence),
-			isMock = requireNotNull(selectedPayload.isMock),
-		)
-		return@withTransaction LocationWalAdapterResult.Evaluated(
-			qualification = LocationQualifiedObservationQualifier.qualify(
-				input = LocationObservationInput(
-					origin = LocationObservationOrigin.PROVIDER_CALLBACK,
-					outcome = LocationProviderOutcome.FIX,
-					attemptedAuthority = captureAuthority,
-					durableEvidence = evidence,
-				),
-				expectedAuthority = captureAuthority,
-				currentDeletionAuthority = LocationDeletionAuthority(
-					currentCollectedDataEpoch = evidenceState.collectedDataEpoch,
-					retainedFromWallTimeMs = evidenceState.retainedFromMs,
-				),
-			),
-			acquisitionMetadata = LocationWalAcquisitionMetadata(
-				acquisitionMode = plan.canonicalAcquisitionMode(),
-				requestPriority = plan.canonicalRequestPriority(),
-				requiredAccuracyMeters = maximumAccuracy.toFloat(),
-				policyTier = policy.qosCode.toLocationPolicyTier(),
-				policyName = policy.qosCode.toLocationPolicyName(),
-				curationVersion = PROTECTED_LOCATION_CANONICAL_CURATION_VERSION,
-				altitudeModelVersion = AltitudeContractVersions.MODEL_VERSION,
-				altitudeEstimatorVersion = AltitudeContractVersions.ESTIMATOR_VERSION,
-				altitudeCalibrationVersion = AltitudeContractVersions.CALIBRATION_VERSION,
-			),
-		)
 	}
+
 
 	/** Ingress narrows eligibility independently for each fix in a batched physical delivery. */
 	private fun hasExactQualifiedMembership(wal: SourceEventWalEntity, authorization: SourceAuthorizationSnapshot,
@@ -692,67 +306,6 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		return plan
 	}
 
-	private suspend fun authenticatePhysical(eventId: SourceEventId): LocationPhysicalEvidence =
-		LocationWalPhysicalEvidenceReader.authenticate(database, payloadCodec, eventId)
-
-	/** The verified original grant ended before this fix; no recording purpose can use it. */
-	private fun hasExactObservedAuthorizationDenial(
-		wal: SourceEventWalEntity,
-		original: SourceAuthorizationSnapshot,
-		observed: SourceAuthorizationSnapshot?,
-	): Boolean {
-		if (observed?.isDenied != true || observed.authorizationRevision <= original.authorizationRevision) {
-			return false
-		}
-		if (observed.effectiveBootId != wal.clockDomainId ||
-			observed.effectiveElapsedRealtimeNanos < original.effectiveElapsedRealtimeNanos ||
-			observed.effectiveElapsedRealtimeNanos > wal.observedElapsedNanos) {
-			return false
-		}
-		return observed.members == SourceBrokerAuthorization.rows(
-			LOCATION_SOURCE, wal.registrationGeneration, observed.authorizationRevision, emptyList(),
-			observed.effectiveBootId, observed.effectiveElapsedRealtimeNanos,
-			observed.members.first().effectiveWallTimeMs,
-		)
-	}
-
-	/** A saved End rejects this run's late callbacks even if a queued refresh publishes a newer grant. */
-	private suspend fun hasAuthenticatedSessionCutoff(
-		wal: SourceEventWalEntity,
-		authorization: SourceAuthorizationSnapshot,
-		session: LogicalTrackingSessionEntity,
-		run: SourceServiceRunEntity,
-	): Boolean {
-		val cutoff = database.savedSessionCutoff(session)
-		val elapsed = cutoff.elapsedNanos ?: return false
-		val stop = database.sourceSessionDao().firstStopIntent(session.logicalTrackingId) ?: return false
-		val stopManifest = database.sourceSessionDao().manifest(session.logicalTrackingId, stop.manifestRevision)
-		val sameRun = cutoff.bootId == wal.clockDomainId && run.bootId == cutoff.bootId &&
-			stopManifest?.serviceRunId == run.serviceRunId
-		val originalGrantPredatesObservation =
-			authorization.effectiveElapsedRealtimeNanos <= wal.observedElapsedNanos
-		return sameRun && originalGrantPredatesObservation && run.startedElapsedNanos <= elapsed &&
-			wal.observedElapsedNanos >= elapsed
-	}
-
-	private fun authorizationEndExclusive(
-		registrationEnd: Long,
-		authorization: SourceAuthorizationSnapshot,
-		next: SourceAuthorizationSnapshot?,
-	): Long? {
-		if (next == null) {
-			return registrationEnd
-		}
-		if (next.authorizationRevision <= authorization.authorizationRevision) {
-			return null
-		}
-		if (next.effectiveBootId != authorization.effectiveBootId ||
-			next.effectiveElapsedRealtimeNanos < authorization.effectiveElapsedRealtimeNanos
-		) {
-			return null
-		}
-		return minOf(registrationEnd, next.effectiveElapsedRealtimeNanos)
-	}
 
 	companion object {
 		private const val LOCATION_SOURCE = 1
@@ -763,6 +316,15 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		private const val MAX_MANIFEST_SOURCE_ROWS = 4_096
 	}
 }
+
+private data class LocationDeliveryKey(val epoch: Long, val clock: String, val identity: String)
+private class LocationDeliverySnapshot {
+	var key: LocationDeliveryKey? = null
+	var units: List<LocationPhysicalEvidence> = emptyList()
+}
+
+internal fun rejectLocation(reason: LocationWalAdapterRejection): Nothing =
+	throw LocationPhysicalEvidenceRejected(reason)
 
 internal data class LocationPhysicalEvidence(
 	val wal: SourceEventWalEntity,
@@ -775,29 +337,17 @@ internal class LocationPhysicalEvidenceRejected(val reason: LocationWalAdapterRe
 /** One bounded physical-delivery check shared by session and all-day Location qualification. */
 // One canonical Location delivery reader owns its bounded queries, protocol checks and codec phases.
 @Suppress("TooManyFunctions")
-private object LocationWalPhysicalEvidenceReader {
-	private const val LOCATION_SOURCE = 1
-	private const val MAX_LOCATION_PAYLOAD_BYTES = LocationWalQualificationAdapter.MAX_LOCATION_PAYLOAD_BYTES
-	private const val MAX_LOCATION_DELIVERY_UNITS = 256
-	private const val MAX_DURABLE_SOURCE_SEQUENCE = Long.MAX_VALUE - 1L
-	private const val LOCATION_DELIVERY_MAGIC = 0x4c4f4342
-	private const val LOCATION_LEGACY_DELIVERY_VERSION = 1
-	private const val LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION = 2
-	private const val LOCATION_OPTIONAL_ACCURACY_DELIVERY_VERSION = 3
-	private const val DERIVED_WALL_UNCERTAINTY_MS = 1L
-	private val SUPPORTED_LOCATION_PAYLOAD_VERSIONS =
-		setOf(LOCATION_LEGACY_DELIVERY_VERSION, LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
-			LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION)
+private class LocationWalPhysicalEvidenceReader {
+	private val decodedPayloads = LocationDeliveryPayloadMemo()
 
 	suspend fun authenticate(
 		database: AppDatabase,
 		payloadCodec: SourcePayloadCodec,
 		eventId: SourceEventId,
+		snapshot: LocationDeliverySnapshot,
 	): LocationPhysicalEvidence {
 		val wal = loadSelected(database, eventId)
-		val deliveryIdentity = wal.deliveryIdentity?.let { value ->
-			runCatching { SourceDeliveryIdentity(value) }.getOrNull()
-		} ?: reject(LocationWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
+		val deliveryIdentity = authenticatedDeliveryIdentity(wal)
 		val deliveryUnitIndex = wal.deliveryUnitIndex
 		val deliveryUnitCount = wal.deliveryUnitCount
 		if (deliveryUnitIndex == null || deliveryUnitCount == null ||
@@ -808,16 +358,28 @@ private object LocationWalPhysicalEvidenceReader {
 		if (deliveryUnitCount > MAX_LOCATION_DELIVERY_UNITS) {
 			reject(LocationWalAdapterRejection.DELIVERY_TOO_LARGE)
 		}
-		val delivery = loadDelivery(database, wal, deliveryIdentity, deliveryUnitIndex, deliveryUnitCount)
-		val decodedDelivery = decodeAndAuthenticateDelivery(payloadCodec, delivery, wal)
-			?: reject(LocationWalAdapterRejection.MALFORMED_DELIVERY)
-		val selected = decodedDelivery.singleOrNull { it.wal.deliveryUnitIndex == deliveryUnitIndex }
+		val key = LocationDeliveryKey(wal.capturedCollectedDataEpoch, wal.clockDomainId, deliveryIdentity.value)
+		if (snapshot.key != key) {
+			val delivery = loadDelivery(database, wal, deliveryIdentity, deliveryUnitIndex, deliveryUnitCount)
+			val decodedDelivery = decodeAndAuthenticateDelivery(payloadCodec, delivery, wal)
+				?: reject(LocationWalAdapterRejection.MALFORMED_DELIVERY)
+			authenticateCompleteDeliveryIdentity(decodedDelivery, deliveryUnitCount, deliveryIdentity)
+			snapshot.units = decodedDelivery.map { LocationPhysicalEvidence(it.wal, it.payload, deliveryIdentity) }
+			snapshot.key = key
+		}
+		val selected = snapshot.units.singleOrNull { it.wal.deliveryUnitIndex == deliveryUnitIndex }
 			?: reject(LocationWalAdapterRejection.MALFORMED_DELIVERY)
 		if (!selected.wal.hasSamePersistedValueAs(wal)) {
 			reject(LocationWalAdapterRejection.MALFORMED_DELIVERY)
 		}
-		authenticateCompleteDeliveryIdentity(decodedDelivery, deliveryUnitCount, deliveryIdentity)
-		return LocationPhysicalEvidence(wal, selected.payload, deliveryIdentity)
+		return selected
+	}
+
+	private fun authenticatedDeliveryIdentity(wal: SourceEventWalEntity): SourceDeliveryIdentity {
+		val deliveryIdentity = wal.deliveryIdentity?.let { value ->
+			runCatching { SourceDeliveryIdentity(value) }.getOrNull()
+		} ?: reject(LocationWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
+		return deliveryIdentity
 	}
 
 	private fun authenticateCompleteDeliveryIdentity(
@@ -1049,9 +611,7 @@ private object LocationWalPhysicalEvidenceReader {
 		payloadCodec: SourcePayloadCodec,
 		row: SourceEventWalEntity,
 	): DecodedLocationDeliveryUnit? {
-		val payload = runCatching {
-			payloadCodec.decode(SourceKind.LOCATION, row.payloadVersion, row.payload) as? LocationFixPayload
-		}.getOrNull() ?: return null
+		val payload = decodedPayloads.decode(payloadCodec, row) ?: return null
 		val canonicalPayload = runCatching { payloadCodec.encode(payload, row.payloadVersion) }.getOrNull()
 			?: return null
 		if (!canonicalPayload.bytes.contentEquals(row.payload) ||
@@ -1132,9 +692,84 @@ private object LocationWalPhysicalEvidenceReader {
 		val payload: LocationFixPayload,
 	)
 
+	private companion object {
+		private const val LOCATION_SOURCE = 1
+		private const val MAX_LOCATION_PAYLOAD_BYTES = LocationWalQualificationAdapter.MAX_LOCATION_PAYLOAD_BYTES
+		private const val MAX_LOCATION_DELIVERY_UNITS = 256
+		private const val MAX_DURABLE_SOURCE_SEQUENCE = Long.MAX_VALUE - 1L
+		private const val LOCATION_DELIVERY_MAGIC = 0x4c4f4342
+		private const val LOCATION_LEGACY_DELIVERY_VERSION = 1
+		private const val LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION = 2
+		private const val LOCATION_OPTIONAL_ACCURACY_DELIVERY_VERSION = 3
+		private const val DERIVED_WALL_UNCERTAINTY_MS = 1L
+		private val SUPPORTED_LOCATION_PAYLOAD_VERSIONS =
+			setOf(LOCATION_LEGACY_DELIVERY_VERSION, LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+				LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION)
+	}
+
 	private fun reject(reason: LocationWalAdapterRejection): Nothing =
 		throw LocationPhysicalEvidenceRejected(reason)
 
+}
+
+/**
+ * One adapter-local pure decode hint; no qualification or WAL row is cached. The byte budget limits
+ * reuse only: larger valid deliveries keep using the original decoder.
+ */
+private class LocationDeliveryPayloadMemo {
+	private var delivery: LocationDeliveryKey? = null
+	private var retainedBytes = 0
+	private val payloads = mutableMapOf<Int, DecodedPayload>()
+
+	@Synchronized
+	fun decode(codec: SourcePayloadCodec, row: SourceEventWalEntity): LocationFixPayload? {
+		val identity = row.deliveryIdentity
+		val unit = row.deliveryUnitIndex
+		if (identity == null || unit == null) {
+			return decodePayload(codec, row)
+		}
+		val key = LocationDeliveryKey(row.capturedCollectedDataEpoch, row.clockDomainId, identity)
+		if (delivery != key) {
+			payloads.clear()
+			retainedBytes = 0
+			delivery = key
+		}
+		val existing = payloads[unit]
+		if (existing != null && existing.matches(row)) {
+			return existing.payload
+		}
+		val payload = decodePayload(codec, row) ?: return null
+		retain(unit, row, payload)
+		return payload
+	}
+
+	private fun retain(unit: Int, row: SourceEventWalEntity, payload: LocationFixPayload) {
+		val previousBytes = payloads[unit]?.bytes?.size ?: 0
+		if (unit !in 0 until MAX_CACHED_UNITS || row.payload.size - previousBytes > MAX_CACHED_BYTES - retainedBytes) {
+			return
+		}
+		payloads[unit] = DecodedPayload(row.payloadVersion, row.deliveryUnitCount, row.payload.copyOf(), payload)
+		retainedBytes += row.payload.size - previousBytes
+	}
+
+	private fun decodePayload(codec: SourcePayloadCodec, row: SourceEventWalEntity): LocationFixPayload? = runCatching {
+		codec.decode(SourceKind.LOCATION, row.payloadVersion, row.payload) as? LocationFixPayload
+	}.getOrNull()
+
+	private class DecodedPayload(
+		val version: Int,
+		val unitCount: Int?,
+		val bytes: ByteArray,
+		val payload: LocationFixPayload,
+	) {
+		fun matches(row: SourceEventWalEntity): Boolean = version == row.payloadVersion &&
+			unitCount == row.deliveryUnitCount && bytes.contentEquals(row.payload)
+	}
+
+	private companion object {
+		const val MAX_CACHED_UNITS = 256
+		const val MAX_CACHED_BYTES = 1_048_576
+	}
 }
 
 private fun LocationRegistrationPlanEntity.hasActualLocationPlanIdentity(
@@ -1155,9 +790,6 @@ private fun LocationPlan.hasCanonicalRegistrationPayload(
 	encoded.bytes.contentEquals(stored.payload) && encoded.checksum == stored.payloadChecksum &&
 	physicalConfigurationFingerprint() == stored.physicalConfigurationFingerprint
 
-private fun interval(startInclusiveNanos: Long, endExclusiveNanos: Long) =
-	LocationProviderTimeInterval(startInclusiveNanos, endExclusiveNanos)
-
 internal fun LocationPlan.maximumLocationEvidenceAgeNanos(): Long {
 	val maximumAgeMs = if (adaptiveProfileVersion == 1) {
 		ADAPTIVE_PROVIDER_ITEM_MAXIMUM_AGE_MS
@@ -1171,7 +803,7 @@ internal fun LocationPlan.maximumLocationEvidenceAgeNanos(): Long {
 	}
 }
 
-private fun LocationPlan.hasSupportedHistoricalShape(): Boolean =
+internal fun LocationPlan.hasSupportedHistoricalShape(): Boolean =
 	requestedIntervalMs > 0L && minimumUpdateIntervalMs >= 0L &&
 		minimumUpdateIntervalMs <= requestedIntervalMs &&
 		minimumDisplacementMeters.isFinite() && minimumDisplacementMeters >= 0f &&

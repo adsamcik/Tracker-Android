@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.stats.data.repository
 
-import androidx.room.withTransaction
 import androidx.room.InvalidationTracker
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.SessionActivityIds
@@ -14,7 +13,6 @@ import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -30,7 +28,7 @@ class SavedLocationMetricsReader @Inject constructor(
      * incomplete results.
      */
     suspend fun read(fromMs: Long = 0L, toMs: Long = Long.MAX_VALUE): SavedLocationMetrics =
-        withContext(dispatchers.io) {
+        database.withSavedLocationReadSnapshot(dispatchers.io) {
             require(fromMs >= 0L && toMs >= fromMs)
             val window = HistoryObservationWindow(fromMs, if (toMs == Long.MAX_VALUE) {
                 toMs
@@ -38,25 +36,25 @@ class SavedLocationMetricsReader @Inject constructor(
                 toMs + 1L
             })
             val zone = ZoneId.systemDefault()
-            database.withTransaction {
-                val state = checkNotNull(database.sourceEvidenceStateDao().get())
-                val daily = SavedDailyDistanceAccumulator(zone)
-                var maxSpeed: Double? = null
-                val total = summaries.readWindowInTransaction(window,
-                    TrackingHistoryReadSnapshot(state.collectedDataEpoch, state.revision)) { row ->
-                    daily.add(row)
-                    row?.sample?.speedMps?.takeIf { it.isFinite() && it >= 0f }?.toDouble()?.let {
-                        maxSpeed = maxOf(maxSpeed ?: it, it)
-                    }
-                }.measuredSummary()
-                readSessionMetrics(fromMs, toMs, window, total, daily, maxSpeed)
-            }
+            val state = checkNotNull(database.sourceEvidenceStateDao().get())
+            val snapshot = TrackingHistoryReadSnapshot(state.collectedDataEpoch, state.revision)
+            val daily = SavedDailyDistanceAccumulator(zone)
+            var maxSpeed: Double? = null
+            val total = summaries.readWindowInTransaction(window,
+                snapshot) { row ->
+                daily.add(row)
+                row?.sample?.speedMps?.takeIf { it.isFinite() && it >= 0f }?.toDouble()?.let {
+                    maxSpeed = maxOf(maxSpeed ?: it, it)
+                }
+            }.measuredSummary()
+            readSessionMetrics(fromMs, toMs, window, snapshot, total, daily, maxSpeed)
         }
 
     private suspend fun readSessionMetrics(
         fromMs: Long,
         toMs: Long,
         window: HistoryObservationWindow,
+        snapshot: TrackingHistoryReadSnapshot,
         total: SavedLocationSummary,
         daily: SavedDailyDistanceAccumulator,
         maxSpeed: Double?,
@@ -69,7 +67,9 @@ class SavedLocationMetricsReader @Inject constructor(
                 fromMs, toMs, afterId, LOCATION_METRIC_SESSION_PAGE_SIZE,
             )
             for (segment in page) {
-                val summary = try { summaries.readSessionWindow(segment.id, window).measuredSummary() }
+                val summary = try {
+                    summaries.readSessionInTransaction(segment.id, snapshot, window = window).measuredSummary()
+                }
                     catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                     catch (_: Exception) { totals.partial = true; continue }
                 totals.add(segment.primaryActivity, summary)
@@ -91,45 +91,51 @@ class SavedLocationMetricsReader @Inject constructor(
     /** A visible calendar range uses one Room snapshot and the existing bounded point stream. */
     suspend fun readDays(fromDay: Long, toDay: Long, zone: ZoneId = ZoneId.systemDefault()): Map<Long,
         SavedLocationDayMetrics> =
-        withContext(dispatchers.io) {
+        database.withSavedLocationReadSnapshot(dispatchers.io) {
             require(fromDay <= toDay)
             val from =
                 java.time.LocalDate.ofEpochDay(fromDay).atStartOfDay(zone).toInstant().toEpochMilli().coerceAtLeast(0L)
             val to = java.time.LocalDate.ofEpochDay(toDay).plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
             if (to <= from) {
-                return@withContext emptyMap()
+                return@withSavedLocationReadSnapshot emptyMap()
             }
-            database.withTransaction {
-                val state = checkNotNull(database.sourceEvidenceStateDao().get())
-                val days = linkedMapOf<Long, SavedLocationDayAccumulator>()
-                var lastDay: Long? = null
-                fun dayAt(timeMs: Long): SavedLocationDayAccumulator {
-                    val day = Instant.ofEpochMilli(timeMs).atZone(zone).toLocalDate().toEpochDay()
-                    lastDay = day
-                    return days.getOrPut(day) { SavedLocationDayAccumulator() }
-                }
-                val read = summaries.readWindowInTransaction(HistoryObservationWindow(from, to),
-                    TrackingHistoryReadSnapshot(state.collectedDataEpoch, state.revision),
-                    onGap = { time -> dayAt(time).gap() },
-                    onPoint = { point -> if (point != null) {
-                        dayAt(point.sample.timeMs).add(point)
-                    } })
-                read.measuredSummary()
-                // A failed continuation can leave more of the last day unread. Completed earlier
-                // days keep their own measured state; dated qualification gaps mark their own day.
-                if ((read as? SavedLocationSummaryRead.Snapshot)?.problem != null) {
-                    lastDay?.let { days.getValue(it).gap() }
-                }
-                days.mapValues { it.value.snapshot() }
+            val state = checkNotNull(database.sourceEvidenceStateDao().get())
+            val days = linkedMapOf<Long, SavedLocationDayAccumulator>()
+            var lastDay: Long? = null
+            fun dayAt(timeMs: Long): SavedLocationDayAccumulator {
+                val day = Instant.ofEpochMilli(timeMs).atZone(zone).toLocalDate().toEpochDay()
+                lastDay = day
+                return days.getOrPut(day) { SavedLocationDayAccumulator() }
             }
+            val read = summaries.readWindowInTransaction(HistoryObservationWindow(from, to),
+                TrackingHistoryReadSnapshot(state.collectedDataEpoch, state.revision),
+                onGap = { time -> dayAt(time).gap() },
+                onPoint = { point -> if (point != null) {
+                    dayAt(point.sample.timeMs).add(point)
+                } })
+            read.measuredSummary()
+            // A failed continuation can leave more of the last day unread. Completed earlier
+            // days keep their own measured state; dated qualification gaps mark their own day.
+            if ((read as? SavedLocationSummaryRead.Snapshot)?.problem != null) {
+                lastDay?.let { days.getValue(it).gap() }
+            }
+            days.mapValues { it.value.snapshot() }
         }
 
     /** Emits on saved Location, correction, ownership or deletion changes so existing summaries can be refreshed. */
     fun observeChanges(): Flow<Unit> = database.invalidationTracker.createFlow(*SAVED_LOCATION_TABLES).map { }
 
-    internal fun onSavedDataChange(onChange: () -> Unit): () -> Unit {
+    internal fun observeTableChanges(): Flow<Set<String>> =
+        database.invalidationTracker.createFlow(*SAVED_LOCATION_TABLES)
+
+    /** The caller owns this bounded, disposable cache; nothing survives the list/page observation. */
+    internal fun tripMeasurements() = SavedTripMeasurementCache(database, dispatchers.io, summaries)
+
+    internal val readDispatcher get() = dispatchers.io
+
+    internal fun onSavedTablesChange(onChange: (Set<String>) -> Unit): () -> Unit {
         val observer = object : InvalidationTracker.Observer(SAVED_LOCATION_TABLES) {
-            override fun onInvalidated(tables: Set<String>) = onChange()
+            override fun onInvalidated(tables: Set<String>) = onChange(tables)
         }
         database.invalidationTracker.addObserver(observer)
         return { database.invalidationTracker.removeObserver(observer) }
@@ -146,7 +152,9 @@ class SavedLocationMetricsReader @Inject constructor(
     private companion object {
         val SAVED_LOCATION_TABLES = arrayOf("location_sample", "location_point_correction", "session_segment",
             "source_evidence_state", "source_deletion_fence", "location_file_archive", "location_file_archive_point",
-            "location_sample_purpose_authority", "collected_data_deletion_operation")
+            "location_sample_purpose_authority", "collected_data_deletion_operation", "location_accepted_receipt",
+            "source_policy", "source_consent_epoch", "source_service_run", "session_manifest_version",
+            "session_manifest_source", "ambient_location_retention_authority")
     }
 }
 

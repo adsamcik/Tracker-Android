@@ -889,6 +889,24 @@ class RoomDurableSourceIngressTest {
 	}
 
 	@Test
+	fun `finite committed read excludes a corrupt later payload before validation`() = runTest {
+		val first = subject.admit(candidate(sequence = 1L)).shouldBeInstanceOf<AdmissionResult.Admitted>()
+		val later = subject.admit(candidate(sequence = 2L)).shouldBeInstanceOf<AdmissionResult.Admitted>()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET payload = ? WHERE event_id = ?",
+			arrayOf(byteArrayOf(0), later.eventId.value),
+		)
+
+		subject.committedBatchThrough(0L, first.admissionOrdinal, 256).map { it.eventId } shouldBe listOf(first.eventId)
+		subject.committedBatchThrough(first.admissionOrdinal, first.admissionOrdinal, 256) shouldBe emptyList()
+		val corrupt = shouldThrow<CorruptSourceEventException> {
+			subject.committedBatchThrough(first.admissionOrdinal, later.admissionOrdinal, 256)
+		}
+		corrupt.admissionOrdinal shouldBe later.admissionOrdinal
+		corrupt.failureCode shouldBe "RAW_PAYLOAD_INTEGRITY"
+	}
+
+	@Test
 	fun `valid but mutated payload bytes are rejected before decode`() = runTest {
 		val admitted = subject.admit(candidate(sequence = 1L, activityType = 3))
 			.shouldBeInstanceOf<AdmissionResult.Admitted>()

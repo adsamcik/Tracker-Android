@@ -1,3 +1,71 @@
+# Shared tracking performance and controls — 2026-10-20
+
+## October 20 performance pass
+
+All five requested bottlenecks are implemented and independently reviewed:
+
+- Bounded Location delivery decoding is reused through the actual per-point live writer;
+  each commit still reads current recording authority.
+- End/Suspend projection drains stop at their frozen endpoint.
+- Independent providers start concurrently under existing ownership/acknowledgement rules.
+- Live totals extend the unchanged saved prefix instead of repeatedly rebuilding it.
+- Unchanged closed-trip measurements are cached; finite Location reads use genuine concurrent
+  SQLite read snapshots rather than holding the serial writer queue.
+
+Emulator testing also exposed two End defects. Stop/Suspend now renew the existing operation
+lease during slow product settlement. Recovered Wi-Fi/Cell can settle their exact retired broker
+endpoint after interruption, preserving incomplete coverage. No new lease system or database schema.
+
+### Completed verification
+
+- Dev/Hilt/APK pass in R73. Final scoped Detekt passes in R74 (28s).
+- R71 passes 656 cases across Coordinator 255, Location 111, Cell 88 and Wi-Fi 202.
+  R73 refreshes 12 directly affected recovery cases after fixture/helper cleanup.
+- The reconciled inventory has 972 distinct passing host cases and 2 actual native SQLite emulator
+  cases; no failures/errors/skips. Unchanged 316 host cases and native 2 retain their original receipts.
+  This is an affected batch, not a full CI rerun; October 16 full gates remain historical.
+- Installed **Advention Dev / com.adsamcik.tracker.dev / 10.0.0-dev**, in place with data preserved.
+  APK SHA-256: `AAB3EBF484595AB4A9FD4495743854102BA45708817F7BD41E12E9CC817DF09E`.
+- R74 committed source differs from compiled R73 only by wrapping one expression after `&&`.
+  Exact hashes and equality of non-whitespace content are recorded. Executable checks/APK are reused;
+  R74 reruns the quality check. No production behavior changed after R73.
+- My location while Off centers the marker; a stable read-only snapshot has zero new Location
+  points, receipts or WAL observations. Reopen the freshly saved session: matching timestamps,
+  **14 points · 103.77m · partial**, fitted route and endpoints.
+- Fresh Start 144 reaches Recording. End 145 returns to Ready and finalizes that exact run as
+  STOP_ACCEPTED / QUIESCED using its original wall/elapsed/boot cutoff. Ten distinct positions
+  measured after Recording are saved; the final injected position is within 0.44 m, with zero
+  post-End session manifests. One app process survives the full flow, without debugger, profiler,
+  forced stop, app pause, database edits or cursor skipping.
+
+### Runtime limits and preserved failures
+
+Observed Start was **49.5s**; End **102.2s**. The functional windows were explicitly 300 s;
+this does **not** establish acceptable latency or a benchmark improvement. The live preview lagged
+before End (two saved points/0 m); final persistence includes the moving tail. Phone responsiveness,
+real hardware delivery, battery and long background behavior remain unverified.
+The emulator still cannot resolve the basemap host; marker and saved route render without tiles.
+Only the existing highest API37.2/16KB AVD was used, with its data preserved.
+
+R68 End remains a failed 300 s attempt. Its later install/normal-Off recovery is TERMINAL_FAILURE /
+SERVICE_ABSENT_EXPLICIT_REQUEST, and is not counted as accepted End. Failed whole test classes are
+excluded; R71 replaces them with a complete passing Location class. R71 and R73 overall quality
+failures remain recorded separately from passing executable checks. R72 has no build/test result.
+A menu-open navigation precondition and a UTF8 console-capture failure were repaired in the harness;
+the successful fresh observations have separate labels and unchanged assertions.
+
+Existing evidence remains under `build/verification-20261019`: R74 source freeze/quality log,
+R73 build/APK/hash, exact reconciled XML inventory, r73b My location proof, r73-flow events/process/
+strict SQL proof, r73-ending stable snapshot, and r73-saved-detail-confirmed PNG/XML. The
+[machine-readable result](CONTROL_RECOVERY_RESULT.json) retains hashes and the prior checkpoint;
+tracked reports contain no observation payloads or precise coordinates.
+Final independent source/result review found no blocking findings and confirmed the latency limit.
+The enclosing local dev/v10 commit records this delivery; no remote push.
+
+---
+
+## Historical R59 control checkpoint
+
 # Dev tracking control verification — updated 2026-10-20
 
 ## Verified controls

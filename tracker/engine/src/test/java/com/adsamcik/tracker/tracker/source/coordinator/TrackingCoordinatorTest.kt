@@ -233,6 +233,52 @@ class TrackingCoordinatorTest {
 			?.contiguousAdmissionOrdinal shouldBe 15L
 	}
 
+	@Test
+	fun `finite settlement drains only its endpoint and normal recovery keeps later observations`() = runTest {
+		val projection = RecordingProjection()
+		val ingress = OrderedIngress((1L..4L).map(::healthyEvent))
+		val coordinator = TrackingCoordinator(database, ingress, ProjectionDispatcher(database, setOf(projection)))
+
+		coordinator.drainAvailable("end", batchSize = 1, throughOrdinal = 2L) shouldBe
+			CoordinatorDrainResult.Complete(2L, 2)
+		projection.appliedOrdinals shouldBe listOf(1L, 2L)
+		ingress.requestedThroughOrdinals shouldBe listOf(2L, 2L)
+		database.sourceProjectionStateDao().checkpoint(projection.id, 1)?.contiguousAdmissionOrdinal shouldBe 2L
+
+		coordinator.drainAvailable("recovery") shouldBe CoordinatorDrainResult.Complete(4L, 2)
+		projection.appliedOrdinals shouldBe listOf(1L, 2L, 3L, 4L)
+	}
+
+	@Test
+	fun `finite settlement does not chase observations admitted while projecting its prefix`() = runTest {
+		val events = mutableListOf(healthyEvent(1L), healthyEvent(2L))
+		val projection = RecordingProjection { event ->
+			if (event.admissionOrdinal == 1L) {
+				events += healthyEvent(3L)
+			}
+		}
+		val ingress = OrderedIngress(events)
+		val coordinator = TrackingCoordinator(database, ingress, ProjectionDispatcher(database, setOf(projection)))
+
+		coordinator.drainAvailable("end", batchSize = 1, throughOrdinal = 2L) shouldBe
+			CoordinatorDrainResult.Complete(2L, 2)
+		projection.appliedOrdinals shouldBe listOf(1L, 2L)
+		coordinator.drainAvailable("background-recovery") shouldBe CoordinatorDrainResult.Complete(3L, 1)
+		projection.appliedOrdinals shouldBe listOf(1L, 2L, 3L)
+	}
+
+	@Test
+	fun `finite settlement quarantines corrupt evidence inside its endpoint`() = runTest {
+		val projection = RecordingProjection()
+		val coordinator = TrackingCoordinator(database, PoisonThenHealthyIngress(healthyEvent(2L)),
+			ProjectionDispatcher(database, setOf(projection)))
+
+		coordinator.drainAvailable("end", throughOrdinal = 2L) shouldBe CoordinatorDrainResult.Complete(2L, 1)
+		projection.appliedOrdinals shouldBe listOf(2L)
+		database.sourceProjectionStateDao().failure(projection.id, 1, 1L)?.terminal shouldBe true
+		database.sourceProjectionStateDao().checkpoint(projection.id, 1)?.contiguousAdmissionOrdinal shouldBe 2L
+	}
+
 	private fun healthyEvent(ordinal: Long) = AdmittedSourceEvent(
 		eventId = SourceEventId("event-$ordinal"),
 		admissionOrdinal = ordinal,
@@ -308,6 +354,17 @@ private class PoisonThenHealthyIngress(
 		else -> emptyList()
 	}
 
+	override suspend fun committedBatchThrough(
+		afterOrdinal: Long,
+		throughOrdinal: Long,
+		limit: Int,
+	): List<AdmittedSourceEvent<out SourcePayload>> =
+		if (afterOrdinal >= throughOrdinal) {
+			emptyList()
+		} else {
+			committedBatch(afterOrdinal, limit).filter { it.admissionOrdinal <= throughOrdinal }
+		}
+
 	override suspend fun committedSourceBatch(
 		source: SourceKind,
 		afterOrdinal: Long,
@@ -324,6 +381,7 @@ private class OrderedIngress(
 	private val events: List<AdmittedSourceEvent<out SourcePayload>>,
 ) : DurableSourceIngress {
 	val requestedAfterOrdinals = mutableListOf<Long>()
+	val requestedThroughOrdinals = mutableListOf<Long>()
 
 	override suspend fun admit(candidate: SourceEvidenceCandidate<*>): AdmissionResult =
 		error("Admission is not used by this test")
@@ -334,6 +392,16 @@ private class OrderedIngress(
 	): List<AdmittedSourceEvent<out SourcePayload>> {
 		requestedAfterOrdinals += afterOrdinal
 		return events.filter { it.admissionOrdinal > afterOrdinal }.take(limit)
+	}
+
+	override suspend fun committedBatchThrough(
+		afterOrdinal: Long,
+		throughOrdinal: Long,
+		limit: Int,
+	): List<AdmittedSourceEvent<out SourcePayload>> {
+		requestedAfterOrdinals += afterOrdinal
+		requestedThroughOrdinals += throughOrdinal
+		return events.filter { it.admissionOrdinal > afterOrdinal && it.admissionOrdinal <= throughOrdinal }.take(limit)
 	}
 
 	override suspend fun committedSourceBatch(
@@ -348,7 +416,9 @@ private class OrderedIngress(
 	override suspend fun checkpoint(consumer: String, ordinal: Long) = Unit
 }
 
-private class RecordingProjection : Projection {
+private class RecordingProjection(
+	private val onApply: suspend (AdmittedSourceEvent<out SourcePayload>) -> Unit = {},
+) : Projection {
 	override val id = "recording"
 	override val version = 1
 	val appliedOrdinals = mutableListOf<Long>()
@@ -360,5 +430,6 @@ private class RecordingProjection : Projection {
 	) {
 		appliedOrdinals += event.admissionOrdinal
 		appliedSources += event.evidence.source
+		onApply(event)
 	}
 }

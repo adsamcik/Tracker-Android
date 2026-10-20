@@ -1,7 +1,5 @@
 package com.adsamcik.tracker.stats.data.repository
 
-import androidx.room.deferredTransaction
-import androidx.room.useReaderConnection
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
 import com.adsamcik.tracker.shared.base.database.dao.LocationPurposeDao
@@ -47,8 +45,10 @@ internal class SavedLocationLiveSummaryReader(
             var progress: Progress? = null
             var pointVersion = 0L
             var rebuildVersion = 0L
+            var authorityVersion = 0L
             var handledPointVersion = 0L
             var handledRebuildVersion = 0L
+            var handledAuthorityVersion = 0L
             val room = (invalidations ?: database.invalidationTracker.createFlow(*TABLES, emitInitialState = true))
                 .map { Notice(it) }
             val hints = updates.hints.map { Notice(emptySet()) }
@@ -61,15 +61,17 @@ internal class SavedLocationLiveSummaryReader(
                 if (notice.tables.any { it in REBUILD_TABLES }) {
                     rebuildVersion = Math.addExact(rebuildVersion, 1L)
                 }
-                Wakeup(pointVersion, rebuildVersion)
+                if (notice.tables.any { it in AUTHORITY_TABLES }) {
+                    authorityVersion = Math.addExact(authorityVersion, 1L)
+                }
+                Wakeup(pointVersion, rebuildVersion, authorityVersion)
             }.conflate().collect { wakeup ->
                 currentCoroutineContext().ensureActive()
                 val next = try {
-                    database.useReaderConnection { connection ->
-                        connection.deferredTransaction {
-                            refresh(segmentId, progress, wakeup.pointVersion != handledPointVersion,
-                                wakeup.rebuildVersion != handledRebuildVersion)
-                        }
+                    database.withSavedLocationReadSnapshot(io) {
+                        refresh(segmentId, progress, wakeup.pointVersion != handledPointVersion,
+                            wakeup.rebuildVersion != handledRebuildVersion,
+                            wakeup.authorityVersion != handledAuthorityVersion)
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
@@ -81,6 +83,7 @@ internal class SavedLocationLiveSummaryReader(
                 progress = next.progress
                 handledPointVersion = wakeup.pointVersion
                 handledRebuildVersion = wakeup.rebuildVersion
+                handledAuthorityVersion = wakeup.authorityVersion
                 emit(next.read)
             }
         }.distinctUntilChanged().flowOn(io)
@@ -88,7 +91,8 @@ internal class SavedLocationLiveSummaryReader(
 
     // Ordered missing-scope, rebuild and unchanged-prefix exits precede any saved-prefix mutation.
     @Suppress("ReturnCount")
-    private suspend fun refresh(segmentId: Long, old: Progress?, pointTablesChanged: Boolean, rebuild: Boolean): Next {
+    private suspend fun refresh(segmentId: Long, old: Progress?, pointTablesChanged: Boolean, rebuild: Boolean,
+        authorityChanged: Boolean): Next {
         val evidence = database.sourceEvidenceStateDao().get()
             ?.takeIf { it.hasValidLiveSummaryShape() }
             ?: return Next(SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE), null)
@@ -101,12 +105,13 @@ internal class SavedLocationLiveSummaryReader(
             ?: return Next(SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE), null)
         val scope = Scope(segmentId, logicalId, runId)
         val guard = Guard(evidence.collectedDataEpoch, evidence.retainedFromMs,
-            evidence.deletedSourceEventHighWaterOrdinal, purpose.savedFileExportAuthorityStamp())
+            evidence.deletedSourceEventHighWaterOrdinal, evidence.restoredDataEpochs,
+            purpose.savedFileExportAuthorityStamp())
         val throughId = purpose.latestSavedReceiptSampleId()
         if (throughId < 0L) {
             throw InvalidContinuation()
         }
-        if (old == null || needsSeed(old, scope, guard, throughId, rebuild)) {
+        if (old == null || needsSeed(old, scope, guard, throughId, rebuild, authorityChanged)) {
             return seed(scope, guard, throughId, snapshot)
         }
         if (throughId == old.throughId && !pointTablesChanged) {
@@ -137,8 +142,10 @@ internal class SavedLocationLiveSummaryReader(
             deletedSourceEventHighWaterOrdinal >= 0L && (retainedFrom == null || retainedFrom >= 0L)
     }
 
-    private fun needsSeed(old: Progress, scope: Scope, guard: Guard, throughId: Long, rebuild: Boolean): Boolean =
-        old.scope != scope || old.guard != guard || throughId < old.throughId || rebuild
+    private suspend fun needsSeed(old: Progress, scope: Scope, guard: Guard, throughId: Long, rebuild: Boolean,
+        authorityChanged: Boolean): Boolean = old.scope != scope || old.guard != guard ||
+        throughId < old.throughId || rebuild || (authorityChanged &&
+        old.authority.refreshed(database, scope.logicalId, scope.runId) != old.authority)
 
     private suspend fun appendSavedPrefix(
         old: Progress,
@@ -196,7 +203,7 @@ internal class SavedLocationLiveSummaryReader(
 
     // Carry the existing measured prefix into one summary/cache publication without another state model.
     @Suppress("LongParameterList")
-    private fun completeSavedPrefix(
+    private suspend fun completeSavedPrefix(
         old: Progress,
         throughId: Long,
         candidateCount: Long,
@@ -219,8 +226,11 @@ internal class SavedLocationLiveSummaryReader(
         if (problem != null) {
             return Next(read, null)
         }
+        val addedKeys = purpose.savedSessionAuthorityKeys(old.scope.logicalId, old.scope.runId, old.scope.segmentId,
+            old.throughId, throughId)
+        val authority = old.authority.extend(database, old.scope.logicalId, old.scope.runId, addedKeys)
         return Next(read, Progress(old.scope, old.guard, throughId, candidateCount, latestPosition,
-            distance.snapshotState(), read))
+            distance.snapshotState(), read, authority))
     }
 
     private fun needsSeedAfterAppend(
@@ -283,21 +293,24 @@ internal class SavedLocationLiveSummaryReader(
         if (count < 0L) {
             throw InvalidContinuation()
         }
-        return Next(read, Progress(scope, guard, throughId, count, position, requireNotNull(distance), read))
+        val authority = SavedLocationPrefixAuthority.read(database, scope.logicalId, scope.runId,
+            purpose.savedSessionAuthorityKeys(scope.logicalId, scope.runId, scope.segmentId, 0L, throughId).toSet())
+        return Next(read, Progress(scope, guard, throughId, count, position, requireNotNull(distance), read, authority))
     }
 
     private data class Notice(val tables: Set<String>)
-    private data class Wakeup(val pointVersion: Long, val rebuildVersion: Long)
+    private data class Wakeup(val pointVersion: Long, val rebuildVersion: Long, val authorityVersion: Long)
     private data class Scope(val segmentId: Long, val logicalId: String, val runId: String) {
         fun matches(scope: RadioContextScope): Boolean = (scope as? RadioContextScope.Session)?.owner?.let {
             it.sessionSegmentId == segmentId && it.logicalTrackingId == logicalId && it.serviceRunId == runId
         } == true
     }
     private data class Guard(val epoch: Long, val retainedFromMs: Long?, val deletedHighWater: Long,
+        val restoredDataEpochs: String,
         val exportStamp: String)
     private data class Progress(val scope: Scope, val guard: Guard, val throughId: Long,
         val candidateCount: Long, val latestPosition: SavedLocationPosition?, val distance: SavedTripDistanceState,
-        val read: SavedLocationSummaryRead.Snapshot)
+        val read: SavedLocationSummaryRead.Snapshot, val authority: SavedLocationPrefixAuthority)
     private data class Next(val read: SavedLocationSummaryRead, val progress: Progress?)
     private class InvalidContinuation : IllegalStateException("Invalid saved Location continuation")
     private companion object {
@@ -305,10 +318,12 @@ internal class SavedLocationLiveSummaryReader(
         val POINT_TABLES = setOf("location_sample", "location_accepted_receipt", "location_sample_purpose_authority")
         val REBUILD_TABLES = setOf("source_deletion_fence", "collected_data_deletion_operation",
             "location_point_correction",
-            "source_policy", "source_consent_epoch", "source_service_run", "session_manifest_version",
-            "session_manifest_source", "ambient_location_retention_authority", "location_file_identity",
+            "ambient_location_retention_authority", "location_file_identity",
             "location_file_archive", "location_file_archive_point")
-        val TABLES = (POINT_TABLES + REBUILD_TABLES + setOf("session_segment", "source_evidence_state")).toTypedArray()
+        val AUTHORITY_TABLES = setOf("source_policy", "source_consent_epoch", "source_service_run",
+            "session_manifest_version", "session_manifest_source")
+        val TABLES = (POINT_TABLES + REBUILD_TABLES + AUTHORITY_TABLES +
+            setOf("session_segment", "source_evidence_state")).toTypedArray()
     }
 }
 

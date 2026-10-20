@@ -31,9 +31,52 @@ data class LocationHistoryDayRow(
 	@androidx.room.ColumnInfo(name = "has_current_import_copy") val hasCurrentImportCopy: Boolean,
 )
 
+/** Distinct immutable dependencies of a saved prefix, rather than one copy per coordinate. */
+data class LocationSessionAuthorityKey(
+    @androidx.room.ColumnInfo(name = "source_policy_revision") val policyRevision: Long,
+    @androidx.room.ColumnInfo(name = "consent_epoch") val consentEpoch: Long,
+    @androidx.room.ColumnInfo(name = "session_manifest_revision") val manifestRevision: Long,
+    @androidx.room.ColumnInfo(name = "lifecycle_lease_generation") val leaseGeneration: Long,
+)
+
+/** Detects insertion-only changes without reading old coordinate payloads into memory. */
+data class LocationSavedAppendState(
+    @androidx.room.ColumnInfo(name = "through_id") val throughId: Long,
+    @androidx.room.ColumnInfo(name = "sample_prefix_count") val samplePrefixCount: Long,
+    @androidx.room.ColumnInfo(name = "purpose_prefix_count") val purposePrefixCount: Long,
+)
+
 /** Location authority only; this DAO never creates a canonical sample. */
 @Dao
 interface LocationPurposeDao {
+    /** Counts an existing prefix and reads the newest PK to distinguish append-only updates. */
+    @Query("""SELECT COALESCE((SELECT MAX(id) FROM location_sample), 0) AS through_id,
+        (SELECT COUNT(*) FROM location_sample WHERE id <= :throughId) AS sample_prefix_count,
+        (SELECT COUNT(*) FROM location_sample_purpose_authority
+            WHERE sample_id <= :throughId) AS purpose_prefix_count""")
+    suspend fun savedAppendState(throughId: Long): LocationSavedAppendState
+
+    /** Index-only native membership probe. A late point still has a new saved PK. */
+    @Query("""SELECT EXISTS(SELECT 1 FROM location_sample_purpose_authority
+        WHERE purpose = 'SESSION_CAPTURE' AND authority_id = :runId AND sample_id > :afterId
+        AND logical_tracking_id = :logicalId AND service_run_id = :runId AND session_segment_id = :segmentId)""")
+    suspend fun hasSessionPointsAfter(logicalId: String, runId: String, segmentId: Long, afterId: Long): Boolean
+
+    /** Probes a legacy trip's measured window without loading any coordinates. */
+    @Query("""SELECT EXISTS(SELECT 1 FROM location_sample
+        WHERE time_ms BETWEEN :fromMs AND :toMs AND id > :afterId)""")
+    suspend fun hasWindowPointsAfter(fromMs: Long, toMs: Long, afterId: Long): Boolean
+
+    /** Reads only the distinct historical authority keys referenced by this saved prefix. */
+    @Query("""SELECT DISTINCT source_policy_revision, consent_epoch, session_manifest_revision,
+        lifecycle_lease_generation FROM location_sample_purpose_authority
+        WHERE purpose = 'SESSION_CAPTURE' AND authority_id = :runId
+        AND logical_tracking_id = :logicalId AND service_run_id = :runId
+        AND session_segment_id = :segmentId AND sample_id > :afterId AND sample_id <= :throughId
+        ORDER BY source_policy_revision, consent_epoch, session_manifest_revision, lifecycle_lease_generation""")
+    suspend fun savedSessionAuthorityKeys(logicalId: String, runId: String, segmentId: Long,
+        afterId: Long, throughId: Long): List<LocationSessionAuthorityKey>
+
     /** Native receipt PK cursor: a wakeup is a hint, not a list of everything committed. */
     @Query("SELECT COALESCE(MAX(sample_id), 0) FROM location_accepted_receipt")
     suspend fun latestSavedReceiptSampleId(): Long

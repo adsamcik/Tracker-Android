@@ -205,7 +205,46 @@ class WifiWalQualificationAdapterTest {
 		assertEquals(null, authenticateSourceProductDrainRequest(database, request))
 	}
 
-	private suspend fun installFiniteWifiGap(): Pair<SourceRunRetirementEntity, SourceProductDrainRequest> {
+	@Test
+	fun `interrupted Wi-Fi drains saved readings without claiming complete provider coverage`() = runTest {
+		val (receipt, request) = installFiniteWifiGap(interrupted = true)
+		assertEquals(4L, request.memberships.single().lastSourceSequence)
+		assertEquals(null, authenticateSourceProductDrainRequest(database, request))
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val lane = WifiSessionFactProjectionLane(database, subject, writer)
+		assertIs<WifiSessionFactDrainResult.Complete>(lane.drainThrough(1L))
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+		assertIs<WifiSessionFactDrainResult.Complete>(lane.drainThrough(1L))
+		assertEquals(receipt, database.sourceSessionDao().runRetirement(
+			LOGICAL_ID, RUN_ID, WIFI_SOURCE, SOURCE_INSTANCE, REGISTRATION_GENERATION))
+		assertEquals("PROCESS_RESTARTED", request.memberships.single().stopStatus)
+		assertEquals(false, request.memberships.single().appDrainComplete)
+	}
+
+	@Test
+	fun `interrupted Wi-Fi still requires its removed provider and exact broker endpoint`() = runTest {
+		val (receipt, request) = installFiniteWifiGap(interrupted = true)
+		val changedReceipts = listOf(receipt.copy(lastAdmissionOrdinal = 0L),
+			receipt.copy(lastSourceSequence = 1L, callbackEntryBarrierSequence = 1L),
+			receipt.copy(registrationRemovalOutcome = "UNOBSERVABLE"))
+		for (changed in changedReceipts) {
+			assertEquals(1, database.sourceSessionDao().updateRunRetirement(changed))
+			val changedRequest = request.copy(memberships = request.memberships.map {
+				it.copy(lastAdmissionOrdinal = changed.lastAdmissionOrdinal, lastSourceSequence = changed.lastSourceSequence)
+			})
+			assertTrue(retirementDrainSettlementFailure(database, changedRequest) != null)
+		}
+		assertEquals(1, database.sourceSessionDao().updateRunRetirement(receipt))
+		assertEquals(null, retirementDrainSettlementFailure(database, request))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET status = 'ACTIVE' WHERE source_kind = ?",
+			arrayOf<Any?>(WIFI_SOURCE))
+		assertTrue(retirementDrainSettlementFailure(database, request) != null)
+	}
+
+	private suspend fun installFiniteWifiGap(
+		interrupted: Boolean = false,
+	): Pair<SourceRunRetirementEntity, SourceProductDrainRequest> {
 		installValidFixture(candidateWriter = true, payloadVersion = WIFI_WAL_PAYLOAD_VERSION, sourceSequence = 4L)
 		setLiveLifecyclePair("STOPPING", "STOPPING")
 		val dao = database.sourceSessionDao()
@@ -223,11 +262,23 @@ class WifiWalQualificationAdapterTest {
 			failedAdmissionCount = 1L, unresolvedSequenceStart = 2L, unresolvedSequenceEnd = 2L,
 			registrationRemovalOutcome = "REMOVED", providerFlushOutcome = "NOT_SUPPORTED",
 			providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE", appDrainComplete = true,
-			stopStatus = "COMPLETE", updatedAtMs = SESSION_END_WALL_MS)
+			stopStatus = "COMPLETE", updatedAtMs = SESSION_END_WALL_MS).let {
+			if (interrupted) {
+				it.copy(state = SourceRunRetirementEntity.STATE_INTERRUPTED, appliedRevision = null,
+					callbackEntryBarrierSequence = 4L, lastSourceSequence = 4L,
+					unresolvedSequenceStart = 1L, unresolvedSequenceEnd = 4L,
+					providerFlushOutcome = "NOT_REQUESTED", appDrainComplete = false,
+					stopStatus = "PROCESS_RESTARTED")
+			} else {
+				it
+			}
+		}
+
 		dao.insertRunRetirementIntent(receipt)
 		dao.saveCompleteness(SourceSessionCompletenessEntity(LOGICAL_ID, RUN_ID, WIFI_SOURCE, SOURCE_INSTANCE,
-			REGISTRATION_GENERATION, 1L, 1L, true, requireNotNull(receipt.providerCoverage),
-			"COMPLETE", 2L, 2L, SESSION_END_WALL_MS))
+			REGISTRATION_GENERATION, 1L, receipt.lastSourceSequence, !interrupted, requireNotNull(receipt.providerCoverage),
+			requireNotNull(receipt.stopStatus), receipt.unresolvedSequenceStart, receipt.unresolvedSequenceEnd,
+			SESSION_END_WALL_MS))
 		val authority = SourceProductDrainAuthority(
 			captureBindings = mapOf(WIFI_SOURCE to dao.manifestSources(LOGICAL_ID, MANIFEST_REVISION)),
 			retirementClaims = listOf(SourceDrainRetirementClaim(SourceKind.WIFI, SOURCE_INSTANCE,

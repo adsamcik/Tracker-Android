@@ -2,6 +2,8 @@ package com.adsamcik.tracker.stats.data.repository
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import androidx.room.RoomDatabase
+import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LocationPointCorrection
@@ -13,6 +15,9 @@ import com.adsamcik.tracker.shared.model.SegmentSource
 import io.kotest.matchers.shouldBe
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -110,6 +115,55 @@ class SavedLocationMetricsReaderRoomTest {
         days[missing] shouldBe null
         // Seven saved rows fit one bounded chronological page, regardless of 185 displayed days.
         queries.count { "FROM effective_location_sample AS location_sample LEFT JOIN location_accepted_receipt" in it } shouldBe 1
+    }
+
+    @Test fun `WAL snapshot allows provider writes`() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        for (kind in listOf("summary", "metrics")) {
+            // Robolectric includes the test name in its directory; keep native Windows paths short.
+            val name = "wal-$kind.db"
+            val entered = java.util.concurrent.CountDownLatch(1)
+            val release = java.util.concurrent.CountDownLatch(1)
+            val armed = java.util.concurrent.atomic.AtomicBoolean(false)
+            val actual = AppDatabase.fileBuilder(context, name)
+                .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
+                .setQueryCallback({ sql, _ ->
+                    if ("FROM effective_location_sample AS location_sample LEFT JOIN location_accepted_receipt" in sql &&
+                        armed.compareAndSet(true, false)) {
+                        entered.countDown()
+                        check(release.await(10, java.util.concurrent.TimeUnit.SECONDS))
+                    }
+                }, java.util.concurrent.Executor(Runnable::run)).build()
+            try {
+                actual.sourceEvidenceStateDao().ensure()
+                actual.locationSampleDao().insert(point(1_000, 0, null))
+                val summary = SavedLocationSummaryReader(actual, Dispatchers.IO)
+                val metrics = SavedLocationMetricsReader(actual, TestDispatchersProvider(Dispatchers.IO))
+                armed.set(true)
+                val reading = async(Dispatchers.IO) {
+                    if (kind == "summary") {
+                        val saved = summary.readWindow(com.adsamcik.tracker.stats.api.repository.HistoryObservationWindow(0, 10_000))
+                            as com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead.Snapshot
+                        saved.readSnapshot.sourceEvidenceRevision shouldBe 0L
+                        saved.summary.pointCount
+                    } else metrics.read().pointCount
+                }
+                assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                // This commit must finish while the earlier read is deliberately held open.
+                withTimeout(5_000) { async(Dispatchers.IO) { actual.withTransaction {
+                    actual.locationSampleDao().insert(point(2_000, 10_000, null))
+                    actual.sourceEvidenceStateDao().incrementRevision(3_000)
+                } }.await() }
+                release.countDown()
+                withTimeout(5_000) { reading.await() } shouldBe 1L
+                actual.locationSampleDao().countAll() shouldBe 2L
+                metrics.read().pointCount shouldBe 2L
+            } finally {
+                release.countDown()
+                actual.close()
+                context.deleteDatabase(name)
+            }
+        }
     }
 
     private fun point(time: Long, lon: Int, speed: Float?) = LocationSample(timeMs = time,

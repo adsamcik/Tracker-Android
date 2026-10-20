@@ -19,6 +19,14 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 class DefaultTripRepository @Inject constructor(
@@ -26,15 +34,24 @@ class DefaultTripRepository @Inject constructor(
 	private val savedLocationMetrics: SavedLocationMetricsReader,
 ) : TripRepository, TripPresentationRepository {
 
-	override fun observeTrips(): Flow<List<TripSummary>> =
-		combine(tripDao.getRecentTripsFlow(100), savedLocationMetrics.observeChanges()) { trips, _ ->
-			trips.map { measuredTrip(it).toSummary() }
-		}
+	override fun observeTrips(): Flow<List<TripSummary>> = flow {
+        val measurements = savedLocationMetrics.tripMeasurements()
+        val changes = savedLocationMetrics.observeTableChanges().onEach { measurements.changed(it) }.map { }
+        combine(tripDao.getRecentTripsFlow(100), changes) { trips, _ ->
+            measurements.keepOnly(trips.map { it.id }.toSet())
+            trips.map { measuredTrip(it, measurements::read).toSummary() }
+        }.collect { emit(it) }
+    }
 
-	override fun observeTripsBetween(from: EpochMs, to: EpochMs): Flow<List<TripSummary>> =
-		savedLocationMetrics.observeChanges().map {
-			tripDao.getBetween(from.raw, to.raw).map { trip -> measuredTrip(trip).toSummary() }
-		}
+	override fun observeTripsBetween(from: EpochMs, to: EpochMs): Flow<List<TripSummary>> = flow {
+        val measurements = savedLocationMetrics.tripMeasurements()
+        savedLocationMetrics.observeTableChanges().collect { tables ->
+            measurements.changed(tables)
+            val trips = tripDao.getBetween(from.raw, to.raw)
+            measurements.keepOnly(trips.map { it.id }.toSet())
+            emit(trips.map { measuredTrip(it, measurements::read).toSummary() })
+        }
+    }
 
 	override suspend fun getTripDetail(id: Long): Either<StatsError, TripSummary> {
 		return try {
@@ -52,26 +69,34 @@ class DefaultTripRepository @Inject constructor(
 	}
 
 	override fun getPagedTrips(): PagingSource<Int, com.adsamcik.tracker.shared.model.Trip> =
-		TripModelPagingSource(tripDao.getAllPaged(), ::measuredTrip, savedLocationMetrics::onSavedDataChange)
+        pagedTrips(tripDao.getAllPaged())
 
 	override fun getPagedTripsOverlapping(
 		fromMs: Long,
 		toMs: Long,
 	): PagingSource<Int, com.adsamcik.tracker.shared.model.Trip> =
-		TripModelPagingSource(tripDao.getPagedOverlapping(fromMs, toMs), ::measuredTrip,
-            savedLocationMetrics::onSavedDataChange)
+        pagedTrips(tripDao.getPagedOverlapping(fromMs, toMs))
+
+    private fun pagedTrips(delegate: PagingSource<Int, com.adsamcik.tracker.shared.base.database.data.Trip>):
+        PagingSource<Int, com.adsamcik.tracker.shared.model.Trip> {
+        val measurements = savedLocationMetrics.tripMeasurements()
+        return TripModelPagingSource(delegate, { measuredTrip(it, measurements::read) }, measurements,
+            savedLocationMetrics::onSavedTablesChange, savedLocationMetrics.readDispatcher)
+    }
 
 	override suspend fun getTripsBetween(fromMs: Long, toMs: Long) =
 		tripDao.getBetween(fromMs, toMs).map { measuredTrip(it) }
 
 	override suspend fun getTripProjection(id: Long) = tripDao.getById(id)?.let { measuredTrip(it) }
 
-	private suspend fun measuredTrip(trip: com.adsamcik.tracker.shared.base.database.data.Trip):
+	private suspend fun measuredTrip(trip: com.adsamcik.tracker.shared.base.database.data.Trip,
+        readLocation: suspend (Long) -> com.adsamcik.tracker.stats.api.repository.SavedLocationSummary =
+            savedLocationMetrics::readTrip):
 		com.adsamcik.tracker.shared.model.Trip {
 		if (trip.source == com.adsamcik.tracker.shared.model.SegmentSource.PORTABLE_STEPS_IMPORT) {
 			return trip.toModel().copy(distanceM = 0f, sampleCount = 0, hasMeasuredDistance = false)
 		}
-		val location = try { savedLocationMetrics.readTrip(trip.id) }
+		val location = try { readLocation(trip.id) }
 		catch (cancelled: CancellationException) { throw cancelled }
 		catch (_: Exception) { null }
 		return trip.toModel().copy(distanceM = (location?.distanceMeters ?: 0.0).toFloat(),
@@ -118,12 +143,31 @@ private class TripModelPagingSource(
 	private val delegate: PagingSource<Int, com.adsamcik.tracker.shared.base.database.data.Trip>,
 	private val measure: suspend (com.adsamcik.tracker.shared.base.database.data.Trip) ->
         com.adsamcik.tracker.shared.model.Trip,
-	registerChanges: (() -> Unit) -> (() -> Unit),
+    measurements: SavedTripMeasurementCache,
+    registerChanges: ((Set<String>) -> Unit) -> (() -> Unit),
+    io: kotlinx.coroutines.CoroutineDispatcher,
 ) : PagingSource<Int, com.adsamcik.tracker.shared.model.Trip>() {
-	private val stopObserving = registerChanges { invalidate() }
+    private val scope = CoroutineScope(SupervisorJob() + io)
+    private val changes = Channel<Set<String>>(Channel.BUFFERED)
+    private val stopObserving = registerChanges {
+        if (changes.trySend(it).isFailure) {
+            invalidate()
+        }
+    }
 	init {
+        scope.launch {
+            for (tables in changes) {
+                try {
+                    if (measurements.changed(tables)) {
+                        invalidate()
+                    }
+                }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { invalidate() }
+            }
+        }
 		delegate.registerInvalidatedCallback { invalidate() }
-		registerInvalidatedCallback { stopObserving() }
+		registerInvalidatedCallback { stopObserving(); changes.close(); scope.cancel() }
 	}
 
 	override fun getRefreshKey(state: PagingState<Int, com.adsamcik.tracker.shared.model.Trip>): Int? =
