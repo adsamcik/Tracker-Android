@@ -17,6 +17,7 @@ import com.adsamcik.tracker.tracker.source.catalog.DefaultSourceImplementationCa
 import com.adsamcik.tracker.tracker.source.catalog.SourceAcquisitionPlanFactory
 import com.adsamcik.tracker.tracker.source.catalog.SourceImplementationCatalog
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjection
+import com.adsamcik.tracker.tracker.source.projection.AllDaySensorProjection
 import com.adsamcik.tracker.tracker.source.projection.AmbientCellProjection
 import com.adsamcik.tracker.tracker.source.projection.AmbientWifiProjection
 import com.adsamcik.tracker.tracker.source.projection.Projection
@@ -27,7 +28,7 @@ import com.adsamcik.tracker.tracker.source.runtime.ActivitySourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioMutationLeaseGuard
 import com.adsamcik.tracker.tracker.source.runtime.ClaimedSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
-import com.adsamcik.tracker.tracker.source.runtime.PressureSourceRuntime
+import com.adsamcik.tracker.tracker.source.runtime.SharedPressureSourceController
 import com.adsamcik.tracker.tracker.source.runtime.SharedLocationSourceController
 import com.adsamcik.tracker.tracker.source.runtime.SerializedTrackingPurposeLeaseIssuer
 import com.adsamcik.tracker.tracker.source.runtime.TrackingPurposeMutationLeaseGuard
@@ -84,6 +85,16 @@ object SourcePipelineModule {
 	@IntoSet
 	internal fun provideAmbientCellProjection(projection: AmbientCellProjection): Projection = projection
 
+	@Provides
+	@IntoSet
+	internal fun provideAllDayActivityProjection(database: AppDatabase, clock: BootClockDomainProvider): Projection =
+		AllDaySensorProjection(SourceKind.ACTIVITY, database, clock)
+
+	@Provides
+	@IntoSet
+	internal fun provideAllDayPressureProjection(database: AppDatabase, clock: BootClockDomainProvider): Projection =
+		AllDaySensorProjection(SourceKind.PRESSURE, database, clock)
+
 	/** Registers the shared Activity owner in the source runtime map. */
 	@Provides
 	@IntoMap
@@ -100,7 +111,8 @@ object SourcePipelineModule {
 	@Provides
 	@IntoMap
 	@SourceRuntimeKey(SourceKind.PRESSURE)
-	fun providePressureSourceRuntime(runtime: PressureSourceRuntime): ClaimedSourceRuntime<out SourcePlan> = runtime
+	fun providePressureSourceRuntime(runtime: SharedPressureSourceController): ClaimedSourceRuntime<out SourcePlan> =
+		runtime
 
 	/** Registers the single Location owner shared by recording and temporary consumers. */
 	@Provides

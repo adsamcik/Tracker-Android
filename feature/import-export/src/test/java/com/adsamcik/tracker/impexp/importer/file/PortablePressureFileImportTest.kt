@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.impexp.importer.file
 
 import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportJobRunner
 import com.adsamcik.tracker.impexp.importer.ImportReceiptStore
@@ -42,7 +43,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class PortablePressureFileImportTest {
-	private val context = mockk<Context>()
+	private val context = ApplicationProvider.getApplicationContext<Context>()
 	private val database = mockk<AppDatabase>()
 
 	@Test

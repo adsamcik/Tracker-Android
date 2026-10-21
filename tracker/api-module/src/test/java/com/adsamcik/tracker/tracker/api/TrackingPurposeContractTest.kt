@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test
 
 class TrackingPurposeContractTest {
 	@Test
-	fun `source purpose identity accepts only the frozen purpose matrix`() {
+	fun `every source supports all-day capture while only Activity controls automatic start`() {
 		TrackingSource.entries.filter { source ->
 			source.supportsPurpose(TrackingPurpose.SESSION_CAPTURE)
 		} shouldContainExactly TrackingSource.entries.toList()
@@ -18,18 +18,10 @@ class TrackingPurposeContractTest {
 		} shouldContainExactly listOf(TrackingSource.ACTIVITY)
 		TrackingSource.entries.filter { source ->
 			source.supportsPurpose(TrackingPurpose.AMBIENT_PRODUCT)
-		} shouldContainExactly listOf(
-			TrackingSource.LOCATION,
-			TrackingSource.WIFI,
-			TrackingSource.CELL,
-			TrackingSource.STEPS,
-		)
+		} shouldContainExactly TrackingSource.entries.toList()
 
 		shouldThrow<IllegalArgumentException> {
 			TrackingSource.STEPS.forPurpose(TrackingPurpose.CONTROL)
-		}
-		shouldThrow<IllegalArgumentException> {
-			TrackingSource.PRESSURE.forPurpose(TrackingPurpose.AMBIENT_PRODUCT)
 		}
 		TrackingSource.entries.forEach { legacySource ->
 			val canonicalSource = legacySource.toCanonicalTrackingSource()

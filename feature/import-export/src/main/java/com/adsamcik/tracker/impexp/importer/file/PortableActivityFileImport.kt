@@ -3,7 +3,12 @@ package com.adsamcik.tracker.impexp.importer.file
 import android.content.Context
 import android.database.sqlite.SQLiteException
 import com.adsamcik.tracker.impexp.importer.FileImportStream
+import com.adsamcik.tracker.impexp.importer.FileImportReceiptContext
 import com.adsamcik.tracker.impexp.importer.ImportResult
+import com.adsamcik.tracker.impexp.portable.AllDaySensorSourceFile
+import com.adsamcik.tracker.impexp.portable.AllDaySensorPortableRows
+import com.adsamcik.tracker.impexp.portable.SensorSourceFileFormatException
+import com.adsamcik.tracker.impexp.portable.SensorSourceFileInput
 import com.adsamcik.tracker.impexp.portable.PortableActivityFormatException
 import com.adsamcik.tracker.impexp.portable.PortableActivityJsonV1Codec
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedPortableFormatV1
@@ -56,8 +61,18 @@ internal class PortableActivityFileImport(
 			errors = listOf("Portable Activity import is missing durable file-job provenance."),
 		)
 		val epoch = stream.requireOriginalDataEpoch()
+        val sourceFile = try {
+            AllDaySensorSourceFile.open(stream, "ACTIVITY", context)
+        } catch (_: SensorSourceFileFormatException) {
+            return ImportResult(failedCount = 1, errors = listOf("Activity file is invalid."))
+        }
+		return sourceFile.use { importDecoded(context, database, sourceFile, fileReceipt, epoch) }
+	}
+
+	private suspend fun importDecoded(context: Context, database: AppDatabase, sourceFile: SensorSourceFileInput,
+        fileReceipt: FileImportReceiptContext, epoch: Long): ImportResult {
 		val envelope = try {
-			PortableActivityJsonV1Codec().decode(stream)
+            sourceFile.sessionInput?.let { PortableActivityJsonV1Codec().decode(it) }
 		} catch (format: PortableActivityFormatException) {
 			return ImportResult(
 				failedCount = 1,
@@ -71,7 +86,7 @@ internal class PortableActivityFileImport(
 				PortableActivityTransferRetryableReason.STORAGE_UNAVAILABLE,
 			)
 		} ?: return ImportResult(
-			failedCount = envelope.entries.size,
+			failedCount = (envelope?.entries?.size ?: 0) + sourceFile.observationCount,
 			errors = listOf("Portable Activity source evidence is unavailable."),
 		)
 		if (state.collectedDataEpoch != epoch) {
@@ -80,10 +95,10 @@ internal class PortableActivityFileImport(
 			errors = listOf("Import stopped because recorded data was cleared"),
 		)
 		}
-		val importer = importerProvider(context)
+        val importer = if (envelope != null) { importerProvider(context) } else { null }
 		var aggregate = ImportResult.EMPTY
-		envelope.entries.forEach { entry ->
-			aggregate += importer.importEntry(
+		envelope?.entries.orEmpty().forEach { entry ->
+			aggregate += requireNotNull(importer).importEntry(
 				ImportPortableCapturedActivityRequest(
 					entry = entry,
 					receipt = PortableActivityImportReceipt(
@@ -99,6 +114,7 @@ internal class PortableActivityFileImport(
 				),
 			).toFileResult()
 		}
+        aggregate += AllDaySensorPortableRows.import(database, "ACTIVITY", sourceFile, epoch)
 		return aggregate
 	}
 

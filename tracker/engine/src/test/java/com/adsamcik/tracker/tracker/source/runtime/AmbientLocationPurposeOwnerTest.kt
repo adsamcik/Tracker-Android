@@ -51,8 +51,8 @@ class AmbientLocationPurposeOwnerTest {
 			ambientLocationEnabled = true, locationEnabled = false, locationProfileVersion = 1,
 			locationBalanceLevel = 3, locationBackgroundMode = mode))
 		every { host.active } returns MutableStateFlow(null)
-		coEvery { caller.dispatchAmbientLocation(any()) } returns GuardedPurposeDemandResult.Applied(
-			AmbientLocationDemandResult.Active(mockk()), null)
+		coEvery { caller.dispatchAmbientSource(any()) } returns GuardedPurposeDemandResult.Applied(
+			AmbientSourceDemandResult.Active(mockk()), null)
 		return AmbientLocationPurposeOwner(context, broker, caller, host, runtime,
 			settings, mockk(), SourcePlanResolver(), object : BootClockDomainProvider {
 				override fun current() = "boot"
@@ -89,7 +89,7 @@ class AmbientLocationPurposeOwnerTest {
 		val owner = subject()
 		val result = owner.reconcile(AmbientReconciliationLease(identity.copy(policyRevision = 1)))
 		assertEquals(AmbientSourceOperationalState.UNAVAILABLE, result.state)
-		coVerify(exactly = 0) { caller.dispatchAmbientLocation(any()) }
+		coVerify(exactly = 0) { caller.dispatchAmbientSource(any()) }
 		coVerify(exactly = 0) { host.acquire(any()) }
 		coVerify(exactly = 0) { runtime.reconcileAmbientJoin(any(), any()) }
 	}
@@ -98,10 +98,10 @@ class AmbientLocationPurposeOwnerTest {
 	fun `host rejection retires exact demand before reporting unavailable`() = runTest {
 		val owner = subject()
 		coEvery { host.acquire(identity) } returns BackgroundLocationHostResult.Blocked("test-host-rejected")
-		coEvery { broker.retireAmbientLocationDemand(identity, any(), any(), any()) } returns true
+		coEvery { broker.retireAmbientSourceDemand(identity, any(), any(), any()) } returns true
 		coEvery { runtime.reconcileAmbientJoin(null, 2) } returns AmbientLocationRuntimeJoinResult.Inactive(null)
 		assertEquals(AmbientSourceOperationalState.UNAVAILABLE, owner.reconcile(lease).state)
-		coVerify(exactly = 1) { broker.retireAmbientLocationDemand(identity, any(), any(), any()) }
+		coVerify(exactly = 1) { broker.retireAmbientSourceDemand(identity, any(), any(), any()) }
 		coVerify(exactly = 1) { runtime.reconcileAmbientJoin(null, 2) }
 		coVerify(exactly = 0) { host.release(any()) }
 	}
@@ -109,7 +109,7 @@ class AmbientLocationPurposeOwnerTest {
 	@Test
 	fun `failed exact retirement cannot be reported as completed cleanup`() = runTest {
 		val owner = subject()
-		coEvery { broker.retireAmbientLocationDemand(identity, any(), any(), any()) } returns false
+		coEvery { broker.retireAmbientSourceDemand(identity, any(), any(), any()) } returns false
 		assertEquals(false, owner.retire(lease))
 		coVerify(exactly = 0) { runtime.reconcileAmbientJoin(any(), any()) }
 		coVerify(exactly = 0) { host.release(any()) }
@@ -119,7 +119,7 @@ class AmbientLocationPurposeOwnerTest {
 	fun `host rejection with failed retirement remains a reconciliation failure`() = runTest {
 		val owner = subject()
 		coEvery { host.acquire(identity) } returns BackgroundLocationHostResult.Blocked("test-host-rejected")
-		coEvery { broker.retireAmbientLocationDemand(identity, any(), any(), any()) } returns false
+		coEvery { broker.retireAmbientSourceDemand(identity, any(), any(), any()) } returns false
 		assertFailsWith<IllegalStateException> { owner.reconcile(lease) }
 	}
 
@@ -127,9 +127,9 @@ class AmbientLocationPurposeOwnerTest {
 	fun `policy tick failure withdraws readiness and leaves reconciliation debt`() = runTest {
 		val owner = subject()
 		coEvery { host.acquire(identity) } returns BackgroundLocationHostResult.Blocked("test-host-rejected")
-		coEvery { broker.retireAmbientLocationDemand(identity, any(), any(), any()) } returns false
+		coEvery { broker.retireAmbientSourceDemand(identity, any(), any(), any()) } returns false
 		assertFailsWith<IllegalStateException> { owner.reconcile(lease) }
-		coEvery { broker.retireAmbientLocationDemand(identity, any(), any(), any()) } throws
+		coEvery { broker.retireAmbientSourceDemand(identity, any(), any(), any()) } throws
 			IllegalStateException("authority temporarily unavailable")
 
 		assertFailsWith<IllegalStateException> { owner.refreshActivePlan() }

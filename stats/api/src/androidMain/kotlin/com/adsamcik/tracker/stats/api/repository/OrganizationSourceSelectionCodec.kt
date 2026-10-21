@@ -6,36 +6,38 @@ import org.json.JSONObject
 
 /** Bounded local representation of approved typed bundle membership. Unknown shapes are never intervals. */
 object OrganizationSourceSelectionCodec {
-	const val MAX_BYTES = 1024 * 1024
+	const val MAX_BYTES = 16 * 1024 * 1024
 
 	/**
 	 * Encodes distinct typed selections as bounded UTF-8 JSON; throws for duplicate members or
 	 * count/byte limits.
 	 */
 	fun encode(selection: List<OrganizationSourceSelector>): String {
-		validate(selection)
-		return JSONArray().apply {
-			selection.forEach { selected ->
-				put(JSONObject().put("source", selected.source.name).apply {
-					when (selected) {
-						is OrganizationSourceSelector.LocationFile -> put("kind", "location-file").put("identity",
-                            selected.archiveIdentity)
-						is OrganizationSourceSelector.CapturedEntry -> {
-							put("kind", "captured-entry").put("identity", selected.entryIdentity)
-							if (selected.importJobId != null) {
-								put("importJobId", selected.importJobId).put("importEntryKey", selected.importEntryKey)
-							}
-						}
-						is OrganizationSourceSelector.BackgroundStepsDay -> put("kind",
-                            "background-steps-day").put("identity",
-                            selected.dayIdentity)
-						is OrganizationSourceSelector.BackgroundRadioArchive -> put("kind",
-                            "background-radio-archive").put("identity", selected.archiveIdentity)
-					}
-				})
-			}
-		}.toString().also { require(it.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) }
-	}
+        validate(selection)
+        return JSONArray(selection.map(::encodeRow)).toString().also {
+            require(it.toByteArray(Charsets.UTF_8).size <= MAX_BYTES)
+        }
+    }
+
+    private fun encodeRow(selected: OrganizationSourceSelector): JSONObject =
+        JSONObject().put("source", selected.source.name).apply {
+            when (selected) {
+                is OrganizationSourceSelector.LocationFile -> put("kind", "location-file")
+                    .put("identity", selected.archiveIdentity)
+                is OrganizationSourceSelector.CapturedEntry -> {
+                    put("kind", "captured-entry").put("identity", selected.entryIdentity)
+                    if (selected.importJobId != null) {
+                        put("importJobId", selected.importJobId).put("importEntryKey", selected.importEntryKey)
+                    }
+                }
+                is OrganizationSourceSelector.BackgroundStepsDay -> put("kind", "background-steps-day")
+                    .put("identity", selected.dayIdentity)
+                is OrganizationSourceSelector.BackgroundRadioArchive -> put("kind", "background-radio-archive")
+                    .put("identity", selected.archiveIdentity)
+                is OrganizationSourceSelector.SensorObservations -> put("kind", "sensor-observations")
+                    .put("identities", JSONArray(selected.identities))
+            }
+        }
 
 	/** Throws for malformed/unsupported stored metadata; callers must report unavailable, not group by dates. */
 	fun decode(encoded: String): List<OrganizationSourceSelector> = try {
@@ -51,9 +53,10 @@ object OrganizationSourceSelectionCodec {
 
 	private fun decodeRow(row: JSONObject): OrganizationSourceSelector {
 		val keys = row.keys().asSequence().toSet()
-		require(keys == setOf("kind", "source", "identity") ||
-			keys == setOf("kind", "source", "identity", "importJobId", "importEntryKey") &&
-                    row.getString("kind") == "captured-entry")
+		if (row.getString("kind") == "sensor-observations") {
+			return decodeSensorObservations(row, keys)
+		}
+		requireEntryFields(row, keys)
 		val source = HistorySource.valueOf(row.getString("source"))
 		val identity = row.getString("identity")
 		return when (row.getString("kind")) {
@@ -80,6 +83,20 @@ object OrganizationSourceSelectionCodec {
 			else -> throw IllegalArgumentException("Unsupported organization source selection")
 		}
 	}
+
+    private fun requireEntryFields(row: JSONObject, keys: Set<String>) {
+        require(keys == setOf("kind", "source", "identity") ||
+            keys == setOf("kind", "source", "identity", "importJobId", "importEntryKey") &&
+                row.getString("kind") == "captured-entry")
+    }
+
+    private fun decodeSensorObservations(row: JSONObject, keys: Set<String>): OrganizationSourceSelector {
+        require(keys == setOf("kind", "source", "identities"))
+        val identities = row.getJSONArray("identities")
+        require(identities.length() <= OrganizationSourceSelector.MAX_SENSOR_OBSERVATIONS)
+        return OrganizationSourceSelector.SensorObservations(HistorySource.valueOf(row.getString("source")),
+            (0 until identities.length()).map { identities.getString(it) })
+    }
 
 	private fun validate(selection: List<OrganizationSourceSelector>) {
 		require(selection.size <= OrganizationSourceSelector.MAX_COUNT)

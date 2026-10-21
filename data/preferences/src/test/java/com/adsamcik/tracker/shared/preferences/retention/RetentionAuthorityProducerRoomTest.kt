@@ -52,12 +52,14 @@ class RetentionAuthorityProducerRoomTest {
 		)
 	private var effectiveTime = 0L
 	private var currentBoot = "boot-1"
+	private var wallTimeOffset = 0L
 	private lateinit var operationLease: RetentionAuthorityOperationLease
 
 	@BeforeTest
 	fun setUp() = runTest {
 		effectiveTime = 0L
 		currentBoot = "boot-1"
+		wallTimeOffset = 0L
 		operationLease = RetentionAuthorityOperationLease()
 		lifecycle = CollectedDataLifecycleSnapshot(epoch = 4L, retainedFromMs = null)
 		approvedPolicy = ApprovedRetentionPolicyRead.Unavailable(
@@ -76,6 +78,75 @@ class RetentionAuthorityProducerRoomTest {
 	@AfterTest
 	fun tearDown() {
 		database.close()
+	}
+
+	@Test
+	fun `native all-day sources reuse durable approval and keep sibling consent independent`() = runBlocking<Unit> {
+		bootstrap()
+		val snapshot = (policies.currentState() as SourcePolicyAuthorityState.Active).snapshot
+		val sources = listOf(TrackingSourceComponent.ACTIVITY, TrackingSourceComponent.PRESSURE)
+		sources.forEach { source ->
+			assertIs<RetentionAuthorityResult.Unavailable>(producer().reconcileLiveAmbient(source))
+				.reason shouldBe RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE
+		}
+		approvedPolicy = approved("native-policy", revision = 3L)
+		sources.forEach { source ->
+			assertIs<RetentionAuthorityResult.Unchanged>(producer().reconcileLiveAmbient(source))
+				.state shouldBe RetentionAuthorityState.ACTIVE
+			val current = assertIs<CurrentRetentionAuthority.Approved>(producer().currentLiveAmbient(
+				source, snapshot.revision, requireNotNull(snapshot[source].ambientConsentEpoch), lifecycle.epoch))
+			current.opaquePolicyId shouldBe "native-policy"
+			current.approvalRevision shouldBe 3L
+			// A newly constructed reader derives the same identity from durable inputs.
+			producer().currentLiveAmbient(source, snapshot.revision,
+				requireNotNull(snapshot[source].ambientConsentEpoch), lifecycle.epoch) shouldBe current
+		}
+		val changed = policies.replaceCaptureSettings(snapshot.revision, TrackingParamsState(
+			activityEnabled = false, stepsEnabled = false, legacySettingsMigrationCompleted = true), "ACTIVITY_OFF")
+		assertIs<CurrentRetentionAuthority.Unavailable>(producer().currentLiveAmbient(
+			TrackingSourceComponent.ACTIVITY, changed.revision, 1L, lifecycle.epoch))
+		assertIs<CurrentRetentionAuthority.Approved>(producer().currentLiveAmbient(
+			TrackingSourceComponent.PRESSURE, changed.revision,
+			requireNotNull(changed[TrackingSourceComponent.PRESSURE].ambientConsentEpoch), lifecycle.epoch))
+	}
+
+	@Test
+	fun `native approval follows current boot and rejects obsolete data epoch or retention configuration`() = runBlocking<Unit> {
+		bootstrap()
+		approvedPolicy = approved("native-policy", revision = 3L)
+		val snapshot = (policies.currentState() as SourcePolicyAuthorityState.Active).snapshot
+		val source = TrackingSourceComponent.PRESSURE
+		val consent = requireNotNull(snapshot[source].ambientConsentEpoch)
+		currentBoot = "boot-2"
+		val current = assertIs<CurrentRetentionAuthority.Approved>(producer().currentLiveAmbient(
+			source, snapshot.revision, consent, lifecycle.epoch))
+		current.effectiveBootId shouldBe "boot-2"
+		current.effectiveElapsedRealtimeNanos shouldBe 0L
+		assertIs<CurrentRetentionAuthority.Unavailable>(producer().currentLiveAmbient(
+			source, snapshot.revision, consent, lifecycle.epoch - 1L)).reason shouldBe
+			RetentionAuthorityUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED
+		approvedPolicy = ApprovedRetentionPolicyRead.Unavailable(ApprovedRetentionPolicyUnavailableReason.PENDING_APPROVAL)
+		assertIs<CurrentRetentionAuthority.Unavailable>(producer().currentLiveAmbient(
+			source, snapshot.revision, consent, lifecycle.epoch)).reason shouldBe
+			RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE
+	}
+
+	@Test
+	fun `native live approval uses monotonic time after a same boot wall clock correction`() = runBlocking<Unit> {
+		effectiveTime = 10_000L
+		bootstrap()
+		approvedPolicy = approved("native-policy", revision = 3L)
+		val snapshot = (policies.currentState() as SourcePolicyAuthorityState.Active).snapshot
+		val source = TrackingSourceComponent.PRESSURE
+		val consent = requireNotNull(snapshot[source].ambientConsentEpoch)
+		wallTimeOffset = -5_000L
+		val reader = producer()
+		val current = assertIs<CurrentRetentionAuthority.Approved>(reader.currentLiveAmbient(
+			source, snapshot.revision, consent, lifecycle.epoch))
+		reader.isCurrentLiveAmbientAt(source, snapshot.revision, consent, lifecycle.epoch,
+			expectedOpaquePolicyId = current.opaquePolicyId, expectedApprovalRevision = current.approvalRevision,
+			currentBootId = currentBoot, currentElapsedRealtimeNanos = effectiveTime + 100L,
+			currentWallTimeMs = effectiveTime + wallTimeOffset) shouldBe true
 	}
 
 	@Test
@@ -1232,7 +1303,7 @@ class RetentionAuthorityProducerRoomTest {
 		return SourcePolicyEffectiveTime(
 			bootId = currentBoot,
 			elapsedRealtimeNanos = effectiveTime,
-			wallTimeMs = effectiveTime,
+			wallTimeMs = effectiveTime + wallTimeOffset,
 		)
 	}
 

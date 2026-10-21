@@ -74,6 +74,7 @@ internal class RoomActivitySourceErase @Inject constructor(
 				revisionCount = local.revisionCount,
 				registrationPlanCount = local.registrationPlanCount,
 				fencedServiceRunCount = local.fencedServiceRunCount,
+				nativeObservationCount = local.nativeObservationCount,
 			)
 			ActivityCapturedSourceDeletionResult.AlreadyDeleted -> LocalEraseCounts.EMPTY
 			is ActivityCapturedSourceDeletionResult.Blocked ->
@@ -193,6 +194,7 @@ private data class LocalEraseCounts(
 	val revisionCount: Int,
 	val registrationPlanCount: Int,
 	val fencedServiceRunCount: Int,
+	val nativeObservationCount: Int = 0,
 ) {
 	companion object {
 		val EMPTY = LocalEraseCounts(0, 0, 0, 0)
@@ -214,6 +216,7 @@ private fun completedResult(
 			localRevisionCount = local.revisionCount,
 			localRegistrationPlanCount = local.registrationPlanCount,
 			localFencedServiceRunCount = local.fencedServiceRunCount,
+			nativeObservationCount = local.nativeObservationCount,
 			importedLiveEntryCount = importedLiveEntries,
 			importedRetainedEntryCount = importedRetainedEntries,
 			importedPhysicalRunCount = importedPhysicalRuns,

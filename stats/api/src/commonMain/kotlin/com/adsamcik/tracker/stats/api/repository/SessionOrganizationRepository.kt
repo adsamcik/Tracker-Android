@@ -98,10 +98,32 @@ sealed interface OrganizationSourceSelector {
 		}
 	}
 
+	/** Exact timestamped Activity or Pressure observations carried by a session source file. */
+	data class SensorObservations(override val source: HistorySource,
+		val identities: List<String>) : OrganizationSourceSelector {
+		init {
+			require(source == HistorySource.ACTIVITY || source == HistorySource.PRESSURE)
+			require(identities.isNotEmpty() && identities.size <= MAX_SENSOR_OBSERVATIONS)
+			require(identities.distinct().size == identities.size)
+			val prefix = if (source == HistorySource.ACTIVITY) {
+				"all-day:activity:"
+			} else {
+				"all-day:pressure:"
+			}
+			require(identities.all {
+				it.startsWith(prefix) && it.length > prefix.length && it.length <= MAX_SENSOR_IDENTITY_LENGTH
+			})
+		}
+	}
+
 	/**
 	 * Finite source-membership bound for one imported session annotation.
 	 */
-	companion object { const val MAX_COUNT = 4_096 }
+	companion object {
+		const val MAX_COUNT = 4_096
+		const val MAX_SENSOR_OBSERVATIONS = 100_000
+		const val MAX_SENSOR_IDENTITY_LENGTH = 4_096
+	}
 }
 
 private val organizationIdentity = Regex("[0-9a-f]{64}")

@@ -77,6 +77,8 @@ import com.adsamcik.tracker.app.settings.LocationSettingsPermissionKind
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.shared.utils.compose.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
+import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalState
 import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
 import com.adsamcik.tracker.app.settings.components.SectionHeader
 import com.adsamcik.tracker.app.settings.components.SettingsItem
@@ -674,6 +676,7 @@ internal fun TrackingSettingsContent(
 					onLocationEnabledChanged = onLocationEnabledChanged,
 					onStepsProviderPermission = onStepsProviderPermission,
 					onSourcePermission = onSourcePermission,
+                    onRetrySourceRecovery = onRetrySourceRecovery,
                 )
             }
         } else {
@@ -689,6 +692,7 @@ internal fun TrackingSettingsContent(
                     onWifiEnabledChanged = onWifiEnabledChanged,
                     onCellEnabledChanged = onCellEnabledChanged,
 					onSourceBalanceSelected = onSourceBalanceSelected,
+                    onRetrySourceRecovery = onRetrySourceRecovery,
                 )
             }
             if (uiState.balanceProfileVersion == null) {
@@ -852,6 +856,7 @@ private fun SimpleDataSourceSettings(
     onCellEnabledChanged: (Boolean) -> Unit,
 	onSourceBalanceSelected: (TrackingSourceComponent, Int?) -> Unit,
 	onSourcePermission: (TrackingSourceComponent) -> Unit,
+    onRetrySourceRecovery: () -> Unit,
 ) {
     SettingsGroupCard {
         SwitchSettingsItem(
@@ -869,13 +874,15 @@ private fun SimpleDataSourceSettings(
         SettingsRowDivider()
         SwitchSettingsItem(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_activity_enabled_title),
-            subtitle = sourceSummaryWithOptionalStatus(
+            subtitle = sourceSummaryWithAllDayStatus(
                 summaryRes = com.adsamcik.tracker.R.string.settings_activity_source_summary,
                 statusRes = if (uiState.activityPermissionGranted) {
                     null
                 } else {
                     com.adsamcik.tracker.R.string.settings_activity_permission_required
                 },
+                selected = uiState.activityEnabled,
+                availability = uiState.ambientSourceAvailability.getValue(AmbientTrackingSource.ACTIVITY),
             ),
             iconRes = com.adsamcik.tracker.R.drawable.ic_tracking_source_activity,
             checked = uiState.activityEnabled,
@@ -885,6 +892,8 @@ private fun SimpleDataSourceSettings(
 		SourceBalanceOverrideItem(TrackingSourceComponent.ACTIVITY, uiState, onSourceBalanceSelected)
 		SourcePermissionRepair(TrackingSourceComponent.ACTIVITY,
 			uiState.activityEnabled && !uiState.activityPermissionGranted, onSourcePermission)
+        AllDaySensorRecovery(AmbientTrackingSource.ACTIVITY, uiState.activityEnabled,
+            uiState.ambientSourceAvailability.getValue(AmbientTrackingSource.ACTIVITY), onRetrySourceRecovery)
         SettingsRowDivider()
         SwitchSettingsItem(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_steps_enabled_title),
@@ -909,13 +918,15 @@ private fun SimpleDataSourceSettings(
         SettingsRowDivider()
         SwitchSettingsItem(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_barometer_enabled_title),
-            subtitle = sourceSummaryWithOptionalStatus(
+            subtitle = sourceSummaryWithAllDayStatus(
                 summaryRes = com.adsamcik.tracker.R.string.settings_barometer_source_summary,
                 statusRes = if (uiState.barometerAvailable) {
                     null
                 } else {
                     com.adsamcik.tracker.R.string.settings_barometer_unavailable
                 },
+                selected = uiState.barometerEnabled,
+                availability = uiState.ambientSourceAvailability.getValue(AmbientTrackingSource.PRESSURE),
             ),
             iconRes = com.adsamcik.tracker.R.drawable.ic_tracking_source_pressure,
             checked = uiState.barometerEnabled,
@@ -923,6 +934,8 @@ private fun SimpleDataSourceSettings(
         )
 
 		SourceBalanceOverrideItem(TrackingSourceComponent.PRESSURE, uiState, onSourceBalanceSelected)
+        AllDaySensorRecovery(AmbientTrackingSource.PRESSURE, uiState.barometerEnabled,
+            uiState.ambientSourceAvailability.getValue(AmbientTrackingSource.PRESSURE), onRetrySourceRecovery)
         SettingsRowDivider()
         SwitchSettingsItem(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_enabled_title),
@@ -1100,6 +1113,7 @@ private fun AdvancedDataSourceSettings(
 	onLocationEnabledChanged: (Boolean) -> Unit,
 	onStepsProviderPermission: () -> Unit,
 	onSourcePermission: (TrackingSourceComponent) -> Unit,
+    onRetrySourceRecovery: () -> Unit,
 ) {
     SettingsGroupCard {
 		if (uiState.locationProfileVersion != null) {
@@ -1138,6 +1152,8 @@ private fun AdvancedDataSourceSettings(
         )
         SourcePermissionRepair(TrackingSourceComponent.ACTIVITY,
             uiState.activityEnabled && !uiState.activityPermissionGranted, onSourcePermission)
+        AllDaySensorRecovery(AmbientTrackingSource.ACTIVITY, uiState.activityEnabled,
+            uiState.ambientSourceAvailability.getValue(AmbientTrackingSource.ACTIVITY), onRetrySourceRecovery)
         SettingsRowDivider()
         SourceFrequencySettingsItem(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_steps_enabled_title),
@@ -1161,6 +1177,8 @@ private fun AdvancedDataSourceSettings(
             optionPlans = uiState.sourceFrequencyOptions[SourceKind.PRESSURE].orEmpty(),
             onFrequencySelected = { onSourceFrequencyChanged(TrackingSourceComponent.PRESSURE, it) },
         )
+        AllDaySensorRecovery(AmbientTrackingSource.PRESSURE, uiState.barometerEnabled,
+            uiState.ambientSourceAvailability.getValue(AmbientTrackingSource.PRESSURE), onRetrySourceRecovery)
         SettingsRowDivider()
         SourceFrequencySettingsItem(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_enabled_title),
@@ -1231,6 +1249,39 @@ private fun sourceSummaryWithOptionalStatus(
             stringResource(status),
         )
     } ?: summary
+}
+
+@Composable
+private fun AllDaySensorRecovery(
+    source: AmbientTrackingSource,
+    selected: Boolean,
+    availability: AmbientSourceOperationalAvailability,
+    onRetry: () -> Unit,
+) {
+    if (selected && availability.state == AmbientSourceOperationalState.UNAVAILABLE &&
+        availability.reason !in setOf(AmbientSourceUnavailableReason.USER_TURNED_OFF,
+            AmbientSourceUnavailableReason.PRESSURE_SENSOR_UNAVAILABLE)) {
+        TextButton(onClick = onRetry, modifier = Modifier.padding(horizontal = 16.dp)
+            .testTag("allDaySourceRetry-${source.name.lowercase()}")) {
+            Text(stringResource(com.adsamcik.tracker.R.string.settings_save_retry))
+        }
+    }
+}
+
+@Composable
+private fun sourceSummaryWithAllDayStatus(
+    summaryRes: Int,
+    statusRes: Int?,
+    selected: Boolean,
+    availability: AmbientSourceOperationalAvailability,
+): String {
+    val summary = sourceSummaryWithOptionalStatus(summaryRes, statusRes)
+    return if (selected && statusRes == null && !availability.isOperational) {
+        stringResource(com.adsamcik.tracker.R.string.settings_source_summary_with_status,
+            summary, ambientOperationalSummary(availability))
+    } else {
+        summary
+    }
 }
 
 @Composable

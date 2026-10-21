@@ -409,7 +409,7 @@
     <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">Saved on; operational availability reported</string>
     <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Saved on; not operational</string>
     <string name="settings_location_source_summary">Records your route, distance, and speed. Usually the largest battery cost.</string>
-    <string name="settings_activity_source_summary">Recognizes walking, cycling, driving, and stillness to label trips and reduce unnecessary collection.</string>
+    <string name="settings_activity_source_summary">Records walking, cycling, driving, and stillness throughout the day.</string>
     <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">Tracks steps throughout the day. Trips organize this same step history.</string>
     <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">Checking step collection.</string>
     <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">Turn off tracking</string>
@@ -417,7 +417,10 @@
     <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">Stop sessions, all-day recording and automatic starts. Your choices and saved data stay.</string>
     <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">Tracking is off. Your choices and saved data are kept.</string>
     <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">Could not turn off tracking. Try again.</string>
-    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">Records air pressure changes.</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">Records air pressure throughout the day with a tracking notification.</string>
+    <string name="settings_ambient_activity_ready">Activity recording is ready.</string>
+    <string name="settings_ambient_pressure_ready">Pressure recording is ready.</string>
+    <string name="settings_pressure_host_unavailable">Background pressure recording couldn\'t start.</string>
     <string name="settings_wifi_source_summary">Records nearby Wi-Fi networks to add local context. Data stays on this device.</string>
     <string name="settings_cell_source_summary">Records nearby cell towers to add location context. Data stays on this device.</string>
     <string name="settings_location_source_compact">Route, distance, and speed</string>
@@ -514,7 +517,7 @@
     <string name="setup_source_location">Location</string>
     <string name="setup_source_location_desc">Record your routes and positions on a map.</string>
     <string name="setup_source_activity">Activity</string>
-    <string name="setup_source_activity_desc">Detect whether you\'re walking, running, cycling, or driving.</string>
+    <string name="setup_source_activity_desc">Record walking, running, cycling, and driving throughout the day.</string>
     <string name="setup_source_steps">Steps</string>
     <string name="setup_source_steps_desc">Count your steps using the device pedometer.</string>
     <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">Track steps throughout the day. Trips organize the same history.</string>

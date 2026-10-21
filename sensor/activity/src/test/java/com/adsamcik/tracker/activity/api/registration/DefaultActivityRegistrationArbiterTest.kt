@@ -184,6 +184,87 @@ class DefaultActivityRegistrationArbiterTest {
 	}
 
 	@Test
+	fun `all-day Activity records on the manual automatic lane without a session or automatic start ownership`() = runTest {
+		installAllDayActivityDemand()
+		val started = subject.setDemand(ActivityRegistrationOwner.ALL_DAY_TRACKING,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 15, planRevision = 6L))
+		started.status shouldBe ActivityRegistrationStatus.APPLIED
+		started.snapshot.owners shouldBe setOf(ActivityRegistrationOwner.ALL_DAY_TRACKING)
+		val identity = requireNotNull(started.snapshot.identity)
+		val authorization = requireNotNull(database.sourceBrokerDao().latestAuthorization(
+			ACTIVITY_SOURCE_KIND, identity.registrationGeneration).toAuthorizationSnapshotOrNull())
+		authorization.authorizedMembers.single().purpose shouldBe SourceBrokerPurpose.AMBIENT_PRODUCT
+		authorization.authorizedMembers.single().logicalTrackingId shouldBe null
+		appliedConfigs.single().durableRecognitionEligible shouldBe true
+		appliedConfigs.single().automaticRecognitionEligible shouldBe false
+		database.activityCapturedFactDao().registrationPlanBinding(identity.sourceInstanceId,
+			identity.registrationGeneration) shouldBe null
+	}
+
+	@Test
+	fun `ending session Activity keeps the all-day owner and removing all-day keeps automatic control`() = runTest {
+		installAllDayActivityDemand()
+		database.sourceBrokerDao().insertDemands(listOf(
+			demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 3L, true),
+			demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)
+				.copy(sourcePolicyRevision = 6L)))
+		val plan = capturedPlan(41L, "capture-session")
+		installDesiredPlan(plan)
+		subject.setDemand(ActivityRegistrationOwner.ALL_DAY_TRACKING,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 15))
+		subject.setDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 15))
+		subject.setDemand(ActivityRegistrationOwner.ACTIVE_SESSION,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5, planRevision = 41L, capturedPlan = plan))
+		database.sourceBrokerDao().retireConsumer("session:s1", clockDomainId, 200L, 200L)
+		val ended = subject.clearDemand(ActivityRegistrationOwner.ACTIVE_SESSION)
+		ended.status shouldBe ActivityRegistrationStatus.APPLIED
+		ended.snapshot.active shouldBe true
+		ended.snapshot.owners shouldBe setOf(ActivityRegistrationOwner.ALL_DAY_TRACKING,
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+		val backgroundIdentity = requireNotNull(ended.snapshot.identity)
+		database.sourceBrokerDao().retireConsumer("ambient:activity", clockDomainId, 300L, 300L)
+		val stoppedBackground = subject.clearDemand(ActivityRegistrationOwner.ALL_DAY_TRACKING)
+		stoppedBackground.status shouldBe ActivityRegistrationStatus.APPLIED
+		stoppedBackground.snapshot.identity shouldBe backgroundIdentity
+		stoppedBackground.snapshot.owners shouldBe setOf(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+		stoppedBackground.snapshot.active shouldBe true
+	}
+
+	@Test
+	fun `collected-data deletion clears the all-day Activity owner before rearm`() = runTest {
+		installAllDayActivityDemand()
+		subject.setDemand(ActivityRegistrationOwner.ALL_DAY_TRACKING,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 15))
+		subject.closeForCollectedDataDeletion().status shouldBe ActivityRegistrationStatus.APPLIED
+		subject.resumeAfterCollectedDataDeletion().snapshot.active shouldBe false
+		subject.snapshot().owners shouldBe emptySet()
+	}
+
+	private suspend fun installAllDayActivityDemand() {
+		val laneDao = database.sourceProjectionStateDao()
+		val lanes = laneDao.allActiveProductLanes()
+		laneDao.deleteAllProductLanes()
+		for (lane in lanes) laneDao.installProductLane(if (lane.sourceKind == ACTIVITY_SOURCE_KIND) {
+			lane.copy(captureModeMask = 3L, productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		} else lane)
+		database.trackingRolloutStateDao().save(eventRollout(
+			stages = (1..6).associateWith { if (it == ACTIVITY_SOURCE_KIND) "EVENT_CANONICAL" else "EVENT_SHADOW" },
+			captureModeMasks = (1..6).associateWith { if (it == ACTIVITY_SOURCE_KIND) 3L else ALL_CAPTURE_MASK }))
+		val dao = database.sourcePolicyDao()
+		dao.insertPolicies(dao.currentPolicies().map { policy -> policy.copy(policyRevision = 6L,
+			ambientPersistenceEligible = policy.sourceKind == ACTIVITY_SOURCE_KIND,
+			ambientConsentEpoch = 8L.takeIf { policy.sourceKind == ACTIVITY_SOURCE_KIND }) })
+		dao.compareAndSetAuthority(SourcePolicyAuthorityEntity.STATE_ACTIVE, 5L,
+			SourcePolicyAuthorityEntity.STATE_ACTIVE, 6L, "all-day-activity", 1L) shouldBe 1
+		dao.insertConsentEpochs(listOf(SourceConsentEpochEntity(ACTIVITY_SOURCE_KIND,
+			SourceBrokerPurpose.AMBIENT_PRODUCT, 8L, true, true, 6L, "boot-1", 1L, 1L, "ALL_DAY_ACTIVITY")))
+		database.sourceBrokerDao().insertDemands(listOf(demand("activity-background", "ambient:activity",
+			SourceBrokerPurpose.AMBIENT_PRODUCT, null, null, true).copy(sourcePolicyRevision = 6L,
+			liveAmbientRetentionPolicyId = "privacy:activity:ambient:v1", liveAmbientRetentionApprovalRevision = 1L)))
+	}
+
+	@Test
 	fun `Location helper registers with deny all Activity authority and no automatic entitlement`() = runTest {
 		val authority = enableLocationAssistance()
 		saveContainedRollout()

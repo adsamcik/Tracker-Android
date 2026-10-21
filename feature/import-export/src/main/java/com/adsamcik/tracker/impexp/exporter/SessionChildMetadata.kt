@@ -1,6 +1,10 @@
 package com.adsamcik.tracker.impexp.exporter
 
+import android.content.Context
 import com.adsamcik.tracker.impexp.portable.LocationFileJsonV1
+import com.adsamcik.tracker.impexp.portable.AllDaySensorSourceFile
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import com.adsamcik.tracker.impexp.portable.CellSourceFileV2
 import com.adsamcik.tracker.impexp.portable.PortableActivityJsonV1Codec
 import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV1Codec
@@ -21,7 +25,8 @@ import java.io.File
 internal data class SessionChildMetadata(val formatId: String, val version: Int, val fromMs: Long, val toMs: Long)
 
 /** Original typed measurement bounds, never a fabricated timestamp or a duration inferred from gaps. */
-internal suspend fun describeSessionChild(source: HistorySource, file: File, name: String): SessionChildMetadata {
+internal suspend fun describeSessionChild(context: Context, source: HistorySource, file: File,
+    name: String): SessionChildMetadata {
     val bounds = SessionChildBounds()
     return when (source) {
         HistorySource.LOCATION -> {
@@ -33,12 +38,12 @@ internal suspend fun describeSessionChild(source: HistorySource, file: File, nam
             bounds.describeSteps(bytes, name)
         }
         HistorySource.ACTIVITY -> {
-            bounds.includeActivity(file)
-            bounds.metadata("portable-activity-v1")
+            val version = bounds.includeActivity(file, context)
+            bounds.metadata("portable-activity-v1", version)
         }
         HistorySource.PRESSURE -> {
-            bounds.includePressure(file)
-            bounds.metadata("portable-pressure-v1")
+            val version = bounds.includePressure(file, context)
+            bounds.metadata("portable-pressure-v1", version)
         }
         HistorySource.WIFI -> {
             val data = file.inputStream().use { RadioSourceFileJsonV2Codec().readWifi(it) }
@@ -61,19 +66,27 @@ private suspend fun SessionChildBounds.includeLocation(file: File) {
     }
 }
 
-private suspend fun SessionChildBounds.includeActivity(file: File) {
+private suspend fun SessionChildBounds.includeActivity(file: File, context: Context): Int =
     file.inputStream().use { input ->
-        PortableActivityJsonV1Codec().decode(input).entries.forEach {
+        AllDaySensorSourceFile.open(input, "ACTIVITY", context).use { data ->
+        data.sessionInput?.let { PortableActivityJsonV1Codec().decode(it) }?.entries.orEmpty().forEach {
             include(it.startTimeMs, it.endTimeMs)
         }
+        data.forEachObservation { include(it.getValue("timeMs").jsonPrimitive.long) }
+        data.schemaVersion
+        }
     }
-}
 
-private suspend fun SessionChildBounds.includePressure(file: File) {
+private suspend fun SessionChildBounds.includePressure(file: File, context: Context): Int =
     file.inputStream().use { input ->
-        PortablePressureJsonV1Codec().decode(input) { include(it.startTimeMs, it.endTimeMs) }
+        AllDaySensorSourceFile.open(input, "PRESSURE", context).use { data ->
+        data.sessionInput?.let { PortablePressureJsonV1Codec().decode(it) { entry ->
+            include(entry.startTimeMs, entry.endTimeMs)
+        } }
+        data.forEachObservation { include(it.getValue("timeMs").jsonPrimitive.long) }
+        data.schemaVersion
+        }
     }
-}
 
 private suspend fun SessionChildBounds.describeSteps(bytes: PortableJsonBytes, name: String): SessionChildMetadata =
     if (name != "steps") {

@@ -432,13 +432,17 @@ interface SourceProjectionStateDao {
 			"AND NOT (registration.projection_id = :wifiProjectionId " +
 			"AND registration.projection_version = :wifiProjectionVersion) " +
 			"AND NOT (registration.projection_id = :cellProjectionId " +
-			"AND registration.projection_version = :cellProjectionVersion)",
+			"AND registration.projection_version = :cellProjectionVersion) " +
+			"AND NOT (registration.projection_id IN (:sensorProjectionIds) " +
+			"AND registration.projection_version = :sensorProjectionVersion)",
 	)
 	suspend fun minimumRequiredGlobalCheckpoint(
 		wifiProjectionId: String,
 		wifiProjectionVersion: Int,
 		cellProjectionId: String,
 		cellProjectionVersion: Int,
+		sensorProjectionIds: List<String>,
+		sensorProjectionVersion: Int,
 	): Long?
 
 	/**
@@ -475,7 +479,7 @@ interface SourceProjectionStateDao {
 	)
 	suspend fun minimumActiveCheckpoint(): Long?
 
-	/** Global continuation excludes only the two exact source-local background consumers. */
+	/** Session settlement never waits on independently drained background consumers. */
 	@Query(
 		"SELECT MIN(COALESCE(checkpoint.contiguous_admission_ordinal, " +
 			"registration.activation_ordinal - 1)) " +
@@ -484,16 +488,10 @@ interface SourceProjectionStateDao {
 			"ON registration.projection_id = checkpoint.projection_id " +
 			"AND registration.projection_version = checkpoint.projection_version " +
 			"WHERE registration.status = 'ACTIVE' " +
-			"AND NOT (registration.projection_id = :wifiProjectionId " +
-			"AND registration.projection_version = :wifiProjectionVersion) " +
-			"AND NOT (registration.projection_id = :cellProjectionId " +
-			"AND registration.projection_version = :cellProjectionVersion)",
+			"AND registration.projection_id NOT IN (:sourceLocalProjectionIds)",
 	)
 	suspend fun minimumActiveGlobalCheckpoint(
-		wifiProjectionId: String,
-		wifiProjectionVersion: Int,
-		cellProjectionId: String,
-		cellProjectionVersion: Int,
+		sourceLocalProjectionIds: List<String>,
 	): Long?
 
 	@Query("SELECT MIN(minimum_required_ordinal) FROM source_projection_join_state")

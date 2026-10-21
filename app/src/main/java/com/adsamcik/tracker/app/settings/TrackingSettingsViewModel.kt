@@ -309,6 +309,8 @@ class TrackingSettingsViewModel internal constructor(
 				val selected = when (source) {
 					AmbientTrackingSource.LOCATION -> state.ambientLocationEnabled
 					AmbientTrackingSource.STEPS -> state.stepsEnabled
+					AmbientTrackingSource.ACTIVITY -> state.activityEnabled
+					AmbientTrackingSource.PRESSURE -> state.barometerEnabled
 					AmbientTrackingSource.WIFI -> state.ambientWifiEnabled
 					AmbientTrackingSource.CELL -> state.ambientCellEnabled
 				}

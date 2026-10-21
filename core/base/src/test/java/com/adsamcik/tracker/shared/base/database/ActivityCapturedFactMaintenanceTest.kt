@@ -10,6 +10,8 @@ import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEn
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
+import com.adsamcik.tracker.shared.base.database.data.AllDaySensorObservationIdentity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -344,6 +346,20 @@ class ActivityCapturedFactMaintenanceTest {
 		database.activityCapturedFactDao().registrationPlanBindingCount() shouldBe 0L
 		database.sourceBrokerDao().activeDemands(ACTIVITY_SOURCE).single().purpose shouldBe
 			SourceBrokerPurpose.CONTROL_AUTOSTART
+	}
+
+	@Test
+	fun `source erase removes all day and older native Activity leaves`() = runTest {
+		seedCapturedActivity(revokedCapture = true)
+		val identity = AllDaySensorObservationIdentity.activity("standalone-observation")
+		database.activitySnapshotDao().insert(ActivitySnapshot(timeMs = 2_000L, activityType = 7,
+			confidence = 70, isTransition = false, createdAt = 2_000L, sourceSignalId = identity))
+		val older = database.activitySnapshotDao().insert(ActivitySnapshot(timeMs = 1_000L,
+			activityType = 7, confidence = 60, isTransition = true, createdAt = 1_000L))
+		database.deleteCapturedActivityFactsAfterConsentReset(0L, 1L, 5_000L) shouldBe
+			ActivityCapturedSourceDeletionResult.Deleted(1, 1, 1, 1, nativeObservationCount = 2)
+		database.activitySnapshotDao().getBySourceSignalId(identity) shouldBe null
+		database.activitySnapshotDao().historyRows(listOf(older)) shouldBe emptyList()
 	}
 
 	@Test

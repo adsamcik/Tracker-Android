@@ -8,20 +8,17 @@ import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.PermanentImportInputException
 import com.adsamcik.tracker.impexp.importer.computeImportJobId
-import com.adsamcik.tracker.impexp.importer.file.PortableActivityFileImport
-import com.adsamcik.tracker.impexp.importer.file.PortablePressureFileReceipt
 import com.adsamcik.tracker.impexp.importer.file.portableAmbientStepsArchiveKey
 import com.adsamcik.tracker.impexp.importer.file.portableStepsEntryKey
 import com.adsamcik.tracker.impexp.importer.file.radioEntryKey
+import com.adsamcik.tracker.impexp.portable.SensorSourceFileFormatException
 import com.adsamcik.tracker.impexp.portable.InvalidSessionBundle
 import com.adsamcik.tracker.impexp.portable.InvalidLocationFile
 import com.adsamcik.tracker.impexp.portable.LocationFileJsonV1
 import com.adsamcik.tracker.impexp.portable.PortableActivityFormatException
-import com.adsamcik.tracker.impexp.portable.PortableActivityJsonV1Codec
 import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsFormatException
 import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV1Codec
 import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV2Codec
-import com.adsamcik.tracker.impexp.portable.PortablePressureJsonV1Codec
 import com.adsamcik.tracker.impexp.portable.PortablePressureJsonException
 import com.adsamcik.tracker.impexp.portable.PortableStepsJsonException
 import com.adsamcik.tracker.impexp.portable.PortableCountDomainJsonException
@@ -64,6 +61,7 @@ internal sealed interface SessionBundleSourceClaim {
 		val receiptKey: String) : SessionBundleSourceClaim
 	data class BackgroundSteps(val identity: String, val checksum: String, val receiptKey: String,
 		val days: List<Pair<String, String>>) : SessionBundleSourceClaim
+    data class SensorObservations(val source: HistorySource, val identities: List<String>) : SessionBundleSourceClaim
 }
 
 /** Existing source receipts resolve exact membership. Dates and ImportResult counts never select data. */
@@ -128,6 +126,7 @@ internal object SessionBundleMetadataImport {
 		is SessionBundleSourceClaim.Captured -> resolveCapturedClaim(database, jobId, epoch, claim)
 		is SessionBundleSourceClaim.BackgroundRadio -> resolveBackgroundRadioClaim(database, jobId, epoch, claim)
 		is SessionBundleSourceClaim.BackgroundSteps -> resolveBackgroundStepsClaim(database, jobId, epoch, claim)
+        is SessionBundleSourceClaim.SensorObservations -> resolveSensorObservations(database, claim)
 	}
 }
 
@@ -162,15 +161,12 @@ private suspend fun prepareSessionChild(
 				prepareBackgroundStepsClaims(child, input, declared, caller, add)
 			}
 			"portable-activity-v1" -> {
-				declared.requireFormatVersion(1)
-				prepareActivityClaims(child, input, ::capture)
+                source(HistorySource.ACTIVITY)
+                prepareActivityClaims(context, child, input, declared, ::capture, add)
 			}
 			"portable-pressure-v1" -> {
-				declared.requireFormatVersion(1)
-				PortablePressureJsonV1Codec().decode(input) { entry ->
-					val key = PortablePressureFileReceipt.entryKey(child.receiptKey, entry.identity.value)
-					capture(HistorySource.PRESSURE, entry.identity.value, entry.contentChecksum.value, key)
-				}
+                source(HistorySource.PRESSURE)
+                preparePressureClaims(context, child, input, declared, ::capture, add)
 			}
 			RadioSourceFileV2.WIFI_FORMAT -> {
 				source(HistorySource.WIFI)
@@ -185,11 +181,6 @@ private suspend fun prepareSessionChild(
 	}
 }
 
-private fun SessionBundleChildV1.requireFormatVersion(actual: Int) {
-	if (formatVersion != actual) {
-		throw InvalidSessionBundle("Session source version does not match its data")
-	}
-}
 
 private suspend fun prepareLocationClaims(
 	context: Context, child: StagedSessionChild, input: FileImportStream,
@@ -204,15 +195,7 @@ private suspend fun prepareLocationClaims(
 }
 
 
-private suspend fun prepareActivityClaims(
-	child: StagedSessionChild, input: FileImportStream,
-	capture: (HistorySource, String, String, String) -> Unit,
-) {
-	PortableActivityJsonV1Codec().decode(input).entries.forEach { entry ->
-		capture(HistorySource.ACTIVITY, entry.identity.value, entry.contentChecksum.value,
-			PortableActivityFileImport.subordinateEntryKey(child.receiptKey, entry.identity.value))
-	}
-}
+
 
 private suspend fun prepareStepsClaims(
 	child: StagedSessionChild, input: FileImportStream, declared: SessionBundleChildV1,
@@ -291,11 +274,12 @@ private fun classifySessionSourceFailure(failure: Exception): Exception = when (
 	is InvalidSessionBundle, is InvalidLocationFile, is PortableActivityFormatException,
 	is PortableAmbientStepsFormatException, is PortablePressureJsonException,
 	is PortableStepsJsonException, is PortableCountDomainJsonException,
-	is RadioSourceFileFormatException -> PermanentImportInputException(
+	is RadioSourceFileFormatException, is SensorSourceFileFormatException -> PermanentImportInputException(
 		"Session source data is invalid: ${failure.message.orEmpty().take(MAX_SOURCE_FORMAT_ERROR_LENGTH)}", failure)
 	// Transport/storage failures remain retryable; durable child receipts survive the retry.
 	else -> failure
 }
+
 
 
 private suspend fun resolveLocationClaim(

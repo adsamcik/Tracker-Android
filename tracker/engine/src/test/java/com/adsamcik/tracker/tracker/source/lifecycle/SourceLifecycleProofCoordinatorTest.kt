@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.model.tracking.TrackingSource
 import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusQuery
 import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRead
 import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRequest
+import com.adsamcik.tracker.stats.api.repository.AllDaySensorObservationStatus
 import com.adsamcik.tracker.stats.api.repository.AllDayStepsGapStatus
 import com.adsamcik.tracker.stats.api.repository.AllDayStepsWindowStatus
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRangeRequest
@@ -88,6 +89,33 @@ class SourceLifecycleProofCoordinatorTest {
 		seen shouldBe listOf(request)
 		expected.windows.single().identity shouldBe "provider-window"
 		expected.windows.single().semanticRevision shouldBe 2L
+		counters.adapterCreations.get() shouldBe 0
+		counters.recording.get() shouldBe 0
+		counters.materialized.get() shouldBe 0
+		counters.queries.get() shouldBe 0
+	}
+
+	@Test
+	fun `all-day Activity and Pressure statuses preserve measured leaves without inventing WAL stages`() = runTest {
+		val counters = CallCounters()
+		val snapshot = TrackingHistoryReadSnapshot(7L, 11L)
+		val activity = AllDaySourceStatusRead.Sensor(snapshot, TrackingSource.ACTIVITY,
+			listOf(AllDaySensorObservationStatus("all-day:activity:event", 1_000L, null)))
+		val pressure = AllDaySourceStatusRead.Sensor(snapshot, TrackingSource.PRESSURE,
+			listOf(AllDaySensorObservationStatus("all-day:pressure:event", 1_500L, 1L,
+				1_000_000L, 2_000_000L, isPartial = true)))
+		val requests = linkedSetOf(AllDaySourceStatusRequest.Sensor(TrackingSource.ACTIVITY, HistoryObservationWindow(0L, 2_000L)),
+			AllDaySourceStatusRequest.Sensor(TrackingSource.PRESSURE, HistoryObservationWindow(0L, 2_000L)))
+		val coordinator = SourceLifecycleProofCoordinator(flowOf(Unit), successfulDescriptors(counters),
+			successfulQueryRepository(counters), StandardTestDispatcher(testScheduler), AllDaySourceStatusQuery {
+				when (it.source) {
+					TrackingSource.ACTIVITY -> activity
+					TrackingSource.PRESSURE -> pressure
+					else -> error("No unrelated source was requested")
+				}
+			})
+		coordinator.observeAllDay(requests).first().sources shouldBe mapOf(
+			TrackingSource.ACTIVITY to activity, TrackingSource.PRESSURE to pressure)
 		counters.adapterCreations.get() shouldBe 0
 		counters.recording.get() shouldBe 0
 		counters.materialized.get() shouldBe 0
@@ -189,6 +217,7 @@ class SourceLifecycleProofCoordinatorTest {
 			"ambient_steps_retention_authority", "ambient_wifi_authority", "ambient_wifi_retention_authority",
 			"ambient_wifi_fact_cursor", "ambient_cell_authority", "ambient_cell_retention_authority", "ambient_cell_fact_cursor",
 			"location_accepted_receipt", "location_sample_purpose_authority", "ambient_location_retention_authority",
+			"activity_snapshot", "pressure_sample",
 			"collected_data_deletion_operation")) shouldBe true
 	}
 

@@ -36,6 +36,19 @@ class MeasuredSessionNamesRoomTest {
     }
     @After fun close() = database.close()
 
+    @Test fun `imported session labels only its exact timestamped sensor IDs`() = runTest {
+        val selected = "all-day:activity:selected"
+        annotation("imported", 900, 1_600, encoded = OrganizationSourceSelectionCodec.encode(listOf(
+            OrganizationSourceSelector.SensorObservations(HistorySource.ACTIVITY, listOf(selected)))))
+        val keys = listOf(key("activity_observation", "IMPORTED", "BACKGROUND", selected, 1_200),
+            key("activity_observation", "IMPORTED", "BACKGROUND", "all-day:activity:unrelated", 1_200))
+        val rows = keys.map { UnifiedHistoryRow(measuredHistoryPosition(it), null, setOf(HistoryOrigin.IMPORTED),
+            HistoryPurpose.BACKGROUND, sections = emptyList(), measurement = HistoryMeasurement.LegacyActivity(7, 70, false)) }
+        val read = decorate(rows, keys)
+        read.rows.map { it.sessionNames } shouldBe listOf(listOf("imported"), emptyList())
+        read.rows.map { it.measurement } shouldBe rows.map { it.measurement }
+    }
+
     @Test fun `point session labels only the reading at its original timestamp`() = runTest {
         annotation("point", 1_200, 1_200)
         val keys = listOf(key("ambient_wifi", "LOCAL", "BACKGROUND", "at", 1_200),

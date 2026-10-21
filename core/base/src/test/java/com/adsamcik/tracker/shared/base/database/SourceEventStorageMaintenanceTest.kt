@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AllDaySensorObservationIdentity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionCheckpointEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionRegistrationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -41,6 +42,44 @@ class SourceEventStorageMaintenanceTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `pending all-day sensor checkpoint retains its own WAL while independently projected siblings prune`() = runTest {
+		val activity = SourceDestinationOwnerEntity.SOURCE_ACTIVITY
+		val pressure = SourceDestinationOwnerEntity.SOURCE_PRESSURE
+		insertEvent(activity, 1L, false)
+		insertEvent(pressure, 2L, false)
+		insertEvent(SourceDestinationOwnerEntity.SOURCE_CELL, 3L, false)
+		registerRetainingProjection(AllDaySensorObservationIdentity.ACTIVITY_PROJECTION_ID,
+			AllDaySensorObservationIdentity.PROJECTION_VERSION, 0L)
+		registerRetainingProjection(AllDaySensorObservationIdentity.PRESSURE_PROJECTION_ID,
+			AllDaySensorObservationIdentity.PROJECTION_VERSION, 3L)
+		database.pruneSourceEventStorageBefore(100L)
+		database.sourceEventWalDao().getByAdmissionOrdinal(1L)?.sourceKind shouldBe activity
+		database.sourceEventWalDao().getByAdmissionOrdinal(2L) shouldBe null
+		database.sourceEventWalDao().getByAdmissionOrdinal(3L) shouldBe null
+	}
+
+	@Test
+	fun `idle all-day Pressure retains unprojected Pressure without pinning Activity cleanup`() = runTest {
+		insertEvent(SourceDestinationOwnerEntity.SOURCE_ACTIVITY, 1L, false)
+		insertEvent(SourceDestinationOwnerEntity.SOURCE_PRESSURE, 2L, false)
+		registerRetainingProjection(AllDaySensorObservationIdentity.PRESSURE_PROJECTION_ID,
+			AllDaySensorObservationIdentity.PROJECTION_VERSION, null)
+		database.pruneSourceEventStorageBefore(100L)
+		database.sourceEventWalDao().getByAdmissionOrdinal(1L) shouldBe null
+		database.sourceEventWalDao().getByAdmissionOrdinal(2L)?.sourceKind shouldBe SourceDestinationOwnerEntity.SOURCE_PRESSURE
+	}
+
+	@Test
+	fun `unknown all-day sensor version retains conservative global WAL boundary`() = runTest {
+		insertEvent(SourceDestinationOwnerEntity.SOURCE_ACTIVITY, 1L, false)
+		insertEvent(SourceDestinationOwnerEntity.SOURCE_CELL, 2L, false)
+		registerRetainingProjection(AllDaySensorObservationIdentity.ACTIVITY_PROJECTION_ID,
+			AllDaySensorObservationIdentity.PROJECTION_VERSION + 1, 0L)
+		database.pruneSourceEventStorageBefore(100L)
+		database.sourceEventWalDao().countAll() shouldBe 2L
+	}
 
 	@Test
 	fun `pending background Wi-Fi protects its own unsaved data while Cell and Pressure can prune`() = runTest {
@@ -591,7 +630,7 @@ class SourceEventStorageMaintenanceTest {
 	// Proof persistence, reopening and the later full clear require the same physical database.
 	@Suppress("LongMethod")
 	fun `retention proof survives reopen and full clear removes it behind the new epoch`() = runTest {
-		val name = "source-event-retention-proof-reopen"
+		val name = "retention-proof"
 		context.deleteDatabase(name)
 		var fileDatabase = AppDatabase.fileBuilder(context, name).allowMainThreadQueries().build()
 		try {

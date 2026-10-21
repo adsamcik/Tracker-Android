@@ -336,14 +336,17 @@ sealed interface HistoryMeasurement {
     /** Released rows retain original fields and unknown purpose without modern authority claims. */
     data class LegacyWifi(val bssid: String, val ssid: String, val capabilities: String,
         val frequencyMhz: Int, val signalDbm: Int) : HistoryMeasurement { override val source = HistorySource.WIFI }
-    /** Legacy Activity is a timestamped observation, never an invented duration band. */
+    /** Stored Activity is a timestamped observation, never an invented duration band. */
     data class LegacyActivity(val activityType: Int, val confidencePercent: Int,
-        val isTransition: Boolean) : HistoryMeasurement { override val source = HistorySource.ACTIVITY }
+        val isTransition: Boolean, val transitionType: Int? = null) : HistoryMeasurement {
+        override val source = HistorySource.ACTIVITY
+    }
     /** Released Pressure aggregates keep only their known timestamp and saved aggregate values. */
     data class LegacyPressure(val meanHectopascals: Float, val sampleCount: Int,
         val minimumHectopascals: Float?, val maximumHectopascals: Float?,
         val standardDeviationHectopascals: Float?, val altitudeMeters: Float?,
-        val windowStartElapsedRealtimeNanos: Long?, val windowEndElapsedRealtimeNanos: Long?) : HistoryMeasurement {
+        val windowStartElapsedRealtimeNanos: Long?, val windowEndElapsedRealtimeNanos: Long?,
+        val isPartial: Boolean = false) : HistoryMeasurement {
         override val source = HistorySource.PRESSURE
     }
     /** Original scan count and device position; these are not access-point coordinates. */

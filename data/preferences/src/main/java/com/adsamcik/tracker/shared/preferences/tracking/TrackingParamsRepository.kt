@@ -87,7 +87,7 @@ interface TrackingParamsRepository {
 
     /** Update a single toggle or parameter. */
     suspend fun setLocationEnabled(enabled: Boolean)
-    /** Saves Activity participation independently of transition-based automatic start. */
+    /** Saves the single all-day/session Activity choice independently of automatic start. */
     suspend fun setActivityEnabled(enabled: Boolean)
     /** Saves the single Steps choice for all-day and session collection. */
     suspend fun setStepsEnabled(enabled: Boolean)
@@ -95,7 +95,7 @@ interface TrackingParamsRepository {
     suspend fun setWifiEnabled(enabled: Boolean)
     /** Saves Cell session participation; background Cell has its own consent. */
     suspend fun setCellEnabled(enabled: Boolean)
-    /** Saves Pressure participation independently of the other sources. */
+    /** Saves the single all-day/session Pressure choice independently of the other sources. */
     suspend fun setBarometerEnabled(enabled: Boolean)
     /** Compatibility entry point; Steps have one all-day choice. */
     suspend fun setAmbientStepsEnabled(enabled: Boolean) {

@@ -45,6 +45,7 @@ import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.TrackerServiceContract
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
 import com.adsamcik.tracker.tracker.api.TrackingStartPreparationResult
@@ -100,6 +101,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceDemand
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.AmbientLocationPurposeOwner
+import com.adsamcik.tracker.tracker.source.runtime.AmbientSensorPurposeOwner
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomaticStartActionRepository
 import com.adsamcik.tracker.tracker.worker.HistoricalTrajectoryReconstructionWorker
 import dagger.hilt.android.AndroidEntryPoint
@@ -208,6 +210,9 @@ internal class TrackerService : CoreService() {
 	lateinit var ambientLocationPurposeOwner: Provider<AmbientLocationPurposeOwner>
 
 	@Inject
+	lateinit var ambientSensorPurposeOwner: Provider<AmbientSensorPurposeOwner>
+
+	@Inject
 	lateinit var trackingRolloutStateStore: RoomTrackingRolloutStateStore
 
 	@Inject
@@ -267,7 +272,7 @@ internal class TrackerService : CoreService() {
 	private var fallbackMotionScopeId: String? = null
 	private var backgroundHostObservationJob: Job? = null
 	private var liveTeardownJob: Job? = null
-	private var pendingBackgroundRetirement: AmbientReconciliationIdentity? = null
+	private var pendingBackgroundRetirements: List<AmbientReconciliationIdentity> = emptyList()
 	override fun onCreate() {
 		super.onCreate()
 		synchronized(SERVICE_GENERATION_LOCK) {
@@ -299,7 +304,7 @@ internal class TrackerService : CoreService() {
 		backgroundHostObservationJob = launch {
 			trackingParamsRepository.data.collect {
 				reconcileLocationMotionScope()
-				refreshBackgroundLocationPlan()
+				refreshBackgroundCollectionPlans()
 			}
 		}
 		runtimePermissionObservationJob = launch {
@@ -1371,7 +1376,7 @@ internal class TrackerService : CoreService() {
 							stationaryOptimized = profile.stationary,
 							fullFidelity = profile.locationStrategy == LocationCollectionStrategy.FULL_FIDELITY,
 						)
-						refreshBackgroundLocationPlan()
+						refreshBackgroundCollectionPlans()
 						if (sessionInfo == null || gracefulStopRequested) return@collect
 						val currentSettings = trackingParamsRepository.data.first()
 						val result = reconfigureSourceSession(
@@ -1464,7 +1469,7 @@ internal class TrackerService : CoreService() {
 			)
 		}
 		reconcileLocationMotionScope()
-		refreshBackgroundLocationPlan()
+		refreshBackgroundCollectionPlans()
 		// Re-evaluate current power/thermal inputs as well as pending provider work.
 		// The source-session fingerprint keeps an unchanged tick a no-op.
 		val policyOutcome = if (sessionInfo != null && !gracefulStopRequested) {
@@ -1611,14 +1616,20 @@ internal class TrackerService : CoreService() {
 		}
 	}
 
-	private suspend fun refreshBackgroundLocationPlan() {
-		if (backgroundLocationHost.active.value == null) return
+	private suspend fun refreshBackgroundCollectionPlans() {
 		try {
-			ambientLocationPurposeOwner.get().refreshActivePlan()
+			if (backgroundLocationHost.active.value != null) ambientLocationPurposeOwner.get().refreshActivePlan()
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: Exception) {
 			// Purpose reconciliation owns its unavailable/retry state; never manufacture host success.
+		}
+		try {
+			ambientSensorPurposeOwner.get().refreshActivePlans()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			// A failed native source cannot suppress an independently accepted Location host.
 		}
 	}
 
@@ -1664,7 +1675,7 @@ internal class TrackerService : CoreService() {
 			} ?: return@runAfter
 			if (hosted) {
 				reconcileLocationMotionScope()
-				refreshBackgroundLocationPlan()
+				refreshBackgroundCollectionPlans()
 				observeCollectionMotionPolicy()
 			} else {
 				backgroundLocationHost.leases.value.values.forEach { backgroundLocationHost.release(it.identity) }
@@ -1678,7 +1689,7 @@ internal class TrackerService : CoreService() {
 		powerSaveObservationJob = launch {
 			batteryAwarePolicy.powerSaveModeUpdates.collect {
 				if (gracefulStopRequested) return@collect
-				refreshBackgroundLocationPlan()
+				refreshBackgroundCollectionPlans()
 				if (sessionInfo == null) return@collect
 				val currentSettings = trackingParamsRepository.data.first()
 				val result = reconfigureSourceSession(
@@ -2357,8 +2368,9 @@ internal class TrackerService : CoreService() {
 
 	override fun onDestroy() {
 		preparedStartRuntime.command?.let { controller.updateSessionStart(it.generation, starting = false) }
-		pendingBackgroundRetirement = backgroundLocationHost.detachAll(this)
-			.firstOrNull { it.source == com.adsamcik.tracker.tracker.api.AmbientTrackingSource.LOCATION }
+		pendingBackgroundRetirements = backgroundLocationHost.detachAll(this).filter {
+			it.source == AmbientTrackingSource.LOCATION || it.source == AmbientTrackingSource.PRESSURE
+		}
 		backgroundHostObservationJob?.cancel()
 		backgroundHostObservationJob = null
 		liveTeardownJob?.cancel()
@@ -2496,11 +2508,15 @@ internal class TrackerService : CoreService() {
 	}
 
 	private suspend fun performTeardown(context: Context) {
-		pendingBackgroundRetirement?.let { identity ->
-			if (!ambientLocationPurposeOwner.get().retire(AmbientReconciliationLease(identity))) {
-				throw TrackingShutdownRetryException("BACKGROUND_LOCATION_RETIREMENT_PENDING")
+		for (identity in pendingBackgroundRetirements.toList()) {
+			val lease = AmbientReconciliationLease(identity)
+			val retired = when (identity.source) {
+				AmbientTrackingSource.LOCATION -> ambientLocationPurposeOwner.get().retire(lease)
+				AmbientTrackingSource.PRESSURE -> ambientSensorPurposeOwner.get().retire(identity.source, lease)
+				else -> true
 			}
-			pendingBackgroundRetirement = null
+			if (!retired) throw TrackingShutdownRetryException("BACKGROUND_SOURCE_RETIREMENT_PENDING")
+			pendingBackgroundRetirements = pendingBackgroundRetirements - identity
 		}
 		if (!backgroundLocationHost.hasActiveSources) {
 			locationMotionAssistanceOwner.reconcile(null)

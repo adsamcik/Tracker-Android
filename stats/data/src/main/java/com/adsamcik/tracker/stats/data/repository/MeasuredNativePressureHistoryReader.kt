@@ -24,6 +24,8 @@ internal class MeasuredNativePressureHistoryReader(
             HistoryPurpose.CAPTURE !in range.purposes) {
             return emptyList()
         }
+        val nativeFallback = if (HistoryPurpose.BACKGROUND in range.purposes) { 0 } else { 1 }
+        val includeImported = if (HistoryOrigin.IMPORTED in range.origins) { 1 } else { 0 }
         val seek = if (after == null) {
             ""
         } else {
@@ -47,6 +49,15 @@ internal class MeasuredNativePressureHistoryReader(
                 f.semantic_revision AS factRevision, NULL AS itemIndex
             FROM pressure_fact_revision f LEFT JOIN source_service_run r ON r.service_run_id = f.service_run_id
             WHERE f.interval_start_time_ms >= 0 AND f.interval_start_time_ms < ? AND f.interval_end_time_ms >= ?
+                AND ($nativeFallback = 1 OR NOT EXISTS (SELECT 1 FROM pressure_sample p
+                    WHERE p.source_signal_id = 'all-day:pressure:' || f.source_event_id
+                        AND p.time_ms = f.interval_end_time_ms AND p.pressure_hpa > 0
+                        AND p.pressure_hpa <= 3.4028235e38
+                        AND p.sample_count = f.sample_count
+                        AND p.window_start_elapsed_realtime_nanos = f.window_start_elapsed_realtime_nanos
+                        AND p.window_end_elapsed_realtime_nanos = f.window_end_elapsed_realtime_nanos
+                        AND ($includeImported = 1 OR
+                            instr(',' || COALESCE(p.capability_flags, '') || ',', ',PORTABLE_IMPORT,') = 0)))
                 AND NOT EXISTS (SELECT 1 FROM pressure_fact_revision newer
                     WHERE newer.writer_projection_id = f.writer_projection_id AND
                         newer.writer_projection_version = f.writer_projection_version AND

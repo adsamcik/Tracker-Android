@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.impexp.importer.file
 
-import android.content.Context
+import android.app.Application
+import androidx.test.core.app.ApplicationProvider
 import android.database.sqlite.SQLiteException
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportJobRunner
@@ -38,6 +39,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class PortableActivityFileImportTest {
+    private val context get() = ApplicationProvider.getApplicationContext<Application>()
 	@Test
 	fun `complete file decodes before mutation and keeps the original durable epoch`() = runTest {
 		val requests = mutableListOf<ImportPortableCapturedActivityRequest>()
@@ -55,7 +57,7 @@ class PortableActivityFileImportTest {
 		)
 
 		val result = importer.import(
-			context = mockk<Context>(relaxed = true),
+			context = context,
 			database = database(epoch = 7L),
 			stream = stream(
 				encode(envelope),
@@ -89,7 +91,7 @@ class PortableActivityFileImportTest {
 				ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
 			}
 		}
-		val result = importer.import(mockk(relaxed = true), database(epoch = 2L),
+		val result = importer.import(context, database(epoch = 2L),
 			stream(encode(activityEnvelope(activityEntry())), "activity.trackeractivity", "entry",
 				dataEpoch = 1L))
 		result.failedCount shouldBe 1
@@ -110,7 +112,7 @@ class PortableActivityFileImportTest {
 		val truncated = encode(activityEnvelope(activityEntry())).dropLast(1).toByteArray()
 
 		importer.import(
-			mockk(relaxed = true),
+			context,
 			database(epoch = 3L),
 			stream(truncated, "activity.trackeractivity", "receipt"),
 		).failedCount shouldBe 1
@@ -130,7 +132,7 @@ class PortableActivityFileImportTest {
 		val original = EOFException("transport interrupted")
 		val rawFailure = shouldThrow<EOFException> {
 			importer.import(
-				mockk(relaxed = true),
+				context,
 				database(epoch = 1L),
 				FileImportStream(
 					fileName = "activity.trackeractivity",
@@ -144,7 +146,7 @@ class PortableActivityFileImportTest {
 		(rawFailure === original) shouldBe true
 
 		val lexical = importer.import(
-			mockk(relaxed = true),
+			context,
 			database(epoch = 1L),
 			stream(
 				"{\"format\":\"${"x".repeat(769)}\"}".encodeToByteArray(),
@@ -180,7 +182,7 @@ class PortableActivityFileImportTest {
 		val database = database(epoch = 2L)
 
 		importer.import(
-			mockk(relaxed = true),
+			context,
 			database,
 			stream(
 				bytes,
@@ -192,7 +194,7 @@ class PortableActivityFileImportTest {
 			),
 		).successCount shouldBe 1
 		importer.import(
-			mockk(relaxed = true),
+			context,
 			database,
 			stream(
 				bytes,
@@ -214,7 +216,7 @@ class PortableActivityFileImportTest {
 		}
 
 		importer.import(
-			mockk(relaxed = true),
+			context,
 			database(epoch = 1L),
 			unboundStream("{not-json".encodeToByteArray(), "activity.trackeractivity", "entry"),
 		).failedCount shouldBe 1
@@ -232,7 +234,7 @@ class PortableActivityFileImportTest {
 			}
 		})
 		missingEpoch.import(
-			mockk(relaxed = true),
+			context,
 			database(epoch = null),
 			stream(bytes, "activity.trackeractivity", "receipt"),
 		).failedCount shouldBe 1
@@ -243,7 +245,7 @@ class PortableActivityFileImportTest {
 		})
 		shouldThrow<CancellationException> {
 			cancelled.import(
-				mockk(relaxed = true),
+				context,
 				database(epoch = 1L),
 				stream(bytes, "activity.trackeractivity", "cancel"),
 			)
@@ -258,7 +260,7 @@ class PortableActivityFileImportTest {
 		})
 		shouldThrow<PortableActivityRetryableImportException> {
 			retry.import(
-				mockk(relaxed = true),
+				context,
 				database(epoch = 1L),
 				stream(bytes, "activity.trackeractivity", "retry"),
 			)
@@ -271,7 +273,7 @@ class PortableActivityFileImportTest {
 		coEvery { unavailableState.get() } throws SQLiteException("storage unavailable")
 		shouldThrow<PortableActivityRetryableImportException> {
 			missingEpoch.import(
-				mockk(relaxed = true),
+				context,
 				unavailableDatabase,
 				stream(bytes, "activity.trackeractivity", "sqlite"),
 			)
@@ -299,7 +301,7 @@ class PortableActivityFileImportTest {
 			),
 			transactionMode = ImportTransactionMode.IMPORTER_MANAGED,
 		) { stream ->
-			importer.import(mockk(relaxed = true), database(epoch = 1L), stream.withOriginalDataEpoch(1L))
+			importer.import(context, database(epoch = 1L), stream.withOriginalDataEpoch(1L))
 		}
 
 		truncated.failedCount shouldBe 1
@@ -324,7 +326,7 @@ class PortableActivityFileImportTest {
 				stream = transport,
 				transactionMode = ImportTransactionMode.IMPORTER_MANAGED,
 			) { stream ->
-				importer.import(mockk(relaxed = true), database(epoch = 1L), stream.withOriginalDataEpoch(1L))
+				importer.import(context, database(epoch = 1L), stream.withOriginalDataEpoch(1L))
 			}
 		}
 		(transportFailure === original) shouldBe true
@@ -341,7 +343,7 @@ class PortableActivityFileImportTest {
 			),
 			transactionMode = ImportTransactionMode.IMPORTER_MANAGED,
 		) { stream ->
-			importer.import(mockk(relaxed = true), database(epoch = 1L), stream.withOriginalDataEpoch(1L))
+			importer.import(context, database(epoch = 1L), stream.withOriginalDataEpoch(1L))
 		}
 		lexical.failedCount shouldBe 1
 		store.entry("lexical-job", "direct-entry")?.status shouldBe

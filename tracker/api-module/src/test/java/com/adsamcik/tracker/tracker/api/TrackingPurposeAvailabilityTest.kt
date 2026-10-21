@@ -33,18 +33,38 @@ class TrackingPurposeAvailabilityTest {
 		AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE
 			.containmentReason shouldBe
 			TrackingDecisionContainmentReason.RETENTION_AUTHORITY_UNAVAILABLE
-		snapshot.ambientSources.keys shouldBe setOf(
-			AmbientTrackingSource.STEPS,
-			AmbientTrackingSource.LOCATION,
-			AmbientTrackingSource.WIFI,
-			AmbientTrackingSource.CELL,
-		)
+		snapshot.ambientSources.keys shouldBe AmbientTrackingSource.entries.toSet()
 		snapshot.ambientSources.values.forEach { availability ->
 			availability.isOperational.shouldBeFalse()
 			availability.state shouldBe AmbientSourceOperationalState.WAITING
 			availability.mechanism shouldBe null
 			availability.reason shouldBe AmbientSourceUnavailableReason.RECONCILIATION_PENDING
 		}
+	}
+
+	@Test
+	fun `all-day Activity and Pressure publish independently with their real requirements`() {
+		val activity = ready(AmbientTrackingSource.ACTIVITY,
+			AmbientAcquisitionMechanism.ACTIVITY_RECOGNITION)
+		val pressure = ready(AmbientTrackingSource.PRESSURE,
+			AmbientAcquisitionMechanism.PRESSURE_SENSOR)
+		activity.isOperational shouldBe true
+		pressure.isOperational shouldBe true
+		permission(AmbientTrackingSource.ACTIVITY, AmbientAcquisitionMechanism.ACTIVITY_RECOGNITION,
+			AmbientSourceUnavailableReason.ACTIVITY_PERMISSION_REQUIRED).isOperational.shouldBeFalse()
+		AmbientSourceOperationalAvailability.unavailable(AmbientTrackingSource.PRESSURE,
+			AmbientSourceUnavailableReason.PRESSURE_SENSOR_UNAVAILABLE).isOperational.shouldBeFalse()
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		listOf(activity, pressure).forEach { availability ->
+			val identity = AmbientReconciliationIdentity.from(availability.operationalIdentity!!)
+			store.beginOrReplaceAmbientLease(identity)
+			store.tryAccept(AmbientSourceReconciliationReport(identity, availability))
+				.shouldBeInstanceOf<AmbientPublicationAcceptance.Accepted>()
+		}
+		store.reportAmbientForegroundHostLost(pressure.operationalIdentity!!) shouldBe true
+		store.availability.value.ambientSources.getValue(AmbientTrackingSource.PRESSURE)
+			.isOperational.shouldBeFalse()
+		store.availability.value.ambientSources.getValue(AmbientTrackingSource.ACTIVITY) shouldBe activity
 	}
 
 	@Test

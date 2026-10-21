@@ -201,15 +201,19 @@ private fun member(selector: OrganizationSourceSelector, row: UnifiedHistoryRow,
     locationMembers: Set<Long>): Boolean = when (selector) {
     is OrganizationSourceSelector.LocationFile ->
         (row.measurement as? HistoryMeasurement.Location)?.point?.sampleId in locationMembers
-    is OrganizationSourceSelector.CapturedEntry ->
-        key.matchesImported(row, "CAPTURE", selector.source, selector.entryIdentity) &&
-            (selector.source != HistorySource.WIFI && selector.source != HistorySource.CELL ||
-                selector.importJobId == null)
+    is OrganizationSourceSelector.CapturedEntry -> capturedMember(selector, row, key)
     is OrganizationSourceSelector.BackgroundStepsDay ->
         key.matchesImported(row, "BACKGROUND", HistorySource.STEPS, selector.dayIdentity)
     is OrganizationSourceSelector.BackgroundRadioArchive ->
         key.matchesImported(row, "BACKGROUND", selector.source, selector.archiveIdentity)
+    is OrganizationSourceSelector.SensorObservations -> selector.source == row.measurement?.source &&
+        key.purpose == "BACKGROUND" && key.identity in selector.identities
 }
+
+private fun capturedMember(selector: OrganizationSourceSelector.CapturedEntry, row: UnifiedHistoryRow,
+    key: MeasuredHistoryCandidate): Boolean =
+    key.matchesImported(row, "CAPTURE", selector.source, selector.entryIdentity) &&
+        (selector.source !in setOf(HistorySource.WIFI, HistorySource.CELL) || selector.importJobId == null)
 
 private fun MeasuredHistoryCandidate.matchesImported(row: UnifiedHistoryRow, purpose: String,
     source: HistorySource, writerId: String): Boolean = origin == "IMPORTED" && this.purpose == purpose &&

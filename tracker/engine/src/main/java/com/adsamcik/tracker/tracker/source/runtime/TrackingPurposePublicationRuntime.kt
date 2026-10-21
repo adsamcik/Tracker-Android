@@ -524,6 +524,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 	private val ambientLocationPurposeOwnerProvider: Provider<AmbientLocationPurposeOwner>? = null,
 	private val automaticControlPurposeOwnerProvider: Provider<DefaultAutomaticControlPurposeOwner>? = null,
 	private val trackingParamsRepositoryProvider: Provider<TrackingParamsRepository>? = null,
+	private val ambientSensorPurposeOwnerProvider: Provider<AmbientSensorPurposeOwner>? = null,
 ) : TrackingPurposeSettingsReconciler,
 	AmbientStepsPolicyRevisionReconciler,
 	TrackingPurposeSourceOwnerRegistrar,
@@ -545,6 +546,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		ambientLocationPurposeOwnerProvider: Provider<AmbientLocationPurposeOwner>,
 		automaticControlPurposeOwnerProvider: Provider<DefaultAutomaticControlPurposeOwner>,
 		trackingParamsRepositoryProvider: Provider<TrackingParamsRepository>,
+		ambientSensorPurposeOwnerProvider: Provider<AmbientSensorPurposeOwner>,
 	) : this(
 		leaseIssuer,
 		reporter,
@@ -560,6 +562,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		ambientLocationPurposeOwnerProvider,
 		automaticControlPurposeOwnerProvider,
 		trackingParamsRepositoryProvider,
+		ambientSensorPurposeOwnerProvider,
 	)
 
 	private val ownerMutex = Mutex()
@@ -974,9 +977,26 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 	private suspend fun ensureBuiltInAmbientOwners(sources: Set<AmbientTrackingSource>) {
 		ownerMutex.withLock {
 			ensureBuiltInLocationOwner(sources)
+			ensureBuiltInSensorOwners(sources)
 			ensureBuiltInStepsOwner(sources)
 			ensureBuiltInWifiOwner(sources)
 			ensureBuiltInCellOwner(sources)
+		}
+	}
+
+	private fun ensureBuiltInSensorOwners(sources: Set<AmbientTrackingSource>) {
+		val provider = ambientSensorPurposeOwnerProvider ?: return
+		for (source in setOf(AmbientTrackingSource.ACTIVITY, AmbientTrackingSource.PRESSURE).intersect(sources)) {
+			if (ambientOwners[source] != null) {
+				continue
+			}
+			val sourcePurpose = source.canonicalSource.forPurpose(TrackingPurpose.AMBIENT_PRODUCT)
+			val registrationId = "builtin:ambient:${source.name.lowercase(java.util.Locale.ROOT)}"
+			ambientOwners[source] = AmbientOwnerRegistration(
+				TrackingPurposeSourceOwnerRegistration(sourcePurpose, registrationId),
+				1L, builtInSensorCallback(source, provider))
+			previouslyOwnedAmbientSources += source
+			executionRevisionRegistry.update(sourcePurpose, 1L)
 		}
 	}
 
@@ -1094,6 +1114,28 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		override suspend fun closeForCollectedDataDeletion(
 			previousLease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease?,
 		) = owner.get().retire(previousLease)
+	}
+
+	private fun builtInSensorCallback(
+		source: AmbientTrackingSource,
+		owner: Provider<AmbientSensorPurposeOwner>,
+	): AmbientSourceReconciliationCallback = object : AmbientSourceReconciliationCallback {
+		override suspend fun reconcile(lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease) =
+			owner.get().reconcile(lease)
+		override suspend fun reconcileForRetentionFloor(
+			lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease,
+			settlementOperationId: String,
+		): AmbientSourceOperationalAvailability = withRetentionFloorSettlementOperation(settlementOperationId) {
+			owner.get().reconcile(lease)
+		}
+		override suspend fun compensate(lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease) =
+			owner.get().retire(source, lease)
+		override suspend fun retireAfterRetentionAuthorityFailure(
+			previousLease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease?,
+		) = owner.get().retire(source, previousLease)
+		override suspend fun closeForCollectedDataDeletion(
+			previousLease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease?,
+		) = owner.get().retire(source, previousLease)
 	}
 
 	private fun builtInStepsCallback(
@@ -2165,12 +2207,18 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		const val BUILT_IN_WIFI_REGISTRATION_ID = "builtin:ambient:wifi"
 		const val BUILT_IN_CELL_REGISTRATION_ID = "builtin:ambient:cell"
 		val RETENTION_FLOOR_PROVIDER_SOURCES = setOf(
+			AmbientTrackingSource.ACTIVITY,
+			AmbientTrackingSource.PRESSURE,
 			AmbientTrackingSource.LOCATION,
 			AmbientTrackingSource.STEPS,
 			AmbientTrackingSource.WIFI,
 			AmbientTrackingSource.CELL,
 		)
 		val DURABLE_AMBIENT_COMPONENTS = linkedMapOf(
+			com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent.ACTIVITY to
+				AmbientTrackingSource.ACTIVITY,
+			com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent.PRESSURE to
+				AmbientTrackingSource.PRESSURE,
 			com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent.LOCATION to
 				AmbientTrackingSource.LOCATION,
 			com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent.STEPS to

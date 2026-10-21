@@ -109,6 +109,11 @@ interface SourcePolicyDao {
 	)
 	suspend fun consentEpoch(sourceKind: Int, purpose: String, epoch: Long): SourceConsentEpochEntity?
 
+	/** The first later consent boundary, independent of the currently selected settings. */
+	@Query("SELECT * FROM source_consent_epoch WHERE source_kind = :sourceKind AND purpose = :purpose " +
+		"AND epoch > :epoch ORDER BY epoch LIMIT 1")
+	suspend fun nextConsentEpoch(sourceKind: Int, purpose: String, epoch: Long): SourceConsentEpochEntity?
+
 	/** Exact bounded attribution lookup; callers deduplicate and cap [epochs] before invoking it. */
 	@Query(
 		"SELECT * FROM source_consent_epoch " +

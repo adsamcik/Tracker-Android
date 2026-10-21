@@ -26,23 +26,23 @@ class SourceBrokerAmbientLocationTest : SourceBrokerRoomTestFixture() {
 	@Test
 	fun `background Location reserves only its exact sessionless authority and preserves retries`() = runTest {
 		val (identity, retention, prepared) = ambientLocationFixture()
-		val result = subject.replaceAmbientLocationDemand(identity, "boot-1", 100L, 100L, retention, prepared)
-		val demand = (result as AmbientLocationDemandResult.Active).demand
+		val result = subject.replaceAmbientSourceDemand(identity, "boot-1", 100L, 100L, retention, prepared)
+		val demand = (result as AmbientSourceDemandResult.Active).demand
 		demand.logicalTrackingId shouldBe null
 		demand.serviceRunId shouldBe null
 		demand.manifestRevision shouldBe null
 		demand.persistenceEligible shouldBe true
 		demand.maximumAgeMs shouldBe 120_000L
 		demand.desiredLatencyMs shouldBe 10_000L
-		subject.currentAmbientLocationIdentity() shouldBe identity
-		subject.replaceAmbientLocationDemand(identity, "boot-1", 110L, 110L, retention, prepared) shouldBe result
+		subject.currentAmbientSourceIdentity() shouldBe identity
+		subject.replaceAmbientSourceDemand(identity, "boot-1", 110L, 110L, retention, prepared) shouldBe result
 		subject.authorizationDemands(SourceKind.LOCATION) shouldBe listOf(demand)
 		SourceKind.entries.filter { it != SourceKind.LOCATION }.forEach {
 			subject.authorizationDemands(it).shouldBeEmpty()
 		}
-		subject.retireAmbientLocationDemand(identity.copy(ownerCasToken = "stale"), "boot-1", 120L, 120L) shouldBe false
+		subject.retireAmbientSourceDemand(identity.copy(ownerCasToken = "stale"), "boot-1", 120L, 120L) shouldBe false
 		subject.authorizationDemands(SourceKind.LOCATION) shouldBe listOf(demand)
-		subject.retireAmbientLocationDemand(identity, "boot-1", 130L, 130L) shouldBe true
+		subject.retireAmbientSourceDemand(identity, "boot-1", 130L, 130L) shouldBe true
 		subject.authorizationDemands(SourceKind.LOCATION).shouldBeEmpty()
 	}
 
@@ -50,8 +50,8 @@ class SourceBrokerAmbientLocationTest : SourceBrokerRoomTestFixture() {
 	fun `background Location cannot use a stale retention snapshot`() = runTest {
 		val (identity, retention, prepared) = ambientLocationFixture()
 		database.openHelper.writableDatabase.execSQL("UPDATE ambient_location_retention_authority SET effect_checksum = 'corrupt'")
-		subject.replaceAmbientLocationDemand(identity, "boot-1", 100L, 100L, retention, prepared) shouldBe
-			AmbientLocationDemandResult.Inactive("LOCATION_RETENTION_CHANGED")
+		subject.replaceAmbientSourceDemand(identity, "boot-1", 100L, 100L, retention, prepared) shouldBe
+			AmbientSourceDemandResult.Inactive("LOCATION_RETENTION_CHANGED")
 		subject.authorizationDemands(SourceKind.LOCATION).shouldBeEmpty()
 		RoomSourceCallerAcceptedAuthorityRepository(database).load(prepared.receipt.reference) shouldBe
 			StoredSourceCallerAuthorityLoadResult.Missing
@@ -60,10 +60,10 @@ class SourceBrokerAmbientLocationTest : SourceBrokerRoomTestFixture() {
 	@Test
 	fun `persisted background consent survives reboot with a fresh physical retention boundary`() = runTest {
 		val (identity, retention, prepared) = ambientLocationFixture(policyBoot = "previous-boot")
-		val accepted = subject.replaceAmbientLocationDemand(identity, "boot-1", 100L, 100L, retention, prepared)
-		(accepted is AmbientLocationDemandResult.Active) shouldBe true
-		val wrongBoot = subject.replaceAmbientLocationDemand(identity, "unacknowledged-boot", 100L, 100L, retention, prepared)
-		wrongBoot shouldBe AmbientLocationDemandResult.Inactive("LOCATION_RETENTION_CHANGED")
+		val accepted = subject.replaceAmbientSourceDemand(identity, "boot-1", 100L, 100L, retention, prepared)
+		(accepted is AmbientSourceDemandResult.Active) shouldBe true
+		val wrongBoot = subject.replaceAmbientSourceDemand(identity, "unacknowledged-boot", 100L, 100L, retention, prepared)
+		wrongBoot shouldBe AmbientSourceDemandResult.Inactive("LOCATION_RETENTION_CHANGED")
 	}
 
 	private suspend fun ambientLocationFixture(policyBoot: String = "boot-1"): Triple<AmbientReconciliationIdentity, LiveAmbientRetentionSnapshot, PreparedSourceCallerAcceptance> {

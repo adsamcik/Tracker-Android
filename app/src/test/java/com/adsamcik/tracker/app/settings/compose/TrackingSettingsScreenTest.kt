@@ -160,6 +160,36 @@ class TrackingSettingsScreenTest {
     }
 
     @Test
+    fun allDayActivityPermissionAndPressureHostFailureKeepExistingChoicesUsable() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        var pressureChosen: Boolean? = null
+        var retries = 0
+        var permissionSource: TrackingSourceComponent? = null
+        val pressureUnavailable = AmbientSourceOperationalAvailability.unavailable(
+            AmbientTrackingSource.PRESSURE, AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE)
+        composeTestRule.setContent {
+            AppTheme {
+                TrackingSettingsContent(defaultUiState.copy(activityPermissionGranted = false,
+                    barometerEnabled = true, barometerAvailable = true,
+                    ambientSourceAvailability = defaultUiState.ambientSourceAvailability +
+                        (AmbientTrackingSource.PRESSURE to pressureUnavailable)),
+                    onSourcePermission = { permissionSource = it },
+                    onRetrySourceRecovery = { retries++ },
+                    onBarometerEnabledChanged = { pressureChosen = it })
+            }
+        }
+        scrollToTag("sourcePermission-activity").performClick()
+        permissionSource shouldBe TrackingSourceComponent.ACTIVITY
+        scrollTo(context.getString(com.adsamcik.tracker.R.string.settings_pressure_host_unavailable))
+        composeTestRule.onNodeWithText(context.getString(com.adsamcik.tracker.R.string.settings_pressure_host_unavailable),
+            substring = true).assertIsDisplayed()
+        scrollToTag("allDaySourceRetry-pressure").performClick()
+        retries shouldBe 1
+        composeTestRule.onNodeWithText("Barometer").performClick()
+        pressureChosen shouldBe false
+    }
+
+    @Test
     fun unavailablePressureCanStillBeTurnedOff() {
         var chosen: Boolean? = null
         composeTestRule.setContent {

@@ -181,9 +181,9 @@ internal interface SourceCallerDemandDispatcher : SourceCallerCurrentAuthorityPr
 		request: AmbientStepsDemandDispatchRequest,
 	): GuardedPurposeDemandResult<AmbientStepsDemandResult>
 
-	suspend fun dispatchAmbientLocation(
-		request: AmbientLocationDemandDispatchRequest,
-	): GuardedPurposeDemandResult<AmbientLocationDemandResult>
+	suspend fun dispatchAmbientSource(
+		request: AmbientSourceDemandDispatchRequest,
+	): GuardedPurposeDemandResult<AmbientSourceDemandResult>
 
 	suspend fun retireAmbientSteps(
 		consumerId: String,
@@ -513,21 +513,23 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 
 	// Each short rejection preserves the ordered source, retention and acceptance checks.
 	@Suppress("ReturnCount")
-	override suspend fun dispatchAmbientLocation(
-		request: AmbientLocationDemandDispatchRequest,
-	): GuardedPurposeDemandResult<AmbientLocationDemandResult> {
+	override suspend fun dispatchAmbientSource(
+		request: AmbientSourceDemandDispatchRequest,
+	): GuardedPurposeDemandResult<AmbientSourceDemandResult> {
 		val ambient = request.identity
 		val identity = ambient.purposeLeaseIdentity
-		if (ambient.source != AmbientTrackingSource.LOCATION) {
+		val source = ambient.source.canonicalSource
+		val runtimeSource = SourceKind.entries.single { it.stableCode == source.stableCode }
+		if (runtimeSource !in DIRECT_AMBIENT_SOURCES) {
 			return rejectedPurpose(SourceCallerRejectionReason.AMBIENT_SOURCE_NOT_SUPPORTED)
 		}
 		val retention = sourceBroker.captureLiveAmbientRetentionSnapshot(
-			source = SourceKind.LOCATION, sourcePolicyRevision = identity.policyRevision,
+			source = runtimeSource, sourcePolicyRevision = identity.policyRevision,
 			ambientConsentEpoch = identity.consentEpoch, collectedDataEpoch = identity.collectedDataEpoch,
 			currentBootId = request.bootId, currentElapsedRealtimeNanos = request.elapsedRealtimeNanos,
 			currentWallTimeMs = request.wallTimeMs, expectedRetainedFromMs = ambient.retainedFromMs,
 		) ?: return rejectedPurpose(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
-		val grant = retention.grants[SourceKind.LOCATION]
+		val grant = retention.grants[runtimeSource]
 		if (grant?.opaquePolicyId != ambient.retentionPolicyId ||
 			grant?.approvalRevision != ambient.retentionApprovalRevision ||
 			grant?.retainedFromMs != ambient.retainedFromMs
@@ -535,16 +537,16 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			return rejectedPurpose(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
 		}
 		val prepared = when (val acceptance = preparePurposeAcceptance(identity,
-			TrackingSource.LOCATION, TrackingPurpose.AMBIENT_PRODUCT, request.wallTimeMs)) {
+			source, TrackingPurpose.AMBIENT_PRODUCT, request.wallTimeMs)) {
 			is GuardedPurposeDemandResult.Applied -> acceptance.value
 			is GuardedPurposeDemandResult.Rejected -> return acceptance
 			is GuardedPurposeDemandResult.RejectedAfterCleanup -> error("Acceptance cannot complete cleanup")
 			GuardedPurposeDemandResult.Stale -> return GuardedPurposeDemandResult.Stale
 		}
-		val result = sourceBroker.replaceAmbientLocationDemand(ambient, request.bootId,
+		val result = sourceBroker.replaceAmbientSourceDemand(ambient, request.bootId,
 			request.elapsedRealtimeNanos, request.wallTimeMs, retention, prepared)
 		return GuardedPurposeDemandResult.Applied(result,
-			prepared.receipt.takeIf { result is AmbientLocationDemandResult.Active })
+			prepared.receipt.takeIf { result is AmbientSourceDemandResult.Active })
 	}
 
 	override suspend fun dispatchAmbientSteps(
@@ -773,6 +775,8 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 				)
 			AmbientTrackingSource.STEPS,
 			AmbientTrackingSource.LOCATION,
+			AmbientTrackingSource.ACTIVITY,
+			AmbientTrackingSource.PRESSURE,
 			-> error("Unsupported ambient-radio source passed validation")
 		}
 		val receipt = prepared?.receipt?.takeIf { result is AmbientRadioDemandResult.Active }
@@ -809,6 +813,8 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 						)
 					AmbientTrackingSource.STEPS,
 					AmbientTrackingSource.LOCATION,
+					AmbientTrackingSource.ACTIVITY,
+					AmbientTrackingSource.PRESSURE,
 					-> error("Unsupported ambient-radio source passed validation")
 				}
 			} catch (cancelled: CancellationException) {
@@ -866,6 +872,8 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 			)
 		AmbientTrackingSource.STEPS,
 		AmbientTrackingSource.LOCATION,
+		AmbientTrackingSource.ACTIVITY,
+		AmbientTrackingSource.PRESSURE,
 		-> null
 		}
 		return compensated

@@ -1,6 +1,6 @@
 # Tracking Infrastructure Completion TODO
 
-Last updated: 2026-10-20
+Last updated: 2026-10-22
 
 [Current completion plan](convergence/2026-10-07/COMPLETION_PLAN.md) (2026-10-07) consolidates all outstanding work and is the
 current execution order. Complete the full scope, including source files and data-only backup/restore, before freezing. Preserve this ledger and its historical source receipts.
@@ -28,6 +28,18 @@ Independent source, host, runtime and result review is complete. The enclosing l
 
 Earlier runtime failures remain separate from final acceptance. The current result is recorded in
 the existing [Dev control verification](convergence/2026-10-17/DEV_CONTROL_VERIFICATION.md).
+
+## October 21 all-day Activity and Pressure
+
+- [x] Use each source's existing choice for sessionless recording, with the shared five-level planner.
+- [x] Share the Activity registration owner and Pressure listener; keep automatic-start evidence separate.
+- [x] Host Pressure in the existing foreground service, preserve all-day collection after End, and retire it on Off.
+- [x] Save timestamped native observations, measured Pressure windows and partial coverage without a session.
+- [x] Read saved observations in History after settings changes; retain exact identity for duplicate detection and source erasure.
+- [x] Complete source-file and session-bundle round trips for these observations; all 87 affected transfer tests pass.
+- [x] Pass the combined Dev build and focused regression/quality checks, complete independent review, and commit locally to `dev/v10` (enclosing local commit; no push).
+
+Implementation and host verification are complete: 918 reconciled focused tests pass, with clean Dev/Hilt/Room generation and scoped quality checks. The [dated record](convergence/2026-10-22/ALL_DAY_SENSORS.md) retains scope and limitations. This section does not claim real Activity/Pressure delivery or battery acceptance.
 
 ## Historical continuation notes
 

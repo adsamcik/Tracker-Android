@@ -3,7 +3,10 @@ package com.adsamcik.tracker.impexp.exporter
 import android.content.Context
 import androidx.annotation.Keep
 import com.adsamcik.tracker.impexp.R
+import com.adsamcik.tracker.impexp.portable.AllDaySensorPortableRows
+import com.adsamcik.tracker.impexp.portable.AllDaySensorSourceFile
 import com.adsamcik.tracker.impexp.portable.PortableActivityFormatException
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.impexp.portable.PortableActivityJsonV1Codec
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedPortableFormatV1
 import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedActivity
@@ -28,11 +31,16 @@ import kotlinx.coroutines.ensureActive
 @InstallIn(SingletonComponent::class)
 internal interface PortableActivityExportEntryPoint {
 	fun exportPortableCapturedActivity(): ExportPortableCapturedActivity
+	fun appDatabase(): AppDatabase
 }
 
 /** User-selected portable captured-Activity file export; it acquires no source demand. */
 @Keep // Export activity reconstructs the selected class through its public no-argument constructor.
 internal class PortableActivityExporter(
+    private val nativeDatabaseProvider: (Context) -> AppDatabase? = { context ->
+        EntryPointAccessors.fromApplication(context.applicationContext,
+            PortableActivityExportEntryPoint::class.java).appDatabase()
+    },
 	private val exporterProvider: (Context) -> ExportPortableCapturedActivity = { context ->
 		EntryPointAccessors.fromApplication(
 			context.applicationContext,
@@ -53,6 +61,29 @@ internal class PortableActivityExporter(
 		dateRange: LongRange?,
 	): ExportResult {
 		val request = dateRange?.toPortableRequest() ?: FULL_HISTORY
+        val database = nativeDatabaseProvider(context)
+        if (database != null && AllDaySensorPortableRows.hasAny(database, "ACTIVITY",
+            request.fromInclusiveMs, request.toExclusiveMs)) {
+            return FileBackedExportSpool(context, "sensor-sessions-", AllDaySensorSourceFile.MAX_FILE_BYTES)
+                .use { sessions ->
+                var canIncludeNative = false
+                val sessionResult = writeResult {
+                    sessions.write { staged -> PortableActivityJsonV1Codec().encode(staged) { sink ->
+                        exporterProvider(context).export(request, sink)
+                    }.also {
+                        canIncludeNative = it is ExportPortableCapturedActivityResult.Exported ||
+                            it == ExportPortableCapturedActivityResult.NoEntries
+                    } }
+                }
+                if (!canIncludeNative) {
+                    return@use sessionResult
+                }
+                val count = AllDaySensorSourceFile.writeNativeExport(context, database, "ACTIVITY",
+                    request.fromInclusiveMs until request.toExclusiveMs,
+                    sessions.backingFile.takeIf { sessions.byteCount > 0 }, outputStream)
+                ExportResult.Success(count + ((sessionResult as? ExportResult.Success)?.recordCount ?: 0))
+            }
+        }
 		return writeResult {
 			PortableActivityJsonV1Codec().encode(outputStream) { sink ->
 				exporterProvider(context).export(request, sink)

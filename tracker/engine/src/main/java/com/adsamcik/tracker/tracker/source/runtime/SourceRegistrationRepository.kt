@@ -757,7 +757,7 @@ class SourceRegistrationRepository @Inject constructor(
 			"Broker demand has no recognized purpose eligibility"
 		}
 		require(supportsExactDemandPurposes(source, demands)) {
-			"Pressure provider registration requires exact SESSION_CAPTURE demand only"
+			"Pressure provider registration requires recording demand"
 		}
 		check(retentionSnapshot != null &&
 			sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
@@ -1062,7 +1062,7 @@ class SourceRegistrationRepository @Inject constructor(
 				"Collected-data epoch changed before provider acceptance"
 			}
 			check(supportsExactDemandPurposes(source, demands)) {
-				"Pressure provider acceptance requires exact SESSION_CAPTURE demand only"
+				"Pressure provider acceptance requires recording demand"
 			}
 			check(retentionSnapshot != null &&
 				sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
@@ -1707,7 +1707,7 @@ class SourceRegistrationRepository @Inject constructor(
 		demands: List<SourceDemandEntity>,
 	): Boolean = source != SourceKind.PRESSURE || (
 		demands.isNotEmpty() && demands.all { demand ->
-			demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+			demand.purpose in setOf(SourceBrokerPurpose.SESSION_CAPTURE, SourceBrokerPurpose.AMBIENT_PRODUCT)
 		}
 	)
 

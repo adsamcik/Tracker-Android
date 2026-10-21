@@ -5,6 +5,9 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.activeRetentionFloorSettlement
 import com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.AllDaySensorObservationIdentity
+import com.adsamcik.tracker.shared.base.database.data.PressureSample
+import com.adsamcik.tracker.shared.model.tracking.TrackingSource
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.stats.api.repository.AllDayCellFactStatus
 import com.adsamcik.tracker.stats.api.repository.AllDayLocationPointStatus
@@ -12,6 +15,7 @@ import com.adsamcik.tracker.stats.api.repository.AllDayReadingTime
 import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusQuery
 import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRead
 import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRequest
+import com.adsamcik.tracker.stats.api.repository.AllDaySensorObservationStatus
 import com.adsamcik.tracker.stats.api.repository.AllDayStepsGapStatus
 import com.adsamcik.tracker.stats.api.repository.AllDayStepsWindowStatus
 import com.adsamcik.tracker.stats.api.repository.AllDayWifiFactStatus
@@ -50,9 +54,6 @@ internal class RoomAllDaySourceStatusQuery @Inject constructor(
 
 	override suspend fun read(request: AllDaySourceStatusRequest): AllDaySourceStatusRead = withContext(io) {
 		currentCoroutineContext().ensureActive()
-		if (request is AllDaySourceStatusRequest.Unsupported) {
-			return@withContext AllDaySourceStatusRead.Unsupported
-		}
 		if (!database.isOpen) {
 			return@withContext unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
 		}
@@ -88,7 +89,7 @@ internal class RoomAllDaySourceStatusQuery @Inject constructor(
 		is AllDaySourceStatusRequest.Wifi -> readWifi(request, snapshot)
 		is AllDaySourceStatusRequest.Cell -> readCell(request, snapshot)
 		is AllDaySourceStatusRequest.Location -> readLocation(request, snapshot)
-		is AllDaySourceStatusRequest.Unsupported -> AllDaySourceStatusRead.Unsupported
+		is AllDaySourceStatusRequest.Sensor -> readSensor(request, evidence, snapshot)
 	}
 
 	/** History keeps its requested local/imported membership and existing count-domain composer. */
@@ -190,4 +191,79 @@ internal class RoomAllDaySourceStatusQuery @Inject constructor(
 	}
 
 	private fun unavailable(reason: HistoryProblemReason) = AllDaySourceStatusRead.Unavailable(reason)
+
+	private suspend fun readSensor(request: AllDaySourceStatusRequest.Sensor, evidence: SourceEvidenceState,
+		snapshot: TrackingHistoryReadSnapshot): AllDaySourceStatusRead {
+		val from = maxOf(request.window.fromInclusiveMs, evidence.retainedFromMs ?: 0L)
+		val to = request.window.toExclusiveMs
+		if (from >= to) {
+			return AllDaySourceStatusRead.Sensor(snapshot, request.source, emptyList())
+		}
+		return if (request.source == TrackingSource.ACTIVITY) {
+			readActivity(request, snapshot, from, to)
+		} else {
+			readPressure(request, snapshot, from, to)
+		}
+	}
+
+	private suspend fun readActivity(request: AllDaySourceStatusRequest.Sensor,
+		snapshot: TrackingHistoryReadSnapshot, from: Long, to: Long): AllDaySourceStatusRead {
+		val rows = database.activitySnapshotDao().nativeAllDayBetween(from, to, request.limit + 1)
+		if (rows.size > request.limit) {
+			return unavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
+		}
+		var problem: HistoryProblemReason? = null
+		val observations = rows.mapNotNull { row ->
+			if (AllDaySensorObservationIdentity.activityEventId(row.sourceSignalId) == null || row.confidence !in 0..100) {
+				problem = HistoryProblemReason.INTEGRITY_UNAVAILABLE
+				null
+			} else {
+				AllDaySensorObservationStatus(requireNotNull(row.sourceSignalId), row.timeMs,
+					row.observationStamp.timeUncertaintyMs?.takeIf { it >= 0L })
+			}
+		}
+		return AllDaySourceStatusRead.Sensor(snapshot, request.source, observations, problem)
+	}
+
+	private suspend fun readPressure(request: AllDaySourceStatusRequest.Sensor,
+		snapshot: TrackingHistoryReadSnapshot, from: Long, to: Long): AllDaySourceStatusRead {
+		val rows = database.pressureSampleDao().nativeAllDayBetween(from, to, request.limit + 1)
+		if (rows.size > request.limit) {
+			return unavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
+		}
+		var problem: HistoryProblemReason? = null
+		val observations = rows.mapNotNull { row ->
+			if (!row.hasValidStatusValue()) {
+				problem = HistoryProblemReason.INTEGRITY_UNAVAILABLE
+				null
+			} else {
+				val validWindow = row.hasValidStatusWindow()
+				if (!validWindow && problem == null) {
+					problem = HistoryProblemReason.TIME_UNCERTAIN
+				}
+				row.toSensorStatus(validWindow)
+			}
+		}
+		return AllDaySourceStatusRead.Sensor(snapshot, request.source, observations, problem)
+	}
 }
+
+private fun PressureSample.hasValidStatusValue() =
+	AllDaySensorObservationIdentity.pressureEventId(sourceSignalId) != null &&
+		pressureHpa.isFinite() && pressureHpa > 0f && sampleCount > 0
+
+private fun PressureSample.hasValidStatusWindow(): Boolean {
+	if (windowStartElapsedRealtimeNanos?.let { it < 0L } == true ||
+		windowEndElapsedRealtimeNanos?.let { it < 0L } == true) {
+		return false
+	}
+	val start = windowStartElapsedRealtimeNanos ?: return true
+	val end = windowEndElapsedRealtimeNanos ?: return true
+	return end >= start
+}
+
+private fun PressureSample.toSensorStatus(validWindow: Boolean) = AllDaySensorObservationStatus(
+	requireNotNull(sourceSignalId), timeMs, observationStamp.timeUncertaintyMs?.takeIf { it >= 0L },
+	windowStartElapsedRealtimeNanos.takeIf { validWindow }, windowEndElapsedRealtimeNanos.takeIf { validWindow },
+	observationStamp.capabilityFlags.orEmpty().split(',').firstOrNull { it.startsWith("PRESSURE_QUALIFICATION:") }
+		?.removePrefix("PRESSURE_QUALIFICATION:")?.let { it != "COMPLETE" } == true)

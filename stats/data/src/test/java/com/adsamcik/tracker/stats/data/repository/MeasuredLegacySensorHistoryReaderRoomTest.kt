@@ -4,6 +4,8 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
+import com.adsamcik.tracker.shared.base.database.data.AllDaySensorObservationIdentity
+import com.adsamcik.tracker.shared.base.database.data.ObservationStampColumns
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode
 import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
@@ -38,6 +40,59 @@ class MeasuredLegacySensorHistoryReaderRoomTest {
         reader = MeasuredLegacySensorHistoryReader(database)
     }
     @After fun close() = database.close()
+
+    @Test fun `all day observations are local background data without sessions or current recording permission`() = runTest {
+        val identity = AllDaySensorObservationIdentity.activity("event-one")
+        database.activitySnapshotDao().insert(ActivitySnapshot(timeMs = 1_000, activityType = 7,
+            confidence = 65, isTransition = true, createdAt = 2_000, sourceSignalId = identity))
+        activity(1_001)
+        val range = range(0, 3_000).copy(origins = setOf(HistoryOrigin.LOCAL),
+            purposes = setOf(HistoryPurpose.BACKGROUND))
+        val read = database.withTransaction {
+            reader.qualify(HistorySource.ACTIVITY, reader.candidates(HistorySource.ACTIVITY, range, null), range)
+        }
+        read.problems shouldBe emptySet()
+        val row = read.rows.values.single()
+        row.position.stableId shouldBe identity
+        row.position.startTimeMs shouldBe 1_000L
+        row.origins shouldBe setOf(HistoryOrigin.LOCAL)
+        row.purpose shouldBe HistoryPurpose.BACKGROUND
+        row.toExclusiveMs shouldBe null
+        database.sourcePolicyDao().authority() shouldBe null
+        database.sourceSessionDao().activeSession() shouldBe null
+    }
+
+    @Test fun `imported all day observations keep their identity and do not acquire local capture labels`() = runTest {
+        val identity = AllDaySensorObservationIdentity.pressure("event-two")
+        database.pressureSampleDao().insert(PressureSample(timeMs = 1_000, elapsedRealtimeNanos = 20,
+            pressureHpa = 1_010f, altitudeM = 0f, bucketId = null, createdAt = 2_000,
+            sourceSignalId = identity, observationStamp = ObservationStampColumns(
+                capabilityFlags = AllDaySensorObservationIdentity.IMPORTED_CAPABILITY)))
+        val range = range(0, 3_000).copy(origins = setOf(HistoryOrigin.IMPORTED),
+            purposes = setOf(HistoryPurpose.BACKGROUND))
+        val keys = reader.candidates(HistorySource.PRESSURE, range, null)
+        val row = reader.qualify(HistorySource.PRESSURE, keys, range).rows.values.single()
+        row.position.stableId shouldBe identity
+        row.origins shouldBe setOf(HistoryOrigin.IMPORTED)
+        row.purpose shouldBe HistoryPurpose.BACKGROUND
+        reader.candidates(HistorySource.PRESSURE, range.copy(origins = setOf(HistoryOrigin.LOCAL)), null) shouldBe emptyList()
+        reader.candidates(HistorySource.PRESSURE, range.copy(purposes = setOf(HistoryPurpose.CAPTURE)), null) shouldBe emptyList()
+    }
+
+    @Test fun `mixed native and old observations with equal times page once in global order`() = runTest {
+        activity(1_000)
+        (1..102).forEach { index -> database.activitySnapshotDao().insert(ActivitySnapshot(
+            timeMs = 1_000, activityType = 7, confidence = 50, isTransition = false, createdAt = 1_000,
+            sourceSignalId = AllDaySensorObservationIdentity.activity("event-$index"))) }
+        val range = range(0, 2_000)
+        val first = reader.candidates(HistorySource.ACTIVITY, range, null)
+        first.size shouldBe 101
+        val second = reader.candidates(HistorySource.ACTIVITY, range, measuredHistoryPosition(first[99]))
+        val rows = first.take(100) + second
+        rows.size shouldBe 103
+        rows.map { it.identity }.distinct().size shouldBe rows.size
+        rows.map(::measuredHistoryPosition).sorted() shouldBe rows.map(::measuredHistoryPosition)
+    }
 
     @Test fun `dense Activity data pages beyond 4096 with distinct equal timestamp keys`() = runTest {
         val ids = database.withTransaction { (1..4_201).map { activity(1_000L + it / 3) } }

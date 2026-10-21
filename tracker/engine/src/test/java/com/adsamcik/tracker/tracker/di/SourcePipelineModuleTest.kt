@@ -12,7 +12,7 @@ import com.adsamcik.tracker.tracker.source.model.WifiMode
 import com.adsamcik.tracker.tracker.source.model.WifiPlan
 import com.adsamcik.tracker.tracker.source.runtime.ActivitySourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.ClaimedSourceRuntime
-import com.adsamcik.tracker.tracker.source.runtime.PressureSourceRuntime
+import com.adsamcik.tracker.tracker.source.runtime.SharedPressureSourceController
 import com.adsamcik.tracker.tracker.source.runtime.SharedLocationSourceController
 import com.adsamcik.tracker.tracker.source.runtime.SharedStepSourceController
 import io.mockk.coEvery
@@ -99,7 +99,7 @@ class SourcePipelineModuleTest {
 			val cellController = SharedCellSourceController(cellRuntime, broker, sinkFactory)
 			val activity = mockk<ActivitySourceRuntime>()
 			val steps = mockk<SharedStepSourceController>()
-			val pressure = mockk<PressureSourceRuntime>()
+			val pressure = mockk<SharedPressureSourceController>()
 			val location = mockk<SharedLocationSourceController>()
 			every { activity.source } returns SourceKind.ACTIVITY
 			every { steps.source } returns SourceKind.STEPS

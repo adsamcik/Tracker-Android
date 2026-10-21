@@ -26,6 +26,8 @@ internal class MeasuredNativeActivityHistoryReader(
             HistoryPurpose.CAPTURE !in range.purposes) {
             return emptyList()
         }
+        val nativeFallback = if (HistoryPurpose.BACKGROUND in range.purposes) { 0 } else { 1 }
+        val includeImported = if (HistoryOrigin.IMPORTED in range.origins) { 1 } else { 0 }
         val seek = if (after == null) {
             ""
         } else {
@@ -53,6 +55,23 @@ internal class MeasuredNativeActivityHistoryReader(
             WHERE f.fragment_kind = 'BAND' AND f.start_wall_time_ms >= 0 AND f.end_wall_time_ms >= 0
                 AND f.start_wall_time_ms < ? AND (f.end_wall_time_ms >= ? OR
                     f.end_wall_time_ms < f.start_wall_time_ms AND f.start_wall_time_ms >= ?)
+                AND ($nativeFallback = 1 OR NOT (EXISTS (SELECT 1 FROM activity_captured_evidence e
+                    WHERE e.writer_projection_id = f.writer_projection_id
+                        AND e.writer_projection_version = f.writer_projection_version
+                        AND e.logical_window_id = f.logical_window_id
+                        AND e.semantic_revision = f.semantic_revision
+                        AND e.fragment_ordinal = f.fragment_ordinal)
+                    AND NOT EXISTS (SELECT 1 FROM activity_captured_evidence e
+                        WHERE e.writer_projection_id = f.writer_projection_id
+                            AND e.writer_projection_version = f.writer_projection_version
+                            AND e.logical_window_id = f.logical_window_id
+                            AND e.semantic_revision = f.semantic_revision
+                            AND e.fragment_ordinal = f.fragment_ordinal
+                            AND NOT EXISTS (SELECT 1 FROM activity_snapshot a
+                                WHERE a.source_signal_id = 'all-day:activity:' || e.source_event_id
+                                    AND a.time_ms >= 0 AND a.confidence BETWEEN 0 AND 100
+                                    AND ($includeImported = 1 OR
+                                        instr(',' || COALESCE(a.capability_flags, '') || ',', ',PORTABLE_IMPORT,') = 0)))))
                 AND NOT EXISTS (SELECT 1 FROM activity_captured_window_revision newer
                     WHERE newer.writer_projection_id = f.writer_projection_id AND
                         newer.writer_projection_version = f.writer_projection_version AND

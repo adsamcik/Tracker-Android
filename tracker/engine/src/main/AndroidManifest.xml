@@ -26,7 +26,8 @@
     <!--
         Runtime types follow accepted sources: LOCATION for location-accessing Location/Wi-Fi/Cell,
         HEALTH while activity/step collection is active, and SPECIAL_USE only for a genuinely
-        uncovered signal-only session. Permission possession alone never adds a type.
+        uncovered signal-only session or user-enabled all-day Pressure recording. Permission
+        possession alone never adds a type.
     -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
@@ -39,7 +40,7 @@
             tools:targetApi="q">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="User-visible tracking session collection of pressure, Wi-Fi scan, and cell-radio context when no dedicated foreground-service type applies" />
+                android:value="User-enabled all-day pressure recording and tracking-session pressure, Wi-Fi, and cell context when no dedicated foreground-service type applies" />
         </service>
 
         <activity

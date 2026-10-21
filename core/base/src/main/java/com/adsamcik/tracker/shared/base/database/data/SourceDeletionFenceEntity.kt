@@ -30,7 +30,9 @@ data class SourceDeletionFenceEntity(
 	init {
 		require(sourceKind > 0) { "Deletion-fence source kind must be positive" }
 		require(purpose.isNotBlank()) { "Deletion-fence purpose must not be blank" }
-		require(scopeKind == SCOPE_LOGICAL_SERVICE_RUN) { "Unknown deletion-fence scope" }
+		require(scopeKind in setOf(SCOPE_LOGICAL_SERVICE_RUN, SCOPE_SOURCE_CONSENT_EPOCH)) {
+			"Unknown deletion-fence scope"
+		}
 		require(SHA_256_HEX.matches(scopeIdentityDigest)) {
 			"Deletion-fence scope identity must be a lowercase SHA-256 digest"
 		}
@@ -53,10 +55,28 @@ data class SourceDeletionFenceEntity(
 	/** Stable scope construction shared by mutation and read paths. */
 	companion object {
 		const val SCOPE_LOGICAL_SERVICE_RUN = "LOGICAL_SERVICE_RUN"
+		const val SCOPE_SOURCE_CONSENT_EPOCH = "SOURCE_CONSENT_EPOCH"
 
 		private const val IDENTITY_DOMAIN = "tracker-source-deletion-scope-v1"
 		private const val CHECKSUM_DOMAIN = "tracker-source-deletion-fence-v1"
 		private val SHA_256_HEX = Regex("[0-9a-f]{64}")
+
+		/** One source-wide ambient erase boundary in the current collected data set. */
+		fun sourceConsentIdentity(sourceKind: Int, purpose: String, collectedDataEpoch: Long): String =
+			digest(IDENTITY_DOMAIN, sourceKind.toString(), purpose, SCOPE_SOURCE_CONSENT_EPOCH,
+				collectedDataEpoch.toString())
+
+		/** New consent epochs remain usable; automatic replay of erased epochs is fenced. */
+		fun createSourceConsentEpoch(sourceKind: Int, purpose: String, revokedConsentEpoch: Long,
+			collectedDataEpoch: Long, deletedAtMs: Long): SourceDeletionFenceEntity {
+			require(revokedConsentEpoch >= 0L)
+			val identity = sourceConsentIdentity(sourceKind, purpose, collectedDataEpoch)
+			val generation = Math.addExact(revokedConsentEpoch, 1L)
+			return SourceDeletionFenceEntity(sourceKind, purpose, SCOPE_SOURCE_CONSENT_EPOCH, identity,
+				generation, collectedDataEpoch, deletedAtMs,
+				fenceChecksum(sourceKind, purpose, SCOPE_SOURCE_CONSENT_EPOCH, identity, generation,
+					collectedDataEpoch, deletedAtMs))
+		}
 
 		/** Stable opaque identity for one immutable logical-session/physical-run pair. */
 		fun logicalServiceRunIdentity(

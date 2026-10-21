@@ -4,6 +4,7 @@ import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
+import android.hardware.SensorEventListener2
 import android.hardware.SensorManager
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -61,6 +62,30 @@ import java.time.Duration
 @Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)
 class PressureSourceRuntimeTest {
+	@Test
+	fun `shared End preserves an authorized all-day sample delivered during the final flush`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+		val activePlan = plan(1L, maximumReportLatencyMicros = 1_000_000)
+		val fixture = fixture(this, listOf(registration(activePlan, 1L, requiresAcceptance = true,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT)), fifoMaxEventCount = 100)
+		val sink = RecordingPressureSink()
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(activePlan, sink))
+		val sampleTime = android.os.SystemClock.elapsedRealtimeNanos()
+		every { fixture.sensorManager.flush(any<SensorEventListener>()) } answers {
+			fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, sampleTime, 1_001f))
+			(fixture.listener() as SensorEventListener2).onFlushCompleted(fixture.sensor)
+			true
+		}
+		val ack = fixture.runtime.quiesceShared(SessionCutoff("session", sampleTime - 1L, 1L,
+			sampleTime + 1_000_000_000L))
+		assertTrue(ack.appDrainComplete)
+		assertEquals(ProviderFlushOutcome.COMPLETE, ack.providerFlushOutcome)
+		assertEquals(RegistrationRemovalOutcome.REMOVED, ack.registrationRemovalOutcome)
+		assertEquals(sampleTime, sink.windows.single().windowEndElapsedRealtimeNanos)
+		assertEquals(1_001f.toDouble(), sink.windows.single().meanHectopascals)
+		verify(exactly = 1) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
+	}
+
 	@Test
 	fun `source erase barrier does not fabricate a provider for import-only maintenance`() = runTest {
 		val activePlan = plan(revision = 1L)
@@ -1949,7 +1974,7 @@ class PressureSourceRuntimeTest {
 			lifecycleLeaseGeneration = 1L.takeIf { capturedPurpose },
 			sourcePolicyRevision = authorizationRevision,
 			consentEpoch = 1L,
-			persistenceEligible = capturedPurpose,
+			persistenceEligible = capturedPurpose || purpose == SourceBrokerPurpose.AMBIENT_PRODUCT,
 			qosCode = 0,
 			maximumAgeMs = 60_000L,
 			desiredLatencyMs = 5_000L,

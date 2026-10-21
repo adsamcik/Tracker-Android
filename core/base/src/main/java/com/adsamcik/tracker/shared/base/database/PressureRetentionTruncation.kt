@@ -1151,6 +1151,8 @@ suspend fun AppDatabase.installPressureSourceEraseLocalFencesInTransaction(
 	expectedCollectedDataEpoch: Long,
 	erasedAtMs: Long,
 ) {
+	fenceAmbientSensorConsentErasureInTransaction(SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+		expectedCollectedDataEpoch, erasedAtMs)
 	val candidateWriter = authenticatePressureSourceEraseWriterFence(audit.writerFence)
 	if (audit.writerFence.collectedDataEpoch != expectedCollectedDataEpoch) {
 		failPressureErase(PressureSourceEraseLocalFailureReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)

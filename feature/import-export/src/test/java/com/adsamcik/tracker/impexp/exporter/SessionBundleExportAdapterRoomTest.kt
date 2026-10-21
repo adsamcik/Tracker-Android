@@ -8,6 +8,11 @@ import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.impexp.portable.LocationFileJsonV1
 import com.adsamcik.tracker.impexp.portable.LocationFilePointV1
 import com.adsamcik.tracker.impexp.portable.SessionBundleManifestCodecV1
+import com.adsamcik.tracker.impexp.portable.AllDaySensorSourceFile
+import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
+import com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelector
+import com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelectionCodec
+import kotlinx.serialization.json.jsonPrimitive
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
@@ -52,6 +57,32 @@ class SessionBundleExportAdapterRoomTest {
             mockk<TrackingStartupGate>(), mockk<ExportPlanStore>())
     }
     @After fun close() = database.close()
+
+    @Test fun `exporting an imported session retains only its selected all day sensor observations`() = runBlocking {
+        annotation(1_000, 4_000)
+        val kept = "all-day:activity:kept"
+        for (id in listOf(kept, "all-day:activity:unrelated")) {
+            database.activitySnapshotDao().insert(ActivitySnapshot(timeMs = 2_000, activityType = 7,
+                confidence = 70, isTransition = false, createdAt = 2_000, sourceSignalId = id))
+        }
+        val annotation = requireNotNull(database.organizationAnnotationDao().byId("walk"))
+        database.organizationAnnotationDao().update(annotation.copy(importedSourceSelection =
+            OrganizationSourceSelectionCodec.encode(listOf(OrganizationSourceSelector.SensorObservations(
+                HistorySource.ACTIVITY, listOf(kept))))))
+        val output = ByteArrayOutputStream()
+        assertEquals(SessionBundleExportResult.Success(), exporter.writeBundle(
+            request().copy(sources = setOf(HistorySource.ACTIVITY)), {}) { write -> write(output) })
+        val files = unzip(output.toByteArray())
+        val manifest = SessionBundleManifestCodecV1.decode(files.getValue(SessionBundleManifestCodecV1.MANIFEST_PATH))
+        val child = manifest.children.single()
+        assertEquals(2, child.formatVersion)
+        AllDaySensorSourceFile.open(files.getValue(child.path).inputStream(), "ACTIVITY", context).use { data ->
+            val identities = mutableListOf<String>()
+            data.forEachObservation { identities += it.getValue("id").jsonPrimitive.content }
+            assertEquals(listOf(kept), identities)
+        }
+        assertSpoolEmpty()
+    }
 
     @Test fun `bundle retains labels and only selected current-interval Location data`() = runBlocking {
         annotation(1_000, 4_000); point(999); point(2_000); point(4_000)

@@ -58,6 +58,8 @@ class SourcePipelineRecovery private constructor(
 	private val committedWorkSignals = Channel<Unit>(Channel.CONFLATED)
 	private val ambientWifiSignals = Channel<Unit>(Channel.CONFLATED)
 	private val ambientCellSignals = Channel<Unit>(Channel.CONFLATED)
+	private val ambientActivitySignals = Channel<Unit>(Channel.CONFLATED)
+	private val ambientPressureSignals = Channel<Unit>(Channel.CONFLATED)
 	@Volatile private var terminalLegacyResult: LegacyV27ProjectionRecoveryResult? = null
 
 	@Inject
@@ -249,7 +251,8 @@ class SourcePipelineRecovery private constructor(
 			}
 		}
 		if (ambientProjections != null && ambientIngress != null) {
-			for ((source, signals) in listOf(SourceKind.WIFI to ambientWifiSignals, SourceKind.CELL to ambientCellSignals)) {
+			for ((source, signals) in listOf(SourceKind.WIFI to ambientWifiSignals, SourceKind.CELL to ambientCellSignals,
+				SourceKind.ACTIVITY to ambientActivitySignals, SourceKind.PRESSURE to ambientPressureSignals)) {
 				applicationScope?.launch {
 					for (ignored in signals) {
 						try {
@@ -303,11 +306,13 @@ class SourcePipelineRecovery private constructor(
 	/** Source-local Pressure hint; poison and retry are isolated from every sibling lane. */
 	fun requestPressureSessionFactDrain() {
 		pressureProjectionLane?.requestDrain()
+		ambientPressureSignals.trySend(Unit)
 	}
 
 	/** Source-local captured Activity hint; CONTROL projection remains on its existing lane. */
 	fun requestActivityCapturedFactDrain() {
 		capturedActivityProjectionLane?.requestDrain()
+		ambientActivitySignals.trySend(Unit)
 	}
 
 	/** Source-local Cell hint; passive callbacks never join an active refresh or sibling lane. */
@@ -355,6 +360,8 @@ class SourcePipelineRecovery private constructor(
 		ambientProjections?.registerAmbientRadioProjections()
 		ambientWifiSignals.trySend(Unit)
 		ambientCellSignals.trySend(Unit)
+		ambientActivitySignals.trySend(Unit)
+		ambientPressureSignals.trySend(Unit)
 		// Startup only kicks source-local lanes. They are not awaited by the global gate, so one
 		// poisoned fact cannot block an independently viable source or cause polling.
 		stepsProjectionLane?.requestDrain()

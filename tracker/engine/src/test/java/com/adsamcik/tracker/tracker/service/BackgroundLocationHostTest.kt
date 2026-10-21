@@ -11,6 +11,12 @@ import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalState
 import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
 import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+import com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityReader
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import javax.inject.Provider
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.delay
 import android.app.Application
@@ -246,6 +252,81 @@ class BackgroundLocationHostTest {
 			host.hasActiveSources shouldBe false
 			host.detachAll(owner)
 		} finally { database.close() }
+	}
+
+	@Test
+	fun `Pressure uses the shared non-Location host only for its exact demand and current retention`(): Unit = runBlocking {
+		val app = spyk(ApplicationProvider.getApplicationContext<Application>())
+		val database = AppDatabase.testDatabase(app)
+		try {
+			val identity = AmbientReconciliationIdentity(AmbientTrackingSource.PRESSURE,
+				1L, 2L, 0L, 1L, "pressure-owner", 1L,
+				retentionPolicyId = "retention", retentionApprovalRevision = 1L)
+			val broker = mockk<SourceBroker>()
+			coEvery { broker.currentAmbientSourceIdentity(SourceKind.PRESSURE) } returns identity
+			val retention = mockk<RetentionAuthorityReader>()
+			coEvery { retention.currentLiveAmbient(TrackingSourceComponent.PRESSURE, 1L, 2L, 0L, null) } returns
+				CurrentRetentionAuthority.Approved("retention", 1L, "boot", 1L, 1L)
+			val status = AtomicTrackingPurposeAvailabilityStore()
+			val host = pressureHost(app, database, broker, retention, status)
+			val delivered = Channel<Intent>(Channel.UNLIMITED)
+			every { app.applicationContext } returns app
+			every { app.startForegroundService(any()) } answers {
+				delivered.trySend(arg(0)); ComponentName(app, TrackerService::class.java)
+			}
+			val owner = Any()
+			host.attach(owner) {}
+			status.beginOrReplaceAmbientLease(identity)
+			status.tryAccept(AmbientSourceReconciliationReport(identity,
+				AmbientSourceOperationalAvailability.ready(identity.source,
+					AmbientAcquisitionMechanism.PRESSURE_SENSOR, identity.purposeLeaseIdentity)))
+			val pending = async { host.acquire(identity) }
+			val intent = delivered.receive()
+			val scope = LocationMotionScope("pressure-host", "boot", 1L, "host", setOf(LocationMotionPurpose.BACKGROUND))
+			host.acceptDelivery(requireNotNull(intent.getStringExtra(TrackerServiceContract.ARG_BACKGROUND_LOCATION_HOST_TICKET)),
+				owner, scope) { it shouldBe setOf(SourceKind.PRESSURE); true } shouldBe true
+			pending.await() shouldBe BackgroundLocationHostResult.Active(identity, scope)
+			host.active.value shouldBe null
+			host.hostedSources shouldBe setOf(SourceKind.PRESSURE)
+			(host.acquire(identity.copy(ownerCasToken = "stale")) is BackgroundLocationHostResult.Blocked) shouldBe true
+			host.release(identity.copy(ownerCasToken = "stale")) shouldBe false
+			host.detachAll(owner) shouldBe listOf(identity)
+			status.availability.value.ambientSources.getValue(identity.source).isOperational shouldBe false
+			coEvery { retention.currentLiveAmbient(TrackingSourceComponent.PRESSURE, 1L, 2L, 0L, null) } returns
+				CurrentRetentionAuthority.Unavailable(RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE)
+			(host.acquire(identity) is BackgroundLocationHostResult.Blocked) shouldBe true
+			delivered.tryReceive().isFailure shouldBe true
+		} finally { database.close() }
+	}
+
+	private suspend fun pressureHost(
+		app: Application,
+		database: AppDatabase,
+		broker: SourceBroker,
+		retention: RetentionAuthorityReader,
+		status: AtomicTrackingPurposeAvailabilityStore,
+	): BackgroundLocationHost {
+		val dao = database.sourcePolicyDao()
+		dao.ensureAuthority(SourcePolicyAuthorityEntity(bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			currentPolicyRevision = 1L, legacySettingsFingerprint = null, updatedAtMs = 1L))
+		dao.insertPolicies(listOf(SourcePolicyEntity(1L, SourceKind.PRESSURE.stableCode, true, 2, null, null, null,
+			true, false, true, 1L, null, 2L, "boot", 1L, 1L, "TEST")))
+		dao.insertConsentEpochs(listOf(SourceConsentEpochEntity(SourceKind.PRESSURE.stableCode,
+			SourceBrokerPurpose.AMBIENT_PRODUCT, 2L, true, true, 1L, "boot", 1L, 1L, "TEST")))
+		val lifecycle = mockk<CollectedDataLifecycleStore>()
+		coEvery { lifecycle.snapshot() } returns CollectedDataLifecycleSnapshot(0L, null)
+		val gate = mockk<TrackingStartupGate> {
+			every { isReady } returns true
+			every { permitsNewCollection } returns true
+			every { currentGeneration } returns 1L
+			every { isReadyGeneration(1L) } returns true
+		}
+		val commands = mockk<TrackingLifecycleCommandAuthority> {
+			every { latestStopGeneration() } returns 0L
+			every { latestUnhandledStop() } returns null
+		}
+		return BackgroundLocationHost(app, database, lifecycle, gate, commands,
+			TestDispatchersProvider(Dispatchers.Unconfined), status, retention, Provider { broker })
 	}
 
 	@Test

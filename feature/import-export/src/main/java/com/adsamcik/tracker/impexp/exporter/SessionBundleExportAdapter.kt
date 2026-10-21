@@ -17,6 +17,8 @@ import com.adsamcik.tracker.impexp.exporter.automation.UnfinishedExportFile
 import com.adsamcik.tracker.impexp.portable.SessionBundleChildV1
 import com.adsamcik.tracker.impexp.portable.SessionBundleManifestV1
 import com.adsamcik.tracker.impexp.portable.SessionBundleManifestCodecV1
+import com.adsamcik.tracker.impexp.portable.AllDaySensorPortableRows
+import com.adsamcik.tracker.impexp.portable.AllDaySensorSourceFile
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -160,7 +162,7 @@ internal class ImportExportSessionBundleExporter @Inject constructor(
                     throw SessionBundleExportException(SessionBundleExportFailure.UNAVAILABLE)
                 }
                 val path = "sources/${spools.size}/${plan.name}.${plan.extension}"
-                val metadata = describeSessionChild(plan.source, spool.backingFile, plan.name)
+                val metadata = describeSessionChild(context, plan.source, spool.backingFile, plan.name)
                 spools += StagedSessionChild(plan, spool, SessionBundleChildV1(path, metadata.formatId,
                     metadata.version, spool.byteCount, spool.backingFile.sha256(), metadata.fromMs,
                     metadata.toMs, metadata.fromMs < snapshot.fromMs || metadata.toMs > snapshot.toMs))
@@ -316,8 +318,42 @@ internal class ImportExportSessionBundleExporter @Inject constructor(
                 continue
             }
             val selected = selectedCapturedEntries(source, exact, snapshot, queryEnd)
+            val observations = exact.orEmpty().filterIsInstance<OrganizationSourceSelector.SensorObservations>()
+                .filter { it.source == source }.flatMap { it.identities }.distinct()
+            if (observations.isNotEmpty()) {
+                plans += sensorObservationPlan(source, selected.orEmpty(), observations, request, range)
+                continue
+            }
             if (selected == null || selected.isNotEmpty()) {
                 capturedChildPlan(source, selected, request, range)?.let { plans += it }
+            }
+        }
+    }
+
+    private fun sensorObservationPlan(source: HistorySource,
+        captured: List<OrganizationSourceSelector.CapturedEntry>, observations: List<String>,
+        request: SessionBundleExportRequest, range: LongRange): SessionChildPlan {
+        val name = source.name.lowercase()
+        val extension = if (source == HistorySource.ACTIVITY) { "trackeractivity" } else { "trackerpressure" }
+        return SessionChildPlan(source, name, extension, optional = false) { output ->
+            FileBackedExportSpool(context, "sensor-sessions-", AllDaySensorSourceFile.MAX_FILE_BYTES).use { sessions ->
+                val result = sessions.write { staged ->
+                    if (captured.isEmpty()) {
+                        ExportResult.Success(0)
+                    } else {
+                        requireNotNull(capturedChildPlan(source, captured, request, range)).write(staged)
+                    }
+                }
+                if (result !is ExportResult.Success) {
+                    return@use result
+                }
+                val count = sessions.backingFile.takeIf { sessions.byteCount > 0 }?.inputStream().use { input ->
+                    AllDaySensorSourceFile.write(output, source.name, input) { emit ->
+                        AllDaySensorPortableRows.forEachSelected(database, source.name, observations, range,
+                            request.expectedCollectedDataEpoch, emit)
+                    }
+                }
+                ExportResult.Success(count + (result.recordCount ?: 0))
             }
         }
     }
@@ -383,24 +419,6 @@ internal class ImportExportSessionBundleExporter @Inject constructor(
         }
     }
 
-    private suspend fun selectedBackgroundStepsDays(
-        exact: List<OrganizationSourceSelector>?,
-        snapshot: SessionExportSnapshot,
-        queryEnd: Long,
-    ): Set<String>? = exact?.filterIsInstance<OrganizationSourceSelector.BackgroundStepsDay>()
-        ?.map { it.dayIdentity }
-        ?.toSet()
-        ?.let { ids ->
-            if (ids.isEmpty()) {
-                ids
-            } else {
-                database.importedAmbientStepsDao().latestDaysForIdentities(ids.toList(), ids.size + 1)
-                    .filter { SourceExportDates(snapshot.fromMs, queryEnd)
-                        .overlaps(it.structuralDayStartTimeMs, it.structuralDayEndTimeMs) }
-                    .mapTo(linkedSetOf()) { it.dayIdentity }
-            }
-        }
-
     private suspend fun addBackgroundStepsPlans(
         plans: MutableList<SessionChildPlan>,
         request: SessionBundleExportRequest,
@@ -408,7 +426,7 @@ internal class ImportExportSessionBundleExporter @Inject constructor(
         snapshot: SessionExportSnapshot,
         queryEnd: Long,
     ) {
-        val days = selectedBackgroundStepsDays(exact, snapshot, queryEnd)
+        val days = selectedBackgroundStepsDays(database, exact, snapshot, queryEnd)
         if (days == null) {
             for (origin in AmbientStepsPortableOrigin.entries) {
                 val writer = PortableAmbientStepsExporter(origin)
@@ -433,6 +451,25 @@ internal class ImportExportSessionBundleExporter @Inject constructor(
     }
 
 }
+
+private suspend fun selectedBackgroundStepsDays(
+    database: AppDatabase, exact: List<OrganizationSourceSelector>?,
+    snapshot: SessionExportSnapshot,
+    queryEnd: Long,
+): Set<String>? = exact?.filterIsInstance<OrganizationSourceSelector.BackgroundStepsDay>()
+    ?.map { it.dayIdentity }
+    ?.toSet()
+    ?.let { ids ->
+        if (ids.isEmpty()) {
+            ids
+        } else {
+            database.importedAmbientStepsDao().latestDaysForIdentities(ids.toList(), ids.size + 1)
+                .filter { SourceExportDates(snapshot.fromMs, queryEnd)
+                    .overlaps(it.structuralDayStartTimeMs, it.structuralDayEndTimeMs) }
+                .mapTo(linkedSetOf()) { it.dayIdentity }
+        }
+    }
+
 
 internal data class SessionExportSnapshot(val organization: OrganizationSessionRow, val epoch: Long,
     val retainedFromMs: Long?,

@@ -1275,9 +1275,8 @@ private fun TrackingSource.toAmbientSource(): AmbientTrackingSource = when (this
 	TrackingSource.LOCATION -> AmbientTrackingSource.LOCATION
 	TrackingSource.WIFI -> AmbientTrackingSource.WIFI
 	TrackingSource.CELL -> AmbientTrackingSource.CELL
-	TrackingSource.ACTIVITY,
-	TrackingSource.PRESSURE,
-	-> error("$this is not ambient")
+	TrackingSource.ACTIVITY -> AmbientTrackingSource.ACTIVITY
+	TrackingSource.PRESSURE -> AmbientTrackingSource.PRESSURE
 }
 
 private fun AmbientTrackingSource.mechanism(): AmbientAcquisitionMechanism = when (this) {
@@ -1285,4 +1284,6 @@ private fun AmbientTrackingSource.mechanism(): AmbientAcquisitionMechanism = whe
 	AmbientTrackingSource.LOCATION -> AmbientAcquisitionMechanism.PASSIVE_LOCATION
 	AmbientTrackingSource.WIFI -> AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS
 	AmbientTrackingSource.CELL -> AmbientAcquisitionMechanism.CELL_CHANGE_CALLBACKS
+	AmbientTrackingSource.ACTIVITY -> AmbientAcquisitionMechanism.ACTIVITY_RECOGNITION
+	AmbientTrackingSource.PRESSURE -> AmbientAcquisitionMechanism.PRESSURE_SENSOR
 }

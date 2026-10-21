@@ -198,11 +198,11 @@ class RoomSourcePolicyRepositoryTest {
 				policy.source == TrackingSourceComponent.ACTIVITY
 			}
 			policy.ambientConsentEpoch shouldBe 1L.takeIf {
-				policy.source == TrackingSourceComponent.STEPS
+				policy.source in ALL_DAY_SELECTED_SOURCES
 			}
 			policy.controlPersistenceEligible.shouldBeFalse()
 			policy.ambientPersistenceEligible shouldBe
-				(policy.source == TrackingSourceComponent.STEPS)
+				(policy.source in ALL_DAY_SELECTED_SOURCES)
 		}
 	}
 
@@ -234,7 +234,7 @@ class RoomSourcePolicyRepositoryTest {
 		steps.ambientConsentEpoch shouldBe null
 		steps.ambientPersistenceEligible.shouldBeFalse()
 		snapshot.policies.values
-			.filter { it.source != TrackingSourceComponent.STEPS }
+			.filter { it.source !in ALL_DAY_SELECTED_SOURCES }
 			.forEach { policy ->
 				policy.ambientConsentEpoch shouldBe null
 				policy.ambientPersistenceEligible.shouldBeFalse()
@@ -248,7 +248,7 @@ class RoomSourcePolicyRepositoryTest {
 	}
 
 	@Test
-	fun `first run Steps preference grants all-day consent only after setup completes`() = runTest {
+	fun `first run selected sources grant all-day consent only after setup completes`() = runTest {
 		var setupComplete = false
 		repository = RoomSourcePolicyRepository(
 			database = database,
@@ -261,6 +261,7 @@ class RoomSourcePolicyRepositoryTest {
 		pendingSteps.enabled.shouldBeTrue()
 		pendingSteps.captureConsentEpoch shouldBe 1L
 		pendingSteps.ambientConsentEpoch shouldBe null
+		ALL_DAY_SELECTED_SOURCES.forEach { pending[it].ambientConsentEpoch shouldBe null }
 		pending[TrackingSourceComponent.ACTIVITY].controlConsentEpoch shouldBe null
 		shouldThrow<IllegalArgumentException> {
 			repository.setNonCaptureConsent(
@@ -282,6 +283,10 @@ class RoomSourcePolicyRepositoryTest {
 		active[TrackingSourceComponent.STEPS].captureConsentEpoch shouldBe 1L
 		active[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe 1L
 		active[TrackingSourceComponent.STEPS].ambientPersistenceEligible.shouldBeTrue()
+		ALL_DAY_SELECTED_SOURCES.forEach { source ->
+			active[source].ambientConsentEpoch shouldBe 1L
+			active[source].ambientPersistenceEligible.shouldBeTrue()
+		}
 		active[TrackingSourceComponent.ACTIVITY].controlConsentEpoch shouldBe 1L
 	}
 
@@ -335,7 +340,9 @@ class RoomSourcePolicyRepositoryTest {
 
 		val approved = setOf(
 			TrackingSourceComponent.LOCATION,
+			TrackingSourceComponent.ACTIVITY,
 			TrackingSourceComponent.STEPS,
+			TrackingSourceComponent.PRESSURE,
 			TrackingSourceComponent.WIFI,
 			TrackingSourceComponent.CELL,
 		)
@@ -699,12 +706,6 @@ class RoomSourcePolicyRepositoryTest {
 					.forEach { source ->
 						add(Triple(source, SourcePurpose.CONTROL, false))
 					}
-				listOf(
-					TrackingSourceComponent.ACTIVITY,
-					TrackingSourceComponent.PRESSURE,
-				).forEach { source ->
-					add(Triple(source, SourcePurpose.AMBIENT_PRODUCT, true))
-				}
 				add(Triple(TrackingSourceComponent.ACTIVITY, SourcePurpose.CONTROL, true))
 			}
 
@@ -730,8 +731,6 @@ class RoomSourcePolicyRepositoryTest {
 			TrackingSourceComponent.entries
 				.filter { source -> source != TrackingSourceComponent.ACTIVITY }
 				.forEach { source -> add(source to SourcePurpose.CONTROL) }
-			add(TrackingSourceComponent.ACTIVITY to SourcePurpose.AMBIENT_PRODUCT)
-			add(TrackingSourceComponent.PRESSURE to SourcePurpose.AMBIENT_PRODUCT)
 		}
 
 		forbidden.forEach { (source, purpose) ->
@@ -774,15 +773,36 @@ class RoomSourcePolicyRepositoryTest {
 	}
 
 	@Test
-	fun `loaded policy rejects Activity ambient eligibility`() = runTest {
+	fun `Activity and Pressure choices rotate capture and all-day consent without changing automatic control`() = runTest {
 		val initial = repository.bootstrapFromLegacy(readySettings())
-		database.openHelper.writableDatabase.execSQL(
-			"UPDATE source_policy SET ambient_consent_epoch = 1, " +
-				"ambient_persistence_eligible = 1 WHERE policy_revision = ${initial.revision} " +
-				"AND source_kind = ${TrackingSourceComponent.ACTIVITY.stableCode}",
-		)
-
-		repository.currentState().shouldBeInstanceOf<SourcePolicyAuthorityState.Invalid>()
+		var current = initial
+		listOf(TrackingSourceComponent.ACTIVITY, TrackingSourceComponent.PRESSURE).forEach { source ->
+			val disabled = readySettings().copy(
+				activityEnabled = source != TrackingSourceComponent.ACTIVITY,
+				barometerEnabled = source != TrackingSourceComponent.PRESSURE,
+				sourceCollectionSettings = readySettings().sourceCollectionSettings.copy(
+					activity = if (source == TrackingSourceComponent.ACTIVITY) {
+						SourceCollectionFrequency.OFF
+					} else {
+						SourceCollectionFrequency.BALANCED
+					},
+					pressure = if (source == TrackingSourceComponent.PRESSURE) {
+						SourceCollectionFrequency.OFF
+					} else {
+						SourceCollectionFrequency.BALANCED
+					}),
+			)
+			val off = repository.replaceCaptureSettings(current.revision, disabled, "SOURCE_OFF")
+			off[source].captureConsentEpoch shouldBe null
+			off[source].ambientConsentEpoch shouldBe null
+			off[source].ambientPersistenceEligible.shouldBeFalse()
+			off[TrackingSourceComponent.ACTIVITY].controlConsentEpoch shouldBe
+				initial[TrackingSourceComponent.ACTIVITY].controlConsentEpoch
+			current = repository.replaceCaptureSettings(off.revision, readySettings(), "SOURCE_ON")
+			current[source].captureConsentEpoch shouldBe 3L
+			current[source].ambientConsentEpoch shouldBe 3L
+			current[source].ambientPersistenceEligible.shouldBeTrue()
+		}
 	}
 
 	@Test

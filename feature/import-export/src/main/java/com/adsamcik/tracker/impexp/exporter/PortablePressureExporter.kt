@@ -3,7 +3,10 @@ package com.adsamcik.tracker.impexp.exporter
 import android.content.Context
 import androidx.annotation.Keep
 import com.adsamcik.tracker.impexp.R
+import com.adsamcik.tracker.impexp.portable.AllDaySensorPortableRows
+import com.adsamcik.tracker.impexp.portable.AllDaySensorSourceFile
 import com.adsamcik.tracker.impexp.portable.PortablePressureJsonV1Codec
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressure
@@ -28,6 +31,7 @@ import kotlinx.coroutines.ensureActive
 @InstallIn(SingletonComponent::class)
 internal interface PortablePressureExportEntryPoint {
 	fun exportPortablePressure(): ExportPortablePressure
+	fun appDatabase(): AppDatabase
 }
 
 /** User-facing `.trackerpressure` export over authenticated Pressure product evidence. */
@@ -40,6 +44,10 @@ internal class PortablePressureExporter(
 		).exportPortablePressure()
 	},
 	private val codec: PortablePressureJsonV1Codec = PortablePressureJsonV1Codec(),
+    private val nativeDatabaseProvider: (Context) -> AppDatabase? = { context ->
+        EntryPointAccessors.fromApplication(context.applicationContext,
+            PortablePressureExportEntryPoint::class.java).appDatabase()
+    },
 ) : Exporter {
 	override val requiresLocationData: Boolean = false
 
@@ -61,6 +69,24 @@ internal class PortablePressureExporter(
 		dateRange: LongRange?,
 	): ExportResult {
 		val request = dateRange?.toPortablePressureRequest() ?: FULL_HISTORY
+        val database = nativeDatabaseProvider(context)
+        if (database != null && AllDaySensorPortableRows.hasAny(database, "PRESSURE",
+            request.fromInclusiveMs, request.toExclusiveMs)) {
+            return FileBackedExportSpool(context, "sensor-sessions-", AllDaySensorSourceFile.MAX_FILE_BYTES)
+                .use { sessions ->
+                val result = sessions.write { staged -> codec.encode(staged) { sink ->
+                    exporterProvider(context).export(request, sink)
+                } }
+                if (result !is ExportPortablePressureResult.Exported &&
+                    result != ExportPortablePressureResult.NoEntries) {
+                    return@use result.toExportResult()
+                }
+                val count = AllDaySensorSourceFile.writeNativeExport(context, database, "PRESSURE",
+                    request.fromInclusiveMs until request.toExclusiveMs,
+                    sessions.backingFile.takeIf { sessions.byteCount > 0 }, outputStream)
+                ExportResult.Success(count + ((result as? ExportPortablePressureResult.Exported)?.entryCount ?: 0))
+            }
+        }
 		return codec.encode(outputStream) { sink ->
 			exporterProvider(context).export(request, sink)
 		}.toExportResult()

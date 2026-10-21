@@ -67,8 +67,7 @@ data class TrackingRolloutState(
 
 	/** All-day products use the source's canonical writer, independently of session capture modes. */
 	fun isAmbientProductReachable(source: SourceKind): Boolean =
-		source in setOf(SourceKind.LOCATION, SourceKind.STEPS, SourceKind.WIFI, SourceKind.CELL) &&
-			isAcquisitionReachable(source)
+		isAcquisitionReachable(source)
 
 	/** A provider may satisfy declared control demands without becoming a captured product source. */
 	fun isControlAcquisitionReachable(source: SourceKind): Boolean =

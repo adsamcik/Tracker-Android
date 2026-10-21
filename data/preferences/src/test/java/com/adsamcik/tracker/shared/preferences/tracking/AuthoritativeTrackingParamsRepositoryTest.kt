@@ -217,7 +217,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 	}
 
 	@Test
-	fun `finishing setup activates selected all-day Steps without another toggle`() = runTest {
+	fun `finishing setup activates selected all-day sources without another toggle`() = runTest {
 		val isolatedDatabase = AppDatabase.inMemoryBuilder(
 			ApplicationProvider.getApplicationContext<Application>(),
 		).allowMainThreadQueries().build()
@@ -249,7 +249,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 			pending.ambientStepsEnabled.shouldBeTrue()
 			isolatedPolicy.currentState().let { state ->
 				val snapshot = (state as SourcePolicyAuthorityState.Active).snapshot
-				snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe null
+				ALL_DAY_SELECTED_SOURCES.forEach { snapshot[it].ambientConsentEpoch shouldBe null }
 				snapshot[TrackingSourceComponent.ACTIVITY].controlConsentEpoch shouldBe null
 			}
 
@@ -259,11 +259,54 @@ class AuthoritativeTrackingParamsRepositoryTest {
 				.snapshot[TrackingSourceComponent.STEPS]
 			active.captureConsentEpoch shouldBe 1L
 			active.ambientConsentEpoch shouldBe 1L
+			ALL_DAY_SELECTED_SOURCES.forEach { source ->
+				(isolatedPolicy.currentState() as SourcePolicyAuthorityState.Active)
+					.snapshot[source].ambientConsentEpoch shouldBe 1L
+			}
 			(isolatedPolicy.currentState() as SourcePolicyAuthorityState.Active)
 				.snapshot[TrackingSourceComponent.ACTIVITY].controlConsentEpoch shouldBe 1L
 		} finally {
 			isolatedScope.cancel()
 			isolatedDatabase.close()
+		}
+	}
+
+	@Test
+	fun `existing selected Activity and Pressure gain missing all-day consent through the same policy lane`() = runTest {
+		repository.data.first { it.sourcePolicyRevision == 1L }
+		listOf(TrackingSourceComponent.ACTIVITY, TrackingSourceComponent.PRESSURE).forEach { source ->
+			val before = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot
+			val missing = policy.setNonCaptureConsent(before.revision, source, SourcePurpose.AMBIENT_PRODUCT,
+				eligible = false, persistenceEligible = false, reason = "OLDER_SELECTED_SOURCE")
+			repository.data.first { (it.sourcePolicyRevision ?: 0L) > missing.revision }
+			val repaired = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot
+			repaired[source].captureConsentEpoch shouldBe 1L
+			repaired[source].ambientConsentEpoch shouldBe 3L
+			repaired[TrackingSourceComponent.ACTIVITY].controlConsentEpoch shouldBe 1L
+		}
+	}
+
+	@Test
+	fun `Activity and Pressure each have one all-day and session choice without changing automatic control`() = runTest {
+		repository.data.first { it.sourcePolicyRevision == 1L }
+		listOf(TrackingSourceComponent.ACTIVITY, TrackingSourceComponent.PRESSURE).forEach { source ->
+			if (source == TrackingSourceComponent.ACTIVITY) {
+				repository.setActivityEnabled(false)
+			} else {
+				repository.setBarometerEnabled(false)
+			}
+			val off = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot
+			off[source].captureConsentEpoch shouldBe null
+			off[source].ambientConsentEpoch shouldBe null
+			off[TrackingSourceComponent.ACTIVITY].controlConsentEpoch shouldBe 1L
+			if (source == TrackingSourceComponent.ACTIVITY) {
+				repository.setActivityEnabled(true)
+			} else {
+				repository.setBarometerEnabled(true)
+			}
+			val on = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot[source]
+			on.captureConsentEpoch shouldBe 3L
+			on.ambientConsentEpoch shouldBe 3L
 		}
 	}
 

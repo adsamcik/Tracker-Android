@@ -236,6 +236,15 @@ class PressureSourceRuntime @Inject constructor(
 		}
 	}
 
+	/** Keep independently authorized all-day samples during the existing bounded provider flush. */
+	internal suspend fun quiesceShared(cutoff: SessionCutoff): SourceStopAck {
+		fenceCapacityResume()
+		return lifecycleMutex.withLock {
+			(requireNotNull(terminalStopAck ?: shutdownLocked(cutoff, preserveAmbient = true)))
+				.also(::clearClaimIfReleased)
+		}
+	}
+
 	override suspend fun shutdownIfOwned(
 		claim: SourceRuntimeClaim,
 		cutoff: SessionCutoff,
@@ -929,19 +938,22 @@ class PressureSourceRuntime @Inject constructor(
 		actorJoined && laneDrainComplete && windowCapacity.pendingWindowCount == 0 &&
 			failureCoverage.coversAfter(lastCheckpointedProviderSequence, callbackEntrySequence)
 
-	private suspend fun shutdownLocked(cutoff: SessionCutoff?): SourceStopAck {
-		val acknowledgement = withContext(NonCancellable) { settleShutdownLocked(cutoff) }
+	private suspend fun shutdownLocked(cutoff: SessionCutoff?, preserveAmbient: Boolean = false): SourceStopAck {
+		val acknowledgement = withContext(NonCancellable) { settleShutdownLocked(cutoff, preserveAmbient) }
 		currentCoroutineContext().ensureActive()
 		return acknowledgement
 	}
 
-	private suspend fun settleShutdownLocked(cutoff: SessionCutoff?): SourceStopAck {
+	private suspend fun settleShutdownLocked(cutoff: SessionCutoff?, preserveAmbient: Boolean = false): SourceStopAck {
 		val activeRegistration = registration ?: return unavailableAck(cutoff)
 		val activeListener = listener ?: return unavailableAck(cutoff)
 		val activeToken = callbackToken ?: return unavailableAck(cutoff)
 		synchronized(callbackLock) {
 			terminalSettlementInProgress = true
-			cutoffElapsedNanos = cutoff?.elapsedRealtimeNanos
+			val ambientAuthorized = activeRegistration.authorization.authorizedMembers.any {
+				it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && it.persistenceEligible
+			}
+			cutoffElapsedNanos = cutoff?.elapsedRealtimeNanos.takeUnless { preserveAmbient && ambientAuthorized }
 		}
 		stopDeadlineElapsedNanos.value = cutoff?.deadlineElapsedRealtimeNanos
 		val flushOutcome = if (retirementIntent == null) flushProvider(cutoff, activeListener, activeToken)

@@ -958,7 +958,15 @@ class RoomDurableSourceIngress @Inject constructor(
 							}
 						}
 					}
-					if (!perItemRadio && intervalStart < evidence.observedElapsedRealtimeNanos) {
+					val independentSensorAuthorization = if (evidence.source == SourceKind.PRESSURE ||
+						evidence.source == SourceKind.ACTIVITY) {
+						independentAmbientSensorEnvelope(evidence, intervalStart, brokerDao)
+					} else null
+					if (independentSensorAuthorization != null) {
+						observedTimeAuthorization = independentSensorAuthorization
+					}
+					if (!perItemRadio && independentSensorAuthorization == null &&
+						intervalStart < evidence.observedElapsedRealtimeNanos) {
 						val startAuthorizationRows = brokerDao.authorizationAt(
 							evidence.source.stableCode,
 							evidence.registrationGeneration,
@@ -998,11 +1006,16 @@ class RoomDurableSourceIngress @Inject constructor(
 							AdmissionFailureCode.STALE_SOURCE_POLICY,
 						)
 					}
-					if (evidence.source == SourceKind.ACTIVITY &&
+					val activityCaptureBarrier = if (evidence.source == SourceKind.ACTIVITY &&
+						independentSensorAuthorization == null) {
 						brokerDao.captureAdmissionBarrier(
 							evidence.source.stableCode,
 							evidence.registrationGeneration,
-						)?.let { barrier ->
+						)
+					} else {
+						null
+					}
+					if (activityCaptureBarrier?.let { barrier ->
 							barrier.sourceInstanceId == evidence.sourceInstanceId.value &&
 								barrier.throughAuthorizationRevision >=
 									qualifiedTimeAuthorization.authorizationRevision &&
@@ -1043,13 +1056,14 @@ class RoomDurableSourceIngress @Inject constructor(
 						else {
 						authorization.hasCapturePurpose()
 					}
-					// Preserve independently authorized all-day observations even when capture
-					// is closed. The Location qualifier still checks capture authority separately.
-					val independentAmbientLocation = evidence.source == SourceKind.LOCATION &&
+					// Each product checks its own purpose. A closed capture join cannot discard
+					// independently authorized all-day observations from the same callback.
+					val independentAmbient = evidence.source in setOf(SourceKind.LOCATION,
+						SourceKind.ACTIVITY, SourceKind.PRESSURE) &&
 						authorization.authorizedMembers.any { member ->
 							member.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && member.persistenceEligible
 						}
-					val requiresCaptureAdmission = !independentAmbientLocation &&
+					val requiresCaptureAdmission = !independentAmbient &&
 						(!perItemRadio || radioItems?.hasAmbientItems != true)
 					if (requiresCaptureAdmission && hasQualifiedCaptureItems &&
 						!isCaptureAdmissionExecutable(evidence.source.stableCode)
@@ -1066,11 +1080,25 @@ class RoomDurableSourceIngress @Inject constructor(
 							AdmissionFailureCode.STALE_SESSION_MANIFEST,
 						)
 					}
-					val captureAuthorization = captureMembers.singleOrNull()
-					val captureKey = captureAuthorization?.captureSessionKey(
+					val capturedMember = captureMembers.singleOrNull()
+					val captureKey = capturedMember?.captureSessionKey(
 						source = evidence.source,
 						clockDomainId = evidence.clockDomainId,
 					)
+					val sensorCaptureAuthority = if (independentSensorAuthorization != null && captureKey != null) {
+						captureAuthorities[captureKey] ?: loadCaptureSessionAuthority(captureKey)
+							.also { captureAuthorities[captureKey] = it }
+					} else null
+					// The raw header stays intact. Withhold only the denormalized capture membership
+					// when this same all-day measurement is outside its independently checked session.
+					val captureAuthorization = capturedMember.takeUnless {
+						independentSensorAuthorization != null && when (sensorCaptureAuthority) {
+							CaptureSessionAuthority.Active -> false
+							is CaptureSessionAuthority.Stopping ->
+								evidence.observedElapsedRealtimeNanos > sensorCaptureAuthority.cutoffElapsedNanos
+							else -> true
+						}
+					}
 					if (evidence.source == SourceKind.STEPS &&
 						evidenceState.retainedFromMs?.let { evidence.acquiredAtMs < it } == true
 					) {
@@ -1236,6 +1264,20 @@ class RoomDurableSourceIngress @Inject constructor(
 				throw failure
 			}
 			DeliveryAdmissionResult.RetryableFailure(AdmissionFailureCode.STORAGE_UNAVAILABLE)
+		}
+	}
+
+	private suspend fun independentAmbientSensorEnvelope(
+		evidence: SourceEvidenceCandidate<*>,
+		intervalStart: Long,
+		brokerDao: SourceBrokerDao,
+	): SourceAuthorizationSnapshot? {
+		val revision = evidence.authorizationRevision ?: return null
+		val original = brokerDao.authorizationRevision(evidence.source.stableCode,
+			evidence.registrationGeneration, revision).toAuthorizationSnapshotOrNull() ?: return null
+		return original.takeIf {
+			it.matchesCapturedEnvelope(evidence) && brokerDao.continuousAmbientSensorMembers(it,
+				intervalStart, evidence.observedElapsedRealtimeNanos).isNotEmpty()
 		}
 	}
 
@@ -1867,7 +1909,7 @@ private fun SourceAuthorizationSnapshot.isExactRetirementOf(
 }
 
 @Suppress("CyclomaticComplexMethod") // Every immutable authority term must match explicitly.
-private fun SourceAuthorizationEntity.hasSameImmutableDemandAuthority(
+internal fun SourceAuthorizationEntity.hasSameImmutableDemandAuthority(
 	other: SourceAuthorizationEntity,
 ): Boolean = memberId == other.memberId &&
 	sourceKind == other.sourceKind &&

@@ -23,6 +23,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthoritySta
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTimeProvider
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicy
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.sync.Mutex
@@ -199,7 +200,8 @@ interface RetentionAuthorityReader {
 			authority.retainedFromMs == expectedRetainedFromMs &&
 			authority.effectiveBootId == currentBootId &&
 			authority.effectiveElapsedRealtimeNanos <= currentElapsedRealtimeNanos &&
-			authority.effectiveWallTimeMs <= currentWallTimeMs
+			(source == TrackingSourceComponent.ACTIVITY || source == TrackingSourceComponent.PRESSURE ||
+				authority.effectiveWallTimeMs <= currentWallTimeMs)
 	}
 
 	/** Exact-current predicate for the named durable retention-floor settlement. */
@@ -232,7 +234,8 @@ interface RetentionAuthorityReader {
 			authority.retainedFromMs == expectedRetainedFromMs &&
 			authority.effectiveBootId == currentBootId &&
 			authority.effectiveElapsedRealtimeNanos <= currentElapsedRealtimeNanos &&
-			authority.effectiveWallTimeMs <= currentWallTimeMs
+			(source == TrackingSourceComponent.ACTIVITY || source == TrackingSourceComponent.PRESSURE ||
+				authority.effectiveWallTimeMs <= currentWallTimeMs)
 	}
 }
 
@@ -301,6 +304,8 @@ object UnavailableRetentionAuthorityProducer : RetentionAuthorityProducer {
 		TrackingSourceComponent.LOCATION,
 		TrackingSourceComponent.WIFI,
 		TrackingSourceComponent.CELL,
+		TrackingSourceComponent.ACTIVITY,
+		TrackingSourceComponent.PRESSURE,
 	).map { source ->
 		unavailable(
 			source,
@@ -765,7 +770,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 				return@withSerializedOperation CurrentRetentionAuthority.Unavailable(reason)
 			}
 			permit.validate()
-			if (source !in DURABLE_LIVE_AMBIENT_SOURCES) {
+			if (source !in LIVE_AMBIENT_SOURCES) {
 				return@withSerializedOperation CurrentRetentionAuthority.Unavailable(
 					RetentionAuthorityUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
 				)
@@ -817,9 +822,44 @@ class DefaultRetentionAuthorityProducer internal constructor(
 				RetentionAuthorityUnavailableReason.PURPOSE_AUTHORITY_UNAVAILABLE,
 			)
 		}
-		return storedLiveAmbientAuthority(
-			source, approval, expectedSourcePolicyRevision, expectedAmbientConsentEpoch,
-			expectedCollectedDataEpoch, expectedRetainedFromMs,
+		return if (source in NATIVE_ALL_DAY_SOURCES) {
+			nativeLiveAmbientAuthority(approval, policy,
+				expectedCollectedDataEpoch, expectedRetainedFromMs)
+		} else {
+			storedLiveAmbientAuthority(source, approval, expectedSourcePolicyRevision, expectedAmbientConsentEpoch,
+				expectedCollectedDataEpoch, expectedRetainedFromMs)
+		}
+	}
+
+	/** Native Activity/Pressure leaves reuse durable global retention and source consent authority. */
+	private fun nativeLiveAmbientAuthority(
+		approval: ApprovedRetentionPolicy,
+		policy: SourcePolicy,
+		collectedDataEpoch: Long,
+		retainedFromMs: Long?,
+	): CurrentRetentionAuthority {
+		val now = effectiveTimeProvider.now()
+		val effective = policy.effectiveTime
+		val effectiveInFuture = if (effective.bootId == now.bootId) {
+			effective.elapsedRealtimeNanos > now.elapsedRealtimeNanos
+		} else {
+			effective.wallTimeMs > now.wallTimeMs
+		}
+		if (effectiveInFuture) {
+			return CurrentRetentionAuthority.Unavailable(RetentionAuthorityUnavailableReason.EFFECTIVE_TIME_INVALID)
+		}
+		return CurrentRetentionAuthority.Approved(
+			opaquePolicyId = approval.opaquePolicyId,
+			approvalRevision = approval.revision,
+			effectiveBootId = now.bootId,
+			effectiveElapsedRealtimeNanos = if (effective.bootId == now.bootId) {
+				effective.elapsedRealtimeNanos
+			} else {
+				0L
+			},
+			effectiveWallTimeMs = effective.wallTimeMs,
+			collectedDataEpoch = collectedDataEpoch,
+			retainedFromMs = retainedFromMs,
 		)
 	}
 
@@ -1074,7 +1114,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		source: TrackingSourceComponent,
 		operationPermit: RetentionAuthorityOperationPermit,
 	): RetentionAuthorityResult {
-		if (source !in DURABLE_LIVE_AMBIENT_SOURCES) {
+		if (source !in LIVE_AMBIENT_SOURCES) {
 			return unavailable(
 				source,
 				RetentionAuthorityScope.LIVE_AMBIENT,
@@ -1108,6 +1148,16 @@ class DefaultRetentionAuthorityProducer internal constructor(
 				source, RetentionAuthorityScope.LIVE_AMBIENT, lifecycle, operationPermit,
 				RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
 			)
+		}
+		if (source in NATIVE_ALL_DAY_SOURCES) {
+			return when (val current = readApprovedLiveAmbient(source, approval, snapshot.revision,
+				policy.ambientConsentEpoch, lifecycle.epoch, lifecycle.retainedFromMs, operationPermit)) {
+				is CurrentRetentionAuthority.Approved -> RetentionAuthorityResult.Unchanged(
+					source, RetentionAuthorityScope.LIVE_AMBIENT, RetentionAuthorityState.ACTIVE,
+					current.approvalRevision)
+				is CurrentRetentionAuthority.Unavailable -> unavailable(source,
+					RetentionAuthorityScope.LIVE_AMBIENT, current.reason)
+			}
 		}
 		return grant(
 			source = source,
@@ -1585,7 +1635,10 @@ class DefaultRetentionAuthorityProducer internal constructor(
 			TrackingSourceComponent.LOCATION,
 			TrackingSourceComponent.WIFI,
 			TrackingSourceComponent.CELL,
+			TrackingSourceComponent.ACTIVITY,
+			TrackingSourceComponent.PRESSURE,
 		)
+		val NATIVE_ALL_DAY_SOURCES = setOf(TrackingSourceComponent.ACTIVITY, TrackingSourceComponent.PRESSURE)
 		val DURABLE_LIVE_AMBIENT_SOURCES = setOf(
 			TrackingSourceComponent.LOCATION,
 			TrackingSourceComponent.STEPS,

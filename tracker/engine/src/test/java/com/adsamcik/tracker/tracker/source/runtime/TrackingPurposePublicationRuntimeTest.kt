@@ -1776,6 +1776,8 @@ class TrackingPurposePublicationRuntimeTest {
 			AmbientTrackingSource.STEPS,
 			AmbientTrackingSource.WIFI,
 			AmbientTrackingSource.CELL,
+			AmbientTrackingSource.ACTIVITY,
+			AmbientTrackingSource.PRESSURE,
 		)
 	}
 

@@ -8,6 +8,8 @@ package com.adsamcik.tracker.shared.base.database
  */
 val TRACKING_HISTORY_INVALIDATION_TABLES: List<String> = listOf(
 	"location_sample",
+	"activity_snapshot",
+	"pressure_sample",
 	"location_point_correction",
 	"location_accepted_receipt",
 	"location_sample_purpose_authority",

@@ -14,6 +14,16 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class OrganizationSourceSelectionCodecTest {
+	@Test fun `timestamped sensor membership keeps exact original IDs beside existing source selectors`() {
+		val selected = listOf(OrganizationSourceSelector.SensorObservations(HistorySource.ACTIVITY,
+			listOf("all-day:activity:first", "all-day:activity:second")),
+			OrganizationSourceSelector.SensorObservations(HistorySource.PRESSURE, listOf("all-day:pressure:one")),
+			OrganizationSourceSelector.LocationFile("a".repeat(64)))
+		OrganizationSourceSelectionCodec.decode(OrganizationSourceSelectionCodec.encode(selected)) shouldBe selected
+		shouldThrow<IllegalArgumentException> {
+			OrganizationSourceSelector.SensorObservations(HistorySource.ACTIVITY, listOf("all-day:pressure:one"))
+		}
+	}
 	@Test fun `all exact source shapes round trip without foreign runtime authority`() {
 		val selection = listOf(
 			OrganizationSourceSelector.LocationFile("a".repeat(64)),

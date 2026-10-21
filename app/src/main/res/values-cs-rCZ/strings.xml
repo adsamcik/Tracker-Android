@@ -275,7 +275,7 @@
     <string name="setup_source_location">Poloha</string>
     <string name="setup_source_location_desc">Zaznamenávejte své trasy a polohy na mapě.</string>
     <string name="setup_source_activity">Aktivita</string>
-    <string name="setup_source_activity_desc">Zjistěte, zda jdete, běžíte, jedete na kole nebo řídíte.</string>
+    <string name="setup_source_activity_desc">Zaznamenávejte chůzi, běh, jízdu na kole a řízení po celý den.</string>
     <string name="setup_source_steps">Kroky</string>
     <string name="setup_source_steps_desc">Počítejte kroky pomocí krokoměru zařízení.</string>
     <string name="setup_steps_all_day_summary">Zaznamenávejte kroky po celý den. Výlety uspořádají stejnou historii.</string>
@@ -319,7 +319,11 @@
     <string name="settings_turn_off_tracking_explanation">Zastaví záznamy, celodenní sběr i automatické spouštění. Vaše volby a uložená data zůstanou zachována.</string>
     <string name="settings_tracking_is_off">Sledování je vypnuté. Vaše volby a uložená data zůstaly zachovány.</string>
     <string name="settings_turn_off_tracking_failed">Sledování se nepodařilo vypnout. Zkuste to znovu.</string>
-    <string name="settings_barometer_source_summary">Zaznamenává změny tlaku vzduchu.</string>
+    <string name="settings_barometer_source_summary">Zaznamenává tlak vzduchu po celý den s oznámením o sledování.</string>
+    <string name="settings_activity_source_summary">Zaznamenává chůzi, jízdu na kole, řízení a nehybnost po celý den.</string>
+    <string name="settings_ambient_activity_ready">Záznam aktivity je připraven.</string>
+    <string name="settings_ambient_pressure_ready">Záznam tlaku je připraven.</string>
+    <string name="settings_pressure_host_unavailable">Záznam tlaku na pozadí se nepodařilo spustit.</string>
     <string name="settings_steps_allow_health_connect">Povolit kroky v Health Connect</string>
     <string name="settings_steps_health_connect_repair_failed">Přístup k Health Connect se nepodařilo ověřit. Zkuste to znovu.</string>
     <string name="settings_ambient_steps_health_connect_permission">Povolte Trackeru číst kroky v Health Connect, aby mohl doplnit mezery po zavření aplikace.</string>

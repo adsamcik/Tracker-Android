@@ -180,7 +180,7 @@ class RoomSourcePolicyRepository(
 			val requestedAmbientEligibility = TrackingSourceComponent.entries.associateWith { source ->
 				settings.ambientEnabled(
 					source,
-					setupComplete || (source == TrackingSourceComponent.STEPS &&
+					setupComplete || (source in ALL_DAY_SELECTED_SOURCES &&
 						current[source].ambientConsentEpoch != null),
 				)
 			}
@@ -447,18 +447,18 @@ class RoomSourcePolicyRepository(
 			"Persistent CONTROL consent is unavailable until its retention policy is approved"
 		}
 		require(reason.isNotBlank()) { "Consent change reason must not be blank" }
-		val isStepsConsent = source == TrackingSourceComponent.STEPS && purpose == SourcePurpose.AMBIENT_PRODUCT
+		val isSelectedSourceConsent = source in ALL_DAY_SELECTED_SOURCES && purpose == SourcePurpose.AMBIENT_PRODUCT
 		val isControlConsent = source == CONTROL_SOURCE && purpose == SourcePurpose.CONTROL
-		val setupComplete = if (eligible && (isStepsConsent || isControlConsent)) {
+		val setupComplete = if (eligible && (isSelectedSourceConsent || isControlConsent)) {
 			setupCompleted()
 		} else {
 			true
 		}
 		return database.withTransaction {
 			val current = activeSnapshotAtExpectedRevision(expectedPolicyRevision)
-			if (isStepsConsent && eligible) {
+			if (isSelectedSourceConsent && eligible) {
 				require(setupComplete || current[source].ambientConsentEpoch != null) {
-					"All-day Steps requires completed setup"
+					"All-day collection requires completed setup"
 				}
 			}
 			if (isControlConsent && eligible) {
@@ -930,14 +930,21 @@ private fun TrackingParamsState.ambientEnabled(
 	}
 	return when (source) {
 		TrackingSourceComponent.LOCATION -> ambientLocationEnabled
-		TrackingSourceComponent.STEPS -> setupCompleted && captureParticipates(TrackingSourceComponent.STEPS)
-		TrackingSourceComponent.WIFI -> ambientWifiEnabled
-		TrackingSourceComponent.CELL -> ambientCellEnabled
+		TrackingSourceComponent.STEPS,
 		TrackingSourceComponent.ACTIVITY,
 		TrackingSourceComponent.PRESSURE,
-		-> error("Canonical purpose matrix admitted unsupported ambient source $source")
+		-> setupCompleted && captureParticipates(source)
+		TrackingSourceComponent.WIFI -> ambientWifiEnabled
+		TrackingSourceComponent.CELL -> ambientCellEnabled
 	}
 }
+
+/** These sources use their existing participation choice throughout the day and in sessions. */
+internal val ALL_DAY_SELECTED_SOURCES = setOf(
+	TrackingSourceComponent.ACTIVITY,
+	TrackingSourceComponent.STEPS,
+	TrackingSourceComponent.PRESSURE,
+)
 
 private val CONTROL_SOURCE = TrackingSourceComponent.entries.single { source ->
 	source.supportsPurpose(SourcePurpose.CONTROL)

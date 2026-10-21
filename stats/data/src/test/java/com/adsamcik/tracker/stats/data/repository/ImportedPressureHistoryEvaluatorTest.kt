@@ -15,6 +15,14 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetainedId
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetentionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
+import com.adsamcik.tracker.shared.base.database.data.AllDaySensorObservationIdentity
+import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership
+import com.adsamcik.tracker.shared.base.database.data.PressureSample
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode
+import com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.HistoryRangeRead
+import com.adsamcik.tracker.stats.api.repository.OrganizationSessionId
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureResult
 import com.adsamcik.tracker.stats.api.repository.ExportSelectedPortablePressureRequest
@@ -89,6 +97,43 @@ class ImportedPressureHistoryEvaluatorTest {
         measurement.window.sampleCount shouldBe 4
         measurement.window.zoneId shouldBe "Europe/Prague"
         measurement.window.latestHectopascals shouldBe 1_003f
+    }
+
+    @Test fun `exact native Pressure replaces only its visible matching imported representation without losing paging`() = runTest {
+        val writer = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID
+        val seed = NativePortableOwnership.pressureWindowIdentity(writer,
+            SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION, "$writer:event-a")
+        importer(database, testScheduler).importEntry(request(entry(windowLocalId = seed)))
+        val native = PressureSample(timeMs = 1_150L, elapsedRealtimeNanos = 250_000_000L,
+            pressureHpa = 1_001.5f, altitudeM = 0f, bucketId = null, createdAt = 1_160L,
+            sourceSignalId = AllDaySensorObservationIdentity.pressure("event-a"), sampleCount = 4,
+            minPressureHpa = 1_000f, maxPressureHpa = 1_003f,
+            standardDeviationHpa = kotlin.math.sqrt(5.0 / 4).toFloat(),
+            windowStartElapsedRealtimeNanos = 100_000_000L, windowEndElapsedRealtimeNanos = 250_000_000L)
+        database.pressureSampleDao().insert(native)
+        val range = HistoryRange(0L, 3_000L, "UTC", sources = setOf(HistorySource.PRESSURE),
+            mode = HistoryBrowseMode.OBSERVATIONS)
+        suspend fun importedCount(selection: HistoryRange): Int = database.withTransaction {
+            val reader = MeasuredImportedSensorHistoryReader(database)
+            reader.qualify(HistorySource.PRESSURE, reader.candidates(HistorySource.PRESSURE, selection, null), selection).rows.size
+        }
+        importedCount(range) shouldBe 0
+        importedCount(range.copy(purposes = setOf(HistoryPurpose.CAPTURE))) shouldBe 1
+        importedCount(range.copy(origins = setOf(HistoryOrigin.IMPORTED))) shouldBe 1
+        importedCount(range.copy(toExclusiveMs = 1_100L)) shouldBe 1
+        importedCount(range.copy(organizationSessionId = OrganizationSessionId.Annotation("imported-session"))) shouldBe 1
+        database.pressureSampleDao().insert(native.copy(id = 0L, timeMs = 900L, sourceSignalId = null))
+        val unified = rangeReaderForRoomTest(database, ApplicationProvider.getApplicationContext())
+        val first = unified.read(HistoryRangeRequest(range, 1)) as HistoryRangeRead.Page
+        (first.rows.single().measurement is HistoryMeasurement.LegacyPressure) shouldBe true
+        val suppressed = unified.read(HistoryRangeRequest(range, 1, requireNotNull(first.next))) as HistoryRangeRead.Page
+        suppressed.rows shouldBe emptyList()
+        val older = unified.read(HistoryRangeRequest(range, 1, requireNotNull(suppressed.next))) as HistoryRangeRead.Page
+        older.rows.single().position.startTimeMs shouldBe 900L
+        older.next shouldBe null
+        database.openHelper.writableDatabase.execSQL("UPDATE pressure_sample SET pressure_hpa = 1002 WHERE source_signal_id = ?",
+            arrayOf(native.sourceSignalId))
+        importedCount(range) shouldBe 1
     }
 
     @Test fun `measured imported Pressure isolates a damaged sibling parent`() = runTest {
@@ -1589,6 +1634,6 @@ class ImportedPressureHistoryEvaluatorTest {
 
 	private companion object {
 		const val EPOCH = 7L
-		const val REOPEN_DATABASE = "pressure-imported-history-recency-reopen"
+		const val REOPEN_DATABASE = "pressure-reopen"
 	}
 }

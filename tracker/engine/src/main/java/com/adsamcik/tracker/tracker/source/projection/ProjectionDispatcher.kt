@@ -32,9 +32,8 @@ class ProjectionDispatcher @Inject constructor(
 	projections: Set<@JvmSuppressWildcards Projection>,
 ) {
 	private val projections = projections.sortedBy(Projection::id)
-	private val globalProjections = this.projections.filterNot { it.isAmbientRadio() }
-	private val ambientWifiMutex = Mutex()
-	private val ambientCellMutex = Mutex()
+	private val globalProjections = this.projections.filterNot { it.isSourceLocalAmbient() }
+	private val ambientMutexes = AMBIENT_SOURCES.associateWith { Mutex() }
 
 	suspend fun registerAll(activationOrdinal: Long) {
 		require(activationOrdinal > 0L)
@@ -46,22 +45,19 @@ class ProjectionDispatcher @Inject constructor(
 	/** A source-local background consumer never joins session settlement's global continuation. */
 	internal suspend fun minimumGlobalCheckpoint(): Long? =
 		database.sourceProjectionStateDao().minimumActiveGlobalCheckpoint(
-			AmbientWifiFactRevisionEntity.WRITER_ID,
-			AmbientWifiFactRevisionEntity.WRITER_VERSION,
-			AmbientCellFactRevisionEntity.WRITER_ID,
-			AmbientCellFactRevisionEntity.WRITER_VERSION,
+			this.projections.filter { it.isSourceLocalAmbient() }.map { it.id },
 		)
 
 	/** Installs only retained-data consumers before the startup gate admits provider callbacks. */
 	internal suspend fun registerAmbientRadioProjections() {
-		for (source in listOf(SourceKind.WIFI, SourceKind.CELL)) {
-			registerProjection(ambientProjection(source), ambientActivationOrdinal())
+		for (projection in projections.filter { it.isSourceLocalAmbient() }) {
+			registerProjection(projection, ambientActivationOrdinal())
 		}
 	}
 
 	/**
 	 * Uses the existing durable checkpoint and dispatcher for one finite source high-water snapshot.
-	 * Each radio source has its own lock; a failed sibling never joins this source's retry path.
+	 * Each source has its own lock; a failed sibling never joins this source's retry path.
 	 */
 	internal suspend fun drainAmbientRadioProjection(
 		source: SourceKind,
@@ -104,11 +100,7 @@ class ProjectionDispatcher @Inject constructor(
 		}
 	}
 
-	private fun ambientMutex(source: SourceKind): Mutex = when (source) {
-		SourceKind.WIFI -> ambientWifiMutex
-		SourceKind.CELL -> ambientCellMutex
-		else -> error("Not an ambient radio source")
-	}
+	private fun ambientMutex(source: SourceKind): Mutex = ambientMutexes.getValue(source)
 
 	private suspend fun ambientHighWaterOrdinal(): Long = database.withTransaction {
 		maxOf(database.sourceEventWalDao().maximumAdmissionOrdinal() ?: 0L,
@@ -122,10 +114,14 @@ class ProjectionDispatcher @Inject constructor(
 	private fun ambientProjection(source: SourceKind): Projection = when (source) {
 		SourceKind.WIFI -> projection(AmbientWifiFactRevisionEntity.WRITER_ID, AmbientWifiFactRevisionEntity.WRITER_VERSION)
 		SourceKind.CELL -> projection(AmbientCellFactRevisionEntity.WRITER_ID, AmbientCellFactRevisionEntity.WRITER_VERSION)
-		else -> error("Not an ambient radio source")
+		SourceKind.ACTIVITY, SourceKind.PRESSURE -> projection(
+			AllDaySensorProjection.writerId(source), AllDaySensorProjection.VERSION,
+		)
+		else -> error("Not a source-local all-day projection")
 	}
 
-	private fun Projection.isAmbientRadio(): Boolean =
+	private fun Projection.isSourceLocalAmbient(): Boolean =
+		this is AllDaySensorProjection ||
 		id == AmbientWifiFactRevisionEntity.WRITER_ID && version == AmbientWifiFactRevisionEntity.WRITER_VERSION ||
 			id == AmbientCellFactRevisionEntity.WRITER_ID && version == AmbientCellFactRevisionEntity.WRITER_VERSION
 
@@ -399,6 +395,7 @@ class ProjectionDispatcher @Inject constructor(
 	}
 
 	private companion object {
+		val AMBIENT_SOURCES = listOf(SourceKind.WIFI, SourceKind.CELL, SourceKind.ACTIVITY, SourceKind.PRESSURE)
 		const val STATUS_ACTIVE = "ACTIVE"
 		const val AMBIENT_BATCH_SIZE = 64
 	}

@@ -43,7 +43,7 @@ class PortablePressureExporterTest {
 	fun `range export reads source only and preserves the sensitive Pressure warning`() = runTest {
 		val entry = pressureEntry()
 		var request: ExportPortablePressureRequest? = null
-		val exporter = PortablePressureExporter(
+		val exporter = PortablePressureExporter(nativeDatabaseProvider = { null },
 			exporterProvider = {
 				fakeExporter { received, sink ->
 					request = received
@@ -81,7 +81,7 @@ class PortablePressureExporterTest {
 	@Test
 	fun `full history and pruned no entry outcomes are honest failures with no artifact`() = runTest {
 		var request: ExportPortablePressureRequest? = null
-		val noEntries = PortablePressureExporter(
+		val noEntries = PortablePressureExporter(nativeDatabaseProvider = { null },
 			exporterProvider = {
 				fakeExporter { received, _ ->
 					request = received
@@ -101,7 +101,7 @@ class PortablePressureExporterTest {
 		emptyOutput.size() shouldBe 0
 
 		val prunedOutput = ByteArrayOutputStream()
-		val pruned = PortablePressureExporter(
+		val pruned = PortablePressureExporter(nativeDatabaseProvider = { null },
 			exporterProvider = {
 				fakeExporter { _, _ ->
 					ExportPortablePressureResult.Unverifiable(
@@ -114,7 +114,7 @@ class PortablePressureExporterTest {
 			R.string.export_error_portable_pressure_data_pruned
 		prunedOutput.size() shouldBe 0
 
-		val unverifiable = PortablePressureExporter(
+		val unverifiable = PortablePressureExporter(nativeDatabaseProvider = { null },
 			exporterProvider = {
 				fakeExporter { _, _ ->
 					ExportPortablePressureResult.Unverifiable(
@@ -129,7 +129,7 @@ class PortablePressureExporterTest {
 
 	@Test
 	fun `retryable source refusal remains a localized error without success fallback`() = runTest {
-		val result = PortablePressureExporter(
+		val result = PortablePressureExporter(nativeDatabaseProvider = { null },
 			exporterProvider = {
 				fakeExporter { _, _ ->
 					ExportPortablePressureResult.RetryableFailure(
@@ -151,7 +151,7 @@ class PortablePressureExporterTest {
 		val sourceEntry = PortablePressureEntryV1.create(original.identity, savedRun.startTimeMs,
 			savedRun.endTimeMs, listOf(savedRun))
 		val output = ByteArrayOutputStream()
-		val exporter = PortablePressureExporter(exporterProvider = { fakeExporter { request, sink ->
+		val exporter = PortablePressureExporter(nativeDatabaseProvider = { null },exporterProvider = { fakeExporter { request, sink ->
 			request shouldBe ExportPortablePressureRequest(1_000L, 3_000L)
 			sink.emit(sourceEntry)
 			ExportPortablePressureResult.Exported(1)
@@ -418,7 +418,7 @@ class PortablePressureExporterTest {
 	private fun exactExporter(
 		codec: PortablePressureJsonV1Codec = PortablePressureJsonV1Codec(),
 		block: suspend (ExportSelectedPortablePressureRequest, PortablePressureEntrySink) -> ExportPortablePressureResult,
-	): PortablePressureExporter = PortablePressureExporter(exporterProvider = {
+	): PortablePressureExporter = PortablePressureExporter(nativeDatabaseProvider = { null },exporterProvider = {
 		object : ExportPortablePressure {
 			override suspend fun export(request: ExportPortablePressureRequest, sink: PortablePressureEntrySink):
 				ExportPortablePressureResult = error("Exact Pressure export must not widen to dates")

@@ -328,6 +328,9 @@ internal fun ambientOperationalSummary(
 	availability: AmbientSourceOperationalAvailability,
 ): String {
 	val summaryResource = when {
+		availability.source == AmbientTrackingSource.PRESSURE &&
+			availability.reason == AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE ->
+			com.adsamcik.tracker.R.string.settings_pressure_host_unavailable
 		availability.reason == AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE ->
 			com.adsamcik.tracker.R.string.settings_radio_notification_unavailable
 		availability.reason == AmbientSourceUnavailableReason.LOCATION_REQUEST_ADJUSTED ->
@@ -355,6 +358,10 @@ private fun ambientMechanismSummaryResource(
 		com.adsamcik.tracker.R.string.settings_ambient_wifi_ready
 	AmbientAcquisitionMechanism.CELL_CHANGE_CALLBACKS ->
 		com.adsamcik.tracker.R.string.settings_ambient_cell_ready
+	AmbientAcquisitionMechanism.ACTIVITY_RECOGNITION ->
+		com.adsamcik.tracker.R.string.settings_ambient_activity_ready
+	AmbientAcquisitionMechanism.PRESSURE_SENSOR ->
+		com.adsamcik.tracker.R.string.settings_ambient_pressure_ready
 	null -> com.adsamcik.tracker.R.string.settings_ambient_reconciliation_pending
 }
 
@@ -395,6 +402,10 @@ private fun ambientUnavailableSummaryResource(
 		com.adsamcik.tracker.R.string.settings_ambient_wifi_permission
 	AmbientSourceUnavailableReason.CELL_SCAN_PERMISSION_REQUIRED ->
 		com.adsamcik.tracker.R.string.settings_ambient_cell_permission
+	AmbientSourceUnavailableReason.ACTIVITY_PERMISSION_REQUIRED ->
+		com.adsamcik.tracker.R.string.settings_activity_permission_required
+	AmbientSourceUnavailableReason.PRESSURE_SENSOR_UNAVAILABLE ->
+		com.adsamcik.tracker.R.string.settings_barometer_unavailable
 	AmbientSourceUnavailableReason.PLATFORM_UNAVAILABLE,
 	AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
 	null,

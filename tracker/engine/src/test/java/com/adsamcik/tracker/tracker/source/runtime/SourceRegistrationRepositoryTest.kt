@@ -296,7 +296,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `restored non-session pressure demands cannot reserve or authorize a provider`(): Unit = runTest {
+	fun `unsupported pressure control demand cannot reserve or authorize a provider`(): Unit = runTest {
 		enablePressureRegistrationForTest()
 		database.sourceBrokerDao().insertDemands(
 			listOf(
@@ -329,7 +329,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `non-session pressure demand blocks reserved provider acceptance`(): Unit = runTest {
+	fun `pressure control demand blocks reserved provider acceptance`(): Unit = runTest {
 		enablePressureRegistrationForTest()
 		database.sourceBrokerDao().insertDemands(
 			listOf(pressureCaptureDemand()),
@@ -361,7 +361,7 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
-	fun `non-session pressure demand blocks active authorization refresh`(): Unit = runTest {
+	fun `pressure control demand blocks active authorization refresh`(): Unit = runTest {
 		enablePressureRegistrationForTest()
 		database.sourceBrokerDao().insertDemands(listOf(pressureCaptureDemand()))
 		val registration = subject.begin(SourceKind.PRESSURE, 1L, PHYSICAL_CONFIG, 100L, 100L)
@@ -370,9 +370,9 @@ class SourceRegistrationRepositoryTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(
 				demand(
-					"pressure-ambient",
-					"app:legacy-ambient",
-					SourceBrokerPurpose.AMBIENT_PRODUCT,
+					"pressure-control",
+					"app:legacy-control",
+					SourceBrokerPurpose.CONTROL_AUTOSTART,
 					null,
 					null,
 					false,
@@ -390,6 +390,38 @@ class SourceRegistrationRepositoryTest {
 			130L,
 		) shouldBe null
 		database.sourceBrokerDao().maximumAuthorizationRevision(SourceKind.PRESSURE.stableCode) shouldBe 1L
+	}
+
+	@Test
+	fun `all-day Pressure reserves accepts and refreshes without a session`() = runTest {
+		enablePressureRegistrationForTest()
+		val policies = database.sourcePolicyDao().currentPolicies()
+		database.sourcePolicyDao().insertPolicies(policies.map { policy ->
+			policy.copy(policyRevision = 6L,
+				ambientPersistenceEligible = policy.ambientPersistenceEligible || policy.sourceKind == 4,
+				ambientConsentEpoch = if (policy.sourceKind == SourceKind.PRESSURE.stableCode) {
+					8L
+				} else {
+					policy.ambientConsentEpoch
+				})
+		})
+		database.sourcePolicyDao().compareAndSetAuthority(SourcePolicyAuthorityEntity.STATE_ACTIVE, 5L,
+			SourcePolicyAuthorityEntity.STATE_ACTIVE, 6L, "pressure-all-day", 1L) shouldBe 1
+		database.sourcePolicyDao().insertConsentEpochs(listOf(SourceConsentEpochEntity(
+			SourceKind.PRESSURE.stableCode, SourceBrokerPurpose.AMBIENT_PRODUCT, 8L, true, true,
+			6L, "boot-7", 1L, 1L, "PRESSURE_ALL_DAY")))
+		val background = demand("pressure-ambient", "ambient:pressure", SourceBrokerPurpose.AMBIENT_PRODUCT,
+			null, null, true, SourceKind.PRESSURE).copy(sourcePolicyRevision = 6L)
+		database.sourceBrokerDao().insertDemands(listOf(background))
+		val reservation = subject.begin(SourceKind.PRESSURE, 1L, PHYSICAL_CONFIG, 110L, 110L)
+		subject.markAccepted(reservation, 120L, 120L)
+		val refreshed = subject.refreshActiveAuthorization(SourceKind.PRESSURE, reservation, 2L,
+			PHYSICAL_CONFIG, 130L, 130L).shouldNotBeNull()
+		refreshed.state.registrationGeneration shouldBe reservation.state.registrationGeneration
+		refreshed.authorization.authorizedMembers.single().purpose shouldBe SourceBrokerPurpose.AMBIENT_PRODUCT
+		refreshed.authorization.authorizedMembers.single().logicalTrackingId shouldBe null
+		database.sourceBrokerDao().registration(SourceKind.PRESSURE.stableCode,
+			reservation.state.registrationGeneration)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
 	}
 
 	@Test
@@ -1937,9 +1969,11 @@ class SourceRegistrationRepositoryTest {
 		val startup = mockk<TrackingStartupGate>()
 		coEvery { startup.reconcileAdmission(any()) } returns TrackingAdmissionStartupResult.Ready
 		every { startup.permitsNewCollection } returns true
+		every { startup.permitsEvidenceAdmission } returns true
 		every { startup.collectionResumeBoundary } returns null
 		every { startup.currentGeneration } returns 1L
 		every { startup.isReadyGeneration(1L) } returns true
+		every { startup.isAdmissionReadyGeneration(1L) } returns true
 		val catalog = ExecutableSourceLaneCatalog.explicit(ExecutableSourceLaneBinding(
 			SourceKind.LOCATION, 1L, "test-location-product", 1,
 			setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)))
@@ -2011,9 +2045,11 @@ class SourceRegistrationRepositoryTest {
 		val startup = mockk<TrackingStartupGate>()
 		coEvery { startup.reconcileAdmission(any()) } returns TrackingAdmissionStartupResult.Ready
 		every { startup.permitsNewCollection } returns true
+		every { startup.permitsEvidenceAdmission } returns true
 		every { startup.collectionResumeBoundary } returns null
 		every { startup.currentGeneration } returns 1L
 		every { startup.isReadyGeneration(1L) } returns true
+		every { startup.isAdmissionReadyGeneration(1L) } returns true
 		val catalog = ExecutableSourceLaneCatalog.explicit(ExecutableSourceLaneBinding(
 			SourceKind.LOCATION, 1L, "test-location-product", 1,
 			setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)))
@@ -2105,9 +2141,11 @@ class SourceRegistrationRepositoryTest {
 		val startup = mockk<TrackingStartupGate>()
 		coEvery { startup.reconcileAdmission(any()) } returns TrackingAdmissionStartupResult.Ready
 		every { startup.permitsNewCollection } returns true
+		every { startup.permitsEvidenceAdmission } returns true
 		every { startup.collectionResumeBoundary } returns null
 		every { startup.currentGeneration } returns 1L
 		every { startup.isReadyGeneration(1L) } returns true
+		every { startup.isAdmissionReadyGeneration(1L) } returns true
 		val catalog = ExecutableSourceLaneCatalog.explicit(ExecutableSourceLaneBinding(
 			SourceKind.LOCATION, 1L, "test-location-product", 1,
 			setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)))

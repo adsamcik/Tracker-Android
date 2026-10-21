@@ -153,7 +153,7 @@ internal object SourceDemandContractFactory {
 		require(purpose == DirectSourceDemandPurpose.SESSION_CAPTURE ||
 			purpose == DirectSourceDemandPurpose.AMBIENT_PRODUCT)
 		require(purpose == DirectSourceDemandPurpose.SESSION_CAPTURE || source in setOf(
-			SourceKind.LOCATION, SourceKind.WIFI, SourceKind.CELL)) {
+			SourceKind.LOCATION, SourceKind.ACTIVITY, SourceKind.PRESSURE, SourceKind.WIFI, SourceKind.CELL)) {
 			"This source has no profile-based background acquisition; system Steps uses its native contract"
 		}
 		val index = level - profileBalanceLevels.first
@@ -214,8 +214,9 @@ internal object SourceDemandContractFactory {
 		qosCode: Int,
 		purpose: DirectSourceDemandPurpose,
 	): SourceDemandContract {
-		require(source != SourceKind.PRESSURE || purpose == DirectSourceDemandPurpose.SESSION_CAPTURE) {
-			"Pressure supports direct session capture demand only"
+		require(source != SourceKind.PRESSURE || purpose in setOf(
+			DirectSourceDemandPurpose.SESSION_CAPTURE, DirectSourceDemandPurpose.AMBIENT_PRODUCT)) {
+			"Pressure supports recording purposes only"
 		}
 		val effectiveQos = when {
 			qosCode in 1..3 -> qosCode

@@ -421,23 +421,23 @@ class AuthoritativeTrackingParamsRepository(
 		legacyState: TrackingParamsState,
 		isSetupComplete: Boolean,
 	): SourcePolicySnapshot {
-		val steps = observed[TrackingSourceComponent.STEPS]
-		val stepsNeedReconciliation =
-			(steps.ambientConsentEpoch != null && steps.ambientPersistenceEligible) != steps.enabled
+		val selectedSourcesNeedReconciliation = ALL_DAY_SELECTED_SOURCES.any { source ->
+			val policy = observed[source]
+			val allDayEligible = policy.ambientConsentEpoch != null && policy.ambientPersistenceEligible
+			allDayEligible != policy.enabled && (!policy.enabled || isSetupComplete)
+		}
 		val controlIsEligible =
 			observed[TrackingSourceComponent.ACTIVITY].controlConsentEpoch != null
 		val controlShouldBeEligible = isSetupComplete && legacyState.autoTrackingMode > 0
 		val controlNeedsReconciliation = controlIsEligible != controlShouldBeEligible
-		if (!controlNeedsReconciliation &&
-			(!stepsNeedReconciliation || (steps.enabled && !isSetupComplete))
-		) return observed
+		if (!controlNeedsReconciliation && !selectedSourcesNeedReconciliation) return observed
 		return mutationMutex.withLock {
 			val current = (sourcePolicyRepository.currentState() as? SourcePolicyAuthorityState.Active)
 				?.snapshot ?: return@withLock observed
 			if (current.revision != observed.revision) return@withLock current
 			sourcePolicyRepository.replaceCaptureSettings(
 				expectedPolicyRevision = current.revision,
-				settings = legacyState.withPolicy(current).copy(ambientStepsEnabled = steps.enabled),
+				settings = legacyState.withPolicy(current),
 				reason = REASON_SETUP_CHOICE_RECONCILIATION,
 			)
 		}

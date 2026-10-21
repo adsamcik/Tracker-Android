@@ -10,6 +10,50 @@ import kotlinx.coroutines.flow.Flow
  */
 @Dao
 interface ActivitySnapshotDao : BaseDao<ActivitySnapshot> {
+	/** Returns the saved observation with this exact source identity, if present. */
+	@Query("SELECT * FROM activity_snapshot WHERE source_signal_id = :sourceSignalId LIMIT 1")
+	suspend fun getBySourceSignalId(sourceSignalId: String): ActivitySnapshot?
+
+	/** Returns saved observations selected by their original source identities. */
+	@Query("SELECT * FROM activity_snapshot WHERE source_signal_id IN (:identities)")
+	suspend fun bySourceSignalIds(identities: List<String>): List<ActivitySnapshot>
+
+	/** Reads all-day observations and imported copies within the measured window. */
+	@Query(
+	    "SELECT * FROM activity_snapshot WHERE source_signal_id LIKE 'all-day:activity:%' " +
+	        "AND time_ms >= :fromMs AND time_ms < :toMs " +
+	        "ORDER BY time_ms, source_signal_id LIMIT :limit",
+	)
+	suspend fun allDayBetween(fromMs: Long, toMs: Long, limit: Int): List<ActivitySnapshot>
+
+	/** Reads on-device all-day observations, excluding imported copies before applying the row limit. */
+	@Query("""
+	    SELECT * FROM activity_snapshot
+	    WHERE source_signal_id LIKE 'all-day:activity:%' AND time_ms >= :fromMs AND time_ms < :toMs
+	      AND instr(',' || COALESCE(capability_flags, '') || ',', ',PORTABLE_IMPORT,') = 0
+	    ORDER BY time_ms, source_signal_id LIMIT :limit
+	""")
+	suspend fun nativeAllDayBetween(fromMs: Long, toMs: Long, limit: Int): List<ActivitySnapshot>
+
+	/** Pages all-day observations and imported copies by stable row ID within the measured window. */
+	@Query(
+	    "SELECT * FROM activity_snapshot WHERE source_signal_id LIKE 'all-day:activity:%' " +
+	        "AND time_ms >= :fromMs AND time_ms < :toMs " +
+	        "AND id > :afterId ORDER BY id LIMIT :limit",
+	)
+	suspend fun allDayPage(fromMs: Long, toMs: Long, afterId: Long, limit: Int): List<ActivitySnapshot>
+
+	/** Deletes all rows from the native Activity observation table. */
+	@Query("DELETE FROM activity_snapshot")
+	suspend fun deleteAllNative(): Int
+
+	/** Counts rows in the native Activity observation table. */
+	@Query("SELECT COUNT(*) FROM activity_snapshot")
+	suspend fun nativeCount(): Int
+
+	/** Counts saved all-day Activity observations, including imported copies. */
+	@Query("SELECT COUNT(*) FROM activity_snapshot WHERE source_signal_id LIKE 'all-day:activity:%'")
+	suspend fun allDayCount(): Int
 	
 	/**
 	 * Get activity snapshots within time range as Flow.

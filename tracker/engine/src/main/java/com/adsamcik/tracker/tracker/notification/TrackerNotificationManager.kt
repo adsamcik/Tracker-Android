@@ -87,6 +87,7 @@ class TrackerNotificationManager(
 					com.adsamcik.tracker.tracker.source.model.SourceKind.LOCATION -> R.string.notification_background_source_location
 					com.adsamcik.tracker.tracker.source.model.SourceKind.WIFI -> R.string.notification_background_source_wifi
 					com.adsamcik.tracker.tracker.source.model.SourceKind.CELL -> R.string.notification_background_source_cell
+					com.adsamcik.tracker.tracker.source.model.SourceKind.PRESSURE -> R.string.notification_background_source_pressure
 					else -> R.string.notification_background_source_other
 				})
 			}.joinToString(", ")

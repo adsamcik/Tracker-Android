@@ -168,8 +168,21 @@ class MeasuredHistoryContentComposeTest {
         card.assertIsDisplayed().performClick()
         card.assert(hasText(context.getString(com.adsamcik.tracker.shared.base.R.string.activity_unknown)))
         val locale = context.resources.configuration.locales[0]
-        card.assert(hasText(java.text.NumberFormat.getPercentInstance(locale).format(0.65)))
+        card.assert(hasText(java.text.NumberFormat.getPercentInstance(locale).format(0.65)).not())
         card.assert(hasText("\u2192", substring = true).not())
+    }
+
+    @Test fun `all day Activity distinguishes a measured exit without inventing confidence`() {
+        val row = UnifiedHistoryRow(HistoryPosition(1_700_000_000_000L, "local:activity_observation", "activity:exit"), null,
+            setOf(HistoryOrigin.LOCAL), HistoryPurpose.BACKGROUND, sections = emptyList(),
+            measurement = HistoryMeasurement.LegacyActivity(
+                com.adsamcik.tracker.shared.base.data.DetectedActivity.WALKING.value, 100, true, 1))
+        show(listOf(HistoryPagingItem.Row(row, snapshot)))
+        val name = context.getString(com.adsamcik.tracker.shared.base.R.string.activity_walking)
+        rule.onNodeWithText(context.getString(R.string.history_activity_ended, name)).assertIsDisplayed()
+        rule.onNodeWithTag("history_measurement_activity:exit").performClick()
+        val locale = context.resources.configuration.locales[0]
+        rule.onNodeWithText(java.text.NumberFormat.getPercentInstance(locale).format(1.0)).assertDoesNotExist()
     }
 
     @Test fun `legacy Pressure expansion keeps its mean and range without an invented duration`() {
@@ -183,6 +196,16 @@ class MeasuredHistoryContentComposeTest {
         card.assert(hasText(String.format(locale, "%.1f hPa", 1_010f)))
         card.assert(hasText(String.format(locale, "%.1f\u2013%.1f hPa", 1_000f, 1_020f)))
         card.assert(hasText("\u2192", substring = true).not())
+    }
+
+    @Test fun `partial all day Pressure retains its measured value with a concise status`() {
+        val row = UnifiedHistoryRow(HistoryPosition(1_700_000_000_000L, "local:pressure_observation", "pressure:partial"), null,
+            setOf(HistoryOrigin.LOCAL), HistoryPurpose.BACKGROUND, sections = emptyList(), measurement =
+            HistoryMeasurement.LegacyPressure(1_010f, 4, 1_000f, 1_020f, 2f, null, 10L, 20L, isPartial = true))
+        show(listOf(HistoryPagingItem.Row(row, snapshot)))
+        val locale = context.resources.configuration.locales[0]
+        rule.onNodeWithText(String.format(locale, "%.1f hPa", 1_010f)).assertIsDisplayed()
+        rule.onNodeWithText(context.getString(R.string.history_value_partial)).assertIsDisplayed()
     }
 
     @Test fun `Activity clock discontinuity renders both original wall times without normalization`() {

@@ -15,6 +15,10 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityIntegr
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityReader
+import com.adsamcik.tracker.shared.preferences.retention.UnavailableRetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
@@ -22,10 +26,12 @@ import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReporter
 import com.adsamcik.tracker.tracker.resilience.TrackingLifecycleCommandAuthority
 import com.adsamcik.tracker.tracker.source.control.LocationMotionScope
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import javax.inject.Provider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
@@ -53,6 +59,8 @@ class BackgroundLocationHost @Inject constructor(
 	private val commands: TrackingLifecycleCommandAuthority,
 	private val dispatchers: DispatchersProvider,
 	private val availabilityReporter: TrackingPurposeAvailabilityReporter? = null,
+	private val retentionAuthorityReader: RetentionAuthorityReader = UnavailableRetentionAuthorityProducer,
+	private val sourceBroker: Provider<SourceBroker> = Provider { SourceBroker(database) },
 ) {
 	private val lock = Any()
 	private val requests = mutableMapOf<String, Request>()
@@ -314,7 +322,18 @@ class BackgroundLocationHost @Inject constructor(
 			lifecycleSnapshot.retainedFromMs != identity.retainedFromMs) {
 			return false
 		}
-		return database.withTransaction { database.hasCurrentBackgroundHostAuthority(identity, requireHostingChoice) }
+		if (identity.source == AmbientTrackingSource.PRESSURE &&
+			!retentionAuthorityReader.isCurrentPressureHost(identity)) {
+			return false
+		}
+		return database.withTransaction {
+			val broker = if (identity.source == AmbientTrackingSource.PRESSURE) {
+				sourceBroker.get()
+			} else {
+				null
+			}
+			database.hasCurrentBackgroundHostAuthority(identity, requireHostingChoice, broker)
+		}
 	}
 
 	private class Request(val identity: AmbientReconciliationIdentity, val startupGeneration: Long,
@@ -334,6 +353,7 @@ class BackgroundLocationHost @Inject constructor(
 private suspend fun AppDatabase.hasCurrentBackgroundHostAuthority(
 	identity: AmbientReconciliationIdentity,
 	requireHostingChoice: Boolean,
+	sourceBroker: SourceBroker?,
 ): Boolean {
 	val kind = identity.source.hostSourceKind()?.stableCode ?: return false
 	val dao = sourcePolicyDao()
@@ -344,7 +364,7 @@ private suspend fun AppDatabase.hasCurrentBackgroundHostAuthority(
 		val policy = dao.policyAtRevision(identity.policyRevision, kind) ?: return false
 		val consent = dao.latestConsentEpoch(kind, SourceBrokerPurpose.AMBIENT_PRODUCT) ?: return false
 		val hostAllowed = policy.allowsBackgroundHost(identity.source, requireHostingChoice)
-		val ownerCurrent = currentBackgroundHostOwnerMatches(identity)
+		val ownerCurrent = currentBackgroundHostOwnerMatches(identity, sourceBroker)
 		pointer.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE &&
 			pointer.currentPolicyRevision == identity.policyRevision && hostAllowed && ownerCurrent &&
 			policy.hasCurrentHostConsent(identity, consent)
@@ -354,10 +374,10 @@ private suspend fun AppDatabase.hasCurrentBackgroundHostAuthority(
 private fun SourcePolicyEntity.allowsBackgroundHost(
 	source: AmbientTrackingSource,
 	requireHostingChoice: Boolean,
-): Boolean = if (source == AmbientTrackingSource.LOCATION) {
-	balanceProfileVersion == 1 && locationBackgroundMode == 2
-} else {
-	!requireHostingChoice || backgroundNotificationHostEnabled
+): Boolean = when (source) {
+	AmbientTrackingSource.LOCATION -> balanceProfileVersion == 1 && locationBackgroundMode == 2
+	AmbientTrackingSource.PRESSURE -> true
+	else -> !requireHostingChoice || backgroundNotificationHostEnabled
 }
 
 private fun SourcePolicyEntity.hasCurrentHostConsent(
@@ -366,12 +386,18 @@ private fun SourcePolicyEntity.hasCurrentHostConsent(
 ): Boolean = ambientPersistenceEligible && ambientConsentEpoch == identity.consentEpoch &&
 	consent.epoch == identity.consentEpoch && consent.eligible && consent.persistenceEligible
 
-private suspend fun AppDatabase.currentBackgroundHostOwnerMatches(identity: AmbientReconciliationIdentity): Boolean =
+private suspend fun AppDatabase.currentBackgroundHostOwnerMatches(
+	identity: AmbientReconciliationIdentity,
+	sourceBroker: SourceBroker?,
+): Boolean =
 	when (identity.source) {
 		AmbientTrackingSource.WIFI -> ambientWifiFactDao().latestAuthority()?.matchesHostIdentity(identity) == true
 		AmbientTrackingSource.CELL -> ambientCellFactDao().latestAuthority()?.matchesHostIdentity(identity) == true
 		AmbientTrackingSource.LOCATION -> true
-		AmbientTrackingSource.STEPS -> false
+		AmbientTrackingSource.PRESSURE -> sourceBroker?.currentAmbientSourceIdentity(SourceKind.PRESSURE) == identity
+		AmbientTrackingSource.STEPS,
+		AmbientTrackingSource.ACTIVITY,
+		-> false
 	}
 
 private fun AmbientWifiAuthorityEntity.matchesHostIdentity(identity: AmbientReconciliationIdentity): Boolean =
@@ -392,7 +418,18 @@ private fun AmbientTrackingSource.hostSourceKind(): SourceKind? = when (this) {
 	AmbientTrackingSource.LOCATION -> SourceKind.LOCATION
 	AmbientTrackingSource.WIFI -> SourceKind.WIFI
 	AmbientTrackingSource.CELL -> SourceKind.CELL
-	AmbientTrackingSource.STEPS -> null
+	AmbientTrackingSource.PRESSURE -> SourceKind.PRESSURE
+	AmbientTrackingSource.STEPS,
+	AmbientTrackingSource.ACTIVITY,
+	-> null
+}
+
+private suspend fun RetentionAuthorityReader.isCurrentPressureHost(identity: AmbientReconciliationIdentity): Boolean {
+	val current = currentLiveAmbient(TrackingSourceComponent.PRESSURE,
+		identity.policyRevision, identity.consentEpoch, identity.collectedDataEpoch, identity.retainedFromMs)
+	return current is CurrentRetentionAuthority.Approved &&
+		current.opaquePolicyId == identity.retentionPolicyId &&
+		current.approvalRevision == identity.retentionApprovalRevision
 }
 
 private const val BACKGROUND_LOCATION_HOST_ACK_TIMEOUT_MS = 8_000L

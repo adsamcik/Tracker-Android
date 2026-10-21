@@ -35,6 +35,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
 import com.adsamcik.tracker.tracker.source.model.StepsPlan
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjection
+import com.adsamcik.tracker.tracker.source.projection.AllDaySensorProjection
 import com.adsamcik.tracker.tracker.source.runtime.ClaimedSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.LocationDeviceState
 import com.adsamcik.tracker.tracker.source.runtime.LocationDeviceStateProvider
@@ -68,8 +69,8 @@ class DefaultSourceImplementationCatalogTest {
 
 		val bindings = fixture.catalog.bindings
 		bindings.size shouldBe 18
-		bindings.count { it is SourcePurposeBinding.Executable } shouldBe 11
-		bindings.count { it is SourcePurposeBinding.Unsupported } shouldBe 7
+		bindings.count { it is SourcePurposeBinding.Executable } shouldBe 13
+		bindings.count { it is SourcePurposeBinding.Unsupported } shouldBe 5
 
 		bindings.forEach { binding ->
 			val supported = binding.source.supports(binding.purpose)
@@ -552,6 +553,8 @@ class DefaultSourceImplementationCatalogTest {
 				),
 			key(TrackingSource.STEPS, TrackingPurpose.AMBIENT_PRODUCT) to
 				SourcePortableContract.AmbientStepsV2,
+			key(TrackingSource.ACTIVITY, TrackingPurpose.AMBIENT_PRODUCT) to SourcePortableContract.ActivityV2,
+			key(TrackingSource.PRESSURE, TrackingPurpose.AMBIENT_PRODUCT) to SourcePortableContract.PressureV2,
 			key(TrackingSource.WIFI, TrackingPurpose.AMBIENT_PRODUCT) to
 				SourcePortableContract.AmbientWifiV1,
 			key(TrackingSource.CELL, TrackingPurpose.AMBIENT_PRODUCT) to
@@ -582,6 +585,8 @@ class DefaultSourceImplementationCatalogTest {
 				SourceQueryContract.LocationSamples,
 			key(TrackingSource.STEPS, TrackingPurpose.AMBIENT_PRODUCT) to
 				SourceQueryContract.AmbientStepsHistory,
+			key(TrackingSource.ACTIVITY, TrackingPurpose.AMBIENT_PRODUCT) to SourceQueryContract.ActivitySamples,
+			key(TrackingSource.PRESSURE, TrackingPurpose.AMBIENT_PRODUCT) to SourceQueryContract.PressureSamples,
 			key(TrackingSource.WIFI, TrackingPurpose.AMBIENT_PRODUCT) to
 				SourceQueryContract.AmbientWifiHistory,
 			key(TrackingSource.CELL, TrackingPurpose.AMBIENT_PRODUCT) to
@@ -638,6 +643,12 @@ class DefaultSourceImplementationCatalogTest {
 					ActivityAutomationProjection.VERSION,
 				),
 			key(TrackingSource.LOCATION, TrackingPurpose.AMBIENT_PRODUCT) to locationProjection,
+			key(TrackingSource.ACTIVITY, TrackingPurpose.AMBIENT_PRODUCT) to
+				SourceProjectionContract.AmbientWriter(AllDaySensorProjection.writerId(SourceKind.ACTIVITY),
+					AllDaySensorProjection.VERSION),
+			key(TrackingSource.PRESSURE, TrackingPurpose.AMBIENT_PRODUCT) to
+				SourceProjectionContract.AmbientWriter(AllDaySensorProjection.writerId(SourceKind.PRESSURE),
+					AllDaySensorProjection.VERSION),
 			key(TrackingSource.STEPS, TrackingPurpose.AMBIENT_PRODUCT) to
 				SourceProjectionContract.AmbientWriter(
 					AmbientStepsFactRevisionEntity.WRITER_ID,
@@ -687,6 +698,8 @@ class DefaultSourceImplementationCatalogTest {
 				),
 			key(TrackingSource.STEPS, TrackingPurpose.AMBIENT_PRODUCT) to
 				portableAmbientRetention,
+			key(TrackingSource.ACTIVITY, TrackingPurpose.AMBIENT_PRODUCT) to portableAmbientRetention,
+			key(TrackingSource.PRESSURE, TrackingPurpose.AMBIENT_PRODUCT) to portableAmbientRetention,
 			key(TrackingSource.WIFI, TrackingPurpose.AMBIENT_PRODUCT) to
 				portableAmbientRetention,
 			key(TrackingSource.CELL, TrackingPurpose.AMBIENT_PRODUCT) to

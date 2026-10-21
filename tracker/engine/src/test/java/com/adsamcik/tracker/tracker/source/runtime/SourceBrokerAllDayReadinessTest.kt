@@ -9,6 +9,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
+import com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityReader
 import com.adsamcik.tracker.shared.preferences.tracking.LocationBackgroundMode
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
@@ -25,6 +27,8 @@ import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateS
 import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanism
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import io.mockk.coEvery
+import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -56,12 +60,12 @@ class SourceBrokerAllDayReadinessTest {
 	@Test
 	fun `Location reserves all-day collection without an ambient mode or session`() = runTest {
 		val (identity, retention, prepared) = prepare(SourceKind.LOCATION)
-		val active = assertIs<AmbientLocationDemandResult.Active>(
-			broker.replaceAmbientLocationDemand(identity, "boot-1", 100L, 100L, retention, prepared),
+		val active = assertIs<AmbientSourceDemandResult.Active>(
+			broker.replaceAmbientSourceDemand(identity, "boot-1", 100L, 100L, retention, prepared),
 		)
 		assertSessionlessAuthority(SourceKind.LOCATION, active.demand, prepared)
-		assertEquals(identity, broker.currentAmbientLocationIdentity())
-		assertEquals(false, broker.retireAmbientLocationDemand(
+		assertEquals(identity, broker.currentAmbientSourceIdentity())
+		assertEquals(false, broker.retireAmbientSourceDemand(
 			identity.copy(ownerCasToken = "stale-owner"), "boot-1", 120L, 120L,
 		))
 		assertEquals(listOf(active.demand), broker.authorizationDemands(SourceKind.LOCATION))
@@ -85,6 +89,30 @@ class SourceBrokerAllDayReadinessTest {
 		assertSessionlessAuthority(SourceKind.STEPS, active.demand, prepared)
 		assertEquals("privacy:steps:ambient:v1", active.demand.liveAmbientRetentionPolicyId)
 		assertEquals(1L, active.demand.liveAmbientRetentionApprovalRevision)
+	}
+
+	@Test
+	fun `Activity reserves independent all-day collection under global retention without a session`() = runTest {
+		assertNativeAllDayReservation(SourceKind.ACTIVITY)
+	}
+
+	@Test
+	fun `Pressure reserves independent all-day collection under global retention without a session`() = runTest {
+		assertNativeAllDayReservation(SourceKind.PRESSURE)
+	}
+
+	private suspend fun assertNativeAllDayReservation(source: SourceKind) {
+		val (identity, retention, prepared) = prepare(source)
+		val active = assertIs<AmbientSourceDemandResult.Active>(
+			broker.replaceAmbientSourceDemand(identity, "boot-1", 100L, 100L, retention, prepared),
+		)
+		assertSessionlessAuthority(source, active.demand, prepared)
+		assertEquals("global-retention-test", active.demand.liveAmbientRetentionPolicyId)
+		assertEquals(identity, broker.currentAmbientSourceIdentity(source))
+		assertEquals(false, broker.retireAmbientSourceDemand(
+			identity.copy(ownerCasToken = "stale-owner"), "boot-1", 120L, 120L,
+		))
+		assertEquals(listOf(active.demand), broker.authorizationDemands(source))
 	}
 
 	private suspend fun assertSessionlessAuthority(
@@ -117,27 +145,26 @@ class SourceBrokerAllDayReadinessTest {
 	private suspend fun prepare(source: SourceKind): Triple<AmbientReconciliationIdentity,
 		LiveAmbientRetentionSnapshot, PreparedSourceCallerAcceptance> {
 		val location = source == SourceKind.LOCATION
-		val binding = if (location) {
-			ExecutableSourceLaneCatalog.PREFERRED_LOCATION_CANONICAL_HANDOFF
-		}
-			else {
-			ExecutableSourceLaneCatalog.PREFERRED_STEPS_SESSION_FACTS
+		val (binding, destination, owner) = when (source) {
+			SourceKind.LOCATION -> Triple(ExecutableSourceLaneCatalog.PREFERRED_LOCATION_CANONICAL_HANDOFF,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+				SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE)
+			SourceKind.STEPS -> Triple(ExecutableSourceLaneCatalog.PREFERRED_STEPS_SESSION_FACTS,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+				SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS)
+			SourceKind.ACTIVITY -> Triple(ExecutableSourceLaneCatalog.PREFERRED_ACTIVITY_SESSION_FACTS,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
+				SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS)
+			SourceKind.PRESSURE -> Triple(ExecutableSourceLaneCatalog.PREFERRED_PRESSURE_SESSION_FACTS,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+				SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS)
+			else -> error("This fixture covers direct all-day source owners")
 		}
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 3L, updatedAtMs = 1L))
 		database.sourceDestinationOwnerDao().insertIfAbsent(SourceDestinationOwnerEntity(
 			sourceKind = source.stableCode,
-			destination = if (location) {
-				SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION
-			}
-				else {
-				SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS
-			},
-			owner = if (location) {
-				SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE
-			}
-				else {
-				SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
-			},
+			destination = destination,
+			owner = owner,
 			ownerGeneration = if (location) {
 				SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION
 			}
@@ -147,33 +174,25 @@ class SourceBrokerAllDayReadinessTest {
 			updatedAtMs = 1L,
 		))
 		rolloutStore = installCanonicalProductLanesForTest(database, listOf(binding), 1L)
-		val retentionReader = TestLiveAmbientRetentionAuthorityReader()
-		broker = SourceBroker(database, rolloutStore, retentionReader)
 		val policy = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("boot-1", 10L, 10L)
 		}.bootstrapFromLegacy(TrackingParamsState(
 			locationEnabled = false,
-			stepsEnabled = !location,
+			activityEnabled = source == SourceKind.ACTIVITY,
+			stepsEnabled = source == SourceKind.STEPS,
+			barometerEnabled = source == SourceKind.PRESSURE,
 			ambientLocationEnabled = location,
 			locationProfileVersion = 1,
 			locationBalanceLevel = 3,
 			locationBackgroundMode = LocationBackgroundMode.ADAPTIVE,
 			legacySettingsMigrationCompleted = true,
 		))
-		val component = if (location) {
-			TrackingSourceComponent.LOCATION
-		} else {
-			TrackingSourceComponent.STEPS
-		}
-		val retention = retentionReader.installCurrent(database, component, policy.revision,
-			requireNotNull(policy[component].ambientConsentEpoch), 3L, "boot-1")
+		val component = TrackingSourceComponent.valueOf(source.name)
+		val consent = requireNotNull(policy[component].ambientConsentEpoch)
+		val retention = prepareRetention(source, component, policy.revision, consent)
 		val grant = retention.grants.getValue(source)
 		val identity = AmbientReconciliationIdentity(
-			source = if (location) {
-				AmbientTrackingSource.LOCATION
-			} else {
-				AmbientTrackingSource.STEPS
-			},
+			source = AmbientTrackingSource.valueOf(source.name),
 			policyRevision = policy.revision,
 			consentEpoch = grant.ambientConsentEpoch,
 			collectedDataEpoch = 3L,
@@ -193,5 +212,27 @@ class SourceBrokerAllDayReadinessTest {
 			95L,
 		)
 		return Triple(identity, retention, prepared)
+	}
+
+	private suspend fun prepareRetention(
+		source: SourceKind,
+		component: TrackingSourceComponent,
+		policyRevision: Long,
+		consentEpoch: Long,
+	): LiveAmbientRetentionSnapshot {
+		if (source == SourceKind.ACTIVITY || source == SourceKind.PRESSURE) {
+			val approval = CurrentRetentionAuthority.Approved("global-retention-test", 1L,
+				"boot-1", 10L, 10L, 3L, null)
+			val reader = mockk<RetentionAuthorityReader>()
+			coEvery { reader.currentLiveAmbient(component, policyRevision, consentEpoch, 3L, null) } returns approval
+			coEvery { reader.isCurrentLiveAmbientAt(component, policyRevision, consentEpoch, 3L, null,
+				approval.opaquePolicyId, approval.approvalRevision, "boot-1", 100L, 100L) } returns true
+			broker = SourceBroker(database, rolloutStore, reader)
+			return requireNotNull(broker.captureLiveAmbientRetentionSnapshot(source, policyRevision,
+				consentEpoch, 3L, "boot-1", 100L, 100L))
+		}
+		val reader = TestLiveAmbientRetentionAuthorityReader()
+		broker = SourceBroker(database, rolloutStore, reader)
+		return reader.installCurrent(database, component, policyRevision, consentEpoch, 3L, "boot-1")
 	}
 }

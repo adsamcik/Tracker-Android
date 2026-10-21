@@ -49,9 +49,13 @@ sealed interface AllDaySourceStatusRequest {
 		init { require(limit in 1..4_096) }
 	}
 
-	/** Activity and Pressure currently have no supported sessionless product. */
-	data class Unsupported(override val source: TrackingSource) : AllDaySourceStatusRequest {
-		init { require(source == TrackingSource.ACTIVITY || source == TrackingSource.PRESSURE) }
+	/** Original saved Activity observations or Pressure aggregates in the measured window. */
+	data class Sensor(override val source: TrackingSource, val window: HistoryObservationWindow,
+		val limit: Int = 4_096) : AllDaySourceStatusRequest {
+		init {
+			require(source == TrackingSource.ACTIVITY || source == TrackingSource.PRESSURE)
+			require(limit in 1..4_096)
+		}
 	}
 }
 
@@ -110,6 +114,16 @@ data class AllDayCellFactStatus(
  */
 data class AllDayLocationPointStatus(val sourceEventId: String, val time: AllDayReadingTime)
 
+/** Original native identity and measured clock; Pressure keeps its real provider window, when saved. */
+data class AllDaySensorObservationStatus(
+	val identity: String,
+	val observedTimeMs: Long,
+	val wallTimeUncertaintyMs: Long?,
+	val windowStartElapsedRealtimeNanos: Long? = null,
+	val windowEndElapsedRealtimeNanos: Long? = null,
+	val isPartial: Boolean = false,
+)
+
 /** Source-specific saved-data results; none claims that a provider is currently recording. */
 sealed interface AllDaySourceStatusRead {
 	/**
@@ -157,10 +171,15 @@ sealed interface AllDaySourceStatusRead {
 		val problem: HistoryProblemReason? = null,
 	) : AllDaySourceStatusRead
 
-	/**
-	 * The selected source has no supported sessionless product capability.
-	 */
-	data object Unsupported : AllDaySourceStatusRead
+	/** Saved native sensor observations; a bad row does not discard independently usable readings. */
+	data class Sensor(
+		val snapshot: TrackingHistoryReadSnapshot,
+		val source: TrackingSource,
+		val observations: List<AllDaySensorObservationStatus>,
+		val problem: HistoryProblemReason? = null,
+	) : AllDaySourceStatusRead {
+		init { require(source == TrackingSource.ACTIVITY || source == TrackingSource.PRESSURE) }
+	}
 	/**
 	 * The requested data or authority is unavailable; any named reason preserves the original failure
 	 * cause.

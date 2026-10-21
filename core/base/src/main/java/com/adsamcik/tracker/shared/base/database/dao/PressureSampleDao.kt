@@ -11,8 +11,37 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface PressureSampleDao : BaseDao<PressureSample> {
 
+    /** Reads all-day observations and imported copies within the measured window. */
+    @Query(
+        "SELECT * FROM pressure_sample WHERE source_signal_id LIKE 'all-day:pressure:%' " +
+            "AND time_ms >= :fromMs AND time_ms < :toMs " +
+            "ORDER BY time_ms, source_signal_id LIMIT :limit",
+    )
+    suspend fun allDayBetween(fromMs: Long, toMs: Long, limit: Int): List<PressureSample>
+
+    /** Reads on-device all-day observations, excluding imported copies before applying the row limit. */
+    @Query("""
+        SELECT * FROM pressure_sample
+        WHERE source_signal_id LIKE 'all-day:pressure:%' AND time_ms >= :fromMs AND time_ms < :toMs
+          AND instr(',' || COALESCE(capability_flags, '') || ',', ',PORTABLE_IMPORT,') = 0
+        ORDER BY time_ms, source_signal_id LIMIT :limit
+    """)
+    suspend fun nativeAllDayBetween(fromMs: Long, toMs: Long, limit: Int): List<PressureSample>
+
+    /** Pages all-day observations and imported copies by stable row ID within the measured window. */
+    @Query(
+        "SELECT * FROM pressure_sample WHERE source_signal_id LIKE 'all-day:pressure:%' " +
+            "AND time_ms >= :fromMs AND time_ms < :toMs " +
+            "AND id > :afterId ORDER BY id LIMIT :limit",
+    )
+    suspend fun allDayPage(fromMs: Long, toMs: Long, afterId: Long, limit: Int): List<PressureSample>
+
     @Query("SELECT * FROM pressure_sample WHERE source_signal_id = :sourceSignalId LIMIT 1")
     suspend fun getBySourceSignalId(sourceSignalId: String): PressureSample?
+
+    /** Returns saved observations selected by their original source identities. */
+    @Query("SELECT * FROM pressure_sample WHERE source_signal_id IN (:identities)")
+    suspend fun bySourceSignalIds(identities: List<String>): List<PressureSample>
 
     /** Get all pressure samples within time range, ordered by time. */
     @Query("SELECT * FROM pressure_sample WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms")

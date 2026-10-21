@@ -437,4 +437,6 @@
     <string name="source_history_delete_title" tools:ignore="MissingTranslation">Delete this recording?</string>
     <string name="source_history_delete_message" tools:ignore="MissingTranslation">Its saved readings will be permanently deleted.</string>
     <string name="stats_recorded_partial_value">%1$s · partial</string>
+    <string name="history_activity_started">Started: %1$s</string>
+    <string name="history_activity_ended">Ended: %1$s</string>
 </resources>

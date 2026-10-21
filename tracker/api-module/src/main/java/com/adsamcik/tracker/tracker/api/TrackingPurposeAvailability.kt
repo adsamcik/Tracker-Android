@@ -97,6 +97,8 @@ enum class AmbientTrackingSource(
 	LOCATION(CanonicalTrackingSource.LOCATION),
 	WIFI(CanonicalTrackingSource.WIFI),
 	CELL(CanonicalTrackingSource.CELL),
+	ACTIVITY(CanonicalTrackingSource.ACTIVITY),
+	PRESSURE(CanonicalTrackingSource.PRESSURE),
 }
 
 /** Operational, waiting, permission and degraded states for one all-day source. */
@@ -116,6 +118,8 @@ enum class AmbientAcquisitionMechanism {
 	WIFI_SCAN_RESULTS,
 	CELL_CHANGE_CALLBACKS,
 	ADAPTIVE_LOCATION,
+	ACTIVITY_RECOGNITION,
+	PRESSURE_SENSOR,
 }
 
 /** Stable source-local reasons for unavailable all-day collection and permission repair. */
@@ -144,6 +148,8 @@ enum class AmbientSourceUnavailableReason(
 	PROVIDER_UNAVAILABLE("AMBIENT_PROVIDER_UNAVAILABLE"),
 	LOCATION_REQUEST_ADJUSTED("LOCATION_REQUEST_ADJUSTED"),
 	FOREGROUND_HOST_UNAVAILABLE("FOREGROUND_HOST_UNAVAILABLE"),
+	ACTIVITY_PERMISSION_REQUIRED("ACTIVITY_PERMISSION_REQUIRED"),
+	PRESSURE_SENSOR_UNAVAILABLE("PRESSURE_SENSOR_UNAVAILABLE"),
 }
 
 /**
@@ -1301,17 +1307,20 @@ class AtomicTrackingPurposeAvailabilityStore :
 		val source = when (expectedIdentity.source) {
 			CanonicalTrackingSource.WIFI -> AmbientTrackingSource.WIFI
 			CanonicalTrackingSource.CELL -> AmbientTrackingSource.CELL
+			CanonicalTrackingSource.PRESSURE -> AmbientTrackingSource.PRESSURE
 			else -> return@synchronized false
 		}
 		val previous = mutableAvailability.value.ambientSources.getValue(source)
 		if (!previous.isOperational || previous.operationalIdentity != expectedIdentity) {
 			return@synchronized false
 		}
+		val unavailable = if (source == AmbientTrackingSource.PRESSURE) {
+			AmbientSourceOperationalAvailability.unavailable(source,
+				AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE, expectedIdentity)
+		} else previous.copy(state = AmbientSourceOperationalState.DEGRADED,
+			reason = AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE)
 		mutableAvailability.value = mutableAvailability.value.copy(
-			ambientSources = mutableAvailability.value.ambientSources + (source to previous.copy(
-				state = AmbientSourceOperationalState.DEGRADED,
-				reason = AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE,
-			)),
+			ambientSources = mutableAvailability.value.ambientSources + (source to unavailable),
 		)
 		true
 	}
@@ -1498,6 +1507,8 @@ private fun AmbientTrackingSource.allowedMechanisms(): Set<AmbientAcquisitionMec
 		AmbientAcquisitionMechanism.ADAPTIVE_LOCATION)
 	AmbientTrackingSource.WIFI -> setOf(AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS)
 	AmbientTrackingSource.CELL -> setOf(AmbientAcquisitionMechanism.CELL_CHANGE_CALLBACKS)
+	AmbientTrackingSource.ACTIVITY -> setOf(AmbientAcquisitionMechanism.ACTIVITY_RECOGNITION)
+	AmbientTrackingSource.PRESSURE -> setOf(AmbientAcquisitionMechanism.PRESSURE_SENSOR)
 }
 
 private fun AmbientTrackingSource.permissionReason(
@@ -1514,6 +1525,8 @@ private fun AmbientTrackingSource.permissionReason(
 		AmbientSourceUnavailableReason.BACKGROUND_LOCATION_PERMISSION_REQUIRED
 	AmbientTrackingSource.WIFI -> AmbientSourceUnavailableReason.WIFI_SCAN_PERMISSION_REQUIRED
 	AmbientTrackingSource.CELL -> AmbientSourceUnavailableReason.CELL_SCAN_PERMISSION_REQUIRED
+	AmbientTrackingSource.ACTIVITY -> AmbientSourceUnavailableReason.ACTIVITY_PERMISSION_REQUIRED
+	AmbientTrackingSource.PRESSURE -> null
 }
 
 private fun AmbientTrackingSource.unavailableReasons(): Set<AmbientSourceUnavailableReason> {
@@ -1524,6 +1537,10 @@ private fun AmbientTrackingSource.unavailableReasons(): Set<AmbientSourceUnavail
 		add(AmbientSourceUnavailableReason.ROLLOUT_CONTAINED)
 		add(AmbientSourceUnavailableReason.PLATFORM_UNAVAILABLE)
 		add(AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE)
+		if (source == AmbientTrackingSource.PRESSURE) {
+			add(AmbientSourceUnavailableReason.PRESSURE_SENSOR_UNAVAILABLE)
+			add(AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE)
+		}
 		if (source == AmbientTrackingSource.STEPS) {
 			add(AmbientSourceUnavailableReason.HEALTH_CONNECT_UNAVAILABLE)
 			add(AmbientSourceUnavailableReason.HEALTH_CONNECT_UPDATE_REQUIRED)

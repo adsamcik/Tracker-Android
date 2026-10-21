@@ -16,16 +16,7 @@ enum class TrackingSource(val stableCode: Int) {
 	fun supports(purpose: TrackingPurpose): Boolean = when (purpose) {
 		TrackingPurpose.SESSION_CAPTURE -> true
 		TrackingPurpose.CONTROL -> this == ACTIVITY
-		TrackingPurpose.AMBIENT_PRODUCT -> when (this) {
-			LOCATION,
-			STEPS,
-			WIFI,
-			CELL,
-			-> true
-			ACTIVITY,
-			PRESSURE,
-			-> false
-		}
+		TrackingPurpose.AMBIENT_PRODUCT -> true
 	}
 
 	/** Creates a validated source/purpose pair and rejects unsupported combinations. */

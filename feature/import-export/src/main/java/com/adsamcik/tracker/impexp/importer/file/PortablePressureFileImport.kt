@@ -4,6 +4,9 @@ import android.content.Context
 import com.adsamcik.tracker.impexp.importer.FileImportReceiptContext
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportResult
+import com.adsamcik.tracker.impexp.portable.AllDaySensorSourceFile
+import com.adsamcik.tracker.impexp.portable.AllDaySensorPortableRows
+import com.adsamcik.tracker.impexp.portable.SensorSourceFileFormatException
 import com.adsamcik.tracker.impexp.portable.PortablePressureJsonException
 import com.adsamcik.tracker.impexp.portable.PortablePressureJsonV1Codec
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -68,29 +71,38 @@ internal class PortablePressureFileImport(
 		val fileReceipt = stream.importReceipt
 			?: throw PortablePressureImportReceiptContextException()
 		val epoch = stream.requireOriginalDataEpoch()
-		val dependencies = dependenciesProvider(context)
-		if (dependencies.lifecycleStore.snapshot().epoch != epoch) {
+        val sourceFile = try {
+            AllDaySensorSourceFile.open(stream, "PRESSURE", context)
+        } catch (_: SensorSourceFileFormatException) {
+            return ImportResult(failedCount = 1, errors = listOf(PERMANENT_FORMAT_ERROR))
+        }
+        sourceFile.use {
+
+        val dependencies = sourceFile.sessionInput?.let { dependenciesProvider(context) }
+		if (dependencies != null && dependencies.lifecycleStore.snapshot().epoch != epoch) {
 			return ImportResult(
 			failedCount = 1, errors = listOf("Import stopped because recorded data was cleared"),
 		)
 		}
 		var aggregate = ImportResult.EMPTY
 		try {
-			codec.decode(stream) { entry ->
+            sourceFile.sessionInput?.let { sessionInput -> codec.decode(sessionInput) { entry ->
 				val request = ImportPortablePressureRequest(
 					entry = entry,
 					receipt = PortablePressureFileReceipt.create(fileReceipt, entry),
 					expectedCollectedDataEpoch = epoch,
 				)
-				aggregate += dependencies.importer.importEntry(request).toFileResult()
-			}
+				aggregate += requireNotNull(dependencies).importer.importEntry(request).toFileResult()
+			} }
 		} catch (_: PortablePressureJsonException) {
 			aggregate += ImportResult(
 				failedCount = 1,
 				errors = listOf(PERMANENT_FORMAT_ERROR),
 			)
 		}
+        aggregate += AllDaySensorPortableRows.import(database, "PRESSURE", sourceFile, epoch)
 		return aggregate
+        }
 	}
 
 	private fun ImportPortablePressureResult.toFileResult(): ImportResult = when (this) {

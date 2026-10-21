@@ -136,6 +136,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		// A session cannot survive full collected-data deletion. The application monitor remains a
 		// desired owner and will be installed with a fresh identity after the deletion commits.
 		demands.remove(ActivityRegistrationOwner.ACTIVE_SESSION)
+		demands.remove(ActivityRegistrationOwner.ALL_DAY_TRACKING)
 		demands.remove(ActivityRegistrationOwner.LEGACY_REQUEST_MANAGER)
 		val stopped = fenceAndRemoveLocked(clearOwners = false)
 		if (stopped.status == ActivityRegistrationStatus.FAILED ||
@@ -1420,7 +1421,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 					policy.controlConsentEpoch != demand.consentEpoch ||
 						(demand.persistenceEligible && !policy.controlPersistenceEligible)
 				SourceBrokerPurpose.AMBIENT_PRODUCT ->
-					!reachability.hasCaptureMode(ACTIVITY_SOURCE_KIND, AMBIENT_CAPTURE_MASK) ||
+					!reachability.hasAnyCapture(ACTIVITY_SOURCE_KIND) ||
 						policy.ambientConsentEpoch != demand.consentEpoch ||
 						(demand.persistenceEligible && !policy.ambientPersistenceEligible)
 				else -> true

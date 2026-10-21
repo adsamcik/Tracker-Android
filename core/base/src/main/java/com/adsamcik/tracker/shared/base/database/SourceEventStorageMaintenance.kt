@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.dao.SourceEventRetentionProofCa
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventWalDao
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AllDaySensorObservationIdentity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionProofEntity
@@ -428,6 +429,9 @@ private suspend fun AppDatabase.sourceEventStorageGlobalSafeOrdinal(): Long {
 			AmbientWifiFactRevisionEntity.WRITER_VERSION,
 			AmbientCellFactRevisionEntity.WRITER_ID,
 			AmbientCellFactRevisionEntity.WRITER_VERSION,
+			listOf(AllDaySensorObservationIdentity.ACTIVITY_PROJECTION_ID,
+				AllDaySensorObservationIdentity.PRESSURE_PROJECTION_ID),
+			AllDaySensorObservationIdentity.PROJECTION_VERSION,
 		),
 		projectionDao.minimumJoinRequiredOrdinal()?.minus(1L),
 		legacyV27ProjectionDrainDao().minimumPendingOrdinal()?.minus(1L),
@@ -478,6 +482,11 @@ private suspend fun requiredAmbientProjectionCheckpoint(
 	projectionDao: SourceProjectionStateDao,
 	sourceKind: Int,
 ): Long? = when (sourceKind) {
+	SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+	SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+	-> projectionDao.requiredProjectionCheckpoint(
+		AllDaySensorObservationIdentity.projectionId(sourceKind), AllDaySensorObservationIdentity.PROJECTION_VERSION,
+	)
 	SourceDestinationOwnerEntity.SOURCE_WIFI -> projectionDao.requiredProjectionCheckpoint(
 		AmbientWifiFactRevisionEntity.WRITER_ID,
 		AmbientWifiFactRevisionEntity.WRITER_VERSION,

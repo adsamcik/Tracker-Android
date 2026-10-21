@@ -9,6 +9,10 @@ import com.adsamcik.tracker.shared.base.database.PortableActivityCaptureCoverage
 import com.adsamcik.tracker.shared.base.database.PortableActivityFragmentV1
 import com.adsamcik.tracker.shared.base.database.PortableActivityOpaqueIdentity
 import com.adsamcik.tracker.shared.base.database.PortableActivityWindowV1
+import com.adsamcik.tracker.shared.base.database.data.AllDaySensorObservationIdentity
+import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership
+import com.adsamcik.tracker.shared.base.database.data.PressureSample
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.dao.MeasuredHistoryCandidate
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsReadFailure
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedRead
@@ -28,6 +32,10 @@ import com.adsamcik.tracker.stats.api.repository.HistoryRange
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.PortablePressureAvailability
 import com.adsamcik.tracker.stats.api.repository.PortablePressureRunV1
+import com.adsamcik.tracker.stats.api.repository.PortablePressureIdentityKind
+import com.adsamcik.tracker.stats.api.repository.PortablePressureOpaqueIdentity
+import com.adsamcik.tracker.stats.api.repository.PortablePressureWindowV1
+import com.adsamcik.tracker.stats.api.repository.PressurePortableFormatV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsFactCoverage
 import com.adsamcik.tracker.stats.api.repository.PortableStepsFactV1
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
@@ -243,7 +251,7 @@ internal class MeasuredImportedSensorHistoryReader(private val database: AppData
         return accepted
     }
 
-    private fun ImportedPressureHistoryEvaluation.Readable.pressureRun(
+    private suspend fun ImportedPressureHistoryEvaluation.Readable.pressureRun(
         parent: String,
         run: PortablePressureRunV1,
         keys: List<MeasuredHistoryCandidate>,
@@ -256,9 +264,10 @@ internal class MeasuredImportedSensorHistoryReader(private val database: AppData
                 run.identity.value, window.identity.value) } ?: continue
             check(key.factRevision == revision && key.factId == window.identity.value)
             check(key.startTimeMs == window.intervalStartTimeMs && key.endTimeMs == window.intervalEndTimeMs)
-            if (!overlaps(key, range) || retainedFromMs?.let {
-                earliest(window.intervalStartTimeMs, window.wallTimeUncertaintyMs) < it
-            } == true) {
+            if (!retainedPressureOverlaps(key, window, range, retainedFromMs)) {
+                continue
+            }
+            if (hasVisibleNativePressure(window, range)) {
                 continue
             }
             val position = measuredHistoryPosition(key)
@@ -266,6 +275,44 @@ internal class MeasuredImportedSensorHistoryReader(private val database: AppData
         }
         return accepted
     }
+
+    private fun retainedPressureOverlaps(key: MeasuredHistoryCandidate, window: PortablePressureWindowV1,
+        range: HistoryRange, floor: Long?): Boolean = overlaps(key, range) && floor?.let {
+            earliest(window.intervalStartTimeMs, window.wallTimeUncertaintyMs) < it
+        } != true
+
+    private suspend fun hasVisibleNativePressure(window: PortablePressureWindowV1, range: HistoryRange): Boolean {
+        if (range.organizationSessionId != null) {
+            return false
+        }
+        val end = window.intervalEndTimeMs
+        if (HistoryPurpose.BACKGROUND !in range.purposes ||
+            end !in range.fromInclusiveMs until range.toExclusiveMs) {
+            return false
+        }
+        val writer = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID
+        return database.pressureSampleDao().allDayBetween(end, end + 1L, MAX_MEASURED_CANDIDATES + 1).any { native ->
+            val event = AllDaySensorObservationIdentity.pressureEventId(native.sourceSignalId) ?: return@any false
+            val factId = "$writer:$event"
+            if (factId.length > PressurePortableFormatV1.MAX_LOCAL_IDENTITY_LENGTH) {
+                return@any false
+            }
+            val imported = AllDaySensorObservationIdentity.IMPORTED_CAPABILITY in
+                native.observationStamp.capabilityFlags.orEmpty().split(',')
+            val origin = if (imported) { HistoryOrigin.IMPORTED } else { HistoryOrigin.LOCAL }
+            origin in range.origins && native.matches(window) && PortablePressureOpaqueIdentity.derive(
+                PortablePressureIdentityKind.WINDOW, NativePortableOwnership.pressureWindowIdentity(writer,
+                    SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION, factId)) == window.identity
+        }
+    }
+
+    private fun PressureSample.matches(window: PortablePressureWindowV1): Boolean = listOf(
+        sampleCount == window.sampleCount, pressureHpa == window.meanHectopascals.toFloat(),
+        minPressureHpa == window.minimumHectopascals, maxPressureHpa == window.maximumHectopascals,
+        standardDeviationHpa == kotlin.math.sqrt(window.sumSquaredDeviations / window.sampleCount).toFloat(),
+        windowStartElapsedRealtimeNanos != null, windowEndElapsedRealtimeNanos == elapsedRealtimeNanos,
+        windowStartElapsedRealtimeNanos?.let { elapsedRealtimeNanos - it } == window.observedDurationNanos,
+    ).all { it }
 
     private suspend fun steps(parent: String, keys: List<MeasuredHistoryCandidate>, range: HistoryRange,
         problems: MutableSet<HistoryProblem>): Map<HistoryPosition, UnifiedHistoryRow> {

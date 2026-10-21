@@ -104,10 +104,10 @@ internal class AmbientLocationPurposeOwner @Inject constructor(
 	): AmbientSourceOperationalAvailability {
 		var acceptedDemand = false
 		return try {
-			val result = callers.dispatchAmbientLocation(AmbientLocationDemandDispatchRequest(
+			val result = callers.dispatchAmbientSource(AmbientSourceDemandDispatchRequest(
 				lease.identity, clock.current(), Time.elapsedRealtimeNanos, Time.nowMillis))
 			val demand =
-                    (result as? GuardedPurposeDemandResult.Applied)?.value as? AmbientLocationDemandResult.Active
+                    (result as? GuardedPurposeDemandResult.Applied)?.value as? AmbientSourceDemandResult.Active
 			if (demand == null) {
 				return unavailable(lease, AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE)
 			}
@@ -214,13 +214,13 @@ internal class AmbientLocationPurposeOwner @Inject constructor(
 	}
 
 	suspend fun retire(lease: AmbientReconciliationLease?): Boolean = mutex.withLock {
-		val exact = lease ?: current ?: broker.currentAmbientLocationIdentity()?.let(::AmbientReconciliationLease)
+		val exact = lease ?: current ?: broker.currentAmbientSourceIdentity()?.let(::AmbientReconciliationLease)
 			?: return@withLock broker.currentPurposeDemands(AMBIENT_LOCATION_CONSUMER_ID).isEmpty()
 		retireLocked(exact)
 	}
 
 	private suspend fun retireLocked(lease: AmbientReconciliationLease): Boolean {
-		if (!broker.retireAmbientLocationDemand(lease.identity, clock.current(),
+		if (!broker.retireAmbientSourceDemand(lease.identity, clock.current(),
 			Time.elapsedRealtimeNanos, Time.nowMillis)) {
 			return false
 		}

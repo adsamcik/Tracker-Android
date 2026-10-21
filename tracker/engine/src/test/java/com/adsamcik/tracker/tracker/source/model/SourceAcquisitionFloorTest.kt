@@ -31,7 +31,8 @@ class SourceAcquisitionFloorTest {
 		SourceKind.entries.forEach { source ->
 			val sourcePurposes = purposes.filterNot { purpose ->
 				(source == SourceKind.STEPS && purpose == DirectSourceDemandPurpose.AMBIENT_PRODUCT) ||
-					(source == SourceKind.PRESSURE && purpose != DirectSourceDemandPurpose.SESSION_CAPTURE)
+					(source == SourceKind.PRESSURE && purpose in setOf(
+						DirectSourceDemandPurpose.CONTROL_AUTOSTART, DirectSourceDemandPurpose.CONTROL_CONTINUATION))
 			}
 			(1..3).forEach { qos ->
 				sourcePurposes.forEach { purpose ->
@@ -105,16 +106,31 @@ class SourceAcquisitionFloorTest {
 	}
 
 	@Test
-	fun `Pressure rejects every non-session direct demand before QoS fallback`() {
+	fun `Pressure rejects control demand and supports independent recording`() {
 		DirectSourceDemandPurpose.entries
-			.filter { it != DirectSourceDemandPurpose.SESSION_CAPTURE }
+			.filter { it == DirectSourceDemandPurpose.CONTROL_AUTOSTART ||
+				it == DirectSourceDemandPurpose.CONTROL_CONTINUATION }
 			.forEach { purpose ->
 				(0..3).forEach { qos ->
 					shouldThrow<IllegalArgumentException> {
 						SourceDemandContractFactory.forQos(SourceKind.PRESSURE, qos, purpose)
-					}.message shouldBe "Pressure supports direct session capture demand only"
+					}.message shouldBe "Pressure supports recording purposes only"
 				}
 			}
+	}
+
+	@Test
+	fun `all-day native sensors use the same five balance levels and legacy floors as sessions`() {
+		for (source in setOf(SourceKind.ACTIVITY, SourceKind.PRESSURE)) {
+			for (level in 1..5) {
+				SourceDemandContractFactory.forProfile(source, 1, level, DirectSourceDemandPurpose.AMBIENT_PRODUCT) shouldBe
+					SourceDemandContractFactory.forProfile(source, 1, level, DirectSourceDemandPurpose.SESSION_CAPTURE)
+			}
+			for (qos in 1..3) {
+				SourceDemandContractFactory.forQos(source, qos, DirectSourceDemandPurpose.AMBIENT_PRODUCT) shouldBe
+					SourceDemandContractFactory.forQos(source, qos, DirectSourceDemandPurpose.SESSION_CAPTURE)
+			}
+		}
 	}
 
 	@Test

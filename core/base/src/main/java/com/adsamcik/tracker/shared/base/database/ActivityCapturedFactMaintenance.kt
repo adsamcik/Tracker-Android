@@ -145,6 +145,7 @@ sealed interface ActivityCapturedSourceDeletionResult {
 		val revisionCount: Int,
 		val registrationPlanCount: Int,
 		val fencedServiceRunCount: Int,
+		val nativeObservationCount: Int = 0,
 	) : ActivityCapturedSourceDeletionResult
 
 	/**

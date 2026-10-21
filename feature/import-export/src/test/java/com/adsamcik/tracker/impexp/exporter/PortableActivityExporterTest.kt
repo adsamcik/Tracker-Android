@@ -39,7 +39,7 @@ class PortableActivityExporterTest {
 	fun `range export writes exact Activity envelope without reading Location`() = runTest {
 		val envelope = activityEnvelope(activityEntry())
 		var request: ExportPortableCapturedActivityRequest? = null
-		val exporter = PortableActivityExporter {
+		val exporter = PortableActivityExporter(nativeDatabaseProvider = { null }) {
 			fakeExporter { received, sink ->
 				request = received
 				sink.emit(envelope)
@@ -71,7 +71,7 @@ class PortableActivityExporterTest {
 	@Test
 	fun `typed refusal writes no fake successful file`() = runTest {
 		val output = ByteArrayOutputStream()
-		val exporter = PortableActivityExporter {
+		val exporter = PortableActivityExporter(nativeDatabaseProvider = { null }) {
 			fakeExporter { _, _ -> ExportPortableCapturedActivityResult.NoEntries }
 		}
 
@@ -312,7 +312,7 @@ class PortableActivityExporterTest {
 
 	private fun exactExporter(
 		block: suspend (ExportSelectedPortableCapturedActivityRequest, PortableActivityEnvelopeSink) -> ExportPortableCapturedActivityResult,
-	): PortableActivityExporter = PortableActivityExporter {
+	): PortableActivityExporter = PortableActivityExporter(nativeDatabaseProvider = { null }) {
 		object : ExportPortableCapturedActivity {
 			override suspend fun export(request: ExportPortableCapturedActivityRequest, sink: PortableActivityEnvelopeSink):
 				ExportPortableCapturedActivityResult = error("Exact Activity export must not widen to dates")

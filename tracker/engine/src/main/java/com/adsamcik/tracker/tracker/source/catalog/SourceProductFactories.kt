@@ -15,6 +15,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBindi
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjection
+import com.adsamcik.tracker.tracker.source.projection.AllDaySensorProjection
 import javax.inject.Inject
 
 /**
@@ -78,6 +79,19 @@ sealed interface SourceWriterContract {
 		val writerId: String
 		val writerVersion: Int
 		val writerOwnerGeneration: Long
+	}
+
+	/** Sessionless Activity or Pressure observations written to their existing native sample tables. */
+	data class AmbientSensor(
+		val source: TrackingSource,
+		override val writerId: String,
+		override val writerVersion: Int,
+		override val writerOwnerGeneration: Long,
+	) : Ambient {
+		init {
+			require(source == TrackingSource.ACTIVITY || source == TrackingSource.PRESSURE)
+			require(writerId.isNotBlank() && writerVersion > 0 && writerOwnerGeneration > 0L)
+		}
 	}
 
 	/** All-day Steps writer with its exact durable destination generation. */
@@ -208,6 +222,10 @@ sealed interface SourceQueryContract {
 	data object AmbientWifiHistory : SourceQueryContract
 	/** Reads sessionless Cell observations under their original all-day purpose. */
 	data object AmbientCellHistory : SourceQueryContract
+	/** Reads timestamped sessionless Activity observations from the native sample reader. */
+	data object ActivitySamples : SourceQueryContract
+	/** Reads original sessionless Pressure windows from the native sample reader. */
+	data object PressureSamples : SourceQueryContract
 	/** This purpose has no applicable query or portable format under the attached reason. */
 	data class Unsupported(val reason: SourceQueryUnsupportedReason) : SourceQueryContract
 }
@@ -235,6 +253,10 @@ sealed interface SourcePortableContract {
 	data object AmbientWifiV1 : SourcePortableContract
 	/** Version-one sessionless Cell format under independent retained purpose authority. */
 	data object AmbientCellV1 : SourcePortableContract
+	/** Activity file retaining original session records and independent timestamped observations. */
+	data object ActivityV2 : SourcePortableContract
+	/** Pressure file retaining original session records and independent measured windows. */
+	data object PressureV2 : SourcePortableContract
 	/** This purpose has no applicable query or portable format under the attached reason. */
 	data class Unsupported(val reason: SourcePortableUnsupportedReason) : SourcePortableContract
 }
@@ -490,6 +512,34 @@ sealed interface SourceProductBinding {
 		override val retention = portableAmbientRetention()
 	}
 
+	/** All-day Activity uses the shared callback and native Activity observations, without a session. */
+	data object ActivityAmbient : SourceProductBinding {
+		override val source = TrackingSource.ACTIVITY
+		override val purpose = TrackingPurpose.AMBIENT_PRODUCT
+		override val capability = SourceProductCapability.Dormant
+		override val writer = ambientSensorWriter(source)
+		override val drain = SourceDrainContract.NotApplicable(
+			SourceDrainUnsupportedReason.AMBIENT_PRODUCT_IS_NOT_SESSION_DRAINED)
+		override val projection = SourceProjectionContract.AmbientWriter(writer.writerId, writer.writerVersion)
+		override val query = SourceQueryContract.ActivitySamples
+		override val portable = SourcePortableContract.ActivityV2
+		override val retention = portableAmbientRetention()
+	}
+
+	/** All-day Pressure uses the same physical sensor and preserves original measured windows. */
+	data object PressureAmbient : SourceProductBinding {
+		override val source = TrackingSource.PRESSURE
+		override val purpose = TrackingPurpose.AMBIENT_PRODUCT
+		override val capability = SourceProductCapability.Dormant
+		override val writer = ambientSensorWriter(source)
+		override val drain = SourceDrainContract.NotApplicable(
+			SourceDrainUnsupportedReason.AMBIENT_PRODUCT_IS_NOT_SESSION_DRAINED)
+		override val projection = SourceProjectionContract.AmbientWriter(writer.writerId, writer.writerVersion)
+		override val query = SourceQueryContract.PressureSamples
+		override val portable = SourcePortableContract.PressureV2
+		override val retention = portableAmbientRetention()
+	}
+
 	/** Independent all-day Wi-Fi descriptor with its own writer, retention and source history. */
 	data object WifiAmbient : SourceProductBinding {
 		override val source = TrackingSource.WIFI
@@ -559,12 +609,11 @@ class SourceProductFactories @Inject constructor() {
 			}
 			TrackingPurpose.AMBIENT_PRODUCT -> when (identity.source) {
 				TrackingSource.LOCATION -> SourceProductBinding.LocationAmbient
+				TrackingSource.ACTIVITY -> SourceProductBinding.ActivityAmbient
 				TrackingSource.STEPS -> SourceProductBinding.StepsAmbient
+				TrackingSource.PRESSURE -> SourceProductBinding.PressureAmbient
 				TrackingSource.WIFI -> SourceProductBinding.WifiAmbient
 				TrackingSource.CELL -> SourceProductBinding.CellAmbient
-				TrackingSource.ACTIVITY,
-				TrackingSource.PRESSURE,
-				-> error("${identity.source} does not support AMBIENT_PRODUCT")
 			}
 		}
 }
@@ -608,4 +657,9 @@ private fun portableSessionRetention() = SourceRetentionContract.SessionCapture(
 private fun portableAmbientRetention() = SourceRetentionContract.Ambient(
 	liveScope = RetentionAuthorityScope.LIVE_AMBIENT,
 	portableImportScope = RetentionAuthorityScope.PORTABLE_IMPORT,
+)
+
+private fun ambientSensorWriter(source: TrackingSource) = SourceWriterContract.AmbientSensor(
+	source, AllDaySensorProjection.writerId(SourceKind.valueOf(source.name)),
+	AllDaySensorProjection.VERSION, AllDaySensorProjection.WRITER_OWNER_GENERATION,
 )

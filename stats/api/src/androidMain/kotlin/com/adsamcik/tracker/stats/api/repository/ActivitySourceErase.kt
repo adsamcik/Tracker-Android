@@ -44,6 +44,7 @@ sealed interface ActivitySourceEraseResult {
 		val importedLiveEntryCount: Int,
 		val importedRetainedEntryCount: Int,
 		val importedPhysicalRunCount: Int,
+		val nativeObservationCount: Int = 0,
 	) : ActivitySourceEraseResult {
 		init {
 			listOf(
@@ -54,11 +55,12 @@ sealed interface ActivitySourceEraseResult {
 				importedLiveEntryCount,
 				importedRetainedEntryCount,
 				importedPhysicalRunCount,
+				nativeObservationCount,
 			).forEach { require(it >= 0) }
 			require(
 				localLogicalWindowCount > 0 || localRevisionCount > 0 ||
 					localRegistrationPlanCount > 0 || importedLiveEntryCount > 0 ||
-					importedRetainedEntryCount > 0,
+					importedRetainedEntryCount > 0 || nativeObservationCount > 0,
 			)
 		}
 	}

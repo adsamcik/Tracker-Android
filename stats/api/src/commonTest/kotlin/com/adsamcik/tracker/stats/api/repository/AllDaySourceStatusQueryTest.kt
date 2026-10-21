@@ -16,6 +16,8 @@ class AllDaySourceStatusQueryTest {
 		assertEquals(window, AllDaySourceStatusRequest.Wifi(window, 1).window)
 		assertEquals(window, AllDaySourceStatusRequest.Cell(window, 4_096).window)
 		assertEquals(window, AllDaySourceStatusRequest.Location(window).window)
+		assertEquals(window, AllDaySourceStatusRequest.Sensor(TrackingSource.ACTIVITY, window).window)
+		assertEquals(window, AllDaySourceStatusRequest.Sensor(TrackingSource.PRESSURE, window).window)
 	}
 
 	@Test
@@ -25,13 +27,15 @@ class AllDaySourceStatusQueryTest {
 			assertFailsWith<IllegalArgumentException> { AllDaySourceStatusRequest.Wifi(window, limit) }
 			assertFailsWith<IllegalArgumentException> { AllDaySourceStatusRequest.Cell(window, limit) }
 			assertFailsWith<IllegalArgumentException> { AllDaySourceStatusRequest.Location(window, limit) }
+			assertFailsWith<IllegalArgumentException> { AllDaySourceStatusRequest.Sensor(TrackingSource.ACTIVITY, window, limit) }
 		}
 	}
 
 	@Test
-	fun unsupportedSessionlessSourcesStayExplicit() {
-		assertEquals(TrackingSource.ACTIVITY, AllDaySourceStatusRequest.Unsupported(TrackingSource.ACTIVITY).source)
-		assertEquals(TrackingSource.PRESSURE, AllDaySourceStatusRequest.Unsupported(TrackingSource.PRESSURE).source)
-		assertFailsWith<IllegalArgumentException> { AllDaySourceStatusRequest.Unsupported(TrackingSource.STEPS) }
+	fun sensorRequestAcceptsOnlyActivityAndPressure() {
+		val window = HistoryObservationWindow(1_000L, 2_000L)
+		assertEquals(TrackingSource.ACTIVITY, AllDaySourceStatusRequest.Sensor(TrackingSource.ACTIVITY, window).source)
+		assertEquals(TrackingSource.PRESSURE, AllDaySourceStatusRequest.Sensor(TrackingSource.PRESSURE, window).source)
+		assertFailsWith<IllegalArgumentException> { AllDaySourceStatusRequest.Sensor(TrackingSource.STEPS, window) }
 	}
 }

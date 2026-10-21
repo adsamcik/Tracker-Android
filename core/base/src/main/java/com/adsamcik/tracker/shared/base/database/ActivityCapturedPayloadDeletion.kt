@@ -326,7 +326,10 @@ private suspend fun AppDatabase.deleteActivityCaptureAfterConsentResetInTransact
 	if (deletedAtMs < audit.latestDurableTimeMs) {
 		block(ActivityCapturedSourceDeletionBlockedReason.STALE_REQUEST)
 	}
-	if (audit.lineages.isEmpty() && plans.isEmpty()) {
+	val nativeObservationCount = activitySnapshotDao().nativeCount()
+	fenceAmbientSensorConsentErasureInTransaction(ACTIVITY_CAPTURED_SOURCE_KIND,
+		expectedCollectedDataEpoch, deletedAtMs)
+	if (audit.lineages.isEmpty() && plans.isEmpty() && nativeObservationCount == 0) {
 		return ActivityCapturedSourceDeletionResult.AlreadyDeleted
 	}
 	val scopes = audit.lineages.map { lineage ->
@@ -340,6 +343,7 @@ private suspend fun AppDatabase.deleteActivityCaptureAfterConsentResetInTransact
 
 	val revisionCount = audit.lineages.sumOf { lineage -> lineage.revisions.size }
 	dao.removeAllActivityCapturePayload()
+	check(activitySnapshotDao().deleteAllNative() == nativeObservationCount)
 	check(sourceEvidenceStateDao().incrementRevision(maxOf(evidenceState.updatedAtMs, deletedAtMs)) == 1) {
 		"Unable to publish captured Activity source deletion"
 	}
@@ -349,6 +353,7 @@ private suspend fun AppDatabase.deleteActivityCaptureAfterConsentResetInTransact
 		revisionCount = revisionCount,
 		registrationPlanCount = plans.size,
 		fencedServiceRunCount = scopes.size,
+		nativeObservationCount = nativeObservationCount,
 	)
 }
 

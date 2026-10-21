@@ -28,6 +28,7 @@ interface ActivityRegistrationArbiter {
 enum class ActivityRegistrationOwner {
 	AUTOMATIC_START_MONITOR,
 	ACTIVE_SESSION,
+	ALL_DAY_TRACKING,
 	LEGACY_REQUEST_MANAGER,
 	LOCATION_MOTION_ASSISTANCE,
 }

@@ -19,6 +19,10 @@ import com.adsamcik.tracker.impexp.portable.SessionBundleChildV1
 import com.adsamcik.tracker.impexp.portable.SessionBundleManifestCodecV1
 import com.adsamcik.tracker.impexp.portable.SessionBundleManifestV1
 import com.adsamcik.tracker.impexp.portable.WifiSourceFileV2
+import com.adsamcik.tracker.impexp.portable.AllDaySensorSourceFile
+import com.adsamcik.tracker.impexp.portable.readSensorRows
+import com.adsamcik.tracker.impexp.importer.file.PortableActivityFileImport
+import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiReceiptEntity
@@ -68,6 +72,35 @@ class SessionBundleMetadataRoomTest {
 	}
 	@After fun close() { db.close(); fixtures.forEach { it.delete() } }
 
+	@Test fun `session bundle restores exact all day sensor membership after overlapping imports`() = runTest {
+		val identity = "all-day:activity:included"
+		db.activitySnapshotDao().insert(ActivitySnapshot(timeMs = 150, activityType = 7, confidence = 75,
+			isTransition = false, createdAt = 150, sourceSignalId = identity))
+		val rows = readSensorRows(db, "ACTIVITY", 100, 200)
+		db.activitySnapshotDao().deleteAllNative()
+		val output = ByteArrayOutputStream()
+		AllDaySensorSourceFile.write(output, "ACTIVITY", byteArrayOf(), rows)
+		val definition = child(0, "portable-activity-v1", 2, "trackeractivity", output.toByteArray())
+		for (job in listOf("native-first", "native-overlap")) {
+			stage(listOf(definition), name = job).use { bundle ->
+				runner.start(job, "$job.trackersession", 100)
+				val received = receive(bundle, job) {
+					PortableActivityFileImport { error("No session capture payload") }.import(context, db, it)
+				}
+				received.failedCount shouldBe 0
+			}
+		}
+		db.activitySnapshotDao().insert(ActivitySnapshot(timeMs = 150, activityType = 7, confidence = 75,
+			isTransition = false, createdAt = 150, sourceSignalId = "all-day:activity:unrelated"))
+		val annotations = db.organizationAnnotationDao().visible(null, null, 10)
+		annotations.size shouldBe 2
+		annotations.forEach { row ->
+			OrganizationSourceSelectionCodec.decode(requireNotNull(row.importedSourceSelection)) shouldBe listOf(
+				OrganizationSourceSelector.SensorObservations(HistorySource.ACTIVITY, listOf(identity)))
+		}
+		db.activitySnapshotDao().allDayCount() shouldBe 2
+	}
+
 	@Test fun `metadata only file is offered for import and its receipt prevents resurrection after removal`() = runTest {
 		DataImport().supportedExtensions.contains(SessionBundleManifestCodecV1.EXTENSION) shouldBe true
 		stage(emptyList()).use { bundle ->
@@ -87,7 +120,7 @@ class SessionBundleMetadataRoomTest {
 		}
 	}
 
-	@Test fun `same Location bytes in different session files keep exact duplicate membership`() = runTest {
+	@Test fun `duplicate Location keeps exact membership`() = runTest {
 		val bytes = locationBytes("point-a")
 		val definition = child(0, LocationFileJsonV1.FORMAT, 1, LocationFileJsonV1.EXTENSION, bytes)
 		stage(listOf(definition), name = "First").use { first ->
@@ -114,7 +147,7 @@ class SessionBundleMetadataRoomTest {
 		}
 	}
 
-	@Test fun `failed second child preserves first source and retry does not call it again`() = runTest {
+	@Test fun `second child retry preserves first`() = runTest {
 		val first = child(0, LocationFileJsonV1.FORMAT, 1, LocationFileJsonV1.EXTENSION, locationBytes("first"))
 		val second = child(1, LocationFileJsonV1.FORMAT, 1, LocationFileJsonV1.EXTENSION, locationBytes("second"))
 		stage(listOf(first, second)).use { bundle ->
@@ -142,7 +175,7 @@ class SessionBundleMetadataRoomTest {
 		}
 	}
 
-	@Test fun `temporary preparation read failure retries without reimporting the durable child`() = runTest {
+	@Test fun `preparation retry reuses saved child`() = runTest {
 		val definition = child(0, LocationFileJsonV1.FORMAT, 1, LocationFileJsonV1.EXTENSION, locationBytes("read-retry"))
 		stage(listOf(definition)).use { bundle ->
 			runner.start("read-retry", "retry.trackersession", 100)
@@ -181,7 +214,7 @@ class SessionBundleMetadataRoomTest {
 		}
 	}
 
-	@Test fun `metadata storage failure rolls back annotation and metadata receipt while retaining source child`() = runTest {
+	@Test fun `metadata failure retains source child`() = runTest {
 		val child = child(0, LocationFileJsonV1.FORMAT, 1, LocationFileJsonV1.EXTENSION, locationBytes("point-a"))
 		stage(listOf(child)).use { bundle ->
 			runner.start("atomic", "atomic.trackersession", 100)
@@ -198,7 +231,7 @@ class SessionBundleMetadataRoomTest {
 		}
 	}
 
-	@Test fun `skipped child with no saved source receipt cannot publish a partial session`() = runTest {
+	@Test fun `skipped child blocks session metadata`() = runTest {
 		val first = child(0, LocationFileJsonV1.FORMAT, 1, LocationFileJsonV1.EXTENSION, locationBytes("kept"))
 		val blocked = child(1, LocationFileJsonV1.FORMAT, 1, LocationFileJsonV1.EXTENSION, locationBytes("blocked"))
 		stage(listOf(first, blocked)).use { bundle ->
@@ -285,7 +318,7 @@ class SessionBundleMetadataRoomTest {
 		}
 	}
 
-	@Test fun `source version mismatch reports the retained child prefix and publishes no annotation`() = runTest {
+	@Test fun `version mismatch retains child data`() = runTest {
 		stage(listOf(child(0, LocationFileJsonV1.FORMAT, 2, LocationFileJsonV1.EXTENSION, locationBytes("point-a")))).use { bundle ->
 			runner.start("version", "version.trackersession", 100)
 			val failure = assertFailsWith<PermanentImportInputException> { receive(bundle, "version") }
@@ -373,6 +406,7 @@ class SessionBundleMetadataRoomTest {
 		val sources = children.map { when (it.first.formatId) {
 			LocationFileJsonV1.FORMAT -> "location"
 			RadioSourceFileV2.WIFI_FORMAT -> "wifi"
+			"portable-activity-v1" -> "activity"
 			else -> error("Fixture format")
 		} }.distinct()
 		val manifest = SessionBundleManifestV1(name, "Hike", 100, 200, "UTC", sources, children.map { it.first }, emptyList())

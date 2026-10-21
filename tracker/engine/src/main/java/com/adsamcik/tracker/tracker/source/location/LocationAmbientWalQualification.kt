@@ -38,7 +38,7 @@ internal suspend fun AppDatabase.qualifyAmbientLocationPhysical(
 		}
 		val lifecycle = ambientLocationLifecycle(wal)
 		val (authorization, demands) = ambientLocationAuthorization(wal, exactMembership)
-		val demand = ambientLocationDemandOrNull(authorization, demands)
+		val demand = ambientSourceDemandOrNull(authorization, demands)
 			?: return LocationAmbientQualification.NotEligible
 		val plan = registrationPlan(wal) ?: rejectAmbientLocation(LocationWalAdapterRejection.MISSING_HISTORICAL_PLAN)
 		authenticateAmbientLocationRegistration(wal, plan, bootClockDomainProvider)
@@ -135,7 +135,7 @@ private fun requireAmbientLocationAuthorizationShape(
 	}
 }
 
-private fun ambientLocationDemandOrNull(
+private fun ambientSourceDemandOrNull(
 	authorization: SourceAuthorizationSnapshot,
 	demands: List<SourceDemandEntity>,
 ): SourceDemandEntity? {

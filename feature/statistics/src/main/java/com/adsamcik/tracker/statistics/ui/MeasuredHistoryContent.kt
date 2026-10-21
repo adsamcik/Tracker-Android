@@ -278,8 +278,13 @@ private fun MeasurementValue(value: HistoryMeasurement, locale: Locale, expanded
 		is HistoryMeasurement.LegacyActivity -> {
 			val activity = DetectedActivity.entries.firstOrNull { it.value == value.activityType }
 				?: DetectedActivity.UNKNOWN
-			Text(stringResource(activity.nameRes))
-			if (expanded) {
+			val name = stringResource(activity.nameRes)
+			Text(when (value.transitionType.takeIf { value.isTransition }) {
+				0 -> stringResource(R.string.history_activity_started, name)
+				1 -> stringResource(R.string.history_activity_ended, name)
+				else -> name
+			})
+			if (expanded && !value.isTransition) {
 				Text(NumberFormat.getPercentInstance(locale).format(value.confidencePercent / PERCENT_SCALE))
 			}
 		}
@@ -287,6 +292,9 @@ private fun MeasurementValue(value: HistoryMeasurement, locale: Locale, expanded
 			Text(String.format(locale, "%.1f hPa", value.meanHectopascals))
 			if (expanded && value.minimumHectopascals != null && value.maximumHectopascals != null) {
 				Text(String.format(locale, "%.1f\u2013%.1f hPa", value.minimumHectopascals, value.maximumHectopascals))
+			}
+			if (value.isPartial) {
+				IncompleteMeasurement()
 			}
 		}
 		is HistoryMeasurement.LegacyCell -> {
