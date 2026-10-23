@@ -109,9 +109,11 @@ class PreparedStartCancellationReleaseTest {
 	@Test
 	fun `timed out real shell compensates its exact start before releasing local ownership`() = runTest {
 		val service = service(PreparedStartRuntimeState(token, command))
+		val controller = service.controller
 		var compensated = false
 		coEvery { service.trackingStartRequestCoordinator.compensate(token, command,
 			"PREPARED_FOREGROUND_COMPLETION_TIMED_OUT") } coAnswers {
+			verify(exactly = 1) { controller.updateSessionStart(command.generation, starting = false) }
 			delay(100L)
 			compensated = true
 		}
@@ -135,6 +137,7 @@ class PreparedStartCancellationReleaseTest {
 	@Test
 	fun `discarded prepared delivery compensates after Android cancels the service scope`() = runTest {
 		val service = service(PreparedStartRuntimeState())
+		val controller = service.controller
 		val serviceJob = Job()
 		every { service.coroutineContext } returns StandardTestDispatcher(testScheduler) + serviceJob
 		service.applicationScope = backgroundScope
@@ -150,6 +153,7 @@ class PreparedStartCancellationReleaseTest {
 		advanceTimeBy(100L)
 		runCurrent()
 		compensated shouldBe true
+		verify(atLeast = 1) { controller.updateSessionStart(command.generation, starting = false) }
 		coVerify(exactly = 1) {
 			service.trackingStartRequestCoordinator.compensate(token, command, "CONTROLLED_REJECTION")
 		}
@@ -180,8 +184,10 @@ class PreparedStartCancellationReleaseTest {
 	@Test
 	fun `cancelled real shell finishes bounded compensation before releasing its exact runtime`() = runTest {
 		val service = service(PreparedStartRuntimeState(token, command))
+		val controller = service.controller
 		var compensated = false
 		coEvery { service.trackingStartRequestCoordinator.compensate(token, command, "START_DELIVERY_CANCELLED") } coAnswers {
+			verify(exactly = 1) { controller.updateSessionStart(command.generation, starting = false) }
 			delay(100L)
 			compensated = true
 		}
@@ -206,11 +212,13 @@ class PreparedStartCancellationReleaseTest {
 	@Test
 	fun `stuck compensation reaches existing 250ms bound then releases the real shell`() = runTest {
 		val service = service(PreparedStartRuntimeState(token, command))
+		val controller = service.controller
 		coEvery { service.trackingStartRequestCoordinator.compensate(token, command, "START_DELIVERY_CANCELLED") } coAnswers {
 			awaitCancellation()
 		}
 		retire(service)
 		testScheduler.currentTime shouldBe 250L
+		verify(exactly = 1) { controller.updateSessionStart(command.generation, starting = false) }
 		readRuntime(service) shouldBe PreparedStartRuntimeState()
 		verify(exactly = 1) { service.stopSelfResult(7) }
 	}
@@ -224,8 +232,11 @@ class PreparedStartCancellationReleaseTest {
 			PreparedStartRuntimeState(PreparedTrackingStartToken("successor"), TrackingStartCommand(2L)),
 		)) {
 			val service = service(runtime)
+			val controller = service.controller
 			retire(service)
 			readRuntime(service) shouldBe runtime
+			verify(exactly = 1) { controller.updateSessionStart(command.generation, starting = false) }
+			verify(exactly = 0) { controller.updateSessionStart(2L, starting = false) }
 			coVerify(exactly = 0) { service.trackingStartRequestCoordinator.compensate(any(), any(), any()) }
 			verify(exactly = 0) { service.stopSelfResult(any()) }
 		}
@@ -234,6 +245,7 @@ class PreparedStartCancellationReleaseTest {
 	@Test
 	fun `successor delivered while compensation waits retains its real runtime and shell`() = runTest {
 		val service = service(PreparedStartRuntimeState(token, command))
+		val controller = service.controller
 		val entered = CompletableDeferred<Unit>()
 		val release = CompletableDeferred<Unit>()
 		coEvery { service.trackingStartRequestCoordinator.compensate(token, command, "START_DELIVERY_CANCELLED") } coAnswers {
@@ -247,6 +259,8 @@ class PreparedStartCancellationReleaseTest {
 		release.complete(Unit)
 		job.join()
 		readRuntime(service) shouldBe successor
+		verify(exactly = 1) { controller.updateSessionStart(command.generation, starting = false) }
+		verify(exactly = 0) { controller.updateSessionStart(2L, starting = false) }
 		verify(exactly = 0) { service.stopSelfResult(any()) }
 	}
 
@@ -331,6 +345,7 @@ class PreparedStartCancellationReleaseTest {
 	@Test
 	fun `real matched shell rollback retains independently hosted foreground collection`() = runTest {
 		val service = service(PreparedStartRuntimeState(token, command))
+		val controller = service.controller
 		every { service.backgroundLocationHost.hasActiveSources } returns true
 		every { service.backgroundLocationHost.hostedSources } returns setOf(SourceKind.WIFI)
 		writeField(service, "foregroundStarted", true)
@@ -340,6 +355,7 @@ class PreparedStartCancellationReleaseTest {
 		coEvery { service.trackingStartRequestCoordinator.compensate(token, command, "START_DELIVERY_CANCELLED") } returns Unit
 		retire(service)
 		readRuntime(service) shouldBe PreparedStartRuntimeState()
+		verify(exactly = 1) { controller.updateSessionStart(command.generation, starting = false) }
 		readField(service, "foregroundStarted") shouldBe true
 		verify(exactly = 1) {
 			promoteBackground(service, setOf(SourceKind.WIFI))
@@ -370,6 +386,7 @@ class PreparedStartCancellationReleaseTest {
 		it.backgroundLocationHost = mockk()
 		it.controller = mockk()
 		every { it.controller.sessionInfoFlow } returns MutableStateFlow<TrackerSessionInfo?>(null)
+		every { it.controller.updateSessionStart(command.generation, starting = false) } returns Unit
 		every { it.backgroundLocationHost.hasActiveSources } returns false
 		every { it.stopSelfResult(any()) } returns true
 		writeRuntime(it, runtime)

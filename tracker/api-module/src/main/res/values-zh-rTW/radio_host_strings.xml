@@ -6,4 +6,5 @@
     <string name="notification_background_source_wifi">Wi-Fi</string>
     <string name="notification_background_source_cell">行動網路</string>
     <string name="notification_background_source_other">記錄</string>
+    <string name="notification_background_source_pressure">氣壓</string>
 </resources>

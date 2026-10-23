@@ -341,4 +341,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">Questo file contiene passi in background, intervalli di attività, date, lacune di copertura e il fuso orario salvato. Non contiene coordinate del percorso. Continua solo se ti fidi della destinazione.</string>
     <string name="export_sensitivity_portable_activity_message">Questo file contiene intervalli di movimento registrati, intervalli temporali e informazioni sulla copertura. Non contiene coordinate del percorso. Continua solo se ti fidi della destinazione.</string>
     <string name="export_sensitivity_portable_pressure_message">Questo file contiene misurazioni della pressione e intervalli temporali che possono rivelare informazioni sull\'ambiente. Non contiene coordinate del percorso o altitudine calibrata. Continua solo se ti fidi della destinazione.</string>
+    <string name="settings_activity_source_summary">Registra camminate, ciclismo, guida e immobilità durante tutta la giornata.</string>
+    <string name="settings_ambient_activity_ready">Pronto a registrare l\'attività.</string>
+    <string name="settings_ambient_pressure_ready">Pronto a registrare la pressione atmosferica.</string>
+    <string name="settings_pressure_host_unavailable">Impossibile avviare la registrazione della pressione atmosferica in background.</string>
 </resources>

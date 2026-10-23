@@ -161,4 +161,6 @@
     <string name="history_view_trip_on_map">Fahrt auf Karte anzeigen</string>
     <string name="stats_heatmap_title">Aktivität</string>
     <string name="stats_recorded_partial_value">%1$s · teilweise</string>
+    <string name="history_activity_started">Begonnen: %1$s</string>
+    <string name="history_activity_ended">Beendet: %1$s</string>
 </resources>

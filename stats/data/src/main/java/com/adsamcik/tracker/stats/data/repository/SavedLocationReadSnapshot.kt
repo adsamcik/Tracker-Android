@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import android.annotation.SuppressLint
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import kotlin.coroutines.ContinuationInterceptor
 import kotlinx.coroutines.CoroutineDispatcher
@@ -14,6 +15,9 @@ import kotlinx.coroutines.withContext
  * Callers must not switch dispatchers inside [block] or perform writes. Finalization
  * stays on its owning writer thread and sees that transaction's uncommitted changes.
  */
+// Room exposes no public equivalent of this inherited-writer guard. Keep it so a
+// dispatcher switch cannot substitute a sibling snapshot for uncommitted writer data.
+@SuppressLint("RestrictedApi")
 internal suspend fun <T> AppDatabase.withSavedLocationReadSnapshot(
     io: CoroutineDispatcher,
     block: suspend () -> T,

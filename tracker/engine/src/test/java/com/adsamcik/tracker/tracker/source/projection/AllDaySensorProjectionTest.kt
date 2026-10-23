@@ -22,6 +22,7 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
+import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.ingress.DeliveryAdmissionResult
 import com.adsamcik.tracker.tracker.source.ingress.RoomDurableSourceIngress
@@ -110,6 +111,57 @@ class AllDaySensorProjectionTest {
 				assertEquals(1, database.pressureSampleDao().allDayBetween(0L, 2_000L, 10).size)
 			}
 		}
+	}
+
+	@Test
+	fun `native checkpoint failure rolls back its reading and restarts without blocking sibling history`() = runTest {
+		for (source in listOf(SourceKind.ACTIVITY, SourceKind.PRESSURE)) {
+			assertIs<DeliveryAdmissionResult.Admitted>(ingress.admit(seed(source,
+				listOf(SourceBrokerPurpose.AMBIENT_PRODUCT))))
+		}
+		val pressureEvent = ingress.committedBatch(0L, 10).single { it.evidence.source == SourceKind.PRESSURE }
+		val activity = AllDaySensorProjection(SourceKind.ACTIVITY, database, BootClockDomainProvider { "boot" })
+		val pressure = AllDaySensorProjection(SourceKind.PRESSURE, database, BootClockDomainProvider { "boot" })
+		val dispatcher = ProjectionDispatcher(database, setOf(activity, pressure))
+		database.openHelper.writableDatabase.execSQL(
+			"CREATE TRIGGER native_pressure_checkpoint_failure " +
+				"BEFORE INSERT ON source_projection_checkpoint " +
+				"WHEN NEW.projection_id = '${pressure.id}' AND NEW.contiguous_admission_ordinal > 0 " +
+				"BEGIN SELECT RAISE(ABORT, 'transient native checkpoint failure'); END",
+		)
+
+		assertIs<CoordinatorDrainResult.ProjectionFailed>(
+			dispatcher.drainAmbientRadioProjection(SourceKind.PRESSURE, ingress))
+		// The native insert happened before the failing checkpoint in the same Room transaction.
+		assertEquals(0, database.pressureSampleDao().allDayBetween(0L, 2_000L, 10).size)
+		assertEquals(0L, database.sourceProjectionStateDao().checkpoint(pressure.id, pressure.version)
+			?.contiguousAdmissionOrdinal)
+		assertEquals(false, database.sourceProjectionStateDao().failure(pressure.id, pressure.version,
+			pressureEvent.admissionOrdinal)?.terminal)
+
+		assertIs<CoordinatorDrainResult.Complete>(
+			dispatcher.drainAmbientRadioProjection(SourceKind.ACTIVITY, ingress))
+		assertEquals(1, database.activitySnapshotDao().allDayCount())
+		assertEquals(pressureEvent.admissionOrdinal, database.sourceProjectionStateDao()
+			.checkpoint(activity.id, activity.version)?.contiguousAdmissionOrdinal)
+
+		database.openHelper.writableDatabase.execSQL("DROP TRIGGER native_pressure_checkpoint_failure")
+		// A recreated owner has no in-memory cursor or retry state from the failed attempt.
+		val restarted = ProjectionDispatcher(database, setOf(
+			AllDaySensorProjection(SourceKind.ACTIVITY, database, BootClockDomainProvider { "boot" }),
+			AllDaySensorProjection(SourceKind.PRESSURE, database, BootClockDomainProvider { "boot" }),
+		))
+		assertEquals(CoordinatorDrainResult.Complete(pressureEvent.admissionOrdinal, 1),
+			restarted.drainAmbientRadioProjection(SourceKind.PRESSURE, ingress))
+		assertEquals(CoordinatorDrainResult.Complete(pressureEvent.admissionOrdinal, 0),
+			restarted.drainAmbientRadioProjection(SourceKind.PRESSURE, ingress))
+		val saved = database.pressureSampleDao().allDayBetween(0L, 2_000L, 10).single()
+		assertEquals(AllDaySensorObservationIdentity.pressure(pressureEvent.eventId.value), saved.sourceSignalId)
+		assertEquals(pressureEvent.admissionOrdinal, database.sourceProjectionStateDao()
+			.checkpoint(pressure.id, pressure.version)?.contiguousAdmissionOrdinal)
+		assertNull(database.sourceProjectionStateDao().failure(pressure.id, pressure.version,
+			pressureEvent.admissionOrdinal))
+		assertEquals(1, database.activitySnapshotDao().allDayCount())
 	}
 
 	@Test

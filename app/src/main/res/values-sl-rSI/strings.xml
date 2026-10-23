@@ -349,4 +349,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">Ta datoteka vsebuje korake iz ozadja, intervale aktivnosti, datume, vrzeli v pokritosti in shranjeni časovni pas. Ne vsebuje koordinat poti. Nadaljujte le, če zaupate cilju.</string>
     <string name="export_sensitivity_portable_activity_message">Ta datoteka vsebuje zabeležene intervale gibanja, časovne intervale in informacije o pokritosti. Ne vsebuje koordinat poti. Nadaljujte le, če zaupate cilju.</string>
     <string name="export_sensitivity_portable_pressure_message">Ta datoteka vsebuje meritve tlaka in časovne intervale, ki lahko razkrijejo informacije o okolju. Ne vsebuje koordinat poti ali umerjene višine. Nadaljujte le, če zaupate cilju.</string>
+    <string name="settings_activity_source_summary">Ves dan beleži hojo, kolesarjenje, vožnjo in mirovanje.</string>
+    <string name="settings_ambient_activity_ready">Beleženje dejavnosti je pripravljeno.</string>
+    <string name="settings_ambient_pressure_ready">Beleženje zračnega tlaka je pripravljeno.</string>
+    <string name="settings_pressure_host_unavailable">Beleženja zračnega tlaka v ozadju ni bilo mogoče zagnati.</string>
 </resources>

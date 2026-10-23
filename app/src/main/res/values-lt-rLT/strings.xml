@@ -345,4 +345,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">Šiame faile yra fone surinkti žingsniai, aktyvumo intervalai, datos, aprėpties spragos ir išsaugota laiko juosta. Jame nėra maršruto koordinačių. Tęskite tik jei pasitikite paskirties vieta.</string>
     <string name="export_sensitivity_portable_activity_message">Šiame faile yra užfiksuoti judėjimo intervalai, laiko intervalai ir aprėpties informacija. Jame nėra maršruto koordinačių. Tęskite tik jei pasitikite paskirties vieta.</string>
     <string name="export_sensitivity_portable_pressure_message">Šiame faile yra slėgio matavimai ir laiko intervalai, galintys atskleisti informaciją apie aplinką. Jame nėra maršruto koordinačių ar kalibruoto aukščio. Tęskite tik jei pasitikite paskirties vieta.</string>
+    <string name="settings_activity_source_summary">Visą dieną registruoja ėjimą, važiavimą dviračiu, vairavimą ir nejudrumą.</string>
+    <string name="settings_ambient_activity_ready">Veiklos įrašymas paruoštas.</string>
+    <string name="settings_ambient_pressure_ready">Oro slėgio įrašymas paruoštas.</string>
+    <string name="settings_pressure_host_unavailable">Nepavyko pradėti oro slėgio įrašymo fone.</string>
 </resources>

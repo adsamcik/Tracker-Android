@@ -341,4 +341,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">Este ficheiro contém passos em segundo plano, intervalos de atividade, datas, lacunas de cobertura e o fuso horário guardado. Não contém coordenadas do percurso. Continue apenas se confiar no destino.</string>
     <string name="export_sensitivity_portable_activity_message">Este ficheiro contém intervalos de movimento registados, intervalos de tempo e informação de cobertura. Não contém coordenadas do percurso. Continue apenas se confiar no destino.</string>
     <string name="export_sensitivity_portable_pressure_message">Este ficheiro contém medições de pressão e intervalos de tempo que podem revelar informações sobre o ambiente. Não contém coordenadas do percurso nem altitude calibrada. Continue apenas se confiar no destino.</string>
+    <string name="settings_activity_source_summary">Regista caminhadas, ciclismo, condução e períodos de imobilidade ao longo do dia.</string>
+    <string name="settings_ambient_activity_ready">O registo de atividade está pronto.</string>
+    <string name="settings_ambient_pressure_ready">O registo da pressão atmosférica está pronto.</string>
+    <string name="settings_pressure_host_unavailable">Não foi possível iniciar o registo da pressão atmosférica em segundo plano.</string>
 </resources>

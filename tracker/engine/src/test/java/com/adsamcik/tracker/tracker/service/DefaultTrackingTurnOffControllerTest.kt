@@ -47,8 +47,10 @@ class DefaultTrackingTurnOffControllerTest {
 			SourceKind.LOCATION to SourceBrokerPurpose.SESSION_CAPTURE,
 			SourceKind.ACTIVITY to SourceBrokerPurpose.CONTROL_AUTOSTART,
 			SourceKind.ACTIVITY to SourceBrokerPurpose.CONTROL_CONTINUATION,
+			SourceKind.ACTIVITY to SourceBrokerPurpose.AMBIENT_PRODUCT,
 			SourceKind.STEPS to SourceBrokerPurpose.AMBIENT_PRODUCT,
 			SourceKind.PRESSURE to SourceBrokerPurpose.SESSION_CAPTURE,
+			SourceKind.PRESSURE to SourceBrokerPurpose.AMBIENT_PRODUCT,
 			SourceKind.WIFI to SourceBrokerPurpose.AMBIENT_PRODUCT,
 			SourceKind.CELL to SourceBrokerPurpose.SESSION_CAPTURE,
 		)

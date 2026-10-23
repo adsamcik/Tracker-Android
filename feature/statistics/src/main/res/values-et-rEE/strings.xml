@@ -161,4 +161,6 @@
     <string name="history_view_trip_on_map">Kuva reis kaardil</string>
     <string name="stats_heatmap_title">Tegevus</string>
     <string name="stats_recorded_partial_value">%1$s · osaline</string>
+    <string name="history_activity_started">Algus: %1$s</string>
+    <string name="history_activity_ended">Lõpp: %1$s</string>
 </resources>

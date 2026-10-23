@@ -161,4 +161,6 @@
     <string name="history_view_trip_on_map">Ver el trayecto en el mapa</string>
     <string name="stats_heatmap_title">Actividad</string>
     <string name="stats_recorded_partial_value">%1$s · parcial</string>
+    <string name="history_activity_started">Inicio: %1$s</string>
+    <string name="history_activity_ended">Fin: %1$s</string>
 </resources>

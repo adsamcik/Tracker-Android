@@ -38,7 +38,8 @@ fun PatternFilterable.configureRepositoryDetektSources() {
 		"**/build/**",
 		"**/generated/**",
 		"**/node_modules/**",
-		// Preserved review snapshots are not compilation inputs.
+		// Alternate checkouts and preserved review snapshots are not compilation inputs.
+		"**/.worktrees/**",
 		"docs/tracking-infrastructure/convergence/2026-10-03/**",
 	)
 }

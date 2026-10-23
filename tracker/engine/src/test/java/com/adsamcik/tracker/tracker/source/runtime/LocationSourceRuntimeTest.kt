@@ -815,15 +815,49 @@ class LocationSourceRuntimeTest {
 		ShadowSystemClock.advanceBy(Duration.ofSeconds(1))
 		val observed = SystemClock.elapsedRealtimeNanos()
 		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
-		coEvery { fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any()) } answers {
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		coEvery { fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any()) } coAnswers {
+			entered.complete(Unit)
+			release.await()
 			secondArg<SourceRegistration>()
 		}
-		assertTrue(fixture.runtime.reconfigure(fixture.plan, fixture.sink) is SourceApplyResult.Applied)
+		val refreshed = async { fixture.runtime.reconfigure(fixture.plan, fixture.sink) }
+		entered.await()
 		fixture.providerCallback()(listOf(location(50.0, observed)))
+		runCurrent()
+		assertTrue(fixture.sink.deliveries.isEmpty())
+		release.complete(Unit)
+		assertTrue(refreshed.await() is SourceApplyResult.Applied)
 		runCurrent()
 		assertEquals(observed, fixture.sink.singleEvidence().observedElapsedRealtimeNanos)
 		coVerify(exactly = 1) { fixture.fusedBackend.start(any(), any()) }
-		coVerify(exactly = 2) { fixture.registrations.recordLocationPlan(any(), fixture.plan) }
+		coVerify(exactly = 1) { fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any()) }
+		coVerify(exactly = 1) { fixture.registrations.recordLocationPlan(any(), fixture.plan) }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `unchanged Location plan still applies a changed callback freshness budget`() = runTest {
+		val fixture = locationRuntimeFixture(backgroundScope)
+		assertTrue(fixture.runtime.start(fixture.plan, fixture.sink) is SourceStartResult.Started)
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(1))
+		val older = SystemClock.elapsedRealtimeNanos()
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+		coEvery { fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any()) } answers {
+			secondArg<SourceRegistration>()
+		}
+
+		assertTrue(fixture.runtime.refreshShared(fixture.plan, fixture.sink, null, 5_000L) is SourceApplyResult.Applied)
+		fixture.providerCallback()(listOf(location(50.0, older)))
+		runCurrent()
+		assertTrue(fixture.sink.deliveries.isEmpty())
+		val fresh = SystemClock.elapsedRealtimeNanos()
+		fixture.providerCallback()(listOf(location(51.0, fresh)))
+		runCurrent()
+		assertEquals(fresh, fixture.sink.singleEvidence().observedElapsedRealtimeNanos)
+		coVerify(exactly = 1) { fixture.fusedBackend.start(any(), any()) }
+		coVerify(exactly = 1) { fixture.registrations.recordLocationPlan(any(), fixture.plan) }
 		fixture.runtime.close()
 	}
 
@@ -1275,6 +1309,8 @@ class LocationSourceRuntimeTest {
 			coVerify(exactly = 1) {
 				registrations.refreshActiveAuthorization(any(), initialRegistration, any(), any(), any(), any())
 			}
+			coVerify(exactly = 1) { registrations.recordLocationPlan(any(), initialPlan) }
+			coVerify(exactly = 1) { registrations.recordLocationPlan(any(), refreshedPlan) }
 			assertEquals(1L, initialSink.singleEvidence().authorizationRevision)
 			assertEquals(1L, initialSink.singleEvidence().configRevision)
 			assertEquals(2L, refreshedSink.singleEvidence().authorizationRevision)

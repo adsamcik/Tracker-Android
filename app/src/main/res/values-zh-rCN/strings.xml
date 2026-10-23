@@ -341,4 +341,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">此文件包含后台步数、活动时间区间、日期、记录缺口和已保存的时区信息。 不含路线坐标。仅在信任保存位置时继续。</string>
     <string name="export_sensitivity_portable_activity_message">此文件包含已记录的运动区间、时间区间和记录范围信息。 不含路线坐标。仅在信任保存位置时继续。</string>
     <string name="export_sensitivity_portable_pressure_message">此文件包含气压测量和时间区间，可能透露环境信息。 不含路线坐标或校准后的海拔。仅在信任保存位置时继续。</string>
+    <string name="settings_activity_source_summary">全天记录步行、骑行、驾车和静止状态。</string>
+    <string name="settings_ambient_activity_ready">活动记录已就绪。</string>
+    <string name="settings_ambient_pressure_ready">气压记录已就绪。</string>
+    <string name="settings_pressure_host_unavailable">无法启动后台气压记录。</string>
 </resources>

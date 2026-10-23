@@ -349,4 +349,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">Tento súbor obsahuje celodenné počty krokov, intervaly aktivity, dátumy, medzery v pokrytí a uložené časové pásmo. Neobsahuje súradnice trasy. Pokračujte iba vtedy, ak dôverujete cieľovému umiestneniu.</string>
     <string name="export_sensitivity_portable_activity_message">Tento súbor obsahuje zaznamenané intervaly pohybu, časové intervaly a údaje o pokrytí. Neobsahuje súradnice trasy. Pokračujte iba vtedy, ak dôverujete cieľovému umiestneniu.</string>
     <string name="export_sensitivity_portable_pressure_message">Tento súbor obsahuje merania tlaku a časové intervaly, ktoré môžu odhaliť údaje o prostredí. Neobsahuje súradnice trasy ani kalibrovanú nadmorskú výšku. Pokračujte iba vtedy, ak dôverujete cieľovému umiestneniu.</string>
+    <string name="settings_activity_source_summary">Počas celého dňa zaznamenáva chôdzu, bicyklovanie, jazdu autom a nehybnosť.</string>
+    <string name="settings_ambient_activity_ready">Zaznamenávanie aktivity je pripravené.</string>
+    <string name="settings_ambient_pressure_ready">Zaznamenávanie tlaku vzduchu je pripravené.</string>
+    <string name="settings_pressure_host_unavailable">Nepodarilo sa spustiť zaznamenávanie tlaku vzduchu na pozadí.</string>
 </resources>

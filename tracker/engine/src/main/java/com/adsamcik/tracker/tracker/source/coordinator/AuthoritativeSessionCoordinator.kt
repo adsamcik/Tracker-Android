@@ -67,6 +67,7 @@ import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
+import com.adsamcik.tracker.tracker.source.model.SourceBalancePreference
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
@@ -2526,7 +2527,18 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			val runtimePlan = if (obsoletePlans.isEmpty()) {
 				catalogTransition.plan
 			} else {
-				catalogTransition.plan.copy(plans = catalogTransition.plan.plans + obsoletePlans)
+				catalogTransition.plan.copy(
+					plans = catalogTransition.plan.plans + obsoletePlans,
+					sourcePreferences = if (catalogTransition.plan.balanceProfileVersion == null) {
+						emptyMap()
+					} else {
+						catalogTransition.plan.sourcePreferences + obsoletePlans.mapValues { (source, _) ->
+							// Disabled cleanup only; legacy requests have no quality metadata to carry forward.
+							(currentPlan.sourcePreferences[source] ?: SourceBalancePreference(1, false))
+								.copy(focusRequested = false)
+						}
+					},
+				)
 			}
 			val runtimeCatalogDecisions = if (obsoletePlans.isEmpty()) {
 				catalogTransition.decisions

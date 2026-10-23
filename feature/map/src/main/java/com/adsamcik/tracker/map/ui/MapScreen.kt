@@ -37,6 +37,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -887,6 +888,16 @@ fun MapScreen(
         LocationAndSensorsManager(appContext, uiLocationProvider)
     }
 
+    val locationUnavailableMessage by rememberUpdatedState(
+        stringResource(com.adsamcik.tracker.map.R.string.map_location_unavailable)
+    )
+    val locationRetryLabel by rememberUpdatedState(
+        stringResource(com.adsamcik.tracker.map.R.string.map_location_retry)
+    )
+    val searchFormatHintMessage by rememberUpdatedState(
+        stringResource(com.adsamcik.tracker.map.R.string.map_search_invalid_format)
+    )
+
     LaunchedEffect(locationManager, hasLocationPermission, overlayMode, isMapVisible, state.isFollowing) {
         if (!isMapVisible || !hasLocationPermission || overlayMode || !state.isFollowing) return@LaunchedEffect
         runCatchingCancellable {
@@ -904,8 +915,8 @@ fun MapScreen(
         store.dispatch(MapEvent.FollowCanceled)
         mapUiScope.launch {
             val result = snackbarHostState.showSnackbar(
-                message = context.getString(com.adsamcik.tracker.map.R.string.map_location_unavailable),
-                actionLabel = context.getString(com.adsamcik.tracker.map.R.string.map_location_retry),
+                message = locationUnavailableMessage,
+                actionLabel = locationRetryLabel,
                 withDismissAction = true,
                 duration = SnackbarDuration.Long,
             )
@@ -1030,7 +1041,7 @@ fun MapScreen(
                 is MapEffect.ShowSearchFormatHint -> launch {
                     runCatchingCancellable {
                         snackbarHostState.showSnackbar(
-                            context.getString(com.adsamcik.tracker.map.R.string.map_search_invalid_format)
+                            searchFormatHintMessage
                         )
                     }.getOrNull()
                 }

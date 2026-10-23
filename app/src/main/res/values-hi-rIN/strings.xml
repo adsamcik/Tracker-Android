@@ -341,4 +341,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">इस फ़ाइल में बैकग्राउंड के कदम, गतिविधि की समयावधियाँ, तारीखें, कवरेज में छूटा डेटा और सहेजा गया समय क्षेत्र है। इसमें मार्ग के निर्देशांक नहीं हैं। केवल तभी जारी रखें जब आपको गंतव्य पर भरोसा हो।</string>
     <string name="export_sensitivity_portable_activity_message">इस फ़ाइल में दर्ज किए गए गति अंतराल, समयावधियाँ और कवरेज की जानकारी है। इसमें मार्ग के निर्देशांक नहीं हैं। केवल तभी जारी रखें जब आपको गंतव्य पर भरोसा हो।</string>
     <string name="export_sensitivity_portable_pressure_message">इस फ़ाइल में दबाव के माप और समयावधियाँ हैं जिनसे आसपास के वातावरण की जानकारी मिल सकती है। इसमें मार्ग के निर्देशांक या कैलिब्रेट की गई ऊँचाई नहीं है। केवल तभी जारी रखें जब आपको गंतव्य पर भरोसा हो।</string>
+    <string name="settings_activity_source_summary">पूरे दिन पैदल चलना, साइकिल चलाना, गाड़ी चलाना और स्थिर रहना रिकॉर्ड करता है।</string>
+    <string name="settings_ambient_activity_ready">गतिविधि रिकॉर्ड करने के लिए तैयार है।</string>
+    <string name="settings_ambient_pressure_ready">वायुदाब रिकॉर्ड करने के लिए तैयार है।</string>
+    <string name="settings_pressure_host_unavailable">बैकग्राउंड में वायुदाब रिकॉर्ड करना शुरू नहीं हो सका।</string>
 </resources>

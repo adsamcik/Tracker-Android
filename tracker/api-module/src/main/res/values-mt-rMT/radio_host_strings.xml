@@ -6,4 +6,5 @@
     <string name="notification_background_source_wifi">Wi-Fi</string>
     <string name="notification_background_source_cell">Netwerk mobbli</string>
     <string name="notification_background_source_other">Traċċar</string>
+    <string name="notification_background_source_pressure">Pressjoni tal-arja</string>
 </resources>

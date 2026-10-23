@@ -341,4 +341,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">このファイルにはバックグラウンドの歩数、活動時間の区間、日付、欠測、保存済みのタイムゾーンが含まれます。 ルートの座標は含まれません。保存先を信頼できる場合のみ続行してください。</string>
     <string name="export_sensitivity_portable_activity_message">このファイルには記録した移動区間、時間区間、記録範囲の情報が含まれます。 ルートの座標は含まれません。保存先を信頼できる場合のみ続行してください。</string>
     <string name="export_sensitivity_portable_pressure_message">このファイルには気圧測定値と時間区間が含まれ、周辺環境の情報が分かる可能性があります。 ルートの座標や補正済みの標高は含まれません。保存先を信頼できる場合のみ続行してください。</string>
+    <string name="settings_activity_source_summary">一日を通して歩行、自転車での移動、運転、静止を記録します。</string>
+    <string name="settings_ambient_activity_ready">アクティビティの記録準備ができています。</string>
+    <string name="settings_ambient_pressure_ready">気圧の記録準備ができています。</string>
+    <string name="settings_pressure_host_unavailable">バックグラウンドで気圧の記録を開始できませんでした。</string>
 </resources>

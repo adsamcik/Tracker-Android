@@ -341,4 +341,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">Ez a fájl háttérben gyűjtött lépésszámokat, aktivitási időintervallumokat, dátumokat, lefedettségi hiányokat és mentett időzónát tartalmaz. Nem tartalmaz útvonal-koordinátákat. Csak akkor folytassa, ha megbízik a célhelyben.</string>
     <string name="export_sensitivity_portable_activity_message">Ez a fájl rögzített mozgási szakaszokat, időintervallumokat és lefedettségi információkat tartalmaz. Nem tartalmaz útvonal-koordinátákat. Csak akkor folytassa, ha megbízik a célhelyben.</string>
     <string name="export_sensitivity_portable_pressure_message">Ez a fájl nyomásméréseket és időintervallumokat tartalmaz, amelyek a környezetről árulhatnak el információkat. Nem tartalmaz útvonal-koordinátákat vagy kalibrált magasságot. Csak akkor folytassa, ha megbízik a célhelyben.</string>
+    <string name="settings_activity_source_summary">Egész nap rögzíti a gyaloglást, kerékpározást, autózást és mozdulatlanságot.</string>
+    <string name="settings_ambient_activity_ready">Készen áll a tevékenység rögzítésére.</string>
+    <string name="settings_ambient_pressure_ready">Készen áll a légnyomás rögzítésére.</string>
+    <string name="settings_pressure_host_unavailable">A légnyomás háttérben történő rögzítését nem sikerült elindítani.</string>
 </resources>

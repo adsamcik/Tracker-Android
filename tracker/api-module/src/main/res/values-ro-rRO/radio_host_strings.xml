@@ -6,4 +6,5 @@
     <string name="notification_background_source_wifi">Wi-Fi</string>
     <string name="notification_background_source_cell">Rețea mobilă</string>
     <string name="notification_background_source_other">Urmărire</string>
+    <string name="notification_background_source_pressure">Presiune atmosferică</string>
 </resources>

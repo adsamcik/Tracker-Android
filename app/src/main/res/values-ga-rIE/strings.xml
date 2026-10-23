@@ -341,4 +341,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">Tá céimeanna sa chúlra, tréimhsí gníomhaíochta, dátaí, bearnaí clúdaigh agus crios ama sábháilte sa chomhad seo. Níl comhordanáidí bealaigh ann. Ná lean ar aghaidh ach má tá muinín agat as an gceann scríbe.</string>
     <string name="export_sensitivity_portable_activity_message">Tá tréimhsí gluaiseachta taifeadta, tréimhsí ama agus eolas clúdaigh sa chomhad seo. Níl comhordanáidí bealaigh ann. Ná lean ar aghaidh ach má tá muinín agat as an gceann scríbe.</string>
     <string name="export_sensitivity_portable_pressure_message">Tá tomhais brú agus tréimhsí ama sa chomhad seo a d\'fhéadfadh eolas faoin timpeallacht a nochtadh. Níl comhordanáidí bealaigh ná airde chalabraithe ann. Ná lean ar aghaidh ach má tá muinín agat as an gceann scríbe.</string>
+    <string name="settings_activity_source_summary">Taifeadann sé siúl, rothaíocht, tiomáint agus tréimhsí gan ghluaiseacht i rith an lae.</string>
+    <string name="settings_ambient_activity_ready">Réidh le gníomhaíocht a thaifeadadh.</string>
+    <string name="settings_ambient_pressure_ready">Réidh le brú an aeir a thaifeadadh.</string>
+    <string name="settings_pressure_host_unavailable">Níorbh fhéidir taifeadadh bhrú an aeir sa chúlra a thosú.</string>
 </resources>

@@ -153,7 +153,7 @@ class SourceBrokerDemandContractTest : SourceBrokerRoomTestFixture() {
 				elapsedRealtimeNanos = 100L,
 				wallTimeMs = 200L,
 			)
-		}.message shouldBe "Pressure supports direct session capture demand only"
+		}.message shouldBe "Pressure supports recording purposes only"
 		database.sourceBrokerDao().demandHistory(
 			subject.sessionConsumerId("pressure-session"),
 		).shouldBeEmpty()

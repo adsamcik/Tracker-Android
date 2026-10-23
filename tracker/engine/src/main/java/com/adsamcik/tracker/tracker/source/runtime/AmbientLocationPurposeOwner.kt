@@ -262,7 +262,7 @@ internal class AmbientLocationPurposeOwner @Inject constructor(
 				backend = LocationBackend.FUSED,
 				mode = LocationMode.PASSIVE,
 				requestedIntervalMs = demand.desiredLatencyMs.coerceAtLeast(1L),
-				minimumUpdateIntervalMs = 0L,
+				minimumUpdateIntervalMs = demand.desiredLatencyMs.coerceAtLeast(1L),
 				minimumDisplacementMeters = 0f,
 				maximumBatchDelayMs = 0L,
 				preciseLocationAvailable = ContextCompat.checkSelfPermission(context,
@@ -293,7 +293,7 @@ internal class AmbientLocationPurposeOwner @Inject constructor(
 				severeThermalPressure = Build.VERSION.SDK_INT >= 29 &&
 					(power?.currentThermalStatus ?: 0) >= PowerManager.THERMAL_STATUS_SEVERE,
 				motionProfile = motion.policy.value.acquisitionProfile, locationProfileLevel = level,
-				batteryPressure = battery.currentPressure()),
+				batteryPressure = battery.currentPressure(), allDayLocation = true),
 		).applicablePlans[SourceKind.LOCATION] as? LocationPlan
 		return plan
 	}

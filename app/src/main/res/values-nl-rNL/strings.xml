@@ -341,4 +341,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">Dit bestand bevat achtergrondstappen, activiteitsintervallen, datums, dekkingsgaten en de opgeslagen tijdzone. Het bevat geen routecoördinaten. Ga alleen verder als je de bestemming vertrouwt.</string>
     <string name="export_sensitivity_portable_activity_message">Dit bestand bevat opgenomen bewegingsintervallen, tijdsintervallen en informatie over de dekking. Het bevat geen routecoördinaten. Ga alleen verder als je de bestemming vertrouwt.</string>
     <string name="export_sensitivity_portable_pressure_message">Dit bestand bevat drukmetingen en tijdsintervallen die informatie over de omgeving kunnen onthullen. Het bevat geen routecoördinaten of gekalibreerde hoogte. Ga alleen verder als je de bestemming vertrouwt.</string>
+    <string name="settings_activity_source_summary">Registreert de hele dag lopen, fietsen, autorijden en stilstaan.</string>
+    <string name="settings_ambient_activity_ready">Klaar om activiteiten te registreren.</string>
+    <string name="settings_ambient_pressure_ready">Klaar om luchtdruk te registreren.</string>
+    <string name="settings_pressure_host_unavailable">Registratie van luchtdruk op de achtergrond kon niet starten.</string>
 </resources>

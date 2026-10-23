@@ -208,7 +208,8 @@ internal class AmbientSensorPurposeOwner @Inject constructor(
 		}
 		val contract = demand.toSourceDemandContract()
 		val power = context.getSystemService(PowerManager::class.java)
-		return resolver.resolve(desired.copy(plans = mapOf(source to desired.plans.getValue(source))),
+		return resolver.resolve(desired.copy(plans = mapOf(source to desired.plans.getValue(source)),
+			sourcePreferences = desired.sourcePreferences.filterKeys { it == source }),
 			listOf(SourceDemand(source, contract.maximumProviderItemAgeMs, contract.targetPlanningLatencyMs,
 				EvidenceQuality.ANY, DemandReason.POLICY, contract.floor, contract.requestedDeliveryLatencyMs,
 				contract.adaptiveReductionAllowed)),

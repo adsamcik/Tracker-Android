@@ -25,6 +25,8 @@ import com.adsamcik.tracker.tracker.source.model.satisfies
 import javax.inject.Inject
 import com.adsamcik.tracker.tracker.policy.BatteryPressure
 
+private const val BALANCED_LOCATION_LEVEL = 3
+
 data class SourceConstraint(
 	val hardwareAvailable: Boolean = true,
 	val providerAvailable: Boolean = true,
@@ -42,6 +44,8 @@ data class PlanResolutionContext(
 	val locationProfileLevel: Int? = null,
 	val locationLiveFocus: Boolean = false,
 	val batteryPressure: BatteryPressure = BatteryPressure.NONE,
+	/** Only the independent all-day Location owner opts into background cadence reductions. */
+	val allDayLocation: Boolean = false,
 )
 
 data class ResolvedAcquisitionPlan(
@@ -96,7 +100,8 @@ class SourcePlanResolver @Inject constructor() {
 						if (context.locationLiveFocus) applicable else {
 							val level = context.locationProfileLevel
 							if (level == null) applicable else adaptiveLocationPlan(minOf(level,
-                                if (context.batteryPressure == BatteryPressure.STRONG) 1 else 3),
+                                if (context.batteryPressure == BatteryPressure.STRONG) 1
+								else if (context.allDayLocation) 2 else 3),
 								applicable.revision, applicable.backend, applicable.preciseLocationAvailable)
 						}
 					} else if (applicable.mode == LocationMode.HIGH_ACCURACY) {
@@ -160,7 +165,9 @@ class SourcePlanResolver @Inject constructor() {
 			val candidate = if (!hardBlocked && floorSatisfied && adaptationAllowed) {
 				if (plan is LocationPlan && plan.adaptiveProfileVersion == 1) {
 					// Assistance is optional: stationary reduction always retains an active request.
-					if (context.motionProfile.stationary) plan.adaptiveStationary() else plan
+					if (context.allDayLocation && !context.locationLiveFocus) {
+						plan.adaptiveAllDay(context.motionProfile, context.locationProfileLevel)
+					} else if (context.motionProfile.stationary) plan.adaptiveStationary() else plan
                 } else if (desired.balanceProfileVersion != null) {
                     when {
                         context.motionProfile.stationary && plan is WifiPlan &&
@@ -311,12 +318,36 @@ class SourcePlanResolver @Inject constructor() {
 		probeDurationMs = null,
 	)
 
-	private fun LocationPlan.adaptiveStationary() = copy(
+	private fun LocationPlan.adaptiveAllDay(profile: CollectionAcquisitionProfile, level: Int?): LocationPlan {
+		if (!enabled || level == null) return this
+		if (profile.stationary) {
+			return adaptiveAllDayStationary(level)
+		}
+		// Unknown motion keeps useful high-accuracy fixes; absence of a fix never implies stillness.
+		return if (!profile.moving && level == BALANCED_LOCATION_LEVEL) {
+			copy(requestedIntervalMs = maxOf(requestedIntervalMs, 30_000L),
+				minimumUpdateIntervalMs = maxOf(minimumUpdateIntervalMs, 15_000L),
+				maximumBatchDelayMs = maxOf(maximumBatchDelayMs, 60_000L))
+		} else this
+	}
+
+	private fun LocationPlan.adaptiveAllDayStationary(level: Int) = when (level) {
+		1 -> adaptiveStationary(intervalMs = 120_000L, minimumIntervalMs = 60_000L, batchDelayMs = 240_000L)
+		2 -> adaptiveStationary(intervalMs = 90_000L, minimumIntervalMs = 45_000L, batchDelayMs = 180_000L)
+		// Balanced and higher retain Wi-Fi's existing 30-second Location bracketing cadence.
+		else -> adaptiveStationary()
+	}
+
+	private fun LocationPlan.adaptiveStationary(
+		intervalMs: Long = 30_000L,
+		minimumIntervalMs: Long = 15_000L,
+		batchDelayMs: Long = 60_000L,
+	) = copy(
 		mode = if (mode == LocationMode.HIGH_ACCURACY) LocationMode.BALANCED else mode,
-		requestedIntervalMs = maxOf(requestedIntervalMs, 30_000L),
-		minimumUpdateIntervalMs = maxOf(minimumUpdateIntervalMs, 15_000L),
+		requestedIntervalMs = maxOf(requestedIntervalMs, intervalMs),
+		minimumUpdateIntervalMs = maxOf(minimumUpdateIntervalMs, minimumIntervalMs),
 		minimumDisplacementMeters = 0f,
-		maximumBatchDelayMs = maxOf(maximumBatchDelayMs, 60_000L),
+		maximumBatchDelayMs = maxOf(maximumBatchDelayMs, batchDelayMs),
 		probeDurationMs = null,
 	)
 

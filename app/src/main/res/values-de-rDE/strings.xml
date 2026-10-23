@@ -341,4 +341,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">Diese Datei enthält Hintergrundschritte, Aktivitätsintervalle, Daten, Abdeckungslücken und die gespeicherte Zeitzone. Sie enthält keine Routenkoordinaten. Fahre nur fort, wenn du dem Ziel vertraust.</string>
     <string name="export_sensitivity_portable_activity_message">Diese Datei enthält erfasste Bewegungsintervalle, Zeitintervalle und Angaben zur Abdeckung. Sie enthält keine Routenkoordinaten. Fahre nur fort, wenn du dem Ziel vertraust.</string>
     <string name="export_sensitivity_portable_pressure_message">Diese Datei enthält Druckmessungen und Zeitintervalle, die Hinweise auf die Umgebung geben können. Sie enthält keine Routenkoordinaten oder kalibrierte Höhenangaben. Fahre nur fort, wenn du dem Ziel vertraust.</string>
+    <string name="settings_activity_source_summary">Zeichnet Gehen, Radfahren, Autofahren und Ruhephasen den ganzen Tag über auf.</string>
+    <string name="settings_ambient_activity_ready">Bereit zur Aktivitätsaufzeichnung.</string>
+    <string name="settings_ambient_pressure_ready">Bereit zur Luftdruckaufzeichnung.</string>
+    <string name="settings_pressure_host_unavailable">Die Luftdruckaufzeichnung im Hintergrund konnte nicht gestartet werden.</string>
 </resources>

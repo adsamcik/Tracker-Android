@@ -345,4 +345,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">Acest fișier conține pași din fundal, intervale de activitate, date, goluri de acoperire și fusul orar salvat. Nu conține coordonatele traseului. Continuați numai dacă aveți încredere în destinație.</string>
     <string name="export_sensitivity_portable_activity_message">Acest fișier conține intervale de mișcare înregistrate, intervale de timp și informații despre acoperire. Nu conține coordonatele traseului. Continuați numai dacă aveți încredere în destinație.</string>
     <string name="export_sensitivity_portable_pressure_message">Acest fișier conține măsurători ale presiunii și intervale de timp care pot dezvălui informații despre mediu. Nu conține coordonatele traseului sau altitudine calibrată. Continuați numai dacă aveți încredere în destinație.</string>
+    <string name="settings_activity_source_summary">Înregistrează mersul pe jos, ciclismul, condusul și perioadele fără mișcare pe tot parcursul zilei.</string>
+    <string name="settings_ambient_activity_ready">Înregistrarea activității este pregătită.</string>
+    <string name="settings_ambient_pressure_ready">Înregistrarea presiunii atmosferice este pregătită.</string>
+    <string name="settings_pressure_host_unavailable">Nu s-a putut porni înregistrarea presiunii atmosferice în fundal.</string>
 </resources>

@@ -164,4 +164,6 @@
     <string name="history_view_trip_on_map">Prikaži putovanje na karti</string>
     <string name="stats_heatmap_title">Aktivnost</string>
     <string name="stats_recorded_partial_value">%1$s · djelomično</string>
+    <string name="history_activity_started">Početak: %1$s</string>
+    <string name="history_activity_ended">Završetak: %1$s</string>
 </resources>

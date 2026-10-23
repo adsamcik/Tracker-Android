@@ -998,11 +998,10 @@ class SourceRegistrationRepository @Inject constructor(
 			return null
 		}
 
-		val refreshed = current.copy(
-			appliedRevision = appliedRevision,
-			updatedAtMs = updatedAtMs,
-		)
-		dao.replace(refreshed)
+		// The pointer records configuration/progress changes, not periodic liveness checks.
+		val refreshed = if (current.appliedRevision == appliedRevision) current else {
+			current.copy(appliedRevision = appliedRevision, updatedAtMs = updatedAtMs).also { dao.replace(it) }
+		}
 		val authorization = appendAuthorizationIfChanged(
 			source = source,
 			registrationGeneration = current.registrationGeneration,

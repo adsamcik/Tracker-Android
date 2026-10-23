@@ -886,6 +886,55 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
+	fun `unchanged Location refresh preserves its pointer until the plan revision changes`(): Unit = runTest {
+		database.sourceBrokerDao().insertDemands(listOf(demand("location-capture", "session:location",
+			SourceBrokerPurpose.SESSION_CAPTURE, "location", 1L, true, SourceKind.LOCATION)))
+		val original = subject.begin(SourceKind.LOCATION, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		subject.markAccepted(original, 110L, 110L)
+		val before = requireNotNull(database.sourceRegistrationStateDao().get(
+			SourceKind.LOCATION.stableCode, original.ownerScope))
+
+		val unchanged = requireNotNull(subject.refreshActiveAuthorization(SourceKind.LOCATION,
+			original, 1L, PHYSICAL_CONFIG, 200L, 200L))
+
+		unchanged.state shouldBe before
+		unchanged.authorization shouldBe original.authorization
+		database.sourceRegistrationStateDao().get(SourceKind.LOCATION.stableCode, original.ownerScope) shouldBe before
+		val revised = requireNotNull(subject.refreshActiveAuthorization(SourceKind.LOCATION,
+			unchanged, 2L, PHYSICAL_CONFIG, 300L, 300L))
+		revised.state.appliedRevision shouldBe 2L
+		revised.state.updatedAtMs shouldBe 300L
+		revised.authorization shouldBe original.authorization
+		revised.state.registrationGeneration shouldBe original.state.registrationGeneration
+	}
+
+	@Test
+	fun `same plan refresh still publishes new membership and rejects a changed data epoch`(): Unit = runTest {
+		val capture = demand("location-capture", "session:location", SourceBrokerPurpose.SESSION_CAPTURE,
+			"location", 1L, true, SourceKind.LOCATION)
+		database.sourceBrokerDao().insertDemands(listOf(capture))
+		val original = subject.begin(SourceKind.LOCATION, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		subject.markAccepted(original, 110L, 110L)
+		val before = requireNotNull(database.sourceRegistrationStateDao().get(
+			SourceKind.LOCATION.stableCode, original.ownerScope))
+		val sibling = demand("location-sibling", "session:sibling", SourceBrokerPurpose.SESSION_CAPTURE,
+			"sibling", 1L, true, SourceKind.LOCATION)
+		database.sourceBrokerDao().insertDemands(listOf(sibling))
+
+		val refreshed = requireNotNull(subject.refreshActiveAuthorization(SourceKind.LOCATION,
+			original, 1L, PHYSICAL_CONFIG, 200L, 200L))
+
+		refreshed.authorization.authorizationRevision shouldBe original.authorization.authorizationRevision + 1L
+		refreshed.authorization.authorizedMembers.map { it.demandId }.toSet() shouldBe
+			setOf(capture.demandId, sibling.demandId)
+		refreshed.state.appliedRevision shouldBe original.state.appliedRevision
+		refreshed.state.updatedAtMs shouldBe before.updatedAtMs
+		lifecycleStore.beginFullDeletion(250L)
+		subject.refreshActiveAuthorization(SourceKind.LOCATION, refreshed, 1L,
+			PHYSICAL_CONFIG, 300L, 300L) shouldBe null
+	}
+
+	@Test
 	fun `active authorization refresh never reserves an incompatible replacement`(): Unit = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),

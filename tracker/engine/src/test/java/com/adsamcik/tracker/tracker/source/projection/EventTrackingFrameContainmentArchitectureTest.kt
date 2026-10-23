@@ -40,7 +40,7 @@ class EventTrackingFrameContainmentArchitectureTest {
 	}
 
 	@Test
-	fun `live production projections contain only source owned automation and background radio`() {
+	fun `live production projections contain only source owned automation and background sources`() {
 		val module = projectRoot.resolve(
 			"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/SourcePipelineModule.kt",
 		).readText()
@@ -53,6 +53,8 @@ class EventTrackingFrameContainmentArchitectureTest {
 			"provideActivityAutomationProjection",
 			"provideAmbientWifiProjection",
 			"provideAmbientCellProjection",
+			"provideAllDayActivityProjection",
+			"provideAllDayPressureProjection",
 		), projectionProviders)
 		assertFalse("provideEventTrackingFrameProjection" in module)
 		assertFalse("provideLocationDomainProjection" in module)

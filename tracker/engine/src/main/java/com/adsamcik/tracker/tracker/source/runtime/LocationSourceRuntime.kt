@@ -536,19 +536,17 @@ class LocationSourceRuntime @Inject internal constructor(
 				refreshed.state.registrationGeneration != activeRegistration.state.registrationGeneration ||
 				refreshed.physicalConfigurationFingerprint != activeRegistration.physicalConfigurationFingerprint
 			) return null
-			if (runCatchingNonCancellation { registrations.recordLocationPlan(refreshed, effectivePlan) }.isFailure) {
+			val authorizationChanged = refreshed.authorization.authorizationRevision !=
+				activeContext.attribution.authorizationRevision
+			if ((activePlan != effectivePlan || authorizationChanged) &&
+				runCatchingNonCancellation { registrations.recordLocationPlan(refreshed, effectivePlan) }.isFailure) {
 				return null
 			}
 			val switched = synchronized(callbackLock) {
 				if (acceptingCallbacks || callbackToken !== activeToken || registration !== activeRegistration) {
 					false
 				} else {
-					registration = refreshed
-					currentPlan = effectivePlan
-					currentSink = sink
 					val sameAttribution = refreshed.toLocationDeliveryAttribution() == activeContext.attribution
-					val authorizationChanged = refreshed.authorization.authorizationRevision !=
-						activeContext.attribution.authorizationRevision
 					val nextContext = refreshed.toLocationCallbackContext(
 						plan = effectivePlan,
 						sink = sink,
@@ -562,8 +560,15 @@ class LocationSourceRuntime @Inject internal constructor(
 							else -> maxOf(activeContext.minimumObservedElapsedRealtimeNanos, refreshBoundary)
 						},
 					)
-					callbackContexts = refreshLocationCallbackContexts(callbackContexts, nextContext, refreshBoundary)
-					callbackContext = callbackContexts.last()
+					val unchanged = activePlan == effectivePlan && currentSink === sink && ownerClaim == claim &&
+						activeContext == nextContext
+					registration = refreshed
+					currentPlan = effectivePlan
+					currentSink = sink
+					if (!unchanged) {
+						callbackContexts = refreshLocationCallbackContexts(callbackContexts, nextContext, refreshBoundary)
+						callbackContext = callbackContexts.last()
+					}
 					acceptingCallbacks = true
 					true
 				}

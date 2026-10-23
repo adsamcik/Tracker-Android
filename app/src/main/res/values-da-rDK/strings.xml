@@ -341,4 +341,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">Denne fil indeholder skridttal fra baggrunden, aktivitetsintervaller, datoer, dækningshuller og gemt tidszone. Den indeholder ikke rutekoordinater. Fortsæt kun, hvis du har tillid til destinationen.</string>
     <string name="export_sensitivity_portable_activity_message">Denne fil indeholder registrerede bevægelsesintervaller, tidsintervaller og oplysninger om dækning. Den indeholder ikke rutekoordinater. Fortsæt kun, hvis du har tillid til destinationen.</string>
     <string name="export_sensitivity_portable_pressure_message">Denne fil indeholder trykmålinger og tidsintervaller, der kan afsløre oplysninger om omgivelserne. Den indeholder ikke rutekoordinater eller kalibreret højde. Fortsæt kun, hvis du har tillid til destinationen.</string>
+    <string name="settings_activity_source_summary">Registrerer gang, cykling, kørsel og stilstand hele dagen.</string>
+    <string name="settings_ambient_activity_ready">Klar til at registrere aktivitet.</string>
+    <string name="settings_ambient_pressure_ready">Klar til at registrere lufttryk.</string>
+    <string name="settings_pressure_host_unavailable">Registrering af lufttryk i baggrunden kunne ikke starte.</string>
 </resources>

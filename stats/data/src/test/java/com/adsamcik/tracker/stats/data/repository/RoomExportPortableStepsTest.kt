@@ -1534,36 +1534,52 @@ class RoomExportPortableStepsTest {
 
 	@Test
 	fun `latest-state bound accepts 2048 and rejects 2049 before emission`() = runTest(timeout = 5.minutes) {
-		insertLogicalSession(LOGICAL_ONE, startMs = 1_000L, endMs = 10_000L)
-		insertSettledRun(
-			logicalId = LOGICAL_ONE,
-			runId = RUN_ONE,
-			segmentId = 41L,
-			manifestRevision = 1L,
-			startMs = 1_000L,
-			endMs = 10_000L,
-			facts = (1L..StepsPortableFormatV1.MAX_FACTS_PER_RUN).map { ordinal ->
-				FactSeed("fact-$ordinal", ordinal, count = 1L)
-			},
-		)
-
-		exporter.export(request(toMs = 11_000L)) {} shouldBe ExportPortableStepsResult.Exported(1)
-		val overflowFact = fact(
-			logicalId = LOGICAL_ONE,
-			runId = RUN_ONE,
-			manifestRevision = 1L,
-			seed = FactSeed("fact-2049", 2_049L, count = 1L),
-			startMs = 1_000L,
-		)
-		authenticateLiveFact(overflowFact)
-		database.stepFactRevisionDao().insert(overflowFact)
-		val emitted = mutableListOf<Any>()
-
-		exporter.export(request(toMs = 11_000L)) { emitted += it } shouldBe
-			ExportPortableStepsResult.Unverifiable(
-				PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW,
+		val startedAtNanos = System.nanoTime()
+		var phase = "seeding 2048 facts"
+		var fixtureMs: Long? = null
+		var acceptedAtMs: Long? = null
+		try {
+			insertLogicalSession(LOGICAL_ONE, startMs = 1_000L, endMs = 10_000L)
+			StepsCountDomainStore(database).withValidatedWriteBatch { countDomainStore ->
+				insertSettledRun(
+					logicalId = LOGICAL_ONE,
+					runId = RUN_ONE,
+					segmentId = 41L,
+					manifestRevision = 1L,
+					startMs = 1_000L,
+					endMs = 10_000L,
+					facts = (1L..StepsPortableFormatV1.MAX_FACTS_PER_RUN).map { ordinal ->
+						FactSeed("fact-$ordinal", ordinal, count = 1L)
+					},
+					countDomainStore = countDomainStore,
+				)
+			}
+			fixtureMs = (System.nanoTime() - startedAtNanos) / 1_000_000L
+			phase = "exporting 2048 facts"
+			exporter.export(request(toMs = 11_000L)) {} shouldBe ExportPortableStepsResult.Exported(1)
+			acceptedAtMs = (System.nanoTime() - startedAtNanos) / 1_000_000L
+			phase = "adding and rejecting fact 2049"
+			val overflowFact = fact(
+				logicalId = LOGICAL_ONE,
+				runId = RUN_ONE,
+				manifestRevision = 1L,
+				seed = FactSeed("fact-2049", 2_049L, count = 1L),
+				startMs = 1_000L,
 			)
-		emitted shouldBe emptyList()
+			authenticateLiveFact(overflowFact)
+			database.stepFactRevisionDao().insert(overflowFact)
+			val emitted = mutableListOf<Any>()
+			exporter.export(request(toMs = 11_000L)) { emitted += it } shouldBe
+				ExportPortableStepsResult.Unverifiable(
+					PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW,
+				)
+			emitted shouldBe emptyList()
+			phase = "completed"
+		} finally {
+			val totalMs = (System.nanoTime() - startedAtNanos) / 1_000_000L
+			System.err.println("Steps latest-state boundary $phase after ${totalMs}ms; " +
+				"fixtureMs=$fixtureMs acceptedAtMs=$acceptedAtMs")
+		}
 	}
 
 	@Test
@@ -1710,7 +1726,7 @@ class RoomExportPortableStepsTest {
 
 	@Test
 	@Suppress("LongMethod")
-	fun `query batching stays bounded across the 400 identity boundary`() = runTest {
+	fun `query batching stays bounded across the 400 identity boundary`() = runTest(timeout = 5.minutes) {
 		val startedAtNanos = System.nanoTime()
 		var phase = "opening counting database"
 		var fixtureFinishedAtNanos = 0L
@@ -1770,29 +1786,28 @@ class RoomExportPortableStepsTest {
 			}
 			completed = true
 		} finally {
-			if (!completed) {
-				queryDiagnostics.finish()
-				val failedAtNanos = System.nanoTime()
-				val elapsedMs = (failedAtNanos - startedAtNanos) / 1_000_000L
-				val fixtureMs = ((fixtureFinishedAtNanos.takeIf { it > 0L } ?: failedAtNanos) -
-					startedAtNanos) / 1_000_000L
-				val warmMs = if (fixtureFinishedAtNanos > 0L) {
-					((warmFinishedAtNanos.takeIf { it > 0L } ?: failedAtNanos) -
-						fixtureFinishedAtNanos) / 1_000_000L
-				} else { null }
-				val firstReadMs = if (warmFinishedAtNanos > 0L) {
-					((firstReadFinishedAtNanos.takeIf { it > 0L } ?: failedAtNanos) -
-						warmFinishedAtNanos) / 1_000_000L
-				} else { null }
-				val secondReadMs = if (firstReadFinishedAtNanos > 0L) {
-					(failedAtNanos - firstReadFinishedAtNanos) / 1_000_000L
-				} else { null }
-				System.err.println("Steps export batching failed during $phase after ${elapsedMs}ms; " +
-					"fixture=${fixtureMs}ms, warm=${warmMs}ms, 400-entry-read=${firstReadMs}ms, " +
-					"401-entry-read=${secondReadMs}ms; " +
-					"400-entry-queries=$firstReadQueryCount, current-phase-queries=${queryCount.get()}; " +
-					queryDiagnostics.summary())
-			}
+			queryDiagnostics.finish()
+			val failedAtNanos = System.nanoTime()
+			val elapsedMs = (failedAtNanos - startedAtNanos) / 1_000_000L
+			val fixtureMs = ((fixtureFinishedAtNanos.takeIf { it > 0L } ?: failedAtNanos) -
+				startedAtNanos) / 1_000_000L
+			val warmMs = if (fixtureFinishedAtNanos > 0L) {
+				((warmFinishedAtNanos.takeIf { it > 0L } ?: failedAtNanos) -
+					fixtureFinishedAtNanos) / 1_000_000L
+			} else { null }
+			val firstReadMs = if (warmFinishedAtNanos > 0L) {
+				((firstReadFinishedAtNanos.takeIf { it > 0L } ?: failedAtNanos) -
+					warmFinishedAtNanos) / 1_000_000L
+			} else { null }
+			val secondReadMs = if (firstReadFinishedAtNanos > 0L) {
+				(failedAtNanos - firstReadFinishedAtNanos) / 1_000_000L
+			} else { null }
+			val outcome = if (completed) { "completed" } else { "failed" }
+			System.err.println("Steps export batching $outcome during $phase after ${elapsedMs}ms; " +
+				"fixture=${fixtureMs}ms, warm=${warmMs}ms, 400-entry-read=${firstReadMs}ms, " +
+				"401-entry-read=${secondReadMs}ms; " +
+				"400-entry-queries=$firstReadQueryCount, current-phase-queries=${queryCount.get()}; " +
+				queryDiagnostics.summary())
 		}
 	}
 

@@ -341,4 +341,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">Dan il-fajl fih passi fl-isfond, intervalli ta\' attività, dati, lakuni fil-kopertura u żona tal-ħin salvata. Ma fihx koordinati tar-rotta. Kompli biss jekk tafda d-destinazzjoni.</string>
     <string name="export_sensitivity_portable_activity_message">Dan il-fajl fih intervalli ta\' moviment irreġistrati, intervalli ta\' ħin u informazzjoni dwar il-kopertura. Ma fihx koordinati tar-rotta. Kompli biss jekk tafda d-destinazzjoni.</string>
     <string name="export_sensitivity_portable_pressure_message">Dan il-fajl fih kejl tal-pressjoni u intervalli ta\' ħin li jistgħu jiżvelaw informazzjoni dwar l-ambjent. Ma fihx koordinati tar-rotta jew altitudni kkalibrata. Kompli biss jekk tafda d-destinazzjoni.</string>
+    <string name="settings_activity_source_summary">Jirreġistra l-mixi, iċ-ċikliżmu, is-sewqan u n-nuqqas ta’ moviment matul il-ġurnata.</string>
+    <string name="settings_ambient_activity_ready">Ir-reġistrazzjoni tal-attività hija lesta.</string>
+    <string name="settings_ambient_pressure_ready">Ir-reġistrazzjoni tal-pressjoni tal-arja hija lesta.</string>
+    <string name="settings_pressure_host_unavailable">Ir-reġistrazzjoni tal-pressjoni tal-arja fl-isfond ma setgħetx tibda.</string>
 </resources>

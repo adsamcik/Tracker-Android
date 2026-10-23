@@ -34,11 +34,15 @@ import com.adsamcik.tracker.tracker.source.runtime.pressureProviderDeliveryIdent
 import com.adsamcik.tracker.tracker.source.wifi.WifiWalQualificationAdapter
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
@@ -159,10 +163,11 @@ class SourceRecordingHistoricalAuthorityRoomTest {
 
 	@Test
 	fun `exact projection failure write invalidates lifecycle proof flow`() = runTest {
+		val firstEmission = CompletableDeferred<Unit>()
 		val emissions = async {
-			database.lifecycleInvalidations().take(2).toList()
+			database.lifecycleInvalidations().onEach { firstEmission.complete(Unit) }.take(2).toList()
 		}
-		runCurrent()
+		withContext(Dispatchers.Default) { withTimeout(5_000L) { firstEmission.await() } }
 
 		database.sourceProjectionStateDao().saveFailure(
 			SourceProjectionFailureEntity(
@@ -178,7 +183,7 @@ class SourceRecordingHistoricalAuthorityRoomTest {
 		database.invalidationTracker.refreshAsync()
 		runCurrent()
 
-		withTimeout(5_000L) { emissions.await() }.size shouldBe 2
+		withContext(Dispatchers.Default) { withTimeout(5_000L) { emissions.await() } }.size shouldBe 2
 	}
 
 	@Test
@@ -191,10 +196,11 @@ class SourceRecordingHistoricalAuthorityRoomTest {
 				updatedAtMs = 1L,
 			),
 		)
+		val firstEmission = CompletableDeferred<Unit>()
 		val emissions = async {
-			database.lifecycleInvalidations().take(2).toList()
+			database.lifecycleInvalidations().onEach { firstEmission.complete(Unit) }.take(2).toList()
 		}
-		runCurrent()
+		withContext(Dispatchers.Default) { withTimeout(5_000L) { firstEmission.await() } }
 
 		database.sourcePolicyDao().compareAndSetAuthority(
 			expectedBootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
@@ -207,7 +213,7 @@ class SourceRecordingHistoricalAuthorityRoomTest {
 		database.invalidationTracker.refreshAsync()
 		runCurrent()
 
-		withTimeout(5_000L) { emissions.await() }.size shouldBe 2
+		withContext(Dispatchers.Default) { withTimeout(5_000L) { emissions.await() } }.size shouldBe 2
 	}
 
 	private fun adapter(source: TrackingSource): SourceLifecycleProofAdapter =

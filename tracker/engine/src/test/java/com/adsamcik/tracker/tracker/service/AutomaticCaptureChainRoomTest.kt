@@ -345,14 +345,7 @@ class AutomaticCaptureChainRoomTest {
             batteryAwarePolicy = battery)
         previousApiEntryPoint = apiEntryPointField.get(TrackerServiceApi)
         val state = DefaultTrackerServiceController()
-        apiEntryPointField.set(TrackerServiceApi, Proxy.newProxyInstance(apiEntryPointField.type.classLoader,
-            arrayOf(apiEntryPointField.type)) { _, method, _ -> when (method.name) {
-                "trackingLifecycleCommandAuthority" -> commands
-                "trackingStartRequestCoordinator" -> starts
-                "manualTrackingStartReadinessReader" -> manualReadiness
-                "trackerStateReader" -> state
-                else -> error("Unexpected Start API dependency: ${method.name}")
-            } })
+        apiEntryPointField.set(TrackerServiceApi, startApiEntryPoint(manualReadiness, state))
         val backgroundEntryPoint = mockk<BackgroundTrackingApiEntryPoint> {
             every { currentTrackingPurposeAvailabilityReader() } returns reader
             every { lockManager() } returns locks
@@ -373,6 +366,19 @@ class AutomaticCaptureChainRoomTest {
         activityIngress = RoomActivityRecognitionEventIngress(ActivitySourceDeliveryFactory(), Provider { gate },
             database, epoch, ingress, ingress, recovery, motion, context)
     }
+
+    private fun startApiEntryPoint(
+        manualReadiness: ManualTrackingStartReadinessReader,
+        state: DefaultTrackerServiceController,
+    ): Any = Proxy.newProxyInstance(apiEntryPointField.type.classLoader,
+        arrayOf(apiEntryPointField.type)) { _, method, _ -> when (method.name) {
+            "trackingLifecycleCommandAuthority" -> commands
+            "trackingStartRequestCoordinator" -> starts
+            "manualTrackingStartReadinessReader" -> manualReadiness
+            "trackerStateReader" -> state
+            "trackerServiceController" -> state
+            else -> error("Unexpected Start API dependency: ${method.name}")
+        } }
 
     @After
     fun tearDown(): Unit = runBlocking {

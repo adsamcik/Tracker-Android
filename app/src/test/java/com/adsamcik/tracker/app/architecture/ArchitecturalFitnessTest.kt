@@ -485,8 +485,10 @@ class ArchitecturalFitnessTest {
 
 			buildList {
 				retiredModuleNames.forEach { moduleName ->
-					if (projectRoot.resolve("core/$moduleName").exists()) {
-						add("core/$moduleName -> retired module directory still exists")
+					val moduleDirectory = projectRoot.resolve("core/$moduleName")
+					// A deleted module can leave ignored Gradle output in a developer checkout.
+					if (moduleDirectory.listFiles().orEmpty().any { it.name != "build" }) {
+						add("core/$moduleName -> retired module content still exists")
 					}
 					if ("\":core:$moduleName\"" in settings) {
 						add("settings.gradle.kts -> retired :core:$moduleName module is included")
@@ -2697,10 +2699,11 @@ class ArchitecturalFitnessTest {
 		// over tech debt; intentionally short to make every entry visible.
 		private val LEGACY_DISPATCHERS_DIRECT_USE_ALLOWLIST = emptyList<String>()
 
-		// These tests deliberately verify native copies and optional-field mutation, which domain fakes cannot model.
+		// These tests exercise native provider delivery, copies and optional-field mutation that domain fakes cannot model.
 		private val PLATFORM_LOCATION_BOUNDARY_TESTS = setOf(
 			"tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationDeliveryAdmissionTest.kt",
 			"tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SharedUiLocationProviderTest.kt",
+			"tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt",
 		)
 
 		private val LEGACY_TEST_LOCATION_IMPORT_ALLOWLIST = listOf(

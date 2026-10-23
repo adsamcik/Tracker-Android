@@ -118,6 +118,21 @@ class CollectionMotionControllerTest {
 	}
 
 	@Test
+	fun `a delayed Location batch cannot renew motion but its fresh latest fix can`() {
+		subject.configureScope("background", "boot", 0L)
+		val delayed = candidate(location(2f), seconds(1), 1L).copy(
+			logicalTrackingId = null, serviceRunId = null, locationSpeedAccuracyMetersPerSecond = 0.05f,
+			receivedElapsedRealtimeNanos = seconds(61))
+		subject.onDurableEvidence(delayed)
+		subject.policy.value.motionState shouldBe CollectionMotionState.UNKNOWN
+		subject.policy.value.acquisitionProfile.moving shouldBe false
+		val fresh = delayed.copy(sourceSequence = 2L, observedElapsedRealtimeNanos = seconds(60))
+		subject.onDurableEvidence(fresh)
+		subject.policy.value.motionState shouldBe CollectionMotionState.MOVING
+		subject.policy.value.acquisitionProfile.moving shouldBe true
+	}
+
+	@Test
 	fun `missing or uncertain speed never proves stationary`() {
 		listOf(null, 0.5f, Float.NaN).forEach { uncertainty ->
 			subject.configureScope("scope-$uncertainty", "boot", 0L)

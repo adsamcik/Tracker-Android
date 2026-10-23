@@ -177,7 +177,7 @@ class TrackingRolloutStateTest {
 
 	@Test
 	fun `all-day products are independent of manual and automatic session reachability`() {
-		val sources = setOf(SourceKind.LOCATION, SourceKind.STEPS, SourceKind.WIFI, SourceKind.CELL)
+		val sources = SourceKind.entries.toSet()
 		for (mode in setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE, CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE)) {
 			val state = TrackingRolloutState.eventCanonical(sources,
 				captureModes = sources.associateWith { setOf(mode) })
@@ -193,8 +193,9 @@ class TrackingRolloutStateTest {
 	}
 
 	@Test
-	fun `canonical Activity and Pressure do not gain unsupported all-day products`() {
-		val state = TrackingRolloutState.eventCanonical(SourceKind.entries.toSet())
+	fun `control-only Activity and contained Pressure never gain all-day products`() {
+		val state = TrackingRolloutState.eventCanonical(setOf(SourceKind.STEPS),
+			controlSources = setOf(SourceKind.ACTIVITY))
 		state.isAmbientProductReachable(SourceKind.ACTIVITY) shouldBe false
 		state.isAmbientProductReachable(SourceKind.PRESSURE) shouldBe false
 	}

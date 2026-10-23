@@ -345,4 +345,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">Ova datoteka sadrži pozadinski broj koraka, intervale aktivnosti, datume, praznine u pokrivenosti i spremljenu vremensku zonu. Ne sadrži koordinate rute. Nastavite samo ako vjerujete odredištu.</string>
     <string name="export_sensitivity_portable_activity_message">Ova datoteka sadrži zabilježene intervale kretanja, vremenske intervale i podatke o pokrivenosti. Ne sadrži koordinate rute. Nastavite samo ako vjerujete odredištu.</string>
     <string name="export_sensitivity_portable_pressure_message">Ova datoteka sadrži mjerenja tlaka i vremenske intervale koji mogu otkriti informacije o okolini. Ne sadrži koordinate rute ni kalibriranu nadmorsku visinu. Nastavite samo ako vjerujete odredištu.</string>
+    <string name="settings_activity_source_summary">Bilježi hodanje, vožnju bicikla, vožnju automobila i mirovanje tijekom dana.</string>
+    <string name="settings_ambient_activity_ready">Spremno za bilježenje aktivnosti.</string>
+    <string name="settings_ambient_pressure_ready">Spremno za bilježenje tlaka zraka.</string>
+    <string name="settings_pressure_host_unavailable">Bilježenje tlaka zraka u pozadini nije se moglo pokrenuti.</string>
 </resources>

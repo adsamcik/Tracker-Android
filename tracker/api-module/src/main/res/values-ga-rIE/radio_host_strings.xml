@@ -6,4 +6,5 @@
     <string name="notification_background_source_wifi">Wi-Fi</string>
     <string name="notification_background_source_cell">Líonra soghluaiste</string>
     <string name="notification_background_source_other">Rianú</string>
+    <string name="notification_background_source_pressure">Brú an aeir</string>
 </resources>

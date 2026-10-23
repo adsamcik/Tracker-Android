@@ -161,4 +161,6 @@
     <string name="history_view_trip_on_map">Skatīt braucienu kartē</string>
     <string name="stats_heatmap_title">Aktivitāte</string>
     <string name="stats_recorded_partial_value">%1$s · daļēji</string>
+    <string name="history_activity_started">Sākums: %1$s</string>
+    <string name="history_activity_ended">Beigas: %1$s</string>
 </resources>

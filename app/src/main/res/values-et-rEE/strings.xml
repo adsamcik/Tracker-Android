@@ -341,4 +341,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">See fail sisaldab taustal kogutud sammude arve, aktiivsusvahemikke, kuupäevi, katvuse lünki ja salvestatud ajavööndit. See ei sisalda marsruudi koordinaate. Jätka ainult siis, kui usaldad sihtkohta.</string>
     <string name="export_sensitivity_portable_activity_message">See fail sisaldab salvestatud liikumisvahemikke, ajavahemikke ja katvuse teavet. See ei sisalda marsruudi koordinaate. Jätka ainult siis, kui usaldad sihtkohta.</string>
     <string name="export_sensitivity_portable_pressure_message">See fail sisaldab rõhumõõtmisi ja ajavahemikke, mis võivad avaldada teavet ümbruse kohta. See ei sisalda marsruudi koordinaate ega kalibreeritud kõrgust. Jätka ainult siis, kui usaldad sihtkohta.</string>
+    <string name="settings_activity_source_summary">Salvestab kõndimist, rattasõitu, autosõitu ja paigalolekut kogu päeva jooksul.</string>
+    <string name="settings_ambient_activity_ready">Valmis tegevust salvestama.</string>
+    <string name="settings_ambient_pressure_ready">Valmis õhurõhku salvestama.</string>
+    <string name="settings_pressure_host_unavailable">Õhurõhu salvestamist taustal ei saanud käivitada.</string>
 </resources>

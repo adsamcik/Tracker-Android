@@ -31,4 +31,6 @@
     <string name="wifilist_title_last_seen">Last seen</string>
     <string name="wifilist_title_ssid">SSID</string>
     <string name="stats_recorded_partial_value">%1$s · delvis</string>
+    <string name="history_activity_started">Startet: %1$s</string>
+    <string name="history_activity_ended">Avsluttet: %1$s</string>
 </resources>

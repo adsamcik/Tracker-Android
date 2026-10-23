@@ -341,4 +341,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">Tämä tiedosto sisältää tausta-askelmäärät, aktiivisuusjaksot, päivämäärät, kattavuusaukot ja tallennetun aikavyöhykkeen. Se ei sisällä reittikoordinaatteja. Jatka vain, jos luotat kohteeseen.</string>
     <string name="export_sensitivity_portable_activity_message">Tämä tiedosto sisältää tallennetut liikejaksot, aikavälit ja kattavuustiedot. Se ei sisällä reittikoordinaatteja. Jatka vain, jos luotat kohteeseen.</string>
     <string name="export_sensitivity_portable_pressure_message">Tämä tiedosto sisältää painemittauksia ja aikavälejä, jotka voivat paljastaa tietoja ympäristöstä. Se ei sisällä reittikoordinaatteja tai kalibroitua korkeutta. Jatka vain, jos luotat kohteeseen.</string>
+    <string name="settings_activity_source_summary">Tallentaa kävelyn, pyöräilyn, ajamisen ja paikallaanolon koko päivän ajalta.</string>
+    <string name="settings_ambient_activity_ready">Valmis tallentamaan aktiivisuutta.</string>
+    <string name="settings_ambient_pressure_ready">Valmis tallentamaan ilmanpainetta.</string>
+    <string name="settings_pressure_host_unavailable">Ilmanpaineen tallennusta taustalla ei voitu käynnistää.</string>
 </resources>

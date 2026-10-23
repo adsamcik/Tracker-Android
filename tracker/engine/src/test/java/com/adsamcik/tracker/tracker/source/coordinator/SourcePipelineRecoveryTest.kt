@@ -100,6 +100,38 @@ class SourcePipelineRecoveryTest {
 	}
 
 	@Test
+	fun `slow all-day Pressure recovery cannot block Activity and a failed drain retries only on a hint`() = runTest {
+		val projections = mockk<ProjectionDispatcher>()
+		val pressureEntered = CompletableDeferred<Unit>()
+		val releasePressure = CompletableDeferred<Unit>()
+		coEvery { projections.drainAmbientRadioProjection(SourceKind.PRESSURE, any()) } coAnswers {
+			pressureEntered.complete(Unit)
+			releasePressure.await()
+			throw IllegalStateException("Transient native storage failure")
+		}
+		coEvery { projections.drainAmbientRadioProjection(SourceKind.ACTIVITY, any()) } returns
+			CoordinatorDrainResult.Complete(2L, 1)
+		val recovery = radioRecovery(projections, backgroundScope)
+
+		recovery.requestPressureSessionFactDrain()
+		runCurrent()
+		pressureEntered.isCompleted shouldBe true
+		recovery.requestActivityCapturedFactDrain()
+		runCurrent()
+		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.ACTIVITY, any()) }
+		releasePressure.complete(Unit)
+		runCurrent()
+		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.PRESSURE, any()) }
+		coEvery { projections.drainAmbientRadioProjection(SourceKind.PRESSURE, any()) } returns
+			CoordinatorDrainResult.Complete(3L, 1)
+		recovery.requestPressureSessionFactDrain()
+		runCurrent()
+		coVerify(exactly = 2) { projections.drainAmbientRadioProjection(SourceKind.PRESSURE, any()) }
+		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
+		coVerify(exactly = 0) { activityLane.drainAvailable() }
+	}
+
+	@Test
 	fun `background radio hints conflate per source and never spin after a failure`() = runTest {
 		val projections = mockk<ProjectionDispatcher>()
 		val entered = CompletableDeferred<Unit>()
@@ -123,7 +155,7 @@ class SourcePipelineRecoveryTest {
 	}
 
 	@Test
-	fun `startup registers both background consumers before queuing independent retained drains`() = runTest {
+	fun `startup registers all background consumers before queuing independent retained drains`() = runTest {
 		val projections = mockk<ProjectionDispatcher>()
 		var registered = false
 		coEvery { legacy.recover() } returns LegacyV27ProjectionRecoveryResult.NotRequired
@@ -139,6 +171,8 @@ class SourcePipelineRecoveryTest {
 		runCurrent()
 		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) }
 		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.CELL, any()) }
+		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.ACTIVITY, any()) }
+		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.PRESSURE, any()) }
 		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
 	}
 

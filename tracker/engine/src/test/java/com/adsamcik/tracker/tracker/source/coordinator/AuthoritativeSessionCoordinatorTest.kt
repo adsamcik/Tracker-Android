@@ -59,6 +59,7 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
@@ -1788,19 +1789,44 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@Test
 	fun `reconfiguration retires and removes an obsolete source absent from the new plan`() = runRoomTest {
+		retireObsoleteSource(initialAdaptive = false, finalAdaptive = false)
+	}
+
+	@Test
+	fun `adaptive reconfiguration retires an absent source and preserves continuing quality`() = runRoomTest {
+		retireObsoleteSource(initialAdaptive = true, finalAdaptive = true)
+	}
+
+	@Test
+	fun `adopting adaptive quality while narrowing retires the legacy source`() = runRoomTest {
+		retireObsoleteSource(initialAdaptive = false, finalAdaptive = true)
+	}
+
+	private suspend fun retireObsoleteSource(initialAdaptive: Boolean, finalAdaptive: Boolean) {
+		val initial = if (initialAdaptive) {
+			adaptiveNarrowingPlan(1L, adopt = true)
+		} else {
+			stepsAndLocationPlan(1L, stepsEnabled = true)
+		}
 		val started = startCaptureRun(
 			startRequest().copy(
 				logicalTrackingId = "narrow-reconfigure-logical",
 				serviceRunId = "narrow-reconfigure-run",
-				plan = stepsAndLocationPlan(1L, stepsEnabled = true),
+				plan = initial,
 			),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
-		val requested = stepsAndLocationPlan(2L, stepsEnabled = true)
+		runtime.isActive shouldBe true
+		val requested = if (finalAdaptive) {
+			adaptiveNarrowingPlan(2L, adopt = !initialAdaptive)
+		} else {
+			stepsAndLocationPlan(2L, stepsEnabled = true)
+		}
 		val narrowPlan = requested.copy(
 			planId = "location-only-reconfiguration",
 			plans = mapOf(
 				SourceKind.LOCATION to requested.plans.getValue(SourceKind.LOCATION),
 			),
+			sourcePreferences = requested.sourcePreferences.filterKeys { it == SourceKind.LOCATION },
 		)
 
 		subject.reconfigure(
@@ -1821,15 +1847,37 @@ class AuthoritativeSessionCoordinatorTest {
 			applied.sourceKind shouldBe SourceKind.LOCATION.stableCode
 			applied.desiredRevision shouldBe narrowPlan.revision
 		}
-		RoomSourcePlanStore(database, SourcePlanCodec())
-			.loadApplied(narrowPlan.revision)
-			.shouldBeInstanceOf<AppliedPlanRead.Available>()
-			.plan.plans.keys shouldBe setOf(SourceKind.LOCATION)
+		val store = RoomSourcePlanStore(database, SourcePlanCodec())
+		val appliedPlan = store.loadApplied(narrowPlan.revision)
+			.shouldBeInstanceOf<AppliedPlanRead.Available>().plan
+		appliedPlan.plans.keys shouldBe setOf(SourceKind.LOCATION)
+		appliedPlan.balanceProfileVersion shouldBe narrowPlan.balanceProfileVersion
+		appliedPlan.sourcePreferences shouldBe narrowPlan.sourcePreferences
+		val desired = requireNotNull(store.load(narrowPlan.revision))
+		desired.plans.keys shouldBe setOf(SourceKind.LOCATION)
+		desired.sourcePreferences shouldBe narrowPlan.sourcePreferences
 		database.sourceSessionDao()
 			.manifestSources(started.logicalTrackingId, 2L)
 			.filter { binding -> binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
 			.map { binding -> binding.sourceKind }
 			.toSet() shouldBe setOf(SourceKind.LOCATION.stableCode)
+	}
+
+	private suspend fun adaptiveNarrowingPlan(revision: Long, adopt: Boolean): AcquisitionPlanRevision {
+		val settings = TrackingParamsState(legacySettingsMigrationCompleted = true,
+			balanceProfileVersion = 1, overallBalanceLevel = 2, locationProfileVersion = 1, locationBalanceLevel = 2)
+		val current = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot
+		val snapshot = if (adopt) {
+			policy.replaceCaptureSettings(current.revision, settings, "ADAPTIVE_NARROW_TEST")
+		} else {
+			current
+		}
+		val desired = SemanticAcquisitionPlanFactory().create(settings.copy(sourcePolicyRevision = snapshot.revision),
+			revision, revision * 1_000L, SourcePlanEnvironment(LocationBackend.FUSED, true, emptySet(),
+				liveSources = setOf(SourceKind.LOCATION)))
+		val sources = setOf(SourceKind.LOCATION, SourceKind.STEPS)
+		return desired.copy(plans = desired.plans.filterKeys { it in sources },
+			sourcePreferences = desired.sourcePreferences.filterKeys { it in sources })
 	}
 
 	@Test

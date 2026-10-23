@@ -1,6 +1,6 @@
 # Tracking Infrastructure Completion TODO
 
-Last updated: 2026-10-22
+Last updated: 2026-10-23
 
 [Current completion plan](convergence/2026-10-07/COMPLETION_PLAN.md) (2026-10-07) consolidates all outstanding work and is the
 current execution order. Complete the full scope, including source files and data-only backup/restore, before freezing. Preserve this ledger and its historical source receipts.
@@ -40,6 +40,33 @@ the existing [Dev control verification](convergence/2026-10-17/DEV_CONTROL_VERIF
 - [x] Pass the combined Dev build and focused regression/quality checks, complete independent review, and commit locally to `dev/v10` (enclosing local commit; no push).
 
 Implementation and host verification are complete: 918 reconciled focused tests pass, with clean Dev/Hilt/Room generation and scoped quality checks. The [dated record](convergence/2026-10-22/ALL_DAY_SENSORS.md) retains scope and limitations. This section does not claim real Activity/Pressure delivery or battery acceptance.
+
+## October 22 tracking reliability coverage
+
+- [x] Audit existing participation, ownership, admission, recovery, retained-data and power tests against the shared tracking flow.
+- [x] Author nine focused regression cases for all-day sensor refresh/adaptation, transactional replay, independent recovery and adaptive source retirement; extend Off and startup coverage.
+- [x] Fix plan/preference mismatches in shared all-day collection and narrowed session cleanup; preserve source isolation, continuing quality and legacy settings.
+- [x] Complete independent source review of the additions, production fix and narrow test-fixture/expectation repairs.
+- [x] Pass the affected diagnostic batch: 108 cases, including the seven initial new regressions and native Room invalidation checks, with no skips.
+- [x] Pass the three narrowing and two large-fixture diagnostic cases, retaining all data/query/page assertions and recording actual timings. Slow large-data reads remain a device-performance uncertainty.
+- [x] Pass full `ciCheck`, including `ciUnitTest`: 16,022 cases, zero failures/errors and seven existing skips; record scope and source hashes.
+- [x] Complete final independent evidence review and commit the verified test work and records locally to `dev/v10` (enclosing local commit).
+
+See [the reliability coverage record](convergence/2026-10-22/TRACKING_RELIABILITY.md).
+Real provider/background recovery and battery evidence remain separate from host tests.
+
+## October 22 all-day Location optimization
+
+- [x] Reuse the shared planner for slower useful acquisition while motion is unknown, cheaper stationary collection and fresh-movement restoration.
+- [x] Apply meaningful all-day Battery Saver and moderate-battery reductions; preserve live, temporary foreground, custom and demand-floor behavior.
+- [x] Bound passive callbacks by their existing requested target.
+- [x] Avoid redundant registration/plan writes and identical callback-context swaps after fresh authority checks.
+- [x] Author nine focused regressions and strengthen queued-callback/changed-authorization checks.
+- [x] Complete independent source review of the combined changes and the boundary-fixture repair; no blocking findings.
+- [x] Complete the combined full host gate (16,022 cases; zero failures/errors; seven existing skips) and final independent evidence review; commit locally to `dev/v10` (enclosing local commit).
+
+See [the resource-use record](convergence/2026-10-22/LOCATION_OPTIMIZATION.md).
+Actual device battery and latency measurements remain outstanding.
 
 ## Historical continuation notes
 

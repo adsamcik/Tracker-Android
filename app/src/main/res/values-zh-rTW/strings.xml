@@ -341,4 +341,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">此檔案包含背景步數、活動時間區間、日期、記錄缺口及已儲存的時區資訊。 不含路線座標。僅在信任儲存位置時繼續。</string>
     <string name="export_sensitivity_portable_activity_message">此檔案包含已記錄的運動區間、時間區間及記錄範圍資訊。 不含路線座標。僅在信任儲存位置時繼續。</string>
     <string name="export_sensitivity_portable_pressure_message">此檔案包含氣壓測量及時間區間，可能透露環境資訊。 不含路線座標或校準後的海拔。僅在信任儲存位置時繼續。</string>
+    <string name="settings_activity_source_summary">全天記錄步行、騎自行車、開車和靜止狀態。</string>
+    <string name="settings_ambient_activity_ready">活動記錄已就緒。</string>
+    <string name="settings_ambient_pressure_ready">氣壓記錄已就緒。</string>
+    <string name="settings_pressure_host_unavailable">無法啟動背景氣壓記錄。</string>
 </resources>

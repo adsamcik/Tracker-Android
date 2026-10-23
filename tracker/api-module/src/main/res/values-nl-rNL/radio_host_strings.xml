@@ -6,4 +6,5 @@
     <string name="notification_background_source_wifi">Wi-Fi</string>
     <string name="notification_background_source_cell">Mobiel netwerk</string>
     <string name="notification_background_source_other">Volgen</string>
+    <string name="notification_background_source_pressure">Luchtdruk</string>
 </resources>

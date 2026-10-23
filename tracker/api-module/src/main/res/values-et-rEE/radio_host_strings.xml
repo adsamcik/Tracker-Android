@@ -6,4 +6,5 @@
     <string name="notification_background_source_wifi">Wi-Fi</string>
     <string name="notification_background_source_cell">Mobiilivõrk</string>
     <string name="notification_background_source_other">Jälgimine</string>
+    <string name="notification_background_source_pressure">Õhurõhk</string>
 </resources>

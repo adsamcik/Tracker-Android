@@ -77,11 +77,16 @@ data class CollectionAcquisitionProfile(
 	val expensiveNetworkScansAllowed: Boolean,
 	val continuousPressureAllowed: Boolean,
 	val lowLatencyStepReporting: Boolean,
+	val moving: Boolean = false,
 )
 
 val CollectionMotionPolicy.acquisitionProfile: CollectionAcquisitionProfile
 	get() = CollectionAcquisitionProfile(
 		stationary = motionState == CollectionMotionState.STATIONARY,
+		moving = when (motionState) {
+			CollectionMotionState.PEDESTRIAN, CollectionMotionState.MOVING, CollectionMotionState.VEHICLE -> true
+			else -> false
+		},
 		locationStrategy = locationStrategy,
 		expensiveNetworkScansAllowed = expensiveNetworkScansAllowed,
 		continuousPressureAllowed = continuousPressureAllowed,

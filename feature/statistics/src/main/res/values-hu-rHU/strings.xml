@@ -161,4 +161,6 @@
     <string name="history_view_trip_on_map">Út megjelenítése a térképen</string>
     <string name="stats_heatmap_title">Tevékenység</string>
     <string name="stats_recorded_partial_value">%1$s · részleges</string>
+    <string name="history_activity_started">Kezdete: %1$s</string>
+    <string name="history_activity_ended">Vége: %1$s</string>
 </resources>

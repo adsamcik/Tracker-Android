@@ -341,4 +341,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">Този файл съдържа фонови бройки стъпки, интервали на активност, дати, пропуски и запазен контекст на часовата зона. Не съдържа координати на маршрута. Продължете само ако имате доверие на местоназначението.</string>
     <string name="export_sensitivity_portable_activity_message">Този файл съдържа записани интервали на движение, времеви интервали и информация за покритието. Не съдържа координати на маршрута. Продължете само ако имате доверие на местоназначението.</string>
     <string name="export_sensitivity_portable_pressure_message">Този файл съдържа измервания на налягането и времеви интервали, които може да разкрият информация за средата. Не съдържа координати на маршрута или калибрирана надморска височина. Продължете само ако имате доверие на местоназначението.</string>
+    <string name="settings_activity_source_summary">Записва ходене, колоездене, шофиране и покой през целия ден.</string>
+    <string name="settings_ambient_activity_ready">Готово за записване на активност.</string>
+    <string name="settings_ambient_pressure_ready">Готово за записване на атмосферното налягане.</string>
+    <string name="settings_pressure_host_unavailable">Записването на атмосферното налягане във фонов режим не можа да започне.</string>
 </resources>

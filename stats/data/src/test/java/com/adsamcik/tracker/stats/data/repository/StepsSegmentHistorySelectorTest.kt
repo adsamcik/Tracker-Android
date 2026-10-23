@@ -4145,10 +4145,11 @@ class StepsSegmentHistorySelectorTest {
 		)
 	}
 
-    @Test fun `measured Steps pages more than 4096 qualified fixture windows without losing equal timestamps`() = runTest {
+    @Test fun `measured Steps pages more than 4096 qualified fixture windows without losing equal timestamps`() = runTest(timeout = 5.minutes) {
         val startedAtNanos = System.nanoTime()
         var phase = "constructing facts"
         var completed = false
+        var fixtureFinishedAtNanos = 0L
         try {
             val count = 4_201L
             val facts = (1L..count).map { ordinal -> fact(ordinal, StepFactRevisionEntity.COVERAGE_COVERED,
@@ -4157,6 +4158,7 @@ class StepsSegmentHistorySelectorTest {
             insertMeasuredPagingFixture(facts, count) { written -> phase = "seeding fact $written/$count" }
             phase = "saving display row"
             database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null))
+            fixtureFinishedAtNanos = System.nanoTime()
             val reader = MeasuredNativeStepsHistoryReader(database, selector)
             val range = measuredStepsRange()
             val seen = linkedSetOf<HistoryPosition>()
@@ -4183,10 +4185,16 @@ class StepsSegmentHistorySelectorTest {
             seen.size shouldBe count.toInt()
             completed = true
         } finally {
-            if (!completed) {
-                val elapsedMs = (System.nanoTime() - startedAtNanos) / 1_000_000L
-                System.err.println("Steps paging failed during $phase after ${elapsedMs}ms")
-            }
+            val finishedAtNanos = System.nanoTime()
+            val elapsedMs = (finishedAtNanos - startedAtNanos) / 1_000_000L
+            val fixtureMs = ((fixtureFinishedAtNanos.takeIf { it > 0L } ?: finishedAtNanos) -
+                startedAtNanos) / 1_000_000L
+            val readingMs = if (fixtureFinishedAtNanos > 0L) {
+                (finishedAtNanos - fixtureFinishedAtNanos) / 1_000_000L
+            } else { null }
+            val outcome = if (completed) "completed" else "failed"
+            System.err.println("Steps paging $outcome during $phase after ${elapsedMs}ms; " +
+                "fixture=${fixtureMs}ms, reading=${readingMs}ms")
         }
     }
 

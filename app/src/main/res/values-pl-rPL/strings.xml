@@ -349,4 +349,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">Ten plik zawiera kroki z tła, przedziały aktywności, daty, luki w pokryciu i zapisaną strefę czasową. Nie zawiera współrzędnych trasy. Kontynuuj tylko wtedy, gdy ufasz miejscu docelowemu.</string>
     <string name="export_sensitivity_portable_activity_message">Ten plik zawiera zapisane przedziały ruchu, przedziały czasu i informacje o pokryciu. Nie zawiera współrzędnych trasy. Kontynuuj tylko wtedy, gdy ufasz miejscu docelowemu.</string>
     <string name="export_sensitivity_portable_pressure_message">Ten plik zawiera pomiary ciśnienia i przedziały czasu, które mogą ujawnić informacje o otoczeniu. Nie zawiera współrzędnych trasy ani skalibrowanej wysokości. Kontynuuj tylko wtedy, gdy ufasz miejscu docelowemu.</string>
+    <string name="settings_activity_source_summary">Przez cały dzień rejestruje chodzenie, jazdę na rowerze, jazdę samochodem i bezruch.</string>
+    <string name="settings_ambient_activity_ready">Gotowe do rejestrowania aktywności.</string>
+    <string name="settings_ambient_pressure_ready">Gotowe do rejestrowania ciśnienia atmosferycznego.</string>
+    <string name="settings_pressure_host_unavailable">Nie udało się rozpocząć rejestrowania ciśnienia atmosferycznego w tle.</string>
 </resources>

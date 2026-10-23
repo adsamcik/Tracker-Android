@@ -341,4 +341,8 @@
     <string name="export_sensitivity_portable_ambient_steps_message">Den här filen innehåller bakgrundssteg, aktivitetsintervall, datum, täckningsluckor och sparad tidszon. Den innehåller inga ruttkoordinater. Fortsätt bara om du litar på destinationen.</string>
     <string name="export_sensitivity_portable_activity_message">Den här filen innehåller registrerade rörelseintervall, tidsintervall och täckningsinformation. Den innehåller inga ruttkoordinater. Fortsätt bara om du litar på destinationen.</string>
     <string name="export_sensitivity_portable_pressure_message">Den här filen innehåller tryckmätningar och tidsintervall som kan avslöja information om omgivningen. Den innehåller inga ruttkoordinater eller kalibrerad höjd. Fortsätt bara om du litar på destinationen.</string>
+    <string name="settings_activity_source_summary">Registrerar gång, cykling, bilkörning och stillhet under hela dagen.</string>
+    <string name="settings_ambient_activity_ready">Redo att registrera aktivitet.</string>
+    <string name="settings_ambient_pressure_ready">Redo att registrera lufttryck.</string>
+    <string name="settings_pressure_host_unavailable">Registrering av lufttryck i bakgrunden kunde inte starta.</string>
 </resources>

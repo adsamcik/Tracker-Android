@@ -40,7 +40,7 @@ class SavedLocationNotificationTextTest {
     @Test fun `missing or wrong segment never uses a raw distance or coordinates`() {
         val read = saved(id = 8)
         assertEquals(context.getString(R.string.distance_value,
-            context.getString(R.string.tracker_component_waiting_data)),
+            context.getString(R.string.tracker_steps_today_waiting)),
             DistanceNotificationComponent().generateText(context, session, data, read))
         assertNull(LatitudeNotificationComponent().generateText(context, session, data, read))
         assertNull(SpeedNotificationComponent().generateText(context, session, data, SavedLocationSummaryRead.NotFound))

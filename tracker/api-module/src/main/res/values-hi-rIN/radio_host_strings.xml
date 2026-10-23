@@ -6,4 +6,5 @@
     <string name="notification_background_source_wifi">Wi-Fi</string>
     <string name="notification_background_source_cell">मोबाइल नेटवर्क</string>
     <string name="notification_background_source_other">ट्रैकिंग</string>
+    <string name="notification_background_source_pressure">वायुदाब</string>
 </resources>

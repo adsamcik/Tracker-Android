@@ -136,7 +136,7 @@ class TrackerServiceLaunchArchitectureTest {
 
 		manifest shouldContain "android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
 		manifest shouldContain
-			"User-visible tracking session collection of pressure, Wi-Fi scan, and cell-radio context"
+			"User-enabled all-day pressure recording and tracking-session pressure, Wi-Fi, and cell context"
 		manifest shouldNotContain "android:value=\"SignalTracking\""
 	}
 

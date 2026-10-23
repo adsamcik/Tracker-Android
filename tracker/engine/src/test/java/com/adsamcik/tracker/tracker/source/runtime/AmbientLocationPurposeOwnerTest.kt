@@ -3,6 +3,16 @@ package com.adsamcik.tracker.tracker.source.runtime
 import android.content.Context
 import android.Manifest
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
+import com.adsamcik.tracker.tracker.policy.BatteryAwarePolicy
+import com.adsamcik.tracker.tracker.policy.BatteryPressure
+import com.adsamcik.tracker.tracker.source.model.LocationPlan
+import com.adsamcik.tracker.tracker.source.model.LocationMode
+import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.SourceDemandContractFactory
+import com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose
+import com.adsamcik.tracker.tracker.source.model.StableActivityTypeCode
 import com.adsamcik.tracker.shared.preferences.tracking.LocationBackgroundMode
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
@@ -46,7 +56,8 @@ class AmbientLocationPurposeOwnerTest {
 	private val lease = AmbientReconciliationLease(identity)
 
 	private fun subject(mode: LocationBackgroundMode = LocationBackgroundMode.ADAPTIVE,
-		context: Context = mockk(relaxed = true)): AmbientLocationPurposeOwner {
+		context: Context = mockk(relaxed = true), motion: CollectionMotionController = mockk(),
+		battery: BatteryAwarePolicy = mockk()): AmbientLocationPurposeOwner {
 		every { settings.data } returns MutableStateFlow(TrackingParamsState(sourcePolicyRevision = 2,
 			ambientLocationEnabled = true, locationEnabled = false, locationProfileVersion = 1,
 			locationBalanceLevel = 3, locationBackgroundMode = mode))
@@ -54,9 +65,9 @@ class AmbientLocationPurposeOwnerTest {
 		coEvery { caller.dispatchAmbientSource(any()) } returns GuardedPurposeDemandResult.Applied(
 			AmbientSourceDemandResult.Active(mockk()), null)
 		return AmbientLocationPurposeOwner(context, broker, caller, host, runtime,
-			settings, mockk(), SourcePlanResolver(), object : BootClockDomainProvider {
+			settings, motion, SourcePlanResolver(), object : BootClockDomainProvider {
 				override fun current() = "boot"
-			}, reporter, retries, mockk())
+			}, reporter, retries, battery)
 	}
 
 	@Test
@@ -80,8 +91,51 @@ class AmbientLocationPurposeOwnerTest {
 		assertEquals(AmbientAcquisitionMechanism.PASSIVE_LOCATION, result.mechanism)
 		coVerify(exactly = 0) { host.acquire(any()) }
 		coVerify(exactly = 1) { runtime.reconcileAmbientJoin(match {
-			it?.passiveSystemDelivery == true && it.mode == com.adsamcik.tracker.tracker.source.model.LocationMode.PASSIVE
+			it?.passiveSystemDelivery == true && it.mode == LocationMode.PASSIVE &&
+				it.minimumUpdateIntervalMs == 120_000L && it.requestedIntervalMs == 120_000L
 		}, 2) }
+	}
+
+	@Test
+	fun `adaptive all day owner keeps a useful unknown request then restores fresh movement cadence`() = runTest {
+		val context = RuntimeEnvironment.getApplication()
+		Shadows.shadowOf(context).grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION,
+			Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+		val motion = CollectionMotionController().also { it.configureScope("background", "boot", 0L) }
+		val battery = mockk<BatteryAwarePolicy> { every { currentPressure() } returns BatteryPressure.NONE }
+		val owner = subject(context = context, motion = motion, battery = battery)
+		val hosted = BackgroundLocationHostResult.Active(identity, mockk())
+		every { host.active } returns MutableStateFlow(hosted)
+		coEvery { host.acquire(identity) } returns hosted
+		coEvery { broker.authorizationDemands(SourceKind.LOCATION) } returns listOf(adaptiveDemand())
+		val plans = mutableListOf<LocationPlan>()
+		coEvery { runtime.reconcileAmbientJoin(any(), 2L) } coAnswers {
+			plans += requireNotNull(firstArg<LocationPlan?>())
+			AmbientLocationRuntimeJoinResult.Active(null, null)
+		}
+		assertEquals(AmbientSourceOperationalState.READY, owner.reconcile(lease).state)
+		assertEquals(LocationMode.HIGH_ACCURACY, plans.single().mode)
+		assertEquals(30_000L, plans.single().requestedIntervalMs)
+		motion.onMotionAssistance("background", "boot", 1L, 1L, StableActivityTypeCode.WALKING, 0)
+		owner.refreshActivePlan()
+		assertEquals(LocationMode.HIGH_ACCURACY, plans.last().mode)
+		assertEquals(10_000L, plans.last().requestedIntervalMs)
+		coVerify(exactly = 1) { host.acquire(identity) }
+	}
+
+	private fun adaptiveDemand(): SourceDemandEntity {
+		val contract = SourceDemandContractFactory.forProfile(SourceKind.LOCATION, 1, 3,
+			DirectSourceDemandPurpose.AMBIENT_PRODUCT)
+		return SourceDemandEntity(demandId = "background", consumerId = "ambient:location", sourceKind = 1,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, logicalTrackingId = null, serviceRunId = null,
+			manifestRevision = null, lifecycleLeaseGeneration = null, sourcePolicyRevision = 2L, consentEpoch = 3L,
+			persistenceEligible = true, qosCode = 2, minimumAcquisitionSpec = contract.encodeFloor(),
+			adaptiveReductionAllowed = contract.adaptiveReductionAllowed,
+			maximumAgeMs = contract.maximumProviderItemAgeMs, desiredLatencyMs = contract.targetPlanningLatencyMs,
+			requestedDeliveryLatencyMs = contract.requestedDeliveryLatencyMs,
+			requestedBootId = "boot", requestedElapsedRealtimeNanos = 0L, requestedAtMs = 0L,
+			status = SourceDemandEntity.STATUS_ACTIVE, retireBootId = null, retireElapsedRealtimeNanos = null,
+			retiredAtMs = null)
 	}
 
 	@Test
