@@ -162,8 +162,7 @@ sealed interface SourceCatalogAvailability {
 }
 
 /**
- * Current motion permission and Play services availability used by Activity capture and automatic
- * triggers.
+ * Current motion permission and Play services availability shared by every Activity purpose.
  */
 data class ActivityRecognitionSourceState(
 	val permissionGranted: Boolean,
@@ -211,13 +210,7 @@ internal class DefaultSourceProviderAvailabilityReaderFactory(
 		purpose: TrackingPurpose,
 	): SourceProviderAvailabilityReader = when (source) {
 		TrackingSource.LOCATION -> locationAvailability(purpose)
-		TrackingSource.ACTIVITY -> if (
-			purpose == TrackingPurpose.CONTROL || purpose == TrackingPurpose.SESSION_CAPTURE
-		) {
-			ActivitySessionSourceProviderAvailabilityReader(activityRecognitionSourceStateProvider)
-		} else {
-			error("No availability reader for $source ${purpose.stableName}")
-		}
+		TrackingSource.ACTIVITY -> ActivitySourceProviderAvailabilityReader(activityRecognitionSourceStateProvider)
 		TrackingSource.STEPS -> stepsAvailability(purpose)
 		TrackingSource.PRESSURE -> SensorSourceProviderAvailabilityReader(SourceKind.PRESSURE, sensorSourceStateProvider)
 		TrackingSource.WIFI -> WifiSourceProviderAvailabilityReader(connectivityDeviceStateProvider)
@@ -243,12 +236,11 @@ internal class DefaultSourceProviderAvailabilityReaderFactory(
 	}
 }
 
-internal class ActivitySessionSourceProviderAvailabilityReader(
+internal class ActivitySourceProviderAvailabilityReader(
 	private val stateProvider: ActivityRecognitionSourceStateProvider,
 ) : SourceProviderAvailabilityReader {
 	override suspend fun read(request: SourceAvailabilityRequest): SourceProviderAvailability {
 		require(request.source == SourceKind.ACTIVITY)
-		require(request.purpose in setOf(TrackingPurpose.SESSION_CAPTURE, TrackingPurpose.CONTROL))
 		val state = stateProvider.snapshot()
 		return when {
 			!state.permissionGranted -> SourceProviderAvailability.PermissionRequired(

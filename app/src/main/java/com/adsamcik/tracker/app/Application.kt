@@ -290,6 +290,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 					val startup = driveTrackingStartup(
 						reconcile = { reconcileTrackingStartup() },
 						onRetryableVisible = { result ->
+							logStartupResolution(result)
 							if (!alreadyReady) {
 								publishStartupResolution(startupGeneration, result)
 							}
@@ -363,6 +364,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 	internal suspend fun retryTrackingStartup(): TrackingStartupResult {
 		val generation = trackingStartupGate.currentGeneration
 		return reconcileTrackingStartup(retryFailedStorage = true).also { result ->
+			logStartupResolution(result)
 			publishStartupResolution(generation, result)
 		}
 	}

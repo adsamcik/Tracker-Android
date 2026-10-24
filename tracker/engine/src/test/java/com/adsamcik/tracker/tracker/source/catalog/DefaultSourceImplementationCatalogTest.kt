@@ -265,7 +265,7 @@ class DefaultSourceImplementationCatalogTest {
 	fun `activity and steps session availability reads current permission and activity provider`() = runTest {
 		var state = ActivityRecognitionSourceState(permissionGranted = false, providerAvailable = true)
 		val stateProvider = ActivityRecognitionSourceStateProvider { state }
-		val activityReader = ActivitySessionSourceProviderAvailabilityReader(stateProvider)
+		val activityReader = ActivitySourceProviderAvailabilityReader(stateProvider)
 		val stepsReader = StepsSessionSourceProviderAvailabilityReader(
 			stateProvider,
 			SensorSourceStateProvider {
