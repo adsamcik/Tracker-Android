@@ -4836,6 +4836,69 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `End ignores interrupted providerless stop for a source never captured`() = runRoomTest {
+		val started = startCaptureRun(startRequest().copy(plan = stepsAndLocationPlan(1L, stepsEnabled = false)))
+			.shouldBeInstanceOf<SessionStartResult.Started>()
+		insertInterruptedProviderlessStop(started, SourceKind.STEPS)
+
+		val stopped = subject.stop(SessionStopRequest(
+			"never-captured-stop-owner", "USER_STOP", 2_000L, 2_000_000L, "boot-1",
+		)).shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+		stopped.acknowledgements.map { it.source } shouldBe listOf(SourceKind.LOCATION)
+		locationRuntime.isActive shouldBe false
+		runtime.shutdownClaims shouldBe emptyList()
+		database.sourceSessionDao().completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
+			.map { it.sourceKind } shouldBe listOf(SourceKind.LOCATION.stableCode)
+	}
+
+	@Test
+	fun `End requires capture binding for attempted start or identified provider`() = runRoomTest {
+		val started = startCaptureRun(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		val stop = insertInterruptedProviderlessStop(started, SourceKind.LOCATION)
+		val dao = database.sourceSessionDao()
+		val possibleOwners = listOf(
+			stop.copy(desiredState = "STARTED"),
+			stop.copy(sourceInstanceId = "unbound-location", registrationGeneration = 1L),
+		)
+		possibleOwners.forEach { action ->
+			dao.updateLifecycleAction(action) shouldBe 1
+			subject.stop(SessionStopRequest(
+				"unbound-owner-stop", "USER_STOP", 2_000L, 2_000_000L, "boot-1",
+			)) shouldBe SessionStopResult.InvalidIntent("RUN_RETIREMENT_MANIFEST_INTEGRITY_FAILED")
+			runtime.shutdownClaims shouldBe emptyList()
+		}
+		dao.updateLifecycleAction(stop) shouldBe 1
+		subject.stop(SessionStopRequest(
+			"providerless-stop-retry", "USER_STOP", 2_000L, 2_000_000L, "boot-1",
+		)).shouldBeInstanceOf<SessionStopResult.Stopped>()
+	}
+
+	private suspend fun insertInterruptedProviderlessStop(
+		started: SessionStartResult.Started,
+		source: SourceKind,
+	): LifecycleDesiredActionEntity {
+		val dao = database.sourceSessionDao()
+		val original = dao.lifecycleActions(started.logicalTrackingId)
+			.first { it.actionFamily == LifecycleActionFamily.SOURCE_RUNTIME.name }
+		val action = original.copy(
+			actionId = stableLifecycleChecksum("interrupted-disabled-stop", started.serviceRunId, source.stableCode),
+			actionRevision = dao.maximumActionRevision(started.logicalTrackingId) + 1L,
+			sourceKind = source.stableCode,
+			desiredState = "STOPPED",
+			consentEpoch = null,
+			status = LifecycleActionStatus.APPLYING.name,
+			attemptCount = 1,
+			acknowledgedAtMs = null,
+			acknowledgedElapsedRealtimeNanos = null,
+			sourceInstanceId = null,
+			registrationGeneration = null,
+		)
+		dao.insertLifecycleActions(listOf(action))
+		return action
+	}
+
+	@Test
 	fun `retirement action query exposes a logical id mismatch on the exact service run`() = runRoomTest {
 		val started = startCaptureRun(
 			startRequest().copy(

@@ -148,7 +148,8 @@ class ProviderStepsStartupAcceptanceTest {
         bootClockDomainProvider = BootClockDomainProvider { "boot" }, collectionMotionController = mockk(),
         activityAutomationEpochAuthority = mockk(), trackingLifecycleCommandAuthority = commands,
         sourceCallerDemandDispatcher = mockk(), activeTrackingSessionCallerAuthorityReconciler = mockk(),
-        sourcePolicyRepository = policies, batteryAwarePolicy = mockk(), providerStepsSessions = steps)
+        sourcePolicyRepository = policies, batteryAwarePolicy = mockk(), providerStepsSessions = steps,
+        applicationScope = mockk())
 
     private fun startupGate(): DefaultTrackingStartupGate {
         val resolver = mockk<ApplicationStartupRecoveryResolver>()

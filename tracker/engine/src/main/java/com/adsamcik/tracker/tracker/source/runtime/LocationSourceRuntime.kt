@@ -90,6 +90,7 @@ class LocationSourceRuntime @Inject internal constructor(
 	private var metrics = RuntimeAdmissionMetrics()
 	private var callbackOfferFailureCoverage = LocationCallbackFailureCoverage()
 	private var terminalStopAck: SourceStopAck? = null
+	private var terminalStopCutoff: SessionCutoff? = null
 	private var retainedRetirementAck: SourceStopAck? = null
 	private var retainedRetirementActor: Job? = null
 	private var providerRetirementCompletedWhileActorRetained = false
@@ -343,7 +344,58 @@ class LocationSourceRuntime @Inject internal constructor(
 	}
 
 	override suspend fun quiesce(cutoff: SessionCutoff): SourceStopAck = lifecycleMutex.withLock {
-		terminalStopAck ?: shutdownLocked(cutoff, RETIRE_REASON_SESSION_STOP)
+		val previous = terminalStopAck
+		if (previous == null) {
+			shutdownLocked(cutoff, RETIRE_REASON_SESSION_STOP)
+		} else {
+			settleCachedSessionDrain(previous, cutoff)
+		}
+	}
+
+	private suspend fun settleCachedSessionDrain(previous: SourceStopAck, cutoff: SessionCutoff): SourceStopAck {
+		if (!canSettleCachedSessionDrain(previous, cutoff) || !isCachedSessionProviderSettled()) {
+			return previous
+		}
+		if (callbackOfferFailureCoverage.unaccountedRanges(processedCallbackSequence.value,
+			previous.callbackEntryBarrierSequence).isNotEmpty()) {
+			return previous
+		}
+		val admission = metrics.snapshot()
+		// The actor is settled; failed callback ranges remain gaps, never successful measurements.
+		return previous.copy(
+			lastDurablyAdmittedSequence = admission.lastDurablyAdmittedSequence ?: 0L,
+			lastAdmissionOrdinal = admission.lastAdmissionOrdinal ?: 0L,
+			failedAdmissionCount = admission.failedAdmissionCount,
+			unresolvedSequenceStart = admission.unresolvedSequenceStart,
+			unresolvedSequenceEndInclusive = admission.unresolvedSequenceEndInclusive,
+			appDrainComplete = true,
+			status = SourceStopStatus.PARTIAL_UNOBSERVABLE,
+		).also { terminalStopAck = it }
+	}
+
+	private fun canSettleCachedSessionDrain(previous: SourceStopAck, cutoff: SessionCutoff): Boolean {
+		val sameCutoff = terminalStopCutoff?.let { original ->
+			original.logicalTrackingId == cutoff.logicalTrackingId && original.wallTimeMs == cutoff.wallTimeMs &&
+				original.elapsedRealtimeNanos == cutoff.elapsedRealtimeNanos
+		} == true
+		val drainTimedOut = previous.status == SourceStopStatus.TIMED_OUT && !previous.appDrainComplete
+		val providerRemoved = previous.registrationRemovalOutcome in setOf(RegistrationRemovalOutcome.REMOVED,
+			RegistrationRemovalOutcome.NOT_REGISTERED)
+		val flushSettled = previous.providerFlushOutcome !in setOf(ProviderFlushOutcome.FAILED,
+			ProviderFlushOutcome.TIMED_OUT)
+		val providerSettled = providerRemoved && flushSettled
+		return sameCutoff && drainTimedOut && providerSettled
+	}
+
+	private suspend fun isCachedSessionProviderSettled(): Boolean {
+		val retainedActor = retainedRetirementActor
+		if (retainedActor != null) {
+			val actorSettled = providerRetirementCompletedWhileActorRetained && retainedActor.isCompleted
+			if (!actorSettled || !retryOwnedRetirementLocked()) {
+				return false
+			}
+		}
+		return actor == null && registration == null && pendingRetirementToken == null
 	}
 
 	/** Refreshes only immutable authorization when the physical request remains compatible. */
@@ -611,6 +663,7 @@ class LocationSourceRuntime @Inject internal constructor(
 		maximumEvidenceAgeMs: Long? = null,
 	): SourceStartResult {
 		terminalStopAck = null
+		terminalStopCutoff = null
 		if (!plan.enabled) return SourceStartResult.Started(
 			appliedState(source, plan.revision, null, SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()),
 		)
@@ -888,6 +941,7 @@ class LocationSourceRuntime @Inject internal constructor(
 		val activeRegistration = registration ?: return unavailableAck(cutoff)
 		val backend = activeBackend
 		cutoffElapsedNanos = cutoff?.elapsedRealtimeNanos
+		terminalStopCutoff = cutoff
 		val flushOutcome = if (backend == null || !isAcceptingCallbacks()) ProviderFlushOutcome.NOT_REQUESTED else {
 			withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) { backend.flush() }
 				?: ProviderFlushOutcome.TIMED_OUT
@@ -937,6 +991,7 @@ class LocationSourceRuntime @Inject internal constructor(
 					RuntimeGapClassification.DRAIN_TIMED_OUT
 				},
 			)
+			callbackOfferFailureCoverage.record(unresolved)
 		}
 		val drainComplete = actorSettledBeforeDeadline && unaccountedTail.isEmpty()
 		val admission = metrics.snapshot()

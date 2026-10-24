@@ -478,6 +478,33 @@ interface SourceBrokerDao {
 		limit: Int,
 	): List<SourceAuthorizationEntity>
 
+	/** Only the bounded Location repair may move an unused, proven positive replacement forward. */
+	@Query(
+		"UPDATE source_authorization SET effective_elapsed_realtime_nanos = :newElapsedNanos, " +
+			"effective_wall_time_ms = :newWallTimeMs WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration AND authorization_revision = :authorizationRevision " +
+			"AND authorization_fingerprint = :fingerprint AND effective_boot_id = :bootId " +
+			"AND effective_elapsed_realtime_nanos = :oldElapsedNanos AND effective_wall_time_ms = :oldWallTimeMs " +
+			"AND purpose_eligibility_mask > 0 AND :newElapsedNanos > :oldElapsedNanos " +
+			"AND NOT EXISTS (SELECT 1 FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration AND authorization_revision = :authorizationRevision) " +
+			"AND NOT EXISTS (SELECT 1 FROM source_authorization AS later WHERE later.source_kind = :sourceKind " +
+			"AND later.registration_generation = :registrationGeneration " +
+			"AND later.authorization_revision > :authorizationRevision " +
+			"AND later.effective_elapsed_realtime_nanos < :newElapsedNanos)",
+	)
+	suspend fun repairUnusedPositiveAuthorizationBoundary(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		authorizationRevision: Long,
+		fingerprint: String,
+		bootId: String,
+		oldElapsedNanos: Long,
+		oldWallTimeMs: Long,
+		newElapsedNanos: Long,
+		newWallTimeMs: Long,
+	): Int
+
 	/** Bounded immutable authorization evidence for a source-specific historical product read. */
 	@Query(
 		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +

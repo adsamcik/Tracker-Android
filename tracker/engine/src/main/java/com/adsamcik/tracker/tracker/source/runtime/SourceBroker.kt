@@ -37,6 +37,8 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.hasReachedRetentionPhase
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+import com.adsamcik.tracker.shared.base.time.Clock
+import com.adsamcik.tracker.shared.base.time.SystemClock
 import com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityReader
 import com.adsamcik.tracker.shared.preferences.retention.UnavailableRetentionAuthorityProducer
@@ -106,6 +108,7 @@ class SourceBroker @Inject internal constructor(
 	private val ambientRadioMutationLeaseGuard: AmbientRadioMutationLeaseGuard,
 	private val sourceCallerAuthorityRepository: SourceCallerAcceptedAuthorityRepository,
 	private val retentionAuthorityReader: RetentionAuthorityReader,
+	private val clock: Clock = SystemClock,
 ) {
 	private val stepsRecordingContinuation = StepsRecordingContinuationReader(database, sourceCallerAuthorityRepository)
 
@@ -139,12 +142,14 @@ class SourceBroker @Inject internal constructor(
 		database: AppDatabase,
 		trackingRolloutStateStore: RoomTrackingRolloutStateStore,
 		retentionAuthorityReader: RetentionAuthorityReader,
+		clock: Clock = SystemClock,
 	) : this(
 		database,
 		trackingRolloutStateStore,
 		RejectingAmbientRadioMutationLeaseGuard,
 		RoomSourceCallerAcceptedAuthorityRepository(database),
 		retentionAuthorityReader,
+		clock,
 	)
 
 	internal constructor(
@@ -209,6 +214,8 @@ class SourceBroker @Inject internal constructor(
 		retentionSnapshot: LiveAmbientRetentionSnapshot,
 		preparedCallerAcceptance: PreparedSourceCallerAcceptance,
 	): AmbientSourceDemandResult = database.withTransaction {
+		require(elapsedRealtimeNanos >= 0L)
+		require(wallTimeMs >= 0L)
 		val source = leaseIdentity.source.canonicalSource.toRuntimeSourceKind()
 		require(source in DIRECT_AMBIENT_SOURCES)
 		val policyDao = database.sourcePolicyDao()
@@ -229,8 +236,10 @@ class SourceBroker @Inject internal constructor(
 		) {
 			return@withTransaction AmbientSourceDemandResult.Inactive("${source.name}_BACKGROUND_CONTAINED")
 		}
-		val retention = ambientSourceRetentionInTransaction(retentionSnapshot, source, leaseIdentity,
-			SourceDemandMutationBoundary(bootId, elapsedRealtimeNanos, wallTimeMs))
+		// Preparing caller/retention authority may suspend while a session publishes a newer grant.
+		// Take the application boundary only after this transaction owns the current demand vector.
+		val boundary = SourceDemandMutationBoundary(bootId, clock.elapsedRealtimeNanos(), clock.currentTimeMillis())
+		val retention = ambientSourceRetentionInTransaction(retentionSnapshot, source, leaseIdentity, boundary)
 			?: return@withTransaction AmbientSourceDemandResult.Inactive("${source.name}_RETENTION_CHANGED")
 		val contract = ambientSourceContract(policy, source)
 			?: return@withTransaction AmbientSourceDemandResult.Inactive("${source.name}_PROFILE_UNSUPPORTED")
@@ -242,14 +251,13 @@ class SourceBroker @Inject internal constructor(
 			demand.matchesAmbientSourceDemand(source, leaseIdentity, contract, retention, reference, bootId)
 		}?.let { return@withTransaction AmbientSourceDemandResult.Active(it) }
 		val priorReferences = currentAuthorityReferences(consumerId)
-		dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
-		callerAuthorityRetirement.retireReferences(priorReferences, "AMBIENT_${source.name}_REPLACED", wallTimeMs)
+		dao.retireConsumer(consumerId, bootId, boundary.elapsedRealtimeNanos, boundary.wallTimeMs)
+		callerAuthorityRetirement.retireReferences(priorReferences, "AMBIENT_${source.name}_REPLACED", boundary.wallTimeMs)
 		persistPreparedCallerAuthorityInTransaction(preparedCallerAcceptance, reference,
 			leaseIdentity.purposeLeaseIdentity)
-		val demand = contract.ambientSourceDemand(source, leaseIdentity, retention, reference,
-			SourceDemandMutationBoundary(bootId, elapsedRealtimeNanos, wallTimeMs))
+		val demand = contract.ambientSourceDemand(source, leaseIdentity, retention, reference, boundary)
 		dao.insertDemands(listOf(demand))
-		rotateCurrentAuthorizationInTransaction(source.stableCode, bootId, elapsedRealtimeNanos, wallTimeMs)
+		rotateCurrentAuthorizationInTransaction(source.stableCode, bootId, boundary.elapsedRealtimeNanos, boundary.wallTimeMs)
 		AmbientSourceDemandResult.Active(demand)
 	}
 

@@ -16,6 +16,31 @@ import org.junit.Test
 
 class ContinuousAmbientSensorAuthorityTest {
 	@Test
+	fun `Location point keeps its original member through ordered same-consent refreshes`() = runTest {
+		val source = SourceKind.LOCATION
+		val background = demand(source, "background", SourceBrokerPurpose.AMBIENT_PRODUCT)
+		val replacement = background.copy(demandId = "replacement", sourcePolicyRevision = 2L)
+		val original = rows(source, 1L, 10L, listOf(background))
+		val next = rows(source, 2L, 100L, listOf(replacement))
+		val members = timeline(original, next).continuousAmbientSensorMembers(
+			requireNotNull(original.toAuthorizationSnapshotOrNull()), 10L, 110L)
+		assertEquals(original, members)
+	}
+
+	@Test
+	fun `Location point cannot bridge an all-day denial or changed consent`() = runTest {
+		val source = SourceKind.LOCATION
+		val background = demand(source, "background", SourceBrokerPurpose.AMBIENT_PRODUCT)
+		val original = rows(source, 1L, 10L, listOf(background))
+		val denied = rows(source, 2L, 100L, emptyList())
+		val renewed = rows(source, 3L, 105L, listOf(background))
+		val claimed = requireNotNull(original.toAuthorizationSnapshotOrNull())
+		assertTrue(timeline(original, denied, renewed).continuousAmbientSensorMembers(claimed, 10L, 110L).isEmpty())
+		val changed = rows(source, 2L, 100L, listOf(background.copy(consentEpoch = 2L)))
+		assertTrue(timeline(original, changed).continuousAmbientSensorMembers(claimed, 10L, 110L).isEmpty())
+	}
+
+	@Test
 	fun `Pressure window and Activity point keep their all-day member across session retirement`() = runTest {
 		for (source in listOf(SourceKind.PRESSURE, SourceKind.ACTIVITY)) {
 			val background = demand(source, "background", SourceBrokerPurpose.AMBIENT_PRODUCT)

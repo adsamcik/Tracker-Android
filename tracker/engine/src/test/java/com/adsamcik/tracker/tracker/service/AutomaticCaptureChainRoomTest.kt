@@ -342,7 +342,7 @@ class AutomaticCaptureChainRoomTest {
         starts = DefaultTrackingStartRequestCoordinator(context, database, gate, params, activeStore,
             sourceSession, sessionCoordinator, rollout, writerSetup, boot, motion, epoch, commands, callers,
             activeTrackingSessionCallerAuthorityReconciler = mockk(), sourcePolicyRepository = policies,
-            batteryAwarePolicy = battery)
+            batteryAwarePolicy = battery, applicationScope = actorScope)
         previousApiEntryPoint = apiEntryPointField.get(TrackerServiceApi)
         val state = DefaultTrackerServiceController()
         apiEntryPointField.set(TrackerServiceApi, startApiEntryPoint(manualReadiness, state))

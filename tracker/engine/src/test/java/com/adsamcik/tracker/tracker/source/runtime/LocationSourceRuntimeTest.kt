@@ -48,6 +48,7 @@ import io.mockk.verify
 import java.time.Duration
 import javax.inject.Provider
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
 import kotlin.test.assertSame
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -1770,7 +1771,8 @@ class LocationSourceRuntimeTest {
 		runCurrent()
 		admissionEntered.await()
 
-		val stop = async { fixture.runtime.quiesce(immediateSessionCutoff()) }
+		val cutoff = immediateSessionCutoff()
+		val stop = async { fixture.runtime.quiesce(cutoff) }
 		advanceUntilIdle()
 
 		assertTrue(stop.isCompleted)
@@ -1780,6 +1782,8 @@ class LocationSourceRuntimeTest {
 		assertEquals(1L, ack.failedAdmissionCount)
 		assertEquals(1L, ack.unresolvedSequenceStart)
 		assertEquals(1L, ack.unresolvedSequenceEndInclusive)
+		val retryCutoff = cutoff.copy(deadlineElapsedRealtimeNanos = Long.MAX_VALUE)
+		assertEquals(ack, fixture.runtime.quiesce(retryCutoff))
 		val replacementPlan = fixture.plan.copy(revision = 2L)
 		val replacementSink = RecordingLocationSink()
 		assertTrue(fixture.runtime.reconfigure(replacementPlan, replacementSink) is SourceApplyResult.Failed)
@@ -1790,6 +1794,9 @@ class LocationSourceRuntimeTest {
 
 		releaseAdmission.complete(Unit)
 		advanceUntilIdle()
+		val settled = fixture.runtime.quiesce(retryCutoff)
+		assertEquals(ack.copy(status = SourceStopStatus.PARTIAL_UNOBSERVABLE, appDrainComplete = true,
+			lastDurablyAdmittedSequence = 1L, lastAdmissionOrdinal = 1L), settled)
 		assertTrue(fixture.runtime.reconfigure(replacementPlan, replacementSink) is SourceApplyResult.Applied)
 		coVerify(exactly = 2) { fixture.fusedBackend.start(any(), any()) }
 		coVerify(exactly = 1) { fixture.registrations.beginRetirement(any(), any(), any(), any()) }
@@ -1875,12 +1882,14 @@ class LocationSourceRuntimeTest {
 			SourceDeliveryAdmissionHandoff.Durable(listOf(count.toLong()), lastSourceSequence = count.toLong())
 		}
 		val fixture = locationRuntimeFixture(backgroundScope, sink = sink)
-		assertTrue(fixture.runtime.start(fixture.plan, sink) is SourceStartResult.Started)
+		val claim = runtimeClaim(SourceKind.LOCATION, "cancelled-drain")
+		assertTrue(fixture.runtime.start(claim, fixture.plan, sink) is SourceStartResult.Started)
 		fixture.providerCallback()(listOf(location(50.0, SystemClock.elapsedRealtimeNanos())))
 		runCurrent()
 		admissionEntered.await()
 
-		val stop = async { fixture.runtime.quiesce(immediateSessionCutoff()) }
+		val cutoff = immediateSessionCutoff()
+		val stop = async { fixture.runtime.quiesce(cutoff) }
 		advanceUntilIdle()
 		val ack = stop.await()
 
@@ -1889,6 +1898,32 @@ class LocationSourceRuntimeTest {
 		assertEquals(1L, ack.failedAdmissionCount)
 		assertEquals(1L, ack.unresolvedSequenceStart)
 		assertEquals(1L, ack.unresolvedSequenceEndInclusive)
+		// A different cutoff cannot claim this retired callback prefix.
+		assertEquals(ack, fixture.runtime.quiesce(cutoff.copy(wallTimeMs = cutoff.wallTimeMs + 1L)))
+		val settled = fixture.runtime.quiesce(cutoff.copy(deadlineElapsedRealtimeNanos = Long.MAX_VALUE))
+		assertEquals(ack.copy(status = SourceStopStatus.PARTIAL_UNOBSERVABLE, appDrainComplete = true,
+			lastDurablyAdmittedSequence = 0L, lastAdmissionOrdinal = 0L), settled)
+		assertIs<OwnedSourceShutdown.Released>(settled.toOwnedShutdown())
+		assertEquals(claim.logicalTrackingId, settled.logicalTrackingId)
+		assertEquals(claim.serviceRunId, settled.serviceRunId)
+		coVerify(exactly = 1) { fixture.fusedBackend.start(any(), any()) }
+		coVerify(exactly = 1) { fixture.fusedBackend.stop() }
+		coVerify(exactly = 1) { fixture.registrations.completeRetirement(any()) }
+	}
+
+	@Test
+	fun `settled actor cannot hide an earlier provider flush timeout`() = runTest {
+		val sink = RecordingLocationSink()
+		val fixture = locationRuntimeFixture(backgroundScope, sink = sink)
+		coEvery { fixture.fusedBackend.flush() } returns ProviderFlushOutcome.TIMED_OUT
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(fixture.plan, sink))
+		val cutoff = immediateSessionCutoff()
+		val ack = fixture.runtime.quiesce(cutoff)
+		val replay = fixture.runtime.quiesce(cutoff.copy(deadlineElapsedRealtimeNanos = Long.MAX_VALUE))
+
+		assertEquals(ack, replay)
+		assertEquals(ProviderFlushOutcome.TIMED_OUT, replay.providerFlushOutcome)
+		assertIs<OwnedSourceShutdown.Incomplete>(replay.toOwnedShutdown())
 	}
 
 	@Test

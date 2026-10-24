@@ -9,6 +9,7 @@ import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.shared.base.extension.hasBackgroundLocationPermission
@@ -91,9 +92,11 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -125,6 +128,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 	private val sourcePolicyRepository: SourcePolicyRepository,
 	private val batteryAwarePolicy: BatteryAwarePolicy = BatteryAwarePolicy(context),
 	private val providerStepsSessions: ProviderStepsSessionLifecycle? = null,
+	@ApplicationScope private val applicationScope: CoroutineScope,
 ) : TrackingStartRequestCoordinator {
 	private val powerManager: PowerManager = context.getSystemServiceTyped(Context.POWER_SERVICE)
 
@@ -163,9 +167,6 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			prepared = trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
 				prepareUnderReadyGeneration(request, exactContinuationAuthority, startupGeneration)
 			} ?: retryableStartRejection("TRACKING_STARTUP_GENERATION_CLOSED")
-			if (prepared is TrackingStartPreparationResult.Prepared) {
-				reconcilePreparedManualOwners(prepared, request, pendingResume)
-			}
 			return prepared
 		} finally {
 			if (pendingResume && prepared !is TrackingStartPreparationResult.Prepared) {
@@ -174,33 +175,32 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		}
 	}
 
-	private suspend fun reconcilePreparedManualOwners(
-		prepared: TrackingStartPreparationResult.Prepared, request: TrackingStartRequest, pendingResume: Boolean,
-	) {
-		if (pendingResume || request.manualSourceSelection == null) return
-		try {
-			reconcilePurposeOwners()
-		} catch (cancelled: CancellationException) {
-			compensateCancelledPreparedStart(prepared, request)
-			throw cancelled
-		}
-	}
-
 	private fun isFreshManualStart(request: TrackingStartRequest): Boolean {
 		val manualRequest = request.isUserInitiated && !request.isAmbient && request.automaticTrigger == null
 		return manualRequest && request.recoveryDescriptor == null && request.providerStepsContinuation == null
 	}
 
-	/** Called after durable service/Room acceptance, outside the lifecycle mutex. */
+	/** Queues independent owner repair after durable acceptance; it never delays initial capture. */
 	suspend fun reconcileAcceptedManualStart(command: TrackingStartCommand) {
-		if (!trackingStartupGate.permitsNewCollection ||
-			trackingLifecycleCommandAuthority.latestCommandGeneration() != command.generation ||
-			trackingLifecycleCommandAuthority.resolveStart(command) !=
-				com.adsamcik.tracker.tracker.resilience.TrackingStartCommandDisposition.Allowed) {
-			return
-		}
-		reconcilePurposeOwners()
+		if (!isCurrentAcceptedStart(command)) return
+		applicationScope.launch { reconcileAcceptedPurposeOwners(command) }
 	}
+
+	private suspend fun reconcileAcceptedPurposeOwners(command: TrackingStartCommand) {
+		if (!isCurrentAcceptedStart(command)) return
+		val completed = withTimeoutOrNull(MANUAL_PURPOSE_RECONCILIATION_TIMEOUT_MILLIS) {
+			reconcilePurposeOwners()
+			true
+		} == true
+		if (!completed && isCurrentAcceptedStart(command)) schedulePurposeOwnerRetry()
+	}
+
+	private fun isCurrentAcceptedStart(command: TrackingStartCommand): Boolean =
+		trackingStartupGate.permitsNewCollection &&
+			trackingLifecycleCommandAuthority.latestCommandGeneration() == command.generation &&
+			trackingLifecycleCommandAuthority.isAcceptedStart(command) &&
+			trackingLifecycleCommandAuthority.resolveStart(command) ==
+				com.adsamcik.tracker.tracker.resilience.TrackingStartCommandDisposition.Allowed
 
 	private suspend fun reconcilePurposeOwners() {
 		try {
@@ -211,31 +211,22 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: Exception) {
-			try {
-				purposeReconciliationRetryScheduler.schedule(
-					TrackingPurposeSettingsReconciliationDebt(listOf(
-						TrackingPurposeSettingsReconciliationFailure(source = null,
-							reason = TrackingPurposeSettingsReconciliationFailureReason.OWNER_RECONCILIATION_FAILED),
-					)),
-				)
-			} catch (cancelled: CancellationException) {
-				throw cancelled
-			} catch (_: Exception) {
-				// The existing startup/settings reconciliation also repairs owner debt.
-			}
+			schedulePurposeOwnerRetry()
 		}
 	}
 
-	private suspend fun compensateCancelledPreparedStart(
-		prepared: TrackingStartPreparationResult.Prepared,
-		request: TrackingStartRequest,
-	) {
+	private suspend fun schedulePurposeOwnerRetry() {
 		try {
-			runBoundedStartPreparationCancellationCleanup(request.automaticTrigger) {
-				compensate(prepared.token, request.command, "START_PREPARATION_CANCELLED")
-			}
-		} catch (_: Throwable) {
-			// Preserve cancellation; exact PREPARED state remains for startup recovery.
+			purposeReconciliationRetryScheduler.schedule(
+				TrackingPurposeSettingsReconciliationDebt(listOf(
+					TrackingPurposeSettingsReconciliationFailure(source = null,
+						reason = TrackingPurposeSettingsReconciliationFailureReason.OWNER_RECONCILIATION_FAILED),
+				)),
+			)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			// The existing startup/settings reconciliation also repairs owner debt.
 		}
 	}
 
@@ -1357,6 +1348,7 @@ internal suspend fun runBoundedStartPreparationCancellationCleanup(
 }
 
 private const val START_CLEANUP_NANOS_PER_MILLISECOND = 1_000_000L
+private const val MANUAL_PURPOSE_RECONCILIATION_TIMEOUT_MILLIS = 30_000L
 private const val DEFAULT_START_PREPARATION_CLEANUP_TIMEOUT_MS = 250L
 private const val CATALOG_START_RETRY_DELAY_MILLIS = 250L
 

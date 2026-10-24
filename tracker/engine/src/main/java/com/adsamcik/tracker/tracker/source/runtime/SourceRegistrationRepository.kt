@@ -17,6 +17,7 @@ import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.sourceAuthorizationPublicationBoundary
 import com.adsamcik.tracker.shared.base.database.recordLocationRegistrationPlan
 import com.adsamcik.tracker.shared.base.database.data.LocationRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationRegistrationPlanIntegrity
@@ -1688,14 +1689,16 @@ class SourceRegistrationRepository @Inject constructor(
 			return latest
 		}
 		val revision = dao.maximumAuthorizationRevision(source.stableCode) + 1L
+		val boundary = sourceAuthorizationPublicationBoundary(demands, latest, bootId,
+			elapsedRealtimeNanos, wallTimeMs)
 		val rows = SourceBrokerAuthorization.rows(
 			source.stableCode,
 			registrationGeneration,
 			revision,
 			demands,
 			bootId,
-			elapsedRealtimeNanos,
-			wallTimeMs,
+			boundary.elapsedRealtimeNanos,
+			boundary.wallTimeMs,
 		)
 		dao.insertAuthorizations(rows)
 		return requireNotNull(rows.toAuthorizationSnapshotOrNull())

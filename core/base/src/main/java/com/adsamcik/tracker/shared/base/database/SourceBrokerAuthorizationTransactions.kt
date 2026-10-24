@@ -1,6 +1,9 @@
 package com.adsamcik.tracker.shared.base.database
 
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 
@@ -38,6 +41,8 @@ suspend fun AppDatabase.rotateCurrentSourceAuthorizationInTransaction(
 			) return@forEach
 			val revision = dao.maximumAuthorizationRevision(sourceKind) + 1L
 			check(revision > 0L) { "Source authorization revision exhausted for $sourceKind" }
+			val boundary = sourceAuthorizationPublicationBoundary(demands, current, bootId,
+				elapsedRealtimeNanos, wallTimeMs)
 			dao.insertAuthorizations(
 				SourceBrokerAuthorization.rows(
 					sourceKind = sourceKind,
@@ -45,11 +50,51 @@ suspend fun AppDatabase.rotateCurrentSourceAuthorizationInTransaction(
 					authorizationRevision = revision,
 					demands = demands,
 					effectiveBootId = bootId,
-					effectiveElapsedRealtimeNanos = elapsedRealtimeNanos,
-					effectiveWallTimeMs = wallTimeMs,
+					effectiveElapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
+					effectiveWallTimeMs = boundary.wallTimeMs,
 				),
 			)
 		}
+}
+
+/** Effective publication time; grant preparation must never move a newer membership into the past. */
+data class SourceAuthorizationPublicationBoundary(val elapsedRealtimeNanos: Long, val wallTimeMs: Long)
+
+/** Withdrawals retain their original cutoff, including a Stop that leaves a sibling purpose active. */
+fun sourceAuthorizationPublicationBoundary(
+	demands: Collection<SourceDemandEntity>,
+	previous: SourceAuthorizationSnapshot?,
+	bootId: String,
+	elapsedRealtimeNanos: Long,
+	wallTimeMs: Long,
+): SourceAuthorizationPublicationBoundary {
+	val previousIds = previous?.authorizedMembers?.mapNotNull { it.demandId }.orEmpty().toSet()
+	val withdrawsGrant = previous?.authorizedMembers?.any { member ->
+		demands.none { demand -> member.hasSameRecordingGrant(demand) }
+	} == true
+	if (withdrawsGrant || demands.none { it.demandId !in previousIds }) {
+		return SourceAuthorizationPublicationBoundary(elapsedRealtimeNanos, wallTimeMs)
+	}
+	val prior = previous?.takeIf { it.effectiveBootId == bootId }
+	val latestDemand = demands.filter { it.requestedBootId == bootId }.maxByOrNull { it.requestedElapsedRealtimeNanos }
+	val effectiveElapsed = maxOf(elapsedRealtimeNanos, prior?.effectiveElapsedRealtimeNanos ?: 0L,
+		latestDemand?.requestedElapsedRealtimeNanos ?: 0L)
+	val effectiveWall = if (effectiveElapsed == elapsedRealtimeNanos) {
+		wallTimeMs
+	} else {
+		maxOf(wallTimeMs, prior?.members?.first()?.effectiveWallTimeMs ?: 0L, latestDemand?.requestedAtMs ?: 0L)
+	}
+	return SourceAuthorizationPublicationBoundary(effectiveElapsed, effectiveWall)
+}
+
+private fun SourceAuthorizationEntity.hasSameRecordingGrant(demand: SourceDemandEntity): Boolean {
+	val sameSource = sourceKind == demand.sourceKind && consumerId == demand.consumerId && purpose == demand.purpose
+	val sameConsent = sourcePolicyRevision == demand.sourcePolicyRevision && consentEpoch == demand.consentEpoch &&
+		persistenceEligible == demand.persistenceEligible
+	val sameSession = logicalTrackingId == demand.logicalTrackingId && serviceRunId == demand.serviceRunId
+	val sameRetention = liveAmbientRetentionPolicyId == demand.liveAmbientRetentionPolicyId &&
+		liveAmbientRetentionApprovalRevision == demand.liveAmbientRetentionApprovalRevision
+	return sameSource && sameConsent && sameSession && sameRetention
 }
 
 /**

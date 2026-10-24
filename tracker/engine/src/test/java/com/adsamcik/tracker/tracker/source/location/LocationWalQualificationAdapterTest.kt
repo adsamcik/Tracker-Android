@@ -706,6 +706,39 @@ class LocationWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `retained all-day Location survives a same-consent demand refresh without borrowing session data`() = roomTest {
+		installValidFixture(ambientOnly = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false)))
+		val original = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		val dao = database.sourceBrokerDao()
+		val demand = dao.demandsByIds(listOf(DEMAND_ID)).single()
+		val replacement = demand.copy(demandId = "replacement", requestedElapsedRealtimeNanos = 400L)
+		dao.insertDemands(listOf(replacement))
+		dao.insertAuthorizations(SourceBrokerAuthorization.rows(LOCATION_SOURCE, REGISTRATION_GENERATION,
+			AUTHORIZATION_REVISION + 1L, listOf(replacement), BOOT_ID, 400L, 1_100L))
+
+		val command = assertIs<LocationAmbientQualification.Qualified>(subject.qualifyAmbient(EVENT_ID)).command
+
+		assertEquals(DEMAND_ID, command.authority.demandId)
+		assertSavedWalUnchanged(original)
+	}
+
+	@Test
+	fun `all-day Location cannot bridge an interruption even if the same consent returns`() = roomTest {
+		installValidFixture(ambientOnly = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false)))
+		val dao = database.sourceBrokerDao()
+		val demand = dao.demandsByIds(listOf(DEMAND_ID)).single()
+		dao.insertAuthorizations(SourceBrokerAuthorization.rows(LOCATION_SOURCE, REGISTRATION_GENERATION,
+			AUTHORIZATION_REVISION + 1L, emptyList(), BOOT_ID, 400L, 1_100L))
+		dao.insertAuthorizations(SourceBrokerAuthorization.rows(LOCATION_SOURCE, REGISTRATION_GENERATION,
+			AUTHORIZATION_REVISION + 2L, listOf(demand), BOOT_ID, 450L, 1_150L))
+
+		assertEquals(LocationAmbientQualification.Rejected(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH),
+			subject.qualifyAmbient(EVENT_ID))
+	}
+
+	@Test
 	fun `retained Location tail survives unchanged capture grant across manifest refreshes`() = roomTest {
 		installValidFixture(payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
 			deliveryPayloads = listOf(locationPayload(false)))

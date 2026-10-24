@@ -5,12 +5,14 @@ import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationDemand
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationFailureCode
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationOwner
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationPlanAttribution
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationResult
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
@@ -146,8 +148,12 @@ class ActivitySourceRuntime @Inject constructor(
 			.takeIf { ActivityRegistrationOwner.ACTIVE_SESSION in beforeClear.owners }
 			?: sessionIdentity
 			?: beforeClear.identity
+		// The arbiter can replace a shared generation after session start. Keep the exact departing
+		// identity through cancellation and retries.
+		sessionIdentity = identity
 		val appliedRevision = currentPlan?.revision
 		val result = arbiter.clearDemand(ActivityRegistrationOwner.ACTIVE_SESSION)
+		val sessionJoinReleased = result.hasReleasedSessionJoin(identity)
 		val durableBarrier = identity?.let { registration ->
 			database.sourceBrokerDao().captureAdmissionBarrier(
 				SourceKind.ACTIVITY.stableCode,
@@ -157,7 +163,7 @@ class ActivitySourceRuntime @Inject constructor(
 			}
 		}
 		val barrierSequence = durableBarrier?.lastSourceSequence ?: 0L
-		val exactAdmissionBarrier = result.activeSessionJoinReleased && durableBarrier != null
+		val exactAdmissionBarrier = sessionJoinReleased && durableBarrier != null
 		return SourceStopAck(
 			source = source,
 			sourceInstanceId = SourceInstanceId(identity?.sourceInstanceId ?: "activity-unregistered"),
@@ -178,7 +184,7 @@ class ActivitySourceRuntime @Inject constructor(
 				barrierSequence
 			},
 			registrationRemovalOutcome = when {
-				!result.activeSessionJoinReleased -> RegistrationRemovalOutcome.FAILED
+				!sessionJoinReleased -> RegistrationRemovalOutcome.FAILED
 				result.snapshot.active || identity == null -> RegistrationRemovalOutcome.NOT_REGISTERED
 				else -> RegistrationRemovalOutcome.REMOVED
 			},
@@ -186,12 +192,37 @@ class ActivitySourceRuntime @Inject constructor(
 			providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
 			appDrainComplete = exactAdmissionBarrier,
 			status = when {
-				!result.activeSessionJoinReleased -> SourceStopStatus.PROVIDER_FAILED
+				!sessionJoinReleased -> SourceStopStatus.PROVIDER_FAILED
 				!exactAdmissionBarrier -> SourceStopStatus.TIMED_OUT
 				else -> SourceStopStatus.PARTIAL_UNOBSERVABLE
 			},
 		).withSessionMembership(runtimeClaim)
 	}
+
+	/** Ending a session can finish while an independent all-day owner's restart waits for Ready. */
+	private suspend fun ActivityRegistrationResult.hasReleasedSessionJoin(
+		identity: ActivityRegistrationIdentity?,
+	): Boolean {
+		if (activeSessionJoinReleased) {
+			return true
+		}
+		val startupBlocked = status == ActivityRegistrationStatus.BLOCKED &&
+			failureCode == ActivityRegistrationFailureCode.STARTUP_RECOVERY_NOT_READY
+		if (!startupBlocked || snapshot.active || ActivityRegistrationOwner.ACTIVE_SESSION in snapshot.owners ||
+			identity == null) {
+			return false
+		}
+		return database.sourceBrokerDao().registration(source.stableCode, identity.registrationGeneration)
+			?.hasRetiredActivityIdentity(identity) == true
+	}
+
+	private fun ProviderRegistrationGenerationEntity.hasRetiredActivityIdentity(
+		identity: ActivityRegistrationIdentity,
+	): Boolean = status == ProviderRegistrationGenerationEntity.STATUS_RETIRED &&
+		sourceInstanceId == identity.sourceInstanceId && clockDomainId == identity.clockDomainId &&
+		collectedDataEpoch == identity.collectedDataEpoch &&
+		physicalConfigurationFingerprint == identity.physicalConfigurationFingerprint &&
+		retiredAtMs != null && retiredElapsedRealtimeNanos != null
 
 	private suspend fun applyPlan(plan: ActivityPlan): ActivityRegistrationResult {
 		if (!plan.enabled) return arbiter.clearDemand(ActivityRegistrationOwner.ACTIVE_SESSION)

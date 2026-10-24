@@ -891,7 +891,7 @@ internal class ProtectedLocationCanonicalHandoff(
 		expectedServiceRunId: String?,
 	): ProtectedLocationCandidateEffect {
 		val preflight = database.sourceEventWalDao().payloadPreflightByEventId(candidate.eventId)
-		val purposes = qualifier.qualifyForPurposes(SourceEventId(candidate.eventId))
+		val purposes = qualifyWithBoundaryRecovery(SourceEventId(candidate.eventId))
 		val ambient = purposes.ambient
 		if (ambient is LocationAmbientQualification.Qualified &&
 			ambient.command.wal.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
@@ -913,6 +913,19 @@ internal class ProtectedLocationCanonicalHandoff(
 			is LocationWalAdapterResult.Evaluated -> processEvaluatedCandidate(
 				initialLane, expectedCursor, candidate, adapted, ambient, expectedLogicalTrackingId, expectedServiceRunId,
 			)
+		}
+	}
+
+	private suspend fun qualifyWithBoundaryRecovery(eventId: SourceEventId): LocationPurposeQualification {
+		val initial = qualifier.qualifyForPurposes(eventId)
+		val rejectedCapture = initial.capture as? LocationWalAdapterResult.Rejected
+		val rejectedAmbient = initial.ambient as? LocationAmbientQualification.Rejected
+		val mismatch = rejectedCapture?.reason == LocationWalAdapterRejection.AUTHORIZATION_MISMATCH ||
+			rejectedAmbient?.reason == LocationWalAdapterRejection.AUTHORIZATION_MISMATCH
+		return if (mismatch && database.repairRetroactiveLocationAuthorization(eventId)) {
+			qualifier.qualifyForPurposes(eventId)
+		} else {
+			initial
 		}
 	}
 

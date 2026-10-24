@@ -1,5 +1,10 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
@@ -66,7 +71,69 @@ class SourceBrokerAmbientLocationTest : SourceBrokerRoomTestFixture() {
 		wrongBoot shouldBe AmbientSourceDemandResult.Inactive("LOCATION_RETENTION_CHANGED")
 	}
 
-	private suspend fun ambientLocationFixture(policyBoot: String = "boot-1"): Triple<AmbientReconciliationIdentity, LiveAmbientRetentionSnapshot, PreparedSourceCallerAcceptance> {
+	@Test
+	fun `delayed all-day preparation cannot backdate a newer session membership`() = runTest {
+		val (identity, retention, prepared) = ambientLocationFixture()
+		val clock = FixedClock(100L, 100L)
+		useClock(clock)
+		val original = (subject.replaceAmbientSourceDemand(identity, "boot-1", 100L, 100L,
+			retention, prepared) as AmbientSourceDemandResult.Active).demand
+		val session = original.copy(demandId = "session-after-preparation", consumerId = "session:logical",
+			purpose = SourceBrokerPurpose.SESSION_CAPTURE, logicalTrackingId = "logical", serviceRunId = "run",
+			manifestRevision = 2L, lifecycleLeaseGeneration = 2L, requestedElapsedRealtimeNanos = 200L,
+			requestedAtMs = 200L, sourceCallerAuthorityReference = "session-caller",
+			liveAmbientRetentionPolicyId = null, liveAmbientRetentionApprovalRevision = null)
+		database.sourceBrokerDao().insertDemands(listOf(session))
+		installLocationRegistration()
+		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(
+			SourceKind.LOCATION.stableCode, 1L, 1L, listOf(original, session), "boot-1", 200L, 200L))
+		clock.setTime(300L, 300L)
+		val next = prepared.copy(receipt = SourceCallerAcceptanceReceipt(
+			SourceCallerReplayReference("next-location-caller"), prepared.receipt.permittedDemandIdentities))
+
+		val replacement = (subject.replaceAmbientSourceDemand(identity, "boot-1", 150L, 150L,
+			retention, next) as AmbientSourceDemandResult.Active).demand
+
+		replacement.requestedElapsedRealtimeNanos shouldBe 300L
+		replacement.requestedAtMs shouldBe 300L
+		database.sourceBrokerDao().demandsByIds(listOf(original.demandId)).single().retireElapsedRealtimeNanos shouldBe 300L
+		val previous = requireNotNull(database.sourceBrokerDao().authorizationAt(1, 1L, "boot-1", 250L)
+			.toAuthorizationSnapshotOrNull())
+		previous.authorizationRevision shouldBe 1L
+		val latest = requireNotNull(database.sourceBrokerDao().latestAuthorization(1, 1L).toAuthorizationSnapshotOrNull())
+		latest.effectiveElapsedRealtimeNanos shouldBe 300L
+		latest.members.mapNotNull { it.demandId }.toSet() shouldBe setOf(session.demandId, replacement.demandId)
+	}
+
+	@Test
+	fun `delayed all-day preparation checks retention at its fresh application boundary`() = runTest {
+		val (identity, retention, prepared) = ambientLocationFixture(retentionStart = 200L)
+		useClock(FixedClock(300L, 300L))
+
+		val result = subject.replaceAmbientSourceDemand(identity, "boot-1", 100L, 100L, retention, prepared)
+
+		(result as AmbientSourceDemandResult.Active).demand.requestedElapsedRealtimeNanos shouldBe 300L
+	}
+
+	private fun useClock(clock: FixedClock) {
+		subject = SourceBroker(database, rolloutStore, RejectingAmbientRadioMutationLeaseGuard,
+			RoomSourceCallerAcceptedAuthorityRepository(database), retentionReader, clock)
+	}
+
+	private suspend fun installLocationRegistration() {
+		database.sourceBrokerDao().insertRegistration(ProviderRegistrationGenerationEntity(
+			sourceKind = SourceKind.LOCATION.stableCode, registrationGeneration = 1L, sourceInstanceId = "location-provider",
+			ownerScope = "source-broker:1", clockDomainId = "boot-1", physicalConfigurationFingerprint = "physical-config",
+			collectedDataEpoch = 3L, providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+			providerProcessIncarnationId = "process-1", status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+			reservedAtMs = 90L, reservedElapsedRealtimeNanos = 90L, acceptedAtMs = 100L, acceptedElapsedRealtimeNanos = 100L,
+			retiredAtMs = null, retiredElapsedRealtimeNanos = null, failureCode = null))
+	}
+
+	private suspend fun ambientLocationFixture(
+		policyBoot: String = "boot-1",
+		retentionStart: Long = 0L,
+	): Triple<AmbientReconciliationIdentity, LiveAmbientRetentionSnapshot, PreparedSourceCallerAcceptance> {
 		resetBroker(setOf(CaptureReachabilityMode.AMBIENT))
 		val policy = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime(policyBoot, elapsed++, elapsed)
@@ -76,7 +143,7 @@ class SourceBrokerAmbientLocationTest : SourceBrokerRoomTestFixture() {
 			legacySettingsMigrationCompleted = true))
 		val consent = requireNotNull(policy[TrackingSourceComponent.LOCATION].ambientConsentEpoch)
 		val retention = retentionReader.installCurrent(database, TrackingSourceComponent.LOCATION,
-			policy.revision, consent, 3L, "boot-1")
+			policy.revision, consent, 3L, "boot-1", retentionStart, retentionStart)
 		val grant = retention.grants.getValue(SourceKind.LOCATION)
 		val identity = AmbientReconciliationIdentity(AmbientTrackingSource.LOCATION, policy.revision,
 			consent, 3L, rolloutStore.load().revision, "location-owner", 1L, grant.retainedFromMs,

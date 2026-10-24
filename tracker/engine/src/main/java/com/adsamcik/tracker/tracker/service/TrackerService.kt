@@ -669,7 +669,6 @@ internal class TrackerService : CoreService() {
 								preparedStartRuntime = preparedStartRuntime.copy(applied = false)
 							} == null) return@startupWork
 						}
-						var reconcileResumedPurposes = false
 						val prepared = try {
 							withTimeoutOrNull(remainingStartupMillis(startupCompletionDeadlineNanos)) {
 								var claimed: TrackingServicePreparedStartClaim
@@ -681,8 +680,6 @@ internal class TrackerService : CoreService() {
 									)
 								} while (claimed is TrackingServicePreparedStartClaim.Deferred)
 								if (claimed !is TrackingServicePreparedStartClaim.Claimed) return@withTimeoutOrNull claimed
-								reconcileResumedPurposes = trackingLifecycleCommandAuthority
-									.isPendingCollectionStart(effectiveCommand)
 								trackingStartRequestCoordinator.acceptForeground(claimed, effectiveCommand) {
 									withPreparedStartOwnership(effectiveToken, effectiveCommand) {
 										if (gracefulStopRequested) return@withPreparedStartOwnership false
@@ -734,9 +731,6 @@ internal class TrackerService : CoreService() {
 								rollbackRejectedPreparedStartRuntime(effectiveToken, effectiveCommand, startId)
 							}
 							return@startupWork
-						}
-						if (reconcileResumedPurposes) {
-							trackingStartRequestCoordinator.reconcileAcceptedManualStart(effectiveCommand)
 						}
 						beginSessionAfterStartupRecovery(
 							startDescriptor = prepared.descriptor,
@@ -1228,6 +1222,10 @@ internal class TrackerService : CoreService() {
 						}
 						descriptor = mirrorPresentationBinding(descriptor, presentationBinding)
 						locationLiveWriterRegistry.attach(orchestrator)
+						if (startOrigin == SessionStartOrigin.MANUAL_FOREGROUND_START) {
+							// Optional all-day repair must never hold a prepared session or its initial capture.
+							trackingStartRequestCoordinator.reconcileAcceptedManualStart(preparedCommand)
+						}
 						// Initial callbacks may arrive before the presentation segment is bound.
 						sourcePipelineRecovery.requestProtectedLocationCanonicalDrain()
 						sourcePipelineRecovery.requestStepsSessionFactDrain()

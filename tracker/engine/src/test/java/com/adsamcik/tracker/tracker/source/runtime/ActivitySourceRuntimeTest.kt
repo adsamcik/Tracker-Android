@@ -13,6 +13,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.SourceRegistrationStateDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceBrokerDao
 import com.adsamcik.tracker.shared.base.database.data.SourceCaptureAdmissionBarrierEntity
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
@@ -110,6 +111,77 @@ class ActivitySourceRuntimeTest {
 		)
 		assertEquals(listOf(ActivityRegistrationOwner.ACTIVE_SESSION), fixture.arbiter.clearedOwners)
 		assertTrue(fixture.arbiter.snapshot().active)
+	}
+
+	@Test
+	fun `End releases retired session join while all-day restart waits for startup Ready`() = runTest {
+		val fixture = fixture(setOf(ActivityRegistrationOwner.ALL_DAY_TRACKING))
+		val owner = claim("end-with-all-day")
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(owner, enabledPlan(1L), DISCARDING_SINK))
+		val identity = requireNotNull(fixture.arbiter.snapshot().identity)
+		fixture.arbiter.startupBlocked = true
+		coEvery { fixture.sourceBrokerDao.registration(SourceKind.ACTIVITY.stableCode, ACTIVITY_GENERATION) } returns
+			retiredRegistration(identity)
+
+		val released = assertIs<OwnedSourceShutdown.Released>(fixture.runtime.shutdownIfOwned(owner, CUTOFF))
+
+		val acknowledgement = requireNotNull(released.stopAck)
+		assertEquals(RegistrationRemovalOutcome.REMOVED, acknowledgement.registrationRemovalOutcome)
+		assertEquals(SourceStopStatus.PARTIAL_UNOBSERVABLE, acknowledgement.status)
+		assertEquals(23L, acknowledgement.lastAdmissionOrdinal)
+		assertTrue(acknowledgement.appDrainComplete)
+		assertEquals(setOf(ActivityRegistrationOwner.ALL_DAY_TRACKING), fixture.arbiter.owners)
+		assertFalse(fixture.arbiter.snapshot().active)
+	}
+
+	@Test
+	fun `blocked sibling cannot release until exact physical removal is acknowledged`() = runTest {
+		val fixture = fixture(setOf(ActivityRegistrationOwner.ALL_DAY_TRACKING))
+		val owner = claim("end-removal-pending")
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(owner, enabledPlan(1L), DISCARDING_SINK))
+		val retired = retiredRegistration(requireNotNull(fixture.arbiter.snapshot().identity))
+		fixture.arbiter.startupBlocked = true
+		coEvery { fixture.sourceBrokerDao.registration(SourceKind.ACTIVITY.stableCode, ACTIVITY_GENERATION) } returns
+			retired.copy(status = ProviderRegistrationGenerationEntity.STATUS_RETIRING,
+				retiredAtMs = null, retiredElapsedRealtimeNanos = null)
+		assertIs<OwnedSourceShutdown.Incomplete>(fixture.runtime.shutdownIfOwned(owner, CUTOFF))
+
+		coEvery { fixture.sourceBrokerDao.registration(SourceKind.ACTIVITY.stableCode, ACTIVITY_GENERATION) } returns retired
+		assertIs<OwnedSourceShutdown.Released>(fixture.runtime.shutdownIfOwned(owner, CUTOFF))
+	}
+
+	@Test
+	fun `retired blocked sibling still requires durable Activity admission barrier`() = runTest {
+		val fixture = fixture(setOf(ActivityRegistrationOwner.ALL_DAY_TRACKING), admissionBarrier = null)
+		val owner = claim("end-barrier-missing")
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(owner, enabledPlan(1L), DISCARDING_SINK))
+		fixture.arbiter.startupBlocked = true
+		coEvery { fixture.sourceBrokerDao.registration(SourceKind.ACTIVITY.stableCode, ACTIVITY_GENERATION) } returns
+			retiredRegistration(requireNotNull(fixture.arbiter.snapshot().identity))
+
+		val incomplete = assertIs<OwnedSourceShutdown.Incomplete>(fixture.runtime.shutdownIfOwned(owner, CUTOFF))
+		assertFalse(requireNotNull(incomplete.stopAck).appDrainComplete)
+		assertEquals(SourceStopStatus.TIMED_OUT, requireNotNull(incomplete.stopAck).status)
+	}
+
+	@Test
+	fun `interrupted clear retries the departing shared generation rather than original session identity`() = runTest {
+		val fixture = fixture(setOf(ActivityRegistrationOwner.ALL_DAY_TRACKING))
+		val owner = claim("end-new-generation")
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(owner, enabledPlan(1L), DISCARDING_SINK))
+		val successor = requireNotNull(fixture.arbiter.snapshot().identity)
+			.copy(registrationGeneration = ACTIVITY_GENERATION + 1L)
+		fixture.arbiter.identity = successor
+		fixture.arbiter.nextClearFailure = MutationFailurePoint.AFTER
+		assertFailsWith<IllegalStateException> { fixture.runtime.shutdownIfOwned(owner, CUTOFF) }
+		fixture.arbiter.startupBlocked = true
+		coEvery { fixture.sourceBrokerDao.registration(SourceKind.ACTIVITY.stableCode, successor.registrationGeneration) } returns
+			retiredRegistration(successor)
+		coEvery { fixture.sourceBrokerDao.captureAdmissionBarrier(SourceKind.ACTIVITY.stableCode, successor.registrationGeneration) } returns
+			activityAdmissionBarrier().copy(registrationGeneration = successor.registrationGeneration)
+
+		val released = assertIs<OwnedSourceShutdown.Released>(fixture.runtime.shutdownIfOwned(owner, CUTOFF))
+		assertEquals(SourceProviderKey(SourceInstanceId(ACTIVITY_INSTANCE_ID), successor.registrationGeneration), released.provider)
 	}
 
 	@Test
@@ -284,6 +356,7 @@ class ActivitySourceRuntimeTest {
 			runtime = ActivitySourceRuntime(arbiter, database, SourcePlanCodec()),
 			arbiter = arbiter,
 			registrationStateDao = registrationStateDao,
+			sourceBrokerDao = sourceBrokerDao,
 		)
 	}
 
@@ -291,9 +364,22 @@ class ActivitySourceRuntimeTest {
 		val runtime: ActivitySourceRuntime,
 		val arbiter: RecordingActivityRegistrationArbiter,
 		val registrationStateDao: SourceRegistrationStateDao,
+		val sourceBrokerDao: SourceBrokerDao,
 	)
 
 	private companion object {
+		fun retiredRegistration(identity: ActivityRegistrationIdentity) = ProviderRegistrationGenerationEntity(
+			sourceKind = SourceKind.ACTIVITY.stableCode, registrationGeneration = identity.registrationGeneration,
+			sourceInstanceId = identity.sourceInstanceId, ownerScope = "source-broker:2",
+			clockDomainId = identity.clockDomainId, physicalConfigurationFingerprint = identity.physicalConfigurationFingerprint,
+			collectedDataEpoch = identity.collectedDataEpoch,
+			providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+			providerProcessIncarnationId = null, status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+			reservedAtMs = 1L, reservedElapsedRealtimeNanos = 1L,
+			acceptedAtMs = 2L, acceptedElapsedRealtimeNanos = 2L,
+			retiredAtMs = 20L, retiredElapsedRealtimeNanos = 20L, failureCode = "DEMAND_REMOVED",
+		)
+
 		fun activityAdmissionBarrier() = SourceCaptureAdmissionBarrierEntity(
 			sourceKind = SourceKind.ACTIVITY.stableCode,
 			registrationGeneration = ACTIVITY_GENERATION,
@@ -323,7 +409,7 @@ private const val ACTIVITY_GENERATION = 7L
 private class RecordingActivityRegistrationArbiter(
 	initialOwners: Set<ActivityRegistrationOwner>,
 ) : ActivityRegistrationArbiter {
-	private val identity = ActivityRegistrationIdentity(
+	var identity = ActivityRegistrationIdentity(
 		sourceInstanceId = ACTIVITY_INSTANCE_ID,
 		registrationGeneration = ACTIVITY_GENERATION,
 		collectedDataEpoch = 3L,
@@ -339,6 +425,7 @@ private class RecordingActivityRegistrationArbiter(
 	var nextSetFailure: MutationFailurePoint? = null
 	var nextClearFailure: MutationFailurePoint? = null
 	var nextClearStatus: ActivityRegistrationStatus? = null
+	var startupBlocked: Boolean = false
 	var clearDemandCalls: Int = 0
 		private set
 	val clearedOwners = mutableListOf<ActivityRegistrationOwner>()
@@ -366,7 +453,11 @@ private class RecordingActivityRegistrationArbiter(
 		if (failure == MutationFailurePoint.BEFORE) throw mutationFailure("clear", failure)
 		demands.remove(owner)
 		if (failure == MutationFailurePoint.AFTER) throw mutationFailure("clear", failure)
-		return result(nextClearStatus.also { nextClearStatus = null } ?: ActivityRegistrationStatus.APPLIED)
+		return result(nextClearStatus.also { nextClearStatus = null } ?: if (startupBlocked) {
+			ActivityRegistrationStatus.BLOCKED
+		} else {
+			ActivityRegistrationStatus.APPLIED
+		})
 	}
 
 	override suspend fun reconcileDurableDemands(): ActivityRegistrationResult =
@@ -382,7 +473,7 @@ private class RecordingActivityRegistrationArbiter(
 		ActivityProviderCleanupResult.COMPLETE
 
 	override fun snapshot(): ActivityRegistrationSnapshot = ActivityRegistrationSnapshot(
-		active = demands.isNotEmpty(),
+		active = demands.isNotEmpty() && !startupBlocked,
 		identity = identity,
 		owners = owners,
 		continuousRecognitionIntervalSeconds = demands.values
@@ -394,10 +485,11 @@ private class RecordingActivityRegistrationArbiter(
 	private fun result(status: ActivityRegistrationStatus) = ActivityRegistrationResult(
 		status = status,
 		snapshot = snapshot(),
-		failureCode = if (status == ActivityRegistrationStatus.APPLIED) {
-			null
-		} else {
-			ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED
+		failureCode = when {
+			status == ActivityRegistrationStatus.APPLIED -> null
+			status == ActivityRegistrationStatus.BLOCKED && startupBlocked ->
+				ActivityRegistrationFailureCode.STARTUP_RECOVERY_NOT_READY
+			else -> ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED
 		},
 		retryable = status != ActivityRegistrationStatus.APPLIED,
 	)

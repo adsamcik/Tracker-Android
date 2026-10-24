@@ -408,9 +408,9 @@ class SharedLocationSourceController @Inject constructor(
 		} else {
 			val stopped = physicalRuntime.quiesce(cutoff)
 			if (stopped.toOwnedShutdown() is OwnedSourceShutdown.Released) {
-				val restart = physicalRuntime.reconfigureShared(physicalAmbientPlan, unboundSink, null, maximumAgeMs)
-				ambientAttached =
-					restart is SourceApplyResult.Applied || restart is SourceApplyResult.Degraded
+				// Return the exact retired session receipt before starting a replacement. The host's
+				// post-End refresh reattaches the ambient/UI plans after the Stop is handled.
+				ambientAttached = false
 			}
 			stopped
 		}

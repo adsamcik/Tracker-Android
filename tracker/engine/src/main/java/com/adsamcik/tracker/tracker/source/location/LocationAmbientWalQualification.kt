@@ -18,6 +18,7 @@ import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientCon
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.model.AltitudeContractVersions
+import com.adsamcik.tracker.tracker.source.ingress.continuousAmbientSensorMembers
 import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
@@ -115,6 +116,12 @@ private suspend fun AppDatabase.ambientLocationAuthorization(
 			authorization.members.first().effectiveWallTimeMs)
 	}.getOrNull()
 	requireAmbientLocationAuthorizationShape(authorization, observed, ids, demands)
+	if (observed != authorization && broker.continuousAmbientSensorMembers(authorization,
+		authorization.effectiveElapsedRealtimeNanos, wal.observedElapsedNanos).none {
+			it.demandId == ambientSourceDemandOrNull(authorization, demands)?.demandId
+		}) {
+		rejectAmbientLocation(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH)
+	}
 	if (recomputed?.sortedBy { it.memberId } != rows.sortedBy { it.memberId } ||
 		authorization.authorizationFingerprint != wal.authorizationFingerprint ||
 		!exactMembership(wal, authorization, demands) || authorization.effectiveBootId != wal.clockDomainId) {
@@ -129,7 +136,7 @@ private fun requireAmbientLocationAuthorizationShape(
 	ids: List<String>,
 	demands: List<SourceDemandEntity>,
 ) {
-	if (authorization.isDenied || observed != authorization ||
+	if (authorization.isDenied || observed == null ||
 		ids.distinct().size != authorization.authorizedMembers.size || demands.size != ids.size) {
 		rejectAmbientLocation(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH)
 	}

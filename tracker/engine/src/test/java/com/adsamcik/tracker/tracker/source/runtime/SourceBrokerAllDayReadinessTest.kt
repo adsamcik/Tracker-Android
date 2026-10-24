@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
+import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
 import com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityReader
@@ -227,12 +228,12 @@ class SourceBrokerAllDayReadinessTest {
 			coEvery { reader.currentLiveAmbient(component, policyRevision, consentEpoch, 3L, null) } returns approval
 			coEvery { reader.isCurrentLiveAmbientAt(component, policyRevision, consentEpoch, 3L, null,
 				approval.opaquePolicyId, approval.approvalRevision, "boot-1", 100L, 100L) } returns true
-			broker = SourceBroker(database, rolloutStore, reader)
+			broker = SourceBroker(database, rolloutStore, reader, FixedClock(100L, 100L))
 			return requireNotNull(broker.captureLiveAmbientRetentionSnapshot(source, policyRevision,
 				consentEpoch, 3L, "boot-1", 100L, 100L))
 		}
 		val reader = TestLiveAmbientRetentionAuthorityReader()
-		broker = SourceBroker(database, rolloutStore, reader)
+		broker = SourceBroker(database, rolloutStore, reader, FixedClock(100L, 100L))
 		return reader.installCurrent(database, component, policyRevision, consentEpoch, 3L, "boot-1")
 	}
 }

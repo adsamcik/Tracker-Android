@@ -5710,7 +5710,9 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		envelopesByRevision: Map<Long, VerifiedSessionManifest>,
 		productDrainBindings: Map<Int, List<SessionManifestSourceEntity>>,
 	): RunRetirementTargetRead {
-		val currentCaptureSources = captureSourcesForRetirement(current, retirementAuthorityActions)
+		val currentCaptureSources = captureSourcesForRetirement(
+			current, retirementAuthorityActions, productDrainBindings.keys,
+		)
 		val targets = mutableListOf<RunRetirementTarget>()
 		for (sourceCode in currentCaptureSources.sorted()) {
 			currentCoroutineContext().ensureActive()
@@ -5739,6 +5741,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	private fun captureSourcesForRetirement(
 		current: VerifiedSessionManifest,
 		retirementAuthorityActions: List<LifecycleDesiredActionEntity>,
+		historicalCaptureSources: Set<Int>,
 	): Set<Int> {
 		val currentCaptureSources = current.bindings.asSequence()
 			.filter { binding ->
@@ -5747,11 +5750,14 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			}
 			.map(SessionManifestSourceEntity::sourceKind)
 			.toMutableSet()
-		val latestOwnershipOutcomeBySource = retirementAuthorityActions.asSequence()
-			.groupBy { action -> requireNotNull(action.sourceKind) }
-			.mapValues { (_, sourceActions) -> sourceActions.maxBy(LifecycleDesiredActionEntity::actionRevision) }
-		latestOwnershipOutcomeBySource.forEach { (sourceKind, latest) ->
-			if (latest.status != LifecycleActionStatus.STOP_ACCEPTED.name) {
+		val ownershipActionsBySource = retirementAuthorityActions.groupBy { action -> requireNotNull(action.sourceKind) }
+		ownershipActionsBySource.forEach { (sourceKind, sourceActions) ->
+			val latest = sourceActions.maxBy(LifecycleDesiredActionEntity::actionRevision)
+			// A disabled source can be interrupted after claiming its no-op stop without ever owning capture.
+			val mayOwnProvider = sourceKind in historicalCaptureSources || sourceActions.any { action ->
+				action.desiredState == ACTION_DESIRED_STARTED || action.sourceInstanceId != null
+			}
+			if (latest.status != LifecycleActionStatus.STOP_ACCEPTED.name && mayOwnProvider) {
 				currentCaptureSources += sourceKind
 			}
 		}

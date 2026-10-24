@@ -33,33 +33,32 @@ private suspend fun SourceBrokerDao.continuousSensorMembersUntil(
 ): List<SourceAuthorizationEntity> {
 	var candidates = claimed.authorizedMembers.filter(SourceAuthorizationEntity::isSessionlessAmbientSensor)
 	var observed = original
-	while (candidates.isNotEmpty()) {
+	repeat(MAX_SENSOR_AUTHORIZATION_REVISIONS) {
 		// Quality changes replace demands before the physical listener flushes. Keep the original
 		// observation while this same source consent remains continuously selected.
 		candidates = candidates.filter { member -> observed.authorizedMembers.any(member::hasSameAmbientSensorConsent) }
 		if (candidates.isEmpty()) {
-			break
+			return emptyList()
 		}
 		val nextRows = nextAuthorizationRevisionBounded(claimed.members.first().sourceKind,
 			claimed.members.first().registrationGeneration, observed.authorizationRevision,
 			MAX_SENSOR_AUTHORIZATION_MEMBERS + 1)
-		if (nextRows.isEmpty()) {
-			break
-		}
 		val next = nextRows.boundedSensorSnapshot()
-		if (next == null || !next.isOrderedSensorSuccessor(observed, claimed.effectiveBootId)) {
+		if (nextRows.isNotEmpty() &&
+			(next == null || !next.isOrderedSensorSuccessor(observed, claimed.effectiveBootId))) {
 			return emptyList()
 		}
-		if (next.effectiveElapsedRealtimeNanos > endElapsedNanos) {
-			break
+		if (next == null || next.effectiveElapsedRealtimeNanos > endElapsedNanos) {
+			return candidates
 		}
 		observed = next
 	}
-	return candidates
+	return emptyList()
 }
 
 private fun SourceAuthorizationSnapshot.supportsSensorInterval(start: Long, end: Long): Boolean =
-	members.first().sourceKind in setOf(SourceKind.ACTIVITY.stableCode, SourceKind.PRESSURE.stableCode) &&
+	members.first().sourceKind in setOf(SourceKind.ACTIVITY.stableCode, SourceKind.PRESSURE.stableCode,
+		SourceKind.LOCATION.stableCode) &&
 		start >= 0L && end >= start
 
 private fun SourceAuthorizationSnapshot.isOrderedSensorSuccessor(
@@ -88,3 +87,4 @@ private fun List<SourceAuthorizationEntity>.boundedSensorSnapshot(): SourceAutho
 }
 
 private const val MAX_SENSOR_AUTHORIZATION_MEMBERS = 64
+private const val MAX_SENSOR_AUTHORIZATION_REVISIONS = 256

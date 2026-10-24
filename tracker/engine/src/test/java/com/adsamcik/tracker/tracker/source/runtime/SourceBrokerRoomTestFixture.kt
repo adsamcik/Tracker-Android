@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
+import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
@@ -78,6 +79,7 @@ abstract class SourceBrokerRoomTestFixture {
 			database,
 			rolloutStore,
 			retentionReader,
+			FixedClock(100L, 100L),
 		)
 	}
 }

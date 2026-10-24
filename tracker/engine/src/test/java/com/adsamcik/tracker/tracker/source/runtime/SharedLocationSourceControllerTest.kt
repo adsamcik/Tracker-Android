@@ -23,7 +23,10 @@ import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 
 class SharedLocationSourceControllerTest {
 	@Test
@@ -404,6 +407,65 @@ class SharedLocationSourceControllerTest {
 		)
 		assertIs<OwnedSourceShutdown.Incomplete>(subject.quiesce(cutoff).toOwnedShutdown())
 		coVerify(exactly = 0) { physical.reconfigureShared(any(), any(), any(), any()) }
+	}
+
+	@Test
+	fun `End returns its retirement receipt without awaiting a cancellable background replacement`() = runTest {
+		val subject = subject()
+		demands = listOf(demand(false))
+		subject.reconcileAmbientJoin(baseline, 2L)
+		demands = demands + demand(true)
+		subject.start(claim, focus, mockk())
+		demands = listOf(demand(false))
+		coEvery { physical.refreshShared(baseline, sink, null, 120_000L) } returns null
+		val retired = completeAck()
+		coEvery { physical.quiesce(cutoff) } returns retired
+		coEvery { physical.reconfigureShared(any(), any(), any(), any()) } coAnswers { awaitCancellation() }
+
+		val stopped = withTimeout(1_000L) { subject.shutdownIfOwned(claim, cutoff) }
+
+		assertEquals(OwnedSourceShutdown.Released(retired.providerKeyOrNull(),
+			retired.withSessionMembership(claim)), stopped)
+		coVerify(exactly = 0) { physical.reconfigureShared(any(), any(), any(), any()) }
+		// A cancelled later ambient refresh cannot reacquire the retired session claim.
+		coEvery { physical.reconfigureShared(any(), any(), any(), any()) } throws
+			CancellationException("background replacement cancelled")
+		assertFailsWith<CancellationException> { subject.reconcileAmbientJoin(baseline, 2L) }
+		assertIs<OwnedSourceShutdown.NotOwned>(subject.shutdownIfOwned(claim, cutoff))
+		coVerify(exactly = 1) { physical.quiesce(cutoff) }
+	}
+
+	@Test
+	fun `post-End background refresh retains the temporary UI lease and original background authority`() = runTest {
+		val subject = subject()
+		demands = listOf(demand(false))
+		subject.reconcileAmbientJoin(baseline, 2L)
+		demands = demands + demand(true)
+		subject.start(claim, focus, mockk())
+		val temporary = UiLocationRequest("my-location", 1_000L, 500L,
+			highAccuracy = true, maximumAgeMillis = 5_000L)
+		val lease = requireNotNull(subject.acquireUiLease(temporary))
+		demands = listOf(demand(false))
+		coEvery { physical.refreshShared(any(), sink, null, 120_000L) } returns null
+		coEvery { physical.quiesce(cutoff) } returns completeAck()
+
+		assertIs<OwnedSourceShutdown.Released>(subject.shutdownIfOwned(claim, cutoff))
+		coVerify(exactly = 0) { physical.reconfigureShared(any(), any(), any(), any()) }
+		coEvery { physical.reconfigureShared(any(), sink, null, 120_000L) } answers {
+			SourceApplyResult.Applied(appliedState(SourceKind.LOCATION, firstArg<LocationPlan>().revision,
+				null, SourceApplyStatus.APPLIED, 1L))
+		}
+
+		assertIs<AmbientLocationRuntimeJoinResult.Active>(subject.reconcileAmbientJoin(baseline, 2L))
+		coVerify(exactly = 1) { physical.reconfigureShared(match {
+			it.mode == LocationMode.HIGH_ACCURACY && it.requestedIntervalMs == 1_000L
+		}, sink, null, 120_000L) }
+		coEvery { physical.refreshShared(baseline, sink, null, 120_000L) } returns
+			SourceApplyResult.Applied(appliedState(SourceKind.LOCATION, baseline.revision,
+				null, SourceApplyStatus.APPLIED, 1L))
+		subject.releaseUiLease(lease)
+		coVerify(exactly = 2) { physical.refreshShared(baseline, sink, null, 120_000L) }
+		assertEquals(listOf(demand(false)), demands)
 	}
 
 	@Test

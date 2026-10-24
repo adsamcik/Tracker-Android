@@ -268,6 +268,7 @@ class PreparedStartForegroundAcceptanceTest {
             trackingLifecycleCommandAuthority = commands, sourceCallerDemandDispatcher = mockk(),
             activeTrackingSessionCallerAuthorityReconciler = mockk(), sourcePolicyRepository = mockk(),
             batteryAwarePolicy = mockk(),
+            applicationScope = mockk(),
         )
     }
 }

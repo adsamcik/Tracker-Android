@@ -314,6 +314,7 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
             activeTrackingSessionCallerAuthorityReconciler = callerReconciler,
             sourcePolicyRepository = mockk(),
             batteryAwarePolicy = battery,
+            applicationScope = mockk(),
         )
     }
 }
