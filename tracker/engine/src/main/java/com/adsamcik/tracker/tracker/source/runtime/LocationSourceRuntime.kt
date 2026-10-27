@@ -321,6 +321,7 @@ class LocationSourceRuntime @Inject internal constructor(
 					stopAck = predecessorStopAck,
 				)
 			}
+			predecessorStopAck = predecessorStopAck ?: terminalStopAck
 		}
 		if (!reconcilePendingRetirementLocked()) {
 			return@withLock SourceApplyResult.Failed(
@@ -347,6 +348,12 @@ class LocationSourceRuntime @Inject internal constructor(
 		val previous = terminalStopAck
 		if (previous == null) {
 			shutdownLocked(cutoff, RETIRE_REASON_SESSION_STOP)
+		} else if (registration != null && !retryOwnedRetirementLocked()) {
+			if (previous.hasCompleteTerminalRetirement()) {
+				previous.copy(status = SourceStopStatus.PROVIDER_FAILED)
+			} else {
+				previous
+			}
 		} else {
 			settleCachedSessionDrain(previous, cutoff)
 		}
@@ -490,7 +497,7 @@ class LocationSourceRuntime @Inject internal constructor(
 			return shutdownLocked(null, RETIRE_REASON_RUNTIME_CLOSE)
 		}
 		if (!retryOwnedRetirementLocked()) {
-			return terminalStopAck ?: unavailableAck(null).copy(
+			return terminalStopAck?.copy(status = SourceStopStatus.PROVIDER_FAILED) ?: unavailableAck(null).copy(
 				registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED,
 				appDrainComplete = false,
 				status = SourceStopStatus.PROVIDER_FAILED,
@@ -528,7 +535,10 @@ class LocationSourceRuntime @Inject internal constructor(
 			val retirementComplete = retryOwnedRetirementLocked()
 			val acknowledgement = terminalStopAck ?: retainedRetirementAck
 			if (!retirementComplete) {
-				OwnedSourceShutdown.Incomplete(provider, acknowledgement)
+				val pending = if (acknowledgement?.hasCompleteTerminalRetirement() == true) {
+					acknowledgement.copy(status = SourceStopStatus.PROVIDER_FAILED)
+				} else acknowledgement
+				OwnedSourceShutdown.Incomplete(provider, pending)
 			} else {
 				acknowledgement?.toOwnedShutdown()
 					?: OwnedSourceShutdown.Released(provider, stopAck = null)
@@ -1018,6 +1028,13 @@ class LocationSourceRuntime @Inject internal constructor(
 				else -> SourceStopStatus.COMPLETE
 			},
 		).withSessionMembership(ownerClaim)
+		if (retirement.durability == LocationRetirementDurability.COMPLETE && actorSettledAfterCancellation) {
+			terminalStopAck = ack
+			if (!persistLocationRetirement(activeRegistration, ack)) {
+				retainRetirementOwnership()
+				return ack.copy(status = SourceStopStatus.PROVIDER_FAILED)
+			}
+		}
 		if (retirement.durability == LocationRetirementDurability.COMPLETE) {
 			if (actorSettledAfterCancellation) {
 				clearActiveState()
@@ -1037,7 +1054,9 @@ class LocationSourceRuntime @Inject internal constructor(
 				)
 			}
 		}
-		retainedRetirementAck = ack.takeUnless { actorSettledAfterCancellation }
+		retainedRetirementAck = ack.takeUnless {
+			actorSettledAfterCancellation && retirement.durability == LocationRetirementDurability.COMPLETE
+		}
 		if (retirement.durability == LocationRetirementDurability.COMPLETE) {
 			terminalStopAck = ack
 		}
@@ -1066,11 +1085,15 @@ class LocationSourceRuntime @Inject internal constructor(
 	 * removal is never attempted until the retirement boundary is durable.
 	 */
 	private suspend fun retryOwnedRetirementLocked(): Boolean {
+		val completed = terminalStopAck
+		val completedRegistration = registration
+		if (completed != null && completedRegistration != null && retainedRetirementActor == null) {
+			return persistAndClearLocationRetirement()
+		}
 		val retainedActor = retainedRetirementActor
 		if (providerRetirementCompletedWhileActorRetained) {
 			if (retainedActor?.isCompleted != true) return false
-			clearActiveState()
-			return true
+			return persistAndClearLocationRetirement()
 		}
 		val ownedRegistration = registration
 		if (ownedRegistration == null) {
@@ -1094,8 +1117,8 @@ class LocationSourceRuntime @Inject internal constructor(
 				retainRetirementUntilActorSettles(retainedActor, providerRetirementComplete = true)
 				false
 			} else {
-				clearActiveState()
-				true
+				retainedRetirementAck = retainedRetirementAck?.copy(registrationRemovalOutcome = retirement.removalOutcome)
+				persistAndClearLocationRetirement()
 			}
 		} else {
 			if (retainedActor != null && !retainedActor.isCompleted) {
@@ -1105,6 +1128,26 @@ class LocationSourceRuntime @Inject internal constructor(
 			}
 			false
 		}
+	}
+
+	private suspend fun persistAndClearLocationRetirement(): Boolean {
+		val retiredRegistration = registration
+		val acknowledgement = terminalStopAck ?: retainedRetirementAck
+		if (retiredRegistration != null && acknowledgement != null &&
+			!persistLocationRetirement(retiredRegistration, acknowledgement)) {
+			return false
+		}
+		terminalStopAck = acknowledgement ?: terminalStopAck
+		clearActiveState()
+		return true
+	}
+
+	/** The existing retired owner stays available for retry until its real coverage is durable. */
+	private suspend fun persistLocationRetirement(activeRegistration: SourceRegistration, ack: SourceStopAck): Boolean {
+		val claim = ownerClaim ?: return true
+		return runCatchingNonCancellation {
+			registrations.saveLocationRetirementCompleteness(activeRegistration, claim, ack)
+		}.getOrDefault(false)
 	}
 
 	/**
@@ -1292,7 +1335,6 @@ class LocationSourceRuntime @Inject internal constructor(
 			queue = null
 		}
 		actor = null
-		retainedRetirementAck = null
 		retainedRetirementActor = null
 		providerRetirementCompletedWhileActorRetained = false
 		currentSink = null

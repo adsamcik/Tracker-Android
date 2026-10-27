@@ -42,9 +42,13 @@ internal class ProtectedLocationWriterSetupCoordinator @Inject constructor(
 
 	suspend fun ensureFinalWriter(updatedAtMs: Long): SourceWriterTransitionResult {
 		require(updatedAtMs >= 0L)
+		database.withTransaction { readyFinalWriter() }?.let { return it }
 		var needsDrain = false
 		val result = boundary.run(source, phase) { lease ->
-			val ready = database.withTransaction { readyFinalWriter(lease) }
+			val ready = database.withTransaction {
+				boundary.requireLease(lease)
+				readyFinalWriter()
+			}
 			if (ready != null) {
 				return@run ready
 			}
@@ -64,10 +68,10 @@ internal class ProtectedLocationWriterSetupCoordinator @Inject constructor(
 		return result
 	}
 
-	private suspend fun readyFinalWriter(lease: LifecycleLeaseToken): SourceWriterTransitionResult? {
-		boundary.requireLease(lease)
-		val current = currentRollout()
-		val active = activeLane()
+	private suspend fun readyFinalWriter(): SourceWriterTransitionResult? {
+		val current = database.trackingRolloutStateDao().get()?.decodeCurrentModelOrNull() ?: return null
+		val active = database.sourceProjectionStateDao().allActiveProductLanes()
+			.filter { it.sourceKind == source.stableCode }.singleOrNull()
 		return if (isFinalReady(active, current)) {
 			SourceWriterTransitionResult.AlreadyApplied(source, phase, current.revision, 1L, null)
 		} else {

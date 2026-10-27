@@ -18,6 +18,7 @@ import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientCon
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.model.AltitudeContractVersions
+import com.adsamcik.tracker.shared.preferences.tracking.SourceQos
 import com.adsamcik.tracker.tracker.source.ingress.continuousAmbientSensorMembers
 import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
@@ -234,6 +235,15 @@ private fun buildAmbientLocationCommand(
 	lifecycle: SourceEvidenceState,
 ): LocationAmbientQualification {
 	val wal = physical.wal
+	// Capture may be off while independently enabled all-day collection uses its saver contract.
+	val qos = if (policy.qosCode == SourceQos.OFF.stableCode) {
+		SourceQos.BATTERY_SAVER.stableCode
+	} else {
+		policy.qosCode
+	}
+	if (qos !in SourceQos.BATTERY_SAVER.stableCode..SourceQos.RESPONSIVE.stableCode) {
+		rejectAmbientLocation(LocationWalAdapterRejection.POLICY_MISMATCH)
+	}
 	val maximumAccuracy = policy.locationRequiredAccuracyMeters?.toFloat()
 		?: rejectAmbientLocation(LocationWalAdapterRejection.POLICY_MISMATCH)
 	val maximumAge = runCatching { Math.multiplyExact(demand.maximumAgeMs, LOCATION_WAL_NANOS_PER_MILLISECOND) }
@@ -253,7 +263,7 @@ private fun buildAmbientLocationCommand(
 			retention.opaquePolicyId, retention.approvalRevision, lifecycle.collectedDataEpoch,
 			lifecycle.retainedFromMs, maximumAge, maximumAccuracy),
 		LocationWalAcquisitionMetadata(plan.canonicalAcquisitionMode(), plan.canonicalRequestPriority(), maximumAccuracy,
-			policy.qosCode.toLocationPolicyTier(), policy.qosCode.toLocationPolicyName(),
+			qos.toLocationPolicyTier(), qos.toLocationPolicyName(),
 			PROTECTED_LOCATION_CANONICAL_CURATION_VERSION, AltitudeContractVersions.MODEL_VERSION,
 			AltitudeContractVersions.ESTIMATOR_VERSION, AltitudeContractVersions.CALIBRATION_VERSION)))
 }

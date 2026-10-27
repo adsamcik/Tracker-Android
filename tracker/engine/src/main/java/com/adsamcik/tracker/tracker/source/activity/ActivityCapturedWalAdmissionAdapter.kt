@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.activity
 
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.hasCompatibleCapturedActivityAcquisition
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
@@ -164,7 +165,7 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			)
 			}
 			if (selected.authorizationPurposeEligibilityMask and
-				SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
+				SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L || selected.isSessionlessAmbientObservation()
 			) {
 				return@transaction rejected(ActivityCapturedWalAdmissionRejection.CONTROL_ONLY)
 			}
@@ -593,7 +594,8 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 				manifest.serviceRunId != serviceRunId ||
 				manifest.sessionMode != session.sessionMode ||
 				manifest.sourcePolicyRevision != sourcePolicyRevision ||
-				manifest.acquisitionPlanRevision != configurationRevision ||
+				!database.hasCompatibleCapturedActivityAcquisition(manifest, configurationRevision,
+					selected.sourceInstanceId, selected.registrationGeneration, authorizationRevision) ||
 				manifest.effectiveBootId != selected.clockDomainId ||
 				manifest.effectiveElapsedRealtimeNanos > selected.observedElapsedNanos ||
 				!activityBinding.isExactCapturedActivityBinding(captureConsentEpoch, manifest.sessionMode) ||
@@ -708,6 +710,14 @@ private fun SourceEventWalPayloadPreflightRow.matches(wal: SourceEventWalEntity)
 	clockDomainId == wal.clockDomainId && deliveryIdentity == wal.deliveryIdentity &&
 	deliveryUnitIndex == wal.deliveryUnitIndex && deliveryUnitCount == wal.deliveryUnitCount &&
 	payloadBytes == wal.payload.size.toLong()
+
+/** The raw shared-purpose header does not assign an observation to an ended session. */
+@Suppress("ComplexCondition")
+private fun SourceEventWalEntity.isSessionlessAmbientObservation(): Boolean =
+	authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_AMBIENT_PRODUCT != 0L &&
+		planAttribution == PlanAttribution.RECEIVE_TIME_ONLY.ordinal &&
+		logicalTrackingId == null && serviceRunId == null && sourcePolicyRevision == null &&
+		captureConsentEpoch == null && sessionManifestRevision == null && lifecycleLeaseGeneration == null
 
 // Compares the complete immutable delivery-authority tuple without consulting live state.
 @Suppress("CyclomaticComplexMethod")

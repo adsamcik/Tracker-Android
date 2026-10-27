@@ -333,7 +333,10 @@ fun DashboardRoute(
 
 	// Historical data from ViewModel
 	val todaySummary by viewModel.todaySummary.collectAsState()
-	val recentHistory by viewModel.recentHistory.collectAsStateWithLifecycle()
+	// Preflight precedes the shared Start generation; idle history yields from the first tap.
+	val recentHistory = if (isStarting) DashboardRecentHistoryState.Loading else {
+		viewModel.recentHistory.collectAsStateWithLifecycle().value
+	}
 	val explorationState by viewModel.explorationState.collectAsState()
 	val streakState by viewModel.streakState.collectAsState()
 	val sessionInsights by viewModel.sessionInsights.collectAsState()
@@ -432,6 +435,7 @@ fun DashboardRoute(
 		dashboardMode = dashboardMode,
 		isTracking = isTracking,
 		isStarting = isStarting,
+		stoppingAtMs = sessionInfo?.stoppingAtMs,
 		isLocked = isLocked,
 		hasLocationPermission = manualStartPermissionSatisfied,
 		policyTier = policyTier,

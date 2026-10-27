@@ -40,19 +40,19 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLivePressureValue
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveSessionPresentation
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveStepsValue
-import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.extension.formatDistance
 import com.adsamcik.tracker.shared.preferences.extension.formatSpeed
 import com.adsamcik.tracker.shared.utils.style.compose.ActivityColors
 import com.adsamcik.tracker.tracker.R as TrackerR
-import com.adsamcik.tracker.tracker.data.collection.TrackerActivityGroup
 import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryType
 import com.adsamcik.tracker.tracker.controller.forLiveSegment
 import com.adsamcik.tracker.tracker.controller.formatSavedDistance
 import com.adsamcik.tracker.tracker.controller.formatSavedAverageSpeed
@@ -68,13 +68,16 @@ import com.adsamcik.tracker.tracker.controller.formatSavedAverageSpeed
 internal fun TrackingStatsGrid(
 	sessionData: TrackerSessionSnapshot,
 	collectionSnapshot: TrackerCollectionSnapshot?,
-	steps: DashboardLiveStepsValue?,
+	presentation: DashboardLiveSessionPresentation.Standard?,
 	savedLocation: SavedLocationSummaryRead = SavedLocationSummaryRead.NotFound,
 	modifier: Modifier = Modifier,
 ) {
 	val context = LocalContext.current
 	val resources = context.resources
 	val settings = TrackerSettingsQuick.snapshot(context)
+	val qualified = presentation?.takeIf { it.segmentId == sessionData.id }
+	val activity = qualified?.activity
+	val pressure = qualified?.pressure
 
 	val locationRead = savedLocation.forLiveSegment(sessionData.id, participating = true)
 	val fix = (locationRead as? SavedLocationSummaryRead.Snapshot)?.summary?.latestFix
@@ -87,7 +90,6 @@ internal fun TrackingStatsGrid(
 
 	val altitude = fix?.altitudeMeters
 	val accuracy = fix?.horizontalAccuracyMeters
-	val currentActivity = collectionSnapshot?.activity
 	val wifiCount = collectionSnapshot?.wifi?.inRange?.size
 	val cellCount = collectionSnapshot?.cell?.totalCount
 
@@ -126,31 +128,24 @@ internal fun TrackingStatsGrid(
 			modifier = Modifier.fillMaxWidth(),
 			horizontalArrangement = Arrangement.SpaceBetween,
 		) {
-			val activityText = if (currentActivity != null) {
-				ActivityInfo.getGroupedActivityName(
-					context,
-					currentActivity.group.toLegacyGroupedActivity(),
-				)
-			} else {
-				"–"
-			}
-			val activityColor = if (currentActivity != null) {
-				when (currentActivity.group) {
-					TrackerActivityGroup.ON_FOOT -> ActivityColors.Adaptive.Walk
-					TrackerActivityGroup.IN_VEHICLE -> ActivityColors.Adaptive.Ride
+			if (activity != null) {
+				val activityColor = when (activity.latestMovementBand) {
+					ActivityHistoryType.WALKING, ActivityHistoryType.RUNNING, ActivityHistoryType.ON_FOOT ->
+						ActivityColors.Adaptive.Walk
+					ActivityHistoryType.IN_VEHICLE, ActivityHistoryType.ON_BICYCLE -> ActivityColors.Adaptive.Ride
 					else -> MaterialTheme.colorScheme.onSurface
 				}
+				CompactAnimatedStatItem(
+					label = stringResource(TrackerR.string.tracker_activity_title),
+					value = stringResource(activity.latestMovementBand?.labelResource ?: activity.state.labelResource),
+					valueColor = activityColor,
+					modifier = Modifier.weight(1f),
+				)
 			} else {
-				MaterialTheme.colorScheme.onSurfaceVariant
+				Spacer(Modifier.weight(1f))
 			}
-			CompactAnimatedStatItem(
-				label = stringResource(TrackerR.string.tracker_activity_title),
-				value = activityText,
-				valueColor = activityColor,
-				modifier = Modifier.weight(1f),
-			)
 
-			when (val stepsCell = steps.toTrackingStepsCell()) {
+			when (val stepsCell = qualified?.steps.toTrackingStepsCell()) {
 				is TrackingStepsCell.Numeric -> CompactAnimatedStatItem(
 					label = stringResource(TrackerR.string.tracker_steps_title),
 					value = stepsCell.count.formatReadable(),
@@ -172,6 +167,17 @@ internal fun TrackingStatsGrid(
 					"–"
 				},
 				modifier = Modifier.weight(1f),
+			)
+		}
+
+		pressure?.let { value ->
+			val metrics = value.metricsOrNull
+			CompactAnimatedStatItem(
+				label = stringResource(R.string.dashboard_metric_pressure),
+				value = metrics?.let { stringResource(R.string.dashboard_live_pressure_value, it.latestHectopascals) }
+					?: stringResource(value.statusResource),
+				supportingText = stringResource(value.statusResource)
+					.takeIf { metrics != null && value is DashboardLivePressureValue.Partial },
 			)
 		}
 
@@ -220,13 +226,6 @@ internal fun DashboardLiveStepsValue?.toTrackingStepsCell(): TrackingStepsCell =
 	null -> TrackingStepsCell.Omitted
 }
 
-private fun TrackerActivityGroup.toLegacyGroupedActivity(): GroupedActivity = when (this) {
-	TrackerActivityGroup.STILL -> GroupedActivity.STILL
-	TrackerActivityGroup.ON_FOOT -> GroupedActivity.ON_FOOT
-	TrackerActivityGroup.IN_VEHICLE -> GroupedActivity.IN_VEHICLE
-	TrackerActivityGroup.UNKNOWN -> GroupedActivity.UNKNOWN
-}
-
 /**
  * Compact stat item with vertical slide animation on value changes.
  */
@@ -236,6 +235,7 @@ private fun CompactAnimatedStatItem(
 	value: String,
 	modifier: Modifier = Modifier,
 	valueColor: Color = MaterialTheme.colorScheme.onSurface,
+	supportingText: String? = null,
 ) {
 	Column(modifier) {
 		Text(
@@ -259,6 +259,10 @@ private fun CompactAnimatedStatItem(
 				fontWeight = FontWeight.SemiBold,
 				color = valueColor,
 			)
+		}
+		if (supportingText != null) {
+			Text(text = supportingText, style = MaterialTheme.typography.bodySmall,
+				color = MaterialTheme.colorScheme.onSurfaceVariant)
 		}
 	}
 }

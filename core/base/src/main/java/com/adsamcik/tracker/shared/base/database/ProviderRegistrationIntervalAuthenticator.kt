@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.hasOnlyActivityCallbackLoss
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 
 /**
@@ -336,7 +337,7 @@ object ProviderRegistrationIntervalAuthenticator {
 		currentClockDomainId: String?,
 		currentProviderRegistrations: List<ProviderRegistrationGenerationEntity>,
 	): Long? {
-		if (registration.failureCode != null || currentClockDomainId == null ||
+		if (registration.failureCode != null && !registration.hasOnlyActivityCallbackLoss() || currentClockDomainId == null ||
 			registration.clockDomainId != currentClockDomainId
 		) {
 			return null

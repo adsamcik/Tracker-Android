@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
+import com.adsamcik.tracker.shared.base.database.data.ActivityWalPayload
+import com.adsamcik.tracker.shared.base.database.data.ActivityWalPayloadCodec
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -44,6 +46,20 @@ class SourceSessionDaoTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `settled timeout cleanup preserves real provider loss and other runs`() = runTest {
+		val placeholder = completeness("run", 0L).copy(sourceKind = 4, sourceInstanceId = "unresolved-pressure",
+			lastAdmissionOrdinal = null, lastSourceSequence = null, stopStatus = "TIMED_OUT",
+			providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE")
+		val real = placeholder.copy(sourceInstanceId = "pressure", registrationGeneration = 1L,
+			unresolvedSequenceStart = 1L, unresolvedSequenceEnd = 2L)
+		val other = placeholder.copy(serviceRunId = "other-run")
+		listOf(placeholder, real, other).forEach { dao.saveCompleteness(it) }
+		dao.deleteSettledRetirementTimeoutPlaceholder(LOGICAL_ID, "run", 4, "unresolved-pressure") shouldBe 1
+		dao.completenessForServiceRun(LOGICAL_ID, "run") shouldBe listOf(real)
+		dao.completenessForServiceRun(LOGICAL_ID, "other-run") shouldBe listOf(other)
+	}
 
 	@Test
 	fun `logical session batch returns only exact requested identities`() = runTest {
@@ -364,7 +380,21 @@ class SourceSessionDaoTest {
 		wal.insertIgnoringDuplicate(activityFailureWal(2L, "new-run")) shouldBe 2L
 		wal.insertIgnoringDuplicate(activityFailureWal(4L, "old-run").copy(
 			logicalTrackingId = "inconsistent-logical")) shouldBe 4L
-		(1L..4L).forEach { ordinal ->
+		val ambient = activityFailureWal(5L, "old-run").copy(
+			logicalTrackingId = null, serviceRunId = null, planAttribution = 2,
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE or
+				SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+			observedIntervalStartNanos = 5L,
+			payload = ActivityWalPayloadCodec.encode(ActivityWalPayload.Recognition(1, 90, 5L)),
+		)
+		val checkedAmbient = ambient.copy(payloadChecksum = ambient.calculatedPayloadChecksum(),
+			integrityIdentity = ambient.calculatedIntegrityIdentity())
+		checkedAmbient.hasQualifiedIntegrity() shouldBe true
+		wal.insertIgnoringDuplicate(checkedAmbient) shouldBe 5L
+		wal.insertIgnoringDuplicate(activityFailureWal(6L, "old-run").copy(
+			logicalTrackingId = null, planAttribution = 2,
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT)) shouldBe 6L
+		(1L..6L).forEach { ordinal ->
 			database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
 				SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID, 1, ordinal, 1,
 				"rejected-$ordinal", true, ordinal))
@@ -372,10 +402,13 @@ class SourceSessionDaoTest {
 		val history = database.trackingHistoryReadDao()
 		suspend fun read(runId: String) = history.terminalFailuresForServiceRuns(
 			SourceDestinationOwnerEntity.SOURCE_ACTIVITY, SessionManifestPurposeCode.SESSION_CAPTURE,
-			listOf(runId), 0L, 4L, 5).map { it.admissionOrdinal }
+			listOf(runId), 0L, 6L, 7).map { it.admissionOrdinal }
 
-		read("old-run") shouldContainExactly listOf(1L, 3L, 4L)
-		read("new-run") shouldContainExactly listOf(2L, 3L, 4L)
+		read("old-run") shouldContainExactly listOf(1L, 3L, 4L, 6L)
+		read("new-run") shouldContainExactly listOf(2L, 3L, 4L, 6L)
+		// The sessionless all-day diagnostic stays saved without becoming every session's failure.
+		database.sourceProjectionStateDao().failure(
+			SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID, 1, 5L)?.terminal shouldBe true
 		database.sourceProjectionStateDao().failure(
 			SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID, 1, 1L)?.terminal shouldBe true
 	}

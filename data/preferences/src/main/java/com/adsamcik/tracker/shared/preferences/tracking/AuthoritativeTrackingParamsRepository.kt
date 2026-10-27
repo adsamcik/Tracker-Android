@@ -475,9 +475,9 @@ class AuthoritativeTrackingParamsRepository(
 		effective: SourcePolicySnapshot,
 	): SourcePolicyRevisionReconciliationResult {
 		val startupGeneration = trackingStartupGate.currentGeneration
-		// Authority-only bootstrap may run behind the deletion marker, but retention/provider
-		// lifecycle work is admitted only by the exact current Ready generation.
-		return trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
+		// Retention and provider callbacks validate their own exact authority. Keep their waits
+		// cancellable by deletion without holding the command gate needed to reserve Start or Stop.
+		return trackingStartupGate.withReadyGenerationWork(startupGeneration) {
 			reconcilePolicyRevisionAtReadyGeneration(effective, startupGeneration)
 		} ?: startupGenerationUnavailable(effective.revision, startupGeneration)
 	}
@@ -519,7 +519,12 @@ class AuthoritativeTrackingParamsRepository(
 			)
 		}
 		val ambientResult = reconcileAmbientSteps(retentionFailure)
-		completePolicyReconciliation(effective, startupGeneration, retentionFailure, ambientResult)
+		// This publication grants no provider ownership. Keep it synchronous and generation-fenced;
+		// taking a suspending command gate here would invert the existing post-deletion caller's
+		// command-gate -> reconciliation-mutex order.
+		trackingStartupGate.withReadyGeneration(startupGeneration) {
+			completePolicyReconciliation(effective, startupGeneration, retentionFailure, ambientResult)
+		} ?: startupGenerationUnavailable(effective.revision, startupGeneration)
 	}
 
 	private suspend fun reconcileRetention(): List<RetentionAuthorityResult> = try {

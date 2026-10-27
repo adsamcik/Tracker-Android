@@ -66,9 +66,10 @@ object TrackerServiceContract {
 		"com.adsamcik.tracker.tracker.action.PREPARED_TRACKING_START"
 	const val ARG_LIFECYCLE_COMMAND_GENERATION = "trackingLifecycleCommandGeneration"
 	const val ARG_PREPARED_START_TOKEN = "preparedTrackingStartToken"
-	/** Non-authoritative hints used only for immediate foreground-service promotion. */
+	/** Non-authoritative hints for foreground promotion and completion waiting policy. */
 	const val ARG_PREPARED_SOURCE_MASK_HINT = "preparedTrackingSourceMaskHint"
 	const val ARG_PREPARED_USER_INITIATED_HINT = "preparedTrackingUserInitiatedHint"
+	const val ARG_PREPARED_MANUAL_COMPLETION_WAIT_HINT = "preparedTrackingManualCompletionWaitHint"
 }
 
 /**
@@ -259,6 +260,8 @@ object TrackerServiceApi {
 			TrackerServiceContract.ARG_PREPARED_USER_INITIATED_HINT,
 			prepared.preparedStartIsUserInitiatedHint,
 		)
+		putExtra(TrackerServiceContract.ARG_PREPARED_MANUAL_COMPLETION_WAIT_HINT,
+			prepared.preparedManualCompletionWaitHint)
 	}
 
 	/**

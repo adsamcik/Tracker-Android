@@ -1,6 +1,6 @@
 # Tracking Infrastructure Completion TODO
 
-Last updated: 2026-10-23
+Last updated: 2026-10-26
 
 [Current completion plan](convergence/2026-10-07/COMPLETION_PLAN.md) (2026-10-07) consolidates all outstanding work and is the
 current execution order. Complete the full scope, including source files and data-only backup/restore, before freezing. Preserve this ledger and its historical source receipts.
@@ -67,6 +67,54 @@ Real provider/background recovery and battery evidence remain separate from host
 
 See [the resource-use record](convergence/2026-10-22/LOCATION_OPTIMIZATION.md).
 Actual device battery and latency measurements remain outstanding.
+
+## October 25 End and Activity/Pressure coverage repair
+
+- [x] Preserve compatible sensor consent, real callback sequences and independently authorized all-day data through session changes.
+- [x] Retain real Activity admission failures and Location retirement receipts through shared-owner reconfiguration.
+- [x] Keep retryable all-day owner contention pending instead of retiring its demand or losing the retry.
+- [x] Show Finishing during acknowledged shutdown, freeze elapsed time at End and prevent another Start.
+- [x] Remove slow readiness/provider waits from the Start/End command lock using the existing cancellable work boundary.
+- [x] Include Activity and Pressure in the shared current-availability projection.
+- [x] Resolve the emulator-discovered Pressure timeout placeholder and post-End callback attribution.
+- [x] Preserve continuing Activity/Pressure consent across phone boots and retain pre-plan Activity as independently authorized all-day data.
+- [x] Allow the exact terminally rejected Activity row to settle as a real partial gap without bypassing the remaining source audit.
+- [x] Renew the existing reconfiguration lease through publication and accept qualified all-day Pressure retirement endpoints without hiding real losses.
+- [x] Promote the existing shared foreground notification before database waits; preserve pending sibling requests, live notifications and bounded authority checks.
+- [x] Cancel live dashboard history reads at End, retain their last display and stop indeterminate Finishing animations.
+- [x] Filter unrelated sensor metadata ticks before full Steps qualification, preserving real dependency changes, cancellation and read-failure recovery.
+- [x] Keep preceding ambient acquisition plans out of new sessions; retain and settle positively identified older misassigned Pressure without hiding valid session readings.
+- [x] Await normal failed-start compensation without the callback cancellation reserve; keep exact Starting ownership visible until settlement.
+- [x] Preserve qualified Pressure siblings when one unsplittable aggregate crosses End; keep strict numeric/action checks and real partial coverage.
+- [x] Show a qualified saved Activity classification and timestamp before End through the existing indexed source reader, without inventing active duration.
+- [x] Serialize accepted configuration and descriptor publication; bind presentation before exposing startup to background observers and preserve all-day hosting during early End.
+- [x] Recover originally authorized pre-binding observations after Stop through existing presentation and source writers, keeping replay transactional and cursors monotonic.
+- [x] Initialize notifications from the accepted session type without early UI publication; keep recovered recording end separate from actual cleanup acknowledgement.
+- [x] Defer temporary prepared-start lifecycle lease contention through the existing bounded claim loop, preserving invalid-claim rejection.
+- [x] Read exact ready Location writer state without a mutation lease; retain locked setup rechecks and preserve useful Pressure values without redundant Preparing feedback.
+- [x] Fix valid all-day Location QoS-zero metadata through the existing non-capture mapping; preserve capture rules and typed rejection of unknown values.
+- [x] Cancel the app-scoped live Location summary at End, retain the last saved display and clear it normally with the session.
+- [x] Reuse qualified saved Activity/Pressure in mixed Location sessions, the existing grid and sensor details, preserving independent sibling failures.
+- [x] Remove aggregate presentation-persistence deadlines that can starve slow valid closes, retaining cancellability and bounded cycle/provider operations.
+- [x] Keep fully retired sessionless Pressure predecessor acknowledgements out of a successful first session join, preserving stored metrics and strict captured membership.
+- [x] Keep mixed Activity/Pressure in compact shared history and defer exact current prebinding Location until presentation is bound.
+- [x] Narrow legacy raw-observation repair before payload loading, retaining full validation and the broad instrumentation integrity check.
+- [x] Keep startup sensor preparation and normal policy retention/provider waits outside the command gate, retaining exact final publication and maintenance authority.
+- [x] Let finite ordinary persistence transactions finish on slow storage, retaining bounded retries, external cancellation and unknown-commit recovery.
+- [x] Recover Activity's exact completed retirement after an interrupted all-day handoff without retiring its independent successor or losing known callback gaps.
+- [x] Omit unused radio detail reads from compact Location presentation while retaining shared Activity/Pressure qualification and full History details.
+- [x] Preserve Activity's actual applied plan across an equivalent replacement in the same session, using one shared rule in saving, History, retention and export.
+- [x] Reuse Activity's unchanged physical registration only for an authenticated forward plan in the same session; preserve its original callback binding.
+- [x] Qualify Pressure's original capture start independently of later same-consent authorization refreshes; preserve valid sibling windows.
+- [x] Serialize tier publication with caller/plan publication and recover authenticated older caller-retirement debt, including Stop retries.
+- [x] Pass the final affected host/build/quality checks (190 cases, Dev/Hilt/APK, Detekt) and independent source review.
+- [ ] Verify final Dev behavior on the existing Android 17 emulator, including source-independent Activity/Pressure and actual End latency.
+- [x] Commit the reviewed source/host checkpoint and [verification record](convergence/2026-10-25/END_COVERAGE_VERIFICATION.md) into local `dev/v10`; native acceptance remains open.
+
+Earlier failed iterations remain separate from final acceptance. Physical-device battery, Doze/reboot
+and full six-source acceptance remain outside this targeted verification.
+The final APK is installed. October 27 runtime checks await coordinated emulator access; startup
+readiness, a deliberate End and post-End all-day capture still need verification.
 
 ## Historical continuation notes
 

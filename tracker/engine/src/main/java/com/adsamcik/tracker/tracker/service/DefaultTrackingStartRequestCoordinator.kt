@@ -485,6 +485,8 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 				startupGeneration = startupGeneration,
 				preparedSourceMaskHint = sourceMask(acceptedSources),
 				preparedStartIsUserInitiatedHint = resolved.descriptor.isUserInitiated,
+				preparedManualCompletionWaitHint = isFreshManualStart(request) &&
+					resolved.origin == SessionStartOrigin.MANUAL_FOREGROUND_START,
 			)
 		} catch (cancelled: CancellationException) {
 			if (roomPrepared) {
@@ -818,11 +820,18 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			System.currentTimeMillis(),
 		)) {
 			is PreparedSessionClaimResult.Claimed -> result.start
-			is PreparedSessionClaimResult.Rejected ->
+			is PreparedSessionClaimResult.Rejected -> {
+				if (result.failureCode == "PREPARED_START_LEASE_UNAVAILABLE") {
+					// Startup writer recovery can briefly own the same lease. Retry this exact
+					// claim within the service's existing deadline without cancelling its Start.
+					delay(START_RETRY_DELAY_MILLIS)
+					return TrackingServicePreparedStartClaim.Deferred
+				}
 				return TrackingServicePreparedStartClaim.Rejected(
 					result.failureCode,
 					result.compensatePreparedState,
 				)
+			}
 		}
 		if (trackingLifecycleCommandAuthority.pendingCollectionResumeExitId != null &&
 			(claim.startOrigin != SessionStartOrigin.MANUAL_FOREGROUND_START || !claim.isUserInitiated ||
@@ -1053,7 +1062,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			) {
 				return result
 			}
-			delay(CATALOG_START_RETRY_DELAY_MILLIS)
+			delay(START_RETRY_DELAY_MILLIS)
 		}
 	}
 
@@ -1350,7 +1359,7 @@ internal suspend fun runBoundedStartPreparationCancellationCleanup(
 private const val START_CLEANUP_NANOS_PER_MILLISECOND = 1_000_000L
 private const val MANUAL_PURPOSE_RECONCILIATION_TIMEOUT_MILLIS = 30_000L
 private const val DEFAULT_START_PREPARATION_CLEANUP_TIMEOUT_MS = 250L
-private const val CATALOG_START_RETRY_DELAY_MILLIS = 250L
+private const val START_RETRY_DELAY_MILLIS = 250L
 
 private fun retryableStartRejection(failureCode: String) =
 	TrackingStartPreparationResult.Rejected(

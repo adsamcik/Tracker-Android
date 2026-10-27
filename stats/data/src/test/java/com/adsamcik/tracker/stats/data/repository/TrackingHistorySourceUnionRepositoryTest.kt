@@ -23,8 +23,10 @@ import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryObservation
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryType
 import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
 import com.adsamcik.tracker.stats.api.repository.CellHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.CellHistoryEntry
@@ -34,6 +36,7 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
+import com.adsamcik.tracker.stats.api.repository.HistoryCaptureRevision
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
@@ -56,10 +59,14 @@ import com.adsamcik.tracker.stats.api.repository.PressureHistory
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryWindow
 import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.PortablePressureDigest
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistory
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.PressureSensorAccuracy
+import com.adsamcik.tracker.stats.api.repository.PressureWindowClosure
+import com.adsamcik.tracker.stats.api.repository.PressureWindowQualification
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
@@ -522,7 +529,7 @@ class TrackingHistorySourceUnionRepositoryTest {
 	}
 
 	@Test
-	fun `compact Location live snapshot skips unused products while full read preserves them`() = runTest {
+	fun `compact Location without live sensors skips unused products while full read preserves them`() = runTest {
 		installExactLiveOwner(setOf(SourceDestinationOwnerEntity.SOURCE_LOCATION, SourceDestinationOwnerEntity.SOURCE_CELL))
 		val cell = CellHistoryQuery.Found(localUnavailableCell())
 		sourceReader.session = HistoricalSessionSourceRead.Available(41L, WifiHistoryQuery.NotFound, cell,
@@ -544,6 +551,63 @@ class TrackingHistorySourceUnionRepositoryTest {
 	}
 
 	@Test
+	fun `compact Location capture retains sensor values and isolates sibling failures`() = runTest {
+		installExactLiveOwner(setOf(SourceDestinationOwnerEntity.SOURCE_LOCATION,
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY, SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			SourceDestinationOwnerEntity.SOURCE_WIFI, SourceDestinationOwnerEntity.SOURCE_CELL))
+		val capture = HistoryCapture.Exact(listOf(HistoryCaptureRevision(1L, EpochMs(100L),
+			setOf(HistorySource.LOCATION, HistorySource.ACTIVITY, HistorySource.PRESSURE,
+				HistorySource.WIFI, HistorySource.CELL), emptySet())))
+		val activity = ActivityHistoryQuery.Found(localUnavailableActivity().copy(
+			state = ActivityHistoryProductState.MATERIALIZING, causes = setOf(ActivityHistoryCause.SESSION_ACTIVE),
+			latestObservation = ActivityHistoryObservation(EpochMs(150L), ActivityHistoryType.STILL, 90)))
+		val pressure = PressureSessionHistoryQuery.Found(PressureSessionHistory(41L, capture,
+			setOf(HistorySource.PRESSURE), PressureHistory(HistoryAvailability.AVAILABLE, HistoryEvidence.RECORDED,
+				HistoryProductState.READY, PressureHistoryCoverage.COMPLETE, listOf(PressureHistoryWindow(
+					EpochMs(100L), EpochMs(200L), 1, 1, 1012.0, 0.0, 1012f, 1012f, 1012f, 1012f, null, null,
+					PressureSensorAccuracy.HIGH, 100_000, 0, 100_000_000L, 0L, PressureWindowClosure.TARGET_ELAPSED,
+					PressureWindowQualification.COMPLETE, 0L, null, "UTC")))))
+		val wifi = WifiHistoryQuery.Failed(WifiHistoryCause.FACT_INTEGRITY_FAILED)
+		val cell = CellHistoryQuery.Found(localUnavailableCell())
+		val products = HistoricalSessionSourceRead.Available(41L, wifi, cell, activity, pressure)
+		sourceReader.session = products
+
+		val compact = repository.observeLiveSession(41L, LiveSessionHistoryDetail.COMPACT).first()
+		compact.activity shouldBe activity
+		compact.pressure shouldBe pressure
+		compact.wifi shouldBe null
+		compact.cell shouldBe null
+		val history = (compact.session as SessionHistoryQuery.Found).history
+		history.sourceProducts?.activity shouldBe activity
+		history.sourceProducts?.wifi shouldBe null
+		history.sourceProducts?.cell shouldBe null
+		history.qualifiedSources shouldBe setOf(HistorySource.PRESSURE)
+		pressure.history.pressure.summary?.latestHectopascals shouldBe 1012f
+		sourceReader.radioRequests shouldBe listOf(false)
+		val full = repository.observeLiveSession(41L).first()
+		full.wifi shouldBe wifi
+		full.cell shouldBe cell
+		full.activity shouldBe activity
+		full.pressure shouldBe pressure
+
+		val failedActivity = ActivityHistoryQuery.Found(localUnavailableActivity().copy(
+			state = ActivityHistoryProductState.FAILED, causes = setOf(ActivityHistoryCause.FACT_INTEGRITY_FAILED)))
+		sourceReader.session = products.copy(activity = failedActivity)
+		val withFailedActivity = repository.observeLiveSession(41L, LiveSessionHistoryDetail.COMPACT).first()
+		withFailedActivity.activity shouldBe failedActivity
+		withFailedActivity.pressure shouldBe pressure
+		(withFailedActivity.session as SessionHistoryQuery.Found).history.qualifiedSources shouldBe
+			setOf(HistorySource.PRESSURE)
+
+		sourceReader.session = products.copy(pressure = PressureSessionHistoryQuery.NotFound)
+		val withMissingPressure = repository.observeLiveSession(41L, LiveSessionHistoryDetail.COMPACT).first()
+		withMissingPressure.activity shouldBe activity
+		withMissingPressure.pressure shouldBe PressureSessionHistoryQuery.NotFound
+		sourceReader.sessionCalls shouldBe 4
+		sourceReader.radioRequests shouldBe listOf(false, true, false, false)
+	}
+
+	@Test
 	fun `compact Location-free live snapshot retains complete source products`() = runTest {
 		installExactLiveOwner(setOf(SourceDestinationOwnerEntity.SOURCE_CELL))
 		val cell = CellHistoryQuery.Found(localUnavailableCell())
@@ -555,6 +619,7 @@ class TrackingHistorySourceUnionRepositoryTest {
 		compact.cell shouldBe cell
 		(compact.session as SessionHistoryQuery.Found).history.sourceProducts?.cell shouldBe cell
 		sourceReader.sessionCalls shouldBe 1
+		sourceReader.radioRequests shouldBe listOf(true)
 	}
 
 	@Test
@@ -612,6 +677,15 @@ class TrackingHistorySourceUnionRepositoryTest {
 			},
 		)
 		result.segmentId shouldBe segment.id
+		val sensors = database.withTransaction { union.sessionInTransaction(segment, includeRadio = false) } as
+			HistoricalSessionSourceRead.Available
+		sensors.wifi shouldBe null
+		sensors.cell shouldBe null
+		sensors.activity shouldBe result.activity
+		sensors.pressure shouldBe result.pressure
+		sensors.publicProducts?.activity shouldBe result.activity
+		sensors.publicProducts?.wifi shouldBe null
+		sensors.publicProducts?.cell shouldBe null
 	}
 
 	@Test
@@ -876,8 +950,21 @@ class TrackingHistorySourceUnionRepositoryTest {
 			startOrigin = "MANUAL_FOREGROUND_START", runRevision = 1L, startDeliveryToken = "live-delivery",
 			startCommandGeneration = 1L, preparedManifestRevision = 1L, preparedIntentRevision = 1L,
 			sessionSegmentId = segment.id))
-		val sources = sourceKinds.map { kind -> SessionManifestSourceEntity("live-logical", 1L, kind,
-			SessionManifestPurposeCode.SESSION_CAPTURE, 1L, true, 1) }
+		val sources = sourceKinds.map { kind ->
+			if (kind == SourceDestinationOwnerEntity.SOURCE_PRESSURE) {
+				SessionManifestSourceEntity("live-logical", 1L, kind,
+					SessionManifestPurposeCode.SESSION_CAPTURE, 1L, true, 1,
+					outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+					writerOwner = SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+					writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+					writerProjectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+					writerProjectionVersion = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+					writerBindingGeneration = SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION)
+			} else {
+				SessionManifestSourceEntity("live-logical", 1L, kind,
+					SessionManifestPurposeCode.SESSION_CAPTURE, 1L, true, 1)
+			}
+		}
 		val unsigned = SessionManifestVersionEntity("live-logical", 1L, "live-run", "MANUAL", 1L, 1L,
 			1L, "MANUAL_FOREGROUND_START", "boot", 10L, 100L, "UTC", null, "SESSION_START", "")
 		sessions.insertManifest(unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, sources)))
@@ -914,12 +1001,20 @@ class TrackingHistorySourceUnionRepositoryTest {
 		var candidateCalls = 0
 		var recentCalls = 0
 		var sessionCalls = 0
+		val radioRequests = mutableListOf<Boolean>()
 
 		override suspend fun sessionInTransaction(
 			segment: SessionSegment,
+			includeRadio: Boolean,
 		): HistoricalSessionSourceRead {
 			sessionCalls += 1
-			return session
+			radioRequests += includeRadio
+			val selected = session
+			return if (!includeRadio && selected is HistoricalSessionSourceRead.Available) {
+				selected.copy(wifi = null, cell = null)
+			} else {
+				selected
+			}
 		}
 
 		override suspend fun candidateNativeOnlyInTransaction(

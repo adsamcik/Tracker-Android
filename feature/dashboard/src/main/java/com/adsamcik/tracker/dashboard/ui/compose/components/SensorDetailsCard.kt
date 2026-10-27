@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CellTower
+import androidx.compose.material.icons.filled.Compress
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -42,11 +43,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.motion.MotionTokens
-import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.GroupedActivity
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveSessionPresentation
+import com.adsamcik.tracker.dashboard.ui.compose.tracking.labelResource
+import com.adsamcik.tracker.dashboard.ui.compose.tracking.metricsOrNull
+import com.adsamcik.tracker.dashboard.ui.compose.tracking.statusResource
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.extension.formatDistance
-import com.adsamcik.tracker.tracker.data.collection.TrackerActivityGroup
 import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.stats.api.repository.SavedLocationFix
 import com.adsamcik.tracker.shared.model.geo.GeoCoordinates
@@ -70,9 +72,17 @@ internal fun SensorDetailsCard(
 	isTracking: Boolean,
 	isDebugBuild: Boolean = false,
 	savedFix: SavedLocationFix? = null,
+	presentation: DashboardLiveSessionPresentation.Standard? = null,
 	modifier: Modifier = Modifier,
 ) {
-	if (!isTracking || (collectionSnapshot == null && savedFix == null)) return
+	val activity = presentation?.activity
+	val pressure = presentation?.pressure
+	val hasSavedSensor = savedFix != null || activity != null || pressure != null
+	val hasRadioDetails = collectionSnapshot?.wifi?.inRange?.isNotEmpty() == true ||
+		collectionSnapshot?.cell?.totalCount?.let { it > 0 } == true
+	if (!isTracking || (!hasRadioDetails && !hasSavedSensor)) {
+		return
+	}
 
 	// 0 = collapsed, 1 = enthusiast, 2 = power user
 	var disclosureLevel by rememberSaveable { mutableIntStateOf(0) }
@@ -146,17 +156,21 @@ internal fun SensorDetailsCard(
 						)
 					}
 
-					// Activity confidence
-					val activity = collectionSnapshot?.activity
+					// Saved source-qualified Activity; the collection snapshot is not capture history.
 					if (activity != null) {
-						val activityName = ActivityInfo.getGroupedActivityName(
-							context,
-							activity.group.toLegacyGroupedActivity(),
-						)
 						SensorDetailRow(
 							icon = Icons.AutoMirrored.Filled.DirectionsWalk,
 							label = stringResource(R.string.dashboard_sensor_activity),
-							value = "$activityName (${activity.confidence}%)",
+							value = stringResource(activity.latestMovementBand?.labelResource ?: activity.state.labelResource),
+						)
+					}
+					if (pressure != null) {
+						SensorDetailRow(
+							icon = Icons.Default.Compress,
+							label = stringResource(R.string.dashboard_metric_pressure),
+							value = pressure.metricsOrNull?.let {
+								stringResource(R.string.dashboard_live_pressure_value, it.latestHectopascals)
+							} ?: stringResource(pressure.statusResource),
 						)
 					}
 
@@ -254,13 +268,6 @@ internal fun SensorDetailsCard(
 			}
 		}
 	}
-}
-
-private fun TrackerActivityGroup.toLegacyGroupedActivity(): GroupedActivity = when (this) {
-	TrackerActivityGroup.STILL -> GroupedActivity.STILL
-	TrackerActivityGroup.ON_FOOT -> GroupedActivity.ON_FOOT
-	TrackerActivityGroup.IN_VEHICLE -> GroupedActivity.IN_VEHICLE
-	TrackerActivityGroup.UNKNOWN -> GroupedActivity.UNKNOWN
 }
 
 /**

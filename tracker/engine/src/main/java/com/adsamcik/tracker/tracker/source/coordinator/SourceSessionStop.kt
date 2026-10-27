@@ -3,6 +3,18 @@ package com.adsamcik.tracker.tracker.source.coordinator
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.source.coordinator.TrackerServiceSourceSession.ActiveSession
+import com.adsamcik.tracker.tracker.source.model.SourceKind
+
+internal const val SOURCE_STOP_PROJECTION_LEASE_BUSY = "PROJECTION_LEASE_BUSY"
+
+/** A busy projector is a normal wait only after every physical source has settled. */
+internal fun CoordinatorDrainResult.projectionWaitReason(retirementIncomplete: Boolean): String? =
+	if (!retirementIncomplete && (this == CoordinatorDrainResult.LeaseUnavailable ||
+		this is CoordinatorDrainResult.LeaseLost)) {
+		SOURCE_STOP_PROJECTION_LEASE_BUSY
+	} else {
+		null
+	}
 
 internal fun TrackerServiceSourceSession.startupRejectedReconfigure(): SourceSessionReconfigureOutcome {
 	settingsStatusProvider.publishFailure(SOURCE_SESSION_STARTUP_RECOVERY_NOT_READY)
@@ -128,7 +140,7 @@ private fun SessionSuspendResult.toSourceSessionStopOutcome(): SourceSessionStop
 	SessionSuspendResult.NoActiveSession,
 	-> SourceSessionStopOutcome.Stopped
 	is SessionSuspendResult.DrainPending -> SourceSessionStopOutcome.Retryable(
-		SourceSessionStopRetryCode.DRAIN_PENDING,
+		projectionDrainRetryCode(reason, source, sourceResults),
 	)
 	is SessionSuspendResult.CleanupPending -> SourceSessionStopOutcome.Retryable(
 		SourceSessionStopRetryCode.CLEANUP_PENDING,
@@ -149,7 +161,7 @@ private fun SessionStopResult.toSourceSessionStopOutcome(): SourceSessionStopOut
 	SessionStopResult.NoActiveSession,
 	-> SourceSessionStopOutcome.Stopped
 	is SessionStopResult.DrainPending -> SourceSessionStopOutcome.Retryable(
-		SourceSessionStopRetryCode.DRAIN_PENDING,
+		projectionDrainRetryCode(reason, source, sourceResults),
 	)
 	is SessionStopResult.CleanupPending -> SourceSessionStopOutcome.Retryable(
 		SourceSessionStopRetryCode.CLEANUP_PENDING,
@@ -161,6 +173,15 @@ private fun SessionStopResult.toSourceSessionStopOutcome(): SourceSessionStopOut
 		SourceSessionStopRetryCode.COORDINATOR_BUSY,
 	)
 }
+
+private fun projectionDrainRetryCode(
+	reason: String?, source: SourceKind?, sourceResults: List<SourceProductDrainResult>,
+): SourceSessionStopRetryCode =
+	if (reason == SOURCE_STOP_PROJECTION_LEASE_BUSY && source == null && sourceResults.isEmpty()) {
+		SourceSessionStopRetryCode.PROJECTION_BUSY
+	} else {
+		SourceSessionStopRetryCode.DRAIN_PENDING
+	}
 
 private fun SessionSuspendResult.sourceCallerAuthorityReferenceOrNull():
 	SourceCallerReplayReference? = when (this) {

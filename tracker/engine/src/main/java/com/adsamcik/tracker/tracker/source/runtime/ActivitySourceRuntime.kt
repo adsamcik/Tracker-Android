@@ -13,6 +13,9 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationResult
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.tracker.source.coordinator.hasFailedActivityCaptureDelivery
+import com.adsamcik.tracker.tracker.source.coordinator.orderlyActivityRetirementAcknowledgement
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
@@ -74,7 +77,7 @@ class ActivitySourceRuntime @Inject constructor(
 	}
 
 	override suspend fun quiesce(cutoff: SessionCutoff): SourceStopAck = mutex.withLock {
-		val acknowledgement = clearSessionDemandLocked()
+		val acknowledgement = recoverRetiredSessionJoinLocked(cutoff) ?: clearSessionDemandLocked()
 		if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) clearLocalJoinLocked()
 		acknowledgement
 	}
@@ -86,7 +89,8 @@ class ActivitySourceRuntime @Inject constructor(
 		require(claim.source == source)
 		return mutex.withLock {
 			if (runtimeClaim != claim) return@withLock OwnedSourceShutdown.NotOwned
-			val shutdown = clearSessionDemandLocked().toOwnedShutdown()
+			val acknowledgement = recoverRetiredSessionJoinLocked(cutoff) ?: clearSessionDemandLocked()
+			val shutdown = acknowledgement.toOwnedShutdown()
 			if (shutdown is OwnedSourceShutdown.Released) clearLocalJoinLocked()
 			shutdown
 		}
@@ -142,6 +146,28 @@ class ActivitySourceRuntime @Inject constructor(
 		runtimeClaim = null
 	}
 
+	/** A cancelled End may already have sealed its provider before the independent all-day restart returned. */
+	private suspend fun recoverRetiredSessionJoinLocked(cutoff: SessionCutoff): SourceStopAck? {
+		val claim = runtimeClaim
+		val identity = sessionIdentity
+		if (claim == null || identity == null || cutoff.logicalTrackingId != claim.logicalTrackingId ||
+			ActivityRegistrationOwner.ACTIVE_SESSION in arbiter.snapshot().owners) {
+			return null
+		}
+		val broker = database.sourceBrokerDao()
+		val registration = broker.registration(source.stableCode, identity.registrationGeneration)
+			?.takeIf { it.sourceKind == source.stableCode &&
+				it.registrationGeneration == identity.registrationGeneration && it.hasRetiredActivityIdentity(identity) }
+			?: return null
+		val highWater = broker.runCaptureAdmissionHighWater(source.stableCode, identity.sourceInstanceId,
+			identity.registrationGeneration, claim.logicalTrackingId, claim.serviceRunId,
+			SourceBrokerPurpose.MASK_SESSION_CAPTURE)
+		return broker.orderlyActivityRetirementAcknowledgement(
+			SourceProviderKey(SourceInstanceId(identity.sourceInstanceId), identity.registrationGeneration),
+			registration, highWater, cutoff, claim.serviceRunId,
+		)?.copy(appliedRevision = currentPlan?.revision)
+	}
+
 	private suspend fun clearSessionDemandLocked(): SourceStopAck {
 		val beforeClear = arbiter.snapshot()
 		val identity = beforeClear.identity
@@ -164,15 +190,17 @@ class ActivitySourceRuntime @Inject constructor(
 		}
 		val barrierSequence = durableBarrier?.lastSourceSequence ?: 0L
 		val exactAdmissionBarrier = sessionJoinReleased && durableBarrier != null
+		val failedCaptureDelivery = durableBarrier != null && hasFailedSessionDelivery(identity)
 		return SourceStopAck(
 			source = source,
 			sourceInstanceId = SourceInstanceId(identity?.sourceInstanceId ?: "activity-unregistered"),
 			registrationGeneration = identity?.registrationGeneration ?: 0L,
 			appliedRevision = appliedRevision,
 			callbackEntryBarrierSequence = barrierSequence,
-			lastDurablyAdmittedSequence = durableBarrier?.lastSourceSequence,
-			lastAdmissionOrdinal = durableBarrier?.lastAdmissionOrdinal,
-			failedAdmissionCount = 0L,
+			lastDurablyAdmittedSequence = durableBarrier?.takeIf { it.lastAdmissionOrdinal > 0L }?.lastSourceSequence,
+			lastAdmissionOrdinal = durableBarrier?.lastAdmissionOrdinal?.takeIf { it > 0L },
+			// A lost delivery has no WAL sequence. Count known loss without inventing a range.
+			failedAdmissionCount = if (failedCaptureDelivery) 1L else 0L,
 			unresolvedSequenceStart = if (exactAdmissionBarrier || barrierSequence == 0L) {
 				null
 			} else {
@@ -194,9 +222,24 @@ class ActivitySourceRuntime @Inject constructor(
 			status = when {
 				!sessionJoinReleased -> SourceStopStatus.PROVIDER_FAILED
 				!exactAdmissionBarrier -> SourceStopStatus.TIMED_OUT
-				else -> SourceStopStatus.PARTIAL_UNOBSERVABLE
+				// Android cannot flush Activity recognition. The capability stays explicit above;
+				// it does not imply that a fully drained application callback was lost.
+				else -> SourceStopStatus.COMPLETE
 			},
 		).withSessionMembership(runtimeClaim)
+	}
+
+	private suspend fun hasFailedSessionDelivery(identity: ActivityRegistrationIdentity?): Boolean {
+		val claim = runtimeClaim ?: return false
+		if (identity == null) return false
+		return database.sourceBrokerDao().registration(source.stableCode, identity.registrationGeneration)
+			?.takeIf { it.sourceInstanceId == identity.sourceInstanceId && it.clockDomainId == identity.clockDomainId &&
+				it.collectedDataEpoch == identity.collectedDataEpoch }
+			?.let { registration ->
+				database.sourceBrokerDao().hasFailedActivityCaptureDelivery(
+					registration, claim.logicalTrackingId, claim.serviceRunId,
+				)
+			} == true
 	}
 
 	/** Ending a session can finish while an independent all-day owner's restart waits for Ready. */

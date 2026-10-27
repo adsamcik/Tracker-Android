@@ -2,6 +2,8 @@ package com.adsamcik.tracker.tracker.source.coordinator
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
+import com.adsamcik.tracker.shared.base.database.authenticateHistoricalProviderRegistration
 import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication
 import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthenticator
 import com.adsamcik.tracker.shared.base.database.data.PressureWalCarrierAuthentication
@@ -10,9 +12,11 @@ import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenera
 import com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.database.data.WifiWalCarrierAuthentication
 import com.adsamcik.tracker.shared.base.database.data.WifiWalCarrierAuthenticator
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.ingress.continuousAmbientSensorMembers
 
 /** Settles source-specific terminal coverage after authenticating the exact retired provider. */
 internal suspend fun retirementDrainSettlementFailure(
@@ -113,7 +117,10 @@ private suspend fun hasSettledRetirementEndpoint(
 ) {
 	hasExactInterruptedEndpoint(database, request, receipt)
 } else {
-	receipt.hasSettledRetiredGap() && hasExactRetirementEndpoint(database, request, receipt)
+	receipt.hasSettledRetiredGap() && when (request.source) {
+		SourceKind.WIFI, SourceKind.CELL -> hasExactRadioRetirementEndpoint(database, request, receipt)
+		else -> hasExactSensorRetirementEndpoint(database, request, receipt)
+	}
 }
 
 private suspend fun hasExactInterruptedEndpoint(
@@ -151,6 +158,10 @@ private fun SourceRunRetirementEntity.matchesRetirementCutoff(request: SourcePro
 	cutoffElapsedRealtimeNanos == request.cutoffElapsedRealtimeNanos &&
 		cutoffWallTimeMs == request.cutoffWallTimeMs
 
+private val SourceRunRetirementEntity.hasNoAdmissionEndpoint: Boolean
+	get() = (lastAdmissionOrdinal == null || lastAdmissionOrdinal == 0L) &&
+		(lastSourceSequence == null || lastSourceSequence == 0L)
+
 private fun SourceRunRetirementEntity.matchesRetirementMembership(membership: SourceDrainMembership): Boolean =
 	SourceDrainMembership(
 		sourceInstanceId, registrationGeneration, lastAdmissionOrdinal, lastSourceSequence,
@@ -177,15 +188,6 @@ private fun SourceRunRetirementEntity.hasBoundedRecordedGap(): Boolean {
 	return start > 0L && end >= start && end <= barrier && failed in 1L..(end - start + 1L)
 }
 
-private suspend fun hasExactRetirementEndpoint(
-	database: AppDatabase,
-	request: SourceProductDrainRequest,
-	receipt: SourceRunRetirementEntity,
-): Boolean = when (request.source) {
-	SourceKind.WIFI, SourceKind.CELL -> hasExactRadioRetirementEndpoint(database, request, receipt)
-	else -> hasExactSensorRetirementEndpoint(database, request, receipt)
-}
-
 private suspend fun hasExactSensorRetirementEndpoint(
 	database: AppDatabase,
 	request: SourceProductDrainRequest,
@@ -195,13 +197,62 @@ private suspend fun hasExactSensorRetirementEndpoint(
 	val latest = dao.latestContinuityEventAtOrBefore(request.source.stableCode,
 		receipt.sourceInstanceId, receipt.registrationGeneration, Long.MAX_VALUE)
 	if (latest == null) {
-		return (receipt.lastAdmissionOrdinal == null || receipt.lastAdmissionOrdinal == 0L) &&
-			(receipt.lastSourceSequence == null || receipt.lastSourceSequence == 0L)
+		return receipt.hasNoAdmissionEndpoint
 	}
 	val endpoint = receipt.lastAdmissionOrdinal?.takeIf { it > 0L && it == latest.admissionOrdinal }
 		?.let { dao.getByAdmissionOrdinal(it) } ?: return false
-	return endpoint.logicalTrackingId == request.logicalTrackingId && endpoint.serviceRunId == request.serviceRunId &&
+	return if (endpoint.logicalTrackingId == request.logicalTrackingId &&
+		endpoint.serviceRunId == request.serviceRunId) {
 		endpoint.matchesRetirementSourceSequence(request.source, receipt.lastSourceSequence)
+	} else {
+		request.source == SourceKind.PRESSURE &&
+			endpoint.hasQualifiedPressureAmbientEndpoint(database, request, receipt)
+	}
+}
+
+/** A physical Pressure drain can end in independently authorized all-day data outside the capture interval. */
+private suspend fun SourceEventWalEntity.hasQualifiedPressureAmbientEndpoint(
+	database: AppDatabase,
+	request: SourceProductDrainRequest,
+	receipt: SourceRunRetirementEntity,
+): Boolean {
+	val capture = listOf(logicalTrackingId, serviceRunId, sourcePolicyRevision, captureConsentEpoch,
+		sessionManifestRevision, lifecycleLeaseGeneration)
+	val carrier = PressureWalCarrierAuthenticator.authenticateProviderEnvelope(this)
+	if (capture.any { it != null } ||
+		carrier !is PressureWalCarrierAuthentication.Authenticated ||
+		carrier.carrier.payload.lastProviderSequence != receipt.lastSourceSequence) {
+		return false
+	}
+	return hasRetiredPressureProvider(database, request) && hasContinuousPressureAmbientAuthority(database)
+}
+
+private suspend fun SourceEventWalEntity.hasRetiredPressureProvider(
+	database: AppDatabase,
+	request: SourceProductDrainRequest,
+): Boolean {
+	val run = database.sourceSessionDao().serviceRun(request.serviceRunId) ?: return false
+	val registration = database.sourceBrokerDao().registration(sourceKind, registrationGeneration) ?: return false
+	val fingerprint = physicalConfigurationFingerprint ?: return false
+	return run.bootId == clockDomainId && registration.status == ProviderRegistrationGenerationEntity.STATUS_RETIRED &&
+		database.authenticateHistoricalProviderRegistration(sourceKind, registrationGeneration, sourceInstanceId,
+			clockDomainId, fingerprint, capturedCollectedDataEpoch,
+			ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND, requireNotNull(observedIntervalStartNanos),
+			observedElapsedNanos, requireNotNull(wallTimeMs), run.bootId) !is
+			ProviderRegistrationIntervalAuthentication.Rejected
+}
+
+private suspend fun SourceEventWalEntity.hasContinuousPressureAmbientAuthority(database: AppDatabase): Boolean {
+	val revision = authorizationRevision ?: return false
+	val broker = database.sourceBrokerDao()
+	val rows = broker.authorizationRevisionBounded(sourceKind, registrationGeneration, revision,
+		MAX_RETIREMENT_AUTHORIZATION_MEMBERS + 1)
+	val authorization = rows.takeIf { it.size <= MAX_RETIREMENT_AUTHORIZATION_MEMBERS }
+		?.toAuthorizationSnapshotOrNull() ?: return false
+	return authorization.authorizationFingerprint == authorizationFingerprint &&
+		authorization.purposeEligibilityMask == authorizationPurposeEligibilityMask &&
+		authorization.effectiveBootId == clockDomainId && broker.continuousAmbientSensorMembers(authorization,
+			requireNotNull(observedIntervalStartNanos), observedElapsedNanos).isNotEmpty()
 }
 
 private suspend fun hasExactRadioRetirementEndpoint(
@@ -213,8 +264,7 @@ private suspend fun hasExactRadioRetirementEndpoint(
 		request.source.stableCode, receipt.sourceInstanceId, receipt.registrationGeneration,
 		request.logicalTrackingId, request.serviceRunId, SourceBrokerPurpose.MASK_SESSION_CAPTURE)
 	if (highWater.lastAdmissionOrdinal == 0L) {
-		return (receipt.lastAdmissionOrdinal == null || receipt.lastAdmissionOrdinal == 0L) &&
-			(receipt.lastSourceSequence == null || receipt.lastSourceSequence == 0L)
+		return receipt.hasNoAdmissionEndpoint
 	}
 	val endpoint = receipt.lastAdmissionOrdinal?.takeIf { it == highWater.lastAdmissionOrdinal }
 		?.let { database.sourceEventWalDao().getByAdmissionOrdinal(it) } ?: return false
@@ -242,3 +292,5 @@ private fun SourceEventWalEntity.matchesRetirementSourceSequence(
 		}
 		else -> false
 }
+
+private const val MAX_RETIREMENT_AUTHORIZATION_MEMBERS = 64

@@ -55,6 +55,7 @@ internal fun TrackingPill(
 	onToggleTracking: () -> Unit,
 	onRequestPermission: () -> Unit,
 	isStarting: Boolean = false,
+	isStopping: Boolean = false,
 	modifier: Modifier = Modifier,
 ) {
 	AnimatedVisibility(
@@ -72,6 +73,7 @@ internal fun TrackingPill(
 		PillContent(
 			isTracking = isTracking,
 			isStarting = isStarting,
+			isStopping = isStopping,
 			hasPermission = hasPermission,
 			sessionData = sessionData,
 			onClick = {
@@ -85,6 +87,7 @@ internal fun TrackingPill(
 private fun PillContent(
 	isTracking: Boolean,
 	isStarting: Boolean,
+	isStopping: Boolean,
 	hasPermission: Boolean,
 	sessionData: TrackerSessionSnapshot?,
 	onClick: () -> Unit,
@@ -110,6 +113,7 @@ private fun PillContent(
 	}
 
 	val label = when {
+		isStopping -> stringResource(R.string.dashboard_finishing_session)
 		isStarting -> stringResource(com.adsamcik.tracker.tracker.R.string.notification_tracking_restoring_title)
 		isTracking -> stringResource(com.adsamcik.tracker.tracker.R.string.shortcut_end_session)
 		!hasPermission -> stringResource(R.string.dashboard_pill_enable_location)
@@ -118,7 +122,7 @@ private fun PillContent(
 
 	Surface(
 		onClick = onClick,
-		enabled = !isStarting,
+		enabled = !isStarting && !isStopping,
 		shape = MaterialTheme.shapes.extraLarge,
 		color = containerColor,
 		shadowElevation = 4.dp,
@@ -132,7 +136,7 @@ private fun PillContent(
 			horizontalArrangement = Arrangement.spacedBy(8.dp),
 			verticalAlignment = Alignment.CenterVertically,
 		) {
-			if (isStarting) {
+			if (isStarting && !isStopping) {
 				CircularProgressIndicator(Modifier.size(20.dp), color = contentColor, strokeWidth = 2.dp)
 			} else {
 				Icon(

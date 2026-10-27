@@ -196,4 +196,5 @@
     <string name="dashboard_activity_on_foot">Pėsčiomis</string>
     <string name="dashboard_activity_tilting">Pakreipta</string>
     <string name="dashboard_activity_unknown">Nežinoma veikla</string>
+    <string name="dashboard_finishing_session">Seansas baigiamas…</string>
 </resources>

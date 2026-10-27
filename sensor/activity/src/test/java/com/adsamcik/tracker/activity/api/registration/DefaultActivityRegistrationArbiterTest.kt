@@ -18,16 +18,23 @@ import com.adsamcik.tracker.activity.receiver.ActivityCallbackRetryOwner
 import com.adsamcik.tracker.activity.receiver.finalizeActivityCallbackAuthority
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedPlanIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.TrackingRolloutStateEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
@@ -42,9 +49,12 @@ import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.verify
 import java.io.File
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
 import java.security.MessageDigest
 import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Provider
+import kotlin.coroutines.ContinuationInterceptor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -63,6 +73,7 @@ import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
@@ -176,7 +187,12 @@ class DefaultActivityRegistrationArbiterTest {
 
 	@After
 	fun tearDown() {
-		appScope.cancel()
+		val dispatcher = appScope.coroutineContext[ContinuationInterceptor] as? TestDispatcher
+		if (dispatcher == null) {
+			runBlocking { appScope.coroutineContext.job.cancelAndJoin() }
+		} else {
+			runTest(dispatcher) { appScope.coroutineContext.job.cancelAndJoin() }
+		}
 		database.close()
 		cleanupFile.delete()
 		File("${cleanupFile.path}.bak").delete()
@@ -229,6 +245,87 @@ class DefaultActivityRegistrationArbiterTest {
 		stoppedBackground.snapshot.identity shouldBe backgroundIdentity
 		stoppedBackground.snapshot.owners shouldBe setOf(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
 		stoppedBackground.snapshot.active shouldBe true
+	}
+
+	@Test
+	fun `lost callback keeps exact capture gap without poisoning continuing all-day or next session`() = runTest {
+		installAllDayActivityDemand()
+		database.sourceBrokerDao().insertDemands(listOf(
+			demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 3L, true)
+				.copy(sourcePolicyRevision = 6L)))
+		subject.setDemand(ActivityRegistrationOwner.ALL_DAY_TRACKING,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5))
+		val started = subject.setDemand(ActivityRegistrationOwner.ACTIVE_SESSION,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5))
+		val identity = requireNotNull(started.snapshot.identity)
+		val lost = checkNotNull(callbackAdmissionBarrier.tryEnter(identity))
+		finalizeActivityCallbackAuthority(false, false, recordGap = { false }, completePermit = lost::complete)
+		database.sourceBrokerDao().retireConsumer("session:s1", clockDomainId, 200L, 200L)
+
+		val ended = subject.clearDemand(ActivityRegistrationOwner.ACTIVE_SESSION)
+
+		ended.status shouldBe ActivityRegistrationStatus.APPLIED
+		ended.snapshot.identity shouldBe identity
+		ended.snapshot.owners shouldBe setOf(ActivityRegistrationOwner.ALL_DAY_TRACKING)
+		val firstSeal = requireNotNull(database.sourceBrokerDao().captureAdmissionBarrier(
+			ACTIVITY_SOURCE_KIND, identity.registrationGeneration))
+		val lossRevision = database.sourceBrokerDao().maximumActivitySessionCaptureAuthorizationRevision(identity.registrationGeneration)
+		val firstFailure = "${ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX}$lossRevision"
+		(lossRevision <= firstSeal.throughAuthorizationRevision) shouldBe true
+		database.sourceBrokerDao().authorizationRevision(ACTIVITY_SOURCE_KIND, identity.registrationGeneration, lossRevision)
+			.any { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE && it.logicalTrackingId == "s1" &&
+				it.serviceRunId == "run-s1" } shouldBe true
+		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration)
+			?.failureCode shouldBe firstFailure
+		firstSeal.lastAdmissionOrdinal shouldBe 0L
+		firstSeal.lastSourceSequence shouldBe 0L
+		checkNotNull(callbackAdmissionBarrier.tryEnter(identity)).complete(terminalGap = true)
+		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration)
+			?.failureCode shouldBe firstFailure
+
+		insertServiceRun("run-s2", "s2", isUserInitiated = true)
+		database.sourceBrokerDao().insertDemands(listOf(
+			demand("capture-2", "session:s2", SourceBrokerPurpose.SESSION_CAPTURE, "s2", 4L, true)
+				.copy(sourcePolicyRevision = 6L)))
+		val next = subject.setDemand(ActivityRegistrationOwner.ACTIVE_SESSION,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5))
+		next.snapshot.identity shouldBe identity
+		checkNotNull(callbackAdmissionBarrier.tryEnter(identity)).complete()
+		database.sourceBrokerDao().retireConsumer("session:s2", clockDomainId, 300L, 300L)
+		subject.clearDemand(ActivityRegistrationOwner.ACTIVE_SESSION).status shouldBe ActivityRegistrationStatus.APPLIED
+		val nextSeal = requireNotNull(database.sourceBrokerDao().captureAdmissionBarrier(
+			ACTIVITY_SOURCE_KIND, identity.registrationGeneration))
+		(nextSeal.throughAuthorizationRevision > firstSeal.throughAuthorizationRevision) shouldBe true
+		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration)
+			?.failureCode shouldBe firstFailure
+		coVerify(exactly = 0) { backend.removeRegistration(identity) }
+	}
+
+	@Test
+	fun `failed retirement transaction preserves known callback loss for retry`() = runTest {
+		database.sourceBrokerDao().insertDemands(listOf(
+			demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 3L, true)))
+		val started = subject.setDemand(ActivityRegistrationOwner.ACTIVE_SESSION,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5))
+		val identity = requireNotNull(started.snapshot.identity)
+		checkNotNull(callbackAdmissionBarrier.tryEnter(identity)).complete(terminalGap = true)
+		database.openHelper.writableDatabase.execSQL(
+			"CREATE TRIGGER fail_activity_retirement BEFORE UPDATE ON provider_registration_generation " +
+				"WHEN NEW.source_kind = 2 AND NEW.status = 'RETIRING' " +
+				"BEGIN SELECT RAISE(ABORT, 'test retirement failure'); END",
+		)
+
+		val failed = subject.clearDemand(ActivityRegistrationOwner.ACTIVE_SESSION)
+
+		failed.status shouldBe ActivityRegistrationStatus.FAILED
+		callbackAdmissionBarrier.captureFailureCount(identity) shouldBe 1L
+		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration)
+			?.failureCode shouldBe null
+		database.openHelper.writableDatabase.execSQL("DROP TRIGGER fail_activity_retirement")
+		val retried = subject.clearDemand(ActivityRegistrationOwner.ACTIVE_SESSION)
+		retried.status shouldBe ActivityRegistrationStatus.APPLIED
+		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration)
+			?.failureCode?.startsWith("DEMAND_REMOVED|${ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX}") shouldBe true
 	}
 
 	@Test
@@ -449,6 +546,78 @@ class DefaultActivityRegistrationArbiterTest {
 			secondIdentity.registrationGeneration,
 		)?.configurationRevision shouldBe 42L
 		removedIdentities shouldBe listOf(firstIdentity)
+	}
+
+	@Test
+	fun `equivalent same-session acquisition keeps its physical Activity registration and original callback plan`() = runTest {
+		appScope.coroutineContext.job.cancelAndJoin()
+		val firstPlan = canonicalCapturedPlan(41L)
+		installCanonicalCaptureManifest(firstPlan, 1L)
+		val first = subject.setDemand(ActivityRegistrationOwner.ACTIVE_SESSION,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5,
+				planRevision = 41L, capturedPlan = firstPlan))
+		val identity = requireNotNull(first.snapshot.identity)
+		val originalBinding = requireNotNull(database.activityCapturedFactDao().registrationPlanBinding(
+			identity.sourceInstanceId, identity.registrationGeneration))
+
+		val nextPlan = canonicalCapturedPlan(42L)
+		installCanonicalCaptureManifest(nextPlan, 2L)
+		// The broker's new grant is visible before the runtime applies its equivalent plan.
+		subject.reconcileDurableDemands().snapshot.identity shouldBe identity
+		val currentGrant = requireNotNull(database.sourceBrokerDao().latestAuthorization(ACTIVITY_SOURCE_KIND,
+			identity.registrationGeneration).toAuthorizationSnapshotOrNull()).authorizedMembers.single()
+		currentGrant.manifestRevision shouldBe 2L
+		val next = subject.setDemand(ActivityRegistrationOwner.ACTIVE_SESSION,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5,
+				planRevision = 42L, capturedPlan = nextPlan))
+
+		next.status shouldBe ActivityRegistrationStatus.APPLIED
+		next.snapshot.identity shouldBe identity
+		appliedIdentities shouldBe listOf(identity)
+		removedIdentities shouldBe emptyList()
+		// Native callback construction reads this immutable binding, retaining configuration 41.
+		val retained = requireNotNull(database.activityCapturedFactDao().registrationPlanBinding(
+			identity.sourceInstanceId, identity.registrationGeneration))
+		retained.bindingIdentity shouldBe originalBinding.bindingIdentity
+		retained.appliedAtElapsedRealtimeNanos shouldBe originalBinding.appliedAtElapsedRealtimeNanos
+		retained.configurationRevision shouldBe 41L
+		retained.desiredPlanPayload.contentEquals(firstPlan.payload) shouldBe true
+	}
+
+	@Test
+	fun `changed policy and mismatched same-revision Activity binding still replace the provider`() = runTest {
+		appScope.coroutineContext.job.cancelAndJoin()
+		val firstPlan = canonicalCapturedPlan(41L)
+		installCanonicalCaptureManifest(firstPlan, 1L)
+		val first = subject.setDemand(ActivityRegistrationOwner.ACTIVE_SESSION,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5,
+				planRevision = 41L, capturedPlan = firstPlan))
+		val firstIdentity = requireNotNull(first.snapshot.identity)
+		activatePolicyRevision(6L, activityControlConsentEpoch = 8L)
+		val nextPlan = canonicalCapturedPlan(42L)
+		installCanonicalCaptureManifest(nextPlan, 2L, policyRevision = 6L)
+		subject.reconcileDurableDemands().snapshot.identity shouldBe firstIdentity
+		val next = subject.setDemand(ActivityRegistrationOwner.ACTIVE_SESSION,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5,
+				planRevision = 42L, capturedPlan = nextPlan))
+		val nextIdentity = requireNotNull(next.snapshot.identity)
+		next.status shouldBe ActivityRegistrationStatus.APPLIED
+		nextIdentity.registrationGeneration shouldBe firstIdentity.registrationGeneration + 1L
+		removedIdentities shouldBe listOf(firstIdentity)
+
+		val changedEncoding = canonicalCapturedPlan(42L, adaptive = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_desired_plan SET payload_version = ?, payload = ?, payload_checksum = ? " +
+				"WHERE source_kind = 2 AND revision = 42",
+			arrayOf(changedEncoding.payloadVersion, changedEncoding.payload, changedEncoding.payloadChecksum))
+		val replaced = subject.setDemand(ActivityRegistrationOwner.ACTIVE_SESSION,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5,
+				planRevision = 42L, capturedPlan = changedEncoding))
+		replaced.status shouldBe ActivityRegistrationStatus.APPLIED
+		requireNotNull(replaced.snapshot.identity).registrationGeneration shouldBe nextIdentity.registrationGeneration + 1L
+		removedIdentities shouldBe listOf(firstIdentity, nextIdentity)
+		database.activityCapturedFactDao().registrationPlanBinding(
+			nextIdentity.sourceInstanceId, nextIdentity.registrationGeneration)?.desiredPlanPayloadVersion shouldBe 1
 	}
 
 	@Test
@@ -742,7 +911,7 @@ class DefaultActivityRegistrationArbiterTest {
 			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
 		)
 		val identity = requireNotNull(initial.snapshot.identity)
-		appScope.cancel()
+		appScope.coroutineContext.job.cancelAndJoin()
 		saveContainedRollout()
 		appScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 		subject = createSubject(appScope)
@@ -772,7 +941,7 @@ class DefaultActivityRegistrationArbiterTest {
 			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
 		)
 		val identity = requireNotNull(started.snapshot.identity)
-		appScope.cancel()
+		appScope.coroutineContext.job.cancelAndJoin()
 		database.sourceBrokerDao().retireConsumer("app:auto", "boot-1", 200L, 200L)
 		// Keep the startup observer queued: this proves the explicit negative call owns cleanup.
 		appScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
@@ -798,7 +967,7 @@ class DefaultActivityRegistrationArbiterTest {
 			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
 		)
 		val identity = requireNotNull(started.snapshot.identity)
-		appScope.cancel()
+		appScope.coroutineContext.job.cancelAndJoin()
 		database.sourceBrokerDao().retireConsumer("app:auto", "boot-1", 200L, 200L)
 		appScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
 		subject = createSubject(appScope)
@@ -1148,7 +1317,7 @@ class DefaultActivityRegistrationArbiterTest {
 			requestedDemand,
 		)
 		val identity = requireNotNull(first.snapshot.identity)
-		appScope.cancel()
+		appScope.coroutineContext.job.cancelAndJoin()
 		appScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
 		subject = createSubject(appScope)
 
@@ -1178,7 +1347,7 @@ class DefaultActivityRegistrationArbiterTest {
 		// Drive the two reconciliation boundaries explicitly. The production invalidation collector
 		// may otherwise win the first boundary between these assertions, making this test verify a
 		// duplicate reconciliation rather than the intended consent-rotation sequence.
-		appScope.cancel()
+		appScope.coroutineContext.job.cancelAndJoin()
 		appScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
 		subject = createSubject(appScope)
 		val oldDemand = demand(
@@ -1255,7 +1424,7 @@ class DefaultActivityRegistrationArbiterTest {
 			requestedDemand,
 		)
 		val identity = requireNotNull(first.snapshot.identity)
-		appScope.cancel()
+		appScope.coroutineContext.job.cancelAndJoin()
 		appScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
 		subject = createSubject(appScope)
 		coEvery { backend.applyRegistration(any(), identity) } returns false
@@ -1521,6 +1690,8 @@ class DefaultActivityRegistrationArbiterTest {
 
 	@Test
 	fun `cancellation during latched capture drain reauthorizes valid generation then propagates`() = runTest {
+		// Cancel the explicit owner below, rather than racing Room's independent observer.
+		appScope.coroutineContext.job.cancelAndJoin()
 		database.sourceBrokerDao().insertDemands(
 			listOf(
 				demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 3L, true),
@@ -1539,7 +1710,8 @@ class DefaultActivityRegistrationArbiterTest {
 		val enteredCallback = checkNotNull(callbackAdmissionBarrier.tryEnter(identity))
 		database.sourceBrokerDao().retireConsumer("session:s1", "boot-1", 300L, 300L)
 
-		val narrowing = async(start = CoroutineStart.UNDISPATCHED) {
+		// Keep the drain timeout on real time while the real-dispatcher fence probe runs.
+		val narrowing = async(Dispatchers.Default, start = CoroutineStart.UNDISPATCHED) {
 			subject.clearDemand(ActivityRegistrationOwner.ACTIVE_SESSION)
 		}
 		withContext(Dispatchers.Default) {
@@ -2356,14 +2528,75 @@ class DefaultActivityRegistrationArbiterTest {
 		)
 	}
 
-	private suspend fun installDesiredPlan(plan: ActivityRegistrationPlanAttribution) {
+	private fun canonicalCapturedPlan(
+		configurationRevision: Long,
+		adaptive: Boolean = false,
+	): ActivityRegistrationPlanAttribution {
+		val version = if (adaptive) 3 else 1
+		val payload = ByteArrayOutputStream().use { buffer ->
+			DataOutputStream(buffer).use { output ->
+				output.writeInt(version)
+				output.writeUTF("ACTIVITY")
+				output.writeLong(configurationRevision)
+				output.writeUTF("CONTINUOUS_RECOGNITION")
+				output.writeLong(5_000L)
+				output.writeInt(50)
+				output.writeInt(0)
+				if (adaptive) {
+					output.writeInt(1)
+				}
+			}
+			buffer.toByteArray()
+		}
+		val checksum = MessageDigest.getInstance("SHA-256").digest(payload)
+			.joinToString("") { byte -> "%02x".format(byte) }
+		val decoded = requireNotNull(ActivityCapturedPlanIntegrity.decode(SourceDesiredPlanEntity(
+			configurationRevision, ACTIVITY_SOURCE_KIND, version, payload, checksum)))
+		return ActivityRegistrationPlanAttribution(configurationRevision, version, payload, checksum,
+			decoded.physicalConfigurationFingerprint)
+	}
+
+	private suspend fun installCanonicalCaptureManifest(
+		plan: ActivityRegistrationPlanAttribution,
+		manifestRevision: Long,
+		policyRevision: Long = 5L,
+	) {
+		installDesiredPlan(plan, policyRevision)
+		val elapsed = SystemClock.elapsedRealtimeNanos()
+		val wall = System.currentTimeMillis()
+		val source = SessionManifestSourceEntity("s1", manifestRevision, ACTIVITY_SOURCE_KIND,
+			SessionManifestPurposeCode.SESSION_CAPTURE, 8L, true, 2,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
+			SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS,
+			SourceWriterGenerationContract.canonicalOwnerGeneration(
+				SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION),
+			SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION,
+			SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION)
+		val initial = manifestRevision == 1L
+		val unsigned = SessionManifestVersionEntity("s1", manifestRevision, "run-s1", "MANUAL", policyRevision,
+			plan.configurationRevision, 1L, if (initial) "MANUAL_FOREGROUND_START" else "POLICY_RECONCILIATION",
+			clockDomainId, elapsed, wall, "UTC", null,
+			if (initial) "SESSION_START" else "POLICY_RECONCILIATION", "")
+		database.sourceSessionDao().insertManifest(unsigned.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(source))))
+		database.sourceSessionDao().insertManifestSources(listOf(source))
+		val broker = database.sourceBrokerDao()
+		broker.retireConsumer("session:s1", clockDomainId, elapsed, wall)
+		broker.insertDemands(listOf(demand("capture-$manifestRevision", "session:s1",
+			SourceBrokerPurpose.SESSION_CAPTURE, "s1", manifestRevision, true).copy(
+			sourcePolicyRevision = policyRevision, requestedBootId = clockDomainId,
+			requestedElapsedRealtimeNanos = elapsed, requestedAtMs = wall)))
+	}
+
+	private suspend fun installDesiredPlan(plan: ActivityRegistrationPlanAttribution, policyRevision: Long = 5L) {
 		database.sourcePlanStateDao().insertRevision(
 			AcquisitionPlanRevisionEntity(
 				revision = plan.configurationRevision,
 				planId = "activity-plan-${plan.configurationRevision}",
 				createdAtMs = plan.configurationRevision,
 				status = "EFFECTIVE",
-				sourcePolicyRevision = 5L,
+				sourcePolicyRevision = policyRevision,
 			),
 		)
 		database.sourcePlanStateDao().insertDesiredPlans(

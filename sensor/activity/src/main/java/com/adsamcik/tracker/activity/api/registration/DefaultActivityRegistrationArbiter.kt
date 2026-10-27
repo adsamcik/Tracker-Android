@@ -9,8 +9,12 @@ import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.RecognitionConfig
 import com.adsamcik.tracker.activity.receiver.ActivityCallbackRetryOwner
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.hasCompatibleCapturedActivityAcquisition
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
@@ -524,6 +528,9 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			return failure(ActivityRegistrationStatus.FAILED, ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE, true)
 		}
 		val identity = reservation.identity
+		beginCaptureIfPresent(identity, database.sourceBrokerDao().latestAuthorization(
+			ACTIVITY_SOURCE_KIND, identity.registrationGeneration,
+		))
 		val registered = backend.applyRegistration(combined.toRecognitionConfig(), identity)
 		if (!registered) {
 			try {
@@ -828,9 +835,14 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 				identity.sourceInstanceId,
 				nowMs,
 				nowElapsed,
-				reason,
+				listOfNotNull(reason, database.sourceBrokerDao().registration(
+					ACTIVITY_SOURCE_KIND, identity.registrationGeneration,
+				)?.failureCode?.substringAfterLast('|')?.takeIf {
+					it.startsWith(ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX)
+				}).joinToString("|"),
 			) == 1) { "Activity provider registration is not active" }
 		}
+		callbackAdmissionBarrier.finishCapture(identity)
 	}
 
 	private suspend fun cleanupRetiringRegistrationsLocked(): Boolean {
@@ -1033,13 +1045,18 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		)
 		val currentFingerprint = currentRows.toAuthorizationSnapshotOrNull()?.authorizationFingerprint
 		val freshFingerprint = SourceBrokerAuthorization.fingerprint(fresh.authorizedDemands)
-		if (currentFingerprint == freshFingerprint) return@withTransaction fresh.result
+		if (currentFingerprint == freshFingerprint) {
+			beginCaptureIfPresent(identity, currentRows)
+			return@withTransaction fresh.result
+		}
 		val closesCapture = currentRows.any { authorization ->
 			authorization.persistenceEligible && authorization.purpose in CAPTURE_PURPOSES
 		} && fresh.authorizedDemands.none { demand ->
 			demand.persistenceEligible && demand.purpose in CAPTURE_PURPOSES
 		}
-		if (closesCapture) {
+		val closesSession = currentRows.any { it.persistenceEligible && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE } &&
+			fresh.authorizedDemands.none { it.persistenceEligible && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
+		if (closesCapture || closesSession) {
 			return@withTransaction fresh.result.copy(requiresCaptureDrain = true)
 		}
 		appendAuthorizationIfChanged(
@@ -1048,6 +1065,9 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			System.currentTimeMillis(),
 			SystemClock.elapsedRealtimeNanos(),
 		)
+		beginCaptureIfPresent(identity, database.sourceBrokerDao().latestAuthorization(
+			ACTIVITY_SOURCE_KIND, identity.registrationGeneration,
+		))
 		fresh.result
 	}
 
@@ -1059,16 +1079,23 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	private suspend fun completeCaptureClosingRotation(
 		identity: ActivityRegistrationIdentity,
 		combined: CombinedDemand,
-	): AuthorizationRotationResult = database.withTransaction {
-		val fresh = freshAuthorizationInTransaction(combined)
-		appendAuthorizationIfChanged(
-			identity,
-			fresh.authorizedDemands,
-			System.currentTimeMillis(),
-			SystemClock.elapsedRealtimeNanos(),
-		)
-		acknowledgeCaptureCallbackBarrier(identity)
-		fresh.result
+	): AuthorizationRotationResult {
+		val (rotation, captureClosed) = database.withTransaction {
+			val fresh = freshAuthorizationInTransaction(combined)
+			appendAuthorizationIfChanged(
+				identity,
+				fresh.authorizedDemands,
+				System.currentTimeMillis(),
+				SystemClock.elapsedRealtimeNanos(),
+			)
+			acknowledgeCaptureCallbackBarrier(identity)
+			fresh.result to fresh.authorizedDemands.none {
+				it.persistenceEligible && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+			}
+		}
+		// Keep a known loss until its seal is committed; a failed transaction must be retryable.
+		if (captureClosed) callbackAdmissionBarrier.finishCapture(identity)
+		return rotation
 	}
 
 	private suspend fun freshAuthorizationInTransaction(
@@ -1190,6 +1217,17 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		)
 	}
 
+	private fun beginCaptureIfPresent(
+		identity: ActivityRegistrationIdentity,
+		rows: List<SourceAuthorizationEntity>,
+	) {
+		val capture = rows.firstOrNull { it.persistenceEligible && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
+			?: return
+		val logicalId = capture.logicalTrackingId ?: return
+		val runId = capture.serviceRunId ?: return
+		callbackAdmissionBarrier.beginCapture(identity, logicalId, runId)
+	}
+
 	private suspend fun acknowledgeCaptureCallbackBarrier(identity: ActivityRegistrationIdentity) {
 		val dao = database.sourceBrokerDao()
 		val throughRevision = dao.maximumCaptureAuthorizationRevision(
@@ -1203,6 +1241,14 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			throughRevision,
 		) == 1) { "Activity registration changed before its callback barrier acknowledgement" }
 		if (throughRevision == 0L) return
+		if (callbackAdmissionBarrier.captureFailureCount(identity) > 0L) {
+			val lossRevision = dao.maximumActivitySessionCaptureAuthorizationRevision(identity.registrationGeneration)
+			check(lossRevision in 1L..throughRevision) { "Activity callback loss has no original session grant" }
+			check(dao.recordActivityCaptureCallbackLoss(
+				identity.registrationGeneration, identity.sourceInstanceId, throughRevision,
+				"${ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX}$lossRevision",
+			) == 1) { "Activity callback-loss acknowledgement lost its exact capture fence" }
+		}
 		dao.sealCaptureAdmissionBarrier(
 			sourceKind = ACTIVITY_SOURCE_KIND,
 			registrationGeneration = identity.registrationGeneration,
@@ -1287,12 +1333,41 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	private suspend fun registrationPlanMatches(
 		identity: ActivityRegistrationIdentity,
 		plan: ActivityRegistrationPlanAttribution?,
-	): Boolean {
+	): Boolean = database.withTransaction {
 		val stored = database.activityCapturedFactDao().registrationPlanBinding(
 			identity.sourceInstanceId,
 			identity.registrationGeneration,
 		)
-		return if (plan == null) stored == null else stored?.matches(identity, plan) == true
+		if (plan == null) return@withTransaction stored == null
+		if (stored?.matches(identity, plan) == true) return@withTransaction true
+		if (stored == null || stored.configurationRevision >= plan.configurationRevision ||
+			stored.physicalConfigurationFingerprint != identity.physicalConfigurationFingerprint ||
+			plan.physicalConfigurationFingerprint != identity.physicalConfigurationFingerprint
+		) return@withTransaction false
+		requireDesiredPlanMatches(plan)
+		val authorization = database.sourceBrokerDao()
+			.latestAuthorization(ACTIVITY_SOURCE_KIND, identity.registrationGeneration)
+			.toAuthorizationSnapshotOrNull() ?: return@withTransaction false
+		val grant = authorization.authorizedMembers.singleOrNull {
+			it.purpose == SourceBrokerPurpose.SESSION_CAPTURE && it.persistenceEligible
+		}
+		val manifest = captureManifestForPlan(grant, plan.configurationRevision) ?: return@withTransaction false
+		// Keep the immutable applied binding: only its authenticated same-session successor may reuse it.
+		database.hasCompatibleCapturedActivityAcquisition(manifest, stored.configurationRevision,
+			identity.sourceInstanceId, identity.registrationGeneration, authorization.authorizationRevision)
+	}
+
+	private suspend fun captureManifestForPlan(
+		grant: SourceAuthorizationEntity?,
+		configurationRevision: Long,
+	): SessionManifestVersionEntity? {
+		val serviceRunId = grant?.serviceRunId
+		val revision = grant?.manifestRevision
+		if (serviceRunId == null || revision == null) return null
+		val manifest = database.sourceSessionDao().manifestByServiceRunRevision(serviceRunId, revision) ?: return null
+		if (manifest.acquisitionPlanRevision != configurationRevision) return null
+		val bindings = database.sourceSessionDao().manifestSources(manifest.logicalTrackingId, manifest.manifestRevision)
+		return manifest.takeIf { SessionManifestIntegrity.verify(it, bindings) }
 	}
 
 	private suspend fun persistRegistrationPlanBinding(

@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -253,6 +254,30 @@ class PressureDurableSourceIngressTest {
 		).shouldBeInstanceOf<DeliveryAdmissionResult.PermanentFailure>()
 		replayRejected.code shouldBe AdmissionFailureCode.INVALID_OBSERVED_TIME
 		assertSingleAdmissionUnchanged(payload, causalOrderElapsedRealtimeNanos = 120L)
+	}
+
+	@Test
+	fun `captured Pressure window survives a compatible authorization replacement and exact retry`() = runTest {
+		installPressureAuthorization(1L, 2L, effectiveElapsedRealtimeNanos = 105L)
+		val payload = pressurePayload()
+		val candidate = pressureDeliveryCandidate(payload = payload)
+		val admitted = ingress.admit(candidate, pressureCheckpoint(1L, payload, 120L))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		database.sourceEventWalDao().eventsAfter(0L, 10).single().authorizationRevision shouldBe 1L
+		val duplicate = ingress.admit(candidate, pressureCheckpoint(1L, payload, 130L))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Duplicate>()
+		duplicate.units shouldBe admitted.units
+		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `captured Pressure cannot cross a real permission withdrawal`() = runTest {
+		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(
+			SourceKind.PRESSURE.stableCode, 1L, 2L, emptyList(), BOOT_CLOCK_DOMAIN_ID, 105L, 105L))
+		val payload = pressurePayload()
+		ingress.admit(pressureDeliveryCandidate(payload = payload), pressureCheckpoint(1L, payload, 120L))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.PermanentFailure>()
+		assertNoAdmission()
 	}
 
 	@Test

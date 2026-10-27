@@ -174,6 +174,47 @@ class RawLocationObservationRepairTest {
 	}
 
 	@Test
+	fun `legacy repair pages skip protected carriers while preserving both released checksum states`() = runTest {
+		insertWal("protected-current", payloadVersion = 2, isMock = false, protectedBinding = true)
+		insertWal("partially-bound-v1", payloadVersion = 1, isMock = null, unitIndex = 1)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET source_policy_revision = 1 WHERE event_id = 'partially-bound-v1'",
+		)
+		insertWal("legacy-pending", payloadVersion = 1, isMock = null, unitIndex = 2)
+		insertWal("legacy-verified", payloadVersion = 1, isMock = null, unitIndex = 3)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET integrity_identity = ? WHERE event_id = ?",
+			arrayOf<Any>(SourceEventWalEntity.LEGACY_CHECKSUM_VERIFIED, "legacy-verified"),
+		)
+		val dao = database.sourceEventWalDao()
+		val original = dao.eventsAfter(0L, 10)
+		val first = dao.locationEventsMissingCanonicalObservation(SourceKind.LOCATION.stableCode, 0L, 1).single()
+		first.eventId shouldBe "legacy-pending"
+		val second = dao.locationEventsMissingCanonicalObservation(
+			SourceKind.LOCATION.stableCode, first.admissionOrdinal, 1,
+		).single()
+		second.eventId shouldBe "legacy-verified"
+		dao.locationEventsMissingCanonicalObservation(
+			SourceKind.LOCATION.stableCode, second.admissionOrdinal, 1,
+		) shouldBe emptyList()
+
+		val repair = RawLocationObservationRepair(database, codec)
+		repair.repairMissingCanonicalObservations() shouldBe 2
+		repair.repairMissingCanonicalObservations() shouldBe 0
+		for (eventId in listOf("legacy-pending", "legacy-verified")) {
+			database.locationObservationDao().getBySourceEventId(eventId)
+				?.ingressDisposition shouldBe "MIGRATED_MOCK_PROVENANCE_UNKNOWN"
+		}
+		database.locationObservationDao().getBySourceEventId("protected-current") shouldBe null
+		database.locationObservationDao().getBySourceEventId("partially-bound-v1") shouldBe null
+		dao.eventsAfter(0L, 10).zip(original).all { (current, saved) ->
+			current.eventId == saved.eventId && current.integrityIdentity == saved.integrityIdentity &&
+				current.payload.contentEquals(saved.payload)
+		} shouldBe true
+		dao.countAll() shouldBe 4L
+	}
+
+	@Test
 	fun `repair retains legacy WAL when permanent Location owner is lost`() = runTest {
 		insertWal("legacy-owner-loss", payloadVersion = 1, isMock = null)
 		check(database.sourceDestinationOwnerDao().compareAndSetOwner(

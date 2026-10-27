@@ -389,8 +389,13 @@ internal class DefaultTrackingHistoryRepository private constructor(
 		detail: LiveSessionHistoryDetail,
 	): HistoricalSessionSourceRead {
 		val capture = selected.captureAuthority as? HistoricalCaptureAuthority.Exact
-		return if (detail == LiveSessionHistoryDetail.COMPACT && capture?.revisions?.any {
-			TrackingSourceComponent.LOCATION in it.capturedSources } == true) {
+		val hasLiveSensors = capture?.revisions?.any {
+			TrackingSourceComponent.ACTIVITY in it.capturedSources ||
+				TrackingSourceComponent.PRESSURE in it.capturedSources
+		} == true
+		val compactLocation = detail == LiveSessionHistoryDetail.COMPACT && capture?.revisions?.any {
+			TrackingSourceComponent.LOCATION in it.capturedSources } == true
+		return if (compactLocation && !hasLiveSensors) {
 			HistoricalSessionSourceRead.Available(
 				segmentId = segment.id,
 				wifi = null,
@@ -399,7 +404,7 @@ internal class DefaultTrackingHistoryRepository private constructor(
 				pressure = PressureSessionHistoryQuery.NotFound,
 			)
 		} else {
-			sourceUnionReader.sessionInTransaction(segment)
+			sourceUnionReader.sessionInTransaction(segment, includeRadio = !compactLocation)
 		}
 	}
 

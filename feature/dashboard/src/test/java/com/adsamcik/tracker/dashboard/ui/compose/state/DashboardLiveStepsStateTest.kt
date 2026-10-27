@@ -1,15 +1,45 @@
 package com.adsamcik.tracker.dashboard.ui.compose.state
 
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryObservation
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryType
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage
+import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.shouldBe
 import org.junit.Test
 
 class DashboardLiveStepsStateTest {
+	@Test
+	fun `live Activity classification is useful before duration bands exist`() {
+		val entry = ActivityHistoryEntry(
+			key = ActivityHistoryEntryKey("live-activity"), startTime = EpochMs(1_000L), endTime = EpochMs(2_000L),
+			storedZoneIds = setOf("UTC"), state = ActivityHistoryProductState.MATERIALIZING,
+			coverage = ActivityHistoryCoverage.NONE, activeTime = null, fragments = emptyList(),
+			causes = setOf(ActivityHistoryCause.SESSION_ACTIVE),
+			latestObservation = ActivityHistoryObservation(EpochMs(1_500L), ActivityHistoryType.STILL, 92),
+		)
+
+		val value = entry.toDashboardLiveActivityValue()
+		value.hasRetainedQualifiedEvidence shouldBe true
+		value.latestMovementBand shouldBe ActivityHistoryType.STILL
+		value.latestObservationTimeMs shouldBe 1_500L
+		value.knownActiveDurationNanos shouldBe null
+		val exit = entry.copy(latestObservation = ActivityHistoryObservation(
+			EpochMs(1_600L), ActivityHistoryType.WALKING, null, transitionType = 1,
+		)).toDashboardLiveActivityValue()
+		exit.latestMovementBand shouldBe ActivityHistoryType.UNKNOWN
+		exit.latestObservationTimeMs shouldBe 1_600L
+		exit.knownActiveDurationNanos shouldBe null
+	}
 	@Test
 	fun `retained imported coverage never becomes current provider evidence`() {
 		completeHistory(count = 42L).copy(availability = HistoryAvailability.RETAINED_IMPORTED)

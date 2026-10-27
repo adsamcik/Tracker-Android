@@ -104,13 +104,19 @@ class BackgroundLocationHost @Inject constructor(
 		} catch (_: Exception) {
 			BackgroundLocationHostResult.Blocked("LOCATION_FOREGROUND_START_UNAVAILABLE")
 		} finally {
-			val abandoned = synchronized(lock) {
+			val ownsAcceptedTicket = synchronized(lock) {
 				requests.remove(ticket)
-				!delivered && activeTickets[identity.source] == ticket &&
+				activeTickets[identity.source] == ticket &&
                     _leases.value[identity.source]?.identity == identity
 			}
-			if (abandoned) {
-				withContext(NonCancellable) { releaseIfOwned(identity, expectedTicket = ticket) }
+			if (!delivered) {
+				withContext(NonCancellable) {
+					if (ownsAcceptedTicket) {
+						releaseIfOwned(identity, expectedTicket = ticket)
+					} else {
+						withContext(dispatchers.main) { synchronized(lock) { onRelease }?.invoke() }
+					}
+				}
 			}
 		}
 	}
@@ -176,14 +182,28 @@ class BackgroundLocationHost @Inject constructor(
 		retiring
 	}
 
+	internal val hasPendingForegroundWork: Boolean
+		get() = synchronized(lock) {
+			serviceOwner != null && requests.values.any {
+				!it.result.isCompleted && it.matchesHostCollectionGeneration()
+			}
+		}
+
 	/** Only an in-process ticket survives to this method; Android redelivery cannot recreate it. */
 	internal suspend fun acceptDelivery(
 		ticket: String,
 		owner: Any,
 		scope: LocationMotionScope,
+		foregroundAcknowledged: Boolean = false,
 		promote: (Set<SourceKind>) -> Boolean,
 	): Boolean {
 		val request = synchronized(lock) { requests[ticket] } ?: return false
+		synchronized(lock) {
+			if (serviceOwner === owner && requests[ticket] === request && !request.result.isCompleted &&
+				request.matchesHostCollectionGeneration()) {
+				request.foregroundAcknowledged = request.foregroundAcknowledged || foregroundAcknowledged
+			}
+		}
 		val promoted = promoteHostRequest(ticket, owner, request, promote)
 		if (!promoted) {
 			request.result.complete(BackgroundLocationHostResult.Blocked("LOCATION_HOST_AUTHORITY_OR_FOREGROUND_UNAVAILABLE"))
@@ -198,8 +218,7 @@ class BackgroundLocationHost @Inject constructor(
 		request: Request,
 		promote: (Set<SourceKind>) -> Boolean,
 	): Boolean {
-		val remainingMillis = ((request.foregroundDeadlineNanos - SystemClock.elapsedRealtimeNanos()) /
-			1_000_000L).coerceAtMost(PRE_FOREGROUND_START_BUDGET_MILLIS)
+		val remainingMillis = synchronized(lock) { request.foregroundBudgetRemainingMillis }
 		return if (remainingMillis <= 0L) {
 			false
 		} else {
@@ -211,10 +230,10 @@ class BackgroundLocationHost @Inject constructor(
 				} else {
 					withContext(dispatchers.main) {
 						val stillOwnsDelivery = synchronized(lock) {
-							serviceOwner === owner && requests[ticket] === request && !request.result.isCompleted
+							serviceOwner === owner && requests[ticket] === request && !request.result.isCompleted &&
+								request.foregroundDeadlineSatisfied
 						}
-						stillOwnsDelivery && SystemClock.elapsedRealtimeNanos() < request.foregroundDeadlineNanos &&
-							request.matchesHostCollectionGeneration() &&
+						stillOwnsDelivery && request.matchesHostCollectionGeneration() &&
 							promote(hostedSources + requireNotNull(request.identity.source.hostSourceKind()))
 					}
 				}
@@ -341,6 +360,16 @@ class BackgroundLocationHost @Inject constructor(
 		val previousIdentity: AmbientReconciliationIdentity?) {
 		val foregroundDeadlineNanos = SystemClock.elapsedRealtimeNanos() +
 			PRE_FOREGROUND_START_BUDGET_MILLIS * 1_000_000L
+		var foregroundAcknowledged = false
+		val foregroundBudgetRemainingMillis: Long
+			get() = if (foregroundAcknowledged) {
+				BACKGROUND_LOCATION_HOST_ACK_TIMEOUT_MS
+			} else {
+				((foregroundDeadlineNanos - SystemClock.elapsedRealtimeNanos()) /
+					1_000_000L).coerceAtMost(PRE_FOREGROUND_START_BUDGET_MILLIS)
+			}
+		val foregroundDeadlineSatisfied: Boolean
+			get() = foregroundAcknowledged || SystemClock.elapsedRealtimeNanos() < foregroundDeadlineNanos
 		val result = CompletableDeferred<BackgroundLocationHostResult>()
 
 		suspend fun awaitCompletion(): BackgroundLocationHostResult =

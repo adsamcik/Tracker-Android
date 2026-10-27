@@ -188,6 +188,7 @@ internal fun TodayProgressCard(
 				TrackingActionRing(
 					isTracking = state.isTracking,
 					isStarting = state.isStarting,
+					isStopping = state.stoppingAtMs != null,
 					hasPermission = state.hasLocationPermission,
 					goalProgress = state.goalProgress,
 					onToggleTracking = onToggleTracking,

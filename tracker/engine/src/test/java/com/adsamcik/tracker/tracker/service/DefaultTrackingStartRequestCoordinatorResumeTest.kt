@@ -14,6 +14,9 @@ import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.api.ManualTrackingStartSelection
+import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
+import com.adsamcik.tracker.tracker.api.SourceCallerAcceptanceReceipt
+import com.adsamcik.tracker.tracker.api.SourceCallerGuardResult
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.api.TrackingCaptureSource
 import com.adsamcik.tracker.tracker.api.TrackingStartFailureDisposition
@@ -31,14 +34,19 @@ import com.adsamcik.tracker.tracker.policy.BatteryAwarePolicy
 import com.adsamcik.tracker.tracker.policy.BatteryPressure
 import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
 import com.adsamcik.tracker.tracker.source.coordinator.AndroidStartDeliveryMetadata
+import com.adsamcik.tracker.tracker.source.coordinator.AuthoritativeSessionCoordinator
+import com.adsamcik.tracker.tracker.source.coordinator.ClaimedPreparedSessionStart
+import com.adsamcik.tracker.tracker.source.coordinator.PreparedSessionClaimResult
 import com.adsamcik.tracker.tracker.source.coordinator.PreparedSessionStart
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.SessionStartOrigin
+import com.adsamcik.tracker.tracker.source.coordinator.SessionMode
 import com.adsamcik.tracker.tracker.source.coordinator.SessionStartPreparationResult
 import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionStartRequest
 import com.adsamcik.tracker.tracker.source.coordinator.TrackerServiceSourceSession
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.runtime.SourceCallerDemandDispatcher
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
@@ -53,6 +61,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -70,6 +79,8 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
     private val store: ActiveTrackingSessionStore = mockk()
     private val database = mockk<AppDatabase>(relaxed = true)
     private val sourceSession = mockk<TrackerServiceSourceSession>()
+    private val room = mockk<AuthoritativeSessionCoordinator>()
+    private val callerDispatcher = mockk<SourceCallerDemandDispatcher>()
     private val rolloutStore = mockk<RoomTrackingRolloutStateStore>()
     private val callerReconciler = mockk<ActiveTrackingSessionCallerAuthorityReconciler>()
     private val battery = mockk<BatteryAwarePolicy> { every { currentPressure() } returns BatteryPressure.NONE }
@@ -84,6 +95,55 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
         authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
         // Deliberately stop after entering real PREPARE without manufacturing Room/provider success.
         coEvery { store.read() } returns ActiveTrackingSessionStoreResult.Failure(IllegalStateException("unavailable"))
+    }
+
+    @Test
+    fun `transient prepared lease contention defers without compensation and the same Start can claim later`(): Unit = runBlocking {
+        val (stored, request) = preparedRetryFixture()
+        parameterStates = MutableStateFlow(parameterStates.first().copy(sourcePolicyRevision = 1L))
+        val token = PreparedTrackingStartToken("contended-token")
+        val reference = requireNotNull(stored.sourceCallerAuthorityReference)
+        val claim = ClaimedPreparedSessionStart(token, stored.logicalTrackingId, stored.serviceRunId,
+            manifestRevision = 1L, intentRevision = 1L, planRevision = 1L,
+            sourcePolicyRevision = 1L,
+            startOrigin = SessionStartOrigin.MANUAL_FOREGROUND_START, sessionMode = SessionMode.MANUAL,
+            acceptedSources = setOf(SourceKind.LOCATION), desiredForegroundCapabilityFlags = 8L,
+            intent = mockk { every { sourceCallerAuthorityReference } returns reference.value },
+            automaticTrigger = null, isUserInitiated = true, isAmbient = false, alreadyForegroundAccepted = false)
+        coEvery { room.claimAndroidStart(token, request.command.generation, "boot", any(), any()) } returnsMany listOf(
+            PreparedSessionClaimResult.Rejected("PREPARED_START_LEASE_UNAVAILABLE"),
+            PreparedSessionClaimResult.Claimed(claim))
+        coEvery { callerDispatcher.replayPreparedSession(any(), reference, any()) } returns
+            SourceCallerGuardResult.Permitted(SourceCallerAcceptanceReceipt(reference, emptySet()))
+        val subject = coordinator()
+
+        withTimeout(5_000L) {
+            subject.claimForService(token, request.command.generation)
+        } shouldBe TrackingServicePreparedStartClaim.Deferred
+        coVerify(exactly = 0) { room.compensatePreparedAndroidStart(any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { store.clearExact(any()) }
+        coVerify(exactly = 0) { callerDispatcher.replayPreparedSession(any(), any(), any()) }
+
+        val accepted = withTimeout(5_000L) { subject.claimForService(token, request.command.generation) }
+            .shouldBeInstanceOf<TrackingServicePreparedStartClaim.Claimed>()
+        accepted.claim shouldBe claim
+        accepted.descriptor shouldBe stored
+        accepted.planInputs.environment.liveSources shouldBe setOf(SourceKind.LOCATION)
+        coVerify(exactly = 2) { room.claimAndroidStart(token, request.command.generation, "boot", any(), any()) }
+        coVerify(exactly = 0) { room.compensatePreparedAndroidStart(any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `invalid prepared claims remain rejected with their original compensation choice`(): Unit = runBlocking {
+        val command = requireNotNull(authority.reserveStart())
+        val token = PreparedTrackingStartToken("invalid-token")
+        val subject = coordinator()
+        for (rejected in listOf(PreparedSessionClaimResult.Rejected("PREPARED_START_ROOM_ENVELOPE_STALE"),
+            PreparedSessionClaimResult.Rejected("PREPARED_START_REBIND_STALE", compensatePreparedState = false))) {
+            coEvery { room.claimAndroidStart(token, command.generation, "boot", any(), any()) } returns rejected
+            subject.claimForService(token, command.generation) shouldBe
+                TrackingServicePreparedStartClaim.Rejected(rejected.failureCode, rejected.compensatePreparedState)
+        }
     }
 
     @Test
@@ -206,8 +266,9 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
             ActiveTrackingSessionStoreResult.Success(saved)
         }
 
-        withTimeout(5_000L) { coordinator().prepare(request) }
+        val prepared = withTimeout(5_000L) { coordinator().prepare(request) }
             .shouldBeInstanceOf<TrackingStartPreparationResult.Prepared>()
+        prepared.preparedManualCompletionWaitHint shouldBe true
 
         saved?.sourceCallerAuthorityReference shouldBe SourceCallerReplayReference("replacement-authority")
         (saved?.logicalTrackingId != stored.logicalTrackingId) shouldBe true
@@ -249,6 +310,29 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
         coVerify(exactly = 1) { callerReconciler.reconcile(stored) }
         coVerify(exactly = 0) { store.save(any()) }
         coVerify(exactly = 0) { store.clearExact(any()) }
+    }
+
+    @Test
+    fun `a newly delivered recovery of a manual session keeps its bounded completion policy`(): Unit = runBlocking {
+        val (stored, request) = preparedRetryFixture(accepted = true)
+        shadowOf(context as Application).grantPermissions(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        coEvery { callerReconciler.reconcile(stored) } returns ActiveTrackingCallerAuthorityReconciliation.Ready(stored)
+        coEvery { sourceSession.prepareAndroidStartUnderReadyGeneration(any(), any(), any()) } coAnswers {
+            val recovery = firstArg<SourceSessionStartRequest>()
+            recovery.origin shouldBe SessionStartOrigin.RECOVERY
+            val delivery = secondArg<AndroidStartDeliveryMetadata>()
+            SessionStartPreparationResult.Prepared(PreparedSessionStart(delivery.token,
+                recovery.logicalTrackingId, recovery.serviceRunId, 1L, 1L,
+                SourceCallerReplayReference("recovery-authority"),
+                SourcePlanIdentity(generation = 1L, inputsFingerprint = "a".repeat(64), planFingerprint = "b".repeat(64))))
+        }
+        coEvery { store.save(any()) } coAnswers { ActiveTrackingSessionStoreResult.Success(firstArg()) }
+
+        val prepared = withTimeout(5_000L) { coordinator().prepare(request.copy(recoveryDescriptor = stored)) }
+            .shouldBeInstanceOf<TrackingStartPreparationResult.Prepared>()
+
+        prepared.preparedStartIsUserInitiatedHint shouldBe true
+        prepared.preparedManualCompletionWaitHint shouldBe false
     }
 
     private suspend fun preparedRetryFixture(accepted: Boolean = false): Pair<ActiveTrackingSessionDescriptor, TrackingStartRequest> {
@@ -297,7 +381,7 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
             trackingParamsRepository = mockk<TrackingParamsRepository> { every { data } returns parameterStates },
             activeTrackingSessionStore = store,
             sourceSession = sourceSession,
-            authoritativeSessionCoordinator = mockk(),
+            authoritativeSessionCoordinator = room,
             trackingRolloutStateStore = rolloutStore,
             chosenSourceWriterSetup = mockk {
                 coEvery { ensure(any()) } coAnswers {
@@ -310,7 +394,7 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
             collectionMotionController = CollectionMotionController(),
             activityAutomationEpochAuthority = mockk(),
             trackingLifecycleCommandAuthority = authority,
-            sourceCallerDemandDispatcher = mockk(),
+            sourceCallerDemandDispatcher = callerDispatcher,
             activeTrackingSessionCallerAuthorityReconciler = callerReconciler,
             sourcePolicyRepository = mockk(),
             batteryAwarePolicy = battery,

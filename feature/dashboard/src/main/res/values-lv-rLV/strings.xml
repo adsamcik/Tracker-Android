@@ -195,4 +195,5 @@
     <string name="dashboard_activity_on_foot">Kājām</string>
     <string name="dashboard_activity_tilting">Sasvērts</string>
     <string name="dashboard_activity_unknown">Nezināma aktivitāte</string>
+    <string name="dashboard_finishing_session">Sesijas pabeigšana…</string>
 </resources>

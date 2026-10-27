@@ -111,13 +111,20 @@ internal class AmbientSensorPurposeOwner @Inject constructor(
 		}
 		val failure = if (source == AmbientTrackingSource.PRESSURE &&
 			host.acquire(lease.identity) !is BackgroundLocationHostResult.Active) {
-			AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE
+			SensorPlanFailure(AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE)
 		} else {
 			applyPlan(source, currentPlan)
 		}
 		return if (failure != null) {
-			check(retireLocked(source, lease)) { "All-day sensor cleanup remains pending" }
-			unavailable(lease, failure)
+			if (failure.retryable) {
+				// This lease is still being published; invalidating it would trigger compensation
+				// and withdraw the independently allowed all-day demand we need to retry.
+				requestReconciliation(source, invalidateAvailability = false)
+				AmbientSourceOperationalAvailability.reconciliationPending(source, lease.purposeLeaseIdentity)
+			} else {
+				check(retireLocked(source, lease)) { "All-day sensor cleanup remains pending" }
+				unavailable(lease, failure.reason)
+			}
 		} else {
 			AmbientSourceOperationalAvailability.ready(source, mechanism(source), lease.purposeLeaseIdentity)
 		}
@@ -128,13 +135,7 @@ internal class AmbientSensorPurposeOwner @Inject constructor(
 		for (source in SOURCES) locks.getValue(source).withLock {
 			val lease = current[source] ?: return@withLock
 			try {
-				val desired = plan(lease)
-				val hostLost = source == AmbientTrackingSource.PRESSURE &&
-					host.leases.value[source]?.identity != lease.identity
-				if (desired == null || hostLost || applyPlan(source, desired) != null) {
-					retireLocked(source, lease)
-					requestReconciliation(source)
-				}
+				refreshPlanLocked(source, lease)
 			} catch (cancelled: CancellationException) {
 				throw cancelled
 			} catch (@Suppress("TooGenericExceptionCaught") _: Exception) {
@@ -142,6 +143,23 @@ internal class AmbientSensorPurposeOwner @Inject constructor(
 				// Each source has its own provider and retry. Continue refreshing healthy siblings.
 			}
 		}
+	}
+
+	private suspend fun refreshPlanLocked(source: AmbientTrackingSource, lease: AmbientReconciliationLease) {
+		val desired = plan(lease)
+		val hostLost = source == AmbientTrackingSource.PRESSURE &&
+			host.leases.value[source]?.identity != lease.identity
+		val permissionLost = source == AmbientTrackingSource.ACTIVITY && !activityPermission()
+		if (desired == null || !desired.enabled || hostLost || permissionLost) {
+			retireLocked(source, lease)
+			requestReconciliation(source)
+			return
+		}
+		val failure = applyPlan(source, desired) ?: return
+		if (!failure.retryable) {
+			retireLocked(source, lease)
+		}
+		requestReconciliation(source)
 	}
 
 	suspend fun retire(source: AmbientTrackingSource, lease: AmbientReconciliationLease?): Boolean =
@@ -220,31 +238,32 @@ internal class AmbientSensorPurposeOwner @Inject constructor(
 		).applicablePlans[source]
 	}
 
-	private suspend fun applyPlan(source: AmbientTrackingSource, plan: SourcePlan): AmbientSourceUnavailableReason? =
+	private suspend fun applyPlan(source: AmbientTrackingSource, plan: SourcePlan): SensorPlanFailure? =
 		when (source) {
-			AmbientTrackingSource.ACTIVITY -> {
-				val activityPlan = plan as ActivityPlan
-				val result = activity.setDemand(ActivityRegistrationOwner.ALL_DAY_TRACKING,
-					ActivityRegistrationDemand(continuousRecognitionIntervalSeconds =
-						(activityPlan.desiredDetectionLatencyMs.coerceAtLeast(MILLIS_PER_SECOND) / MILLIS_PER_SECOND)
-							.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), planRevision = plan.revision))
-				if (result.snapshot.active && ActivityRegistrationOwner.ALL_DAY_TRACKING in result.snapshot.owners &&
-					result.status in setOf(ActivityRegistrationStatus.APPLIED,
-					ActivityRegistrationStatus.DEGRADED)) {
-					null
-				} else {
-					AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE
-				}
-			}
+			AmbientTrackingSource.ACTIVITY -> applyActivityPlan(plan as ActivityPlan)
 			AmbientTrackingSource.PRESSURE -> pressure.reconcileAmbient(plan as PressurePlan).let {
 				if (it is SourceApplyResult.Applied || it is SourceApplyResult.Degraded) {
 					null
 				} else {
-					AmbientSourceUnavailableReason.PRESSURE_SENSOR_UNAVAILABLE
+					SensorPlanFailure(AmbientSourceUnavailableReason.PRESSURE_SENSOR_UNAVAILABLE,
+						retryable = it is SourceApplyResult.Failed && it.retryable)
 				}
 			}
 			else -> error("Not an all-day sensor")
 		}
+
+	private suspend fun applyActivityPlan(plan: ActivityPlan): SensorPlanFailure? {
+		val result = activity.setDemand(ActivityRegistrationOwner.ALL_DAY_TRACKING,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds =
+				(plan.desiredDetectionLatencyMs.coerceAtLeast(MILLIS_PER_SECOND) / MILLIS_PER_SECOND)
+					.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), planRevision = plan.revision))
+		return if (result.snapshot.active && ActivityRegistrationOwner.ALL_DAY_TRACKING in result.snapshot.owners &&
+			result.status in setOf(ActivityRegistrationStatus.APPLIED, ActivityRegistrationStatus.DEGRADED)) {
+			null
+		} else {
+			SensorPlanFailure(AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE, result.retryable)
+		}
+	}
 
 	private fun activityPermission(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
 		ContextCompat.checkSelfPermission(context, Manifest.permission.ACTIVITY_RECOGNITION) ==
@@ -256,26 +275,30 @@ internal class AmbientSensorPurposeOwner @Inject constructor(
 				mechanism(lease.identity.source), reason, lastIdentity = lease.purposeLeaseIdentity)
 		} else AmbientSourceOperationalAvailability.unavailable(lease.identity.source, reason, lease.purposeLeaseIdentity)
 
-	private suspend fun requestReconciliation(source: AmbientTrackingSource) {
-		reporter.invalidateAmbient(source)
+	private suspend fun requestReconciliation(source: AmbientTrackingSource, invalidateAvailability: Boolean = true) {
+		if (invalidateAvailability) {
+			reporter.invalidateAmbient(source)
+		}
 		runCatchingNonCancellation {
 			retries.schedule(TrackingPurposeSettingsReconciliationDebt(listOf(TrackingPurposeSettingsReconciliationFailure(
 				source, TrackingPurposeSettingsReconciliationFailureReason.OWNER_RECONCILIATION_FAILED))))
 		}
 	}
 
-	private fun AmbientTrackingSource.runtimeSource() = when (this) {
-		AmbientTrackingSource.ACTIVITY -> SourceKind.ACTIVITY
-		AmbientTrackingSource.PRESSURE -> SourceKind.PRESSURE
-		else -> error("Not an all-day sensor")
-	}
-
 	private fun mechanism(source: AmbientTrackingSource) = if (source == AmbientTrackingSource.ACTIVITY) {
 		AmbientAcquisitionMechanism.ACTIVITY_RECOGNITION
 	} else AmbientAcquisitionMechanism.PRESSURE_SENSOR
+
+	private data class SensorPlanFailure(val reason: AmbientSourceUnavailableReason, val retryable: Boolean = false)
 
 	private companion object {
 		const val MILLIS_PER_SECOND = 1_000L
 		val SOURCES = setOf(AmbientTrackingSource.ACTIVITY, AmbientTrackingSource.PRESSURE)
 	}
+}
+
+private fun AmbientTrackingSource.runtimeSource() = when (this) {
+	AmbientTrackingSource.ACTIVITY -> SourceKind.ACTIVITY
+	AmbientTrackingSource.PRESSURE -> SourceKind.PRESSURE
+	else -> error("Not an all-day sensor")
 }

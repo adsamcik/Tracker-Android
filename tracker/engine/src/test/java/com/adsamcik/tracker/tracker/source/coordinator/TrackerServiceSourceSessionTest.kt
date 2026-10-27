@@ -2528,6 +2528,35 @@ class TrackerServiceSourceSessionTest {
 	}
 
 	@Test
+	fun `only settled projection lease contention exposes a prompt final stop retry`() = runTest {
+		startActiveSession()
+		var stopResult = SessionStopResult.DrainPending("logical", 7L,
+			reason = SOURCE_STOP_PROJECTION_LEASE_BUSY)
+		coEvery { lifecycle.stop(any()) } coAnswers { stopResult }
+
+		subject.stop("EXPLICIT_REQUEST", preserveLogicalSession = false) shouldBe
+			SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.PROJECTION_BUSY)
+		stopResult = stopResult.copy(source = SourceKind.LOCATION)
+		subject.stop("EXPLICIT_REQUEST", preserveLogicalSession = false) shouldBe
+			SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.DRAIN_PENDING)
+		stopResult = stopResult.copy(source = null, reason = "LOCATION_CANONICAL_PENDING_COMMIT")
+		subject.stop("EXPLICIT_REQUEST", preserveLogicalSession = false) shouldBe
+			SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.DRAIN_PENDING)
+		coEvery { lifecycle.stop(any()) } returns SessionStopResult.NoActiveSession
+		subject.stop("EXPLICIT_REQUEST", preserveLogicalSession = false) shouldBe SourceSessionStopOutcome.Stopped
+	}
+
+	@Test
+	fun `restart suspension preserves the guarded projection lease wait`() = runTest {
+		startActiveSession()
+		coEvery { lifecycle.suspendForRestart(any()) } returns SessionSuspendResult.DrainPending(
+			"logical", 7L, reason = SOURCE_STOP_PROJECTION_LEASE_BUSY)
+
+		subject.stop("PROCESS_RESTART", preserveLogicalSession = true) shouldBe
+			SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.PROJECTION_BUSY)
+	}
+
+	@Test
 	fun `restart suspension exposes busy drain and cleanup contention without losing ownership`() = runTest {
 		startActiveSession()
 		var suspendResult: SessionSuspendResult = SessionSuspendResult.Busy

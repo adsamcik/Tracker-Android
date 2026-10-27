@@ -246,6 +246,115 @@ class TrackerModuleInitializerTest {
 	}
 
 	@Test
+	fun `ambient startup preparation leaves Start and End commands free`() = runTest {
+		val commandGate = Mutex()
+		val preparationEntered = CompletableDeferred<Unit>()
+		val preparationMayFinish = CompletableDeferred<Unit>()
+		val timeline = mutableListOf<String>()
+		val initialization = async {
+			handoffTrackerInitializationAfterAuthorization(
+				reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
+				currentReadyGeneration = { 1L },
+				awaitAuthorizationAfterReady = { TrackingAutoRecoveryAuthorization.ORDINARY_START },
+				awaitNextReady = { error("No generation race expected") },
+				withReadyGenerationWork = { _, operation -> operation() },
+				withReadyGenerationOperation = { _, operation -> commandGate.withLock { operation() } },
+				prepareHandoff = {
+					preparationEntered.complete(Unit)
+					preparationMayFinish.await()
+				},
+				handoff = {
+					commandGate.isLocked shouldBe true
+					timeline += "installed"
+				},
+				releaseForReadyGeneration = { error("Ordinary startup has no suppression release") },
+			)
+		}
+		preparationEntered.await()
+		commandGate.reserveStartupCommands(timeline) shouldBe 2L
+		initialization.isCompleted shouldBe false
+		timeline shouldBe listOf("Start", "End")
+		preparationMayFinish.complete(Unit)
+		initialization.await() shouldBe TrackingAutoRecoveryAuthorization.ORDINARY_START
+		timeline shouldBe listOf("Start", "End", "installed")
+	}
+
+	@Test
+	fun `fresh Stop during ambient preparation waits for replacement Ready before suppression release`() = runTest {
+		val preparationEntered = CompletableDeferred<Unit>()
+		val preparationMayFinish = CompletableDeferred<Unit>()
+		val replacementReady = CompletableDeferred<TrackingStartupResult.Ready>()
+		val processGate = com.adsamcik.tracker.tracker.resilience.TrackingAutoRecoveryProcessGate()
+		val timeline = mutableListOf<String>()
+		var readyGeneration = 1L
+		var stopPending = false
+		var preparations = 0
+		processGate.suppressAfterConfirmedForceStop()
+		processGate.recordExplicitForegroundLaunch(confirmedForceStop = true) shouldBe true
+		val authorization = processGate.awaitAuthorizationAfterStartupReady(confirmedForceStop = true)
+
+		val initialization = async {
+			handoffTrackerInitializationAfterAuthorization(
+				reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
+				currentReadyGeneration = { readyGeneration },
+				awaitAuthorizationAfterReady = { authorization },
+				awaitNextReady = { replacementReady.await() },
+				withReadyGenerationWork = { expected, work ->
+					work()
+					Unit.takeIf { expected == readyGeneration && !stopPending }
+				},
+				withReadyGenerationOperation = { expected, operation ->
+					operation.takeIf { expected == readyGeneration && !stopPending }?.invoke()
+				},
+				prepareHandoff = {
+					preparations += 1
+					if (preparations == 1) {
+						preparationEntered.complete(Unit)
+						preparationMayFinish.await()
+					}
+				},
+				handoff = {
+					readyGeneration shouldBe 2L
+					processGate.isSuppressed(confirmedForceStop = true) shouldBe true
+					timeline += "installed"
+				},
+				releaseForReadyGeneration = {
+					timeline += "released"
+					processGate.releaseForReadyGeneration(confirmedForceStop = true)
+				},
+			)
+		}
+		preparationEntered.await()
+		stopPending = true
+		initialization.isCompleted shouldBe false
+		preparationMayFinish.complete(Unit)
+		runCurrent()
+		timeline shouldBe emptyList()
+		processGate.isSuppressed(confirmedForceStop = true) shouldBe true
+		readyGeneration = 2L
+		stopPending = false
+		replacementReady.complete(TrackingStartupResult.Ready(false, 0L))
+		initialization.await() shouldBe
+			TrackingAutoRecoveryAuthorization.EXPLICIT_FOREGROUND_AFTER_FORCE_STOP
+		preparations shouldBe 2
+		timeline shouldBe listOf("installed", "released")
+		processGate.isSuppressed(confirmedForceStop = true) shouldBe false
+	}
+
+	private suspend fun Mutex.reserveStartupCommands(timeline: MutableList<String>): Long = withTimeout(1_000L) {
+		var generation = 0L
+		withLock {
+			generation += 1
+			timeline += "Start"
+		}
+		withLock {
+			generation += 1
+			timeline += "End"
+		}
+		generation
+	}
+
+	@Test
 	fun `cold settings publish outside the startup handoff lock after authorization`() = runTest {
 		val startupMutex = Mutex()
 		var authorized = false
@@ -264,6 +373,7 @@ class TrackerModuleInitializerTest {
 					TrackingAutoRecoveryAuthorization.EXPLICIT_FOREGROUND_AFTER_FORCE_STOP
 				},
 				awaitNextReady = { error("No generation race expected") },
+				withReadyGenerationWork = { _, operation -> operation() },
 				withReadyGenerationOperation = { _, operation -> startupMutex.withLock { operation() } },
 				releaseForReadyGeneration = { true },
 				handoff = { settings.first(); controlInitializations++ },
@@ -283,6 +393,7 @@ class TrackerModuleInitializerTest {
 			currentReadyGeneration = { generation },
 			awaitAuthorizationAfterReady = { TrackingAutoRecoveryAuthorization.ORDINARY_START },
 			awaitNextReady = { TrackingStartupResult.Ready(false, 0L) },
+			withReadyGenerationWork = { _, operation -> operation() },
 			withReadyGenerationOperation = { expected, operation ->
 				attemptedGenerations += expected
 				if (expected == generation) {
@@ -313,6 +424,7 @@ class TrackerModuleInitializerTest {
 					TrackingAutoRecoveryAuthorization.EXPLICIT_FOREGROUND_AFTER_FORCE_STOP
 				},
 				awaitNextReady = { error("No generation race expected") },
+				withReadyGenerationWork = { _, operation -> operation() },
 				withReadyGenerationOperation = { generation, operation ->
 					generation shouldBe 4L
 					operation()
@@ -355,6 +467,7 @@ class TrackerModuleInitializerTest {
 				TrackingAutoRecoveryAuthorization.EXPLICIT_FOREGROUND_AFTER_FORCE_STOP
 			},
 			awaitNextReady = { error("No generation race expected") },
+			withReadyGenerationWork = { _, operation -> operation() },
 			withReadyGenerationOperation = { generation, operation ->
 				generation shouldBe 7L
 				timeline += "ready-generation-handoff"
@@ -394,6 +507,7 @@ class TrackerModuleInitializerTest {
 				TrackingAutoRecoveryAuthorization.EXPLICIT_FOREGROUND_AFTER_FORCE_STOP
 			},
 			awaitNextReady = { error("No generation race expected") },
+			withReadyGenerationWork = { _, operation -> operation() },
 			withReadyGenerationOperation = { generation, operation ->
 				generation shouldBe 3L
 				operation()
@@ -432,6 +546,7 @@ class TrackerModuleInitializerTest {
 					processGate.awaitAuthorizationAfterStartupReady(confirmedForceStop = true)
 				},
 				awaitNextReady = { replacementReady.await() },
+				withReadyGenerationWork = { _, operation -> operation() },
 				withReadyGenerationOperation = { generation, operation ->
 					handoffAttempts += 1
 					if (handoffAttempts == 1) {
@@ -480,6 +595,7 @@ class TrackerModuleInitializerTest {
 					TrackingAutoRecoveryAuthorization.ORDINARY_START
 				},
 				awaitNextReady = { ready.await() },
+				withReadyGenerationWork = { _, operation -> operation() },
 				withReadyGenerationOperation = { expectedGeneration, operation ->
 					expectedGeneration shouldBe 2L
 					operation()
@@ -514,6 +630,7 @@ class TrackerModuleInitializerTest {
 					processGate.awaitAuthorizationAfterStartupReady(confirmedForceStop = true)
 				},
 				awaitNextReady = { error("A failed operation must not be treated as a stale gate") },
+				withReadyGenerationWork = { _, operation -> operation() },
 				withReadyGenerationOperation = { generation, operation ->
 					generation shouldBe 5L
 					operation()

@@ -1363,15 +1363,18 @@ internal class DefaultActivityHistoryRepository private constructor(
 		val fragments = factDao.readActivityHistoryFragments(windowIds, selectedLineages, revisions)
 		val evidence = factDao.readActivityHistoryEvidence(windowIds, selectedLineages, revisions)
 		val walByEventId = readActivityHistoryWal(evidence)
+		val liveObservations = readLiveActivityObservations(logicalIds, runs, selectedLineages)
 		currentCoroutineContext().ensureActive()
 		val activityCompleteness = completeness.filter { it.sourceKind == ACTIVITY_SOURCE }
 		val sourceInstanceIds = sequenceOf(
 			revisions.asSequence().map(ActivityCapturedWindowRevisionEntity::sourceInstanceId),
+			liveObservations.asSequence().map(SourceEventWalEntity::sourceInstanceId),
 			activityCompleteness.asSequence().filter { it.registrationGeneration > 0L }
 				.map(SourceSessionCompletenessEntity::sourceInstanceId),
 		).flatten().distinct().toList()
 		val registrationGenerations = sequenceOf(
 			revisions.asSequence().map(ActivityCapturedWindowRevisionEntity::registrationGeneration),
+			liveObservations.asSequence().map(SourceEventWalEntity::registrationGeneration),
 			activityCompleteness.asSequence().map(SourceSessionCompletenessEntity::registrationGeneration)
 				.filter { it > 0L },
 		).flatten().distinct().toList()
@@ -1461,6 +1464,7 @@ internal class DefaultActivityHistoryRepository private constructor(
 			fragmentsByRevision = fragments.take(ACTIVITY_HISTORY_MAX_FRAGMENTS).groupBy(::revisionKey),
 			evidenceByRevision = evidence.take(ACTIVITY_HISTORY_MAX_EVIDENCE).groupBy(::revisionKey),
 			walByEventId = walByEventId,
+			liveObservations = liveObservations,
 			registrationPlans = registrationPlans.take(ACTIVITY_HISTORY_MAX_REGISTRATION_PLANS)
 				.associateBy { it.sourceInstanceId to it.registrationGeneration },
 			acquisitionPlanRevisions = acquisitionPlanRevisions.take(MAX_ACTIVITY_ACQUISITION_PLANS)
@@ -1559,6 +1563,21 @@ internal class DefaultActivityHistoryRepository private constructor(
 			)
 		}
 		return activityWalRows.associateBy(SourceEventWalEntity::eventId)
+	}
+
+	private suspend fun readLiveActivityObservations(
+		logicalIds: List<String>,
+		runs: List<SourceServiceRunEntity>,
+		selectedLineages: ActivityRevisionLoad?,
+	): List<SourceEventWalEntity> {
+		val liveRunIds = runs.filter { it.completedAtMs == null }.map(SourceServiceRunEntity::serviceRunId)
+		return if (selectedLineages == null && liveRunIds.isNotEmpty()) {
+			database.activityCapturedFactDao().latestCapturedObservations(
+				logicalIds, ACTIVITY_SOURCE, liveRunIds, MAX_ACTIVITY_WAL_PAYLOAD_BYTES, MAX_LIVE_ACTIVITY_OBSERVATIONS,
+			)
+		} else {
+			emptyList()
+		}
 	}
 
 	private suspend fun loadActivityRevisionPages(
@@ -1675,6 +1694,7 @@ internal data class ActivityHistorySnapshot(
 	val currentProviderRegistrations: List<ProviderRegistrationGenerationEntity> = emptyList(),
 	val currentClockDomainId: String? = null,
 	val savedSessionCutoffs: Map<String, SavedSessionCutoff> = emptyMap(),
+	val liveObservations: List<SourceEventWalEntity> = emptyList(),
 ) {
 	companion object {
 		fun empty(expansion: ActivityMembershipExpansion) = ActivityHistorySnapshot(
@@ -1717,6 +1737,7 @@ internal data class ActivityRevisionKey(
 )
 
 private const val ACTIVITY_WAL_ID_BATCH_SIZE = 400
+private const val MAX_LIVE_ACTIVITY_OBSERVATIONS = 64
 
 internal data class ComposedActivityEntry(
 	val logicalTrackingId: String,

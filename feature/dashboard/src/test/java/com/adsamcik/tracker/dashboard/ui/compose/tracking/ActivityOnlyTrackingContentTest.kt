@@ -26,6 +26,22 @@ class ActivityOnlyTrackingContentTest {
 	val composeRule = createComposeRule()
 
 	@Test
+	fun savedLiveObservationShowsMovementAndTimeWithoutInventingActiveDuration() {
+		setContent(DashboardLiveActivityValue(
+			state = ActivityHistoryProductState.MATERIALIZING, coverage = ActivityHistoryCoverage.NONE,
+			knownActiveDurationNanos = null, latestMovementBand = ActivityHistoryType.STILL,
+			gapCount = 0, hasRetainedQualifiedEvidence = true, latestObservationTimeMs = 1_500L,
+		))
+
+		composeRule.onNodeWithTag("dashboard_live_activity_header").assertTextEquals("Recording")
+		composeRule.onNodeWithTag("dashboard_live_activity_band").assertTextEquals("Still")
+		composeRule.onNodeWithTag("dashboard_live_activity_observed_time").assertIsDisplayed()
+		composeRule.onNodeWithTag("dashboard_live_activity_active_time").assertDoesNotExist()
+		composeRule.onNodeWithTag("dashboard_live_activity_coverage").assertDoesNotExist()
+		assertNoLocationPresentation()
+	}
+
+	@Test
 	fun retainedBandShowsRecordingAndOnlyCapturedActivityValues() {
 		setContent(
 			DashboardLiveActivityValue(

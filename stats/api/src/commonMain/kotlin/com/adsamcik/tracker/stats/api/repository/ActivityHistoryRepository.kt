@@ -246,6 +246,8 @@ data class ActivityHistoryEntry(
 	val capturesOnlyActivity: Boolean = false,
 	/** Present only when an imported producer authenticated exact selected-deletion authority. */
 	val importedSelection: ActivityImportedHistorySelection? = null,
+	/** Latest qualified live measurement; it grants no duration or interval coverage. */
+	val latestObservation: ActivityHistoryObservation? = null,
 ) {
 	val selection: ActivityHistorySelection?
 		get() = when (origin) {
@@ -262,6 +264,9 @@ data class ActivityHistoryEntry(
 		}
 		require(importedSelection == null || origin == ActivityHistoryOrigin.IMPORTED)
 		require(importedSelection == null || importedSelection.key == key)
+		require(latestObservation == null || state !in setOf(
+			ActivityHistoryProductState.UNAVAILABLE, ActivityHistoryProductState.FAILED,
+		))
 		when (state) {
 			ActivityHistoryProductState.READY -> {
 				require(activeTime != null && fragments.isNotEmpty())
@@ -280,6 +285,21 @@ data class ActivityHistoryEntry(
 				require(causes.any { it.isIntegrityFailure })
 			}
 		}
+	}
+}
+
+/** One measured classification or enter/exit event, without an inferred duration. */
+data class ActivityHistoryObservation(
+	val observedTime: EpochMs,
+	val activity: ActivityHistoryType,
+	val confidencePercent: Int?,
+	/** Platform transition value: 0 means enter, 1 means exit; null means a classification. */
+	val transitionType: Int? = null,
+) {
+	init {
+		require(confidencePercent == null || confidencePercent in 0..100)
+		require(transitionType == null || transitionType in 0..1)
+		require(transitionType == null || confidencePercent == null)
 	}
 }
 

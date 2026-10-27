@@ -195,4 +195,5 @@
     <string name="dashboard_activity_on_foot">Gyalog</string>
     <string name="dashboard_activity_tilting">Döntés</string>
     <string name="dashboard_activity_unknown">Ismeretlen tevékenység</string>
+    <string name="dashboard_finishing_session">Munkamenet befejezése…</string>
 </resources>

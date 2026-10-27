@@ -321,11 +321,13 @@ interface SourceEventWalDao {
 	suspend fun eventsAfter(afterOrdinal: Long, limit: Int): List<SourceEventWalEntity>
 
 	/**
-	 * Authoritative location evidence that does not yet have its canonical raw-observation row.
+	 * Released legacy Location carriers that do not yet have their canonical raw-observation row.
 	 *
 	 * The WAL remains the recovery authority. Paging by its durable admission ordinal prevents a
 	 * missing destination row from being hidden by projection state, while the destination's unique
-	 * `source_event_id` keeps repair exactly once in effect.
+	 * `source_event_id` keeps repair exactly once in effect. Filter the released v1 wire shape before
+	 * loading payloads; pending protected carriers belong to the canonical handoff, not this repair.
+	 * The repair still verifies the complete carrier, payload, lifecycle and permanent writer owner.
 	 */
 	@Query(
 		"SELECT wal.* FROM source_event_wal AS wal " +
@@ -333,6 +335,16 @@ interface SourceEventWalDao {
 			"ON observation.source_event_id = wal.event_id " +
 			"WHERE wal.source_kind = :sourceKind AND wal.admission_ordinal > :afterOrdinal " +
 			"AND observation.id IS NULL " +
+			"AND wal.payload_version < 2 " +
+			"AND wal.integrity_identity IN ('LEGACY_PENDING_CHECKSUM', 'LEGACY_CHECKSUM_VERIFIED') " +
+			"AND wal.provider_dedup_key IS NOT NULL " +
+			"AND wal.delivery_identity IS NULL " +
+			"AND wal.delivery_unit_index IS NULL AND wal.delivery_unit_count IS NULL " +
+			"AND wal.physical_configuration_fingerprint IS NULL " +
+			"AND wal.authorization_revision IS NULL AND wal.authorization_fingerprint IS NULL " +
+			"AND wal.authorization_purpose_eligibility_mask = 0 " +
+			"AND wal.source_policy_revision IS NULL AND wal.capture_consent_epoch IS NULL " +
+			"AND wal.session_manifest_revision IS NULL AND wal.lifecycle_lease_generation IS NULL " +
 			"ORDER BY wal.admission_ordinal ASC LIMIT :limit",
 	)
 	suspend fun locationEventsMissingCanonicalObservation(

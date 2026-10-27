@@ -462,7 +462,7 @@ private class PortableActivityWalReader(
 
 	// Compare each saved row with its exact run, manifest and source; all bounded lookups stay ordered.
 	@Suppress("ComplexCondition", "CyclomaticComplexMethod")
-	private fun validateSelectedCaptureBindings(
+	private suspend fun validateSelectedCaptureBindings(
 		selectedRows: List<ActivityCapturedPortableWalTargetRow>,
 		runsById: Map<String, SourceServiceRunEntity>,
 		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
@@ -478,10 +478,13 @@ private class PortableActivityWalReader(
 			val source = sourcesByRun[runId].orEmpty().singleOrNull { candidate ->
 				manifest != null && candidate.isPortableCapturedActivityMember(manifest)
 			}
+			val compatiblePlan = manifest != null && row.configRevision != null && row.authorizationRevision != null &&
+				database.hasCompatibleCapturedActivityAcquisition(manifest, row.configRevision,
+					row.sourceInstanceId, row.registrationGeneration, row.authorizationRevision)
 			if (run == null || manifest == null || source == null ||
 				row.logicalTrackingId != run.logicalTrackingId ||
 				row.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
-				row.configRevision != manifest.acquisitionPlanRevision ||
+				!compatiblePlan ||
 				row.planAttribution != ACTIVITY_PORTABLE_CAPTURED_PLAN_ATTRIBUTION ||
 				row.clockDomainId != manifest.effectiveBootId ||
 				row.observedElapsedNanos < manifest.effectiveElapsedRealtimeNanos ||

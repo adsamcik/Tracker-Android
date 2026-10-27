@@ -12,8 +12,11 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.SourceRegistrationStateDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceBrokerDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceRunAdmissionHighWaterRow
 import com.adsamcik.tracker.shared.base.database.data.SourceCaptureAdmissionBarrierEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
@@ -29,7 +32,14 @@ import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -127,7 +137,7 @@ class ActivitySourceRuntimeTest {
 
 		val acknowledgement = requireNotNull(released.stopAck)
 		assertEquals(RegistrationRemovalOutcome.REMOVED, acknowledgement.registrationRemovalOutcome)
-		assertEquals(SourceStopStatus.PARTIAL_UNOBSERVABLE, acknowledgement.status)
+		assertEquals(SourceStopStatus.COMPLETE, acknowledgement.status)
 		assertEquals(23L, acknowledgement.lastAdmissionOrdinal)
 		assertTrue(acknowledgement.appDrainComplete)
 		assertEquals(setOf(ActivityRegistrationOwner.ALL_DAY_TRACKING), fixture.arbiter.owners)
@@ -182,6 +192,87 @@ class ActivitySourceRuntimeTest {
 
 		val released = assertIs<OwnedSourceShutdown.Released>(fixture.runtime.shutdownIfOwned(owner, CUTOFF))
 		assertEquals(SourceProviderKey(SourceInstanceId(ACTIVITY_INSTANCE_ID), successor.registrationGeneration), released.provider)
+	}
+
+	@Test
+	fun `cancelled End recovers its sealed Activity join without awaiting the all-day restart again`() = runTest {
+		val fixture = fixture(setOf(ActivityRegistrationOwner.ALL_DAY_TRACKING))
+		val owner = claim("cancelled-end")
+		val cutoff = CUTOFF.copy(logicalTrackingId = owner.logicalTrackingId)
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(owner, enabledPlan(1L), DISCARDING_SINK))
+		val departing = fixture.arbiter.identity
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		fixture.arbiter.afterClear = {
+			withContext(NonCancellable) {
+				entered.complete(Unit)
+				release.await()
+				fixture.arbiter.identity = departing.copy(registrationGeneration = ACTIVITY_GENERATION + 1L)
+			}
+			currentCoroutineContext().ensureActive()
+		}
+		val stopping = async(start = CoroutineStart.UNDISPATCHED) { fixture.runtime.shutdownIfOwned(owner, cutoff) }
+		entered.await()
+		stopping.cancel()
+		coEvery { fixture.sourceBrokerDao.registration(SourceKind.ACTIVITY.stableCode, ACTIVITY_GENERATION) } returns
+			retiredRegistration(departing).copy(
+				failureCode = "DEMAND_REMOVED|${ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX}4",
+			)
+		coEvery { fixture.sourceBrokerDao.runCaptureAdmissionHighWater(any(), any(), any(), any(), any(), any()) } returns
+			SourceRunAdmissionHighWaterRow(23L, 17L)
+		coEvery { fixture.sourceBrokerDao.authorizationRevision(SourceKind.ACTIVITY.stableCode, ACTIVITY_GENERATION, 4L) } returns
+			listOf(captureAuthorization(4L))
+		release.complete(Unit)
+		stopping.join()
+		fixture.arbiter.afterClear = { error("Ending an already sealed join must not await its all-day sibling") }
+
+		val released = assertIs<OwnedSourceShutdown.Released>(fixture.runtime.shutdownIfOwned(owner, cutoff))
+		val acknowledgement = requireNotNull(released.stopAck)
+		assertEquals(SourceProviderKey(SourceInstanceId(departing.sourceInstanceId), ACTIVITY_GENERATION), released.provider)
+		assertEquals(SourceStopStatus.COMPLETE, acknowledgement.status)
+		assertTrue(acknowledgement.appDrainComplete)
+		assertEquals(23L, acknowledgement.lastAdmissionOrdinal)
+		assertEquals(17L, acknowledgement.lastDurablyAdmittedSequence)
+		assertEquals(1L, acknowledgement.failedAdmissionCount)
+		assertEquals(null, acknowledgement.unresolvedSequenceStart)
+		assertEquals(ProviderFlushOutcome.NOT_SUPPORTED, acknowledgement.providerFlushOutcome)
+		assertEquals(ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE, acknowledgement.providerCoverage)
+		assertEquals(1, fixture.arbiter.clearDemandCalls)
+		assertEquals(setOf(ActivityRegistrationOwner.ALL_DAY_TRACKING), fixture.arbiter.owners)
+		assertEquals(ACTIVITY_GENERATION + 1L, fixture.arbiter.snapshot().identity?.registrationGeneration)
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(claim("next-session"), enabledPlan(2L), DISCARDING_SINK))
+	}
+
+	@Test
+	fun `interrupted Activity join cannot bypass reconciliation without exact retired identity and drained barrier`() = runTest {
+		val identity = RecordingActivityRegistrationArbiter(emptySet()).identity
+		val registration = retiredRegistration(identity)
+		val barrier = activityAdmissionBarrier()
+		val incompleteEvidence = listOf(
+			registration.copy(status = ProviderRegistrationGenerationEntity.STATUS_RETIRING,
+				retiredAtMs = null, retiredElapsedRealtimeNanos = null) to barrier,
+			registration.copy(clockDomainId = "other-boot") to barrier,
+			registration.copy(collectedDataEpoch = identity.collectedDataEpoch + 1L) to barrier,
+			registration.copy(physicalConfigurationFingerprint = "other-configuration") to barrier,
+			registration to null,
+			registration to barrier.copy(lastAdmissionOrdinal = 22L),
+		)
+		incompleteEvidence.forEach { (savedRegistration, savedBarrier) ->
+			val fixture = fixture(setOf(ActivityRegistrationOwner.ALL_DAY_TRACKING), savedBarrier)
+			val owner = claim("unproven-retirement")
+			val cutoff = CUTOFF.copy(logicalTrackingId = owner.logicalTrackingId)
+			assertIs<SourceStartResult.Started>(fixture.runtime.start(owner, enabledPlan(1L), DISCARDING_SINK))
+			fixture.arbiter.nextClearFailure = MutationFailurePoint.AFTER
+			assertFailsWith<IllegalStateException> { fixture.runtime.shutdownIfOwned(owner, cutoff) }
+			coEvery { fixture.sourceBrokerDao.registration(SourceKind.ACTIVITY.stableCode, ACTIVITY_GENERATION) } returns
+				savedRegistration
+			coEvery { fixture.sourceBrokerDao.runCaptureAdmissionHighWater(any(), any(), any(), any(), any(), any()) } returns
+				SourceRunAdmissionHighWaterRow(23L, 17L)
+			fixture.arbiter.nextClearFailure = MutationFailurePoint.BEFORE
+
+			assertFailsWith<IllegalStateException> { fixture.runtime.shutdownIfOwned(owner, cutoff) }
+			assertEquals(2, fixture.arbiter.clearDemandCalls)
+		}
 	}
 
 	@Test
@@ -311,8 +402,64 @@ class ActivitySourceRuntimeTest {
 				ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
 				acknowledgement.providerCoverage,
 			)
-			assertEquals(SourceStopStatus.PARTIAL_UNOBSERVABLE, acknowledgement.status)
+			assertEquals(SourceStopStatus.COMPLETE, acknowledgement.status)
+			assertEquals(ProviderFlushOutcome.NOT_SUPPORTED, acknowledgement.providerFlushOutcome)
+			assertEquals(0L, acknowledgement.failedAdmissionCount)
+			assertEquals(null, acknowledgement.unresolvedSequenceStart)
 		}
+	}
+
+	@Test
+	fun `sole lost Activity delivery releases with a known gap and no invented WAL ordinal`() = runTest {
+		val fixture = fixture(admissionBarrier = activityAdmissionBarrier().copy(lastAdmissionOrdinal = 0L, lastSourceSequence = 0L))
+		val owner = claim("lost-only-callback")
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(owner, enabledPlan(1L), DISCARDING_SINK))
+		coEvery { fixture.sourceBrokerDao.registration(any(), any()) } returns retiredRegistration(fixture.arbiter.identity)
+			.copy(failureCode = "DEMAND_REMOVED|${ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX}4")
+		coEvery { fixture.sourceBrokerDao.authorizationRevision(SourceKind.ACTIVITY.stableCode, ACTIVITY_GENERATION, 4L) } returns
+			listOf(captureAuthorization(4L))
+
+		val ack = requireNotNull(assertIs<OwnedSourceShutdown.Released>(fixture.runtime.shutdownIfOwned(owner, CUTOFF)).stopAck)
+		assertEquals(SourceStopStatus.COMPLETE, ack.status)
+		assertTrue(ack.appDrainComplete)
+		assertEquals(1L, ack.failedAdmissionCount)
+		assertEquals(0L, ack.callbackEntryBarrierSequence)
+		assertEquals(null, ack.lastAdmissionOrdinal)
+		assertEquals(null, ack.lastDurablyAdmittedSequence)
+		assertEquals(null, ack.unresolvedSequenceStart)
+		assertEquals(null, ack.unresolvedSequenceEndInclusive)
+	}
+
+	@Test
+	fun `prior capture loss does not poison a later seal on the same Activity generation`() = runTest {
+		val fixture = fixture()
+		val owner = claim("later-clean-capture")
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(owner, enabledPlan(1L), DISCARDING_SINK))
+		coEvery { fixture.sourceBrokerDao.registration(any(), any()) } returns retiredRegistration(fixture.arbiter.identity)
+			.copy(failureCode = "DEMAND_REMOVED|${ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX}3")
+		coEvery { fixture.sourceBrokerDao.authorizationRevision(SourceKind.ACTIVITY.stableCode, ACTIVITY_GENERATION, 3L) } returns
+			listOf(captureAuthorization(3L, logicalId = "earlier-session", runId = "earlier-run"))
+
+		val ack = requireNotNull(assertIs<OwnedSourceShutdown.Released>(fixture.runtime.shutdownIfOwned(owner, CUTOFF)).stopAck)
+		assertEquals(SourceStopStatus.COMPLETE, ack.status)
+		assertEquals(0L, ack.failedAdmissionCount)
+	}
+
+	@Test
+	fun `source off and on in the same session preserves its earlier callback loss`() = runTest {
+		val fixture = fixture()
+		val owner = claim("same-session-resumed-source")
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(owner, enabledPlan(1L), DISCARDING_SINK))
+		coEvery { fixture.sourceBrokerDao.registration(any(), any()) } returns retiredRegistration(fixture.arbiter.identity)
+			.copy(failureCode = "DEMAND_REMOVED|${ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX}3")
+		coEvery { fixture.sourceBrokerDao.authorizationRevision(SourceKind.ACTIVITY.stableCode, ACTIVITY_GENERATION, 3L) } returns
+			listOf(captureAuthorization(3L))
+
+		val ack = requireNotNull(assertIs<OwnedSourceShutdown.Released>(fixture.runtime.shutdownIfOwned(owner, CUTOFF)).stopAck)
+		assertEquals(SourceStopStatus.COMPLETE, ack.status)
+		assertTrue(ack.appDrainComplete)
+		assertEquals(1L, ack.failedAdmissionCount)
+		assertEquals(null, ack.unresolvedSequenceStart)
 	}
 
 	@Test
@@ -351,6 +498,8 @@ class ActivitySourceRuntimeTest {
 		coEvery {
 			sourceBrokerDao.captureAdmissionBarrier(SourceKind.ACTIVITY.stableCode, ACTIVITY_GENERATION)
 		} returns admissionBarrier
+		coEvery { sourceBrokerDao.registration(any(), any()) } returns null
+		coEvery { sourceBrokerDao.authorizationRevision(any(), any(), any()) } returns emptyList()
 		every { database.sourceBrokerDao() } returns sourceBrokerDao
 		return ActivityRuntimeFixture(
 			runtime = ActivitySourceRuntime(arbiter, database, SourcePlanCodec()),
@@ -368,6 +517,17 @@ class ActivitySourceRuntimeTest {
 	)
 
 	private companion object {
+		fun captureAuthorization(revision: Long, logicalId: String = "activity-test", runId: String = "run-1") =
+			SourceAuthorizationEntity(
+				sourceKind = SourceKind.ACTIVITY.stableCode, registrationGeneration = ACTIVITY_GENERATION,
+				authorizationRevision = revision, memberId = "demand:capture", authorizationFingerprint = "capture",
+				purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+				demandId = "capture", consumerId = "session:$logicalId", purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+				sourcePolicyRevision = 1L, consentEpoch = 1L, persistenceEligible = true,
+				effectiveBootId = "boot-id", effectiveElapsedRealtimeNanos = 1L, effectiveWallTimeMs = 1L,
+				logicalTrackingId = logicalId, serviceRunId = runId, manifestRevision = 1L, lifecycleLeaseGeneration = 1L,
+			)
+
 		fun retiredRegistration(identity: ActivityRegistrationIdentity) = ProviderRegistrationGenerationEntity(
 			sourceKind = SourceKind.ACTIVITY.stableCode, registrationGeneration = identity.registrationGeneration,
 			sourceInstanceId = identity.sourceInstanceId, ownerScope = "source-broker:2",
@@ -378,6 +538,7 @@ class ActivitySourceRuntimeTest {
 			reservedAtMs = 1L, reservedElapsedRealtimeNanos = 1L,
 			acceptedAtMs = 2L, acceptedElapsedRealtimeNanos = 2L,
 			retiredAtMs = 20L, retiredElapsedRealtimeNanos = 20L, failureCode = "DEMAND_REMOVED",
+			captureCallbackBarrierAuthorizationRevision = 4L,
 		)
 
 		fun activityAdmissionBarrier() = SourceCaptureAdmissionBarrierEntity(
@@ -425,6 +586,7 @@ private class RecordingActivityRegistrationArbiter(
 	var nextSetFailure: MutationFailurePoint? = null
 	var nextClearFailure: MutationFailurePoint? = null
 	var nextClearStatus: ActivityRegistrationStatus? = null
+	var afterClear: suspend () -> Unit = {}
 	var startupBlocked: Boolean = false
 	var clearDemandCalls: Int = 0
 		private set
@@ -453,6 +615,7 @@ private class RecordingActivityRegistrationArbiter(
 		if (failure == MutationFailurePoint.BEFORE) throw mutationFailure("clear", failure)
 		demands.remove(owner)
 		if (failure == MutationFailurePoint.AFTER) throw mutationFailure("clear", failure)
+		afterClear()
 		return result(nextClearStatus.also { nextClearStatus = null } ?: if (startupBlocked) {
 			ActivityRegistrationStatus.BLOCKED
 		} else {

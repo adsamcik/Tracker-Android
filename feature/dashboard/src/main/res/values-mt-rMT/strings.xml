@@ -195,4 +195,5 @@
     <string name="dashboard_activity_on_foot">Bil-mixi</string>
     <string name="dashboard_activity_tilting">Inklinat</string>
     <string name="dashboard_activity_unknown">Attività mhux magħrufa</string>
+    <string name="dashboard_finishing_session">Qed tintemm is-sessjoni…</string>
 </resources>

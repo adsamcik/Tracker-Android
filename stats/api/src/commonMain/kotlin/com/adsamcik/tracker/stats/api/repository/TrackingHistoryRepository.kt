@@ -356,11 +356,13 @@ data class SessionHistory(
 	}
 }
 
-/** Five-source products resolved against one selected physical segment. */
+/** Requested source products resolved against one selected physical segment. */
 data class SessionHistoryProducts(
 	val segmentId: Long,
-	val wifi: WifiHistoryQuery,
-	val cell: CellHistoryQuery,
+	/** Null means this read did not request Wi-Fi history. */
+	val wifi: WifiHistoryQuery?,
+	/** Null means this read did not request Cell history. */
+	val cell: CellHistoryQuery?,
 	val activity: ActivityHistoryQuery,
 	val pressure: PressureSessionHistoryQuery,
 ) {

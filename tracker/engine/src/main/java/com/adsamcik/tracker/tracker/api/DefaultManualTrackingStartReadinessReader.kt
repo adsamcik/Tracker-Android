@@ -59,13 +59,13 @@ class DefaultManualTrackingStartReadinessReader @Inject constructor(
 		if (!startupGate.isReadyGeneration(startupGeneration)) {
 			return ManualTrackingStartPreflight(ManualTrackingStartReadiness.TrackingUnavailable, null)
 		}
-		// Initial settings publication may need the same serialized startup boundary. Await it
-		// before entering that boundary; current policy and generation are still checked inside.
+		// A status read must never hold the command boundary while Room is busy: End needs it.
+		// Live work still cancels for deletion and withholds a result after a newer Stop.
 		val providerStepsAvailable = providerStepsSessions?.isAvailable() == true
-		return startupGate.withReadyGenerationOperation(startupGeneration) {
+		return startupGate.withReadyGenerationWork(startupGeneration) {
 			val policyState = sourcePolicyRepositoryProvider.get().currentState()
 			if (policyState !is SourcePolicyAuthorityState.Active) {
-				return@withReadyGenerationOperation ManualTrackingStartPreflight(
+				return@withReadyGenerationWork ManualTrackingStartPreflight(
 					ManualTrackingStartReadiness.TrackingUnavailable, null,
 				)
 			}
@@ -74,7 +74,7 @@ class DefaultManualTrackingStartReadinessReader @Inject constructor(
 				.mapTo(linkedSetOf()) { policy -> policy.source.toSourceKind() }
 			val setup = chosenSourceWriterSetupProvider.get().readReadiness(enabledSources)
 			val rolloutRevision = setup.rolloutRevision ?:
-                return@withReadyGenerationOperation ManualTrackingStartPreflight(
+                return@withReadyGenerationWork ManualTrackingStartPreflight(
 				if (enabledSources.isEmpty()) {
 					ManualTrackingStartReadiness.NoAvailableCaptureSource
 				}

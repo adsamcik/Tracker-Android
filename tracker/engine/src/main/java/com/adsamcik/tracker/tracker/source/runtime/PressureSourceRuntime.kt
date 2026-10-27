@@ -7,6 +7,7 @@ import android.hardware.SensorEventListener2
 import android.hardware.SensorManager
 import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
@@ -110,6 +111,7 @@ class PressureSourceRuntime @Inject constructor(
 	private val stopDeadlineElapsedNanos = MutableStateFlow<Long?>(null)
 	@Volatile private var laneDrainComplete = true
 	private var cutoffElapsedNanos: Long? = null
+	private var terminalSessionCutoff: SessionCutoff? = null
 	private var flushCompletion: CompletableDeferred<Unit>? = null
 	private var batchingEnabled = false
 	private var metrics = RuntimeAdmissionMetrics()
@@ -232,7 +234,7 @@ class PressureSourceRuntime @Inject constructor(
 	override suspend fun quiesce(cutoff: SessionCutoff): SourceStopAck {
 		fenceCapacityResume()
 		return lifecycleMutex.withLock {
-			(requireNotNull(terminalStopAck ?: shutdownLocked(cutoff))).also(::clearClaimIfReleased)
+			settledStopAcknowledgement(cutoff).also(::clearClaimIfReleased)
 		}
 	}
 
@@ -240,7 +242,7 @@ class PressureSourceRuntime @Inject constructor(
 	internal suspend fun quiesceShared(cutoff: SessionCutoff): SourceStopAck {
 		fenceCapacityResume()
 		return lifecycleMutex.withLock {
-			(requireNotNull(terminalStopAck ?: shutdownLocked(cutoff, preserveAmbient = true)))
+			settledStopAcknowledgement(cutoff, preserveAmbient = true)
 				.also(::clearClaimIfReleased)
 		}
 	}
@@ -253,7 +255,7 @@ class PressureSourceRuntime @Inject constructor(
 		if (runtimeClaim != claim) return@withLock OwnedSourceShutdown.NotOwned
 		fenceCapacityResume()
 		val acknowledgement = when {
-			currentPlan != null || retirementIntent != null -> shutdownLocked(cutoff)
+			currentPlan != null || retirementIntent != null -> settledStopAcknowledgement(cutoff)
 			terminalStopAck != null -> requireNotNull(terminalStopAck)
 			else -> null
 		}
@@ -271,7 +273,7 @@ class PressureSourceRuntime @Inject constructor(
 		fenceCapacityResume()
 		lifecycleMutex.withLock {
 			if (currentPlan != null || retirementIntent != null) {
-				clearClaimIfReleased(shutdownLocked(null))
+				clearClaimIfReleased(settledStopAcknowledgement(null))
 			} else {
 				runtimeClaim = null
 			}
@@ -300,7 +302,7 @@ class PressureSourceRuntime @Inject constructor(
 				return@withLock PressureProviderEraseSettlement.CaptureAuthorizationActive
 			}
 
-			val acknowledgement = shutdownLocked(null)
+			val acknowledgement = settledStopAcknowledgement(null)
 			if (acknowledgement.source != SourceKind.PRESSURE ||
 				acknowledgement.sourceInstanceId.value != activeRegistration.state.sourceInstanceId ||
 				acknowledgement.registrationGeneration !=
@@ -437,6 +439,7 @@ class PressureSourceRuntime @Inject constructor(
 		callbackEntrySequence = recovery.callbackEntrySequence
 		lastCheckpointedProviderSequence = recovery.callbackEntrySequence
 		cutoffElapsedNanos = null
+		terminalSessionCutoff = null
 		stopDeadlineElapsedNanos.value = null
 		laneDrainComplete = true
 		val nextWindowLane = Channel<PressureCompletedWindow>(MAX_PENDING_PRESSURE_WINDOWS)
@@ -458,8 +461,10 @@ class PressureSourceRuntime @Inject constructor(
 			capacityResumeGate = PressureCapacityResumeGate(RESUME_LOW_WATER_WINDOWS)
 			capacityResumeReconciliationAllowed = true
 			accumulator = nextAccumulator
-			accumulatorAttribution = PressureCallbackAttribution(nextRegistration, sink)
-			callbackAttributionTimeline = PressureObservedAuthorizationTimeline(nextRegistration, sink)
+			accumulatorAttribution = PressureCallbackAttribution(nextRegistration, sink,
+				capturePlanApplied = runtimeClaim != null)
+			callbackAttributionTimeline = PressureObservedAuthorizationTimeline(nextRegistration, sink,
+				initialCapturePlanApplied = runtimeClaim != null)
 			lastAccumulatedReception = null
 			lastAcceptedProviderElapsedNanos = null
 			capacityPauseListener = null
@@ -621,6 +626,7 @@ class PressureSourceRuntime @Inject constructor(
 		val activeProviderRequest = currentProviderRequest ?: return null
 		val activeRegistration = registration ?: return null
 		val activeSink = currentSink ?: return null
+		val previousCapturePlanApplied = runtimeClaim != null
 		val pressureSensor = sensor ?: return null
 		val providerRequest = plan.toPressureProviderRequest(
 			sensorMinimumDelayMicros = pressureSensor.minDelay,
@@ -664,7 +670,8 @@ class PressureSourceRuntime @Inject constructor(
 					refreshLatch,
 					activePlan,
 					activeProviderRequest,
-					PressureCallbackAttribution(activeRegistration, activeSink),
+					PressureCallbackAttribution(activeRegistration, activeSink,
+						capturePlanApplied = previousCapturePlanApplied),
 					refreshed = false,
 				)
 			}
@@ -677,7 +684,8 @@ class PressureSourceRuntime @Inject constructor(
 					refreshLatch,
 					activePlan,
 					activeProviderRequest,
-					PressureCallbackAttribution(activeRegistration, activeSink),
+					PressureCallbackAttribution(activeRegistration, activeSink,
+						capturePlanApplied = previousCapturePlanApplied),
 					refreshed = false,
 				)
 			}
@@ -693,7 +701,8 @@ class PressureSourceRuntime @Inject constructor(
 					refreshLatch,
 					activePlan,
 					activeProviderRequest,
-					PressureCallbackAttribution(activeRegistration, activeSink),
+					PressureCallbackAttribution(activeRegistration, activeSink,
+						capturePlanApplied = previousCapturePlanApplied),
 					refreshed = false,
 				)
 			}
@@ -710,7 +719,8 @@ class PressureSourceRuntime @Inject constructor(
 					refreshLatch,
 					activePlan,
 					activeProviderRequest,
-					PressureCallbackAttribution(activeRegistration, activeSink),
+					PressureCallbackAttribution(activeRegistration, activeSink,
+						capturePlanApplied = previousCapturePlanApplied),
 					refreshed = false,
 				)
 			}
@@ -727,6 +737,7 @@ class PressureSourceRuntime @Inject constructor(
 					registration = refreshed,
 					sink = sink,
 					effectiveElapsedRealtimeNanos = refreshLatch.effectiveElapsedRealtimeNanos,
+					capturePlanApplied = runtimeClaim != null,
 				),
 				refreshed = true,
 			)
@@ -821,8 +832,7 @@ class PressureSourceRuntime @Inject constructor(
 			enqueueWindowLocked(
 				payload = terminalWindow.payload,
 				reception = terminalWindow.reception,
-				activeRegistration = attribution.registration,
-				sink = attribution.sink,
+				attribution = attribution,
 				lifecycle = RuntimeCheckpointLifecycle.QUIESCED,
 				terminal = true,
 				checkpointOrderElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
@@ -846,12 +856,51 @@ class PressureSourceRuntime @Inject constructor(
 			false
 		}
 		return if (retirement == PressureProviderRetirement.COMPLETE && actorSettled) {
+			terminalStopAck?.let { previous ->
+				val admission = metrics.snapshot()
+				val completed = previous.copy(
+					lastDurablyAdmittedSequence = admission.lastDurablyAdmittedSequence,
+					lastAdmissionOrdinal = admission.lastAdmissionOrdinal,
+					failedAdmissionCount = admission.failedAdmissionCount,
+					unresolvedSequenceStart = admission.unresolvedSequenceStart,
+					unresolvedSequenceEndInclusive = admission.unresolvedSequenceEndInclusive,
+					registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED,
+					appDrainComplete = true,
+					status = SourceStopStatus.COMPLETE,
+				)
+				terminalStopAck = completed
+				persistTerminalCheckpoint(
+					intent.registration, lastCheckpointedProviderSequence, RuntimeCheckpointLifecycle.QUIESCED,
+				)
+				if (!persistPressureRetirement(intent.registration, completed)) return false
+			}
 			clearActiveState()
 			true
 		} else {
 			retainProviderForRetirementRetry(retainActor = !actorSettled && actor != null)
 			false
 		}
+	}
+
+	private suspend fun settledStopAcknowledgement(
+		cutoff: SessionCutoff?,
+		preserveAmbient: Boolean = false,
+	): SourceStopAck {
+		if (terminalStopAck != null && !settleOwnedRetirementLocked()) {
+			val previous = requireNotNull(terminalStopAck)
+			return previous.copy(
+				appDrainComplete = false,
+				status = if (previous.appDrainComplete) SourceStopStatus.PROVIDER_FAILED else previous.status,
+			)
+		}
+		return terminalStopAck ?: shutdownLocked(cutoff, preserveAmbient)
+	}
+
+	private suspend fun persistPressureRetirement(activeRegistration: SourceRegistration, ack: SourceStopAck): Boolean {
+		val claim = runtimeClaim ?: return true
+		return runCatchingNonCancellation {
+			registrations.savePressureRetirementCompleteness(activeRegistration, claim, ack)
+		}.getOrDefault(false)
 	}
 
 	/** Durable terminal fence -> exact listener removal -> exact token completion. */
@@ -950,6 +999,7 @@ class PressureSourceRuntime @Inject constructor(
 		val activeToken = callbackToken ?: return unavailableAck(cutoff)
 		synchronized(callbackLock) {
 			terminalSettlementInProgress = true
+			terminalSessionCutoff = terminalSessionCutoff ?: cutoff
 			val ambientAuthorized = activeRegistration.authorization.authorizedMembers.any {
 				it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && it.persistenceEligible
 			}
@@ -997,15 +1047,6 @@ class PressureSourceRuntime @Inject constructor(
 				)
 			}
 		}
-		// Atomic window admission intentionally checkpoints ACTIVE. The terminal lifecycle barrier is
-		// a separate no-fact monotonic save, even when the final partial became a durable fact.
-		if (drainComplete || activeActor?.isCompleted == true) {
-			persistTerminalCheckpoint(
-				activeRegistration,
-				lastCheckpointedProviderSequence,
-				if (drainComplete) RuntimeCheckpointLifecycle.QUIESCED else RuntimeCheckpointLifecycle.TIMED_OUT,
-			)
-		}
 		val admission = metrics.snapshot()
 		val ack = SourceStopAck(
 			source = source,
@@ -1028,12 +1069,27 @@ class PressureSourceRuntime @Inject constructor(
 				else -> SourceStopStatus.COMPLETE
 			},
 		).withSessionMembership(runtimeClaim)
-		if (retirement == PressureProviderRetirement.COMPLETE && drainComplete) {
-			clearActiveState()
-			terminalStopAck = ack
+		terminalStopAck = ack
+		// Keep the actual metrics before cancellation can leave retirement to another End attempt.
+		if (drainComplete || activeActor?.isCompleted == true) {
+			persistTerminalCheckpoint(
+				activeRegistration,
+				lastCheckpointedProviderSequence,
+				if (drainComplete) RuntimeCheckpointLifecycle.QUIESCED else RuntimeCheckpointLifecycle.TIMED_OUT,
+			)
 		}
-		else retainProviderForRetirementRetry(retainActor = activeActor != null)
-		return ack
+		return if (retirement == PressureProviderRetirement.COMPLETE && drainComplete) {
+			if (persistPressureRetirement(activeRegistration, ack)) {
+				clearActiveState()
+				ack
+			} else {
+				retainProviderForRetirementRetry(retainActor = false)
+				ack.copy(appDrainComplete = false, status = SourceStopStatus.PROVIDER_FAILED)
+			}
+		} else {
+			retainProviderForRetirementRetry(retainActor = activeActor != null)
+			ack
+		}
 	}
 
 	private suspend fun settleExceptionalActorFailure(
@@ -1141,6 +1197,7 @@ class PressureSourceRuntime @Inject constructor(
 				providerRequest,
 				activeRegistration,
 				sink,
+				runtimeClaim != null,
 			)
 			val boundaryWindow = drainPressureWindowAtBoundary(accumulator, lastAccumulatedReception)
 			val boundaryAttribution = accumulatorAttribution
@@ -1152,8 +1209,7 @@ class PressureSourceRuntime @Inject constructor(
 					enqueueWindowLocked(
 						payload = boundary.payload,
 						reception = boundary.reception,
-						activeRegistration = boundaryAttribution.registration,
-						sink = boundaryAttribution.sink,
+						attribution = boundaryAttribution,
 						lifecycle = RuntimeCheckpointLifecycle.ACTIVE,
 						terminal = true,
 						settlement = completion,
@@ -1280,7 +1336,8 @@ class PressureSourceRuntime @Inject constructor(
 					context.providerRequest,
 					context.registration,
 				)
-				accumulatorAttribution = PressureCallbackAttribution(context.registration, context.sink)
+				accumulatorAttribution = PressureCallbackAttribution(context.registration, context.sink,
+					capturePlanApplied = context.capturePlanApplied)
 				lastAccumulatedReception = null
 				capacityResumeGate.onResumeSucceeded()
 				capacityPauseRemovalComplete = true
@@ -1374,6 +1431,7 @@ class PressureSourceRuntime @Inject constructor(
 		val providerRequest: PressureProviderRequest,
 		val registration: SourceRegistration,
 		val sink: SourceEventSink,
+		val capturePlanApplied: Boolean,
 	)
 
 	private data class PreparedPressureCapacityResume(
@@ -1432,8 +1490,7 @@ class PressureSourceRuntime @Inject constructor(
 		val acquiredAtMs = (reception.receivedWallTimeMs - delayNanos / NANOS_PER_MILLISECOND).coerceAtLeast(0L)
 		val candidate = SourceEvidenceCandidate(
 			providerDedupKey = null,
-			logicalTrackingId = null,
-			serviceRunId = null,
+			logicalTrackingId = null, serviceRunId = null,
 			source = source,
 			sourceInstanceId = SourceInstanceId(activeRegistration.state.sourceInstanceId),
 			registrationGeneration = activeRegistration.state.registrationGeneration,
@@ -1442,9 +1499,12 @@ class PressureSourceRuntime @Inject constructor(
 			registrationPurposeEligibilityMask = activeRegistration.purposeEligibilityMask,
 			registrationEligibilityFingerprint = activeRegistration.eligibilityFingerprint,
 			// Room allocates the only durable sequence after replay detection succeeds.
-			sourceSequence = 0L,
-			configRevision = activeRegistration.state.appliedRevision,
-			planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
+			sourceSequence = 0L, configRevision = activeRegistration.state.appliedRevision,
+			planAttribution = if (window.capturePlanApplied) {
+				PlanAttribution.CAPTURED_REGISTRATION
+			} else {
+				PlanAttribution.RECEIVE_TIME_ONLY
+			},
 			clockDomainId = activeRegistration.state.clockDomainId,
 			observedElapsedRealtimeNanos = payload.windowEndElapsedRealtimeNanos,
 			receivedElapsedRealtimeNanos = window.checkpointOrderElapsedRealtimeNanos,
@@ -1504,7 +1564,7 @@ class PressureSourceRuntime @Inject constructor(
 			snapshot to gapSequence.takeIf { containsCurrentGap }
 		}
 
-	private fun recordWindowResolution(
+	private suspend fun recordWindowResolution(
 		window: PressureCompletedWindow,
 		prepared: PreparedPressureAdmission,
 		handoff: SourceAdmissionHandoff,
@@ -1519,9 +1579,11 @@ class PressureSourceRuntime @Inject constructor(
 				metrics.recordDurable(payload.lastProviderSequence, handoff.existingAdmissionOrdinal)
 				recordAtomicPressureCheckpointInMemory(window, prepared)
 			}
-			is SourceAdmissionHandoff.TerminalFailure -> recordPressureFailureExactly(
-				payload.firstProviderSequence..payload.lastProviderSequence,
-			)
+			is SourceAdmissionHandoff.TerminalFailure -> {
+				if (!isWhollyOutsideEndedCapture(window)) {
+					recordPressureFailureExactly(payload.firstProviderSequence..payload.lastProviderSequence)
+				}
+			}
 			is SourceAdmissionHandoff.RetryableFailure ->
 				error("Retryable Pressure handoff escaped the source-local FIFO loop")
 		}
@@ -1534,6 +1596,21 @@ class PressureSourceRuntime @Inject constructor(
 		lastCheckpointedProviderSequence = window.payload.lastProviderSequence
 		lastCheckpointedAdmission = metrics.snapshot()
 		window.checkpointedCapacityGapSequence = prepared.checkpointedCapacityGapSequence
+	}
+
+	/** Out-of-session callbacks resolve without becoming saved data or a capture-loss claim. */
+	private suspend fun isWhollyOutsideEndedCapture(window: PressureCompletedWindow): Boolean {
+		val capture = window.registration.captureOnlyPressureMembership() ?: return false
+		val logicalId = requireNotNull(capture.logicalTrackingId)
+		val runId = requireNotNull(capture.serviceRunId)
+		val localCutoff = synchronized(callbackLock) {
+			terminalSessionCutoff?.takeIf { it.logicalTrackingId == logicalId && runtimeClaim?.serviceRunId == runId }
+				?.elapsedRealtimeNanos
+		}
+		val cutoff = localCutoff ?: runCatchingNonCancellation {
+			registrations.endedCaptureCutoffElapsedNanos(window.registration, logicalId, runId)
+		}.getOrNull() ?: return false
+		return window.payload.windowStartElapsedRealtimeNanos > cutoff
 	}
 
 	private suspend fun persistWindowCheckpoint(window: PressureCompletedWindow): Boolean =
@@ -1623,8 +1700,7 @@ class PressureSourceRuntime @Inject constructor(
 				enqueueWindowLocked(
 					payload = boundaryWindow.payload,
 					reception = boundaryWindow.reception,
-					activeRegistration = currentAttribution.registration,
-					sink = currentAttribution.sink,
+					attribution = currentAttribution,
 					lifecycle = RuntimeCheckpointLifecycle.ACTIVE,
 					terminal = false,
 					checkpointOrderElapsedRealtimeNanos = reception.receivedElapsedNanos,
@@ -1644,8 +1720,7 @@ class PressureSourceRuntime @Inject constructor(
 			enqueueWindowLocked(
 				payload = completed,
 				reception = requireNotNull(lastAccumulatedReception),
-				activeRegistration = attribution.registration,
-				sink = attribution.sink,
+				attribution = attribution,
 				lifecycle = RuntimeCheckpointLifecycle.ACTIVE,
 				terminal = false,
 				checkpointOrderElapsedRealtimeNanos = reception.receivedElapsedNanos,
@@ -1667,8 +1742,7 @@ class PressureSourceRuntime @Inject constructor(
 			enqueueWindowLocked(
 				payload = boundaryWindow.payload,
 				reception = boundaryWindow.reception,
-				activeRegistration = attribution.registration,
-				sink = attribution.sink,
+				attribution = attribution,
 				lifecycle = RuntimeCheckpointLifecycle.ACTIVE,
 				terminal = false,
 				checkpointOrderElapsedRealtimeNanos = checkpointOrderElapsedRealtimeNanos,
@@ -1706,6 +1780,7 @@ class PressureSourceRuntime @Inject constructor(
 				resolvedAttribution.registration,
 				resolvedAttribution.sink,
 				refreshLatch.effectiveElapsedRealtimeNanos,
+				resolvedAttribution.capturePlanApplied,
 			)
 			registration = resolvedAttribution.registration
 			currentSink = resolvedAttribution.sink
@@ -1739,8 +1814,7 @@ class PressureSourceRuntime @Inject constructor(
 				enqueueWindowLocked(
 					payload = partial.payload,
 					reception = partial.reception,
-					activeRegistration = attribution.registration,
-					sink = attribution.sink,
+					attribution = attribution,
 					lifecycle = RuntimeCheckpointLifecycle.ACTIVE,
 					terminal = true,
 					checkpointOrderElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
@@ -1780,8 +1854,7 @@ class PressureSourceRuntime @Inject constructor(
 	private fun enqueueWindowLocked(
 		payload: PressureWindowPayload,
 		reception: PressureReception,
-		activeRegistration: SourceRegistration,
-		sink: SourceEventSink,
+		attribution: PressureCallbackAttribution,
 		lifecycle: RuntimeCheckpointLifecycle,
 		terminal: Boolean,
 		settlement: CompletableDeferred<Unit>? = null,
@@ -1796,8 +1869,9 @@ class PressureSourceRuntime @Inject constructor(
 			PressureCompletedWindow(
 				payload = payload,
 				reception = reception,
-				registration = activeRegistration,
-				sink = sink,
+				registration = attribution.registration,
+				sink = attribution.sink,
+				capturePlanApplied = attribution.capturePlanApplied,
 				lifecycle = lifecycle,
 				settlement = settlement,
 				checkpointOrderElapsedRealtimeNanos = checkpointOrderElapsedRealtimeNanos,
@@ -1873,6 +1947,7 @@ class PressureSourceRuntime @Inject constructor(
 		actor = null
 		batchingEnabled = false
 		cutoffElapsedNanos = null
+		terminalSessionCutoff = null
 		stopDeadlineElapsedNanos.value = null
 		currentPlan = null
 		currentProviderRequest = null
@@ -1967,6 +2042,15 @@ class PressureSourceRuntime @Inject constructor(
 	}
 }
 
+private fun SourceRegistration.captureOnlyPressureMembership(): SourceAuthorizationEntity? {
+	val members = authorization.authorizedMembers
+	val first = members.firstOrNull() ?: return null
+	return first.takeIf { first.logicalTrackingId != null && first.serviceRunId != null && members.all { member ->
+		val sameRun = member.logicalTrackingId == first.logicalTrackingId && member.serviceRunId == first.serviceRunId
+		member.purpose == SourceBrokerPurpose.SESSION_CAPTURE && member.persistenceEligible && sameRun
+	} }
+}
+
 private data class PressureProviderRetirementIntent(
 	val registration: SourceRegistration,
 	val listener: SensorEventListener2,
@@ -2052,27 +2136,31 @@ internal data class PressureCallbackAttribution(
 	val registration: SourceRegistration,
 	val sink: SourceEventSink,
 	val effectiveElapsedRealtimeNanos: Long = registration.authorization.effectiveElapsedRealtimeNanos,
+	/** Snapshot the applied caller, not a later broker membership or a coinciding revision number. */
+	val capturePlanApplied: Boolean = false,
 )
 
 /** Compact observed-time authority history; monotonic accepted sensor times prune old entries. */
 internal class PressureObservedAuthorizationTimeline(
 	initialRegistration: SourceRegistration,
 	initialSink: SourceEventSink,
+	initialCapturePlanApplied: Boolean = false,
 ) {
 	private val entries = ArrayDeque<PressureCallbackAttribution>().apply {
-		addLast(PressureCallbackAttribution(initialRegistration, initialSink))
+		addLast(PressureCallbackAttribution(initialRegistration, initialSink,
+			capturePlanApplied = initialCapturePlanApplied))
 	}
 
 	fun refresh(
 		registration: SourceRegistration,
 		sink: SourceEventSink,
 		effectiveElapsedRealtimeNanos: Long = registration.authorization.effectiveElapsedRealtimeNanos,
+		capturePlanApplied: Boolean = false,
 	) {
-		val next = PressureCallbackAttribution(registration, sink, effectiveElapsedRealtimeNanos)
+		val next = PressureCallbackAttribution(registration, sink, effectiveElapsedRealtimeNanos, capturePlanApplied)
 		val latest = entries.last()
 		require(effectiveElapsedRealtimeNanos >= latest.effectiveElapsedRealtimeNanos)
-		if (registration.pressureAccumulatorBoundary() ==
-			latest.registration.pressureAccumulatorBoundary() &&
+		if (next.samePressureBoundary(latest) &&
 			effectiveElapsedRealtimeNanos == latest.effectiveElapsedRealtimeNanos
 		) entries.removeLast()
 		entries.addLast(next)
@@ -2099,7 +2187,8 @@ internal fun SourceRegistration.pressureAccumulatorBoundary() = PressureAccumula
 
 internal fun PressureCallbackAttribution.samePressureBoundary(
 	other: PressureCallbackAttribution,
-): Boolean = registration.pressureAccumulatorBoundary() == other.registration.pressureAccumulatorBoundary()
+): Boolean = capturePlanApplied == other.capturePlanApplied &&
+	registration.pressureAccumulatorBoundary() == other.registration.pressureAccumulatorBoundary()
 
 internal data class PressureWindowAtBoundary(
 	val payload: PressureWindowPayload,
@@ -2142,6 +2231,7 @@ internal data class PressureCompletedWindow(
 	val registration: SourceRegistration,
 	val sink: SourceEventSink,
 	val lifecycle: RuntimeCheckpointLifecycle,
+	val capturePlanApplied: Boolean = false,
 	val settlement: CompletableDeferred<Unit>? = null,
 	val checkpointOrderElapsedRealtimeNanos: Long = reception.receivedElapsedNanos,
 ) {
@@ -2233,7 +2323,7 @@ internal suspend fun <Prepared> processPressureWindowHead(
 	nowElapsedRealtimeNanos: () -> Long,
 	prepare: suspend () -> Prepared?,
 	admit: suspend (Prepared) -> SourceAdmissionHandoff,
-	onAdmissionResolved: (Prepared, SourceAdmissionHandoff) -> Unit,
+	onAdmissionResolved: suspend (Prepared, SourceAdmissionHandoff) -> Unit,
 	persistTerminalOutcome: suspend () -> Boolean,
 	retryDelaysMs: LongArray = PRESSURE_HEAD_RETRY_DELAYS_MS,
 	waitBeforeRetry: suspend (Long) -> Unit = { delay(it) },
@@ -2467,49 +2557,51 @@ internal fun recoverPressureRuntimeState(
 	require(currentRegistrationGeneration > 0L)
 	val checkpoint = decodeSensorRuntimeCheckpoint(saved, PRESSURE_RUNTIME_COMPONENT_VERSION)
 	if (checkpoint == null) {
-		if (!reusedActiveRegistration) return PressureRuntimeRecovery(null, 0L)
-		val restarted = RuntimeAdmissionMetrics().also {
-			it.recordFailure(1L, classification = RuntimeGapClassification.PROCESS_RESTARTED)
-		}
-		return PressureRuntimeRecovery(restarted.snapshot(), 1L, requiresPreAcquisitionCheckpoint = true)
+		return pressureRecoveryWithoutCheckpoint(reusedActiveRegistration)
 	}
 	val sameGeneration = saved?.registrationGeneration == currentRegistrationGeneration
-	val lastSequence = if (sameGeneration) {
-		pressureRecoveryProviderHighWater(requireNotNull(saved).lastProviderSequence, checkpoint.metrics)
-	} else {
-		0L
-	}
-	if (checkpoint.lifecycle != RuntimeCheckpointLifecycle.ACTIVE) {
-		if (!sameGeneration && reusedActiveRegistration) {
-			val restarted = RuntimeAdmissionMetrics().also {
-				it.recordFailure(1L, classification = RuntimeGapClassification.PROCESS_RESTARTED)
-			}
-			return PressureRuntimeRecovery(restarted.snapshot(), 1L, requiresPreAcquisitionCheckpoint = true)
+	// A replacement listener has a fresh sequence domain. Its predecessor's durable history and
+	// retirement keep any real loss; it must not start this new generation with invented loss.
+	if (!sameGeneration) {
+		if (reusedActiveRegistration) {
+			return pressureRecoveryWithoutCheckpoint(reusedActiveRegistration = true)
 		}
+		// Install this accepted generation's empty checkpoint before draining its buffered callbacks.
+		return PressureRuntimeRecovery(RuntimeAdmissionMetrics().snapshot(), 0L,
+			requiresPreAcquisitionCheckpoint = true)
+	}
+	val lastSequence = pressureRecoveryProviderHighWater(requireNotNull(saved).lastProviderSequence, checkpoint.metrics)
+	if (checkpoint.lifecycle != RuntimeCheckpointLifecycle.ACTIVE) {
 		return PressureRuntimeRecovery(
-			metrics = checkpoint.metrics.takeIf { sameGeneration },
+			metrics = checkpoint.metrics,
 			callbackEntrySequence = lastSequence,
 		)
 	}
 	val restartGapSequence = checkedNextPressureProviderSequence(lastSequence)
-	val restarted = if (sameGeneration) {
-		RuntimeAdmissionMetrics(
-			checkpoint.metrics.lastDurablyAdmittedSequence,
-			checkpoint.metrics.lastAdmissionOrdinal,
-			checkpoint.metrics.failedAdmissionCount,
-			checkpoint.metrics.unresolvedSequenceStart,
-			checkpoint.metrics.unresolvedSequenceEndInclusive,
-			checkpoint.metrics.gapClassifications,
-		)
-	} else {
-		RuntimeAdmissionMetrics()
-	}
+	val restarted = RuntimeAdmissionMetrics(
+		checkpoint.metrics.lastDurablyAdmittedSequence,
+		checkpoint.metrics.lastAdmissionOrdinal,
+		checkpoint.metrics.failedAdmissionCount,
+		checkpoint.metrics.unresolvedSequenceStart,
+		checkpoint.metrics.unresolvedSequenceEndInclusive,
+		checkpoint.metrics.gapClassifications,
+	)
 	restarted.recordFailure(restartGapSequence, classification = RuntimeGapClassification.PROCESS_RESTARTED)
 	return PressureRuntimeRecovery(
 		restarted.snapshot(),
 		restartGapSequence,
 		requiresPreAcquisitionCheckpoint = true,
 	)
+}
+
+private fun pressureRecoveryWithoutCheckpoint(reusedActiveRegistration: Boolean): PressureRuntimeRecovery {
+	if (!reusedActiveRegistration) {
+		return PressureRuntimeRecovery(null, 0L)
+	}
+	val restarted = RuntimeAdmissionMetrics().also {
+		it.recordFailure(1L, classification = RuntimeGapClassification.PROCESS_RESTARTED)
+	}
+	return PressureRuntimeRecovery(restarted.snapshot(), 1L, requiresPreAcquisitionCheckpoint = true)
 }
 
 internal fun pressureRecoveryProviderHighWater(

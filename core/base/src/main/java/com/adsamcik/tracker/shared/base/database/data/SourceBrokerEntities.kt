@@ -420,6 +420,25 @@ data class ProviderRegistrationGenerationEntity(
 		const val FAILURE_PRIOR_PROCESS_INCARNATION_ENDED =
 			"PRIOR_PROCESS_INCARNATION_ENDED"
 		const val FAILURE_PRIOR_BOOT_SYSTEM_REMOVED = "PRIOR_BOOT_SYSTEM_REMOVED"
+		/** Suffix identifies the exact capture seal authorization revision, never a WAL sequence. */
+		const val FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX = "ACTIVITY_CALLBACK_LOSS:"
+	}
+}
+
+/** A callback-save gap does not mean that the shared Activity provider stopped or failed. */
+fun ProviderRegistrationGenerationEntity.hasOnlyActivityCallbackLoss(): Boolean =
+	failureCode?.startsWith(ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX) == true &&
+		activityCallbackLossRevision() != null
+
+/** Returns only a canonical loss marker belonging to this Activity provider's recorded capture seals. */
+fun ProviderRegistrationGenerationEntity.activityCallbackLossRevision(): Long? {
+	val prefix = ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX
+	val suffix = failureCode?.removePrefix("DEMAND_REMOVED|")?.takeIf { it.startsWith(prefix) }
+		?.removePrefix(prefix) ?: return null
+	val revision = suffix.toLongOrNull() ?: return null
+	return revision.takeIf {
+		sourceKind == SourceDestinationOwnerEntity.SOURCE_ACTIVITY && it > 0L &&
+			suffix == it.toString() && it <= captureCallbackBarrierAuthorizationRevision
 	}
 }
 

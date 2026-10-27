@@ -37,6 +37,9 @@ sealed interface DashboardLiveSessionPresentation {
 		val segmentId: Long,
 		/** Qualified Steps for this mixed-source segment, or null when Steps is not qualified. */
 		val steps: DashboardLiveStepsValue? = null,
+		/** Source-qualified values, including unavailable states, only for selected capture sources. */
+		val activity: DashboardLiveActivityValue? = null,
+		val pressure: DashboardLivePressureValue? = null,
 	) : DashboardLiveSessionPresentation {
 		init {
 			require(segmentId > 0L)
@@ -174,31 +177,43 @@ data class DashboardLiveActivityValue(
 	val latestMovementBand: ActivityHistoryType?,
 	val gapCount: Int,
 	val hasRetainedQualifiedEvidence: Boolean,
+	val latestObservationTimeMs: Long? = null,
 ) {
 	init {
 		require(knownActiveDurationNanos == null || knownActiveDurationNanos >= 0L)
 		require(gapCount >= 0)
+		require(latestObservationTimeMs == null || latestObservationTimeMs >= 0L)
 		require(
 			!hasRetainedQualifiedEvidence ||
 				(state != ActivityHistoryProductState.UNAVAILABLE &&
 					state != ActivityHistoryProductState.FAILED),
 		) { "Unavailable or failed Activity cannot claim retained qualified evidence" }
 		require(hasRetainedQualifiedEvidence ||
-			(knownActiveDurationNanos == null && latestMovementBand == null)
-		) { "Activity values require retained qualified band evidence" }
+			(knownActiveDurationNanos == null && latestMovementBand == null && latestObservationTimeMs == null)
+		) { "Activity values require retained qualified evidence" }
 	}
 }
 
 internal fun ActivityHistoryEntry.toDashboardLiveActivityValue(): DashboardLiveActivityValue {
 	val bands = fragments.filterIsInstance<ActivityHistoryFragment.Band>()
-	val hasEvidence = bands.isNotEmpty() && activeTime != null
+	val hasBandEvidence = bands.isNotEmpty() && activeTime != null
+	val hasEvidence = hasBandEvidence || latestObservation != null
+	val observedActivity = latestObservation?.let {
+		// An exit records what ended, rather than claiming the person remains in that activity.
+		if (it.transitionType == 1) {
+			ActivityHistoryType.UNKNOWN
+		} else {
+			it.activity
+		}
+	}
 	return DashboardLiveActivityValue(
 		state = state,
 		coverage = coverage,
-		knownActiveDurationNanos = activeTime?.knownActiveDurationNanos.takeIf { hasEvidence },
-		latestMovementBand = bands.lastOrNull()?.activity.takeIf { hasEvidence },
+		knownActiveDurationNanos = activeTime?.knownActiveDurationNanos.takeIf { hasBandEvidence },
+		latestMovementBand = observedActivity ?: bands.lastOrNull()?.activity.takeIf { hasBandEvidence },
 		gapCount = fragments.count { it is ActivityHistoryFragment.Gap },
 		hasRetainedQualifiedEvidence = hasEvidence,
+		latestObservationTimeMs = latestObservation?.observedTime?.raw,
 	)
 }
 

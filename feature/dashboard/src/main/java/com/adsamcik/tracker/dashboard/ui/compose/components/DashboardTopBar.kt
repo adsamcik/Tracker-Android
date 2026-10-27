@@ -75,6 +75,7 @@ internal fun DashboardTopBar(
 	onCustomizeClick: (() -> Unit)? = null,
 	onTurnOffTracking: (() -> Unit)? = null,
 	onPauseAutomaticTracking: (() -> Unit)? = null,
+	isStopping: Boolean = false,
 	modifier: Modifier = Modifier,
 ){
 	val context = LocalContext.current
@@ -94,7 +95,9 @@ internal fun DashboardTopBar(
 							}
 						}) {
 							Text(
-								text = if (isTracking) {
+								text = if (isStopping) {
+									stringResource(R.string.dashboard_finishing_session)
+								} else if (isTracking) {
 									stringResource(R.string.dashboard_tracking_title)
 								} else {
 									stringResource(R.string.dashboard_title)
@@ -105,7 +108,7 @@ internal fun DashboardTopBar(
 
 						// Recording indicator when tracking
 						AnimatedVisibility(
-							visible = isTracking,
+							visible = isTracking && !isStopping,
 							enter = fadeIn() + expandVertically(),
 							exit = fadeOut() + shrinkVertically(),
 						) {
@@ -192,7 +195,7 @@ internal fun DashboardTopBar(
 
 			// Linear progress when tracking
 			AnimatedVisibility(
-				visible = isTracking,
+				visible = isTracking && !isStopping,
 				enter = expandVertically(),
 				exit = shrinkVertically(),
 			) {

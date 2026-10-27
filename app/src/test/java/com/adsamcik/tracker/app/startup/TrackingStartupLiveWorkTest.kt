@@ -7,6 +7,11 @@ import com.adsamcik.tracker.app.settings.CollectedDataDeletionCompletion
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
+import com.adsamcik.tracker.tracker.api.DefaultManualTrackingStartReadinessReader
+import com.adsamcik.tracker.tracker.api.ManualTrackingStartPreflight
+import com.adsamcik.tracker.tracker.api.ManualTrackingStartReadiness
 import com.adsamcik.tracker.tracker.resilience.SharedPreferencesTrackingLifecycleCommandAuthority
 import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
@@ -93,6 +98,32 @@ class TrackingStartupLiveWorkTest {
         }
         release.complete(Unit)
         work.await() shouldBe null
+        commands.latestUnhandledStop() shouldBe stop
+    }
+
+    @Test
+    fun `slow Dashboard readiness read leaves End available and withholds stale preflight`(): Unit = runBlocking {
+        gate.reconcile()
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val policies = mockk<SourcePolicyRepository>()
+        coEvery { policies.currentState() } coAnswers {
+            entered.complete(Unit)
+            release.await()
+            SourcePolicyAuthorityState.Uninitialized
+        }
+        val reader = DefaultManualTrackingStartReadinessReader(context, Provider { gate }, Provider { policies },
+            Provider { mockk() }, Provider { mockk() })
+        val read = async { reader.readPreflight() }
+        entered.await()
+        val stop = try {
+            withTimeout(2_000L) {
+                requireNotNull(commands.reserveStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 2_000L))
+            }
+        } finally {
+            release.complete(Unit)
+        }
+        read.await() shouldBe ManualTrackingStartPreflight(ManualTrackingStartReadiness.TrackingUnavailable, null)
         commands.latestUnhandledStop() shouldBe stop
     }
 

@@ -8,7 +8,9 @@ import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEnt
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
@@ -1283,11 +1285,22 @@ interface TrackingHistoryReadDao {
 			)
 			OR NOT EXISTS (
 			  SELECT 1 FROM source_event_wal AS event
-			  JOIN source_service_run AS run
+			  LEFT JOIN source_service_run AS run
 				ON run.service_run_id = event.service_run_id
 			   AND run.logical_tracking_id = event.logical_tracking_id
 			  WHERE event.admission_ordinal = failure.admission_ordinal
 				AND event.source_kind = :sourceKind
+				AND (
+				  run.service_run_id IS NOT NULL
+				  OR (
+					event.source_kind = ${SourceDestinationOwnerEntity.SOURCE_ACTIVITY}
+					AND (event.authorization_purpose_eligibility_mask & ${SourceBrokerPurpose.MASK_AMBIENT_PRODUCT}) != 0
+					AND event.plan_attribution = 2
+					AND event.logical_tracking_id IS NULL AND event.service_run_id IS NULL
+					AND event.source_policy_revision IS NULL AND event.capture_consent_epoch IS NULL
+					AND event.session_manifest_revision IS NULL AND event.lifecycle_lease_generation IS NULL
+				  )
+				)
 			)
 		  )
 		  AND EXISTS (

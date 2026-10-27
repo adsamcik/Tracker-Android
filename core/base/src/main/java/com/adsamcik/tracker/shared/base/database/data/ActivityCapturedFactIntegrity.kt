@@ -390,6 +390,80 @@ data class ActivityCapturedDesiredPlan(
  * any alternate byte representation before a checksum or physical fingerprint can authorize data.
  */
 object ActivityCapturedPlanIntegrity {
+	/** Keeps an unchanged physical Activity request usable while its same-session plan is replaced. */
+	fun hasCompatibleManifestPlan(
+		plan: ActivityCapturedRegistrationPlanEntity,
+		manifest: SessionManifestVersionEntity,
+		desired: SourceDesiredPlanEntity?,
+		currentGrant: SourceAuthorizationEntity?,
+		originalManifest: SessionManifestVersionEntity?,
+		originalGrant: SourceAuthorizationEntity?,
+	): Boolean {
+		if (plan.configurationRevision == manifest.acquisitionPlanRevision) {
+			return true
+		}
+		if (desired == null || currentGrant == null || originalManifest == null || originalGrant == null) {
+			return false
+		}
+		return plan.hasCompatiblePhysicalPlan(desired, manifest) &&
+			originalGrant.continuesActivityManifest(currentGrant, originalManifest, manifest, plan)
+	}
+
+	private fun ActivityCapturedRegistrationPlanEntity.hasCompatiblePhysicalPlan(
+		desired: SourceDesiredPlanEntity,
+		manifest: SessionManifestVersionEntity,
+	): Boolean {
+		val replacement = decode(desired)
+		val applied = decode(SourceDesiredPlanEntity(configurationRevision,
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY, desiredPlanPayloadVersion,
+			desiredPlanPayload, desiredPlanPayloadChecksum))
+		val samePhysicalPlan = applied?.enabled == true && replacement?.enabled == true &&
+			applied.physicalConfigurationFingerprint == physicalConfigurationFingerprint &&
+			replacement.physicalConfigurationFingerprint == physicalConfigurationFingerprint
+		val appliedBeforeReplacement = configurationRevision < manifest.acquisitionPlanRevision &&
+			appliedAtElapsedRealtimeNanos <= manifest.effectiveElapsedRealtimeNanos
+		return samePhysicalPlan && appliedBeforeReplacement && desired.revision == manifest.acquisitionPlanRevision &&
+			bindingIdentity == calculatedBindingIdentity()
+	}
+
+	private fun SourceAuthorizationEntity.continuesActivityManifest(
+		current: SourceAuthorizationEntity,
+		originalManifest: SessionManifestVersionEntity,
+		manifest: SessionManifestVersionEntity,
+		plan: ActivityCapturedRegistrationPlanEntity,
+	): Boolean {
+		val sameGrant = hasSameSensorRecordingConsent(current) &&
+			sourcePolicyRevision == current.sourcePolicyRevision &&
+			sourcePolicyRevision == originalManifest.sourcePolicyRevision &&
+			current.sourcePolicyRevision == manifest.sourcePolicyRevision
+		val forwardGrant = authorizationRevision < current.authorizationRevision &&
+			effectiveElapsedRealtimeNanos <= current.effectiveElapsedRealtimeNanos
+		val manifestGrants = matchesActivityManifest(originalManifest, plan.registrationGeneration) &&
+			current.matchesActivityManifest(manifest, plan.registrationGeneration)
+		return originalManifest.isEarlierActivityPlan(manifest, plan) && sameGrant && forwardGrant && manifestGrants
+	}
+
+	private fun SessionManifestVersionEntity.isEarlierActivityPlan(
+		manifest: SessionManifestVersionEntity,
+		plan: ActivityCapturedRegistrationPlanEntity,
+	): Boolean {
+		val sameRun = logicalTrackingId == manifest.logicalTrackingId && serviceRunId == manifest.serviceRunId &&
+			effectiveBootId == manifest.effectiveBootId
+		return sameRun && acquisitionPlanRevision == plan.configurationRevision &&
+			manifestRevision < manifest.manifestRevision
+	}
+
+	private fun SourceAuthorizationEntity.matchesActivityManifest(
+		manifest: SessionManifestVersionEntity,
+		generation: Long,
+	): Boolean {
+		val capture = sourceKind == SourceDestinationOwnerEntity.SOURCE_ACTIVITY && registrationGeneration == generation &&
+			purpose == SourceBrokerPurpose.SESSION_CAPTURE && persistenceEligible
+		val manifestScope = logicalTrackingId == manifest.logicalTrackingId && serviceRunId == manifest.serviceRunId &&
+			manifestRevision == manifest.manifestRevision && effectiveBootId == manifest.effectiveBootId
+		return capture && manifestScope
+	}
+
 	/**
 	 * Decodes the versioned Activity payload after checking its format and integrity fields;
 	 * malformed data is rejected.

@@ -22,7 +22,11 @@ import javax.inject.Singleton
 
 /** Shared read-only adapter over source-owned history facades. */
 internal interface TrackingHistorySourceUnionReader {
-	suspend fun sessionInTransaction(segment: SessionSegment): HistoricalSessionSourceRead
+	/** Compact Location presentation omits radio detail reads; null products mean not requested. */
+	suspend fun sessionInTransaction(
+		segment: SessionSegment,
+		includeRadio: Boolean = true,
+	): HistoricalSessionSourceRead
 
 	suspend fun candidateNativeOnlyInTransaction(
 		segmentIds: List<Long>,
@@ -47,12 +51,15 @@ internal sealed interface HistoricalSessionSourceRead {
 
 		val publicProducts: SessionHistoryProducts?
 			get() {
-				val wifiProduct = wifi ?: return null
-				val cellProduct = cell ?: return null
+				if (wifi == null && cell == null && activity == ActivityHistoryQuery.NotFound &&
+					pressure == PressureSessionHistoryQuery.NotFound
+				) {
+					return null
+				}
 				return SessionHistoryProducts(
 					segmentId = segmentId,
-					wifi = wifiProduct,
-					cell = cellProduct,
+					wifi = wifi,
+					cell = cell,
 					activity = activity,
 					pressure = pressure,
 				)
@@ -180,22 +187,19 @@ internal class DefaultTrackingHistorySourceUnionReader @Inject constructor(
 ) : TrackingHistorySourceUnionReader {
 	override suspend fun sessionInTransaction(
 		segment: SessionSegment,
+		includeRadio: Boolean,
 	): HistoricalSessionSourceRead {
 		// Source-owned failure results stay attached to that source. A damaged radio/sensor
 		// product cannot discard the other products selected in this same Room transaction.
-		val wifiQuery = wifi.sessionInTransaction(segment.id).let { query ->
-			if (query is WifiHistoryQuery.Found && query.entry.origin != WifiHistoryOrigin.LOCAL) {
-				WifiHistoryQuery.NotFound
-			} else {
-				query
-			}
+		val wifiQuery = if (includeRadio) {
+			localWifiSessionInTransaction(segment.id)
+		} else {
+			null
 		}
-		val cellQuery = cell.sessionInTransaction(segment.id).let { query ->
-			if (query is CellHistoryQuery.Found && query.entry.origin != CellHistoryOrigin.Local) {
-				CellHistoryQuery.NotFound
-			} else {
-				query
-			}
+		val cellQuery = if (includeRadio) {
+			localCellSessionInTransaction(segment.id)
+		} else {
+			null
 		}
 		val activityQuery = activity.sessionInTransaction(segment.id).let { query ->
 			if (query is ActivityHistoryQuery.Found && query.entry.origin != ActivityHistoryOrigin.LOCAL) {
@@ -213,6 +217,24 @@ internal class DefaultTrackingHistorySourceUnionReader @Inject constructor(
 			pressure = pressureQuery,
 		)
 	}
+
+	private suspend fun localWifiSessionInTransaction(segmentId: Long): WifiHistoryQuery =
+		wifi.sessionInTransaction(segmentId).let { query ->
+			if (query is WifiHistoryQuery.Found && query.entry.origin != WifiHistoryOrigin.LOCAL) {
+				WifiHistoryQuery.NotFound
+			} else {
+				query
+			}
+		}
+
+	private suspend fun localCellSessionInTransaction(segmentId: Long): CellHistoryQuery =
+		cell.sessionInTransaction(segmentId).let { query ->
+			if (query is CellHistoryQuery.Found && query.entry.origin != CellHistoryOrigin.Local) {
+				CellHistoryQuery.NotFound
+			} else {
+				query
+			}
+		}
 
 	private suspend fun pressureSessionInTransaction(segment: SessionSegment): PressureSessionHistoryQuery =
 		pressureSelector.selectManyInTransaction(listOf(segment))
@@ -360,6 +382,7 @@ internal class LegacyTrackingHistorySourceUnionReader(
 ) : TrackingHistorySourceUnionReader {
 	override suspend fun sessionInTransaction(
 		segment: SessionSegment,
+		includeRadio: Boolean,
 	): HistoricalSessionSourceRead = HistoricalSessionSourceRead.Available(
 		segmentId = segment.id,
 		wifi = null,

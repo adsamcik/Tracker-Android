@@ -195,4 +195,5 @@
     <string name="dashboard_activity_on_foot">Пеша</string>
     <string name="dashboard_activity_tilting">Накланяне</string>
     <string name="dashboard_activity_unknown">Неизвестна активност</string>
+    <string name="dashboard_finishing_session">Завършване на сесията…</string>
 </resources>

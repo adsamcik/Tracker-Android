@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.tracker.presentation.SessionPresentationLifecycle
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
@@ -44,6 +45,7 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 ) {
 	private val mutex = Mutex()
 	private val drainSignals = Channel<Unit>(Channel.CONFLATED)
+	private val presentation = SessionPresentationLifecycle(database)
 
 	@Inject
 	constructor(
@@ -107,13 +109,6 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		} catch (changed: ActivityLaneAuthorityChangedException) {
 			return@withLock ActivityCapturedFactDrainResult.AuthorityChanged(changed.reason)
 		}
-		if (target <= lane.contiguousAdmissionOrdinal) {
-			return@withLock ActivityCapturedFactDrainResult.Complete(
-				lane.contiguousAdmissionOrdinal,
-				windowsApplied = 0,
-				eventsValidated = 0,
-			)
-		}
 		drainThroughLocked(lane, target)
 	}
 
@@ -142,11 +137,19 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		var cursor = initialLane.contiguousAdmissionOrdinal
 		var windowsApplied = 0
 		var eventsValidated = 0
-		while (cursor < targetAdmissionOrdinal) {
+		var checkSettledPresentation = true
+		while (cursor < targetAdmissionOrdinal || checkSettledPresentation) {
 			var attemptedOrdinal: Long? = null
 			val pass = try {
 				database.withTransaction {
 					val lane = requireExactLane(initialLane, cursor)
+					if (checkSettledPresentation) {
+						checkSettledPresentation = false
+						recoverSettledPresentation(lane, targetAdmissionOrdinal)?.let { return@withTransaction it }
+					}
+					if (cursor >= targetAdmissionOrdinal) {
+						return@withTransaction ActivityProjectionPass.Applied(cursor, 0, 0)
+					}
 					val evidenceState = evidenceState()
 					val storedTerminal = database.sourceProjectionStateDao()
 						.firstTerminalFailureAfterThrough(
@@ -186,7 +189,7 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 					var skippedThrough = cursor
 					for (event in preflight) {
 						attemptedOrdinal = event.admissionOrdinal
-						when (val admission = adapter.admit(SourceEventId(event.eventId))) {
+						when (val admission = admitWithRecoveredPresentation(SourceEventId(event.eventId))) {
 							is ActivityCapturedWalAdmissionResult.Admitted -> {
 								return@withTransaction projectTerminalRun(
 									lane,
@@ -299,6 +302,44 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		return ActivityCapturedFactDrainResult.Complete(cursor, windowsApplied, eventsValidated)
 	}
 
+	/** Reuses the normal complete-run writer without rewinding the already-settled lane cursor. */
+	private suspend fun recoverSettledPresentation(
+		lane: SourceProductProjectionLaneEntity,
+		throughOrdinal: Long,
+	): ActivityProjectionPass? {
+		val failures = database.sourceProjectionStateDao().settledActivityPresentationFailures(
+			WRITER_ID, WRITER_VERSION, SourceKind.ACTIVITY.stableCode,
+			lane.contiguousAdmissionOrdinal, MAX_PRESENTATION_RECOVERY_RUNS,
+		)
+		for (failure in failures) {
+			val event = projectionPage(failure.admissionOrdinal - 1L, failure.admissionOrdinal, 1).singleOrNull()
+			if (event != null && presentation.recoverMissingForRetainedEvent(event.eventId)) {
+				val admitted = adapter.admit(SourceEventId(event.eventId))
+				if (admitted is ActivityCapturedWalAdmissionResult.Admitted) {
+					val finalOrdinal = terminalAdmissionOrdinal(admitted.acquisitionAuthority.captureAuthority,
+						event.admissionOrdinal)
+					if (finalOrdinal != null && finalOrdinal <= throughOrdinal) {
+						return projectTerminalRun(lane, lane.contiguousAdmissionOrdinal, failure.admissionOrdinal - 1L,
+							throughOrdinal, event, admitted)
+					}
+				}
+			}
+		}
+		return null
+	}
+
+	private suspend fun admitWithRecoveredPresentation(eventId: SourceEventId): ActivityCapturedWalAdmissionResult {
+		val result = adapter.admit(eventId)
+		return if (result is ActivityCapturedWalAdmissionResult.Rejected &&
+			result.reason == ActivityCapturedWalAdmissionRejection.SEGMENT_MISMATCH &&
+			presentation.recoverMissingForRetainedEvent(eventId.value)
+		) {
+			adapter.admit(eventId)
+		} else {
+			result
+		}
+	}
+
 	private suspend fun projectTerminalRun(
 		lane: SourceProductProjectionLaneEntity,
 		originalCursor: Long,
@@ -313,9 +354,10 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 			finalOrdinal > targetAdmissionOrdinal ||
 			lane.captureAdmissionCutoffOrdinal?.let { finalOrdinal > it } == true
 		) {
-			advanceCursor(lane, skippedThrough)
+			val throughOrdinal = maxOf(lane.contiguousAdmissionOrdinal, skippedThrough)
+			advanceCursor(lane, throughOrdinal)
 			return ActivityProjectionPass.Deferred(
-				skippedThrough,
+				throughOrdinal,
 				seedEvent.admissionOrdinal,
 				"ACTIVITY_TERMINAL_HIGH_WATER_UNSETTLED",
 			)
@@ -362,7 +404,7 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		authority: ActivityCaptureAuthority,
 		groups: MutableMap<ActivityProjectionWindowKey, ActivityProjectionWindowAccumulator>,
 	): ActivityProjectionPass? {
-		return when (val admission = adapter.admit(SourceEventId(event.eventId))) {
+		return when (val admission = admitWithRecoveredPresentation(SourceEventId(event.eventId))) {
 			is ActivityCapturedWalAdmissionResult.Admitted -> {
 				val candidateAuthority = admission.acquisitionAuthority.captureAuthority
 				if (candidateAuthority.logicalTrackingId != authority.logicalTrackingId) {
@@ -421,8 +463,9 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		admissionOrdinal: Long,
 		reason: ActivityCapturedWalAdmissionUnavailable,
 	): ActivityProjectionPass = if (reason == ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW) {
-		advanceCursor(lane, skippedThrough)
-		ActivityProjectionPass.Deferred(skippedThrough, admissionOrdinal, reason.name)
+		val throughOrdinal = maxOf(lane.contiguousAdmissionOrdinal, skippedThrough)
+		advanceCursor(lane, throughOrdinal)
+		ActivityProjectionPass.Deferred(throughOrdinal, admissionOrdinal, reason.name)
 	} else {
 		terminalFailure(lane, originalCursor, admissionOrdinal, reason.name)
 	}
@@ -468,8 +511,9 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 				projectionDao.deleteFailure(WRITER_ID, WRITER_VERSION, observation.reference.admissionOrdinal)
 			}
 		}
-		advanceCursor(lane, finalOrdinal)
-		return ActivityProjectionPass.Applied(finalOrdinal, applied, validated)
+		val throughOrdinal = maxOf(lane.contiguousAdmissionOrdinal, finalOrdinal)
+		advanceCursor(lane, throughOrdinal)
+		return ActivityProjectionPass.Applied(throughOrdinal, applied, validated)
 	}
 
 	private suspend fun applyTerminalWindows(windows: List<ActivityProjectedWindow>): Int {
@@ -633,7 +677,7 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 	private suspend fun failureCanBeProcessed(failure: SourceProjectionFailureEntity): Boolean {
 		val event = projectionPage(failure.admissionOrdinal - 1L, failure.admissionOrdinal, 1).singleOrNull()
 			?: return false
-		val admission = adapter.admit(SourceEventId(event.eventId))
+		val admission = admitWithRecoveredPresentation(SourceEventId(event.eventId))
 		return admission is ActivityCapturedWalAdmissionResult.Admitted ||
 			admission.terminalRejectionCode() == failure.failureCode
 	}
@@ -743,6 +787,7 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 	private fun nowMs(): Long = System.currentTimeMillis().coerceAtLeast(0L)
 
 	companion object {
+		private const val MAX_PRESENTATION_RECOVERY_RUNS = 16
 		const val WRITER_ID = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID
 		const val WRITER_VERSION = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION
 		const val BINDING_GENERATION = SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION

@@ -1688,6 +1688,11 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 	): TrackingRetentionFloorReconciliationFailureReason? {
 		validateAmbientPublication(source, owner, lease, availability, requireApproval,
 			expectedStartupGeneration, settlementOperationId)?.let { return it }
+		if (availability == AmbientSourceOperationalAvailability.reconciliationPending(source, lease.purposeLeaseIdentity)) {
+			// The exact lease remains open; retry its callback rather than consume or compensate it.
+			clearAmbientOwnerFlight(lease.identity)
+			return TrackingRetentionFloorReconciliationFailureReason.OWNER_OPERATION_IN_PROGRESS
+		}
 		val report = try {
 			AmbientSourceReconciliationReport(lease.identity, availability)
 		} catch (_: IllegalArgumentException) {
@@ -2170,7 +2175,10 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 	): T? {
 		val gate = trackingStartupGateProvider?.get() ?: return operation(null)
 		val generation = gate.currentGeneration
-		return withReadyGeneration(generation) { operation(generation) }
+		// Owner reconciliation can await provider callbacks and source-local cleanup. Keep it
+		// cancellable by deletion without holding the command lock needed to reserve Stop.
+		// Each owner mutation and final publication still validates its exact purpose lease.
+		return gate.withReadyGenerationWork(generation) { operation(generation) }
 	}
 
 	private suspend fun <T> withReadyGeneration(

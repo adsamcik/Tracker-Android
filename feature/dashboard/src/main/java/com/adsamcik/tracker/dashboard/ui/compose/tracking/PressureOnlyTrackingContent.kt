@@ -90,12 +90,14 @@ internal fun PressureOnlyTrackingCard(pressure: DashboardLivePressureValue) {
 				fontWeight = FontWeight.Bold,
 				color = MaterialTheme.colorScheme.onPrimaryContainer,
 			)
-			Text(
-				text = stringResource(pressure.statusResource),
-				modifier = Modifier.testTag("dashboard_live_pressure_status"),
-				style = MaterialTheme.typography.bodySmall,
-				color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
-			)
+			if (metrics == null || pressure !is DashboardLivePressureValue.Materializing) {
+				Text(
+					text = stringResource(pressure.statusResource),
+					modifier = Modifier.testTag("dashboard_live_pressure_status"),
+					style = MaterialTheme.typography.bodySmall,
+					color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+				)
+			}
 			if (metrics != null) {
 				PressureDetails(metrics)
 			}
@@ -163,7 +165,7 @@ private fun PressureDetails(metrics: DashboardLivePressureMetrics) {
 	)
 }
 
-private val DashboardLivePressureValue.metricsOrNull: DashboardLivePressureMetrics?
+internal val DashboardLivePressureValue.metricsOrNull: DashboardLivePressureMetrics?
 	get() = when (this) {
 		is DashboardLivePressureValue.Ready -> metrics
 		is DashboardLivePressureValue.Partial -> metrics
@@ -174,7 +176,7 @@ private val DashboardLivePressureValue.metricsOrNull: DashboardLivePressureMetri
 		DashboardLivePressureValue.Failed -> null
 	}
 
-private val DashboardLivePressureValue.statusResource: Int
+internal val DashboardLivePressureValue.statusResource: Int
 	get() = when (this) {
 		is DashboardLivePressureValue.Ready -> R.string.dashboard_recent_pressure_available
 		is DashboardLivePressureValue.Partial -> R.string.dashboard_recent_pressure_partial

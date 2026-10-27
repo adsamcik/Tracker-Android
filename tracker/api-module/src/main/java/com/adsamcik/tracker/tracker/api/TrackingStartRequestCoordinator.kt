@@ -61,6 +61,8 @@ sealed interface TrackingStartPreparationResult {
 		val preparedStartIsUserInitiatedHint: Boolean = false,
 		/** Organization over system-owned Steps needs no Android foreground service. */
 		val requiresForegroundService: Boolean = true,
+		/** Patience after foreground promotion for a fresh manual request; never collection authority. */
+		val preparedManualCompletionWaitHint: Boolean = false,
 	) : TrackingStartPreparationResult
 
 	/** An equal or newer durable lifecycle already owns the requested work. */

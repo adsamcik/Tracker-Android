@@ -68,6 +68,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
@@ -746,7 +747,7 @@ class PersistenceProcessorTest {
 		}
 
 		@Test
-		fun `transaction timeout reconciles a commit before retrying buffered rows`() = runTest {
+		fun `caller timeout reconciles a commit before retrying buffered rows`() = runTest {
 			var checkpointed = false
 		coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
 				val ids = if (checkpointed) emptyList() else listOf(43L)
@@ -778,11 +779,44 @@ class PersistenceProcessorTest {
 			)
 			timeoutSafeProcessor.onSignal(signalWithLocation())
 
-			timeoutSafeProcessor.onFlush()
+			shouldThrow<kotlinx.coroutines.TimeoutCancellationException> {
+				withTimeout(100L) { timeoutSafeProcessor.onFlush() }
+			}
 			timeoutSafeProcessor.onFlush()
 
 			coVerify(exactly = 1) { locationDao.insert(any<Collection<LocationSample>>()) }
 			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(listOf(43L)) }
+		}
+
+		@Test
+		fun `slow storage commits a finite batch once without an aggregate deadline`() = runTest {
+			val slowTransactor = object : TrackingPersistenceTransactor {
+				override suspend fun <R> inTransaction(block: suspend () -> R): R {
+					delay(4_000L)
+					return block()
+				}
+			}
+			val slowProcessor = PersistenceProcessor(
+				locationSampleDao = locationDao,
+				locationObservationDao = locationObservationDao,
+				cellSampleDao = cellDao,
+				wifiObservationDao = wifiDao,
+				pressureSampleDao = pressureDao,
+				stepIntervalDao = stepDao,
+				activitySnapshotDao = activityDao,
+				pendingSignalDao = pendingSignalDao,
+				durableBuffer = durableBuffer,
+				transactor = slowTransactor,
+				sourceDestinationOwnerDao = sourceDestinationOwnerDao,
+			)
+			slowProcessor.onStart(ProcessorContext(startTimestamp = EpochMs(0L), sessionId = 1L))
+			slowProcessor.onSignal(signalWithLocation())
+
+			slowProcessor.onFlush()
+			slowProcessor.onFlush()
+
+			coVerify(exactly = 1) { locationDao.insert(any<Collection<LocationSample>>()) }
+			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(any()) }
 		}
 
 		@Test

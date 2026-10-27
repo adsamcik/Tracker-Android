@@ -187,13 +187,8 @@ private fun Flow<CurrentTrackingPurposeAuthorityState>.failClosedOnObservationEr
 
 private val APPROVED_PUBLISHED_PURPOSES = buildList {
 	add(TrackingSource.ACTIVITY.forPurpose(TrackingPurpose.CONTROL))
-	listOf(
-		TrackingSource.STEPS,
-		TrackingSource.LOCATION,
-		TrackingSource.WIFI,
-		TrackingSource.CELL,
-	).forEach { source ->
-		add(source.forPurpose(TrackingPurpose.AMBIENT_PRODUCT))
+	AmbientTrackingSource.entries.forEach { source ->
+		add(source.canonicalSource.forPurpose(TrackingPurpose.AMBIENT_PRODUCT))
 	}
 }
 

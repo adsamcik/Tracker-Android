@@ -197,4 +197,5 @@
     <string name="dashboard_activity_on_foot">Pieszo</string>
     <string name="dashboard_activity_tilting">Przechylanie</string>
     <string name="dashboard_activity_unknown">Nieznana aktywność</string>
+    <string name="dashboard_finishing_session">Kończenie sesji…</string>
 </resources>

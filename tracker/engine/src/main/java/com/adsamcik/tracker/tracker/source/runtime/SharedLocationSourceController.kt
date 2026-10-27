@@ -446,6 +446,9 @@ class SharedLocationSourceController @Inject constructor(
 			it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT
 		}
 		val ambientEnabled = ambientDemand != null && baselinePlan?.enabled == true
+		if (sessionPlan != null && sessionClaim != null) {
+			return publishAmbientJoin(refreshOwnedSessionForAmbient(demands), ambientEnabled)
+		}
 		if (ambientDemand == null && !ambientAttached && sessionPlan == null) {
 			return AmbientLocationRuntimeJoinResult.Inactive(providerKey = null)
 		}
@@ -454,6 +457,21 @@ class SharedLocationSourceController @Inject constructor(
 			return settleInactiveAmbientLocked()
 		}
 		return publishAmbientJoin(applyEffective(effective, sessionClaim, demands), ambientEnabled)
+	}
+
+	/** Only the session owner may replace its provider or consume its retirement acknowledgement. */
+	private suspend fun refreshOwnedSessionForAmbient(demands: List<SourceDemandEntity>): SourceApplyResult {
+		val ownedPlan = requireNotNull(sessionPlan)
+		val effective = effectivePlan(demands)
+		val refreshed = if (effective != null && demands.any { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) {
+			physicalRuntime.refreshShared(joinUiLocationPlan(effective, uiPlan()), unboundSink, sessionClaim,
+				demands.maxOf(SourceDemandEntity::maximumAgeMs))
+		} else {
+			// A new lease or End can change durable demand before its session owner arrives.
+			// Keep the listener and original callback header intact until that owner acts.
+			null
+		}
+		return refreshed ?: SourceApplyResult.Failed(blockedState(ownedPlan), retryable = true)
 	}
 
 	private fun publishAmbientJoin(

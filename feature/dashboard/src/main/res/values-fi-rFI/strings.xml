@@ -195,4 +195,5 @@
     <string name="dashboard_activity_on_foot">Jalan</string>
     <string name="dashboard_activity_tilting">Kallistuminen</string>
     <string name="dashboard_activity_unknown">Tuntematon aktiivisuus</string>
+    <string name="dashboard_finishing_session">Viimeistellään istuntoa…</string>
 </resources>

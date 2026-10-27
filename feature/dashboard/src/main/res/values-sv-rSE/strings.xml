@@ -195,4 +195,5 @@
     <string name="dashboard_activity_on_foot">Till fots</string>
     <string name="dashboard_activity_tilting">Lutande</string>
     <string name="dashboard_activity_unknown">Okänd aktivitet</string>
+    <string name="dashboard_finishing_session">Avslutar sessionen…</string>
 </resources>

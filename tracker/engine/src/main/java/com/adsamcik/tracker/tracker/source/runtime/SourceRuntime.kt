@@ -337,6 +337,15 @@ enum class SourceStopStatus {
 	PROCESS_RESTARTED,
 }
 
+/** The compact receipt lacks Location's failed-count and flush columns. Preserve known limitations. */
+internal fun SourceStopAck.persistedCompletenessStatus(): SourceStopStatus =
+	if (source == SourceKind.LOCATION && status == SourceStopStatus.COMPLETE && (failedAdmissionCount > 0L ||
+		providerFlushOutcome in setOf(ProviderFlushOutcome.FAILED, ProviderFlushOutcome.TIMED_OUT))) {
+		SourceStopStatus.PARTIAL_UNOBSERVABLE
+	} else {
+		status
+	}
+
 /** Preserves the completed predecessor acknowledgement when a source start becomes a reconfiguration result. */
 internal fun SourceStartResult.toApplyResult(stopAck: SourceStopAck?): SourceApplyResult = when (this) {
 	is SourceStartResult.Started -> SourceApplyResult.Applied(applied, stopAck)

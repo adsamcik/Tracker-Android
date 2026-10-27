@@ -197,4 +197,5 @@
     <string name="dashboard_activity_on_foot">Pěšky</string>
     <string name="dashboard_activity_tilting">Naklánění</string>
     <string name="dashboard_activity_unknown">Neznámá aktivita</string>
+    <string name="dashboard_finishing_session">Dokončování relace…</string>
 </resources>

@@ -25,6 +25,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLan
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionJoinStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.authenticatedProtectedLocationCanonicalCurationState
 import com.adsamcik.tracker.shared.base.database.data.protectedLocationCanonicalProductIdentity
 import com.adsamcik.tracker.shared.base.database.data.protectedLocationCanonicalReceiptBytes
@@ -937,6 +939,11 @@ internal class ProtectedLocationCanonicalHandoff(
 		adapted: LocationWalAdapterResult.Rejected,
 		ambient: LocationAmbientQualification,
 	): ProtectedLocationCandidateEffect {
+		if (adapted.reason == LocationWalAdapterRejection.MISSING_SEGMENT &&
+			awaitsCurrentSessionPresentation(candidate.eventId)
+		) {
+			return ProtectedLocationCandidateEffect.Deferred("LOCATION_SESSION_PRESENTATION_PENDING")
+		}
 		if (ambient is LocationAmbientQualification.Qualified) {
 			return processAmbientCandidate(initialLane, expectedCursor, candidate, ambient.command)
 		}
@@ -946,6 +953,24 @@ internal class ProtectedLocationCanonicalHandoff(
 			return ProtectedLocationCandidateEffect.LifecycleSettled(candidate.admissionOrdinal)
 		}
 		return failCandidate(initialLane, expectedCursor, candidate, "LOCATION_ADAPTER_${adapted.reason.name}")
+	}
+
+	private suspend fun awaitsCurrentSessionPresentation(eventId: String): Boolean = database.withTransaction {
+		val wal = database.sourceEventWalDao().getByEventId(eventId)
+		val dao = database.sourceSessionDao()
+		val session = wal?.logicalTrackingId?.let { dao.session(it) }
+		val run = wal?.serviceRunId?.let { dao.serviceRun(it) }
+		if (wal == null || session == null || run == null) {
+			return@withTransaction false
+		}
+		run.awaitsPresentationBinding(session)
+	}
+
+	private fun SourceServiceRunEntity.awaitsPresentationBinding(session: LogicalTrackingSessionEntity): Boolean {
+		val currentRun = session.currentServiceRunId == serviceRunId && logicalTrackingId == session.logicalTrackingId
+		val awaitingBinding = sessionSegmentId == null && completedAtMs == null && session.cutoffAtMs == null
+		val initializingStates = setOf("STARTING", "ACTIVE", "RECONFIGURING")
+		return currentRun && awaitingBinding && session.state in initializingStates && state in initializingStates
 	}
 
 	// The complete existing candidate context plus the two optional expected-run identifiers.

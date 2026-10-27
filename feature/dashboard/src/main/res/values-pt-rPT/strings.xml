@@ -195,4 +195,5 @@
     <string name="dashboard_activity_on_foot">A pé</string>
     <string name="dashboard_activity_tilting">Inclinado</string>
     <string name="dashboard_activity_unknown">Atividade desconhecida</string>
+    <string name="dashboard_finishing_session">A concluir sessão…</string>
 </resources>

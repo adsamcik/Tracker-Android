@@ -62,6 +62,7 @@ import com.adsamcik.tracker.tracker.source.model.toStableFlags
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.mockk
+import io.mockk.coEvery
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -88,6 +89,65 @@ class ActivityCapturedWalAdmissionAdapterTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `same-session equivalent plan handoff materializes original Activity observations through the real writer`() = runTest {
+		installFixture()
+		installSameSessionActivityHandoff()
+		installProjectionLane()
+
+		val completed = ActivityCapturedFactProjectionLane(database, subject()).drainAvailable()
+			.shouldBeInstanceOf<ActivityCapturedFactDrainResult.Complete>()
+
+		completed.windowsApplied shouldBe 1
+		val facts = database.activityCapturedFactDao().currentRevisionsForWriterAdmission(
+			ActivityCapturedFactProjectionLane.WRITER_ID, ActivityCapturedFactProjectionLane.WRITER_VERSION, 1L, 2)
+		facts.single().configurationRevision shouldBe PLAN_REVISION
+		facts.single().manifestRevision shouldBe 2L
+		facts.single().authorizationRevision shouldBe 2L
+		database.sourceEventWalDao().getByAdmissionOrdinal(1L)?.configRevision shouldBe PLAN_REVISION
+		database.sourceProjectionStateDao().failure(ActivityCapturedFactProjectionLane.WRITER_ID,
+			ActivityCapturedFactProjectionLane.WRITER_VERSION, 1L) shouldBe null
+	}
+
+	@Test
+	fun `missing presentation replays retained Activity behind its cursor only after a committed writer retry`() = runTest {
+		installFixture()
+		insertLaterLocationWal()
+		installProjectionLane()
+		val dao = database.sourceSessionDao()
+		val run = requireNotNull(dao.serviceRun(SERVICE_RUN_ID))
+		val originalSegment = requireNotNull(run.sessionSegmentId)
+		dao.updateServiceRun(run.copy(sessionSegmentId = null)) shouldBe 1
+		database.sessionSegmentDao().deleteById(originalSegment)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_product_projection_lane SET contiguous_admission_ordinal = 3 WHERE source_kind = ?",
+			arrayOf(ACTIVITY_SOURCE))
+		installHistoricalPlanFailure("ACTIVITY_WAL_SEGMENT_MISMATCH")
+		val writer = mockk<ActivityCapturedFactWriter>()
+		coEvery { writer.write(any()) } throws IllegalStateException("storage unavailable")
+		val failed = ActivityCapturedFactProjectionLane(database, subject(), writer).drainAvailable()
+		failed.shouldBeInstanceOf<ActivityCapturedFactDrainResult.Failed>()
+		dao.serviceRun(SERVICE_RUN_ID)?.sessionSegmentId shouldBe null
+		database.sourceProjectionStateDao().activeProductLane(ACTIVITY_SOURCE)?.contiguousAdmissionOrdinal shouldBe 3L
+		database.sourceProjectionStateDao().failure(ActivityCapturedFactProjectionLane.WRITER_ID,
+			ActivityCapturedFactProjectionLane.WRITER_VERSION, 1L)?.failureCode shouldBe "ACTIVITY_WAL_SEGMENT_MISMATCH"
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+
+		val lane = ActivityCapturedFactProjectionLane(database, subject())
+		val recovered = lane.drainAvailable().shouldBeInstanceOf<ActivityCapturedFactDrainResult.Complete>()
+		recovered.lastCompletedOrdinal shouldBe 3L
+		recovered.windowsApplied shouldBe 1
+		val binding = requireNotNull(dao.serviceRun(SERVICE_RUN_ID)?.sessionSegmentId)
+		database.sessionSegmentDao().getById(binding)?.logicalTrackingId shouldBe LOGICAL_TRACKING_ID
+		database.sessionSegmentDao().getById(binding)?.endTimeMs shouldBe 2_000L
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+		database.sourceProjectionStateDao().failure(ActivityCapturedFactProjectionLane.WRITER_ID,
+			ActivityCapturedFactProjectionLane.WRITER_VERSION, 1L) shouldBe null
+		lane.drainAvailable().shouldBeInstanceOf<ActivityCapturedFactDrainResult.Complete>().windowsApplied shouldBe 0
+		database.sourceEventWalDao().getByAdmissionOrdinal(1L)?.eventId shouldBe EVENT_ID.value
+		database.sourceProjectionStateDao().activeProductLane(ACTIVITY_SOURCE)?.contiguousAdmissionOrdinal shouldBe 3L
+	}
 
 	@Test
 	fun `retired interrupted Activity drains saved readings and settles with unknown coverage`() = runTest {
@@ -710,6 +770,56 @@ class ActivityCapturedWalAdmissionAdapterTest {
 	}
 
 	@Test
+	fun `shared ambient observation without session membership is not a malformed capture`() = runTest {
+		installFixture(sampled = true)
+		val original = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		val sessionless = original.copy(
+			logicalTrackingId = null, serviceRunId = null, sourcePolicyRevision = null,
+			captureConsentEpoch = null, sessionManifestRevision = null, lifecycleLeaseGeneration = null,
+			planAttribution = PlanAttribution.RECEIVE_TIME_ONLY.ordinal,
+			authorizationPurposeEligibilityMask = original.authorizationPurposeEligibilityMask or
+				SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+		)
+		database.openHelper.writableDatabase.execSQL("DELETE FROM source_event_wal WHERE event_id = ?",
+			arrayOf(EVENT_ID.value))
+		database.sourceEventWalDao().insertDeliveryUnits(listOf(
+			sessionless.copy(integrityIdentity = sessionless.calculatedIntegrityIdentity()),
+		))
+
+		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.CONTROL_ONLY,
+		)
+		// No recording is invented; the original all-day observation remains saved.
+		database.sourceEventWalDao().countAll() shouldBe 1L
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET integrity_identity = 'damaged' WHERE event_id = ?", arrayOf(EVENT_ID.value))
+		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.WAL_INTEGRITY_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `partly missing session membership remains a capture error even with an ambient sibling`() = runTest {
+		installFixture(sampled = true)
+		val original = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		val incomplete = original.copy(
+			logicalTrackingId = null,
+			authorizationPurposeEligibilityMask = original.authorizationPurposeEligibilityMask or
+				SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+		)
+		database.openHelper.writableDatabase.execSQL("DELETE FROM source_event_wal WHERE event_id = ?",
+			arrayOf(EVENT_ID.value))
+		database.sourceEventWalDao().insertDeliveryUnits(listOf(
+			incomplete.copy(integrityIdentity = incomplete.calculatedIntegrityIdentity()),
+		))
+
+		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.MALFORMED_DELIVERY,
+		)
+	}
+
+	@Test
 	fun `open provider and session cannot select a stable materialization window`() = runTest {
 		installFixture(settled = false)
 
@@ -992,6 +1102,41 @@ class ActivityCapturedWalAdmissionAdapterTest {
 		planCodec,
 		BootClockDomainProvider { BOOT_ID },
 	)
+
+	private suspend fun installSameSessionActivityHandoff() {
+		val dao = database.sourceSessionDao()
+		val original = requireNotNull(dao.manifest(LOGICAL_TRACKING_ID, MANIFEST_REVISION))
+		val bindings = dao.manifestSources(LOGICAL_TRACKING_ID, MANIFEST_REVISION).map { it.copy(manifestRevision = 2L) }
+		val unsigned = original.copy(manifestRevision = 2L, acquisitionPlanRevision = 2L,
+			effectiveElapsedRealtimeNanos = 180L, effectiveWallTimeMs = 1_150L,
+			startOrigin = "POLICY_RECONCILIATION", changeReason = "POLICY_RECONCILIATION", manifestChecksum = "")
+		dao.insertManifest(unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, bindings)))
+		dao.insertManifestSources(bindings)
+		dao.updateSession(requireNotNull(dao.session(LOGICAL_TRACKING_ID)).copy(currentManifestRevision = 2L,
+			desiredPlanRevision = 2L)) shouldBe 1
+		dao.updateServiceRun(requireNotNull(dao.serviceRun(SERVICE_RUN_ID)).copy(desiredPlanRevision = 2L)) shouldBe 1
+		val encoded = planCodec.encode(ACTIVITY_PLAN.copy(revision = 2L))
+		database.sourcePlanStateDao().insertRevision(AcquisitionPlanRevisionEntity(2L, "activity-plan-2", 1_150L,
+			"EFFECTIVE", POLICY_REVISION))
+		database.sourcePlanStateDao().insertDesiredPlans(listOf(SourceDesiredPlanEntity(2L, ACTIVITY_SOURCE,
+			encoded.formatVersion, encoded.bytes, encoded.checksum)))
+		val demand = captureDemand().copy(demandId = "activity-capture-handoff", manifestRevision = 2L,
+			requestedElapsedRealtimeNanos = 180L, requestedAtMs = 1_150L)
+		val broker = database.sourceBrokerDao()
+		broker.insertDemands(listOf(demand))
+		val rows = SourceBrokerAuthorization.rows(ACTIVITY_SOURCE, REGISTRATION_GENERATION, 2L, listOf(demand),
+			BOOT_ID, 180L, 1_150L)
+		broker.insertAuthorizations(rows)
+		database.openHelper.writableDatabase.execSQL("UPDATE provider_registration_generation SET " +
+			"capture_callback_barrier_authorization_revision=2 WHERE source_kind=2 AND registration_generation=1")
+		for (originalWal in database.sourceEventWalDao().eventsAfter(0L, 10)) {
+			val wal = originalWal.copy(authorizationRevision = 2L,
+				authorizationFingerprint = rows.single().authorizationFingerprint, sessionManifestRevision = 2L)
+			database.openHelper.writableDatabase.execSQL("UPDATE source_event_wal SET authorization_revision=2, " +
+				"authorization_fingerprint=?, session_manifest_revision=2, integrity_identity=? WHERE event_id=?",
+				arrayOf(wal.authorizationFingerprint, wal.calculatedIntegrityIdentity(), wal.eventId))
+		}
+	}
 
 	@Suppress("LongMethod")
 	private suspend fun installFixture(

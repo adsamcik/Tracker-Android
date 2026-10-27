@@ -21,6 +21,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 
 /** Narrow append-only storage boundary for the dormant captured Activity writer. */
@@ -927,6 +928,21 @@ interface ActivityCapturedFactDao {
 		serviceRunIds: List<String>,
 		limit: Int,
 	): List<ActivityCapturedPortableWalTargetRow>
+
+	/** Latest saved measurements for live readings, before finite capture windows can be sealed. */
+	@Query(
+		"SELECT * FROM source_event_wal INDEXED BY idx_source_event_wal_tracking_ordinal " +
+			"WHERE logical_tracking_id IN (:logicalTrackingIds) AND source_kind = :sourceKind " +
+			"AND service_run_id IN (:serviceRunIds) AND LENGTH(payload) <= :maximumPayloadBytes " +
+			"ORDER BY observed_elapsed_nanos DESC, admission_ordinal DESC LIMIT :limit",
+	)
+	suspend fun latestCapturedObservations(
+		logicalTrackingIds: List<String>,
+		sourceKind: Int,
+		serviceRunIds: List<String>,
+		maximumPayloadBytes: Int,
+		limit: Int,
+	): List<SourceEventWalEntity>
 
 	/** Complete payload-free delivery siblings for bounded selected-run Activity WAL targets. */
 	@Query(

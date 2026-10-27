@@ -9,12 +9,16 @@ import android.os.Parcelable
 data class TrackerSessionInfo(
 	val isInitiatedByUser: Boolean,
 	val isProviderStepsSession: Boolean = false,
+	/** Accepted End cutoff while saved observations finish processing. */
+	val stoppingAtMs: Long? = null,
 ) : Parcelable {
-	constructor(parcel: Parcel) : this(parcel.readByte() != 0.toByte(), parcel.readByte() != 0.toByte())
+	constructor(parcel: Parcel) : this(parcel.readByte() != 0.toByte(), parcel.readByte() != 0.toByte(),
+		parcel.readLong().takeIf { it >= 0L })
 
 	override fun writeToParcel(parcel: Parcel, flags: Int) {
 		parcel.writeByte(if (isInitiatedByUser) 1 else 0)
 		parcel.writeByte(if (isProviderStepsSession) 1 else 0)
+		parcel.writeLong(stoppingAtMs ?: -1L)
 	}
 
 	override fun describeContents(): Int {

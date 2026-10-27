@@ -28,11 +28,13 @@ import com.adsamcik.tracker.tracker.source.control.LocationMotionScope
 import com.adsamcik.tracker.activity.api.registration.LocationMotionPurpose
 import com.adsamcik.tracker.tracker.source.coordinator.SemanticAcquisitionPlanFactory
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanResolver
+import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose
 import com.adsamcik.tracker.tracker.source.model.SourceDemandContractFactory
 import io.mockk.coEvery
@@ -44,8 +46,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertSame
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -204,6 +208,7 @@ class AmbientSensorPurposeOwnerTest {
 			SourceApplyResult.Failed(mockk(), retryable = true)
 
 		fixture.owner.refreshActivePlans()
+		assertFalse(fixture.owner.retire(AmbientTrackingSource.PRESSURE, fixture.pressureLease))
 
 		assertEquals(fixture.pressureLease.identity, fixture.hosted.value[AmbientTrackingSource.PRESSURE]?.identity)
 		assertTrue(ActivityRegistrationOwner.ALL_DAY_TRACKING in fixture.activityOwners)
@@ -215,6 +220,130 @@ class AmbientSensorPurposeOwnerTest {
 		assertTrue(fixture.owner.retire(AmbientTrackingSource.PRESSURE, fixture.pressureLease))
 		assertTrue(fixture.hosted.value.isEmpty())
 		coVerify(exactly = 1) { fixture.host.release(fixture.pressureLease.identity) }
+	}
+
+	@Test
+	fun `advancing a session lease keeps all-day Pressure available to resume after End`() = runTest {
+		val fixture = Fixture(realPlanning = true, sharedPressure = true, applicationScope = backgroundScope)
+		var captureLease: Long? = null
+		coEvery { fixture.broker.authorizationDemands(SourceKind.PRESSURE) } answers {
+			buildList {
+				if (fixture.accepted.containsKey(AmbientTrackingSource.PRESSURE)) {
+					add(fixture.pressureDemand(capture = false))
+				}
+				captureLease?.let { add(fixture.pressureDemand(capture = true, leaseGeneration = it)) }
+			}
+		}
+		assertEquals(AmbientSourceOperationalState.READY, fixture.owner.reconcile(fixture.pressureLease).state)
+		val host = fixture.hosted.value.getValue(AmbientTrackingSource.PRESSURE)
+		val plan = PressurePlan(2L, true, 100_000, 0, 5_000L)
+		val claim = SourceRuntimeClaim(SourceKind.PRESSURE, "start", 1, 1L, "session", "run")
+		captureLease = 1L
+		assertIs<SourceStartResult.Started>(fixture.pressure.start(claim, plan, fixture.pressureSink))
+		captureLease = 2L
+
+		fixture.owner.refreshActivePlans()
+
+		assertEquals(fixture.pressureLease.identity, fixture.accepted[AmbientTrackingSource.PRESSURE])
+		assertSame(host, fixture.hosted.value.getValue(AmbientTrackingSource.PRESSURE))
+		coVerify(exactly = 0) { fixture.broker.retireAmbientSourceDemand(any(), any(), any(), any()) }
+		coVerify(exactly = 0) { fixture.host.release(any()) }
+		coVerify(exactly = 1) { fixture.retries.schedule(match {
+			it.failures.single().source == AmbientTrackingSource.PRESSURE }) }
+		val successor = claim.copy(actionId = "reconfigure", leaseGeneration = 2L)
+		assertIs<SourceApplyResult.Applied>(fixture.pressure.reconfigure(successor, plan, fixture.pressureSink))
+		captureLease = null
+		assertIs<OwnedSourceShutdown.Released>(fixture.pressure.shutdownIfOwned(successor,
+			SessionCutoff("session", 20L, 30L, 100L)))
+		fixture.owner.refreshActivePlans()
+		coVerify(exactly = 1) { fixture.physicalPressure.quiesceShared(any()) }
+		coVerify(exactly = 2) { fixture.physicalPressure.reconfigure(any<PressurePlan>(), fixture.pressureSink) }
+		assertEquals(fixture.pressureLease.identity, fixture.accepted[AmbientTrackingSource.PRESSURE])
+	}
+
+	@Test
+	fun `retryable initial Pressure activation preserves its demand without claiming readiness`() = runTest {
+		val fixture = Fixture()
+		coEvery { fixture.pressure.reconcileAmbient(match { it?.enabled == true }) } returns
+			SourceApplyResult.Failed(mockk(), retryable = true)
+
+		val pending = fixture.owner.reconcile(fixture.pressureLease)
+
+		assertEquals(AmbientSourceOperationalState.WAITING, pending.state)
+		assertEquals(fixture.pressureLease.purposeLeaseIdentity, pending.lastIdentity)
+		assertEquals(fixture.pressureLease.identity, fixture.accepted[AmbientTrackingSource.PRESSURE])
+		assertEquals(fixture.pressureLease.identity, fixture.hosted.value[AmbientTrackingSource.PRESSURE]?.identity)
+		coVerify(exactly = 0) { fixture.pressure.reconcileAmbient(null) }
+		verify(exactly = 0) { fixture.reporter.invalidateAmbient(any()) }
+		coVerify(exactly = 1) { fixture.retries.schedule(any()) }
+		coEvery { fixture.pressure.reconcileAmbient(match { it?.enabled == true }) } returns
+			SourceApplyResult.Applied(mockk())
+		assertEquals(AmbientSourceOperationalState.READY, fixture.owner.reconcile(fixture.pressureLease).state)
+	}
+
+	@Test
+	fun `nonretryable Pressure refresh failure still retires its demand and host`() = runTest {
+		val fixture = Fixture()
+		fixture.owner.reconcile(fixture.pressureLease)
+		coEvery { fixture.pressure.reconcileAmbient(match { it?.enabled == true }) } returns
+			SourceApplyResult.Failed(mockk(), retryable = false)
+
+		fixture.owner.refreshActivePlans()
+
+		assertFalse(fixture.accepted.containsKey(AmbientTrackingSource.PRESSURE))
+		assertTrue(fixture.hosted.value.isEmpty())
+		coVerify(exactly = 1) { fixture.pressure.reconcileAmbient(null) }
+		coVerify(exactly = 1) { fixture.host.release(fixture.pressureLease.identity) }
+	}
+
+	@Test
+	fun `retryable Activity refresh preserves all-day and automatic owners`() = runTest {
+		val fixture = Fixture(automatic = true)
+		fixture.owner.reconcile(fixture.activityLease)
+		coEvery { fixture.activity.setDemand(ActivityRegistrationOwner.ALL_DAY_TRACKING, any()) } returns
+			ActivityRegistrationResult(ActivityRegistrationStatus.FAILED, fixture.activitySnapshot(), retryable = true)
+
+		fixture.owner.refreshActivePlans()
+
+		assertEquals(fixture.activityLease.identity, fixture.accepted[AmbientTrackingSource.ACTIVITY])
+		assertEquals(setOf(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationOwner.ALL_DAY_TRACKING), fixture.activityOwners)
+		coVerify(exactly = 0) { fixture.activity.clearDemand(any()) }
+		coVerify(exactly = 0) { fixture.broker.retireAmbientSourceDemand(any(), any(), any(), any()) }
+		coVerify(exactly = 1) { fixture.retries.schedule(match {
+			it.failures.single().source == AmbientTrackingSource.ACTIVITY }) }
+	}
+
+	@Test
+	fun `a revoked sensor choice still retires after a retryable Pressure refresh`() = runTest {
+		val fixture = Fixture()
+		fixture.owner.reconcile(fixture.pressureLease)
+		coEvery { fixture.pressure.reconcileAmbient(match { it?.enabled == true }) } returns
+			SourceApplyResult.Failed(mockk(), retryable = true)
+		fixture.owner.refreshActivePlans()
+		assertTrue(fixture.accepted.containsKey(AmbientTrackingSource.PRESSURE))
+
+		fixture.params.value = fixture.params.value.copy(sourcePolicyRevision = 3L, barometerEnabled = false)
+		fixture.owner.refreshActivePlans()
+
+		assertFalse(fixture.accepted.containsKey(AmbientTrackingSource.PRESSURE))
+		assertTrue(fixture.hosted.value.isEmpty())
+		coVerify(exactly = 1) { fixture.pressure.reconcileAmbient(null) }
+	}
+
+	@Test
+	fun `revoking Activity permission retires only its all-day owner`() = runTest {
+		val fixture = Fixture(automatic = true)
+		fixture.owner.reconcile(fixture.activityLease)
+		fixture.owner.reconcile(fixture.pressureLease)
+		Shadows.shadowOf(fixture.context).denyPermissions(Manifest.permission.ACTIVITY_RECOGNITION)
+
+		fixture.owner.refreshActivePlans()
+
+		assertFalse(fixture.accepted.containsKey(AmbientTrackingSource.ACTIVITY))
+		assertEquals(setOf(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR), fixture.activityOwners)
+		assertEquals(fixture.pressureLease.identity, fixture.accepted[AmbientTrackingSource.PRESSURE])
+		coVerify(exactly = 0) { fixture.pressure.reconcileAmbient(null) }
 	}
 
 	@Test
@@ -282,12 +411,19 @@ class AmbientSensorPurposeOwnerTest {
 		coVerify(exactly = 0) { fixture.retries.schedule(any()) }
 	}
 
-	private class Fixture(automatic: Boolean = false, realPlanning: Boolean = false) {
+	private class Fixture(
+		automatic: Boolean = false,
+		realPlanning: Boolean = false,
+		sharedPressure: Boolean = false,
+		applicationScope: CoroutineScope? = null,
+	) {
 		val context = RuntimeEnvironment.getApplication()
 		val broker = mockk<SourceBroker>()
 		val callers = mockk<SourceCallerDemandDispatcher>()
 		val activity = mockk<ActivityRegistrationArbiter>()
-		val pressure = mockk<SharedPressureSourceController>()
+		val pressure: SharedPressureSourceController
+		val physicalPressure = mockk<PressureSourceRuntime>()
+		val pressureSink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
 		val host = mockk<BackgroundLocationHost>()
 		val settings = mockk<TrackingParamsRepository>()
 		val factory = if (realPlanning) {
@@ -349,7 +485,25 @@ class AmbientSensorPurposeOwnerTest {
 				activityOwners -= firstArg<ActivityRegistrationOwner>()
 				ActivityRegistrationResult(ActivityRegistrationStatus.APPLIED, activitySnapshot())
 			}
-			coEvery { pressure.reconcileAmbient(any()) } returns SourceApplyResult.Applied(mockk())
+			pressure = if (sharedPressure) {
+				val sinks = mockk<DurableSourceEventSinkFactory>()
+				every { sinks.unbound } returns pressureSink
+				every { physicalPressure.capabilities } returns MutableStateFlow(SourceCapabilities(true, true, true, null, null))
+				coEvery { physicalPressure.reconfigure(any<PressurePlan>(), pressureSink) } returns
+					SourceApplyResult.Applied(mockk())
+				coEvery { physicalPressure.reconfigure(any<SourceRuntimeClaim>(), any(), pressureSink) } returns
+					SourceApplyResult.Applied(mockk())
+				coEvery { physicalPressure.quiesceShared(any()) } returns SourceStopAck(SourceKind.PRESSURE,
+					SourceInstanceId("pressure"), 1L, 2L, 5L, 5L, 50L, 0L, null, null,
+					RegistrationRemovalOutcome.REMOVED, ProviderFlushOutcome.COMPLETE,
+					ProviderCoverage.CALLBACKS_ENTERED_BEFORE_BARRIER, true, SourceStopStatus.COMPLETE)
+				SharedPressureSourceController(physicalPressure, broker, sinks, reporter, retries,
+					requireNotNull(applicationScope))
+			} else {
+				mockk<SharedPressureSourceController>().also {
+					coEvery { it.reconcileAmbient(any()) } returns SourceApplyResult.Applied(mockk())
+				}
+			}
 			every { host.leases } returns hosted
 			coEvery { host.acquire(any()) } coAnswers {
 				val identity = firstArg<AmbientReconciliationIdentity>()
@@ -384,6 +538,39 @@ class AmbientSensorPurposeOwnerTest {
 
 		fun activitySnapshot() = ActivityRegistrationSnapshot(activityOwners.isNotEmpty(), null,
 			activityOwners.toSet(), 30, emptySet())
+
+		fun pressureDemand(capture: Boolean, leaseGeneration: Long = 1L): SourceDemandEntity {
+			val contract = SourceDemandContractFactory.forProfile(SourceKind.PRESSURE, 1, 3,
+				if (capture) {
+					DirectSourceDemandPurpose.SESSION_CAPTURE
+				} else {
+					DirectSourceDemandPurpose.AMBIENT_PRODUCT
+				})
+			return SourceDemandEntity(demandId = if (capture) {
+				"session-pressure"
+			} else {
+				"ambient-pressure"
+			},
+				consumerId = if (capture) {
+					"session:session"
+				} else {
+					ambientSourceConsumerId(SourceKind.PRESSURE)
+				},
+				sourceKind = SourceKind.PRESSURE.stableCode,
+				purpose = if (capture) {
+					SourceBrokerPurpose.SESSION_CAPTURE
+				} else {
+					SourceBrokerPurpose.AMBIENT_PRODUCT
+				},
+				logicalTrackingId = "session".takeIf { capture }, serviceRunId = "run".takeIf { capture },
+				manifestRevision = 1L.takeIf { capture }, lifecycleLeaseGeneration = leaseGeneration.takeIf { capture },
+				sourcePolicyRevision = 2L, consentEpoch = 3L, persistenceEligible = true, qosCode = 2,
+				minimumAcquisitionSpec = contract.encodeFloor(), adaptiveReductionAllowed = contract.adaptiveReductionAllowed,
+				maximumAgeMs = contract.maximumProviderItemAgeMs, desiredLatencyMs = contract.targetPlanningLatencyMs,
+				requestedDeliveryLatencyMs = contract.requestedDeliveryLatencyMs, requestedBootId = "boot",
+				requestedElapsedRealtimeNanos = 1L, requestedAtMs = 1L, status = SourceDemandEntity.STATUS_ACTIVE,
+				retireBootId = null, retireElapsedRealtimeNanos = null, retiredAtMs = null)
+		}
 
 		private fun lease(source: AmbientTrackingSource) = AmbientReconciliationLease(
 			AmbientReconciliationIdentity(source, 2L, 3L, 4L, 5L,

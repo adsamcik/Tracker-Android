@@ -46,6 +46,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceAppliedPlanStateEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceCoordinatorLeaseEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
@@ -457,17 +458,22 @@ class LocationWalQualificationAdapterTest {
 
 	@Test
 	fun `all-day Location admission does not require the session capture lane`() = roomTest {
-		assertAmbientLocationAdmissionWithRejectedCapture("CLOSED_LANE")
+		assertLocationAdmissionForCaptureState("CLOSED_LANE")
+	}
+
+	@Test
+	fun `dual-purpose Location admission keeps its valid active session membership`() = roomTest {
+		assertLocationAdmissionForCaptureState("ACTIVE_SESSION")
 	}
 
 	@Test
 	fun `all-day Location admission survives a missing session manifest`() = roomTest {
-		assertAmbientLocationAdmissionWithRejectedCapture("MISSING_MANIFEST")
+		assertLocationAdmissionForCaptureState("MISSING_MANIFEST")
 	}
 
 	@Test
 	fun `all-day Location after session cutoff remains independently qualified`() = roomTest {
-		assertAmbientLocationAdmissionWithRejectedCapture("SESSION_CUTOFF")
+		assertLocationAdmissionForCaptureState("SESSION_CUTOFF")
 	}
 
 	@Test
@@ -624,6 +630,78 @@ class LocationWalQualificationAdapterTest {
 		assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainHighWater())
 		assertEquals(recovered.sessionSegmentId, sessions.serviceRun(RUN_ID)?.sessionSegmentId)
 		assertEquals(1L, database.sessionSegmentDao().countTotal())
+	}
+
+	@Test
+	fun `current Location waits for presentation binding then writes its saved point once`() = roomTest {
+		installValidFixture(payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false)))
+		val original = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		installProtectedHandoffAuthority(original.admissionOrdinal)
+		val restoreFixture = activateLocationFixture()
+		val dao = database.sourceSessionDao()
+		dao.updateServiceRun(requireNotNull(dao.serviceRun(RUN_ID)).copy(sessionSegmentId = null))
+		val dispatchers = TestDispatchersProvider(Dispatchers.Unconfined)
+		val orchestrator = liveLocationOrchestrator(dispatchers,
+			newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)))
+		val registry = ProtectedLocationLiveWriterRegistry()
+		val writer = ProtectedLocationCanonicalWriterChain(registry::current,
+			ProtectedLocationCanonicalWriter { _, _ -> error("An unbound session must not reach a writer") })
+		var writes = 0
+		val handoff = ProtectedLocationCanonicalHandoff(database, subject,
+			ProtectedLocationCanonicalWriter { command, metadata ->
+				writes++
+				writer.write(command, metadata)
+			})
+		try {
+			val pending = assertIs<ProtectedLocationCanonicalDrainResult.Deferred>(handoff.drainHighWater())
+			assertEquals("LOCATION_SESSION_PRESENTATION_PENDING", pending.reason)
+			assertEquals(original.admissionOrdinal - 1L, pending.lastCommittedOrdinal)
+			assertEquals(0, writes)
+			assertEquals(null, database.sourceProjectionStateDao().failure(ProtectedLocationCanonicalHandoff.WRITER_ID,
+				ProtectedLocationCanonicalHandoff.WRITER_VERSION, original.admissionOrdinal))
+			assertEquals(0L, database.locationSampleDao().countAll())
+			assertSavedWalUnchanged(original)
+
+			assertEquals(1, dao.bindSessionSegmentExact(LOGICAL_ID, RUN_ID, SEGMENT_ID))
+			assertNotNull(orchestrator.initialize(context, true, PolicyTier.PRECISION, this,
+				LOGICAL_ID, RUN_ID, SEGMENT_ID, TrackingRolloutState.eventCanonical(SourceKind.entries.toSet())))
+			registry.attach(orchestrator)
+			val complete = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainHighWater())
+			assertEquals(original.admissionOrdinal, complete.lastCommittedOrdinal)
+			assertEquals(1, writes)
+			assertNotNull(database.locationObservationDao().getBySourceEventId(original.eventId))
+			assertNotNull(database.locationObservationDecisionDao().getBySourceEventId(original.eventId))
+			assertEquals(1L, database.locationSampleDao().countAll())
+			assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainHighWater())
+			assertEquals(1, writes)
+			assertSavedWalUnchanged(original)
+		} finally {
+			registry.detach(orchestrator)
+			restoreFixture()
+			orchestrator.shutdown(context)
+		}
+	}
+
+	@Test
+	fun `missing Location presentation outside the current run remains a rejection`() = roomTest {
+		installValidFixture(payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false)))
+		val original = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		installProtectedHandoffAuthority(original.admissionOrdinal)
+		activateLocationFixture()
+		val dao = database.sourceSessionDao()
+		dao.updateServiceRun(requireNotNull(dao.serviceRun(RUN_ID)).copy(sessionSegmentId = null))
+		dao.updateSession(requireNotNull(dao.session(LOGICAL_ID)).copy(currentServiceRunId = "another-run"))
+		val writer = mockk<ProtectedLocationCanonicalWriter>()
+		coEvery { writer.retryPendingCleanup() } returns true
+		val failed = assertIs<ProtectedLocationCanonicalDrainResult.Failed>(
+			ProtectedLocationCanonicalHandoff(database, subject, writer).drainHighWater())
+		assertEquals("LOCATION_ADAPTER_MISSING_SEGMENT", failed.failureCode)
+		assertEquals(true, failed.terminal)
+		assertEquals(original.admissionOrdinal - 1L, failed.lastCommittedOrdinal)
+		assertEquals(0L, database.locationSampleDao().countAll())
+		assertSavedWalUnchanged(original)
 	}
 
 	@Test
@@ -876,6 +954,49 @@ class LocationWalQualificationAdapterTest {
 		val receipt = requireNotNull(database.locationPurposeDao().receiptByEvent(EVENT_ID.value))
 		assertEquals(listOf(SourceBrokerPurpose.AMBIENT_PRODUCT),
 			database.locationPurposeDao().purposes(receipt.sampleId, 3).map { it.purpose })
+	}
+
+	@Test
+	fun `withheld session membership cannot block a saved dual-purpose all-day observation`() = roomTest {
+		installValidFixture(mixedPurposes = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false)))
+		val original = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		val withheld = original.copy(logicalTrackingId = null, serviceRunId = null, sourcePolicyRevision = null,
+			captureConsentEpoch = null, sessionManifestRevision = null, lifecycleLeaseGeneration = null,
+			planAttribution = PlanAttribution.RECEIVE_TIME_ONLY.ordinal)
+		database.openHelper.writableDatabase.execSQL("UPDATE source_event_wal SET logical_tracking_id = NULL, " +
+			"service_run_id = NULL, source_policy_revision = NULL, capture_consent_epoch = NULL, " +
+			"session_manifest_revision = NULL, lifecycle_lease_generation = NULL, plan_attribution = ?, " +
+			"integrity_identity = ? WHERE event_id = ?",
+			arrayOf<Any>(withheld.planAttribution, withheld.calculatedIntegrityIdentity(), original.eventId))
+		val saved = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		assertEquals(LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING),
+			subject.qualify(EVENT_ID))
+		val ambient = assertIs<LocationAmbientQualification.Qualified>(subject.qualifyAmbient(EVENT_ID)).command
+		installProtectedHandoffAuthority(saved.admissionOrdinal)
+		database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
+			ProtectedLocationCanonicalHandoff.WRITER_ID, ProtectedLocationCanonicalHandoff.WRITER_VERSION,
+			saved.admissionOrdinal, 1, "LOCATION_ADAPTER_INCOMPLETE_CAPTURE_BINDING", true, 2_000L))
+		val dispatchers = TestDispatchersProvider(Dispatchers.Unconfined)
+		val ambientWriter = ProtectedLocationAmbientCanonicalWriter(context, database, dispatchers,
+			newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)))
+		val writer = object : ProtectedLocationCanonicalWriter {
+			override suspend fun write(command: LocationCapturedFactCommand,
+				acquisitionMetadata: LocationWalAcquisitionMetadata): ProtectedLocationCanonicalWriteResult =
+				error("Withheld capture membership must not be invented")
+			override suspend fun writeAmbient(command: LocationAmbientFactCommand) = ambientWriter.write(command)
+		}
+		val handoff = ProtectedLocationCanonicalHandoff(database, subject, writer)
+		val complete = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainHighWater())
+		assertEquals(saved.admissionOrdinal, complete.lastCommittedOrdinal)
+		assertEquals(true, database.readLocationAmbientReceipt(ambient))
+		assertEquals(1L, database.locationSampleDao().countAll())
+		assertEquals(0, database.locationSampleDao().countBetween(0L, Long.MAX_VALUE))
+		assertEquals(null, database.sourceProjectionStateDao().failure(ProtectedLocationCanonicalHandoff.WRITER_ID,
+			ProtectedLocationCanonicalHandoff.WRITER_VERSION, saved.admissionOrdinal))
+		assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainHighWater())
+		assertEquals(1L, database.locationSampleDao().countAll())
+		assertSavedWalUnchanged(saved)
 	}
 
 	@Test
@@ -2243,6 +2364,57 @@ class LocationWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `ambient Location QoS off drains historical data after capture is enabled`() = roomTest {
+		installValidFixture(ambientOnly = true, qosCode = 0,
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false)))
+		val original = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		installProtectedHandoffAuthority(original.admissionOrdinal)
+		val policies = database.sourcePolicyDao()
+		val old = requireNotNull(policies.policyAtRevision(POLICY_REVISION, LOCATION_SOURCE))
+		assertFalse(old.enabled)
+		assertTrue(old.ambientPersistenceEligible)
+		val qualified = assertIs<LocationAmbientQualification.Qualified>(subject.qualifyAmbient(EVENT_ID))
+		assertEquals(PolicyTier.ACTIVE, qualified.command.acquisitionMetadata.policyTier)
+		assertEquals("SOURCE_QOS_BATTERY_SAVER", qualified.command.acquisitionMetadata.policyName)
+		val capturePolicy = old.copy(policyRevision = POLICY_REVISION + 1L, enabled = true, qosCode = QOS_CODE,
+			capturePersistenceEligible = true, captureConsentEpoch = CONSENT_EPOCH,
+			effectiveElapsedRealtimeNanos = RECEIVED_NANOS + 1L, effectiveWallTimeMs = RECEIVED_WALL_MS + 1L)
+		policies.insertPolicies(listOf(capturePolicy))
+		policies.insertConsentEpochs(listOf(requireNotNull(policies.consentEpoch(LOCATION_SOURCE,
+			SourceBrokerPurpose.AMBIENT_PRODUCT, CONSENT_EPOCH)).copy(purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+			policyRevision = capturePolicy.policyRevision, effectiveElapsedRealtimeNanos = RECEIVED_NANOS + 1L,
+			effectiveWallTimeMs = RECEIVED_WALL_MS + 1L)))
+		assertEquals(1, policies.compareAndSetAuthority(SourcePolicyAuthorityEntity.STATE_ACTIVE, POLICY_REVISION,
+			SourcePolicyAuthorityEntity.STATE_ACTIVE, capturePolicy.policyRevision, null, RECEIVED_WALL_MS + 1L))
+		val historical = assertIs<LocationAmbientQualification.Qualified>(subject.qualifyAmbient(EVENT_ID))
+		assertTrue(qualified.command.hasSameAuthorityAndEvidence(historical.command))
+		val dispatchers = TestDispatchersProvider(Dispatchers.Unconfined)
+		val persistence = newLocationPersistence(dispatchers, RoomPersistenceTransactor(database))
+		val ambient = ProtectedLocationAmbientCanonicalWriter(context, database, dispatchers, persistence)
+		val writer = ProtectedLocationCanonicalWriterChain({ null },
+			ProtectedLocationOfflineCanonicalWriter(context, database, dispatchers, persistence), ambient)
+
+		val drained = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+			ProtectedLocationCanonicalHandoff(database, subject, writer).drainHighWater())
+		assertEquals(original.admissionOrdinal, drained.lastCommittedOrdinal)
+		assertEquals(1L, database.locationSampleDao().countAll())
+		val receipt = requireNotNull(database.locationPurposeDao().receiptByEvent(EVENT_ID.value))
+		assertEquals(SourceBrokerPurpose.AMBIENT_PRODUCT,
+			database.locationPurposeDao().purposes(receipt.sampleId, 3).single().purpose)
+		assertSavedWalUnchanged(original)
+	}
+
+	@Test
+	fun `ambient Location QoS unknown is rejected without an exception`() = roomTest {
+		installValidFixture(ambientOnly = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false)))
+		database.openHelper.writableDatabase.execSQL("UPDATE source_policy SET qos_code = 99")
+		assertEquals(LocationAmbientQualification.Rejected(LocationWalAdapterRejection.POLICY_MISMATCH),
+			subject.qualifyAmbient(EVENT_ID))
+	}
+
+	@Test
 	fun `ambient writer commits once without session and legacy capture queries exclude its points`() = roomTest {
 		installValidFixture(ambientOnly = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
 			deliveryPayloads = listOf(locationPayload(false)))
@@ -2568,6 +2740,45 @@ class LocationWalQualificationAdapterTest {
 		assertTrue(purposes.all { it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT })
 		assertIs<com.adsamcik.tracker.tracker.source.coordinator.SourceWriterTransitionResult.AlreadyApplied>(setup.ensureFinalWriter(2_001L))
 		assertEquals(final.bindingGeneration, database.sourceProjectionStateDao().activeProductLane(LOCATION_SOURCE)?.bindingGeneration)
+	}
+
+	@Test
+	fun `ready Location setup does not contend with a live lifecycle lease while nonready setup remains Busy`() = roomTest {
+		installValidFixture(ambientOnly = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false)))
+		seedLocationSetupRollout()
+		val initialRollout = requireNotNull(database.trackingRolloutStateDao().get())
+		val dispatchers = TestDispatchersProvider(Dispatchers.Unconfined)
+		val setup = newLocationSetup(newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)),
+			ExclusiveTrackingPersistenceLifecycleLease())
+		val projections = database.sourceProjectionStateDao()
+		val held = SourceCoordinatorLeaseEntity(
+			leaseName = "tracking-session-coordinator", ownerToken = "active-session-owner",
+			acquiredAtMs = 1_000L, expiresAtMs = 10_000L, bootId = BOOT_ID, generation = 7L,
+			acquiredElapsedRealtimeNanos = 1_000L, expiresElapsedRealtimeNanos = 10_000L,
+		)
+		assertTrue(projections.insertLeaseIfAbsent(held) >= 0L)
+		assertIs<com.adsamcik.tracker.tracker.source.coordinator.SourceWriterTransitionResult.Busy>(
+			setup.ensureFinalWriter(2_000L))
+		assertEquals(initialRollout, database.trackingRolloutStateDao().get())
+		assertEquals(null, projections.activeProductLane(LOCATION_SOURCE))
+		assertEquals(held, projections.lease(held.leaseName))
+
+		assertEquals(1, projections.releaseLease(held.leaseName, held.ownerToken, held.bootId,
+			held.generation, 2_000L, 2_000L))
+		assertIs<com.adsamcik.tracker.tracker.source.coordinator.SourceWriterTransitionResult.Applied>(
+			setup.ensureFinalWriter(2_001L))
+		val readyLane = requireNotNull(projections.activeProductLane(LOCATION_SOURCE))
+		val readyRollout = requireNotNull(database.trackingRolloutStateDao().get())
+		assertEquals(1, projections.acquireOrRenewLease(held.leaseName, held.ownerToken, held.bootId,
+			2_000L, held.expiresAtMs, 2_000L, held.expiresElapsedRealtimeNanos))
+		val activeOwner = requireNotNull(projections.lease(held.leaseName))
+
+		assertIs<com.adsamcik.tracker.tracker.source.coordinator.SourceWriterTransitionResult.AlreadyApplied>(
+			setup.ensureFinalWriter(2_002L))
+		assertEquals(activeOwner, projections.lease(held.leaseName))
+		assertEquals(readyLane, projections.activeProductLane(LOCATION_SOURCE))
+		assertEquals(readyRollout, database.trackingRolloutStateDao().get())
 	}
 
 	@Test
@@ -2992,13 +3203,15 @@ class LocationWalQualificationAdapterTest {
 		receivedNanos: Long = RECEIVED_NANOS,
 		captureMaximumAgeMs: Long = 1_000L,
 		observedWallTimes: List<Long> = List(deliveryPayloads.size) { OBSERVED_WALL_MS },
+		qosCode: Int = QOS_CODE,
 	) {
 		require(selectedUnitIndex in deliveryPayloads.indices)
 		database.sourceEvidenceStateDao().ensure(evidenceState)
 		insertPlan(plan)
 		installLocationFixturePolicyAndSession(ambientOnly, mixedPurposes, priorBootPolicy,
-			segmentRunId, zoneId, captureWriterBinding, sessionMode)
+			segmentRunId, zoneId, captureWriterBinding, sessionMode, qosCode)
 		val demands = locationFixtureDemands(ambientOnly, mixedPurposes, captureMaximumAgeMs)
+			.map { it.copy(qosCode = qosCode) }
 		val authorization = installLocationFixtureRegistration(
 			plan, actualPlan, providerFingerprint, ambientOnly || mixedPurposes, demands,
 		)
@@ -3122,8 +3335,9 @@ class LocationWalQualificationAdapterTest {
 		zoneId: String,
 		captureWriterBinding: Long?,
 		sessionMode: String,
+		qosCode: Int,
 	) {
-		installPolicyAndConsent(ambientOnly || mixedPurposes, priorBootPolicy)
+		installPolicyAndConsent(ambientOnly || mixedPurposes, priorBootPolicy, qosCode)
 		if (mixedPurposes) {
 			val ambientConsent = requireNotNull(database.sourcePolicyDao().consentEpoch(LOCATION_SOURCE, SourceBrokerPurpose.AMBIENT_PRODUCT, CONSENT_EPOCH))
 			database.sourcePolicyDao().insertConsentEpochs(listOf(ambientConsent.copy(purpose = SourceBrokerPurpose.SESSION_CAPTURE)))
@@ -3221,11 +3435,18 @@ class LocationWalQualificationAdapterTest {
 			ProtectedLocationAmbientCanonicalWriter(context, database, dispatchers, persistence))
 	}
 
-	private suspend fun assertAmbientLocationAdmissionWithRejectedCapture(rejection: String) {
+	private suspend fun assertLocationAdmissionForCaptureState(captureState: String) {
 		installValidFixture(mixedPurposes = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
 			deliveryPayloads = listOf(locationPayload(false)))
 		val original = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
-		when (rejection) {
+		when (captureState) {
+			"ACTIVE_SESSION" -> {
+				val sessions = database.sourceSessionDao()
+				sessions.updateSession(requireNotNull(sessions.session(LOGICAL_ID)).copy(state = "ACTIVE",
+					currentServiceRunId = RUN_ID, completedAtMs = null, cutoffAtMs = null, cutoffElapsedNanos = null))
+				sessions.updateServiceRun(requireNotNull(sessions.serviceRun(RUN_ID)).copy(state = "ACTIVE",
+					completedAtMs = null, completionReason = null))
+			}
 			"MISSING_MANIFEST" -> database.openHelper.writableDatabase.execSQL("DELETE FROM session_manifest_version")
 			"SESSION_CUTOFF" -> {
 				database.openHelper.writableDatabase.execSQL("UPDATE logical_tracking_session SET state = 'STOPPING', cutoff_elapsed_nanos = 499, cutoff_at_ms = 1499")
@@ -3259,7 +3480,14 @@ class LocationWalQualificationAdapterTest {
 			LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION, listOf(observed))), listOf(SourceDeliveryUnit(0, candidate)))
 		val admitted = assertIs<DeliveryAdmissionResult.Admitted>(ingress.admit(delivery)).units.single()
 		assertIs<LocationAmbientQualification.Qualified>(subject.qualifyAmbient(admitted.eventId))
-		if (rejection != "CLOSED_LANE") {
+		if (captureState == "ACTIVE_SESSION") {
+			val saved = requireNotNull(database.sourceEventWalDao().getByEventId(admitted.eventId.value))
+			assertEquals(LOGICAL_ID, saved.logicalTrackingId)
+			assertEquals(RUN_ID, saved.serviceRunId)
+			assertEquals(MANIFEST_REVISION, saved.sessionManifestRevision)
+			assertIs<LocationObservationQualification.Qualified>(
+				assertIs<LocationWalAdapterResult.Evaluated>(subject.qualify(admitted.eventId)).qualification)
+		} else if (captureState != "CLOSED_LANE") {
 			val capture = subject.qualify(admitted.eventId)
 			assertFalse(capture is LocationWalAdapterResult.Evaluated && capture.qualification is LocationObservationQualification.Qualified)
 		}
@@ -3454,7 +3682,9 @@ class LocationWalQualificationAdapterTest {
 
 	// Keep the Location policy authority, matching policy and consent epoch fixture installation in order.
 	@Suppress("LongMethod")
-	private suspend fun installPolicyAndConsent(ambientOnly: Boolean = false, priorBootPolicy: Boolean = false) {
+	private suspend fun installPolicyAndConsent(ambientOnly: Boolean = false, priorBootPolicy: Boolean = false,
+		qosCode: Int = QOS_CODE,
+	) {
 		val policyDao = database.sourcePolicyDao()
 		policyDao.ensureAuthority(
 			SourcePolicyAuthorityEntity(
@@ -3469,15 +3699,15 @@ class LocationWalQualificationAdapterTest {
 				SourcePolicyEntity(
 					policyRevision = POLICY_REVISION,
 					sourceKind = LOCATION_SOURCE,
-					enabled = true,
-					qosCode = QOS_CODE,
+					enabled = qosCode != 0,
+					qosCode = qosCode,
 					locationMinTimeSeconds = 1,
 					locationMinDistanceMeters = 0,
 					locationRequiredAccuracyMeters = 50,
-					capturePersistenceEligible = true,
+					capturePersistenceEligible = qosCode != 0,
 					controlPersistenceEligible = false,
 					ambientPersistenceEligible = ambientOnly,
-					captureConsentEpoch = CONSENT_EPOCH,
+					captureConsentEpoch = CONSENT_EPOCH.takeIf { qosCode != 0 },
 					controlConsentEpoch = null,
 					ambientConsentEpoch = CONSENT_EPOCH.takeIf { ambientOnly },
 					effectiveBootId = if (priorBootPolicy) {

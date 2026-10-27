@@ -793,6 +793,19 @@ class ActivityCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `portable export keeps valid Activity after a lost callback on the continuing provider`() = runTest {
+		seedCapturedActivity(providerActive = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET failure_code = ? " +
+				"WHERE source_kind = $ACTIVITY_SOURCE AND registration_generation = 1",
+			arrayOf("${ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX}1"),
+		)
+
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) {} shouldBe
+			ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
 	fun `portable export rejects WAL observed after a later deny-all authorization`() = runTest {
 		seedCapturedActivity()
 		insertActivityWalEvent(

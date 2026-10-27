@@ -6,12 +6,15 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidence
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationPlanAttribution
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerLookupKey
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerRead
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
@@ -57,13 +60,18 @@ import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBindi
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.coordinator.SourceRecoveryResult
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
+import com.adsamcik.tracker.tracker.source.model.ActivityMode
+import com.adsamcik.tracker.tracker.source.model.ActivityPlan
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
+import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
+import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryUnit
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
@@ -75,7 +83,11 @@ import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
 import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
 import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
+import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEpochAuthority
+import com.adsamcik.tracker.tracker.source.activity.ActivityCapturedWalAdmissionAdapter
+import com.adsamcik.tracker.tracker.source.activity.ActivityCapturedWalAdmissionResult
+import com.adsamcik.tracker.tracker.source.activity.ActivityCapturedWalAdmissionRejection
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.runtime.RuntimeCheckpointLifecycle
@@ -1506,6 +1518,351 @@ class RoomDurableSourceIngressTest {
 		database.sourceEventWalDao().eventsAfter(0L, 10).single()
 			.activityAutomationEpoch shouldBe 17L
 		verify(exactly = 0) { motion.onDurableEvidence(any()) }
+	}
+
+	@Test
+	fun `ambient Pressure predecessor stays sessionless while the applied successor keeps capture`() = runTest {
+		installSharedPressureRegistration()
+
+		subject.admit(pressureDelivery(generation = 1L, configurationRevision = 13L,
+			startNanos = 90L, endNanos = 100L)).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		subject.admit(pressureDelivery(generation = 2L, configurationRevision = 114L,
+			startNanos = 140L, endNanos = 150L)).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+
+		val saved = database.sourceEventWalDao().eventsAfter(0L, 10)
+		val predecessor = saved.first()
+		predecessor.registrationGeneration shouldBe 1L
+		predecessor.configRevision shouldBe 13L
+		predecessor.logicalTrackingId shouldBe null
+		predecessor.serviceRunId shouldBe null
+		predecessor.sourcePolicyRevision shouldBe null
+		predecessor.captureConsentEpoch shouldBe null
+		predecessor.sessionManifestRevision shouldBe null
+		predecessor.lifecycleLeaseGeneration shouldBe null
+		predecessor.planAttribution shouldBe PlanAttribution.RECEIVE_TIME_ONLY.ordinal
+		predecessor.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_AMBIENT_PRODUCT shouldBe
+			SourceBrokerPurpose.MASK_AMBIENT_PRODUCT
+		val successor = saved.last()
+		successor.registrationGeneration shouldBe 2L
+		successor.configRevision shouldBe 114L
+		successor.logicalTrackingId shouldBe TEST_SESSION_ID
+		successor.serviceRunId shouldBe TEST_RUN_ID
+		successor.sessionManifestRevision shouldBe 2L
+		successor.planAttribution shouldBe PlanAttribution.CAPTURED_REGISTRATION.ordinal
+	}
+
+	@Test
+	fun `equal ambient policy and capture acquisition revisions cannot lend capture attribution backward`() = runTest {
+		installSharedPressureRegistration()
+		val ambient = pressureDelivery(generation = 1L, configurationRevision = 114L,
+			startNanos = 90L, endNanos = 100L, capturePlanApplied = false)
+		val capture = pressureDelivery(generation = 2L, configurationRevision = 114L,
+			startNanos = 140L, endNanos = 150L)
+
+		subject.admit(ambient).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		subject.admit(capture).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+
+		val saved = database.sourceEventWalDao().eventsAfter(0L, 10)
+		saved.map { it.configRevision } shouldBe listOf(114L, 114L)
+		val predecessor = saved.first()
+		predecessor.logicalTrackingId shouldBe null
+		predecessor.serviceRunId shouldBe null
+		predecessor.sourcePolicyRevision shouldBe null
+		predecessor.captureConsentEpoch shouldBe null
+		predecessor.sessionManifestRevision shouldBe null
+		predecessor.lifecycleLeaseGeneration shouldBe null
+		predecessor.planAttribution shouldBe PlanAttribution.RECEIVE_TIME_ONLY.ordinal
+		predecessor.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_AMBIENT_PRODUCT shouldBe
+			SourceBrokerPurpose.MASK_AMBIENT_PRODUCT
+		saved.last().logicalTrackingId shouldBe TEST_SESSION_ID
+		saved.last().serviceRunId shouldBe TEST_RUN_ID
+		saved.last().planAttribution shouldBe PlanAttribution.CAPTURED_REGISTRATION.ordinal
+	}
+
+	@Test
+	fun `queued applied Pressure keeps its original capture plan through a manifest replacement`() = runTest {
+		installSharedPressureRegistration()
+		val queued = pressureDelivery(generation = 2L, configurationRevision = 114L,
+			startNanos = 140L, endNanos = 160L)
+		val dao = database.sourceSessionDao()
+		val original = requireNotNull(dao.manifest(TEST_SESSION_ID, 2L))
+		val bindings = dao.manifestSources(TEST_SESSION_ID, 2L).map { it.copy(manifestRevision = 3L) }
+		val next = original.copy(manifestRevision = 3L, acquisitionPlanRevision = 115L,
+			effectiveElapsedRealtimeNanos = 150L, effectiveWallTimeMs = 150L, manifestChecksum = "")
+		dao.insertManifest(next.copy(manifestChecksum = SessionManifestIntegrity.compute(next, bindings)))
+		dao.insertManifestSources(bindings)
+		dao.updateSession(requireNotNull(dao.session(TEST_SESSION_ID)).copy(
+			currentManifestRevision = 3L, lifecycleLeaseGeneration = 8L)) shouldBe 1
+		dao.updateServiceRun(requireNotNull(dao.serviceRun(TEST_RUN_ID)).copy(leaseGeneration = 8L)) shouldBe 1
+		val broker = database.sourceBrokerDao()
+		val demands = broker.demandsByIds(listOf("pressure-capture", "pressure-ambient")).map {
+			if (it.purpose == SourceBrokerPurpose.SESSION_CAPTURE) {
+				it.copy(demandId = "pressure-capture-next", manifestRevision = 3L, lifecycleLeaseGeneration = 8L)
+			} else {
+				it
+			}
+		}
+		broker.insertDemands(demands.filter { it.demandId == "pressure-capture-next" })
+		broker.insertAuthorizations(SourceBrokerAuthorization.rows(SourceKind.PRESSURE.stableCode,
+			2L, 2L, demands, "boot", 150L, 150L))
+
+		subject.admit(queued).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+
+		val saved = database.sourceEventWalDao().eventsAfter(0L, 10).single()
+		saved.configRevision shouldBe 114L
+		saved.authorizationRevision shouldBe 1L
+		saved.sessionManifestRevision shouldBe 2L
+		saved.lifecycleLeaseGeneration shouldBe 7L
+		saved.logicalTrackingId shouldBe TEST_SESSION_ID
+		saved.serviceRunId shouldBe TEST_RUN_ID
+		saved.planAttribution shouldBe PlanAttribution.CAPTURED_REGISTRATION.ordinal
+	}
+
+	private suspend fun installSharedPressureRegistration() {
+		val broker = database.sourceBrokerDao()
+		val original = broker.demandsByIds(listOf("session-demand")).single()
+		val policy = requireNotNull(database.sourcePolicyDao().policyAtRevision(
+			testPolicyRevision, SourceKind.PRESSURE.stableCode))
+		val capture = original.copy(demandId = "pressure-capture", sourceKind = SourceKind.PRESSURE.stableCode,
+			manifestRevision = 2L, consentEpoch = requireNotNull(policy.captureConsentEpoch))
+		val ambient = capture.copy(demandId = "pressure-ambient", consumerId = "ambient:pressure",
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, logicalTrackingId = null, serviceRunId = null,
+			manifestRevision = null, lifecycleLeaseGeneration = null)
+		broker.insertDemands(listOf(capture, ambient))
+		val dao = database.sourceSessionDao()
+		val lane = ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS
+		val binding = dao.manifestSources(TEST_SESSION_ID, 1L).single().copy(
+			manifestRevision = 2L, sourceKind = SourceKind.PRESSURE.stableCode, consentEpoch = capture.consentEpoch,
+			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			writerOwner = SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+			writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			writerProjectionId = lane.projectionId, writerProjectionVersion = lane.projectionVersion,
+			writerBindingGeneration = lane.bindingGeneration)
+		val manifest = requireNotNull(dao.manifest(TEST_SESSION_ID, 1L)).copy(
+			manifestRevision = 2L, acquisitionPlanRevision = 114L, manifestChecksum = "")
+		dao.insertManifest(manifest.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(manifest, listOf(binding))))
+		dao.insertManifestSources(listOf(binding))
+		dao.updateSession(requireNotNull(dao.session(TEST_SESSION_ID)).copy(currentManifestRevision = 2L)) shouldBe 1
+		val pointer = requireNotNull(database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode, SOURCE_OWNER_SCOPE))
+		database.sourceRegistrationStateDao().insertIfAbsent(pointer.copy(sourceKind = SourceKind.PRESSURE.stableCode,
+			ownerScope = "source-broker:${SourceKind.PRESSURE.stableCode}", sourceInstanceId = "pressure-instance",
+			registrationGeneration = 2L, appliedRevision = 114L))
+		val physical = requireNotNull(broker.registration(SourceKind.ACTIVITY.stableCode, 1L))
+		for (generation in 1L..2L) {
+			broker.insertRegistration(physical.copy(sourceKind = SourceKind.PRESSURE.stableCode,
+				registrationGeneration = generation, sourceInstanceId = "pressure-instance",
+				ownerScope = "source-broker:${SourceKind.PRESSURE.stableCode}",
+				physicalConfigurationFingerprint = "pressure-config-$generation",
+				status = if (generation == 1L) {
+					ProviderRegistrationGenerationEntity.STATUS_RETIRED
+				} else {
+					ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+				},
+				acceptedElapsedRealtimeNanos = if (generation == 1L) { 50L } else { 120L },
+				retiredAtMs = 120L.takeIf { generation == 1L },
+				retiredElapsedRealtimeNanos = 120L.takeIf { generation == 1L }))
+			broker.insertAuthorizations(SourceBrokerAuthorization.rows(SourceKind.PRESSURE.stableCode,
+				generation, 1L, listOf(capture, ambient), "boot", 50L, 50L))
+		}
+	}
+
+	private suspend fun pressureDelivery(
+		generation: Long,
+		configurationRevision: Long,
+		startNanos: Long,
+		endNanos: Long,
+		capturePlanApplied: Boolean = true,
+	): SourceDeliveryCandidate {
+		val header = database.sourceBrokerDao().authorizationRevision(
+			SourceKind.PRESSURE.stableCode, generation, 1L).first()
+		val payload = PressureWindowPayload(2, 1_012.0, 0.0, 1_012f, 1_012f,
+			startNanos, endNanos, 1L, 2L)
+		val evidence = SourceEvidenceCandidate(providerDedupKey = null, logicalTrackingId = null, serviceRunId = null,
+			source = SourceKind.PRESSURE, sourceInstanceId = SourceInstanceId("pressure-instance"),
+			registrationGeneration = generation, physicalConfigurationFingerprint = "pressure-config-$generation",
+			authorizationRevision = 1L, registrationPurposeEligibilityMask = header.purposeEligibilityMask,
+			registrationEligibilityFingerprint = header.authorizationFingerprint, sourceSequence = 0L,
+			configRevision = configurationRevision, planAttribution = if (capturePlanApplied) {
+				PlanAttribution.CAPTURED_REGISTRATION
+			} else {
+				PlanAttribution.RECEIVE_TIME_ONLY
+			},
+			clockDomainId = "boot", observedElapsedRealtimeNanos = endNanos,
+			receivedElapsedRealtimeNanos = endNanos + 10L, wallTimeMs = endNanos,
+			wallTimeUncertaintyMs = 1L, capturedCollectedDataEpoch = 0L, acquiredAtMs = endNanos,
+			quality = SourceQuality(), payloadVersion = 1, payload = payload)
+		return SourceDeliveryCandidate(sourceDeliveryIdentity("pressure-$generation-$endNanos".encodeToByteArray()),
+			listOf(SourceDeliveryUnit(0, evidence, startNanos)))
+	}
+
+	@Test
+	fun `native Activity without a preclaimed envelope preserves both active session and all-day membership`() = runTest {
+		val delivery = sharedActivityDelivery()
+
+		subject.admit(delivery).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+
+		val saved = database.sourceEventWalDao().eventsAfter(0L, 10).single()
+		saved.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_AMBIENT_PRODUCT shouldBe
+			SourceBrokerPurpose.MASK_AMBIENT_PRODUCT
+		saved.configRevision shouldBe 1L
+		saved.planAttribution shouldBe PlanAttribution.CAPTURED_REGISTRATION.ordinal
+		saved.logicalTrackingId shouldBe TEST_SESSION_ID
+		saved.serviceRunId shouldBe TEST_RUN_ID
+		saved.sourcePolicyRevision shouldBe testPolicyRevision
+		saved.captureConsentEpoch shouldBe testCaptureEpoch
+		saved.sessionManifestRevision shouldBe 1L
+		saved.lifecycleLeaseGeneration shouldBe 7L
+	}
+
+	@Test
+	fun `native Activity with a preceding applied plan keeps all-day data outside the new capture plan`() = runTest {
+		val delivery = sharedActivityDelivery(appliedPlanRevision = 13L)
+
+		subject.admit(delivery).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+
+		val saved = database.sourceEventWalDao().eventsAfter(0L, 10).single()
+		saved.configRevision shouldBe 13L
+		saved.planAttribution shouldBe PlanAttribution.RECEIVE_TIME_ONLY.ordinal
+		saved.logicalTrackingId shouldBe null
+		saved.serviceRunId shouldBe null
+		saved.sourcePolicyRevision shouldBe null
+		saved.captureConsentEpoch shouldBe null
+		saved.sessionManifestRevision shouldBe null
+		saved.lifecycleLeaseGeneration shouldBe null
+		saved.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_AMBIENT_PRODUCT shouldBe
+			SourceBrokerPurpose.MASK_AMBIENT_PRODUCT
+	}
+
+	@Test
+	fun `same-session Activity handoff retains the original applied plan after broker manifest publication`() = runTest {
+		val original = sharedActivityDelivery()
+		val plan = ActivityPlan(1L, ActivityMode.CONTINUOUS_RECOGNITION, 30_000L, 50, emptySet())
+		val encoded = SourcePlanCodec().encode(plan)
+		val replacement = SourcePlanCodec().encode(plan.copy(revision = 2L))
+		val fingerprint = plan.physicalConfigurationFingerprint()
+		database.openHelper.writableDatabase.execSQL("UPDATE provider_registration_generation SET " +
+			"physical_configuration_fingerprint=? WHERE source_kind=2 AND registration_generation=1", arrayOf(fingerprint))
+		database.activityCapturedFactDao().insertRegistrationPlanBinding(ActivityCapturedRegistrationPlanEntity.create(
+			"activity-instance", 1L, 1L, encoded.formatVersion, encoded.bytes, encoded.checksum, fingerprint, 50L, "APPLIED"))
+		database.sourcePlanStateDao().insertDesiredPlans(listOf(SourceDesiredPlanEntity(2L,
+			SourceKind.ACTIVITY.stableCode, replacement.formatVersion, replacement.bytes, replacement.checksum)))
+		val dao = database.sourceSessionDao()
+		val bindings = dao.manifestSources(TEST_SESSION_ID, 1L).map { it.copy(manifestRevision = 2L) }
+		val manifest = requireNotNull(dao.manifest(TEST_SESSION_ID, 1L)).copy(manifestRevision = 2L,
+			acquisitionPlanRevision = 2L, effectiveElapsedRealtimeNanos = 80L, effectiveWallTimeMs = 80L,
+			startOrigin = "POLICY_RECONCILIATION", changeReason = "POLICY_RECONCILIATION", manifestChecksum = "")
+		dao.insertManifest(manifest.copy(manifestChecksum = SessionManifestIntegrity.compute(manifest, bindings)))
+		dao.insertManifestSources(bindings)
+		dao.updateSession(requireNotNull(dao.session(TEST_SESSION_ID)).copy(currentManifestRevision = 2L,
+			lifecycleLeaseGeneration = 8L)) shouldBe 1
+		dao.updateServiceRun(requireNotNull(dao.serviceRun(TEST_RUN_ID)).copy(leaseGeneration = 8L)) shouldBe 1
+		val broker = database.sourceBrokerDao()
+		val demands = broker.demandsByIds(listOf("session-demand", "activity-all-day")).map {
+			if (it.purpose == SourceBrokerPurpose.SESSION_CAPTURE) {
+				it.copy(demandId = "session-demand-next", manifestRevision = 2L, lifecycleLeaseGeneration = 8L)
+			} else {
+				it
+			}
+		}
+		broker.insertDemands(demands.filter { it.demandId == "session-demand-next" })
+		broker.insertAuthorizations(SourceBrokerAuthorization.rows(SourceKind.ACTIVITY.stableCode,
+			1L, 3L, demands, "boot", 80L, 80L))
+		val delivery = original.copy(units = original.units.map { unit ->
+			unit.copy(evidence = unit.evidence.copy(physicalConfigurationFingerprint = fingerprint))
+		})
+
+		subject.admit(delivery).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+
+		val saved = database.sourceEventWalDao().eventsAfter(0L, 10).single()
+		saved.logicalTrackingId shouldBe TEST_SESSION_ID
+		saved.serviceRunId shouldBe TEST_RUN_ID
+		saved.configRevision shouldBe 1L
+		saved.sessionManifestRevision shouldBe 2L
+		saved.authorizationRevision shouldBe 3L
+		saved.lifecycleLeaseGeneration shouldBe 8L
+		saved.planAttribution shouldBe PlanAttribution.CAPTURED_REGISTRATION.ordinal
+		saved.authorizationPurposeEligibilityMask shouldBe
+			(SourceBrokerPurpose.MASK_SESSION_CAPTURE or SourceBrokerPurpose.MASK_AMBIENT_PRODUCT)
+	}
+
+	@Test
+	fun `native Activity before its session plan applies keeps all-day data without poisoning capture`() = runTest {
+		val delivery = sharedActivityDelivery(appliedPlanAvailable = false)
+
+		subject.admit(delivery).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+
+		val saved = database.sourceEventWalDao().eventsAfter(0L, 10).single()
+		saved.configRevision shouldBe null
+		saved.planAttribution shouldBe PlanAttribution.RECEIVE_TIME_ONLY.ordinal
+		saved.logicalTrackingId shouldBe null
+		saved.serviceRunId shouldBe null
+		saved.sourcePolicyRevision shouldBe null
+		saved.captureConsentEpoch shouldBe null
+		saved.sessionManifestRevision shouldBe null
+		saved.lifecycleLeaseGeneration shouldBe null
+		saved.authorizationPurposeEligibilityMask shouldBe
+			(SourceBrokerPurpose.MASK_SESSION_CAPTURE or SourceBrokerPurpose.MASK_AMBIENT_PRODUCT)
+		val product = ActivityCapturedWalAdmissionAdapter(database, SourcePlanCodec(), mockk())
+			.admit(SourceEventId(saved.eventId)).shouldBeInstanceOf<ActivityCapturedWalAdmissionResult.Rejected>()
+		product.reason shouldBe ActivityCapturedWalAdmissionRejection.CONTROL_ONLY
+		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `native Activity after End keeps independently allowed all-day data without session membership`() = runTest {
+		val delivery = sharedActivityDelivery()
+		val dao = database.sourceSessionDao()
+		dao.updateSession(requireNotNull(dao.session(TEST_SESSION_ID)).copy(
+			state = "STOPPING", cutoffAtMs = 90L, cutoffElapsedNanos = 90L)) shouldBe 1
+		dao.updateServiceRun(requireNotNull(dao.serviceRun(TEST_RUN_ID)).copy(state = "STOPPING")) shouldBe 1
+
+		subject.admit(delivery).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+
+		val saved = database.sourceEventWalDao().eventsAfter(0L, 10).single()
+		saved.logicalTrackingId shouldBe null
+		saved.serviceRunId shouldBe null
+		saved.sourcePolicyRevision shouldBe null
+		saved.captureConsentEpoch shouldBe null
+		saved.planAttribution shouldBe PlanAttribution.RECEIVE_TIME_ONLY.ordinal
+		saved.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_AMBIENT_PRODUCT shouldBe
+			SourceBrokerPurpose.MASK_AMBIENT_PRODUCT
+	}
+
+	/** GMS callbacks resolve authorization at observation time rather than preclaiming its revision. */
+	private suspend fun sharedActivityDelivery(
+		appliedPlanAvailable: Boolean = true,
+		appliedPlanRevision: Long = 1L,
+	): SourceDeliveryCandidate {
+		val broker = database.sourceBrokerDao()
+		val capture = broker.demandsByIds(listOf("session-demand")).single()
+		val ambient = capture.copy(
+			demandId = "activity-all-day", consumerId = "ambient:activity",
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+			logicalTrackingId = null, serviceRunId = null, manifestRevision = null,
+			lifecycleLeaseGeneration = null,
+		)
+		broker.insertDemands(listOf(ambient))
+		broker.insertAuthorizations(SourceBrokerAuthorization.rows(
+			SourceKind.ACTIVITY.stableCode, 1L, 2L, listOf(capture, ambient), "boot", 50L, 50L))
+		val encodedPlan = SourcePlanCodec().encode(ActivityPlan(appliedPlanRevision, ActivityMode.CONTINUOUS_RECOGNITION,
+			30_000L, 50, emptySet()))
+		val appliedPlan = if (appliedPlanAvailable) {
+			ActivityRegistrationPlanAttribution(appliedPlanRevision, encodedPlan.formatVersion, encodedPlan.bytes,
+				encodedPlan.checksum, TEST_PHYSICAL_CONFIG)
+		} else {
+			null
+		}
+		return ActivitySourceDeliveryFactory().create(
+			ActivityRecognitionEvidenceBatch(
+				receivedElapsedRealtimeNanos = 110L, receivedWallTimeMs = 1_000L,
+				recognitions = listOf(ActivityRecognitionEvidence(DetectedActivityType.WALKING, 90, 100L)),
+			),
+			ActivityRegistrationIdentity("activity-instance", 1L, 0L, "boot", TEST_PHYSICAL_CONFIG),
+			activityAutomationAuthority(17L),
+			appliedPlan,
+		).candidate
 	}
 
 	@Test

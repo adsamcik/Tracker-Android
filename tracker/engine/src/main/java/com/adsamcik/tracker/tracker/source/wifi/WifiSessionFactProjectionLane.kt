@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.tracker.presentation.SessionPresentationLifecycle
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -45,6 +46,7 @@ class WifiSessionFactProjectionLane private constructor(
 ) {
 	private val mutex = Mutex()
 	private val drainSignals = Channel<Unit>(Channel.CONFLATED)
+	private val presentation = SessionPresentationLifecycle(database)
 
 	@Inject
 	internal constructor(
@@ -334,6 +336,9 @@ class WifiSessionFactProjectionLane private constructor(
 		val wal = database.sourceEventWalDao().getByAdmissionOrdinal(failure.admissionOrdinal) ?: return false
 		if (wal.sourceKind != SourceKind.WIFI.stableCode) {
 			return false
+		}
+		if (failure.failureCode == "WIFI_ADAPTER_MISSING_SEGMENT") {
+			presentation.recoverMissingForRetainedEvent(wal.eventId)
 		}
 		return adapter.qualify(SourceEventId(wal.eventId)).toProjectionResult().failureCode == null
 	}

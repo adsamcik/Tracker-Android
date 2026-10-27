@@ -17,6 +17,8 @@ import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryState
 import com.adsamcik.tracker.dashboard.data.DashboardWeeklyTrend
 import com.adsamcik.tracker.dashboard.data.DashboardWidgetRegistry
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveSessionPresentation
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveActivityValue
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLivePressureValue
 import com.adsamcik.tracker.dashboard.ui.compose.state.ExplorationUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.LatestAchievementUi
 import com.adsamcik.tracker.dashboard.ui.compose.state.StreakState
@@ -34,6 +36,7 @@ import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
@@ -76,6 +79,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -181,20 +185,25 @@ class DashboardViewModel @Inject constructor(
 
 	/**
 	 * Binds the durable history read to the currently published physical segment. A replacement
-	 * segment or service stop cancels the old Room observation through [flatMapLatest].
+	 * segment or End cancels the old Room observation; finishing retains the last saved display.
 	 */
+	private var livePresentationSegmentId: Long? = null
+
 	@OptIn(ExperimentalCoroutinesApi::class)
 	val liveSessionPresentation: StateFlow<DashboardLiveSessionPresentation> = combine(
-		trackerStateReader.hasLiveCaptureFlow,
+		trackerStateReader.sessionInfoFlow,
 		trackerStateReader.sessionFlow,
-	) { isRunning, session ->
-		session?.id?.takeIf { isRunning && it > 0L }
+	) { info, session ->
+		session?.id?.takeIf { info != null && it > 0L } to (info?.stoppingAtMs != null)
 	}.distinctUntilChanged()
-		.flatMapLatest { segmentId ->
-			if (segmentId == null) {
-				flowOf(DashboardLiveSessionPresentation.Inactive)
-			} else {
-				trackingHistoryRepository.observeLiveSession(segmentId, LiveSessionHistoryDetail.COMPACT)
+		.flatMapLatest { (segmentId, stopping) ->
+			val sameSegment = livePresentationSegmentId == segmentId
+			livePresentationSegmentId = segmentId
+			when {
+				segmentId == null -> flowOf(DashboardLiveSessionPresentation.Inactive)
+				stopping && sameSegment -> emptyFlow()
+				stopping -> flowOf(DashboardLiveSessionPresentation.Resolving(segmentId))
+				else -> trackingHistoryRepository.observeLiveSession(segmentId, LiveSessionHistoryDetail.COMPACT)
 					.map { snapshot -> toLivePresentation(segmentId, snapshot) }
 					.onStart {
 						emit(DashboardLiveSessionPresentation.Resolving(segmentId))
@@ -435,6 +444,8 @@ private fun com.adsamcik.tracker.stats.api.repository.SessionHistory.toLivePrese
 	val exactCapture = capture as? HistoryCapture.Exact
 	val locationFreeCapturedSources = exactCapture?.capturedSourcesWithoutLocation()
 	val sourceProducts = sourceProducts
+	val capturedSources = exactCapture?.revisions?.flatMapTo(linkedSetOf()) { it.capturedSources }
+		?: qualifiedSources
 	return when {
 		exactCapture.capturesOnly(HistorySource.WIFI) -> when (
 			val query = sourceProducts?.wifi ?: snapshot.wifi
@@ -534,6 +545,21 @@ private fun com.adsamcik.tracker.stats.api.repository.SessionHistory.toLivePrese
 			steps = steps
 				.takeIf { HistorySource.STEPS in qualifiedSources }
 				?.toDashboardLiveStepsValue(),
+			activity = if (HistorySource.ACTIVITY in capturedSources) {
+				((sourceProducts?.activity ?: snapshot.activity) as? ActivityHistoryQuery.Found)?.entry
+					?.takeIf { it.historyUnavailableReasonOrNull() == null }?.toDashboardLiveActivityValue()
+					?: DashboardLiveActivityValue(ActivityHistoryProductState.UNAVAILABLE,
+						ActivityHistoryCoverage.NONE, null, null, 0, false)
+			} else {
+				null
+			},
+			pressure = if (HistorySource.PRESSURE in capturedSources) {
+				((sourceProducts?.pressure ?: snapshot.pressure) as? PressureSessionHistoryQuery.Found)?.history?.pressure
+					?.takeIf { it.historyUnavailableReasonOrNull() == null }?.toDashboardLivePressureValue()
+					?: DashboardLivePressureValue.Unavailable
+			} else {
+				null
+			},
 		)
 	}
 }

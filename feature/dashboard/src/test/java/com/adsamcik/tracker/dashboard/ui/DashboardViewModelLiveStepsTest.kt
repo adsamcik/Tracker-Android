@@ -87,8 +87,11 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
@@ -100,6 +103,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.Test
@@ -154,6 +158,70 @@ class DashboardViewModelLiveStepsTest {
 					steps = DashboardLiveStepsValue.Materializing,
 				)
 			repository.liveDetails shouldContainExactly listOf(LiveSessionHistoryDetail.COMPACT)
+			collection.cancel()
+		} finally {
+			Dispatchers.resetMain()
+		}
+	}
+
+	@Test
+	fun `finishing cancels live history while retaining its display until removal or a new session`() = runTest {
+		Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+		try {
+			val running = MutableStateFlow(true)
+			val session = MutableStateFlow<TrackerSessionSnapshot?>(TrackerSessionSnapshot(id = FIRST_SEGMENT_ID, start = 1L))
+			val sessionInfo = MutableStateFlow<TrackerSessionInfo?>(TrackerSessionInfo(true))
+			val readStarted = CompletableDeferred<Unit>()
+			val readCancelled = CompletableDeferred<Unit>()
+			val repository = mockk<TrackingHistoryRepository>()
+			val firstSnapshot = LiveSessionHistorySnapshot(
+				segmentId = FIRST_SEGMENT_ID,
+				session = SessionHistoryQuery.Found(stepsOnlyHistory(FIRST_SEGMENT_ID).copy(steps = completeSteps())),
+				activity = ActivityHistoryQuery.NotFound,
+				pressure = PressureSessionHistoryQuery.NotFound,
+			)
+			every { repository.observeLiveSession(FIRST_SEGMENT_ID, LiveSessionHistoryDetail.COMPACT) } returns flow {
+				try {
+					emit(firstSnapshot)
+					readStarted.complete(Unit)
+					awaitCancellation()
+				} finally {
+					readCancelled.complete(Unit)
+				}
+			}
+			every { repository.observeLiveSession(SECOND_SEGMENT_ID, LiveSessionHistoryDetail.COMPACT) } returns flowOf(
+				firstSnapshot.copy(segmentId = SECOND_SEGMENT_ID,
+					session = SessionHistoryQuery.Found(stepsOnlyHistory(SECOND_SEGMENT_ID)),
+				),
+			)
+			val viewModel = createViewModel(running, session, repository, sessionInfo)
+			val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+				viewModel.liveSessionPresentation.collect { }
+			}
+			runCurrent()
+			readStarted.isCompleted shouldBe true
+			val savedDisplay = DashboardLiveSessionPresentation.StepsOnly(
+				FIRST_SEGMENT_ID, DashboardLiveStepsValue.Complete(1_500L),
+			)
+			viewModel.liveSessionPresentation.value shouldBe savedDisplay
+
+			sessionInfo.value = TrackerSessionInfo(true, stoppingAtMs = 10L)
+			runCurrent()
+			readCancelled.isCompleted shouldBe true
+			viewModel.liveSessionPresentation.value shouldBe savedDisplay
+			verify(exactly = 1) { repository.observeLiveSession(FIRST_SEGMENT_ID, LiveSessionHistoryDetail.COMPACT) }
+
+			sessionInfo.value = null
+			session.value = null
+			runCurrent()
+			viewModel.liveSessionPresentation.value shouldBe DashboardLiveSessionPresentation.Inactive
+
+			session.value = TrackerSessionSnapshot(id = SECOND_SEGMENT_ID, start = 20L)
+			sessionInfo.value = TrackerSessionInfo(true)
+			runCurrent()
+			viewModel.liveSessionPresentation.value shouldBe DashboardLiveSessionPresentation.StepsOnly(
+				SECOND_SEGMENT_ID, DashboardLiveStepsValue.Materializing,
+			)
 			collection.cancel()
 		} finally {
 			Dispatchers.resetMain()
@@ -363,9 +431,64 @@ class DashboardViewModelLiveStepsTest {
 				),
 			)
 			advanceUntilIdle()
-			viewModel.liveSessionPresentation.value shouldBe
-				DashboardLiveSessionPresentation.Standard(FIRST_SEGMENT_ID)
+			val shown = viewModel.liveSessionPresentation.value as DashboardLiveSessionPresentation.Standard
+			shown.segmentId shouldBe FIRST_SEGMENT_ID
+			(shown.pressure as DashboardLivePressureValue.Ready).metrics.latestHectopascals shouldBe 1001.5f
+			shown.activity shouldBe null
 			repository.liveDetails shouldContainExactly listOf(LiveSessionHistoryDetail.COMPACT)
+			collection.cancel()
+		} finally {
+			Dispatchers.resetMain()
+		}
+	}
+
+	@Test
+	fun `mixed Location capture keeps qualified Activity and Pressure independent when a sibling fails`() = runTest {
+		Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+		try {
+			val repository = RecordingTrackingHistoryRepository()
+			val selected = capture(setOf(HistorySource.LOCATION, HistorySource.ACTIVITY, HistorySource.PRESSURE))
+			val activity = capturedActivityEntry().copy(capturesOnlyActivity = false)
+			val pressure = pressureHistory(FIRST_SEGMENT_ID, capturedSources = setOf(
+				HistorySource.LOCATION, HistorySource.ACTIVITY, HistorySource.PRESSURE))
+			val products = sourceProducts(FIRST_SEGMENT_ID, selected).copy(
+				activity = ActivityHistoryQuery.Found(activity), pressure = PressureSessionHistoryQuery.Found(pressure))
+			val steps = materializingSteps()
+			val history = SessionHistory(FIRST_SEGMENT_ID, selected,
+				SessionHistory.deriveQualifiedSources(selected, steps, products), steps, products)
+			repository.update(FIRST_SEGMENT_ID, SessionHistoryQuery.Found(history))
+			val viewModel = createViewModel(MutableStateFlow(true),
+				MutableStateFlow<TrackerSessionSnapshot?>(TrackerSessionSnapshot(id = FIRST_SEGMENT_ID, start = 1L)), repository)
+			val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+				viewModel.liveSessionPresentation.collect { }
+			}
+			advanceUntilIdle()
+			val shown = viewModel.liveSessionPresentation.value as DashboardLiveSessionPresentation.Standard
+			shown.activity?.latestMovementBand shouldBe ActivityHistoryType.WALKING
+			(shown.pressure as DashboardLivePressureValue.Ready).metrics.latestHectopascals shouldBe 1001.5f
+
+			val unavailableActivity = activity.copy(state = ActivityHistoryProductState.FAILED,
+				coverage = ActivityHistoryCoverage.NONE, activeTime = null, fragments = emptyList(),
+				latestObservation = null, causes = setOf(ActivityHistoryCause.FACT_INTEGRITY_FAILED))
+			val failedActivityProducts = products.copy(activity = ActivityHistoryQuery.Found(unavailableActivity))
+			repository.update(FIRST_SEGMENT_ID, SessionHistoryQuery.Found(history.copy(
+				qualifiedSources = SessionHistory.deriveQualifiedSources(selected, steps, failedActivityProducts),
+				sourceProducts = failedActivityProducts)))
+			advanceUntilIdle()
+			val failedActivity = viewModel.liveSessionPresentation.value as DashboardLiveSessionPresentation.Standard
+			failedActivity.activity?.state shouldBe ActivityHistoryProductState.UNAVAILABLE
+			failedActivity.activity?.latestMovementBand shouldBe null
+			failedActivity.pressure shouldBe shown.pressure
+
+			val failedPressureProducts = products.copy(pressure = PressureSessionHistoryQuery.Found(
+				failedPressureHistory(FIRST_SEGMENT_ID).copy(capture = selected)))
+			repository.update(FIRST_SEGMENT_ID, SessionHistoryQuery.Found(history.copy(
+				qualifiedSources = SessionHistory.deriveQualifiedSources(selected, steps, failedPressureProducts),
+				sourceProducts = failedPressureProducts)))
+			advanceUntilIdle()
+			val failedPressure = viewModel.liveSessionPresentation.value as DashboardLiveSessionPresentation.Standard
+			failedPressure.activity shouldBe shown.activity
+			failedPressure.pressure shouldBe DashboardLivePressureValue.Unavailable
 			collection.cancel()
 		} finally {
 			Dispatchers.resetMain()
@@ -666,25 +789,28 @@ class DashboardViewModelLiveStepsTest {
 		running: MutableStateFlow<Boolean>,
 		session: MutableStateFlow<TrackerSessionSnapshot?>,
 		trackingHistoryRepository: TrackingHistoryRepository,
+		sessionInfoOverride: MutableStateFlow<TrackerSessionInfo?>? = null,
 	): DashboardViewModel {
 		val layoutRepository = mockk<DashboardLayoutStore>()
 		every { layoutRepository.layout } returns flowOf(DashboardLayout())
 		val trackerStateReader = mockk<TrackerStateReader>()
 		every { trackerStateReader.startingSessionGenerationFlow } returns MutableStateFlow<Long?>(null)
 		every { trackerStateReader.isServiceRunningFlow } returns running
-		val sessionInfo = MutableStateFlow<TrackerSessionInfo?>(
+		val sessionInfo = sessionInfoOverride ?: MutableStateFlow<TrackerSessionInfo?>(
 			if (running.value) {
 				TrackerSessionInfo(true)
 			} else {
 				null
 			},
 		)
-		backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-			running.collect { active ->
-				sessionInfo.value = if (active) {
-					TrackerSessionInfo(true)
-				} else {
-					null
+		if (sessionInfoOverride == null) {
+			backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+				running.collect { active ->
+					sessionInfo.value = if (active) {
+						TrackerSessionInfo(true)
+					} else {
+						null
+					}
 				}
 			}
 		}

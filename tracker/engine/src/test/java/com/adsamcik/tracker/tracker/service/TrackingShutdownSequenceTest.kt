@@ -141,6 +141,47 @@ class TrackingShutdownSequenceTest {
 	}
 
 	@Test
+	fun `owned data shutdown can exceed former budgets and completes once without early release`() = runTest {
+		val closing = CompletableDeferred<Unit>()
+		val mayFinish = CompletableDeferred<Unit>()
+		var attempts = 0
+		var released = false
+		var result: TrackingShutdownSequenceResult<String>? = null
+		val teardown = launch {
+			result = drainCyclesThenShutdown(
+				drain = {},
+				cancelPendingCycles = {},
+				shutdown = {
+					attempts++
+					closing.complete(Unit)
+					mayFinish.await()
+					"complete"
+				},
+			)
+			released = true
+		}
+		try {
+			runCurrent()
+			closing.isCompleted shouldBe true
+			advanceTimeBy(6_000L)
+			runCurrent()
+			teardown.isActive shouldBe true
+			attempts shouldBe 1
+			released shouldBe false
+			result shouldBe null
+
+			mayFinish.complete(Unit)
+			teardown.join()
+			released shouldBe true
+			attempts shouldBe 1
+			result?.shutdownResult shouldBe "complete"
+			result?.shutdownFailure shouldBe null
+		} finally {
+			teardown.cancelAndJoin()
+		}
+	}
+
+	@Test
 	fun `shutdown failure is reported without pretending teardown completed`() = runTest {
 		val failure = IOException("shutdown failed")
 
@@ -258,6 +299,27 @@ class TrackingShutdownSequenceTest {
 		attempts shouldBe 5
 		providerOwned shouldBe false
 		deferredStopFallbacks shouldBe 1
+	}
+
+	@Test
+	fun `normal projection wait retries promptly without inheriting failed cleanup backoff`() = runTest {
+		val attemptTimes = mutableListOf<Long>()
+		var attempts = 0
+		val teardown = launch {
+			retryTrackingShutdownUntilSuccess(retryDelayMillis = 1L, maxRetryDelayMillis = 60L) {
+				attemptTimes += testScheduler.currentTime
+				when (++attempts) {
+					1, 2 -> throw IOException("storage unavailable")
+					3, 4 -> throw TrackingShutdownRetryException("PROJECTION_BUSY", awaitingWork = true)
+					5, 6 -> throw IOException("storage unavailable again")
+				}
+			}
+		}
+
+		advanceUntilIdle()
+
+		teardown.isCompleted shouldBe true
+		attemptTimes shouldContainExactly listOf(0L, 1L, 3L, 4L, 5L, 7L, 11L)
 	}
 
 	@Test

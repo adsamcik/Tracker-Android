@@ -2332,6 +2332,31 @@ class WifiWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `Wi-Fi retained scan recovers the presentation omitted before its run stopped`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val dao = database.sourceSessionDao()
+		val run = requireNotNull(dao.serviceRun(RUN_ID))
+		val originalSegment = requireNotNull(run.sessionSegmentId)
+		assertEquals(1, dao.updateServiceRun(run.copy(sessionSegmentId = null,
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+			presentationAcknowledgedAtMs = null)))
+		database.sessionSegmentDao().deleteById(originalSegment)
+		val lane = WifiSessionFactProjectionLane(database, subject, writer)
+		assertEquals("WIFI_ADAPTER_MISSING_SEGMENT", assertTerminalWifiLaneFailure(lane).failureCode)
+
+		val recovered = assertIs<WifiSessionFactDrainResult.Complete>(lane.drainAvailable())
+		assertEquals(1L, recovered.lastCompletedOrdinal)
+		assertEquals(1, recovered.factsInserted)
+		val bound = requireNotNull(dao.serviceRun(RUN_ID)?.sessionSegmentId)
+		assertEquals(LOGICAL_ID, database.sessionSegmentDao().getById(bound)?.logicalTrackingId)
+		assertEquals(null, database.sourceProjectionStateDao().failure(
+			WifiSessionFactProjectionLane.WRITER_ID, WifiSessionFactProjectionLane.WRITER_VERSION, 1L))
+		assertEquals(0, assertIs<WifiSessionFactDrainResult.Complete>(lane.drainAvailable()).factsInserted)
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
 	fun `earlier boot choices replay a retained Wi-Fi failure through saved history exactly once`() = runTest {
 		installValidFixture(candidateWriter = true)
 		installPortableClosingAuthorization()

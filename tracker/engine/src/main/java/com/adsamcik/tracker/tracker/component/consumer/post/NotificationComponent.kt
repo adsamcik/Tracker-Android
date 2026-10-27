@@ -104,7 +104,10 @@ internal class NotificationComponent(
 		}
 	}
 
-	override suspend fun onEnable(context: Context) = coroutineScope<Unit> {
+	override suspend fun onEnable(context: Context) = onEnable(context, isSessionUserInitiated = null)
+
+	/** The accepted start intent is available before the service publishes its UI session state. */
+	suspend fun onEnable(context: Context, isSessionUserInitiated: Boolean?) = coroutineScope<Unit> {
 		val generation = synchronized(notificationLock) {
 			activeGeneration++
 			savedUpdatesJob?.cancel()
@@ -124,11 +127,11 @@ internal class NotificationComponent(
         }
         val entryPoint = resolveEntryPoint(context)
         val reader = entryPoint.trackerStateReader()
-        val sessionInfo = requireNotNull(reader.sessionInfoFlow.value) {
+        val userInitiated = isSessionUserInitiated ?: requireNotNull(reader.sessionInfoFlow.value) {
             "TrackerService sessionInfo must be initialized before NotificationComponent.onEnable"
-        }
+        }.isInitiatedByUser
         val params = entryPoint.trackingParamsRepository().data.first()
-        val manager = TrackerNotificationManager(context, sessionInfo.isInitiatedByUser,
+        val manager = TrackerNotificationManager(context, userInitiated,
             notificationStyled = params.notificationStyled)
         val configured = preferenceUpdate.await()
         synchronized(notificationLock) {

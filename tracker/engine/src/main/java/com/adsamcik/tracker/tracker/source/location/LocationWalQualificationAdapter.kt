@@ -225,7 +225,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 
 		suspend fun qualifyAmbient(eventId: SourceEventId): LocationAmbientQualification = try {
 			database.qualifyAmbientLocationPhysical(
-				physical(eventId), ::registrationPlan, ::hasExactQualifiedMembership, bootClockDomainProvider,
+					physical(eventId), ::registrationPlan, ::hasExactQualifiedAmbientMembership, bootClockDomainProvider,
 			)
 		} catch (failure: LocationPhysicalEvidenceRejected) {
 			LocationAmbientQualification.Rejected(failure.reason)
@@ -254,9 +254,25 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 	/** Ingress narrows eligibility independently for each fix in a batched physical delivery. */
 	private fun hasExactQualifiedMembership(wal: SourceEventWalEntity, authorization: SourceAuthorizationSnapshot,
 		demands: List<SourceDemandEntity>): Boolean {
+		val eligible = qualifiedLocationMembers(wal, authorization, demands) ?: return false
+		val captures = eligible.filter { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE && it.persistenceEligible }
+		if (captures.size > 1) {
+			return false
+		}
+		return wal.matchesQualifiedCapture(captures.singleOrNull())
+	}
+
+	private fun hasExactQualifiedAmbientMembership(wal: SourceEventWalEntity, authorization: SourceAuthorizationSnapshot,
+		demands: List<SourceDemandEntity>): Boolean = qualifiedLocationMembers(wal, authorization, demands)?.any {
+			it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && it.persistenceEligible
+		} == true
+
+	/** Purpose freshness stays shared; session attribution cannot withhold a valid all-day sibling. */
+	private fun qualifiedLocationMembers(wal: SourceEventWalEntity, authorization: SourceAuthorizationSnapshot,
+		demands: List<SourceDemandEntity>): List<SourceAuthorizationEntity>? {
 		val age = wal.receivedElapsedNanos - wal.observedElapsedNanos
 		if (age < 0) {
-			return false
+			return null
 		}
 		val eligible = authorization.authorizedMembers.filter { member ->
 			val demand = demands.singleOrNull { it.demandId == member.demandId } ?: return@filter false
@@ -267,14 +283,9 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		val mask = eligible.fold(0L) { bits, member ->
             bits or SourceBrokerPurpose.mask(requireNotNull(member.purpose)) }
 		if (mask == 0L || mask != wal.authorizationPurposeEligibilityMask) {
-			return false
+			return null
 		}
-		val captures = eligible.filter { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE && it.persistenceEligible }
-		if (captures.size > 1) {
-			return false
-		}
-		val capture = captures.singleOrNull()
-		return wal.matchesQualifiedCapture(capture)
+		return eligible
 	}
 
 	private fun SourceEventWalEntity.matchesQualifiedCapture(capture: SourceAuthorizationEntity?): Boolean =

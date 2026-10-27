@@ -100,8 +100,8 @@ class PressureOnlyTrackingContentTest {
 
 		composeRule.onNodeWithTag("dashboard_live_pressure_header").assertTextEquals("Recording")
 		composeRule.onNodeWithTag("dashboard_live_pressure_value").assertTextEquals("1000.5 hPa")
-		composeRule.onNodeWithTag("dashboard_live_pressure_status")
-			.assertTextEquals("Preparing Pressure history…")
+		composeRule.onNodeWithTag("dashboard_live_pressure_status").assertDoesNotExist()
+		composeRule.onAllNodesWithText("Partial coverage").assertCountEquals(1)
 	}
 
 	@Test

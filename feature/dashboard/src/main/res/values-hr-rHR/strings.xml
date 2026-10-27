@@ -196,4 +196,5 @@
     <string name="dashboard_activity_on_foot">Pješice</string>
     <string name="dashboard_activity_tilting">Naginjanje</string>
     <string name="dashboard_activity_unknown">Nepoznata aktivnost</string>
+    <string name="dashboard_finishing_session">Dovršavanje sesije…</string>
 </resources>

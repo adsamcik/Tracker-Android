@@ -9,6 +9,8 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlin.test.*
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emitAll
@@ -73,6 +75,49 @@ class TrackerSavedLocationPresentationTest {
             upstream.value = saved(1, distance = 999.0)
             runCurrent()
             assertEquals(SavedLocationSummaryRead.NotFound, controller.savedLocationSummaryFlow.value)
+        } finally { job.cancelAndJoin() }
+    }
+
+    @Test fun `Finishing cancels saved Location reads and retains the display until clear or a new session`() = runTest {
+        val history = mockk<TrackingHistoryRepository>()
+        val reading = CompletableDeferred<Unit>()
+        val cancelled = CompletableDeferred<Unit>()
+        val previous = saved(1)
+        every { history.observeLiveSavedLocationSummary(1) } returns flow {
+            try {
+                emit(previous)
+                reading.complete(Unit)
+                awaitCancellation()
+            } finally {
+                cancelled.complete(Unit)
+            }
+        }
+        val successor = saved(2, distance = 456.0)
+        every { history.observeLiveSavedLocationSummary(2) } returns MutableStateFlow(successor)
+        val controller = activeController(1)
+        val job = controller.bindSavedLocationSummaries(history, backgroundScope)
+        try {
+            runCurrent()
+            assertTrue(reading.isCompleted)
+            assertSame(previous, controller.savedLocationSummaryFlow.value)
+            controller.updateSessionInfo(TrackerSessionInfo(true, stoppingAtMs = 123_456L))
+            runCurrent()
+            assertTrue(cancelled.isCompleted)
+            assertSame(previous, controller.savedLocationSummaryFlow.value)
+            controller.updateSessionInfo(TrackerSessionInfo(true, stoppingAtMs = 234_567L))
+            runCurrent()
+            verify(exactly = 1) { history.observeLiveSavedLocationSummary(1) }
+
+            controller.updateSessionInfo(null)
+            controller.updateSession(null)
+            assertEquals(SavedLocationSummaryRead.NotFound, controller.savedLocationSummaryFlow.value)
+            runCurrent()
+            assertEquals(SavedLocationSummaryRead.NotFound, controller.savedLocationSummaryFlow.value)
+            controller.updateSession(TrackerSessionSnapshot(id = 2))
+            controller.updateSessionInfo(TrackerSessionInfo(true))
+            runCurrent()
+            assertSame(successor, controller.savedLocationSummaryFlow.value)
+            verify(exactly = 1) { history.observeLiveSavedLocationSummary(2) }
         } finally { job.cancelAndJoin() }
     }
 

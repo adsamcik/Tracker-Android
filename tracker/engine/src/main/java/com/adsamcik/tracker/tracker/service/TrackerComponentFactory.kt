@@ -105,7 +105,7 @@ internal class TrackerComponentFactory(
 			dataComponents = buildDataComponents(context)
 
 			if (enableNotifications) {
-				notificationComponent.onEnable(context)
+				notificationComponent.onEnable(context, isSessionUserInitiated)
 				stateCollectorJobs += notificationComponent.startSavedLocationUpdates(
 					context, controller, trackingParamsRepository, scope)
 				notificationEnabled = true

@@ -195,4 +195,5 @@
     <string name="dashboard_activity_on_foot">Jalgsi</string>
     <string name="dashboard_activity_tilting">Kallutamine</string>
     <string name="dashboard_activity_unknown">Tundmatu tegevus</string>
+    <string name="dashboard_finishing_session">Seansi lõpetamine…</string>
 </resources>

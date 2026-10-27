@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.dashboard.ui.compose.components
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -21,6 +22,18 @@ class TrackingActionRingTest {
 
 	@get:Rule
 	val composeRule = createComposeRule()
+
+	@Test
+	fun finishingSession_disablesTheActionUntilSavedWorkCompletes() {
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				TrackingActionRing(isTracking = true, isStopping = true, hasPermission = true,
+					goalProgress = GoalProgressState(), onToggleTracking = {}, onRequestPermission = {})
+			}
+		}
+		composeRule.onNodeWithText("Finishing session…").assertIsDisplayed()
+		composeRule.onNodeWithTag("tracking_action_ring").assertIsNotEnabled()
+	}
 
 	@Test
 	fun idleWithPermission_showsStartTrackingText() {

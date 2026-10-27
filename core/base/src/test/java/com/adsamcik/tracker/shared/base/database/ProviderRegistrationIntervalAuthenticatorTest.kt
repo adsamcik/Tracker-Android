@@ -47,6 +47,21 @@ class ProviderRegistrationIntervalAuthenticatorTest {
 	}
 
 	@Test
+	fun `exact saved Activity callback loss preserves active provider while real failures remain rejected`() {
+		val prefix = ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX
+		val active = registration(SourceDestinationOwnerEntity.SOURCE_ACTIVITY).copy(
+			failureCode = "${prefix}4", captureCallbackBarrierAuthorizationRevision = 4L,
+		)
+		assertIs<ProviderRegistrationIntervalAuthentication.Authenticated>(authenticate(active))
+		listOf("${prefix}0", "${prefix}5", "${prefix}04", "${prefix}4|PROVIDER_FAILED", "PROVIDER_FAILED")
+			.forEach { reason ->
+				assertIs<ProviderRegistrationIntervalAuthentication.Rejected>(authenticate(active.copy(failureCode = reason)))
+			}
+		assertIs<ProviderRegistrationIntervalAuthentication.Rejected>(
+			authenticate(active.copy(sourceKind = SourceDestinationOwnerEntity.SOURCE_LOCATION)))
+	}
+
+	@Test
 	fun `same boot retiring and retired registrations require finite boundaries before observation`() {
 		SOURCES.forEach { source ->
 			listOf(

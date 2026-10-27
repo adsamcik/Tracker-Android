@@ -24,6 +24,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecution
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.shared.base.database.data.isAmbientPressureOutsideCapturePlan
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import java.time.DateTimeException
@@ -666,9 +667,19 @@ internal class PressureHistorySelector private constructor(
 		if (!hasValidPressureCompleteness(completeness, logicalTrackingId, serviceRunId)) {
 			return failed(segment, captureAuthority, PressureHistoryReason.COMPLETENESS_INVALID)
 		}
-		val targetOrdinal = completeness.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal)
-			.maxOrNull()
 		val revisions = snapshot.factRevisionsByRun[serviceRunId].orEmpty()
+		val savedTargetOrdinal = completeness.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal)
+			.maxOrNull()
+		// Stop receipts describe final acquisition coverage; saved, authenticated readings are usable before End.
+		val liveRun = serviceRun.completedAtMs == null && serviceRun.state in LIVE_SERVICE_RUN_STATES
+		val targetOrdinal = if (liveRun || completeness.isEmpty()) {
+			listOfNotNull(
+				savedTargetOrdinal,
+				revisions.maxOfOrNull(PressureFactRevisionEntity::sourceAdmissionOrdinal),
+			).maxOrNull()
+		} else {
+			savedTargetOrdinal
+		}
 		if (logicalTrackingId in snapshot.invalidFactScopeLogicalIds) {
 			return failed(
 				segment,
@@ -697,7 +708,18 @@ internal class PressureHistorySelector private constructor(
 		}
 		val manifestsByRevision = manifests.associateBy(SessionManifestVersionEntity::manifestRevision)
 		val authenticatedLineages = mutableListOf<PressureFactLineageProof.Authenticated>()
+		val ambientOnlyOrdinals = mutableSetOf<Long>()
+		val rejectedFactOrdinals = mutableSetOf<Long>()
+		val rejectedReasons = linkedSetOf<PressureHistoryReason>()
+		var hasSessionBoundaryWindow = false
 		for (lineage in revisions.groupBy(PressureFactRevisionEntity::logicalFactId).values) {
+			if (isAmbientPressureOutsideCapture(lineage, snapshot, manifestsByRevision, pressureBindings)) {
+				ambientOnlyOrdinals += lineage.map(PressureFactRevisionEntity::sourceAdmissionOrdinal)
+				continue
+			}
+			if (isPressureAfterSavedEnd(lineage, snapshot, pressureBindings, logicalTrackingId, serviceRunId)) {
+				continue
+			}
 			when (
 				val proof = PressureFactProofAuthenticator.authenticateLineage(
 					revisions = lineage,
@@ -705,48 +727,41 @@ internal class PressureHistorySelector private constructor(
 				)
 			) {
 				is PressureFactLineageProof.Authenticated -> authenticatedLineages += proof
-				is PressureFactLineageProof.Rejected -> return failed(
-					segment,
-					captureAuthority,
-					if (proof.reason == PressureFactProofFailure.LINEAGE_INCOMPLETE ||
-						proof.reason == PressureFactProofFailure.CURRENT_FACT_MISMATCH
-					) {
-						PressureHistoryReason.PRESSURE_FACT_CORRECTION_INCOMPLETE
-					} else if (proof.reason == PressureFactProofFailure.BOUND_EXCEEDED) {
-						PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW
-					} else {
-						PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED
-					},
-				)
+				is PressureFactLineageProof.Rejected -> if (proof.reason == PressureFactProofFailure.SESSION_BOUNDARY) {
+					// A complete aggregate cannot say which samples precede End. Keep its raw data,
+					// show the independently qualified windows, and report the session as partial.
+					hasSessionBoundaryWindow = true
+				} else {
+					rejectedFactOrdinals += lineage.map(PressureFactRevisionEntity::sourceAdmissionOrdinal)
+					rejectedReasons += proof.reason.pressureHistoryReason()
+				}
 			}
 		}
 
-		val nextManifestByRevision = manifests.mapIndexed { index, manifest ->
-			manifest.manifestRevision to manifests.getOrNull(index + 1)
-		}.toMap()
-		for (fact in revisions) {
-			val manifest = manifestsByRevision[fact.manifestRevision]
-			val binding = pressureBindings[fact.manifestRevision]
-			val nextManifest = nextManifestByRevision[fact.manifestRevision]
-			if (manifest == null || binding == null ||
-				!fact.matchesCapturedPressureScope(logicalTrackingId, serviceRunId, manifest, binding, lane) ||
-				!fact.hasPressureWindowAuthority(manifest, binding, lane, serviceRun, nextManifest)
-			) {
-				return failed(
-					segment,
-					captureAuthority,
-					PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED,
-				)
+		val qualifiedLineages = authenticatedLineages.filter { proof ->
+			val validScope = proof.revisions.all { fact ->
+				val manifest = manifestsByRevision[fact.manifestRevision]
+				val binding = pressureBindings[fact.manifestRevision]
+				manifest != null && binding != null &&
+					fact.matchesCapturedPressureScope(logicalTrackingId, serviceRunId, manifest, binding, lane) &&
+					fact.hasPressureWindowAuthority(manifest, binding, lane, serviceRun)
 			}
-			if (!evidenceState.acceptsRetainedEpoch(fact.collectedDataEpoch)) {
-				return failed(
-					segment,
-					captureAuthority,
-					PressureHistoryReason.STALE_COLLECTED_DATA_EPOCH,
-				)
+			val retainedEpoch = proof.revisions.all { evidenceState.acceptsRetainedEpoch(it.collectedDataEpoch) }
+			if (!validScope) {
+				rejectedReasons += PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED
 			}
+			if (!retainedEpoch) {
+				rejectedReasons += PressureHistoryReason.STALE_COLLECTED_DATA_EPOCH
+			}
+			if (!validScope || !retainedEpoch) {
+				rejectedFactOrdinals += proof.revisions.map(PressureFactRevisionEntity::sourceAdmissionOrdinal)
+			}
+			validScope && retainedEpoch
 		}
-		val retainedLineages = authenticatedLineages.filter { proof ->
+		if (qualifiedLineages.isEmpty() && rejectedReasons.isNotEmpty()) {
+			return failed(segment, captureAuthority, rejectedReasons.first()).copy(reasons = rejectedReasons)
+		}
+		val retainedLineages = qualifiedLineages.filter { proof ->
 			val lowerBound = CanonicalRetentionBounds.pressureLineage(proof.revisions)
 				?: return failed(
 					segment,
@@ -756,7 +771,7 @@ internal class PressureHistorySelector private constructor(
 			evidenceState.retainedFromMs?.let { lowerBound >= it } != false
 		}
 		val reportedRetentionTruncated =
-			retentionTruncated || retainedLineages.size != authenticatedLineages.size
+			retentionTruncated || retainedLineages.size != qualifiedLineages.size
 		val effectiveFacts = retainedLineages.map { it.current }.sortedWith(compareBy(
 				PressureFactRevisionEntity::windowStartElapsedRealtimeNanos,
 				PressureFactRevisionEntity::windowEndElapsedRealtimeNanos,
@@ -769,6 +784,10 @@ internal class PressureHistorySelector private constructor(
 		val serviceRunCompleted = serviceRun.completedAtMs != null &&
 			serviceRun.state in TERMINAL_SERVICE_RUN_STATES
 		val reasons = linkedSetOf<PressureHistoryReason>()
+		reasons += rejectedReasons
+		if (ambientOnlyOrdinals.isNotEmpty() || hasSessionBoundaryWindow || rejectedReasons.isNotEmpty()) {
+			reasons += PressureHistoryReason.PARTIAL_FACT
+		}
 		if (snapshot.factProof.savedSessionCutoffs[logicalTrackingId]?.clockUnknown == true) {
 			reasons += PressureHistoryReason.STOP_INCOMPLETE
 		}
@@ -826,6 +845,8 @@ internal class PressureHistorySelector private constructor(
 					failure.projectionVersion == lane.projectionVersion &&
 					failure.admissionOrdinal >= lane.activationOrdinal &&
 					failure.admissionOrdinal <= productTargetOrdinal &&
+					failure.admissionOrdinal !in ambientOnlyOrdinals &&
+					failure.admissionOrdinal !in rejectedFactOrdinals &&
 					(!measuredOnly || revisions.any { it.sourceAdmissionOrdinal == failure.admissionOrdinal })
 			} -> {
 				reasons += PressureHistoryReason.TERMINAL_PROJECTION_FAILURE
@@ -846,7 +867,7 @@ internal class PressureHistorySelector private constructor(
 				PressureHistoryMaterialization.MATERIALIZING
 			}
 			!serviceRunCompleted -> PressureHistoryMaterialization.MATERIALIZING
-			completeness.isEmpty() -> PressureHistoryMaterialization.FAILED
+			completeness.isEmpty() && revisions.isEmpty() -> PressureHistoryMaterialization.FAILED
 			PressureHistoryReason.FACTS_MISSING_FOR_ADMITTED_RUN in reasons ->
 				PressureHistoryMaterialization.FAILED
 			else -> PressureHistoryMaterialization.READY
@@ -881,6 +902,13 @@ internal class PressureHistorySelector private constructor(
 		)
 	}
 
+	private fun PressureFactProofFailure.pressureHistoryReason(): PressureHistoryReason = when (this) {
+		PressureFactProofFailure.LINEAGE_INCOMPLETE, PressureFactProofFailure.CURRENT_FACT_MISMATCH ->
+			PressureHistoryReason.PRESSURE_FACT_CORRECTION_INCOMPLETE
+		PressureFactProofFailure.BOUND_EXCEEDED -> PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW
+		else -> PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED
+	}
+
 	private fun hasAdmittedPressureRevisions(
 		revisions: List<PressureFactRevisionEntity>,
 		targetOrdinal: Long?,
@@ -913,24 +941,57 @@ internal class PressureHistorySelector private constructor(
 			writerBindingGeneration == lane.bindingGeneration && clockDomainId == manifest.effectiveBootId
 	}
 
+	/** An old ambient callback cannot become session data through a later capture plan. */
+	private fun isAmbientPressureOutsideCapture(
+		lineage: List<PressureFactRevisionEntity>,
+		snapshot: PressureHistoryBatchSnapshot,
+		manifests: Map<Long, SessionManifestVersionEntity>,
+		bindings: Map<Long, SessionManifestSourceEntity>,
+	): Boolean {
+		val original = lineage.minByOrNull(PressureFactRevisionEntity::semanticRevision)
+		val wal = original?.let { snapshot.factProof.walByEventId[it.sourceEventId] }
+		val manifest = original?.let { manifests[it.manifestRevision] }
+		if (wal == null || manifest == null || !wal.isAmbientPressureOutsideCapturePlan(manifest)) {
+			return false
+		}
+		val stored = PressureFactProofAuthenticator.authenticateStoredLineage(
+			lineage, snapshot.factProof.walByEventId, bindings,
+		) as? PressureFactLineageProof.Authenticated ?: return false
+		return stored.revisions.all { fact ->
+			val carrier = snapshot.factProof.walByEventId.getValue(fact.sourceEventId)
+			manifests[fact.manifestRevision]?.let(carrier::isAmbientPressureOutsideCapturePlan) == true
+		}
+	}
+
+	/** A valid original reading wholly after the exact End is outside this session, not missing data. */
+	private fun isPressureAfterSavedEnd(
+		lineage: List<PressureFactRevisionEntity>,
+		snapshot: PressureHistoryBatchSnapshot,
+		bindings: Map<Long, SessionManifestSourceEntity>,
+		logicalTrackingId: String,
+		serviceRunId: String,
+	): Boolean {
+		val original = lineage.minByOrNull(PressureFactRevisionEntity::semanticRevision) ?: return false
+		val end = snapshot.factProof.savedSessionCutoffs[logicalTrackingId]?.endForBoot(original.clockDomainId)
+			?: return false
+		val sameOwner = original.logicalTrackingId == logicalTrackingId && original.serviceRunId == serviceRunId
+		val outside = original.windowStartElapsedRealtimeNanos > end
+		return sameOwner && outside && PressureFactProofAuthenticator.authenticateStoredLineage(
+			lineage, snapshot.factProof.walByEventId, bindings) is PressureFactLineageProof.Authenticated
+	}
+
 	private fun PressureFactRevisionEntity.hasPressureWindowAuthority(
 		manifest: SessionManifestVersionEntity,
 		binding: SessionManifestSourceEntity,
 		lane: SourceProductProjectionLaneEntity,
 		serviceRun: SourceServiceRunEntity,
-		nextManifest: SessionManifestVersionEntity?,
 	): Boolean {
 		if (windowStartElapsedRealtimeNanos < serviceRun.startedElapsedNanos ||
 			windowStartElapsedRealtimeNanos < manifest.effectiveElapsedRealtimeNanos
 		) {
 			return false
 		}
-		if (nextManifest?.effectiveElapsedRealtimeNanos?.let { nextEffective ->
-				windowStartElapsedRealtimeNanos >= nextEffective || windowEndElapsedRealtimeNanos > nextEffective
-			} == true
-		) {
-			return false
-		}
+		// The shared core proof above checks continuous recording consent and real withdrawals.
 		return lane.activatedRolloutRevision <= manifest.rolloutRevision && hasValidPressureFactIdentity(this, binding)
 	}
 
@@ -1444,6 +1505,7 @@ internal class PressureHistorySelector private constructor(
 		const val MANUAL_SESSION_CAPTURE_MASK = 1L shl 0
 		const val AUTOMATIC_SESSION_CAPTURE_MASK = 1L shl 1
 		val TERMINAL_SERVICE_RUN_STATES = setOf("FINALIZED", "FAILED", "CLOSED")
+		val LIVE_SERVICE_RUN_STATES = setOf("STARTING", "ACTIVE", "RECONFIGURING", "STOPPING")
 		val PROVIDER_COVERAGE_VALUES = setOf(
 			COMPLETE_PROVIDER_COVERAGE,
 			UNOBSERVABLE_PROVIDER_COVERAGE,

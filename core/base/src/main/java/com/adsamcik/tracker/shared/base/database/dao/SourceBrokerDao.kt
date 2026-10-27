@@ -465,6 +465,24 @@ interface SourceBrokerDao {
 		authorizationRevision: Long,
 	): List<SourceAuthorizationEntity>
 
+	/** Original capture grant for this provider's applied plan in the same service run. */
+	@Query(
+		"SELECT a.* FROM source_authorization a JOIN session_manifest_version m ON " +
+			"m.logical_tracking_id=a.logical_tracking_id AND m.service_run_id=a.service_run_id AND " +
+			"m.manifest_revision=a.manifest_revision WHERE a.source_kind=2 AND " +
+			"a.registration_generation=:generation AND a.authorization_revision<:beforeRevision AND " +
+			"a.purpose='SESSION_CAPTURE' AND a.persistence_eligible=1 AND " +
+			"a.logical_tracking_id=:logicalId AND a.service_run_id=:runId AND " +
+			"m.acquisition_plan_revision=:configurationRevision ORDER BY a.authorization_revision DESC LIMIT 1",
+	)
+	suspend fun originalActivityPlanCaptureGrant(
+		generation: Long,
+		beforeRevision: Long,
+		logicalId: String,
+		runId: String,
+		configurationRevision: Long,
+	): SourceAuthorizationEntity?
+
 	/** Exact immutable authorization envelope with a caller-owned member bound. */
 	@Query(
 		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
@@ -592,6 +610,28 @@ interface SourceBrokerDao {
 			"AND purpose = 'SESSION_CAPTURE' AND persistence_eligible = 1",
 	)
 	suspend fun maximumRadioSessionCaptureAuthorizationRevision(sourceKind: Int, registrationGeneration: Long): Long
+
+	/** Identifies the original session grant for a known Activity callback loss. */
+	@Query(
+		"SELECT COALESCE(MAX(authorization_revision), 0) FROM source_authorization " +
+			"WHERE source_kind = 2 AND registration_generation = :registrationGeneration " +
+			"AND purpose = 'SESSION_CAPTURE' AND persistence_eligible = 1",
+	)
+	suspend fun maximumActivitySessionCaptureAuthorizationRevision(registrationGeneration: Long): Long
+
+	/** Retains a known lost Activity delivery on its existing exact capture seal. */
+	@Query(
+		"UPDATE provider_registration_generation SET failure_code = :failureCode " +
+			"WHERE source_kind = 2 AND registration_generation = :registrationGeneration " +
+			"AND source_instance_id = :sourceInstanceId AND status IN ('ACTIVE', 'RETIRING') " +
+			"AND capture_callback_barrier_authorization_revision = :throughAuthorizationRevision",
+	)
+	suspend fun recordActivityCaptureCallbackLoss(
+		registrationGeneration: Long,
+		sourceInstanceId: String,
+		throughAuthorizationRevision: Long,
+		failureCode: String,
+	): Int
 
 	/**
 	 * Reads `source_authorization` rows. Query conditions include `source_kind = :sourceKind`,
