@@ -53,12 +53,43 @@ class ProviderRegistrationIntervalAuthenticatorTest {
 			failureCode = "${prefix}4", captureCallbackBarrierAuthorizationRevision = 4L,
 		)
 		assertIs<ProviderRegistrationIntervalAuthentication.Authenticated>(authenticate(active))
-		listOf("${prefix}0", "${prefix}5", "${prefix}04", "${prefix}4|PROVIDER_FAILED", "PROVIDER_FAILED")
+		assertIs<ProviderRegistrationIntervalAuthentication.Authenticated>(
+			authenticate(active.copy(failureCode = "${prefix}2|${prefix}4")))
+		listOf("${prefix}0", "${prefix}5", "${prefix}04", "${prefix}4|PROVIDER_FAILED", "PROVIDER_FAILED",
+			"PROVIDER_FAILED|${prefix}2|${prefix}4", "${prefix}2|${prefix}04", "${prefix}4|${prefix}4")
 			.forEach { reason ->
 				assertIs<ProviderRegistrationIntervalAuthentication.Rejected>(authenticate(active.copy(failureCode = reason)))
 			}
 		assertIs<ProviderRegistrationIntervalAuthentication.Rejected>(
 			authenticate(active.copy(sourceKind = SourceDestinationOwnerEntity.SOURCE_LOCATION)))
+	}
+
+	@Test
+	fun `prior boot Activity requires exact removal proof without borrowing a new elapsed boundary`() {
+		val removed = registration(SourceDestinationOwnerEntity.SOURCE_ACTIVITY).copy(
+			providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+			providerProcessIncarnationId = null, status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+			failureCode = ProviderRegistrationGenerationEntity.FAILURE_PRIOR_BOOT_SYSTEM_REMOVED,
+		)
+		fun verify(row: ProviderRegistrationGenerationEntity, boot: String = CURRENT_BOOT) = authenticate(
+			row, currentClockDomainId = boot, currentRegistrations = emptyList(),
+			expectedProviderResidency = ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+		)
+		assertIs<ProviderRegistrationIntervalAuthentication.Authenticated>(verify(removed))
+		assertIs<ProviderRegistrationIntervalAuthentication.Authenticated>(verify(removed.copy(
+			failureCode = "${ProviderRegistrationGenerationEntity.FAILURE_PRIOR_BOOT_SYSTEM_REMOVED}|ACTIVITY_CALLBACK_LOSS:1")))
+		assertIs<ProviderRegistrationIntervalAuthentication.Authenticated>(verify(removed.copy(
+			failureCode = "${ProviderRegistrationGenerationEntity.FAILURE_PRIOR_BOOT_SYSTEM_REMOVED}|DEMAND_REMOVED|" +
+				"ACTIVITY_CALLBACK_LOSS:1|ACTIVITY_CALLBACK_LOSS:2", captureCallbackBarrierAuthorizationRevision = 2L)))
+		assertIs<ProviderRegistrationIntervalAuthentication.Rejected>(verify(removed.copy(failureCode = "DEMAND_REMOVED")))
+		assertIs<ProviderRegistrationIntervalAuthentication.Rejected>(verify(removed.copy(
+			status = ProviderRegistrationGenerationEntity.STATUS_RETIRING)))
+		assertIs<ProviderRegistrationIntervalAuthentication.Rejected>(verify(removed, BOOT))
+		// A mismatched current provider may never reuse the removed identity as historical proof.
+		assertIs<ProviderRegistrationIntervalAuthentication.Rejected>(authenticate(removed,
+			currentClockDomainId = CURRENT_BOOT, currentRegistrations = listOf(removed.copy(
+				clockDomainId = CURRENT_BOOT, status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE)),
+			expectedProviderResidency = ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE))
 	}
 
 	@Test
@@ -517,6 +548,7 @@ class ProviderRegistrationIntervalAuthenticatorTest {
 		currentClockDomainId: String = BOOT,
 		currentRegistrations: List<ProviderRegistrationGenerationEntity>? = null,
 		observedWallTimeMs: Long = 19L,
+		expectedProviderResidency: String = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
 	) = ProviderRegistrationIntervalAuthenticator.authenticate(
 		registration = registration,
 		expectedSourceKind = registration.sourceKind,
@@ -525,8 +557,7 @@ class ProviderRegistrationIntervalAuthenticatorTest {
 		expectedClockDomainId = BOOT,
 		expectedPhysicalConfigurationFingerprint = FINGERPRINT,
 		expectedCollectedDataEpoch = 7L,
-		expectedProviderResidency =
-			ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+		expectedProviderResidency = expectedProviderResidency,
 		observedStartNanos = 150L,
 		observedEndNanos = 199L,
 		observedWallTimeMs = observedWallTimeMs,

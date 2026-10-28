@@ -427,18 +427,41 @@ data class ProviderRegistrationGenerationEntity(
 
 /** A callback-save gap does not mean that the shared Activity provider stopped or failed. */
 fun ProviderRegistrationGenerationEntity.hasOnlyActivityCallbackLoss(): Boolean =
-	failureCode?.startsWith(ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX) == true &&
-		activityCallbackLossRevision() != null
+	activityCallbackLossRevisions().takeIf { it.isNotEmpty() }?.let { revisions ->
+		failureCode == revisions.joinToString("|") {
+			"${ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX}$it"
+		}
+	} == true
 
 /** Returns only a canonical loss marker belonging to this Activity provider's recorded capture seals. */
 fun ProviderRegistrationGenerationEntity.activityCallbackLossRevision(): Long? {
+	return activityCallbackLossRevisions().lastOrNull()
+}
+
+/** Retirement retains distinct original capture losses instead of overwriting earlier sessions. */
+fun ProviderRegistrationGenerationEntity.activityCallbackLossRevisions(): Set<Long> {
+	if (sourceKind != SourceDestinationOwnerEntity.SOURCE_ACTIVITY) return emptySet()
 	val prefix = ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX
-	val suffix = failureCode?.removePrefix("DEMAND_REMOVED|")?.takeIf { it.startsWith(prefix) }
-		?.removePrefix(prefix) ?: return null
-	val revision = suffix.toLongOrNull() ?: return null
-	return revision.takeIf {
-		sourceKind == SourceDestinationOwnerEntity.SOURCE_ACTIVITY && it > 0L &&
-			suffix == it.toString() && it <= captureCallbackBarrierAuthorizationRevision
+	return failureCode.orEmpty().split('|').mapNotNullTo(linkedSetOf()) { token ->
+		val suffix = token.takeIf { it.startsWith(prefix) }?.removePrefix(prefix) ?: return@mapNotNullTo null
+		val revision = suffix.toLongOrNull() ?: return@mapNotNullTo null
+		revision.takeIf { it > 0L && suffix == it.toString() && it <= captureCallbackBarrierAuthorizationRevision }
+	}
+}
+
+/** A saved callback gap belongs only to its original session/run grant, even on a shared provider. */
+fun ProviderRegistrationGenerationEntity.hasActivityCallbackLossFor(
+	logicalTrackingId: String,
+	serviceRunId: String,
+	authorizations: List<SourceAuthorizationEntity>,
+): Boolean {
+	val revisions = activityCallbackLossRevisions()
+	if (revisions.isEmpty()) return false
+	return authorizations.any { member ->
+		member.sourceKind == SourceDestinationOwnerEntity.SOURCE_ACTIVITY &&
+			member.registrationGeneration == registrationGeneration && member.authorizationRevision in revisions &&
+			member.effectiveBootId == clockDomainId && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+			member.persistenceEligible && member.logicalTrackingId == logicalTrackingId && member.serviceRunId == serviceRunId
 	}
 }
 

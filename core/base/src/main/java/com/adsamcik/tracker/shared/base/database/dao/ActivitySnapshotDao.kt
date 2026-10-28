@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base.database.dao
 import androidx.room.Dao
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
+import com.adsamcik.tracker.shared.base.database.data.AllDaySensorRetention
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -27,13 +28,19 @@ interface ActivitySnapshotDao : BaseDao<ActivitySnapshot> {
 	suspend fun allDayBetween(fromMs: Long, toMs: Long, limit: Int): List<ActivitySnapshot>
 
 	/** Reads on-device all-day observations, excluding imported copies before applying the row limit. */
-	@Query("""
-	    SELECT * FROM activity_snapshot
-	    WHERE source_signal_id LIKE 'all-day:activity:%' AND time_ms >= :fromMs AND time_ms < :toMs
-	      AND instr(',' || COALESCE(capability_flags, '') || ',', ',PORTABLE_IMPORT,') = 0
-	    ORDER BY time_ms, source_signal_id LIMIT :limit
-	""")
-	suspend fun nativeAllDayBetween(fromMs: Long, toMs: Long, limit: Int): List<ActivitySnapshot>
+	@Query(
+		"SELECT * FROM activity_snapshot " +
+		"WHERE source_signal_id LIKE 'all-day:activity:%' AND time_ms >= :fromMs AND time_ms < :toMs " +
+		"AND instr(',' || COALESCE(capability_flags, '') || ',', ',PORTABLE_IMPORT,') = 0 " +
+		"AND (:retainedFromMs IS NULL OR (" + AllDaySensorRetention.ACTIVITY_LOWER_BOUND_SQL +
+		") >= :retainedFromMs) ORDER BY time_ms, source_signal_id LIMIT :limit",
+	)
+	suspend fun nativeAllDayBetween(
+		fromMs: Long,
+		toMs: Long,
+		limit: Int,
+		retainedFromMs: Long? = null,
+	): List<ActivitySnapshot>
 
 	/** Pages all-day observations and imported copies by stable row ID within the measured window. */
 	@Query(
@@ -103,9 +110,11 @@ interface ActivitySnapshotDao : BaseDao<ActivitySnapshot> {
 	fun deleteAll()
 
 	/**
-	 * Delete snapshots older than given timestamp.
+	 * Deletes expired snapshots; all-day observations include their saved clock uncertainty.
 	 */
-	@Query("DELETE FROM activity_snapshot WHERE time_ms < :beforeMs")
+	@Query("DELETE FROM activity_snapshot WHERE time_ms < :beforeMs OR " +
+		"(source_signal_id LIKE 'all-day:activity:%' AND ((" + AllDaySensorRetention.ACTIVITY_LOWER_BOUND_SQL +
+		") IS NULL OR (" + AllDaySensorRetention.ACTIVITY_LOWER_BOUND_SQL + ") < :beforeMs))")
 	suspend fun deleteOlderThan(beforeMs: Long): Int
 
     /** Exact saved leaves selected by the bounded measured-history key page. */

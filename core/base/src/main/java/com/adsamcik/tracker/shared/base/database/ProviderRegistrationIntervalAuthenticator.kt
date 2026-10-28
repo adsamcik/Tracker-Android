@@ -356,8 +356,10 @@ object ProviderRegistrationIntervalAuthenticator {
 		currentClockDomainId: String?,
 		currentProviderRegistrations: List<ProviderRegistrationGenerationEntity>,
 	): Long? {
-		if (registration.sourceKind != SourceDestinationOwnerEntity.SOURCE_LOCATION ||
-			registration.failureCode != ProviderRegistrationGenerationEntity.FAILURE_PRIOR_BOOT_SYSTEM_REMOVED ||
+		if (registration.sourceKind !in setOf(SourceDestinationOwnerEntity.SOURCE_LOCATION,
+				SourceDestinationOwnerEntity.SOURCE_ACTIVITY) ||
+			registration.failureCode?.substringBefore('|') !=
+				ProviderRegistrationGenerationEntity.FAILURE_PRIOR_BOOT_SYSTEM_REMOVED ||
 			currentClockDomainId == null || registration.clockDomainId == currentClockDomainId
 		) {
 			return null

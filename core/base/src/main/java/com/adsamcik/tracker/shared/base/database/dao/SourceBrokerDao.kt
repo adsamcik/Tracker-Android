@@ -633,6 +633,21 @@ interface SourceBrokerDao {
 		failureCode: String,
 	): Int
 
+	/** A later lost retry may mark only its original already sealed capture. */
+	@Query(
+		"UPDATE provider_registration_generation SET failure_code = :failureCode " +
+			"WHERE source_kind = 2 AND registration_generation = :registrationGeneration " +
+			"AND source_instance_id = :sourceInstanceId AND collected_data_epoch = :collectedDataEpoch " +
+			"AND clock_domain_id = :clockDomainId AND physical_configuration_fingerprint = :physicalFingerprint " +
+			"AND status IN ('ACTIVE', 'RETIRING', 'RETIRED') AND failure_code IS :expectedFailureCode " +
+			"AND capture_callback_barrier_authorization_revision = :throughAuthorizationRevision " +
+			"AND collected_data_epoch = (SELECT collected_data_epoch FROM source_evidence_state WHERE id = 1)",
+	)
+	suspend fun recordSealedActivityCaptureCallbackLoss(
+		registrationGeneration: Long, sourceInstanceId: String, collectedDataEpoch: Long, clockDomainId: String,
+		physicalFingerprint: String, throughAuthorizationRevision: Long, expectedFailureCode: String?, failureCode: String,
+	): Int
+
 	/**
 	 * Reads `source_authorization` rows. Query conditions include `source_kind = :sourceKind`,
 	 * `source_kind IN (${SourceDestinationOwnerEntity.SOURCE_WIFI},
@@ -897,6 +912,25 @@ interface SourceBrokerDao {
 		"AND source_instance_id = :instanceId AND provider_residency = 'SYSTEM_REARMABLE' " +
 		"AND clock_domain_id != :currentBootId AND status IN ('RESERVED', 'ACTIVE', 'RETIRING')")
 	suspend fun completeRemovedPriorBootSystemLocation(
+		generation: Long, instanceId: String, currentBootId: String, reason: String,
+	): Int
+
+	/** A new boot cannot supply a finite retirement time in the original Activity clock. */
+	@Query("UPDATE provider_registration_generation SET status = 'RETIRING' " +
+		"WHERE source_kind = 2 AND registration_generation = :generation " +
+		"AND source_instance_id = :instanceId AND provider_residency = 'SYSTEM_REARMABLE' " +
+		"AND clock_domain_id != :currentBootId AND status = 'ACTIVE' " +
+		"AND retired_at_ms IS NULL AND retired_elapsed_realtime_nanos IS NULL")
+	suspend fun markPriorBootSystemActivityRetiring(generation: Long, instanceId: String, currentBootId: String): Int
+
+	/** Exact Android handle removal proves closure without relabelling the original elapsed clock. */
+	@Query("UPDATE provider_registration_generation SET status = 'RETIRED', " +
+		"failure_code = :reason || CASE WHEN failure_code IS NULL THEN '' ELSE '|' || failure_code END " +
+		"WHERE source_kind = 2 AND registration_generation = :generation " +
+		"AND source_instance_id = :instanceId AND provider_residency = 'SYSTEM_REARMABLE' " +
+		"AND clock_domain_id != :currentBootId AND status = 'RETIRING' " +
+		"AND retired_at_ms IS NULL AND retired_elapsed_realtime_nanos IS NULL")
+	suspend fun completeRemovedPriorBootSystemActivity(
 		generation: Long, instanceId: String, currentBootId: String, reason: String,
 	): Int
 

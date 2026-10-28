@@ -142,8 +142,7 @@ class ActiveDatabasePreflight internal constructor(
 
 	private fun classifyVersion(database: SQLiteDatabase, version: Int): ActiveDatabasePreflightResult = when {
 		version == 0 && !database.hasApplicationTables() -> ActiveDatabasePreflightResult.Fresh
-		version != INITIAL_ACTIVE_DATABASE_VERSION && version != DEVELOPMENT_DATABASE_VERSION_V28 &&
-			version != DEVELOPMENT_DATABASE_VERSION_V29 && version != CURRENT_DATABASE_VERSION ->
+		version !in SUPPORTED_ACTIVE_DATABASE_VERSIONS ->
 			ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.UNSUPPORTED_DATABASE_VERSION)
 		!BASELINE_TABLES.all(database::hasTable) ->
 			ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.UNRECOGNIZED_DATABASE_SCHEMA)
@@ -282,6 +281,14 @@ private fun hasFinalSchemaStepsCountDomain(database: SQLiteDatabase): Boolean =
 
 private const val DEVELOPMENT_DATABASE_VERSION_V28 = 28
 private const val DEVELOPMENT_DATABASE_VERSION_V29 = 29
+private const val DEVELOPMENT_DATABASE_VERSION_V30 = 30
+private val SUPPORTED_ACTIVE_DATABASE_VERSIONS = setOf(
+	INITIAL_ACTIVE_DATABASE_VERSION,
+	DEVELOPMENT_DATABASE_VERSION_V28,
+	DEVELOPMENT_DATABASE_VERSION_V29,
+	DEVELOPMENT_DATABASE_VERSION_V30,
+	CURRENT_DATABASE_VERSION,
+)
 
 internal class DevelopmentV28ContainmentOpenHelperFactory(
 	private val delegate: SupportSQLiteOpenHelper.Factory,
