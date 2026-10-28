@@ -63,6 +63,42 @@ class LocationFileImportTest {
         assertEquals(LocationFileOrigin.UNKNOWN, reexported.single().origin)
     }
 
+    @Test fun `overlapping older files keep richer path metadata and original point identity`() = runBlocking {
+        import(pointFile(500_000_000), "older")
+        val original = requireNotNull(database.locationFileIdentityDao().byPortableId("point-a"))
+        val richer = pointFile(500_000_000).toString(Charsets.UTF_8)
+            .replace("\"timeMs\":1000", "\"pathId\":\"route-a\",\"sequence\":7,\"timeMs\":1000").toByteArray()
+        assertEquals(1, import(richer, "richer").successCount)
+        assertEquals(1, import(richer, "richer-again").skippedCount)
+        assertEquals(1, import(pointFile(500_000_000), "older-again").skippedCount)
+        val identity = requireNotNull(database.locationFileIdentityDao().byPortableId("point-a"))
+        assertEquals(original.sampleId, identity.sampleId)
+        assertEquals("route-a", identity.pathId)
+        assertEquals(7L, identity.pathSequence)
+        assertEquals(1L, database.locationSampleDao().countAll())
+        val saved = database.locationPurposeDao().savedFileSamples(listOf(identity.sampleId)).single()
+        assertEquals("imported-location:route-a", saved.continuityId)
+        assertEquals(7L, saved.continuitySequence)
+        assertEquals(0L, saved.sample.elapsedRealtimeNanos)
+        assertNull(saved.sample.clockDomainId)
+    }
+
+    @Test fun `edited known file continuity uses the existing import-wide conflict choice`() = runBlocking {
+        fun withPath(path: String) = pointFile(500_000_000).toString(Charsets.UTF_8)
+            .replace("\"timeMs\":1000", "\"pathId\":\"${path}\",\"sequence\":7,\"timeMs\":1000").toByteArray()
+        import(withPath("original-path"), "original")
+        val changed = withPath("edited-path")
+        val review = preview(changed)
+        assertEquals(1, review.conflictCount)
+        assertEquals(1, import(changed, "unreviewed").failedCount)
+        assertEquals(1, import(changed, "keep", LocationFileImportReview(review,
+            LocationFileConflictChoice.KEEP_EXISTING)).skippedCount)
+        assertEquals(1, import(changed, "replace", LocationFileImportReview(review,
+            LocationFileConflictChoice.REPLACE_WITH_FILE)).successCount)
+        assertEquals("edited-path", database.locationFileIdentityDao().byPortableId("point-a")?.pathId)
+        assertEquals(1L, database.locationSampleDao().countAll())
+    }
+
     @Test fun `edited point ID without a reviewed choice cannot change an existing point`() = runBlocking {
         import(pointFile(500_000_000), "job-one")
         val result = import(pointFile(500_000_001), "job-two")

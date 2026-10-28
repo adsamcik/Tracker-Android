@@ -182,10 +182,10 @@ private fun LocationPointIdIndex.inspectExistingPoint(
     }
     val saved = sample ?: throw InvalidLocationFile("A saved Location point is missing")
     val existing = LocationFileMeasurementV1.from(saved.toModel())
-    recordExisting(point.pointId, existing.toString())
+    recordExisting(point.pointId, existing.savedState(identity))
     existingState.updateLengthPrefixed(point.pointId)
-    existingState.updateLengthPrefixed(existing.toString())
-    return existing == point.measurement
+    existingState.updateLengthPrefixed(existing.savedState(identity))
+    return existing == point.measurement && identity.matchesFilePath(point)
 }
 
 private fun MessageDigest.updateLengthPrefixed(value: String) {
@@ -363,3 +363,10 @@ internal fun deleteOwnedLocationTempFile(file: File, label: String) {
 private const val LENGTH_PREFIX_HIGH_BYTE_SHIFT = 24
 private const val LENGTH_PREFIX_MIDDLE_HIGH_BYTE_SHIFT = 16
 private const val LENGTH_PREFIX_MIDDLE_LOW_BYTE_SHIFT = 8
+
+/** Detect metadata changes during review too; missing fields in old files never remove a known path. */
+internal fun LocationFileMeasurementV1.savedState(identity: LocationFileIdentityEntity): String =
+    "${this};path=" + identity.pathId + ";sequence=" + identity.pathSequence
+
+internal fun LocationFileIdentityEntity.matchesFilePath(point: LocationFilePointV1): Boolean =
+    point.pathId == null || pathId == null || pathId == point.pathId && pathSequence == point.sequence

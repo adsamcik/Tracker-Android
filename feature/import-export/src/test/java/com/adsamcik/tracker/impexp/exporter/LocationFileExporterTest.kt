@@ -2,6 +2,13 @@ package com.adsamcik.tracker.impexp.exporter
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.impexp.importer.FileImportStream
+import com.adsamcik.tracker.impexp.importer.file.LocationFileImport
+import com.adsamcik.tracker.impexp.importer.file.LocationFileImportReview
+import com.adsamcik.tracker.impexp.importer.file.LocationFileConflictChoice
+import com.adsamcik.tracker.impexp.importer.file.LocationPointIdIndex
+import com.adsamcik.tracker.impexp.importer.file.inspectLocationFile
+import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.impexp.portable.LocationFileJsonV1
 import com.adsamcik.tracker.impexp.portable.LocationFileOrigin
 import com.adsamcik.tracker.impexp.portable.LocationFilePointV1
@@ -148,6 +155,97 @@ class LocationFileExporterTest {
 		export(LocationFileExporter(), 1_000L..3_000L).map { it.origin } shouldBe
 			listOf(LocationFileOrigin.SESSION, LocationFileOrigin.BACKGROUND, LocationFileOrigin.UNKNOWN)
 	}
+
+    @Test fun `native short gap survives actual file export import and geographic export`(): Unit = runBlocking {
+        nativePoint(1_000, 7)
+        nativePoint(2_000, 9)
+        nativePoint(3_000, 10)
+        val points = export(LocationFileExporter(), 1_000L..3_000L)
+        points.map { it.sequence } shouldBe listOf(7L, 9L, 10L)
+        points.map { it.pathId }.distinct().size shouldBe 1
+        val partial = export(LocationFileExporter(), 2_000L..2_000L).single()
+        partial shouldBe points[1]
+        database.close()
+        database = AppDatabase.testDatabase(context)
+        database.sourceEvidenceStateDao().ensure()
+        importBytes(encode(points), "native-gap").successCount shouldBe 3
+        val rows = database.locationPurposeDao().savedFileChunk(1_000, 3_000, null, null, 10)
+        rows.map { it.continuitySequence } shouldBe listOf(7L, 9L, 10L)
+        rows.map { it.sample.elapsedRealtimeNanos } shouldBe listOf(0L, 0L, 0L)
+        rows.map { it.sample.clockDomainId }.distinct() shouldBe listOf(null)
+        val gpx = ByteArrayOutputStream()
+        GpxExporter().export(context, rows.asSequence().map {
+            it.sample.toModel().copy(routeContinuityId = it.continuityId, routeSequence = it.continuitySequence)
+        }, gpx, null).isSuccess shouldBe true
+        Regex("<trkseg>").findAll(gpx.toString(Charsets.UTF_8.name())).count() shouldBe 2
+        export(LocationFileExporter(), 1_000L..3_000L) shouldBe points
+        importBytes(encode(listOf(partial)), "overlap").skippedCount shouldBe 1
+        database.locationSampleDao().countAll() shouldBe 3L
+    }
+
+    @Test fun `reviewed native replacement uses file path and retains its original receipt`(): Unit = runBlocking {
+        val sampleId = nativePoint(1_000, 7)
+        val before = database.locationPurposeDao().contextReceiptsForSamples(listOf(sampleId), 10).single()
+        val original = export(LocationFileExporter(), 1_000L..1_000L).single()
+        importBytes(encode(listOf(original)), "identical").skippedCount shouldBe 1
+        database.locationPurposeDao().savedFileSamples(listOf(sampleId)).single().continuityId shouldBe "native:1"
+        val replacement = original.copy(pathId = "owner-edited-path", sequence = 42,
+            measurement = original.measurement.copy(timeMs = 2_000, lonE7 = 140_010_000))
+        val bytes = encode(listOf(replacement))
+        val review = LocationPointIdIndex.open(context.cacheDir).use {
+            inspectLocationFile(database, ByteArrayInputStream(bytes), 0, it)
+        }
+        importBytes(bytes, "replace", LocationFileImportReview(review,
+            LocationFileConflictChoice.REPLACE_WITH_FILE)).successCount shouldBe 1
+        val current = database.locationPurposeDao().savedFileSamples(listOf(sampleId)).single()
+        current.continuityId shouldBe "imported-location:owner-edited-path"
+        current.continuitySequence shouldBe 42L
+        current.sample.elapsedRealtimeNanos shouldBe 0L
+        current.sample.timeMs shouldBe 2_000L
+        database.locationPurposeDao().contextReceiptsForSamples(listOf(sampleId), 10).single() shouldBe before
+        export(LocationFileExporter(), 2_000L..2_000L).single() shouldBe replacement
+        val olderEdit = replacement.copy(pathId = null, sequence = null,
+            measurement = replacement.measurement.copy(timeMs = 3_000))
+        val olderBytes = encode(listOf(olderEdit))
+        val olderReview = LocationPointIdIndex.open(context.cacheDir).use {
+            inspectLocationFile(database, ByteArrayInputStream(olderBytes), 0, it)
+        }
+        importBytes(olderBytes, "older-replace", LocationFileImportReview(olderReview,
+            LocationFileConflictChoice.REPLACE_WITH_FILE)).successCount shouldBe 1
+        export(LocationFileExporter(), 3_000L..3_000L).single() shouldBe olderEdit.copy(
+            pathId = replacement.pathId, sequence = replacement.sequence)
+    }
+
+    private suspend fun nativePoint(time: Long, sequence: Long): Long {
+        database.sourceEvidenceStateDao().ensure()
+        val value = sample(time).copy(lonE7 = 140_000_000 + sequence.toInt() * 1_000,
+            clockDomainId = "boot", elapsedRealtimeNanos = time * 1_000_000,
+            sourceEventId = "event-$sequence", sourceSignalId = "signal-$sequence")
+        val id = database.locationSampleDao().insert(value)
+        database.locationPurposeDao().insertReceiptIfAbsent(LocationAcceptedReceiptEntity(
+            sampleId = id, sourceEventId = requireNotNull(value.sourceEventId),
+            sourceSignalId = requireNotNull(value.sourceSignalId), sourceAdmissionOrdinal = sequence + 1,
+            walIntegrityIdentity = "a".repeat(64), canonicalContentChecksum = "b".repeat(64),
+            sourceInstanceId = "native", registrationGeneration = 1, sourceSequence = sequence,
+            deliveryIdentity = "delivery-$sequence", deliveryUnitIndex = 0, deliveryUnitCount = 1,
+            writerId = "writer", writerVersion = 1, configurationRevision = 1,
+            physicalConfigurationFingerprint = "physical", authorizationRevision = 1,
+            authorizationFingerprint = "authorized", clockDomainId = "boot", bootId = "boot",
+            observedElapsedRealtimeNanos = value.elapsedRealtimeNanos,
+            receivedElapsedRealtimeNanos = value.elapsedRealtimeNanos + 1,
+            observedWallTimeMs = time, receivedWallTimeMs = time + 1,
+            wallTimeUncertaintyMs = 0, collectedDataEpoch = 0))
+        return id
+    }
+
+    private fun encode(points: List<LocationFilePointV1>): ByteArray = ByteArrayOutputStream().also { output ->
+        LocationFileJsonV1().writer(output).apply { points.forEach(::point); finish() }
+    }.toByteArray()
+
+    private suspend fun importBytes(bytes: ByteArray, job: String, review: LocationFileImportReview? = null) =
+        LocationFileImport().import(context, database,
+            FileImportStream(ByteArrayInputStream(bytes), "route.trackerlocation").withImportReceipt(job, 1_000)
+                .withOriginalDataEpoch(0).let { stream -> review?.let(stream::withLocationReview) ?: stream })
 
 	private suspend fun export(exporter: LocationFileExporter, range: LongRange): List<LocationFilePointV1> {
 		val output = ByteArrayOutputStream()

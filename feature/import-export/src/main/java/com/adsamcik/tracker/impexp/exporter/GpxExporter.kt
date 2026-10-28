@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
+import com.adsamcik.tracker.shared.base.database.dao.LocationFileContinuity
 import androidx.annotation.Keep
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.shared.base.extension.applicationName
@@ -79,9 +80,18 @@ class GpxExporter : Exporter {
 		if (old == null || (old.routeContinuityId == null && sample.routeContinuityId == null)) {
 			return false
 		}
-		if (old.routeContinuityId != sample.routeContinuityId || old.routeSequence == null ||
+		if (!LocationFileContinuity.samePath(old.routeContinuityId, old.clockDomainId,
+            sample.routeContinuityId, sample.clockDomainId) || old.routeSequence == null ||
 			sample.routeSequence != old.routeSequence?.plus(1)) {
 			return true
+		}
+		return recordedTimeBoundary(old, sample)
+	}
+
+	private fun recordedTimeBoundary(old: LocationSample, sample: LocationSample): Boolean {
+		if (LocationFileContinuity.isImported(old.routeContinuityId) ||
+            LocationFileContinuity.isImported(sample.routeContinuityId)) {
+			return sample.timeMs <= old.timeMs || sample.timeMs - old.timeMs > ROUTE_GAP_LIMIT_MS
 		}
 		return sample.clockDomainId != old.clockDomainId ||
 			sample.elapsedRealtimeNanos <= old.elapsedRealtimeNanos ||

@@ -129,6 +129,38 @@ class SavedTripDistanceAccumulatorTest {
         assertEquals(edge(0, 100_000), route.movingAverageSpeedMetersPerSecond)
     }
 
+    @Test fun `portable owner correction shares an existing native path without borrowing its elapsed clock`() {
+        val first = point(1_000, 0, "owner:1", 7)
+        val path = com.adsamcik.tracker.shared.base.database.dao.LocationFileContinuity
+            .filePathId("owner:1", "boot")
+        val corrected = point(2_000, 100_000, "imported-location:${path}", 8).let {
+            it.copy(sample = it.sample.copy(elapsedRealtimeNanos = 0L, clockDomainId = null))
+        }
+        val route = SavedTripDistanceAccumulator()
+        listOf(first, corrected, point(3_000, 200_000, "owner:1", 9)).forEach(route::add)
+        assertEquals(edge(0, 100_000) + edge(100_000, 200_000), route.measuredMeters)
+        assertEquals((edge(0, 100_000) + edge(100_000, 200_000)) / 2.0,
+            route.movingAverageSpeedMetersPerSecond)
+        kotlin.test.assertFalse(route.hasDisconnectedSections)
+    }
+
+    @Test fun `portable sequence gaps remain gaps with an unknown clock and use UTC for valid pairs`() {
+        fun portable(time: Long, longitude: Int, sequence: Long, path: String = "route-a") =
+            point(time, longitude, "imported-location:${path}", sequence).let {
+                it.copy(sample = it.sample.copy(elapsedRealtimeNanos = 0L, clockDomainId = null))
+            }
+        val route = SavedTripDistanceAccumulator()
+        route.add(portable(1_000, 0, 7))
+        route.add(portable(2_000, 9_000_000, 9))
+        assertNull(route.measuredMeters)
+        route.add(portable(4_000, 9_100_000, 10))
+        assertEquals(edge(9_000_000, 9_100_000), route.measuredMeters)
+        assertEquals(edge(9_000_000, 9_100_000) / 2.0, route.movingAverageSpeedMetersPerSecond)
+        route.add(portable(5_000, 20_000_000, 11, "route-b"))
+        assertEquals(edge(9_000_000, 9_100_000), route.measuredMeters)
+        kotlin.test.assertTrue(route.hasDisconnectedSections)
+    }
+
 	private fun point(time: Long, longitude: Int?, continuity: String? = null, sequence: Long? = null) =
 		LocationPathSampleRow(LocationSample(timeMs = time, elapsedRealtimeNanos = time * 1_000_000,
 			latE7 = 0, lonE7 = longitude, altitudeM = null, rawGpsAltitudeM = null, hAccM = null,

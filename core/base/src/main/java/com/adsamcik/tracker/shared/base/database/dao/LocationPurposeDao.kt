@@ -105,8 +105,8 @@ interface LocationPurposeDao {
         fromMs: Long? = null, toMs: Long? = null): Long
 
 	/** Exact saved capture membership. Coordinates are current user data, not reauthenticated provider payload. */
-	@Query("""SELECT DISTINCT location_sample.*, CASE WHEN location_sample.clock_domain_id IS NULL THEN NULL ELSE lr.source_instance_id || ':' || lr.registration_generation END AS continuity_id,
-		lr.source_sequence AS continuity_sequence, 0 AS ambient_only,
+	@Query("""SELECT DISTINCT location_sample.*, ${LocationFileContinuity.SAVED_ID} AS continuity_id,
+		${LocationFileContinuity.SAVED_SEQUENCE} AS continuity_sequence, 0 AS ambient_only,
 		1 AS has_session_purpose,
 		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
 		AND lp.purpose = 'AMBIENT_PRODUCT') AS has_visible_background_purpose
@@ -128,7 +128,8 @@ interface LocationPurposeDao {
 		fromMs: Long = 0L, toMs: Long = Long.MAX_VALUE): List<LocationPathSampleRow>
 
 	/** Legacy/imported interval compatibility; no ambient or another native session is borrowed. */
-	@Query("""SELECT location_sample.*, NULL AS continuity_id, NULL AS continuity_sequence,
+	@Query("""SELECT location_sample.*, ${LocationFileContinuity.IMPORTED_ID} AS continuity_id,
+        ${LocationFileContinuity.IMPORTED_SEQUENCE} AS continuity_sequence,
 		0 AS ambient_only, 0 AS has_session_purpose, 0 AS has_visible_background_purpose
 		FROM effective_location_sample AS location_sample WHERE time_ms BETWEEN :fromMs AND :toMs
 		AND NOT EXISTS (SELECT 1 FROM location_accepted_receipt r WHERE r.sample_id = location_sample.id)
@@ -142,8 +143,8 @@ interface LocationPurposeDao {
 		afterTimeMs: Long?, afterId: Long?, limit: Int): List<LocationPathSampleRow>
 
 	/** Exact file membership with the same descriptive origin and retention as savedFileChunk. */
-	@Query("""SELECT location_sample.*, CASE WHEN location_sample.clock_domain_id IS NULL THEN NULL ELSE lr.source_instance_id || ':' || lr.registration_generation END AS continuity_id,
-		lr.source_sequence AS continuity_sequence, 0 AS ambient_only,
+	@Query("""SELECT location_sample.*, ${LocationFileContinuity.SAVED_ID} AS continuity_id,
+		${LocationFileContinuity.SAVED_SEQUENCE} AS continuity_sequence, 0 AS ambient_only,
 		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
 		AND lp.purpose = 'SESSION_CAPTURE') AS has_session_purpose,
 		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
@@ -166,8 +167,8 @@ interface LocationPurposeDao {
 	suspend fun contextReceiptsForSamples(sampleIds: List<Long>, limit: Int): List<LocationAcceptedReceiptEntity>
 
 	/** Bounded ordinary sessionless history. Native qualification labels points but never hides legacy data. */
-	@Query("""SELECT location_sample.*, CASE WHEN location_sample.clock_domain_id IS NULL THEN NULL ELSE lr.source_instance_id || ':' || lr.registration_generation END AS continuity_id,
-		lr.source_sequence AS continuity_sequence, 0 AS ambient_only,
+	@Query("""SELECT location_sample.*, ${LocationFileContinuity.SAVED_ID} AS continuity_id,
+		${LocationFileContinuity.SAVED_SEQUENCE} AS continuity_sequence, 0 AS ambient_only,
 		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
 		AND lp.purpose = 'SESSION_CAPTURE') AS has_session_purpose,
 		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
@@ -263,8 +264,8 @@ interface LocationPurposeDao {
 	 * milliseconds.
 	 */
 	@Query("""
-		SELECT location_sample.*, CASE WHEN location_sample.clock_domain_id IS NULL THEN NULL ELSE lr.source_instance_id || ':' || lr.registration_generation END AS continuity_id,
-		lr.source_sequence AS continuity_sequence,
+		SELECT location_sample.*, ${LocationFileContinuity.SAVED_ID} AS continuity_id,
+		${LocationFileContinuity.SAVED_SEQUENCE} AS continuity_sequence,
 		NOT (${LocationReadScope.CAPTURE_OR_LEGACY}) AS ambient_only,
 		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp
 			WHERE lp.sample_id = location_sample.id AND lp.purpose = 'SESSION_CAPTURE'
@@ -283,8 +284,8 @@ interface LocationPurposeDao {
             null): List<LocationPathSampleRow>
 
 	/** User data backup; missing historical receipts or grants do not hide saved points. */
-	@Query("""SELECT location_sample.*, CASE WHEN location_sample.clock_domain_id IS NULL THEN NULL ELSE lr.source_instance_id || ':' || lr.registration_generation END AS continuity_id,
-		lr.source_sequence AS continuity_sequence,
+	@Query("""SELECT location_sample.*, ${LocationFileContinuity.SAVED_ID} AS continuity_id,
+		${LocationFileContinuity.SAVED_SEQUENCE} AS continuity_sequence,
 		0 AS ambient_only,
 		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
 			AND lp.purpose = 'SESSION_CAPTURE') AS has_session_purpose,

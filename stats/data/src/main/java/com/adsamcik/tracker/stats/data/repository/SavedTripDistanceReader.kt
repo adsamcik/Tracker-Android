@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.LengthUnit
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.LocationFileContinuity
 import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
@@ -367,7 +368,8 @@ internal class SavedTripDistanceAccumulator(state: SavedTripDistanceState = Save
 		totalMeters += meters
 		if (meters > 0.0) {
 			movingDistanceMeters += meters
-			movingDurationSeconds += if (old.continuityId != null) {
+			movingDurationSeconds += if (old.continuityId != null && !LocationFileContinuity.isImported(old.continuityId) &&
+                !LocationFileContinuity.isImported(current.continuityId)) {
 				(point.elapsedRealtimeNanos - old.sample.elapsedRealtimeNanos).toDouble() / NANOSECONDS_PER_SECOND
 			} else {
 				(point.timeMs - old.sample.timeMs).toDouble() / MILLISECONDS_PER_SECOND
@@ -376,22 +378,32 @@ internal class SavedTripDistanceAccumulator(state: SavedTripDistanceState = Save
 		hasMeasuredPair = true
 	}
 
-	private fun continuous(old: LocationPathSampleRow, current: LocationPathSampleRow): Boolean {
-		val before = old.sample
-		val after = current.sample
-		return if (old.continuityId != null || current.continuityId != null) {
-			consecutiveRegistrationSequence(old, current) &&
-				before.clockDomainId == after.clockDomainId && before.elapsedRealtimeNanos > 0L &&
-				after.elapsedRealtimeNanos > before.elapsedRealtimeNanos &&
-				after.elapsedRealtimeNanos - before.elapsedRealtimeNanos <= MAX_GAP_NANOS
-		} else {
-			after.timeMs > before.timeMs && after.timeMs - before.timeMs <= MAX_GAP_MS
-		}
-	}
+
+    private fun continuous(old: LocationPathSampleRow, current: LocationPathSampleRow): Boolean =
+        if (LocationFileContinuity.isImported(old.continuityId) ||
+            LocationFileContinuity.isImported(current.continuityId)) {
+            consecutiveRegistrationSequence(old, current) && utcContinuous(old, current)
+        } else if (old.continuityId != null || current.continuityId != null) {
+            consecutiveRegistrationSequence(old, current) && nativeTimeContinuous(old, current)
+        } else {
+            utcContinuous(old, current)
+        }
+
+    private fun utcContinuous(old: LocationPathSampleRow, current: LocationPathSampleRow): Boolean =
+        current.sample.timeMs > old.sample.timeMs && current.sample.timeMs - old.sample.timeMs <= MAX_GAP_MS
+
+    private fun nativeTimeContinuous(old: LocationPathSampleRow, current: LocationPathSampleRow): Boolean {
+        val before = old.sample
+        val after = current.sample
+        return before.clockDomainId == after.clockDomainId && before.elapsedRealtimeNanos > 0L &&
+            after.elapsedRealtimeNanos > before.elapsedRealtimeNanos &&
+            after.elapsedRealtimeNanos - before.elapsedRealtimeNanos <= MAX_GAP_NANOS
+    }
 
 	private fun consecutiveRegistrationSequence(old: LocationPathSampleRow, current: LocationPathSampleRow): Boolean {
 		val beforeSequence = old.continuitySequence
-		return old.continuityId == current.continuityId && beforeSequence != null &&
+		return LocationFileContinuity.samePath(old.continuityId, old.sample.clockDomainId,
+            current.continuityId, current.sample.clockDomainId) && beforeSequence != null &&
 			beforeSequence != Long.MAX_VALUE && current.continuitySequence == beforeSequence + 1
 	}
 

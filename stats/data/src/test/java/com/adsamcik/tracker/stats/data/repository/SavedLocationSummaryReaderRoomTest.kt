@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.data.LengthUnit
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.LocationFileContinuity
 import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
 import com.adsamcik.tracker.shared.base.database.dao.LocationPurposeDao
 import com.adsamcik.tracker.shared.base.database.data.*
@@ -53,6 +54,25 @@ class SavedLocationSummaryReaderRoomTest {
         reader = SavedLocationSummaryReader(database, Dispatchers.Unconfined)
     }
     @After fun close() = database.close()
+
+    @Test fun `file corrected point keeps its known path between untouched native neighbours`() = runBlocking {
+        val selected = session("portable-correction")
+        point(2_000, 0, 1, capture = selected)
+        val middle = point(3_000, 100_000, 2, capture = selected)
+        point(4_000, 300_000, 3, capture = selected)
+        val native = database.locationPurposeDao().savedFileSamples(listOf(middle.id)).single()
+        val path = LocationFileContinuity.filePathId(requireNotNull(native.continuityId), middle.clockDomainId)
+        database.locationFileIdentityDao().insertIfAbsent(LocationFileIdentityEntity(
+            "corrected-point", middle.id, true, "session", path, 2))
+        database.locationPointCorrectionDao().replace(LocationPointCorrection.from(middle.id, 0, 1,
+            middle.copy(lonE7 = 200_000)))
+        database.sourceEvidenceStateDao().incrementRevision(5_000)
+        val read = snapshot(reader.readSession(selected.id, includeRoutePreview = true))
+        assertEquals(3L, read.summary.pointCount)
+        assertEquals(distance(0, 200_000) + distance(200_000, 300_000), read.summary.distanceMeters)
+        assertEquals(listOf(3), read.summary.routePreview.map { it.size })
+        assertFalse(read.summary.partial)
+    }
 
     @Test fun `public finite summary reuses an existing writer snapshot during finalization`() = runBlocking {
         val selected = session("nested-writer")

@@ -3,6 +3,14 @@ package com.adsamcik.tracker.shared.base.database
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
+/** Preserve known Location route breaks in owner-editable point files without claiming a native clock. */
+val MIGRATION_31_32: Migration = object : Migration(31, 32) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE location_file_identity ADD COLUMN path_id TEXT")
+        db.execSQL("ALTER TABLE location_file_identity ADD COLUMN path_sequence INTEGER")
+    }
+}
+
 /** Source-local replay can seek directly to its next admission without scanning sibling sources. */
 val MIGRATION_30_31: Migration = object : Migration(30, 31) {
     override fun migrate(db: SupportSQLiteDatabase) {

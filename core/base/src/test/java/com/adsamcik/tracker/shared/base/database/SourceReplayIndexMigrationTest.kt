@@ -36,7 +36,7 @@ class SourceReplayIndexMigrationTest {
                 .allowMainThreadQueries().build()
             try {
                 val raw = database.openHelper.writableDatabase
-                assertEquals(31, raw.version)
+                assertEquals(32, raw.version)
                 raw.query("SELECT revision FROM source_evidence_state WHERE id=1").use {
                     assertTrue(it.moveToFirst())
                     assertEquals(9L, it.getLong(0))
@@ -55,11 +55,37 @@ class SourceReplayIndexMigrationTest {
         }
     }
 
-    private fun openV30() = FrameworkSQLiteOpenHelperFactory().create(
+    @Test fun `v31 Location identities upgrade with their measurements and unknown continuity preserved`() {
+        openSchema(31).use { helper ->
+            helper.writableDatabase.execSQL("INSERT INTO location_sample(id,time_ms,elapsed_realtime_nanos," +
+                "lat_e7,lon_e7,provider,quality,created_at) VALUES(1,1000,0,500000000,140000000,'gps','HIGH',1000)")
+            helper.writableDatabase.execSQL("INSERT INTO location_file_identity(" +
+                "portable_id,sample_id,imported,reported_origin) VALUES('original-point',1,1,'unknown')")
+        }
+        repeat(2) {
+            val database = AppDatabase.fileBuilder(context, NAME).allowMainThreadQueries().build()
+            try {
+                val raw = database.openHelper.writableDatabase
+                assertEquals(32, raw.version)
+                raw.query("SELECT i.portable_id,i.path_id,i.path_sequence,s.time_ms FROM location_file_identity i " +
+                    "JOIN location_sample s ON s.id=i.sample_id").use {
+                    assertTrue(it.moveToFirst())
+                    assertEquals("original-point", it.getString(0))
+                    assertTrue(it.isNull(1))
+                    assertTrue(it.isNull(2))
+                    assertEquals(1000L, it.getLong(3))
+                }
+            } finally { database.close() }
+        }
+    }
+
+    private fun openV30() = openSchema(30)
+
+    private fun openSchema(version: Int) = FrameworkSQLiteOpenHelperFactory().create(
         SupportSQLiteOpenHelper.Configuration.builder(context).name(NAME)
-            .callback(object : SupportSQLiteOpenHelper.Callback(30) {
+            .callback(object : SupportSQLiteOpenHelper.Callback(version) {
                 override fun onCreate(db: SupportSQLiteDatabase) {
-                    val relative = "schemas/com.adsamcik.tracker.shared.base.database.AppDatabase/30.json"
+                    val relative = "schemas/com.adsamcik.tracker.shared.base.database.AppDatabase/${version}.json"
                     val schema = sequenceOf(File(relative), File("core/base/$relative")).first(File::isFile)
                     val definition = JSONObject(schema.readText()).getJSONObject("database")
                     val tables = definition.getJSONArray("entities")

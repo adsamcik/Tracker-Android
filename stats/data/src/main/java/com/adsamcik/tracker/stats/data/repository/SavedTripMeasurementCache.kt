@@ -124,6 +124,7 @@ internal class SavedTripMeasurementCache(
         const val MAX_ENTRIES = 500
         val POINT_TABLES = setOf("location_sample", "location_accepted_receipt", "location_sample_purpose_authority")
         val REBUILD_TABLES = setOf("location_point_correction", "source_deletion_fence", "location_file_archive",
+            "location_file_identity",
             "location_file_archive_point", "collected_data_deletion_operation",
             "ambient_location_retention_authority")
         val AUTHORITY_TABLES = setOf("source_policy", "source_consent_epoch", "source_service_run",
