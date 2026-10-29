@@ -235,13 +235,7 @@ private suspend fun AppDatabase.restoreLocationPoint(
     choice: LocationFileConflictChoice,
     evidence: SourceEvidenceState,
 ): Pair<Long, Boolean> {
-    val now = sample?.let { LocationFileMeasurementV1.from(it.toModel()) }
-    val before = expected ?: throw LocationImportChangedDuringWrite()
-    val currentState = identity?.let { now?.savedState(it) }
-    if (before.first != (identity != null) ||
-        before.second != currentState || (identity != null && sample == null)) {
-        throw LocationImportChangedDuringWrite()
-    }
+    val now = requireUnchangedLocationPoint(expected, identity, sample)
     return if (identity == null) {
         insertImportedLocationPoint(point) to true
     } else if (now == point.measurement && identity.matchesFilePath(point)) {
@@ -256,6 +250,19 @@ private suspend fun AppDatabase.restoreLocationPoint(
             identity.sampleId, evidence.collectedDataEpoch, nextRevision, value))
         identity.sampleId to true
     }
+}
+
+/** The review binds the current saved values and path metadata before any point is changed. */
+private fun requireUnchangedLocationPoint(expected: Pair<Boolean, String?>?,
+    identity: LocationFileIdentityEntity?, sample: LocationSample?): LocationFileMeasurementV1? {
+    val now = sample?.let { LocationFileMeasurementV1.from(it.toModel()) }
+    val before = expected ?: throw LocationImportChangedDuringWrite()
+    val currentState = identity?.let { now?.savedState(it) }
+    if (before.first != (identity != null) ||
+        before.second != currentState || (identity != null && sample == null)) {
+        throw LocationImportChangedDuringWrite()
+    }
+    return now
 }
 
 private suspend fun AppDatabase.insertImportedLocationPoint(point: LocationFilePointV1): Long {

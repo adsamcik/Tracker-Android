@@ -38,7 +38,7 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">Kopja ta’ riżerva tal-bażi tad-dejta (ZIP)</string>
-    <string name="settings_import_summary">Importa dejta minn tipi appoġġati (%1$s) u arkivji (%2$s). L-importazzjonijiet tal-bażi tad-dejta jgħaqqdu rekords kompatibbli; ma jissostitwixxux id-dejta eżistenti.</string>
+    <string name="settings_import_summary">Importa fajl tat-traċċar jew irrestawra kopja ta’ riżerva tad-dejta.</string>
     <string name="settings_import_title">Importazzjoni</string>
     <string name="export_radio_sensitivity_title">Tesporta d-dettalji tan-netwerks?</string>
     <string name="export_wifi_sensitivity_message">Dan il-fajl jinkludi ismijiet Wi-Fi u IDs ta\' punti ta\' aċċess salvati.</string>
@@ -62,4 +62,7 @@
         <item quantity="many">%d-il punt f\'dan il-fajl huwa differenti mill-kopji salvati tiegħu. Agħżel liema żżomm. Il-punti l-oħra jiġu importati bħas-soltu.</item>
         <item quantity="other">%d punt f\'dan il-fajl huwa differenti mill-kopji salvati tiegħu. Agħżel liema żżomm. Il-punti l-oħra jiġu importati bħas-soltu.</item>
     </plurals>
+    <string name="export_sensitivity_portable_title">Tesporta l-istorja rreġistrata?</string>
+    <string name="export_sensitivity_portable_steps_message">Dan il-fajl fih għadd ta\' passi, intervalli ta\' ħin u informazzjoni dwar il-kopertura. Ma fihx koordinati tar-rotta. Kompli biss jekk tafda d-destinazzjoni.</string>
+    <string name="export_sensitivity_portable_activity_message">Dan il-fajl fih intervalli ta\' moviment irreġistrati, intervalli ta\' ħin u informazzjoni dwar il-kopertura. Ma fihx koordinati tar-rotta. Kompli biss jekk tafda d-destinazzjoni.</string>
 </resources>

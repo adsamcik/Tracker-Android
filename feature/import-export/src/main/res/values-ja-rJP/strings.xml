@@ -38,7 +38,7 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">データベースバックアップ（ZIP）</string>
-    <string name="settings_import_summary">対応する形式（%1$s）とアーカイブ（%2$s）からデータをインポートします。データベースのインポートは互換性のある行を統合し、既存データを置き換えません。</string>
+    <string name="settings_import_summary">記録ファイルをインポートするか、データのバックアップを復元します。</string>
     <string name="settings_import_title">インポート</string>
     <string name="export_radio_sensitivity_title">ネットワークの詳細をエクスポートしますか？</string>
     <string name="export_wifi_sensitivity_message">このファイルには保存済みのWi-Fi名とアクセスポイントIDが含まれます。</string>
@@ -58,4 +58,7 @@
     <plurals name="import_location_conflict_count">
         <item quantity="other">このファイル内の%d地点が保存済みのコピーと異なります。どちらを残すか選んでください。他の地点は通常どおりインポートされます。</item>
     </plurals>
+    <string name="export_sensitivity_portable_title">記録した履歴をエクスポートしますか？</string>
+    <string name="export_sensitivity_portable_steps_message">このファイルには歩数、時間区間、記録範囲の情報が含まれます。 ルートの座標は含まれません。保存先を信頼できる場合のみ続行してください。</string>
+    <string name="export_sensitivity_portable_activity_message">このファイルには記録した移動区間、時間区間、記録範囲の情報が含まれます。 ルートの座標は含まれません。保存先を信頼できる場合のみ続行してください。</string>
 </resources>

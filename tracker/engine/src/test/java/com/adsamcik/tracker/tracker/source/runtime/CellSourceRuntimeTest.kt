@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import android.app.Application
+import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.process.ProcessIncarnationIdProvider
@@ -35,6 +36,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import java.time.Duration
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import kotlin.test.assertEquals
@@ -45,6 +47,9 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -70,6 +75,164 @@ import org.robolectric.shadows.ShadowSystemClock
 @Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)
 class CellSourceRuntimeTest {
+	@Test
+	fun `provider lifetime starts after dispatcher wait immediately before registration`() = runTest {
+		val delayedMain = object : CoroutineDispatcher() {
+			override fun dispatch(context: kotlin.coroutines.CoroutineContext, block: Runnable) {
+				ShadowSystemClock.advanceBy(Duration.ofSeconds(2L))
+				block.run()
+			}
+		}
+		val plan = cellPlan(mode = CellMode.OBSERVE_CHANGES)
+		val fixture = runtimeFixture(this, plan,
+			listOf(registration(plan, 1L).copy(requiresProviderAcceptance = true)), registrationDispatcher = delayedMain)
+		var providerStartedNanos = -1L
+		var acceptedNanos = -2L
+		every { fixture.backend.start(any(), any()) } answers {
+			providerStartedNanos = android.os.SystemClock.elapsedRealtimeNanos()
+			true
+		}
+		coEvery { fixture.registrations.markAccepted(any(), any(), any()) } answers {
+			acceptedNanos = thirdArg()
+			null
+		}
+		fixture.start(SourceEventSink { SourceAdmissionHandoff.Durable(1L) })
+		assertEquals(providerStartedNanos, acceptedNanos)
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `immediate scheduler failure keeps intake fenced while retirement is suspended`() = runTest {
+		val failure = CompletableDeferred<Throwable>()
+		val sourceScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined +
+			CoroutineExceptionHandler { _, caught -> failure.complete(caught) })
+		val fixture = runtimeFixture(sourceScope, cellPlan(mode = CellMode.OBSERVE_AND_SPARSE_REFRESH))
+		val cleanupEntered = CompletableDeferred<Unit>()
+		val releaseCleanup = CompletableDeferred<Unit>()
+		var schedulingFailed = false
+		coEvery { fixture.wakeups.schedule(any(), any()) } answers {
+			schedulingFailed = true
+			throw IllegalStateException("scheduler unavailable")
+		}
+		coEvery { fixture.wakeups.cancel(any()) } coAnswers {
+			if (schedulingFailed && !cleanupEntered.isCompleted) {
+				// Pause before settleShutdownLocked's second callback fence, so this observes
+				// the immediate completion handler's fence rather than later cleanup.
+				cleanupEntered.complete(Unit)
+				releaseCleanup.await()
+			}
+		}
+		try {
+			fixture.start(SourceEventSink { SourceAdmissionHandoff.Durable(1L) })
+			failure.await()
+			cleanupEntered.await()
+			fixture.emit(freshProviderDelivery())
+			releaseCleanup.complete(Unit)
+			val ack = fixture.quiesce()
+			assertEquals(0L, ack.callbackEntryBarrierSequence)
+			assertEquals(0L, ack.failedAdmissionCount)
+		} finally { releaseCleanup.complete(Unit); sourceScope.cancel() }
+	}
+
+	@Test
+	fun `scheduled refresh waits through a full callback lane and still reaches the modem`() = runTest {
+		val fixture = runtimeFixture(this, cellPlan(mode = CellMode.OBSERVE_AND_SPARSE_REFRESH))
+		var scheduled: (suspend () -> Unit)? = null
+		var scheduledAtMs = 0L
+		coEvery { fixture.wakeups.schedule(any(), any()) } answers {
+			scheduledAtMs = firstArg<com.adsamcik.tracker.tracker.source.coordinator.WakeupRequest>().earliestElapsedRealtimeMs
+			scheduled = secondArg()
+			Unit
+		}
+		every { fixture.backend.registeredSubscriptionIds } returns setOf(1)
+		every { fixture.backend.requestRefresh(any()) } returns CellRefreshRequestOutcome.REQUESTED
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		fixture.start(cellDeliverySink {
+			if (!entered.isCompleted) { entered.complete(Unit); release.await() }
+			SourceDeliveryAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.INVALID_EVIDENCE)
+		})
+		runCurrent()
+		fixture.emit(nextProviderDelivery())
+		runCurrent()
+		assertTrue(entered.isCompleted)
+		repeat(CELL_CALLBACK_BUFFER_CAPACITY) { fixture.emit(nextProviderDelivery()) }
+		ShadowSystemClock.advanceBy(Duration.ofMillis((scheduledAtMs - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(0L)))
+		val refresh = async { requireNotNull(scheduled)() }
+		runCurrent()
+		try {
+			assertFalse(refresh.isCompleted)
+			verify(exactly = 0) { fixture.backend.requestRefresh(any()) }
+			release.complete(Unit)
+			refresh.await()
+			runCurrent()
+			verify(exactly = 1) { fixture.backend.requestRefresh(any()) }
+		} finally { release.complete(Unit); fixture.runtime.close() }
+	}
+
+	@Test
+	fun `provider registration uses the injected main dispatcher from a background caller`() = runTest {
+		Executors.newSingleThreadExecutor { task -> Thread(task, "cell-registration-main") }
+			.asCoroutineDispatcher().use { main ->
+				val fixture = runtimeFixture(this, registrationDispatcher = main)
+				var registrationThread: String? = null
+				every { fixture.backend.start(any(), any()) } answers {
+					registrationThread = Thread.currentThread().name
+					true
+				}
+				withContext(Dispatchers.Default) {
+					fixture.start(SourceEventSink { SourceAdmissionHandoff.Durable(1L) })
+				}
+				assertEquals("cell-registration-main", registrationThread)
+				fixture.runtime.close()
+			}
+	}
+
+	@Test
+	fun `observer startup retains its initial callback until durable acceptance`() = runTest {
+		val plan = cellPlan(mode = CellMode.OBSERVE_CHANGES)
+		val pending = registration(plan, 1L).copy(requiresProviderAcceptance = true)
+		val fixture = runtimeFixture(this, plan, listOf(pending))
+		val acceptanceEntered = CompletableDeferred<Unit>()
+		val releaseAcceptance = CompletableDeferred<Unit>()
+		coEvery { fixture.registrations.markAccepted(any(), any(), any()) } coAnswers {
+			fixture.emit(freshProviderDelivery())
+			acceptanceEntered.complete(Unit)
+			releaseAcceptance.await()
+			null
+		}
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		val start = async {
+			fixture.start(cellCandidateSink { admitted += it; SourceAdmissionHandoff.Durable(1L) })
+		}
+		runCurrent()
+		assertTrue(acceptanceEntered.isCompleted)
+		assertTrue(admitted.isEmpty())
+		releaseAcceptance.complete(Unit)
+		start.await()
+		runCurrent()
+		assertEquals(1, admitted.size)
+		verify(exactly = 0) { fixture.backend.requestRefresh(any()) }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `failed durable acceptance never admits a provisional Cell callback`() = runTest {
+		val plan = cellPlan(mode = CellMode.OBSERVE_CHANGES)
+		val fixture = runtimeFixture(this, plan,
+			listOf(registration(plan, 1L).copy(requiresProviderAcceptance = true)))
+		coEvery { fixture.registrations.markAccepted(any(), any(), any()) } answers {
+			fixture.emit(freshProviderDelivery())
+			throw IllegalStateException("acceptance failed")
+		}
+		var admissions = 0
+		assertTrue(fixture.runtime.start(plan, cellCandidateSink {
+			admissions++
+			SourceAdmissionHandoff.Durable(1L)
+		}) is SourceStartResult.Failed)
+		runCurrent()
+		assertEquals(0, admissions)
+	}
 
 	@Test
 	fun `Cell capture deletion barrier drains FIFO and preserves independent Ambient provider`() = runTest {
@@ -598,7 +761,7 @@ class CellSourceRuntimeTest {
 	}
 
 	@Test
-	fun `callbacks before durable acceptance are dropped and post acceptance callbacks are admitted`() = runTest {
+	fun `callbacks during durable acceptance wait for successful acceptance before admission`() = runTest {
 		val plan = cellPlan()
 		val fixture = runtimeFixture(
 			this,
@@ -620,11 +783,12 @@ class CellSourceRuntimeTest {
 			SourceAdmissionHandoff.Durable(1L)
 		})
 		advanceUntilIdle()
-		assertTrue(admitted.isEmpty())
+		assertEquals(1, admitted.size)
 
+		ShadowSystemClock.advanceBy(Duration.ofMillis(1))
 		requireNotNull(providerCallback)(freshProviderDelivery())
 		advanceUntilIdle()
-		assertEquals(1, admitted.size)
+		assertEquals(2, admitted.size)
 		fixture.runtime.close()
 	}
 
@@ -2461,6 +2625,7 @@ class CellSourceRuntimeTest {
 		runtimePlan: CellPlan = cellPlan(),
 		registrationsToReturn: List<SourceRegistration> = listOf(registration(runtimePlan, 1L)),
 		allowance: RadioActiveRequestAllowance = testRadioActiveRequestAllowance(),
+		registrationDispatcher: CoroutineDispatcher = Dispatchers.Unconfined,
 	): RuntimeFixture {
 		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
 		// Most runtime cases isolate owner/timing behavior with a mocked qualification seam.
@@ -2497,7 +2662,8 @@ class CellSourceRuntimeTest {
 		}
 		every { backend.stop() } returns true
 		every { backend.hasRetainedRegistrations } returns false
-		val runtime = CellSourceRuntime(scope, registrations, backend, stateProvider, wakeups, allowance)
+		val runtime = CellSourceRuntime(scope, registrations, backend, stateProvider, wakeups, allowance,
+			TestDispatchersProvider(registrationDispatcher))
 		return RuntimeFixture(
 			runtime,
 			registrations,

@@ -15,7 +15,7 @@
     <string name="settings_data_management_section">Gestion des données</string>
     <string name="settings_data_danger_zone_section">Zone dangereuse</string>
     <string name="settings_incremental_backups_title">Sauvegardes incrémentielles</string>
-    <string name="settings_incremental_backups_summary">Exporte uniquement les nouvelles données depuis la dernière sauvegarde. Réduit la durée d’exportation et la taille du fichier.</string>
+    <string name="settings_incremental_backups_summary">Exportez uniquement les nouvelles données lors des exports GPX et KML planifiés.</string>
     <string name="settings_reset_export_watermarks_title">Forcer une exportation complète</string>
     <string name="settings_reset_export_watermarks_summary">La prochaine sauvegarde automatique inclura toutes les données, pas seulement les modifications</string>
     <string name="settings_reset_export_watermarks_done">Repères d’exportation réinitialisés — la prochaine sauvegarde sera complète</string>
@@ -163,7 +163,7 @@
     <string name="export_sensitivity_db_message">Cette sauvegarde contient vos données de suivi enregistrées, qui peuvent inclure des positions et des détails sur les réseaux. Les paramètres sont exclus.</string>
     <string name="export_sensitivity_confirm">Continuer l’exportation</string>
     <string name="settings_export_title">Exporter</string>
-    <string name="settings_import_summary">Importez des données à partir de types pris en charge (%1$s) et d’archives (%2$s). Les importations de bases de données fusionnent les lignes compatibles ; elles ne remplacent pas les données existantes.</string>
+    <string name="settings_import_summary">Importez un fichier de suivi ou restaurez une sauvegarde des données.</string>
     <string name="settings_import_title">Importer</string>
     <string name="got_it">Compris</string>
     <string name="battery_impact_low">Faible impact</string>
@@ -278,7 +278,7 @@
     <string name="setup_perm_location_bg_why">Pour continuer à enregistrer votre itinéraire lorsque vous changez d’application ou que l’écran s’éteint, Tracker doit accéder à votre position en arrière-plan. La position enregistrée reste sur cet appareil — rien n’est envoyé à un serveur. À la prochaine demande du système, choisissez « Autoriser tout le temps » pour activer le suivi automatique ; « Autoriser uniquement lorsque l’application est utilisée » ne permet à Tracker de fonctionner que lorsque son écran est ouvert.</string>
     <string name="setup_perm_activity_why">Permet à Tracker de détecter ce que vous faites (marche, vélo, conduite, immobilité), afin que le suivi automatique puisse se mettre en pause lorsque vous ne bougez pas et économiser la batterie. Les données d’activité restent sur cet appareil — rien n’est envoyé à un serveur.</string>
     <string name="setup_perm_notification_why">Tracker affiche une petite notification d’état pendant l’enregistrement afin que vous puissiez voir d’un coup d’œil que le suivi est activé et l’arrêter d’une pression. Aucune notification marketing ou promotionnelle.</string>
-    <string name="setup_perm_wifi_why">Tracker peut enregistrer les points d’accès Wi‑Fi que votre téléphone détecte pendant un trajet afin d’améliorer la précision de localisation là où le GPS est faible (en intérieur, sous terre). Les données radio restent sur cet appareil — rien n’est envoyé à un serveur. Accordez cette autorisation uniquement si vous le souhaitez.</string>
+    <string name="setup_perm_wifi_why">Android a besoin d’accéder à la position pour rechercher les réseaux Wi-Fi. Vous pouvez enregistrer le Wi-Fi sans enregistrer votre position.</string>
     <string name="setup_perm_cell_why">Tracker peut enregistrer les identifiants d’antennes-relais le long de votre itinéraire afin de déduire la localisation lorsque le GPS n’est pas disponible. Les données radio restent sur cet appareil — rien n’est envoyé à un serveur. Accordez l’autorisation d’état du téléphone et de localisation précise uniquement si vous le souhaitez.</string>
     <string name="setup_perm_grant">Autoriser</string>
     <string name="setup_perm_grant_location_content_description">Accorder l’autorisation de localisation</string>

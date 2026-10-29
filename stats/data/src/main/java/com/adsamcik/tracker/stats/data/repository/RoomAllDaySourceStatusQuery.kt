@@ -200,15 +200,15 @@ internal class RoomAllDaySourceStatusQuery @Inject constructor(
 			return AllDaySourceStatusRead.Sensor(snapshot, request.source, emptyList())
 		}
 		return if (request.source == TrackingSource.ACTIVITY) {
-			readActivity(request, snapshot, from, to)
+			readActivity(request, snapshot, from, to, evidence.retainedFromMs)
 		} else {
-			readPressure(request, snapshot, from, to)
+			readPressure(request, snapshot, from, to, evidence.retainedFromMs)
 		}
 	}
 
 	private suspend fun readActivity(request: AllDaySourceStatusRequest.Sensor,
-		snapshot: TrackingHistoryReadSnapshot, from: Long, to: Long): AllDaySourceStatusRead {
-		val rows = database.activitySnapshotDao().nativeAllDayBetween(from, to, request.limit + 1)
+		snapshot: TrackingHistoryReadSnapshot, from: Long, to: Long, retainedFromMs: Long?): AllDaySourceStatusRead {
+		val rows = database.activitySnapshotDao().nativeAllDayBetween(from, to, request.limit + 1, retainedFromMs)
 		if (rows.size > request.limit) {
 			return unavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
 		}
@@ -226,8 +226,8 @@ internal class RoomAllDaySourceStatusQuery @Inject constructor(
 	}
 
 	private suspend fun readPressure(request: AllDaySourceStatusRequest.Sensor,
-		snapshot: TrackingHistoryReadSnapshot, from: Long, to: Long): AllDaySourceStatusRead {
-		val rows = database.pressureSampleDao().nativeAllDayBetween(from, to, request.limit + 1)
+		snapshot: TrackingHistoryReadSnapshot, from: Long, to: Long, retainedFromMs: Long?): AllDaySourceStatusRead {
+		val rows = database.pressureSampleDao().nativeAllDayBetween(from, to, request.limit + 1, retainedFromMs)
 		if (rows.size > request.limit) {
 			return unavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
 		}

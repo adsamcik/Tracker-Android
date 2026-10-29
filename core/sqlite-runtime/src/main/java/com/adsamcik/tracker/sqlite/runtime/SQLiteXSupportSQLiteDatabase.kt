@@ -12,7 +12,6 @@ import androidx.sqlite.db.SupportSQLiteQuery
 import androidx.sqlite.db.SupportSQLiteStatement
 import java.util.Locale
 import org.sqlite.database.sqlite.SQLiteReadOnlyTransactionBridge
-import org.sqlite.database.sqlite.SQLiteCursor as VendorSQLiteCursor
 import org.sqlite.database.sqlite.SQLiteDatabase as VendorSQLiteDatabase
 import org.sqlite.database.sqlite.SQLiteQuery as VendorSQLiteQuery
 import org.sqlite.database.sqlite.SQLiteTransactionListener as VendorSQLiteTransactionListener
@@ -33,54 +32,54 @@ internal class SQLiteXSupportSQLiteDatabase(
 	}
 
 	override fun compileStatement(sql: String): SupportSQLiteStatement =
-		SQLiteXSupportSQLiteStatement(delegate.compileStatement(sql))
+		sqliteXCall { SQLiteXSupportSQLiteStatement(delegate.compileStatement(sql)) }
 
 	override fun beginTransaction() {
-		delegate.beginTransaction()
+		sqliteXCall { delegate.beginTransaction() }
 	}
 
 	override fun beginTransactionNonExclusive() {
-		delegate.beginTransactionNonExclusive()
+		sqliteXCall { delegate.beginTransactionNonExclusive() }
 	}
 
 	/** Uses the pinned binding's deferred session mode and read-only pooled connection. */
 	override fun beginTransactionReadOnly() {
-		SQLiteReadOnlyTransactionBridge.begin(delegate, null)
+		sqliteXCall { SQLiteReadOnlyTransactionBridge.begin(delegate, null) }
 	}
 
 	override fun beginTransactionWithListener(transactionListener: SQLiteTransactionListener) {
-		delegate.beginTransactionWithListener(TransactionListenerAdapter(transactionListener))
+		sqliteXCall { delegate.beginTransactionWithListener(TransactionListenerAdapter(transactionListener)) }
 	}
 
 	override fun beginTransactionWithListenerNonExclusive(
 		transactionListener: SQLiteTransactionListener,
 	) {
-		delegate.beginTransactionWithListenerNonExclusive(TransactionListenerAdapter(transactionListener))
+		sqliteXCall { delegate.beginTransactionWithListenerNonExclusive(TransactionListenerAdapter(transactionListener)) }
 	}
 
 	override fun beginTransactionWithListenerReadOnly(
 		transactionListener: SQLiteTransactionListener,
 	) {
-		SQLiteReadOnlyTransactionBridge.begin(delegate, TransactionListenerAdapter(transactionListener))
+		sqliteXCall { SQLiteReadOnlyTransactionBridge.begin(delegate, TransactionListenerAdapter(transactionListener)) }
 	}
 
 	override fun endTransaction() {
-		delegate.endTransaction()
+		sqliteXCall { delegate.endTransaction() }
 	}
 
 	override fun setTransactionSuccessful() {
-		delegate.setTransactionSuccessful()
+		sqliteXCall { delegate.setTransactionSuccessful() }
 	}
 
-	override fun inTransaction(): Boolean = delegate.inTransaction()
+	override fun inTransaction(): Boolean = sqliteXCall { delegate.inTransaction() }
 
 	override val isDbLockedByCurrentThread: Boolean
-		get() = delegate.isDbLockedByCurrentThread
+		get() = sqliteXCall { delegate.isDbLockedByCurrentThread }
 
-	override fun yieldIfContendedSafely(): Boolean = delegate.yieldIfContendedSafely()
+	override fun yieldIfContendedSafely(): Boolean = sqliteXCall { delegate.yieldIfContendedSafely() }
 
 	override fun yieldIfContendedSafely(sleepAfterYieldDelayMillis: Long): Boolean =
-		delegate.yieldIfContendedSafely(sleepAfterYieldDelayMillis)
+		sqliteXCall { delegate.yieldIfContendedSafely(sleepAfterYieldDelayMillis) }
 
 	override val isExecPerConnectionSQLSupported: Boolean
 		get() = false
@@ -92,20 +91,20 @@ internal class SQLiteXSupportSQLiteDatabase(
 	}
 
 	override var version: Int
-		get() = delegate.version
+		get() = sqliteXCall { delegate.version }
 		set(value) {
-			delegate.version = value
+			sqliteXCall { delegate.version = value }
 		}
 
 	override val maximumSize: Long
-		get() = delegate.maximumSize
+		get() = sqliteXCall { delegate.maximumSize }
 
-	override fun setMaximumSize(numBytes: Long): Long = delegate.setMaximumSize(numBytes)
+	override fun setMaximumSize(numBytes: Long): Long = sqliteXCall { delegate.setMaximumSize(numBytes) }
 
 	override var pageSize: Long
-		get() = delegate.pageSize
+		get() = sqliteXCall { delegate.pageSize }
 		set(value) {
-			delegate.pageSize = value
+			sqliteXCall { delegate.pageSize = value }
 		}
 
 	override fun query(query: String): Cursor = query(SimpleSQLiteQuery(query))
@@ -121,7 +120,7 @@ internal class SQLiteXSupportSQLiteDatabase(
 	): Cursor = queryInternal(query, cancellationSignal)
 
 	override fun insert(table: String, conflictAlgorithm: Int, values: ContentValues): Long =
-		delegate.insertWithOnConflict(table, null, values, conflictAlgorithm)
+		sqliteXCall { delegate.insertWithOnConflict(table, null, values, conflictAlgorithm) }
 
 	override fun delete(
 		table: String,
@@ -187,53 +186,53 @@ internal class SQLiteXSupportSQLiteDatabase(
 	}
 
 	override fun execSQL(sql: String) {
-		delegate.execSQL(sql)
+		sqliteXCall { delegate.execSQL(sql) }
 	}
 
 	override fun execSQL(sql: String, bindArgs: Array<out Any?>) {
-		delegate.execSQL(sql, bindArgs)
+		sqliteXCall { delegate.execSQL(sql, bindArgs) }
 	}
 
 	override val isReadOnly: Boolean
-		get() = delegate.isReadOnly
+		get() = sqliteXCall { delegate.isReadOnly }
 
 	override val isOpen: Boolean
-		get() = delegate.isOpen
+		get() = sqliteXCall { delegate.isOpen }
 
-	override fun needUpgrade(newVersion: Int): Boolean = delegate.needUpgrade(newVersion)
+	override fun needUpgrade(newVersion: Int): Boolean = sqliteXCall { delegate.needUpgrade(newVersion) }
 
 	override val path: String?
-		get() = delegate.path
+		get() = sqliteXCall { delegate.path }
 
 	override fun setLocale(locale: Locale) {
-		delegate.setLocale(locale)
+		sqliteXCall { delegate.setLocale(locale) }
 	}
 
 	override fun setMaxSqlCacheSize(cacheSize: Int) {
-		delegate.setMaxSqlCacheSize(cacheSize)
+		sqliteXCall { delegate.setMaxSqlCacheSize(cacheSize) }
 	}
 
 	override fun setForeignKeyConstraintsEnabled(enabled: Boolean) {
-		delegate.setForeignKeyConstraintsEnabled(enabled)
+		sqliteXCall { delegate.setForeignKeyConstraintsEnabled(enabled) }
 	}
 
-	override fun enableWriteAheadLogging(): Boolean = delegate.enableWriteAheadLogging()
+	override fun enableWriteAheadLogging(): Boolean = sqliteXCall { delegate.enableWriteAheadLogging() }
 
 	override fun disableWriteAheadLogging() {
-		delegate.disableWriteAheadLogging()
+		sqliteXCall { delegate.disableWriteAheadLogging() }
 	}
 
 	override val isWriteAheadLoggingEnabled: Boolean
-		get() = delegate.isWriteAheadLoggingEnabled
+		get() = sqliteXCall { delegate.isWriteAheadLoggingEnabled }
 
 	override val attachedDbs: List<Pair<String, String>>?
-		get() = delegate.attachedDbs
+		get() = sqliteXCall { delegate.attachedDbs }
 
 	override val isDatabaseIntegrityOk: Boolean
-		get() = delegate.isDatabaseIntegrityOk
+		get() = sqliteXCall { delegate.isDatabaseIntegrityOk }
 
 	override fun close() {
-		delegate.close()
+		sqliteXCall { delegate.close() }
 	}
 
 	internal fun isDelegate(database: VendorSQLiteDatabase): Boolean = delegate === database
@@ -245,18 +244,20 @@ internal class SQLiteXSupportSQLiteDatabase(
 		val cursorFactory = VendorSQLiteDatabase.CursorFactory { _, driver, editTable, sqliteQuery ->
 			val vendorQuery = checkNotNull(sqliteQuery)
 			query.bindTo(SQLiteXSupportSQLiteProgram(vendorQuery))
-			VendorSQLiteCursor(driver, editTable, vendorQuery)
+			SQLiteXSupportSQLiteCursor(driver, editTable, vendorQuery)
 		}
-		return if (cancellationSignal == null) {
-			delegate.rawQueryWithFactory(cursorFactory, query.sql, EMPTY_STRING_ARRAY, null)
-		} else {
-			delegate.rawQueryWithFactory(
-				cursorFactory,
-				query.sql,
-				EMPTY_STRING_ARRAY,
-				null,
-				cancellationSignal,
-			)
+		return sqliteXCall {
+			if (cancellationSignal == null) {
+				delegate.rawQueryWithFactory(cursorFactory, query.sql, EMPTY_STRING_ARRAY, null)
+			} else {
+				delegate.rawQueryWithFactory(
+					cursorFactory,
+					query.sql,
+					EMPTY_STRING_ARRAY,
+					null,
+					cancellationSignal,
+				)
+			}
 		}
 	}
 

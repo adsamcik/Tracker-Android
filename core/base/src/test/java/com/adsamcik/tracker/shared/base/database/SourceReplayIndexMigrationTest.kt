@@ -63,7 +63,10 @@ class SourceReplayIndexMigrationTest {
                 "portable_id,sample_id,imported,reported_origin) VALUES('original-point',1,1,'unknown')")
         }
         repeat(2) {
-            val database = AppDatabase.fileBuilder(context, NAME).allowMainThreadQueries().build()
+            val database = AppDatabase.fileBuilder(context, NAME)
+                .openHelperFactory(DevelopmentV28ContainmentOpenHelperFactory(context, NAME,
+                    FrameworkSQLiteOpenHelperFactory()))
+                .allowMainThreadQueries().build()
             try {
                 val raw = database.openHelper.writableDatabase
                 assertEquals(32, raw.version)

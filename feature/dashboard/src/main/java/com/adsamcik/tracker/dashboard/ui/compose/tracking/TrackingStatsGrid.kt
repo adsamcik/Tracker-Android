@@ -100,7 +100,7 @@ internal fun TrackingStatsGrid(
 		// Row 1: Distance, Avg Speed, Altitude
 		Row(
 			modifier = Modifier.fillMaxWidth(),
-			horizontalArrangement = Arrangement.SpaceBetween,
+			horizontalArrangement = Arrangement.spacedBy(12.dp),
 		) {
 			CompactAnimatedStatItem(
 				label = stringResource(TrackerR.string.tracker_distance_title),
@@ -126,7 +126,7 @@ internal fun TrackingStatsGrid(
 		// Row 2: Activity, Steps, Accuracy
 		Row(
 			modifier = Modifier.fillMaxWidth(),
-			horizontalArrangement = Arrangement.SpaceBetween,
+			horizontalArrangement = Arrangement.spacedBy(12.dp),
 		) {
 			if (activity != null) {
 				val activityColor = when (activity.latestMovementBand) {

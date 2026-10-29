@@ -7,6 +7,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -203,7 +204,7 @@ class WhatToCollectStepTest {
     }
 
     @Test
-    fun wifiAndCellTogglesShowPrivacyRationalesWhenEnabledWithoutPermissions() {
+    fun wifiAndCellTogglesShowPermissionRationalesWhenEnabledWithoutPermissions() {
         composeTestRule.setContent {
             AppTheme {
                 WhatToCollectStep(
@@ -223,8 +224,11 @@ class WhatToCollectStepTest {
                 )
             }
         }
-        composeTestRule.onNodeWithText("Wi-Fi access points", substring = true)
-            .assertExists()
+        composeTestRule.onNodeWithTag("setup_perm_wifi_rationale_text")
+            .assertTextEquals(
+                "Android needs Location access for Wi-Fi scans. " +
+                    "You can record Wi-Fi without recording your Location.",
+            )
         composeTestRule.onNodeWithText("cell tower IDs", substring = true)
             .assertExists()
     }

@@ -15,7 +15,7 @@
     <string name="settings_data_management_section">Tietojen hallinta</string>
     <string name="settings_data_danger_zone_section">Vaaravyöhyke</string>
     <string name="settings_incremental_backups_title">Kasvavat varmuuskopiot</string>
-    <string name="settings_incremental_backups_summary">Vie vain viimeisen varmuuskopion jälkeen syntyneet tiedot. Lyhentää vientiaikaa ja pienentää tiedostokokoa.</string>
+    <string name="settings_incremental_backups_summary">Vie vain uudet tiedot ajastetuissa GPX- ja KML-vienneissä.</string>
     <string name="settings_reset_export_watermarks_title">Pakota täydellinen vienti</string>
     <string name="settings_reset_export_watermarks_summary">Seuraava automaattinen varmuuskopio sisältää kaikki tiedot pelkkien muutosten sijaan</string>
     <string name="settings_reset_export_watermarks_done">Viennin vesileimat nollattu — seuraava varmuuskopio on täydellinen vienti</string>
@@ -163,7 +163,7 @@
     <string name="export_sensitivity_db_message">Tämä varmuuskopio sisältää tallennetut seurantatietosi, joihin voi kuulua sijainteja ja verkkotietoja. Asetukset eivät sisälly.</string>
     <string name="export_sensitivity_confirm">Jatka vientiä</string>
     <string name="settings_export_title">Vienti</string>
-    <string name="settings_import_summary">Tuo tietoja tuetuista tyypeistä (%1$s) ja arkistoista (%2$s). Tietokantatuonnit yhdistävät yhteensopivat rivit eivätkä korvaa olemassa olevia tietoja.</string>
+    <string name="settings_import_summary">Tuo seurantatiedosto tai palauta tietojen varmuuskopio.</string>
     <string name="settings_import_title">Tuonti</string>
     <string name="got_it">Selvä</string>
     <string name="battery_impact_low">Pieni vaikutus</string>
@@ -278,7 +278,7 @@
     <string name="setup_perm_location_bg_why">Jotta reittisi tallennus jatkuu, kun vaihdat sovellusta tai näyttö sammuu, Tracker tarvitsee sijaintisi käyttöoikeuden taustalla. Tallennettu sijainti pysyy tällä laitteella — mitään ei lähetetä palvelimelle. Valitse seuraavassa järjestelmäkehotteessa ”Salli aina” ottaaksesi automaattisen seurannan käyttöön; ”Salli vain sovellusta käytettäessä” pitää Trackerin toiminnassa vain, kun sen näyttö on avoinna.</string>
     <string name="setup_perm_activity_why">Antaa Trackerin tunnistaa, mitä teet (kävelet, pyöräilet, ajat tai olet paikallasi), jotta automaattinen seuranta voi keskeytyä, kun et liiku, ja säästää akkua. Aktiivisuustiedot pysyvät tällä laitteella — mitään ei lähetetä palvelimelle.</string>
     <string name="setup_perm_notification_why">Tracker näyttää pienen tilailmoituksen tallennuksen aikana, jotta näet yhdellä silmäyksellä seurannan olevan päällä ja voit lopettaa sen yhdellä napautuksella. Ei markkinointi- tai mainosilmoituksia.</string>
-    <string name="setup_perm_wifi_why">Tracker voi tallentaa matkan aikana puhelimesi havaitsemia Wi-Fi-tukiasemia parantaakseen sijainnin tarkkuutta paikoissa, joissa GPS on heikko (sisällä tai maan alla). Radiotiedot pysyvät tällä laitteella — mitään ei lähetetä palvelimelle. Myönnä lupa vain, jos haluat tämän.</string>
+    <string name="setup_perm_wifi_why">Android tarvitsee sijaintitietojen käyttöoikeuden Wi-Fi-verkkojen hakuun. Voit tallentaa Wi-Fi-tietoja tallentamatta sijaintiasi.</string>
     <string name="setup_perm_cell_why">Tracker voi tallentaa reittisi varrelta tukiasematunnuksia, jotta sijainti voidaan päätellä, kun GPS ei ole käytettävissä. Radiotiedot pysyvät tällä laitteella — mitään ei lähetetä palvelimelle. Myönnä puhelimen tilan ja tarkan sijainnin luvat vain, jos haluat tämän.</string>
     <string name="setup_perm_grant">Myönnä</string>
     <string name="setup_perm_grant_location_content_description">Myönnä sijaintilupa</string>

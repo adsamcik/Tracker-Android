@@ -47,6 +47,7 @@
     <string name="dashboard_milestone_time">मिनट ट्रैक हुए!</string>
     <string name="dashboard_today_title">आज</string>
     <string name="dashboard_today_no_activity">आज अभी तक कोई गतिविधि नहीं</string>
+    <string name="dashboard_saved_data_history">सहेजा गया डेटा इतिहास में उपलब्ध है।</string>
     <string name="dashboard_today_distance">दूरी</string>
     <string name="dashboard_today_duration">अवधि</string>
     <string name="dashboard_today_steps">कदम</string>

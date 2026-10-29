@@ -15,7 +15,7 @@
     <string name="settings_data_management_section">Adatkezelés</string>
     <string name="settings_data_danger_zone_section">Veszélyzóna</string>
     <string name="settings_incremental_backups_title">Növekményes biztonsági mentések</string>
-    <string name="settings_incremental_backups_summary">Csak az utolsó biztonsági mentés óta keletkezett új adatokat exportálja. Csökkenti az exportálási időt és a fájlméretet.</string>
+    <string name="settings_incremental_backups_summary">Csak az új adatok exportálása az ütemezett GPX- és KML-fájlokba.</string>
     <string name="settings_reset_export_watermarks_title">Teljes exportálás kényszerítése</string>
     <string name="settings_reset_export_watermarks_summary">A következő automatikus mentés minden adatot tartalmazni fog, nem csak a változásokat</string>
     <string name="settings_reset_export_watermarks_done">Az exportálási jelölők visszaállítva — a következő mentés teljes export lesz</string>
@@ -163,7 +163,7 @@
     <string name="export_sensitivity_db_message">Ez a biztonsági mentés a mentett követési adatokat tartalmazza, amelyek helyadatokat és hálózati részleteket is tartalmazhatnak. A beállítások nem szerepelnek benne.</string>
     <string name="export_sensitivity_confirm">Exportálás folytatása</string>
     <string name="settings_export_title">Exportálás</string>
-    <string name="settings_import_summary">Adatok importálása támogatott típusokból (%1$s) és archívumokból (%2$s). Az adatbázis-importok egyesítik a kompatibilis sorokat, nem írják felül a meglévő adatokat.</string>
+    <string name="settings_import_summary">Követési fájl importálása vagy adatmentés visszaállítása.</string>
     <string name="settings_import_title">Importálás</string>
     <string name="got_it">Értem</string>
     <string name="battery_impact_low">Alacsony hatás</string>
@@ -278,7 +278,7 @@
     <string name="setup_perm_location_bg_why">Ahhoz, hogy a Tracker akkor is folytassa az útvonal rögzítését, amikor alkalmazást vált vagy a képernyő kikapcsol, szüksége van a helyadatok háttérbeli elérésére. A rögzített helyadatok ezen az eszközön maradnak — semmi sem kerül szerverre. A következő rendszerüzenetben válassza a "Mindig engedélyezés" lehetőséget az automatikus nyomkövetés bekapcsolásához; az "Engedélyezés csak az alkalmazás használata közben" csak nyitott képernyőn tartja működésben a Trackert.</string>
     <string name="setup_perm_activity_why">A Tracker így észleli, hogy mit csinál (gyalogol, kerékpározik, vezet vagy mozdulatlan), ezért az automatikus nyomkövetés megállhat, amikor nem mozog, és kímélheti az akkumulátort. A tevékenységadatok ezen az eszközön maradnak — semmi sem kerül szerverre.</string>
     <string name="setup_perm_notification_why">A Tracker rögzítés közben kis állapotértesítést jelenít meg, így egy pillantással láthatja, hogy a nyomkövetés aktív, és egy koppintással leállíthatja. Nincsenek marketing- vagy promóciós értesítések.</string>
-    <string name="setup_perm_wifi_why">A Tracker rögzítheti az utazás közben a telefon által észlelt Wi-Fi-hozzáférési pontokat, hogy javítsa a helypontosságot ott, ahol a GPS gyenge (beltéren, a föld alatt). A rádióadatok ezen az eszközön maradnak — semmi sem kerül szerverre. Csak akkor adja meg, ha szeretné.</string>
+    <string name="setup_perm_wifi_why">Az Androidnak helyhozzáférésre van szüksége a Wi-Fi-hálózatok kereséséhez. A Wi-Fi-adatokat a helyadatok rögzítése nélkül is rögzítheti.</string>
     <string name="setup_perm_cell_why">A Tracker naplózhatja az útvonal mentén lévő cellatornyok azonosítóit, így a helyzet akkor is kikövetkeztethető, amikor a GPS nem érhető el. A rádióadatok ezen az eszközön maradnak — semmi sem kerül szerverre. Csak akkor adjon telefonállapot- és pontoshelyengedélyt, ha szeretné.</string>
     <string name="setup_perm_grant">Engedélyezés</string>
     <string name="setup_perm_grant_location_content_description">Helyengedély megadása</string>

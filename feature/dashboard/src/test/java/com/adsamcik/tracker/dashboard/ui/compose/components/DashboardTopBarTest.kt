@@ -40,6 +40,7 @@ class DashboardTopBarTest {
 		setContent(isTracking = true)
 
 		composeRule.onNodeWithText("Tracking").assertIsDisplayed()
+		composeRule.onNodeWithContentDescription("Recording").assertIsDisplayed()
 	}
 
 	@Test

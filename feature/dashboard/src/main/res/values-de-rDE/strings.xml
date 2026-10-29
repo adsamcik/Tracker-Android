@@ -47,6 +47,7 @@
     <string name="dashboard_milestone_time">Min. aufgezeichnet!</string>
     <string name="dashboard_today_title">Heute</string>
     <string name="dashboard_today_no_activity">Heute noch keine Aktivität</string>
+    <string name="dashboard_saved_data_history">Gespeicherte Daten sind im Verlauf verfügbar.</string>
     <string name="dashboard_today_distance">Strecke</string>
     <string name="dashboard_today_duration">Dauer</string>
     <string name="dashboard_today_steps">Schritte</string>

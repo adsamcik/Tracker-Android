@@ -101,7 +101,10 @@ internal suspend fun TrackerServiceSourceSession.stopCompletely(
 	reason: String,
 	factualCutoff: SourceSessionStopCutoff?,
 ): SourceSessionStopOutcome {
-	val cutoff = selectStopCutoff(session.desiredInputs.clockDomainId, factualCutoff)
+	val cutoff = coordinator.fencePressureSessionCutoff(
+		session.logicalTrackingId, session.serviceRunId,
+		selectStopCutoff(session.desiredInputs.clockDomainId, factualCutoff),
+	)
 	val outcome = coordinator.stop(
 		SessionStopRequest(
 			ownerToken = session.ownerToken,

@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.source.model
 
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import java.security.MessageDigest
 
 /**
@@ -38,8 +40,14 @@ data class SourceDeliveryUnit(
 	val unitIndex: Int,
 	val evidence: SourceEvidenceCandidate<*>,
 	val observedIntervalStartElapsedRealtimeNanos: Long = evidence.observedElapsedRealtimeNanos,
+	/** Transient deny-only session hint; never changes recorded provider/configuration evidence. */
+	val excludedPressureCapture: SourceAuthorizationEntity? = null,
 ) {
 	init {
+		require(excludedPressureCapture == null ||
+			(evidence.source == SourceKind.PRESSURE &&
+				excludedPressureCapture.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+				excludedPressureCapture.effectiveBootId == evidence.clockDomainId))
 		require(unitIndex >= 0) { "Delivery unit index must not be negative" }
 		require(observedIntervalStartElapsedRealtimeNanos >= 0L) {
 			"Observed interval start must not be negative"

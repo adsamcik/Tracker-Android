@@ -3,10 +3,10 @@ package com.adsamcik.tracker.impexp
 import android.content.Context
 import android.content.Intent
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
-import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.adsamcik.tracker.impexp.exporter.JsonExporter
 import com.adsamcik.tracker.impexp.exporter.activity.ImportExportComposeActivity
@@ -22,13 +22,15 @@ class JsonExportScopeScreenTest {
 	}
 
 	@get:Rule
-	val composeRule = createAndroidComposeRule(ActivityScenarioRule<ImportExportComposeActivity>(launchIntent))
+	val composeRule = createEmptyComposeRule()
 
 	@Test
 	fun completeOverlappingSessionsAreDisclosedBeforeSaving() {
-		composeRule.onNodeWithText(
-			context.getString(R.string.export_json_whole_session_scope),
-			useUnmergedTree = true,
-		).assertIsDisplayed()
+		ActivityScenario.launch<ImportExportComposeActivity>(launchIntent).use {
+			composeRule.onNodeWithText(
+				context.getString(R.string.export_json_whole_session_scope),
+				useUnmergedTree = true,
+			).assertIsDisplayed()
+		}
 	}
 }

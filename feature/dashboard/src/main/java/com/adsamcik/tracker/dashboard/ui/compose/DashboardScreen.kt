@@ -89,6 +89,7 @@ internal fun DashboardScreen(
 	onGameClick: (() -> Unit)?,
 	onSessionDetailClick: ((Long) -> Unit)?,
 	onSourceHistoryDetailClick: ((SourceHistoryDetailSelection) -> Unit)? = null,
+	onRetryRecentHistory: () -> Unit = {},
 	onCustomizeClick: () -> Unit = {},
 	onReorderWidgets: (List<String>) -> Unit = {},
 	onToggleWidgetVisibility: (String) -> Unit = {},
@@ -238,6 +239,7 @@ internal fun DashboardScreen(
 						onGameClick = onGameClick,
 						onSessionDetailClick = onSessionDetailClick,
 						onSourceHistoryDetailClick = onSourceHistoryDetailClick,
+				onRetryRecentHistory = onRetryRecentHistory,
 						onToggleTracking = wrappedToggle,
 						onRequestPermission = wrappedPermission,
 					)

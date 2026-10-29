@@ -44,6 +44,14 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
 import com.adsamcik.tracker.stats.api.repository.CellHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode
+import com.adsamcik.tracker.stats.api.repository.HistoryProblem
+import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+import com.adsamcik.tracker.stats.api.repository.HistoryRange
+import com.adsamcik.tracker.stats.api.repository.HistoryRangeRead
+import com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageProblem
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
@@ -72,6 +80,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -115,6 +124,9 @@ class DashboardViewModel @Inject constructor(
 	stepsNumericSummaryRepository: StepsNumericSummaryRepository,
 	clock: Clock,
 ) : ViewModel() {
+	val manualStart = com.adsamcik.tracker.tracker.api.RetainedManualTrackingStart(viewModelScope) { generation ->
+		com.adsamcik.tracker.tracker.api.TrackerServiceApi.requestManualTrackingStart(appContext, generation)
+	}
 	private val todayStepsDisplay = TodayStepsDisplay(stepsNumericSummaryRepository, clock)
 	val stepsToday: StateFlow<StepsDailyDisplay> = todayStepsDisplay.observe()
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(0L, 0L), StepsDailyDisplay.Materializing)
@@ -149,18 +161,29 @@ class DashboardViewModel @Inject constructor(
 	 * Idle history yields to an enqueued Start as well as live capture, so its finite database
 	 * snapshot cannot compete with provider setup before the live session is published.
 	 */
+	private val recentHistoryRetry = MutableStateFlow(0L)
+
+	/** Retry the shared recent-history read without changing collection. */
+	fun retryRecentHistory() { recentHistoryRetry.value++ }
+
 	@OptIn(ExperimentalCoroutinesApi::class)
 	val recentHistory: StateFlow<DashboardRecentHistoryState> =
-		combine(trackerStateReader.hasLiveCaptureFlow, trackerStateReader.startingSessionGenerationFlow) {
-			isRunning, starting -> isRunning || starting != null
+		combine(trackerStateReader.hasLiveCaptureFlow, trackerStateReader.startingSessionGenerationFlow, recentHistoryRetry) {
+			isRunning, starting, retry -> (isRunning || starting != null) to retry
 		}.distinctUntilChanged()
-			.flatMapLatest { isRunning ->
+			.flatMapLatest { (isRunning, _) ->
 				if (isRunning) {
 					flowOf(DashboardRecentHistoryState.Loading)
 				} else {
-					historyRepository.observeRecentHistory()
-						.map<List<DashboardRecentHistoryEntry>, DashboardRecentHistoryState> {
-							entries -> DashboardRecentHistoryState.Content(entries)
+					historyRepository.observeRecentHistoryState()
+						.distinctUntilChanged()
+						.flatMapLatest { recent ->
+							if (recent is DashboardRecentHistoryState.Content && recent.entries.isEmpty() &&
+								recent.problems.isEmpty()) {
+								observeSavedBackgroundPresence(recent)
+							} else {
+								flowOf(recent)
+							}
 						}
 						.onStart { emit(DashboardRecentHistoryState.Loading) }
 						.catch { throwable ->
@@ -182,6 +205,38 @@ class DashboardViewModel @Inject constructor(
 				),
 				initialValue = DashboardRecentHistoryState.Loading,
 			)
+
+	/** Any saved observation, including an import without a session, prevents a false first-use profile. */
+	private fun observeSavedBackgroundPresence(recent: DashboardRecentHistoryState.Content):
+		Flow<DashboardRecentHistoryState> {
+		val request = HistoryRangeRequest(HistoryRange(0L, Long.MAX_VALUE, "UTC",
+			mode = HistoryBrowseMode.OBSERVATIONS), limit = 1)
+		return trackingHistoryRepository.observeRange(request).map { read ->
+			when (read) {
+				is HistoryRangeRead.Page -> backgroundPresence(recent, read)
+				is HistoryRangeRead.Unavailable -> backgroundPresenceUnavailable(recent,
+					HistoryProblem(null, read.reason).toDashboardProblem())
+			}
+		}.catch { failure ->
+			if (failure is CancellationException) throw failure
+			emit(backgroundPresenceUnavailable(recent, SourceAwareHistoryPageProblem(null,
+				SourceAwareHistoryPageUnavailableReason.SOURCE_EVIDENCE_STATE_UNAVAILABLE)))
+		}
+	}
+
+	private fun backgroundPresence(recent: DashboardRecentHistoryState.Content,
+		read: HistoryRangeRead.Page): DashboardRecentHistoryState.Content {
+		val problems = read.problems.mapTo(linkedSetOf()) { it.toDashboardProblem() }
+		if (read.rows.isEmpty() && read.next != null) {
+			problems += SourceAwareHistoryPageProblem(null,
+				SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT)
+		}
+		return recent.copy(hasSavedBackgroundData = read.rows.isNotEmpty(), problems = problems)
+	}
+
+	private fun backgroundPresenceUnavailable(recent: DashboardRecentHistoryState.Content,
+		problem: SourceAwareHistoryPageProblem): DashboardRecentHistoryState.Content =
+		recent.copy(hasSavedBackgroundData = false, problems = setOf(problem))
 
 	/**
 	 * Binds the durable history read to the currently published physical segment. A replacement
@@ -596,6 +651,17 @@ private fun com.adsamcik.tracker.stats.api.repository.SessionHistory.toSourceSet
 			?.toDashboardRadioHistoryValue(),
 	)
 }
+
+private fun HistoryProblem.toDashboardProblem() = SourceAwareHistoryPageProblem(source, when (reason) {
+	HistoryProblemReason.DEPENDENCY_OVERFLOW ->
+		SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
+	HistoryProblemReason.INTEGRITY_UNAVAILABLE ->
+		SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE
+	HistoryProblemReason.STORAGE_UNAVAILABLE ->
+		SourceAwareHistoryPageUnavailableReason.SOURCE_EVIDENCE_STATE_UNAVAILABLE
+	HistoryProblemReason.TIME_UNCERTAIN ->
+		SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE
+})
 
 private fun HistoryCapture.Exact?.capturesOnly(source: HistorySource): Boolean =
 	this?.revisions?.all { revision -> revision.capturedSources == setOf(source) } == true

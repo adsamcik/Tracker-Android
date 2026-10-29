@@ -139,6 +139,8 @@ data class TrackingSettingsUiState(
 	val trackingTurnedOff: Boolean = false,
 	val turnOffTrackingInProgress: Boolean = false,
 	val turnOffTrackingFailed: Boolean = false,
+	val resumeTrackingInProgress: Boolean = false,
+	val resumeTrackingFailed: Boolean = false,
 	val sourcePolicyReconciliationDebt: SourcePolicyRevisionReconciliationDebt? = null,
     val runtimeTelemetry: TrackingCoordinatorMetrics = TrackingCoordinatorMetrics.ZERO,
 )
@@ -341,6 +343,39 @@ class TrackingSettingsViewModel internal constructor(
 			}
 			refreshPermissionState()
 		}
+	}
+
+	/** Resumes saved all-day choices without creating a session or bypassing a newer Off. */
+	fun resumeTracking() {
+		if (_uiState.value.resumeTrackingInProgress) {
+			return
+		}
+		val expectedExit = lifecycleCommandAuthority?.pendingCollectionResumeExitId
+		_uiState.update { it.copy(resumeTrackingInProgress = true, resumeTrackingFailed = false) }
+		viewModelScope.launch {
+			var resumed = false
+			try {
+				resumed = expectedExit != null &&
+					lifecycleCommandAuthority?.resumeCollectionAfterExplicitTurnOff(expectedExit) == true
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				// Keep the saved Off receipt and offer the same explicit action again.
+			} finally {
+				finishResumeTracking(resumed)
+			}
+		}
+	}
+
+	private fun finishResumeTracking(resumed: Boolean) {
+		val stillOff = if (lifecycleCommandAuthority == null) {
+			_uiState.value.trackingTurnedOff
+		} else {
+			lifecycleCommandAuthority.pendingCollectionResumeExitId
+				?.startsWith(TRACKING_TURN_OFF_EXIT_PREFIX) == true
+		}
+		_uiState.update { it.copy(trackingTurnedOff = stillOff,
+			resumeTrackingInProgress = false, resumeTrackingFailed = !resumed || stillOff) }
 	}
 
 	/** Re-probe the existing Steps owner after the Health Connect permission screen closes. */

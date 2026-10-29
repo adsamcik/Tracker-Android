@@ -38,7 +38,7 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">Adatbázis-mentés (ZIP)</string>
-    <string name="settings_import_summary">Adatok importálása támogatott típusokból (%1$s) és archívumokból (%2$s). Az adatbázis-importok egyesítik a kompatibilis sorokat, nem írják felül a meglévő adatokat.</string>
+    <string name="settings_import_summary">Követési fájl importálása vagy adatmentés visszaállítása.</string>
     <string name="settings_import_title">Importálás</string>
     <string name="export_radio_sensitivity_title">Hálózati adatok exportálása?</string>
     <string name="export_wifi_sensitivity_message">Ez a fájl mentett Wi-Fi-neveket és a hozzáférési pontok azonosítóit tartalmazza.</string>
@@ -59,4 +59,7 @@
         <item quantity="one">A fájl %d pontja eltér a mentett másolatától. Válassza ki, melyiket tartja meg. A többi pont importálása a szokásos módon történik.</item>
         <item quantity="other">A fájl %d pontja eltér a mentett másolatától. Válassza ki, melyik változatot tartja meg. A többi pont importálása a szokásos módon történik.</item>
     </plurals>
+    <string name="export_sensitivity_portable_title">Rögzített előzmények exportálása?</string>
+    <string name="export_sensitivity_portable_steps_message">Ez a fájl lépésszámokat, időintervallumokat és lefedettségi információkat tartalmaz. Nem tartalmaz útvonal-koordinátákat. Csak akkor folytassa, ha megbízik a célhelyben.</string>
+    <string name="export_sensitivity_portable_activity_message">Ez a fájl rögzített mozgási szakaszokat, időintervallumokat és lefedettségi információkat tartalmaz. Nem tartalmaz útvonal-koordinátákat. Csak akkor folytassa, ha megbízik a célhelyben.</string>
 </resources>

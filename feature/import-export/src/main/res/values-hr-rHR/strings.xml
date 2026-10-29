@@ -39,7 +39,7 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">Sigurnosna kopija baze podataka (ZIP)</string>
-    <string name="settings_import_summary">Uvezite podatke iz podržanih vrsta (%1$s) i arhiva (%2$s). Uvoz baze podataka spaja kompatibilne retke; ne zamjenjuje postojeće podatke.</string>
+    <string name="settings_import_summary">Uvezite datoteku praćenja ili vratite sigurnosnu kopiju podataka.</string>
     <string name="settings_import_title">Uvoz</string>
     <string name="export_radio_sensitivity_title">Izvesti mrežne podatke?</string>
     <string name="export_wifi_sensitivity_message">Ova datoteka sadrži spremljene Wi-Fi nazive i ID-ove pristupnih točaka.</string>
@@ -61,4 +61,7 @@
         <item quantity="few">%d točke u ovoj datoteci razlikuju se od spremljenih kopija. Odaberite koje zadržati. Ostale točke uvest će se uobičajeno.</item>
         <item quantity="other">%d točaka u ovoj datoteci razlikuje se od spremljenih kopija. Odaberite koje zadržati. Ostale točke uvest će se uobičajeno.</item>
     </plurals>
+    <string name="export_sensitivity_portable_title">Izvesti zabilježenu povijest?</string>
+    <string name="export_sensitivity_portable_steps_message">Ova datoteka sadrži broj koraka, vremenske intervale i podatke o pokrivenosti. Ne sadrži koordinate rute. Nastavite samo ako vjerujete odredištu.</string>
+    <string name="export_sensitivity_portable_activity_message">Ova datoteka sadrži zabilježene intervale kretanja, vremenske intervale i podatke o pokrivenosti. Ne sadrži koordinate rute. Nastavite samo ako vjerujete odredištu.</string>
 </resources>

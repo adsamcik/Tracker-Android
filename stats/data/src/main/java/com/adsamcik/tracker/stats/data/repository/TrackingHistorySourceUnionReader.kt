@@ -10,6 +10,7 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryProducts
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageProblem
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.SourceOnlyHistoryIntent
@@ -73,7 +74,10 @@ internal sealed interface HistoricalSessionSourceRead {
 }
 
 internal sealed interface HistoricalSourceUnionRead<out T> {
-	data class Available<T>(val value: T) : HistoricalSourceUnionRead<T>
+	data class Available<T>(
+		val value: T,
+		val problems: Set<SourceAwareHistoryPageProblem> = emptySet(),
+	) : HistoricalSourceUnionRead<T>
 
 	data class Unavailable(
 		val reason: SourceAwareHistoryPageUnavailableReason,
@@ -244,33 +248,41 @@ internal class DefaultTrackingHistorySourceUnionReader @Inject constructor(
 			}
 			?: PressureSessionHistoryQuery.NotFound
 
-	// Each source read returns its existing unavailable outcome before merging the successful rows.
+	// Keep source-local failures alongside independently qualified replacement membership.
 	@Suppress("ReturnCount")
 	override suspend fun candidateNativeOnlyInTransaction(
 		segmentIds: List<Long>,
 	): HistoricalSourceUnionRead<List<HistoricalSourceOnlyMembership>> {
+		val problems = linkedSetOf<SourceAwareHistoryPageProblem>()
 		val wifiGroups = when (val page = wifi.selectBySegmentIdsInTransaction(segmentIds, sourceOnly = true)) {
 			is WifiComposedPage.Available -> page.entries.filter { it.entry.capturesOnlyWifi }
-			is WifiComposedPage.Failed ->
-				return page.cause.toUnionFailure(HistorySource.WIFI)
+			is WifiComposedPage.Failed -> {
+				problems += page.cause.toUnionFailure(HistorySource.WIFI).asProblem()
+				emptyList()
+			}
 		}
 		val cellGroups = when (val page = cell.selectBySegmentIdsInTransaction(segmentIds, sourceOnly = true)) {
 			is CellComposedPage.Available -> page.entries.filter(ComposedCellEntry::capturesOnlyCell)
-			is CellComposedPage.Failed ->
-				return page.cause.toUnionFailure(HistorySource.CELL)
+			is CellComposedPage.Failed -> {
+				problems += page.cause.toUnionFailure(HistorySource.CELL).asProblem()
+				emptyList()
+			}
 		}
 		val activityGroups = when (val page = activity.selectBySegmentIdsInTransaction(segmentIds, sourceOnly = true)) {
 			is ActivityComposedPage.Available ->
 				page.entries.filter { it.entry.capturesOnlyActivity }
-			is ActivityComposedPage.Failed ->
-				return page.cause.toUnionFailure(HistorySource.ACTIVITY)
+			is ActivityComposedPage.Failed -> {
+				problems += page.cause.toUnionFailure(HistorySource.ACTIVITY).asProblem()
+				emptyList()
+			}
 		}
-		val pressureGroups = pressureSelector.selectLogicalBySegmentIdsInTransaction(segmentIds, sourceOnly = true)
-		if (pressureGroups.hasDependencyOverflow) {
-			return HistoricalSourceUnionRead.Unavailable(
-				SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
-				HistorySource.PRESSURE,
-			)
+		val pressureRead = pressureSelector.sourceOnlyCandidateBatchesInTransaction(segmentIds)
+		val pressureGroups = if (pressureRead.hasDependencyOverflow) {
+			problems += SourceAwareHistoryPageProblem(HistorySource.PRESSURE,
+				SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT)
+			emptyList()
+		} else {
+			pressureRead
 		}
 		return HistoricalSourceUnionRead.Available(buildList {
 			wifiGroups.mapTo(this, ComposedWifiEntry::toNativeMembership)
@@ -278,42 +290,51 @@ internal class DefaultTrackingHistorySourceUnionReader @Inject constructor(
 			activityGroups.mapTo(this, ComposedActivityEntry::toNativeMembership)
 			pressureGroups.filter(PressureLogicalHistoryEntry::isSharedSourceOnlyEligible)
 				.mapTo(this, PressureLogicalHistoryEntry::toNativeMembership)
-		})
+		}, problems.toSet())
 	}
 
-	// Keep each unavailable radio result before entering the following source reads.
+	// Read every source even when a sibling is unavailable.
 	@Suppress("ReturnCount")
 	override suspend fun recentInTransaction(
 		limit: Int,
 	): HistoricalSourceUnionRead<List<HistoricalSourceUnionEntry>> {
+		val problems = linkedSetOf<SourceAwareHistoryPageProblem>()
 		val wifiOnly = when (val page = wifi.recentWifiOnlyInTransaction(limit)) {
 			is WifiComposedPage.Available -> page.entries
-			is WifiComposedPage.Failed ->
-				return page.cause.toUnionFailure(HistorySource.WIFI)
+			is WifiComposedPage.Failed -> {
+				problems += page.cause.toUnionFailure(HistorySource.WIFI).asProblem()
+				emptyList()
+			}
 		}
 		val wifiImportedEntries = when (
 			val page = wifiImported.recentImportedEligibleForSharedHistoryInTransaction(limit)
 		) {
 			is ImportedHistoryEligiblePage.Available -> page.entries
-			is ImportedHistoryEligiblePage.Unavailable ->
-				return page.toUnionFailure(HistorySource.WIFI)
+			is ImportedHistoryEligiblePage.Unavailable -> {
+				problems += page.toUnionFailure(HistorySource.WIFI).asProblem()
+				emptyList()
+			}
 		}
 		val cellOnly = when (val page = cell.recentCellOnlyInTransaction(limit)) {
 			is CellComposedPage.Available -> page.entries
-			is CellComposedPage.Failed ->
-				return page.cause.toUnionFailure(HistorySource.CELL)
+			is CellComposedPage.Failed -> {
+				problems += page.cause.toUnionFailure(HistorySource.CELL).asProblem()
+				emptyList()
+			}
 		}
 		val cellImportedEntries = when (
 			val page = cellImported.recentImportedEligibleForSharedHistoryInTransaction(limit)
 		) {
 			is ImportedHistoryEligiblePage.Available -> page.entries
-			is ImportedHistoryEligiblePage.Unavailable ->
-				return page.toUnionFailure(HistorySource.CELL)
+			is ImportedHistoryEligiblePage.Unavailable -> {
+				problems += page.toUnionFailure(HistorySource.CELL).asProblem()
+				emptyList()
+			}
 		}
-		return recentSensorEntries(limit, wifiOnly, wifiImportedEntries, cellOnly, cellImportedEntries)
+		return recentSensorEntries(limit, wifiOnly, wifiImportedEntries, cellOnly, cellImportedEntries, problems)
 	}
 
-	// Preserve Activity and Pressure query failures before projecting any already-read radio entry.
+	// Source-owned failures remain visible without dropping successful sibling products.
 	@Suppress("ReturnCount")
 	private suspend fun recentSensorEntries(
 		limit: Int,
@@ -321,25 +342,32 @@ internal class DefaultTrackingHistorySourceUnionReader @Inject constructor(
 		wifiImportedEntries: List<WifiImportedHistoryEligibleEntry>,
 		cellOnly: List<ComposedCellEntry>,
 		cellImportedEntries: List<CellImportedHistoryEligibleEntry>,
+		problems: MutableSet<SourceAwareHistoryPageProblem>,
 	): HistoricalSourceUnionRead<List<HistoricalSourceUnionEntry>> {
 		val activityOnly = when (val page = activity.recentActivityOnlyInTransaction(limit)) {
 			is ActivityComposedPage.Available -> page.entries
-			is ActivityComposedPage.Failed ->
-				return page.cause.toUnionFailure(HistorySource.ACTIVITY)
+			is ActivityComposedPage.Failed -> {
+				problems += page.cause.toUnionFailure(HistorySource.ACTIVITY).asProblem()
+				emptyList()
+			}
 		}
 		val activityImportedEntries = when (
 			val page = activityImported.recentImportedEligibleForSharedHistoryInTransaction(limit)
 		) {
 			is ImportedHistoryEligiblePage.Available -> page.entries
-			is ImportedHistoryEligiblePage.Unavailable ->
-				return page.toUnionFailure(HistorySource.ACTIVITY)
+			is ImportedHistoryEligiblePage.Unavailable -> {
+				problems += page.toUnionFailure(HistorySource.ACTIVITY).asProblem()
+				emptyList()
+			}
 		}
 		val pressureImportedEntries = when (
 			val page = pressureImported.recentImportedEligibleForSharedHistoryInTransaction(limit)
 		) {
 			is ImportedHistoryEligiblePage.Available -> page.entries
-			is ImportedHistoryEligiblePage.Unavailable ->
-				return page.toUnionFailure(HistorySource.PRESSURE)
+			is ImportedHistoryEligiblePage.Unavailable -> {
+				problems += page.toUnionFailure(HistorySource.PRESSURE).asProblem()
+				emptyList()
+			}
 		}
 		integrationObserver.record(
 			TrackingHistoryIntegrationCheckpoint.PRESSURE_LIVE_SELECTOR,
@@ -348,10 +376,10 @@ internal class DefaultTrackingHistorySourceUnionReader @Inject constructor(
 			val result = pressureSelector.discoverRecentPressureOnlyIntentInTransaction(limit)
 		) {
 			is PressureOnlyDiscoveryResult.Content -> result.entries
-			is PressureOnlyDiscoveryResult.Unavailable -> return HistoricalSourceUnionRead.Unavailable(
-				result.reason,
-				HistorySource.PRESSURE,
-			)
+			is PressureOnlyDiscoveryResult.Unavailable -> {
+				problems += SourceAwareHistoryPageProblem(HistorySource.PRESSURE, result.reason)
+				emptyList()
+			}
 		}
 		return HistoricalSourceUnionRead.Available(buildList {
 			wifiOnly.mapTo(this, ComposedWifiEntry::toUnionEntry)
@@ -366,7 +394,7 @@ internal class DefaultTrackingHistorySourceUnionReader @Inject constructor(
 			pressureImportedEntries.mapTo(this) {
 				HistoricalSourceUnionEntry.ImportedPressure(it)
 			}
-		})
+		}, problems.toSet())
 	}
 }
 
@@ -403,7 +431,7 @@ internal class LegacyTrackingHistorySourceUnionReader(
 			is ActivityComposedPage.Failed ->
 				return page.cause.toUnionFailure(HistorySource.ACTIVITY)
 		}
-		val pressureGroups = pressureSelector.selectLogicalBySegmentIdsInTransaction(segmentIds, sourceOnly = true)
+		val pressureGroups = pressureSelector.sourceOnlyCandidateBatchesInTransaction(segmentIds)
 		if (pressureGroups.hasDependencyOverflow) {
 			return HistoricalSourceUnionRead.Unavailable(
 				SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
@@ -567,3 +595,13 @@ private val List<PressureLogicalHistoryEntry>.hasDependencyOverflow: Boolean
 			PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW in member.reasons
 		}
 	}
+
+private fun HistoricalSourceUnionRead.Unavailable.asProblem() =
+	SourceAwareHistoryPageProblem(source, reason)
+
+/** Each source retains its own finite batch bound within the caller's one Room snapshot. */
+private suspend fun PressureHistorySelector.sourceOnlyCandidateBatchesInTransaction(
+	segmentIds: List<Long>,
+): List<PressureLogicalHistoryEntry> = segmentIds.chunked(PRESSURE_HISTORY_SEGMENT_BATCH_CAP)
+	.flatMap { batch -> selectLogicalBySegmentIdsInTransaction(batch, sourceOnly = true) }
+	.distinct()

@@ -38,7 +38,7 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">Andmebaasi varukoopia (ZIP)</string>
-    <string name="settings_import_summary">Impordi andmeid toetatud tüüpidest (%1$s) ja arhiividest (%2$s). Andmebaasi import ühendab ühilduvad read ega asenda olemasolevaid andmeid.</string>
+    <string name="settings_import_summary">Impordi jälgimisfail või taasta andmete varukoopia.</string>
     <string name="settings_import_title">Impordi</string>
     <string name="export_radio_sensitivity_title">Kas eksportida võrguandmed?</string>
     <string name="export_wifi_sensitivity_message">See fail sisaldab salvestatud Wi-Fi nimesid ja pääsupunktide ID-sid.</string>
@@ -59,4 +59,7 @@
         <item quantity="one">%d punkt selles failis erineb salvestatud koopiast. Vali, milline säilitada. Ülejäänud punktid imporditakse tavapäraselt.</item>
         <item quantity="other">%d punkti selles failis erinevad salvestatud koopiatest. Vali, millised säilitada. Ülejäänud punktid imporditakse tavapäraselt.</item>
     </plurals>
+    <string name="export_sensitivity_portable_title">Kas eksportida salvestatud ajalugu?</string>
+    <string name="export_sensitivity_portable_steps_message">See fail sisaldab sammude arve, ajavahemikke ja katvuse teavet. See ei sisalda marsruudi koordinaate. Jätka ainult siis, kui usaldad sihtkohta.</string>
+    <string name="export_sensitivity_portable_activity_message">See fail sisaldab salvestatud liikumisvahemikke, ajavahemikke ja katvuse teavet. See ei sisalda marsruudi koordinaate. Jätka ainult siis, kui usaldad sihtkohta.</string>
 </resources>

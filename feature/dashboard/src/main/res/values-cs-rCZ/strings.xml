@@ -49,6 +49,7 @@
     <string name="dashboard_milestone_time">min sledování!</string>
     <string name="dashboard_today_title">Dnes</string>
     <string name="dashboard_today_no_activity">Dnes zatím žádná aktivita</string>
+    <string name="dashboard_saved_data_history">Uložená data najdete v Historii.</string>
     <string name="dashboard_today_distance">Vzdálenost</string>
     <string name="dashboard_today_duration">Doba trvání</string>
     <string name="dashboard_today_steps">Kroky</string>

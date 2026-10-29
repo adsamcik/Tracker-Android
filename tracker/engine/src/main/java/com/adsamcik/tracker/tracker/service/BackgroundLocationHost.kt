@@ -270,14 +270,15 @@ class BackgroundLocationHost @Inject constructor(
 		startup.permitsNewCollection && startup.isReadyGeneration(startupGeneration) &&
 			commands.latestStopGeneration() == stopGeneration
 
-	/** Used by the owning service before retaining its host after a live session ends. */
-	internal suspend fun isCurrentLeaseValid(): Boolean {
+	/** The service retires dependent providers before releasing these exact host leases. */
+	internal suspend fun invalidLeaseIdentities(): List<AmbientReconciliationIdentity> {
+		val invalid = mutableListOf<AmbientReconciliationIdentity>()
 		for (lease in leases.value.values) {
 			if (!authorityCurrent(lease.identity)) {
-				release(lease.identity)
+				invalid += lease.identity
 			}
 		}
-		return hasActiveSources
+		return invalid
 	}
 
 	/** A failed optional host leaves authorized passive callbacks available. */

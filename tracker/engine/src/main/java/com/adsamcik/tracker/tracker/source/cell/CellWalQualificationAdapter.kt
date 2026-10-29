@@ -248,33 +248,6 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			return rejected(CellWalAdapterRejection.DELETED_SCOPE)
 		}
 
-		val planDao = database.sourcePlanStateDao()
-		val planHeader = planDao.revision(configRevision)
-		val desiredPlan = planDao.desiredPlan(configRevision, CELL_SOURCE)
-		if (planHeader == null || desiredPlan == null) {
-			return rejected(CellWalAdapterRejection.MISSING_HISTORICAL_PLAN)
-		}
-		val plan = runCatching { planCodec.decode(desiredPlan.payload) as? CellPlan }.getOrNull()
-		val reencodedPlan = plan?.let { runCatching { planCodec.encode(it) }.getOrNull() }
-		if (desiredPlan.payloadVersion != PLAN_PAYLOAD_VERSION ||
-			desiredPlan.revision != configRevision || desiredPlan.sourceKind != CELL_SOURCE
-		) {
-			return rejected(CellWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
-		}
-		if (plan == null || !plan.hasSupportedHistoricalShape() || plan.revision != configRevision) {
-			return rejected(CellWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
-		}
-		if (reencodedPlan == null || !reencodedPlan.bytes.contentEquals(desiredPlan.payload) ||
-			reencodedPlan.checksum != desiredPlan.payloadChecksum
-		) {
-			return rejected(CellWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
-		}
-		if (plan.physicalConfigurationFingerprint() != physicalFingerprint ||
-			planHeader.sourcePolicyRevision != policyRevision
-		) {
-			return rejected(CellWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
-		}
-
 		val observedStart = requireNotNull(wal.observedIntervalStartNanos)
 		val brokerDao = database.sourceBrokerDao()
 		val providerTimes = if (wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
@@ -539,11 +512,6 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			)
 		}
 		val scopeDeletionGeneration = 0L
-		if (qualifiedPurpose?.indexes?.isEmpty() == true) {
-			return CellWalAdapterResult.Evaluated(
-				CellCapturedFactClassification.Stale(authenticatedCarrier.payload.observations.size),
-			)
-		}
 		val temporal = runCatching {
 			CellCaptureTemporalAuthority(
 				providerAcceptance = interval(registrationStart, registrationEnd),
@@ -564,6 +532,39 @@ internal class CellWalQualificationAdapter @Inject constructor(
 		}.getOrNull() ?: return rejected(
 			CellWalAdapterRejection.TEMPORAL_AUTHORITY_UNVERIFIABLE,
 		)
+		// A stale plan cannot conceal independent provider, authorization, or session ownership damage.
+		val planDao = database.sourcePlanStateDao()
+		val planHeader = planDao.revision(configRevision)
+		val desiredPlan = planDao.desiredPlan(configRevision, CELL_SOURCE)
+		if (planHeader == null || desiredPlan == null) {
+			return rejected(CellWalAdapterRejection.MISSING_HISTORICAL_PLAN)
+		}
+		val plan = runCatching { planCodec.decode(desiredPlan.payload) as? CellPlan }.getOrNull()
+		val reencodedPlan = plan?.let { runCatching { planCodec.encode(it) }.getOrNull() }
+		if (desiredPlan.payloadVersion != PLAN_PAYLOAD_VERSION ||
+			desiredPlan.revision != configRevision || desiredPlan.sourceKind != CELL_SOURCE
+		) {
+			return rejected(CellWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
+		}
+		if (plan == null || !plan.hasSupportedHistoricalShape() || plan.revision != configRevision) {
+			return rejected(CellWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
+		}
+		if (reencodedPlan == null || !reencodedPlan.bytes.contentEquals(desiredPlan.payload) ||
+			reencodedPlan.checksum != desiredPlan.payloadChecksum
+		) {
+			return rejected(CellWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
+		}
+		if (plan.physicalConfigurationFingerprint() != physicalFingerprint ||
+			planHeader.sourcePolicyRevision != policyRevision
+		) {
+			return rejected(CellWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
+		}
+
+		if (qualifiedPurpose?.indexes?.isEmpty() == true) {
+			return CellWalAdapterResult.Evaluated(
+				CellCapturedFactClassification.Stale(authenticatedCarrier.payload.observations.size),
+			)
+		}
 		val maximumAgeNanos = qualifiedPurpose?.let {
 			minOf(plan.maximumObservationAgeNanos(), it.demandMaximumAgeNanos)
 		} ?: plan.maximumObservationAgeNanos()

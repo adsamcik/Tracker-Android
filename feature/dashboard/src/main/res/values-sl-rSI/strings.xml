@@ -49,6 +49,7 @@
     <string name="dashboard_milestone_time">sledenih min!</string>
     <string name="dashboard_today_title">Danes</string>
     <string name="dashboard_today_no_activity">Danes še ni dejavnosti</string>
+    <string name="dashboard_saved_data_history">Shranjeni podatki so na voljo v Zgodovini.</string>
     <string name="dashboard_today_distance">Razdalja</string>
     <string name="dashboard_today_duration">Trajanje</string>
     <string name="dashboard_today_steps">Koraki</string>

@@ -38,7 +38,7 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">Резервно копие на база данни (ZIP)</string>
-    <string name="settings_import_summary">Импортирайте данни от поддържани типове (%1$s) и архиви (%2$s). Импортирането на база данни обединява съвместимите редове; не заменя съществуващите данни.</string>
+    <string name="settings_import_summary">Импортирайте файл със записани данни или възстановете резервно копие на данните.</string>
     <string name="settings_import_title">Импортиране</string>
     <string name="export_radio_sensitivity_title">Да се експортират ли мрежовите данни?</string>
     <string name="export_wifi_sensitivity_message">Този файл съдържа запазени Wi-Fi имена и идентификатори на точки за достъп.</string>
@@ -59,4 +59,7 @@
         <item quantity="one">%d точка в този файл се различава от запазеното копие. Изберете коя да запазите. Другите точки ще бъдат импортирани както обикновено.</item>
         <item quantity="other">%d точки в този файл се различават от запазените копия. Изберете кои да запазите. Другите точки ще бъдат импортирани както обикновено.</item>
     </plurals>
+    <string name="export_sensitivity_portable_title">Да се експортира ли записаната история?</string>
+    <string name="export_sensitivity_portable_steps_message">Този файл съдържа бройки стъпки, времеви интервали и информация за покритието. Не съдържа координати на маршрута. Продължете само ако имате доверие на местоназначението.</string>
+    <string name="export_sensitivity_portable_activity_message">Този файл съдържа записани интервали на движение, времеви интервали и информация за покритието. Не съдържа координати на маршрута. Продължете само ако имате доверие на местоназначението.</string>
 </resources>

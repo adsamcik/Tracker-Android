@@ -51,13 +51,14 @@ class CollectedDataLifecycleStoreTest {
 	}
 
 	@Test
-	fun `full deletion advances epoch and does not weaken retention boundary`() = runBlocking<Unit> {
+	fun `full deletion advances epoch and preserves the real retention boundary`() = runBlocking<Unit> {
 		store.advanceRetainedFrom(500L)
 
 		store.beginFullDeletion(300L) shouldBe CollectedDataLifecycleSnapshot(1L, 500L)
-		store.beginFullDeletion(700L) shouldBe CollectedDataLifecycleSnapshot(2L, 700L)
+		store.beginFullDeletion(700L) shouldBe CollectedDataLifecycleSnapshot(2L, 500L)
 		store.snapshot().accepts(capturedEpoch = 1L, acquiredAtMs = 999L) shouldBe false
-		store.snapshot().accepts(capturedEpoch = 2L, acquiredAtMs = 699L) shouldBe false
+		store.snapshot().accepts(capturedEpoch = 2L, acquiredAtMs = 499L) shouldBe false
+		store.snapshot().accepts(capturedEpoch = 2L, acquiredAtMs = 600L) shouldBe true
 	}
 
 	@Test
@@ -66,13 +67,13 @@ class CollectedDataLifecycleStoreTest {
 			operationId = "operation-1",
 			targetEpoch = 1L,
 			deletedAtMs = 500L,
-		) shouldBe CollectedDataLifecycleSnapshot(1L, 500L)
+		) shouldBe CollectedDataLifecycleSnapshot(1L, null)
 
 		store.beginFullDeletion(
 			operationId = "operation-1",
 			targetEpoch = 1L,
 			deletedAtMs = 500L,
-		) shouldBe CollectedDataLifecycleSnapshot(1L, 500L)
+		) shouldBe CollectedDataLifecycleSnapshot(1L, null)
 
 		shouldThrow<IllegalStateException> {
 			store.beginFullDeletion(
@@ -81,6 +82,26 @@ class CollectedDataLifecycleStoreTest {
 				deletedAtMs = 500L,
 			)
 		}
+	}
+
+	@Test
+	fun `a reserved legacy floor and a newer real retention floor both survive deletion retries`() = runBlocking<Unit> {
+		store.advanceRetainedFrom(500L)
+		store.beginFullDeletion("old-prepared-clear", 1L, 1_000L, 1_000L) shouldBe
+			CollectedDataLifecycleSnapshot(1L, 1_000L)
+		store.beginFullDeletion("old-prepared-clear", 1L, 1_000L, 1_000L) shouldBe
+			CollectedDataLifecycleSnapshot(1L, 1_000L)
+		store.advanceRetainedFrom(1_100L)
+		store.beginFullDeletion("old-prepared-clear", 1L, 1_000L, 1_000L) shouldBe
+			CollectedDataLifecycleSnapshot(1L, 1_100L)
+	}
+
+	@Test
+	fun `a clear without retention permits fresh historical work but rejects the previous epoch`() = runBlocking<Unit> {
+		val cleared = store.beginFullDeletion("new-clear", 1L, 1_000L)
+		cleared shouldBe CollectedDataLifecycleSnapshot(1L, null)
+		cleared.accepts(capturedEpoch = 1L, acquiredAtMs = 100L) shouldBe true
+		cleared.accepts(capturedEpoch = 0L, acquiredAtMs = 2_000L) shouldBe false
 	}
 
 	@Test
@@ -137,6 +158,6 @@ class CollectedDataLifecycleStoreTest {
 
 		val snapshot = store.snapshot()
 		snapshot.epoch shouldBe 12L
-		snapshot.retainedFromMs shouldBe 12L
+		snapshot.retainedFromMs shouldBe null
 	}
 }

@@ -24,6 +24,7 @@ import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.impexp.importer.RoomImportReceiptStore
 import com.adsamcik.tracker.impexp.importer.computeImportJobId
 import com.adsamcik.tracker.impexp.importer.locationFileReview
+import com.adsamcik.tracker.impexp.importer.reviewedLocationImportJobId
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveEntryMetadata
 import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveClassification
@@ -167,9 +168,10 @@ class ImportWorker @AssistedInject constructor(
 	/** Session job identity and dispatch use the same owned copy; ordinary source imports retain their flow. */
 	private suspend fun importPickedFile(file: DocumentFile, fileName: String): Result {
 		val importContext = currentCoroutineContext()
-		val jobId = computeImportJobId(context, file, importSourceReadLimit(file.extension)) {
+		val fileJobId = computeImportJobId(context, file, importSourceReadLimit(file.extension)) {
 			importContext.ensureActive()
 		}
+		val jobId = reviewedLocationImportJobId(fileJobId, inputData.locationFileReview(), id)
 		requireCurrentImportAuthority()
 		if (!importJobRunner.start(jobId, fileName, file.length())) {
 			showNotification(context.buildNotificationText(ImportResult(skippedCount = 1)), false)

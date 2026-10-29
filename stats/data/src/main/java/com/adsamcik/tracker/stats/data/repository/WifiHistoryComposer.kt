@@ -30,6 +30,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.WifiWalPayloadDecodeResult
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCaptureDeletionGenerationEntity
@@ -440,17 +442,27 @@ internal object WifiHistoryComposer {
 				WifiHistoryCause.RETENTION_LIMIT, capturesOnlyWifi)
 		}
 		val admissionFactIds = related.mapTo(mutableSetOf(), WifiCapturedFactRevisionEntity::sourceEventId)
-		val admissions = snapshot.admissions.filter { it.serviceRunId in runIds || it.eventId in admissionFactIds }
-		if (admissions.any { !it.isAuthenticatedHistoryAdmission(logicalId, runIds, snapshot, manifestsByRun, evidence) }) {
+		val admissions = snapshot.admissions.filter {
+			it.eventId in admissionFactIds || it.wasCapturedForRun(logicalId, runIds, snapshot)
+		}
+		// Until a fact exists, pending capture still needs its original admission authority.
+		val carriers = if (related.isEmpty()) { admissions } else {
+			admissions.filter { it.eventId in admissionFactIds }
+		}
+		if (carriers.any { !it.isAuthenticatedHistoryAdmission(logicalId, runIds, snapshot, manifestsByRun, evidence) }) {
 			return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
 		}
-		val admissionsByEventId = admissions.associateBy(SourceEventWalEntity::eventId)
-		val admissionsByOrdinal = admissions.associateBy(SourceEventWalEntity::admissionOrdinal)
-		val admissionsByDelivery = admissions.associateBy(SourceEventWalEntity::deliveryIdentity)
-		if (admissionsByEventId.size != admissions.size ||
-			admissionsByOrdinal.size != admissions.size ||
-			admissionsByDelivery.size != admissions.size
+		val admissionsByEventId = carriers.associateBy(SourceEventWalEntity::eventId)
+		val admissionsByOrdinal = carriers.associateBy(SourceEventWalEntity::admissionOrdinal)
+		val admissionsByDelivery = carriers.associateBy(SourceEventWalEntity::deliveryIdentity)
+		if (admissionsByEventId.size != carriers.size ||
+			admissionsByOrdinal.size != carriers.size ||
+			admissionsByDelivery.size != carriers.size || hasAliasedSavedCarrier(snapshot.admissions, carriers)
 		) {
+			return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
+		}
+		val failedOrdinals = snapshot.terminalFailures.mapTo(hashSetOf(), SourceProjectionFailureEntity::admissionOrdinal)
+		if (related.isEmpty() && admissions.any { it.admissionOrdinal in failedOrdinals }) {
 			return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
 		}
 		val targetOrdinal = listOfNotNull(
@@ -466,7 +478,7 @@ internal object WifiHistoryComposer {
 		if (!hasValidSessionSettlement(session, runs, manifestsByRun, legacyTargetOrdinal) ||
 			targetOrdinal?.let { it < lane.activationOrdinal ||
 				lane.captureAdmissionCutoffOrdinal?.let { cutoff -> cutoff < it } == true } == true ||
-			snapshot.terminalFailures.isNotEmpty()
+			related.any { it.sourceAdmissionOrdinal in failedOrdinals }
 		) {
 			return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
 		}
@@ -573,6 +585,9 @@ internal object WifiHistoryComposer {
 		)).map { (fact, aggregate) -> toObservation(fact, aggregate, snapshot) } }
 			.getOrElse { return failed(logicalId, segments, WifiHistoryCause.FACT_INTEGRITY_FAILED) }
 		val causes = linkedSetOf<WifiHistoryCause>()
+		if (admissions.any { it.admissionOrdinal in failedOrdinals }) {
+			causes += WifiHistoryCause.ACQUISITION_INCOMPLETE
+		}
 		if (snapshot.savedSessionCutoffs[logicalId]?.clockUnknown == true) {
 			causes += WifiHistoryCause.ACQUISITION_INCOMPLETE
 		}
@@ -635,6 +650,45 @@ internal object WifiHistoryComposer {
 			return false
 		}
 		return captureModeMask and modeMask == modeMask && manifests.none { activatedRolloutRevision > it.rolloutRevision }
+	}
+
+	/** A rejected sibling must not lend an ordinal or complete delivery identity to a saved fact. */
+	private fun hasAliasedSavedCarrier(admissions: List<SourceEventWalEntity>,
+		carriers: List<SourceEventWalEntity>): Boolean {
+		val eventIds = carriers.mapTo(hashSetOf(), SourceEventWalEntity::eventId)
+		val ordinals = carriers.mapTo(hashSetOf(), SourceEventWalEntity::admissionOrdinal)
+		val deliveries = carriers.mapNotNullTo(hashSetOf(), SourceEventWalEntity::deliveryIdentity)
+		return admissions.any { it.eventId !in eventIds &&
+			(it.admissionOrdinal in ordinals || it.deliveryIdentity?.let(deliveries::contains) == true) }
+	}
+
+	private fun SourceEventWalEntity.wasCapturedForRun(logicalId: String, runIds: List<String>,
+		snapshot: WifiHistorySnapshot): Boolean {
+		if (logicalTrackingId != null || serviceRunId != null) {
+			return logicalTrackingId == logicalId && serviceRunId in runIds
+		}
+		if (payloadVersion != WIFI_WAL_PAYLOAD_VERSION || authorizationRevision == null) {
+			return false
+		}
+		val decoded = WifiWalPayloadCodec.decodeCanonical(payloadVersion, payload)
+			as? WifiWalPayloadDecodeResult.Decoded ?: return false
+		val times = decoded.payload.observations.mapNotNull { it.providerTimestampNanos }
+		val rows = snapshot.authorizationsByRegistration[registrationGeneration].orEmpty()
+		return rows.any { member ->
+			member.isCapturedHistoryMember(this, logicalId, runIds) && member.containsHistoryObservation(this, rows, times)
+		}
+	}
+
+	/** Only actual same-boot item times assign a shared callback to an original purpose window. */
+	private fun SourceAuthorizationEntity.containsHistoryObservation(
+		wal: SourceEventWalEntity, rows: List<SourceAuthorizationEntity>, times: List<Long>,
+	): Boolean {
+		if (effectiveBootId != wal.clockDomainId) {
+			return false
+		}
+		val end = rows.filter { it.authorizationRevision > authorizationRevision && it.effectiveBootId == wal.clockDomainId }
+			.minOfOrNull { it.effectiveElapsedRealtimeNanos } ?: Long.MAX_VALUE
+		return times.any { it >= effectiveElapsedRealtimeNanos && it < end }
 	}
 
 	private fun SourceEventWalEntity.isAuthenticatedHistoryAdmission(

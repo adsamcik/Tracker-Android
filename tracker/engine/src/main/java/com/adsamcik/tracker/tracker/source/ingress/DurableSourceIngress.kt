@@ -56,6 +56,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.decodeCurrentModelOrNull
 import com.adsamcik.tracker.tracker.source.coordinator.isCanonicalCaptureAuthorizedBy
 import com.adsamcik.tracker.tracker.source.coordinator.stableLifecycleChecksum
 import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
+import com.adsamcik.tracker.tracker.resilience.TrackingLifecycleCommandAuthority
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
@@ -199,6 +200,7 @@ class RoomDurableSourceIngress @Inject constructor(
 	private val payloadCodec: SourcePayloadCodec,
 	private val executableLaneCatalog: ExecutableSourceLaneCatalog,
 	private val trackingStartupGateProvider: Provider<TrackingStartupGate>,
+	private val lifecycleCommandAuthority: TrackingLifecycleCommandAuthority? = null,
 ) : DurableSourceIngress, DurableSourceDeliveryIngress {
 	override suspend fun admit(candidate: SourceEvidenceCandidate<*>): AdmissionResult =
 		admitInternal(candidate, checkpoint = null)
@@ -935,7 +937,12 @@ class RoomDurableSourceIngress @Inject constructor(
 					var observedTimeAuthorization = runCatchingNonCancellation {
 						observedTimeAuthorizationRows.toAuthorizationSnapshotOrNull()
 					}.getOrNull()
-					val supportsRetiringCapture = evidence.source == SourceKind.WIFI || evidence.source == SourceKind.STEPS
+					val independentSensorAuthorization = if (evidence.source == SourceKind.PRESSURE ||
+						evidence.source == SourceKind.ACTIVITY) {
+						independentAmbientSensorEnvelope(evidence, intervalStart, brokerDao)
+					} else null
+					val supportsRetiringCapture = evidence.source == SourceKind.WIFI || evidence.source == SourceKind.STEPS ||
+						evidence.source == SourceKind.PRESSURE && independentSensorAuthorization == null
 					if (supportsRetiringCapture &&
 						(observedTimeAuthorization == null ||
 							observedTimeAuthorization.isDenied ||
@@ -959,10 +966,6 @@ class RoomDurableSourceIngress @Inject constructor(
 							}
 						}
 					}
-					val independentSensorAuthorization = if (evidence.source == SourceKind.PRESSURE ||
-						evidence.source == SourceKind.ACTIVITY) {
-						independentAmbientSensorEnvelope(evidence, intervalStart, brokerDao)
-					} else null
 					if (independentSensorAuthorization != null) {
 						observedTimeAuthorization = independentSensorAuthorization
 					}
@@ -1082,6 +1085,16 @@ class RoomDurableSourceIngress @Inject constructor(
 						)
 					}
 					val capturedMember = captureMembers.singleOrNull()
+					val excludedCapture = unit.sourceUnit.excludedPressureCapture
+					val locallyExcludedCapture = evidence.source == SourceKind.PRESSURE &&
+						excludedCapture != null && capturedMember != null &&
+						excludedCapture.logicalTrackingId == capturedMember.logicalTrackingId &&
+						excludedCapture.serviceRunId == capturedMember.serviceRunId &&
+						excludedCapture.effectiveBootId == evidence.clockDomainId
+					if (locallyExcludedCapture && !independentAmbient) {
+						emptyDeliveryFailure = AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED
+						continue
+					}
 					val captureKey = capturedMember?.captureSessionKey(
 						source = evidence.source,
 						clockDomainId = evidence.clockDomainId,
@@ -1098,6 +1111,16 @@ class RoomDurableSourceIngress @Inject constructor(
 						!hasCompatibleAppliedActivityPlan(evidence, captureKey, authorization.authorizationRevision)
 					val ambientPressurePlan = evidence.source == SourceKind.PRESSURE &&
 						evidence.planAttribution != PlanAttribution.CAPTURED_REGISTRATION
+					// Return the exact boundary before either purpose commits this aggregate. The runtime
+					// retains raw samples and can admit disjoint capture/ambient pieces without duplication.
+					val sharedCapturedPressure = evidence.source == SourceKind.PRESSURE && independentAmbient &&
+						evidence.payloadVersion >= PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION &&
+						!ambientPressurePlan && !locallyExcludedCapture
+					if (sharedCapturedPressure && !mismatchedSensorPlan &&
+						sensorCaptureAuthority is CaptureSessionAuthority.Stopping &&
+						sensorCaptureAuthority.crossesCutoff(intervalStart, evidence.observedElapsedRealtimeNanos)) {
+						return@transaction DeliveryAdmissionResult.SessionCutoff(sensorCaptureAuthority.cutoffElapsedNanos)
+					}
 					// Keep all-day data when its session plan has not applied or its session has ended.
 					val unqualifiedAmbientCapture = independentAmbient &&
 						(evidence.configRevision == null || mismatchedSensorPlan ||
@@ -1108,7 +1131,7 @@ class RoomDurableSourceIngress @Inject constructor(
 								else -> true
 						})
 					val captureAuthorization = capturedMember.takeUnless {
-						ambientPressurePlan || unqualifiedAmbientCapture
+						ambientPressurePlan || unqualifiedAmbientCapture || locallyExcludedCapture
 					}
 					if (evidence.source == SourceKind.STEPS &&
 						evidenceState.retainedFromMs?.let { evidence.acquiredAtMs < it } == true
@@ -1308,6 +1331,30 @@ class RoomDurableSourceIngress @Inject constructor(
 			}
 			it.matchesCapturedEnvelope(evidence) && surviving.isNotEmpty()
 		}
+	}
+
+	/** Lost-response retries retain the same exact inclusive End authority as the original admission. */
+	private suspend fun SourceDeliveryCandidate.checkpointReplayFailure(
+		checkpoint: SensorAdmissionCheckpoint,
+		stored: SourceDeliveryUnitIdentityRow,
+		brokerDao: SourceBrokerDao,
+	): AdmissionFailureCode? {
+		val evidence = units.single().evidence
+		if (!stored.matchesCheckpointEnvelope(checkpoint, evidence)) {
+			return AdmissionFailureCode.STALE_REGISTRATION_GENERATION
+		}
+		val failure = evidence.checkpointReplayAuthorizationFailure(stored, brokerDao)
+		if (failure != AdmissionFailureCode.STALE_SOURCE_POLICY || evidence.source != SourceKind.PRESSURE ||
+			stored.authorizationRevision != evidence.authorizationRevision) {
+			return failure
+		}
+		val observedAuthorization = brokerDao.authorizationAt(evidence.source.stableCode,
+			evidence.registrationGeneration, evidence.clockDomainId, evidence.observedElapsedRealtimeNanos)
+			.toAuthorizationSnapshotOrNull()
+		val retiring = loadRetiringCaptureAuthority(evidence, brokerDao, observedAuthorization)
+			?.takeIf { it.cutoffElapsedNanos == evidence.observedElapsedRealtimeNanos }
+			?.authorizationAtInclusiveCutoff ?: return failure
+		return evidence.checkpointReplayAuthorizationFailure(stored, brokerDao, retiring)
 	}
 
 	/**
@@ -1539,7 +1586,7 @@ class RoomDurableSourceIngress @Inject constructor(
 		if (!immutableAuthorityMatches) {
 			return CaptureSessionAuthority.Invalid
 		}
-		return when {
+		val savedAuthority = when {
 			session.state in ADMISSION_SESSION_STATES && run.state in ADMISSION_RUN_STATES &&
 				session.cutoffAtMs == null && session.cutoffElapsedNanos == null ->
 				CaptureSessionAuthority.Active(manifest.acquisitionPlanRevision)
@@ -1562,6 +1609,22 @@ class RoomDurableSourceIngress @Inject constructor(
 				CaptureSessionAuthority.Stopping(cutoff, manifest.acquisitionPlanRevision)
 			}
 			else -> CaptureSessionAuthority.Invalid
+		}
+		return if (savedAuthority is CaptureSessionAuthority.Active) {
+			pendingSessionStopCutoff(run, key.clockDomainId)?.let { cutoff ->
+				CaptureSessionAuthority.Stopping(cutoff, manifest.acquisitionPlanRevision)
+			} ?: savedAuthority
+		} else {
+			savedAuthority
+		}
+	}
+
+	/** End is durable before its Room intent; the same capture cutoff applies during that handoff. */
+	private fun pendingSessionStopCutoff(run: SourceServiceRunEntity, clockDomainId: String): Long? {
+		val stop = lifecycleCommandAuthority?.latestUnhandledStop() ?: return null
+		return stop.requestedElapsedRealtimeNanos?.takeIf { cutoff ->
+			stop.requestedBootId == clockDomainId && stop.generation > run.startCommandGeneration &&
+				cutoff >= run.startedElapsedNanos
 		}
 	}
 
@@ -1881,7 +1944,10 @@ private sealed interface CaptureSessionAuthority {
 	data class Stopping(
 		val cutoffElapsedNanos: Long,
 		override val acquisitionPlanRevision: Long,
-	) : CaptureSessionAuthority
+	) : CaptureSessionAuthority {
+		fun crossesCutoff(intervalStart: Long, intervalEnd: Long): Boolean =
+			intervalStart <= cutoffElapsedNanos && intervalEnd > cutoffElapsedNanos
+	}
 	data object Invalid : CaptureSessionAuthority {
 		override val acquisitionPlanRevision: Long? = null
 	}
@@ -2522,18 +2588,6 @@ private suspend fun SourceDeliveryCandidate.checkpointRegistrationFailure(
 	}
 }
 
-private suspend fun SourceDeliveryCandidate.checkpointReplayFailure(
-	checkpoint: SensorAdmissionCheckpoint,
-	stored: SourceDeliveryUnitIdentityRow,
-	brokerDao: SourceBrokerDao,
-): AdmissionFailureCode? {
-	val evidence = units.single().evidence
-	if (!stored.matchesCheckpointEnvelope(checkpoint, evidence)) {
-		return AdmissionFailureCode.STALE_REGISTRATION_GENERATION
-	}
-	return evidence.checkpointReplayAuthorizationFailure(stored, brokerDao)
-}
-
 private fun SourceDeliveryUnitIdentityRow.matchesCheckpointEnvelope(
 	checkpoint: SensorAdmissionCheckpoint,
 	evidence: SourceEvidenceCandidate<*>,
@@ -2549,6 +2603,7 @@ private fun SourceDeliveryUnitIdentityRow.matchesCheckpointEnvelope(
 private suspend fun SourceEvidenceCandidate<*>.checkpointReplayAuthorizationFailure(
 	stored: SourceDeliveryUnitIdentityRow,
 	brokerDao: SourceBrokerDao,
+	inclusiveCutoffAuthorization: SourceAuthorizationSnapshot? = null,
 ): AdmissionFailureCode? {
 	val continuous = continuousCheckpointReplayAuthorization(stored, brokerDao)
 	val authorization = if (continuous != null) {
@@ -2556,12 +2611,25 @@ private suspend fun SourceEvidenceCandidate<*>.checkpointReplayAuthorizationFail
 	} else {
 		authorizationAcrossIntrinsicInterval(brokerDao)
 	}
-	val endAuthorization = authorization.end ?: return AdmissionFailureCode.STALE_SOURCE_POLICY
+	val endAuthorization = inclusiveCutoffAuthorization ?: authorization.end
+		?: return AdmissionFailureCode.STALE_SOURCE_POLICY
 	if (endAuthorization.isDenied) {
 		return AdmissionFailureCode.STALE_SOURCE_POLICY
 	}
-	val startAuthorization = authorization.start
+	val interval = observedTimeInterval()
+	val inclusivePoint = inclusiveCutoffAuthorization.takeIf {
+		interval.startElapsedRealtimeNanos == interval.endElapsedRealtimeNanos
+	}
+	val startAuthorization = inclusivePoint ?: authorization.start
 		?: return AdmissionFailureCode.AUTHORIZATION_BOUNDARY_SPLIT_REQUIRED
+	return checkpointReplayRevisionFailure(stored, startAuthorization, endAuthorization)
+}
+
+private fun SourceEvidenceCandidate<*>.checkpointReplayRevisionFailure(
+	stored: SourceDeliveryUnitIdentityRow,
+	startAuthorization: SourceAuthorizationSnapshot,
+	endAuthorization: SourceAuthorizationSnapshot,
+): AdmissionFailureCode? {
 	return when {
 		startAuthorization.authorizationRevision != endAuthorization.authorizationRevision ->
 			AdmissionFailureCode.AUTHORIZATION_BOUNDARY_SPLIT_REQUIRED

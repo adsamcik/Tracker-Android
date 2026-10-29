@@ -47,6 +47,7 @@
     <string name="dashboard_milestone_time">мин проследени!</string>
     <string name="dashboard_today_title">Днес</string>
     <string name="dashboard_today_no_activity">Все още няма активност днес</string>
+    <string name="dashboard_saved_data_history">Запазените данни са достъпни в „История“.</string>
     <string name="dashboard_today_distance">Разстояние</string>
     <string name="dashboard_today_duration">Продължителност</string>
     <string name="dashboard_today_steps">Крачки</string>

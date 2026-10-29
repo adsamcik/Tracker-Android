@@ -15,7 +15,7 @@
     <string name="settings_data_management_section">データ管理</string>
     <string name="settings_data_danger_zone_section">危険な操作</string>
     <string name="settings_incremental_backups_title">増分バックアップ</string>
-    <string name="settings_incremental_backups_summary">前回のバックアップ以降の新しいデータだけをエクスポートします。エクスポート時間とファイルサイズを削減します。</string>
+    <string name="settings_incremental_backups_summary">定期的なGPX・KMLエクスポートでは新しいデータのみを書き出します。</string>
     <string name="settings_reset_export_watermarks_title">完全エクスポートを強制</string>
     <string name="settings_reset_export_watermarks_summary">次回の自動バックアップには、変更分だけでなくすべてのデータが含まれます</string>
     <string name="settings_reset_export_watermarks_done">エクスポートのウォーターマークをリセットしました — 次回のバックアップは完全エクスポートになります</string>
@@ -163,7 +163,7 @@
     <string name="export_sensitivity_db_message">このバックアップには保存された記録データが含まれます。位置情報やネットワークの詳細が含まれる場合があります。設定は含まれません。</string>
     <string name="export_sensitivity_confirm">エクスポートを続行</string>
     <string name="settings_export_title">エクスポート</string>
-    <string name="settings_import_summary">対応する形式（%1$s）とアーカイブ（%2$s）からデータをインポートします。データベースのインポートは互換性のある行を統合し、既存データを置き換えません。</string>
+    <string name="settings_import_summary">記録ファイルをインポートするか、データのバックアップを復元します。</string>
     <string name="settings_import_title">インポート</string>
     <string name="got_it">了解</string>
     <string name="battery_impact_low">影響小</string>
@@ -278,7 +278,7 @@
     <string name="setup_perm_location_bg_why">アプリを切り替えたり画面を消したりしてもルートを記録し続けるには、Trackerがバックグラウンドで位置情報にアクセスする必要があります。記録した位置情報はこの端末に保存され、サーバーに送信されることはありません。自動トラッキングを有効にするには、次のシステム画面で「常に許可」を選択してください。「アプリの使用中のみ許可」では、Trackerの画面を開いている間だけ動作します。</string>
     <string name="setup_perm_activity_why">Trackerが行動（歩行、サイクリング、運転、静止）を検出できるようにします。これにより、移動していないときは自動トラッキングを一時停止してバッテリーを節約できます。アクティビティデータはこの端末に保存され、サーバーに送信されることはありません。</string>
     <string name="setup_perm_notification_why">Trackerは記録中に小さなステータス通知を表示するため、トラッキングがオンであることをひと目で確認し、1回のタップで停止できます。マーケティングや宣伝の通知はありません。</string>
-    <string name="setup_perm_wifi_why">TrackerはGPSが弱い場所（屋内、地下）で位置情報の精度を改善するため、移動中に端末が検出したWi-Fiアクセスポイントを記録できます。無線データはこの端末に保存され、サーバーに送信されることはありません。必要な場合のみ許可してください。</string>
+    <string name="setup_perm_wifi_why">AndroidでWi-Fiをスキャンするには位置情報へのアクセスが必要です。位置情報を記録せずにWi-Fiを記録できます。</string>
     <string name="setup_perm_cell_why">TrackerはGPSが利用できない場合にも位置を推定できるよう、ルート沿いの基地局IDを記録できます。無線データはこの端末に保存され、サーバーに送信されることはありません。必要な場合のみ、電話の状態と高精度の位置情報を許可してください。</string>
     <string name="setup_perm_grant">許可</string>
     <string name="setup_perm_grant_location_content_description">位置情報の権限を許可</string>

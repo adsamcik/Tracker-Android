@@ -24,6 +24,10 @@ internal data class AmbientStepsDayIdentity(
 		require(date.atStartOfDay(zone).toInstant().toEpochMilli() == startTimeMs)
 		require(date.plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli() == endTimeMs)
 	}
+
+	/** Zone labels may differ while identifying exactly the same measured local day. */
+	fun hasSameCalendarBounds(other: AmbientStepsDayIdentity): Boolean =
+		epochDay == other.epochDay && startTimeMs == other.startTimeMs && endTimeMs == other.endTimeMs
 }
 
 /** Provider lineage is retained internally; it is not a user-visible account identifier. */
@@ -256,11 +260,19 @@ internal fun composeAmbientStepsDay(
 	gaps: List<EffectiveAmbientStepsGap>,
 	sessions: List<QualifiedSessionStepsWindow>,
 	sourceCauses: Set<AmbientStepsDayCause> = emptySet(),
+	allowEquivalentCalendars: Boolean = false,
 ): AmbientStepsDayProduct {
 	val origins = facts.mapTo(linkedSetOf(), QualifiedAmbientStepsFact::origin)
 	val containedSessions = containedSessionsForDay(day, sessions)
 	val outsideSession = containedSessions.size != sessions.size
-	if (facts.any { it.day != day }) {
+	val calendarMismatch = facts.any { fact ->
+		if (allowEquivalentCalendars) {
+			!fact.day.hasSameCalendarBounds(day)
+		} else {
+			fact.day != day
+		}
+	}
+	if (calendarMismatch) {
 		return unavailableAmbientDay(day, containedSessions, origins,
 			AmbientStepsDayCause.AMBIENT_DAY_AUTHORITY_MISMATCH)
 	}
@@ -310,7 +322,7 @@ private fun hasConflictingPortableIdentity(
 	factsByPortableIdentity: Map<String, List<QualifiedAmbientStepsFact>>,
 ): Boolean = factsByPortableIdentity.values.any { group ->
 	group.drop(1).any { candidate ->
-		candidate.day != group.first().day ||
+		!candidate.day.hasSameCalendarBounds(group.first().day) ||
 			candidate.startTimeMs != group.first().startTimeMs ||
 			candidate.endTimeMs != group.first().endTimeMs ||
 			candidate.stepCount != group.first().stepCount ||

@@ -47,6 +47,7 @@
     <string name="dashboard_milestone_time">nóim rianaithe!</string>
     <string name="dashboard_today_title">Inniu</string>
     <string name="dashboard_today_no_activity">Gan ghníomhaíocht fós inniu</string>
+    <string name="dashboard_saved_data_history">Tá na sonraí sábháilte ar fáil sa Stair.</string>
     <string name="dashboard_today_distance">Fad</string>
     <string name="dashboard_today_duration">Fad ama</string>
     <string name="dashboard_today_steps">Céimeanna</string>

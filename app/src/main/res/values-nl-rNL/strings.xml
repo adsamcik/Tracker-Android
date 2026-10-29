@@ -15,7 +15,7 @@
     <string name="settings_data_management_section">Gegevensbeheer</string>
     <string name="settings_data_danger_zone_section">Gevarenzone</string>
     <string name="settings_incremental_backups_title">Incrementele back-ups</string>
-    <string name="settings_incremental_backups_summary">Exporteer alleen nieuwe gegevens sinds de laatste back-up. Verkort de exporttijd en vermindert de bestandsgrootte.</string>
+    <string name="settings_incremental_backups_summary">Exporteer alleen nieuwe gegevens bij geplande GPX- en KML-exports.</string>
     <string name="settings_reset_export_watermarks_title">Volledige export forceren</string>
     <string name="settings_reset_export_watermarks_summary">De volgende automatische back-up bevat alle gegevens in plaats van alleen wijzigingen</string>
     <string name="settings_reset_export_watermarks_done">Exportwatermerken gereset — de volgende back-up wordt een volledige export</string>
@@ -163,7 +163,7 @@
     <string name="export_sensitivity_db_message">Deze back-up bevat je opgeslagen trackinggegevens, waaronder mogelijk locaties en netwerkdetails. Instellingen zijn uitgesloten.</string>
     <string name="export_sensitivity_confirm">Export voortzetten</string>
     <string name="settings_export_title">Exporteren</string>
-    <string name="settings_import_summary">Importeer gegevens uit ondersteunde typen (%1$s) en archieven (%2$s). Database-imports voegen compatibele rijen samen; bestaande gegevens worden niet vervangen.</string>
+    <string name="settings_import_summary">Importeer een trackingbestand of herstel een gegevensback-up.</string>
     <string name="settings_import_title">Importeren</string>
     <string name="got_it">Begrepen</string>
     <string name="battery_impact_low">Lage impact</string>
@@ -278,7 +278,7 @@
     <string name="setup_perm_location_bg_why">Om je route te blijven vastleggen wanneer je van app wisselt of het scherm uitgaat, heeft Tracker toegang nodig tot je locatie op de achtergrond. De vastgelegde locatie blijft op dit apparaat — er wordt niets naar een server verzonden. Kies bij de volgende systeemprompt "Altijd toestaan" om automatisch volgen in te schakelen; "Alleen toestaan tijdens gebruik van de app" laat Tracker alleen werken wanneer het scherm geopend is.</string>
     <string name="setup_perm_activity_why">Laat Tracker detecteren wat je doet (wandelen, fietsen, autorijden, stilstaan), zodat automatisch volgen kan pauzeren wanneer je niet beweegt en batterij bespaart. Activiteitsgegevens blijven op dit apparaat — er wordt niets naar een server verzonden.</string>
     <string name="setup_perm_notification_why">Tracker toont tijdens het vastleggen een kleine statusmelding zodat je in één oogopslag ziet dat tracking actief is en die met één tik kunt stoppen. Geen marketing- of promotiemeldingen.</string>
-    <string name="setup_perm_wifi_why">Tracker kan wifi-toegangspunten vastleggen die je telefoon tijdens een rit ziet, om de locatienauwkeurigheid te verbeteren waar GPS zwak is (binnen, ondergronds). De radiogegevens blijven op dit apparaat — er wordt niets naar een server verzonden. Verleen de machtiging alleen als je dit wilt.</string>
+    <string name="setup_perm_wifi_why">Android heeft toegang tot je locatie nodig om naar wifi-netwerken te zoeken. Je kunt wifi vastleggen zonder je locatie vast te leggen.</string>
     <string name="setup_perm_cell_why">Tracker kan ID’s van zendmasten langs je route registreren zodat de locatie kan worden afgeleid wanneer GPS niet beschikbaar is. De radiogegevens blijven op dit apparaat — er wordt niets naar een server verzonden. Verleen telefoonstatus en nauwkeurige locatie alleen als je dit wilt.</string>
     <string name="setup_perm_grant">Toestaan</string>
     <string name="setup_perm_grant_location_content_description">Locatiemachtiging verlenen</string>

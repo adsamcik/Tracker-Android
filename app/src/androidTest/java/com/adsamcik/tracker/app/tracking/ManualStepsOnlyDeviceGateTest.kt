@@ -382,7 +382,7 @@ class ManualStepsOnlyDeviceGateTest {
 	}
 
 	private suspend fun activateCandidateStepsWriter(): Long {
-		val rolloutStore = RoomTrackingRolloutStateStore(database, ExecutableSourceLaneCatalog())
+		val rolloutStore = RoomTrackingRolloutStateStore(database, entryPoint.executableSourceLaneCatalog())
 		val contained = rolloutStore.load()
 		gate(
 			!contained.isCaptureReachable(SourceKind.STEPS, CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),

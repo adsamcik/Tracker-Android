@@ -53,6 +53,7 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import java.io.IOException
 import java.time.ZoneId
 import java.util.Base64
@@ -86,6 +87,7 @@ class TrackerServiceSourceSessionTest {
 		val application: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(application)
 		lifecycle = mockk()
+		every { lifecycle.fencePressureSessionCutoff(any(), any(), any()) } answers { thirdArg<SourceSessionStopCutoff>() }
 		startupGate = FakeTrackingStartupGate()
 		rolloutStore = RoomTrackingRolloutStateStore(
 			database,
@@ -2647,6 +2649,8 @@ class TrackerServiceSourceSessionTest {
 			),
 		)
 
+		verify(exactly = 1) { lifecycle.fencePressureSessionCutoff("logical", "run",
+			SourceSessionStopCutoff(2_500L, 2_500_000L, "boot-1")) }
 		capturedStop.captured.wallTimeMs shouldBe 2_500L
 		capturedStop.captured.elapsedRealtimeNanos shouldBe 2_500_000L
 		capturedStop.captured.clockDomainId shouldBe "boot-1"

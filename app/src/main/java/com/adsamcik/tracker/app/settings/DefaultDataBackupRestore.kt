@@ -285,10 +285,12 @@ class DefaultDataBackupRestore @Inject constructor(
         if (safety.exists() && !safety.delete()) {
             throw IOException("Restore safety copy could not be removed")
         }
-        journal.delete()
-        check(!journal.baseFile.exists()) { "Restore completion could not be saved" }
         barrier.reopen()
         quiescer.get().resume()
+        // Keep the completed import retryable until the existing readers and writers are released.
+        // Reopening may suspend/cancel and resuming scheduled work may fail; neither needs the input again.
+        journal.delete()
+        check(!journal.baseFile.exists()) { "Restore completion could not be saved" }
     }
 
     private suspend fun replaceOwnedFile(source: File, destination: File) {

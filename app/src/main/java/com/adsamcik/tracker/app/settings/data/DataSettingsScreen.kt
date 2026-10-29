@@ -132,9 +132,6 @@ fun DataSettingsScreen() {
         contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
     ) {
         item {
-            val importFormatNames = supportedImportFormatNames()
-            val archiveNames = dataImport.supportedArchiveExtractorExtensions
-                .joinToString { it.uppercase(Locale.getDefault()) }
             val resetWatermarksDoneMessage = stringResource(R.string.settings_reset_export_watermarks_done)
             SettingsGroupCard(
                 title = stringResource(com.adsamcik.tracker.impexp.R.string.settings_export_title),
@@ -193,11 +190,7 @@ fun DataSettingsScreen() {
                 }
                 SettingsItem(
                     title = stringResource(com.adsamcik.tracker.impexp.R.string.settings_import_title),
-                    subtitle = stringResource(
-                        com.adsamcik.tracker.impexp.R.string.settings_import_summary,
-                        importFormatNames,
-                        archiveNames,
-                    ),
+                    subtitle = stringResource(com.adsamcik.tracker.impexp.R.string.settings_import_summary),
                     icon = Icons.Default.FileDownload,
                     onClick = { if (!fileImportState.checking) {
                         importLauncher.launch(importMimeTypes)
@@ -593,15 +586,6 @@ internal fun MigrationBackupWarningDialog(
             }
         },
     )
-}
-
-@Composable
-private fun supportedImportFormatNames(): String {
-    val names = mutableListOf<String>()
-    for (descriptor in FormatRegistry.allImportFormats()) {
-        names += stringResource(descriptor.displayNameRes)
-    }
-    return names.joinToString()
 }
 
 private fun supportedImportMimeTypes(dataImport: DataImport): Array<String> {

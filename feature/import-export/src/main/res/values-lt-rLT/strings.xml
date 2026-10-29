@@ -39,7 +39,7 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">Duomenų bazės atsarginė kopija (ZIP)</string>
-    <string name="settings_import_summary">Importuokite duomenis iš palaikomų tipų (%1$s) ir archyvų (%2$s). Duomenų bazės importavimas sujungia suderinamas eilutes; esami duomenys nepakeičiami.</string>
+    <string name="settings_import_summary">Importuokite stebėjimo failą arba atkurkite duomenų atsarginę kopiją.</string>
     <string name="settings_import_title">Importavimas</string>
     <string name="export_radio_sensitivity_title">Eksportuoti tinklų informaciją?</string>
     <string name="export_wifi_sensitivity_message">Šiame faile yra išsaugoti Wi-Fi pavadinimai ir prieigos taškų ID.</string>
@@ -62,4 +62,7 @@
         <item quantity="many">%d taško šiame faile skiriasi nuo išsaugotų kopijų. Pasirinkite, kuriuos palikti. Kiti taškai bus importuoti įprastai.</item>
         <item quantity="other">%d taškų šiame faile skiriasi nuo išsaugotų kopijų. Pasirinkite, kuriuos palikti. Kiti taškai bus importuoti įprastai.</item>
     </plurals>
+    <string name="export_sensitivity_portable_title">Eksportuoti užfiksuotą istoriją?</string>
+    <string name="export_sensitivity_portable_steps_message">Šiame faile yra žingsnių skaičius, laiko intervalai ir aprėpties informacija. Jame nėra maršruto koordinačių. Tęskite tik jei pasitikite paskirties vieta.</string>
+    <string name="export_sensitivity_portable_activity_message">Šiame faile yra užfiksuoti judėjimo intervalai, laiko intervalai ir aprėpties informacija. Jame nėra maršruto koordinačių. Tęskite tik jei pasitikite paskirties vieta.</string>
 </resources>

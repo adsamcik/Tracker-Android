@@ -31,6 +31,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactCursorEntity
@@ -73,6 +74,7 @@ import com.adsamcik.tracker.stats.api.repository.SourceProofWriterIdentity
 import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryBand
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryDayAllocation
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryPage
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
@@ -1336,6 +1338,31 @@ class WifiHistoryRepositoryRoomTest {
 		assertRecentWriterFailure()
 	}
 
+	@Test
+	fun `terminal Wi-Fi admission without facts does not fail an independent pending run`() = runTest {
+		val failedGroup = buildGroup(254, 1, emptySet(), active = true)
+		val pendingGroup = buildGroup(255, 1, emptySet(), active = true)
+		persist(listOf(failedGroup, pendingGroup))
+		val draft = failedGroup.runs.single().admissions.single()
+		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(draft.eventId))
+		database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
+			projectionId = SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+			projectionVersion = SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION,
+			admissionOrdinal = wal.admissionOrdinal, attemptCount = 1,
+			failureCode = "WAL_AUTHORIZATION_REJECTED", terminal = true, lastAttemptAtMs = wal.createdAtMs))
+
+		val repository = repository { true }
+		val failed = (repository.session(failedGroup.runs.single().segment.id) as WifiHistoryQuery.Found).entry
+		failed.state shouldBe WifiHistoryProductState.FAILED
+		failed.causes shouldBe setOf(WifiHistoryCause.WRITER_PROVENANCE_INVALID)
+		failed.observations shouldBe emptyList()
+		val pending = (repository.session(pendingGroup.runs.single().segment.id) as WifiHistoryQuery.Found).entry
+		pending.state shouldBe WifiHistoryProductState.MATERIALIZING
+		pending.causes shouldBe setOf(WifiHistoryCause.MATERIALIZATION_BEHIND)
+		pending.observations shouldBe emptyList()
+		(repository.recent(2) as WifiHistoryPage.Available).entries shouldBe listOf(pending, failed)
+	}
+
 	private fun promoteWifiLaneToCanonical() {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_product_projection_lane SET product_stage = 'EVENT_CANONICAL' " +
@@ -1497,6 +1524,77 @@ class WifiHistoryRepositoryRoomTest {
 			)
 			assertIs<SourceFactLookupResult.Found>(reader.lookup(request))
 		}
+	}
+
+	@Test
+	fun `rejected shared Wi-Fi callback preserves saved readings and does not affect another run`() = runTest {
+		val groups = listOf(251, 252).map { index ->
+			val group = v6RotatedGroup(buildGroup(index, 1, setOf(0)))
+			group.copy(runs = group.runs.map { run ->
+				run.copy(completeness = requireNotNull(run.completeness)
+					.copy(providerCoverage = "CALLBACKS_ENTERED_BEFORE_BARRIER"))
+			})
+		}
+		persist(groups)
+		groups.forEach { persistV6Children(it) }
+		val repository = repository { true }
+		val run = groups.first().runs.single()
+		val otherRun = groups.last().runs.single()
+		val before = (repository.session(run.segment.id) as WifiHistoryQuery.Found).entry
+		val otherBefore = (repository.session(otherRun.segment.id) as WifiHistoryQuery.Found).entry
+		before.observations shouldHaveSize 1
+		before.causes.contains(WifiHistoryCause.ACQUISITION_INCOMPLETE) shouldBe false
+		val callback = rejectedSharedCallback(run)
+		database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(callback)
+		saveTerminalFailure(run.facts.first(), callback.admissionOrdinal)
+
+		val entries = (repository.recent(2) as WifiHistoryPage.Available).entries
+		val after = entries.single { it.startTime == before.startTime }
+		after.observations shouldBe before.observations
+		after.causes shouldBe before.causes + WifiHistoryCause.ACQUISITION_INCOMPLETE
+		after.state shouldBe WifiHistoryProductState.PARTIAL
+		after.coverage shouldBe WifiHistoryCoverage.PARTIAL
+		(repository.lookup(requireNotNull(after.selection)) as WifiHistoryQuery.Found)
+			.entry.observations shouldBe before.observations
+		val otherAfter = entries.single { it.startTime == otherBefore.startTime }
+		otherAfter.observations shouldBe otherBefore.observations
+		otherAfter.causes shouldBe otherBefore.causes
+	}
+
+	@Test
+	fun `terminal failure on a saved Wi-Fi carrier or aggregate still blocks its history`() = runTest {
+		val group = buildGroup(253, 1, setOf(0), includeReuse = true)
+		persist(listOf(group))
+		val run = group.runs.single()
+		for (fact in run.facts.distinctBy { it.sourceAdmissionOrdinal }) {
+			saveTerminalFailure(fact, fact.sourceAdmissionOrdinal)
+			assertRecentWriterFailure()
+			database.sourceProjectionStateDao().deleteFailure(
+				fact.writerProjectionId, fact.writerProjectionVersion, fact.sourceAdmissionOrdinal)
+		}
+	}
+
+	private fun rejectedSharedCallback(run: BuiltRun): SourceEventWalEntity {
+		val original = run.admissions.single()
+		val denied = run.authorizations.first { it.authorizationRevision == 3L }
+		val unsigned = original.copy(
+			eventId = "rejected-${original.eventId}", admissionOrdinal = original.admissionOrdinal - 1L,
+			sourceSequence = original.sourceSequence - 1L, deliveryIdentity = null,
+			logicalTrackingId = null, serviceRunId = null, sourcePolicyRevision = null,
+			captureConsentEpoch = null, sessionManifestRevision = null, lifecycleLeaseGeneration = null,
+			planAttribution = 2, authorizationRevision = denied.authorizationRevision,
+			authorizationFingerprint = denied.authorizationFingerprint, authorizationPurposeEligibilityMask = 0L,
+			receivedElapsedNanos = denied.effectiveElapsedRealtimeNanos + 1L,
+			receivedWallTimeMs = denied.effectiveWallTimeMs + 1L,
+		)
+		return unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
+	}
+
+	private suspend fun saveTerminalFailure(fact: WifiCapturedFactRevisionEntity, ordinal: Long) {
+		database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
+			projectionId = fact.writerProjectionId, projectionVersion = fact.writerProjectionVersion,
+			admissionOrdinal = ordinal, attemptCount = 1, failureCode = "WAL_AUTHORIZATION_REJECTED",
+			terminal = true, lastAttemptAtMs = fact.appliedAtMs))
 	}
 
 	private fun deniedV6CallbackGroup(input: Group): Group {

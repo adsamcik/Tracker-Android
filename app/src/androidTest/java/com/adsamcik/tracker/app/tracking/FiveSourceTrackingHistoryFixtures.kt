@@ -34,9 +34,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
-import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
-import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsAdmissionRows
 import com.adsamcik.tracker.shared.model.SegmentSource
@@ -93,14 +91,27 @@ internal suspend fun seedExactNativeStepsMembership(
 		val logicalId = "five-source-native-steps"
 		val runId = "five-source-native-steps-run"
 		val endMs = Math.addExact(startMs, 100L)
+		// Bind the fixture to the production policy instead of fencing its current consent with
+		// a synthetic newer row. The disposable profile keeps the default Steps choice enabled.
+		val policies = database.sourcePolicyDao()
+		val policy = policies.currentPolicies().single {
+			it.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS
+		}
+		check(policy.enabled && policy.capturePersistenceEligible)
+		val policyRevision = policy.policyRevision
+		val consentEpoch = requireNotNull(policy.captureConsentEpoch)
+		val consent = requireNotNull(policies.consentEpoch(
+			policy.sourceKind, SessionManifestPurposeCode.SESSION_CAPTURE, consentEpoch,
+		))
+		check(consent.eligible && consent.persistenceEligible)
 		val source = SessionManifestSourceEntity(
 			logicalTrackingId = logicalId,
 			manifestRevision = 1L,
 			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 			purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
-			consentEpoch = 1L,
+			consentEpoch = consentEpoch,
 			persistenceEligible = true,
-			qosCode = 1,
+			qosCode = policy.qosCode,
 			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
 			writerOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
 			writerOwnerGeneration = 1L,
@@ -110,7 +121,7 @@ internal suspend fun seedExactNativeStepsMembership(
 			manifestRevision = 1L,
 			serviceRunId = runId,
 			sessionMode = "MANUAL",
-			sourcePolicyRevision = 1L,
+			sourcePolicyRevision = policyRevision,
 			acquisitionPlanRevision = 1L,
 			rolloutRevision = 1L,
 			startOrigin = "MANUAL_FOREGROUND_START",
@@ -122,7 +133,7 @@ internal suspend fun seedExactNativeStepsMembership(
 			changeReason = "FIVE_SOURCE_ASSEMBLY_TEST",
 			manifestChecksum = "",
 		)
-		sourceSessionDao().insertSession(
+		database.sourceSessionDao().insertSession(
 			LogicalTrackingSessionEntity(
 				logicalTrackingId = logicalId,
 				state = "FINALIZED",
@@ -146,7 +157,7 @@ internal suspend fun seedExactNativeStepsMembership(
 				lifecycleBootId = "five-source-boot",
 			),
 		)
-		sourceSessionDao().insertServiceRun(
+		database.sourceSessionDao().insertServiceRun(
 			SourceServiceRunEntity(
 				serviceRunId = runId,
 				logicalTrackingId = logicalId,
@@ -170,7 +181,7 @@ internal suspend fun seedExactNativeStepsMembership(
 				sessionSegmentId = FIVE_SOURCE_NATIVE_STEPS_SEGMENT_ID,
 			),
 		)
-		sourceSessionDao().insertManifest(
+		database.sourceSessionDao().insertManifest(
 			unsignedManifest.copy(
 				manifestChecksum = SessionManifestIntegrity.compute(
 					unsignedManifest,
@@ -178,47 +189,8 @@ internal suspend fun seedExactNativeStepsMembership(
 				),
 			),
 		)
-		sourceSessionDao().insertManifestSources(listOf(source))
-		sourcePolicyDao().insertPolicies(
-			listOf(
-				SourcePolicyEntity(
-					policyRevision = 1L,
-					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-					enabled = true,
-					qosCode = 1,
-					locationMinTimeSeconds = null,
-					locationMinDistanceMeters = null,
-					locationRequiredAccuracyMeters = null,
-					capturePersistenceEligible = true,
-					controlPersistenceEligible = false,
-					ambientPersistenceEligible = false,
-					captureConsentEpoch = 1L,
-					controlConsentEpoch = null,
-					ambientConsentEpoch = null,
-					effectiveBootId = "five-source-boot",
-					effectiveElapsedRealtimeNanos = 1_000L,
-					effectiveWallTimeMs = startMs,
-					changeReason = "FIVE_SOURCE_ASSEMBLY_TEST",
-				),
-			),
-		)
-		sourcePolicyDao().insertConsentEpochs(
-			listOf(
-				SourceConsentEpochEntity(
-					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-					purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
-					epoch = 1L,
-					eligible = true,
-					persistenceEligible = true,
-					policyRevision = 1L,
-					effectiveBootId = "five-source-boot",
-					effectiveElapsedRealtimeNanos = 1_000L,
-					effectiveWallTimeMs = startMs,
-					changeReason = "FIVE_SOURCE_ASSEMBLY_TEST",
-				),
-			),
-		)
-		sessionSegmentDao().insert(
+		database.sourceSessionDao().insertManifestSources(listOf(source))
+		database.sessionSegmentDao().insert(
 			SessionSegment(
 				id = FIVE_SOURCE_NATIVE_STEPS_SEGMENT_ID,
 				startTimeMs = startMs,
@@ -697,6 +669,28 @@ internal fun rewritePressureNewestRunIdentityForCollision(
 	)
 }
 
+/** Undo only the deliberately damaged fixture before the production full-clear protocol runs. */
+internal fun restorePressureNewestRunIdentityAfterCollision(
+	database: AppDatabase,
+	entry: PortablePressureEntryV1,
+	collidingRun: PortablePressureRunV1,
+) {
+	val originalNewest = entry.runs.maxWith(compareBy({ it.startTimeMs }, { it.identity.value }))
+	val sqlite = database.openHelper.writableDatabase
+	sqlite.execSQL(
+		"UPDATE imported_pressure_run SET identity = ? WHERE entry_identity = ? AND identity = ?",
+		arrayOf(originalNewest.identity.value, entry.identity.value, collidingRun.identity.value),
+	)
+	sqlite.execSQL(
+		"UPDATE imported_pressure_entry_revision SET content_checksum = ? WHERE identity = ?",
+		arrayOf(entry.contentChecksum.value, entry.identity.value),
+	)
+	sqlite.execSQL(
+		"UPDATE imported_pressure_receipt SET entry_content_checksum = ? WHERE entry_identity = ?",
+		arrayOf(entry.contentChecksum.value, entry.identity.value),
+	)
+}
+
 private fun pressureWindow(
 	localId: String,
 	startMs: Long,
@@ -750,12 +744,12 @@ internal fun importedStepsAssemblyEntry(startMs: Long): PortableStepsEntryV1 {
 		facts = listOf(
 			PortableStepsFactV1.create(
 				identity = stepsIdentity('4'),
-				semanticRevision = 1L,
+				manifestRevision = 1L,
 				intervalStartTimeMs = startMs,
 				intervalEndTimeMs = endMs,
 				wallTimeUncertaintyMs = 0L,
 				coverage = PortableStepsFactCoverage.COVERED,
-				effectiveStepCount = 5L,
+				stepCount = 5L,
 			),
 		),
 	)
@@ -779,10 +773,10 @@ internal suspend fun seedImportedSteps(
 		epoch = collectedDataEpoch,
 		ownerGeneration = 1L,
 	)
-	importedStepsDao().insertEntry(storedEntry)
+	database.importedStepsDao().insertEntry(storedEntry)
 	entry.runs.forEachIndexed { index, run ->
 		val physicalId = segmentId + index
-		sessionSegmentDao().insert(
+		database.sessionSegmentDao().insert(
 			SessionSegment(
 				id = physicalId,
 				startTimeMs = run.startTimeMs,
@@ -799,14 +793,14 @@ internal suspend fun seedImportedSteps(
 				serviceRunId = run.identity.value,
 			),
 		)
-		importedStepsDao().insertRun(
+		database.importedStepsDao().insertRun(
 			ImportedStepsAdmissionRows.run(storedEntry, run, physicalId),
 		)
 		ImportedStepsAdmissionRows.manifests(run).forEach {
-			importedStepsDao().insertManifest(it)
+			database.importedStepsDao().insertManifest(it)
 		}
 		run.facts.forEach {
-			stepFactRevisionDao().insert(
+			database.stepFactRevisionDao().insert(
 				ImportedStepsAdmissionRows.fact(storedEntry, run, it, run.endTimeMs),
 			)
 		}

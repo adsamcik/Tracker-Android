@@ -40,7 +40,7 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">Záloha databázy (ZIP)</string>
-    <string name="settings_import_summary">Importovať údaje z podporovaných typov (%1$s) a archívov (%2$s). Importy databázy zlúčia kompatibilné riadky; nenahradia existujúce údaje.</string>
+    <string name="settings_import_summary">Importujte súbor so záznamami alebo obnovte zálohu údajov.</string>
     <string name="settings_import_title">Importovať</string>
     <string name="export_radio_sensitivity_title">Exportovať podrobnosti sietí?</string>
     <string name="export_wifi_sensitivity_message">Tento súbor obsahuje uložené názvy Wi-Fi sietí a ID prístupových bodov.</string>
@@ -63,4 +63,7 @@
         <item quantity="many">%d bodov v tomto súbore sa líši od uložených kópií. Vyberte, ktoré ponechať. Ostatné body sa importujú bežným spôsobom.</item>
         <item quantity="other">%d bodov v tomto súbore sa líši od uložených kópií. Vyberte, ktoré ponechať. Ostatné body sa importujú bežným spôsobom.</item>
     </plurals>
+    <string name="export_sensitivity_portable_title">Exportovať zaznamenanú históriu?</string>
+    <string name="export_sensitivity_portable_steps_message">Tento súbor obsahuje počty krokov, časové intervaly a údaje o pokrytí. Neobsahuje súradnice trasy. Pokračujte iba vtedy, ak dôverujete cieľovému umiestneniu.</string>
+    <string name="export_sensitivity_portable_activity_message">Tento súbor obsahuje zaznamenané intervaly pohybu, časové intervaly a údaje o pokrytí. Neobsahuje súradnice trasy. Pokračujte iba vtedy, ak dôverujete cieľovému umiestneniu.</string>
 </resources>

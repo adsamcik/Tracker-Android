@@ -7,6 +7,7 @@ import androidx.sqlite.db.SupportSQLiteOpenHelper
  *
  * [preserveDatabaseFilesOnCorruption] is opt-in because it suppresses the configured Room
  * corruption callback and any data-loss recovery. The caller must surface and remediate failure.
+ * Malformed existing file headers are rejected before native opening can modify recovery sidecars.
  */
 public class SQLiteXSupportSQLiteOpenHelperFactory @JvmOverloads constructor(
 	private val preserveDatabaseFilesOnCorruption: Boolean = false,

@@ -18,6 +18,7 @@ import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrati
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.hasActivityCallbackLossFor
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -546,6 +547,12 @@ internal object ActivityHistoryComposer {
 		}
 		if (runsWithCompleteness != runIds.toSet() ||
 			completeness.any { !it.appDrainComplete || it.stopStatus != COMPLETE_STOP }) {
+			causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
+		}
+		if (snapshot.providerRegistrations.values.any { registration ->
+				runIds.any { runId -> registration.hasActivityCallbackLossFor(logicalId, runId,
+					snapshot.authorizationsByRegistration[registration.registrationGeneration].orEmpty()) }
+			}) {
 			causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
 		}
 		if (timeline.hasPendingUnboundedCaptureInterval) {

@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.di
 
+import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedActivity
 import com.adsamcik.tracker.shared.base.database.RoomImportPortableCapturedCell
@@ -18,6 +19,7 @@ import dagger.hilt.components.SingletonComponent
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 internal interface FiveSourceTrackingHistoryEntryPoint {
+	fun collectedDataDeletionService(): CollectedDataDeletionService
 	fun collectedDataLifecycleStore(): CollectedDataLifecycleStore
 	fun database(): AppDatabase
 	fun history(): TrackingHistoryRepository

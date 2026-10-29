@@ -2,6 +2,8 @@ package com.adsamcik.tracker.stats.data.repository
 
 import android.content.Context
 import androidx.room.withTransaction
+import androidx.room.deferredTransaction
+import androidx.room.useReaderConnection
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.activeRetentionFloorSettlement
@@ -31,6 +33,7 @@ import com.adsamcik.tracker.stats.api.repository.AmbientStepsStructuralDay
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiOrigin
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiReadRequest
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiReadResult
+import com.adsamcik.tracker.stats.api.repository.CalendarHistoryPresenceRead
 import com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode
 import com.adsamcik.tracker.stats.api.repository.HistoryContinuation
 import com.adsamcik.tracker.stats.api.repository.HistoryLocationCoverage
@@ -105,6 +108,25 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
             HistoryRangeRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
         } catch (_: RuntimeException) {
             HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+        }
+    }
+
+    /** Reuses exact observation qualification while skipping empty dates and the rest of each occupied day. */
+    suspend fun readCalendarPresence(range: HistoryRange): CalendarHistoryPresenceRead = withContext(io) {
+        try {
+            val zone = ZoneId.of(range.viewZoneId)
+            val firstDay = Instant.ofEpochMilli(range.fromInclusiveMs).atZone(zone).toLocalDate()
+            val lastDay = Instant.ofEpochMilli(range.toExclusiveMs - 1L).atZone(zone).toLocalDate()
+            require(range.mode == HistoryBrowseMode.OBSERVATIONS &&
+                lastDay.toEpochDay() - firstDay.toEpochDay() in 0L..30L)
+            database.useReaderConnection { connection ->
+                connection.deferredTransaction { readCalendarPresenceSnapshot(range, zone, ::readInTransaction) }
+            }
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: android.database.sqlite.SQLiteException) {
+            CalendarHistoryPresenceRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
+        } catch (_: RuntimeException) {
+            CalendarHistoryPresenceRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
         }
     }
 

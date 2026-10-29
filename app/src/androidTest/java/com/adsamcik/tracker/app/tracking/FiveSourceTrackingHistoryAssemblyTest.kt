@@ -4,7 +4,9 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.adsamcik.tracker.app.Application
+import com.adsamcik.tracker.app.settings.CollectedDataDeletionCompletion
 import com.adsamcik.tracker.app.di.FiveSourceTrackingHistoryEntryPoint
+import com.adsamcik.tracker.app.di.TrackingInfrastructureIntegrationEntryPoint
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedActivityRequest
 import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedActivityResult
@@ -13,7 +15,6 @@ import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedCellResul
 import com.adsamcik.tracker.shared.base.database.PortableActivityImportReceipt
 import com.adsamcik.tracker.shared.base.database.PortableCellImportReceipt
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
@@ -34,6 +35,7 @@ import com.adsamcik.tracker.stats.api.repository.PortablePressureImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageProblem
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryActionTarget
@@ -41,6 +43,8 @@ import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryOrigin
 import com.adsamcik.tracker.stats.data.repository.TrackingHistoryIntegrationCheckpoint
 import com.adsamcik.tracker.stats.data.repository.TrackingHistoryIntegrationObserver
+import com.adsamcik.tracker.tracker.api.TrackerServiceApi
+import com.adsamcik.tracker.tracker.api.TrackingTurnOffResult
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -69,6 +73,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 @Suppress("LargeClass")
 class FiveSourceTrackingHistoryAssemblyTest {
+	private lateinit var application: Application
 	private lateinit var collectedDataLifecycleStore: CollectedDataLifecycleStore
 	private lateinit var database: AppDatabase
 	private lateinit var entryPoint: FiveSourceTrackingHistoryEntryPoint
@@ -79,7 +84,7 @@ class FiveSourceTrackingHistoryAssemblyTest {
 
 	@Before
 	fun setUp() = runBlocking {
-		val application = ApplicationProvider.getApplicationContext<Application>()
+		application = ApplicationProvider.getApplicationContext()
 		entryPoint = EntryPointAccessors.fromApplication(
 			application,
 			FiveSourceTrackingHistoryEntryPoint::class.java,
@@ -92,12 +97,22 @@ class FiveSourceTrackingHistoryAssemblyTest {
 		collectedDataLifecycleStore = entryPoint.collectedDataLifecycleStore()
 		database = entryPoint.database()
 		historyIntegrationObserver = entryPoint.historyIntegrationObserver()
+		val retention = EntryPointAccessors.fromApplication(
+			application,
+			TrackingInfrastructureIntegrationEntryPoint::class.java,
+		).retentionAuthorityProducer().reconcileCurrentSettings()
+		check(database.sourceEvidenceStateDao().get() != null) {
+			"Fresh history fixture evidence initialization failed: $retention"
+		}
 		resetDatabase()
 	}
 
 	@After
 	fun tearDown() = runBlocking {
-		resetDatabase()
+		// A failed startup must keep its original failure instead of an uninitialized cleanup error.
+		if (::database.isInitialized) {
+			resetDatabase()
+		}
 	}
 
 	// Keep the imported revisions and the resulting production-graph page assertions in one assembly scenario.
@@ -348,7 +363,7 @@ class FiveSourceTrackingHistoryAssemblyTest {
 	}
 
 	@Test
-	fun readableCellOriginConflictFailsClosedWithoutPageOrSelector() = runTest {
+	fun readableCellOriginConflictWithholdsRowsAndSelectorsWithSourceProblem() = runTest {
 		val logicalId = "five-source-cell-readable-conflict"
 		val cell = cellAssemblyEntry(
 			logicalId,
@@ -363,17 +378,12 @@ class FiveSourceTrackingHistoryAssemblyTest {
 			candidateSegmentIds = emptyList(),
 			limit = 6,
 		).first()
-		assertEquals(
-			SourceAwareHistoryPageQuery.Unavailable(
-				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-				HistorySource.CELL,
-			),
-			query,
-		)
+		assertOnlySourceProblem(query, HistorySource.CELL,
+			SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
 	}
 
 	@Test
-	fun cumulativeCellReadBudgetFailsWithoutPublishingASelector() = runTest {
+	fun cumulativeCellReadBudgetWithholdsSelectorsWithSourceProblem() = runTest {
 		repeat(129) { index ->
 			val entry = cellAssemblyEntry(
 				logicalId = "five-source-cell-budget-$index",
@@ -384,22 +394,20 @@ class FiveSourceTrackingHistoryAssemblyTest {
 				ImportPortableCapturedCellResult.Applied)
 		}
 
-		assertEquals(
-			SourceAwareHistoryPageQuery.Unavailable(
-				SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
-				HistorySource.CELL,
-			),
+		assertOnlySourceProblem(
 			entryPoint.history().observeRecentSourceAwarePage(
 				candidateSegmentIds = emptyList(),
 				limit = 1,
 			).first(),
+			HistorySource.CELL,
+			SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
 		)
 	}
 
 	// Keep the corrupt recency setup, blocked read and checkpoint assertions in one scenario.
 	@Suppress("LongMethod")
 	@Test
-	fun duplicatePressureRecencyAuthorityFailsBeforePressureSelectorOrDetailReads() = runTest {
+	fun duplicateImportedPressureRecencyWithholdsImportedSelectorsWithSourceProblem() = runTest {
 		val first = pressureRecencyCollisionEntry(
 			logicalId = "five-source-pressure-collision-a",
 			olderStartMs = fixtureTime(100L),
@@ -412,28 +420,20 @@ class FiveSourceTrackingHistoryAssemblyTest {
 		)
 		assertTrue(importPressure(first, "collision-a") is ImportPortablePressureResult.Applied)
 		assertTrue(importPressure(second, "collision-b") is ImportPortablePressureResult.Applied)
-		rewritePressureNewestRunIdentityForCollision(
-			database = database,
-			entry = second,
-			collidingRun = first.runs.maxWith(
-				compareBy({ it.startTimeMs }, { it.identity.value }),
-			),
-		)
-		val preflight = database.importedPressureDao()
-			.recentHistoryRecencyAuthorityPreflight()
-		assertEquals(0L, preflight.invalidLiveRecencyCount)
-		assertEquals(1L, preflight.duplicateRecencyTupleCount)
+		val collidingRun = first.runs.maxWith(compareBy({ it.startTimeMs }, { it.identity.value }))
 		val observation = historyIntegrationObserver.startObservation()
 		try {
-			assertEquals(
-				SourceAwareHistoryPageQuery.Unavailable(
-					SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-					HistorySource.PRESSURE,
-				),
+			rewritePressureNewestRunIdentityForCollision(database, second, collidingRun)
+			val preflight = database.importedPressureDao().recentHistoryRecencyAuthorityPreflight()
+			assertEquals(0L, preflight.invalidLiveRecencyCount)
+			assertEquals(1L, preflight.duplicateRecencyTupleCount)
+			assertOnlySourceProblem(
 				entryPoint.history().observeRecentSourceAwarePage(
 					candidateSegmentIds = emptyList(),
 					limit = 1,
 				).first(),
+				HistorySource.PRESSURE,
+				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
 			)
 			val snapshot = observation.snapshots.value
 			assertEquals(
@@ -458,37 +458,54 @@ class FiveSourceTrackingHistoryAssemblyTest {
 				TrackingHistoryIntegrationCheckpoint.PRESSURE_IMPORTED_CANDIDATE_PAGE,
 				TrackingHistoryIntegrationCheckpoint.PRESSURE_IMPORTED_DETAIL,
 				TrackingHistoryIntegrationCheckpoint.PRESSURE_LOCAL_DUPLICATE_SELECTOR,
-				TrackingHistoryIntegrationCheckpoint.PRESSURE_LIVE_SELECTOR,
 			).forEach { checkpoint ->
 				assertEquals(0L, snapshot.count(checkpoint))
 			}
+			assertEquals(1L, snapshot.count(TrackingHistoryIntegrationCheckpoint.PRESSURE_LIVE_SELECTOR))
 		} finally {
 			observation.close()
+			restorePressureNewestRunIdentityAfterCollision(database, second, collidingRun)
 		}
 	}
 
 	@Test
-	fun corruptImportedStepsMakesTheRealSharedPageUnavailableWithoutPhysicalFallback() = runTest {
+	fun corruptImportedStepsIsWithheldWithSourceProblemAndNoPhysicalFallback() = runTest {
 		val imported = importedStepsAssemblyEntry(fixtureTime(3_000L))
 		val segmentId = 920_001L
 		seedImportedSteps(database, imported, segmentId, collectedDataEpoch)
-		database.withTransaction {
-			openHelper.writableDatabase.execSQL(
+		val originalChecksum = database.openHelper.writableDatabase.query(
+			"SELECT retained_checksum FROM imported_steps_run WHERE entry_identity = ?",
+			arrayOf(imported.identity.value),
+		).use { cursor -> check(cursor.moveToFirst()); cursor.getString(0) }
+		try {
+			database.withTransaction {
+				database.openHelper.writableDatabase.execSQL(
+					"UPDATE imported_steps_run SET retained_checksum = ? WHERE entry_identity = ?",
+					arrayOf("0".repeat(64), imported.identity.value),
+				)
+			}
+			assertOnlySourceProblem(
+				entryPoint.history().observeRecentSourceAwarePage(
+					candidateSegmentIds = listOf(segmentId),
+					limit = 6,
+				).first(),
+				HistorySource.STEPS,
+				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+			)
+		} finally {
+			database.openHelper.writableDatabase.execSQL(
 				"UPDATE imported_steps_run SET retained_checksum = ? WHERE entry_identity = ?",
-				arrayOf("0".repeat(64), imported.identity.value),
+				arrayOf(originalChecksum, imported.identity.value),
 			)
 		}
+	}
 
-		assertEquals(
-			SourceAwareHistoryPageQuery.Unavailable(
-				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-				HistorySource.STEPS,
-			),
-			entryPoint.history().observeRecentSourceAwarePage(
-				candidateSegmentIds = listOf(segmentId),
-				limit = 6,
-			).first(),
-		)
+	private fun assertOnlySourceProblem(query: SourceAwareHistoryPageQuery, source: HistorySource,
+		reason: SourceAwareHistoryPageUnavailableReason) {
+		val page = query as SourceAwareHistoryPageQuery.Content
+		assertTrue(page.entries.isEmpty())
+		assertTrue(page.physicalTrips.isEmpty())
+		assertEquals(setOf(SourceAwareHistoryPageProblem(source, reason)), page.problems)
 	}
 
 	// Keep the live collection, invalidation and resource cleanup together to verify one subscription.
@@ -614,51 +631,60 @@ class FiveSourceTrackingHistoryAssemblyTest {
 	)
 
 	private suspend fun resetDatabase() {
-		val generation = startupGate.currentGeneration
-		collectedDataEpoch = requireNotNull(
-			startupGate.withReadyGenerationOperation(generation) {
+		withContext(Dispatchers.IO) {
+			check(application.packageName == "com.adsamcik.tracker.debug") {
+				"Five-source history instrumentation clears only the disposable Debug app"
+			}
+			requireDisposableRuntime()
+		}
+		check(TrackerServiceApi.turnOffTrackingAndAwait(application) == TrackingTurnOffResult.COMPLETE) {
+			"Five-source history cleanup requires acknowledged tracking Off"
+		}
+		val stoppedStartup = startupGate.reconcile(retryFailedStorage = true)
+		check(stoppedStartup is TrackingStartupResult.Ready && startupGate.isReady) {
+			"Five-source history cleanup did not reconcile acknowledged Off: $stoppedStartup"
+		}
+		val deletedHighWater = requireNotNull(
+			startupGate.withReadyGenerationOperation(startupGate.currentGeneration) {
 				val lifecycle = collectedDataLifecycleStore.snapshot()
-				check(lifecycle.epoch >= 0L) {
-					"Collected-data lifecycle epoch must be non-negative"
-				}
+				check(lifecycle.epoch >= 0L)
 				withContext(Dispatchers.IO) {
 					requireDisposableRuntime()
-					val previousEvidence = requireNotNull(
-						database.sourceEvidenceStateDao().get(),
-					)
-					check(previousEvidence.collectedDataEpoch == lifecycle.epoch)
-					check(previousEvidence.retainedFromMs == lifecycle.retainedFromMs)
-					val deletedSourceEventHighWater = maxOf(
-						previousEvidence.deletedSourceEventHighWaterOrdinal,
-						sourceEventWalHighWater(),
-					)
-					database.clearAllTables()
-					database.sourceEvidenceStateDao().ensure(
-						SourceEvidenceState(
-							revision = Math.addExact(previousEvidence.revision, 1L),
-							collectedDataEpoch = lifecycle.epoch,
-							retainedFromMs = lifecycle.retainedFromMs,
-							deletedSourceEventHighWaterOrdinal = deletedSourceEventHighWater,
-							updatedAtMs = System.currentTimeMillis(),
-						),
-					)
+					val previous = requireNotNull(database.sourceEvidenceStateDao().get()) {
+						"History fixture evidence missing after Off: " +
+							"rows=${queryLong("SELECT COUNT(*) FROM source_evidence_state")}, " +
+							"epoch=${lifecycle.epoch}, floor=${lifecycle.retainedFromMs}"
+					}
+					check(previous.collectedDataEpoch == lifecycle.epoch)
+					check(previous.retainedFromMs == lifecycle.retainedFromMs)
+					maxOf(previous.deletedSourceEventHighWaterOrdinal, sourceEventWalHighWater())
+				}
+			},
+		) { "Five-source history cleanup lost startup readiness" }
+		// The app operation keeps Room, DataStore, retained authority and writer re-arm consistent.
+		// It owns its deletion barrier; never call it while holding a Ready operation above.
+		val deleted = withContext(Dispatchers.IO) { entryPoint.collectedDataDeletionService().deleteAll() }
+		check(deleted == CollectedDataDeletionCompletion.Complete) {
+			"Five-source history cleanup did not complete: $deleted"
+		}
+		val reopened = startupGate.reconcile(retryFailedStorage = true)
+		check(reopened is TrackingStartupResult.Ready && startupGate.isReady) {
+			"Five-source history cleanup did not reopen startup: $reopened"
+		}
+		collectedDataEpoch = requireNotNull(
+			startupGate.withReadyGenerationOperation(startupGate.currentGeneration) {
+				val lifecycle = collectedDataLifecycleStore.snapshot()
+				withContext(Dispatchers.IO) {
+					requireDisposableRuntime()
 					val evidence = requireNotNull(database.sourceEvidenceStateDao().get())
 					check(evidence.collectedDataEpoch == lifecycle.epoch)
 					check(evidence.retainedFromMs == lifecycle.retainedFromMs)
-					check(
-						evidence.deletedSourceEventHighWaterOrdinal ==
-							deletedSourceEventHighWater,
-					)
+					check(evidence.deletedSourceEventHighWaterOrdinal == deletedHighWater)
 				}
-				fixtureTimeOffsetMs = Math.addExact(
-					lifecycle.retainedFromMs ?: 0L,
-					FIXTURE_TIME_MARGIN_MS,
-				)
+				fixtureTimeOffsetMs = Math.addExact(lifecycle.retainedFromMs ?: 0L, FIXTURE_TIME_MARGIN_MS)
 				lifecycle.epoch
 			},
-		) {
-			"Five-source history database reset lost startup readiness"
-		}
+		) { "Five-source history database reset lost startup readiness" }
 	}
 
 	private suspend fun requireDisposableRuntime() {

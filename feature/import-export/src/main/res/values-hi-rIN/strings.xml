@@ -38,7 +38,7 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">डेटाबेस बैकअप (ZIP)</string>
-    <string name="settings_import_summary">समर्थित प्रकारों (%1$s) और संग्रहों (%2$s) से डेटा आयात करें। डेटाबेस आयात संगत पंक्तियों को मिलाते हैं; वे मौजूदा डेटा को नहीं बदलते।</string>
+    <string name="settings_import_summary">ट्रैकिंग फ़ाइल आयात करें या डेटा बैकअप बहाल करें।</string>
     <string name="settings_import_title">आयात</string>
     <string name="export_radio_sensitivity_title">नेटवर्क विवरण निर्यात करें?</string>
     <string name="export_wifi_sensitivity_message">इस फ़ाइल में सहेजे गए Wi-Fi नाम और ऐक्सेस पॉइंट की आईडी शामिल हैं।</string>
@@ -59,4 +59,7 @@
         <item quantity="one">इस फ़ाइल का %d बिंदु अपनी सहेजी गई कॉपी से अलग है। चुनें कि कौन सा रखना है। बाकी बिंदु सामान्य रूप से आयात होंगे।</item>
         <item quantity="other">इस फ़ाइल के %d बिंदु अपनी सहेजी गई कॉपियों से अलग हैं। चुनें कि कौन से रखने हैं। बाकी बिंदु सामान्य रूप से आयात होंगे।</item>
     </plurals>
+    <string name="export_sensitivity_portable_title">दर्ज किया गया इतिहास निर्यात करें?</string>
+    <string name="export_sensitivity_portable_steps_message">इस फ़ाइल में कदमों की गिनती, समयावधियाँ और कवरेज की जानकारी है। इसमें मार्ग के निर्देशांक नहीं हैं। केवल तभी जारी रखें जब आपको गंतव्य पर भरोसा हो।</string>
+    <string name="export_sensitivity_portable_activity_message">इस फ़ाइल में दर्ज किए गए गति अंतराल, समयावधियाँ और कवरेज की जानकारी है। इसमें मार्ग के निर्देशांक नहीं हैं। केवल तभी जारी रखें जब आपको गंतव्य पर भरोसा हो।</string>
 </resources>

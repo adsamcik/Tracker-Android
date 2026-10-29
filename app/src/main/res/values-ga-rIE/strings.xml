@@ -15,7 +15,7 @@
     <string name="settings_data_management_section">Bainistiú sonraí</string>
     <string name="settings_data_danger_zone_section">Crios contúirte</string>
     <string name="settings_incremental_backups_title">Cúltacaí incriminteacha</string>
-    <string name="settings_incremental_backups_summary">Ná heaspórtáil ach sonraí nua ón gcúltaca deireanach. Laghdaíonn sé seo an t-am easpórtála agus méid an chomhaid.</string>
+    <string name="settings_incremental_backups_summary">Easpórtáil sonraí nua amháin i gcomhaid GPX agus KML sceidealaithe.</string>
     <string name="settings_reset_export_watermarks_title">Cuir easpórtáil iomlán i bhfeidhm</string>
     <string name="settings_reset_export_watermarks_summary">Cuimseoidh an chéad chúltaca uathoibrithe eile gach sonraí in ionad athruithe amháin</string>
     <string name="settings_reset_export_watermarks_done">Athshocraíodh comharthaí uisce easpórtála — beidh an chéad chúltaca ina easpórtáil iomlán</string>
@@ -163,7 +163,7 @@
     <string name="export_sensitivity_db_message">Tá do shonraí rianaithe sábháilte sa chúltaca seo, lena n-áirítear suíomhanna agus sonraí líonra nuair atá siad ar fáil. Ní chuirtear socruithe san áireamh.</string>
     <string name="export_sensitivity_confirm">Lean leis an easpórtáil</string>
     <string name="settings_export_title">Easpórtáil</string>
-    <string name="settings_import_summary">Iompórtáil sonraí ó chineálacha tacaithe (%1$s) agus cartlanna (%2$s). Cumascann iompórtálacha bunachair sonraí sraitheanna comhoiriúnacha; ní chuireann siad sonraí reatha ina n-ionad.</string>
+    <string name="settings_import_summary">Iompórtáil comhad rianaithe nó athchóirigh cúltaca sonraí.</string>
     <string name="settings_import_title">Iompórtáil</string>
     <string name="got_it">Tuigim</string>
     <string name="battery_impact_low">Tionchar íseal</string>
@@ -278,7 +278,7 @@
     <string name="setup_perm_location_bg_why">Chun do bhealach a thaifeadadh nuair a athraíonn tú aipeanna nó nuair a mhúchann an scáileán, teastaíonn rochtain ar do shuíomh sa chúlra ó Tracker. Fanann an suíomh taifeadta ar an ngléas seo — ní sheoltar aon ní chuig freastalaí. Ag an gcéad leid chórais eile, roghnaigh "Ceadaigh an t-am ar fad" chun rianú uathoibríoch a chumasú; coinníonn "Agus an aip in úsáid" Tracker ag obair ach nuair atá a scáileán oscailte.</string>
     <string name="setup_perm_activity_why">Ligeann sé do Tracker a bhrath cad atá á dhéanamh agat (ag siúl, ag rothaíocht, ag tiomáint nó gan ghluaiseacht) ionas gur féidir le rianú uathoibríoch sos a ghlacadh nuair nach bhfuil tú ag gluaiseacht agus ceallra a shábháil. Fanann sonraí gníomhaíochta ar an ngléas seo — ní sheoltar aon ní chuig freastalaí.</string>
     <string name="setup_perm_notification_why">Taispeánann Tracker fógra stádais beag agus é ag taifeadadh ionas go bhfeicfidh tú go sciobtha go bhfuil rianú ar siúl agus go stopfaidh tú é le sconna amháin. Gan fhógraí margaíochta ná bolscaireachta.</string>
-    <string name="setup_perm_wifi_why">Is féidir le Tracker pointí rochtana Wi‑Fi a fheiceann do ghuthán le linn turais a thaifeadadh chun cruinneas suímh a fheabhsú in áiteanna ina bhfuil GPS lag (laistigh nó faoi thalamh). Fanann na sonraí raidió ar an ngléas seo — ní sheoltar aon ní chuig freastalaí. Ná deonaigh ach más mian leat é seo.</string>
+    <string name="setup_perm_wifi_why">Teastaíonn rochtain ar do shuíomh ó Android chun líonraí Wi-Fi a scanadh. Is féidir leat sonraí Wi-Fi a thaifeadadh gan do shuíomh a thaifeadadh.</string>
     <string name="setup_perm_cell_why">Is féidir le Tracker aitheantais túir cheallaigh a thaifeadadh feadh do bhealaigh ionas gur féidir suíomh a thuiscint nuair nach bhfuil GPS ar fáil. Fanann na sonraí raidió ar an ngléas seo — ní sheoltar aon ní chuig freastalaí. Ná deonaigh staid ghutháin agus suíomh beacht ach más mian leat é seo.</string>
     <string name="setup_perm_grant">Deonaigh</string>
     <string name="setup_perm_grant_location_content_description">Deonaigh cead suímh</string>

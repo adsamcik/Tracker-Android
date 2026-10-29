@@ -15,7 +15,7 @@
     <string name="settings_data_management_section">डेटा प्रबंधन</string>
     <string name="settings_data_danger_zone_section">खतरे का क्षेत्र</string>
     <string name="settings_incremental_backups_title">क्रमिक बैकअप</string>
-    <string name="settings_incremental_backups_summary">पिछले बैकअप के बाद का केवल नया डेटा निर्यात करें। निर्यात समय और फ़ाइल आकार घटता है।</string>
+    <string name="settings_incremental_backups_summary">शेड्यूल की गई GPX और KML फ़ाइलों में केवल नया डेटा निर्यात करें।</string>
     <string name="settings_reset_export_watermarks_title">पूर्ण निर्यात बाध्य करें</string>
     <string name="settings_reset_export_watermarks_summary">अगले स्वचालित बैकअप में केवल बदलावों के बजाय सारा डेटा शामिल होगा</string>
     <string name="settings_reset_export_watermarks_done">निर्यात वॉटरमार्क रीसेट हो गए — अगला बैकअप पूर्ण निर्यात होगा</string>
@@ -163,7 +163,7 @@
     <string name="export_sensitivity_db_message">इस बैकअप में आपके सहेजे गए ट्रैकिंग डेटा हैं, जिनमें स्थान और नेटवर्क विवरण शामिल हो सकते हैं। सेटिंग शामिल नहीं हैं।</string>
     <string name="export_sensitivity_confirm">निर्यात जारी रखें</string>
     <string name="settings_export_title">निर्यात</string>
-    <string name="settings_import_summary">समर्थित प्रकारों (%1$s) और संग्रहों (%2$s) से डेटा आयात करें। डेटाबेस आयात संगत पंक्तियों को मिलाते हैं; वे मौजूदा डेटा को नहीं बदलते।</string>
+    <string name="settings_import_summary">ट्रैकिंग फ़ाइल आयात करें या डेटा बैकअप बहाल करें।</string>
     <string name="settings_import_title">आयात</string>
     <string name="got_it">समझ गया</string>
     <string name="battery_impact_low">कम प्रभाव</string>
@@ -278,7 +278,7 @@
     <string name="setup_perm_location_bg_why">ऐप बदलने या स्क्रीन बंद होने पर भी आपका मार्ग रिकॉर्ड रखने के लिए Tracker को पृष्ठभूमि में आपके स्थान की अनुमति चाहिए। रिकॉर्ड किया गया स्थान इसी डिवाइस पर रहता है — किसी सर्वर को नहीं भेजा जाता। अगली सिस्टम सूचना में स्वचालित ट्रैकिंग सक्षम करने के लिए "हर समय अनुमति दें" चुनें; "ऐप इस्तेमाल करते समय" चुनने से Tracker केवल खुली स्क्रीन पर काम करेगा।</string>
     <string name="setup_perm_activity_why">Tracker को पता करने देता है कि आप क्या कर रहे हैं (चलना, साइकिल चलाना, वाहन चलाना या स्थिर रहना), ताकि स्वचालित ट्रैकिंग आपके न चलने पर रुक सके और बैटरी बचा सके। गतिविधि डेटा इसी डिवाइस पर रहता है — किसी सर्वर को नहीं भेजा जाता।</string>
     <string name="setup_perm_notification_why">Tracker रिकॉर्ड करते समय एक छोटी स्थिति सूचना दिखाता है, ताकि आप एक नज़र में देख सकें कि ट्रैकिंग चालू है और एक टैप से रोक सकें। कोई विपणन या प्रचार सूचना नहीं।</string>
-    <string name="setup_perm_wifi_why">Tracker यात्रा के दौरान आपके फ़ोन को दिखने वाले Wi-Fi अभिगम बिंदु रिकॉर्ड कर सकता है, ताकि GPS कमजोर होने वाली जगहों (घर के अंदर, भूमिगत) में स्थान सटीकता बेहतर हो। रेडियो डेटा इसी डिवाइस पर रहता है — किसी सर्वर को नहीं भेजा जाता। यह केवल तब दें जब आप चाहें।</string>
+    <string name="setup_perm_wifi_why">Wi-Fi स्कैन के लिए Android को स्थान की अनुमति चाहिए। आप अपना स्थान रिकॉर्ड किए बिना Wi-Fi डेटा रिकॉर्ड कर सकते हैं।</string>
     <string name="setup_perm_cell_why">Tracker आपके मार्ग के साथ सेल टावर ID लॉग कर सकता है, ताकि GPS उपलब्ध न होने पर स्थान का अनुमान लगाया जा सके। रेडियो डेटा इसी डिवाइस पर रहता है — किसी सर्वर को नहीं भेजा जाता। फ़ोन स्थिति और सटीक स्थान की अनुमति केवल तब दें जब आप चाहें।</string>
     <string name="setup_perm_grant">अनुमति दें</string>
     <string name="setup_perm_grant_location_content_description">स्थान अनुमति दें</string>

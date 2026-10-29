@@ -1,7 +1,8 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
-import android.database.sqlite.SQLiteDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
+import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLite
 import androidx.annotation.Keep
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
@@ -19,7 +20,14 @@ import kotlinx.coroutines.CancellationException
  * represents one saved-data instant. Imported data files are then copied with their own checksums.
  */
 @Keep // Export activity reconstructs the selected class through its public no-argument constructor.
-class DatabaseExporter : Exporter {
+class DatabaseExporter private constructor(
+	private val copyLockProvider: DatabaseCopyLockProvider,
+) : Exporter {
+	constructor() : this(SQLiteDatabaseCopyLockProvider())
+
+	internal constructor(openDatabase: (File) -> SupportSQLiteDatabase) :
+		this(SQLiteDatabaseCopyLockProvider(openDatabase))
+
 	override val requiresLocationData: Boolean = false
 	override val canSelectDateRange: Boolean = false
 	override val mimeType: String = "application/zip"
@@ -35,7 +43,7 @@ class DatabaseExporter : Exporter {
 			DatabaseBackupArchive.writeData(
 				DatabaseBackupScope.discover(context),
 				outputStream,
-				SQLiteDatabaseCopyLockProvider,
+				copyLockProvider,
 			)
 			ExportResult.Success
 		} catch (cancelled: CancellationException) {
@@ -54,13 +62,13 @@ class DatabaseExporter : Exporter {
  * per-file: coordinating every independent Room database would require a global write-quiesce
  * protocol that this module does not own.
  */
-internal object SQLiteDatabaseCopyLockProvider : DatabaseCopyLockProvider {
+internal class SQLiteDatabaseCopyLockProvider(
+	private val openDatabase: (File) -> SupportSQLiteDatabase = {
+		SQLiteXSupportSQLite.openExistingReadWrite(it.path)
+	},
+) : DatabaseCopyLockProvider {
 	override fun lock(databaseFile: File): Closeable {
-		val database = SQLiteDatabase.openDatabase(
-			databaseFile.path,
-			null,
-			SQLiteDatabase.OPEN_READWRITE,
-		)
+		val database = openDatabase(databaseFile)
 		try {
 			var locked = false
 			repeat(CHECKPOINT_LOCK_ATTEMPTS) {
@@ -89,21 +97,21 @@ internal object SQLiteDatabaseCopyLockProvider : DatabaseCopyLockProvider {
 		}
 	}
 
-	private fun checkpointAndLock(database: SQLiteDatabase): Boolean {
+	private fun checkpointAndLock(database: SupportSQLiteDatabase): Boolean {
 		// Compare on the same primary connection. A pooled read connection has its
 		// own data_version counter and cannot prove the checkpoint-to-lock gap.
 		database.beginTransaction()
 		val before = try {
-			database.rawQuery("PRAGMA data_version", null).use { cursor ->
+			database.query("PRAGMA data_version").use { cursor ->
 	                            cursor.moveToFirst(); cursor.getLong(0) }
 		} finally { database.endTransaction() }
-		val checkpointed = database.rawQuery("PRAGMA wal_checkpoint(FULL)", emptyArray()).use { cursor ->
+		val checkpointed = database.query("PRAGMA wal_checkpoint(FULL)").use { cursor ->
 			cursor.moveToFirst() && cursor.getInt(0) == 0 && cursor.getLong(1) == cursor.getLong(2)
 		}
 		var locked = false
 		if (checkpointed) {
 			database.beginTransaction()
-			val after = database.rawQuery("PRAGMA data_version", null).use { cursor ->
+			val after = database.query("PRAGMA data_version").use { cursor ->
 	                            cursor.moveToFirst(); cursor.getLong(0) }
 			locked = before == after
 			if (!locked) {

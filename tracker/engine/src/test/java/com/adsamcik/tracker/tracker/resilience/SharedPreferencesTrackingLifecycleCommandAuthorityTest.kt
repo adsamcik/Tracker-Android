@@ -14,12 +14,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.cancellation.CancellationException
 import java.util.concurrent.Executors
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -32,6 +37,228 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SharedPreferencesTrackingLifecycleCommandAuthorityTest {
+	@Test
+	fun `explicit sessionless Resume persists its boundary without issuing a Start`(): Unit = runBlocking {
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO,
+			BootClockDomainProvider { "boot" })
+		val exit = TRACKING_TURN_OFF_EXIT_PREFIX + "baseline"
+		val off = requireNotNull(authority.reserveTurnOff(exit, 1_000L, 500L) { Unit })
+		authority.markStopHandled(off.stop) shouldBe true
+		val generation = authority.latestCommandGeneration()
+		val beforeWall = System.currentTimeMillis()
+		val beforeElapsed = android.os.SystemClock.elapsedRealtimeNanos()
+
+		authority.resumeCollectionAfterUserExit(exit) shouldBe false
+		authority.resumeCollectionAfterExplicitTurnOff(exit) shouldBe true
+
+		val boundary = requireNotNull(authority.collectionResumeBoundary)
+		boundary.bootId shouldBe "boot"
+		(boundary.wallTimeMs in beforeWall..System.currentTimeMillis()) shouldBe true
+		(boundary.elapsedRealtimeNanos in beforeElapsed..android.os.SystemClock.elapsedRealtimeNanos()) shouldBe true
+		authority.pendingCollectionResumeExitId shouldBe null
+		authority.latestCommandGeneration() shouldBe generation
+		authority.acceptedStartGeneration.value shouldBe 0L
+		authority.pendingManualStart shouldBe null
+		authority.latestUnhandledStop() shouldBe null
+		val recreated = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO,
+			BootClockDomainProvider { "boot" })
+		recreated.pendingCollectionResumeExitId shouldBe null
+		recreated.collectionResumeBoundary shouldBe boundary
+		recreated.latestCommandGeneration() shouldBe generation
+		recreated.acceptedStartGeneration.value shouldBe 0L
+	}
+
+	@Test
+	fun `explicit Resume rejects stale receipts and never overtakes an unhandled Stop`(): Unit = runBlocking {
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+		val firstExit = TRACKING_TURN_OFF_EXIT_PREFIX + "first"
+		val first = requireNotNull(authority.reserveTurnOff(firstExit, 1_000L, 500L) { Unit })
+		authority.resumeCollectionAfterExplicitTurnOff(firstExit) shouldBe false
+		authority.pendingCollectionResumeExitId shouldBe firstExit
+		authority.latestUnhandledStop() shouldBe first.stop
+		authority.markStopHandled(first.stop) shouldBe true
+		authority.resumeCollectionAfterExplicitTurnOff("user-requested:ordinary-exit") shouldBe false
+		authority.resumeCollectionAfterExplicitTurnOff(TRACKING_TURN_OFF_EXIT_PREFIX + "stale") shouldBe false
+		val nextExit = TRACKING_TURN_OFF_EXIT_PREFIX + "next"
+		val next = requireNotNull(authority.reserveTurnOff(nextExit, 2_000L, 1_000L) { Unit })
+		authority.markStopHandled(next.stop) shouldBe true
+		authority.resumeCollectionAfterExplicitTurnOff(firstExit) shouldBe false
+		authority.pendingCollectionResumeExitId shouldBe nextExit
+		authority.collectionResumeBoundary shouldBe null
+		authority.resumeCollectionAfterExplicitTurnOff(nextExit) shouldBe true
+		val boundary = authority.collectionResumeBoundary
+		val end = requireNotNull(authority.reserveStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 3_000L))
+		authority.resumeCollectionAfterExplicitTurnOff(nextExit) shouldBe false
+		authority.latestUnhandledStop() shouldBe end
+		authority.collectionResumeBoundary shouldBe boundary
+	}
+
+	@Test
+	fun `explicit Resume preserves a manual permission continuation and a pending collection Start`(): Unit = runBlocking {
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+		val exit = TRACKING_TURN_OFF_EXIT_PREFIX + "pending-start"
+		val off = requireNotNull(authority.reserveTurnOff(exit, 1_000L, 500L) { Unit })
+		authority.markStopHandled(off.stop) shouldBe true
+		val selection = com.adsamcik.tracker.tracker.api.ManualTrackingStartSelection(mapOf(
+			com.adsamcik.tracker.tracker.api.TrackingCaptureSource.STEPS to 7L))
+		val pending = requireNotNull(authority.reserveManualStartIfGeneration(authority.latestCommandGeneration(), selection))
+		authority.resumeCollectionAfterExplicitTurnOff(exit) shouldBe false
+		authority.pendingManualStart shouldBe pending
+		authority.pendingCollectionResumeExitId shouldBe exit
+		authority.cancelManualStart(pending.command.generation) shouldBe true
+		val start = requireNotNull(authority.reserveStart())
+		authority.prepareCollectionResumeForManualStart(exit, start) shouldBe true
+		authority.resumeCollectionAfterExplicitTurnOff(exit) shouldBe false
+		authority.isPendingCollectionStart(start) shouldBe true
+		authority.pendingCollectionResumeExitId shouldBe exit
+		authority.collectionResumeBoundary shouldBe null
+		authority.withCurrentStart(start, acceptWhen = { it }) { true } shouldBe LockedTrackingStartResult.Executed(true)
+		authority.pendingCollectionResumeExitId shouldBe null
+	}
+
+	@Test
+	fun `repeated explicit Resume keeps its boundary and a newer manual Start unchanged`(): Unit = runBlocking {
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+		val exit = TRACKING_TURN_OFF_EXIT_PREFIX + "repeat"
+		val off = requireNotNull(authority.reserveTurnOff(exit, 1_000L, 500L) { Unit })
+		authority.markStopHandled(off.stop) shouldBe true
+		authority.resumeCollectionAfterExplicitTurnOff(exit) shouldBe true
+		val boundary = authority.collectionResumeBoundary
+		val selection = com.adsamcik.tracker.tracker.api.ManualTrackingStartSelection(mapOf(
+			com.adsamcik.tracker.tracker.api.TrackingCaptureSource.WIFI to 7L))
+		val pending = requireNotNull(authority.reserveManualStartIfGeneration(authority.latestCommandGeneration(), selection))
+		authority.resumeCollectionAfterExplicitTurnOff(exit) shouldBe true
+		authority.pendingManualStart shouldBe pending
+		authority.latestCommandGeneration() shouldBe pending.command.generation
+		authority.collectionResumeBoundary shouldBe boundary
+		authority.acceptedStartGeneration.value shouldBe 0L
+	}
+
+	@Test
+	fun `failed explicit Resume publication restores Off even after the preference cache changed`(): Unit = runBlocking {
+		for (throwing in listOf(false, true)) {
+			clearStore()
+			var failResume = false
+			val fakeContext = contextWithCommit { editor ->
+				val committed = editor.commit()
+				if (failResume) {
+					failResume = false
+					if (throwing) {
+						throw IllegalStateException("publication failed after cache update")
+					}
+					false
+				} else {
+					committed
+				}
+			}
+			val authority = SharedPreferencesTrackingLifecycleCommandAuthority(fakeContext, Dispatchers.IO,
+				BootClockDomainProvider { "boot" })
+			val exit = TRACKING_TURN_OFF_EXIT_PREFIX + "failed-resume"
+			authority.recordUserRequestedExit(exit) shouldBe true
+			val generation = authority.latestCommandGeneration()
+			val observed = mutableListOf<Boolean>()
+			val observer = launch(Dispatchers.Unconfined) { authority.collectionResumeRequired.collect { observed += it } }
+			failResume = true
+			if (throwing) {
+				shouldThrow<IllegalStateException> { authority.resumeCollectionAfterExplicitTurnOff(exit) }
+			} else {
+				authority.resumeCollectionAfterExplicitTurnOff(exit) shouldBe false
+			}
+			authority.pendingCollectionResumeExitId shouldBe exit
+			authority.collectionResumeBoundary shouldBe null
+			authority.latestCommandGeneration() shouldBe generation
+			authority.acceptedStartGeneration.value shouldBe 0L
+			val recreated = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+			recreated.pendingCollectionResumeExitId shouldBe exit
+			recreated.collectionResumeBoundary shouldBe null
+			recreated.latestCommandGeneration() shouldBe generation
+			observed shouldBe listOf(true)
+			observer.cancelAndJoin()
+		}
+	}
+
+
+	@Test
+	fun `cancelling Resume after its commit starts keeps durable On and publishes its wakeup`(): Unit = runBlocking {
+		val enteredCommit = CompletableDeferred<Unit>()
+		val releaseCommit = CountDownLatch(1)
+		var blockResume = false
+		val fakeContext = contextWithCommit { editor ->
+			if (blockResume) {
+				blockResume = false
+				enteredCommit.complete(Unit)
+				check(releaseCommit.await(5L, TimeUnit.SECONDS))
+			}
+			editor.commit()
+		}
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(fakeContext, Dispatchers.IO,
+			BootClockDomainProvider { "boot" })
+		val exit = TRACKING_TURN_OFF_EXIT_PREFIX + "cancel-after-commit"
+		authority.recordUserRequestedExit(exit) shouldBe true
+		val observed = mutableListOf<Boolean>()
+		val observer = launch(Dispatchers.Unconfined) { authority.collectionResumeRequired.collect { observed += it } }
+		blockResume = true
+		val resume = async { authority.resumeCollectionAfterExplicitTurnOff(exit) }
+		try {
+			withTimeout(5_000L) { enteredCommit.await() }
+			resume.cancel()
+		} finally {
+			releaseCommit.countDown()
+		}
+		resume.join()
+		resume.isCancelled shouldBe true
+		authority.pendingCollectionResumeExitId shouldBe null
+		authority.collectionResumeRequired.value shouldBe false
+		authority.acceptedStartGeneration.value shouldBe 0L
+		val restored = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+		restored.pendingCollectionResumeExitId shouldBe null
+		restored.collectionResumeBoundary shouldBe authority.collectionResumeBoundary
+		observed shouldBe listOf(true, false)
+		observer.cancelAndJoin()
+	}
+
+	@Test
+	fun `cancelling Resume while waiting for command ownership leaves collection Off`(): Unit = runBlocking {
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+		val exit = TRACKING_TURN_OFF_EXIT_PREFIX + "cancel-queued"
+		authority.recordUserRequestedExit(exit) shouldBe true
+		val enteredOwner = CompletableDeferred<Unit>()
+		val releaseOwner = CompletableDeferred<Unit>()
+		val owner = async {
+			authority.withPendingTurnOff(exit) {
+				enteredOwner.complete(Unit)
+				releaseOwner.await()
+				true
+			}
+		}
+		enteredOwner.await()
+		val resume = async(start = CoroutineStart.UNDISPATCHED) { authority.resumeCollectionAfterExplicitTurnOff(exit) }
+		resume.cancelAndJoin()
+		releaseOwner.complete(Unit)
+		owner.await() shouldBe true
+		authority.pendingCollectionResumeExitId shouldBe exit
+		authority.collectionResumeRequired.value shouldBe true
+		authority.collectionResumeBoundary shouldBe null
+		authority.acceptedStartGeneration.value shouldBe 0L
+	}
+
+	private fun contextWithCommit(commit: (SharedPreferences.Editor) -> Boolean): Context {
+		val actual = context.getSharedPreferences("tracking_lifecycle_commands", Context.MODE_PRIVATE)
+		val proxy = object : SharedPreferences by actual {
+			override fun edit(): SharedPreferences.Editor {
+				val editor = actual.edit()
+				return object : SharedPreferences.Editor by editor {
+					override fun putLong(key: String?, value: Long) = apply { editor.putLong(key, value) }
+					override fun putString(key: String?, value: String?) = apply { editor.putString(key, value) }
+					override fun putBoolean(key: String?, value: Boolean) = apply { editor.putBoolean(key, value) }
+					override fun remove(key: String?) = apply { editor.remove(key) }
+					override fun commit(): Boolean = commit(editor)
+				}
+			}
+		}
+		return mockk<Context> { every { getSharedPreferences(any(), any()) } returns proxy }
+	}
+
 	private val context: Context = ApplicationProvider.getApplicationContext()
 
 	@Before

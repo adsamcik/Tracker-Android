@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticFailureCode
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
 import com.adsamcik.tracker.diagnostics.TrackingDiagnosticFailureReason
@@ -25,6 +26,7 @@ import com.adsamcik.tracker.tracker.api.matchesAuthority
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.currentCoroutineContext
@@ -35,6 +37,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.stateIn
@@ -48,25 +52,31 @@ internal class CurrentTrackingPurposeAvailabilityProjection @Inject constructor(
 	rolloutStateStore: TrackingRolloutStateStore,
 	private val executionRevisionRegistry: TrackingPurposeExecutionRevisionRegistry,
 	private val exactAuthorityReader: TrackingPurposeAuthorityReader,
+	startupProvider: Provider<TrackingStartupGate>,
 	@ApplicationScope applicationScope: CoroutineScope,
 ) : CurrentTrackingPurposeAvailabilityReader {
-	private val authorityState: StateFlow<CurrentTrackingPurposeAuthorityState> = combine(
-		sourcePolicyRepository.states,
-		collectedDataLifecycleStore.snapshots,
-		rolloutStateStore.states,
-	) { policy, lifecycle, rollout ->
-		val snapshot = (policy as? SourcePolicyAuthorityState.Active)?.snapshot
-		if (snapshot == null) {
-			CurrentTrackingPurposeAuthorityState.Unavailable
-		} else {
-			CurrentTrackingPurposeAuthorityState.Available(snapshot, lifecycle, rollout)
-		}
-	}.failClosedOnObservationError()
-		.stateIn(
-			applicationScope,
-			SharingStarted.Eagerly,
-			CurrentTrackingPurposeAuthorityState.Unavailable,
-		)
+	private val authorityState: StateFlow<CurrentTrackingPurposeAuthorityState> =
+		flow<CurrentTrackingPurposeAuthorityState> {
+			// Service and worker injection can precede startup's storage and migration recovery.
+			startupProvider.get().awaitReady()
+			emitAll(combine(
+				sourcePolicyRepository.states,
+				collectedDataLifecycleStore.snapshots,
+				rolloutStateStore.states,
+			) { policy, lifecycle, rollout ->
+				val snapshot = (policy as? SourcePolicyAuthorityState.Active)?.snapshot
+				if (snapshot == null) {
+					CurrentTrackingPurposeAuthorityState.Unavailable
+				} else {
+					CurrentTrackingPurposeAuthorityState.Available(snapshot, lifecycle, rollout)
+				}
+			})
+		}.failClosedOnObservationError()
+			.stateIn(
+				applicationScope,
+				SharingStarted.Eagerly,
+				CurrentTrackingPurposeAuthorityState.Unavailable,
+			)
 
 	override val authorityRevision: StateFlow<TrackingPurposeAuthorityRevision> =
 		authorityState.map { it.revision }

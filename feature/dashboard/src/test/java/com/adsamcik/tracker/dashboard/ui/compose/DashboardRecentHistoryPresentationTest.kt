@@ -36,14 +36,35 @@ class DashboardRecentHistoryPresentationTest {
 	}
 
 	@Test
-	fun `matching top physical row preserves controller snapshot`() {
-		val controller = session(7L).copy(distanceInM = 432f)
+	fun `matching controller retains non measurement state and uses corrected saved distance`() {
+		val controller = session(7L).copy(end = 3_000L, distanceInM = 432f)
 		val state = DashboardRecentHistoryState.Content(
-			listOf(DashboardRecentHistoryEntry.Physical(trip(7L))),
+			listOf(DashboardRecentHistoryEntry.Physical(trip(7L).copy(distanceM = 321f, distanceIsPartial = true))),
 		)
 
 		resolveIdleDisplaySession(state, currentSession = controller, lastSession = session(6L)) shouldBe
-			controller
+			controller.copy(distanceInM = 321f, hasMeasuredDistance = true, distanceIsPartial = true)
+	}
+
+	@Test
+	fun `session without Location cannot regain a measured zero from its retained controller`() {
+		val controller = session(7L).copy(distanceInM = 0f)
+		val withoutLocation = trip(7L).copy(distanceM = 0f, sampleCount = 0, hasMeasuredDistance = false)
+		val state = DashboardRecentHistoryState.Content(listOf(DashboardRecentHistoryEntry.Physical(withoutLocation)))
+
+		resolveIdleDisplaySession(state, null, controller) shouldBe
+			controller.copy(hasMeasuredDistance = false)
+	}
+
+	@Test
+	fun `saved stationary Location remains measured zero despite a different controller distance`() {
+		val stationary = trip(7L).copy(distanceM = 0f, hasMeasuredDistance = true)
+		val state = DashboardRecentHistoryState.Content(listOf(DashboardRecentHistoryEntry.Physical(stationary)))
+
+		val display = resolveIdleDisplaySession(state, session(7L), null)
+
+		display?.distanceInM shouldBe 0f
+		display?.hasMeasuredDistance shouldBe true
 	}
 
 	@Test
@@ -63,6 +84,11 @@ class DashboardRecentHistoryPresentationTest {
 		listOf(
 			DashboardRecentHistoryState.Loading,
 			DashboardRecentHistoryState.Unavailable(),
+			DashboardRecentHistoryState.Content(emptyList(), hasSavedBackgroundData = true),
+			DashboardRecentHistoryState.Content(emptyList(), setOf(
+				com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageProblem(
+					com.adsamcik.tracker.stats.api.repository.HistorySource.WIFI,
+					com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE))),
 		).forEach { state ->
 			resolveDashboardMode(false, false, null, state) shouldBe DashboardMode.IDLE
 		}

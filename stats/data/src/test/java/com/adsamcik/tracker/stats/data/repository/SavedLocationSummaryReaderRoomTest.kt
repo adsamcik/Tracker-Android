@@ -25,6 +25,7 @@ import java.time.ZoneId
 import kotlin.test.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
@@ -44,13 +45,7 @@ class SavedLocationSummaryReaderRoomTest {
 
     @Before fun setup(): Unit = runBlocking {
         database = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>())
-        database.sourceEvidenceStateDao().ensure()
-        database.sourcePolicyDao().insertPolicies(listOf(policy()))
-        database.sourcePolicyDao().insertConsentEpochs(listOf(
-            SourceConsentEpochEntity(1, SourceBrokerPurpose.AMBIENT_PRODUCT, 0, true, true, 1, "boot", 0, 0, "USER"),
-            SourceConsentEpochEntity(1, SourceBrokerPurpose.SESSION_CAPTURE, 0, true, true, 1, "boot", 0, 0, "USER")))
-        database.locationPurposeDao().insertRetentionAuthority(AmbientLocationRetentionAuthorityIntegrity.create(
-            "LIVE_AMBIENT", 1, "ACTIVE", "retention", 1, 0, 0, "boot", 0, 0))
+        initializeSavedSummaryAuthority(database)
         reader = SavedLocationSummaryReader(database, Dispatchers.Unconfined)
     }
     @After fun close() = database.close()
@@ -82,7 +77,7 @@ class SavedLocationSummaryReaderRoomTest {
             val read = snapshot(reader.readSession(selected.id))
             assertEquals(1L, read.summary.pointCount)
             assertEquals(saved.id, read.summary.latestFix?.sampleId)
-            assertEquals(currentSnapshot(), read.readSnapshot)
+            assertEquals(savedSummarySnapshot(database), read.readSnapshot)
         }
     }
 
@@ -134,7 +129,7 @@ class SavedLocationSummaryReaderRoomTest {
                     any<LengthUnit>()) } returns invalid
                 var suppliedState = false
                 val sessionRead = database.withTransaction {
-                    snapshot(reader.readSessionInTransaction(selected.id, currentSnapshot()) { _, _ ->
+                    snapshot(reader.readSessionInTransaction(selected.id, savedSummarySnapshot(database)) { _, _ ->
                         suppliedState = true
                     })
                 }
@@ -620,9 +615,9 @@ class SavedLocationSummaryReaderRoomTest {
                 return original.savedFileChunk(fromMs, toMs, afterTimeMs, afterId, limit)
             }
         }
-        val fixtureReader = readerWithPageFault(fault)
+        val fixtureReader = savedSummaryReaderWithPageFault(database, fault)
         val read = database.withTransaction { snapshot(fixtureReader.readWindowInTransaction(
-            HistoryObservationWindow(0, 1_000_000), currentSnapshot())) }
+            HistoryObservationWindow(0, 1_000_000), savedSummarySnapshot(database))) }
         assertEquals(256L, read.summary.pointCount)
         assertEquals(0.0, read.summary.distanceMeters)
         assertEquals(257_000L, read.summary.latestFix?.measuredTimeMs)
@@ -645,9 +640,9 @@ class SavedLocationSummaryReaderRoomTest {
                 return original.savedFileChunk(fromMs, toMs, afterTimeMs, afterId, limit)
             }
         }
-        val fixtureReader = readerWithPageFault(fault)
+        val fixtureReader = savedSummaryReaderWithPageFault(database, fault)
         assertFailsWith<CancellationException> { database.withTransaction {
-            fixtureReader.readWindowInTransaction(HistoryObservationWindow(0, 1_000_000), currentSnapshot())
+            fixtureReader.readWindowInTransaction(HistoryObservationWindow(0, 1_000_000), savedSummarySnapshot(database))
         } }
         assertEquals(2, pages)
         assertEquals(300L, database.locationSampleDao().countAll())
@@ -660,11 +655,6 @@ class SavedLocationSummaryReaderRoomTest {
             assertIs<SavedLocationSummaryRead.Unavailable>(reader.readWindow(HistoryObservationWindow(0, 10_000))).reason)
     }
 
-    /** Only the page-fault boundary is artificial; all qualification DAOs and the outer transaction are real Room. */
-    private fun readerWithPageFault(purpose: LocationPurposeDao): SavedLocationSummaryReader =
-        savedSummaryReaderWithPageFault(database, purpose)
-    private suspend fun currentSnapshot(): TrackingHistoryReadSnapshot = savedSummarySnapshot(database)
-    private fun snapshot(read: SavedLocationSummaryRead) = assertIs<SavedLocationSummaryRead.Snapshot>(read)
 
     private suspend fun session(identity: String, startTimeMs: Long = 1_000L,
         endTimeMs: Long = 5_000L): SessionSegment =
@@ -675,44 +665,80 @@ class SavedLocationSummaryReaderRoomTest {
         accuracy: Float? = null, speed: Float? = null, altitude: Float? = null,
         captureManifestRevision: Long = 1): LocationSample {
         ordinal++
-        val event = "event:$ordinal"
-        val elapsed = time * 1_000_000L
-        val template = LocationSample(timeMs = time, elapsedRealtimeNanos = elapsed, latE7 = 0, lonE7 = longitude,
-            altitudeM = altitude, rawGpsAltitudeM = null, hAccM = accuracy, vAccM = null, speedMps = speed,
-            speedAccuracyMps = null, provider = "fused", quality = SampleQuality.COARSE,
-            motionState = null, policy = null, bucketId = null, createdAt = time + 1,
-            receivedElapsedRealtimeNanos = elapsed + 1, sourceEventId = event,
-            sourceSignalId = protectedLocationCanonicalProductIdentity(event), clockDomainId = clock,
-            bootClockDomainId = clock, altitudeDatum = AltitudeDatum.RELATIVE_BAROMETRIC,
-            altitudeSource = AltitudeSource.BAROMETER_PREDICTION)
-        val sample = template.copy(id = database.locationSampleDao().insert(template))
-        val receipt = LocationAcceptedReceiptIntegrity.seal(LocationAcceptedReceiptEntity(sample.id, event,
-            requireNotNull(sample.sourceSignalId), ordinal, "a".repeat(64), LocationAcceptedReceiptIntegrity.canonicalChecksum(sample),
-            instance, 1, sequence, "delivery:$ordinal", 0, 1,
-            SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID,
-            SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION, 1, "physical", 1, "authorization",
-            clock, clock, elapsed, elapsed + 1, time, time + 1, 2, 0))
-        database.locationPurposeDao().insertReceiptIfAbsent(receipt)
-        if (capture != null) {
-            val purpose = LocationSamplePurposeAuthorityEntity(sample.id, SourceBrokerPurpose.SESSION_CAPTURE,
-                requireNotNull(capture.serviceRunId), 1, 0, 1, Long.MAX_VALUE, capture.logicalTrackingId,
-                capture.serviceRunId, capture.id, captureManifestRevision, 1, null, null, null, 0, "UTC")
-            database.locationPurposeDao().insertPurposeIfAbsent(LocationAcceptedReceiptIntegrity.seal(purpose, receipt))
-        }
-        if (capture == null || alsoBackground) {
-            val purpose = LocationSamplePurposeAuthorityEntity(sample.id, SourceBrokerPurpose.AMBIENT_PRODUCT,
-                "ambient", 1, 0, 1, Long.MAX_VALUE, null, null, null, null, null,
-                "ambient", "retention", 1, 0, "UTC")
-            database.locationPurposeDao().insertPurposeIfAbsent(LocationAcceptedReceiptIntegrity.seal(purpose, receipt))
-        }
-        return sample
+        return database.insertSavedSummaryPoint(time, longitude, sequence, ordinal, capture, instance,
+            clock, alsoBackground, accuracy, speed, altitude, captureManifestRevision)
     }
     private suspend fun namedManifest(session: SessionSegment, revision: Long,
         serviceRunId: String = requireNotNull(session.serviceRunId)) =
         insertSavedSummaryManifest(database, session, revision, serviceRunId)
-    private fun policy() = SourcePolicyEntity(1, 1, true, 1, null, null, null,
-        true, false, true, 0, null, 0, "boot", 0, 0, "USER")
-    private fun distance(first: Int, second: Int) = Location.distance(0.0, first / 1e7, 0.0, second / 1e7, LengthUnit.Meter)
+}
+
+/** Shared recent-history behavior reuses the native saved-point fixtures below. */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class RecentNativeLocationHistoryRoomTest {
+    private lateinit var database: AppDatabase
+
+    @Before fun setup(): Unit = runBlocking {
+        database = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>())
+        initializeSavedSummaryAuthority(database)
+    }
+    @After fun close() = database.close()
+
+    @Test fun `recent native Location history uses saved points instead of an empty header`(): Unit = runBlocking {
+        val selected = insertSavedSummarySession(database, "recent-empty-header", 1_000L, 5_000L)
+        database.sessionSegmentDao().update(selected.copy(sampleCount = 0))
+        database.insertSavedSummaryPoint(2_000, 0, 1, 1, capture = selected)
+        database.insertSavedSummaryPoint(3_000, 100_000, 2, 2, capture = selected)
+        var unrelatedSourceReads = 0
+        val sourceUnion = object : TrackingHistorySourceUnionReader {
+            override suspend fun sessionInTransaction(segment: SessionSegment,
+                includeRadio: Boolean): HistoricalSessionSourceRead {
+                unrelatedSourceReads++
+                error("Qualified Location must not read unrelated sensor or radio products")
+            }
+            override suspend fun candidateNativeOnlyInTransaction(segmentIds: List<Long>) =
+                HistoricalSourceUnionRead.Available(emptyList<HistoricalSourceOnlyMembership>())
+            override suspend fun recentInTransaction(limit: Int) =
+                HistoricalSourceUnionRead.Available(emptyList<HistoricalSourceUnionEntry>())
+        }
+        val lane = SourceProductLaneExecutionAuthority { false }
+        val steps = StepsSegmentHistorySelector(database, lane)
+        val repository = DefaultTrackingHistoryRepository(database = database, stepsSelector = steps,
+            logicalHistoryReader = LogicalTrackingHistoryReader(database, steps),
+            pressureSelector = PressureHistorySelector(database, lane), sourceUnionReader = sourceUnion,
+            ioDispatcher = Dispatchers.Unconfined)
+
+        val page = assertIs<SourceAwareHistoryPageQuery.Content>(repository.observeRecentHistoryPage(5).first())
+
+        assertEquals(listOf(SourceAwareHistoryPageEntry.Physical(selected.id)), page.entries)
+        val trip = requireNotNull(page.physicalTrips[selected.id])
+        assertTrue(trip.hasMeasuredDistance)
+        assertEquals(distance(0, 100_000).toFloat(), trip.distanceM, 0.01f)
+        assertEquals(0, unrelatedSourceReads)
+        assertEquals(savedSummarySnapshot(database), page.readSnapshot)
+        assertTrue(page.problems.isEmpty())
+        assertEquals(0, database.sessionSegmentDao().getById(selected.id)?.sampleCount)
+    }
+}
+
+private suspend fun AppDatabase.insertSavedSummaryPoint(time: Long, longitude: Int, sequence: Long,
+    ordinal: Long, capture: SessionSegment? = null, instance: String = "instance", clock: String = "boot",
+    alsoBackground: Boolean = false, accuracy: Float? = null, speed: Float? = null, altitude: Float? = null,
+    captureManifestRevision: Long = 1): LocationSample {
+    val event = "event:$ordinal"
+    val elapsed = time * 1_000_000L
+    val template = LocationSample(timeMs = time, elapsedRealtimeNanos = elapsed, latE7 = 0, lonE7 = longitude,
+        altitudeM = altitude, rawGpsAltitudeM = null, hAccM = accuracy, vAccM = null, speedMps = speed,
+        speedAccuracyMps = null, provider = "fused", quality = SampleQuality.COARSE,
+        motionState = null, policy = null, bucketId = null, createdAt = time + 1,
+        receivedElapsedRealtimeNanos = elapsed + 1, sourceEventId = event,
+        sourceSignalId = protectedLocationCanonicalProductIdentity(event), clockDomainId = clock,
+        bootClockDomainId = clock, altitudeDatum = AltitudeDatum.RELATIVE_BAROMETRIC,
+        altitudeSource = AltitudeSource.BAROMETER_PREDICTION)
+    val (sample, receipt) = insertSavedSummaryLocation(template, ordinal, instance, sequence)
+    insertSavedSummaryPurposes(sample, receipt, capture, captureManifestRevision, alsoBackground)
+    return sample
 }
 
 private fun savedSummaryReaderWithPageFault(database: AppDatabase,
@@ -765,3 +791,54 @@ private suspend fun insertSavedSummaryManifest(database: AppDatabase, session: S
     database.sourceSessionDao().insertManifest(manifest.copy(manifestChecksum = SessionManifestIntegrity.compute(manifest, listOf(member))))
     database.sourceSessionDao().insertManifestSources(listOf(member))
 }
+
+private suspend fun initializeSavedSummaryAuthority(database: AppDatabase) {
+    database.sourceEvidenceStateDao().ensure()
+    database.sourcePolicyDao().insertPolicies(listOf(policy()))
+    database.sourcePolicyDao().insertConsentEpochs(listOf(
+        SourceConsentEpochEntity(1, SourceBrokerPurpose.AMBIENT_PRODUCT, 0, true, true, 1, "boot", 0, 0, "USER"),
+        SourceConsentEpochEntity(1, SourceBrokerPurpose.SESSION_CAPTURE, 0, true, true, 1, "boot", 0, 0, "USER")))
+    database.locationPurposeDao().insertRetentionAuthority(AmbientLocationRetentionAuthorityIntegrity.create(
+        "LIVE_AMBIENT", 1, "ACTIVE", "retention", 1, 0, 0, "boot", 0, 0))
+}
+
+private suspend fun AppDatabase.insertSavedSummaryLocation(template: LocationSample, ordinal: Long,
+    instance: String, sequence: Long): Pair<LocationSample, LocationAcceptedReceiptEntity> {
+    val event = requireNotNull(template.sourceEventId)
+    val time = template.timeMs
+    val elapsed = template.elapsedRealtimeNanos
+    val clock = requireNotNull(template.clockDomainId)
+    val sample = template.copy(id = locationSampleDao().insert(template))
+    val receipt = LocationAcceptedReceiptIntegrity.seal(LocationAcceptedReceiptEntity(sample.id, event,
+        requireNotNull(sample.sourceSignalId), ordinal, "a".repeat(64), LocationAcceptedReceiptIntegrity.canonicalChecksum(sample),
+        instance, 1, sequence, "delivery:$ordinal", 0, 1,
+        SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID,
+        SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION, 1, "physical", 1, "authorization",
+        clock, clock, elapsed, elapsed + 1, time, time + 1, 2, 0))
+    locationPurposeDao().insertReceiptIfAbsent(receipt)
+    return sample to receipt
+}
+
+private suspend fun AppDatabase.insertSavedSummaryPurposes(sample: LocationSample,
+    receipt: LocationAcceptedReceiptEntity, capture: SessionSegment?, captureManifestRevision: Long,
+    alsoBackground: Boolean) {
+    if (capture != null) {
+        val purpose = LocationSamplePurposeAuthorityEntity(sample.id, SourceBrokerPurpose.SESSION_CAPTURE,
+            requireNotNull(capture.serviceRunId), 1, 0, 1, Long.MAX_VALUE, capture.logicalTrackingId,
+            capture.serviceRunId, capture.id, captureManifestRevision, 1, null, null, null, 0, "UTC")
+        locationPurposeDao().insertPurposeIfAbsent(LocationAcceptedReceiptIntegrity.seal(purpose, receipt))
+    }
+    if (capture == null || alsoBackground) {
+        val purpose = LocationSamplePurposeAuthorityEntity(sample.id, SourceBrokerPurpose.AMBIENT_PRODUCT,
+            "ambient", 1, 0, 1, Long.MAX_VALUE, null, null, null, null, null,
+            "ambient", "retention", 1, 0, "UTC")
+        locationPurposeDao().insertPurposeIfAbsent(LocationAcceptedReceiptIntegrity.seal(purpose, receipt))
+    }
+}
+
+private fun snapshot(read: SavedLocationSummaryRead) = assertIs<SavedLocationSummaryRead.Snapshot>(read)
+
+private fun policy() = SourcePolicyEntity(1, 1, true, 1, null, null, null,
+    true, false, true, 0, null, 0, "boot", 0, 0, "USER")
+
+private fun distance(first: Int, second: Int) = Location.distance(0.0, first / 1e7, 0.0, second / 1e7, LengthUnit.Meter)

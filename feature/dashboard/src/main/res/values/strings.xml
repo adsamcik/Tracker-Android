@@ -63,6 +63,7 @@
     <!-- Idle state -->
     <string name="dashboard_today_title">Today</string>
     <string name="dashboard_today_no_activity">No activity yet today</string>
+    <string name="dashboard_saved_data_history">Saved data is available in History.</string>
     <string name="dashboard_today_distance">Distance</string>
     <string name="dashboard_today_duration">Duration</string>
     <string name="dashboard_today_steps">Steps</string>

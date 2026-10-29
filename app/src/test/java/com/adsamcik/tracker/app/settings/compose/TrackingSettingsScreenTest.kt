@@ -16,6 +16,7 @@ import androidx.test.core.app.ApplicationProvider
 import java.util.Locale
 import java.io.File
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsOff
@@ -490,6 +491,8 @@ class TrackingSettingsScreenTest {
 
     @Test
     fun validationWarningShownWhenNoValidSources() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val warning = context.getString(com.adsamcik.tracker.tracker.R.string.error_nothing_to_track)
         composeTestRule.setContent {
             AppTheme {
                 TrackingSettingsContent(
@@ -497,13 +500,15 @@ class TrackingSettingsScreenTest {
                 )
             }
         }
-        scrollTo("Enable at least one tracking")
-        composeTestRule.onNodeWithText("Enable at least one tracking", substring = true)
+        scrollTo(warning)
+        composeTestRule.onNodeWithText(warning)
             .assertIsDisplayed()
     }
 
     @Test
     fun validationWarningHiddenWhenSourcesValid() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val warning = context.getString(com.adsamcik.tracker.tracker.R.string.error_nothing_to_track)
         composeTestRule.setContent {
             AppTheme {
                 TrackingSettingsContent(
@@ -511,7 +516,7 @@ class TrackingSettingsScreenTest {
                 )
             }
         }
-        composeTestRule.onNodeWithText("Enable at least one tracking", substring = true)
+        composeTestRule.onNodeWithText(warning)
             .assertDoesNotExist()
     }
 
@@ -543,6 +548,11 @@ class TrackingSettingsScreenTest {
 
 	@Test
 	fun nonStepsAmbientSourceSettingsAreIndependentDefaultOffSwitchesWithGapAndRetentionCopy() {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val introduction = context.getString(com.adsamcik.tracker.R.string.settings_ambient_sources_summary)
+		val retention = context.getString(com.adsamcik.tracker.R.string.settings_ambient_retention_summary)
+		val off = context.getString(com.adsamcik.tracker.R.string.settings_ambient_source_off_summary)
+		val unavailable = context.getString(com.adsamcik.tracker.R.string.settings_ambient_retention_unavailable)
 		composeTestRule.setContent {
 			AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
 		}
@@ -557,19 +567,13 @@ class TrackingSettingsScreenTest {
 				.assertIsDisplayed()
 				.assertIsOff()
 		}
-		scrollTo("does not promise a provider")
-		composeTestRule.onNodeWithText("does not promise a provider", substring = true)
+		scrollTo(introduction)
+		composeTestRule.onNodeWithText(introduction)
 			.assertIsDisplayed()
-		scrollTo("does not claim always-on collection")
+		scrollTo(retention)
 		composeTestRule.onNodeWithTag("ambientRetentionExplanation").assertIsDisplayed()
-		composeTestRule.onAllNodesWithText(
-			"Current collection status is waiting for source-owner reconciliation",
-			substring = true,
-		).onFirst().assertExists()
-		composeTestRule.onNodeWithText(
-			"Collection stays off because the product retention policy",
-			substring = true,
-		).assertDoesNotExist()
+		composeTestRule.onAllNodesWithText(off).onFirst().assertExists()
+		composeTestRule.onNodeWithText(unavailable).assertDoesNotExist()
 	}
 
 	@Test
@@ -661,6 +665,33 @@ class TrackingSettingsScreenTest {
 		}
 		composeTestRule.onNodeWithTag("turnOffTracking").performScrollTo().performClick()
 		clicks shouldBe 1
+	}
+
+	@Test
+	fun resumeTrackingInvokesOnlyItsExplicitCallback() {
+		var resumes = 0
+		var stops = 0
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(defaultUiState.copy(trackingTurnedOff = true),
+					onResumeTracking = { resumes++ }, onTurnOffTracking = { stops++ })
+			}
+		}
+		composeTestRule.onNodeWithTag("resumeTracking").performScrollTo().performClick()
+		resumes shouldBe 1
+		stops shouldBe 0
+	}
+
+	@Test
+	fun resumeTrackingIsDisabledWhilePendingAndShowsFailure() {
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(defaultUiState.copy(trackingTurnedOff = true,
+					resumeTrackingInProgress = true, resumeTrackingFailed = true))
+			}
+		}
+		composeTestRule.onNodeWithTag("resumeTracking").performScrollTo().assertIsNotEnabled()
+		composeTestRule.onNodeWithTag("resumeTrackingError").performScrollTo().assertIsDisplayed()
 	}
 
 	@Test

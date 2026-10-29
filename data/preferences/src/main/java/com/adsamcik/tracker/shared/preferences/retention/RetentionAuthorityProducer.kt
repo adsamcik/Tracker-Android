@@ -249,6 +249,9 @@ fun interface LocationPassiveRetentionAuthority {
 interface RetentionAuthorityProducer :
 	RetentionAuthorityReader,
 	LocationPassiveRetentionAuthority {
+	/** Initializes the exact data lifecycle guard before startup metadata, without approving collection. */
+	suspend fun prepareSourceEvidence(): RetentionAuthorityUnavailableReason? =
+		RetentionAuthorityUnavailableReason.RETENTION_AUTHORITY_UNAVAILABLE
 	/** Reconciles every supported source and purpose against current settings, retaining individual outcomes. */
 	suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult>
 	/** Reconciles every supported source and purpose against current settings, retaining individual outcomes. */
@@ -406,6 +409,9 @@ class DefaultRetentionAuthorityProducer internal constructor(
 			is RetentionPolicyCandidateRead.Unavailable -> candidate
 		}
 	},
+	private val readStagedPolicyCandidate: suspend (Long) -> RetentionPolicyCandidateRead = {
+		readPendingPolicyCandidate()
+	},
 	private val operationLease: RetentionAuthorityOperationLease =
 		RetentionAuthorityOperationLease(),
 ) : RetentionAuthorityProducer {
@@ -426,6 +432,7 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		readPolicyCandidate = retentionConfigStore::currentPolicyCandidate,
 		markPolicyApproved = retentionConfigStore::markPolicyApproved,
 		readPendingPolicyCandidate = retentionConfigStore::pendingPolicyCandidate,
+		readStagedPolicyCandidate = retentionConfigStore::stagedPolicyCandidate,
 		operationLease = operationLease,
 	)
 
@@ -444,6 +451,12 @@ class DefaultRetentionAuthorityProducer internal constructor(
 	} catch (unknown: RetentionAuthorityDataStoreCommitUnknownException) {
 		onCommitUnknown(unknown)
 	}
+
+	/** Uses the existing lifecycle lease and strict bootstrap before any projection scaffolding. */
+	override suspend fun prepareSourceEvidence(): RetentionAuthorityUnavailableReason? =
+		withSerializedOperation(
+			onCommitUnknown = { RetentionAuthorityUnavailableReason.COMMIT_ACKNOWLEDGEMENT_UNKNOWN },
+		) { permit -> exactSourceEvidenceBootstrapFailure(permit) }
 
 	/** Reconciles every supported source and purpose against current settings, retaining individual outcomes. */
 	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> =
@@ -940,11 +953,17 @@ class DefaultRetentionAuthorityProducer internal constructor(
 		operationPermit: RetentionAuthorityOperationPermit,
 	): RetentionConfigurationApprovalResult {
 		operationPermit.validate()
-		val candidate = when (val read = readPendingPolicyCandidate()) {
+		val candidate = when (val read = readStagedPolicyCandidate(expectedConfigurationGeneration)) {
 			is RetentionPolicyCandidateRead.Available -> read
 			is RetentionPolicyCandidateRead.Unavailable ->
 				return RetentionConfigurationApprovalResult.Unavailable(
-					RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+					when (read.reason) {
+						ApprovedRetentionPolicyUnavailableReason.CONFIGURATION_CHANGED ->
+							RetentionAuthorityUnavailableReason.STALE_CONFIGURATION_GENERATION
+						ApprovedRetentionPolicyUnavailableReason.INTEGRITY_MISMATCH ->
+							RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH
+						else -> RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE
+					},
 				)
 		}
 		if (candidate.policy.configurationGeneration != expectedConfigurationGeneration) {

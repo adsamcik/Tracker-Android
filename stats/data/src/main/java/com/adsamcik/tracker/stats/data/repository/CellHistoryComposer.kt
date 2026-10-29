@@ -46,6 +46,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
+import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadDecodeResult
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.PortableCellIdentityKind
@@ -429,22 +431,31 @@ internal object CellHistoryComposer {
 				.maxOfOrNull(CellCapturedFactRevisionEntity::sourceAdmissionOrdinal),
 			cellCompleteness.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull(),
 		)
+		val failedOrdinals = snapshot.terminalFailures.mapTo(hashSetOf(), SourceProjectionFailureEntity::admissionOrdinal)
 		if (!hasValidSessionSettlement(session, runs, manifestsByRun, legacyTargetOrdinal) ||
 			targetOrdinal?.let { target -> target < lane.activationOrdinal ||
 				lane.captureAdmissionCutoffOrdinal?.let { it < target } == true } == true ||
-			snapshot.terminalFailures.isNotEmpty()
+			relatedRevisions.any { it.sourceAdmissionOrdinal in failedOrdinals }
 		) {
 			return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
 		}
 
 		val evidenceState = snapshot.evidenceState
 			?: return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED)
-		val admissionsByEventId = snapshot.admissions.associateBy(SourceEventWalEntity::eventId)
-		val admissionsByOrdinal = snapshot.admissions.associateBy(SourceEventWalEntity::admissionOrdinal)
-		val admissionsByDelivery = snapshot.admissions.associateBy(SourceEventWalEntity::deliveryIdentity)
-		if (admissionsByEventId.size != snapshot.admissions.size ||
-			admissionsByOrdinal.size != snapshot.admissions.size ||
-			admissionsByDelivery.size != snapshot.admissions.size
+		val carrierIds = relatedRevisions.mapTo(hashSetOf(), CellCapturedFactRevisionEntity::sourceEventId)
+		val admissions = snapshot.admissions.filter {
+			it.eventId in carrierIds || it.wasCapturedForRun(logicalId, runIds, snapshot)
+		}
+		if (relatedRevisions.isEmpty() && admissions.any { it.admissionOrdinal in failedOrdinals }) {
+			return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
+		}
+		val carriers = admissions.filter { it.eventId in carrierIds }
+		val admissionsByEventId = carriers.associateBy(SourceEventWalEntity::eventId)
+		val admissionsByOrdinal = carriers.associateBy(SourceEventWalEntity::admissionOrdinal)
+		val admissionsByDelivery = carriers.associateBy(SourceEventWalEntity::deliveryIdentity)
+		if (admissionsByEventId.size != carriers.size ||
+			admissionsByOrdinal.size != carriers.size ||
+			admissionsByDelivery.size != carriers.size || hasAliasedSavedCarrier(snapshot.admissions, carriers)
 		) {
 			return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
 		}
@@ -550,6 +561,9 @@ internal object CellHistoryComposer {
 			}
 		}.getOrElse { return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED) }
 		val causes = linkedSetOf<CellHistoryCause>()
+		if (admissions.any { it.admissionOrdinal in failedOrdinals }) {
+			causes += CellHistoryCause.ACQUISITION_INCOMPLETE
+		}
 		if (snapshot.savedSessionCutoffs[logicalId]?.clockUnknown == true) {
 			causes += CellHistoryCause.ACQUISITION_INCOMPLETE
 		}
@@ -591,6 +605,54 @@ internal object CellHistoryComposer {
 			CellHistoryProductState.PARTIAL
 		}
 		return entry(logicalId, segments, zones, state, coverage, observations, causes)
+	}
+
+	/** A rejected sibling must not lend an ordinal or complete delivery identity to a saved fact. */
+	private fun hasAliasedSavedCarrier(admissions: List<SourceEventWalEntity>,
+		carriers: List<SourceEventWalEntity>): Boolean {
+		val eventIds = carriers.mapTo(hashSetOf(), SourceEventWalEntity::eventId)
+		val ordinals = carriers.mapTo(hashSetOf(), SourceEventWalEntity::admissionOrdinal)
+		val deliveries = carriers.mapNotNullTo(hashSetOf(), SourceEventWalEntity::deliveryIdentity)
+		return admissions.any { it.eventId !in eventIds &&
+			(it.admissionOrdinal in ordinals || it.deliveryIdentity?.let(deliveries::contains) == true) }
+	}
+
+	private fun SourceEventWalEntity.wasCapturedForRun(logicalId: String, runIds: List<String>,
+		snapshot: CellHistorySnapshot): Boolean {
+		if (logicalTrackingId != null || serviceRunId != null) {
+			return logicalTrackingId == logicalId && serviceRunId in runIds
+		}
+		if (payloadVersion != CELL_WAL_PAYLOAD_VERSION || authorizationRevision == null) {
+			return false
+		}
+		val decoded = CellWalPayloadCodec.decodeCanonical(payloadVersion, payload)
+			as? CellWalPayloadDecodeResult.Decoded ?: return false
+		val times = decoded.payload.observations.mapNotNull { it.providerTimestampNanos }
+		val rows = snapshot.authorizationsByRegistration[registrationGeneration].orEmpty()
+		return rows.any { member ->
+			member.isCapturedHistoryMember(this, logicalId, runIds) && member.containsHistoryObservation(this, rows, times)
+		}
+	}
+
+	/** Only actual same-boot item times assign a shared callback to an original purpose window. */
+	private fun SourceAuthorizationEntity.containsHistoryObservation(
+		wal: SourceEventWalEntity, rows: List<SourceAuthorizationEntity>, times: List<Long>,
+	): Boolean {
+		if (effectiveBootId != wal.clockDomainId) {
+			return false
+		}
+		val end = rows.filter { it.authorizationRevision > authorizationRevision && it.effectiveBootId == wal.clockDomainId }
+			.minOfOrNull { it.effectiveElapsedRealtimeNanos } ?: Long.MAX_VALUE
+		return times.any { it >= effectiveElapsedRealtimeNanos && it < end }
+	}
+
+	private fun SourceAuthorizationEntity.isCapturedHistoryMember(wal: SourceEventWalEntity,
+		logicalId: String, runIds: List<String>): Boolean {
+		if (authorizationRevision > requireNotNull(wal.authorizationRevision)) {
+			return false
+		}
+		return purpose == SourceBrokerPurpose.SESSION_CAPTURE && persistenceEligible &&
+			logicalTrackingId == logicalId && serviceRunId in runIds
 	}
 
 	private fun hasValidManifestHistory(

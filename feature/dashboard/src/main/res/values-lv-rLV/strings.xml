@@ -47,6 +47,7 @@
     <string name="dashboard_milestone_time">min. izsekotas!</string>
     <string name="dashboard_today_title">Šodien</string>
     <string name="dashboard_today_no_activity">Šodien vēl nav aktivitāšu</string>
+    <string name="dashboard_saved_data_history">Saglabātie dati ir pieejami sadaļā Vēsture.</string>
     <string name="dashboard_today_distance">Attālums</string>
     <string name="dashboard_today_duration">Ilgums</string>
     <string name="dashboard_today_steps">Soļi</string>

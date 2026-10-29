@@ -47,6 +47,7 @@
     <string name="dashboard_milestone_time">min. registreret!</string>
     <string name="dashboard_today_title">I dag</string>
     <string name="dashboard_today_no_activity">Ingen aktivitet endnu i dag</string>
+    <string name="dashboard_saved_data_history">Gemte data findes i Historik.</string>
     <string name="dashboard_today_distance">Afstand</string>
     <string name="dashboard_today_duration">Varighed</string>
     <string name="dashboard_today_steps">Skridt</string>

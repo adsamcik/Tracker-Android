@@ -500,8 +500,8 @@ private fun HeaderActions(
     // the correct affordance per Material 3 Expressive.
     //
     // Right inset matches the floating settings-cog overlay (rendered by MainRoot at TopEnd:
-    // size 48dp + 8dp end padding ≈ 56dp). Without this, the rightmost chip — currently
-    // History — visibly slides under the cog as the user scrolls the rail to reveal it.
+    // size 48dp + 8dp end padding ≈ 56dp). Without this, the last action slides under
+    // the cog as the user scrolls the rail to reveal it.
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -510,6 +510,11 @@ private fun HeaderActions(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        ActionAssistChip(
+            onClick = onNavigateToHistory,
+            icon = Icons.Filled.History,
+            label = historyLabel,
+        )
         ActionAssistChip(
             onClick = onShowSummary,
             icon = Icons.Filled.Summarize,
@@ -530,11 +535,6 @@ private fun HeaderActions(
             onClick = onOpenSignalReport,
             icon = Icons.Filled.SignalCellularAlt,
             label = signalLabel,
-        )
-        ActionAssistChip(
-            onClick = onNavigateToHistory,
-            icon = Icons.Filled.History,
-            label = historyLabel,
         )
     }
 }

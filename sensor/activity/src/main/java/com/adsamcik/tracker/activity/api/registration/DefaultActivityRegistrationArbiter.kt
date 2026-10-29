@@ -8,12 +8,16 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.RecognitionConfig
 import com.adsamcik.tracker.activity.receiver.ActivityCallbackRetryOwner
+import com.adsamcik.tracker.activity.receiver.ActivityCallbackGapReceipt
+import com.adsamcik.tracker.activity.receiver.ActivityCallbackRetryMetadata
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.hasCompatibleCapturedActivityAcquisition
+import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.activityCallbackLossRevisions
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -827,6 +831,14 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		val nowMs = System.currentTimeMillis()
 		val nowElapsed = SystemClock.elapsedRealtimeNanos()
 		database.withTransaction {
+			if (identity.clockDomainId != bootClockDomainProvider.current()) {
+				// A new boot cannot supply a finite end in the original provider's elapsed clock.
+				acknowledgeCaptureCallbackBarrier(identity, Long.MAX_VALUE)
+				check(database.sourceBrokerDao().markPriorBootSystemActivityRetiring(
+					identity.registrationGeneration, identity.sourceInstanceId, bootClockDomainProvider.current(),
+				) == 1) { "Prior-boot Activity provider registration is not active" }
+				return@withTransaction
+			}
 			appendAuthorizationIfChanged(identity, emptyList(), nowMs, nowElapsed)
 			acknowledgeCaptureCallbackBarrier(identity)
 			check(database.sourceBrokerDao().markRegistrationRetiring(
@@ -835,10 +847,10 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 				identity.sourceInstanceId,
 				nowMs,
 				nowElapsed,
-				listOfNotNull(reason, database.sourceBrokerDao().registration(
+				(listOf(reason) + database.sourceBrokerDao().registration(
 					ACTIVITY_SOURCE_KIND, identity.registrationGeneration,
-				)?.failureCode?.substringAfterLast('|')?.takeIf {
-					it.startsWith(ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX)
+				)?.activityCallbackLossRevisions().orEmpty().sorted().map {
+					"${ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX}$it"
 				}).joinToString("|"),
 			) == 1) { "Activity provider registration is not active" }
 		}
@@ -942,6 +954,15 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		awaitCallbackBarrier(identity, terminal = true)
 		backend.removeRegistration(identity)
 		database.withTransaction {
+			if (registration.clockDomainId != bootClockDomainProvider.current() &&
+				registration.retiredAtMs == null && registration.retiredElapsedRealtimeNanos == null) {
+				acknowledgeCaptureCallbackBarrier(identity, Long.MAX_VALUE)
+				check(database.sourceBrokerDao().completeRemovedPriorBootSystemActivity(
+					registration.registrationGeneration, registration.sourceInstanceId, bootClockDomainProvider.current(),
+					ProviderRegistrationGenerationEntity.FAILURE_PRIOR_BOOT_SYSTEM_REMOVED,
+				) == 1) { "Prior-boot Activity provider removal changed identity" }
+				return@withTransaction
+			}
 			acknowledgeCaptureCallbackBarrier(identity)
 			check(
 				database.sourceBrokerDao().completeRegistrationRetirement(
@@ -1228,7 +1249,10 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		callbackAdmissionBarrier.beginCapture(identity, logicalId, runId)
 	}
 
-	private suspend fun acknowledgeCaptureCallbackBarrier(identity: ActivityRegistrationIdentity) {
+	private suspend fun acknowledgeCaptureCallbackBarrier(
+		identity: ActivityRegistrationIdentity,
+		sealedElapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),
+	) {
 		val dao = database.sourceBrokerDao()
 		val throughRevision = dao.maximumCaptureAuthorizationRevision(
 			ACTIVITY_SOURCE_KIND,
@@ -1241,12 +1265,20 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			throughRevision,
 		) == 1) { "Activity registration changed before its callback barrier acknowledgement" }
 		if (throughRevision == 0L) return
-		if (callbackAdmissionBarrier.captureFailureCount(identity) > 0L) {
-			val lossRevision = dao.maximumActivitySessionCaptureAuthorizationRevision(identity.registrationGeneration)
-			check(lossRevision in 1L..throughRevision) { "Activity callback loss has no original session grant" }
+		val registration = checkNotNull(dao.registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration))
+		val retainedLosses = callbackRetryOwner.gapReceipts().flatMap { receipt ->
+			originalCaptureLossRevisions(receipt, registration, throughRevision)
+		}.toSet()
+		val liveLossRevision = if (callbackAdmissionBarrier.captureFailureCount(identity) > 0L) {
+			dao.maximumActivitySessionCaptureAuthorizationRevision(identity.registrationGeneration).also {
+				check(it in 1L..throughRevision) { "Activity callback loss has no original session grant" }
+			}
+		} else null
+		val lossRevisions = retainedLosses + listOfNotNull(liveLossRevision)
+		if (lossRevisions.isNotEmpty()) {
 			check(dao.recordActivityCaptureCallbackLoss(
 				identity.registrationGeneration, identity.sourceInstanceId, throughRevision,
-				"${ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX}$lossRevision",
+				registration.withCallbackLosses(lossRevisions),
 			) == 1) { "Activity callback-loss acknowledgement lost its exact capture fence" }
 		}
 		dao.sealCaptureAdmissionBarrier(
@@ -1255,7 +1287,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			sourceInstanceId = identity.sourceInstanceId,
 			throughAuthorizationRevision = throughRevision,
 			capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-			sealedElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
+			sealedElapsedRealtimeNanos = sealedElapsedRealtimeNanos,
 			sealedAtMs = System.currentTimeMillis(),
 		)
 		check(dao.captureAdmissionBarrier(
@@ -1265,6 +1297,138 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			barrier.sourceInstanceId == identity.sourceInstanceId &&
 				barrier.throughAuthorizationRevision == throughRevision
 		} == true) { "Activity registration changed before its durable admission barrier" }
+	}
+
+	/** Applies an existing retry receipt without re-admitting data or reopening a provider. */
+	internal suspend fun recordRetainedCallbackLoss(receipt: ActivityCallbackGapReceipt) = mutex.withLock {
+		if (deletionPaused) {
+			return@withLock
+		}
+		val metadata = receipt.originalMetadata ?: return@withLock
+		val identity = metadata.registrationIdentity
+		if (!lifecycleStore.snapshot().accepts(identity.collectedDataEpoch, metadata.receivedWallTimeMs)) {
+			return@withLock
+		}
+		database.withTransaction { applyRetainedCallbackLoss(receipt, identity) }
+	}
+
+	private suspend fun applyRetainedCallbackLoss(
+		receipt: ActivityCallbackGapReceipt,
+		identity: ActivityRegistrationIdentity,
+	) {
+		val registration = sealedCaptureRegistration(identity) ?: return
+		val throughRevision = registration.captureCallbackBarrierAuthorizationRevision
+		val revisions = originalCaptureLossRevisions(receipt, registration, throughRevision)
+		if (revisions.isEmpty() || registration.activityCallbackLossRevisions().containsAll(revisions)) {
+			return
+		}
+		check(database.sourceBrokerDao().recordSealedActivityCaptureCallbackLoss(identity.registrationGeneration,
+			identity.sourceInstanceId, identity.collectedDataEpoch, identity.clockDomainId,
+			identity.physicalConfigurationFingerprint, throughRevision, registration.failureCode,
+			registration.withCallbackLosses(revisions)) == 1) {
+			"Activity retry-loss receipt no longer belongs to its original sealed history"
+		}
+	}
+
+	private suspend fun sealedCaptureRegistration(
+		identity: ActivityRegistrationIdentity,
+	): ProviderRegistrationGenerationEntity? {
+		val dao = database.sourceBrokerDao()
+		val registration = dao.registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration) ?: return null
+		if (registration.status !in setOf(ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+			ProviderRegistrationGenerationEntity.STATUS_RETIRING,
+			ProviderRegistrationGenerationEntity.STATUS_RETIRED)) {
+			return null
+		}
+		// A later live capture has a newer revision and cannot borrow this already published fence.
+		val barrier = dao.captureAdmissionBarrier(ACTIVITY_SOURCE_KIND, identity.registrationGeneration) ?: return null
+		return registration.takeIf {
+			barrier.sourceInstanceId == identity.sourceInstanceId &&
+				barrier.throughAuthorizationRevision == it.captureCallbackBarrierAuthorizationRevision
+		}
+	}
+
+	private suspend fun originalCaptureLossRevisions(
+		receipt: ActivityCallbackGapReceipt,
+		registration: ProviderRegistrationGenerationEntity,
+		throughRevision: Long,
+	): Set<Long> {
+		val metadata = receipt.originalMetadata ?: return emptySet()
+		val identity = metadata.registrationIdentity
+		if (registration.toActivityRegistrationIdentity() != identity ||
+			database.sourceEvidenceStateDao().get()?.collectedDataEpoch != identity.collectedDataEpoch ||
+			throughRevision <= 0L) {
+			return emptySet()
+		}
+		val acceptedAt = registration.acceptedElapsedRealtimeNanos ?: return emptySet()
+		return captureLossRevisionsAt(metadata, registration, throughRevision, acceptedAt)
+	}
+
+	private suspend fun captureLossRevisionsAt(
+		metadata: ActivityCallbackRetryMetadata,
+		registration: ProviderRegistrationGenerationEntity,
+		throughRevision: Long,
+		acceptedAt: Long,
+	): Set<Long> {
+		val identity = metadata.registrationIdentity
+		val retiredAt = registration.retiredElapsedRealtimeNanos ?: Long.MAX_VALUE
+		val dao = database.sourceBrokerDao()
+		val revisions = linkedSetOf<Long>()
+		var members = emptyList<SourceAuthorizationEntity>()
+		var nextBoundary = Long.MIN_VALUE
+		val observedTimes = metadata.observedElapsedRealtimeNanos.filter { it >= acceptedAt && it < retiredAt }
+		for (observed in observedTimes) {
+			if (observed >= nextBoundary) {
+				members = dao.authorizationAt(ACTIVITY_SOURCE_KIND, identity.registrationGeneration,
+					identity.clockDomainId, observed)
+				nextBoundary = nextCallbackAuthorizationBoundary(identity, members, observed)
+			}
+			val captureMembers = members.filter { it.isSessionCaptureAtSeal(throughRevision) &&
+				it.authorizationRevision !in revisions }
+			for (member in captureMembers) {
+				if (hasOriginalCaptureRunAt(member, identity.clockDomainId, observed)) {
+					revisions += member.authorizationRevision
+				}
+			}
+		}
+		return revisions
+	}
+
+	private suspend fun nextCallbackAuthorizationBoundary(
+		identity: ActivityRegistrationIdentity,
+		members: List<SourceAuthorizationEntity>,
+		observed: Long,
+	): Long = if (members.isEmpty()) {
+		observed + 1L
+	} else {
+		database.sourceBrokerDao().nextAuthorizationRevision(ACTIVITY_SOURCE_KIND, identity.registrationGeneration,
+			members.first().authorizationRevision).filter { it.effectiveBootId == identity.clockDomainId }
+			.minOfOrNull { it.effectiveElapsedRealtimeNanos } ?: Long.MAX_VALUE
+	}
+
+	private fun SourceAuthorizationEntity.isSessionCaptureAtSeal(throughRevision: Long): Boolean =
+		persistenceEligible && purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+			authorizationRevision in 1L..throughRevision
+
+	private suspend fun hasOriginalCaptureRunAt(member: SourceAuthorizationEntity, clockDomainId: String,
+		observed: Long): Boolean {
+		val dao = database.sourceSessionDao()
+		val run = member.serviceRunId?.let { dao.serviceRun(it) } ?: return false
+		val logicalId = member.logicalTrackingId ?: return false
+		if (run.logicalTrackingId != logicalId || run.bootId != clockDomainId || observed < run.startedElapsedNanos) {
+			return false
+		}
+		val session = dao.session(logicalId)
+		return session == null || observed < database.savedSessionCutoff(session).endForBoot(clockDomainId)
+	}
+
+	private fun ProviderRegistrationGenerationEntity.withCallbackLosses(revisions: Set<Long>): String {
+		val prefix = ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX
+		val known = activityCallbackLossRevisions()
+		val reasons = failureCode.orEmpty().split('|').filter { token ->
+			token.isNotEmpty() && token !in known.map { "$prefix$it" }
+		}
+		return (reasons + (known + revisions).sorted().map { "$prefix$it" }).joinToString("|")
 	}
 
 	private suspend fun awaitCallbackBarrier(

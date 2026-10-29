@@ -295,8 +295,8 @@ class AutomaticStepsControlRoomTest {
 			coEvery { currentLiveAmbient(any(), any(), any(), any(), any()) } returns
 				CurrentRetentionAuthority.Unavailable(RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE)
 			coEvery { reconcileLiveAmbient(any()) } answers {
-				RetentionAuthorityResult.Unavailable(firstArg(), RetentionAuthorityScope.LIVE_AMBIENT,
-					RetentionAuthorityUnavailableReason.PURPOSE_AUTHORITY_UNAVAILABLE)
+				RetentionAuthorityResult.Unchanged(firstArg(), RetentionAuthorityScope.LIVE_AMBIENT,
+					RetentionAuthorityState.REVOKED, 1L)
 			}
 		}
 		val exact = CurrentTrackingPurposeAuthorityReader(policies, lifecycle, rollout, retention, Provider { gate })

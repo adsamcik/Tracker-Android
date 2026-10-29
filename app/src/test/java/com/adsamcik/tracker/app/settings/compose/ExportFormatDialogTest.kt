@@ -1,10 +1,12 @@
 package com.adsamcik.tracker.app.settings.compose
 
+import android.content.Context
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.app.settings.components.ExportFormat
 import com.adsamcik.tracker.app.settings.components.ExportFormatDialog
 import com.adsamcik.tracker.impexp.format.FormatRegistry
@@ -102,7 +104,6 @@ class ExportFormatDialogTest {
             }
         }
         composeTestRule.onNodeWithText("GPX").performClick()
-        composeTestRule.onNodeWithText("Continue export").performClick()
         assertEquals(ExportFormat.GPX, selectedFormat)
     }
 
@@ -118,7 +119,6 @@ class ExportFormatDialogTest {
             }
         }
         composeTestRule.onNodeWithText("KML").performClick()
-        composeTestRule.onNodeWithText("Continue export").performClick()
         assertEquals(ExportFormat.KML, selectedFormat)
     }
 
@@ -134,7 +134,6 @@ class ExportFormatDialogTest {
             }
         }
         composeTestRule.onNodeWithText("Database").performClick()
-        composeTestRule.onNodeWithText("Continue export").performClick()
         assertEquals(ExportFormat.DATABASE, selectedFormat)
     }
 
@@ -150,7 +149,6 @@ class ExportFormatDialogTest {
             }
         }
         composeTestRule.onNodeWithText("JSON").performClick()
-        composeTestRule.onNodeWithText("Continue export").performClick()
         assertEquals(ExportFormat.JSON, selectedFormat)
     }
 
@@ -183,18 +181,16 @@ class ExportFormatDialogTest {
                 )
             }
         }
+        composeTestRule.onNodeWithText(contents, substring = true).performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText(label).performScrollTo().performClick()
-        composeTestRule.onNodeWithText("Export network details?").assertIsDisplayed()
-        composeTestRule.onNodeWithText(contents, substring = true).assertIsDisplayed()
-        assertEquals(null, selectedFormat)
-        composeTestRule.onNodeWithText("Continue export").performClick()
         assertEquals(format, selectedFormat)
         assertTrue(dismissed)
+        composeTestRule.onNodeWithText("Export network details?").assertDoesNotExist()
     }
 
     @Test
     fun portableStepsCanBeSelectedWithoutClaimingRouteCoordinates() {
-        selectPortableFormat(ExportFormat.PORTABLE_STEPS, "Portable Steps", "Steps counts")
+        selectPortableFormat(ExportFormat.PORTABLE_STEPS, "Portable Steps", "Steps history")
     }
 
     @Test
@@ -203,7 +199,7 @@ class ExportFormatDialogTest {
             ExportFormat.PORTABLE_AMBIENT_STEPS,
             "Portable Ambient Steps",
             "Ambient step counts",
-            "activity time windows",
+            "activity time",
             "dates",
             "stored time-zone context",
         )
@@ -211,7 +207,7 @@ class ExportFormatDialogTest {
 
     @Test
     fun portableActivityCanBeSelectedWithoutClaimingRouteCoordinates() {
-        selectPortableFormat(ExportFormat.PORTABLE_ACTIVITY, "Portable Activity", "captured movement bands")
+        selectPortableFormat(ExportFormat.PORTABLE_ACTIVITY, "Portable Activity", "Captured movement bands")
     }
 
     @Test
@@ -225,21 +221,22 @@ class ExportFormatDialogTest {
         vararg content: String,
     ) {
         var selectedFormat: ExportFormat? = null
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val description = context.getString(format.descriptionRes)
         composeTestRule.setContent {
             AppTheme(useDynamicColor = false) {
                 ExportFormatDialog(onDismiss = {}, onFormatSelected = { selectedFormat = it })
             }
         }
 
-        composeTestRule.onNodeWithText(label).performScrollTo().performClick()
-        composeTestRule.onNodeWithText("Export tracked history?").assertIsDisplayed()
         content.forEach { expected ->
-            composeTestRule.onNodeWithText(expected, substring = true).assertIsDisplayed()
+            assertTrue(description.contains(expected))
         }
-        composeTestRule.onNodeWithText("does not contain route coordinates", substring = true).assertIsDisplayed()
-        assertEquals(null, selectedFormat)
-        composeTestRule.onNodeWithText("Continue export").performClick()
+        assertTrue(description.contains("without route coordinates"))
+        composeTestRule.onNodeWithText(description).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText(label).performScrollTo().performClick()
         assertEquals(format, selectedFormat)
+        composeTestRule.onNodeWithText("Export tracked history?").assertDoesNotExist()
     }
 
     @Test
@@ -254,44 +251,43 @@ class ExportFormatDialogTest {
             }
         }
         composeTestRule.onNodeWithText("GPX").performClick()
-        composeTestRule.onNodeWithText("Continue export").performClick()
         assertTrue(dismissed)
     }
 
     @Test
-    fun selectingDatabase_showsSensitivityWarningBeforeCallback() {
+    fun selectingDatabase_forwardsOnceWithoutEarlyConfirmation() {
         var selectedFormat: ExportFormat? = null
+        var selections = 0
         composeTestRule.setContent {
             AppTheme(useDynamicColor = false) {
                 ExportFormatDialog(
                     onDismiss = {},
-                    onFormatSelected = { selectedFormat = it }
+                    onFormatSelected = { selectedFormat = it; selections++ }
                 )
             }
         }
         composeTestRule.onNodeWithText("Database").performClick()
-        composeTestRule.onNodeWithText("Export precise location data?").assertIsDisplayed()
-        composeTestRule.onNodeWithText("saved tracking data", substring = true)
-            .assertIsDisplayed()
-        assertEquals(null, selectedFormat)
+        assertEquals(ExportFormat.DATABASE, selectedFormat)
+        assertEquals(1, selections)
+        composeTestRule.onNodeWithText("Export precise location data?").assertDoesNotExist()
     }
 
     @Test
-    fun selectingJson_showsSensitivityWarningBeforeCallback() {
+    fun selectingJson_forwardsOnceWithoutEarlyConfirmation() {
         var selectedFormat: ExportFormat? = null
+        var selections = 0
         composeTestRule.setContent {
             AppTheme(useDynamicColor = false) {
                 ExportFormatDialog(
                     onDismiss = {},
-                    onFormatSelected = { selectedFormat = it }
+                    onFormatSelected = { selectedFormat = it; selections++ }
                 )
             }
         }
         composeTestRule.onNodeWithText("JSON").performClick()
-        composeTestRule.onNodeWithText("Export precise location data?").assertIsDisplayed()
-        composeTestRule.onNodeWithText("precise locations, Wi-Fi and Cell identifiers", substring = true)
-            .assertIsDisplayed()
-        assertEquals(null, selectedFormat)
+        assertEquals(ExportFormat.JSON, selectedFormat)
+        assertEquals(1, selections)
+        composeTestRule.onNodeWithText("Export precise location data?").assertDoesNotExist()
     }
 
     @Test

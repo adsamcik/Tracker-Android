@@ -67,7 +67,7 @@
     <string name="format_portable_activity">Portable Activity</string>
     <string name="format_portable_pressure">Portable Pressure</string>
 
-    <string name="settings_import_summary">Import data from supported types (%1$s) and archives (%2$s). Database imports merge compatible rows; they do not replace existing data.</string>
+    <string name="settings_import_summary">Import a tracking file or restore a data backup.</string>
     <string name="settings_import_title">Import</string>
     <string name="import_location_conflict_title">Replace saved points?</string>
     <string name="import_location_replace">Use file’s points</string>
@@ -83,4 +83,7 @@
     <string name="import_backup_replace_title">Restore data backup?</string>
     <string name="import_backup_replace_message">Replace saved data with this backup? Your settings stay the same. Tracking will be off until you resume it.</string>
     <string name="import_backup_restore">Replace data</string>
+    <string name="export_sensitivity_portable_title">Export tracked history?</string>
+    <string name="export_sensitivity_portable_steps_message">This file contains Steps counts, time windows and coverage information. It does not contain route coordinates. Only continue if you trust the destination.</string>
+    <string name="export_sensitivity_portable_activity_message">This file contains captured movement bands, time windows and coverage information. It does not contain route coordinates. Only continue if you trust the destination.</string>
 </resources>

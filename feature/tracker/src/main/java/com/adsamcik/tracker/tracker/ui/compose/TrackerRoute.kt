@@ -26,6 +26,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.flow.collectLatest
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -130,12 +132,13 @@ fun TrackerRoute(
     var pendingManualStartSetup by remember { mutableStateOf(false) }
     val restoredManualStartGeneration = remember { pendingManualStartGeneration }
     var manualStartRequestVersion by remember { mutableStateOf(0L) }
-    val manualStartRequests = remember { mutableSetOf<Job>() }
+    val manualStartInFlight by viewModel.manualStart.running.collectAsStateWithLifecycle()
     fun cancelPendingManualStart(generation: Long? = pendingManualStartGeneration) {
         if (pendingManualStartGeneration == generation) {
             manualStartRequestVersion++
             pendingManualStartGeneration = null
             pendingManualStartSetup = false
+            viewModel.manualStart.cancel()
         }
         if (generation != null) scope.launch {
             TrackerServiceApi.cancelManualTrackingStart(context, generation)
@@ -146,7 +149,7 @@ fun TrackerRoute(
         manualStartRequestVersion++
         manualStartPermissionRequest = null
         pendingLocationServicesRepair = false
-        manualStartRequests.toList().forEach { it.cancel() }
+        viewModel.manualStart.cancel()
         cancelPendingManualStart()
     }
     fun endTracking() {
@@ -160,6 +163,17 @@ fun TrackerRoute(
     }
     var manualStartReadiness by remember { mutableStateOf<ManualTrackingStartReadiness?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val preparingMessage = stringResource(R.string.notification_tracking_restoring_title)
+    val cancelStartLabel = stringResource(com.adsamcik.tracker.shared.base.R.string.generic_cancel)
+    LaunchedEffect(manualStartInFlight, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            if (manualStartInFlight && snackbarHostState.showSnackbar(preparingMessage,
+                    actionLabel = cancelStartLabel, duration = androidx.compose.material3.SnackbarDuration.Indefinite)
+                == SnackbarResult.ActionPerformed) {
+                endTracking()
+            }
+        }
+    }
     
     // Observe tracking state via injected controller (replaces TrackerService static access)
     val isTracking by controller.hasLiveCaptureFlow.collectAsStateWithLifecycle(initialValue =
@@ -234,53 +248,69 @@ fun TrackerRoute(
     }
 
     fun requestManualStart(continuationGeneration: Long? = null): Job {
-        val requestVersion = ++manualStartRequestVersion
-        val request = scope.launch {
-            val result = TrackerServiceApi.requestManualTrackingStart(context, continuationGeneration)
-            if (requestVersion != manualStartRequestVersion) return@launch
-            pendingManualStartSetup = false
-            when (result) {
-                ManualTrackingStartResult.ENQUEUED -> pendingManualStartGeneration = null
-                is ManualTrackingStartResult.SetupPending -> {
-                    pendingManualStartGeneration = result.continuationGeneration
-                    pendingManualStartSetup = true
-                }
-                is ManualTrackingStartResult.RepairRequired -> {
-                    pendingManualStartGeneration = result.continuationGeneration
-                    when (result.prerequisite) {
-                        ManualTrackingStartPrerequisite.LOCATION_SERVICES -> {
-                            if (!repairManualLocationServices(result, requestVersion)) return@launch
+        manualStartRequestVersion++
+        return viewModel.manualStart.start(continuationGeneration)
+    }
+
+    LaunchedEffect(viewModel.manualStart, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            // Revalidate an off-screen repair against current Stop and source-selection authority.
+            val retained = viewModel.manualStart.result.value?.second
+            val generation = when (retained) {
+                is ManualTrackingStartResult.RepairRequired -> retained.continuationGeneration
+                is ManualTrackingStartResult.SetupPending -> retained.continuationGeneration
+                else -> null
+            }
+            if (generation != null) viewModel.manualStart.start(generation)
+            viewModel.manualStart.result.collectLatest { completed ->
+                if (completed == null) return@collectLatest
+                val (attempt, result) = completed
+                val requestVersion = manualStartRequestVersion
+                pendingManualStartSetup = false
+                when (result) {
+                    ManualTrackingStartResult.ENQUEUED -> pendingManualStartGeneration = null
+                    is ManualTrackingStartResult.SetupPending -> {
+                        pendingManualStartGeneration = result.continuationGeneration
+                        pendingManualStartSetup = true
+                    }
+                    is ManualTrackingStartResult.RepairRequired -> {
+                        pendingManualStartGeneration = result.continuationGeneration
+                        when (result.prerequisite) {
+                            ManualTrackingStartPrerequisite.LOCATION_SERVICES -> {
+                                if (!repairManualLocationServices(result, requestVersion)) return@collectLatest
+                            }
+                            else -> manualStartPermissionRequest = result.prerequisite
                         }
-                        else -> manualStartPermissionRequest = result.prerequisite
+                    }
+                    ManualTrackingStartResult.NO_AVAILABLE_CAPTURE_SOURCE -> {
+                        pendingManualStartGeneration = null
+                        val result = snackbarHostState.showSnackbar(
+                            message = noAvailableCaptureSourceMessage,
+                            actionLabel = openSettingsActionLabel,
+                        )
+                        if (result == SnackbarResult.ActionPerformed) onOpenSettings()
+                    }
+                    ManualTrackingStartResult.TRACKING_UNAVAILABLE -> {
+                        pendingManualStartGeneration = null
+                        snackbarHostState.showSnackbar(
+                            trackingUnavailableMessage,
+                        )
                     }
                 }
-                ManualTrackingStartResult.NO_AVAILABLE_CAPTURE_SOURCE -> {
-                    pendingManualStartGeneration = null
-                    val result = snackbarHostState.showSnackbar(
-                        message = noAvailableCaptureSourceMessage,
-                        actionLabel = openSettingsActionLabel,
-                    )
-                    if (result == SnackbarResult.ActionPerformed) onOpenSettings()
-                }
-                ManualTrackingStartResult.TRACKING_UNAVAILABLE -> {
-                    pendingManualStartGeneration = null
-                    snackbarHostState.showSnackbar(
-                        trackingUnavailableMessage,
-                    )
+
+                if (result !is ManualTrackingStartResult.RepairRequired &&
+                    result !is ManualTrackingStartResult.SetupPending) {
+                    viewModel.manualStart.consume(attempt)
                 }
             }
-            manualStartReadiness = TrackerServiceApi.readManualTrackingStartReadiness(context)
         }
-        manualStartRequests += request
-        request.invokeOnCompletion { manualStartRequests -= request }
-        return request
     }
 
     TrackerManualStartSetupEffect(
         context = context,
         pendingSetup = pendingManualStartSetup,
         pendingGeneration = pendingManualStartGeneration,
-        awaitRequests = { manualStartRequests.toList().forEach { it.join() } },
+        awaitRequests = { viewModel.manualStart.awaitCurrent() },
         onContinue = { requestManualStart(it) },
     )
 
@@ -303,7 +333,7 @@ fun TrackerRoute(
     )
 
     LaunchedEffect(context) {
-        restoredManualStartGeneration?.let { requestManualStart(it) }
+        restoredManualStartGeneration?.let { viewModel.manualStart.restore(it) }
     }
     
     val lastSessionData by controller.lastSessionFlow.collectAsStateWithLifecycle()

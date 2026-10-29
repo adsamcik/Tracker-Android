@@ -15,7 +15,7 @@
     <string name="settings_data_management_section">Datahåndtering</string>
     <string name="settings_data_danger_zone_section">Farezone</string>
     <string name="settings_incremental_backups_title">Trinvise sikkerhedskopier</string>
-    <string name="settings_incremental_backups_summary">Eksportér kun nye data siden sidste sikkerhedskopi. Det reducerer eksporttiden og filstørrelsen.</string>
+    <string name="settings_incremental_backups_summary">Eksportér kun nye data i planlagte GPX- og KML-filer.</string>
     <string name="settings_reset_export_watermarks_title">Gennemtving fuld eksport</string>
     <string name="settings_reset_export_watermarks_summary">Næste automatiske sikkerhedskopi omfatter alle data i stedet for kun ændringer</string>
     <string name="settings_reset_export_watermarks_done">Eksportmarkeringer er nulstillet — næste sikkerhedskopi bliver en fuld eksport</string>
@@ -163,7 +163,7 @@
     <string name="export_sensitivity_db_message">Denne sikkerhedskopi indeholder dine gemte sporingsdata, som kan omfatte placeringer og netværksoplysninger. Indstillinger er ikke inkluderet.</string>
     <string name="export_sensitivity_confirm">Fortsæt eksport</string>
     <string name="settings_export_title">Eksportér</string>
-    <string name="settings_import_summary">Importér data fra understøttede typer (%1$s) og arkiver (%2$s). Databaseimporter fletter kompatible rækker; de erstatter ikke eksisterende data.</string>
+    <string name="settings_import_summary">Importér en sporingsfil, eller gendan en datasikkerhedskopi.</string>
     <string name="settings_import_title">Importér</string>
     <string name="got_it">Forstået</string>
     <string name="battery_impact_low">Lav påvirkning</string>
@@ -278,7 +278,7 @@
     <string name="setup_perm_location_bg_why">For at fortsætte med at registrere din rute, når du skifter app eller skærmen slukkes, skal Tracker have adgang til din placering i baggrunden. Den registrerede placering bliver på denne enhed — intet sendes til en server. Vælg "Tillad altid" i den næste systemprompt for at aktivere automatisk sporing; "Mens appen bruges" lader kun Tracker fungere, når skærmen er åben.</string>
     <string name="setup_perm_activity_why">Lader Tracker registrere, hvad du foretager dig (går, cykler, kører eller står stille), så automatisk sporing kan sættes på pause, når du ikke bevæger dig, og spare batteri. Aktivitetsdata bliver på denne enhed — intet sendes til en server.</string>
     <string name="setup_perm_notification_why">Tracker viser en lille statusnotifikation, mens den registrerer, så du hurtigt kan se, at sporingen er slået til, og stoppe den med ét tryk. Ingen markedsførings- eller reklamemeddelelser.</string>
-    <string name="setup_perm_wifi_why">Tracker kan registrere Wi-Fi-adgangspunkter, som din telefon ser under en tur, for at forbedre placeringsnøjagtigheden steder, hvor GPS er svag (indendørs eller under jorden). Radiodata bliver på denne enhed — intet sendes til en server. Giv kun adgang, hvis du ønsker det.</string>
+    <string name="setup_perm_wifi_why">Android kræver adgang til din placering for at scanne efter Wi-Fi-netværk. Du kan registrere Wi-Fi uden at registrere din placering.</string>
     <string name="setup_perm_cell_why">Tracker kan registrere mobilmaster-ID\'er langs din rute, så placeringen kan udledes, når GPS ikke er tilgængelig. Radiodata bliver på denne enhed — intet sendes til en server. Giv kun adgang til telefontilstand og præcis placering, hvis du ønsker det.</string>
     <string name="setup_perm_grant">Giv adgang</string>
     <string name="setup_perm_grant_location_content_description">Giv placeringstilladelse</string>

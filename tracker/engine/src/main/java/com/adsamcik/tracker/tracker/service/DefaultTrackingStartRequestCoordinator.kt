@@ -180,6 +180,33 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		return manualRequest && request.recoveryDescriptor == null && request.providerStepsContinuation == null
 	}
 
+	/** Restores selected all-day owners after Android recreates the shared foreground host. */
+	internal suspend fun reconcileBackgroundCollectionAfterRestart(): Boolean {
+		val completed = try {
+			withTimeoutOrNull(BACKGROUND_HOST_RECOVERY_TIMEOUT_MILLIS) {
+				if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready || !backgroundRecoveryAllowed()) {
+					return@withTimeoutOrNull false
+				}
+				trackingStartupGate.withReadyGenerationWork(trackingStartupGate.currentGeneration) {
+					if (!backgroundRecoveryAllowed()) return@withReadyGenerationWork false
+					chosenSourceWriterSetup.ensureCurrentChosenSources()
+					if (!backgroundRecoveryAllowed()) return@withReadyGenerationWork false
+					reconcilePurposeOwners()
+					backgroundRecoveryAllowed()
+				} ?: false
+			}
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			null
+		}
+		if (completed == null) schedulePurposeOwnerRetry()
+		return completed == true
+	}
+
+	private fun backgroundRecoveryAllowed(): Boolean = trackingStartupGate.permitsNewCollection &&
+		trackingLifecycleCommandAuthority.latestUnhandledStop() == null
+
 	/** Queues independent owner repair after durable acceptance; it never delays initial capture. */
 	suspend fun reconcileAcceptedManualStart(command: TrackingStartCommand) {
 		if (!isCurrentAcceptedStart(command)) return
@@ -1487,3 +1514,5 @@ private fun ActiveTrackingSessionStoreResult.Failure.toDescriptorFailure(): Trac
 			TrackingStartFailureDisposition.TERMINAL
 		},
 	)
+
+private const val BACKGROUND_HOST_RECOVERY_TIMEOUT_MILLIS = 30_000L

@@ -64,6 +64,191 @@ import java.time.Duration
 @OptIn(ExperimentalCoroutinesApi::class)
 class PressureSourceRuntimeTest {
 	@Test
+	fun `earlier Pressure End during prefix retry preserves original capture and the expanded ambient tail`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+		val activePlan = plan(1L, aggregationWindowMs = 500L)
+		val fixture = fixture(this, listOf(registration(activePlan, 1L, requiresAcceptance = true,
+			includeAmbient = true)))
+		val attempted = mutableListOf<PressureWindowPayload>()
+		val accepted = mutableListOf<SourceDeliveryCandidate>()
+		val sink = object : SourceEventSink {
+			override suspend fun admit(candidate: SourceEvidenceCandidate<*>): SourceAdmissionHandoff =
+				error("Pressure requires atomic admission")
+			override suspend fun admit(delivery: SourceDeliveryCandidate,
+				checkpoint: SensorAdmissionCheckpoint): SourceDeliveryAdmissionHandoff {
+				attempted += delivery.units.single().evidence.payload as PressureWindowPayload
+				return if (attempted.size == 1) {
+					SourceDeliveryAdmissionHandoff.RetryableFailure(SourceAdmissionFailureCode.STORAGE_UNAVAILABLE)
+				} else {
+					accepted += delivery
+					SourceDeliveryAdmissionHandoff.Durable(listOf(accepted.size.toLong()))
+				}
+			}
+		}
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(runtimeClaim("progressing-End"), activePlan, sink))
+		val first = android.os.SystemClock.elapsedRealtimeNanos()
+		val samples = listOf(0L to 1_000f, 100L to 1_002f, 200L to 1_004f,
+			300L to 1_100f, 500L to 1_200f)
+		var previousOffset = 0L
+		for ((offset, pressure) in samples) {
+			ShadowSystemClock.advanceBy(Duration.ofMillis(offset - previousOffset))
+			fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first + offset * 1_000_000L, pressure))
+			previousOffset = offset
+		}
+		val laterCutoff = pressureCutoff().copy(elapsedRealtimeNanos = first + 200_000_000L)
+		fixture.runtime.fenceSessionCutoff(laterCutoff, "run-1", "boot-1")
+		testScheduler.runCurrent()
+		assertEquals(1, attempted.size)
+		assertEquals(3, attempted.single().sampleCount)
+		assertTrue(accepted.isEmpty())
+		val earlierCutoff = laterCutoff.copy(elapsedRealtimeNanos = first + 100_000_000L)
+		fixture.runtime.fenceSessionCutoff(earlierCutoff, "run-1", "boot-1")
+		testScheduler.advanceTimeBy(100L)
+		testScheduler.runCurrent()
+
+		assertEquals(2, accepted.size)
+		val prefix = accepted.first().units.single()
+		val tail = accepted.last().units.single()
+		val prefixPayload = prefix.evidence.payload as PressureWindowPayload
+		val tailPayload = tail.evidence.payload as PressureWindowPayload
+		assertEquals(2, prefixPayload.sampleCount)
+		assertEquals(1_001.0, prefixPayload.meanHectopascals)
+		assertEquals(2.0, prefixPayload.sumSquaredDeviations)
+		assertEquals(1L..2L, prefixPayload.firstProviderSequence..prefixPayload.lastProviderSequence)
+		assertNull(prefix.excludedPressureCapture)
+		assertEquals(2, tailPayload.sampleCount)
+		assertEquals(1_052.0, tailPayload.meanHectopascals)
+		assertEquals(4_608.0, tailPayload.sumSquaredDeviations)
+		assertEquals(3L..4L, tailPayload.firstProviderSequence..tailPayload.lastProviderSequence)
+		assertEquals("run-1", tail.excludedPressureCapture?.serviceRunId)
+		val ack = fixture.runtime.quiesceShared(earlierCutoff)
+		val saved = accepted.map { it.units.single().evidence.payload as PressureWindowPayload }
+		assertEquals(5, saved.sumOf { it.sampleCount })
+		assertEquals(listOf(1L, 2L, 3L, 4L, 5L), saved.flatMap {
+			(it.firstProviderSequence..it.lastProviderSequence).toList()
+		})
+		assertEquals(0L, ack.failedAdmissionCount)
+		assertTrue(ack.appDrainComplete)
+	}
+
+	@Test
+	fun `early Pressure End preserves the true prefix and ambient callbacks before Room Stop commits`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+		val activePlan = plan(1L, aggregationWindowMs = 300L)
+		val fixture = fixture(this, listOf(registration(activePlan, 1L, requiresAcceptance = true,
+			includeAmbient = true)))
+		val sink = RecordingPressureSink()
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(runtimeClaim("early-End"), activePlan, sink))
+		val first = android.os.SystemClock.elapsedRealtimeNanos()
+		fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first, 1_000f))
+		ShadowSystemClock.advanceBy(Duration.ofMillis(100))
+		fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first + 100_000_000L, 1_002f))
+		val cutoff = pressureCutoff().copy(elapsedRealtimeNanos = first + 100_000_000L)
+		assertEquals(cutoff, fixture.runtime.fenceSessionCutoff(cutoff, "run-1", "boot-1"))
+		for (offset in listOf(200L, 300L, 400L)) {
+			ShadowSystemClock.advanceBy(Duration.ofMillis(100))
+			fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first + offset * 1_000_000L, 1_100f))
+		}
+		testScheduler.runCurrent()
+
+		val prefix = sink.windows.first()
+		assertEquals(2, prefix.sampleCount)
+		assertEquals(1_001.0, prefix.meanHectopascals)
+		assertEquals(2.0, prefix.sumSquaredDeviations)
+		assertEquals(first + 100_000_000L, prefix.windowEndElapsedRealtimeNanos)
+		assertNull(sink.deliveries.first().units.single().excludedPressureCapture)
+		val tail = sink.windows[1]
+		assertEquals(1, tail.sampleCount)
+		assertEquals(1_100.0, tail.meanHectopascals)
+		assertEquals(first + 200_000_000L, tail.windowStartElapsedRealtimeNanos)
+		assertEquals("run-1", sink.deliveries[1].units.single().excludedPressureCapture?.serviceRunId)
+		assertTrue(sink.candidates.all { it.planAttribution == PlanAttribution.CAPTURED_REGISTRATION })
+		coVerify(exactly = 0) { fixture.registrations.endedCaptureCutoffElapsedNanos(any(), any(), any()) }
+		verify(exactly = 0) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
+		val ack = fixture.runtime.quiesceShared(cutoff)
+		assertEquals(5L, ack.callbackEntryBarrierSequence)
+		assertEquals(0L, ack.failedAdmissionCount)
+		assertTrue(ack.appDrainComplete)
+		assertEquals(5, sink.windows.sumOf { it.sampleCount })
+	}
+
+	@Test
+	fun `a cached Pressure retry applies a newly arrived earlier End before admitting ambient data`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+		val activePlan = plan(1L, aggregationWindowMs = 100L)
+		val fixture = fixture(this, listOf(registration(activePlan, 1L, requiresAcceptance = true,
+			includeAmbient = true)))
+		val deliveries = mutableListOf<SourceDeliveryCandidate>()
+		val checkpoints = mutableListOf<SensorAdmissionCheckpoint>()
+		val sink = object : SourceEventSink {
+			override suspend fun admit(candidate: SourceEvidenceCandidate<*>): SourceAdmissionHandoff =
+				error("Pressure requires atomic admission")
+			override suspend fun admit(delivery: SourceDeliveryCandidate,
+				checkpoint: SensorAdmissionCheckpoint): SourceDeliveryAdmissionHandoff {
+				deliveries += delivery
+				checkpoints += checkpoint
+				return if (deliveries.size == 1) {
+					SourceDeliveryAdmissionHandoff.RetryableFailure(SourceAdmissionFailureCode.STORAGE_UNAVAILABLE)
+				} else {
+					SourceDeliveryAdmissionHandoff.Durable(listOf(deliveries.size.toLong()))
+				}
+			}
+		}
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(runtimeClaim("cached-End"), activePlan, sink))
+		val first = android.os.SystemClock.elapsedRealtimeNanos()
+		for (offset in listOf(0L, 50L, 100L)) {
+			if (offset > 0L) {
+				ShadowSystemClock.advanceBy(Duration.ofMillis(50))
+			}
+			fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first + offset * 1_000_000L, 1_000f))
+		}
+		testScheduler.runCurrent()
+		assertEquals(1, deliveries.size)
+		assertNull(deliveries.single().units.single().excludedPressureCapture)
+		val cutoff = pressureCutoff().copy(elapsedRealtimeNanos = first - 1L)
+		fixture.runtime.fenceSessionCutoff(cutoff, "run-1", "boot-1")
+		testScheduler.advanceTimeBy(100L)
+		testScheduler.runCurrent()
+
+		assertEquals(2, deliveries.size)
+		assertEquals(deliveries.first().identity, deliveries.last().identity)
+		assertSame(deliveries.first().units.single().evidence, deliveries.last().units.single().evidence)
+		assertSame(checkpoints.first(), checkpoints.last())
+		assertEquals("run-1", deliveries.last().units.single().excludedPressureCapture?.serviceRunId)
+		verify(exactly = 0) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
+		assertTrue(fixture.runtime.quiesceShared(cutoff).appDrainComplete)
+	}
+
+	@Test
+	fun `Pressure cutoff ignores stale identity and isolates a compatible successor`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+		val activePlan = plan(1L)
+		val fixture = fixture(this, listOf(registration(activePlan, 1L, requiresAcceptance = true)),
+			compatibleRefresh = { effective ->
+				registration(activePlan, 2L, effectiveElapsedNanos = effective, serviceRunId = "run-2")
+			})
+		val sink = RecordingPressureSink()
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(runtimeClaim("first-run"), activePlan, sink))
+		val firstCutoff = pressureCutoff().copy(elapsedRealtimeNanos = 100L)
+		assertNull(fixture.runtime.fenceSessionCutoff(firstCutoff.copy(logicalTrackingId = "old-session"),
+			"run-1", "boot-1"))
+		assertNull(fixture.runtime.fenceSessionCutoff(firstCutoff, "old-run", "boot-1"))
+		assertNull(fixture.runtime.fenceSessionCutoff(firstCutoff, "run-1", "old-boot"))
+		assertEquals(firstCutoff, fixture.runtime.fenceSessionCutoff(firstCutoff, "run-1", "boot-1"))
+		assertIs<SourceApplyResult.Applied>(fixture.runtime.reconfigure(
+			runtimeClaim("second-run").copy(serviceRunId = "run-2"), activePlan, sink))
+		val nextCutoff = firstCutoff.copy(elapsedRealtimeNanos = 200L)
+		assertNull(fixture.runtime.fenceSessionCutoff(firstCutoff, "run-1", "boot-1"))
+		assertEquals(nextCutoff, fixture.runtime.fenceSessionCutoff(nextCutoff, "run-2", "boot-1"))
+		assertEquals(nextCutoff, fixture.runtime.fenceSessionCutoff(nextCutoff.copy(elapsedRealtimeNanos = 300L),
+			"run-2", "boot-1"))
+		verify(exactly = 1) {
+			fixture.sensorManager.registerListener(any<SensorEventListener>(), fixture.sensor, any<Int>(), any<Int>())
+		}
+		fixture.runtime.close()
+	}
+
+	@Test
 	fun `equal ambient and capture revision numbers retain the queued windows original applied caller`() = runTest {
 		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
 		val sameRevisionPlan = plan(1L)
@@ -208,7 +393,7 @@ class PressureSourceRuntimeTest {
 	}
 
 	@Test
-	fun `Pressure crossing End all-day rejection and unrelated cutoff keep genuine loss`() = runTest {
+	fun `rejected eligible Pressure retains exact loss while post-End samples are outside capture`() = runTest {
 		val cases = listOf(
 			Triple(SourceBrokerPurpose.SESSION_CAPTURE, 50_000_000L, "pressure-test"),
 			Triple(SourceBrokerPurpose.AMBIENT_PRODUCT, -1L, "pressure-test"),
@@ -228,10 +413,243 @@ class PressureSourceRuntimeTest {
 			val ack = fixture.runtime.quiesce(pressureCutoff().copy(logicalTrackingId = logicalId,
 				elapsedRealtimeNanos = first + offset))
 			assertTrue(ack.appDrainComplete)
-			assertEquals(2L, ack.failedAdmissionCount)
+			val eligibleLastSequence = if (purpose == SourceBrokerPurpose.SESSION_CAPTURE && offset > 0L) 1L else 2L
+			assertEquals(eligibleLastSequence, ack.failedAdmissionCount)
 			assertEquals(1L, ack.unresolvedSequenceStart)
-			assertEquals(2L, ack.unresolvedSequenceEndInclusive)
+			assertEquals(eligibleLastSequence, ack.unresolvedSequenceEndInclusive)
 		}
+	}
+
+	@Test
+	fun `crossing End admits the original Pressure prefix once with exact statistics and no tail loss`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+		val activePlan = plan(1L)
+		val fixture = fixture(this, listOf(registration(activePlan, 1L, requiresAcceptance = true)))
+		val sink = CutoffPressureSink(prefixFailures = 1)
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(runtimeClaim("prefix"), activePlan, sink))
+		val first = android.os.SystemClock.elapsedRealtimeNanos()
+		sink.cutoff = first + 100_000_000L
+		fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first, 1_000f))
+		ShadowSystemClock.advanceBy(Duration.ofMillis(100))
+		fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first + 100_000_000L, 1_002f,
+			SensorManager.SENSOR_STATUS_ACCURACY_LOW))
+		ShadowSystemClock.advanceBy(Duration.ofMillis(100))
+		fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first + 200_000_000L, 1_100f,
+			SensorManager.SENSOR_STATUS_UNRELIABLE))
+
+		val ack = fixture.runtime.quiesce(pressureCutoff().copy(elapsedRealtimeNanos = sink.cutoff))
+		val saved = sink.accepted.single()
+		assertEquals(2, saved.sampleCount)
+		assertEquals(1L, saved.firstProviderSequence)
+		assertEquals(2L, saved.lastProviderSequence)
+		assertEquals(first, saved.windowStartElapsedRealtimeNanos)
+		assertEquals(first + 100_000_000L, saved.windowEndElapsedRealtimeNanos)
+		assertEquals(1_001.0, saved.meanHectopascals)
+		assertEquals(2.0, saved.sumSquaredDeviations)
+		assertEquals(1_000f, saved.minimumHectopascals)
+		assertEquals(1_002f, saved.maximumHectopascals)
+		assertEquals(PressureSensorAccuracy.LOW, saved.sensorAccuracy)
+		assertEquals(PressureWindowClosureKind.SOURCE_BOUNDARY, saved.closureKind)
+		// The local fence rebuilds before the sink; only the exact prefix retry reaches it.
+		assertEquals(2, sink.deliveries.size)
+		assertSame(sink.deliveries[0], sink.deliveries[1])
+		assertSame(sink.checkpoints[0], sink.checkpoints[1])
+		assertEquals(SourceStopStatus.COMPLETE, ack.status)
+		assertTrue(ack.appDrainComplete)
+		assertEquals(3L, ack.callbackEntryBarrierSequence)
+		assertEquals(2L, ack.lastDurablyAdmittedSequence)
+		assertEquals(41L, ack.lastAdmissionOrdinal)
+		assertEquals(0L, ack.failedAdmissionCount)
+		assertNull(ack.unresolvedSequenceStart)
+		coVerify(atLeast = 1) {
+			fixture.registrations.saveRuntimeState(any(), 3L, 2L, 41L, any(), any(), any(), any())
+		}
+	}
+
+	@Test
+	fun `shared Pressure crossing End preserves disjoint exact capture prefix and ambient tail`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+		val activePlan = plan(1L)
+		val fixture = fixture(this, listOf(registration(activePlan, 1L, requiresAcceptance = true,
+			includeAmbient = true)))
+		val sink = CutoffPressureSink(prefixFailures = 1, preserveAmbientTail = true)
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(runtimeClaim("shared-prefix"), activePlan, sink))
+		val first = android.os.SystemClock.elapsedRealtimeNanos()
+		sink.cutoff = first + 100_000_000L
+		fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first, 1_000f))
+		ShadowSystemClock.advanceBy(Duration.ofMillis(100))
+		fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first + 100_000_000L, 1_002f,
+			SensorManager.SENSOR_STATUS_ACCURACY_LOW))
+		ShadowSystemClock.advanceBy(Duration.ofMillis(100))
+		fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first + 200_000_000L, 1_100f,
+			SensorManager.SENSOR_STATUS_UNRELIABLE))
+
+		val ack = fixture.runtime.quiesceShared(pressureCutoff().copy(elapsedRealtimeNanos = sink.cutoff))
+		assertEquals(2, sink.accepted.size)
+		val (prefix, tail) = sink.accepted
+		assertEquals(2, prefix.sampleCount)
+		assertEquals(1_001.0, prefix.meanHectopascals)
+		assertEquals(2.0, prefix.sumSquaredDeviations)
+		assertEquals(1_000f, prefix.minimumHectopascals)
+		assertEquals(1_002f, prefix.maximumHectopascals)
+		assertEquals(PressureSensorAccuracy.LOW, prefix.sensorAccuracy)
+		assertEquals(first, prefix.windowStartElapsedRealtimeNanos)
+		assertEquals(sink.cutoff, prefix.windowEndElapsedRealtimeNanos)
+		assertEquals(1L, prefix.firstProviderSequence)
+		assertEquals(2L, prefix.lastProviderSequence)
+		assertEquals(1, tail.sampleCount)
+		assertEquals(1_100.0, tail.meanHectopascals)
+		assertEquals(0.0, tail.sumSquaredDeviations)
+		assertEquals(PressureSensorAccuracy.UNRELIABLE, tail.sensorAccuracy)
+		assertEquals(first + 200_000_000L, tail.windowStartElapsedRealtimeNanos)
+		assertEquals(tail.windowStartElapsedRealtimeNanos, tail.windowEndElapsedRealtimeNanos)
+		assertEquals(3L, tail.firstProviderSequence)
+		assertEquals(3L, tail.lastProviderSequence)
+		assertTrue(sink.accepted.all { it.closureKind == PressureWindowClosureKind.SOURCE_BOUNDARY })
+		assertEquals(3, sink.deliveries.size)
+		assertSame(sink.deliveries[0], sink.deliveries[1])
+		assertSame(sink.checkpoints[0], sink.checkpoints[1])
+		assertTrue(sink.deliveries[1].identity != sink.deliveries[2].identity)
+		assertEquals(listOf(2L, 2L, 3L), sink.checkpoints.map { it.providerSequenceThrough })
+		assertEquals(3L, ack.callbackEntryBarrierSequence)
+		assertEquals(3L, ack.lastDurablyAdmittedSequence)
+		assertEquals(42L, ack.lastAdmissionOrdinal)
+		assertEquals(0L, ack.failedAdmissionCount)
+		assertNull(ack.unresolvedSequenceStart)
+		assertEquals(SourceStopStatus.COMPLETE, ack.status)
+		assertTrue(ack.appDrainComplete)
+	}
+
+	@Test
+	fun `rejected shared Pressure prefix does not discard independently eligible ambient tail`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+		val activePlan = plan(1L)
+		val fixture = fixture(this, listOf(registration(activePlan, 1L, requiresAcceptance = true,
+			includeAmbient = true)))
+		val sink = CutoffPressureSink(preserveAmbientTail = true, rejectPrefix = true)
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(runtimeClaim("shared-rejection"), activePlan, sink))
+		val first = android.os.SystemClock.elapsedRealtimeNanos()
+		sink.cutoff = first
+		fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first, 1_000f))
+		ShadowSystemClock.advanceBy(Duration.ofMillis(100))
+		fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first + 100_000_000L, 1_100f))
+		val ack = fixture.runtime.quiesceShared(pressureCutoff().copy(elapsedRealtimeNanos = sink.cutoff))
+		assertEquals(1, sink.accepted.single().sampleCount)
+		assertEquals(2L, sink.accepted.single().firstProviderSequence)
+		assertEquals(1_100.0, sink.accepted.single().meanHectopascals)
+		assertEquals(1L, ack.failedAdmissionCount)
+		assertEquals(1L, ack.unresolvedSequenceStart)
+		assertEquals(1L, ack.unresolvedSequenceEndInclusive)
+		assertEquals(2L, ack.lastDurablyAdmittedSequence)
+		assertTrue(ack.appDrainComplete)
+	}
+
+	@Test
+	fun `cancelled shared Pressure tail leaves only its samples unresolved after the prefix commits`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+		val activePlan = plan(1L)
+		val fixture = fixture(this, listOf(registration(activePlan, 1L, requiresAcceptance = true,
+			includeAmbient = true)))
+		val sink = CutoffPressureSink(preserveAmbientTail = true, cancelTail = true)
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(runtimeClaim("shared-tail-cancel"), activePlan, sink))
+		val first = android.os.SystemClock.elapsedRealtimeNanos()
+		sink.cutoff = first + 100_000_000L
+		fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first, 1_000f))
+		ShadowSystemClock.advanceBy(Duration.ofMillis(100))
+		fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first + 100_000_000L, 1_002f))
+		ShadowSystemClock.advanceBy(Duration.ofMillis(100))
+		fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first + 200_000_000L, 1_100f))
+
+		val ack = fixture.runtime.quiesceShared(pressureCutoff().copy(elapsedRealtimeNanos = sink.cutoff))
+		assertEquals(2, sink.accepted.single().sampleCount)
+		assertEquals(2L, sink.accepted.single().lastProviderSequence)
+		assertEquals(2, sink.deliveries.size)
+		assertEquals(3L, ack.callbackEntryBarrierSequence)
+		assertEquals(2L, ack.lastDurablyAdmittedSequence)
+		assertEquals(41L, ack.lastAdmissionOrdinal)
+		assertEquals(1L, ack.failedAdmissionCount)
+		assertEquals(3L, ack.unresolvedSequenceStart)
+		assertEquals(3L, ack.unresolvedSequenceEndInclusive)
+		assertFalse(ack.appDrainComplete)
+		assertEquals(SourceStopStatus.TIMED_OUT, ack.status)
+		assertEquals(RegistrationRemovalOutcome.REMOVED, ack.registrationRemovalOutcome)
+		fixture.runtime.close()
+		assertEquals(2, sink.deliveries.size)
+		verify(exactly = 1) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
+		coVerify(exactly = 1) { fixture.registrations.completeRetirement(any()) }
+	}
+
+	@Test
+	fun `an already published End authorization can still admit its valid Pressure prefix`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+		val activePlan = plan(1L, aggregationWindowMs = 200L)
+		val fixture = fixture(this, listOf(registration(activePlan, 1L, requiresAcceptance = true)))
+		val sink = CutoffPressureSink(rejectWholeWithPolicy = true)
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(runtimeClaim("published-End"), activePlan, sink))
+		val first = android.os.SystemClock.elapsedRealtimeNanos()
+		sink.cutoff = first + 50_000_000L
+		coEvery {
+			fixture.registrations.endedCaptureCutoffElapsedNanos(any(), "pressure-test", "run-1")
+		} returns sink.cutoff
+		fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first, 1_000f))
+		ShadowSystemClock.advanceBy(Duration.ofMillis(100))
+		fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first + 100_000_000L, 1_100f))
+
+		// Close and drain the crossing window before local End, so SOURCE_POLICY_STALE really occurs.
+		ShadowSystemClock.advanceBy(Duration.ofMillis(100))
+		fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first + 200_000_000L, 1_200f))
+		testScheduler.runCurrent()
+		assertEquals(2, sink.deliveries.size)
+		coVerify(atLeast = 1) {
+			fixture.registrations.endedCaptureCutoffElapsedNanos(any(), "pressure-test", "run-1")
+		}
+		val ack = fixture.runtime.quiesce(pressureCutoff().copy(elapsedRealtimeNanos = sink.cutoff))
+		assertEquals(1, sink.accepted.single().sampleCount)
+		assertEquals(first, sink.accepted.single().windowEndElapsedRealtimeNanos)
+		assertEquals(1_000.0, sink.accepted.single().meanHectopascals)
+		assertEquals(0L, ack.failedAdmissionCount)
+		assertTrue(ack.appDrainComplete)
+		assertEquals(2, sink.deliveries.size)
+	}
+
+	@Test
+	fun `structured cutoff wholly before a Pressure window creates neither saved data nor a false gap`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+		val activePlan = plan(1L)
+		val fixture = fixture(this, listOf(registration(activePlan, 1L, requiresAcceptance = true)))
+		val sink = CutoffPressureSink()
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(runtimeClaim("outside-End"), activePlan, sink))
+		val first = android.os.SystemClock.elapsedRealtimeNanos()
+		sink.cutoff = first - 1L
+		fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, first, 1_000f))
+		val ack = fixture.runtime.quiesce(pressureCutoff().copy(elapsedRealtimeNanos = sink.cutoff))
+		assertEquals(emptyList(), sink.accepted)
+		assertEquals(0, sink.deliveries.size)
+		assertEquals(0L, ack.failedAdmissionCount)
+		assertNull(ack.lastAdmissionOrdinal)
+		assertNull(ack.unresolvedSequenceStart)
+		assertTrue(ack.appDrainComplete)
+	}
+
+	@Test
+	fun `retained original Pressure samples close bounded partial windows without dropping observations`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+		val activePlan = plan(1L, aggregationWindowMs = 60_000L)
+		val fixture = fixture(this, listOf(registration(activePlan, 1L, requiresAcceptance = true,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT)))
+		val sink = RecordingPressureSink()
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(activePlan, sink))
+		repeat(1_025) {
+			ShadowSystemClock.advanceBy(Duration.ofMillis(1))
+			fixture.listener().onSensorChanged(pressureEvent(fixture.sensor,
+				android.os.SystemClock.elapsedRealtimeNanos(), 1_000f))
+		}
+		val ack = fixture.runtime.quiesce(pressureCutoff())
+		assertEquals(listOf(1_024, 1), sink.windows.map { it.sampleCount })
+		assertEquals(listOf(1L, 1_025L), sink.windows.map { it.firstProviderSequence })
+		assertEquals(listOf(1_024L, 1_025L), sink.windows.map { it.lastProviderSequence })
+		assertEquals(0L, ack.failedAdmissionCount)
+		assertTrue(ack.appDrainComplete)
 	}
 
 	private fun rejectingPressureSink() = object : SourceEventSink {
@@ -500,6 +918,43 @@ class PressureSourceRuntimeTest {
 				)
 			}
 		}
+
+	@Test
+	fun `dense callbacks survive suspended refresh with changed aggregation without capacity gap`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(10))
+		val initialPlan = plan(1L, aggregationWindowMs = 10_000L)
+		val refreshedPlan = plan(2L, aggregationWindowMs = 5_000L)
+		val entered = CompletableDeferred<Long>()
+		val release = CompletableDeferred<Unit>()
+		val fixture = fixture(this,
+			registrationsToReturn = listOf(registration(initialPlan, 1L, requiresAcceptance = true,
+				effectiveElapsedNanos = 1L)),
+			compatibleRefresh = { boundary ->
+				entered.complete(boundary)
+				release.await()
+				registration(refreshedPlan, 2L, effectiveElapsedNanos = boundary)
+			})
+		val oldSink = RecordingPressureSink()
+		val newSink = RecordingPressureSink()
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(initialPlan, oldSink))
+		val refresh = async { fixture.runtime.reconfigure(refreshedPlan, newSink) }
+		val boundary = entered.await()
+		fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, boundary - 1L, 1_000f))
+		repeat(400) { index ->
+			ShadowSystemClock.advanceBy(Duration.ofMillis(100))
+			fixture.listener().onSensorChanged(pressureEvent(fixture.sensor,
+				boundary + index * 100_000_000L, 1_001f))
+		}
+		release.complete(Unit)
+		assertIs<SourceApplyResult.Applied>(refresh.await())
+		val stopped = fixture.runtime.quiesce(pressureCutoff())
+		assertEquals(0L, stopped.failedAdmissionCount)
+		assertEquals(1, oldSink.windows.sumOf { it.sampleCount })
+		assertEquals(400, newSink.windows.sumOf { it.sampleCount })
+		assertEquals(8, newSink.windows.size)
+		assertTrue(newSink.candidates.all { it.authorizationRevision == 2L })
+		verify(exactly = 1) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
+	}
 
 	@Test
 	fun `failed suspended authorization refresh returns buffered callback to old authority`() = runTest {
@@ -1411,6 +1866,54 @@ class PressureSourceRuntimeTest {
 	}
 
 	@Test
+	fun `refresh boundary at acquisition limit accounts for the already entered callback`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+		val activePlan = plan(1L, aggregationWindowMs = 1L)
+		val nextPlan = plan(2L, aggregationWindowMs = 1L)
+		val entered = CompletableDeferred<Long>()
+		val releaseRefresh = CompletableDeferred<Unit>()
+		val releaseAdmission = CompletableDeferred<Unit>()
+		val recorded = RecordingPressureSink()
+		val sink = object : SourceEventSink by recorded {
+			override suspend fun admit(delivery: SourceDeliveryCandidate,
+				checkpoint: SensorAdmissionCheckpoint): SourceDeliveryAdmissionHandoff {
+				releaseAdmission.await()
+				return recorded.admit(delivery, checkpoint)
+			}
+		}
+		val fixture = fixture(this,
+			registrationsToReturn = listOf(registration(activePlan, 1L, requiresAcceptance = true)),
+			compatibleRefresh = { boundary ->
+				entered.complete(boundary)
+				releaseRefresh.await()
+				registration(nextPlan, 2L, effectiveElapsedNanos = boundary)
+			})
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(activePlan, sink))
+		val listener = fixture.listener()
+		repeat(63) { index ->
+			listener.onSensorChanged(pressureEvent(fixture.sensor, (index + 1L) * 1_000_001L, 1_000f))
+		}
+		val refresh = async { fixture.runtime.reconfigure(nextPlan, sink) }
+		val boundary = entered.await()
+		listener.onSensorChanged(pressureEvent(fixture.sensor, boundary, 1_001f))
+		releaseRefresh.complete(Unit)
+		refresh.await()
+		val stop = async { fixture.runtime.quiesce(pressureCutoff()) }
+		testScheduler.runCurrent()
+		releaseAdmission.complete(Unit)
+		val ack = stop.await()
+		assertEquals(63, recorded.windows.size)
+		assertEquals((1L..63L).toList(), recorded.windows.map { it.firstProviderSequence })
+		assertEquals(65L, ack.callbackEntryBarrierSequence)
+		assertEquals(2L, ack.failedAdmissionCount)
+		assertEquals(64L, ack.unresolvedSequenceStart)
+		assertEquals(65L, ack.unresolvedSequenceEndInclusive)
+		assertEquals(ack.callbackEntryBarrierSequence,
+			recorded.windows.sumOf { it.sampleCount }.toLong() + ack.failedAdmissionCount)
+		verify(exactly = 1) { fixture.sensorManager.unregisterListener(listener) }
+	}
+
+	@Test
 	fun `capacity backpressure pause is nonterminal and never retires repository registration`() = runTest {
 		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
 		val activePlan = plan(1L, aggregationWindowMs = 1L)
@@ -1979,6 +2482,34 @@ class PressureSourceRuntimeTest {
 		fixture.runtime.close()
 	}
 
+	@Test
+	fun `failed successor reservation keeps exact predecessor acknowledgement for End`() = runTest {
+		val initialPlan = plan(revision = 1L, hardwareSamplePeriodMicros = 50_000)
+		val replacementPlan = plan(revision = 2L, hardwareSamplePeriodMicros = 200_000)
+		val fixture = fixture(
+			scope = this,
+			registrationsToReturn = listOf(registration(initialPlan, authorizationRevision = 1L, requiresAcceptance = true)),
+		)
+		val predecessor = runtimeClaim("pressure-predecessor")
+		val successor = runtimeClaim("pressure-successor")
+		val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(predecessor, initialPlan, sink))
+		coEvery { fixture.registrations.begin(any(), any(), any(), any(), any()) } throws
+			IllegalStateException("reservation unavailable")
+
+		val failed = assertIs<SourceApplyResult.Failed>(
+			fixture.runtime.reconfigure(successor, replacementPlan, sink),
+		)
+		val retired = requireNotNull(failed.stopAck)
+		assertEquals(SourceStopStatus.COMPLETE, retired.status)
+		assertEquals(9L, retired.registrationGeneration)
+		assertEquals(predecessor.logicalTrackingId, retired.logicalTrackingId)
+		assertEquals(retired, fixture.runtime.quiesce(pressureCutoff()))
+		assertEquals(retired, fixture.runtime.quiesce(pressureCutoff()))
+		verify(exactly = 1) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
+		verify(exactly = 1) { fixture.sensorManager.registerListener(any(), fixture.sensor, any<Int>(), any<Int>()) }
+	}
+
 	private data class Fixture(
 		val runtime: PressureSourceRuntime,
 		val registrations: SourceRegistrationRepository,
@@ -2140,7 +2671,9 @@ class PressureSourceRuntimeTest {
 		generation: Long = 9L,
 		effectiveElapsedNanos: Long = authorizationRevision,
 		purpose: String = SourceBrokerPurpose.SESSION_CAPTURE,
+		includeAmbient: Boolean = false,
 		providerFingerprint: String = plan.physicalConfigurationFingerprint(),
+		serviceRunId: String = "run-1",
 	): SourceRegistration {
 		val capturedPurpose = purpose in setOf(
 			SourceBrokerPurpose.SESSION_CAPTURE,
@@ -2152,7 +2685,7 @@ class PressureSourceRuntimeTest {
 			sourceKind = SourceKind.PRESSURE.stableCode,
 			purpose = purpose,
 			logicalTrackingId = "pressure-test".takeIf { capturedPurpose },
-			serviceRunId = "run-1".takeIf { capturedPurpose },
+			serviceRunId = serviceRunId.takeIf { capturedPurpose },
 			manifestRevision = authorizationRevision.takeIf { capturedPurpose },
 			lifecycleLeaseGeneration = 1L.takeIf { capturedPurpose },
 			sourcePolicyRevision = authorizationRevision,
@@ -2174,7 +2707,7 @@ class PressureSourceRuntimeTest {
 				SourceKind.PRESSURE.stableCode,
 				registrationGeneration = generation,
 				authorizationRevision = authorizationRevision,
-				demands = listOf(demand),
+				demands = listOf(demand) + if (includeAmbient) { listOf(demand.asAmbientPressureDemand()) } else { emptyList() },
 				effectiveBootId = "boot-1",
 				effectiveElapsedRealtimeNanos = effectiveElapsedNanos,
 				effectiveWallTimeMs = 1L,
@@ -2200,6 +2733,13 @@ class PressureSourceRuntimeTest {
 		)
 	}
 
+	private fun SourceDemandEntity.asAmbientPressureDemand(): SourceDemandEntity = copy(
+		demandId = "ambient-pressure", consumerId = "all-day:pressure",
+		purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+		logicalTrackingId = null, serviceRunId = null,
+		manifestRevision = null, lifecycleLeaseGeneration = null,
+	)
+
 	private fun retirementToken(
 		registration: SourceRegistration,
 		reason: String,
@@ -2216,6 +2756,45 @@ class PressureSourceRuntimeTest {
 		retiredElapsedRealtimeNanos = retiredElapsedRealtimeNanos,
 		reason = reason,
 	)
+
+	private class CutoffPressureSink(
+		private var prefixFailures: Int = 0,
+		private val rejectWholeWithPolicy: Boolean = false,
+		private val preserveAmbientTail: Boolean = false,
+		private val rejectPrefix: Boolean = false,
+		private val cancelTail: Boolean = false,
+	) : SourceEventSink {
+		var cutoff: Long = Long.MAX_VALUE
+		val deliveries = mutableListOf<SourceDeliveryCandidate>()
+		val checkpoints = mutableListOf<SensorAdmissionCheckpoint>()
+		val accepted = mutableListOf<PressureWindowPayload>()
+		override suspend fun admit(candidate: SourceEvidenceCandidate<*>): SourceAdmissionHandoff =
+			error("Pressure prefixes require the existing atomic delivery path")
+		override suspend fun admit(delivery: SourceDeliveryCandidate,
+			checkpoint: SensorAdmissionCheckpoint): SourceDeliveryAdmissionHandoff {
+			deliveries += delivery
+			checkpoints += checkpoint
+			val payload = delivery.units.single().evidence.payload as PressureWindowPayload
+			if (payload.windowEndElapsedRealtimeNanos > cutoff &&
+				(!preserveAmbientTail || payload.windowStartElapsedRealtimeNanos <= cutoff)) {
+				return if (rejectWholeWithPolicy) {
+					SourceDeliveryAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.SOURCE_POLICY_STALE)
+				} else { SourceDeliveryAdmissionHandoff.SessionCutoff(cutoff) }
+			}
+			if (rejectPrefix && payload.windowEndElapsedRealtimeNanos <= cutoff) {
+				return SourceDeliveryAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.SOURCE_POLICY_STALE)
+			}
+			if (cancelTail && payload.windowStartElapsedRealtimeNanos > cutoff) {
+				throw CancellationException("ambient tail admission cancelled")
+			}
+			if (prefixFailures > 0) {
+				prefixFailures--
+				return SourceDeliveryAdmissionHandoff.RetryableFailure(SourceAdmissionFailureCode.STORAGE_UNAVAILABLE)
+			}
+			accepted += payload
+			return SourceDeliveryAdmissionHandoff.Durable(listOf(40L + accepted.size))
+		}
+	}
 
 	private class RecordingPressureSink : SourceEventSink {
 		val deliveries = mutableListOf<SourceDeliveryCandidate>()

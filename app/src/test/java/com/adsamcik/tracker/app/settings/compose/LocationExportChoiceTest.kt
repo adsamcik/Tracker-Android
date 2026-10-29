@@ -18,6 +18,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -34,16 +35,14 @@ class LocationExportChoiceTest {
         }
         compose.onNodeWithText(context.getString(ExportFormat.LOCATION.displayNameRes))
             .performScrollTo().performClick()
-        compose.onNodeWithText(context.getString(ExportFormat.LOCATION.sensitivityMessageRes))
-            .assertIsDisplayed()
-        assertEquals(null, selected)
         compose.onNodeWithText(context.getString(com.adsamcik.tracker.R.string.export_sensitivity_confirm))
-            .performClick()
+            .assertDoesNotExist()
         assertEquals(ExportFormat.LOCATION, selected)
 
         val exporter = assertNotNull(FormatRegistry.exporterFor(ExportFormat.LOCATION.formatId))
         assertEquals("trackerlocation", exporter.extension)
         assertEquals(false, exporter.requiresLocationData)
+        assertEquals(true, exporter.containsSensitiveLocationData)
         assertEquals(true, exporter.selectsCalendarDates)
         assertEquals(
             context.getString(ExportFormat.LOCATION.sensitivityMessageRes),
@@ -55,19 +54,19 @@ class LocationExportChoiceTest {
         assertEquals(exporter.mimeType, reconstructed.mimeType)
     }
 
-    @Test fun `dismissing Location confirmation does not choose another format`() {
+    @Test fun `canceling the format picker leaves Location unselected`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         var selected: ExportFormat? = null
+        var dismissed = false
         compose.setContent {
             AppTheme(useDynamicColor = false) {
-                ExportFormatDialog(onDismiss = {}, onFormatSelected = { selected = it })
+                ExportFormatDialog(onDismiss = { dismissed = true }, onFormatSelected = { selected = it })
             }
         }
         compose.onNodeWithText(context.getString(ExportFormat.LOCATION.displayNameRes))
-            .performScrollTo().performClick()
+            .performScrollTo().assertIsDisplayed()
         compose.onNodeWithText(context.getString(android.R.string.cancel)).performClick()
         assertEquals(null, selected)
-        compose.onNodeWithText(context.getString(ExportFormat.LOCATION.displayNameRes))
-            .performScrollTo().assertIsDisplayed()
+        assertTrue(dismissed)
     }
 }

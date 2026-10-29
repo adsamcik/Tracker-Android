@@ -549,6 +549,82 @@ class AmbientStepsFactImporterTest {
 	}
 
 	@Test
+	fun `equivalent zone change continues the original progressive fact and counter domain without a gap`() = runTest {
+		check(StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) ==
+			com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState.ValidV2)
+		val token = StepsCounterDomainToken.opaque("sha256:${"b".repeat(64)}")
+		val reader = RecordingAmbientReader { window, observedAtMs ->
+			AmbientStepsProviderAggregate(PROVIDER, window, (window.endTimeMs - window.startTimeMs) / 1_000L,
+				observedAtMs, counterDomainToken = token)
+		}
+		val importer = subject(reader)
+		primeZone(importer)
+		val first = importer.importNext(importBoundary()) as AmbientStepsImportResult.Applied
+		clock.setTime(9_000L)
+		val second = importer.importNext(importBoundary(through = 7_000L, observedAt = 9_000L,
+			zoneId = ZoneId.of("Etc/UTC"))) as AmbientStepsImportResult.Applied
+
+		reader.windows shouldBe listOf(AmbientStepsProviderReadWindow(2_000L, 5_000L),
+			AmbientStepsProviderReadWindow(2_000L, 7_000L))
+		second.logicalFactId shouldBe first.logicalFactId
+		second.semanticRevision shouldBe 2L
+		val revisions = database.ambientStepsFactRevisionDao().revisions(
+			AmbientStepsFactRevisionEntity.WRITER_ID, AmbientStepsFactRevisionEntity.WRITER_VERSION,
+			first.logicalFactId)
+		revisions.map { it.windowEndTimeMs to it.stepCount } shouldBe listOf(5_000L to 3L, 7_000L to 5L)
+		revisions.map { it.storedZoneId }.distinct() shouldBe listOf("UTC")
+		database.ambientStepsFactRevisionDao().countAll() shouldBe 2L
+		database.ambientStepsFactRevisionDao().latestEffectiveForDay(AmbientStepsFactRevisionEntity.WRITER_ID,
+			AmbientStepsFactRevisionEntity.WRITER_VERSION, 0L, "UTC").map { it.stepCount } shouldBe listOf(5L)
+		database.ambientStepsImportStateDao().countGaps() shouldBe 0L
+		val cursor = requireNotNull(database.ambientStepsImportStateDao().cursor(registration.state.registrationGeneration))
+		cursor.importedThroughTimeMs shouldBe 7_000L
+		cursor.lastObservedZoneId shouldBe "UTC"
+		val owner = StepsCountDomainReceiptIntegrity.ambientFactOwnerIdentity(
+			AmbientStepsFactRevisionEntity.WRITER_ID, AmbientStepsFactRevisionEntity.WRITER_VERSION,
+			first.logicalFactId)
+		val domains = StepsCountDomainStore(database).readOwners(revisions.map { fact ->
+			StepsCountDomainOwnerLookupKey(StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT,
+				owner, fact.semanticRevision)
+		}) as StepsCountDomainOwnerRead.Ready
+		domains.owners.values.map { it.receipt?.domainIdentity }.toSet() shouldBe setOf(token.encoded)
+		domains.latestRevisions.values.single() shouldBe 2L
+	}
+
+	@Test
+	fun `equivalent zone at a new progressive day uses the newly observed label without a gap`() = runTest {
+		val reader = RecordingAmbientReader { window, observedAtMs ->
+			AmbientStepsProviderAggregate(PROVIDER, window, 10L, observedAtMs)
+		}
+		val importer = subject(reader)
+		primeZone(importer)
+		clock.setTime(ZONE_CASE_DAY_START_MS + 9_000L)
+		val completed = importer.importNext(importBoundary(through = ZONE_CASE_DAY_START_MS,
+			observedAt = ZONE_CASE_DAY_START_MS + 9_000L)) as AmbientStepsImportResult.Applied
+		val next = importer.importNext(importBoundary(through = ZONE_CASE_DAY_START_MS + 5_000L,
+			observedAt = ZONE_CASE_DAY_START_MS + 9_000L, zoneId = ZoneId.of("Etc/UTC"))) as
+			AmbientStepsImportResult.Applied
+
+		next.window shouldBe AmbientStepsProviderReadWindow(ZONE_CASE_DAY_START_MS, ZONE_CASE_DAY_START_MS + 5_000L)
+		(next.logicalFactId == completed.logicalFactId) shouldBe false
+		val saved = requireNotNull(database.ambientStepsFactRevisionDao().latest(
+			AmbientStepsFactRevisionEntity.WRITER_ID, AmbientStepsFactRevisionEntity.WRITER_VERSION, next.logicalFactId))
+		saved.storedZoneId shouldBe "Etc/UTC"
+		saved.structuralEpochDay shouldBe 1L
+		next.semanticRevision shouldBe 1L
+		val cursor = requireNotNull(database.ambientStepsImportStateDao().cursor(registration.state.registrationGeneration))
+		cursor.lastObservedZoneId shouldBe "Etc/UTC"
+		clock.setTime(ZONE_CASE_DAY_START_MS + 12_000L)
+		val continued = importer.importNext(importBoundary(through = ZONE_CASE_DAY_START_MS + 7_000L,
+			observedAt = ZONE_CASE_DAY_START_MS + 12_000L, zoneId = ZoneId.of("Etc/UTC"))) as
+			AmbientStepsImportResult.Applied
+		continued.logicalFactId shouldBe next.logicalFactId
+		continued.semanticRevision shouldBe 2L
+		database.ambientStepsFactRevisionDao().countAll() shouldBe 3L
+		database.ambientStepsImportStateDao().countGaps() shouldBe 0L
+	}
+
+	@Test
 	fun `exact same-registration authorization boundary rotates before applying next fact`() = runTest {
 		val reader = RecordingAmbientReader { window, observedAtMs ->
 			AmbientStepsProviderAggregate(PROVIDER, window, 10L, observedAtMs)

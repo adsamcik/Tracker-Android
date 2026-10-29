@@ -85,14 +85,16 @@ class ProjectionDispatcher @Inject constructor(
 					cursor = advanceProjectionAcrossIrrelevantOrdinals(projection.id, projection.version, target)
 					break
 				}
-				for (event in batch) {
-					check(event.evidence.source == source && event.admissionOrdinal in (cursor + 1L)..target)
-					val result = dispatchProjectionWithSourceOrdinalGap(projection.id, projection.version, event)
-					if (!result.complete) return@withLock CoordinatorDrainResult.ProjectionFailed(
-						projectionCheckpoint(projection), dispatched, projection.id, event.admissionOrdinal,
+				check(batch.all { it.admissionOrdinal in (cursor + 1L)..target })
+				when (val result = dispatchAmbientBatch(source, batch)) {
+					is CoordinatorDrainResult.Complete -> {
+						cursor = result.lastCompletedOrdinal
+						dispatched += result.eventsDispatched
+					}
+					is CoordinatorDrainResult.ProjectionFailed -> return@withLock result.copy(
+						eventsDispatched = dispatched + result.eventsDispatched,
 					)
-					cursor = event.admissionOrdinal
-					dispatched++
+					else -> error("Unexpected all-day batch outcome")
 				}
 				yield()
 			}
@@ -101,6 +103,54 @@ class ProjectionDispatcher @Inject constructor(
 	}
 
 	private fun ambientMutex(source: SourceKind): Mutex = ambientMutexes.getValue(source)
+
+	/**
+	 * These source-local projections have database effects only. Commit a bounded page and its last
+	 * checkpoint together, avoiding one disk transaction per observation. If any item fails, roll
+	 * back the whole page before using the existing per-event failure/quarantine path; a good prefix
+	 * can still commit, and no failed item or later observation is acknowledged accidentally.
+	 */
+	internal suspend fun dispatchAmbientBatch(
+		source: SourceKind,
+		events: List<AdmittedSourceEvent<out SourcePayload>>,
+	): CoordinatorDrainResult {
+		require(events.size in 1..AMBIENT_BATCH_SIZE)
+		require(events.all { it.evidence.source == source })
+		require(events.zipWithNext().all { (first, second) -> first.admissionOrdinal < second.admissionOrdinal })
+		val projection = ambientProjection(source)
+		val committed = runCatchingNonCancellation {
+			database.withTransaction {
+				val dao = database.sourceProjectionStateDao()
+				val checkpoint = requireNotNull(dao.checkpoint(projection.id, projection.version))
+				var cursor = checkpoint.contiguousAdmissionOrdinal
+				var count = 0
+				for (event in events) {
+					currentCoroutineContext().ensureActive()
+					if (event.admissionOrdinal <= cursor) continue
+					projection.apply(event, RoomProjectionContext(database, projection, event.admissionOrdinal))
+					dao.deleteFailure(projection.id, projection.version, event.admissionOrdinal)
+					cursor = event.admissionOrdinal
+					count++
+				}
+				if (count > 0) dao.saveCheckpoint(checkpoint.copy(
+					contiguousAdmissionOrdinal = cursor, updatedAtMs = System.currentTimeMillis(),
+				))
+				CoordinatorDrainResult.Complete(cursor, count)
+			}
+		}.getOrNull()
+		if (committed != null) return committed
+
+		var count = 0
+		for (event in events) {
+			if (event.admissionOrdinal <= projectionCheckpoint(projection)) continue
+			val result = dispatchProjection(projection, event, requireContiguousOrdinal = false)
+			if (result.failure != null) return CoordinatorDrainResult.ProjectionFailed(
+				projectionCheckpoint(projection), count, projection.id, event.admissionOrdinal,
+			)
+			count++
+		}
+		return CoordinatorDrainResult.Complete(projectionCheckpoint(projection), count)
+	}
 
 	private suspend fun ambientHighWaterOrdinal(): Long = database.withTransaction {
 		maxOf(database.sourceEventWalDao().maximumAdmissionOrdinal() ?: 0L,

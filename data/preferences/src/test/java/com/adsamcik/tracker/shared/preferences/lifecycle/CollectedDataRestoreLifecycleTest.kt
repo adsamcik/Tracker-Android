@@ -19,6 +19,7 @@ class CollectedDataRestoreLifecycleTest {
         resetCollectedDataLifecycleForTests(context)
         try {
             val store = DefaultCollectedDataLifecycleStore(context)
+            store.advanceRetainedFrom(10_000L)
             store.beginFullDeletion(10_000L)
             val restored = store.beginDataRestore("confirmed-backup", 50L, 1_000L)
             restored shouldBe CollectedDataLifecycleSnapshot(50L, 1_000L)

@@ -372,6 +372,8 @@ class RoomSourceProductDrainRouter @Inject internal constructor(
 		}
 		return when (request.source) {
 			SourceKind.LOCATION -> protectedLocationDrain.drainThrough(request)
+			// Activity assembles a complete run through its already frozen session high-water.
+			// Its lane query remains Activity-only; unrelated source writers are never drained here.
 			SourceKind.ACTIVITY -> activityLane.drainThrough(request.settlementHighWaterAdmissionOrdinal)
 				.toSourceResult(request)
 			SourceKind.STEPS -> stepsLane.drainThrough(
@@ -406,7 +408,8 @@ class RoomSourceProductDrainRouter @Inject internal constructor(
 			if (lastCompletedOrdinal < request.sourceHighWaterAdmissionOrdinal) {
 				completeResult(request, lastCompletedOrdinal, windowsApplied, eventsValidated)
 			} else if (rejection == null) {
-				if (request.memberships.any { !it.isExactCompleteSettlement() }) {
+				if (request.memberships.any { !it.isExactCompleteSettlement() } ||
+					database.hasKnownActivityCaptureLoss(request)) {
 					SourceProductDrainResult.Unavailable(request, "ACTIVITY_PRODUCT_TERMINALLY_UNAVAILABLE")
 				} else {
 					completeResult(request, lastCompletedOrdinal, windowsApplied, eventsValidated)
@@ -473,11 +476,11 @@ class RoomSourceProductDrainRouter @Inject internal constructor(
 			failureResult(request, lastCompletedOrdinal, failedOrdinal, failureCode, terminal)
 	}
 
-	private fun WifiSessionFactDrainResult.toSourceResult(
+	private suspend fun WifiSessionFactDrainResult.toSourceResult(
 		request: SourceProductDrainRequest,
 	): SourceProductDrainResult = when (this) {
 		is WifiSessionFactDrainResult.Complete ->
-			completeResult(request, lastCompletedOrdinal, factsInserted, eventsValidated)
+			settledRadioResult(request, lastCompletedOrdinal, factsInserted, eventsValidated)
 		WifiSessionFactDrainResult.Inactive ->
 			SourceProductDrainResult.Inactive(request, "WIFI_SESSION_FACT_LANE_INACTIVE")
 		is WifiSessionFactDrainResult.AuthorityChanged ->
@@ -486,11 +489,11 @@ class RoomSourceProductDrainRouter @Inject internal constructor(
 			failureResult(request, lastCompletedOrdinal, failedOrdinal, failureCode, terminal)
 	}
 
-	private fun CellSessionFactDrainResult.toSourceResult(
+	private suspend fun CellSessionFactDrainResult.toSourceResult(
 		request: SourceProductDrainRequest,
 	): SourceProductDrainResult = when (this) {
 		is CellSessionFactDrainResult.Complete ->
-			completeResult(request, lastCompletedOrdinal, factsInserted, eventsValidated)
+			settledRadioResult(request, lastCompletedOrdinal, factsInserted, eventsValidated)
 		CellSessionFactDrainResult.Inactive ->
 			SourceProductDrainResult.Inactive(request, "CELL_SESSION_FACT_LANE_INACTIVE")
 		is CellSessionFactDrainResult.AuthorityChanged ->
@@ -498,6 +501,22 @@ class RoomSourceProductDrainRouter @Inject internal constructor(
 		is CellSessionFactDrainResult.Failed ->
 			failureResult(request, lastCompletedOrdinal, failedOrdinal, failureCode, terminal)
 	}
+	/** Rejected input is settled processing; only its original run loses queryable coverage. */
+	private suspend fun settledRadioResult(
+		request: SourceProductDrainRequest, lastCompletedOrdinal: Long, factsInserted: Int, eventsValidated: Int,
+	): SourceProductDrainResult {
+		val rejection = database.trackingHistoryReadDao().terminalFailuresForServiceRuns(
+			sourceKind = request.source.stableCode, capturePurpose = SourceBrokerPurpose.SESSION_CAPTURE,
+			serviceRunIds = listOf(request.serviceRunId), afterOrdinal = 0L,
+			throughOrdinal = request.sourceHighWaterAdmissionOrdinal, limit = 1,
+		).firstOrNull()
+		return if (rejection != null && lastCompletedOrdinal >= request.sourceHighWaterAdmissionOrdinal) {
+			SourceProductDrainResult.Unavailable(request, rejection.failureCode)
+		} else {
+			completeResult(request, lastCompletedOrdinal, factsInserted, eventsValidated)
+		}
+	}
+
 }
 
 internal sealed interface SourceProductDrainPlan {
@@ -1714,7 +1733,7 @@ internal suspend fun authenticateSourceProductDrainRequest(
 			SourceDrainMembership::registrationGeneration,
 		),
 	)
-	drainMembershipAuthorityFailure(request, memberships, cleanupOnlyClaims)?.let {
+	drainMembershipAuthorityFailure(database, request, memberships, cleanupOnlyClaims)?.let {
 		return@withTransaction it
 	}
 	retirementDrainSettlementFailure(database, request)?.let { return@withTransaction it }
@@ -1748,7 +1767,8 @@ private suspend fun authenticateDrainRetirementClaims(
 	return null
 }
 
-private fun drainMembershipAuthorityFailure(
+private suspend fun drainMembershipAuthorityFailure(
+	database: AppDatabase,
 	request: SourceProductDrainRequest,
 	memberships: List<SourceDrainMembership>,
 	cleanupOnlyClaims: List<SourceDrainRetirementClaim>,
@@ -1782,7 +1802,8 @@ private fun drainMembershipAuthorityFailure(
 			membership.registrationGeneration,
 		)
 	}.toSet()
-	if (request.retirementClaims.isNotEmpty() && productClaimProviders != membershipProviders) {
+	if (request.retirementClaims.isNotEmpty() && productClaimProviders != membershipProviders &&
+		!database.hasOrderlyAdditionalActivityMemberships(request, memberships)) {
 		return "SOURCE_DRAIN_COMPLETENESS_CHANGED"
 	}
 	return null

@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOpera
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
@@ -19,6 +20,9 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePurpose
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import io.kotest.matchers.shouldBe
+import io.mockk.coEvery
+import io.mockk.mockk
+import kotlinx.coroutines.flow.first
 import io.kotest.matchers.booleans.shouldBeFalse
 import org.junit.After as AfterTest
 import org.junit.Before as BeforeTest
@@ -78,6 +82,56 @@ class RetentionAuthorityProducerRoomTest {
 	@AfterTest
 	fun tearDown() {
 		database.close()
+	}
+
+	@Test
+	fun `real retention edit prepares unpublished generation then approves only published settings`() = runBlocking<Unit> {
+		bootstrap(ambientWifi = true)
+		val context: Application = ApplicationProvider.getApplicationContext()
+		resetRetentionConfigForTests(context)
+		val store = RetentionConfigStore(context, Dispatchers.IO)
+		val lifecycleReader = mockk<CollectedDataLifecycleStore>()
+		coEvery { lifecycleReader.snapshot() } answers { lifecycle }
+		val producer = DefaultRetentionAuthorityProducer(database, policies, store, lifecycleReader,
+			{ nextTime() }, operationLease)
+		val initial = store.updateWithApproval(block = { this },
+			prepare = { producer.preparePendingConfiguration(it.policy.configurationGeneration) },
+			approve = { producer.reconcilePendingConfiguration(it.policy.configurationGeneration) })
+		val approvedA = assertIs<RetentionConfigurationApprovalResult.Approved>(initial.approval).policy
+		val savedA = store.config.first()
+		val changed = store.updateWithApproval(block = { copy(rawDataRetentionDays = 42) }, prepare = { stage ->
+			store.config.first() shouldBe savedA
+			assertIs<RetentionPolicyCandidateRead.Unavailable>(store.pendingPolicyCandidate()).reason shouldBe
+				ApprovedRetentionPolicyUnavailableReason.CONFIGURATION_CHANGED
+			assertIs<RetentionPolicyCandidateRead.Available>(
+				store.stagedPolicyCandidate(stage.policy.configurationGeneration)).policy shouldBe stage.policy
+			assertIs<RetentionConfigurationApprovalResult.Unavailable>(
+				producer.preparePendingConfiguration(stage.policy.configurationGeneration + 1L)).reason shouldBe
+				RetentionAuthorityUnavailableReason.STALE_CONFIGURATION_GENERATION
+			assertIs<RetentionConfigurationApprovalResult.Unavailable>(
+				producer.reconcilePendingConfiguration(stage.policy.configurationGeneration)).reason shouldBe
+				RetentionAuthorityUnavailableReason.STALE_CONFIGURATION_GENERATION
+			producer.reconcileCurrentSettings()
+			assertIs<ApprovedRetentionPolicyRead.Available>(store.currentApprovedPolicy()).policy shouldBe approvedA
+			producer.preparePendingConfiguration(stage.policy.configurationGeneration)
+		}, approve = { producer.reconcilePendingConfiguration(it.policy.configurationGeneration) })
+		changed.published shouldBe true
+		val approvedB = assertIs<RetentionConfigurationApprovalResult.Approved>(changed.approval).policy
+		approvedB.configurationGeneration shouldBe approvedA.configurationGeneration + 1L
+		store.config.first().rawDataRetentionDays shouldBe 42
+		assertIs<ApprovedRetentionPolicyRead.Available>(store.currentApprovedPolicy()).policy shouldBe approvedB
+		database.ambientWifiFactDao().latestRetentionAuthority(AmbientWifiRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT)
+			?.opaquePolicyId shouldBe approvedB.opaquePolicyId
+		val unprepared = store.updateWithApproval(block = { copy(rawDataRetentionDays = 43) },
+			prepare = { RetentionConfigurationApprovalResult.Unavailable(RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE) },
+			approve = { error("Unprepared settings must not be published") })
+		unprepared.published shouldBe false
+		assertIs<RetentionConfigurationApprovalResult.Unavailable>(
+			producer.preparePendingConfiguration(approvedB.configurationGeneration)).reason shouldBe
+			RetentionAuthorityUnavailableReason.STALE_CONFIGURATION_GENERATION
+		producer.reconcileCurrentSettings()
+		store.config.first().rawDataRetentionDays shouldBe 42
+		assertIs<ApprovedRetentionPolicyRead.Available>(store.currentApprovedPolicy()).policy shouldBe approvedB
 	}
 
 	@Test

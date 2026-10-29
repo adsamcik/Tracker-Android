@@ -49,6 +49,16 @@ class ActivityRetirementRecoveryTest {
 	}
 
 	@Test
+	fun `multiple original loss scopes preserve orderly retirement without accepting real failures`() {
+		val losses = registration.copy(failureCode = "DEMAND_REMOVED|ACTIVITY_CALLBACK_LOSS:1|ACTIVITY_CALLBACK_LOSS:3")
+		assertTrue(hasOrderlyActivityRetirement(losses, barrier, highWater))
+		for (reason in listOf("DEMAND_REMOVED|", "DEMAND_REMOVED|ACTIVITY_CALLBACK_LOSS:03",
+			"DEMAND_REMOVED|ACTIVITY_CALLBACK_LOSS:1|PROVIDER_FAILED|ACTIVITY_CALLBACK_LOSS:3")) {
+			assertFalse(hasOrderlyActivityRetirement(losses.copy(failureCode = reason), barrier, highWater))
+		}
+	}
+
+	@Test
 	fun `clean Activity handoff retains its drained prefix instead of inventing a restart gap`() {
 		assertTrue(hasOrderlyActivityRetirement(registration, barrier, highWater))
 		assertTrue(hasOrderlyActivityRetirement(registration, barrier.copy(lastSourceSequence = 0L,

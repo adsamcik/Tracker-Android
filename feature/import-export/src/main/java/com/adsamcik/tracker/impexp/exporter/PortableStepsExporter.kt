@@ -60,6 +60,8 @@ internal class PortableStepsExporter(
 
 	override val requiresLocationData: Boolean = false
 	override val containsSensitiveLocationData: Boolean = false
+	override val sensitivityTitleRes: Int = R.string.export_sensitivity_portable_title
+	override val sensitivityMessageRes: Int = R.string.export_sensitivity_portable_steps_message
 	override val canSelectDateRange: Boolean = true
 	override val mimeType: String = MIME_TYPE
 	override val extension: String = EXTENSION

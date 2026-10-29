@@ -59,6 +59,7 @@ internal fun IdleContent(
 	onGameClick: (() -> Unit)?,
 	onSessionDetailClick: ((Long) -> Unit)?,
 	onSourceHistoryDetailClick: ((SourceHistoryDetailSelection) -> Unit)?,
+	onRetryRecentHistory: () -> Unit = {},
 	onToggleTracking: () -> Unit,
 	onRequestPermission: () -> Unit,
 	modifier: Modifier = Modifier,
@@ -90,6 +91,7 @@ internal fun IdleContent(
 				onGameClick = onGameClick,
 				onSessionDetailClick = onSessionDetailClick,
 				onSourceHistoryDetailClick = onSourceHistoryDetailClick,
+				onRetryRecentHistory = onRetryRecentHistory,
 				onToggleTracking = onToggleTracking,
 				onRequestPermission = onRequestPermission,
 			)
@@ -124,6 +126,7 @@ internal fun IdleContent(
 				onGameClick = onGameClick,
 				onSessionDetailClick = onSessionDetailClick,
 				onSourceHistoryDetailClick = onSourceHistoryDetailClick,
+				onRetryRecentHistory = onRetryRecentHistory,
 				onToggleTracking = onToggleTracking,
 				onRequestPermission = onRequestPermission,
 			)
@@ -141,6 +144,7 @@ private fun LazyListScope.renderWidgets(
 	onGameClick: (() -> Unit)?,
 	onSessionDetailClick: ((Long) -> Unit)?,
 	onSourceHistoryDetailClick: ((SourceHistoryDetailSelection) -> Unit)?,
+	onRetryRecentHistory: () -> Unit = {},
 	onToggleTracking: () -> Unit,
 	onRequestPermission: () -> Unit,
 ) {
@@ -153,6 +157,7 @@ private fun LazyListScope.renderWidgets(
 				onGameClick = onGameClick,
 				onSessionDetailClick = onSessionDetailClick,
 				onSourceHistoryDetailClick = onSourceHistoryDetailClick,
+				onRetryRecentHistory = onRetryRecentHistory,
 				onToggleTracking = onToggleTracking,
 				onRequestPermission = onRequestPermission,
 				modifier = Modifier.animateContentSize(),
@@ -172,6 +177,7 @@ private fun LazyGridScope.renderGridWidgets(
 	onGameClick: (() -> Unit)?,
 	onSessionDetailClick: ((Long) -> Unit)?,
 	onSourceHistoryDetailClick: ((SourceHistoryDetailSelection) -> Unit)?,
+	onRetryRecentHistory: () -> Unit = {},
 	onToggleTracking: () -> Unit,
 	onRequestPermission: () -> Unit,
 ) {
@@ -190,6 +196,7 @@ private fun LazyGridScope.renderGridWidgets(
 				onGameClick = onGameClick,
 				onSessionDetailClick = onSessionDetailClick,
 				onSourceHistoryDetailClick = onSourceHistoryDetailClick,
+				onRetryRecentHistory = onRetryRecentHistory,
 				onToggleTracking = onToggleTracking,
 				onRequestPermission = onRequestPermission,
 			)
@@ -209,6 +216,7 @@ private fun WidgetContent(
 	onGameClick: (() -> Unit)?,
 	onSessionDetailClick: ((Long) -> Unit)?,
 	onSourceHistoryDetailClick: ((SourceHistoryDetailSelection) -> Unit)?,
+	onRetryRecentHistory: () -> Unit = {},
 	onToggleTracking: () -> Unit,
 	onRequestPermission: () -> Unit,
 	modifier: Modifier = Modifier,
@@ -251,6 +259,7 @@ private fun WidgetContent(
 			recentHistory = state.recentHistory,
 			onTripClick = onSessionDetailClick,
 			onSourceHistoryClick = onSourceHistoryDetailClick,
+			onRetry = onRetryRecentHistory,
 			modifier = modifier,
 		)
 		DashboardWidget.Exploration -> ExplorationCard(

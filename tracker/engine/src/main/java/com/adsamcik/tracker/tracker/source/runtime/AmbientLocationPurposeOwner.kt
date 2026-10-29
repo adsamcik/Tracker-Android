@@ -144,6 +144,14 @@ internal class AmbientLocationPurposeOwner @Inject constructor(
 	private suspend fun joinAvailability(
 		lease: AmbientReconciliationLease, outcome: AmbientLocationRuntimeJoinResult, passive: Boolean,
 	): AmbientSourceOperationalAvailability {
+		if (outcome is AmbientLocationRuntimeJoinResult.Unavailable && outcome.retryable) {
+			// The shared session owner may still be replacing its request. Keep this accepted
+			// all-day purpose and its host while the existing reconciliation retries the join.
+			requestReconciliation(invalidateAvailability = false)
+			return AmbientSourceOperationalAvailability.reconciliationPending(
+				AmbientTrackingSource.LOCATION, lease.purposeLeaseIdentity,
+			).also { lastOperationalState = it.state }
+		}
 		return when (outcome) {
 			is AmbientLocationRuntimeJoinResult.Active -> AmbientSourceOperationalAvailability.ready(
 				AmbientTrackingSource.LOCATION, if (passive) {
@@ -213,10 +221,20 @@ internal class AmbientLocationPurposeOwner @Inject constructor(
 		}
 	}
 
-	suspend fun retire(lease: AmbientReconciliationLease?): Boolean = mutex.withLock {
-		val exact = lease ?: current ?: broker.currentAmbientSourceIdentity()?.let(::AmbientReconciliationLease)
-			?: return@withLock broker.currentPurposeDemands(AMBIENT_LOCATION_CONSUMER_ID).isEmpty()
-		retireLocked(exact)
+	/** Host-loss recovery is opt-in; normal Off/deletion retirement never schedules new collection. */
+	suspend fun retire(
+		lease: AmbientReconciliationLease?,
+		reconcileAfterRetirement: Boolean = false,
+	): Boolean = mutex.withLock {
+		try {
+			val exact = lease ?: current ?: broker.currentAmbientSourceIdentity()?.let(::AmbientReconciliationLease)
+				?: return@withLock broker.currentPurposeDemands(AMBIENT_LOCATION_CONSUMER_ID).isEmpty()
+			retireLocked(exact)
+		} finally {
+			if (reconcileAfterRetirement) {
+				requestReconciliation()
+			}
+		}
 	}
 
 	private suspend fun retireLocked(lease: AmbientReconciliationLease): Boolean {
@@ -302,8 +320,10 @@ internal class AmbientLocationPurposeOwner @Inject constructor(
 		AmbientSourceOperationalAvailability.unavailable(AmbientTrackingSource.LOCATION, reason,
             lease.purposeLeaseIdentity)
 
-	private suspend fun requestReconciliation() {
-		reporter.invalidateAmbient(AmbientTrackingSource.LOCATION)
+	private suspend fun requestReconciliation(invalidateAvailability: Boolean = true) {
+		if (invalidateAvailability) {
+			reporter.invalidateAmbient(AmbientTrackingSource.LOCATION)
+		}
 		retries.schedule(TrackingPurposeSettingsReconciliationDebt(listOf(
 			TrackingPurposeSettingsReconciliationFailure(AmbientTrackingSource.LOCATION,
 				TrackingPurposeSettingsReconciliationFailureReason.OWNER_RECONCILIATION_FAILED))))

@@ -38,7 +38,16 @@ import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -64,6 +73,65 @@ class ProtectedLocationCanonicalHandoffTest {
 	@After
 	fun tearDown() {
 		database.close()
+	}
+
+	@Test
+	fun `cancelled retired writer does not abandon later durable Location hints`() = runBlocking {
+		val command = command()
+		insertWal(command)
+		val job = SupervisorJob()
+		val firstAttempt = CompletableDeferred<Unit>()
+		val receipts = ReceiptWriter(database, accepted = true)
+		val writer = object : ProtectedLocationCanonicalWriter by receipts {
+			override suspend fun retryPendingCleanup(): Boolean {
+				if (firstAttempt.complete(Unit)) {
+					throw CancellationException("Retired writer operation")
+				}
+				return true
+			}
+		}
+		val handoff = handoff(command, writer, applicationScope = CoroutineScope(job + Dispatchers.Default))
+		try {
+			handoff.requestDrain()
+			withTimeout(10_000L) { firstAttempt.await() }
+			assertNull(database.locationPurposeDao().receiptByEvent(EVENT_ID))
+			handoff.requestDrain()
+			withTimeout(10_000L) {
+				database.invalidationTracker.createFlow("source_product_projection_lane", emitInitialState = true)
+					.map { database.sourceProjectionStateDao().activeProductLane(SourceKind.LOCATION.stableCode) }
+					.first { it?.contiguousAdmissionOrdinal == ADMISSION_ORDINAL }
+			}
+			assertEquals(1, receipts.writeCount)
+			assertTrue(database.locationPurposeDao().receiptByEvent(EVENT_ID) != null)
+		} finally {
+			job.cancelAndJoin()
+		}
+	}
+
+	@Test
+	fun `bounded background pass releases writer for exact End and resumes without duplicate points`() = runTest {
+		val first = command()
+		val second = command(eventId = "location-next-pass", admissionOrdinal = ADMISSION_ORDINAL + 1L,
+			wallTimeMs = WALL_TIME_MS + 1_000L, observedNanos = OBSERVED_NANOS + 1_000_000_000L,
+			receivedNanos = RECEIVED_NANOS + 1_000_000_000L, sourceSequence = 1L)
+		insertWal(first)
+		insertWal(second)
+		val commands = mapOf(EVENT_ID to first, "location-next-pass" to second)
+		val writer = ReceiptWriter(database, accepted = true)
+		val handoff = ProtectedLocationCanonicalHandoff(database, ProtectedLocationWalQualifier { event ->
+			LocationWalAdapterResult.Evaluated(LocationObservationQualification.Qualified(
+				requireNotNull(commands[event.value])), TEST_ACQUISITION_METADATA)
+		}, writer)
+		val yielded = assertIs<ProtectedLocationCanonicalDrainResult.Deferred>(handoff.drainHighWater(1L))
+		assertEquals("LOCATION_BACKGROUND_PASS_YIELDED", yielded.reason)
+		assertEquals(ADMISSION_ORDINAL, yielded.lastCommittedOrdinal)
+		assertNull(database.locationPurposeDao().receiptByEvent("location-next-pass"))
+		updateDrainCompleteness(ADMISSION_ORDINAL + 1L, 1L)
+		assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+			handoff.drainThrough(LOGICAL_ID, RUN_ID, ADMISSION_ORDINAL + 1L))
+		assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainHighWater())
+		assertEquals(2, writer.writeCount)
+		assertTrue(database.locationPurposeDao().receiptByEvent("location-next-pass") != null)
 	}
 
     @Test
@@ -102,7 +170,7 @@ class ProtectedLocationCanonicalHandoffTest {
         val command = command()
         insertWal(command)
         val emitted = mutableListOf<Long>()
-        val handoff = handoff(command, ReceiptWriter(database, accepted = false), emitted::add)
+        val handoff = handoff(command, ReceiptWriter(database, accepted = false), onSavedPointCommitted = emitted::add)
         assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainThrough(LOGICAL_ID, RUN_ID, ADMISSION_ORDINAL))
         assertTrue(emitted.isEmpty())
         assertNull(database.locationPurposeDao().receiptByEvent(EVENT_ID))
@@ -1096,6 +1164,7 @@ class ProtectedLocationCanonicalHandoffTest {
 	private fun handoff(
 		command: LocationCapturedFactCommand,
 		writer: ProtectedLocationCanonicalWriter,
+		applicationScope: CoroutineScope? = null,
         onSavedPointCommitted: (Long) -> Unit = {},
 	): ProtectedLocationCanonicalHandoff = ProtectedLocationCanonicalHandoff(
 		database = database,
@@ -1106,6 +1175,7 @@ class ProtectedLocationCanonicalHandoffTest {
 			)
 		},
 		canonicalWriter = writer,
+		applicationScope = applicationScope,
         onSavedPointCommitted = onSavedPointCommitted,
 	)
 

@@ -11,4 +11,10 @@ interface PagedTrackingHistoryRepository : TrackingHistoryRepository {
      * keep successive source pages consistent.
      */
     fun pagingSource(range: HistoryRange): PagingSource<HistoryContinuation, HistoryPagingItem>
+
+    /** Qualified occupied dates for one visible month, in the requested display zone. */
+    fun observeCalendarPresence(range: HistoryRange): kotlinx.coroutines.flow.Flow<CalendarHistoryPresenceRead> =
+        kotlinx.coroutines.flow.flow {
+            emit(CalendarHistoryPresenceRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE))
+        }
 }

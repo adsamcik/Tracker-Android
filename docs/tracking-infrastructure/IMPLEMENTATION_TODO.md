@@ -1,6 +1,6 @@
 # Tracking Infrastructure Completion TODO
 
-Last updated: 2026-10-26
+Last updated: 2026-10-29
 
 [Current completion plan](convergence/2026-10-07/COMPLETION_PLAN.md) (2026-10-07) consolidates all outstanding work and is the
 current execution order. Complete the full scope, including source files and data-only backup/restore, before freezing. Preserve this ledger and its historical source receipts.
@@ -13,6 +13,61 @@ My location while Off, fresh Start, saved route data, accepted End and that same
 route pass. Disconnected saved routes no longer gain a false connector. Slow observed timings,
 partial coverage, earlier failures and historical full-suite results remain explicit.
 Independent source, host, runtime and result review is complete. The enclosing local dev/v10 commit records delivery; no remote push.
+
+## October 27 core-flow completion
+
+The active work and acceptance checklist is [Core-flow completion](convergence/2026-10-27/CORE_FLOW_COMPLETION.md).
+It reconciles current code, preserved candidates, complete host gates and fresh Android evidence.
+Historical unchecked continuation rows below are not a new list of missing features.
+Historical Full17 checkpoint: Full16 completed 16,332 host cases with four fixture
+failures, no errors and seven existing skips; other quality checks completed. Fourteen
+source-reviewed repairs are applied in frozen Full17, including released-data startup, shared SQLite
+compatibility, retention, Pressure End-prefix preservation, all-day Location joins and Start/End
+latency. The exact Location-file round trip now passes, including Clear/import without restart.
+Independent composition review was clear at that checkpoint. Affected builds/tests were running; native
+History/deletion/retention checks, final combined flow acceptance, complete gates and final local
+commits were still pending. The latest checkpoint below supersedes that status.
+Earlier passing host results above apply to their recorded inputs, not the current uncommitted input.
+
+Earlier Full36 checkpoint: all 312 affected host tests pass, including nested suites;
+Dev/Hilt packaging and Detekt pass with zero findings. Immediate navigation during Start succeeds,
+Activity/Pressure genuinely continue after End, and pending Pressure prefix/tail samples survive.
+Explicit Resume now uses the shared application observer without creating a session: leaving
+Tracking settings after 179 ms still yields six ambient Location points. My location centers and
+preserves tracked data; a ready route displays distance/average, retires cleanly at End and keeps
+all-day Location. Final Off is durable and its tracking service closes normally. Older migration,
+History, retention, deletion, source-file, bundle and data-only restore receipts remain valid for
+unchanged code. Full36's unfiltered six-APK/ciUnitTest/ciCheck batch finishes in 1h 57m 53s:
+16,398 cases, one stale onboarding-text assertion failure, zero errors and seven existing skips;
+the full engine's 4,744 cases and all quality/storage checks pass. The assertion and small rendered
+layout repairs are applied. A confirmed equivalent-time-zone Steps count-hiding bug is being
+repaired in the existing shared numeric reader. Full39 now freezes 334 source paths; independent
+source review is clear, Dev/Hilt/Detekt and 172 affected Steps tests pass, and the unchanged 46 UI
+checks passed in Preflight38. All seven calendar/continuity regressions pass; no schema or public
+product interface was added. Full39's unfiltered gate passes all six APKs, ciUnitTest and ciCheck:
+16,405 cases, zero failures/errors and seven existing skips. Final runtime review catches an
+unrequested INTERNAL_FAILURE stop after 74.287 s; its cause remains unproven. Source review finds
+and repairs a concrete queued-lease-renewal race using the existing Room transaction and one
+focused regression, with no changed timing, authority predicates or storage. The reviewed
+Full40 input (334 paths) passes the complete gates in 1h 21m 2s: 16,406 cases, zero failures/errors
+and seven existing skips. Its new queued-renewal case passes and every source hash is unchanged.
+The final cancellation review also fixes a cancelled-job lease-release gap by shielding only the
+existing exact Room release. Its existing test now performs actual job cancellation while keeping
+all physical-owner and different-owner recovery assertions. Reviewed Full41 freezes 334 paths
+and passes focused coordinator/Dev/quality checks in 9m 31s: all 277 cases, zero failures/errors/skips
+and zero quality findings. Its complete unfiltered gate passes in 1h 12m 15s: all six APKs,
+ciUnitTest and ciCheck; 16,406 cases, zero failures/errors and seven existing skips. Every one of
+the 334 source hashes remains unchanged. Quiet Dev41 records for over 11 minutes through quality
+changes, accepts explicit End, then saves ten genuinely new sessionless Location points. Normal
+and larger-text layout, durable global Off, normal service closure and preservation of all 1,392
+original points pass. Independent source/host/rendered/runtime review is clear for bounded
+functional MVP acceptance. The enclosing local dev/v10 commit records delivery; no push.
+
+**Remaining acceptance limit:** End-to-presentation is 42.919s in the final emulator run. Required
+Location settlement continues to 38.299s and finalization follows 4.620s later; no unnecessary
+global projection wait was found. No latency improvement or emulator-cause claim is made.
+Physical-device, OEM background and battery testing remains user-deferred. These limits do not
+represent missing source implementation, and the earlier Dev39 stop's exact cause stays unproven.
 
 ## October 20 performance pass
 

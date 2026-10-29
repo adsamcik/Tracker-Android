@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.dashboard.ui.compose.cards
 
-import android.text.format.DateUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -52,26 +51,30 @@ internal fun LastSessionCard(
 
 	val durationMs = (session.end - session.start).coerceAtLeast(0L)
 	val durationText = durationMs.formatAsDuration(context)
-	val measuredDistanceText = resources.formatDistance(
-		session.distanceInM,
-		digits = if (session.distanceInM >= 1000f) 1 else 2,
-		unit = settings.lengthSystem,
-	)
-	val distanceText = if (!session.hasMeasuredDistance) "—" else if (session.distanceIsPartial)
-		resources.getString(R.string.dashboard_recorded_partial_value, measuredDistanceText) else measuredDistanceText
-	val sessionAge = DateUtils.getRelativeTimeSpanString(
-		session.start,
-		System.currentTimeMillis(),
-		DateUtils.MINUTE_IN_MILLIS,
-		DateUtils.FORMAT_ABBREV_RELATIVE,
-	).toString()
+	val distanceText = if (session.hasMeasuredDistance) {
+		val measured = resources.formatDistance(
+			session.distanceInM,
+			digits = if (session.distanceInM >= 1000f) 1 else 2,
+			unit = settings.lengthSystem,
+		)
+		if (session.distanceIsPartial) {
+			resources.getString(R.string.dashboard_recorded_partial_value, measured)
+		} else {
+			measured
+		}
+	} else {
+		null
+	}
+	val sessionDateTime = recordedDateTime(session.start)
 
-	val cardContentDescription = stringResource(
-		R.string.dashboard_cd_last_session,
-		durationText,
-		distanceText,
-	)
 	val viewDetailsLabel = stringResource(R.string.dashboard_action_view_details)
+	val cardContentDescription = if (distanceText != null) {
+		stringResource(R.string.dashboard_cd_last_session, durationText, distanceText)
+	} else {
+		listOf(stringResource(R.string.dashboard_last_session_title),
+			"${stringResource(R.string.dashboard_last_session_duration)}: $durationText", viewDetailsLabel)
+			.joinToString(". ")
+	}
 	val mapContentDescription = if (pathPoints != null && pathPoints.isNotEmpty()) {
 		stringResource(
 			R.string.dashboard_cd_session_path,
@@ -114,7 +117,7 @@ internal fun LastSessionCard(
 				)
 				Spacer(Modifier.weight(1f))
 				Text(
-					text = sessionAge,
+					text = sessionDateTime,
 					style = MaterialTheme.typography.labelSmall,
 					color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
 				)
@@ -133,16 +136,18 @@ internal fun LastSessionCard(
 				color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
 			)
 
-			Spacer(Modifier.height(16.dp))
-			Row(
-				modifier = Modifier.fillMaxWidth(),
-				horizontalArrangement = Arrangement.spacedBy(16.dp),
-			) {
-				SessionMetricItem(
-					label = stringResource(R.string.dashboard_last_session_distance),
-					value = distanceText,
-					modifier = Modifier.weight(1f),
-				)
+			if (distanceText != null) {
+				Spacer(Modifier.height(16.dp))
+				Row(
+					modifier = Modifier.fillMaxWidth(),
+					horizontalArrangement = Arrangement.spacedBy(16.dp),
+				) {
+					SessionMetricItem(
+						label = stringResource(R.string.dashboard_last_session_distance),
+						value = distanceText,
+						modifier = Modifier.weight(1f),
+					)
+				}
 			}
 
 			// Path preview

@@ -39,6 +39,7 @@ import com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose
 import com.adsamcik.tracker.tracker.source.model.SourceDemandContractFactory
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -103,6 +104,7 @@ class AmbientSensorPurposeOwnerTest {
 		assertEquals(setOf(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR), fixture.activityOwners)
 		assertFalse(fixture.accepted.containsKey(AmbientTrackingSource.ACTIVITY))
 		coVerify(exactly = 0) { fixture.activity.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR) }
+		coVerify(exactly = 0) { fixture.retries.schedule(any()) }
 	}
 
 	@Test
@@ -200,6 +202,27 @@ class AmbientSensorPurposeOwnerTest {
 	}
 
 	@Test
+	fun `invalid Pressure host retires exact provider before release and preserves Activity`() = runTest {
+		val fixture = Fixture(automatic = true)
+		fixture.owner.reconcile(fixture.activityLease)
+		fixture.owner.reconcile(fixture.pressureLease)
+
+		assertTrue(fixture.owner.retire(AmbientTrackingSource.PRESSURE, fixture.pressureLease,
+			reconcileAfterRetirement = true))
+
+		coVerifyOrder {
+			fixture.broker.retireAmbientSourceDemand(fixture.pressureLease.identity, any(), any(), any())
+			fixture.pressure.reconcileAmbient(null)
+			fixture.host.release(fixture.pressureLease.identity)
+		}
+		assertEquals(fixture.activityLease.identity, fixture.accepted[AmbientTrackingSource.ACTIVITY])
+		assertTrue(ActivityRegistrationOwner.ALL_DAY_TRACKING in fixture.activityOwners)
+		coVerify(exactly = 0) { fixture.activity.clearDemand(any()) }
+		coVerify(exactly = 1) { fixture.retries.schedule(match { debt ->
+			debt.failures.single().source == AmbientTrackingSource.PRESSURE }) }
+	}
+
+	@Test
 	fun `incomplete Pressure retirement keeps its host until physical cleanup succeeds`() = runTest {
 		val fixture = Fixture()
 		fixture.owner.reconcile(fixture.activityLease)
@@ -207,8 +230,8 @@ class AmbientSensorPurposeOwnerTest {
 		coEvery { fixture.pressure.reconcileAmbient(any()) } returns
 			SourceApplyResult.Failed(mockk(), retryable = true)
 
-		fixture.owner.refreshActivePlans()
-		assertFalse(fixture.owner.retire(AmbientTrackingSource.PRESSURE, fixture.pressureLease))
+		assertFalse(fixture.owner.retire(AmbientTrackingSource.PRESSURE, fixture.pressureLease,
+			reconcileAfterRetirement = true))
 
 		assertEquals(fixture.pressureLease.identity, fixture.hosted.value[AmbientTrackingSource.PRESSURE]?.identity)
 		assertTrue(ActivityRegistrationOwner.ALL_DAY_TRACKING in fixture.activityOwners)
@@ -217,7 +240,8 @@ class AmbientSensorPurposeOwnerTest {
 			debt.failures.single().source == AmbientTrackingSource.PRESSURE }) }
 		coEvery { fixture.pressure.reconcileAmbient(null) } returns SourceApplyResult.Applied(mockk())
 
-		assertTrue(fixture.owner.retire(AmbientTrackingSource.PRESSURE, fixture.pressureLease))
+		assertTrue(fixture.owner.retire(AmbientTrackingSource.PRESSURE, fixture.pressureLease,
+			reconcileAfterRetirement = true))
 		assertTrue(fixture.hosted.value.isEmpty())
 		coVerify(exactly = 1) { fixture.host.release(fixture.pressureLease.identity) }
 	}

@@ -123,6 +123,14 @@ internal class PressureWindowAccumulator(
 	fun snapshot(): PressureAccumulatorState? = state
 }
 
+internal fun isFreshPressureSampleTimestamp(
+	providerElapsedNanos: Long,
+	receivedElapsedNanos: Long,
+	previousProviderElapsedNanos: Long?,
+): Boolean = providerElapsedNanos > 0L &&
+	providerElapsedNanos <= receivedElapsedNanos &&
+	(previousProviderElapsedNanos == null || providerElapsedNanos > previousProviderElapsedNanos)
+
 private fun requireQualifiedPressureSample(
 	pressureHectopascals: Float,
 	elapsedNanos: Long,

@@ -219,6 +219,7 @@ internal suspend fun AmbientStepsFactImporter.advanceReadCursor(
 			newObservedAtMs = aggregate.observedAtMs,
 			newCursorRevision = nextCursorRevision,
 			updatedAtMs = appliedAtMs,
+			newZoneId = window.day.zoneId,
 		) != 1
 	) {
 		throw ConcurrentAmbientStepsImportException()

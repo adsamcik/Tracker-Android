@@ -65,6 +65,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -83,6 +86,10 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
     private val callerDispatcher = mockk<SourceCallerDemandDispatcher>()
     private val rolloutStore = mockk<RoomTrackingRolloutStateStore>()
     private val callerReconciler = mockk<ActiveTrackingSessionCallerAuthorityReconciler>()
+    private val chosenSetup = mockk<com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterSetup>()
+    private val purposes = mockk<com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler>()
+    private val retries = mockk<com.adsamcik.tracker.tracker.api.TrackingPurposeReconciliationRetryScheduler>()
+    private var beforeStartupReconcile: suspend () -> Unit = {}
     private val battery = mockk<BatteryAwarePolicy> { every { currentPressure() } returns BatteryPressure.NONE }
     private lateinit var authority: SharedPreferencesTrackingLifecycleCommandAuthority
     private var beforeLease: suspend () -> Unit = {}
@@ -93,6 +100,16 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
     fun setUp() {
         context.getSharedPreferences("tracking_lifecycle_commands", Context.MODE_PRIVATE).edit().clear().commit()
         authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+        coEvery { chosenSetup.ensure(any()) } coAnswers {
+            com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterSetupResult(
+                firstArg<Set<SourceKind>>().associateWith {
+                    com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterStatus.READY })
+        }
+        coEvery { chosenSetup.ensureCurrentChosenSources() } returns
+            com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterSetupResult(emptyMap())
+        coEvery { purposes.reconcileCurrentSettings() } returns
+            com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult.Complete(emptySet())
+        coEvery { retries.schedule(any()) } returns true
         // Deliberately stop after entering real PREPARE without manufacturing Room/provider success.
         coEvery { store.read() } returns ActiveTrackingSessionStoreResult.Failure(IllegalStateException("unavailable"))
     }
@@ -335,6 +352,60 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
         prepared.preparedManualCompletionWaitHint shouldBe false
     }
 
+    @Test
+    fun `background recovery prepares current owners without issuing a session Start and stays Off`(): Unit = runBlocking {
+        val subject = coordinator()
+        subject.reconcileBackgroundCollectionAfterRestart() shouldBe true
+        coVerify(exactly = 1) { chosenSetup.ensureCurrentChosenSources() }
+        coVerify(exactly = 1) { purposes.reconcileCurrentSettings() }
+        authority.latestCommandGeneration() shouldBe 0L
+        coVerify(exactly = 0) { store.read() }
+        coVerify(exactly = 0) { sourceSession.prepareAndroidStartUnderReadyGeneration(any(), any(), any()) }
+        authority.recordUserRequestedExit("user-requested:background-recovery") shouldBe true
+        subject.reconcileBackgroundCollectionAfterRestart() shouldBe false
+        coVerify(exactly = 1) { chosenSetup.ensureCurrentChosenSources() }
+        coVerify(exactly = 1) { purposes.reconcileCurrentSettings() }
+        coVerify(exactly = 0) { retries.schedule(any()) }
+    }
+
+    @Test
+    fun `background recovery allows independent owners after startup settles a pending End`(): Unit = runBlocking {
+        val stop = requireNotNull(authority.reserveStop(
+            com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason.EXPLICIT_REQUEST, 1L))
+        beforeStartupReconcile = { authority.markStopHandled(stop) shouldBe true }
+        coordinator().reconcileBackgroundCollectionAfterRestart() shouldBe true
+        coVerify(exactly = 1) { purposes.reconcileCurrentSettings() }
+        authority.acceptedStartGeneration.value shouldBe 0L
+    }
+
+    @Test
+    fun `Off arriving during background preparation prevents purpose activation`(): Unit = runBlocking {
+        val exitId = "user-requested:during-background-prepare"
+        coEvery { chosenSetup.ensureCurrentChosenSources() } coAnswers {
+            authority.recordUserRequestedExit(exitId) shouldBe true
+            com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterSetupResult(emptyMap())
+        }
+        coordinator().reconcileBackgroundCollectionAfterRestart() shouldBe false
+        coVerify(exactly = 0) { purposes.reconcileCurrentSettings() }
+        coVerify(exactly = 0) { retries.schedule(any()) }
+        authority.latestCommandGeneration() shouldBe 1L
+        authority.pendingCollectionResumeExitId shouldBe exitId
+        authority.acceptedStartGeneration.value shouldBe 0L
+        authority.pendingManualStart shouldBe null
+        coVerify(exactly = 0) { sourceSession.prepareAndroidStartUnderReadyGeneration(any(), any(), any()) }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `background preparation timeout retains bounded existing retry work`() = runTest {
+        coEvery { chosenSetup.ensureCurrentChosenSources() } coAnswers { awaitCancellation() }
+        coordinator().reconcileBackgroundCollectionAfterRestart() shouldBe false
+        testScheduler.currentTime shouldBe 30_000L
+        coVerify(exactly = 1) { retries.schedule(any()) }
+        coVerify(exactly = 0) { purposes.reconcileCurrentSettings() }
+        authority.latestCommandGeneration() shouldBe 0L
+    }
+
     private suspend fun preparedRetryFixture(accepted: Boolean = false): Pair<ActiveTrackingSessionDescriptor, TrackingStartRequest> {
         shadowOf(context as Application).grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -363,7 +434,10 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
             override val permitsNewCollection get() = authority.pendingCollectionResumeExitId == null
             override fun permitsPendingManualStart(commandGeneration: Long) = authority.isPendingCollectionStart(
                 com.adsamcik.tracker.tracker.resilience.TrackingStartCommand(commandGeneration))
-            override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0L)
+            override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult {
+                beforeStartupReconcile()
+                return TrackingStartupResult.Ready(false, 0L)
+            }
             override suspend fun <T> withReadyGenerationOperation(expectedGeneration: Long, operation: suspend () -> T): T? {
                 beforeLease()
                 var result: T? = null
@@ -383,13 +457,9 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
             sourceSession = sourceSession,
             authoritativeSessionCoordinator = room,
             trackingRolloutStateStore = rolloutStore,
-            chosenSourceWriterSetup = mockk {
-                coEvery { ensure(any()) } coAnswers {
-                    val chosen = firstArg<Set<com.adsamcik.tracker.tracker.source.model.SourceKind>>()
-                    com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterSetupResult(chosen.associateWith {
-                        com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterStatus.READY })
-                }
-            },
+            chosenSourceWriterSetup = chosenSetup,
+            purposeSettingsReconciler = purposes,
+            purposeReconciliationRetryScheduler = retries,
             bootClockDomainProvider = BootClockDomainProvider { "boot" },
             collectionMotionController = CollectionMotionController(),
             activityAutomationEpochAuthority = mockk(),

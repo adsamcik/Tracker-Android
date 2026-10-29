@@ -183,6 +183,12 @@ class CellSessionFactProjectionLane private constructor(
 								recoverMissingPresentation(failure)
 							}
 						}
+					if (terminal != null && terminal.admissionOrdinal == cursor + 1L &&
+						canSettleHistoricalRejection(terminal)) {
+						// Processing is settled, not successful capture. Preserve this exact failure and WAL.
+						advanceCursor(lane, terminal.admissionOrdinal)
+						return@withTransaction CellProjectionPass.Applied(terminal.admissionOrdinal, 0, 0)
+					}
 					val readThroughOrdinal = terminal?.admissionOrdinal?.minus(1L)
 						?: targetAdmissionOrdinal
 					if (readThroughOrdinal <= cursor) {
@@ -337,6 +343,24 @@ class CellSessionFactProjectionLane private constructor(
 		return candidate.admissionOrdinal == failure.admissionOrdinal &&
 			presentation.recoverMissingForRetainedEvent(candidate.eventId) &&
 			adapter.qualify(SourceEventId(candidate.eventId)).toProjectionResult().failureCode == null
+	}
+
+	/** A rejected old plan must not prevent later, independently valid recordings from materializing. */
+	private suspend fun canSettleHistoricalRejection(failure: SourceProjectionFailureEntity): Boolean {
+		val reason = when (failure.failureCode) {
+			"CELL_ADAPTER_MISSING_HISTORICAL_PLAN" -> CellWalAdapterRejection.MISSING_HISTORICAL_PLAN
+			"CELL_ADAPTER_HISTORICAL_PLAN_MISMATCH" -> CellWalAdapterRejection.HISTORICAL_PLAN_MISMATCH
+			else -> return false
+		}
+		val candidate = database.sourceEventWalDao().sourceProjectionCandidatesAfterThrough(
+			sourceKind = SourceKind.CELL.stableCode,
+			afterOrdinal = failure.admissionOrdinal - 1L,
+			throughOrdinal = failure.admissionOrdinal,
+			limit = 1,
+		).singleOrNull() ?: return false
+		return candidate.admissionOrdinal == failure.admissionOrdinal &&
+			authenticatePreflightCandidate(candidate) is CellPreflightAuthentication.Authenticated &&
+			adapter.qualify(SourceEventId(candidate.eventId)).hasOnlyRejection(reason)
 	}
 
 	private suspend fun persistFailure(
@@ -690,3 +714,10 @@ private sealed interface CellProjectionPass {
 }
 
 private class CellLaneAuthorityChangedException(val reason: String) : IllegalStateException(reason)
+
+private fun CellWalAdapterResult.hasOnlyRejection(reason: CellWalAdapterRejection): Boolean = when (this) {
+	is CellWalAdapterResult.Rejected -> this.reason == reason
+	is CellWalAdapterResult.Groups -> results.isNotEmpty() &&
+		results.all { it is CellWalAdapterResult.Rejected && it.reason == reason }
+	is CellWalAdapterResult.Evaluated -> false
+}

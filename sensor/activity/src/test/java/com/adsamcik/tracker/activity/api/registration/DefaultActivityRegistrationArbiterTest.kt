@@ -15,11 +15,16 @@ import com.adsamcik.tracker.activity.api.backend.RecognitionConfig
 import com.adsamcik.tracker.activity.receiver.ActivityCallbackFinalizationDisposition
 import com.adsamcik.tracker.activity.receiver.ActivityCallbackGapCode
 import com.adsamcik.tracker.activity.receiver.ActivityCallbackRetryOwner
+import com.adsamcik.tracker.activity.receiver.ActivityCallbackGapReceipt
+import com.adsamcik.tracker.activity.receiver.ActivityCallbackRetryMetadata
 import com.adsamcik.tracker.activity.receiver.finalizeActivityCallbackAuthority
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedPlanIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.hasActivityCallbackLossFor
+import com.adsamcik.tracker.shared.base.database.data.hasOnlyActivityCallbackLoss
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -326,6 +331,147 @@ class DefaultActivityRegistrationArbiterTest {
 		retried.status shouldBe ActivityRegistrationStatus.APPLIED
 		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration)
 			?.failureCode?.startsWith("DEMAND_REMOVED|${ProviderRegistrationGenerationEntity.FAILURE_ACTIVITY_CALLBACK_LOSS_PREFIX}") shouldBe true
+	}
+
+	@Test
+	fun `late retry losses retain both original sessions and prior boot retirement reason idempotently`() = runTest {
+		val registration = seedRetiredRetryRegistration()
+		val first = retryLossReceipt(registration, observed = 50L)
+		val second = retryLossReceipt(registration, observed = 150L)
+
+		subject.recordRetainedCallbackLoss(first)
+		subject.recordRetainedCallbackLoss(second)
+		subject.recordRetainedCallbackLoss(first)
+
+		val saved = requireNotNull(database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND,
+			registration.registrationGeneration))
+		saved.failureCode shouldBe "PRIOR_BOOT_SYSTEM_REMOVED|DEMAND_REMOVED|ACTIVITY_CALLBACK_LOSS:1|ACTIVITY_CALLBACK_LOSS:2"
+		saved.retiredAtMs shouldBe registration.retiredAtMs
+		saved.retiredElapsedRealtimeNanos shouldBe registration.retiredElapsedRealtimeNanos
+		val authorizations = database.sourceBrokerDao().authorizationRevision(ACTIVITY_SOURCE_KIND,
+			registration.registrationGeneration, 1L) + database.sourceBrokerDao().authorizationRevision(
+			ACTIVITY_SOURCE_KIND, registration.registrationGeneration, 2L)
+		saved.hasActivityCallbackLossFor("s1", "run-s1", authorizations) shouldBe true
+		saved.hasActivityCallbackLossFor("s2", "run-s2", authorizations) shouldBe true
+		saved.hasActivityCallbackLossFor("other", "run-s2", authorizations) shouldBe false
+	}
+
+	@Test
+	fun `late retry loss cannot borrow foreign identity or survive collected-data erase`() = runTest {
+		val registration = seedRetiredRetryRegistration()
+		val original = retryLossReceipt(registration, observed = 50L)
+		val metadata = requireNotNull(original.originalMetadata)
+		val identity = metadata.registrationIdentity
+		for (foreign in listOf(identity.copy(sourceInstanceId = "other"),
+			identity.copy(registrationGeneration = identity.registrationGeneration + 1L),
+			identity.copy(collectedDataEpoch = identity.collectedDataEpoch + 1L),
+			identity.copy(clockDomainId = "other-boot"),
+			identity.copy(physicalConfigurationFingerprint = "other-config"))) {
+			subject.recordRetainedCallbackLoss(original.copy(originalMetadata = metadata.copy(registrationIdentity = foreign)))
+		}
+		subject.recordRetainedCallbackLoss(original.copy(originalMetadata = null))
+		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, registration.registrationGeneration)
+			?.failureCode shouldBe registration.failureCode
+		lifecycleStore.beginFullDeletion(1_000L)
+		database.sourceEvidenceStateDao().updateLifecycle(8L, 1_000L, 1_000L)
+		subject.recordRetainedCallbackLoss(original)
+		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, registration.registrationGeneration)
+			?.failureCode shouldBe registration.failureCode
+	}
+
+	@Test
+	fun `one lost batch preserves every actual sealed session while shared all-day provider continues`() = runTest {
+		clockDomainId = "boot-1"
+		val registration = seedRetiredRetryRegistration()
+		insertServiceRun("run-s3", "s3", isUserInitiated = true)
+		val dao = database.sourceBrokerDao()
+		dao.insertAuthorizations(SourceBrokerAuthorization.rows(ACTIVITY_SOURCE_KIND,
+			registration.registrationGeneration, 3L,
+			listOf(demand("retry-3", "session:s3", SourceBrokerPurpose.SESSION_CAPTURE, "s3", 3L, true)),
+			"boot-1", 200L, 200L))
+		database.openHelper.writableDatabase.execSQL("UPDATE provider_registration_generation SET status = 'ACTIVE', " +
+			"retired_at_ms = NULL, retired_elapsed_realtime_nanos = NULL, failure_code = NULL, " +
+			"capture_callback_barrier_authorization_revision = 3 WHERE source_kind = 2 AND registration_generation = 501")
+		dao.sealCaptureAdmissionBarrier(ACTIVITY_SOURCE_KIND, 501L, registration.sourceInstanceId, 3L,
+			SourceBrokerPurpose.MASK_SESSION_CAPTURE, 300L, 300L)
+		val receipt = retryLossReceipt(registration, 50L).let { loss ->
+			loss.copy(originalMetadata = requireNotNull(loss.originalMetadata).copy(
+				observedElapsedRealtimeNanos = listOf(50L, 150L, 250L)))
+		}
+
+		subject.recordRetainedCallbackLoss(receipt)
+		val saved = requireNotNull(dao.registration(ACTIVITY_SOURCE_KIND, 501L))
+		saved.status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+		saved.failureCode shouldBe "ACTIVITY_CALLBACK_LOSS:1|ACTIVITY_CALLBACK_LOSS:2|ACTIVITY_CALLBACK_LOSS:3"
+		saved.hasOnlyActivityCallbackLoss() shouldBe true
+		for ((revision, logicalId) in listOf(1L to "s1", 2L to "s2", 3L to "s3")) {
+			saved.hasActivityCallbackLossFor(logicalId, "run-$logicalId",
+				dao.authorizationRevision(ACTIVITY_SOURCE_KIND, 501L, revision)) shouldBe true
+		}
+		// A subsequent, not-yet-sealed capture is not lent the earlier capture's fence.
+		insertServiceRun("run-s4", "s4", isUserInitiated = true)
+		dao.insertAuthorizations(SourceBrokerAuthorization.rows(ACTIVITY_SOURCE_KIND, 501L, 4L,
+			listOf(demand("retry-4", "session:s4", SourceBrokerPurpose.SESSION_CAPTURE, "s4", 4L, true)),
+			"boot-1", 400L, 400L))
+		subject.recordRetainedCallbackLoss(retryLossReceipt(registration, 450L))
+		dao.registration(ACTIVITY_SOURCE_KIND, 501L)?.failureCode shouldBe saved.failureCode
+	}
+
+	@Test
+	fun `unsealed live receipt waits for normal capture fence instead of rejecting valid Activity`() = runTest {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 7L))
+		database.sourceEvidenceStateDao().updateLifecycle(7L, null, 1L)
+		database.openHelper.writableDatabase.execSQL("UPDATE source_service_run SET boot_id = ?", arrayOf(clockDomainId))
+		database.sourceBrokerDao().insertDemands(listOf(
+			demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 3L, true)))
+		val started = subject.setDemand(ActivityRegistrationOwner.ACTIVE_SESSION,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5))
+		val identity = requireNotNull(started.snapshot.identity)
+		val registration = requireNotNull(database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND,
+			identity.registrationGeneration))
+		val receipt = retryLossReceipt(registration, requireNotNull(registration.acceptedElapsedRealtimeNanos))
+		subject.recordRetainedCallbackLoss(receipt)
+		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration)
+			?.failureCode shouldBe null
+		coEvery { callbackRetryOwner.gapReceipts() } returns listOf(receipt)
+		org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofMillis(1L))
+
+		subject.clearDemand(ActivityRegistrationOwner.ACTIVE_SESSION).status shouldBe ActivityRegistrationStatus.APPLIED
+		val retired = requireNotNull(database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND,
+			identity.registrationGeneration))
+		retired.failureCode?.contains("ACTIVITY_CALLBACK_LOSS:") shouldBe true
+		retired.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RETIRED
+	}
+
+	private suspend fun seedRetiredRetryRegistration(): ProviderRegistrationGenerationEntity {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 7L))
+		database.sourceEvidenceStateDao().updateLifecycle(7L, null, 1L)
+		insertServiceRun("run-s2", "s2", isUserInitiated = true)
+		val registration = ProviderRegistrationGenerationEntity(ACTIVITY_SOURCE_KIND, 501L, "original-retry",
+			"source-broker:2", "boot-1", "original-config", 7L,
+			ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE, null,
+			ProviderRegistrationGenerationEntity.STATUS_RETIRED, 5L, 5L, 10L, 10L, 300L, 300L,
+			"PRIOR_BOOT_SYSTEM_REMOVED|DEMAND_REMOVED", captureCallbackBarrierAuthorizationRevision = 2L)
+		database.sourceBrokerDao().insertRegistration(registration)
+		for ((revision, logicalId, start) in listOf(Triple(1L, "s1", 10L), Triple(2L, "s2", 100L))) {
+			val demand = demand("retry-$revision", "session:$logicalId", SourceBrokerPurpose.SESSION_CAPTURE,
+				logicalId, revision, true)
+			database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(ACTIVITY_SOURCE_KIND,
+				registration.registrationGeneration, revision, listOf(demand.copy(
+					requestedElapsedRealtimeNanos = start, requestedAtMs = start)), "boot-1", start, start))
+		}
+		database.sourceBrokerDao().sealCaptureAdmissionBarrier(ACTIVITY_SOURCE_KIND, 501L,
+			registration.sourceInstanceId, 2L, SourceBrokerPurpose.MASK_SESSION_CAPTURE, 300L, 300L)
+		return registration
+	}
+
+	private fun retryLossReceipt(registration: ProviderRegistrationGenerationEntity,
+		observed: Long): ActivityCallbackGapReceipt {
+		val identity = ActivityRegistrationIdentity(registration.sourceInstanceId, registration.registrationGeneration,
+			registration.collectedDataEpoch, registration.clockDomainId, registration.physicalConfigurationFingerprint)
+		return ActivityCallbackGapReceipt("0".repeat(64), ActivityCallbackGapCode.RETRY_RECORD_EXPIRED, 500L,
+			identity.registrationGeneration, identity.collectedDataEpoch, 1_000L,
+			ActivityCallbackRetryMetadata(identity, maxOf(500L, observed), 500L, listOf(observed)))
 	}
 
 	@Test
@@ -1788,6 +1934,8 @@ class DefaultActivityRegistrationArbiterTest {
 			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
 		)
 		val firstIdentity = requireNotNull(first.snapshot.identity)
+		val originalAuthorizations = database.sourceBrokerDao().latestAuthorization(ACTIVITY_SOURCE_KIND,
+			firstIdentity.registrationGeneration)
 		clockDomainId = "android-boot-count:8"
 
 		val second = subject.reconcileDurableDemands()
@@ -1798,6 +1946,42 @@ class DefaultActivityRegistrationArbiterTest {
 		secondIdentity.clockDomainId shouldBe "android-boot-count:8"
 		removedIdentities shouldBe listOf(firstIdentity)
 		appliedIdentities shouldBe listOf(firstIdentity, secondIdentity)
+		val retired = requireNotNull(database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND,
+			firstIdentity.registrationGeneration))
+		retired.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RETIRED
+		retired.clockDomainId shouldBe firstIdentity.clockDomainId
+		retired.retiredAtMs shouldBe null
+		retired.retiredElapsedRealtimeNanos shouldBe null
+		retired.failureCode shouldBe ProviderRegistrationGenerationEntity.FAILURE_PRIOR_BOOT_SYSTEM_REMOVED
+		database.sourceBrokerDao().latestAuthorization(ACTIVITY_SOURCE_KIND,
+			firstIdentity.registrationGeneration) shouldBe originalAuthorizations
+	}
+
+	@Test
+	fun `prior boot removal failure preserves its clock and blocks a replacement until retry succeeds`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)))
+		val first = subject.setDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5))
+		val identity = requireNotNull(first.snapshot.identity)
+		clockDomainId = "android-boot-count:8"
+		coEvery { backend.removeRegistration(identity) } throws IllegalStateException("provider removal failed")
+
+		val failed = subject.reconcileDurableDemands()
+		failed.snapshot.active shouldBe false
+		appliedIdentities shouldBe listOf(identity)
+		val pending = requireNotNull(database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND,
+			identity.registrationGeneration))
+		pending.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RETIRING
+		pending.retiredAtMs shouldBe null
+		pending.retiredElapsedRealtimeNanos shouldBe null
+
+		coEvery { backend.removeRegistration(identity) } returns Unit
+		val recovered = subject.reconcileDurableDemands()
+		recovered.status shouldBe ActivityRegistrationStatus.APPLIED
+		requireNotNull(recovered.snapshot.identity).clockDomainId shouldBe clockDomainId
+		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration)
+			?.failureCode shouldBe ProviderRegistrationGenerationEntity.FAILURE_PRIOR_BOOT_SYSTEM_REMOVED
 	}
 
 	@Test

@@ -32,6 +32,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -1068,11 +1069,18 @@ class WifiSourceRuntime @Inject internal constructor(
 		}
 	}
 
-	private fun enqueueControl(callbackRegistration: SourceRegistration, input: WifiRuntimeInput) {
-		synchronized(callbackLock) {
+	private suspend fun enqueueControl(callbackRegistration: SourceRegistration, input: WifiRuntimeInput) {
+		val activeQueue = synchronized(callbackLock) {
 			val activeRegistration = registration ?: return
 			if (!accepting || !callbackRegistration.samePhysicalRegistration(activeRegistration)) return
-			queue?.offer(input)
+			queue
+		} ?: return
+		// Keep the scheduler's bounded action pending while callback admission uses the FIFO.
+		// Never hold callbackLock across the suspending send or retry into a successor lane.
+		try {
+			activeQueue.submit(input)
+		} catch (_: ClosedSendChannelException) {
+			// The exact lane was retired while this action waited for capacity.
 		}
 	}
 

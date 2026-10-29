@@ -10,6 +10,8 @@ import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.ActivityWalPayload
 import com.adsamcik.tracker.shared.base.database.data.ActivityWalPayloadCodec
 import com.adsamcik.tracker.shared.base.database.data.AllDaySensorObservationIdentity
+import com.adsamcik.tracker.shared.base.database.data.AllDaySensorRetention
+import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.ObservationStampColumns
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.shared.base.database.data.PressureWalPayloadCodec
@@ -61,16 +63,28 @@ internal class AllDaySensorProjection(
 		if (!lifecycleAllows(wal, start, wall) || !historicalConsentAllows(wal, start, wall)) {
 			return false
 		}
-		val fingerprint = wal.physicalConfigurationFingerprint
-		return fingerprint != null && database.authenticateHistoricalProviderRegistration(source.stableCode,
+		return providerAllows(wal, start, wall)
+	}
+
+	private suspend fun providerAllows(wal: SourceEventWalEntity, start: Long, wall: Long): Boolean {
+		val fingerprint = wal.physicalConfigurationFingerprint ?: return false
+		val authentication = database.authenticateHistoricalProviderRegistration(source.stableCode,
 			wal.registrationGeneration, wal.sourceInstanceId, wal.clockDomainId,
 			fingerprint, wal.capturedCollectedDataEpoch,
 			if (source == SourceKind.ACTIVITY) {
 				ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE
 			} else {
 				ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND
-			}, start, wal.observedElapsedNanos, wall, clock.current()) !is
-			ProviderRegistrationIntervalAuthentication.Rejected
+			}, start, wal.observedElapsedNanos, wall, clock.current())
+		if (authentication is ProviderRegistrationIntervalAuthentication.Rejected && source == SourceKind.ACTIVITY) {
+			val registration = database.sourceBrokerDao().registration(source.stableCode, wal.registrationGeneration)
+			check(registration == null || registration.clockDomainId == clock.current() ||
+				registration.status !in setOf(ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+					ProviderRegistrationGenerationEntity.STATUS_RETIRING)) {
+				"All-day Activity projection waits for prior-boot provider removal"
+			}
+		}
+		return authentication !is ProviderRegistrationIntervalAuthentication.Rejected
 	}
 
 	private suspend fun lifecycleAllows(wal: SourceEventWalEntity, start: Long, wall: Long): Boolean {
@@ -86,8 +100,12 @@ internal class AllDaySensorProjection(
 			wall < 0L) {
 			return false
 		}
-		val durationMs = (wal.observedElapsedNanos - start) / NANOS_PER_MILLISECOND
-		return lifecycle.retainedFromMs?.let { wall - durationMs < it } != true
+		val lowerBound = if (source == SourceKind.PRESSURE) {
+			AllDaySensorRetention.pressureLowerBound(wall, wal.wallTimeUncertaintyMs, start, wal.observedElapsedNanos)
+		} else {
+			AllDaySensorRetention.activityLowerBound(wall, wal.wallTimeUncertaintyMs)
+		}
+		return lifecycle.retainedFromMs?.let { CanonicalRetentionBounds.crossesFloor(lowerBound, it) } != true
 	}
 
 	// Keep historical consent, its next boundary and explicit erasure checks in observation order.

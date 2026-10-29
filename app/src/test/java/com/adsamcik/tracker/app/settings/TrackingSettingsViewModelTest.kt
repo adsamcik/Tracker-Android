@@ -591,6 +591,66 @@ class TrackingSettingsViewModelTest {
     }
 
 	@Test
+	fun resumeCoalescesPendingRequestsAndPreservesChoicesWithoutSessionStart() = runTest(testDispatcher) {
+		val lifecycle = mockk<TrackingLifecycleCommandAuthority>(relaxed = true)
+		var pendingExit: String? = "turn-off:resume"
+		every { lifecycle.pendingCollectionResumeExitId } answers { pendingExit }
+		val release = CompletableDeferred<Unit>()
+		coEvery { lifecycle.resumeCollectionAfterExplicitTurnOff("turn-off:resume") } coAnswers {
+			release.await()
+			pendingExit = null
+			true
+		}
+		val vm = TrackingSettingsViewModel(context, trackingParamsRepository, trackingStatusProvider,
+			activityWatcherController, purposeAvailabilityReader, lifecycleCommandAuthority = lifecycle,
+			activityPermissionProbe = { permissionsGranted })
+		advanceUntilIdle()
+		val choices = paramsFlow.value
+		vm.resumeTracking()
+		vm.resumeTracking()
+		vm.uiState.value.resumeTrackingInProgress shouldBe true
+		vm.uiState.value.trackingTurnedOff shouldBe true
+		release.complete(Unit)
+		advanceUntilIdle()
+		vm.uiState.value.trackingTurnedOff shouldBe false
+		vm.uiState.value.resumeTrackingFailed shouldBe false
+		vm.uiState.value.resumeTrackingInProgress shouldBe false
+		paramsFlow.value shouldBe choices
+		coVerify(exactly = 1) { lifecycle.resumeCollectionAfterExplicitTurnOff("turn-off:resume") }
+		coVerify(exactly = 0) { lifecycle.reserveStart() }
+		coVerify(exactly = 0) { lifecycle.reserveStartIfGeneration(any()) }
+	}
+
+	@Test
+	fun resumeFailureCanRetryButNewerOffRemainsVisible() = runTest(testDispatcher) {
+		val lifecycle = mockk<TrackingLifecycleCommandAuthority>(relaxed = true)
+		var pendingExit: String? = "turn-off:original"
+		every { lifecycle.pendingCollectionResumeExitId } answers { pendingExit }
+		coEvery { lifecycle.resumeCollectionAfterExplicitTurnOff("turn-off:original") } returns false
+		val vm = TrackingSettingsViewModel(context, trackingParamsRepository, trackingStatusProvider,
+			activityWatcherController, purposeAvailabilityReader, lifecycleCommandAuthority = lifecycle,
+			activityPermissionProbe = { permissionsGranted })
+		advanceUntilIdle()
+		vm.resumeTracking()
+		advanceUntilIdle()
+		vm.uiState.value.trackingTurnedOff shouldBe true
+		vm.uiState.value.resumeTrackingFailed shouldBe true
+		val release = CompletableDeferred<Unit>()
+		coEvery { lifecycle.resumeCollectionAfterExplicitTurnOff("turn-off:original") } coAnswers {
+			release.await()
+			true
+		}
+		vm.resumeTracking()
+		pendingExit = "turn-off:newer"
+		release.complete(Unit)
+		advanceUntilIdle()
+		vm.uiState.value.trackingTurnedOff shouldBe true
+		vm.uiState.value.resumeTrackingFailed shouldBe true
+		vm.uiState.value.resumeTrackingInProgress shouldBe false
+		coVerify(exactly = 2) { lifecycle.resumeCollectionAfterExplicitTurnOff("turn-off:original") }
+	}
+
+	@Test
 	fun `Turn off keeps chosen sources and reports retry when durable command is unavailable`() =
 		runTest(testDispatcher) {
 			mockkObject(TrackerServiceApi)

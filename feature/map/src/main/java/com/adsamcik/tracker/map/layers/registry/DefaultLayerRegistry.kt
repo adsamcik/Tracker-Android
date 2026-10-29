@@ -57,6 +57,7 @@ import com.adsamcik.tracker.map.shared.layers.LayerFactory
 import com.adsamcik.tracker.map.shared.layers.LayerRecipe
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.withContext
 
 /**
@@ -773,12 +774,15 @@ class DefaultLayerRegistry(
     override fun getAllLayers(): List<LayerDescriptor> = cachedLayers
 }
 
+private const val MAX_CONNECTED_LOCATION_GAP_MS = 120_000L
+
 /** Imported route continuity uses measured UTC time, never a fabricated native elapsed clock. */
 private fun LocationPathSampleRow.hasContinuousPathTime(old: LocationPathSampleRow): Boolean =
     if (LocationFileContinuity.isImported(continuityId) || LocationFileContinuity.isImported(old.continuityId)) {
-        sample.timeMs > old.sample.timeMs && sample.timeMs - old.sample.timeMs <= 120_000L
+        sample.timeMs > old.sample.timeMs && sample.timeMs - old.sample.timeMs <= MAX_CONNECTED_LOCATION_GAP_MS
     } else {
         sample.clockDomainId == old.sample.clockDomainId &&
             sample.elapsedRealtimeNanos > old.sample.elapsedRealtimeNanos &&
-            sample.elapsedRealtimeNanos - old.sample.elapsedRealtimeNanos <= 120_000_000_000L
+            sample.elapsedRealtimeNanos - old.sample.elapsedRealtimeNanos <=
+            TimeUnit.MILLISECONDS.toNanos(MAX_CONNECTED_LOCATION_GAP_MS)
     }

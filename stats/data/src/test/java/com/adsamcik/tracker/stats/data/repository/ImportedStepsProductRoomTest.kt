@@ -46,6 +46,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableStepsRunV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsSessionMode
 import com.adsamcik.tracker.stats.api.repository.PortableStepsTransferRetryableReason
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageProblem
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
@@ -433,7 +434,7 @@ class ImportedStepsProductRoomTest {
 	}
 
 	@Test
-	fun `corrupt newest imported entry makes coordinated recent page unavailable`() = runTest {
+	fun `corrupt newest imported Steps is withheld with a visible source problem`() = runTest {
 		seed(entry(listOf(run('2', 10L, 20L, 9L))))
 		seed(entry(listOf(run('4', 30L, 40L, 2L)), '3'), 51L)
 		mutate(
@@ -441,11 +442,12 @@ class ImportedStepsProductRoomTest {
 				"WHERE session_segment_id = 51",
 		)
 
-		history.observeRecentSourceAwarePage(listOf(41L, 51L), 10).first() shouldBe
-			SourceAwareHistoryPageQuery.Unavailable(
-				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-				HistorySource.STEPS,
-			)
+		val page = history.observeRecentSourceAwarePage(listOf(41L, 51L), 10).first() as
+			SourceAwareHistoryPageQuery.Content
+		page.entries shouldBe emptyList()
+		page.physicalTrips shouldBe emptyMap()
+		page.problems shouldBe setOf(SourceAwareHistoryPageProblem(
+			HistorySource.STEPS, SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE))
 	}
 
 	@Test

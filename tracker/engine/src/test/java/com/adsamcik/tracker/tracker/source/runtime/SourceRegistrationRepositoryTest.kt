@@ -2576,7 +2576,7 @@ class SourceRegistrationRepositoryTest {
 		}
 		val cellRuntime = if (kind == SourceKind.CELL) {
 			CellSourceRuntime(runtimeScope, subject, cellBackend,
-			devices, wakeups, allowance)
+			devices, wakeups, allowance, TestDispatchersProvider(kotlinx.coroutines.Dispatchers.Unconfined))
 		} else {
 			null
 		}

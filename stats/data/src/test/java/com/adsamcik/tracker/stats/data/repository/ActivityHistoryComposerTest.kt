@@ -132,6 +132,42 @@ import org.robolectric.annotation.Config
 class ActivityHistoryComposerTest : ActivityHistoryTestFixture() {
 
 	@Test
+	fun `late original callback loss makes saved Activity partial without hiding its valid fragments`() {
+		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val before = ActivityHistoryComposer.composeRecent(original, EXECUTION_AUTHORITY).single().entry
+		val provider = original.providerRegistrations.getValue(1L)
+		val lateLoss = original.copy(providerRegistrations = mapOf(1L to provider.copy(
+			failureCode = "DEMAND_REMOVED|ACTIVITY_CALLBACK_LOSS:1")))
+
+		val after = ActivityHistoryComposer.composeRecent(lateLoss, EXECUTION_AUTHORITY).single().entry
+
+		before.causes.contains(ActivityHistoryCause.ACQUISITION_INCOMPLETE) shouldBe false
+		after.causes.contains(ActivityHistoryCause.ACQUISITION_INCOMPLETE) shouldBe true
+		after.state shouldBe ActivityHistoryProductState.PARTIAL
+		after.coverage shouldBe ActivityHistoryCoverage.PARTIAL
+		after.fragments shouldBe before.fragments
+		after.activeTime shouldBe before.activeTime
+		after.startTime shouldBe before.startTime
+		after.endTime shouldBe before.endTime
+	}
+
+	@Test
+	fun `a later callback loss from another session on the same provider leaves saved Activity unchanged`() {
+		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val before = ActivityHistoryComposer.composeRecent(original, EXECUTION_AUTHORITY).single().entry
+		val provider = original.providerRegistrations.getValue(1L)
+		val grants = original.authorizationsByRegistration.getValue(1L)
+		val foreignGrant = grants.first { it.persistenceEligible }.copy(authorizationRevision = 3L,
+			logicalTrackingId = "another-session", serviceRunId = "another-run",
+			effectiveElapsedRealtimeNanos = requireNotNull(provider.retiredElapsedRealtimeNanos) + 1L)
+		val foreignLoss = original.copy(providerRegistrations = mapOf(1L to provider.copy(
+			failureCode = "DEMAND_REMOVED|ACTIVITY_CALLBACK_LOSS:3", captureCallbackBarrierAuthorizationRevision = 3L)),
+			authorizationsByRegistration = mapOf(1L to (grants + foreignGrant)))
+
+		ActivityHistoryComposer.composeRecent(foreignLoss, EXECUTION_AUTHORITY).single().entry shouldBe before
+	}
+
+	@Test
 	fun `live Activity preserves an observation without inventing a measured interval`() {
 		val snapshot = liveObservationFixture()
 		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry

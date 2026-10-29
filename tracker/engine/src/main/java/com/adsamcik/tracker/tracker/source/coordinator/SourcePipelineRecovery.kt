@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.coordinator
 import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
 import com.adsamcik.tracker.tracker.source.activity.ActivityCapturedFactProjectionLane
 import com.adsamcik.tracker.tracker.source.cell.CellSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationOutboxDispatcher
@@ -52,6 +53,7 @@ class SourcePipelineRecovery private constructor(
 	@Suppress("UNUSED_PARAMETER") constructionMarker: Unit,
 	private val ambientProjections: ProjectionDispatcher? = null,
 	private val ambientIngress: DurableSourceIngress? = null,
+	private val retentionAuthority: RetentionAuthorityProducer? = null,
 ) {
 	private val legacyMutex = Mutex()
 	private val activityEffectMutex = Mutex()
@@ -78,6 +80,7 @@ class SourcePipelineRecovery private constructor(
 		startupGateProvider: Provider<TrackingStartupGate>,
 		ambientProjections: ProjectionDispatcher,
 		ambientIngress: DurableSourceIngress,
+		retentionAuthority: RetentionAuthorityProducer,
 	) : this(
 		legacyRecovery,
 		coordinator,
@@ -94,6 +97,7 @@ class SourcePipelineRecovery private constructor(
 		Unit,
 		ambientProjections,
 		ambientIngress,
+		retentionAuthority,
 	)
 
 	internal constructor(
@@ -224,6 +228,7 @@ class SourcePipelineRecovery private constructor(
 		ambientProjections: ProjectionDispatcher? = null,
 		ambientIngress: DurableSourceIngress? = null,
 		startupGateProvider: Provider<TrackingStartupGate>? = null,
+		retentionAuthority: RetentionAuthorityProducer? = null,
 	) : this(
 		legacyRecovery,
 		coordinator,
@@ -240,6 +245,7 @@ class SourcePipelineRecovery private constructor(
 		Unit,
 		ambientProjections,
 		ambientIngress,
+		retentionAuthority,
 	)
 
 	init {
@@ -247,7 +253,12 @@ class SourcePipelineRecovery private constructor(
 			for (ignored in committedWorkSignals) {
 				// The WAL/outbox is the durable retry owner. A failed hint is retried by the next
 				// admission or normal startup/maintenance recovery; never spin in process.
-				runCatchingNonCancellation { drainCommittedWork() }
+				try {
+					runCatchingNonCancellation { drainCommittedWork() }
+				} catch (cancelled: CancellationException) {
+					// Clear cancels its enrolled child; the actor must serve the next data generation.
+					currentCoroutineContext().ensureActive()
+				}
 			}
 		}
 		if (ambientProjections != null && ambientIngress != null) {
@@ -357,6 +368,9 @@ class SourcePipelineRecovery private constructor(
 		) {
 			throw LegacyV27ProjectionRecoveryNotReadyException(legacyResult)
 		}
+		// Projection registration is metadata, but cannot precede the pristine lifecycle guard.
+		val evidenceFailure = retentionAuthority?.prepareSourceEvidence()
+		check(evidenceFailure == null) { "Source evidence preparation failed: $evidenceFailure" }
 		ambientProjections?.registerAmbientRadioProjections()
 		ambientWifiSignals.trySend(Unit)
 		ambientCellSignals.trySend(Unit)

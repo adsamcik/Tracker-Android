@@ -39,6 +39,8 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 	override val acceptedStartGeneration = acceptedStarts.asStateFlow()
 	private val handledStops = MutableStateFlow(commandState.handledStopGeneration)
 	override val handledStopGeneration = handledStops.asStateFlow()
+	private val collectionResumeStates = MutableStateFlow(commandState.collectionResumeRequired)
+	override val collectionResumeRequired = collectionResumeStates.asStateFlow()
 
 	override val pendingCollectionResumeExitId: String?
 		get() = commandState.handledUserExitId.takeIf { commandState.collectionResumeRequired }
@@ -144,6 +146,36 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 		val updated = commandState.resumeCollection(expectedExitId, TrackingCollectionResumeBoundary(
 			System.currentTimeMillis(), bootClockDomainProvider.current(), SystemClock.elapsedRealtimeNanos()))
 		updated == commandState || writeState(updated)
+	}
+
+	/** Ordinary settings edits keep Off; only this explicit user action may reopen its exact receipt. */
+	override suspend fun resumeCollectionAfterExplicitTurnOff(expectedExitId: String): Boolean = commandGate.withLock {
+		val stopped = commandState
+		if (!expectedExitId.startsWith(TRACKING_TURN_OFF_EXIT_PREFIX) ||
+			stopped.handledUserExitId != expectedExitId || stopped.latestUnhandledStop() != null) {
+			return@withLock false
+		}
+		if (!stopped.collectionResumeRequired) {
+			// A repeated tap must not reset the boundary or revoke a newer pending manual Start.
+			return@withLock stopped.collectionResumeBoundary != null
+		}
+		if (stopped.pendingManualStart != null || stopped.pendingCollectionStartGeneration != null) {
+			return@withLock false
+		}
+		val resumed = stopped.resumeCollection(expectedExitId, TrackingCollectionResumeBoundary(
+			System.currentTimeMillis(), bootClockDomainProvider.current(), SystemClock.elapsedRealtimeNanos()))
+		withContext(NonCancellable + ioDispatcher) {
+			var published = false
+			try {
+				published = writeState(resumed)
+				published
+			} finally {
+				if (!published) {
+					// A failed commit may change the preference cache; restore Off before releasing the gate.
+					try { writeState(stopped) } finally { commandState = stopped }
+				}
+			}
+		}
 	}
 
 	override fun isPendingCollectionStart(command: TrackingStartCommand): Boolean =
@@ -480,6 +512,7 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 				commandState = state
 				acceptedStarts.value = state.latestAcceptedStartGeneration
 				handledStops.value = state.handledStopGeneration
+				collectionResumeStates.value = state.collectionResumeRequired
 			}
 			committed
 		}

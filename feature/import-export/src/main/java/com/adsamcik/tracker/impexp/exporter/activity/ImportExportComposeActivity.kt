@@ -473,10 +473,12 @@ fun ExportScreen(
                         confirmButton = {
                             TextButton(
                                 onClick = {
-                                    pendingSensitiveAction.value = null
-                                    when (action) {
-                                        ExportSensitiveAction.Export -> exportLauncher.launch(null)
-                                        ExportSensitiveAction.Share -> startShareExport()
+                                    if (pendingSensitiveAction.value == action) {
+                                        pendingSensitiveAction.value = null
+                                        when (action) {
+                                            ExportSensitiveAction.Export -> exportLauncher.launch(null)
+                                            ExportSensitiveAction.Share -> startShareExport()
+                                        }
                                     }
                                 }
                             ) {
@@ -493,11 +495,7 @@ fun ExportScreen(
 
                 OutlinedButton(
                     onClick = {
-                        if (exporter.containsSensitiveLocationData) {
-                            pendingSensitiveAction.value = ExportSensitiveAction.Export
-                        } else {
-                            exportLauncher.launch(null)
-                        }
+                        pendingSensitiveAction.value = ExportSensitiveAction.Export
                     },
                     modifier = Modifier.weight(1f),
                     enabled = fileNameErrorState.value == null && !isExporting,
@@ -511,11 +509,7 @@ fun ExportScreen(
 
                 OutlinedButton(
                     onClick = {
-                        if (exporter.containsSensitiveLocationData) {
-                            pendingSensitiveAction.value = ExportSensitiveAction.Share
-                        } else {
-                            startShareExport()
-                        }
+                        pendingSensitiveAction.value = ExportSensitiveAction.Share
                     },
                     modifier = Modifier.weight(1f),
                     enabled = fileNameErrorState.value == null && !isExporting,

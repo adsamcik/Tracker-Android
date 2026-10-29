@@ -127,6 +127,7 @@ class PreparedStartCancellationReleaseTest {
 		ContextWrapper::class.java.getDeclaredField("mBase").apply { isAccessible = true }
 			.set(service, ApplicationProvider.getApplicationContext<Context>())
 		val host = service.backgroundLocationHost
+		coEvery { host.invalidLeaseIdentities() } returns emptyList()
 		every { host.hostedSources } returns emptySet()
 		every { host.leases } returns MutableStateFlow(emptyMap())
 		every { host.active } returns MutableStateFlow(null)

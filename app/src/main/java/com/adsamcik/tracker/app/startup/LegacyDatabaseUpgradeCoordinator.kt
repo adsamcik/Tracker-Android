@@ -8,6 +8,9 @@ import com.adsamcik.tracker.shared.base.database.ActiveDatabaseRetryableReason
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyImportStatus
+import com.adsamcik.tracker.shared.base.database.legacy.LegacyV26Importer
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityOperationLease
 import com.adsamcik.tracker.shared.base.database.legacy.hasCompletedLegacyImport
 import dev.tracebox.Tracebox
 import dev.tracebox.api.public
@@ -35,11 +38,14 @@ sealed interface LegacyDatabaseStartupResult {
 	) : LegacyDatabaseStartupResult
 }
 
-/** Serializes the one-time Room open that atomically creates and seeds the v27 database. */
+/** Serializes active Room validation and the one-time atomic released-data import. */
 @Singleton
 class LegacyDatabaseUpgradeCoordinator @Inject constructor(
 	private val databaseProvider: Provider<AppDatabase>,
 	private val repository: LegacyDatabaseRepository,
+	private val importer: LegacyV26Importer,
+	private val lifecycleStore: CollectedDataLifecycleStore,
+	private val retentionOperationLease: RetentionAuthorityOperationLease,
 ) {
 	private val mutex = Mutex()
 	private val readyForThisProcess = AtomicBoolean(false)
@@ -70,7 +76,11 @@ class LegacyDatabaseUpgradeCoordinator @Inject constructor(
 			// Always open the target, including after the user exported/deleted a failed source.
 			// Hilt owns this Room singleton, so retrying the same helper is safer than trying to
 			// delete and replace an instance already injected into services or workers.
-			val raw = databaseProvider.get().openHelper.writableDatabase
+			val raw = if (sourceExists) {
+				openAndImportReleasedSource()
+			} else {
+				databaseProvider.get().openHelper.writableDatabase
+			}
 			if (sourceExists && !hasCompletedLegacyImport(raw)) {
 				error("The v27 database opened without a completed legacy import marker")
 			}
@@ -102,5 +112,21 @@ class LegacyDatabaseUpgradeCoordinator @Inject constructor(
 				requiresExplicitRetry = sourceExists,
 			)
 		}
+	}
+
+	private suspend fun openAndImportReleasedSource() = retentionOperationLease.withPermit { permit ->
+		val lifecycle = lifecycleStore.snapshot()
+		permit.validate()
+		val database = databaseProvider.get()
+		val raw = database.openHelper.writableDatabase
+		if (!hasCompletedLegacyImport(raw)) {
+			// A complete history migration has no fixed duration. The shared lease stays owned
+			// until its atomic Room transaction settles; small authority-mutation deadlines do not apply.
+			permit.validate()
+			importer.importWithLifecycle(database, lifecycle.epoch, lifecycle.retainedFromMs,
+				System.currentTimeMillis())
+		}
+		permit.validate()
+		raw
 	}
 }

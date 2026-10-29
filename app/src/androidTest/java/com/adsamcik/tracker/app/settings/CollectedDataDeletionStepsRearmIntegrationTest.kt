@@ -11,11 +11,15 @@ import com.adsamcik.tracker.app.di.InfrastructureModule
 import com.adsamcik.tracker.app.di.TrackingInfrastructureIntegrationEntryPoint
 import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.app.tracebox.TrackerTraceboxHandleProvider
+import com.adsamcik.tracker.diagnostics.TrackingDiagnosticClearResult
+import com.adsamcik.tracker.diagnostics.TrackingDiagnosticDataControl
+import com.adsamcik.tracker.impexp.backup.DataBackupRestore
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.impexp.exporter.proto.ExportPlansProto
 import com.adsamcik.tracker.points.database.PointsAwardedDao
 import com.adsamcik.tracker.points.database.PointsDatabase
-import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -27,17 +31,26 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsWalBoundaryKind
+import com.adsamcik.tracker.shared.base.database.data.StepsWalPayload
+import com.adsamcik.tracker.shared.base.database.data.StepsWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.STEPS_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.liveSourceProjectionActivationOrdinal
-import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityBootstrapCoordinator
 import com.adsamcik.tracker.tracker.api.TrackingPurposeDeletionFencer
+import com.adsamcik.tracker.tracker.api.BackgroundTrackingApiEntryPoint
+import com.adsamcik.tracker.tracker.api.TrackerServiceApi
+import com.adsamcik.tracker.tracker.api.TrackingTurnOffResult
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
+import com.adsamcik.tracker.tracker.source.coordinator.SharedSourceWriterDeletionRearm
 import com.adsamcik.tracker.tracker.source.coordinator.StepsSessionFactWriterTransitionCoordinator
 import com.adsamcik.tracker.tracker.source.coordinator.StepsWriterTransitionResult
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -54,11 +67,9 @@ import io.mockk.mockk
 import io.mockk.verify
 import java.io.File
 import javax.inject.Provider
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -78,12 +89,14 @@ import org.junit.runner.RunWith
  * queries, export, UI, QUERYABLE status, or rollout readiness; those remain separate gates.
  */
 @RunWith(AndroidJUnit4::class)
-@OptIn(ExperimentalCoroutinesApi::class)
 class CollectedDataDeletionStepsRearmIntegrationTest {
 	private lateinit var context: Application
 	private lateinit var database: AppDatabase
 	private lateinit var lifecycleStore: CollectedDataLifecycleStore
 	private lateinit var coordinator: StepsSessionFactWriterTransitionCoordinator
+	private lateinit var executableLaneCatalog: ExecutableSourceLaneCatalog
+	private lateinit var sourceWriterDeletionRearm: SharedSourceWriterDeletionRearm
+	private lateinit var sourcePolicyBootstrap: SourcePolicyAuthorityBootstrapCoordinator
 	private lateinit var deletionBarrier: TrackingStartupDeletionBarrier
 	private lateinit var startupGate: TrackingStartupGate
 	private lateinit var retentionAuthorityProducer: RetentionAuthorityProducer
@@ -98,6 +111,9 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		)
 		lifecycleStore = entryPoint.collectedDataLifecycleStore()
 		coordinator = entryPoint.stepsWriterTransitionCoordinator()
+		executableLaneCatalog = entryPoint.executableSourceLaneCatalog()
+		sourceWriterDeletionRearm = entryPoint.sharedSourceWriterDeletionRearm()
+		sourcePolicyBootstrap = entryPoint.sourcePolicyAuthorityBootstrapCoordinator()
 		database = AppDatabase.database(context)
 		deletionBarrier = context.trackingStartupDeletionBarrier
 		startupGate = context.trackingStartupGate
@@ -106,16 +122,21 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 	}
 
 	@Test
-	fun failedPostRearmDiagnosticsRetainsFenceUntilRetryResumesSameGeneration() = runTest {
+	fun failedPostRearmDiagnosticsRetainsFenceUntilRetryResumesSameGeneration() = runBlocking {
+		// Settle the real app's startup/provider work before seeding this isolated re-arm seam.
+		TrackerServiceApi.turnOffTrackingAndAwait(context) shouldBe TrackingTurnOffResult.COMPLETE
 		startupGate.reconcile(retryFailedStorage = true)
 			.shouldBeInstanceOf<TrackingStartupResult.Ready>()
+		EntryPointAccessors.fromApplication(context, BackgroundTrackingApiEntryPoint::class.java)
+			.chosenSourceWriterSetup().ensure(SourceKind.entries.toSet())
+			.readySources shouldBe SourceKind.entries.toSet()
 		markerFile.exists() shouldBe false
 		startupGate.isReady shouldBe true
 		deletionBarrier.isClosed shouldBe false
 
 		val rolloutStore = RoomTrackingRolloutStateStore(
 			database,
-			ExecutableSourceLaneCatalog(),
+			executableLaneCatalog,
 		)
 		val initialLifecycle = lifecycleStore.snapshot()
 		val initialEvidenceHighWater =
@@ -137,9 +158,7 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		)
 		val fixture = createDeletionFixture(
 			scenario = scenario,
-			dispatchersProvider = TestDispatchersProvider(
-				UnconfinedTestDispatcher(testScheduler),
-			),
+			dispatchersProvider = DefaultDispatchersProvider,
 		)
 
 		assertFailedAttemptRemainsFenced(scenario, fixture)
@@ -148,7 +167,7 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 
 	private fun createDeletionFixture(
 		scenario: DeletionScenario,
-		dispatchersProvider: TestDispatchersProvider,
+		dispatchersProvider: DispatchersProvider,
 	): DeletionFixture {
 		val mocks = createDeletionMocks()
 		val counters = RearmCheckCounters()
@@ -165,7 +184,7 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 			ExportPlansProto.getDefaultInstance()
 		}
 
-		val coordinatorProvider = Provider {
+		val sourceWriterRearmProvider = Provider {
 			counters.preRearm += 1
 			assertBeforeRearm(
 				initialOwnerGeneration = scenario.canonicalState.ownerGeneration,
@@ -175,7 +194,7 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 				initialGeneration = scenario.initialGeneration,
 				initialPublishedGeneration = scenario.initialPublishedGeneration,
 			)
-			coordinator
+			sourceWriterDeletionRearm
 		}
 
 		val service = InfrastructureModule.provideCollectedDataDeletionService(
@@ -189,11 +208,14 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 			purposeDeletionFencer = Provider { mocks.purposeDeletionFencer },
 			automaticControlRestorer = mocks.automaticControlRestorer,
 			retentionAuthorityProducer = retentionAuthorityProducer,
-			stepsWriterTransitionCoordinator = coordinatorProvider,
+			sourcePolicyAuthorityBootstrapCoordinator = Provider { sourcePolicyBootstrap },
+			sourceWriterDeletionRearm = sourceWriterRearmProvider,
 			providerFenceScope =
 				CoroutineScope(SupervisorJob() + dispatchersProvider.default),
 			dispatchersProvider = dispatchersProvider,
 			traceboxHandleProvider = mocks.traceboxHandleProvider,
+			trackingDiagnosticDataControl = mocks.trackingDiagnosticDataControl,
+			dataBackupRestore = Provider { mocks.dataBackupRestore },
 		)
 		return DeletionFixture(
 			service = service,
@@ -215,10 +237,15 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 			automaticControlRestorer = mockk(),
 			traceboxHandle = mockk(),
 			traceboxHandleProvider = mockk(),
+			trackingDiagnosticDataControl = mockk(),
+			dataBackupRestore = mockk(),
 		)
 		every { mocks.pointsDatabase.pointsAwardedDao() } returns pointsDao
 		every { pointsDao.deleteAll() } just Runs
 		coEvery { mocks.writerQuiescer.quiesce() } just Runs
+		coEvery { mocks.trackingDiagnosticDataControl.clearAll() } returns
+			TrackingDiagnosticClearResult.CLEARED
+		coEvery { mocks.dataBackupRestore.cancelAndClearOwnedData() } just Runs
 		every { mocks.writerQuiescer.resume() } just Runs
 		coEvery { mocks.activityArbiter.closeForCollectedDataDeletion() } returns
 			appliedRegistrationResult()
@@ -238,12 +265,16 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		scenario: DeletionScenario,
 		fixture: DeletionFixture,
 	) {
-		shouldThrow<DatabaseMigrationBackupException> {
-			fixture.service.deleteAll()
-		}
-
-		fixture.counters.preRearm shouldBe 1
-		fixture.counters.postRearm shouldBe 1
+		val completion = fixture.service.deleteAll()
+		assertEquals(
+			"Expected diagnostic failure after re-arm, got $completion",
+			CollectedDataDeletionCompletion.Retryable(
+				CollectedDataDeletionReconciliationFailure.DeletionExecution,
+			),
+			completion,
+		)
+		assertEquals("Deletion stopped before writer re-arm: $completion", 1, fixture.counters.preRearm)
+		assertEquals("Deletion stopped before post-rearm diagnostics: $completion", 1, fixture.counters.postRearm)
 		markerFile.exists() shouldBe true
 		deletionBarrier.isClosed shouldBe true
 		deletionBarrier.currentGeneration shouldBe scenario.initialGeneration + 1L
@@ -384,17 +415,7 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		val brokerDao = database.sourceBrokerDao()
 		brokerDao.insertDemands(listOf(demand)).single() shouldNotBe -1L
 		brokerDao.insertRegistration(stepsRegistration(collectedDataEpoch))
-		brokerDao.insertAuthorizations(
-			SourceBrokerAuthorization.rows(
-				sourceKind = STEPS_SOURCE,
-				registrationGeneration = 1L,
-				authorizationRevision = 1L,
-				demands = listOf(demand),
-				effectiveBootId = BOOT_ID,
-				effectiveElapsedRealtimeNanos = 100L,
-				effectiveWallTimeMs = 100L,
-			),
-		)
+		brokerDao.insertAuthorizations(stepsAuthorizations(collectedDataEpoch))
 		return highWater
 	}
 
@@ -452,7 +473,7 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 			expectedDeletedHighWater = expectedDeletedHighWater,
 			rolloutStore = RoomTrackingRolloutStateStore(
 				database,
-				ExecutableSourceLaneCatalog(),
+				executableLaneCatalog,
 			),
 		)
 	}
@@ -491,34 +512,69 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		sourceSequence: Long,
 		collectedDataEpoch: Long,
 	) {
+		val payload = StepsWalPayloadCodec.encode(StepsWalPayload(
+			bootClockDomainId = BOOT_ID,
+			firstCumulativeCount = 100L,
+			lastCumulativeCount = 112L,
+			deltaCount = 12L,
+			windowStartElapsedRealtimeNanos = 1_000_000_000L,
+			windowEndElapsedRealtimeNanos = 2_000_000_000L,
+			firstProviderSequence = sourceSequence,
+			lastProviderSequence = sourceSequence,
+			boundaryKind = StepsWalBoundaryKind.COVERED,
+			counterEpochGeneration = 1L,
+			counterDomainToken = null,
+		))
+		val authorization = stepsAuthorizations(collectedDataEpoch).single()
+		val row = SourceEventWalEntity(
+			eventId = eventId,
+			providerDedupKey = null,
+			logicalTrackingId = "tracking-delete",
+			serviceRunId = "run-delete",
+			sourceKind = STEPS_SOURCE,
+			sourceInstanceId = "steps-provider-delete",
+			registrationGeneration = 1L,
+			physicalConfigurationFingerprint = "steps-config-delete",
+			authorizationRevision = authorization.authorizationRevision,
+			authorizationPurposeEligibilityMask = authorization.purposeEligibilityMask,
+			authorizationFingerprint = authorization.authorizationFingerprint,
+			sourceSequence = sourceSequence,
+			configRevision = 1L,
+			planAttribution = 0,
+			clockDomainId = BOOT_ID,
+			observedElapsedNanos = 2_000_000_000L,
+			observedIntervalStartNanos = 1_000_000_000L,
+			receivedElapsedNanos = 2_000_000_000L,
+			wallTimeMs = 2_000L,
+			wallTimeUncertaintyMs = 0L,
+			capturedCollectedDataEpoch = collectedDataEpoch,
+			sourcePolicyRevision = authorization.sourcePolicyRevision,
+			captureConsentEpoch = authorization.consentEpoch,
+			sessionManifestRevision = authorization.manifestRevision,
+			lifecycleLeaseGeneration = authorization.lifecycleLeaseGeneration,
+			acquiredAtMs = 2_000L,
+			qualityFlags = 0L,
+			qualityConfidence = null,
+			payloadVersion = STEPS_WAL_PAYLOAD_VERSION,
+			payload = payload,
+			payloadChecksum = "",
+			createdAtMs = 2_000L,
+		)
 		database.sourceEventWalDao().insertIgnoringDuplicate(
-			SourceEventWalEntity(
-				eventId = eventId,
-				providerDedupKey = null,
-				logicalTrackingId = "tracking-delete",
-				serviceRunId = "run-delete",
-				sourceKind = STEPS_SOURCE,
-				sourceInstanceId = "steps-provider-delete",
-				registrationGeneration = 1L,
-				sourceSequence = sourceSequence,
-				configRevision = 1L,
-				planAttribution = 0,
-				clockDomainId = BOOT_ID,
-				observedElapsedNanos = sourceSequence,
-				receivedElapsedNanos = sourceSequence,
-				wallTimeMs = 1_000L + sourceSequence,
-				wallTimeUncertaintyMs = 0L,
-				capturedCollectedDataEpoch = collectedDataEpoch,
-				acquiredAtMs = 1_000L + sourceSequence,
-				qualityFlags = 0L,
-				qualityConfidence = null,
-				payloadVersion = 1,
-				payload = byteArrayOf(1),
-				payloadChecksum = "checksum-$eventId",
-				createdAtMs = 1_000L + sourceSequence,
-			),
+			row.copy(payloadChecksum = row.calculatedPayloadChecksum(),
+				integrityIdentity = row.calculatedIntegrityIdentity()),
 		)
 	}
+
+	private fun stepsAuthorizations(collectedDataEpoch: Long) = SourceBrokerAuthorization.rows(
+		sourceKind = STEPS_SOURCE,
+		registrationGeneration = 1L,
+		authorizationRevision = 1L,
+		demands = listOf(stepsCaptureDemand(collectedDataEpoch)),
+		effectiveBootId = BOOT_ID,
+		effectiveElapsedRealtimeNanos = 100L,
+		effectiveWallTimeMs = 100L,
+	)
 
 	private fun stepFact(
 		intervalId: Long,
@@ -539,8 +595,8 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		operation = StepFactRevisionEntity.OPERATION_UPSERT,
 		intervalStartTimeMs = 1_000L,
 		intervalEndTimeMs = 2_000L,
-		intervalStartElapsedRealtimeNanos = 1_000L,
-		intervalEndElapsedRealtimeNanos = 2_000L,
+		intervalStartElapsedRealtimeNanos = 1_000_000_000L,
+		intervalEndElapsedRealtimeNanos = 2_000_000_000L,
 		clockDomainId = BOOT_ID,
 		bootClockDomainId = BOOT_ID,
 		cumulativeStepCountStart = 100L,
@@ -553,12 +609,12 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 		manifestRevision = 1L,
 		sourcePolicyRevision = 1L,
-		captureConsentEpoch = 1L,
+		captureConsentEpoch = collectedDataEpoch,
 		collectedDataEpoch = collectedDataEpoch,
 		scopeDeletionGeneration = 0L,
-		effectChecksum = "steps-effect-delete",
+		effectChecksum = "pending-fixture-checksum",
 		appliedAtMs = 2_000L,
-	)
+	).let { it.copy(effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(it)) }
 
 	private fun stepsCaptureDemand(collectedDataEpoch: Long) = SourceDemandEntity(
 		demandId = "steps-capture-delete",
@@ -656,6 +712,8 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		val automaticControlRestorer: PostDeletionAutomaticControlRestorer,
 		val traceboxHandle: TraceboxHandle,
 		val traceboxHandleProvider: TrackerTraceboxHandleProvider,
+		val trackingDiagnosticDataControl: TrackingDiagnosticDataControl,
+		val dataBackupRestore: DataBackupRestore,
 	)
 
 	private data class RearmCheckCounters(
@@ -703,12 +761,4 @@ private infix fun <T> T.shouldNotBe(unexpected: T) {
 private inline fun <reified T> Any?.shouldBeInstanceOf(): T {
 	assertTrue("Expected ${T::class.java.name}, got ${this?.javaClass?.name}", this is T)
 	return this as T
-}
-
-private suspend inline fun <reified T : Throwable> shouldThrow(
-	noinline block: suspend () -> Unit,
-): T {
-	val failure = runCatching { block() }.exceptionOrNull()
-	assertTrue("Expected ${T::class.java.name}, got ${failure?.javaClass?.name}", failure is T)
-	return failure as T
 }

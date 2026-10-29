@@ -1,11 +1,26 @@
 package com.adsamcik.tracker.tracker.source.projection
 
 import android.app.Application
+import com.adsamcik.tracker.shared.base.database.data.StepInterval
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.retention.DefaultRetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
+import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecovery
+import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecoveryResult
+import io.mockk.coEvery
+import io.mockk.mockk
+import kotlinx.coroutines.CoroutineScope
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
+import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
+import kotlinx.coroutines.CancellationException
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
+import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -16,6 +31,8 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -37,6 +54,123 @@ class ProjectionDispatcherTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `fresh startup establishes lifecycle guard before retaining projection scaffolding`() = runBlocking<Unit> {
+		try {
+			val projection = BatchAmbientProjection()
+			val dispatcher = ProjectionDispatcher(database, setOf(projection))
+			val retention = startupRetention()
+			database.sourceEvidenceStateDao().get() shouldBe null
+			startupRecovery(dispatcher, retention, this).recoverStartupAuthority() shouldBe
+				LegacyV27ProjectionRecoveryResult.NotRequired
+			val guard = requireNotNull(database.sourceEvidenceStateDao().get())
+			guard.collectedDataEpoch shouldBe 4L
+			guard.retainedFromMs shouldBe 123L
+			database.sourceProjectionStateDao().registration(projection.id, projection.version)?.status shouldBe "ACTIVE"
+			database.sourceProjectionStateDao().checkpoint(projection.id, projection.version)
+				?.contiguousAdmissionOrdinal shouldBe 0L
+			retention.prepareSourceEvidence() shouldBe null
+			database.sourceEvidenceStateDao().get() shouldBe guard
+			database.sourceEventWalDao().countAll() shouldBe 0L
+		} finally {
+			coroutineContext.cancelChildren()
+		}
+	}
+
+	@Test
+	fun `startup cannot reconstruct a missing guard over recorded observations`() = runBlocking<Unit> {
+		try {
+			database.stepIntervalDao().insert(StepInterval(startTimeMs = 1L, endTimeMs = 2L, stepCount = 1,
+				sensorValueStart = 1, sensorValueEnd = 2, sensorReset = false, createdAt = 2L))
+			val projection = BatchAmbientProjection()
+			val dispatcher = ProjectionDispatcher(database, setOf(projection))
+			val retention = startupRetention()
+			retention.prepareSourceEvidence() shouldBe
+				com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH
+			shouldThrow<IllegalStateException> {
+				startupRecovery(dispatcher, retention, this).recoverStartupAuthority()
+			}
+			database.sourceEvidenceStateDao().get() shouldBe null
+			database.sourceProjectionStateDao().registration(projection.id, projection.version) shouldBe null
+			database.sourceProjectionStateDao().checkpoint(projection.id, projection.version) shouldBe null
+			database.stepIntervalDao().getAllBetween(0L, 10L).size shouldBe 1
+		} finally {
+			coroutineContext.cancelChildren()
+		}
+	}
+
+	@Test
+	fun `startup evidence preparation cannot replace another epoch or retention floor`() = runBlocking<Unit> {
+		startupRetention().prepareSourceEvidence() shouldBe null
+		val original = database.sourceEvidenceStateDao().get()
+		startupRetention(CollectedDataLifecycleSnapshot(5L, 123L)).prepareSourceEvidence() shouldBe
+			com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED
+		startupRetention(CollectedDataLifecycleSnapshot(4L, 124L)).prepareSourceEvidence() shouldBe
+			com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason.RETAINED_FROM_CHANGED
+		database.sourceEvidenceStateDao().get() shouldBe original
+	}
+
+	private fun startupRetention(snapshot: CollectedDataLifecycleSnapshot = CollectedDataLifecycleSnapshot(4L, 123L)):
+		DefaultRetentionAuthorityProducer {
+		val lifecycle = mockk<CollectedDataLifecycleStore>()
+		coEvery { lifecycle.snapshot() } returns snapshot
+		return DefaultRetentionAuthorityProducer(database, mockk(), mockk(), lifecycle,
+			{ SourcePolicyEffectiveTime("boot", 10L, 100L) })
+	}
+
+	private fun startupRecovery(dispatcher: ProjectionDispatcher, retention: DefaultRetentionAuthorityProducer,
+		scope: CoroutineScope): SourcePipelineRecovery {
+		val legacy = mockk<LegacyV27ProjectionRecovery>()
+		coEvery { legacy.recover() } returns LegacyV27ProjectionRecoveryResult.NotRequired
+		return SourcePipelineRecovery(legacy, mockk(), mockk(), mockk(), mockk(relaxed = true),
+			mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), scope,
+			ambientProjections = dispatcher, retentionAuthority = retention)
+	}
+
+	@Test
+	fun `ambient page commits all effects once and resumes after source ordinal gaps`() = runTest {
+		val projection = BatchAmbientProjection()
+		val subject = ProjectionDispatcher(database, setOf(projection))
+		subject.registerProjection(projection.id, projection.version, 1L)
+		val page = listOf(ambientEvent(2L), ambientEvent(5L), ambientEvent(9L))
+		subject.dispatchAmbientBatch(SourceKind.WIFI, page) shouldBe CoordinatorDrainResult.Complete(9L, 3)
+		subject.dispatchAmbientBatch(SourceKind.WIFI, page) shouldBe CoordinatorDrainResult.Complete(9L, 0)
+		database.sourceProjectionStateDao().pendingOutbox(10).map { it.admissionOrdinal } shouldBe
+			listOf(2L, 5L, 9L)
+	}
+
+	@Test
+	fun `failed ambient page rolls back before committing good prefix and leaves suffix retryable`() = runTest {
+		val projection = BatchAmbientProjection(failedOrdinal = 5L)
+		val subject = ProjectionDispatcher(database, setOf(projection))
+		subject.registerProjection(projection.id, projection.version, 1L)
+		val page = listOf(ambientEvent(2L), ambientEvent(5L), ambientEvent(9L))
+		val failed = subject.dispatchAmbientBatch(SourceKind.WIFI, page) as CoordinatorDrainResult.ProjectionFailed
+		failed.lastCompletedOrdinal shouldBe 2L
+		failed.failedOrdinal shouldBe 5L
+		database.sourceProjectionStateDao().pendingOutbox(10).map { it.admissionOrdinal } shouldBe listOf(2L)
+		projection.failedOrdinal = null
+		subject.dispatchAmbientBatch(SourceKind.WIFI, page) shouldBe CoordinatorDrainResult.Complete(9L, 2)
+		database.sourceProjectionStateDao().failure(projection.id, projection.version, 5L) shouldBe null
+		database.sourceProjectionStateDao().pendingOutbox(10).map { it.admissionOrdinal } shouldBe
+			listOf(2L, 5L, 9L)
+	}
+
+	@Test
+	fun `cancelled ambient page acknowledges neither prefix nor suffix`() = runTest {
+		val projection = BatchAmbientProjection(failedOrdinal = 5L, cancel = true)
+		val subject = ProjectionDispatcher(database, setOf(projection))
+		subject.registerProjection(projection.id, projection.version, 1L)
+		shouldThrow<CancellationException> {
+			subject.dispatchAmbientBatch(SourceKind.WIFI, listOf(ambientEvent(2L), ambientEvent(5L)))
+		}
+		database.sourceProjectionStateDao().checkpoint(projection.id, projection.version)
+			?.contiguousAdmissionOrdinal shouldBe 0L
+		database.sourceProjectionStateDao().pendingOutbox(10) shouldBe emptyList()
+	}
+
+	private fun ambientEvent(ordinal: Long) = event(ordinal, SourceKind.WIFI)
 
 	@Test
 	fun `projection outbox and checkpoint commit atomically and retry is idempotent`() = runTest {
@@ -218,14 +352,14 @@ class ProjectionDispatcherTest {
 		state?.payload?.toList() shouldBe listOf(1.toByte(), 2.toByte())
 	}
 
-	private fun event(ordinal: Long) = AdmittedSourceEvent(
+	private fun event(ordinal: Long, source: SourceKind = SourceKind.ACTIVITY) = AdmittedSourceEvent(
 		eventId = SourceEventId("event-$ordinal"),
 		admissionOrdinal = ordinal,
 		evidence = SourceEvidenceCandidate(
 			providerDedupKey = null,
 			logicalTrackingId = null,
 			serviceRunId = null,
-			source = SourceKind.ACTIVITY,
+			source = source,
 			sourceInstanceId = SourceInstanceId("activity"),
 			registrationGeneration = 1,
 			sourceSequence = ordinal,
@@ -240,7 +374,11 @@ class ProjectionDispatcherTest {
 			acquiredAtMs = ordinal,
 			quality = SourceQuality(),
 			payloadVersion = 1,
-			payload = ActivityTransitionPayload(3, 1, ordinal),
+			payload = if (source == SourceKind.WIFI) {
+				WifiResultSnapshotPayload(emptyList(), ordinal, 0L)
+			} else {
+				ActivityTransitionPayload(3, 1, ordinal)
+			},
 		),
 	)
 }
@@ -255,6 +393,21 @@ private class OutboxProjection : Projection {
 	) {
 		applyCount++
 		context.recordOutbox(ProjectionOutboxEffect("effect-${event.eventId.value}", "test", 1, byteArrayOf(1)))
+	}
+}
+
+private class BatchAmbientProjection(var failedOrdinal: Long? = null, private val cancel: Boolean = false) : Projection {
+	override val id = AmbientWifiFactRevisionEntity.WRITER_ID
+	override val version = AmbientWifiFactRevisionEntity.WRITER_VERSION
+	override suspend fun apply(event: AdmittedSourceEvent<out com.adsamcik.tracker.tracker.source.model.SourcePayload>,
+		context: ProjectionContext) {
+		context.recordOutbox(ProjectionOutboxEffect("batch-${event.admissionOrdinal}", "test", 1, byteArrayOf(1)))
+		if (event.admissionOrdinal == failedOrdinal) {
+			if (cancel) {
+				throw CancellationException("Cancelled page")
+			}
+			throw java.io.IOException("Transient page failure")
+		}
 	}
 }
 

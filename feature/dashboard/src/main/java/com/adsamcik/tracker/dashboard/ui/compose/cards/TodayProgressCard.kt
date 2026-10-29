@@ -24,6 +24,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
+import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryState
 import com.adsamcik.tracker.dashboard.ui.compose.components.TrackingActionRing
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
@@ -51,6 +52,14 @@ internal fun TodayProgressCard(
 	val resources = context.resources
 	val settings = TrackerSettingsQuick.snapshot(context)
 	val summary = state.todaySummary.withQualifiedStepsPresence(state.goalProgress.dailySteps)
+	val recent = state.recentHistory as? DashboardRecentHistoryState.Content
+	val confirmedEmpty = recent != null && recent.entries.isEmpty() && recent.problems.isEmpty() &&
+		!recent.hasSavedBackgroundData
+	val emptyCaption = when {
+		recent?.hasSavedBackgroundData == true -> R.string.dashboard_saved_data_history
+		confirmedEmpty -> R.string.dashboard_today_no_activity
+		else -> null
+	}
 	val readySteps = state.goalProgress.dailySteps as? QualifiedStepCount.Ready
 	val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 	// Tighter in landscape: phone landscape viewport is short, so the hero must
@@ -87,17 +96,23 @@ internal fun TodayProgressCard(
 				modifier = Modifier.weight(1f),
 			) {
 				Text(
-					text = stringResource(R.string.dashboard_today_title),
+					text = stringResource(if (summary == null && !confirmedEmpty) {
+						R.string.dashboard_recent_trips_title
+					} else {
+						R.string.dashboard_today_title
+					}),
 					style = MaterialTheme.typography.titleMedium,
 					color = MaterialTheme.colorScheme.onSurfaceVariant,
 				)
 
 				if (summary == null) {
-					Text(
-						text = stringResource(R.string.dashboard_today_no_activity),
-						style = MaterialTheme.typography.bodyLarge,
-						color = MaterialTheme.colorScheme.onSurface,
-					)
+					emptyCaption?.let { caption ->
+						Text(
+							text = stringResource(caption),
+							style = MaterialTheme.typography.bodyLarge,
+							color = MaterialTheme.colorScheme.onSurface,
+						)
+					}
 				} else {
 					if (summary.totalDistanceM > 0f) {
 						val distanceText = resources.formatDistance(

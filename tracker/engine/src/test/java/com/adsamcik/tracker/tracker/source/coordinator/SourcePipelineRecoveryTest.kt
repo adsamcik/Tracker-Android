@@ -5,6 +5,8 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.SourceProjectionStateDao
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.tracker.api.ActivityAutomationDeliveryResult
 import com.adsamcik.tracker.tracker.api.ActivityAutomationStartContext
@@ -30,6 +32,7 @@ import com.adsamcik.tracker.tracker.source.wifi.WifiSessionFactProjectionLane
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
+import io.mockk.coVerifyOrder
 import io.mockk.coVerify
 import io.mockk.coVerifySequence
 import io.mockk.every
@@ -242,10 +245,47 @@ class SourcePipelineRecoveryTest {
 		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) }
 	}
 
+	@Test
+	fun `source evidence initializes before any startup projection metadata or drain`() = runTest {
+		val retention = mockk<RetentionAuthorityProducer>()
+		val projections = mockk<ProjectionDispatcher>()
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		coEvery { legacy.recover() } returns LegacyV27ProjectionRecoveryResult.NotRequired
+		coEvery { retention.prepareSourceEvidence() } coAnswers { entered.complete(Unit); release.await(); null }
+		coEvery { projections.registerAmbientRadioProjections() } returns Unit
+		coEvery { projections.drainAmbientRadioProjection(any(), any()) } returns CoordinatorDrainResult.Complete(0L, 0)
+		val recovery = radioRecovery(projections, backgroundScope, retentionAuthority = retention)
+		val startup = async { recovery.recoverStartupAuthority() }
+		entered.await()
+		coVerify(exactly = 0) { projections.registerAmbientRadioProjections() }
+		coVerify(exactly = 0) { projections.drainAmbientRadioProjection(any(), any()) }
+		release.complete(Unit)
+		startup.await() shouldBe LegacyV27ProjectionRecoveryResult.NotRequired
+		runCurrent()
+		coVerifyOrder { legacy.recover(); retention.prepareSourceEvidence(); projections.registerAmbientRadioProjections() }
+		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) }
+	}
+
+	@Test
+	fun `conflicting source evidence prevents startup metadata and drain hints`() = runTest {
+		val retention = mockk<RetentionAuthorityProducer>()
+		val projections = mockk<ProjectionDispatcher>()
+		coEvery { legacy.recover() } returns LegacyV27ProjectionRecoveryResult.NotRequired
+		coEvery { retention.prepareSourceEvidence() } returns RetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH
+		val recovery = radioRecovery(projections, backgroundScope, retentionAuthority = retention)
+		shouldThrow<IllegalStateException> { recovery.recoverStartupAuthority() }
+		runCurrent()
+		coVerify(exactly = 0) { projections.registerAmbientRadioProjections() }
+		coVerify(exactly = 0) { projections.drainAmbientRadioProjection(any(), any()) }
+		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
+	}
+
 	private fun radioRecovery(
 		projections: ProjectionDispatcher,
 		scope: CoroutineScope,
 		gate: javax.inject.Provider<TrackingStartupGate>? = null,
+		retentionAuthority: RetentionAuthorityProducer? = null,
 	) = SourcePipelineRecovery(
 		legacy, coordinator, activityLane, activityEffects,
 		mockk<StepsSessionFactProjectionLane>(relaxed = true),
@@ -254,7 +294,7 @@ class SourcePipelineRecoveryTest {
 		mockk<CellSessionFactProjectionLane>(relaxed = true),
 		mockk<WifiSessionFactProjectionLane>(relaxed = true),
 		scope, ambientProjections = projections, ambientIngress = mockk<DurableSourceIngress>(),
-		startupGateProvider = gate,
+		startupGateProvider = gate, retentionAuthority = retentionAuthority,
 	)
 
 	@Test
@@ -343,6 +383,40 @@ class SourcePipelineRecoveryTest {
 		scheduled.requestCommittedWorkDrain()
 		runCurrent()
 		coVerify(exactly = 1) { activityLane.drainAvailable() }
+		gate.reopenAdmission()
+		coEvery { activityLane.drainAvailable() } returns CoordinatorDrainResult.Complete(8L, 1)
+		coEvery { activityEffects.drain(any(), any(), any()) } returns 1
+		scheduled.requestCommittedWorkDrain()
+		runCurrent()
+		coVerify(exactly = 2) { activityLane.drainAvailable() }
+		coVerify(exactly = 1) { activityEffects.drain(any(), any(), any()) }
+	}
+
+	@Test
+	fun `application cancellation stops committed work and never revives on a later hint`() = runTest {
+		val gate = TestTrackingStartupGate(initialGeneration = 7L)
+		val parent = Job(backgroundScope.coroutineContext[Job])
+		val scope = CoroutineScope(backgroundScope.coroutineContext + parent)
+		val entered = CompletableDeferred<Unit>()
+		val released = CompletableDeferred<Unit>()
+		coEvery { activityLane.drainAvailable() } coAnswers {
+			try { entered.complete(Unit); awaitCancellation() } finally { released.complete(Unit) }
+		}
+		val scheduled = SourcePipelineRecovery(legacy, coordinator, activityLane, activityEffects,
+			scope, javax.inject.Provider { gate })
+		try {
+			scheduled.requestCommittedWorkDrain()
+			runCurrent()
+			entered.await()
+			parent.cancel()
+			runCurrent()
+			released.isCompleted shouldBe true
+			parent.isCompleted shouldBe true
+			scheduled.requestCommittedWorkDrain()
+			runCurrent()
+			coVerify(exactly = 1) { activityLane.drainAvailable() }
+			coVerify(exactly = 0) { activityEffects.drain(any(), any(), any()) }
+		} finally { parent.cancel() }
 	}
 
 	@Test
@@ -877,6 +951,8 @@ class SourcePipelineRecoveryTest {
 			generation += 1L
 			synchronized(transfers) { transfers.toList() }.forEach { it.cancel() }
 		}
+
+		fun reopenAdmission() { ready = true }
 
 		suspend fun awaitQuiescence() {
 			synchronized(transfers) { transfers.toList() }.joinAll()

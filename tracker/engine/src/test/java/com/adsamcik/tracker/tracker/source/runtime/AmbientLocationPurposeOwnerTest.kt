@@ -28,6 +28,7 @@ import com.adsamcik.tracker.tracker.service.BackgroundLocationHostResult
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanResolver
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import kotlin.test.assertEquals
@@ -123,6 +124,64 @@ class AmbientLocationPurposeOwnerTest {
 		coVerify(exactly = 1) { host.acquire(identity) }
 	}
 
+	@Test
+	fun retryableSessionReplacementKeepsTheAcceptedAllDayPurposeAndHost() = runTest {
+		val context = RuntimeEnvironment.getApplication()
+		Shadows.shadowOf(context).grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION,
+			Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+		val motion = CollectionMotionController().also { it.configureScope("background", "boot", 0L) }
+		val battery = mockk<BatteryAwarePolicy> { every { currentPressure() } returns BatteryPressure.NONE }
+		val owner = subject(context = context, motion = motion, battery = battery)
+		val hosted = BackgroundLocationHostResult.Active(identity, mockk())
+		every { host.active } returns MutableStateFlow(hosted)
+		coEvery { host.acquire(identity) } returns hosted
+		coEvery { broker.authorizationDemands(SourceKind.LOCATION) } returns listOf(adaptiveDemand())
+		coEvery { runtime.reconcileAmbientJoin(any(), 2L) } returnsMany listOf(
+			AmbientLocationRuntimeJoinResult.Unavailable(null, emptySet(), retryable = true),
+			AmbientLocationRuntimeJoinResult.Active(null, null),
+		)
+
+		val pending = owner.reconcile(lease)
+		assertEquals(AmbientSourceOperationalState.WAITING, pending.state)
+		assertEquals(lease.purposeLeaseIdentity, pending.lastIdentity)
+		coVerify(exactly = 1) { retries.schedule(any()) }
+		coVerify(exactly = 0) { reporter.invalidateAmbient(any()) }
+		coVerify(exactly = 0) { broker.retireAmbientSourceDemand(any(), any(), any(), any()) }
+		coVerify(exactly = 0) { host.release(any()) }
+
+		assertEquals(AmbientSourceOperationalState.READY, owner.reconcile(lease).state)
+		coVerify(exactly = 0) { broker.retireAmbientSourceDemand(any(), any(), any(), any()) }
+		coVerify(exactly = 0) { host.release(any()) }
+	}
+
+	@Test
+	fun explicitOffStillRetiresAnAllDayPurposeWaitingForItsSessionOwner() = runTest {
+		val context = RuntimeEnvironment.getApplication()
+		Shadows.shadowOf(context).grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION,
+			Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+		val motion = CollectionMotionController().also { it.configureScope("background", "boot", 0L) }
+		val battery = mockk<BatteryAwarePolicy> { every { currentPressure() } returns BatteryPressure.NONE }
+		val owner = subject(context = context, motion = motion, battery = battery)
+		val hosted = BackgroundLocationHostResult.Active(identity, mockk())
+		every { host.active } returns MutableStateFlow(hosted)
+		coEvery { host.acquire(identity) } returns hosted
+		coEvery { broker.authorizationDemands(SourceKind.LOCATION) } returns listOf(adaptiveDemand())
+		coEvery { runtime.reconcileAmbientJoin(any(), 2L) } returns
+			AmbientLocationRuntimeJoinResult.Unavailable(null, emptySet(), retryable = true)
+		coEvery { broker.retireAmbientSourceDemand(identity, any(), any(), any()) } returns true
+		coEvery { runtime.reconcileAmbientJoin(null, 2L) } returns AmbientLocationRuntimeJoinResult.Inactive(null)
+		coEvery { host.release(identity) } returns true
+
+		assertEquals(AmbientSourceOperationalState.WAITING, owner.reconcile(lease).state)
+		assertEquals(true, owner.retire(lease))
+		coVerifyOrder {
+			broker.retireAmbientSourceDemand(identity, any(), any(), any())
+			runtime.reconcileAmbientJoin(null, 2L)
+			host.release(identity)
+		}
+		coVerify(exactly = 1) { retries.schedule(any()) }
+	}
+
 	private fun adaptiveDemand(): SourceDemandEntity {
 		val contract = SourceDemandContractFactory.forProfile(SourceKind.LOCATION, 1, 3,
 			DirectSourceDemandPurpose.AMBIENT_PRODUCT)
@@ -165,8 +224,45 @@ class AmbientLocationPurposeOwnerTest {
 		val owner = subject()
 		coEvery { broker.retireAmbientSourceDemand(identity, any(), any(), any()) } returns false
 		assertEquals(false, owner.retire(lease))
+		coVerify(exactly = 0) { retries.schedule(any()) }
 		coVerify(exactly = 0) { runtime.reconcileAmbientJoin(any(), any()) }
 		coVerify(exactly = 0) { host.release(any()) }
+	}
+
+	@Test
+	fun `permission retirement stops the exact provider before releasing its host and requests recovery`() = runTest {
+		val owner = subject()
+		val hosted = BackgroundLocationHostResult.Active(identity, mockk())
+		every { host.active } returns MutableStateFlow(hosted)
+		coEvery { broker.retireAmbientSourceDemand(identity, any(), any(), any()) } returns true
+		coEvery { runtime.reconcileAmbientJoin(null, identity.policyRevision) } returns
+			AmbientLocationRuntimeJoinResult.Inactive(null)
+		coEvery { host.release(identity) } returns true
+
+		assertEquals(true, owner.retire(lease, reconcileAfterRetirement = true))
+
+		coVerifyOrder {
+			broker.retireAmbientSourceDemand(identity, any(), any(), any())
+			runtime.reconcileAmbientJoin(null, identity.policyRevision)
+			host.release(identity)
+			reporter.invalidateAmbient(AmbientTrackingSource.LOCATION)
+			retries.schedule(any())
+		}
+	}
+
+	@Test
+	fun `permission retirement keeps host ownership and recovery debt while provider cleanup is pending`() = runTest {
+		val owner = subject()
+		every { host.active } returns MutableStateFlow(BackgroundLocationHostResult.Active(identity, mockk()))
+		coEvery { broker.retireAmbientSourceDemand(identity, any(), any(), any()) } returns true
+		coEvery { runtime.reconcileAmbientJoin(null, identity.policyRevision) } returns
+			AmbientLocationRuntimeJoinResult.Active(null, null)
+
+		assertEquals(false, owner.retire(lease, reconcileAfterRetirement = true))
+
+		coVerify(exactly = 0) { host.release(any()) }
+		coVerify(exactly = 1) { reporter.invalidateAmbient(AmbientTrackingSource.LOCATION) }
+		coVerify(exactly = 1) { retries.schedule(any()) }
 	}
 
 	@Test

@@ -787,7 +787,8 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 
 	private companion object {
 		const val EPOCH = 7L
-		const val FILE_DATABASE_NAME = "imported-ambient-steps-full-clear"
+		// Keep native SQLite journal paths below Windows MAX_PATH after Robolectric prefixes.
+		const val FILE_DATABASE_NAME = "ambient-clear"
 		const val ROLLBACK_MARKER = "reject ambient archive deletion"
 	}
 }

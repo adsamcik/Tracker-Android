@@ -1,6 +1,9 @@
 package com.adsamcik.tracker.tracker.source.coordinator
 
 import androidx.room.withTransaction
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticFailureCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
+import com.adsamcik.tracker.diagnostics.TrackingDiagnosticFailureReason
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainRetirementEvidence
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
@@ -98,6 +101,8 @@ import com.adsamcik.tracker.tracker.source.runtime.SessionCutoff
 import com.adsamcik.tracker.tracker.source.runtime.SessionDemandMutation
 import com.adsamcik.tracker.tracker.source.runtime.SessionSourceDemandDispatchRequest
 import com.adsamcik.tracker.tracker.source.runtime.SessionSourceDemandDispatchResult
+import com.adsamcik.tracker.tracker.source.runtime.PressureSourceRuntime
+import com.adsamcik.tracker.tracker.source.runtime.SharedPressureSourceController
 import com.adsamcik.tracker.tracker.source.runtime.SharedStepSourceController
 import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionFailureCode
 import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionHandoff
@@ -2879,6 +2884,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				)
 			}
 		} catch (_: SessionCoordinatorLeaseLostException) {
+			TrackerDiagnosticLog.failure(TrackerDiagnosticFailureCode.TRACKING_RECONFIGURATION_AUTHORITY_LOST,
+				TrackingDiagnosticFailureReason.UNKNOWN)
 			SessionReconfigureResult.Failed(
 				request.plan.revision, emptyList(), SOURCE_RUNTIME_CLEANUP_PENDING,
 			)
@@ -4836,6 +4843,26 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		)
 	}
 
+	/** Fence session attribution immediately; durable Stop still owns provider retirement. */
+	internal fun fencePressureSessionCutoff(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		cutoff: SourceSessionStopCutoff,
+	): SourceSessionStopCutoff {
+		val runtimeCutoff = SessionCutoff(logicalTrackingId, cutoff.elapsedRealtimeNanos, cutoff.wallTimeMs,
+			cutoff.elapsedRealtimeNanos)
+		val fenced = when (val runtime = runtimes.runtime(SourceKind.PRESSURE)) {
+			is SharedPressureSourceController ->
+				runtime.fenceSessionCutoff(runtimeCutoff, serviceRunId, cutoff.clockDomainId)
+			is PressureSourceRuntime ->
+				runtime.fenceSessionCutoff(runtimeCutoff, serviceRunId, cutoff.clockDomainId)
+			else -> null
+		}
+		return fenced?.let {
+			cutoff.copy(wallTimeMs = it.wallTimeMs, elapsedRealtimeNanos = it.elapsedRealtimeNanos)
+		} ?: cutoff
+	}
+
 	suspend fun stop(request: SessionStopRequest): SessionStopResult {
 		validateCanonicalBootId(request.clockDomainId)?.let {
 			return SessionStopResult.InvalidIntent(it)
@@ -4936,21 +4963,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				val incomplete = terminalRetirementIncomplete(
 					acks, cutoffSession.logicalTrackingId, bound.serviceRunId,
 				)
-				when (val drain = eventCoordinator.drainAvailable(
-					"${request.ownerToken}:projection", throughOrdinal = finalOrdinal,
-				)) {
-					is CoordinatorDrainResult.Complete -> {
-						if (drain.lastCompletedOrdinal < finalOrdinal) {
-							return@withRenewingLease SessionStopResult.DrainPending(
-								cutoffSession.logicalTrackingId, finalOrdinal,
-							)
-						}
-					}
-					else -> return@withRenewingLease SessionStopResult.DrainPending(
-						cutoffSession.logicalTrackingId, finalOrdinal,
-						reason = drain.projectionWaitReason(incomplete),
-					)
-				}
+				// Settle this run's exact products; unrelated automation does not own End.
 				val sourceDrain = drainSettledSourceProducts(
 					cutoffSession.logicalTrackingId,
 					bound.serviceRunId,
@@ -5137,23 +5150,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				val incomplete = terminalRetirementIncomplete(
 					acks, durableSession.logicalTrackingId, bound.serviceRunId,
 				)
-				when (val drain = eventCoordinator.drainAvailable(
-					"${request.ownerToken}:projection", throughOrdinal = finalOrdinal,
-				)) {
-					is CoordinatorDrainResult.Complete -> if (drain.lastCompletedOrdinal < finalOrdinal) {
-						return@withRenewingLease SessionSuspendResult.DrainPending(
-							durableSession.logicalTrackingId,
-							finalOrdinal,
-							sourceCallerAuthorityReference = bound.sourceCallerAuthorityReference,
-						)
-					}
-					else -> return@withRenewingLease SessionSuspendResult.DrainPending(
-						durableSession.logicalTrackingId,
-						finalOrdinal,
-						reason = drain.projectionWaitReason(incomplete),
-						sourceCallerAuthorityReference = bound.sourceCallerAuthorityReference,
-					)
-				}
+				// Source-local drains retain the frozen boundary independently of global control work.
 				val sourceDrain = drainSettledSourceProducts(
 					durableSession.logicalTrackingId,
 					bound.serviceRunId,
@@ -7644,8 +7641,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			)
 		}
 		plan as SourceProductDrainPlan.Ready
-		val results = plan.settledResults + plan.requests.map { request ->
-			sourceProductDrainRouter.drainThrough(request)
+		val results = plan.settledResults + coroutineScope {
+			plan.requests.map { request -> async { sourceProductDrainRouter.drainThrough(request) } }.awaitAll()
 		}
 		val pending = results.firstOrNull { result ->
 			result !is SourceProductDrainResult.Complete &&
@@ -8979,28 +8976,31 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 	}
 
 	private suspend fun renewLease(lease: LifecycleLeaseToken): Unit = try {
-		val bootId = bootClockDomainProvider.current()
-		val leaseNowElapsedNanos = clock.elapsedRealtimeNanos()
-		val nowMs = clock.currentTimeMillis()
-		if (bootId.isBlank() || bootId != lease.bootId ||
-			leaseNowElapsedNanos !in 0L..(Long.MAX_VALUE - LEASE_DURATION_NANOS) ||
-			nowMs !in 0L..(Long.MAX_VALUE - LEASE_DURATION_MILLIS)
-		) {
-			throw SessionCoordinatorLeaseLostException()
-		}
-		if (
-			database.sourceProjectionStateDao().renewExactLease(
-				lease.leaseName,
-				lease.ownerToken,
-				lease.bootId,
-				lease.generation,
-				nowMs,
-				nowMs + LEASE_DURATION_MILLIS,
-				leaseNowElapsedNanos,
-				leaseNowElapsedNanos + LEASE_DURATION_NANOS,
-			) != 1
-		) {
-			throw SessionCoordinatorLeaseLostException()
+		// Sample only after writer admission so a queued renewal cannot shorten a newer lease.
+		database.withTransaction {
+			val bootId = bootClockDomainProvider.current()
+			val leaseNowElapsedNanos = clock.elapsedRealtimeNanos()
+			val nowMs = clock.currentTimeMillis()
+			if (bootId.isBlank() || bootId != lease.bootId ||
+				leaseNowElapsedNanos !in 0L..(Long.MAX_VALUE - LEASE_DURATION_NANOS) ||
+				nowMs !in 0L..(Long.MAX_VALUE - LEASE_DURATION_MILLIS)
+			) {
+				throw SessionCoordinatorLeaseLostException()
+			}
+			if (
+				database.sourceProjectionStateDao().renewExactLease(
+					lease.leaseName,
+					lease.ownerToken,
+					lease.bootId,
+					lease.generation,
+					nowMs,
+					nowMs + LEASE_DURATION_MILLIS,
+					leaseNowElapsedNanos,
+					leaseNowElapsedNanos + LEASE_DURATION_NANOS,
+				) != 1
+			) {
+				throw SessionCoordinatorLeaseLostException()
+			}
 		}
 		Unit
 	} catch (cancelled: CancellationException) {
@@ -9014,8 +9014,11 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 
 	private suspend fun releaseLease(lease: LifecycleLeaseToken) {
 		try {
-			database.withTransaction {
-				releaseLeaseInTransaction(lease)
+			// Cancellation releases this exact coordinator lease; durable provider claims stay owned.
+			withContext(NonCancellable) {
+				database.withTransaction {
+					releaseLeaseInTransaction(lease)
+				}
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled

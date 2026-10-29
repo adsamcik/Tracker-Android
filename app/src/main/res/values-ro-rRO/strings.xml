@@ -15,7 +15,7 @@
     <string name="settings_data_management_section">Gestionarea datelor</string>
     <string name="settings_data_danger_zone_section">Zonă periculoasă</string>
     <string name="settings_incremental_backups_title">Copii de siguranță incrementale</string>
-    <string name="settings_incremental_backups_summary">Exportă doar datele noi de la ultima copie de siguranță. Reduce timpul de export și dimensiunea fișierului.</string>
+    <string name="settings_incremental_backups_summary">Exportă doar date noi în exporturile GPX și KML programate.</string>
     <string name="settings_reset_export_watermarks_title">Forțează exportul complet</string>
     <string name="settings_reset_export_watermarks_summary">Următoarea copie de siguranță automată va include toate datele, nu doar modificările</string>
     <string name="settings_reset_export_watermarks_done">Marcajele de export au fost resetate — următoarea copie de siguranță va fi un export complet</string>
@@ -165,7 +165,7 @@
     <string name="export_sensitivity_db_message">Această copie conține datele de urmărire salvate, care pot include locații și detalii despre rețele. Setările nu sunt incluse.</string>
     <string name="export_sensitivity_confirm">Continuă exportul</string>
     <string name="settings_export_title">Export</string>
-    <string name="settings_import_summary">Importă date din tipurile acceptate (%1$s) și arhive (%2$s). Importurile bazei de date combină rândurile compatibile; nu înlocuiesc datele existente.</string>
+    <string name="settings_import_summary">Importă un fișier de urmărire sau restaurează o copie de siguranță a datelor.</string>
     <string name="settings_import_title">Importă</string>
     <string name="got_it">Am înțeles</string>
     <string name="battery_impact_low">Impact redus</string>
@@ -282,7 +282,7 @@
     <string name="setup_perm_location_bg_why">Pentru a continua înregistrarea rutei când schimbi aplicațiile sau se stinge ecranul, Tracker are nevoie de acces la locație în fundal. Locația înregistrată rămâne pe acest dispozitiv — nimic nu este trimis către un server. La următorul mesaj de sistem, alege „Permite tot timpul” pentru a activa urmărirea automată; „Doar când folosești aplicația” face ca Tracker să funcționeze numai când ecranul său este deschis.</string>
     <string name="setup_perm_activity_why">Permite Tracker să detecteze ce faci (mers pe jos, ciclism, condus, staționar), astfel încât urmărirea automată să se poată întrerupe când nu te miști și să economisească bateria. Datele despre activitate rămân pe acest dispozitiv — nimic nu este trimis către un server.</string>
     <string name="setup_perm_notification_why">Tracker afișează o notificare de stare mică în timp ce înregistrează, pentru a vedea dintr-o privire că urmărirea este pornită și a o opri printr-o singură atingere. Fără notificări de marketing sau promoționale.</string>
-    <string name="setup_perm_wifi_why">Tracker poate înregistra punctele de acces Wi-Fi văzute de telefon în timpul unei călătorii, pentru a îmbunătăți precizia locației în locuri cu semnal GPS slab (în interior, subteran). Datele radio rămân pe acest dispozitiv — nimic nu este trimis către un server. Acordă permisiunea doar dacă dorești.</string>
+    <string name="setup_perm_wifi_why">Android are nevoie de acces la locație pentru a scana rețele Wi-Fi. Poți înregistra date Wi-Fi fără să îți înregistrezi locația.</string>
     <string name="setup_perm_cell_why">Tracker poate înregistra identificatorii turnurilor celulare de-a lungul rutei, astfel încât locația să poată fi estimată când GPS-ul nu este disponibil. Datele radio rămân pe acest dispozitiv — nimic nu este trimis către un server. Acordă acces la starea telefonului și la locația precisă doar dacă dorești.</string>
     <string name="setup_perm_grant">Acordă</string>
     <string name="setup_perm_grant_location_content_description">Acordă permisiunea de localizare</string>

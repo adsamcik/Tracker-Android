@@ -1043,7 +1043,20 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			{
 			factDao.historyDesiredPlans(WIFI_SOURCE, planRevisions, MAX_PLANS + 1)
 		}
-		val admissions = loadHistoryAdmissions(runIds, revisions, selectedFactId)
+		val savedAdmissions = loadHistoryAdmissions(runIds, revisions, selectedFactId)
+		val lanes = factDao.historyProductLanes(
+			WIFI_SOURCE, SessionManifestPurposeCode.SESSION_CAPTURE, runIds, MAX_LANES + 1,
+		)
+		val failures = loadHistoryFailures(runIds, revisions, completeness, savedAdmissions, lanes, selectedFactId)
+		val knownOrdinals = savedAdmissions.mapTo(hashSetOf()) { it.admissionOrdinal }
+		val rejectedAdmissions = failures.take(MAX_TERMINAL_FAILURES).mapNotNull { failure ->
+			currentCoroutineContext().ensureActive()
+			if (failure.admissionOrdinal in knownOrdinals) { null } else {
+				database.sourceEventWalDao().boundedPayloadByAdmissionOrdinal(
+					failure.admissionOrdinal, MAX_WIFI_WAL_PAYLOAD_BYTES)?.takeIf { it.sourceKind == WIFI_SOURCE }
+			}
+		}
+		val admissions = savedAdmissions + rejectedAdmissions
 		val registrationGenerations = (revisions.map(WifiCapturedFactRevisionEntity::registrationGeneration) +
 			admissions.map { it.registrationGeneration }).distinct()
 		val providerLoad = loadChunked(registrationGenerations, MAX_PROVIDERS) { ids, limit ->
@@ -1088,10 +1101,6 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			MAX_DELETION_FENCES + 1,
 		)
 		}
-		val lanes = factDao.historyProductLanes(
-			WIFI_SOURCE, SessionManifestPurposeCode.SESSION_CAPTURE, runIds, MAX_LANES + 1,
-		)
-		val failures = loadHistoryFailures(runIds, revisions, completeness, admissions, lanes, selectedFactId)
 		val evidence = database.sourceEvidenceStateDao().get()
 		currentCoroutineContext().ensureActive()
 		val dependencyCounts = listOf(

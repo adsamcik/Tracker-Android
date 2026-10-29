@@ -15,7 +15,7 @@
     <string name="settings_data_management_section">Gestão de dados</string>
     <string name="settings_data_danger_zone_section">Zona de perigo</string>
     <string name="settings_incremental_backups_title">Cópias de segurança incrementais</string>
-    <string name="settings_incremental_backups_summary">Exporte apenas os novos dados desde a última cópia de segurança. Reduz o tempo de exportação e o tamanho do ficheiro.</string>
+    <string name="settings_incremental_backups_summary">Exporte apenas dados novos nas exportações GPX e KML agendadas.</string>
     <string name="settings_reset_export_watermarks_title">Forçar exportação completa</string>
     <string name="settings_reset_export_watermarks_summary">A próxima cópia de segurança automática incluirá todos os dados em vez de apenas as alterações</string>
     <string name="settings_reset_export_watermarks_done">Marcas de água da exportação repostas — a próxima cópia de segurança será completa</string>
@@ -163,7 +163,7 @@
     <string name="export_sensitivity_db_message">Esta cópia contém os dados de acompanhamento guardados, que podem incluir localizações e detalhes das redes. As definições não são incluídas.</string>
     <string name="export_sensitivity_confirm">Continuar exportação</string>
     <string name="settings_export_title">Exportar</string>
-    <string name="settings_import_summary">Importe dados de tipos suportados (%1$s) e arquivos (%2$s). As importações de bases de dados combinam linhas compatíveis; não substituem os dados existentes.</string>
+    <string name="settings_import_summary">Importe um ficheiro de registo ou restaure uma cópia de segurança dos dados.</string>
     <string name="settings_import_title">Importar</string>
     <string name="got_it">Percebi</string>
     <string name="battery_impact_low">Impacto baixo</string>
@@ -278,7 +278,7 @@
     <string name="setup_perm_location_bg_why">Para continuar a registar o seu percurso quando muda de aplicação ou o ecrã se desliga, o Tracker necessita de aceder à sua localização em segundo plano. A localização registada permanece neste dispositivo — nada é enviado para um servidor. No próximo pedido do sistema, escolha "Permitir sempre" para ativar a monitorização automática; "Enquanto utiliza a aplicação" mantém o Tracker a funcionar apenas quando o respetivo ecrã está aberto.</string>
     <string name="setup_perm_activity_why">Permite ao Tracker detetar o que está a fazer (a caminhar, a pedalar, a conduzir, parado), para que a monitorização automática possa pausar quando não se move e poupar bateria. Os dados de atividade permanecem neste dispositivo — nada é enviado para um servidor.</string>
     <string name="setup_perm_notification_why">O Tracker mostra uma pequena notificação de estado durante o registo, para que veja de imediato que a monitorização está ativa e a possa parar com um toque. Sem notificações de marketing ou promocionais.</string>
-    <string name="setup_perm_wifi_why">O Tracker pode registar os pontos de acesso Wi-Fi que o seu telemóvel vê durante uma viagem, para melhorar a precisão da localização onde o GPS é fraco (no interior, no subsolo). Os dados de rádio permanecem neste dispositivo — nada é enviado para um servidor. Conceda a permissão apenas se o quiser.</string>
+    <string name="setup_perm_wifi_why">O Android precisa de acesso à localização para procurar redes Wi-Fi. Pode registar dados de Wi-Fi sem registar a sua localização.</string>
     <string name="setup_perm_cell_why">O Tracker pode registar IDs de torres de rede móvel ao longo do seu percurso, para que a localização possa ser inferida quando o GPS não está disponível. Os dados de rádio permanecem neste dispositivo — nada é enviado para um servidor. Conceda o estado do telemóvel e a localização precisa apenas se o quiser.</string>
     <string name="setup_perm_grant">Conceder</string>
     <string name="setup_perm_grant_location_content_description">Conceder permissão de localização</string>

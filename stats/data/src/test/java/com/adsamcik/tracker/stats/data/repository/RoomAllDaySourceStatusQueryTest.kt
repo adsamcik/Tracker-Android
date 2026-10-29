@@ -189,9 +189,12 @@ class RoomAllDaySensorStatusQueryTest {
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 4L,
 			retainedFromMs = 1_500L, updatedAtMs = 1L))
 		database.activitySnapshotDao().insert(activity("expired", 1_000L))
-		database.activitySnapshotDao().insert(activity("malformed", 1_600L).copy(confidence = 101))
-		database.activitySnapshotDao().insert(activity("retained", 1_900L))
-		database.pressureSampleDao().insert(pressure("pressure", 2_000L))
+		database.activitySnapshotDao().insert(activity("malformed", 1_600L).copy(confidence = 101,
+			observationStamp = ObservationStampColumns(timeUncertaintyMs = 0L)))
+		database.activitySnapshotDao().insert(activity("retained", 1_900L).copy(
+			observationStamp = ObservationStampColumns(timeUncertaintyMs = 0L)))
+		database.pressureSampleDao().insert(pressure("pressure", 2_600L).copy(
+			observationStamp = ObservationStampColumns(timeUncertaintyMs = 0L)))
 
 		val activity = assertIs<AllDaySourceStatusRead.Sensor>(query.read(request(TrackingSource.ACTIVITY)))
 		assertEquals(listOf(AllDaySensorObservationIdentity.activity("retained")), activity.observations.map { it.identity })
@@ -199,6 +202,26 @@ class RoomAllDaySensorStatusQueryTest {
 		assertEquals(1, assertIs<AllDaySourceStatusRead.Sensor>(query.read(request(TrackingSource.PRESSURE))).observations.size)
 		assertEquals(AllDaySourceStatusRead.Unavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW),
 			query.read(request(TrackingSource.ACTIVITY).copy(limit = 1)))
+	}
+
+	@RoomTest fun `retention excludes uncertain and straddling native readings before the status limit`() = runTest {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(retainedFromMs = 1_000L, updatedAtMs = 1L))
+		database.activitySnapshotDao().insert(activity("crosses", 1_000L).copy(
+			observationStamp = ObservationStampColumns(timeUncertaintyMs = 1L)))
+		database.activitySnapshotDao().insert(activity("unknown", 1_001L))
+		database.activitySnapshotDao().insert(activity("retained", 1_100L).copy(
+			observationStamp = ObservationStampColumns(timeUncertaintyMs = 100L)))
+		database.pressureSampleDao().insert(pressure("crosses", 1_999L).copy(
+			observationStamp = ObservationStampColumns(timeUncertaintyMs = 0L)))
+		database.pressureSampleDao().insert(pressure("unknown", 2_000L))
+		database.pressureSampleDao().insert(pressure("retained", 2_100L).copy(
+			observationStamp = ObservationStampColumns(timeUncertaintyMs = 100L)))
+		for (source in listOf(TrackingSource.ACTIVITY, TrackingSource.PRESSURE)) {
+			val read = assertIs<AllDaySourceStatusRead.Sensor>(query.read(request(source).copy(limit = 1)))
+			assertEquals(1, read.observations.size)
+			assertEquals(true, read.observations.single().identity.endsWith(":retained"))
+			assertEquals(null, read.problem)
+		}
 	}
 
 	@RoomTest fun `Pressure selection uses its measurement date and exclusive upper bound without cutting its window`() = runTest {

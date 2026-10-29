@@ -5,6 +5,9 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.MeasuredHistoryCandidate
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.AllDaySensorObservationIdentity
+import com.adsamcik.tracker.shared.base.database.data.AllDaySensorRetention
+import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
+import com.adsamcik.tracker.shared.base.database.data.allDayRetentionLowerBoundMs
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
 import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
@@ -39,7 +42,10 @@ internal class MeasuredLegacySensorHistoryReader(private val database: AppDataba
             (lower(origin) || ':' || kind > ? OR (lower(origin) || ':' || kind = ? AND identity > ?))))""" }
         val origins = range.origins.map { it.name }
         val purposes = range.purposes.map { it.name }
-        val args = mutableListOf<Any?>(range.fromInclusiveMs, range.toExclusiveMs)
+        val floor = database.sourceEvidenceStateDao().get()?.retainedFromMs
+        val lowerBound = if (activity) { AllDaySensorRetention.ACTIVITY_LOWER_BOUND_SQL
+        } else { AllDaySensorRetention.PRESSURE_LOWER_BOUND_SQL }
+        val args = mutableListOf<Any?>(range.fromInclusiveMs, range.toExclusiveMs, floor, floor)
         args.addAll(origins)
         args.addAll(purposes)
         if (after != null) {
@@ -58,7 +64,8 @@ internal class MeasuredLegacySensorHistoryReader(private val database: AppDataba
                 time_ms AS startTimeMs, NULL AS endTimeMs, id AS rowId,
                 NULL AS writerId, NULL AS writerVersion, NULL AS factId,
                 NULL AS factRevision, NULL AS itemIndex
-            FROM $table WHERE time_ms >= ? AND time_ms < ?)
+            FROM $table WHERE time_ms >= ? AND time_ms < ?
+                AND (COALESCE(($allDay), 0) = 0 OR ? IS NULL OR ($lowerBound) >= ?))
             WHERE origin IN (${origins.joinToString { "?" }}) AND purpose IN (${purposes.joinToString { "?" }})
                 $seek ORDER BY startTimeMs DESC, lower(origin) || ':' || kind, identity LIMIT 101
             """, args.toTypedArray()))
@@ -115,11 +122,10 @@ internal class MeasuredLegacySensorHistoryReader(private val database: AppDataba
                 problems += HistoryProblem(source, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
                 continue
             }
-            val measurement = if (source == HistorySource.ACTIVITY) {
-                activity[key.rowId].toActivityMeasurement(key.startTimeMs)
-            } else {
-                pressure[key.rowId].toPressureMeasurement(key.startTimeMs)
+            if (!hasRetainedWindow(source, key, retainedFromMs, activity, pressure)) {
+                continue
             }
+            val measurement = measurement(source, key, activity, pressure)
             if (measurement == null) {
                 problems += HistoryProblem(source, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
                 continue
@@ -129,6 +135,27 @@ internal class MeasuredLegacySensorHistoryReader(private val database: AppDataba
                 purpose, sections = emptyList(), measurement = measurement)
         }
         return MeasuredLegacySensorHistoryRead(rows, problems)
+    }
+
+    private fun measurement(source: HistorySource, key: MeasuredHistoryCandidate,
+        activity: Map<Long, ActivitySnapshot>, pressure: Map<Long, PressureSample>): HistoryMeasurement? =
+        if (source == HistorySource.ACTIVITY) {
+            activity[key.rowId].toActivityMeasurement(key.startTimeMs)
+        } else {
+            pressure[key.rowId].toPressureMeasurement(key.startTimeMs)
+        }
+
+    private fun hasRetainedWindow(source: HistorySource, key: MeasuredHistoryCandidate, retainedFromMs: Long?,
+        activity: Map<Long, ActivitySnapshot>, pressure: Map<Long, PressureSample>): Boolean {
+        if (key.purpose != HistoryPurpose.BACKGROUND.name || retainedFromMs == null) {
+            return true
+        }
+        val lowerBound = if (source == HistorySource.ACTIVITY) {
+            activity[key.rowId]?.allDayRetentionLowerBoundMs()
+        } else {
+            pressure[key.rowId]?.allDayRetentionLowerBoundMs()
+        }
+        return !CanonicalRetentionBounds.crossesFloor(lowerBound, retainedFromMs)
     }
 
     private fun MeasuredHistoryCandidate.matchesSelection(range: HistoryRange, floor: Long?): Boolean =

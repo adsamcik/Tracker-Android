@@ -162,8 +162,20 @@ internal class AmbientSensorPurposeOwner @Inject constructor(
 		requestReconciliation(source)
 	}
 
-	suspend fun retire(source: AmbientTrackingSource, lease: AmbientReconciliationLease?): Boolean =
-		locks.getValue(source).withLock { retireLocked(source, lease ?: current[source]) }
+	/** Host-loss recovery is opt-in; normal Off/deletion retirement never schedules new collection. */
+	suspend fun retire(
+		source: AmbientTrackingSource,
+		lease: AmbientReconciliationLease?,
+		reconcileAfterRetirement: Boolean = false,
+	): Boolean = locks.getValue(source).withLock {
+		try {
+			retireLocked(source, lease ?: current[source])
+		} finally {
+			if (reconcileAfterRetirement) {
+				requestReconciliation(source)
+			}
+		}
+	}
 
 	private suspend fun retireLocked(source: AmbientTrackingSource, lease: AmbientReconciliationLease?): Boolean {
 		val runtimeSource = source.runtimeSource()

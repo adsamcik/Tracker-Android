@@ -3,12 +3,13 @@ package com.adsamcik.tracker.app.di
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityBootstrapCoordinator
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
-import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
+import com.adsamcik.tracker.tracker.source.coordinator.SharedSourceWriterDeletionRearm
 import com.adsamcik.tracker.tracker.source.coordinator.StepsSessionFactWriterTransitionCoordinator
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
-import com.adsamcik.tracker.tracker.source.lifecycle.SourceLifecycleProofCoordinator
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
@@ -25,10 +26,11 @@ internal interface TrackingInfrastructureIntegrationEntryPoint {
 	fun activityRegistrationArbiter(): ActivityRegistrationArbiter
 	fun collectedDataLifecycleStore(): CollectedDataLifecycleStore
 	fun durableSourceIngress(): DurableSourceIngress
+	fun executableSourceLaneCatalog(): ExecutableSourceLaneCatalog
 	fun retentionAuthorityProducer(): RetentionAuthorityProducer
-	fun sourceLifecycleProofCoordinator(): SourceLifecycleProofCoordinator
+	fun sharedSourceWriterDeletionRearm(): SharedSourceWriterDeletionRearm
+	fun sourcePolicyAuthorityBootstrapCoordinator(): SourcePolicyAuthorityBootstrapCoordinator
 	fun stepsWriterTransitionCoordinator(): StepsSessionFactWriterTransitionCoordinator
 	fun trackingHistoryRepository(): TrackingHistoryRepository
 	fun trackingParamsRepository(): TrackingParamsRepository
-	fun trackingPurposeSettingsReconciler(): TrackingPurposeSettingsReconciler
 }

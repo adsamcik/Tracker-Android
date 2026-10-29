@@ -3,7 +3,9 @@ package com.adsamcik.tracker.dashboard.ui.compose.cards
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.adsamcik.tracker.shared.model.Location
@@ -86,6 +88,35 @@ class LastSessionCardTest {
 		}
 
 		composeRule.onAllNodesWithText("Steps").assertCountEquals(0)
+	}
+
+	@Test
+	fun sessionWithoutLocationOmitsDistanceFromVisibleAndAccessibleSummary() {
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				LastSessionCard(session = makeSession(distanceInM = 0f).copy(hasMeasuredDistance = false),
+					pathPoints = null, onMapClick = {})
+			}
+		}
+
+		composeRule.onNodeWithText("Duration").assertIsDisplayed()
+		composeRule.onAllNodesWithText("Distance").assertCountEquals(0)
+		composeRule.onAllNodesWithText("0 m").assertCountEquals(0)
+		composeRule.onAllNodesWithContentDescription("distance", substring = true).assertCountEquals(0)
+		composeRule.onNodeWithContentDescription("Last Session", substring = true).assertIsDisplayed()
+	}
+
+	@Test
+	fun measuredStationaryLocationKeepsVisibleAndAccessibleZero() {
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				LastSessionCard(session = makeSession(distanceInM = 0f), pathPoints = null, onMapClick = {})
+			}
+		}
+
+		composeRule.onNodeWithText("Distance").assertIsDisplayed()
+		composeRule.onNodeWithText("0 m").assertIsDisplayed()
+		composeRule.onNodeWithContentDescription("0 m distance", substring = true).assertIsDisplayed()
 	}
 
 	@Test

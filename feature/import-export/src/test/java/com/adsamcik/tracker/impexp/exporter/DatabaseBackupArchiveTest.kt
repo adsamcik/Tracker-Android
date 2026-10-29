@@ -79,6 +79,7 @@ class DatabaseBackupArchiveTest {
 		val databaseFile = context.getDatabasePath(databaseName)
 		databaseFile.parentFile?.mkdirs()
 		SQLiteDatabase.openOrCreateDatabase(databaseFile, null).use { database ->
+			database.version = 1
 			database.enableWriteAheadLogging()
 			database.execSQL("CREATE TABLE sample (`id` INTEGER PRIMARY KEY, `value` TEXT NOT NULL)")
 			database.execSQL("INSERT INTO sample (`id`, `value`) VALUES (1, 'before-copy')")
@@ -103,7 +104,7 @@ class DatabaseBackupArchiveTest {
 					DatabaseBackupArchive.write(
 						listOf(databaseFile),
 						output,
-						SQLiteDatabaseCopyLockProvider,
+						SQLiteDatabaseCopyLockProvider(::openFrameworkBackupDatabase),
 					)
 				}
 			} catch (exception: Throwable) {
@@ -279,6 +280,7 @@ class DatabaseBackupArchiveTest {
 		val file = context.getDatabasePath(name)
 		file.parentFile?.mkdirs()
 		SQLiteDatabase.openOrCreateDatabase(file, null).use { database ->
+			database.version = 1
 			database.execSQL("CREATE TABLE saved (`id` INTEGER PRIMARY KEY, `value` BLOB NOT NULL)")
 			database.execSQL("INSERT INTO saved (`id`, `value`) VALUES (1, randomblob(524288))")
 		}
@@ -290,7 +292,7 @@ class DatabaseBackupArchiveTest {
 				val caller = currentCoroutineContext()
 				output = CancellingBackupOutputStream { caller.cancel() }
 				try {
-					returned = DatabaseExporter().export(context, emptySequence(), output, null)
+					returned = DatabaseExporter(::openFrameworkBackupDatabase).export(context, emptySequence(), output, null)
 				} catch (cancelled: CancellationException) {
 					cancellation = cancelled
 				}
@@ -319,6 +321,7 @@ class DatabaseBackupArchiveTest {
 		val file = context.getDatabasePath(name)
 		file.parentFile?.mkdirs()
 		SQLiteDatabase.openOrCreateDatabase(file, null).use { database ->
+			database.version = 1
 			database.execSQL("CREATE TABLE saved (`id` INTEGER PRIMARY KEY)")
 			database.execSQL("INSERT INTO saved (`id`) VALUES (1)")
 		}
@@ -337,7 +340,7 @@ class DatabaseBackupArchiveTest {
 					}
 				}
 				try {
-					returned = DatabaseExporter().export(context, emptySequence(), output, null)
+					returned = DatabaseExporter(::openFrameworkBackupDatabase).export(context, emptySequence(), output, null)
 				} catch (cancelled: CancellationException) {
 					cancellation = cancelled
 				}

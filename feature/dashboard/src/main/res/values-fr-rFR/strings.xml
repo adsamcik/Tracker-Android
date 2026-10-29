@@ -47,6 +47,7 @@
     <string name="dashboard_milestone_time">min de suivi !</string>
     <string name="dashboard_today_title">Aujourd’hui</string>
     <string name="dashboard_today_no_activity">Aucune activité aujourd’hui</string>
+    <string name="dashboard_saved_data_history">Les données enregistrées sont disponibles dans Historique.</string>
     <string name="dashboard_today_distance">Distance</string>
     <string name="dashboard_today_duration">Durée</string>
     <string name="dashboard_today_steps">Pas</string>

@@ -38,7 +38,7 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">Cópia de segurança da base de dados (ZIP)</string>
-    <string name="settings_import_summary">Importe dados de tipos suportados (%1$s) e arquivos (%2$s). As importações de bases de dados combinam linhas compatíveis; não substituem os dados existentes.</string>
+    <string name="settings_import_summary">Importe um ficheiro de registo ou restaure uma cópia de segurança dos dados.</string>
     <string name="settings_import_title">Importar</string>
     <string name="export_radio_sensitivity_title">Exportar detalhes das redes?</string>
     <string name="export_wifi_sensitivity_message">Este ficheiro inclui nomes de Wi-Fi e IDs de pontos de acesso guardados.</string>
@@ -60,4 +60,7 @@
         <item quantity="many">%d pontos neste ficheiro diferem das cópias guardadas. Escolha quais manter. Os outros pontos serão importados normalmente.</item>
         <item quantity="other">%d pontos neste ficheiro diferem das cópias guardadas. Escolha quais manter. Os outros pontos serão importados normalmente.</item>
     </plurals>
+    <string name="export_sensitivity_portable_title">Exportar o histórico registado?</string>
+    <string name="export_sensitivity_portable_steps_message">Este ficheiro contém contagens de passos, intervalos de tempo e informação de cobertura. Não contém coordenadas do percurso. Continue apenas se confiar no destino.</string>
+    <string name="export_sensitivity_portable_activity_message">Este ficheiro contém intervalos de movimento registados, intervalos de tempo e informação de cobertura. Não contém coordenadas do percurso. Continue apenas se confiar no destino.</string>
 </resources>

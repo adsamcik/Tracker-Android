@@ -40,6 +40,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthoritySta
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.DetectedActivityType
+import com.adsamcik.tracker.tracker.resilience.TrackingLifecycleCommandAuthority
 import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
@@ -103,6 +104,8 @@ interface BackgroundTrackingApiEntryPoint {
 	fun activityWatcherController(): ActivityWatcherController
 	fun automaticControlRecoveryScheduler(): AutomaticControlRecoveryScheduler
 	fun trackingStartupGate(): TrackingStartupGate
+	/** Supplies the durable collection state observed by the shared application runtime. */
+	fun trackingLifecycleCommandAuthority(): TrackingLifecycleCommandAuthority
 	fun trackingRolloutStateStore(): RoomTrackingRolloutStateStore
 	/** Provides the shared writer preparation used before enabling selected sources. */
 	fun chosenSourceWriterSetup(): ChosenSourceWriterSetup
@@ -656,7 +659,9 @@ object BackgroundTrackingApi {
 			}
 			.launchIn(scope)
 		purposeAuthorityJob = combine(currentPurposeReader.authorityRevision,
-			entryPoint.chosenSourceWriterSetup().stateChanges()) { authority, setup -> authority to setup }
+			entryPoint.chosenSourceWriterSetup().stateChanges(),
+			entryPoint.trackingLifecycleCommandAuthority().collectionResumeRequired,
+		) { authority, setup, resumeRequired -> Triple(authority, setup, resumeRequired) }
 			.onEach {
 				entryPoint.chosenSourceWriterSetup().ensureCurrentChosenSources()
 				entryPoint.trackingPurposeSettingsReconciler()

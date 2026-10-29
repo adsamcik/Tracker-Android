@@ -1387,7 +1387,7 @@ private fun rejectedLineage(reason: PressureFactProofFailure) =
 
 private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
 	.digest(bytes)
-	.joinToString(separator = "") { byte -> "%02x".format(byte) }
+	.toHexString()
 
 private val VALID_DEMAND_STATES = setOf(
 	SourceDemandEntity.STATUS_ACTIVE,

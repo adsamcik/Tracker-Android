@@ -90,6 +90,7 @@ class SourcePipelineModuleTest {
 				deviceState,
 				wakeups,
 				com.adsamcik.tracker.tracker.source.runtime.testRadioActiveRequestAllowance(),
+				com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider(kotlinx.coroutines.Dispatchers.Unconfined),
 			)
 			val broker = mockk<SourceBroker>()
 			val sinkFactory = mockk<DurableSourceEventSinkFactory>()

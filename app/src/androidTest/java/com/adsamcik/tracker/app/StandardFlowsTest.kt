@@ -4,7 +4,9 @@ import android.os.Build
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -57,7 +59,10 @@ class StandardFlowsTest {
 
     @Before
     fun setup() {
-        // Onboarding is handled by the RuleChain
+        // The real application initializes storage asynchronously before rendering navigation.
+        composeRule.waitUntil(timeoutMillis = APP_STARTUP_TIMEOUT_MILLIS) {
+            hasNodeWithTag("nav_dashboard")
+        }
     }
 
     @Test
@@ -77,15 +82,16 @@ class StandardFlowsTest {
             .assertIsEnabled()
             .performClick()
 
-        // 3. Verify UI changes to TRACKING mode. Its current stop affordance is the sticky pill;
-        // the old dashboard tracking FAB is not part of this screen anymore.
-        val trackingPillStopDescription = context.getString(
-            com.adsamcik.tracker.dashboard.R.string.dashboard_pill_stop
+        // The pill also exists while preparing. Its enabled End session action is published
+        // only after the screen has entered the active recording state.
+        val endSessionDescription = context.getString(
+            com.adsamcik.tracker.tracker.R.string.shortcut_end_session
         )
         composeRule.waitUntil(timeoutMillis = 15_000) {
-            hasNodeWithTag(TRACKING_PILL_TAG)
+            hasEnabledVisibleControl(TRACKING_PILL_TAG, endSessionDescription)
         }
-        composeRule.onNodeWithContentDescription(trackingPillStopDescription)
+        val endSession = composeRule.onNodeWithTag(TRACKING_PILL_TAG)
+            .assertContentDescriptionEquals(endSessionDescription)
             .assertIsDisplayed()
             .assertIsEnabled()
 
@@ -99,7 +105,7 @@ class StandardFlowsTest {
         )
         // (stop for N minutes / until charging / just stop) instead of stopping immediately —
         // pick "just stop" when that choice is shown.
-        composeRule.onNodeWithTag(TRACKING_PILL_TAG).performClick()
+        endSession.performClick()
         composeRule.waitUntil(timeoutMillis = 10_000) {
             hasNodeWithTag(STOP_JUST_STOP_TAG) ||
                 hasIdleStartControl(idleStartDescription, trackingPillStartDescription)
@@ -121,11 +127,23 @@ class StandardFlowsTest {
         idleStartDescription: String,
         trackingPillStartDescription: String,
     ): Boolean =
-        hasNodeWithTag("dashboard_tile_track") ||
-            composeRule.onAllNodesWithContentDescription(idleStartDescription)
-                .fetchSemanticsNodes().isNotEmpty() ||
-            composeRule.onAllNodesWithContentDescription(trackingPillStartDescription)
-                .fetchSemanticsNodes().isNotEmpty()
+        hasEnabledVisibleControl("dashboard_tile_track") ||
+            hasEnabledVisibleControl(description = idleStartDescription) ||
+            hasEnabledVisibleControl(TRACKING_PILL_TAG, trackingPillStartDescription)
+
+    private fun hasEnabledVisibleControl(tag: String? = null, description: String? = null): Boolean {
+        val matcher = when {
+            tag != null && description != null -> hasTestTag(tag) and hasContentDescription(description)
+            tag != null -> hasTestTag(tag)
+            else -> hasContentDescription(requireNotNull(description))
+        }
+        return try {
+            composeRule.onNode(matcher).assertIsDisplayed().assertIsEnabled()
+            true
+        } catch (_: AssertionError) {
+            false
+        }
+    }
 
     @Test
     fun mapFlow_navigationAndInteraction() {
@@ -188,6 +206,7 @@ class StandardFlowsTest {
     }
 
     private companion object {
+        const val APP_STARTUP_TIMEOUT_MILLIS = 30_000L
         val DASHBOARD_START_CONTROL_TAGS = listOf(
             "dashboard_tile_track",
             "tracking_action_ring",

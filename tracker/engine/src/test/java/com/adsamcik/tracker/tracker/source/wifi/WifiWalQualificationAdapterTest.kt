@@ -3,6 +3,8 @@ package com.adsamcik.tracker.tracker.source.wifi
 import com.adsamcik.tracker.tracker.source.coordinator.SourceDrainRetirementClaim
 import com.adsamcik.tracker.tracker.source.coordinator.SourceProductDrainAuthority
 import com.adsamcik.tracker.tracker.source.coordinator.SourceProductDrainPlan
+import com.adsamcik.tracker.tracker.source.coordinator.RoomSourceProductDrainRouter
+import com.adsamcik.tracker.tracker.source.coordinator.SourceProductDrainResult
 import com.adsamcik.tracker.tracker.source.coordinator.SourceProductDrainRequest
 import com.adsamcik.tracker.tracker.source.coordinator.authenticateSourceProductDrainRequest
 import com.adsamcik.tracker.tracker.source.coordinator.buildSourceProductDrainPlan
@@ -2575,6 +2577,128 @@ class WifiWalQualificationAdapterTest {
 		assertEquals(0, result.eventsValidated)
 		assertEquals(0, result.factsInserted)
 		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `stale Wifi plan cannot conceal damaged provider ownership`() = runTest {
+		installValidFixture(candidateWriter = true, includePlanApplication = false)
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val lane = WifiSessionFactProjectionLane(database, subject, writer)
+		val originalFailure = assertIs<WifiSessionFactDrainResult.Failed>(lane.drainAvailable())
+		assertEquals("WIFI_ADAPTER_HISTORICAL_PLAN_APPLICATION_UNVERIFIABLE", originalFailure.failureCode)
+		val savedFailure = database.sourceProjectionStateDao().failure(
+			WifiSessionFactProjectionLane.WRITER_ID, WifiSessionFactProjectionLane.WRITER_VERSION, 1L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET owner_scope = 'foreign-provider' " +
+				"WHERE source_kind = ? AND registration_generation = ?",
+			arrayOf<Any>(WIFI_SOURCE, REGISTRATION_GENERATION))
+
+		assertEquals(WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.REGISTRATION_MISMATCH),
+			subject.qualify(EVENT_ID))
+		val repeated = assertIs<WifiSessionFactDrainResult.Failed>(lane.drainAvailable())
+		assertEquals(originalFailure.failureCode, repeated.failureCode)
+		assertEquals(0L, repeated.lastCompletedOrdinal)
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(savedFailure, database.sourceProjectionStateDao().failure(
+			WifiSessionFactProjectionLane.WRITER_ID, WifiSessionFactProjectionLane.WRITER_VERSION, 1L))
+		assertTrue(database.sourceEventWalDao().getByEventId(EVENT_ID.value) != null)
+	}
+
+	@Test
+	fun `Wi-Fi callback waits for its original start acknowledgement then materializes exactly once`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val action = startAction()
+		val lane = WifiSessionFactProjectionLane(database, subject, writer)
+		for (status in listOf("APPLYING", "PENDING", "AWAITING_FOREGROUND", "TEMPORARILY_ILLEGAL", "CLEANUP_REQUIRED")) {
+			assertEquals(1, database.sourceSessionDao().updateLifecycleAction(action.copy(status = status,
+				acknowledgedAtMs = null, acknowledgedElapsedRealtimeNanos = null)))
+			val waiting = assertIs<WifiSessionFactDrainResult.Failed>(lane.drainAvailable())
+			assertEquals("WIFI_ADAPTER_HISTORICAL_PLAN_APPLICATION_UNVERIFIABLE", waiting.failureCode)
+			assertEquals(0L, waiting.lastCompletedOrdinal)
+			assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+		}
+
+		assertEquals(1, database.sourceSessionDao().updateLifecycleAction(action))
+		val complete = assertIs<WifiSessionFactDrainResult.Complete>(lane.drainAvailable())
+
+		assertEquals(1L, complete.lastCompletedOrdinal)
+		assertEquals(1, complete.factsInserted)
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(null, database.sourceProjectionStateDao().failure(
+			WifiSessionFactProjectionLane.WRITER_ID, WifiSessionFactProjectionLane.WRITER_VERSION, 1L))
+		assertEquals(0, assertIs<WifiSessionFactDrainResult.Complete>(lane.drainAvailable()).factsInserted)
+	}
+
+	@Test
+	fun `rejected Wifi plan never settles after its retained row loses integrity`() = runTest {
+		installValidFixture(candidateWriter = true)
+		database.sourceSessionDao().updateLifecycleAction(startAction().copy(status = "TERMINAL_FAILURE",
+			acknowledgedAtMs = null, acknowledgedElapsedRealtimeNanos = null,
+			sourceInstanceId = null, registrationGeneration = null, failureCode = "PREVIOUS_PROCESS_INTERRUPTED"))
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val lane = WifiSessionFactProjectionLane(database, subject, writer)
+		val first = assertIs<WifiSessionFactDrainResult.Failed>(lane.drainAvailable())
+		assertEquals(true, first.terminal)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET source_sequence = source_sequence + 1 WHERE event_id = ?",
+			arrayOf(EVENT_ID.value))
+
+		val repeated = assertIs<WifiSessionFactDrainResult.Failed>(lane.drainAvailable())
+
+		assertEquals(first.failureCode, repeated.failureCode)
+		assertEquals(0L, repeated.lastCompletedOrdinal)
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `retained rejected Wifi plan preserves its original failure while a new run materializes`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		database.sourceSessionDao().updateLifecycleAction(startAction().copy(status = "TERMINAL_FAILURE",
+			acknowledgedAtMs = null, acknowledgedElapsedRealtimeNanos = null,
+			sourceInstanceId = null, registrationGeneration = null, failureCode = "PREVIOUS_PROCESS_INTERRUPTED"))
+		val nextId = insertSecondWal()
+		bindIndependentWifiRun(nextId)
+		// Per-reading membership owns its original plan even when the callback header has advanced.
+		val old = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value)).copy(configRevision = 999L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET config_revision = 999, integrity_identity = ? WHERE event_id = ?",
+			arrayOf(old.calculatedIntegrityIdentity(), EVENT_ID.value))
+		val reason = WifiWalAdapterRejection.HISTORICAL_PLAN_APPLICATION_UNVERIFIABLE
+		assertEquals(listOf(WifiWalAdapterResult.Rejected(reason)),
+			assertIs<WifiWalAdapterResult.Groups>(subject.qualify(EVENT_ID)).results)
+		assertIs<WifiWalAdapterResult.Evaluated>(subject.qualify(nextId))
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val failure = SourceProjectionFailureEntity(
+			WifiSessionFactProjectionLane.WRITER_ID, WifiSessionFactProjectionLane.WRITER_VERSION,
+			1L, 1, "WIFI_ADAPTER_${reason.name}", true, OBSERVED_WALL_MS)
+		database.sourceProjectionStateDao().saveFailure(failure)
+		val originalWal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		val lane = WifiSessionFactProjectionLane(database, subject, writer)
+
+		val complete = assertIs<WifiSessionFactDrainResult.Complete>(lane.drainAvailable())
+
+		assertEquals(2L, complete.lastCompletedOrdinal)
+		assertEquals(1, complete.factsInserted)
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+		val retained = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		assertTrue(originalWal.payload.contentEquals(retained.payload))
+		assertEquals(originalWal, retained.copy(payload = originalWal.payload))
+		assertEquals(failure, database.sourceProjectionStateDao().failure(
+			WifiSessionFactProjectionLane.WRITER_ID, WifiSessionFactProjectionLane.WRITER_VERSION, 1L))
+		assertEquals(listOf(failure), database.trackingHistoryReadDao().terminalFailuresForServiceRuns(
+			WIFI_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, listOf(RUN_ID), 0L, 2L, 2))
+		assertEquals(emptyList(), database.trackingHistoryReadDao().terminalFailuresForServiceRuns(
+			WIFI_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, listOf("healthy-wifi-run"), 0L, 2L, 2))
+		assertEquals(0, assertIs<WifiSessionFactDrainResult.Complete>(lane.drainAvailable()).factsInserted)
+		val router = RoomSourceProductDrainRouter(database, mockk(), mockk(), mockk(), lane, mockk(), mockk())
+		val rejectedRequest = savedWifiDrain(EVENT_ID)
+		assertEquals(null, authenticateSourceProductDrainRequest(database, rejectedRequest))
+		assertEquals(failure.failureCode,
+			assertIs<SourceProductDrainResult.Unavailable>(router.drainThrough(rejectedRequest)).reason)
+		val healthyRequest = savedWifiDrain(nextId)
+		assertEquals(null, authenticateSourceProductDrainRequest(database, healthyRequest))
+		assertIs<SourceProductDrainResult.Complete>(router.drainThrough(healthyRequest))
 	}
 
 	@Test
@@ -5933,6 +6057,77 @@ class WifiWalQualificationAdapterTest {
 		assertEquals(0L, database.sourceProjectionStateDao().activeProductLane(WIFI_SOURCE)
 			?.contiguousAdmissionOrdinal)
 		return failed
+	}
+
+	private suspend fun savedWifiDrain(eventId: SourceEventId): SourceProductDrainRequest {
+		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(eventId.value))
+		val logical = requireNotNull(wal.logicalTrackingId)
+		val runId = requireNotNull(wal.serviceRunId)
+		val dao = database.sourceSessionDao()
+		val session = requireNotNull(dao.session(logical))
+		dao.updateSession(session.copy(state = "STOPPING", currentServiceRunId = runId,
+			completedAtMs = null, finalAdmissionOrdinal = 2L))
+		dao.updateServiceRun(requireNotNull(dao.serviceRun(runId)).copy(state = "STOPPING",
+			completedAtMs = null, completionReason = null, runtimeAcknowledgement = "PENDING"))
+		val receipt = SourceRunRetirementEntity(logical, runId, WIFI_SOURCE, wal.sourceInstanceId,
+			wal.registrationGeneration, "drain-$runId", 1, LEASE_GENERATION,
+			SESSION_END_NANOS, SESSION_END_WALL_MS, SourceRunRetirementEntity.STATE_ACKNOWLEDGED, PLAN_REVISION,
+			wal.sourceSequence, wal.sourceSequence, wal.admissionOrdinal, 0L, null, null,
+			"REMOVED", "NOT_SUPPORTED", "PROVIDER_COMPLETENESS_UNOBSERVABLE", true, "COMPLETE", SESSION_END_WALL_MS)
+		dao.insertRunRetirementIntent(receipt)
+		dao.saveCompleteness(SourceSessionCompletenessEntity(logical, runId, WIFI_SOURCE, wal.sourceInstanceId,
+			wal.registrationGeneration, wal.admissionOrdinal, wal.sourceSequence, true,
+			"PROVIDER_COMPLETENESS_UNOBSERVABLE", "COMPLETE", null, null, SESSION_END_WALL_MS))
+		val authority = SourceProductDrainAuthority(
+			captureBindings = mapOf(WIFI_SOURCE to dao.manifestSources(logical, MANIFEST_REVISION)),
+			retirementClaims = listOf(SourceDrainRetirementClaim(SourceKind.WIFI, wal.sourceInstanceId,
+				wal.registrationGeneration, receipt.actionId, 1, LEASE_GENERATION, cleanupOnly = false)))
+		return assertIs<SourceProductDrainPlan.Ready>(buildSourceProductDrainPlan(database, logical, runId,
+			SESSION_END_NANOS, SESSION_END_WALL_MS, 2L, authority)).requests.single()
+	}
+
+	/** A separate original run/provider/authorization, sharing only the existing source plan. */
+	private suspend fun bindIndependentWifiRun(eventId: SourceEventId) {
+		val logical = "healthy-wifi-logical"
+		val runId = "healthy-wifi-run"
+		val instance = "healthy-wifi-instance"
+		val dao = database.sourceSessionDao()
+		val oldRun = requireNotNull(dao.serviceRun(RUN_ID))
+		val segment = requireNotNull(database.sessionSegmentDao().getById(SEGMENT_ID))
+		val segmentId = database.sessionSegmentDao().insert(segment.copy(
+			id = 0L, logicalTrackingId = logical, serviceRunId = runId))
+		dao.insertSession(requireNotNull(dao.session(LOGICAL_ID)).copy(
+			logicalTrackingId = logical, finalAdmissionOrdinal = 2L))
+		dao.insertServiceRun(oldRun.copy(serviceRunId = runId, logicalTrackingId = logical,
+			sessionSegmentId = segmentId, startDeliveryToken = "healthy-wifi-start"))
+		val bindings = dao.manifestSources(LOGICAL_ID, MANIFEST_REVISION)
+			.map { it.copy(logicalTrackingId = logical) }
+		val manifest = requireNotNull(dao.manifest(LOGICAL_ID, MANIFEST_REVISION)).copy(
+			logicalTrackingId = logical, serviceRunId = runId, manifestChecksum = "")
+		dao.insertManifest(manifest.copy(manifestChecksum = SessionManifestIntegrity.compute(manifest, bindings)))
+		dao.insertManifestSources(bindings)
+		dao.insertLifecycleActions(listOf(startAction(actionId = "healthy-wifi-action").copy(
+			logicalTrackingId = logical, serviceRunId = runId, sourceInstanceId = instance,
+			registrationGeneration = 2L)))
+		val demand = demand().copy(demandId = "healthy-wifi-demand", consumerId = "session:$logical",
+			logicalTrackingId = logical, serviceRunId = runId)
+		val broker = database.sourceBrokerDao()
+		broker.insertDemands(listOf(demand))
+		broker.insertRegistration(registration(generation = 2L, sourceInstance = instance).copy(
+			captureCallbackBarrierAuthorizationRevision = 2L))
+		val rows = SourceBrokerAuthorization.rows(WIFI_SOURCE, 2L, 2L, listOf(demand),
+			BOOT_ID, AUTHORIZATION_START_NANOS, RUN_START_WALL_MS)
+		broker.insertAuthorizations(rows)
+		val original = requireNotNull(database.sourceEventWalDao().getByEventId(eventId.value))
+		val next = original.copy(logicalTrackingId = logical, serviceRunId = runId,
+			sourceInstanceId = instance, registrationGeneration = 2L, authorizationRevision = 2L,
+			authorizationFingerprint = rows.first().authorizationFingerprint, sourceSequence = SOURCE_SEQUENCE)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET logical_tracking_id = ?, service_run_id = ?, source_instance_id = ?, " +
+				"registration_generation = 2, authorization_revision = 2, authorization_fingerprint = ?, " +
+				"source_sequence = ?, integrity_identity = ? WHERE event_id = ?",
+			arrayOf<Any?>(logical, runId, instance, next.authorizationFingerprint, SOURCE_SEQUENCE,
+				next.calculatedIntegrityIdentity(), eventId.value))
 	}
 
 	private suspend fun insertSecondWal(

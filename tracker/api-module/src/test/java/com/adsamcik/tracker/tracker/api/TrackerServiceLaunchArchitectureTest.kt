@@ -86,7 +86,8 @@ class TrackerServiceLaunchArchitectureTest {
 		rollback shouldContain "if (backgroundLocationHost.hasActiveSources)"
 		rollback shouldContain "ensureForegroundStarted(backgroundLocationHost.hostedSources"
 		rollback shouldContain Regex(
-			"else\\s*\\{\\s*if \\(foregroundStarted\\) stopForeground\\(STOP_FOREGROUND_REMOVE\\)\\s*" +
+			"else\\s+if \\(backgroundHostRecoveryJob\\?\\.isActive != true\\)\\s*\\{\\s*" +
+				"if \\(foregroundStarted\\) stopForeground\\(STOP_FOREGROUND_REMOVE\\)\\s*" +
 				"foregroundStarted = false",
 		)
 		authority shouldContain "private val commandGate = Mutex()"
@@ -101,14 +102,22 @@ class TrackerServiceLaunchArchitectureTest {
 			"feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt",
 			"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/shortcut/ShortcutActivity.kt",
 		)
-		entryPoints.forEach { relativePath ->
+		val requestOwners = listOf(
+			"feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModel.kt",
+			"feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRouteViewModel.kt",
+			entryPoints.last(),
+		)
+		requestOwners.forEach { relativePath ->
+			projectRoot.resolve(relativePath).readText() shouldContain "TrackerServiceApi.requestManualTrackingStart("
+		}
+		(entryPoints + requestOwners).distinct().forEach { relativePath ->
 			val source = projectRoot.resolve(relativePath).readText()
-			source shouldContain "TrackerServiceApi.requestManualTrackingStart("
 			source shouldNotContain "TrackerServiceApi.startService("
 			source shouldNotContain "TrackerServiceApi.startServiceAndAwaitEnqueue("
 		}
 		entryPoints.take(2).forEach { relativePath ->
 			val source = projectRoot.resolve(relativePath).readText()
+			source shouldContain "viewModel.manualStart.start(continuationGeneration)"
 			source shouldContain "onRequestPermission = { requestManualStart() }"
 			source shouldContain "ManualTrackingStartPrerequisite.ACTIVITY_RECOGNITION_PERMISSION"
 			source shouldContain "ManualTrackingStartPrerequisite.READ_PHONE_STATE_PERMISSION"
@@ -136,7 +145,8 @@ class TrackerServiceLaunchArchitectureTest {
 
 		manifest shouldContain "android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
 		manifest shouldContain
-			"User-enabled all-day pressure recording and tracking-session pressure, Wi-Fi, and cell context"
+			"User-enabled all-day pressure recording, tracking-session pressure and radio context, " +
+			"and brief providerless foreground startup and cleanup"
 		manifest shouldNotContain "android:value=\"SignalTracking\""
 	}
 

@@ -144,6 +144,13 @@ class SharedPressureSourceController @Inject constructor(
 		return sessionless && retiredPhysicalProvider
 	}
 
+	/** Does not acquire the lifecycle mutex or interrupt independently allowed all-day collection. */
+	internal fun fenceSessionCutoff(
+		cutoff: SessionCutoff,
+		serviceRunId: String,
+		clockDomainId: String,
+	): SessionCutoff? = physicalRuntime.fenceSessionCutoff(cutoff, serviceRunId, clockDomainId)
+
 	override suspend fun quiesce(cutoff: SessionCutoff): SourceStopAck = mutex.withLock { endSession(cutoff) }
 
 	private suspend fun endSession(cutoff: SessionCutoff): SourceStopAck = withContext(NonCancellable) {

@@ -38,7 +38,7 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">Databassäkerhetskopia (ZIP)</string>
-    <string name="settings_import_summary">Importera data från format som stöds (%1$s) och arkiv (%2$s). Databasimporter sammanfogar kompatibla rader; de ersätter inte befintliga data.</string>
+    <string name="settings_import_summary">Importera en spårningsfil eller återställ en säkerhetskopia av data.</string>
     <string name="settings_import_title">Importera</string>
     <string name="export_radio_sensitivity_title">Exportera nätverksdetaljer?</string>
     <string name="export_wifi_sensitivity_message">Den här filen innehåller sparade Wi-Fi-namn och åtkomstpunkts-ID:n.</string>
@@ -59,4 +59,7 @@
         <item quantity="one">%d punkt i den här filen skiljer sig från den sparade kopian. Välj vilken du vill behålla. Andra punkter importeras som vanligt.</item>
         <item quantity="other">%d punkter i den här filen skiljer sig från sina sparade kopior. Välj vilka du vill behålla. Andra punkter importeras som vanligt.</item>
     </plurals>
+    <string name="export_sensitivity_portable_title">Exportera registrerad historik?</string>
+    <string name="export_sensitivity_portable_steps_message">Den här filen innehåller stegantal, tidsintervall och täckningsinformation. Den innehåller inga ruttkoordinater. Fortsätt bara om du litar på destinationen.</string>
+    <string name="export_sensitivity_portable_activity_message">Den här filen innehåller registrerade rörelseintervall, tidsintervall och täckningsinformation. Den innehåller inga ruttkoordinater. Fortsätt bara om du litar på destinationen.</string>
 </resources>

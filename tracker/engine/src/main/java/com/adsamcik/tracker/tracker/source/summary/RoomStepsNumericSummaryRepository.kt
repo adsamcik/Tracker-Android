@@ -524,7 +524,7 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 			}
 		}
 		if (persistedSessionZones.groupBy(AmbientStepsStructuralDay::epochDay)
-				.values.any { days -> days.map(AmbientStepsStructuralDay::storedZoneId).distinct().size != 1 }
+				.values.any { !calendarsHaveSameBounds(it) }
 		) {
 			return null
 		}
@@ -532,6 +532,13 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 			compareBy(AmbientStepsStructuralDay::epochDay)
 				.thenBy(AmbientStepsStructuralDay::storedZoneId),
 		)
+	}
+
+	private fun calendarsHaveSameBounds(days: List<AmbientStepsStructuralDay>): Boolean {
+		val bounds = days.map { day ->
+			parseZone(day.storedZoneId)?.let { stepsNumericReadQueryBounds(mapOf(day.epochDay to it)) }
+		}
+		return bounds.none { it == null } && bounds.distinct().size == 1
 	}
 
 	private suspend fun readDiscoveredNumericWindow(

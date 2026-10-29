@@ -36,7 +36,7 @@
     <string name="duration_title">Session duration</string>
     <string name="duration_value">duration %s</string>
 
-    <string name="error_nothing_to_track">Enable at least one tracking option (location, steps, or activity)</string>
+    <string name="error_nothing_to_track">Select a tracking source and allow any access it needs.</string>
     <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">Turn on Location Services to use the enabled tracking source.</string>
 
     <string name="hint_customize_notification_show_in_content">Show in notification content</string>

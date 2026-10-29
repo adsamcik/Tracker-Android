@@ -982,7 +982,8 @@ abstract class AppDatabase : RoomDatabase() {
 		override fun setupDatabase(context: Context, database: Builder<AppDatabase>) {
 			super.setupDatabase(context, database)
 			database.addCallback(
-				LegacyImportRoomCallback(context, legacyPublicMigrationsThroughV26),
+				// Live released-data import runs under the startup lifecycle permit after Room opens.
+				LegacyImportRoomCallback(context, legacyPublicMigrationsThroughV26, importOnCreate = false),
 			)
 		}
 

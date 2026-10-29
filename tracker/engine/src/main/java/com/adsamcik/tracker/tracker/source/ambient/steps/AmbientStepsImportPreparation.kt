@@ -20,6 +20,8 @@ import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsFactImporte
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsFactImporter.AmbientAuthority
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsFactImporter.Companion.SOURCE_KIND
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsFactImporter.Companion.OWNER_SCOPE
+import java.time.DateTimeException
+import java.time.ZoneId
 
 internal suspend fun AmbientStepsFactImporter.resolvePreflight(
 	boundary: AmbientStepsImportBoundary,
@@ -57,11 +59,42 @@ private suspend fun AmbientStepsFactImporter.resolvePreparedCursorWindow(
 	if (retention != null) {
 		return retention
 	}
-	val calendar = reconcileImportCalendarBoundary(effectiveCursor, boundary)
-	if (calendar != null) {
-		return calendar
+	val equivalent = if (effectiveCursor.lastObservedZoneId != boundary.zoneId.id &&
+		boundary.throughTimeMs >= effectiveCursor.importedThroughTimeMs
+	) {
+		equivalentCalendarWindow(effectiveCursor, boundary)
+	} else {
+		null
 	}
-	return planPreparedImportWindow(authority, effectiveCursor, boundary)
+	return if (equivalent != null) {
+		Preflight.Ready(authority, effectiveCursor, equivalent)
+	} else {
+		reconcileImportCalendarBoundary(effectiveCursor, boundary)
+			?: planPreparedImportWindow(authority, effectiveCursor, boundary)
+	}
+}
+
+private fun AmbientStepsFactImporter.equivalentCalendarWindow(
+	cursor: AmbientStepsImportCursorEntity,
+	boundary: AmbientStepsImportBoundary,
+): AmbientStepsStructuralWindow? {
+	val previousZone = try {
+		ZoneId.of(cursor.lastObservedZoneId)
+	} catch (_: DateTimeException) {
+		null
+	}
+	val previous = previousZone?.let { zone ->
+		planner.planProgressive(cursor.segmentStartTimeMs, cursor.importedThroughTimeMs,
+			boundary.throughTimeMs, zone).windows.singleOrNull()
+	} ?: return null
+	val current = planner.planProgressive(cursor.segmentStartTimeMs, cursor.importedThroughTimeMs,
+		boundary.throughTimeMs, boundary.zoneId).windows.singleOrNull() ?: return null
+	return when {
+		!previous.hasSameCalendarWindow(current) -> null
+		// Preserve an existing progressive fact's original identity; new windows use the new label.
+		cursor.importedThroughTimeMs > previous.startTimeMs -> previous
+		else -> current
+	}
 }
 
 private suspend fun AmbientStepsFactImporter.reconcileImportResumeBoundary(

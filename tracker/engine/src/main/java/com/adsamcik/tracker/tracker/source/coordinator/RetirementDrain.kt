@@ -293,4 +293,4 @@ private fun SourceEventWalEntity.matchesRetirementSourceSequence(
 		else -> false
 }
 
-private const val MAX_RETIREMENT_AUTHORIZATION_MEMBERS = 64
+internal const val MAX_RETIREMENT_AUTHORIZATION_MEMBERS = 64

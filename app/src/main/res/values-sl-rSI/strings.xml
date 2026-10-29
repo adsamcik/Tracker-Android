@@ -15,7 +15,7 @@
     <string name="settings_data_management_section">Upravljanje podatkov</string>
     <string name="settings_data_danger_zone_section">Območje nevarnosti</string>
     <string name="settings_incremental_backups_title">Postopne varnostne kopije</string>
-    <string name="settings_incremental_backups_summary">Izvozite le nove podatke od zadnje varnostne kopije. To zmanjša čas izvoza in velikost datoteke.</string>
+    <string name="settings_incremental_backups_summary">Pri načrtovanih izvozih GPX in KML izvozite samo nove podatke.</string>
     <string name="settings_reset_export_watermarks_title">Vsili celoten izvoz</string>
     <string name="settings_reset_export_watermarks_summary">Naslednja samodejna varnostna kopija bo vsebovala vse podatke namesto le sprememb.</string>
     <string name="settings_reset_export_watermarks_done">Vodne oznake izvoza so ponastavljene — naslednja varnostna kopija bo celoten izvoz.</string>
@@ -167,7 +167,7 @@
     <string name="export_sensitivity_db_message">Ta varnostna kopija vsebuje shranjene podatke sledenja, ki lahko vključujejo lokacije in podrobnosti omrežij. Nastavitve niso vključene.</string>
     <string name="export_sensitivity_confirm">Nadaljuj izvoz</string>
     <string name="settings_export_title">Izvoz</string>
-    <string name="settings_import_summary">Uvozite podatke iz podprtih vrst (%1$s) in arhivov (%2$s). Uvoz zbirk podatkov združi združljive vrstice; ne zamenja obstoječih podatkov.</string>
+    <string name="settings_import_summary">Uvozite datoteko s podatki sledenja ali obnovite varnostno kopijo podatkov.</string>
     <string name="settings_import_title">Uvoz</string>
     <string name="got_it">Razumem</string>
     <string name="battery_impact_low">Majhen vpliv</string>
@@ -286,7 +286,7 @@
     <string name="setup_perm_location_bg_why">Da Tracker še naprej beleži pot, ko zamenjate aplikacijo ali se zaslon izklopi, potrebuje dostop do lokacije v ozadju. Zabeležena lokacija ostane v tej napravi — ničesar ne pošiljamo na strežnik. V naslednjem sistemskem pozivu izberite »Vedno dovoli«, da omogočite samodejno sledenje; možnost »Med uporabo aplikacije« omogoča delovanje Trackerja le, ko je zaslon odprt.</string>
     <string name="setup_perm_activity_why">Trackerju omogoča, da zazna, kaj počnete (hoja, kolesarjenje, vožnja, mirovanje), zato lahko samodejno sledenje začasno ustavi, ko se ne premikate, in varčuje z baterijo. Podatki o dejavnosti ostanejo v tej napravi — ničesar ne pošiljamo na strežnik.</string>
     <string name="setup_perm_notification_why">Tracker med beleženjem prikaže majhno obvestilo o stanju, da na hitro vidite, da je sledenje vklopljeno, in ga ustavite z enim tapom. Brez trženjskih ali promocijskih obvestil.</string>
-    <string name="setup_perm_wifi_why">Tracker lahko beleži dostopne točke Wi‑Fi, ki jih telefon vidi med potovanjem, da izboljša natančnost lokacije tam, kjer je GPS šibek (v zaprtih prostorih, pod zemljo). Radijski podatki ostanejo v tej napravi — ničesar ne pošiljamo na strežnik. Odobrite le, če to želite.</string>
+    <string name="setup_perm_wifi_why">Android potrebuje dostop do lokacije za iskanje omrežij Wi-Fi. Podatke Wi-Fi lahko beležite brez beleženja svoje lokacije.</string>
     <string name="setup_perm_cell_why">Tracker lahko beleži ID-je baznih postaj ob poti, da se lahko lokacija določi, kadar GPS ni na voljo. Radijski podatki ostanejo v tej napravi — ničesar ne pošiljamo na strežnik. Dovoljenje za stanje telefona in natančno lokacijo odobrite le, če to želite.</string>
     <string name="setup_perm_grant">Dovoli</string>
     <string name="setup_perm_grant_location_content_description">Dovoli dovoljenje za lokacijo</string>
