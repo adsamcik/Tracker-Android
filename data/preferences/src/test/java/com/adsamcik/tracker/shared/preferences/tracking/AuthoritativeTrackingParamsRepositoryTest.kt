@@ -31,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -610,14 +611,15 @@ class AuthoritativeTrackingParamsRepositoryTest {
 			blockingLegacy.releaseUpdate.complete(Unit)
 
 			val latest = isolated.data.first { it.sourcePolicyRevision == 3L }
-			runCurrent()
 			latest.locationEnabled.shouldBeTrue()
 			latest.wifiEnabled shouldBe !ambient
 			latest.ambientWifiEnabled shouldBe ambient
 			latest.cellEnabled.shouldBeTrue()
 			latest.stepsEnabled.shouldBeFalse()
-			save.isCompleted.shouldBeTrue()
-			save.await()
+			// Room invalidation can resume the save separately from the test's state collector.
+			withContext(Dispatchers.Default) {
+				withTimeout(5_000) { save.await() }
+			}
 		} finally {
 			isolatedScope.cancel()
 			isolatedDatabase.close()
