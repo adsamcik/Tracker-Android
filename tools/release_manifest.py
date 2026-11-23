@@ -35,6 +35,8 @@ SENSITIVE_PERMISSIONS = frozenset(
         "android.permission.NEARBY_WIFI_DEVICES",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.READ_PHONE_STATE",
+        "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND",
+        "android.permission.health.READ_STEPS",
         "com.google.android.gms.permission.ACTIVITY_RECOGNITION",
     }
 )

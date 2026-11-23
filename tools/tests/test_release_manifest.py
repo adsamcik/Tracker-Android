@@ -145,6 +145,8 @@ class ReleaseManifestValidationTest(unittest.TestCase):
     <uses-sdk android:targetSdkVersion="37" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
     <application>
         <service
             android:name="example.TrackerService"
@@ -166,7 +168,11 @@ class ReleaseManifestValidationTest(unittest.TestCase):
         self.assertEqual(evidence["targetSdk"], 37)
         self.assertEqual(
             evidence["requestedSensitivePermissions"],
-            ["android.permission.ACCESS_BACKGROUND_LOCATION"],
+            [
+                "android.permission.ACCESS_BACKGROUND_LOCATION",
+                "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND",
+                "android.permission.health.READ_STEPS",
+            ],
         )
         self.assertEqual(
             evidence["foregroundServices"][0]["specialUseSubtype"],

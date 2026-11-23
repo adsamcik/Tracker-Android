@@ -23,6 +23,8 @@ Data created by the app stays on your device. This can include:
 
 * location history, routes, and trip/session records
 * activity recognition and step-related data
+* nearby Wi-Fi and cell network identifiers and signal readings, and air-pressure readings,
+  when you enable those sources
 * app settings and local app data
 * local Tracebox crash, ANR, process-exit, fixed structural diagnostics, and optional performance
   measurements
@@ -60,11 +62,24 @@ setup or turn online map tiles off at any time.
 ### Location
 
 Used for recording routes, showing your position on the map, and generating location-based
-statistics.
+statistics. If you enable automatic route recording or all-day Location and grant background
+location access, Tracker can collect location while the app is closed.
 
 ### Activity Recognition
 
 Used for activity detection, step counting, and related on-device insights.
+
+### Health Connect
+
+If you enable all-day Steps and grant access, Tracker can read aggregate step counts recorded by
+this device through Health Connect. Tracker uses these counts to fill gaps in your local step
+history. On supported devices, you can separately allow background access so Tracker can read
+step counts while the app is closed. Imported counts stay on your device unless you choose to
+export them.
+
+You can turn off all-day Steps in Tracker or revoke access in Health Connect. To remove step
+counts already imported into Tracker, use Tracker's collected-data deletion. You can manage the
+original records in Health Connect.
 
 ### Notifications
 

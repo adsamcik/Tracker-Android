@@ -11,14 +11,17 @@ different claims: never mark an external item complete from source inspection al
   ID/version, target SDK, ABI inventory, every packaged native library, ELF alignment results, APK
   ZIP alignment results, requested sensitive permissions, foreground-service types, and the
   `specialUse` subtype.
-- [ ] The structured manifest evidence still includes background location only for the documented
-  user-visible route-recording behavior, and the in-app flow requests foreground location before
-  background location.
+- [ ] The structured manifest evidence includes background location for automatic route recording
+  and optional all-day Location. The app explains these uses and requests foreground location
+  before background location.
 - [ ] The merged manifest's foreground-service declarations match runtime use. In particular,
   every service using `specialUse` has a specific subtype and a user-visible, defensible purpose.
 - [ ] The bundled privacy policy and in-app disclosure match the candidate's permission use,
   local-first storage behavior, optional export/share flows, and user-enabled MapLibre network
   access through `NetworkGateway`.
+- [ ] The sensitive-permission evidence includes Health Connect Steps and background-read access.
+  The Health Connect rationale opens the bundled policy, which explains the read-only step
+  counts, optional background access, storage, export, and deletion.
 
 ## Externally verified for this Play candidate
 
@@ -33,6 +36,9 @@ These facts are not repository-proven.
   `local_device_signal_collection` subtype, verify that the console copy describes a genuine
   signal-only tracking session; location and activity/step sessions use their standard `location`
   and `health` types instead.
+- [ ] **Health apps and Health Connect:** the Health apps declaration describes the Steps feature.
+  The Health Connect declaration and its justification match the candidate's read-only access to
+  step counts from this device and the optional background access used to fill gaps.
 - [ ] **Data safety:** the published form matches actual production behavior, including on-device
   tracked data, explicit export/share actions, and request data sent to user-enabled map hosts. Do
   not infer the form answers solely from permission names or the repository's local-first design.
