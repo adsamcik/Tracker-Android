@@ -10,6 +10,22 @@ import java.security.MessageDigest
 
 const val PRESSURE_WAL_PAYLOAD_VERSION = 4
 const val MAX_PRESSURE_WAL_PAYLOAD_BYTES = 256
+const val PRESSURE_AMBIENT_OUTSIDE_CAPTURE_PLAN = "PRESSURE_AMBIENT_OUTSIDE_CAPTURE_PLAN"
+
+/** A preserved ambient window that acquired a later session label without its capture configuration. */
+fun SourceEventWalEntity.isAmbientPressureOutsideCapturePlan(manifest: SessionManifestVersionEntity): Boolean {
+	val outsidePlan = configRevision != null && configRevision != manifest.acquisitionPlanRevision &&
+		manifest.acquisitionPlanRevision > 0L
+	val sameSession = logicalTrackingId == manifest.logicalTrackingId && serviceRunId == manifest.serviceRunId &&
+		sessionManifestRevision == manifest.manifestRevision
+	val samePolicy = sourcePolicyRevision == manifest.sourcePolicyRevision && clockDomainId == manifest.effectiveBootId
+	val dualPurpose = authorizationPurposeEligibilityMask ==
+		(SourceBrokerPurpose.MASK_SESSION_CAPTURE or SourceBrokerPurpose.MASK_AMBIENT_PRODUCT)
+	if (!outsidePlan || !sameSession || !samePolicy || !dualPurpose) {
+		return false
+	}
+	return PressureWalCarrierAuthenticator.authenticate(this) is PressureWalCarrierAuthentication.Authenticated
+}
 
 /**
  * Original reason a Pressure sample window closed; it distinguishes normal windows from
@@ -309,7 +325,18 @@ object PressureWalCarrierAuthenticator {
 	 * capture binding; reports the exact rejection cause.
 	 */
 	fun authenticate(wal: SourceEventWalEntity): PressureWalCarrierAuthentication {
-		val envelopeFailure = originalEnvelopeFailure(wal)
+		return authenticateEnvelope(wal, requireCaptureBinding = true)
+	}
+
+	/** Checks the physical provider endpoint without asserting that its last window belongs to a session. */
+	fun authenticateProviderEnvelope(wal: SourceEventWalEntity): PressureWalCarrierAuthentication =
+		authenticateEnvelope(wal, requireCaptureBinding = false)
+
+	private fun authenticateEnvelope(
+		wal: SourceEventWalEntity,
+		requireCaptureBinding: Boolean,
+	): PressureWalCarrierAuthentication {
+		val envelopeFailure = originalEnvelopeFailure(wal, requireCaptureBinding)
 		if (envelopeFailure != null) {
 			return rejected(envelopeFailure)
 		}
@@ -324,14 +351,17 @@ object PressureWalCarrierAuthenticator {
 		)
 	}
 
-	private fun originalEnvelopeFailure(wal: SourceEventWalEntity): PressureWalCarrierFailure? = when {
+	private fun originalEnvelopeFailure(
+		wal: SourceEventWalEntity,
+		requireCaptureBinding: Boolean,
+	): PressureWalCarrierFailure? = when {
 		wal.sourceKind != SourceDestinationOwnerEntity.SOURCE_PRESSURE ->
 			PressureWalCarrierFailure.WRONG_SOURCE
 		wal.payloadVersion != PRESSURE_WAL_PAYLOAD_VERSION ->
 			PressureWalCarrierFailure.UNSUPPORTED_PAYLOAD_VERSION
 		!wal.hasExactQualifiedIntegrity(MAX_PRESSURE_WAL_PAYLOAD_BYTES) ->
 			PressureWalCarrierFailure.INTEGRITY_MISMATCH
-		!wal.hasCompleteSessionCaptureBinding() ->
+		requireCaptureBinding && !wal.hasCompleteSessionCaptureBinding() ->
 			PressureWalCarrierFailure.INCOMPLETE_CAPTURE_AUTHORITY
 		hasMalformedProviderEnvelope(wal) -> PressureWalCarrierFailure.MALFORMED_PROVIDER_ENVELOPE
 		else -> null

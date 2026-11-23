@@ -31,6 +31,7 @@ class CompleteDatabaseSnapshotTest {
         val finished = CountDownLatch(1)
         val failure = AtomicReference<Throwable?>()
         for (file in listOf(main, points)) SQLiteDatabase.openOrCreateDatabase(file, null).use {
+            it.version = 1
             it.execSQL("CREATE TABLE saved(id INTEGER PRIMARY KEY)")
             it.execSQL("INSERT INTO saved VALUES(1)")
         }
@@ -65,7 +66,7 @@ class CompleteDatabaseSnapshotTest {
         try {
             DatabaseBackupArchive.writeData(listOf(
                 DatabaseBackupSource("databases/main", main, true),
-                DatabaseBackupSource("databases/points", points, true)), output, SQLiteDatabaseCopyLockProvider)
+                DatabaseBackupSource("databases/points", points, true)), output, SQLiteDatabaseCopyLockProvider(::openFrameworkBackupDatabase))
             finished.await(5, TimeUnit.SECONDS) shouldBe true
             failure.get()?.let { throw it }
             val snapshots = mutableMapOf<String, ByteArray>()

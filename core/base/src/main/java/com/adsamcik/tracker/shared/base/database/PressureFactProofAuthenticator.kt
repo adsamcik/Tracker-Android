@@ -17,6 +17,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
@@ -30,6 +31,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+import com.adsamcik.tracker.shared.base.database.data.hasSameSensorRecordingConsent
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -93,6 +95,8 @@ enum class PressureFactProofFailure {
 	CURRENT_FACT_MISMATCH,
 	IMMUTABLE_AUTHORITY_MISSING,
 	INTEGRITY_MISMATCH,
+	/** Authentic aggregate crosses the saved session End and cannot be split into session samples. */
+	SESSION_BOUNDARY,
 }
 
 /**
@@ -195,36 +199,31 @@ object PressureFactProofAuthenticator {
 			return stored
 		}
 
-		return authenticateExternalLineageAuthority(stored, snapshot, expectation)
+		return authenticateExternalLineageAuthority(stored, snapshot)
 	}
 
 	private fun authenticateExternalLineageAuthority(
 		stored: PressureFactLineageProof.Authenticated,
 		snapshot: PressureFactProofSnapshot,
-		expectation: PressureFactProofExpectation?,
 	): PressureFactLineageProof {
-		var stableAuthority: PressureCaptureAuthorityIdentity? = null
+		// Stored-lineage validation already checks the common owner and requested revision. Still
+		// check every revision's external authority before classifying an unsplittable End window.
+		var crossesSessionBoundary = false
 		for (fact in stored.revisions) {
 			val wal = snapshot.walByEventId.getValue(fact.sourceEventId)
 			val proof = authenticateWal(wal, snapshot)
-			val authority = (proof as? PressureWalCaptureProof.Authenticated)?.authority
-				?: return rejectedLineage(
-					(proof as PressureWalCaptureProof.Rejected).reason,
-				)
-			if (stableAuthority?.let { it != authority } == true) {
-				return rejectedLineage(PressureFactProofFailure.LINEAGE_INCOMPLETE)
+			if (proof is PressureWalCaptureProof.Rejected) {
+				if (proof.reason != PressureFactProofFailure.SESSION_BOUNDARY) {
+					return rejectedLineage(proof.reason)
+				}
+				crossesSessionBoundary = true
 			}
-			stableAuthority = authority
 		}
-		val current = stored.current
-		val authority = requireNotNull(stableAuthority)
-		if (expectation?.writerOwnerGeneration?.let {
-				authority.writerOwnerGeneration == it
-			} == false
-		) {
-			return rejectedLineage(PressureFactProofFailure.CURRENT_FACT_MISMATCH)
+		return if (crossesSessionBoundary) {
+			rejectedLineage(PressureFactProofFailure.SESSION_BOUNDARY)
+		} else {
+			stored
 		}
-		return stored
 	}
 
 	/**
@@ -472,21 +471,9 @@ object PressureFactProofAuthenticator {
 		}
 		val authorization = runCatching { exactRows.toAuthorizationSnapshotOrNull() }.getOrNull()
 			?: return rejectedWal(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
-		val nextRows = authorizationRows.groupBy(SourceAuthorizationEntity::authorizationRevision)
-			.filterKeys { it > authorizationRevision }
-			.minByOrNull { it.key }?.value
-		val nextAuthorization = nextRows?.let {
-			runCatching { it.toAuthorizationSnapshotOrNull() }.getOrNull()
-				?: return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
-		}
-		val authorizationEnd = when {
-			nextAuthorization == null -> providerEnd
-			nextAuthorization.effectiveBootId != wal.clockDomainId ||
-				nextAuthorization.effectiveElapsedRealtimeNanos <=
-				authorization.effectiveElapsedRealtimeNanos ->
-				return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
-			else -> minOf(providerEnd, nextAuthorization.effectiveElapsedRealtimeNanos)
-		}
+		val authorizationEnd = pressureRecordingAuthorizationEnd(
+			authorizationRows, authorizationRevision, logicalTrackingId, serviceRunId, providerEnd,
+		) ?: return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
 		val demandIds = authorization.authorizedMembers.mapNotNull(SourceAuthorizationEntity::demandId)
 		if (demandIds.size != authorization.authorizedMembers.size ||
 			demandIds.distinct().size != demandIds.size
@@ -533,8 +520,15 @@ object PressureFactProofAuthenticator {
 		val observedEnd = payload.windowEndElapsedRealtimeNanos
 		val sessionEnd = snapshot.savedSessionCutoffs[logicalTrackingId]?.endForBoot(wal.clockDomainId)
 			?: session.cutoffElapsedNanos.takeIf { session.lifecycleBootId == wal.clockDomainId } ?: Long.MAX_VALUE
-		val manifestEnd = manifests.getOrNull(manifestIndex + 1)?.effectiveElapsedRealtimeNanos
-			?: minOf(sessionEnd, providerEnd, authorizationEnd)
+		val crossedSessionEnd = sessionEnd.takeIf {
+			it != Long.MAX_VALUE && observedStart < it && observedEnd >= it
+		}
+		val manifestEnd = manifests.drop(manifestIndex + 1).firstOrNull { successor ->
+			snapshot.sourcesByManifest[PressureFactManifestKey(logicalTrackingId, successor.manifestRevision)]
+				.orEmpty().none { source -> source.sourceKind == PRESSURE_SOURCE &&
+					source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE && source.persistenceEligible &&
+					source.consentEpoch == captureConsentEpoch }
+		}?.effectiveElapsedRealtimeNanos ?: minOf(sessionEnd, providerEnd, authorizationEnd)
 		val actualFingerprint = StoredPressurePlanIntegrity.physicalFingerprint(
 			payload.effectiveSamplePeriodMicros,
 			payload.effectiveMaximumReportLatencyMicros,
@@ -552,14 +546,14 @@ object PressureFactProofAuthenticator {
 			session.lifecycleLeaseGeneration < leaseGeneration ||
 			run.startedElapsedNanos > observedStart ||
 			(session.clockDomainId == wal.clockDomainId && session.startedElapsedNanos > observedStart) ||
-			observedEnd >= sessionEnd ||
+			(observedEnd >= sessionEnd && crossedSessionEnd == null) ||
 			manifest.logicalTrackingId != logicalTrackingId ||
 			manifest.serviceRunId != serviceRunId ||
 			manifest.sourcePolicyRevision != sourcePolicyRevision ||
 			manifest.acquisitionPlanRevision != configurationRevision ||
 			manifest.effectiveBootId != wal.clockDomainId ||
 			manifest.effectiveElapsedRealtimeNanos > observedStart ||
-			observedEnd >= manifestEnd ||
+			!manifestEnd.coversPressureWindowEnd(observedEnd, crossedSessionEnd) ||
 			binding.consentEpoch != captureConsentEpoch ||
 			planHeader.revision != configurationRevision ||
 			planHeader.sourcePolicyRevision != sourcePolicyRevision ||
@@ -577,17 +571,25 @@ object PressureFactProofAuthenticator {
 				providerEnd,
 			) ||
 			authorization.effectiveElapsedRealtimeNanos > observedStart ||
-			observedEnd >= authorizationEnd ||
+			!authorizationEnd.coversPressureWindowEnd(observedEnd, crossedSessionEnd) ||
 			!policy.authenticates(wal, binding, observedStart) ||
 			!consent.authenticates(wal, observedStart) ||
-			demands.any {
-				!it.authenticatesPressureAuthority(
+			// Each purpose qualifies independently. Withdrawing all-day recording must not reject
+			// the same listener's continuously permitted session window.
+			demands.filter { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }.any { demand ->
+				!demand.authenticatesPressureAuthority(
 					wal,
 					binding,
 					authorization.effectiveElapsedRealtimeNanos,
-					authorizationEnd,
 					desiredPlan,
 					payload,
+					crossedSessionEnd,
+					continuedCapture = authorizationRows.any { successor ->
+						successor.authorizationRevision > authorizationRevision &&
+							successor.effectiveElapsedRealtimeNanos <= observedEnd &&
+							successor.effectiveElapsedRealtimeNanos >= (demand.retireElapsedRealtimeNanos ?: Long.MAX_VALUE) &&
+							captureMember.hasSameSensorRecordingConsent(successor)
+					},
 				)
 			}
 		) {
@@ -603,11 +605,14 @@ object PressureFactProofAuthenticator {
 		) {
 			return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
 		}
+		val captureActivatedAt = originalPressureCaptureAuthorizationTime(
+			authorizationRows, captureMember, snapshot.demands,
+		) ?: return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
 		val appliedAt = maxOf(
 			providerStart,
-			authorization.effectiveElapsedRealtimeNanos,
-			policy.effectiveElapsedRealtimeNanos,
-			consent.effectiveElapsedRealtimeNanos,
+			captureActivatedAt,
+			policy.effectiveElapsedRealtimeNanos.takeIf { policy.effectiveBootId == wal.clockDomainId } ?: 0L,
+			consent.effectiveElapsedRealtimeNanos.takeIf { consent.effectiveBootId == wal.clockDomainId } ?: 0L,
 			manifest.effectiveElapsedRealtimeNanos,
 		)
 		val action = snapshot.startActions.singleOrNull { candidate ->
@@ -627,6 +632,9 @@ object PressureFactProofAuthenticator {
 			return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
 		}
 
+		if (crossedSessionEnd != null) {
+			return rejectedWal(PressureFactProofFailure.SESSION_BOUNDARY)
+		}
 		return PressureWalCaptureProof.Authenticated(
 			PressureCaptureAuthorityIdentity(
 				sourceInstanceId = wal.sourceInstanceId,
@@ -1112,8 +1120,7 @@ private fun SourcePolicyEntity.authenticates(
 		enabled && capturePersistenceEligible &&
 		captureConsentEpoch == wal.captureConsentEpoch &&
 		qosCode == binding.qosCode &&
-		effectiveBootId == wal.clockDomainId &&
-		effectiveElapsedRealtimeNanos <= observedStart &&
+		(effectiveBootId != wal.clockDomainId || effectiveElapsedRealtimeNanos <= observedStart) &&
 		effectiveWallTimeMs >= 0L
 
 @Suppress("ComplexCondition")
@@ -1126,17 +1133,17 @@ private fun SourceConsentEpochEntity.authenticates(
 		epoch == wal.captureConsentEpoch &&
 		eligible && persistenceEligible &&
 		policyRevision <= requireNotNull(wal.sourcePolicyRevision) &&
-		effectiveBootId == wal.clockDomainId &&
-		effectiveElapsedRealtimeNanos <= observedStart &&
+		(effectiveBootId != wal.clockDomainId || effectiveElapsedRealtimeNanos <= observedStart) &&
 		effectiveWallTimeMs >= 0L
 
 private fun SourceDemandEntity.authenticatesPressureAuthority(
 	wal: SourceEventWalEntity,
 	binding: SessionManifestSourceEntity,
 	authorizationEffectiveElapsedNanos: Long,
-	authorizationEndNanos: Long,
 	plan: StoredPressurePlan,
 	payload: PressureWalPayload,
+	crossedSessionEnd: Long?,
+	continuedCapture: Boolean,
 ): Boolean {
 	val floor = pressureDemandFloor() ?: return false
 	val maximumWindowNanos = runCatching {
@@ -1149,19 +1156,46 @@ private fun SourceDemandEntity.authenticatesPressureAuthority(
 	val providerItemMaximumAgeMs = maxOf(providerDeliveryLatencyMs, plan.aggregationWindowMs)
 	val retirementShape = (retireBootId == null) == (retireElapsedRealtimeNanos == null) &&
 		(retireElapsedRealtimeNanos == null || retireBootId != wal.clockDomainId ||
-			wal.observedElapsedNanos < retireElapsedRealtimeNanos)
+			wal.observedElapsedNanos < retireElapsedRealtimeNanos ||
+			retireElapsedRealtimeNanos == crossedSessionEnd || continuedCapture)
 	return hasPressureAdmission(
-		wal, binding, authorizationEffectiveElapsedNanos, authorizationEndNanos, retirementShape,
+		wal, binding, authorizationEffectiveElapsedNanos, retirementShape,
 	) && acceptsPressureQuality(
 		plan, payload, floor, maximumWindowNanos, providerDeliveryLatencyMs, providerItemMaximumAgeMs,
 	)
+}
+
+/** A sibling purpose can refresh the envelope after this capture's start was already acknowledged. */
+private fun originalPressureCaptureAuthorizationTime(
+	rows: List<SourceAuthorizationEntity>,
+	capture: SourceAuthorizationEntity,
+	demands: Map<String, SourceDemandEntity>,
+): Long? {
+	val originalRevision = rows.asSequence().filter {
+		it.authorizationRevision <= capture.authorizationRevision && it.demandId == capture.demandId
+	}.minOfOrNull(SourceAuthorizationEntity::authorizationRevision) ?: return null
+	val originalRows = rows.filter { it.authorizationRevision == originalRevision }
+	val original = runCatching { originalRows.toAuthorizationSnapshotOrNull() }.getOrNull() ?: return null
+	val originalDemands = original.authorizedMembers.mapNotNull { member -> member.demandId?.let(demands::get) }
+	val first = originalRows.first()
+	val recomputed = runCatching {
+		SourceBrokerAuthorization.rows(
+			capture.sourceKind, capture.registrationGeneration, original.authorizationRevision,
+			originalDemands, original.effectiveBootId, original.effectiveElapsedRealtimeNanos, first.effectiveWallTimeMs,
+		)
+	}.getOrNull()
+	return original.effectiveElapsedRealtimeNanos.takeIf {
+		original.effectiveBootId == capture.effectiveBootId &&
+			originalDemands.size == original.authorizedMembers.size &&
+			recomputed?.sortedBy(SourceAuthorizationEntity::memberId) ==
+				originalRows.sortedBy(SourceAuthorizationEntity::memberId)
+	}
 }
 
 private fun SourceDemandEntity.hasPressureAdmission(
 	wal: SourceEventWalEntity,
 	binding: SessionManifestSourceEntity,
 	authorizationEffectiveElapsedNanos: Long,
-	authorizationEndNanos: Long,
 	retirementShape: Boolean,
 ): Boolean {
 	return sourceKind == PRESSURE_SOURCE &&
@@ -1170,9 +1204,12 @@ private fun SourceDemandEntity.hasPressureAdmission(
 		requestedBootId == wal.clockDomainId &&
 		requestedElapsedRealtimeNanos <= authorizationEffectiveElapsedNanos &&
 		retirementShape &&
-		(purpose != SourceBrokerPurpose.SESSION_CAPTURE || matchesPressureCaptureIdentity(wal, binding)) &&
-		authorizationEndNanos > wal.observedElapsedNanos
+		(purpose != SourceBrokerPurpose.SESSION_CAPTURE || matchesPressureCaptureIdentity(wal, binding))
 }
+
+// Only the exact saved End may classify an otherwise valid aggregate as outside session scope.
+private fun Long.coversPressureWindowEnd(observedEnd: Long, crossedSessionEnd: Long?): Boolean =
+	observedEnd < this || this == crossedSessionEnd
 
 private fun SourceDemandEntity.acceptsPressureQuality(
 	plan: StoredPressurePlan,
@@ -1219,6 +1256,52 @@ private fun SourceDemandEntity.pressureDemandFloor(): PressureDemandFloor? {
 	}
 }
 
+/** The callback keeps its original header while the same recording consent remains selected. */
+internal fun pressureRecordingAuthorizationEnd(
+	rows: List<SourceAuthorizationEntity>,
+	claimedRevision: Long,
+	logicalTrackingId: String,
+	serviceRunId: String,
+	providerEnd: Long,
+): Long? {
+	val revisions = rows.groupBy(SourceAuthorizationEntity::authorizationRevision).toSortedMap()
+	val original = runCatching { revisions[claimedRevision]?.toAuthorizationSnapshotOrNull() }.getOrNull() ?: return null
+	val capture = original.authorizedMembers.singleOrNull {
+		it.capturesPressureSession(logicalTrackingId, serviceRunId)
+	} ?: return null
+	return pressureRecordingSuccessorEnd(
+		revisions.filterKeys { it > claimedRevision }.values, original, capture, providerEnd,
+	)
+}
+
+private fun SourceAuthorizationEntity.capturesPressureSession(
+	logicalTrackingId: String,
+	serviceRunId: String,
+): Boolean =
+	purpose == SourceBrokerPurpose.SESSION_CAPTURE && this.logicalTrackingId == logicalTrackingId &&
+		this.serviceRunId == serviceRunId && persistenceEligible
+
+private fun pressureRecordingSuccessorEnd(
+	successors: Collection<List<SourceAuthorizationEntity>>,
+	original: SourceAuthorizationSnapshot,
+	capture: SourceAuthorizationEntity,
+	providerEnd: Long,
+): Long? {
+	var previous = original
+	for (nextRows in successors) {
+		val next = runCatching { nextRows.toAuthorizationSnapshotOrNull() }.getOrNull() ?: return null
+		if (next.effectiveBootId != original.effectiveBootId ||
+			next.effectiveElapsedRealtimeNanos < previous.effectiveElapsedRealtimeNanos) {
+			return null
+		}
+		if (next.authorizedMembers.none(capture::hasSameSensorRecordingConsent)) {
+			return minOf(providerEnd, next.effectiveElapsedRealtimeNanos)
+		}
+		previous = next
+	}
+	return providerEnd
+}
+
 private data class PressureDemandFloor(
 	val maximumSamplePeriodMicros: Int,
 	val maximumReportLatencyMicros: Int,
@@ -1260,7 +1343,9 @@ private fun LifecycleDesiredActionEntity.authenticates(
 		requestedElapsedRealtimeNanos == manifest.effectiveElapsedRealtimeNanos &&
 		requestedElapsedRealtimeNanos <= appliedAtElapsedNanos &&
 		appliedAtElapsedNanos <= acknowledgedElapsed &&
-		acknowledgedElapsed <= observedStartNanos &&
+		// The provider can deliver before Room finishes acknowledging its exact start action.
+		// Its accepted registration and original authority must already cover the measurement.
+		appliedAtElapsedNanos <= observedStartNanos &&
 		acknowledgedWall >= 0L
 }
 
@@ -1302,7 +1387,7 @@ private fun rejectedLineage(reason: PressureFactProofFailure) =
 
 private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
 	.digest(bytes)
-	.joinToString(separator = "") { byte -> "%02x".format(byte) }
+	.toHexString()
 
 private val VALID_DEMAND_STATES = setOf(
 	SourceDemandEntity.STATUS_ACTIVE,

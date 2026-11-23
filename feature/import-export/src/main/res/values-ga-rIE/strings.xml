@@ -38,7 +38,7 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">Cúltaca bunachair sonraí (ZIP)</string>
-    <string name="settings_import_summary">Iompórtáil sonraí ó chineálacha tacaithe (%1$s) agus cartlanna (%2$s). Cumascann iompórtálacha bunachair sonraí sraitheanna comhoiriúnacha; ní chuireann siad sonraí reatha ina n-ionad.</string>
+    <string name="settings_import_summary">Iompórtáil comhad rianaithe nó athchóirigh cúltaca sonraí.</string>
     <string name="settings_import_title">Iompórtáil</string>
     <string name="export_radio_sensitivity_title">Easpórtáil sonraí líonra?</string>
     <string name="export_wifi_sensitivity_message">Tá ainmneacha Wi-Fi agus aitheantóirí pointí rochtana sábháilte sa chomhad seo.</string>
@@ -62,4 +62,7 @@
         <item quantity="many">Tá %d bpointe sa chomhad seo éagsúil lena gcóipeanna sábháilte. Roghnaigh na cinn le coinneáil. Iompórtálfar na pointí eile mar is gnách.</item>
         <item quantity="other">Tá %d pointe sa chomhad seo éagsúil lena gcóipeanna sábháilte. Roghnaigh na cinn le coinneáil. Iompórtálfar na pointí eile mar is gnách.</item>
     </plurals>
+    <string name="export_sensitivity_portable_title">Easpórtáil an stair thaifeadta?</string>
+    <string name="export_sensitivity_portable_steps_message">Tá comhaireamh céimeanna, tréimhsí ama agus eolas clúdaigh sa chomhad seo. Níl comhordanáidí bealaigh ann. Ná lean ar aghaidh ach má tá muinín agat as an gceann scríbe.</string>
+    <string name="export_sensitivity_portable_activity_message">Tá tréimhsí gluaiseachta taifeadta, tréimhsí ama agus eolas clúdaigh sa chomhad seo. Níl comhordanáidí bealaigh ann. Ná lean ar aghaidh ach má tá muinín agat as an gceann scríbe.</string>
 </resources>

@@ -12,6 +12,10 @@ interface SourceRegistrationStateDao {
 	@Query("SELECT * FROM source_registration_state WHERE source_kind = :sourceKind AND owner_scope = :ownerScope")
 	suspend fun get(sourceKind: Int, ownerScope: String): SourceRegistrationStateEntity?
 
+	/** Bounded source-local metadata for invalidation; purpose-scoped owners remain distinct. */
+	@Query("SELECT * FROM source_registration_state WHERE source_kind = :sourceKind ORDER BY owner_scope LIMIT :limit")
+	suspend fun statesForSourceBounded(sourceKind: Int, limit: Int): List<SourceRegistrationStateEntity>
+
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertIfAbsent(entity: SourceRegistrationStateEntity): Long
 

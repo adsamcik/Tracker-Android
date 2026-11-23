@@ -16,6 +16,7 @@ import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.archive.SessionBundleStager
 import com.adsamcik.tracker.impexp.importer.archive.StagedSessionBundle
 import com.adsamcik.tracker.impexp.importer.file.ImportTransactionMode
+import com.adsamcik.tracker.impexp.importer.file.LocationFileConflictChoice
 import com.adsamcik.tracker.impexp.importer.file.LocationFileImportReview
 import com.adsamcik.tracker.impexp.importer.worker.ImportWorker
 import com.adsamcik.tracker.impexp.R
@@ -32,6 +33,7 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import java.io.IOException
 import java.security.MessageDigest
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -174,6 +176,25 @@ internal fun androidx.work.Data.locationFileReview(): LocationFileImportReview? 
 			existingStateHash = requireNotNull(getString("location_review_state")),
 		), com.adsamcik.tracker.impexp.importer.file.LocationFileConflictChoice.valueOf(choice),
 	)
+}
+
+/** A reviewed replacement is a new operation even when an earlier Keep imported the same file. */
+internal fun reviewedLocationImportJobId(fileJobId: String, review: LocationFileImportReview?,
+	workerId: UUID): String {
+	if (review == null) {
+		return fileJobId
+	}
+	if (review.preview.fileJobId != fileJobId) {
+		throw PermanentImportInputException("Location file changed; review it again")
+	}
+	if (review.choice != LocationFileConflictChoice.REPLACE_WITH_FILE ||
+		review.preview.conflictCount == 0) {
+		return fileJobId
+	}
+	val identity = "tracker-location-replacement-job-v1\u0000$fileJobId\u0000" +
+		"${review.preview.dataEpoch}\u0000$workerId"
+	return MessageDigest.getInstance("SHA-256").digest(identity.toByteArray(Charsets.UTF_8))
+		.joinToString("") { byte -> "%02x".format(byte) }
 }
 
 @EntryPoint

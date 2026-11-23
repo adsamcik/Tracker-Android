@@ -47,6 +47,7 @@
     <string name="dashboard_milestone_time">perc rögzítve!</string>
     <string name="dashboard_today_title">Ma</string>
     <string name="dashboard_today_no_activity">Ma még nincs tevékenység</string>
+    <string name="dashboard_saved_data_history">A mentett adatok az Előzményekben érhetők el.</string>
     <string name="dashboard_today_distance">Távolság</string>
     <string name="dashboard_today_duration">Időtartam</string>
     <string name="dashboard_today_steps">Lépések</string>
@@ -195,4 +196,5 @@
     <string name="dashboard_activity_on_foot">Gyalog</string>
     <string name="dashboard_activity_tilting">Döntés</string>
     <string name="dashboard_activity_unknown">Ismeretlen tevékenység</string>
+    <string name="dashboard_finishing_session">Munkamenet befejezése…</string>
 </resources>

@@ -4,6 +4,10 @@ import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.migration.Migration
+import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.SourceEvidenceRetentionBootstrapResult
+import com.adsamcik.tracker.shared.base.database.bootstrapSourceEvidenceForRetention
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.SupportSQLiteStatement
@@ -26,11 +30,11 @@ private fun canonicalOrLegacy(
 
 /**
  * Copies the frozen normalized tables and optional released originals into a fresh active schema.
- * This is called from Room's onCreate transaction, so target writes commit atomically.
+ * Live startup and staged database creation each call this inside one Room transaction.
  */
 class LegacyV26Importer(
 	context: Context,
-	private val publicMigrations: Array<Migration>,
+	private val publicMigrations: Array<Migration> = AppDatabase.legacyPublicMigrationsThroughV26,
 	normalizerOpenHelperFactory: SupportSQLiteOpenHelper.Factory =
 		SQLiteXSupportSQLiteOpenHelperFactory(),
 	sourceFileOverride: java.io.File? = null,
@@ -44,11 +48,38 @@ class LegacyV26Importer(
 		stagingFileOverride = sourceFileOverride?.let { java.io.File(it.parentFile, "legacy-normalized-staging") },
 	)
 
+	/**
+	 * Publishes the known released import and its exact lifecycle guard in one Room transaction.
+	 * The caller holds the shared retention permit from snapshot acquisition until this returns.
+	 * An unmarked target containing existing evidence is never adopted as a released import.
+	 */
+	suspend fun importWithLifecycle(
+		target: AppDatabase,
+		expectedCollectedDataEpoch: Long,
+		expectedRetainedFromMs: Long?,
+		updatedAtMs: Long,
+	) = target.withTransaction {
+		val raw = target.openHelper.writableDatabase
+		if (!hasCompletedLegacyImport(raw)) {
+			check(target.sourceEvidenceStateDao().get() == null) {
+				"An unmarked released import cannot replace existing source authority"
+			}
+			val bootstrap = target.bootstrapSourceEvidenceForRetention(
+				expectedCollectedDataEpoch, expectedRetainedFromMs, updatedAtMs,
+			)
+			check(bootstrap is SourceEvidenceRetentionBootstrapResult.Ready) {
+				"Released import requires an empty target with the current lifecycle: $bootstrap"
+			}
+			importIfPresent(raw)
+			check(hasCompletedLegacyImport(raw)) { "Released import did not complete" }
+		}
+	}
+
 	fun importIfPresent(target: SupportSQLiteDatabase) {
 		try {
 			repository.withFileFamilyLock {
-				// Target-local state is authoritative. This callback only runs while Room creates a
-				// fresh target, so stale external preferences must never suppress a required import.
+				// Target-local completion is authoritative. Both creation and live startup import
+				// a fresh target; stale external preferences never suppress the required copy.
 				if (repository.inspect() != null) {
 					normalizer.prepare().use { prepared ->
 						repository.markRunning(prepared.originalVersion)

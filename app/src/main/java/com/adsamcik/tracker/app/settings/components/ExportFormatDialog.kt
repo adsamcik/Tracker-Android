@@ -25,10 +25,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -46,21 +42,6 @@ fun ExportFormatDialog(
     onDismiss: () -> Unit,
     onFormatSelected: (ExportFormat) -> Unit
 ) {
-    var pendingFormat by remember { mutableStateOf<ExportFormat?>(null) }
-
-    pendingFormat?.let { format ->
-        ExportSensitivityDialog(
-            format = format,
-            onDismiss = { pendingFormat = null },
-            onConfirm = {
-                pendingFormat = null
-                onFormatSelected(format)
-                onDismiss()
-            },
-        )
-        return
-    }
-
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.export_format_dialog_title)) },
@@ -78,7 +59,8 @@ fun ExportFormatDialog(
                         description = stringResource(format.descriptionRes),
                         icon = format.icon,
                         onClick = {
-                            pendingFormat = format
+                            onFormatSelected(format)
+                            onDismiss()
                         }
                     )
                 }
@@ -90,31 +72,6 @@ fun ExportFormatDialog(
                 Text(stringResource(android.R.string.cancel))
             }
         }
-    )
-}
-
-@Composable
-private fun ExportSensitivityDialog(
-    format: ExportFormat,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
-) {
-    val message = stringResource(format.sensitivityMessageRes)
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(format.sensitivityTitleRes)) },
-        text = { Text(message) },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(stringResource(R.string.export_sensitivity_confirm))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(android.R.string.cancel))
-            }
-        },
     )
 }
 

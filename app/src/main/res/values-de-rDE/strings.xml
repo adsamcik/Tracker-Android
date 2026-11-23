@@ -15,7 +15,7 @@
     <string name="settings_data_management_section">Datenverwaltung</string>
     <string name="settings_data_danger_zone_section">Gefahrenbereich</string>
     <string name="settings_incremental_backups_title">Inkrementelle Sicherungen</string>
-    <string name="settings_incremental_backups_summary">Exportiere nur neue Daten seit der letzten Sicherung. Das reduziert Exportzeit und Dateigröße.</string>
+    <string name="settings_incremental_backups_summary">Bei geplanten GPX- und KML-Exporten nur neue Daten exportieren.</string>
     <string name="settings_reset_export_watermarks_title">Vollständigen Export erzwingen</string>
     <string name="settings_reset_export_watermarks_summary">Die nächste automatische Sicherung enthält alle Daten statt nur Änderungen</string>
     <string name="settings_reset_export_watermarks_done">Exportmarkierungen zurückgesetzt — die nächste Sicherung ist ein vollständiger Export</string>
@@ -163,7 +163,7 @@
     <string name="export_sensitivity_db_message">Diese Sicherung enthält deine gespeicherten Trackingdaten, die Standorte und Netzwerkdetails umfassen können. Einstellungen sind ausgeschlossen.</string>
     <string name="export_sensitivity_confirm">Export fortsetzen</string>
     <string name="settings_export_title">Exportieren</string>
-    <string name="settings_import_summary">Daten aus unterstützten Typen (%1$s) und Archiven (%2$s) importieren. Datenbankimporte führen kompatible Zeilen zusammen; sie ersetzen keine vorhandenen Daten.</string>
+    <string name="settings_import_summary">Eine Tracking-Datei importieren oder eine Datensicherung wiederherstellen.</string>
     <string name="settings_import_title">Importieren</string>
     <string name="got_it">Verstanden</string>
     <string name="battery_impact_low">Geringe Auswirkung</string>
@@ -278,7 +278,7 @@
     <string name="setup_perm_location_bg_why">Damit deine Route weiter aufgezeichnet wird, wenn du Apps wechselst oder sich der Bildschirm ausschaltet, benötigt Tracker Zugriff auf deinen Standort im Hintergrund. Der aufgezeichnete Standort bleibt auf diesem Gerät — nichts wird an einen Server gesendet. Wähle beim nächsten Systemdialog „Immer zulassen“, um die automatische Aufzeichnung zu aktivieren; „Nur während der Nutzung der App“ lässt Tracker nur bei geöffnetem Bildschirm arbeiten.</string>
     <string name="setup_perm_activity_why">Ermöglicht Tracker zu erkennen, was du tust (gehen, Rad fahren, Auto fahren, stillstehen), damit die automatische Aufzeichnung pausieren kann, wenn du dich nicht bewegst, und Akku spart. Aktivitätsdaten bleiben auf diesem Gerät — nichts wird an einen Server gesendet.</string>
     <string name="setup_perm_notification_why">Tracker zeigt während der Aufzeichnung eine kleine Statusbenachrichtigung, damit du auf einen Blick siehst, dass die Aufzeichnung aktiv ist, und sie mit einem Tippen beenden kannst. Keine Marketing- oder Werbebenachrichtigungen.</string>
-    <string name="setup_perm_wifi_why">Tracker kann WLAN-Zugangspunkte aufzeichnen, die dein Telefon während einer Fahrt sieht, um die Standortgenauigkeit an Orten mit schwachem GPS zu verbessern (innen, unterirdisch). Die Funkdaten bleiben auf diesem Gerät — nichts wird an einen Server gesendet. Gewähre die Berechtigung nur, wenn du das möchtest.</string>
+    <string name="setup_perm_wifi_why">Android benötigt für WLAN-Scans Zugriff auf den Standort. Du kannst WLAN aufzeichnen, ohne deinen Standort aufzuzeichnen.</string>
     <string name="setup_perm_cell_why">Tracker kann Funkmast-IDs entlang deiner Route protokollieren, damit der Standort abgeleitet werden kann, wenn GPS nicht verfügbar ist. Die Funkdaten bleiben auf diesem Gerät — nichts wird an einen Server gesendet. Gewähre Telefonstatus und präzisen Standort nur, wenn du das möchtest.</string>
     <string name="setup_perm_grant">Gewähren</string>
     <string name="setup_perm_grant_location_content_description">Standortberechtigung gewähren</string>

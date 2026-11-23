@@ -259,6 +259,36 @@ class AllDaySensorProjectionTest {
 	}
 
 	@Test
+	fun `pending Pressure aggregate cannot cross the floor through its clock uncertainty`() = runTest {
+		assertIs<DeliveryAdmissionResult.Admitted>(ingress.admit(seed(SourceKind.PRESSURE,
+			listOf(SourceBrokerPurpose.AMBIENT_PRODUCT))))
+		// End 1000 - measured span 20 - uncertainty 1 = 979, before the settled floor.
+		database.sourceEvidenceStateDao().updateLifecycle(0L, 980L, 1_001L)
+		project(SourceKind.PRESSURE)
+		assertEquals(0, database.pressureSampleDao().allDayBetween(0L, 2_000L, 10).size)
+	}
+
+	@Test
+	fun `prior boot Activity stays pending until exact provider removal then materializes once`() = runTest {
+		assertIs<DeliveryAdmissionResult.Admitted>(ingress.admit(seed(SourceKind.ACTIVITY,
+			listOf(SourceBrokerPurpose.AMBIENT_PRODUCT))))
+		val projection = AllDaySensorProjection(SourceKind.ACTIVITY, database, BootClockDomainProvider { "new-boot" })
+		val dispatcher = ProjectionDispatcher(database, setOf(projection))
+		dispatcher.registerAmbientRadioProjections()
+		assertIs<CoordinatorDrainResult.ProjectionFailed>(dispatcher.drainAmbientRadioProjection(SourceKind.ACTIVITY, ingress))
+		assertEquals(0L, database.sourceProjectionStateDao().checkpoint(projection.id, projection.version)
+			?.contiguousAdmissionOrdinal)
+		assertEquals(0, database.activitySnapshotDao().allDayCount())
+
+		assertEquals(1, database.sourceBrokerDao().markPriorBootSystemActivityRetiring(1L, "sensor-2", "new-boot"))
+		assertEquals(1, database.sourceBrokerDao().completeRemovedPriorBootSystemActivity(1L, "sensor-2", "new-boot",
+			ProviderRegistrationGenerationEntity.FAILURE_PRIOR_BOOT_SYSTEM_REMOVED))
+		assertIs<CoordinatorDrainResult.Complete>(dispatcher.drainAmbientRadioProjection(SourceKind.ACTIVITY, ingress))
+		assertIs<CoordinatorDrainResult.Complete>(dispatcher.drainAmbientRadioProjection(SourceKind.ACTIVITY, ingress))
+		assertEquals(1, database.activitySnapshotDao().allDayCount())
+	}
+
+	@Test
 	fun `source Off fences later observations while the old broker request awaits reconciliation`() = runTest {
 		assertIs<DeliveryAdmissionResult.Admitted>(ingress.admit(seed(SourceKind.ACTIVITY,
 			listOf(SourceBrokerPurpose.AMBIENT_PRODUCT))))

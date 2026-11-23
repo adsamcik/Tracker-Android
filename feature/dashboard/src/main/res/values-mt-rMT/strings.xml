@@ -47,6 +47,7 @@
     <string name="dashboard_milestone_time">min traċċati!</string>
     <string name="dashboard_today_title">Illum</string>
     <string name="dashboard_today_no_activity">Għad m’hemm l-ebda attività llum</string>
+    <string name="dashboard_saved_data_history">Id-data ssejvjata hija disponibbli fl-Istorja.</string>
     <string name="dashboard_today_distance">Distanza</string>
     <string name="dashboard_today_duration">Tul</string>
     <string name="dashboard_today_steps">Passi</string>
@@ -195,4 +196,5 @@
     <string name="dashboard_activity_on_foot">Bil-mixi</string>
     <string name="dashboard_activity_tilting">Inklinat</string>
     <string name="dashboard_activity_unknown">Attività mhux magħrufa</string>
+    <string name="dashboard_finishing_session">Qed tintemm is-sessjoni…</string>
 </resources>

@@ -46,6 +46,11 @@ internal data class AmbientStepsStructuralWindow(
 
 	val completesStructuralDay: Boolean
 		get() = startTimeMs == day.startTimeMs && endTimeMs == day.endTimeMs
+
+	/** Equivalent labels do not change this exact civil day or the requested provider interval. */
+	fun hasSameCalendarWindow(other: AmbientStepsStructuralWindow): Boolean =
+		day.epochDay == other.day.epochDay && day.startTimeMs == other.day.startTimeMs &&
+			day.endTimeMs == other.day.endTimeMs && startTimeMs == other.startTimeMs && endTimeMs == other.endTimeMs
 }
 
 internal data class AmbientStepsStructuralWindowPlan(

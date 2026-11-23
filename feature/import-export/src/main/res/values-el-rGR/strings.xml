@@ -38,7 +38,7 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">Αντίγραφο ασφαλείας βάσης δεδομένων (ZIP)</string>
-    <string name="settings_import_summary">Εισαγωγή δεδομένων από υποστηριζόμενους τύπους (%1$s) και αρχεία (%2$s). Οι εισαγωγές βάσης δεδομένων συγχωνεύουν συμβατές γραμμές· δεν αντικαθιστούν υπάρχοντα δεδομένα.</string>
+    <string name="settings_import_summary">Εισαγάγετε ένα αρχείο καταγραφής ή επαναφέρετε ένα αντίγραφο ασφαλείας δεδομένων.</string>
     <string name="settings_import_title">Εισαγωγή</string>
     <string name="export_radio_sensitivity_title">Εξαγωγή στοιχείων δικτύου;</string>
     <string name="export_wifi_sensitivity_message">Αυτό το αρχείο περιλαμβάνει αποθηκευμένα ονόματα Wi-Fi και αναγνωριστικά σημείων πρόσβασης.</string>
@@ -59,4 +59,7 @@
         <item quantity="one">%d σημείο σε αυτό το αρχείο διαφέρει από το αποθηκευμένο αντίγραφο. Επιλέξτε ποιο θα διατηρήσετε. Τα άλλα σημεία θα εισαχθούν κανονικά.</item>
         <item quantity="other">%d σημεία σε αυτό το αρχείο διαφέρουν από τα αποθηκευμένα αντίγραφά τους. Επιλέξτε ποια θα διατηρήσετε. Τα άλλα σημεία θα εισαχθούν κανονικά.</item>
     </plurals>
+    <string name="export_sensitivity_portable_title">Εξαγωγή καταγεγραμμένου ιστορικού;</string>
+    <string name="export_sensitivity_portable_steps_message">Αυτό το αρχείο περιέχει αριθμό βημάτων, χρονικά διαστήματα και πληροφορίες κάλυψης. Δεν περιέχει συντεταγμένες διαδρομής. Συνεχίστε μόνο αν εμπιστεύεστε τον προορισμό.</string>
+    <string name="export_sensitivity_portable_activity_message">Αυτό το αρχείο περιέχει καταγεγραμμένα διαστήματα κίνησης, χρονικά διαστήματα και πληροφορίες κάλυψης. Δεν περιέχει συντεταγμένες διαδρομής. Συνεχίστε μόνο αν εμπιστεύεστε τον προορισμό.</string>
 </resources>

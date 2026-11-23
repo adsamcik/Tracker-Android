@@ -121,6 +121,7 @@ internal sealed interface SourceSessionStopOutcome {
 internal enum class SourceSessionStopRetryCode {
 	COORDINATOR_BUSY,
 	DRAIN_PENDING,
+	PROJECTION_BUSY,
 	CLEANUP_PENDING,
 	STORAGE_UNAVAILABLE,
 }

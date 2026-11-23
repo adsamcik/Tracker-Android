@@ -13,5 +13,5 @@ object DataBackupSnapshot {
      * caches.
      */
     suspend fun write(context: Context, output: OutputStream) = DatabaseBackupArchive.writeData(
-        DatabaseBackupScope.discover(context), output, SQLiteDatabaseCopyLockProvider)
+        DatabaseBackupScope.discover(context), output, SQLiteDatabaseCopyLockProvider())
 }

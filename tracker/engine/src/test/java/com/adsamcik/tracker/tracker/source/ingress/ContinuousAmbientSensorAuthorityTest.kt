@@ -16,6 +16,56 @@ import org.junit.Test
 
 class ContinuousAmbientSensorAuthorityTest {
 	@Test
+	fun `Pressure keeps capture consent through a manifest quality change and sibling join`() = runTest {
+		val source = SourceKind.PRESSURE
+		val capture = demand(source, "capture", SourceBrokerPurpose.SESSION_CAPTURE)
+		val original = rows(source, 1L, 10L, listOf(capture))
+		val replacement = capture.copy(demandId = "new-capture", sourcePolicyRevision = 2L,
+			manifestRevision = 2L, lifecycleLeaseGeneration = 2L)
+		val next = rows(source, 2L, 100L,
+			listOf(replacement, demand(source, "background", SourceBrokerPurpose.AMBIENT_PRODUCT)))
+		val members = timeline(original, next).continuousPressureRecordingMembers(
+			requireNotNull(original.toAuthorizationSnapshotOrNull()), 90L, 110L)
+		assertEquals(original, members)
+	}
+
+	@Test
+	fun `Pressure cannot bridge capture withdrawal changed consent or another run`() = runTest {
+		val source = SourceKind.PRESSURE
+		val capture = demand(source, "capture", SourceBrokerPurpose.SESSION_CAPTURE)
+		val original = rows(source, 1L, 10L, listOf(capture))
+		val changed = listOf(emptyList(), listOf(capture.copy(consentEpoch = 2L)),
+			listOf(capture.copy(serviceRunId = "another-run")))
+		for (demands in changed) {
+			val interruption = rows(source, 2L, 100L, demands)
+			val renewed = rows(source, 3L, 105L, listOf(capture))
+			assertTrue(timeline(original, interruption, renewed).continuousPressureRecordingMembers(
+				requireNotNull(original.toAuthorizationSnapshotOrNull()), 90L, 110L).isEmpty())
+		}
+	}
+
+	@Test
+	fun `new capture authorization cannot claim the preceding part of a Pressure window`() = runTest {
+		val source = SourceKind.PRESSURE
+		val capture = demand(source, "capture", SourceBrokerPurpose.SESSION_CAPTURE)
+		val original = rows(source, 1L, 10L, listOf(capture))
+		val next = rows(source, 2L, 100L, listOf(capture.copy(manifestRevision = 2L)))
+		assertTrue(timeline(original, next).continuousPressureRecordingMembers(
+			requireNotNull(next.toAuthorizationSnapshotOrNull()), 90L, 110L).isEmpty())
+	}
+
+	@Test
+	fun `capture withdrawal keeps independently continuous all-day Pressure`() = runTest {
+		val source = SourceKind.PRESSURE
+		val background = demand(source, "background", SourceBrokerPurpose.AMBIENT_PRODUCT)
+		val capture = demand(source, "capture", SourceBrokerPurpose.SESSION_CAPTURE)
+		val original = rows(source, 1L, 10L, listOf(background, capture))
+		val next = rows(source, 2L, 100L, listOf(background))
+		assertEquals(listOf("background"), timeline(original, next).continuousPressureRecordingMembers(
+			requireNotNull(original.toAuthorizationSnapshotOrNull()), 90L, 110L).map { it.demandId })
+	}
+
+	@Test
 	fun `Location point keeps its original member through ordered same-consent refreshes`() = runTest {
 		val source = SourceKind.LOCATION
 		val background = demand(source, "background", SourceBrokerPurpose.AMBIENT_PRODUCT)

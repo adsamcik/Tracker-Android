@@ -71,6 +71,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
@@ -78,6 +79,7 @@ import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource
 import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
+import com.adsamcik.tracker.stats.api.repository.CellHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.CellHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.CellHistoryPage
 import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
@@ -2060,6 +2062,110 @@ class CellHistoryRepositoryRoomTest {
 		after.state shouldBe CellHistoryProductState.FAILED
 		after.causes shouldBe setOf(CellHistoryCause.WRITER_PROVENANCE_INVALID)
 		after.observations shouldBe emptyList()
+	}
+
+	@Test
+	fun `rejected shared Cell callback preserves saved readings and does not affect another run`() = runTest {
+		val groups = listOf(251, 252).map { index ->
+			val group = perReadingGroup(buildGroup(index, 1, setOf(0)))
+			group.copy(runs = group.runs.map { run ->
+				run.copy(completeness = run.completeness
+					.copy(providerCoverage = "CALLBACKS_ENTERED_BEFORE_BARRIER"))
+			})
+		}
+		persist(groups)
+		groups.forEach { persistPerReadingChildren(it) }
+		val repository = repository { true }
+		val run = groups.first().runs.single()
+		val otherRun = groups.last().runs.single()
+		val before = (repository.session(run.segment.id) as CellHistoryQuery.Found).entry
+		val otherBefore = (repository.session(otherRun.segment.id) as CellHistoryQuery.Found).entry
+		before.observations shouldHaveSize 2
+		before.causes.contains(CellHistoryCause.ACQUISITION_INCOMPLETE) shouldBe false
+		val callback = rejectedSharedCallback(run)
+		database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(callback)
+		saveTerminalFailure(run.facts.first(), callback.admissionOrdinal)
+
+		val entries = (repository.recent(2) as CellHistoryPage.Available).entries
+		val after = entries.single { it.startTime == before.startTime }
+		after.observations shouldBe before.observations
+		after.causes shouldBe before.causes + CellHistoryCause.ACQUISITION_INCOMPLETE
+		after.state shouldBe CellHistoryProductState.PARTIAL
+		after.coverage shouldBe CellHistoryCoverage.UNKNOWN
+		(repository.detail(requireNotNull(after.selection)) as CellHistoryQuery.Found)
+			.entry.observations shouldBe before.observations
+		val otherAfter = entries.single { it.startTime == otherBefore.startTime }
+		otherAfter.observations shouldBe otherBefore.observations
+		otherAfter.causes shouldBe otherBefore.causes
+	}
+
+	@Test
+	fun `terminal failure on a saved Cell carrier or aggregate still blocks its history`() = runTest {
+		val group = perReadingGroup(buildGroup(253, 1, setOf(0)))
+		persist(listOf(group))
+		persistPerReadingChildren(group)
+		val run = group.runs.single()
+		for (fact in run.facts.distinctBy { it.sourceAdmissionOrdinal }) {
+			saveTerminalFailure(fact, fact.sourceAdmissionOrdinal)
+			val entry = (repository { true }.recent(1) as CellHistoryPage.Available).entries.single()
+			entry.state shouldBe CellHistoryProductState.FAILED
+			entry.causes shouldBe setOf(CellHistoryCause.WRITER_PROVENANCE_INVALID)
+			entry.observations shouldBe emptyList()
+			database.sourceProjectionStateDao().deleteFailure(
+				fact.writerProjectionId, fact.writerProjectionVersion, fact.sourceAdmissionOrdinal)
+		}
+	}
+
+	@Test
+	fun `terminal Cell admission without facts does not fail an independent pending run`() = runTest {
+		val failedGroup = buildGroup(254, 1, setOf(0))
+		val pendingGroup = buildGroup(255, 1, setOf(0))
+		persist(listOf(failedGroup, pendingGroup))
+		val fact = failedGroup.runs.single().facts.first()
+		// Keep the exact admitted input and Stop receipt, but no materialized measurement.
+		database.openHelper.writableDatabase.execSQL("DELETE FROM cell_captured_fact_cursor")
+		database.openHelper.writableDatabase.execSQL("DELETE FROM cell_captured_fact_revision")
+		val failedThrough = failedGroup.runs.single().facts.maxOf { it.sourceAdmissionOrdinal }
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_product_projection_lane SET contiguous_admission_ordinal = ? WHERE source_kind = ?",
+			arrayOf<Any>(failedThrough, CELL_SOURCE))
+		saveTerminalFailure(fact, fact.sourceAdmissionOrdinal)
+
+		val repository = repository { true }
+		val failed = (repository.session(failedGroup.runs.single().segment.id) as CellHistoryQuery.Found).entry
+		failed.state shouldBe CellHistoryProductState.FAILED
+		failed.causes shouldBe setOf(CellHistoryCause.WRITER_PROVENANCE_INVALID)
+		failed.observations shouldBe emptyList()
+		val detail = repository.detail(requireNotNull(failed.selection)) as CellHistoryQuery.Found
+		detail.entry shouldBe failed
+		val pending = (repository.session(pendingGroup.runs.single().segment.id) as CellHistoryQuery.Found).entry
+		pending.state shouldBe CellHistoryProductState.MATERIALIZING
+		pending.causes shouldBe setOf(CellHistoryCause.MATERIALIZATION_BEHIND)
+		pending.observations shouldBe emptyList()
+		(repository.recent(2) as CellHistoryPage.Available).entries shouldBe listOf(pending, failed)
+	}
+
+	private fun rejectedSharedCallback(run: BuiltRun): SourceEventWalEntity {
+		val original = walFor(run.facts.minBy { it.sourceAdmissionOrdinal })
+		val denied = run.authorizations.first { it.authorizationRevision == 3L }
+		val unsigned = original.copy(
+			eventId = "rejected-${original.eventId}", admissionOrdinal = original.admissionOrdinal - 1L,
+			sourceSequence = original.sourceSequence - 1L, deliveryIdentity = null,
+			logicalTrackingId = null, serviceRunId = null, sourcePolicyRevision = null,
+			captureConsentEpoch = null, sessionManifestRevision = null, lifecycleLeaseGeneration = null,
+			planAttribution = 2, authorizationRevision = denied.authorizationRevision,
+			authorizationFingerprint = denied.authorizationFingerprint, authorizationPurposeEligibilityMask = 0L,
+			receivedElapsedNanos = denied.effectiveElapsedRealtimeNanos + 1L,
+			receivedWallTimeMs = denied.effectiveWallTimeMs + 1L,
+		)
+		return unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
+	}
+
+	private suspend fun saveTerminalFailure(fact: CellCapturedFactRevisionEntity, ordinal: Long) {
+		database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
+			projectionId = fact.writerProjectionId, projectionVersion = fact.writerProjectionVersion,
+			admissionOrdinal = ordinal, attemptCount = 1, failureCode = "WAL_AUTHORIZATION_REJECTED",
+			terminal = true, lastAttemptAtMs = fact.appliedAtMs))
 	}
 
 	private fun perReadingGroup(group: Group) = group.copy(runs = group.runs.map { run ->

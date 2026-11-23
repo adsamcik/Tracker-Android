@@ -104,6 +104,8 @@ import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplayValue
 import com.adsamcik.tracker.tracker.source.summary.RoomStepsNumericSummaryRepository
 import io.kotest.matchers.shouldBe
 import java.time.LocalDate
@@ -2398,6 +2400,23 @@ class RoomImportedAmbientStepsTransferTest {
 				StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
 			)
 		}
+
+	@Test
+	fun `equivalent Prague and Vienna calendars retain imported DST counts beside an existing summary`() = runTest {
+		val day = completeDay(LocalDate.of(2026, 3, 29), 6L, "Europe/Prague")
+		val archive = archive(day)
+		importer(database).importArchive(request(archive)) shouldBe applied(archive, 1)
+		database.dailySummaryDao().upsert(dateEpochDay = day.structuralEpochDay,
+			totalDistanceM = 0f, totalSteps = 0, totalDurationMs = 0L, tripCount = 0,
+			activeTrackingMs = 0L, lastUpdatedMs = day.structuralDayEndTimeMs, calendarZoneId = "Europe/Vienna")
+		val numeric = RoomStepsNumericSummaryRepository(database, Dispatchers.Unconfined, history(database))
+		val numericRequest = StepsNumericSummaryRequest(day.structuralEpochDay, day.structuralEpochDay, "UTC")
+
+		(numeric.readDisplay(numericRequest) as StepsDailyDisplay.Snapshot).days.single().value shouldBe
+			StepsDailyDisplayValue.Complete(6L)
+		numeric.read(numericRequest) shouldBe StepsNumericSummary.Ready(listOf(StepsNumericDay(day.structuralEpochDay, 6L)))
+		reexport(database, archive) shouldBe archive
+	}
 
 	@Test
 	fun `pending imported deletion affects only imported-owned numeric days`() = runTest {

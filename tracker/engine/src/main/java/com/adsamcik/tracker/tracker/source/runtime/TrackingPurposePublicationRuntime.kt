@@ -273,7 +273,10 @@ internal class SerializedTrackingPurposeLeaseIssuer @Inject constructor(
 	private val reporter: TrackingPurposeAvailabilityReporter,
 	private val tokenFactory: TrackingPurposeOwnerCasTokenFactory,
 ) : TrackingPurposeMutationLeaseGuard {
-	private val mutex = Mutex()
+	// Physical callbacks hold only their own purpose lock; shared identity bookkeeping stays short.
+	private val metadataMutex = Mutex()
+	private val automaticMutationMutex = Mutex()
+	private val ambientMutationMutexes = AmbientTrackingSource.entries.associateWith { Mutex() }
 	private var automaticIdentity: TrackingPurposeLeaseIdentity? = null
 	private val ambientIdentities = mutableMapOf<AmbientTrackingSource, AmbientReconciliationIdentity>()
 	private var automaticInFlight = false
@@ -281,34 +284,36 @@ internal class SerializedTrackingPurposeLeaseIssuer @Inject constructor(
 
 	suspend fun refreshAutomaticControl(
 		executionRevision: Long,
-	): AutomaticLeaseRefresh = mutex.withLock {
+	): AutomaticLeaseRefresh = automaticMutationMutex.withLock {
 		val sourcePurpose = ACTIVITY_CONTROL
 		val authority = readAuthority(sourcePurpose, executionRevision)
-		if (authority == null) {
-			reporter.invalidateAutomaticControl()
-			// Retain the exact cleanup token until its physical owner acknowledges retirement.
-			automaticInFlight = false
-			return@withLock AutomaticLeaseRefresh.Rejected
-		}
-		val matchingIdentity = automaticIdentity?.takeIf { it.matches(authority) }
-		if (matchingIdentity != null && automaticInFlight) {
-			return@withLock AutomaticLeaseRefresh.InProgress(
-				com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationLease(
-					matchingIdentity,
-				),
-			)
-		}
-		val identity = authority.toLeaseIdentity(tokenFactory.next(sourcePurpose))
-		when (val started = reporter.beginOrReplaceAutomaticControlLease(identity)) {
-			is AutomaticControlLeaseStartResult.Started -> {
-				automaticIdentity = identity
-				automaticInFlight = true
-				AutomaticLeaseRefresh.Issued(started.lease)
+		metadataMutex.withLock metadata@ {
+			if (authority == null) {
+				reporter.invalidateAutomaticControl()
+				// Retain the exact cleanup token until its physical owner acknowledges retirement.
+				automaticInFlight = false
+				return@metadata AutomaticLeaseRefresh.Rejected
 			}
-			is AutomaticControlLeaseStartResult.InProgress ->
-				AutomaticLeaseRefresh.InProgress(started.lease)
-			is AutomaticControlLeaseStartResult.Rejected -> {
-				AutomaticLeaseRefresh.Rejected
+			val matchingIdentity = automaticIdentity?.takeIf { it.matches(authority) }
+			if (matchingIdentity != null && automaticInFlight) {
+				return@metadata AutomaticLeaseRefresh.InProgress(
+					com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationLease(
+						matchingIdentity,
+					),
+				)
+			}
+			val identity = authority.toLeaseIdentity(tokenFactory.next(sourcePurpose))
+			when (val started = reporter.beginOrReplaceAutomaticControlLease(identity)) {
+				is AutomaticControlLeaseStartResult.Started -> {
+					automaticIdentity = identity
+					automaticInFlight = true
+					AutomaticLeaseRefresh.Issued(started.lease)
+				}
+				is AutomaticControlLeaseStartResult.InProgress ->
+					AutomaticLeaseRefresh.InProgress(started.lease)
+				is AutomaticControlLeaseStartResult.Rejected -> {
+					AutomaticLeaseRefresh.Rejected
+				}
 			}
 		}
 	}
@@ -317,93 +322,111 @@ internal class SerializedTrackingPurposeLeaseIssuer @Inject constructor(
 		source: AmbientTrackingSource,
 		executionRevision: Long,
 		settlementOperationId: String? = null,
-	): AmbientLeaseRefresh = mutex.withLock {
+	): AmbientLeaseRefresh = ambientMutationMutexes.getValue(source).withLock {
 		val sourcePurpose = source.canonicalSource.forPurpose(TrackingPurpose.AMBIENT_PRODUCT)
 		val authority = readAuthority(sourcePurpose, executionRevision, settlementOperationId)
-		if (authority == null) {
+		metadataMutex.withLock metadata@ {
+			if (authority == null) {
+				reporter.invalidateAmbient(source)
+				ambientIdentities.remove(source)
+				ambientInFlight.remove(source)
+				return@metadata AmbientLeaseRefresh.Rejected
+			}
+			val matchingIdentity = ambientIdentities[source]
+				?.takeIf { it.matches(authority) }
+			if (matchingIdentity != null && source in ambientInFlight) {
+				return@metadata AmbientLeaseRefresh.InProgress(
+					com.adsamcik.tracker.tracker.api.AmbientReconciliationLease(matchingIdentity),
+				)
+			}
+			val identity = AmbientReconciliationIdentity.from(
+					authority.toLeaseIdentity(tokenFactory.next(sourcePurpose)),
+					authority.retentionPolicyId,
+					authority.retentionApprovalRevision,
+				)
+			when (val started = reporter.beginOrReplaceAmbientLease(identity)) {
+				is AmbientLeaseStartResult.Started -> {
+					ambientIdentities[source] = identity
+					ambientInFlight += source
+					AmbientLeaseRefresh.Issued(started.lease)
+				}
+				is AmbientLeaseStartResult.InProgress ->
+					AmbientLeaseRefresh.InProgress(started.lease)
+				is AmbientLeaseStartResult.Rejected -> {
+					AmbientLeaseRefresh.Rejected
+				}
+			}
+		}
+	}
+
+	suspend fun clearAutomaticControl() = automaticMutationMutex.withLock {
+		metadataMutex.withLock {
+			reporter.invalidateAutomaticControl()
+			automaticIdentity = null
+			automaticInFlight = false
+		}
+	}
+
+	suspend fun clearAmbient(source: AmbientTrackingSource) = ambientMutationMutexes.getValue(source).withLock {
+		metadataMutex.withLock {
 			reporter.invalidateAmbient(source)
 			ambientIdentities.remove(source)
 			ambientInFlight.remove(source)
-			return@withLock AmbientLeaseRefresh.Rejected
 		}
-		val matchingIdentity = ambientIdentities[source]
-			?.takeIf { it.matches(authority) }
-		if (matchingIdentity != null && source in ambientInFlight) {
-			return@withLock AmbientLeaseRefresh.InProgress(
-				com.adsamcik.tracker.tracker.api.AmbientReconciliationLease(matchingIdentity),
-			)
-		}
-		val identity = AmbientReconciliationIdentity.from(
-				authority.toLeaseIdentity(tokenFactory.next(sourcePurpose)),
-				authority.retentionPolicyId,
-				authority.retentionApprovalRevision,
-			)
-		when (val started = reporter.beginOrReplaceAmbientLease(identity)) {
-			is AmbientLeaseStartResult.Started -> {
-				ambientIdentities[source] = identity
-				ambientInFlight += source
-				AmbientLeaseRefresh.Issued(started.lease)
-			}
-			is AmbientLeaseStartResult.InProgress ->
-				AmbientLeaseRefresh.InProgress(started.lease)
-			is AmbientLeaseStartResult.Rejected -> {
-				AmbientLeaseRefresh.Rejected
-			}
-		}
-	}
-
-	suspend fun clearAutomaticControl() = mutex.withLock {
-		reporter.invalidateAutomaticControl()
-		automaticIdentity = null
-		automaticInFlight = false
-	}
-
-	suspend fun clearAmbient(source: AmbientTrackingSource) = mutex.withLock {
-		reporter.invalidateAmbient(source)
-		ambientIdentities.remove(source)
-		ambientInFlight.remove(source)
 	}
 
 	suspend fun currentAmbientLease(source: AmbientTrackingSource):
-		com.adsamcik.tracker.tracker.api.AmbientReconciliationLease? = mutex.withLock {
+		com.adsamcik.tracker.tracker.api.AmbientReconciliationLease? = metadataMutex.withLock {
 		ambientIdentities[source]?.let {
 			com.adsamcik.tracker.tracker.api.AmbientReconciliationLease(it)
 		}
 	}
 
 	suspend fun currentAutomaticControlLease():
-		com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationLease? = mutex.withLock {
+		com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationLease? = metadataMutex.withLock {
 		automaticIdentity?.let {
 			com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationLease(it)
 		}
 	}
 
-	suspend fun cancelAutomaticControl(identity: TrackingPurposeLeaseIdentity) = mutex.withLock {
-		reporter.cancelAutomaticControlLease(identity)
-		if (automaticIdentity == identity) {
-			automaticIdentity = null
-			automaticInFlight = false
+	suspend fun cancelAutomaticControl(identity: TrackingPurposeLeaseIdentity) = automaticMutationMutex.withLock {
+		metadataMutex.withLock {
+			reporter.cancelAutomaticControlLease(identity)
+			if (automaticIdentity == identity) {
+				automaticIdentity = null
+				automaticInFlight = false
+			}
 		}
 	}
 
-	suspend fun cancelAmbient(identity: AmbientReconciliationIdentity) = mutex.withLock {
-		reporter.cancelAmbientLease(identity)
-		if (ambientIdentities[identity.source] == identity) {
-			reporter.invalidateAmbient(identity.source)
-			ambientIdentities.remove(identity.source)
-			ambientInFlight.remove(identity.source)
+	suspend fun cancelAmbient(
+		identity: AmbientReconciliationIdentity,
+	) = ambientMutationMutexes.getValue(identity.source).withLock {
+		metadataMutex.withLock {
+			reporter.cancelAmbientLease(identity)
+			if (ambientIdentities[identity.source] == identity) {
+				reporter.invalidateAmbient(identity.source)
+				ambientIdentities.remove(identity.source)
+				ambientInFlight.remove(identity.source)
+			}
 		}
 	}
 
-	suspend fun completeAutomaticControl(identity: TrackingPurposeLeaseIdentity) = mutex.withLock {
-		if (automaticIdentity == identity) {
-			automaticInFlight = false
+	suspend fun completeAutomaticControl(identity: TrackingPurposeLeaseIdentity) = automaticMutationMutex.withLock {
+		metadataMutex.withLock {
+			if (automaticIdentity == identity) {
+				automaticInFlight = false
+			}
 		}
 	}
 
-	suspend fun completeAmbient(identity: AmbientReconciliationIdentity) = mutex.withLock {
-		if (ambientIdentities[identity.source] == identity) {
-			ambientInFlight.remove(identity.source)
+	suspend fun completeAmbient(
+		identity: AmbientReconciliationIdentity,
+	) = ambientMutationMutexes.getValue(identity.source).withLock {
+		metadataMutex.withLock {
+			if (ambientIdentities[identity.source] == identity) {
+				ambientInFlight.remove(identity.source)
+			}
 		}
 	}
 
@@ -411,7 +434,7 @@ internal class SerializedTrackingPurposeLeaseIssuer @Inject constructor(
 		identity: AmbientReconciliationIdentity,
 		executionRevision: Long,
 		settlementOperationId: String? = null,
-	): Boolean = mutex.withLock {
+	): Boolean = ambientMutationMutexes.getValue(identity.source).withLock {
 		readAuthority(
 			identity.sourcePurpose,
 			executionRevision,
@@ -427,35 +450,38 @@ internal class SerializedTrackingPurposeLeaseIssuer @Inject constructor(
 	override suspend fun <T> mutateAutomaticIfCurrent(
 		identity: TrackingPurposeLeaseIdentity,
 		mutation: suspend () -> T,
-	): AmbientRadioLeaseMutation<T> = mutex.withLock {
-		if (automaticIdentity != identity || !automaticInFlight) {
-			AmbientRadioLeaseMutation.Stale
-		} else {
+	): AmbientRadioLeaseMutation<T> = automaticMutationMutex.withLock {
+		val current = metadataMutex.withLock { automaticIdentity == identity && automaticInFlight }
+		if (current) {
 			AmbientRadioLeaseMutation.Applied(mutation())
+		} else {
+			AmbientRadioLeaseMutation.Stale
 		}
 	}
 
 	override suspend fun <T> mutateAmbientIfCurrent(
 		identity: AmbientReconciliationIdentity,
 		mutation: suspend () -> T,
-	): AmbientRadioLeaseMutation<T> = mutex.withLock {
-		if (ambientIdentities[identity.source] != identity ||
-			identity.source !in ambientInFlight
-		) {
-			AmbientRadioLeaseMutation.Stale
-		} else {
+	): AmbientRadioLeaseMutation<T> = ambientMutationMutexes.getValue(identity.source).withLock {
+		val current = metadataMutex.withLock {
+			ambientIdentities[identity.source] == identity && identity.source in ambientInFlight
+		}
+		if (current) {
 			AmbientRadioLeaseMutation.Applied(mutation())
+		} else {
+			AmbientRadioLeaseMutation.Stale
 		}
 	}
 
 	override suspend fun <T> mutateReductionIfRetained(
 		identity: AmbientReconciliationIdentity,
 		mutation: suspend () -> T,
-	): AmbientRadioLeaseMutation<T> = mutex.withLock {
-		if (ambientIdentities[identity.source] != identity) {
-			AmbientRadioLeaseMutation.Stale
-		} else {
+	): AmbientRadioLeaseMutation<T> = ambientMutationMutexes.getValue(identity.source).withLock {
+		val current = metadataMutex.withLock { ambientIdentities[identity.source] == identity }
+		if (current) {
 			AmbientRadioLeaseMutation.Applied(mutation())
+		} else {
+			AmbientRadioLeaseMutation.Stale
 		}
 	}
 
@@ -597,26 +623,43 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		reconcileStepsPolicyRevision()
 
 	override suspend fun retireAfterRetentionDebt(): AmbientStepsPolicyRevisionReconciliation =
-		reconcileStepsPolicyRevision()
+		reconcileStepsPolicyRevision(retireForKnownDebt = true)
 
 	/** Settings publication depends only on Steps, whose owner does not consume that publication. */
-	private suspend fun reconcileStepsPolicyRevision(): AmbientStepsPolicyRevisionReconciliation {
-		inProgressStepsOwnerFailure()?.let { return AmbientStepsPolicyRevisionReconciliation.Retryable(it.reason.name) }
+	private suspend fun reconcileStepsPolicyRevision(
+		retireForKnownDebt: Boolean = false,
+	): AmbientStepsPolicyRevisionReconciliation {
+		inProgressOwnerFailure(AmbientTrackingSource.STEPS)?.let {
+			return AmbientStepsPolicyRevisionReconciliation.Retryable(it.reason.name)
+		}
 		return try {
 			withCurrentReadyGeneration { generation ->
 				// Another reconciliation may have started the owner while this call awaited Ready.
-				inProgressStepsOwnerFailure()?.let {
+				inProgressOwnerFailure(AmbientTrackingSource.STEPS)?.let {
 					return@withCurrentReadyGeneration AmbientStepsPolicyRevisionReconciliation.Retryable(it.reason.name)
 				}
 				ensureBuiltInAmbientOwners(setOf(AmbientTrackingSource.STEPS))
-				reconcileAmbient(
-					AmbientTrackingSource.STEPS,
-					expectedRetainedFromMs = null,
-					requireApproval = false,
-					requireOwner = false,
-					expectedStartupGeneration = generation,
-				)?.let { failure ->
-					AmbientStepsPolicyRevisionReconciliation.Retryable(failure.name)
+				val failure = if (retireForKnownDebt) {
+					// The caller retains retention debt; this operation only settles provider cleanup.
+					ambientOperationMutexes.getValue(AmbientTrackingSource.STEPS).withLock {
+						if (inProgressOwnerFailure(AmbientTrackingSource.STEPS) != null) {
+							TrackingRetentionFloorReconciliationFailureReason.OWNER_OPERATION_IN_PROGRESS
+						} else {
+							retireAmbientAfterRetentionAuthorityFailureLocked(
+								AmbientTrackingSource.STEPS, requireOwner = false)
+						}
+					}
+				} else {
+					reconcileAmbient(
+						AmbientTrackingSource.STEPS,
+						expectedRetainedFromMs = null,
+						requireApproval = false,
+						requireOwner = false,
+						expectedStartupGeneration = generation,
+					)
+				}
+				failure?.let {
+					AmbientStepsPolicyRevisionReconciliation.Retryable(it.name)
 				} ?: AmbientStepsPolicyRevisionReconciliation.Complete
 			} ?: AmbientStepsPolicyRevisionReconciliation.Retryable("STARTUP_GENERATION_CHANGED")
 		} catch (cancelled: CancellationException) {
@@ -627,7 +670,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 	}
 
 	override suspend fun reconcileCurrentSettings(): TrackingPurposeSettingsReconciliationResult {
-		inProgressStepsOwnerFailure()?.let { return finishSettingsReconciliation(listOf(it), emptySet()) }
+		closeStoppedCollection()?.let { return it }
 		// Owners read the shared settings replay. Its producer may need the Ready operation first.
 		trackingParamsRepositoryProvider?.get()?.data?.first()
 		val failures = mutableListOf<TrackingPurposeSettingsReconciliationFailure>()
@@ -635,10 +678,6 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 
 		val reconciledSources = mutableSetOf<AmbientTrackingSource>()
 		val ready = withCurrentReadyGeneration { startupGeneration ->
-			inProgressStepsOwnerFailure()?.let {
-				failures += it
-				return@withCurrentReadyGeneration
-			}
 			ensureBuiltInAutomaticOwner()
 			ensureBuiltInAmbientOwners(AmbientTrackingSource.entries.toSet())
 			val automaticCompleted = try {
@@ -667,12 +706,36 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		return finishSettingsReconciliation(failures, reconciledSources)
 	}
 
+	/** Off needs acknowledged cleanup, not new live-retention grants. Start retains its own preparation. */
+	private suspend fun closeStoppedCollection(): TrackingPurposeSettingsReconciliationResult? {
+		val gate = trackingStartupGateProvider?.get() ?: return null
+		if (!gate.collectionIsStopped()) {
+			return null
+		}
+		return gate.withReadyGenerationOperation(gate.currentGeneration) {
+			// A newer explicit Start may have acquired its one-use preparation allowance while we waited.
+			if (gate.collectionIsStopped()) {
+				closeForUserStop()
+			} else {
+				null
+			}
+		}
+	}
+
+	private fun TrackingStartupGate.collectionIsStopped(): Boolean = isReady && !permitsNewCollection &&
+		!permitsPendingManualStart(currentCommandGeneration)
+
 	private suspend fun reconcileAmbientSettingsOwners(
 		startupGeneration: Long?,
 		failures: MutableList<TrackingPurposeSettingsReconciliationFailure>,
 		reconciledSources: MutableSet<AmbientTrackingSource>,
 	) {
 		for (source in AmbientTrackingSource.entries) {
+			val inProgress = inProgressOwnerFailure(source)
+			if (inProgress != null) {
+				failures += inProgress
+				continue
+			}
 			val failure = try {
 				reconcileAmbient(source, expectedRetainedFromMs = null, requireApproval = false,
 					requireOwner = false, expectedStartupGeneration = startupGeneration)
@@ -685,21 +748,17 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 				reconciledSources += source
 			} else {
 				failures += failure.toSettingsFailure(source)
-				if (source == AmbientTrackingSource.STEPS && failure ==
-					TrackingRetentionFloorReconciliationFailureReason.OWNER_OPERATION_IN_PROGRESS) {
-					// The callback still owns its mutation lease; do not queue sibling lookups behind it.
-					return
-				}
 			}
 		}
 	}
 
 	/** A timed-out callback still owns its lease; retries must not wait on its mutation mutex. */
-	private suspend fun inProgressStepsOwnerFailure(): TrackingPurposeSettingsReconciliationFailure? =
+	private suspend fun inProgressOwnerFailure(source: AmbientTrackingSource):
+		TrackingPurposeSettingsReconciliationFailure? =
 		ownerFlightMutex.withLock {
-			if (ambientOwnerFlights.any { (key, call) -> key.identity.source == AmbientTrackingSource.STEPS &&
+			if (ambientOwnerFlights.any { (key, call) -> key.identity.source == source &&
 				!call.isCompleted }) {
-				TrackingPurposeSettingsReconciliationFailure(AmbientTrackingSource.STEPS,
+				TrackingPurposeSettingsReconciliationFailure(source,
 					TrackingPurposeSettingsReconciliationFailureReason.OWNER_OPERATION_IN_PROGRESS)
 			} else {
 				null
@@ -1399,6 +1458,9 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 	}
 
 	private suspend fun reconcileAutomaticControlLocked(expectedStartupGeneration: Long?): Boolean {
+		if (ownerFlightMutex.withLock { automaticOwnerFlight?.second?.isCompleted == false }) {
+			return false
+		}
 		val owner = ownerMutex.withLock { automaticOwner }
 		val previousLease = leaseIssuer.currentAutomaticControlLease()
 		val refresh = leaseIssuer.refreshAutomaticControl(owner?.executionRevision ?: 0L)
@@ -1412,12 +1474,13 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 			}
 		}
 		executionRevisionRegistry.bind(lease.identity)
-		if (!isCurrentAutomaticOwner(owner)) {
+		return if (!isCurrentAutomaticOwner(owner)) {
 			leaseIssuer.cancelAutomaticControl(lease.identity)
-			return false
+			false
+		} else {
+			val availability = callAutomaticOwner(owner, lease)
+			availability != null && publishAutomaticAvailability(owner, lease, availability, expectedStartupGeneration)
 		}
-		val availability = callAutomaticOwner(owner, lease) ?: return false
-		return publishAutomaticAvailability(owner, lease, availability, expectedStartupGeneration)
 	}
 
 	// Each ordered rejection performs the same existing cleanup before leaving publication.
@@ -1555,6 +1618,9 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		expectedStartupGeneration: Long?,
 		settlementOperationId: String?,
 	): TrackingRetentionFloorReconciliationFailureReason? {
+		if (inProgressOwnerFailure(source) != null) {
+			return TrackingRetentionFloorReconciliationFailureReason.OWNER_OPERATION_IN_PROGRESS
+		}
 		val retention = if (settlementOperationId == null) {
 			retentionAuthorityProducer.reconcileLiveAmbient(source.canonicalSource)
 		} else {
@@ -1587,18 +1653,17 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 			is AmbientLeaseRefresh.InProgress -> refresh.lease
 			AmbientLeaseRefresh.Rejected -> null
 		}
-		if (lease == null) {
+		return if (lease == null) {
 			val retirementFailure = retireAmbientAfterRetentionAuthorityFailureLocked(
 				source,
 				requireOwner,
 				previousLease,
 			)
-			return retirementFailure
-				?: TrackingRetentionFloorReconciliationFailureReason
-					.RETENTION_AUTHORITY_UNAVAILABLE
+			retirementFailure ?: TrackingRetentionFloorReconciliationFailureReason.RETENTION_AUTHORITY_UNAVAILABLE
+		} else {
+			reconcileAmbientLeaseLocked(source, owner, lease, expectedRetainedFromMs, requireApproval,
+				expectedStartupGeneration, settlementOperationId)
 		}
-		return reconcileAmbientLeaseLocked(source, owner, lease, expectedRetainedFromMs, requireApproval,
-			expectedStartupGeneration, settlementOperationId)
 	}
 
 	// Each preflight failure compensates this exact issued lease before returning its reason.
@@ -1688,6 +1753,11 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 	): TrackingRetentionFloorReconciliationFailureReason? {
 		validateAmbientPublication(source, owner, lease, availability, requireApproval,
 			expectedStartupGeneration, settlementOperationId)?.let { return it }
+		if (availability == AmbientSourceOperationalAvailability.reconciliationPending(source, lease.purposeLeaseIdentity)) {
+			// The exact lease remains open; retry its callback rather than consume or compensate it.
+			clearAmbientOwnerFlight(lease.identity)
+			return TrackingRetentionFloorReconciliationFailureReason.OWNER_OPERATION_IN_PROGRESS
+		}
 		val report = try {
 			AmbientSourceReconciliationReport(lease.identity, availability)
 		} catch (_: IllegalArgumentException) {
@@ -1780,7 +1850,9 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		if (retirementFailure != null) {
 			return retirementFailure
 		}
-		return if (requireApproval) {
+		// Successful retirement does not settle an unavailable authority. Keep existing retry ownership
+		// until current policy can be checked again; a deliberately disabled purpose is already settled.
+		return if (requireApproval || unavailable != null) {
 			TrackingRetentionFloorReconciliationFailureReason
 				.RETENTION_AUTHORITY_UNAVAILABLE
 		} else {
@@ -2170,7 +2242,10 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 	): T? {
 		val gate = trackingStartupGateProvider?.get() ?: return operation(null)
 		val generation = gate.currentGeneration
-		return withReadyGeneration(generation) { operation(generation) }
+		// Owner reconciliation can await provider callbacks and source-local cleanup. Keep it
+		// cancellable by deletion without holding the command lock needed to reserve Stop.
+		// Each owner mutation and final publication still validates its exact purpose lease.
+		return gate.withReadyGenerationWork(generation) { operation(generation) }
 	}
 
 	private suspend fun <T> withReadyGeneration(

@@ -12,6 +12,7 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityIngressStartContext
 import com.adsamcik.tracker.activity.api.ingress.ActivityIngressStatus
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
+import com.adsamcik.tracker.activity.api.registration.DefaultActivityRegistrationArbiter
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
@@ -40,6 +41,7 @@ internal class ActivityCallbackRetryWorker @AssistedInject constructor(
 	private val retryOwner: ActivityCallbackRetryOwner,
 	private val startupGate: TrackingStartupGate,
 	private val ingressProvider: Provider<ActivityRecognitionEventIngress>,
+	private val registrationArbiterProvider: Provider<DefaultActivityRegistrationArbiter>,
 ) : CoroutineWorker(appContext, params) {
 	override suspend fun doWork(): Result =
 		when (
@@ -47,6 +49,7 @@ internal class ActivityCallbackRetryWorker @AssistedInject constructor(
 				retryOwner = retryOwner,
 				reconcileStartup = { startupGate.reconcileAdmission() },
 				resolveIngress = ingressProvider::get,
+				recordRetainedGap = { registrationArbiterProvider.get().recordRetainedCallbackLoss(it) },
 			)
 		) {
 			ActivityCallbackRetryWorkOutcome.COMPLETE -> Result.success()
@@ -62,20 +65,22 @@ internal suspend fun runActivityCallbackRetryAfterStartup(
 	retryOwner: ActivityCallbackRetryOwner,
 	reconcileStartup: suspend () -> TrackingAdmissionStartupResult,
 	resolveIngress: () -> ActivityRecognitionEventIngress,
+	recordRetainedGap: suspend (ActivityCallbackGapReceipt) -> Unit = {},
 ): ActivityCallbackRetryWorkOutcome {
 	if (reconcileStartup() !is TrackingAdmissionStartupResult.Ready) {
 		return ActivityCallbackRetryWorkOutcome.RETRY
 	}
-	return runActivityCallbackRetryWork(retryOwner, resolveIngress())
+	return runActivityCallbackRetryWork(retryOwner, resolveIngress(), recordRetainedGap = recordRetainedGap)
 }
 
 internal suspend fun runActivityCallbackRetryWork(
 	retryOwner: ActivityCallbackRetryOwner,
 	ingress: ActivityRecognitionEventIngress,
+	recordRetainedGap: suspend (ActivityCallbackGapReceipt) -> Unit = {},
 	afterFinalInventory: suspend (morePending: Boolean) -> Unit = {},
 ): ActivityCallbackRetryWorkOutcome {
 	val ids = try {
-		retryOwner.pendingIds().take(MAX_CALLBACKS_PER_RUN)
+		retryOwner.pendingIds()
 	} catch (error: ActivityCallbackRetryStoreException) {
 		return if (error.corrupt) {
 			ActivityCallbackRetryWorkOutcome.FAILED
@@ -84,6 +89,7 @@ internal suspend fun runActivityCallbackRetryWork(
 		}
 	}
 	var retryRequired = false
+	var replayAttempts = 0
 	for (id in ids) {
 		val claim = try {
 			retryOwner.claim(id)
@@ -93,7 +99,7 @@ internal suspend fun runActivityCallbackRetryWork(
 			if (error.terminalRetryRecord) {
 				// A read-verified callback that later corrupts or expires emits an explicit stable
 				// gap code and best-effort bounded receipt before its poison file is removed.
-				val recordedAndDiscarded = retryOwner.recordGapAndDiscard(id, error.code)
+				val recordedAndDiscarded = retryOwner.recordGapAndDiscard(id, error.code, error.originalMetadata)
 				TrackerDiagnosticLog.activityCallbackTerminalGap()
 				if (!recordedAndDiscarded) retryRequired = true
 				continue
@@ -103,6 +109,8 @@ internal suspend fun runActivityCallbackRetryWork(
 		}
 		if (claim == null) return ActivityCallbackRetryWorkOutcome.RETRY
 		try {
+			if (replayAttempts >= MAX_CALLBACKS_PER_RUN) break
+			replayAttempts += 1
 			val replayBatch = claim.batch.copy(
 				startContext = ActivityIngressStartContext.DURABLE_REPLAY,
 			)
@@ -135,6 +143,17 @@ internal suspend fun runActivityCallbackRetryWork(
 		} finally {
 			claim.release()
 		}
+	}
+	// Existing receipts also close a crash between removing a poison file and marking its original
+	// sealed capture. An unsealed live registration retains the receipt for its normal retirement.
+	try {
+		for (receipt in retryOwner.gapReceipts()) {
+			if (receipt.originalMetadata != null) recordRetainedGap(receipt)
+		}
+	} catch (error: CancellationException) {
+		throw error
+	} catch (_: Exception) {
+		retryRequired = true
 	}
 	val morePending = try {
 		retryOwner.pendingIds().isNotEmpty()
@@ -188,6 +207,9 @@ class ActivityCallbackRetryOwner @Inject internal constructor(
 
 	internal suspend fun pendingIds(): List<String> = withContext(dispatchers.io) { store.pendingIds() }
 
+	internal suspend fun gapReceipts(): List<ActivityCallbackGapReceipt> =
+		withContext(dispatchers.io) { store.gapReceipts() }
+
 	internal suspend fun claim(id: String): ActivityCallbackRetryClaim? {
 		val permit = enter() ?: return null
 		return try {
@@ -202,13 +224,14 @@ class ActivityCallbackRetryOwner @Inject internal constructor(
 	internal suspend fun recordGapAndDiscard(
 		id: String,
 		code: ActivityCallbackGapCode,
+		originalMetadata: ActivityCallbackRetryMetadata? = null,
 	): Boolean {
 		val permit = enter() ?: return false
 		return try {
 			withContext(dispatchers.io) {
-				// A gap receipt is best effort under the same low-storage condition that may have
-				// damaged the record. Never let its failure turn poison into an indefinite inbox item.
-				store.recordGap(id, code)
+				// Preserve the only original-scope record until its bounded gap receipt is verified.
+				// Other callback files still get independent admission while storage is recovering.
+				if (!store.recordGap(id, code, originalMetadata = originalMetadata)) return@withContext false
 				store.remove(id)
 				true
 			}
@@ -255,7 +278,7 @@ class ActivityCallbackRetryOwner @Inject internal constructor(
 	}
 
 	internal suspend fun ensurePendingWorkScheduled() {
-		if (pendingIds().isNotEmpty()) scheduler.ensureScheduled()
+		if (pendingIds().isNotEmpty() || gapReceipts().any { it.originalMetadata != null }) scheduler.ensureScheduled()
 	}
 
 	private fun enter(): ActivityCallbackRetryPermit? = synchronized(monitor) {

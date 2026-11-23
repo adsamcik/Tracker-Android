@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import android.os.SystemClock
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.data.CellProviderDeliveryIdentityFact
 import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -30,6 +31,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -81,6 +83,7 @@ class CellSourceRuntime @Inject internal constructor(
 	private val deviceStateProvider: AndroidConnectivityDeviceStateProvider,
 	private val wakeups: CoalescingSourceWakeupScheduler,
 	private val activeRequestAllowance: RadioActiveRequestAllowance,
+	private val dispatchers: DispatchersProvider,
 ) : ClaimedSourceRuntime<CellPlan> {
 	override val source = SourceKind.CELL
 	private val _capabilities = MutableStateFlow(capabilitiesNow())
@@ -781,9 +784,20 @@ class CellSourceRuntime @Inject internal constructor(
 		// A provider may throw after installing its callback. Bind the explicit action claim before
 		// publication so a partially failed start remains exactly compensatable.
 		ownerClaim = claim
+		// Preserve real callbacks delivered synchronously by registration or while Room accepts
+		// it. The actor stays stopped until acceptance succeeds, so provisional input cannot write.
+		var registrationStartedElapsedNanos = 0L
 		val providerStarted = try {
-			backend.start(plan.subscriptionIds) { snapshot ->
-				onBackendSnapshot(nextCallbackToken, snapshot, CellRefreshOutcome.CALLBACK)
+			// API 26–28 constructs PhoneStateListener on the calling thread. Its public
+			// constructor requires a Looper even when the service coordinator runs on Default.
+			withContext(dispatchers.main) {
+				registrationStartedElapsedNanos = synchronized(callbackLock) {
+					accepting = true
+					SystemClock.elapsedRealtimeNanos()
+				}
+				backend.start(plan.subscriptionIds) { snapshot ->
+					onBackendSnapshot(nextCallbackToken, snapshot, CellRefreshOutcome.CALLBACK)
+				}
 			}
 		} catch (cancelled: CancellationException) {
 			cleanupFailedStart(nextRegistration, nextQueue, "PROVIDER_REGISTRATION_CANCELLED")
@@ -804,7 +818,7 @@ class CellSourceRuntime @Inject internal constructor(
 			if (nextRegistration.requiresProviderAcceptance) {
 				// A null result means there was no previously active generation to retire. Stale
 				// reservations fail by exception inside the transactional repository operation.
-				registrations.markAccepted(nextRegistration, System.currentTimeMillis())
+				registrations.markAccepted(nextRegistration, System.currentTimeMillis(), registrationStartedElapsedNanos)
 			}
 			true
 		} catch (cancelled: CancellationException) {
@@ -834,8 +848,6 @@ class CellSourceRuntime @Inject internal constructor(
 		nextActor.start()
 		synchronized(callbackLock) {
 			check(callbackToken === nextCallbackToken && registration === nextRegistration)
-			accepting = true
-			check(nextQueue.offer(CellRuntimeInput.Started))
 		}
 		val state = appliedState(
 			source, plan.revision, nextRegistration, application.status, SystemClock.elapsedRealtimeNanos(),
@@ -1127,11 +1139,14 @@ class CellSourceRuntime @Inject internal constructor(
 		}
 	}
 
-	private fun enqueueControl(input: CellRuntimeInput) {
-		synchronized(callbackLock) {
-			if (accepting) {
-				queue?.offer(input)
-			}
+	private suspend fun enqueueControl(input: CellRuntimeInput) {
+		val activeQueue = synchronized(callbackLock) { queue.takeIf { accepting } } ?: return
+		// Scheduler actions are already bounded by their IDs. Wait for this FIFO's capacity
+		// without holding callbackLock; losing a timeout would strand its outstanding request.
+		try {
+			activeQueue.submit(input)
+		} catch (_: ClosedSendChannelException) {
+			// A retired lane cannot transfer a control action into its successor.
 		}
 	}
 
@@ -1250,9 +1265,10 @@ class CellSourceRuntime @Inject internal constructor(
 			return admitted
 		}
 
+		// This actor-owned initial control cannot be crowded out by provisional callbacks.
+		scheduleRefresh()
 		inputs.consume inputLoop@{ input ->
 			when (input) {
-				CellRuntimeInput.Started,
 				CellRuntimeInput.PlanChanged -> {
 					scheduleRefresh()
 				}
@@ -1541,7 +1557,6 @@ class CellSourceRuntime @Inject internal constructor(
 	).withSessionMembership(ownerClaim)
 
 	private sealed interface CellRuntimeInput {
-		data object Started : CellRuntimeInput
 		data object PlanChanged : CellRuntimeInput
 		data class Refresh(val context: CellCallbackContext, val earliestElapsedMs: Long) : CellRuntimeInput
 		data class Timeout(val request: CellRefreshRequest) : CellRuntimeInput

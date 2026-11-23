@@ -808,6 +808,44 @@ interface SourceSessionDao {
         "service_run_id = :serviceRunId"))
 	suspend fun deleteUnpublishedJoinCompleteness(logicalTrackingId: String, serviceRunId: String): Int
 
+	/** Removes only a source-level timeout placeholder after its exact physical retirements settle. */
+	@Query("""DELETE FROM source_session_completeness
+		WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId AND source_kind = :sourceKind
+		AND source_instance_id = :placeholderInstanceId AND registration_generation = 0
+		AND last_admission_ordinal IS NULL AND last_source_sequence IS NULL AND app_drain_complete = 0
+		AND provider_coverage = 'PROVIDER_COMPLETENESS_UNOBSERVABLE'
+		AND stop_status = 'TIMED_OUT' AND unresolved_sequence_start IS NULL AND unresolved_sequence_end IS NULL""")
+	suspend fun deleteSettledRetirementTimeoutPlaceholder(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		sourceKind: Int,
+		placeholderInstanceId: String,
+	): Int
+
+	/** Exact saved End boundary for a callback whose physical owner has not received End yet. */
+	@Query("""SELECT session.cutoff_elapsed_nanos FROM logical_tracking_session session
+		JOIN source_service_run run ON run.logical_tracking_id = session.logical_tracking_id
+		JOIN provider_registration_generation provider ON provider.source_kind = :sourceKind
+			AND provider.registration_generation = :registrationGeneration
+		WHERE session.logical_tracking_id = :logicalTrackingId AND run.service_run_id = :serviceRunId
+		AND session.state IN ('STOPPING', 'FINALIZED') AND session.cutoff_elapsed_nanos IS NOT NULL
+		AND session.cutoff_elapsed_nanos >= run.started_elapsed_nanos
+		AND (session.current_service_run_id = run.service_run_id OR
+			(session.state = 'FINALIZED' AND run.state = 'FINALIZED' AND run.completed_at_ms = session.cutoff_at_ms))
+		AND run.boot_id = :clockDomainId AND session.clock_domain_id = :clockDomainId
+		AND provider.clock_domain_id = :clockDomainId AND provider.source_instance_id = :sourceInstanceId
+		AND provider.collected_data_epoch = :collectedDataEpoch AND provider.accepted_elapsed_realtime_nanos IS NOT NULL
+		AND provider.status IN ('ACTIVE', 'RETIRING', 'RETIRED')""")
+	suspend fun endedCaptureCutoffElapsedNanos(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		sourceKind: Int,
+		sourceInstanceId: String,
+		registrationGeneration: Long,
+		clockDomainId: String,
+		collectedDataEpoch: Long,
+	): Long?
+
 	/**
 	 * Deletes `lifecycle_desired_action` rows matching the supplied scope. Query conditions include
 	 * `logical_tracking_id = :logicalTrackingId`, `service_run_id = :serviceRunId`. Returns the

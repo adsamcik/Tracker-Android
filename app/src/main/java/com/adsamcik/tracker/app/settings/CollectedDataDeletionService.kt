@@ -58,6 +58,8 @@ import com.adsamcik.tracker.tracker.worker.HistoricalTrajectoryReconstructionWor
 import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -613,8 +615,13 @@ class DefaultCollectedDataDeletionService(
 					),
 				)
 			}
-			clearDatabaseAndRearmWriters(operation)
-			return completeDeletionCleanup(operation, purposeDeletionFencer)
+			val journal = settleDeletionBoundary(operation)
+			if (journal is DeletionJournalPreparation.Failed) {
+				return keepPurposeOwnersClosed(purposeDeletionFencer, journal.completion)
+			}
+			val settled = (journal as DeletionJournalPreparation.Ready).operation
+			clearDatabaseAndRearmWriters(settled)
+			return completeDeletionCleanup(settled, purposeDeletionFencer)
 		} catch (unknown: RetentionAuthorityDataStoreCommitUnknownException) {
 			return keepPurposeOwnersClosed(
 				purposeDeletionFencer,
@@ -629,27 +636,41 @@ class DefaultCollectedDataDeletionService(
 		}
 	}
 
+	private suspend fun settleDeletionBoundary(
+		operation: CollectedDataDeletionOperation,
+	): DeletionJournalPreparation {
+		// Remove retired vaults before opening Room so no legacy import callback can race the clear.
+		deleteRetiredDatabases()
+		if (readDatabaseDeletionOperation(context, operation.operationId) != null) {
+			return DeletionJournalPreparation.Ready(operation)
+		}
+		val lifecycle = collectedDataLifecycleStore.beginFullDeletion(
+			operationId = operation.operationId,
+			targetEpoch = operation.targetCollectedDataEpoch,
+			deletedAtMs = operation.deletedAtMs,
+			retainedFromMs = operation.retainedFromMs,
+		)
+		check(lifecycle.epoch == operation.targetCollectedDataEpoch)
+		val settled = operation.copy(retainedFromMs = lifecycle.retainedFromMs)
+		// Retention may advance while the prepared clear waits for writers. Publish its exact
+		// acknowledged boundary before Room; a crash here safely repeats the same lifecycle operation.
+		return if (settled == operation) {
+			DeletionJournalPreparation.Ready(operation)
+		} else {
+			publishPreparedDeletionJournal(settled)
+		}
+	}
+
 	private suspend fun clearDatabaseAndRearmWriters(
 		operation: CollectedDataDeletionOperation,
 	) {
-		// The durable journal exists before this destructive boundary. Remove legacy vaults
-		// before opening the active Room database so no import callback can race the clear.
-		deleteRetiredDatabases()
 		var databaseOperation = readDatabaseDeletionOperation(
 			context,
 			operation.operationId,
 		)?.also { receipt ->
 			requireMatchingDatabaseOperation(operation, receipt)
 		}
-		val lifecycle = if (databaseOperation == null) {
-			collectedDataLifecycleStore.beginFullDeletion(
-				operationId = operation.operationId,
-				targetEpoch = operation.targetCollectedDataEpoch,
-				deletedAtMs = operation.deletedAtMs,
-			)
-		} else {
-			collectedDataLifecycleStore.snapshot()
-		}
+		val lifecycle = collectedDataLifecycleStore.snapshot()
 		check(lifecycle.epoch == operation.targetCollectedDataEpoch)
 		check(lifecycle.retainedFromMs == operation.retainedFromMs)
 		if (databaseOperation == null) {
@@ -1161,9 +1182,7 @@ class DefaultCollectedDataDeletionService(
 					),
 				)
 			},
-			retainedFromMs = lifecycle.retainedFromMs
-				?.let { maxOf(it, deletedAtMs) }
-				?: deletedAtMs,
+			retainedFromMs = lifecycle.retainedFromMs,
 			deletedAtMs = deletedAtMs,
 		)
 		return publishPreparedDeletionJournal(operation)
@@ -1187,14 +1206,12 @@ class DefaultCollectedDataDeletionService(
 				output.fd.sync()
 			}
 			directorySync(parent)
-			if (!preparedMarkerFile.renameTo(markerFile) && !markerFile.exists()) {
-				return DeletionJournalPreparation.Failed(
-					CollectedDataDeletionCompletion.Retryable(
-						CollectedDataDeletionReconciliationFailure.DeletionMarkerPublication,
-					),
-					operation,
-				)
-			}
+			Files.move(
+				preparedMarkerFile.toPath(),
+				markerFile.toPath(),
+				StandardCopyOption.ATOMIC_MOVE,
+				StandardCopyOption.REPLACE_EXISTING,
+			)
 			directorySync(parent)
 			return DeletionJournalPreparation.Ready(operation)
 		} catch (_: Exception) {

@@ -15,7 +15,7 @@
     <string name="settings_data_management_section">Správa dát</string>
     <string name="settings_data_danger_zone_section">Nebezpečná zóna</string>
     <string name="settings_incremental_backups_title">Prírastkové zálohy</string>
-    <string name="settings_incremental_backups_summary">Exportovať iba nové údaje od poslednej zálohy. Skráti sa čas exportu a zmenší veľkosť súboru.</string>
+    <string name="settings_incremental_backups_summary">Do plánovaných exportov GPX a KML zahrnúť iba nové údaje.</string>
     <string name="settings_reset_export_watermarks_title">Vynútiť úplný export</string>
     <string name="settings_reset_export_watermarks_summary">Nasledujúca automatická záloha bude obsahovať všetky údaje namiesto iba zmien</string>
     <string name="settings_reset_export_watermarks_done">Značky exportu boli resetované — ďalšia záloha bude úplným exportom</string>
@@ -167,7 +167,7 @@
     <string name="export_sensitivity_db_message">Táto záloha obsahuje uložené údaje sledovania, ktoré môžu zahŕňať polohy a podrobnosti sietí. Nastavenia nie sú zahrnuté.</string>
     <string name="export_sensitivity_confirm">Pokračovať v exporte</string>
     <string name="settings_export_title">Exportovať</string>
-    <string name="settings_import_summary">Importovať údaje z podporovaných typov (%1$s) a archívov (%2$s). Importy databázy zlúčia kompatibilné riadky; nenahradia existujúce údaje.</string>
+    <string name="settings_import_summary">Importujte súbor so záznamami alebo obnovte zálohu údajov.</string>
     <string name="settings_import_title">Importovať</string>
     <string name="got_it">Rozumiem</string>
     <string name="battery_impact_low">Nízky vplyv</string>
@@ -286,7 +286,7 @@
     <string name="setup_perm_location_bg_why">Aby Tracker pokračoval v zaznamenávaní trasy po prepnutí aplikácií alebo vypnutí obrazovky, potrebuje prístup k polohe na pozadí. Zaznamenaná poloha zostáva v tomto zariadení — nič sa neodosiela na server. V ďalšej systémovej výzve vyberte „Povoliť vždy“, čím zapnete automatické sledovanie; „Počas používania aplikácie“ nechá Tracker fungovať iba pri otvorenej obrazovke.</string>
     <string name="setup_perm_activity_why">Umožňuje Trackeru rozpoznať, čo robíte (chôdza, bicyklovanie, jazda autom, nehybnosť), aby automatické sledovanie mohlo pri nehybnosti pozastaviť činnosť a šetriť batériu. Údaje o aktivite zostávajú v tomto zariadení — nič sa neodosiela na server.</string>
     <string name="setup_perm_notification_why">Tracker počas zaznamenávania zobrazuje malé stavové oznámenie, aby ste na prvý pohľad videli, že je sledovanie zapnuté, a mohli ho jedným klepnutím zastaviť. Žiadne marketingové ani propagačné oznámenia.</string>
-    <string name="setup_perm_wifi_why">Tracker môže zaznamenávať prístupové body Wi-Fi, ktoré telefón vidí počas cesty, aby zlepšil presnosť polohy tam, kde je GPS slabé (v interiéri, pod zemou). Rádiové údaje zostávajú v tomto zariadení — nič sa neodosiela na server. Povoľte to iba, ak to chcete.</string>
+    <string name="setup_perm_wifi_why">Android potrebuje prístup k polohe na vyhľadávanie sietí Wi-Fi. Wi-Fi môžete zaznamenávať bez zaznamenávania svojej polohy.</string>
     <string name="setup_perm_cell_why">Tracker môže zaznamenávať identifikátory bunkových veží pozdĺž trasy, aby bolo možné odvodiť polohu, keď GPS nie je dostupné. Rádiové údaje zostávajú v tomto zariadení — nič sa neodosiela na server. Stav telefónu a presnú polohu povoľte iba, ak to chcete.</string>
     <string name="setup_perm_grant">Povoliť</string>
     <string name="setup_perm_grant_location_content_description">Povoliť prístup k polohe</string>

@@ -5,9 +5,13 @@ import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
-import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
+import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
+import com.adsamcik.tracker.shared.base.database.data.ExplorationStreakEntity
+import com.adsamcik.tracker.shared.base.time.Clock
+import com.adsamcik.tracker.shared.base.time.FixedClock
+import com.adsamcik.tracker.shared.base.time.SystemClock
 import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.ActivityActiveTime
@@ -40,6 +44,7 @@ import com.adsamcik.tracker.stats.api.repository.ImportedStepsHistoryMember
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageProblem
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
@@ -62,13 +67,8 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -76,55 +76,54 @@ import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
+import java.time.LocalDate
+import java.time.ZoneId
+import java.util.TimeZone
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DashboardHistoryRepositoryTest {
-	private val tripDao = mockk<TripDao>()
-	private val trackingHistoryRepository = mockk<TrackingHistoryRepository> {
-		every { observeSessionRewardChanges() } returns flowOf(Unit)
-		coEvery { readSavedLocationSummary(any()) } coAnswers {
-			com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead.Snapshot(firstArg(),
-				TrackingHistoryReadSnapshot(0L, 0L), mockk {
-					every { distanceMeters } returns 100.0
-					every { partial } returns false
-				})
-		}
-	}
+	private val trackingHistoryRepository = mockk<TrackingHistoryRepository>()
 	private val explorationCellDao = mockk<ExplorationCellDao>()
 	private val explorationStreakDao = mockk<ExplorationStreakDao>()
 	private val dailySummaryDao = mockk<DailySummaryDao>()
 	private val achievementProgressDao = mockk<AchievementProgressDao>()
 
 	@Test
-	fun `saved Location correction refreshes recent distance without changing the cached trip`() = runTest {
-		val changed = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-		var distance = 100.0
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(listOf(trip(1)))
-		every { trackingHistoryRepository.observeRecentSourceAwarePage(listOf(1L), RECENT_HISTORY_LIMIT) } returns
-			flowOf(SourceAwareHistoryPageQuery.Content(listOf(SourceAwareHistoryPageEntry.Physical(1L))))
-		every { trackingHistoryRepository.observeSessionRewardChanges() } returns changed
-		coEvery { trackingHistoryRepository.readSavedLocationSummary(any()) } coAnswers {
-			com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead.Snapshot(firstArg(),
-				TrackingHistoryReadSnapshot(0L, 0L), mockk {
-					every { distanceMeters } returns distance
-					every { partial } returns false
-				})
-		}
+	fun `a successful empty shared page stays empty in both recent APIs`() = runTest {
+		every { trackingHistoryRepository.observeRecentHistoryPage(RECENT_HISTORY_LIMIT) } returns
+			flowOf(SourceAwareHistoryPageQuery.Content(emptyList()))
+		val repository = repository(testScheduler)
+
+		repository.observeRecentHistoryState().first() shouldBe DashboardRecentHistoryState.Content(emptyList())
+		repository.observeRecentHistory().first() shouldBe emptyList()
+	}
+
+	@Test
+	fun `shared corrected Location measurements update both recent APIs without a second read`() = runTest {
+		val stored = trip(1L)
+		val measured = stored.toModel()
+		val changes = MutableSharedFlow<SourceAwareHistoryPageQuery>(replay = 1)
+		changes.emit(SourceAwareHistoryPageQuery.Content(listOf(SourceAwareHistoryPageEntry.Physical(1L)),
+			physicalTrips = mapOf(1L to measured)))
+		every { trackingHistoryRepository.observeRecentHistoryPage(RECENT_HISTORY_LIMIT) } returns changes
 		val received = mutableListOf<List<DashboardRecentHistoryEntry>>()
 		val collecting = launch { repository(testScheduler).observeRecentHistory().take(2).toList(received) }
 		advanceUntilIdle()
-		distance = 0.0
-		changed.emit(Unit)
+		changes.emit(SourceAwareHistoryPageQuery.Content(listOf(SourceAwareHistoryPageEntry.Physical(1L)),
+			physicalTrips = mapOf(1L to measured.copy(distanceM = 0f, hasMeasuredDistance = true))))
 		advanceUntilIdle()
 		collecting.join()
-		(received.first().single() as DashboardRecentHistoryEntry.Physical).trip.distanceM shouldBe 100f
+
+		(received.first().single() as DashboardRecentHistoryEntry.Physical).trip shouldBe measured
 		val stationary = (received.last().single() as DashboardRecentHistoryEntry.Physical).trip
 		stationary.distanceM shouldBe 0f
 		stationary.hasMeasuredDistance shouldBe true
+		val current = repository(testScheduler).observeRecentHistoryState().first() as DashboardRecentHistoryState.Content
+		current.entries shouldBe received.last()
+		stored.distanceM shouldBe 100f
 	}
 
 	@Test
@@ -137,9 +136,8 @@ class DashboardHistoryRepositoryTest {
 				coverage = StepsHistoryCoverage.COMPLETE, causes = emptySet(),
 			))),
 		)
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(emptyList())
 		every {
-			trackingHistoryRepository.observeRecentSourceAwarePage(emptyList(), RECENT_HISTORY_LIMIT)
+			trackingHistoryRepository.observeRecentHistoryPage(RECENT_HISTORY_LIMIT)
 		} returns flowOf(SourceAwareHistoryPageQuery.Content(
 			listOf(SourceAwareHistoryPageEntry.ImportedSteps(imported)),
 		))
@@ -148,119 +146,27 @@ class DashboardHistoryRepositoryTest {
 	}
 
 	@Test
-	fun `recent history coordinates exact candidate generation and preserves Stats ordering`() = runTest {
-		val candidates = (20L downTo 1L).map(::trip)
+	fun `recent history preserves shared source ordering and honest physical measurements`() = runTest {
 		val steps = stepsEntry("zero-sample", 25_000L)
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(candidates)
-		every {
-			trackingHistoryRepository.observeRecentSourceAwarePage(
-				candidateSegmentIds = candidates.map { it.id },
-				limit = RECENT_HISTORY_LIMIT,
-			)
-		} returns flowOf(
-			SourceAwareHistoryPageQuery.Content(
-				listOf(
-					SourceAwareHistoryPageEntry.Physical(3L),
-					SourceAwareHistoryPageEntry.StepsOnly(steps),
-					SourceAwareHistoryPageEntry.Physical(20L),
-					SourceAwareHistoryPageEntry.Physical(2L),
-					SourceAwareHistoryPageEntry.Physical(1L),
-				),
-			),
-		)
+		val measured = trip(3L).toModel().copy(distanceM = 321f, distanceIsPartial = true)
+		val unknown = trip(20L).toModel().copy(distanceM = 0f, hasMeasuredDistance = false, distanceIsPartial = true)
+		every { trackingHistoryRepository.observeRecentHistoryPage(RECENT_HISTORY_LIMIT) } returns flowOf(
+			SourceAwareHistoryPageQuery.Content(listOf(SourceAwareHistoryPageEntry.Physical(3L),
+				SourceAwareHistoryPageEntry.StepsOnly(steps), SourceAwareHistoryPageEntry.Physical(20L)),
+				physicalTrips = mapOf(20L to unknown, 3L to measured)))
 
-		val page = repository(testScheduler).observeRecentHistory().first()
+		val state = repository(testScheduler).observeRecentHistoryState().first() as DashboardRecentHistoryState.Content
 
-		page shouldContainExactly listOf(
-			DashboardRecentHistoryEntry.Physical(candidates.first { it.id == 3L }.toModel()),
-			DashboardRecentHistoryEntry.StepsOnly(steps),
-			DashboardRecentHistoryEntry.Physical(candidates.first { it.id == 20L }.toModel()),
-			DashboardRecentHistoryEntry.Physical(candidates.first { it.id == 2L }.toModel()),
-			DashboardRecentHistoryEntry.Physical(candidates.first { it.id == 1L }.toModel()),
-		)
-		verify(exactly = 1) { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) }
-		verify(exactly = 1) {
-			trackingHistoryRepository.observeRecentSourceAwarePage(
-				candidateSegmentIds = candidates.map { it.id },
-				limit = RECENT_HISTORY_LIMIT,
-			)
-		}
+		state.entries shouldContainExactly listOf(DashboardRecentHistoryEntry.Physical(measured),
+			DashboardRecentHistoryEntry.StepsOnly(steps), DashboardRecentHistoryEntry.Physical(unknown))
+		state.problems shouldBe emptySet()
 	}
 
 	@Test
-	fun `identical physical rows keep the in-flight recent page read`() = runTest {
-		val candidateRows = MutableSharedFlow<List<Trip>>(replay = 1)
-		candidateRows.emit(listOf(trip(1L)))
-		val finishRead = CompletableDeferred<Unit>()
-		var reads = 0
-		var cancelledReads = 0
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns candidateRows
-		every {
-			trackingHistoryRepository.observeRecentSourceAwarePage(listOf(1L), RECENT_HISTORY_LIMIT)
-		} returns flow {
-			reads++
-			try {
-				finishRead.await()
-			} catch (cancelled: CancellationException) {
-				cancelledReads++
-				throw cancelled
-			}
-			emit(SourceAwareHistoryPageQuery.Content(listOf(SourceAwareHistoryPageEntry.Physical(1L))))
-		}
-		val result = async { repository(testScheduler).observeRecentHistory().first() }
-		advanceUntilIdle()
-
-		candidateRows.emit(listOf(trip(1L).copy()))
-		advanceUntilIdle()
-
-		reads shouldBe 1
-		cancelledReads shouldBe 0
-		finishRead.complete(Unit)
-		result.await() shouldContainExactly listOf(DashboardRecentHistoryEntry.Physical(trip(1L).toModel()))
-	}
-
-	@Test
-	fun `replacement generation cancels old page and maps matching physical snapshot`() = runTest {
-		val candidateRows = MutableStateFlow(listOf(trip(1L)))
-		val firstPage = MutableStateFlow<SourceAwareHistoryPageQuery>(
-			SourceAwareHistoryPageQuery.Content(
-				listOf(SourceAwareHistoryPageEntry.Physical(1L)),
-			),
-		)
-		val secondPage = MutableStateFlow<SourceAwareHistoryPageQuery>(
-			SourceAwareHistoryPageQuery.Content(
-				listOf(SourceAwareHistoryPageEntry.Physical(2L)),
-			),
-		)
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns candidateRows
-		every {
-			trackingHistoryRepository.observeRecentSourceAwarePage(listOf(1L), RECENT_HISTORY_LIMIT)
-		} returns firstPage
-		every {
-			trackingHistoryRepository.observeRecentSourceAwarePage(listOf(2L), RECENT_HISTORY_LIMIT)
-		} returns secondPage
-		val pages = mutableListOf<List<DashboardRecentHistoryEntry>>()
-		val collection = launch(UnconfinedTestDispatcher(testScheduler)) {
-			repository(testScheduler).observeRecentHistory().take(2).toList(pages)
-		}
-
-		advanceUntilIdle()
-		candidateRows.value = listOf(trip(2L))
-		advanceUntilIdle()
-		firstPage.value = SourceAwareHistoryPageQuery.Content(emptyList())
-		collection.join()
-
-		pages.map { page -> (page.single() as DashboardRecentHistoryEntry.Physical).trip.id } shouldContainExactly
-			listOf(1L, 2L)
-	}
-
-	@Test
-	fun `suppressed physical becomes one opaque Steps row without backfill`() = runTest {
-		val candidates = (20L downTo 1L).map(::trip)
+	fun `a Steps-only shared row does not need a physical trip`() = runTest {
 		val steps = stepsEntry("suppressed", 30_000L)
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(candidates)
 		every {
-			trackingHistoryRepository.observeRecentSourceAwarePage(any(), RECENT_HISTORY_LIMIT)
+			trackingHistoryRepository.observeRecentHistoryPage(RECENT_HISTORY_LIMIT)
 		} returns flowOf(
 			SourceAwareHistoryPageQuery.Content(
 				listOf(SourceAwareHistoryPageEntry.StepsOnly(steps)),
@@ -270,9 +176,6 @@ class DashboardHistoryRepositoryTest {
 		val page = repository(testScheduler).observeRecentHistory().first()
 
 		page shouldContainExactly listOf(DashboardRecentHistoryEntry.StepsOnly(steps))
-		verify(exactly = 1) {
-			trackingHistoryRepository.observeRecentSourceAwarePage(any(), RECENT_HISTORY_LIMIT)
-		}
 	}
 
 	@Test
@@ -280,9 +183,8 @@ class DashboardHistoryRepositoryTest {
 		val activity = importedActivityEntry("activity-only", 40_000L)
 		val sourceEntry = SourceAwareHistoryPageEntry.ActivityOnly(activity)
 		val readSnapshot = TrackingHistoryReadSnapshot(7L, 11L)
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(emptyList())
 		every {
-			trackingHistoryRepository.observeRecentSourceAwarePage(emptyList(), RECENT_HISTORY_LIMIT)
+			trackingHistoryRepository.observeRecentHistoryPage(RECENT_HISTORY_LIMIT)
 		} returns flowOf(
 			SourceAwareHistoryPageQuery.Content(
 				entries = listOf(sourceEntry),
@@ -314,9 +216,8 @@ class DashboardHistoryRepositoryTest {
 		val activity = importedActivityEntry("activity-retained", 40_000L).copy(
 			importedSelection = null,
 		)
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(emptyList())
 		every {
-			trackingHistoryRepository.observeRecentSourceAwarePage(emptyList(), RECENT_HISTORY_LIMIT)
+			trackingHistoryRepository.observeRecentHistoryPage(RECENT_HISTORY_LIMIT)
 		} returns flowOf(
 			SourceAwareHistoryPageQuery.Content(
 				entries = listOf(SourceAwareHistoryPageEntry.ActivityOnly(activity)),
@@ -337,9 +238,8 @@ class DashboardHistoryRepositoryTest {
 		val activity = activityEntry("activity-only", 40_000L)
 		val pressure = pressureEntry("pressure-only", 30_000L)
 		val activitySourceEntry = SourceAwareHistoryPageEntry.ActivityOnly(activity)
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(emptyList())
 		every {
-			trackingHistoryRepository.observeRecentSourceAwarePage(emptyList(), RECENT_HISTORY_LIMIT)
+			trackingHistoryRepository.observeRecentHistoryPage(RECENT_HISTORY_LIMIT)
 		} returns flowOf(
 			SourceAwareHistoryPageQuery.Content(
 				listOf(
@@ -365,9 +265,8 @@ class DashboardHistoryRepositoryTest {
 		val wifiSource = SourceAwareHistoryPageEntry.WifiOnly(wifi)
 		val cellSource = SourceAwareHistoryPageEntry.CellOnly(cell)
 		val readSnapshot = TrackingHistoryReadSnapshot(9L, 12L)
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(emptyList())
 		every {
-			trackingHistoryRepository.observeRecentSourceAwarePage(emptyList(), RECENT_HISTORY_LIMIT)
+			trackingHistoryRepository.observeRecentHistoryPage(RECENT_HISTORY_LIMIT)
 		} returns flowOf(
 			SourceAwareHistoryPageQuery.Content(
 				entries = listOf(wifiSource, cellSource),
@@ -388,50 +287,26 @@ class DashboardHistoryRepositoryTest {
 	}
 
 	@Test
-	fun `typed Activity page overflow never falls back to physical rows`() = runTest {
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(listOf(trip(1L)))
+	fun `typed shared page overflow remains unavailable instead of showing an empty history`() = runTest {
 		every {
-			trackingHistoryRepository.observeRecentSourceAwarePage(listOf(1L), RECENT_HISTORY_LIMIT)
+			trackingHistoryRepository.observeRecentHistoryPage(RECENT_HISTORY_LIMIT)
 		} returns flowOf(
 			SourceAwareHistoryPageQuery.Unavailable(
 				SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
 			),
 		)
 
-		shouldThrow<IllegalStateException> {
-			repository(testScheduler).observeRecentHistory().first()
-		}
-	}
-
-	@Test
-	fun `physical overflow probe cannot publish a short recent page`() = runTest {
-		val probe = (65L downTo 1L).map(::trip)
-		val boundedIds = probe.take(64).map { it.id }
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(probe)
-		every {
-			trackingHistoryRepository.observeRecentSourceAwarePage(boundedIds, RECENT_HISTORY_LIMIT)
-		} returns flowOf(
-			SourceAwareHistoryPageQuery.Content(
-				boundedIds.take(RECENT_HISTORY_LIMIT - 1)
-					.map { segmentId -> SourceAwareHistoryPageEntry.Physical(segmentId) },
-			),
-		)
-
-		shouldThrow<IllegalStateException> {
-			repository(testScheduler).observeRecentHistory().first()
-		}
+		val repository = repository(testScheduler)
+		repository.observeRecentHistoryState().first() shouldBe DashboardRecentHistoryState.Unavailable(
+			SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT)
+		shouldThrow<DashboardHistoryPageUnavailable> { repository.observeRecentHistory().first() }
 	}
 
 	@Test
 	fun `opaque Pressure row is mapped without a physical detail identity`() = runTest {
-		val candidates = listOf(trip(1L))
 		val pressure = pressureEntry("pressure-one", 2_000L)
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(candidates)
 		every {
-			trackingHistoryRepository.observeRecentSourceAwarePage(
-				listOf(1L),
-				RECENT_HISTORY_LIMIT,
-			)
+			trackingHistoryRepository.observeRecentHistoryPage(RECENT_HISTORY_LIMIT)
 		} returns flowOf(
 			SourceAwareHistoryPageQuery.Content(
 				listOf(SourceAwareHistoryPageEntry.PressureOnly(pressure)),
@@ -444,42 +319,30 @@ class DashboardHistoryRepositoryTest {
 	}
 
 	@Test
-	fun `failed Pressure replacement decision keeps the returned physical row`() = runTest {
-		val physical = trip(1L)
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns
-			flowOf(listOf(physical))
-		every {
-			trackingHistoryRepository.observeRecentSourceAwarePage(
-				listOf(physical.id),
-				RECENT_HISTORY_LIMIT,
-			)
-		} returns flowOf(
-			SourceAwareHistoryPageQuery.Content(
-				listOf(SourceAwareHistoryPageEntry.Physical(physical.id)),
-			),
-		)
+	fun `partial source failure retains qualified Location and exposes the same problem`() = runTest {
+		val physical = trip(1L).toModel()
+		val problem = SourceAwareHistoryPageProblem(HistorySource.PRESSURE,
+			SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+		every { trackingHistoryRepository.observeRecentHistoryPage(RECENT_HISTORY_LIMIT) } returns flowOf(
+			SourceAwareHistoryPageQuery.Content(listOf(SourceAwareHistoryPageEntry.Physical(physical.id)),
+				problems = setOf(problem), physicalTrips = mapOf(physical.id to physical)))
 
-		val page = repository(testScheduler).observeRecentHistory().first()
+		val state = repository(testScheduler).observeRecentHistoryState().first() as DashboardRecentHistoryState.Content
 
-		page shouldContainExactly listOf(
-			DashboardRecentHistoryEntry.Physical(physical.toModel()),
-		)
-		page.none { it is DashboardRecentHistoryEntry.PressureOnly } shouldBe true
+		state.entries shouldContainExactly listOf(DashboardRecentHistoryEntry.Physical(physical))
+		state.problems shouldBe setOf(problem)
+		repository(testScheduler).observeRecentHistory().first() shouldBe state.entries
 	}
 
 	@Test
 	fun `Pressure recency budget and integrity failures remain typed unavailable`() = runTest {
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(emptyList())
 		listOf(
 			SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE,
 			SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
 			SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
 		).forEach { reason ->
 			every {
-				trackingHistoryRepository.observeRecentSourceAwarePage(
-					emptyList(),
-					RECENT_HISTORY_LIMIT,
-				)
+				trackingHistoryRepository.observeRecentHistoryPage(RECENT_HISTORY_LIMIT)
 			} returns flowOf(
 				SourceAwareHistoryPageQuery.Unavailable(
 					reason = reason,
@@ -498,9 +361,8 @@ class DashboardHistoryRepositoryTest {
 
 	@Test
 	fun `Stats page failure is propagated without raw fallback`() = runTest {
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(listOf(trip(1L)))
 		every {
-			trackingHistoryRepository.observeRecentSourceAwarePage(listOf(1L), RECENT_HISTORY_LIMIT)
+			trackingHistoryRepository.observeRecentHistoryPage(RECENT_HISTORY_LIMIT)
 		} returns flow { throw IllegalStateException("history unavailable") }
 
 		shouldThrow<IllegalStateException> {
@@ -510,9 +372,8 @@ class DashboardHistoryRepositoryTest {
 
 	@Test
 	fun `typed Stats unavailability is propagated without raw fallback`() = runTest {
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(listOf(trip(1L)))
 		every {
-			trackingHistoryRepository.observeRecentSourceAwarePage(listOf(1L), RECENT_HISTORY_LIMIT)
+			trackingHistoryRepository.observeRecentHistoryPage(RECENT_HISTORY_LIMIT)
 		} returns flowOf(
 			SourceAwareHistoryPageQuery.Unavailable(
 				reason = SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
@@ -520,49 +381,40 @@ class DashboardHistoryRepositoryTest {
 			),
 		)
 
-		val unavailable = shouldThrow<DashboardHistoryPageUnavailable> {
-			repository(testScheduler).observeRecentHistory().first()
-		}
+		val repository = repository(testScheduler)
+		repository.observeRecentHistoryState().first() shouldBe DashboardRecentHistoryState.Unavailable(
+			SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE, HistorySource.WIFI)
+		val unavailable = shouldThrow<DashboardHistoryPageUnavailable> { repository.observeRecentHistory().first() }
 		unavailable.reason shouldBe SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE
 		unavailable.source shouldBe HistorySource.WIFI
 	}
 
 	@Test
-	fun `candidate overflow fails closed when the bounded page remains underfilled`() = runTest {
-		val candidates = (PHYSICAL_CANDIDATE_PROBE.toLong() downTo 1L).map(::trip)
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(candidates)
-		every {
-			trackingHistoryRepository.observeRecentSourceAwarePage(any(), RECENT_HISTORY_LIMIT)
-		} returns flowOf(
-			SourceAwareHistoryPageQuery.Content(
-				listOf(SourceAwareHistoryPageEntry.Physical(candidates.first().id)),
-			),
-		)
+	fun `weekly history and streak expiry use Prague calendar days across daylight saving changes`() = runTest {
+		val originalZone = TimeZone.getDefault()
+		val zone = ZoneId.of("Europe/Prague")
+		try {
+			TimeZone.setDefault(TimeZone.getTimeZone(zone))
+			for (day in listOf(LocalDate.of(2026, 3, 29), LocalDate.of(2026, 10, 25))) {
+				val now = day.atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
+				val epochDay = day.toEpochDay()
+				stubSuccessfulOptionalDefaults()
+				coEvery { explorationStreakDao.getByType(STREAK_TYPE) } returns ExplorationStreakEntity(
+					STREAK_TYPE, currentCount = 4, bestCount = 9, lastIncrementDay = epochDay - 2L, updatedAt = now)
+				coEvery { dailySummaryDao.getBetween(any(), any()) } returns (0 until DASHBOARD_DAY_COUNT).map { index ->
+					DailySummaryEntity(epochDay - 6L + index, (index + 1) * 10f, 0, 0L, 1, 0L, now, now, zone.id)
+				}
 
-		shouldThrow<IllegalStateException> {
-			repository(testScheduler).observeRecentHistory().first()
+				val streak = (repository(testScheduler, FixedClock(now)).load().streak as DashboardHistorySection.Loaded).value
+
+				coVerify(exactly = 1) { dailySummaryDao.getBetween(epochDay - 6L, epochDay) }
+				streak.weeklyDistances shouldBe listOf(10f, 20f, 30f, 40f, 50f, 60f, 70f)
+				streak.currentStreak shouldBe 0
+				streak.bestStreak shouldBe 9
+			}
+		} finally {
+			TimeZone.setDefault(originalZone)
 		}
-	}
-
-	@Test
-	fun `bounded backfill may complete from the first sixty four of an overflow probe`() = runTest {
-		val candidates = (PHYSICAL_CANDIDATE_PROBE.toLong() downTo 1L).map(::trip)
-		val expectedIds = candidates.take(RECENT_HISTORY_LIMIT).map { it.id }
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(candidates)
-		every {
-			trackingHistoryRepository.observeRecentSourceAwarePage(
-				candidateSegmentIds = candidates.take(64).map { it.id },
-				limit = RECENT_HISTORY_LIMIT,
-			)
-		} returns flowOf(
-			SourceAwareHistoryPageQuery.Content(
-				expectedIds.map { SourceAwareHistoryPageEntry.Physical(it) },
-			),
-		)
-
-		val page = repository(testScheduler).observeRecentHistory().first()
-
-		page.map { (it as DashboardRecentHistoryEntry.Physical).trip.id } shouldBe expectedIds
 	}
 
 	@Test
@@ -624,15 +476,15 @@ class DashboardHistoryRepositoryTest {
 		coEvery { achievementProgressDao.getAll() } returns emptyList()
 	}
 
-	private fun repository(testScheduler: kotlinx.coroutines.test.TestCoroutineScheduler) =
+	private fun repository(testScheduler: kotlinx.coroutines.test.TestCoroutineScheduler, clock: Clock = SystemClock) =
 		RoomDashboardHistoryRepository(
-			tripDao = tripDao,
 			trackingHistoryRepository = trackingHistoryRepository,
 			explorationCellDao = explorationCellDao,
 			explorationStreakDao = explorationStreakDao,
 			dailySummaryDao = dailySummaryDao,
 			achievementProgressDao = achievementProgressDao,
 			dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
+			clock = clock,
 		)
 
 	private fun trip(id: Long) = Trip(
@@ -727,7 +579,6 @@ class DashboardHistoryRepositoryTest {
 
 	private companion object {
 		const val EXPLORATION_LEVEL = 14
-		const val PHYSICAL_CANDIDATE_PROBE = 65
 		const val RECENT_HISTORY_LIMIT = 5
 		const val DASHBOARD_DAY_COUNT = 7
 		const val STREAK_TYPE = "DAILY_DISCOVERY"

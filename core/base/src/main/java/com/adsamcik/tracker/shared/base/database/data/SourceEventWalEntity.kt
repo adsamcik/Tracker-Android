@@ -9,6 +9,7 @@ import java.security.MessageDigest
 @Entity(
 	tableName = "source_event_wal",
 	indices = [
+		Index(value = ["source_kind", "admission_ordinal"], name = "idx_source_event_wal_source_ordinal"),
 		Index(value = ["event_id"], unique = true, name = "idx_source_event_wal_event_id"),
 		Index(
 			value = ["source_kind", "provider_dedup_key"],

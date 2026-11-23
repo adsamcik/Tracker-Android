@@ -38,7 +38,7 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">Databasesikkerhedskopi (ZIP)</string>
-    <string name="settings_import_summary">Importér data fra understøttede typer (%1$s) og arkiver (%2$s). Databaseimporter fletter kompatible rækker; de erstatter ikke eksisterende data.</string>
+    <string name="settings_import_summary">Importér en sporingsfil, eller gendan en datasikkerhedskopi.</string>
     <string name="settings_import_title">Importér</string>
     <string name="export_radio_sensitivity_title">Eksportér netværksoplysninger?</string>
     <string name="export_wifi_sensitivity_message">Denne fil indeholder gemte Wi-Fi-navne og adgangspunkters ID\'er.</string>
@@ -59,4 +59,7 @@
         <item quantity="one">%d punkt i denne fil er forskelligt fra den gemte kopi. Vælg, hvilket du vil beholde. Andre punkter importeres som normalt.</item>
         <item quantity="other">%d punkter i denne fil er forskellige fra deres gemte kopier. Vælg, hvilke du vil beholde. Andre punkter importeres som normalt.</item>
     </plurals>
+    <string name="export_sensitivity_portable_title">Eksportér registreret historik?</string>
+    <string name="export_sensitivity_portable_steps_message">Denne fil indeholder skridttal, tidsintervaller og oplysninger om dækning. Den indeholder ikke rutekoordinater. Fortsæt kun, hvis du har tillid til destinationen.</string>
+    <string name="export_sensitivity_portable_activity_message">Denne fil indeholder registrerede bevægelsesintervaller, tidsintervaller og oplysninger om dækning. Den indeholder ikke rutekoordinater. Fortsæt kun, hvis du har tillid til destinationen.</string>
 </resources>

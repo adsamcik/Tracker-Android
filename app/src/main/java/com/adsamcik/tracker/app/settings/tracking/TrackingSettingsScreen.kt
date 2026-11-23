@@ -247,6 +247,7 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
     TrackingSettingsContent(
         uiState = uiState,
         onTurnOffTracking = trackingVm::turnOffTracking,
+        onResumeTracking = trackingVm::resumeTracking,
         onRetrySourceRecovery = trackingVm::retrySourcePolicyReconciliation,
 		onBalanceSelected = trackingVm::adoptBalanceProfile,
 		onSourceBalanceSelected = trackingVm::setSourceBalanceOverride,
@@ -392,6 +393,7 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
 internal fun TrackingSettingsContent(
     uiState: TrackingSettingsUiState,
     onTurnOffTracking: () -> Unit = {},
+    onResumeTracking: () -> Unit = {},
     onRetrySourceRecovery: () -> Unit = {},
 	onBalanceSelected: (Int) -> Unit = {},
 	onSourceBalanceSelected: (TrackingSourceComponent, Int?) -> Unit = { _, _ -> },
@@ -475,7 +477,7 @@ internal fun TrackingSettingsContent(
                     }
                 }
             }
-            item { TrackingTurnOffSetting(uiState, onTurnOffTracking) }
+            item { TrackingTurnOffSetting(uiState, onTurnOffTracking, onResumeTracking) }
         }
         return
     }
@@ -561,6 +563,8 @@ internal fun TrackingSettingsContent(
         }
         }
 
+        item { TrackingTurnOffSetting(uiState, onTurnOffTracking, onResumeTracking) }
+
         // --- Start & stop ---
         item {
             SectionHeader(
@@ -568,7 +572,6 @@ internal fun TrackingSettingsContent(
                 icon = Icons.AutoMirrored.Filled.DirectionsRun,
             )
         }
-        item { TrackingTurnOffSetting(uiState, onTurnOffTracking) }
         item {
             AutoTrackingModeSelector(
                 selectedMode = uiState.autoTrackingMode.coerceIn(0, 2),
@@ -1066,6 +1069,7 @@ private fun TrackingSettingsUiState.needsStepsMotionPermission(
 private fun TrackingTurnOffSetting(
     state: TrackingSettingsUiState,
     onTurnOffTracking: () -> Unit,
+    onResumeTracking: () -> Unit,
 ) {
     SettingsGroupCard {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -1079,6 +1083,7 @@ private fun TrackingTurnOffSetting(
                 ),
                 style = MaterialTheme.typography.bodyMedium,
             )
+            ResumeTrackingSetting(state, onResumeTracking)
             if (!state.trackingTurnedOff) {
                 TextButton(
                     onClick = onTurnOffTracking,
@@ -1103,6 +1108,27 @@ private fun TrackingTurnOffSetting(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ResumeTrackingSetting(state: TrackingSettingsUiState, onResumeTracking: () -> Unit) {
+    if (state.trackingTurnedOff) {
+        TextButton(
+            onClick = onResumeTracking,
+            enabled = !state.resumeTrackingInProgress,
+            modifier = Modifier.testTag("resumeTracking"),
+        ) {
+            Text(stringResource(com.adsamcik.tracker.R.string.settings_resume_tracking))
+        }
+    }
+    if (state.resumeTrackingFailed) {
+        Text(
+            text = stringResource(com.adsamcik.tracker.R.string.settings_resume_tracking_failed),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.testTag("resumeTrackingError"),
+        )
     }
 }
 

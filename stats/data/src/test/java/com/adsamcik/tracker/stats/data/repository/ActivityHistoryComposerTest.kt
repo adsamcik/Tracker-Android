@@ -9,6 +9,7 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedPortableIntegrity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.SavedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.PortableActivityEnvelopeV1
 import com.adsamcik.tracker.shared.base.database.PortableActivityExportUnverifiableReason
 import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedActivityResult
@@ -35,6 +36,7 @@ import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetenti
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedEvidenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFactIntegrity
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedPlanIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
@@ -73,6 +75,7 @@ import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryFragment
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryType
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryPage
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
@@ -127,6 +130,147 @@ import org.robolectric.annotation.Config
 // lifecycle/authority fixture.
 @Suppress("LargeClass")
 class ActivityHistoryComposerTest : ActivityHistoryTestFixture() {
+
+	@Test
+	fun `late original callback loss makes saved Activity partial without hiding its valid fragments`() {
+		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val before = ActivityHistoryComposer.composeRecent(original, EXECUTION_AUTHORITY).single().entry
+		val provider = original.providerRegistrations.getValue(1L)
+		val lateLoss = original.copy(providerRegistrations = mapOf(1L to provider.copy(
+			failureCode = "DEMAND_REMOVED|ACTIVITY_CALLBACK_LOSS:1")))
+
+		val after = ActivityHistoryComposer.composeRecent(lateLoss, EXECUTION_AUTHORITY).single().entry
+
+		before.causes.contains(ActivityHistoryCause.ACQUISITION_INCOMPLETE) shouldBe false
+		after.causes.contains(ActivityHistoryCause.ACQUISITION_INCOMPLETE) shouldBe true
+		after.state shouldBe ActivityHistoryProductState.PARTIAL
+		after.coverage shouldBe ActivityHistoryCoverage.PARTIAL
+		after.fragments shouldBe before.fragments
+		after.activeTime shouldBe before.activeTime
+		after.startTime shouldBe before.startTime
+		after.endTime shouldBe before.endTime
+	}
+
+	@Test
+	fun `a later callback loss from another session on the same provider leaves saved Activity unchanged`() {
+		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val before = ActivityHistoryComposer.composeRecent(original, EXECUTION_AUTHORITY).single().entry
+		val provider = original.providerRegistrations.getValue(1L)
+		val grants = original.authorizationsByRegistration.getValue(1L)
+		val foreignGrant = grants.first { it.persistenceEligible }.copy(authorizationRevision = 3L,
+			logicalTrackingId = "another-session", serviceRunId = "another-run",
+			effectiveElapsedRealtimeNanos = requireNotNull(provider.retiredElapsedRealtimeNanos) + 1L)
+		val foreignLoss = original.copy(providerRegistrations = mapOf(1L to provider.copy(
+			failureCode = "DEMAND_REMOVED|ACTIVITY_CALLBACK_LOSS:3", captureCallbackBarrierAuthorizationRevision = 3L)),
+			authorizationsByRegistration = mapOf(1L to (grants + foreignGrant)))
+
+		ActivityHistoryComposer.composeRecent(foreignLoss, EXECUTION_AUTHORITY).single().entry shouldBe before
+	}
+
+	@Test
+	fun `live Activity preserves an observation without inventing a measured interval`() {
+		val snapshot = liveObservationFixture()
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.latestObservation?.observedTime shouldBe EpochMs(1_010L)
+		entry.latestObservation?.activity shouldBe ActivityHistoryType.WALKING
+		entry.latestObservation?.confidencePercent shouldBe 83
+		entry.latestObservation?.transitionType shouldBe null
+		entry.activeTime shouldBe null
+		entry.fragments shouldBe emptyList()
+		entry.coverage shouldBe ActivityHistoryCoverage.NONE
+		entry.state shouldBe ActivityHistoryProductState.MATERIALIZING
+	}
+
+	@Test
+	fun `same-session Activity plan handoff keeps a timestamped observation with its original configuration`() {
+		val snapshot = sameSessionActivityHandoffFixture()
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.latestObservation?.observedTime shouldBe EpochMs(1_010L)
+		entry.latestObservation?.activity shouldBe ActivityHistoryType.WALKING
+		entry.activeTime shouldBe null
+		entry.fragments shouldBe emptyList()
+		snapshot.liveObservations.single().configRevision shouldBe 1L
+		snapshot.liveObservations.single().sessionManifestRevision shouldBe 2L
+	}
+
+	@Test
+	fun `Activity plan handoff cannot borrow another run consent provider or physical request`() {
+		val snapshot = sameSessionActivityHandoffFixture()
+		val manifests = snapshot.manifestsByRun.getValue("run-a")
+		val plan = snapshot.registrationPlans.values.single()
+		val grants = snapshot.authorizationsByRegistration.values.flatten().filter { !it.isDenyAll }
+		val original = grants.first { it.manifestRevision == 1L }
+		val current = grants.first { it.manifestRevision == 2L }
+		val invalidOriginals = listOf(null, original.copy(serviceRunId = "another-run"),
+			original.copy(consentEpoch = requireNotNull(current.consentEpoch) + 1L),
+			original.copy(registrationGeneration = plan.registrationGeneration + 1L),
+			original.copy(effectiveBootId = "another-boot"), original.copy(persistenceEligible = false))
+		invalidOriginals.forEach { grant ->
+			ActivityCapturedPlanIntegrity.hasCompatibleManifestPlan(plan, manifests.last(),
+				snapshot.desiredPlans[2L], current, manifests.first(), grant) shouldBe false
+		}
+		ActivityHistoryComposer.composeRecent(sameSessionActivityHandoffFixture(replacementLatency = 6_000L),
+			EXECUTION_AUTHORITY).single().entry.latestObservation shouldBe null
+	}
+
+	@Test
+	fun `live Activity point keeps original permission epoch retention and deletion authority`() {
+		val original = liveObservationFixture()
+		val wal = original.liveObservations.single()
+		val withdrawn = original.authorizationsByRegistration.mapValues { (_, rows) -> rows.map { row ->
+			if (row.isDenyAll) {
+				row.copy(effectiveElapsedRealtimeNanos = wal.observedElapsedNanos - 1L)
+			} else {
+				row
+			}
+		} }
+		val variants = listOf(
+			original.copy(authorizationsByRegistration = withdrawn),
+			original.copy(consents = original.consents.mapValues { (_, row) -> row.copy(eligible = false) }),
+			original.copy(evidenceState = requireNotNull(original.evidenceState).copy(collectedDataEpoch = 1L)),
+			original.copy(evidenceState = requireNotNull(original.evidenceState).copy(retainedFromMs = 1_011L)),
+			original.copy(deletionFenceDigests = setOf(SourceDeletionFenceEntity.logicalServiceRunIdentity(
+				ACTIVITY_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, LOGICAL_ID, "run-a"))),
+		)
+		variants.forEach { snapshot ->
+			ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry.latestObservation shouldBe null
+		}
+		// A later revocation does not remove a valid measurement made before that boundary.
+		ActivityHistoryComposer.composeRecent(original, EXECUTION_AUTHORITY).single().entry
+			.latestObservation?.activity shouldBe ActivityHistoryType.WALKING
+	}
+
+	@Test
+	fun `stopping Activity accepts only observations before the exact saved End cutoff`() {
+		val original = liveObservationFixture()
+		val observed = original.liveObservations.single().observedElapsedNanos
+		for ((cutoff, expected) in listOf(observed to null, observed + 1L to EpochMs(1_010L))) {
+			val session = original.sessions.getValue(LOGICAL_ID).copy(state = "STOPPING",
+				cutoffAtMs = cutoff, cutoffElapsedNanos = cutoff)
+			val run = original.runs.getValue("run-a").copy(state = "STOPPING")
+			val snapshot = original.copy(sessions = mapOf(LOGICAL_ID to session), runs = mapOf("run-a" to run),
+				savedSessionCutoffs = mapOf(LOGICAL_ID to SavedSessionCutoff(run.bootId, cutoff)))
+			val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+			entry.latestObservation?.observedTime shouldBe expected
+			entry.activeTime shouldBe null
+			entry.fragments shouldBe emptyList()
+		}
+	}
+
+	@Test
+	fun `live Activity point cannot borrow an unrelated run or altered original carrier`() {
+		val original = liveObservationFixture()
+		val wal = original.liveObservations.single()
+		val unrelated = wal.copy(serviceRunId = "another-run")
+		val changedPlan = wal.copy(configRevision = 2L)
+		for (candidate in listOf(unrelated, changedPlan)) {
+			val signed = candidate.copy(integrityIdentity = candidate.calculatedIntegrityIdentity())
+			val snapshot = original.copy(liveObservations = listOf(signed))
+			ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry.latestObservation shouldBe null
+		}
+	}
 
 	@Test
 	fun `native display keeps logical start and cutoff instead of surviving physical extent or drain`() {
@@ -598,6 +742,31 @@ class ActivityHistoryComposerTest : ActivityHistoryTestFixture() {
 	}
 
 	@Test
+	fun `live Activity keeps authenticated measurements before a Stop receipt exists`() {
+		val snapshot = activeReconfiguredSnapshotAwaitingFact().copy(completenessByRun = emptyMap())
+
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.state shouldBe ActivityHistoryProductState.MATERIALIZING
+		entry.coverage shouldBe ActivityHistoryCoverage.PARTIAL
+		entry.activeTime?.knownActiveDurationNanos shouldBe 100L
+		entry.fragments.sumOf(ActivityHistoryFragment::durationNanos) shouldBe 500L
+		entry.causes.contains(ActivityHistoryCause.ACQUISITION_INCOMPLETE) shouldBe true
+	}
+
+	@Test
+	fun `saved Activity without a Stop receipt keeps its measurements with partial coverage`() {
+		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC"))).copy(completenessByRun = emptyMap())
+
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.state shouldBe ActivityHistoryProductState.PARTIAL
+		entry.coverage shouldBe ActivityHistoryCoverage.PARTIAL
+		entry.activeTime?.knownActiveDurationNanos shouldBe 100L
+		entry.causes.contains(ActivityHistoryCause.ACQUISITION_INCOMPLETE) shouldBe true
+	}
+
+	@Test
 	fun `active session pointer and authority must match its sole nonterminal run`() {
 		val initial = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
 		val activeRun = initial.runs.getValue("run-a").copy(
@@ -710,6 +879,35 @@ class ActivityHistoryComposerTest : ActivityHistoryTestFixture() {
 			).single().entry
 			entry.state shouldBe ActivityHistoryProductState.FAILED
 			entry.causes shouldBe setOf(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+		}
+	}
+
+	@Test
+	fun `saved Activity keeps unchanged consent and policy from an earlier boot`() {
+		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val expected = ActivityHistoryComposer.composeRecent(original, EXECUTION_AUTHORITY).single().entry
+		val consent = original.consents.getValue(1L).copy(effectiveBootId = "earlier-boot",
+			effectiveElapsedRealtimeNanos = Long.MAX_VALUE)
+		val consentChangedBoot = original.copy(consents = mapOf(1L to consent))
+		ActivityHistoryComposer.composeRecent(consentChangedBoot, EXECUTION_AUTHORITY).single().entry shouldBe expected
+		val policy = original.policies.getValue(1L).copy(effectiveBootId = "earlier-boot",
+			effectiveElapsedRealtimeNanos = Long.MAX_VALUE)
+		val changedBoot = consentChangedBoot.copy(policies = mapOf(1L to policy))
+		ActivityHistoryComposer.composeRecent(changedBoot, EXECUTION_AUTHORITY).single().entry shouldBe expected
+	}
+
+	@Test
+	fun `same boot Activity policy and consent still fence measurements before their effective time`() {
+		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val futureConsent = original.consents.getValue(1L).copy(effectiveElapsedRealtimeNanos = Long.MAX_VALUE)
+		val futurePolicy = original.policies.getValue(1L).copy(effectiveElapsedRealtimeNanos = Long.MAX_VALUE)
+		listOf(
+			original.copy(consents = mapOf(1L to futureConsent)),
+			original.copy(policies = mapOf(1L to futurePolicy)),
+		).forEach { snapshot ->
+			val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+			entry.state shouldBe ActivityHistoryProductState.FAILED
+			entry.causes shouldBe setOf(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
 		}
 	}
 
@@ -940,6 +1138,33 @@ class ActivityHistoryComposerTest : ActivityHistoryTestFixture() {
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ActivityNativeHistoryTest : ActivityHistoryTestFixture() {
+	@Test
+	fun `Room Activity history reads an unchanged applied provider across its same-session plan handoff`() = runTest {
+		val snapshot = sameSessionActivityHandoffFixture()
+		persistFixture(snapshot)
+		val entry = (activityRepository(testScheduler).session(snapshot.expansion.segments.single().id)
+			as ActivityHistoryQuery.Found).entry
+
+		entry.latestObservation?.observedTime shouldBe EpochMs(1_010L)
+		entry.latestObservation?.activity shouldBe ActivityHistoryType.WALKING
+		entry.activeTime shouldBe null
+		entry.fragments shouldBe emptyList()
+	}
+
+	@Test
+	fun `Room Activity history reads a capture-only live measurement before finite facts exist`() = runTest {
+		val snapshot = liveObservationFixture()
+		persistFixture(snapshot)
+		val entry = (activityRepository(testScheduler).session(snapshot.expansion.segments.single().id)
+			as ActivityHistoryQuery.Found).entry
+
+		entry.latestObservation?.observedTime shouldBe EpochMs(1_010L)
+		entry.latestObservation?.activity shouldBe ActivityHistoryType.WALKING
+		entry.latestObservation?.confidencePercent shouldBe 83
+		entry.activeTime shouldBe null
+		entry.fragments shouldBe emptyList()
+		entry.state shouldBe ActivityHistoryProductState.MATERIALIZING
+	}
 
 	@Test
 	fun `final automatic Activity original binding remains usable in organized and measured Room history`() = runTest {
@@ -2546,6 +2771,64 @@ abstract class ActivityHistoryTestFixture {
 	@After
 	fun tearDown() = database.close()
 
+	internal fun liveObservationFixture(): ActivityHistorySnapshot {
+		val original = liveSnapshotWithoutFacts("ACTIVE", "ACTIVE")
+		val wal = original.walByEventId.values.single()
+		val payload = ActivityWalPayloadCodec.encode(ActivityWalPayload.Recognition(1, 83, wal.observedElapsedNanos))
+		val unsigned = wal.copy(payload = payload)
+		val checksummed = unsigned.copy(payloadChecksum = unsigned.calculatedPayloadChecksum())
+		val observation = checksummed.copy(integrityIdentity = checksummed.calculatedIntegrityIdentity())
+		val provider = original.providerRegistrations.values.single().copy(
+			status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE, retiredAtMs = null,
+			retiredElapsedRealtimeNanos = null, failureCode = null,
+		)
+		return original.copy(
+			walByEventId = mapOf(observation.eventId to observation), liveObservations = listOf(observation),
+			providerRegistrations = mapOf(provider.registrationGeneration to provider),
+			currentProviderRegistrations = listOf(provider), currentClockDomainId = provider.clockDomainId,
+		)
+	}
+
+	internal fun sameSessionActivityHandoffFixture(replacementLatency: Long = 5_000L): ActivityHistorySnapshot {
+		val original = liveObservationFixture()
+		val run = original.runs.getValue("run-a")
+		val firstManifest = original.manifestsByRun.getValue("run-a").single()
+		val sources = original.sourcesByManifest.getValue(ActivityManifestKey(LOGICAL_ID, 1L))
+			.map { it.copy(manifestRevision = 2L) }
+		val unsigned = firstManifest.copy(manifestRevision = 2L, acquisitionPlanRevision = 2L,
+			effectiveElapsedRealtimeNanos = 1_005L, effectiveWallTimeMs = 1_005L,
+			startOrigin = "POLICY_RECONCILIATION", changeReason = "POLICY_RECONCILIATION", manifestChecksum = "")
+		val manifest = unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, sources))
+		val oldGrants = original.authorizationsByRegistration.values.flatten()
+			.map {
+				if (it.isDenyAll) {
+					it.copy(authorizationRevision = 4L)
+				} else {
+					it
+				}
+			}
+		val originalGrant = oldGrants.single { !it.isDenyAll }
+		val demand = captureDemand(2L, run, 1_005L).copy(sourcePolicyRevision = 1L, consentEpoch = 1L,
+			consumerId = requireNotNull(originalGrant.consumerId))
+		val currentGrants = SourceBrokerAuthorization.rows(ACTIVITY_SOURCE, 1L, 3L, listOf(demand),
+			run.bootId, 1_005L, 1_005L)
+		val currentGrant = currentGrants.single()
+		val wal = original.liveObservations.single().copy(authorizationRevision = 3L,
+			authorizationFingerprint = currentGrant.authorizationFingerprint, sessionManifestRevision = 2L)
+		val observation = wal.copy(integrityIdentity = wal.calculatedIntegrityIdentity())
+		return original.copy(
+			sessions = original.sessions.mapValues { (_, row) -> row.copy(currentManifestRevision = 2L, desiredPlanRevision = 2L) },
+			runs = mapOf(run.serviceRunId to run.copy(desiredPlanRevision = 2L)),
+			manifestsByRun = mapOf(run.serviceRunId to listOf(firstManifest, manifest)),
+			sourcesByManifest = original.sourcesByManifest + (ActivityManifestKey(LOGICAL_ID, 2L) to sources),
+			desiredPlans = original.desiredPlans + (2L to desiredPlan(2L, replacementLatency)),
+			acquisitionPlanRevisions = original.acquisitionPlanRevisions +
+				(2L to original.acquisitionPlanRevisions.getValue(1L).copy(revision = 2L, planId = "handoff-2")),
+			authorizationsByRegistration = mapOf(1L to (oldGrants + currentGrants)),
+			walByEventId = mapOf(observation.eventId to observation), liveObservations = listOf(observation),
+		)
+	}
+
     internal fun measuredActiveSiblingFixture(original: ActivityHistorySnapshot): ActivityHistorySnapshot {
         val current = original.runs.getValue("run-b").copy(state = "ACTIVE", completedAtMs = null,
             completionReason = null, presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
@@ -3884,14 +4167,14 @@ abstract class ActivityHistoryTestFixture {
 		retiredAtMs = base + 500L,
 	)
 
-	private fun desiredPlan(revision: Long): SourceDesiredPlanEntity {
+	private fun desiredPlan(revision: Long, latency: Long = 5_000L): SourceDesiredPlanEntity {
 		val payload = ByteArrayOutputStream().use { buffer ->
 			DataOutputStream(buffer).use { output ->
 				output.writeInt(1)
 				output.writeUTF("ACTIVITY")
 				output.writeLong(revision)
 				output.writeUTF("TRANSITIONS_ONLY")
-				output.writeLong(5_000L)
+				output.writeLong(latency)
 				output.writeInt(50)
 				output.writeInt(2)
 				output.writeInt(0)

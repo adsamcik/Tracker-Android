@@ -51,6 +51,22 @@ class LocationFileJsonV1Test {
 		assertEquals(500_000_001, points.single().measurement.latE7)
 	}
 
+    @Test fun `optional continuity preserves a short known gap while owner edits stay valid`() = runBlocking {
+        val expected = LocationFilePointV1("point-123", LocationFileOrigin.UNKNOWN, measurement(), "route-opaque", 9)
+        val output = ByteArrayOutputStream()
+        LocationFileJsonV1().writer(output).apply { point(expected); finish() }
+        val edited = output.toString(Charsets.UTF_8.name()).replace("500000000", "500000001")
+        val points = mutableListOf<LocationFilePointV1>()
+        LocationFileJsonV1().read(ByteArrayInputStream(edited.toByteArray())) { points += it }
+        assertEquals(expected.copy(measurement = expected.measurement.copy(latE7 = 500_000_001)), points.single())
+        for (invalid in listOf(edited.replace("\"sequence\":9", "\"sequence\":-1"),
+            edited.replace("\"pathId\":\"route-opaque\"", "\"pathId\":null"))) {
+            assertThrows(InvalidLocationFile::class.java) {
+                runBlocking { LocationFileJsonV1().read(ByteArrayInputStream(invalid.toByteArray())) {} }
+            }
+        }
+    }
+
 	@Test fun `truncated file with no closing count is rejected`() {
 		val bytes = ByteArrayOutputStream()
 		LocationFileJsonV1().writer(bytes).apply {

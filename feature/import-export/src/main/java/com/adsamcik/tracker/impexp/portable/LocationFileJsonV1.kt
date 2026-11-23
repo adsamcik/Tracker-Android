@@ -26,9 +26,14 @@ internal data class LocationFilePointV1(
 	val pointId: String,
 	val origin: LocationFileOrigin,
 	val measurement: LocationFileMeasurementV1,
+	val pathId: String? = null,
+	val sequence: Long? = null,
 ) {
 	init {
 		require(POINT_ID.matches(pointId))
+		require((pathId == null) == (sequence == null))
+		require(pathId == null || POINT_ID.matches(pathId))
+		require(sequence == null || sequence >= 0L)
 	}
 }
 
@@ -131,6 +136,9 @@ internal class LocationFileJsonV1 {
 				.put("altitudeSource", value.measurement.altitudeSource.storageName)
 				.put("altitudeConversionStatus", value.measurement.altitudeConversionStatus.storageName)
 				.put("rawGpsAltitudeDatum", value.measurement.rawGpsAltitudeDatum.storageName)
+			if (value.pathId != null) {
+				record.put("pathId", value.pathId).put("sequence", value.sequence)
+			}
 			value.measurement.run {
 				record.putNullable("latE7", latE7)
 				record.putNullable("lonE7", lonE7)
@@ -224,6 +232,8 @@ internal class LocationFileJsonV1 {
 		LocationFilePointV1(
 			pointId = requireString("id"),
 			origin = enumValue<LocationFileOrigin>(requireString("origin")),
+			pathId = optionalString("pathId"),
+			sequence = valueOrNull("sequence")?.let { requireLong("sequence") },
 			measurement = LocationFileMeasurementV1(
 				timeMs = requireLong("timeMs"),
 				latE7 = optionalInt("latE7"),

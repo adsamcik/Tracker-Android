@@ -323,7 +323,7 @@ internal const val INITIAL_ACTIVE_DATABASE_VERSION = 27
 internal const val LAST_RELEASED_LEGACY_DATABASE_VERSION = 12
 
 /** Current development schema. Versions 28 and 29 have not shipped. */
-internal const val CURRENT_DATABASE_VERSION = 30
+internal const val CURRENT_DATABASE_VERSION = 32
 
 /**
  * Provides access to main database.
@@ -928,7 +928,8 @@ abstract class AppDatabase : RoomDatabase() {
 			MIGRATION_25_26,
 		)
 		/** Normal in-place migrations for the stable v27+ active database filename. */
-		internal val activeMigrations: Array<Migration> = arrayOf(MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30)
+		internal val activeMigrations: Array<Migration> =
+			arrayOf(MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32)
 
 		override fun delegateOpenHelperFactory(): SupportSQLiteOpenHelper.Factory =
 			SQLiteXSupportSQLiteOpenHelperFactory(
@@ -981,7 +982,8 @@ abstract class AppDatabase : RoomDatabase() {
 		override fun setupDatabase(context: Context, database: Builder<AppDatabase>) {
 			super.setupDatabase(context, database)
 			database.addCallback(
-				LegacyImportRoomCallback(context, legacyPublicMigrationsThroughV26),
+				// Live released-data import runs under the startup lifecycle permit after Room opens.
+				LegacyImportRoomCallback(context, legacyPublicMigrationsThroughV26, importOnCreate = false),
 			)
 		}
 

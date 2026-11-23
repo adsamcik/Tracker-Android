@@ -15,6 +15,7 @@ class LegacyImportRoomCallback(
 	normalizerOpenHelperFactory: SupportSQLiteOpenHelper.Factory =
 		SQLiteXSupportSQLiteOpenHelperFactory(),
 	sourceFileOverride: java.io.File? = null,
+	private val importOnCreate: Boolean = true,
 ) : RoomDatabase.Callback() {
 	private val importer = LegacyV26Importer(
 		context.applicationContext,
@@ -24,7 +25,9 @@ class LegacyImportRoomCallback(
 	)
 
 	override fun onCreate(db: SupportSQLiteDatabase) {
-		importer.importIfPresent(db)
+		if (importOnCreate) {
+			importer.importIfPresent(db)
+		}
 		db.execSQL(
 			"INSERT OR IGNORE INTO source_destination_owner " +
 				"(source_kind, destination, owner, owner_generation, updated_at_ms) " +

@@ -13,6 +13,11 @@ import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEnti
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.PRESSURE_AMBIENT_OUTSIDE_CAPTURE_PLAN
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.isAmbientPressureOutsideCapturePlan
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
@@ -367,6 +372,8 @@ class RoomSourceProductDrainRouter @Inject internal constructor(
 		}
 		return when (request.source) {
 			SourceKind.LOCATION -> protectedLocationDrain.drainThrough(request)
+			// Activity assembles a complete run through its already frozen session high-water.
+			// Its lane query remains Activity-only; unrelated source writers are never drained here.
 			SourceKind.ACTIVITY -> activityLane.drainThrough(request.settlementHighWaterAdmissionOrdinal)
 				.toSourceResult(request)
 			SourceKind.STEPS -> stepsLane.drainThrough(
@@ -401,7 +408,8 @@ class RoomSourceProductDrainRouter @Inject internal constructor(
 			if (lastCompletedOrdinal < request.sourceHighWaterAdmissionOrdinal) {
 				completeResult(request, lastCompletedOrdinal, windowsApplied, eventsValidated)
 			} else if (rejection == null) {
-				if (request.memberships.any { !it.isExactCompleteSettlement() }) {
+				if (request.memberships.any { !it.isExactCompleteSettlement() } ||
+					database.hasKnownActivityCaptureLoss(request)) {
 					SourceProductDrainResult.Unavailable(request, "ACTIVITY_PRODUCT_TERMINALLY_UNAVAILABLE")
 				} else {
 					completeResult(request, lastCompletedOrdinal, windowsApplied, eventsValidated)
@@ -441,11 +449,25 @@ class RoomSourceProductDrainRouter @Inject internal constructor(
 			failureResult(request, lastCompletedOrdinal, failedOrdinal, failureCode, terminal)
 	}
 
-	private fun PressureSessionFactDrainResult.toSourceResult(
+	private suspend fun PressureSessionFactDrainResult.toSourceResult(
 		request: SourceProductDrainRequest,
 	): SourceProductDrainResult = when (this) {
-		is PressureSessionFactDrainResult.Complete ->
-			completeResult(request, lastCompletedOrdinal, factsInserted, eventsValidated)
+		is PressureSessionFactDrainResult.Complete -> {
+			val rejection = database.trackingHistoryReadDao().terminalFailuresForServiceRuns(
+				sourceKind = SourceKind.PRESSURE.stableCode,
+				capturePurpose = SourceBrokerPurpose.SESSION_CAPTURE,
+				serviceRunIds = listOf(request.serviceRunId),
+				afterOrdinal = 0L,
+				throughOrdinal = request.sourceHighWaterAdmissionOrdinal,
+				limit = 1,
+			).firstOrNull()
+			if (rejection != null &&
+				lastCompletedOrdinal >= request.sourceHighWaterAdmissionOrdinal) {
+				SourceProductDrainResult.Unavailable(request, rejection.failureCode)
+			} else {
+				completeResult(request, lastCompletedOrdinal, factsInserted, eventsValidated)
+			}
+		}
 		PressureSessionFactDrainResult.Inactive ->
 			SourceProductDrainResult.Inactive(request, "PRESSURE_SESSION_FACT_LANE_INACTIVE")
 		is PressureSessionFactDrainResult.AuthorityChanged ->
@@ -454,11 +476,11 @@ class RoomSourceProductDrainRouter @Inject internal constructor(
 			failureResult(request, lastCompletedOrdinal, failedOrdinal, failureCode, terminal)
 	}
 
-	private fun WifiSessionFactDrainResult.toSourceResult(
+	private suspend fun WifiSessionFactDrainResult.toSourceResult(
 		request: SourceProductDrainRequest,
 	): SourceProductDrainResult = when (this) {
 		is WifiSessionFactDrainResult.Complete ->
-			completeResult(request, lastCompletedOrdinal, factsInserted, eventsValidated)
+			settledRadioResult(request, lastCompletedOrdinal, factsInserted, eventsValidated)
 		WifiSessionFactDrainResult.Inactive ->
 			SourceProductDrainResult.Inactive(request, "WIFI_SESSION_FACT_LANE_INACTIVE")
 		is WifiSessionFactDrainResult.AuthorityChanged ->
@@ -467,11 +489,11 @@ class RoomSourceProductDrainRouter @Inject internal constructor(
 			failureResult(request, lastCompletedOrdinal, failedOrdinal, failureCode, terminal)
 	}
 
-	private fun CellSessionFactDrainResult.toSourceResult(
+	private suspend fun CellSessionFactDrainResult.toSourceResult(
 		request: SourceProductDrainRequest,
 	): SourceProductDrainResult = when (this) {
 		is CellSessionFactDrainResult.Complete ->
-			completeResult(request, lastCompletedOrdinal, factsInserted, eventsValidated)
+			settledRadioResult(request, lastCompletedOrdinal, factsInserted, eventsValidated)
 		CellSessionFactDrainResult.Inactive ->
 			SourceProductDrainResult.Inactive(request, "CELL_SESSION_FACT_LANE_INACTIVE")
 		is CellSessionFactDrainResult.AuthorityChanged ->
@@ -479,6 +501,22 @@ class RoomSourceProductDrainRouter @Inject internal constructor(
 		is CellSessionFactDrainResult.Failed ->
 			failureResult(request, lastCompletedOrdinal, failedOrdinal, failureCode, terminal)
 	}
+	/** Rejected input is settled processing; only its original run loses queryable coverage. */
+	private suspend fun settledRadioResult(
+		request: SourceProductDrainRequest, lastCompletedOrdinal: Long, factsInserted: Int, eventsValidated: Int,
+	): SourceProductDrainResult {
+		val rejection = database.trackingHistoryReadDao().terminalFailuresForServiceRuns(
+			sourceKind = request.source.stableCode, capturePurpose = SourceBrokerPurpose.SESSION_CAPTURE,
+			serviceRunIds = listOf(request.serviceRunId), afterOrdinal = 0L,
+			throughOrdinal = request.sourceHighWaterAdmissionOrdinal, limit = 1,
+		).firstOrNull()
+		return if (rejection != null && lastCompletedOrdinal >= request.sourceHighWaterAdmissionOrdinal) {
+			SourceProductDrainResult.Unavailable(request, rejection.failureCode)
+		} else {
+			completeResult(request, lastCompletedOrdinal, factsInserted, eventsValidated)
+		}
+	}
+
 }
 
 internal sealed interface SourceProductDrainPlan {
@@ -1228,7 +1266,7 @@ private class SourceRunAssociationAudit(
 		val providerOwnsCapture = provider in productProviders || providerClaims.isNotEmpty()
 		if (!providerOwnsCapture) {
 			if (row.productEligibleRowCount != 0L || row.controlOnlyRowCount != row.associatedRowCount) {
-				return false
+				return recordTerminalCaptureRejection(row, provider, lifecycleLeaseGeneration)
 			}
 			return true
 		}
@@ -1247,6 +1285,83 @@ private class SourceRunAssociationAudit(
 			provider, lifecycleLeaseGeneration, admissionOrdinal, exactClaims, productProviders, auditedGenerations,
 		)
 	}
+
+	/** Only the exact terminally rejected row is settled; every other association still needs its owner. */
+	private suspend fun recordTerminalCaptureRejection(
+		row: RawSourceRunWalGenerationEvidence,
+		provider: SourceDrainProviderIdentity,
+		leaseGeneration: Long,
+	): Boolean {
+		val ordinal = row.highWaterAdmissionOrdinal ?: return false
+		val supportedSource = source == SourceKind.ACTIVITY || source == SourceKind.PRESSURE
+		if (!supportedSource || row.associatedRowCount != 1L || row.productEligibleRowCount != 1L ||
+			ordinal !in 1L..throughOrdinal) {
+			return false
+		}
+		return if (database.withTransaction { hasExactTerminalCaptureRejection(ordinal, provider, leaseGeneration) }) {
+			highWater = maxOf(highWater, ordinal)
+			true
+		} else {
+			false
+		}
+	}
+
+	private suspend fun hasExactTerminalCaptureRejection(
+		ordinal: Long,
+		provider: SourceDrainProviderIdentity,
+		leaseGeneration: Long,
+	): Boolean {
+		val wal = database.sourceEventWalDao().getByAdmissionOrdinal(ordinal) ?: return false
+		val lane = database.sourceProjectionStateDao().activeProductLane(source.stableCode) ?: return false
+		val binding = wal.sessionManifestRevision?.let { revision ->
+			database.sourceSessionDao().manifestSource(logicalTrackingId, revision, source.stableCode,
+				SessionManifestPurposeCode.SESSION_CAPTURE)
+		}?.takeIf(SessionManifestSourceEntity::persistenceEligible) ?: return false
+		val sameWriter = binding.writerProjectionId == lane.projectionId &&
+			binding.writerProjectionVersion == lane.projectionVersion &&
+			binding.writerBindingGeneration == lane.bindingGeneration
+		return if (!sameWriter ||
+			!wal.matchesRejectedCaptureAssociation(provider, leaseGeneration)) {
+			false
+		} else if (source == SourceKind.PRESSURE) {
+			recordOutsideCapturePressureFailure(wal, lane, binding)
+		} else {
+			val failure = database.sourceProjectionStateDao().failure(lane.projectionId, lane.projectionVersion, ordinal)
+			failure?.terminal == true
+		}
+	}
+
+	private suspend fun recordOutsideCapturePressureFailure(
+		wal: SourceEventWalEntity,
+		lane: SourceProductProjectionLaneEntity,
+		binding: SessionManifestSourceEntity,
+	): Boolean {
+		val dao = database.sourceSessionDao()
+		val manifest = dao.manifest(logicalTrackingId, requireNotNull(wal.sessionManifestRevision)) ?: return false
+		val sources = dao.manifestSources(logicalTrackingId, manifest.manifestRevision)
+		if (lane.contiguousAdmissionOrdinal < wal.admissionOrdinal ||
+			!SessionManifestIntegrity.verify(manifest, sources) ||
+			binding.consentEpoch != wal.captureConsentEpoch || !wal.isAmbientPressureOutsideCapturePlan(manifest)) {
+			return false
+		}
+		val stateDao = database.sourceProjectionStateDao()
+		val existing = stateDao.failure(lane.projectionId, lane.projectionVersion, wal.admissionOrdinal)
+		if (existing != null) {
+			return existing.terminal && existing.failureCode == PRESSURE_AMBIENT_OUTSIDE_CAPTURE_PLAN
+		}
+		stateDao.saveFailure(SourceProjectionFailureEntity(lane.projectionId, lane.projectionVersion,
+			wal.admissionOrdinal, 1, PRESSURE_AMBIENT_OUTSIDE_CAPTURE_PLAN, true,
+			maxOf(wal.createdAtMs, lane.updatedAtMs)))
+		return true
+	}
+
+	private fun SourceEventWalEntity.matchesRejectedCaptureAssociation(
+		provider: SourceDrainProviderIdentity,
+		leaseGeneration: Long,
+	): Boolean = sourceKind == source.stableCode &&
+		logicalTrackingId == this@SourceRunAssociationAudit.logicalTrackingId &&
+		serviceRunId == this@SourceRunAssociationAudit.serviceRunId && sourceInstanceId == provider.sourceInstanceId &&
+		registrationGeneration == provider.registrationGeneration && lifecycleLeaseGeneration == leaseGeneration
 
 	private suspend fun hasExactAssociationClaims(
 		provider: SourceDrainProviderIdentity,
@@ -1618,7 +1733,7 @@ internal suspend fun authenticateSourceProductDrainRequest(
 			SourceDrainMembership::registrationGeneration,
 		),
 	)
-	drainMembershipAuthorityFailure(request, memberships, cleanupOnlyClaims)?.let {
+	drainMembershipAuthorityFailure(database, request, memberships, cleanupOnlyClaims)?.let {
 		return@withTransaction it
 	}
 	retirementDrainSettlementFailure(database, request)?.let { return@withTransaction it }
@@ -1652,7 +1767,8 @@ private suspend fun authenticateDrainRetirementClaims(
 	return null
 }
 
-private fun drainMembershipAuthorityFailure(
+private suspend fun drainMembershipAuthorityFailure(
+	database: AppDatabase,
 	request: SourceProductDrainRequest,
 	memberships: List<SourceDrainMembership>,
 	cleanupOnlyClaims: List<SourceDrainRetirementClaim>,
@@ -1686,7 +1802,8 @@ private fun drainMembershipAuthorityFailure(
 			membership.registrationGeneration,
 		)
 	}.toSet()
-	if (request.retirementClaims.isNotEmpty() && productClaimProviders != membershipProviders) {
+	if (request.retirementClaims.isNotEmpty() && productClaimProviders != membershipProviders &&
+		!database.hasOrderlyAdditionalActivityMemberships(request, memberships)) {
 		return "SOURCE_DRAIN_COMPLETENESS_CHANGED"
 	}
 	return null

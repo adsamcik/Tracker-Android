@@ -7,20 +7,8 @@ import com.adsamcik.tracker.shared.base.database.AmbientStepsSourceDeletionResul
 import com.adsamcik.tracker.shared.base.database.deleteAmbientStepsAfterConsentReset
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
-import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
-import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
-import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityIntegrity
-import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
-import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
-import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
-import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
-import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
-import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIdentityKind
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableOpaqueIdentity
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV1
@@ -32,6 +20,7 @@ import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsReque
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsResult
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRead
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRequest
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportBlockedReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportMetadata
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportReceipt
@@ -41,6 +30,16 @@ import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplayValue
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
+import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
+import com.adsamcik.tracker.stats.data.repository.NativeAmbientStepsAuthorityFixture.Companion.DAY_END
+import com.adsamcik.tracker.stats.data.repository.NativeAmbientStepsAuthorityFixture.Companion.DELETE_TIME
+import com.adsamcik.tracker.stats.data.repository.NativeAmbientStepsAuthorityFixture.Companion.EMPTY_CHECKSUM
+import com.adsamcik.tracker.stats.data.repository.NativeAmbientStepsAuthorityFixture.Companion.EPOCH
+import com.adsamcik.tracker.stats.data.repository.NativeAmbientStepsAuthorityFixture.Companion.PROVIDER
+import com.adsamcik.tracker.stats.data.repository.NativeAmbientStepsAuthorityFixture.Companion.REGISTRATION
+import com.adsamcik.tracker.stats.data.repository.NativeAmbientStepsAuthorityFixture.Companion.REVOKED_CONSENT
+import com.adsamcik.tracker.stats.data.repository.NativeAmbientStepsAuthorityFixture.Companion.SOURCE_INSTANCE
+import com.adsamcik.tracker.stats.data.repository.NativeAmbientStepsAuthorityFixture.NativeFixture
 import com.adsamcik.tracker.tracker.source.summary.RoomStepsNumericSummaryRepository
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.Dispatchers
@@ -104,6 +103,75 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 		numeric.read(
 			StepsNumericSummaryRequest(0L, 0L, "Europe/Prague"),
 		) shouldBe StepsNumericSummary.Ready(listOf(StepsNumericDay(0L, 5L)))
+	}
+
+	@Test
+	fun `equivalent zone partitions form one complete day without changing either saved fact`() = runTest {
+		val fixture = seedNative(revoked = false)
+		val first = nativeWindow(fixture.fact, 0L, DAY_END / 2L, "UTC", 3L)
+		val second = nativeWindow(fixture.fact, DAY_END / 2L, DAY_END, "Etc/UTC", 7L)
+		database.ambientStepsFactRevisionDao().insert(first)
+		database.ambientStepsFactRevisionDao().insert(second)
+		val numeric = numericRepository()
+		val request = StepsNumericSummaryRequest(0L, 0L, "Europe/Prague")
+
+		(numeric.readDisplay(request) as StepsDailyDisplay.Snapshot).days.single().value shouldBe
+			StepsDailyDisplayValue.Complete(10L)
+		numeric.read(request) shouldBe StepsNumericSummary.Ready(listOf(StepsNumericDay(0L, 10L)))
+		for (saved in listOf(first, second)) {
+			database.ambientStepsFactRevisionDao().latest(saved.writerId, saved.writerVersion,
+				saved.logicalFactId) shouldBe saved
+		}
+	}
+
+	@Test
+	fun `equivalent zone partitions retain a recorded subtotal while strict decisions require full coverage`() = runTest {
+		val fixture = seedNative(revoked = false)
+		database.ambientStepsFactRevisionDao().insert(nativeWindow(fixture.fact, 0L, DAY_END / 4L, "UTC", 3L))
+		database.ambientStepsFactRevisionDao().insert(nativeWindow(fixture.fact, DAY_END / 2L, DAY_END, "Etc/UTC", 7L))
+		val numeric = numericRepository()
+		val request = StepsNumericSummaryRequest(0L, 0L, "UTC")
+
+		(numeric.readDisplay(request) as StepsDailyDisplay.Snapshot).days.single().value shouldBe
+			StepsDailyDisplayValue.Recorded(10L, setOf(AmbientStepsHistoryCause.PARTIAL_COVERAGE))
+		numeric.read(request) shouldBe StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE)
+	}
+
+	@Test
+	fun `equivalent zone labels never permit overlapping provider windows to be added`() = runTest {
+		val fixture = seedNative(revoked = false)
+		database.ambientStepsFactRevisionDao().insert(nativeWindow(fixture.fact, 0L, DAY_END * 3L / 4L, "UTC", 3L))
+		database.ambientStepsFactRevisionDao().insert(nativeWindow(fixture.fact, DAY_END / 2L, DAY_END, "Etc/UTC", 7L))
+		val numeric = numericRepository()
+		val request = StepsNumericSummaryRequest(0L, 0L, "UTC")
+		val display = numeric.readDisplay(request) as StepsDailyDisplay.Snapshot
+
+		(display.days.single().value as StepsDailyDisplayValue.Unavailable).causes shouldBe
+			setOf(AmbientStepsHistoryCause.FACT_OVERLAP)
+		numeric.read(request) shouldBe StepsNumericSummary.Unverifiable(
+			StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+	}
+
+	@Test
+	fun `native and imported copies under equivalent zone labels count the original measurement once`() = runTest {
+		val fixture = seedNative(revoked = false)
+		database.ambientStepsFactRevisionDao().insert(fixture.fact)
+		val original = fixture.archive.days.single()
+		val alias = PortableAmbientStepsDayV1.create(
+			AmbientStepsPortableOpaqueIdentity.derive(AmbientStepsPortableIdentityKind.DAY, "0|Etc/UTC|0|$DAY_END"),
+			0L, "Etc/UTC", 0L, DAY_END, null, PortableAmbientStepsCoverage.COMPLETE,
+			emptyList(), 5L, original.facts, emptyList(),
+		)
+		val archive = PortableAmbientStepsArchiveV1.create(listOf(alias))
+		RoomImportPortableAmbientSteps(database, database.importedAmbientStepsDao(), Dispatchers.Unconfined,
+			localOriginSource = { emptyList() }).importArchive(request(archive, "equivalent-copy")) shouldBe
+			ImportPortableAmbientStepsResult.Applied(archive.identity, 1, 1, 1, 0)
+		val numeric = numericRepository()
+		val request = StepsNumericSummaryRequest(0L, 0L, "UTC")
+
+		(numeric.readDisplay(request) as StepsDailyDisplay.Snapshot).days.single().value shouldBe
+			StepsDailyDisplayValue.Complete(5L)
+		numeric.read(request) shouldBe StepsNumericSummary.Ready(listOf(StepsNumericDay(0L, 5L)))
 	}
 
 	@Test
@@ -291,283 +359,8 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 		database.importedAmbientStepsDao().archiveCount() shouldBe 0L
 	}
 
-	// Keep one native Steps provider fixture and its matching local/portable day identities together for
-	// import-overlap checks.
-	@Suppress("LongMethod")
-	private suspend fun seedNative(revoked: Boolean): NativeFixture {
-		database.sourceEvidenceStateDao().ensure(SourceEvidenceState())
-		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, null, 0L) shouldBe 1
-		database.sourceDestinationOwnerDao().insertIfAbsent(
-			SourceDestinationOwnerEntity(
-				SourceDestinationOwnerEntity.SOURCE_STEPS,
-				SourceDestinationOwnerEntity.DESTINATION_AMBIENT_STEPS,
-				SourceDestinationOwnerEntity.OWNER_AMBIENT_STEPS_FACTS,
-				OWNER_GENERATION,
-				0L,
-			),
-		)
-		val historicalPolicy = policy(HISTORICAL_POLICY, ACTIVE_CONSENT, true)
-		val currentPolicy = if (revoked) {
-			policy(CURRENT_POLICY, null, false)
-		} else {
-			historicalPolicy
-		}
-		database.sourcePolicyDao().insertPolicies(
-			listOf(historicalPolicy) + listOfNotNull(
-				currentPolicy.takeIf { it.policyRevision != historicalPolicy.policyRevision },
-			),
-		)
-		database.sourcePolicyDao().insertConsentEpochs(
-			listOf(consent(ACTIVE_CONSENT, HISTORICAL_POLICY, true)) +
-				listOfNotNull(consent(REVOKED_CONSENT, CURRENT_POLICY, false).takeIf { revoked }),
-		)
-		database.sourcePolicyDao().ensureAuthority(
-			SourcePolicyAuthorityEntity(
-				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
-				currentPolicyRevision = currentPolicy.policyRevision,
-				legacySettingsFingerprint = null,
-				updatedAtMs = if (revoked) {
-					2_000L
-				} else {
-					0L
-				},
-			),
-		)
-		database.ambientStepsFactRevisionDao().insertRetentionAuthority(
-			AmbientStepsRetentionAuthorityIntegrity.create(
-				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
-				1L,
-				AmbientStepsRetentionAuthorityEntity.STATE_ACTIVE,
-				RETENTION_POLICY_ID,
-				HISTORICAL_POLICY,
-				ACTIVE_CONSENT,
-				EPOCH,
-				BOOT_ID,
-				0L,
-				0L,
-			),
-		)
-		val demand = SourceDemandEntity(
-			demandId = "native-authority-demand",
-			consumerId = "native-authority-consumer",
-			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
-			logicalTrackingId = null,
-			serviceRunId = null,
-			manifestRevision = null,
-			lifecycleLeaseGeneration = null,
-			sourcePolicyRevision = HISTORICAL_POLICY,
-			consentEpoch = ACTIVE_CONSENT,
-			persistenceEligible = true,
-			qosCode = 1,
-			minimumAcquisitionSpec = "ambient-steps:v1:LOCAL_RECORDING_STEPS",
-			maximumAgeMs = 0L,
-			desiredLatencyMs = 0L,
-			requestedBootId = BOOT_ID,
-			requestedElapsedRealtimeNanos = 0L,
-			requestedAtMs = 0L,
-			status = SourceDemandEntity.STATUS_RETIRED,
-			retireBootId = BOOT_ID,
-			retireElapsedRealtimeNanos = DAY_END,
-			retiredAtMs = DAY_END,
-		)
-		database.sourceBrokerDao().insertDemands(listOf(demand))
-		val fingerprint = SourceBrokerAuthorization.fingerprint(listOf(demand))
-		database.sourceBrokerDao().insertRegistration(
-			ProviderRegistrationGenerationEntity(
-				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-				registrationGeneration = REGISTRATION,
-				sourceInstanceId = SOURCE_INSTANCE,
-				ownerScope = SourceProviderPurposeScope.exactOwnerScope(
-					SourceDestinationOwnerEntity.SOURCE_STEPS,
-					SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
-				),
-				clockDomainId = BOOT_ID,
-				physicalConfigurationFingerprint =
-					"ambient-steps-provider:v1:mechanism=$PROVIDER",
-				collectedDataEpoch = EPOCH,
-				providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
-				providerProcessIncarnationId = null,
-				status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
-				reservedAtMs = 0L,
-				reservedElapsedRealtimeNanos = 0L,
-				acceptedAtMs = 0L,
-				acceptedElapsedRealtimeNanos = 0L,
-				retiredAtMs = DAY_END,
-				retiredElapsedRealtimeNanos = DAY_END,
-				failureCode = null,
-			),
-		)
-		database.sourceBrokerDao().insertAuthorizations(
-			SourceBrokerAuthorization.rows(
-				SourceDestinationOwnerEntity.SOURCE_STEPS,
-				REGISTRATION,
-				AUTHORIZATION,
-				listOf(demand),
-				BOOT_ID,
-				0L,
-				0L,
-			),
-		)
-		database.ambientStepsImportStateDao().insertCursor(
-			AmbientStepsImportCursorEntity(
-				registrationGeneration = REGISTRATION,
-				provider = PROVIDER,
-				sourceInstanceId = SOURCE_INSTANCE,
-				registrationClockDomainId = BOOT_ID,
-				registrationAcceptedAtMs = 0L,
-				registrationAcceptedElapsedRealtimeNanos = 0L,
-				authorizationRevision = AUTHORIZATION,
-				authorizationFingerprint = fingerprint,
-				authorizationEffectiveBootId = BOOT_ID,
-				authorizationEffectiveElapsedRealtimeNanos = 0L,
-				authorizationEffectiveWallTimeMs = 0L,
-				sourcePolicyRevision = HISTORICAL_POLICY,
-				ambientConsentEpoch = ACTIVE_CONSENT,
-				collectedDataEpoch = EPOCH,
-				eligibleFromTimeMs = 0L,
-				continuitySegmentGeneration = 1L,
-				segmentStartTimeMs = 0L,
-				importedThroughTimeMs = DAY_END,
-				lastObservedAtMs = DAY_END,
-				lastObservedBootId = BOOT_ID,
-				lastObservedZoneId = "UTC",
-				lastGapSequence = 0L,
-				authorityTransitionSequence = 0L,
-				cursorRevision = 2L,
-				status = AmbientStepsImportCursorEntity.STATUS_RETIRED,
-				updatedAtMs = DAY_END,
-				retentionScope = AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
-				retentionPolicyId = RETENTION_POLICY_ID,
-				retentionApprovalRevision = 1L,
-			),
-		)
-		val logicalFactId = AmbientStepsFactIntegrity.logicalFactId(
-			PROVIDER,
-			REGISTRATION,
-			1L,
-			SOURCE_INSTANCE,
-			0L,
-			0L,
-			"UTC",
-			EPOCH,
-		)
-		val unsigned = AmbientStepsFactRevisionEntity(
-			logicalFactId = logicalFactId,
-			semanticRevision = 1L,
-			mutationId = AmbientStepsFactIntegrity.mutationId(
-				logicalFactId,
-				1L,
-				AmbientStepsFactRevisionEntity.OPERATION_UPSERT,
-			),
-			writerId = AmbientStepsFactRevisionEntity.WRITER_ID,
-			writerVersion = AmbientStepsFactRevisionEntity.WRITER_VERSION,
-			writerOwnerGeneration = OWNER_GENERATION,
-			operation = AmbientStepsFactRevisionEntity.OPERATION_UPSERT,
-			originKind = AmbientStepsFactRevisionEntity.ORIGIN_PROVIDER_AGGREGATE,
-			provider = PROVIDER,
-			registrationGeneration = REGISTRATION,
-			continuitySegmentGeneration = 1L,
-			sourceInstanceId = SOURCE_INSTANCE,
-			authorizationRevision = AUTHORIZATION,
-			authorizationFingerprint = fingerprint,
-			windowStartTimeMs = 0L,
-			windowEndTimeMs = DAY_END,
-			observedAtMs = DAY_END,
-			structuralEpochDay = 0L,
-			storedZoneId = "UTC",
-			structuralDayStartTimeMs = 0L,
-			structuralDayEndTimeMs = DAY_END,
-			stepCount = 5L,
-			purpose = AmbientStepsFactRevisionEntity.PURPOSE_AMBIENT_PRODUCT,
-			sourcePolicyRevision = HISTORICAL_POLICY,
-			ambientConsentEpoch = ACTIVE_CONSENT,
-			collectedDataEpoch = EPOCH,
-			scopeDeletionGeneration = 0L,
-			effectChecksum = EMPTY_CHECKSUM,
-			appliedAtMs = DAY_END,
-			retentionScope = AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
-			retentionPolicyId = RETENTION_POLICY_ID,
-			retentionApprovalRevision = 1L,
-		)
-		val fact = unsigned.copy(effectChecksum = AmbientStepsFactIntegrity.effectChecksum(unsigned))
-		val portableFact = PortableAmbientStepsFactV1.create(
-			AmbientStepsPortableOpaqueIdentity.derive(
-				AmbientStepsPortableIdentityKind.FACT,
-				logicalFactId,
-			),
-			0L,
-			DAY_END,
-			5L,
-		)
-		val portableDay = PortableAmbientStepsDayV1.create(
-			identity = AmbientStepsPortableOpaqueIdentity.derive(
-				AmbientStepsPortableIdentityKind.DAY,
-				"0|UTC|0|$DAY_END",
-			),
-			structuralEpochDay = 0L,
-			storedZoneId = "UTC",
-			structuralDayStartTimeMs = 0L,
-			structuralDayEndTimeMs = DAY_END,
-			retainedFromTimeMs = null,
-			coverage = PortableAmbientStepsCoverage.COMPLETE,
-			partialCauses = emptyList(),
-			retainedStepCount = 5L,
-			facts = listOf(portableFact),
-			gaps = emptyList(),
-		)
-		return NativeFixture(fact, PortableAmbientStepsArchiveV1.create(listOf(portableDay)))
-	}
-
-	private fun policy(revision: Long, consentEpoch: Long?, eligible: Boolean) = SourcePolicyEntity(
-		policyRevision = revision,
-		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-		enabled = true,
-		qosCode = 1,
-		locationMinTimeSeconds = null,
-		locationMinDistanceMeters = null,
-		locationRequiredAccuracyMeters = null,
-		capturePersistenceEligible = false,
-		controlPersistenceEligible = false,
-		ambientPersistenceEligible = eligible,
-		captureConsentEpoch = null,
-		controlConsentEpoch = null,
-		ambientConsentEpoch = consentEpoch,
-		effectiveBootId = BOOT_ID,
-		effectiveElapsedRealtimeNanos = if (eligible) {
-			0L
-		} else {
-			2_000L
-		},
-		effectiveWallTimeMs = if (eligible) {
-			0L
-		} else {
-			2_000L
-		},
-		changeReason = "test",
-	)
-
-	private fun consent(epoch: Long, policyRevision: Long, eligible: Boolean) =
-		SourceConsentEpochEntity(
-			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
-			epoch = epoch,
-			eligible = eligible,
-			persistenceEligible = eligible,
-			policyRevision = policyRevision,
-			effectiveBootId = BOOT_ID,
-			effectiveElapsedRealtimeNanos = if (eligible) {
-				0L
-			} else {
-				2_000L
-			},
-			effectiveWallTimeMs = if (eligible) {
-				0L
-			} else {
-				2_000L
-			},
-			changeReason = "test",
-		)
+	private suspend fun seedNative(revoked: Boolean): NativeFixture =
+		NativeAmbientStepsAuthorityFixture(database).seedNative(revoked)
 
 	private fun request(
 		archive: PortableAmbientStepsArchiveV1,
@@ -635,31 +428,23 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 		Dispatchers.Unconfined,
 	)
 
+	private fun numericRepository() = RoomStepsNumericSummaryRepository(database, Dispatchers.Unconfined,
+		DefaultAmbientStepsHistoryRepository(database, database.importedAmbientStepsDao(),
+			StepsSegmentHistorySelector(database, SourceProductLaneExecutionAuthority { false }),
+			RoomStepsCountDomainCompatibilityQuery(database), Dispatchers.Unconfined))
+
+	private fun nativeWindow(base: AmbientStepsFactRevisionEntity, start: Long, end: Long,
+		zoneId: String, count: Long): AmbientStepsFactRevisionEntity {
+		val identity = AmbientStepsFactIntegrity.logicalFactId(PROVIDER, REGISTRATION, 1L, SOURCE_INSTANCE,
+			start, 0L, zoneId, EPOCH)
+		val unsigned = base.copy(logicalFactId = identity,
+			mutationId = AmbientStepsFactIntegrity.mutationId(identity, 1L, AmbientStepsFactRevisionEntity.OPERATION_UPSERT),
+			windowStartTimeMs = start, windowEndTimeMs = end, storedZoneId = zoneId, stepCount = count,
+			effectChecksum = EMPTY_CHECKSUM)
+		return unsigned.copy(effectChecksum = AmbientStepsFactIntegrity.effectChecksum(unsigned))
+	}
+
 	private fun newDatabase(): AppDatabase = AppDatabase.testDatabase(
 		ApplicationProvider.getApplicationContext<Application>(),
 	)
-
-	private data class NativeFixture(
-		val fact: AmbientStepsFactRevisionEntity,
-		val archive: PortableAmbientStepsArchiveV1,
-	)
-
-	private companion object {
-		const val EPOCH = 7L
-		const val OWNER_GENERATION = 1L
-		const val REGISTRATION = 1L
-		const val AUTHORIZATION = 1L
-		const val HISTORICAL_POLICY = 1L
-		const val CURRENT_POLICY = 2L
-		const val ACTIVE_CONSENT = 1L
-		const val REVOKED_CONSENT = 2L
-		const val SOURCE_INSTANCE = "native-authority-source"
-		const val BOOT_ID = "native-authority-boot"
-		const val RETENTION_POLICY_ID = "test-retention"
-		const val PROVIDER = AmbientStepsFactRevisionEntity.PROVIDER_LOCAL_RECORDING_STEPS
-		const val DAY_END = 86_400_000L
-		const val DELETE_TIME = 90_000_000L
-		const val EMPTY_CHECKSUM =
-			"0000000000000000000000000000000000000000000000000000000000000000"
-	}
 }

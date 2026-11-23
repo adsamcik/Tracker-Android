@@ -9,10 +9,12 @@ import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
 import com.adsamcik.tracker.stats.api.repository.HistoryPosition
 import com.adsamcik.tracker.stats.api.repository.HistoryProblem
 import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.loadPressureFactProofSnapshot
 import com.adsamcik.tracker.shared.base.database.PressureFactProofAuthenticator
+import com.adsamcik.tracker.shared.base.database.PressureFactProofFailure
 import com.adsamcik.tracker.shared.base.database.PressureWalCaptureProof
 import com.adsamcik.tracker.shared.base.database.persistPressureFactRetentionAuthority
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
@@ -137,6 +139,107 @@ class PressureHistorySelectorTest {
 	fun tearDown() = database.close()
 
 	@Test
+	fun `saved Pressure without a Stop receipt remains useful with partial coverage`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		database.sourceSessionDao().deleteAllCompleteness()
+
+		val saved = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+		saved.windows.size shouldBe 1
+		saved.materialization shouldBe PressureHistoryMaterialization.READY
+		saved.coverage shouldBe PressureHistoryCoverage.PARTIAL
+		saved.reasons.contains(PressureHistoryReason.COMPLETENESS_MISSING) shouldBe true
+		saved.toPublicPressureHistory().productState shouldBe HistoryProductState.PARTIAL
+	}
+
+	@Test
+	fun `live Pressure shows saved measurements before any Stop receipt exists`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(fixture.runId))
+		val session = requireNotNull(database.sourceSessionDao().session(fixture.logicalId))
+		database.withTransaction {
+			database.sourceSessionDao().deleteAllCompleteness()
+			database.sourceSessionDao().updateServiceRun(run.copy(state = "ACTIVE", completedAtMs = null,
+				completionReason = null, presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+				presentationAcknowledgedAtMs = null))
+			database.sourceSessionDao().updateSession(session.copy(state = "ACTIVE", cutoffAtMs = null,
+				cutoffElapsedNanos = null, completedAtMs = null, finalAdmissionOrdinal = null,
+				currentServiceRunId = run.serviceRunId, currentManifestRevision = 1L))
+		}
+
+		val saved = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+		saved.windows.size shouldBe 1
+		saved.materialization shouldBe PressureHistoryMaterialization.MATERIALIZING
+		saved.coverage shouldBe PressureHistoryCoverage.PARTIAL
+		saved.reasons.contains(PressureHistoryReason.SERVICE_RUN_ACTIVE) shouldBe true
+		saved.toPublicPressureHistory().productState shouldBe HistoryProductState.MATERIALIZING
+	}
+
+	@Test
+	fun `misassigned ambient predecessor does not hide valid captured Pressure`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L, laneCursor = 2L, completenessAdmissionOrdinal = 2L)
+		val original = requireNotNull(selector.selectBySegmentId(fixture.segmentId)).windows
+		val predecessor = insertMisassignedAmbientPressure()
+		database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
+			projectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+			projectionVersion = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+			admissionOrdinal = predecessor.sourceAdmissionOrdinal, attemptCount = 1,
+			failureCode = "PRESSURE_AMBIENT_OUTSIDE_CAPTURE_PLAN", terminal = true, lastAttemptAtMs = RUN_END_MS,
+		))
+
+		val saved = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+		saved.windows shouldBe original
+		saved.hasQualifiedRetainedProof shouldBe true
+		saved.materialization shouldBe PressureHistoryMaterialization.READY
+		saved.coverage shouldBe PressureHistoryCoverage.PARTIAL
+		saved.reasons.contains(PressureHistoryReason.PARTIAL_FACT) shouldBe true
+		database.sourceEventWalDao().getByEventId(predecessor.sourceEventId)?.configRevision shouldBe 99L
+		database.pressureFactRevisionDao().latest(predecessor.writerProjectionId,
+			predecessor.writerProjectionVersion, predecessor.logicalFactId) shouldBe predecessor
+	}
+
+	@Test
+	fun `a wrong capture plan stays rejected without hiding qualified sibling Pressure`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L, laneCursor = 2L, completenessAdmissionOrdinal = 2L)
+		val original = requireNotNull(selector.selectBySegmentId(fixture.segmentId)).windows
+		val damaged = insertMisassignedAmbientPressure(includeAmbient = false)
+		database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
+			SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+			damaged.sourceAdmissionOrdinal, 1, "INVALID_CAPTURE_PLAN", true, RUN_END_MS))
+
+		val saved = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+		saved.windows shouldBe original
+		saved.hasQualifiedRetainedProof shouldBe true
+		saved.coverage shouldBe PressureHistoryCoverage.PARTIAL
+		saved.toPublicPressureHistory().productState shouldBe HistoryProductState.PARTIAL
+		saved.reasons.contains(PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED) shouldBe true
+		database.sourceEventWalDao().getByEventId(damaged.sourceEventId)?.configRevision shouldBe 99L
+	}
+
+	private suspend fun insertMisassignedAmbientPressure(includeAmbient: Boolean = true): PressureFactRevisionEntity {
+		val fact = pressureFact(pressureBinding(), semanticRevision = 1L, admissionOrdinal = 2L,
+			sourceEventId = "old-ambient-pressure",
+			intervalStartTimeMs = PRESSURE_START_MS - 50L, intervalEndTimeMs = PRESSURE_END_MS - 50L,
+			windowStartElapsedRealtimeNanos = PRESSURE_START_ELAPSED_NANOS - 50_000_000L,
+			windowEndElapsedRealtimeNanos = PRESSURE_END_ELAPSED_NANOS - 50_000_000L)
+		val mask = SourceBrokerPurpose.MASK_SESSION_CAPTURE or if (includeAmbient) {
+			SourceBrokerPurpose.MASK_AMBIENT_PRODUCT
+		} else {
+			0L
+		}
+		val wal = rehashPressureWal(pressureWal(fact).copy(configRevision = 99L,
+			sourceInstanceId = "ambient-pressure-provider", registrationGeneration = 88L,
+			authorizationPurposeEligibilityMask = mask))
+		database.sourceEventWalDao().insertIgnoringDuplicate(wal) shouldBe 2L
+		database.pressureFactRevisionDao().insert(fact)
+		return fact
+	}
+
+	@Test
 	fun mixedCaptureSkipsSourceOnlyFactLoadingWithoutHidingSessionPressure() = runTest {
 		database.close()
 		val queries = CopyOnWriteArrayList<String>()
@@ -187,6 +290,211 @@ class PressureHistorySelectorTest {
 			database.loadPressureFactProofSnapshot(listOf(fact), mapOf(fact.sourceEventId to wal), currentClockDomainId = BOOT_ID)) }
 		(proof is PressureWalCaptureProof.Rejected) shouldBe true
 		requireNotNull(selector.selectBySegmentId(fixture.segmentId)).windows shouldBe emptyList()
+	}
+
+	@Test
+	fun `saved Pressure keeps unchanged consent and policy from an earlier boot`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		val original = requireNotNull(selector.selectBySegmentId(fixture.segmentId)).windows
+		for (table in listOf("source_consent_epoch", "source_policy")) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE $table SET effective_boot_id = ?, effective_elapsed_realtime_nanos = ? WHERE source_kind = 4",
+				arrayOf<Any>("earlier-boot", PRESSURE_END_ELAPSED_NANOS + 1L))
+			requireNotNull(selector.selectBySegmentId(fixture.segmentId)).windows shouldBe original
+		}
+		val fact = currentPressureFact()
+		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(fact.sourceEventId))
+		val proof = database.withTransaction {
+			PressureFactProofAuthenticator.authenticateWal(wal, database.loadPressureFactProofSnapshot(
+				listOf(fact), mapOf(fact.sourceEventId to wal), currentClockDomainId = BOOT_ID))
+		}
+		(proof is PressureWalCaptureProof.Authenticated) shouldBe true
+	}
+
+	@Test
+	fun `same boot Pressure policy and consent still reject measurements before their effective time`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		for (table in listOf("source_consent_epoch", "source_policy")) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE $table SET effective_elapsed_realtime_nanos = ? WHERE source_kind = 4",
+				arrayOf<Any>(PRESSURE_END_ELAPSED_NANOS + 1L))
+			requireNotNull(selector.selectBySegmentId(fixture.segmentId)).windows shouldBe emptyList()
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE $table SET effective_elapsed_realtime_nanos = ? WHERE source_kind = 4",
+				arrayOf<Any>(RUN_START_ELAPSED_NANOS))
+		}
+	}
+
+	@Test
+	fun `late start acknowledgement keeps Pressure from its already accepted provider`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		val sessions = database.sourceSessionDao()
+		val original = requireNotNull(sessions.lifecycleAction("pressure-start:$LOGICAL_ID:1"))
+		val late = original.copy(acknowledgedAtMs = PRESSURE_END_MS + 1L,
+			acknowledgedElapsedRealtimeNanos = PRESSURE_END_ELAPSED_NANOS + 1L)
+		sessions.updateLifecycleAction(late) shouldBe 1
+
+		val saved = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		saved.windows.single().intervalStartTimeMs shouldBe PRESSURE_START_MS
+		saved.windows.single().intervalEndTimeMs shouldBe PRESSURE_END_MS
+		saved.hasQualifiedRetainedProof shouldBe true
+
+		// Finishing the action later does not authorize a different provider identity.
+		sessions.updateLifecycleAction(late.copy(sourceInstanceId = "another-provider")) shouldBe 1
+		requireNotNull(selector.selectBySegmentId(fixture.segmentId)).windows shouldBe emptyList()
+		sessions.updateLifecycleAction(late) shouldBe 1
+		// Nor can it authorize a measurement taken before Android accepted this provider.
+		replacePressureRegistration { it.copy(acceptedElapsedRealtimeNanos = PRESSURE_START_ELAPSED_NANOS + 1L) }
+		requireNotNull(selector.selectBySegmentId(fixture.segmentId)).windows shouldBe emptyList()
+	}
+
+	@Test
+	fun `all-day authorization join after capture acknowledgement keeps saved Pressure`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		val original = requireNotNull(selector.selectBySegmentId(fixture.segmentId)).windows
+		installAmbientPressureAuthorizationRefresh(currentPressureFact())
+
+		val saved = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+		saved.windows shouldBe original
+		saved.hasQualifiedRetainedProof shouldBe true
+		saved.toPublicPressureHistory().summary?.latestHectopascals shouldBe original.single().lastHectopascals
+	}
+
+	@Test
+	fun `later Pressure envelope still needs the original capture grant and its real measurement boundary`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		val fact = currentPressureFact()
+		installAmbientPressureAuthorizationRefresh(fact)
+		val broker = database.sourceBrokerDao()
+		val originalRows = broker.authorizationRevision(SourceDestinationOwnerEntity.SOURCE_PRESSURE, 1L, 1L)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_authorization WHERE source_kind = 4 AND registration_generation = 1 " +
+				"AND authorization_revision = 1")
+		requireNotNull(selector.selectBySegmentId(fixture.segmentId)).windows shouldBe emptyList()
+		broker.insertAuthorizations(originalRows)
+
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_authorization SET authorization_fingerprint = ? WHERE source_kind = 4 " +
+				"AND registration_generation = 1 AND authorization_revision = 1", arrayOf("f".repeat(64)))
+		requireNotNull(selector.selectBySegmentId(fixture.segmentId)).windows shouldBe emptyList()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_authorization SET authorization_fingerprint = ? WHERE source_kind = 4 " +
+				"AND registration_generation = 1 AND authorization_revision = 1",
+			arrayOf(originalRows.first().authorizationFingerprint))
+
+		val currentRows = broker.authorizationRevision(SourceDestinationOwnerEntity.SOURCE_PRESSURE, 1L, 2L)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_authorization WHERE source_kind = 4 AND registration_generation = 1 " +
+				"AND authorization_revision = 2")
+		val late = currentRows.map { it.copy(effectiveElapsedRealtimeNanos = fact.windowStartElapsedRealtimeNanos + 1L) }
+		broker.insertAuthorizations(late)
+		requireNotNull(selector.selectBySegmentId(fixture.segmentId)).windows shouldBe emptyList()
+	}
+
+	@Test
+	fun `Pressure remains visible across a continuously selected manifest change`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		val sessions = database.sourceSessionDao()
+		val original = requireNotNull(sessions.manifest(LOGICAL_ID, 1L))
+		val binding = pressureBinding(manifestRevision = 2L)
+		val unsigned = original.copy(manifestRevision = 2L, startOrigin = POLICY_RECONCILIATION,
+			effectiveElapsedRealtimeNanos = PRESSURE_START_ELAPSED_NANOS + 50_000_000L,
+			effectiveWallTimeMs = PRESSURE_START_MS + 50L, changeReason = POLICY_RECONCILIATION,
+			manifestChecksum = "")
+		sessions.insertManifest(unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(binding))))
+		sessions.insertManifestSources(listOf(binding))
+
+		val selected = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		selected.windows.single().intervalStartTimeMs shouldBe PRESSURE_START_MS
+		selected.windows.single().intervalEndTimeMs shouldBe PRESSURE_END_MS
+		selected.hasQualifiedRetainedProof shouldBe true
+	}
+
+	@Test
+	fun `valid Pressure after End does not hide earlier measurements or become a coverage gap`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L, completenessAdmissionOrdinal = 2L, laneCursor = 2L,
+			sessionCutoffElapsedNanos = 500_000_000L)
+		val tail = insertPressureEndTail(1L)
+		val selected = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		selected.windows.single().intervalEndTimeMs shouldBe PRESSURE_END_MS
+		selected.hasQualifiedRetainedProof shouldBe true
+
+		// A broken carrier must still report its integrity error rather than being silently omitted.
+		replacePressureWal(rehashPressureWal(tail.copy(clockDomainId = "another-boot")))
+		val broken = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		broken.windows.single().intervalEndTimeMs shouldBe PRESSURE_END_MS
+		broken.coverage shouldBe PressureHistoryCoverage.PARTIAL
+		broken.reasons.contains(PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED) shouldBe true
+	}
+
+	@Test
+	fun `Pressure crossing the exact End preserves qualified siblings with partial coverage`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L, completenessAdmissionOrdinal = 2L, laneCursor = 2L,
+			sessionCutoffElapsedNanos = 500_000_000L)
+		val tail = insertPressureEndTail(-50_000_000L)
+		closePressureCaptureAt(500_000_000L)
+		val selected = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		selected.windows.single().intervalEndTimeMs shouldBe PRESSURE_END_MS
+		selected.hasQualifiedRetainedProof shouldBe true
+		selected.materialization shouldBe PressureHistoryMaterialization.READY
+		selected.coverage shouldBe PressureHistoryCoverage.PARTIAL
+		selected.reasons shouldBe setOf(PressureHistoryReason.PARTIAL_FACT)
+		val tailFact = database.pressureFactRevisionDao().revisionsForWriterAdmission(
+			SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION, 2L, 2).single()
+		val proof = database.withTransaction {
+			PressureFactProofAuthenticator.authenticateWal(tail, database.loadPressureFactProofSnapshot(
+				listOf(tailFact), mapOf(tail.eventId to tail), currentClockDomainId = BOOT_ID))
+		}
+		// Strict numeric/action proof still rejects the aggregate rather than splitting its samples.
+		proof shouldBe PressureWalCaptureProof.Rejected(PressureFactProofFailure.SESSION_BOUNDARY)
+		database.sourceEventWalDao().getByEventId(tail.eventId) shouldBe tail
+		tailFact.windowEndElapsedRealtimeNanos shouldBe 600_000_000L
+
+		// Only a fully valid carrier receives the boundary classification.
+		replacePressureWal(rehashPressureWal(tail.copy(clockDomainId = "another-boot")))
+		val broken = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		broken.windows.single().intervalEndTimeMs shouldBe PRESSURE_END_MS
+		broken.coverage shouldBe PressureHistoryCoverage.PARTIAL
+		broken.reasons.contains(PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED) shouldBe true
+	}
+
+	@Test
+	fun `Pressure crossing End does not hide an earlier recording withdrawal`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L, completenessAdmissionOrdinal = 2L, laneCursor = 2L,
+			sessionCutoffElapsedNanos = 500_000_000L)
+		insertPressureEndTail(-50_000_000L)
+		closePressureCaptureAt(490_000_000L)
+		val selected = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		selected.windows.single().intervalEndTimeMs shouldBe PRESSURE_END_MS
+		selected.coverage shouldBe PressureHistoryCoverage.PARTIAL
+		selected.reasons.contains(PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED) shouldBe true
+	}
+
+	private suspend fun closePressureCaptureAt(elapsedNanos: Long) {
+		val broker = database.sourceBrokerDao()
+		broker.retireConsumer("session:$LOGICAL_ID", BOOT_ID, elapsedNanos, RUN_END_MS)
+		broker.insertAuthorizations(SourceBrokerAuthorization.rows(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE, registrationGeneration = 1L,
+			authorizationRevision = 2L, demands = emptyList(), effectiveBootId = BOOT_ID,
+			effectiveElapsedRealtimeNanos = elapsedNanos, effectiveWallTimeMs = RUN_END_MS))
+	}
+
+	private suspend fun insertPressureEndTail(startOffsetNanos: Long): SourceEventWalEntity {
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
+		val start = requireNotNull(session.cutoffElapsedNanos) + startOffsetNanos
+		val startMs = requireNotNull(session.cutoffAtMs) + startOffsetNanos / 1_000_000L
+		val binding = pressureBinding()
+		val unsigned = pressureFact(binding, semanticRevision = 1L, admissionOrdinal = 2L,
+			sourceEventId = "pressure-after-End", intervalStartTimeMs = startMs, intervalEndTimeMs = startMs + 150L,
+			windowStartElapsedRealtimeNanos = start, windowEndElapsedRealtimeNanos = start + 150_000_000L)
+			.copy(firstProviderSequence = 5L, lastProviderSequence = 8L, effectChecksum = "pending")
+		val fact = unsigned.copy(effectChecksum = PressureFactRevisionIntegrity.effectChecksum(unsigned, binding))
+		val wal = pressureWal(fact)
+		database.sourceEventWalDao().insertIgnoringDuplicate(wal) shouldBe fact.sourceAdmissionOrdinal
+		database.pressureFactRevisionDao().insert(fact)
+		return wal
 	}
 
 	@Test
@@ -2709,6 +3017,7 @@ class PressureHistorySelectorTest {
 		writerBindingGeneration: Long = 1L,
 		sessionMode: String = MANUAL_SESSION_MODE,
 		additionalManifestSources: List<SessionManifestSourceEntity> = emptyList(),
+		sessionCutoffElapsedNanos: Long = Long.MAX_VALUE - 1L,
 	): PressureFixture {
 		val segment = segment()
 		database.sessionSegmentDao().insert(segment)
@@ -2718,7 +3027,8 @@ class PressureHistorySelectorTest {
 			MANUAL_START_ORIGIN
 		}
 		val run = serviceRun().copy(startOrigin = origin)
-		database.sourceSessionDao().insertSession(logicalSession().copy(sessionMode = sessionMode, startOrigin = origin))
+		database.sourceSessionDao().insertSession(logicalSession().copy(sessionMode = sessionMode, startOrigin = origin,
+			cutoffElapsedNanos = sessionCutoffElapsedNanos))
 		database.sourceSessionDao().insertServiceRun(run)
 		val binding = pressureBinding().copy(writerBindingGeneration = writerBindingGeneration,
 			writerOwnerGeneration = SourceWriterGenerationContract.canonicalOwnerGeneration(writerBindingGeneration))
@@ -3584,6 +3894,29 @@ class PressureHistorySelectorTest {
 		return unsigned.copy(
 			effectChecksum = PressureFactRevisionIntegrity.effectChecksum(unsigned, binding),
 		)
+	}
+
+	private suspend fun installAmbientPressureAuthorizationRefresh(fact: PressureFactRevisionEntity) {
+		val elapsed = fact.windowStartElapsedRealtimeNanos - 1L
+		val wall = fact.intervalStartTimeMs - 1L
+		val capture = pressureDemand(fact)
+		val ambient = capture.copy(demandId = "ambient-pressure", consumerId = "ambient:pressure",
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, logicalTrackingId = null, serviceRunId = null,
+			manifestRevision = null, lifecycleLeaseGeneration = null,
+			requestedElapsedRealtimeNanos = elapsed, requestedAtMs = wall)
+		database.sourcePolicyDao().insertConsentEpochs(listOf(pressureConsent().copy(
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT)))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_policy SET ambient_persistence_eligible = 1, ambient_consent_epoch = 1 WHERE source_kind = 4")
+		val broker = database.sourceBrokerDao()
+		broker.insertDemands(listOf(ambient))
+		val rows = SourceBrokerAuthorization.rows(SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			1L, 2L, listOf(capture, ambient), BOOT_ID, elapsed, wall)
+		broker.insertAuthorizations(rows)
+		val original = requireNotNull(database.sourceEventWalDao().getByEventId(fact.sourceEventId))
+		replacePressureWal(rehashPressureWal(original.copy(authorizationRevision = 2L,
+			authorizationFingerprint = rows.first().authorizationFingerprint,
+			authorizationPurposeEligibilityMask = rows.first().purposeEligibilityMask)))
 	}
 
 	private suspend fun currentPressureFact(): PressureFactRevisionEntity = requireNotNull(

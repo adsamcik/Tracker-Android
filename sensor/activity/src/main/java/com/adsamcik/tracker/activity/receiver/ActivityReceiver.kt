@@ -184,7 +184,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 							terminallyOwnedOrRejected = terminallyOwnedOrRejected,
 							durablyRetryOwned = retryOwnership.isDurablyRetained,
 							recordGap = retryOwnership::recordGap,
-							completePermit = { callbackPermit?.complete() },
+							completePermit = { terminalGap -> callbackPermit?.complete(terminalGap) },
 						)
 					} finally {
 						pendingResult?.finish()
@@ -613,23 +613,27 @@ internal suspend fun finalizeActivityCallbackAuthority(
 	terminallyOwnedOrRejected: Boolean,
 	durablyRetryOwned: Boolean,
 	recordGap: suspend () -> Boolean,
-	completePermit: () -> Unit,
-): ActivityCallbackFinalizationDisposition = try {
-	when {
-		terminallyOwnedOrRejected -> ActivityCallbackFinalizationDisposition.ROOM_TERMINAL
-		durablyRetryOwned -> ActivityCallbackFinalizationDisposition.DURABLE_RETRY
-		else -> {
-			val gapRecorded = runCatching { recordGap() }.getOrDefault(false)
-			TrackerDiagnosticLog.activityCallbackTerminalGap()
-			if (gapRecorded) {
-				ActivityCallbackFinalizationDisposition.TERMINAL_GAP_RECORDED
-			} else {
-				ActivityCallbackFinalizationDisposition.TERMINAL_TELEMETRY_ONLY
+	completePermit: (terminalGap: Boolean) -> Unit,
+): ActivityCallbackFinalizationDisposition {
+	var terminalGap = false
+	return try {
+		when {
+			terminallyOwnedOrRejected -> ActivityCallbackFinalizationDisposition.ROOM_TERMINAL
+			durablyRetryOwned -> ActivityCallbackFinalizationDisposition.DURABLE_RETRY
+			else -> {
+				terminalGap = true
+				val gapRecorded = runCatching { recordGap() }.getOrDefault(false)
+				TrackerDiagnosticLog.activityCallbackTerminalGap()
+				if (gapRecorded) {
+					ActivityCallbackFinalizationDisposition.TERMINAL_GAP_RECORDED
+				} else {
+					ActivityCallbackFinalizationDisposition.TERMINAL_TELEMETRY_ONLY
+				}
 			}
 		}
+	} finally {
+		completePermit(terminalGap)
 	}
-} finally {
-	completePermit()
 }
 
 internal suspend fun runBoundedActivityCallbackWork(

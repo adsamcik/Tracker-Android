@@ -47,6 +47,7 @@
     <string name="dashboard_milestone_time">已追蹤分鐘數！</string>
     <string name="dashboard_today_title">今天</string>
     <string name="dashboard_today_no_activity">今天尚無活動</string>
+    <string name="dashboard_saved_data_history">已儲存的資料可在歷程中查看。</string>
     <string name="dashboard_today_distance">距離</string>
     <string name="dashboard_today_duration">持續時間</string>
     <string name="dashboard_today_steps">步數</string>
@@ -195,4 +196,5 @@
     <string name="dashboard_activity_on_foot">步行</string>
     <string name="dashboard_activity_tilting">傾斜</string>
     <string name="dashboard_activity_unknown">未知活動</string>
+    <string name="dashboard_finishing_session">正在結束記錄…</string>
 </resources>

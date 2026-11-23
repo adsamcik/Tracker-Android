@@ -320,7 +320,7 @@ private fun requireCapturedActivitySessionEffect(
 	}
 }
 
-private fun requireCapturedActivityManifestBinding(
+private suspend fun AppDatabase.requireCapturedActivityManifestBinding(
 	revision: ActivityCapturedWindowRevisionEntity, manifest: SessionManifestVersionEntity,
 	binding: SessionManifestSourceEntity?,
 ): SessionManifestSourceEntity {
@@ -330,7 +330,8 @@ private fun requireCapturedActivityManifestBinding(
 		blockCapturedActivityRetention(ActivityCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	}
 	if (manifest.sourcePolicyRevision != revision.sourcePolicyRevision ||
-		manifest.acquisitionPlanRevision != revision.configurationRevision ||
+		!hasCompatibleCapturedActivityAcquisition(manifest, revision.configurationRevision,
+			revision.sourceInstanceId, revision.registrationGeneration, revision.authorizationRevision) ||
 		manifest.effectiveBootId != revision.clockDomainId
 	) {
 		blockCapturedActivityRetention(ActivityCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)

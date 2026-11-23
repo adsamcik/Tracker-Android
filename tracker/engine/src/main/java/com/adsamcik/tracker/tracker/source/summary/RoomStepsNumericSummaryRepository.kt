@@ -5,6 +5,10 @@ import androidx.room.deferredTransaction
 import androidx.room.useReaderConnection
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsDisplayStructuralDayRead
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause
@@ -52,8 +56,10 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
@@ -290,12 +296,44 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 			.distinctUntilChanged()
 	}
 
-	private fun observedInvalidations(): Flow<Set<String>> =
+	private fun observedInvalidations(): Flow<Set<String>> = flow {
+		var previous: StepsNumericInvalidationState? = null
 		database.invalidationTracker.createFlow(
 			*NUMERIC_SUMMARY_DEPENDENCY_TABLES,
 			emitInitialState = true,
 		)
-			.conflate()
+			.collect { tables ->
+				val current = readInvalidationState()
+				if (current == null || current.isUnbounded || current != previous ||
+					tables.any { it !in FREQUENT_SHARED_TABLES }) {
+					emit(tables)
+				}
+				previous = current
+			}
+	}.conflate()
+
+	/** Global callback and projection revisions do not change an unrelated Steps result. */
+	private suspend fun readInvalidationState(): StepsNumericInvalidationState? = try {
+		withContext(ioDispatcher) {
+			database.useReaderConnection { connection ->
+				connection.deferredTransaction {
+					val steps = SourceDestinationOwnerEntity.SOURCE_STEPS
+					StepsNumericInvalidationState(
+						evidence = database.sourceEvidenceStateDao().get()?.copy(revision = 0L, updatedAtMs = 0L),
+						registrations = database.sourceRegistrationStateDao()
+							.statesForSourceBounded(steps, MAX_INVALIDATION_METADATA_ROWS + 1),
+						lanes = database.sourceProjectionStateDao()
+							.productLanesForSourceBounded(steps, MAX_INVALIDATION_METADATA_ROWS + 1),
+					)
+				}
+			}
+		}
+	} catch (cancellation: CancellationException) {
+		throw cancellation
+	} catch (_: Exception) {
+		// This is only a scheduling optimization. Let the normal reader report/recover storage failures.
+		null
+	}
 
 	override suspend fun read(request: StepsNumericSummaryRequest): StepsNumericSummary =
 		readBatch(listOf(request)).summaries.single()
@@ -486,7 +524,7 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 			}
 		}
 		if (persistedSessionZones.groupBy(AmbientStepsStructuralDay::epochDay)
-				.values.any { days -> days.map(AmbientStepsStructuralDay::storedZoneId).distinct().size != 1 }
+				.values.any { !calendarsHaveSameBounds(it) }
 		) {
 			return null
 		}
@@ -494,6 +532,13 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 			compareBy(AmbientStepsStructuralDay::epochDay)
 				.thenBy(AmbientStepsStructuralDay::storedZoneId),
 		)
+	}
+
+	private fun calendarsHaveSameBounds(days: List<AmbientStepsStructuralDay>): Boolean {
+		val bounds = days.map { day ->
+			parseZone(day.storedZoneId)?.let { stepsNumericReadQueryBounds(mapOf(day.epochDay to it)) }
+		}
+		return bounds.none { it == null } && bounds.distinct().size == 1
 	}
 
 	private suspend fun readDiscoveredNumericWindow(
@@ -681,6 +726,9 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 	)
 
 	internal companion object {
+		private val FREQUENT_SHARED_TABLES = setOf(
+			"source_evidence_state", "source_registration_state", "source_product_projection_lane",
+		)
 		val NUMERIC_SUMMARY_DEPENDENCY_TABLES = arrayOf(
 			"daily_summary",
 			"logical_tracking_session",
@@ -736,6 +784,17 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 		)
 	}
 }
+
+private data class StepsNumericInvalidationState(
+	val evidence: SourceEvidenceState?,
+	val registrations: List<SourceRegistrationStateEntity>,
+	val lanes: List<SourceProductProjectionLaneEntity>,
+) {
+	val isUnbounded: Boolean get() = registrations.size > MAX_INVALIDATION_METADATA_ROWS ||
+		lanes.size > MAX_INVALIDATION_METADATA_ROWS
+}
+
+private const val MAX_INVALIDATION_METADATA_ROWS = 64
 
 private data class StepsNumericWindowDraft(
 	val window: StepsNumericDecisionWindow,

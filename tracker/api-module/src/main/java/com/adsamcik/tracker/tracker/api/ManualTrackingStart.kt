@@ -7,8 +7,91 @@ import android.content.Intent
 import android.provider.Settings
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import com.adsamcik.tracker.tracker.resilience.TrackingLifecycleCommandAuthority
 import com.adsamcik.tracker.tracker.resilience.TrackingStartCommand
+
+/** Screen-owned Start work survives navigation; explicit cancellation still cancels the shared API. */
+class RetainedManualTrackingStart(
+	private val scope: CoroutineScope,
+	private val request: suspend (Long?) -> ManualTrackingStartResult,
+) {
+	private var version = 0L
+	private var job: Job? = null
+	private var ownedContinuationGeneration: Long? = null
+	private val mutableRunning = MutableStateFlow(false)
+	private val mutableResult = MutableStateFlow<Pair<Long, ManualTrackingStartResult>?>(null)
+	val running = mutableRunning.asStateFlow()
+	val result = mutableResult.asStateFlow()
+
+	/** Called on the UI thread; concurrent taps share the same attempt. */
+	fun start(continuationGeneration: Long? = null): Job {
+		job?.takeIf { it.isActive }?.let { return it }
+		val attempt = ++version
+		if (continuationGeneration != null) {
+			ownedContinuationGeneration = maxOf(ownedContinuationGeneration ?: 0L, continuationGeneration)
+		}
+		mutableResult.value = null
+		mutableRunning.value = true
+		return scope.launch(start = CoroutineStart.LAZY) {
+			try {
+				publishResult(attempt, request(continuationGeneration))
+			} finally {
+				if (version == attempt) {
+					mutableRunning.value = false
+				}
+			}
+		}.also { job = it; it.start() }
+	}
+
+	private fun publishResult(attempt: Long, completed: ManualTrackingStartResult) {
+		if (version != attempt) {
+			return
+		}
+		val completedGeneration = when (completed) {
+			is ManualTrackingStartResult.RepairRequired -> completed.continuationGeneration
+			is ManualTrackingStartResult.SetupPending -> completed.continuationGeneration
+			else -> null
+		}
+		if (completedGeneration != null) {
+			ownedContinuationGeneration = maxOf(ownedContinuationGeneration ?: 0L, completedGeneration)
+		}
+		mutableResult.value = attempt to completed
+	}
+
+	/** Saved navigation state cannot replay this or an older globally ordered command generation. */
+	fun restore(continuationGeneration: Long): Job? {
+		if (ownedContinuationGeneration?.let { it >= continuationGeneration } == true) {
+			return null
+		}
+		cancel()
+		return start(continuationGeneration)
+	}
+
+	/** End, Off, or dismissed repair invalidates both pending work and unshown results. */
+	fun cancel() {
+		version++
+		job?.cancel()
+		job = null
+		mutableRunning.value = false
+		mutableResult.value = null
+	}
+
+	/** Consume only the result actually handled by the resumed screen. */
+	fun consume(attempt: Long) {
+		if (mutableResult.value?.first == attempt) {
+			mutableResult.value = null
+		}
+	}
+
+	/** Setup continuation waits for the current request without taking ownership of its lifetime. */
+	suspend fun awaitCurrent() { job?.join() }
+}
 
 /** The finite set of user-repairable prerequisites understood by manual tracking start. */
 enum class ManualTrackingStartPrerequisite {

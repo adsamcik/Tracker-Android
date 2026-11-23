@@ -1,10 +1,26 @@
 package com.adsamcik.tracker.tracker.resilience
 
 import io.kotest.matchers.shouldBe
+import com.adsamcik.tracker.tracker.api.TRACKING_TURN_OFF_EXIT_PREFIX
 import com.adsamcik.tracker.shared.base.startup.TrackingCollectionResumeBoundary
 import org.junit.jupiter.api.Test
 
 class TrackingLifecycleCommandAuthorityTest {
+	@Test
+	fun `exact Turn off resume changes only its boundary and keeps newer exit authoritative`() {
+		val exit = TRACKING_TURN_OFF_EXIT_PREFIX + "first"
+		val stopped = TrackingLifecycleCommandState().observeUserExit(exit)
+		val boundary = TrackingCollectionResumeBoundary(1_000L, "boot", 100L)
+		val resumed = stopped.resumeCollection(exit, boundary)
+		resumed shouldBe stopped.copy(collectionResumeRequired = false, collectionResumeBoundary = boundary)
+		resumed.latestStartGeneration shouldBe 0L
+		resumed.latestAcceptedStartGeneration shouldBe 0L
+		resumed.resumeCollection(exit, TrackingCollectionResumeBoundary(2_000L, "boot", 200L)) shouldBe resumed
+		val next = resumed.observeUserExit(TRACKING_TURN_OFF_EXIT_PREFIX + "second")
+		next.resumeCollection(exit, boundary) shouldBe next
+		next.collectionResumeRequired shouldBe true
+	}
+
     @Test
     fun `Start issued before user exit cannot acknowledge that exit`() {
         val (beforeExit, oldStart) = TrackingLifecycleCommandState().issueStart()

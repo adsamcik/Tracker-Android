@@ -714,16 +714,21 @@ class ActivityReceiverTest {
 	@Test
 	fun `gap receipt failure still terminally releases privacy teardown permit`() = runTest {
 		var completeCount = 0
+		var terminalGap = false
 
 		val disposition = finalizeActivityCallbackAuthority(
 			terminallyOwnedOrRejected = false,
 			durablyRetryOwned = false,
 			recordGap = { false },
-			completePermit = { completeCount += 1 },
+			completePermit = { failed ->
+				completeCount += 1
+				terminalGap = failed
+			},
 		)
 
 		disposition shouldBe ActivityCallbackFinalizationDisposition.TERMINAL_TELEMETRY_ONLY
 		completeCount shouldBe 1
+		terminalGap shouldBe true
 	}
 
 	@Test

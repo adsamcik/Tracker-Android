@@ -170,6 +170,31 @@ class MeasuredLegacySensorHistoryReaderRoomTest {
         read.problems shouldBe emptySet()
     }
 
+    @Test fun `all day retention filters complete windows before paging and rechecks saved keys`() = runTest {
+        val floor = 1_000L
+        val range = range(0L, 3_000L)
+        database.activitySnapshotDao().insert(ActivitySnapshot(timeMs = 1_000L, activityType = 7,
+            confidence = 80, isTransition = false, createdAt = 1_000L,
+            sourceSignalId = AllDaySensorObservationIdentity.activity("crosses-floor"),
+            observationStamp = ObservationStampColumns(timeUncertaintyMs = 1L)))
+        val retained = PressureSample(timeMs = 1_200L, elapsedRealtimeNanos = 100_000_000L,
+            pressureHpa = 1_010f, altitudeM = 0f, bucketId = null, createdAt = 1_200L,
+            sourceSignalId = AllDaySensorObservationIdentity.pressure("at-floor"), sampleCount = 2,
+            windowStartElapsedRealtimeNanos = 0L, windowEndElapsedRealtimeNanos = 100_000_000L,
+            observationStamp = ObservationStampColumns(timeUncertaintyMs = 100L))
+        database.pressureSampleDao().insert(retained)
+        database.pressureSampleDao().insert(retained.copy(timeMs = 1_201L,
+            sourceSignalId = AllDaySensorObservationIdentity.pressure("fractional-crossing"),
+            windowEndElapsedRealtimeNanos = 101_000_001L))
+        val savedKeys = reader.candidates(HistorySource.PRESSURE, range, null)
+
+        database.sourceEvidenceStateDao().updateLifecycle(0L, floor, 2_000L)
+        reader.candidates(HistorySource.ACTIVITY, range, null) shouldBe emptyList()
+        reader.candidates(HistorySource.PRESSURE, range, null).map { it.identity } shouldBe listOf(retained.sourceSignalId)
+        reader.qualify(HistorySource.PRESSURE, savedKeys, range).rows.values.map { it.position.stableId }
+            .shouldBe(listOf(retained.sourceSignalId))
+    }
+
     @Test fun `malformed Pressure leaves do not suppress good sibling measurements`() = runTest {
         val kept = pressure(1_000L)
         pressure(1_001L, mean = -1f)

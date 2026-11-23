@@ -28,6 +28,7 @@ import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEnt
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
+import com.adsamcik.tracker.shared.base.database.data.MAX_CELL_WAL_PAYLOAD_BYTES
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedChildEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
@@ -333,10 +334,22 @@ private class CellHistorySnapshotReader(
 		}
 		val revisions = factLoad.revisions
 		val walEventIds = revisions.map(CellCapturedFactRevisionEntity::sourceEventId).distinct()
-		val admissions = walEventIds.chunked(SQL_ID_BATCH).flatMap { eventIds ->
+		val savedAdmissions = walEventIds.chunked(SQL_ID_BATCH).flatMap { eventIds ->
 			currentCoroutineContext().ensureActive()
 			factDao.historyWalCarriers(eventIds, eventIds.size)
 		}
+		val lanes = readDao.productLanesForServiceRuns(CELL_SOURCE,
+			SessionManifestPurposeCode.SESSION_CAPTURE, runIds)
+		val failures = loadFailures(selectedFactId, revisions, completeness, lanes, runIds)
+		val knownOrdinals = savedAdmissions.mapTo(hashSetOf()) { it.admissionOrdinal }
+		val rejectedAdmissions = failures.take(MAX_TERMINAL_FAILURES).mapNotNull { failure ->
+			currentCoroutineContext().ensureActive()
+			if (failure.admissionOrdinal in knownOrdinals) { null } else {
+				database.sourceEventWalDao().boundedPayloadByAdmissionOrdinal(
+					failure.admissionOrdinal, MAX_CELL_WAL_PAYLOAD_BYTES)?.takeIf { it.sourceKind == CELL_SOURCE }
+			}
+		}
+		val admissions = savedAdmissions + rejectedAdmissions
 		currentCoroutineContext().ensureActive()
 		val scopedCursors = if (selectedFactId != null) {
 			emptyList()
@@ -361,7 +374,8 @@ private class CellHistorySnapshotReader(
 		val generations = factDao.historyDeletionGenerations(logicalIds, runIds, MAX_DELETION_GENERATIONS + 1)
 		val planRevisions = manifests.map(SessionManifestVersionEntity::acquisitionPlanRevision).distinct()
 		val (planHeaders, desiredPlans) = loadPlans(planRevisions)
-		val registrationGenerations = revisions.map(CellCapturedFactRevisionEntity::registrationGeneration).distinct()
+		val registrationGenerations = (revisions.map(CellCapturedFactRevisionEntity::registrationGeneration) +
+			admissions.map { it.registrationGeneration }).distinct()
 		val providers = registrationGenerations.chunked(SQL_ID_BATCH).flatMap { ids ->
 			currentCoroutineContext().ensureActive()
 			factDao.historyProviderRegistrations(CELL_SOURCE, ids, MAX_PROVIDERS + 1)
@@ -400,9 +414,6 @@ private class CellHistorySnapshotReader(
 			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN, digestToPair.keys.toList(),
 		)
 		}
-		val lanes = readDao.productLanesForServiceRuns(CELL_SOURCE,
-			SessionManifestPurposeCode.SESSION_CAPTURE, runIds)
-		val failures = loadFailures(selectedFactId, revisions, completeness, lanes, runIds)
 		val evidence = database.sourceEvidenceStateDao().get()
 		currentCoroutineContext().ensureActive()
 		val overflow = factLoad.overflow || childOverflow || listOf(

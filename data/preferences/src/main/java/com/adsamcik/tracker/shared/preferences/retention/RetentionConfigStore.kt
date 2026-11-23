@@ -113,9 +113,18 @@ class RetentionConfigStore(
             val proposed = current.block()
             val stage = policyApprovalStore.stage(proposed)
             if (!stage.approvalRequired) {
+                val changed = proposed != current
+                if (changed) {
+                    dataStore.updateData { stored ->
+                        if (stored.toDomain() != current) {
+                            throw ConcurrentRetentionConfigurationMutationException()
+                        }
+                        proposed.toProto()
+                    }
+                }
                 return@withContext RetentionConfigApplyResult(
                     stage,
-                    published = false,
+                    published = changed,
                     RetentionConfigurationApprovalResult.AlreadyApproved(stage.policy),
                 )
             }
@@ -302,6 +311,22 @@ class RetentionConfigStore(
                         pending.policy.configurationChecksum ==
                         RetentionPolicyApprovalIntegrity.configurationChecksum(current)
                     ) {
+                        pending
+                    } else {
+                        RetentionPolicyCandidateRead.Unavailable(
+                            ApprovedRetentionPolicyUnavailableReason.CONFIGURATION_CHANGED,
+                        )
+                    }
+                is RetentionPolicyCandidateRead.Unavailable -> pending
+            }
+        }
+
+    /** Reads only the exact explicitly staged edit, which may precede settings publication. */
+    internal suspend fun stagedPolicyCandidate(expectedConfigurationGeneration: Long): RetentionPolicyCandidateRead =
+        withContext(ioDispatcher) {
+            when (val pending = policyApprovalStore.pending()) {
+                is RetentionPolicyCandidateRead.Available ->
+                    if (pending.policy.configurationGeneration == expectedConfigurationGeneration) {
                         pending
                     } else {
                         RetentionPolicyCandidateRead.Unavailable(

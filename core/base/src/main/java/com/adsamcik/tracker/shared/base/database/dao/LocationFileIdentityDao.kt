@@ -42,6 +42,17 @@ interface LocationFileIdentityDao {
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertIfAbsent(value: LocationFileIdentityEntity): Long
 
+	/** A richer overlapping file can fill missing continuity without erasing an existing path. */
+	@Query("UPDATE location_file_identity SET path_id = :pathId, path_sequence = :sequence " +
+		"WHERE portable_id = :portableId AND path_id IS NULL AND path_sequence IS NULL")
+	suspend fun fillPathIfUnknown(portableId: String, pathId: String, sequence: Long): Int
+
+	/** A reviewed replacement owns its current descriptive path, retaining missing optional metadata. */
+	@Query("UPDATE location_file_identity SET imported = 1, reported_origin = :origin, " +
+		"path_id = COALESCE(:pathId, path_id), path_sequence = COALESCE(:sequence, path_sequence) " +
+		"WHERE portable_id = :portableId")
+	suspend fun markReplaced(portableId: String, origin: String, pathId: String?, sequence: Long?): Int
+
 	/**
 	 * Reads `location_file_archive` rows. Query conditions include `identity = :identity`. Returns
 	 * null when no row matches.

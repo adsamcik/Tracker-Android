@@ -27,7 +27,7 @@
     <string name="settings_data_danger_zone_section">Danger Zone</string>
 
     <string name="settings_incremental_backups_title">Incremental backups</string>
-    <string name="settings_incremental_backups_summary">Only export new data since last backup. Reduces export time and file size.</string>
+    <string name="settings_incremental_backups_summary">Export only new data in scheduled GPX and KML files.</string>
     <string name="settings_reset_export_watermarks_title">Force full export</string>
     <string name="settings_reset_export_watermarks_summary">Next automated backup will include all data instead of only changes</string>
     <string name="settings_reset_export_watermarks_done">Export watermarks reset — next backup will be a full export</string>
@@ -266,7 +266,7 @@
 
     <string name="settings_export_title">Export</string>
 
-    <string name="settings_import_summary">Import data from supported types (%1$s) and archives (%2$s). Database imports merge compatible rows; they do not replace existing data.</string>
+    <string name="settings_import_summary">Import a tracking file or restore a data backup.</string>
     <string name="settings_import_title">Import</string>
 
     <!-- Help Text for Advanced Settings (Progressive Disclosure) -->
@@ -375,16 +375,16 @@
     <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">Your automatic mode choice is saved. Activity recognition permission is required before automatic starts can operate.</string>
     <string name="settings_automatic_unavailable_summary" tools:ignore="MissingTranslation">Your automatic mode choice is saved, but automatic starts are not operational.</string>
     <string name="settings_automatic_status_code" tools:ignore="MissingTranslation">Status: %1$s</string>
-    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">These choices are independent from data collected during a trip. Turning one on saves consent intent only; it does not promise a provider, cadence, or complete day.</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">Choose what to record between trips.</string>
     <string name="settings_ambient_steps_title" tools:ignore="MissingTranslation">Steps outside trips</string>
     <string name="settings_ambient_location_title" tools:ignore="MissingTranslation">Location outside trips</string>
     <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi outside trips</string>
     <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Cell outside trips</string>
-    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">Saved setting is off. Current collection status is waiting for source-owner reconciliation.</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">Off between trips.</string>
     <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">Saved as on. %1$s</string>
     <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">Outside-trip coverage is opportunistic and can contain permission, provider, process, reboot, or OS gaps. Tracker does not claim always-on collection or invent a retention duration.</string>
     <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">Collection stays off because the product retention policy is not yet available.</string>
-    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">Waiting for the source owner to report operational availability; no provider is started from this setting alone.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">Checking collection…</string>
     <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">Collection is safely contained by the current rollout.</string>
     <string name="settings_ambient_user_turned_off">Tracking is off. Your choices and saved data are kept.</string>
     <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Allow Steps access in Health Connect to fill gaps when Tracker is closed.</string>
@@ -537,7 +537,7 @@
     <string name="setup_perm_location_bg_why">To keep recording your route when you switch apps or the screen turns off, Tracker needs to access your location in the background. The recorded location stays on this device — nothing is sent to a server. On the next system prompt please pick "Allow all the time" to enable auto-tracking; "While using the app" keeps Tracker working when its screen is open only.</string>
     <string name="setup_perm_activity_why">Lets Tracker detect what you\'re doing (walking, cycling, driving, still) so auto-tracking can pause when you\'re not moving and save battery. Activity data stays on this device — nothing is sent to a server.</string>
     <string name="setup_perm_notification_why">Tracker shows a small status notification while it is recording so you can see at a glance that tracking is on and stop it with one tap. No marketing or promotional notifications.</string>
-    <string name="setup_perm_wifi_why">Tracker can record Wi-Fi access points your phone sees during a trip to improve location accuracy in places where GPS is weak (indoors, underground). The radio data stays on this device — nothing is sent to a server. Grant only if you want this.</string>
+    <string name="setup_perm_wifi_why">Android needs Location access for Wi-Fi scans. You can record Wi-Fi without recording your Location.</string>
     <string name="setup_perm_cell_why">Tracker can log cell tower IDs along your route so location can be inferred when GPS isn\'t available. The radio data stays on this device — nothing is sent to a server. Grant phone state and precise location only if you want this.</string>
     <string name="setup_perm_grant">Grant</string>
     <string name="setup_perm_grant_location_content_description">Grant location permission</string>
@@ -616,4 +616,6 @@
     <string name="settings_balance_inherit_value">Details · Use overall: %1$s</string>
     <string name="settings_balance_inherit">Use overall balance</string>
     <string name="settings_balance_summary">Choose the usual quality for your selected sources. Live sessions favor detail for participating sources. Choosing a balance replaces legacy collection rates; source choices, background consent and accuracy filters stay as saved.</string>
+    <string name="settings_resume_tracking" tools:ignore="MissingTranslation">Resume tracking</string>
+    <string name="settings_resume_tracking_failed" tools:ignore="MissingTranslation">Couldn’t resume tracking. Try again.</string>
 </resources>

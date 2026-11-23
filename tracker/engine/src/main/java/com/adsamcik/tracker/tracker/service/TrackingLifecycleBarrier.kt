@@ -85,7 +85,10 @@ internal suspend fun <T> retryTrackingShutdown(
 }
 
 /** Marks an expected coordinator contention result as safe to retry at the service boundary. */
-internal class TrackingShutdownRetryException(code: String) : Exception(code)
+internal class TrackingShutdownRetryException(
+	code: String,
+	val awaitingWork: Boolean = false,
+) : Exception(code)
 
 /**
  * Keeps teardown ownership until cleanup succeeds or the hosting coroutine is cancelled.
@@ -130,16 +133,22 @@ internal suspend fun <T> retryTrackingShutdownUntilSuccess(
 		} catch (exception: CancellationException) {
 			throw exception
 		} catch (exception: Exception) {
+			if (exception is TrackingShutdownRetryException && exception.awaitingWork) {
+				// Normal contention must not inherit a long delay from an earlier failed cleanup.
+				nextDelayMillis = retryDelayMillis
+			}
 			onFailure(attempt, exception)
 		}
 
 		delay(nextDelayMillis)
-		nextDelayMillis = when {
-			nextDelayMillis >= maxRetryDelayMillis -> maxRetryDelayMillis
-			nextDelayMillis > Long.MAX_VALUE / 2L -> maxRetryDelayMillis
-			else -> (nextDelayMillis * 2L).coerceAtMost(maxRetryDelayMillis)
-		}
+		nextDelayMillis = nextShutdownRetryDelay(nextDelayMillis, maxRetryDelayMillis)
 	}
+}
+
+private fun nextShutdownRetryDelay(current: Long, maximum: Long): Long = when {
+	current >= maximum -> maximum
+	current > Long.MAX_VALUE / 2L -> maximum
+	else -> (current * 2L).coerceAtMost(maximum)
 }
 
 /** Keep the service foreground until its stop intent and source retirement are durable. */

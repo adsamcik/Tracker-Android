@@ -25,20 +25,21 @@ class SourceRecoveryIntegrityInstrumentationTest {
 		val observations = database.locationObservationDao().countAll()
 		val openRuns = database.trackerRunDao().countOpenRuns()
 		val hasLiveStats = database.liveStatsDao().get() != null
-		val missing = database.sourceEventWalDao().locationEventsMissingCanonicalObservation(
-			sourceKind = SourceKind.LOCATION.stableCode,
-			afterOrdinal = 0L,
-			limit = 1,
-		)
+		val hasMissing = database.openHelper.readableDatabase.query(
+			"SELECT 1 FROM source_event_wal AS wal LEFT JOIN location_observation AS observation " +
+				"ON observation.source_event_id = wal.event_id " +
+				"WHERE wal.source_kind = ? AND observation.id IS NULL LIMIT 1",
+			arrayOf<Any>(SourceKind.LOCATION.stableCode),
+		).use { it.moveToFirst() }
 
 		Log.i(
 			TAG,
 			"sourceEvents=$sourceEvents observations=$observations " +
-				"pending=$pending quarantined=$quarantined missingLocationCanonical=${missing.size} " +
+				"pending=$pending quarantined=$quarantined missingLocationCanonical=$hasMissing " +
 				"openRuns=$openRuns hasLiveStats=$hasLiveStats",
 		)
 		assertEquals("pending persistence WAL must drain after recovery", 0, pending)
-		assertEquals("every retained location WAL event needs a canonical raw observation", 0, missing.size)
+		assertEquals("every retained location WAL event needs a canonical raw observation", false, hasMissing)
 		assertTrue("at most one tracker run may remain open", openRuns <= 1)
 	}
 

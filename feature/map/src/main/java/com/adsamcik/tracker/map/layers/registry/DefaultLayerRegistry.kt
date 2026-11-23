@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.map.layers.registry
 
 import com.adsamcik.tracker.map.data.Bounds
+import com.adsamcik.tracker.shared.base.database.dao.LocationFileContinuity
 import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
 
 import android.graphics.Color
@@ -56,6 +57,7 @@ import com.adsamcik.tracker.map.shared.layers.LayerFactory
 import com.adsamcik.tracker.map.shared.layers.LayerRecipe
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.withContext
 
 /**
@@ -442,13 +444,12 @@ class DefaultLayerRegistry(
                                             val old = previous
                                             val native = old?.continuityId != null || row.continuityId != null
                                             val continuous = old != null && (!native ||
-                                                (old.continuityId == row.continuityId &&
+                                                (LocationFileContinuity.samePath(
+                                                    old.continuityId, old.sample.clockDomainId,
+                                                    row.continuityId, sample.clockDomainId) &&
                                                     old.continuitySequence != null &&
                                                     row.continuitySequence == old.continuitySequence?.plus(1) &&
-                                                    sample.clockDomainId == old.sample.clockDomainId &&
-                                                    sample.elapsedRealtimeNanos > old.sample.elapsedRealtimeNanos &&
-                                                    sample.elapsedRealtimeNanos - old.sample.elapsedRealtimeNanos <=
-                                                    120_000_000_000L))
+                                                    row.hasContinuousPathTime(old)))
                                             if (lat == null || lon == null) { previous = null; return@forEach }
                                             if (!continuous || segments.isEmpty()) segments.add(mutableListOf())
                                             segments.last().add(LatLngModel(lat, lon))
@@ -772,3 +773,16 @@ class DefaultLayerRegistry(
 
     override fun getAllLayers(): List<LayerDescriptor> = cachedLayers
 }
+
+private const val MAX_CONNECTED_LOCATION_GAP_MS = 120_000L
+
+/** Imported route continuity uses measured UTC time, never a fabricated native elapsed clock. */
+private fun LocationPathSampleRow.hasContinuousPathTime(old: LocationPathSampleRow): Boolean =
+    if (LocationFileContinuity.isImported(continuityId) || LocationFileContinuity.isImported(old.continuityId)) {
+        sample.timeMs > old.sample.timeMs && sample.timeMs - old.sample.timeMs <= MAX_CONNECTED_LOCATION_GAP_MS
+    } else {
+        sample.clockDomainId == old.sample.clockDomainId &&
+            sample.elapsedRealtimeNanos > old.sample.elapsedRealtimeNanos &&
+            sample.elapsedRealtimeNanos - old.sample.elapsedRealtimeNanos <=
+            TimeUnit.MILLISECONDS.toNanos(MAX_CONNECTED_LOCATION_GAP_MS)
+    }

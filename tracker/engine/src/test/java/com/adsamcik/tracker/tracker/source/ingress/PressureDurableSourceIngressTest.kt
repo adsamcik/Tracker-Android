@@ -10,9 +10,12 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
@@ -21,6 +24,9 @@ import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.tracker.resilience.TrackingLifecycleCommandAuthority
+import com.adsamcik.tracker.tracker.resilience.TrackingStopCommand
+import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
@@ -45,6 +51,8 @@ import com.adsamcik.tracker.tracker.source.runtime.pressureProviderDeliveryIdent
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.every
+import io.mockk.mockk
 import javax.inject.Provider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -93,16 +101,391 @@ class PressureDurableSourceIngressTest {
 		)
 	}
 
-	private fun createIngress(startupGate: TrackingStartupGate = PressureIngressStartupGate()) = RoomDurableSourceIngress(
+
+	@Test
+	fun `local Pressure End saves its prefix and independently allowed tail while Room session is active`() = runTest {
+		val capture = installSharedPressureAuthorization()
+		val prefix = pressurePoint(100L, 1L, 1_000f)
+		val tail = pressurePoint(110L, 2L, 1_001f)
+		fun delivery(payload: PressureWindowPayload) = pressureDeliveryCandidate(payload = payload,
+			purposeEligibilityMask = capture.purposeEligibilityMask,
+			eligibilityFingerprint = capture.authorizationFingerprint)
+		ingress.admit(delivery(prefix), pressureCheckpoint(1L, prefix, 120L))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		val tailDelivery = delivery(tail).let { it.copy(units = it.units.map { unit ->
+			unit.copy(excludedPressureCapture = capture)
+		}) }
+		ingress.admit(tailDelivery, pressureCheckpoint(1L, tail, 120L))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+
+		val saved = database.sourceEventWalDao().eventsAfter(0L, 10)
+		saved.size shouldBe 2
+		saved.first().logicalTrackingId shouldBe LOGICAL_TRACKING_ID
+		saved.first().serviceRunId shouldBe SERVICE_RUN_ID
+		saved.last().logicalTrackingId shouldBe null
+		saved.last().serviceRunId shouldBe null
+		saved.last().sessionManifestRevision shouldBe null
+		saved.first().planAttribution shouldBe PlanAttribution.CAPTURED_REGISTRATION.ordinal
+		saved.last().planAttribution shouldBe PlanAttribution.RECEIVE_TIME_ONLY.ordinal
+		saved.map { it.configRevision } shouldBe listOf(1L, 1L)
+		tailDelivery.units.single().evidence.planAttribution shouldBe PlanAttribution.CAPTURED_REGISTRATION
+		saved.last().authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_AMBIENT_PRODUCT shouldBe
+			SourceBrokerPurpose.MASK_AMBIENT_PRODUCT
+		ingress.committedBatch(0L, 10).map { it.evidence.payload } shouldBe listOf(prefix, tail)
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_TRACKING_ID))
+		session.state shouldBe "ACTIVE"
+		session.cutoffElapsedNanos shouldBe null
+	}
+
+	@Test
+	fun `earlier local Pressure End does not wait for or borrow a later immutable Room cutoff`() = runTest {
+		val capture = installSharedPressureAuthorization()
+		val sessions = database.sourceSessionDao()
+		val session = requireNotNull(sessions.session(LOGICAL_TRACKING_ID))
+		val run = requireNotNull(sessions.serviceRun(SERVICE_RUN_ID))
+		sessions.updateSession(session.copy(state = "STOPPING", cutoffAtMs = 200L, cutoffElapsedNanos = 200L)) shouldBe 1
+		sessions.updateServiceRun(run.copy(state = "STOPPING")) shouldBe 1
+		val tail = pressurePayload().copy(windowStartElapsedRealtimeNanos = 110L,
+			windowEndElapsedRealtimeNanos = 210L, maximumInterSampleGapNanos = 100L,
+			slopeHectopascalsPerSecond = 10_000_000.0)
+		val delivery = pressureDeliveryCandidate(payload = tail, receivedElapsedRealtimeNanos = 220L,
+			purposeEligibilityMask = capture.purposeEligibilityMask,
+			eligibilityFingerprint = capture.authorizationFingerprint).let { it.copy(units = it.units.map { unit ->
+			unit.copy(excludedPressureCapture = capture)
+		}) }
+
+		ingress.admit(delivery, pressureCheckpoint(1L, tail, 220L))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		val saved = database.sourceEventWalDao().eventsAfter(0L, 10).single()
+		saved.logicalTrackingId shouldBe null
+		saved.serviceRunId shouldBe null
+		saved.planAttribution shouldBe PlanAttribution.RECEIVE_TIME_ONLY.ordinal
+		delivery.units.single().evidence.planAttribution shouldBe PlanAttribution.CAPTURED_REGISTRATION
+		ingress.committedBatch(0L, 10).single().evidence.payload shouldBe tail
+		requireNotNull(database.sourceSessionDao().session(LOGICAL_TRACKING_ID)).cutoffElapsedNanos shouldBe 200L
+	}
+
+	@Test
+	fun `local Pressure exclusion cannot grant ambient consent or deny a different session`() = runTest {
+		val capture = database.sourceBrokerDao().authorizationAt(SourceKind.PRESSURE.stableCode,
+			1L, BOOT_CLOCK_DOMAIN_ID, 100L).single()
+		val payload = pressurePayload()
+		val original = pressureDeliveryCandidate(payload = payload)
+		fun excluded(owner: SourceAuthorizationEntity) = original.copy(units = original.units.map { unit ->
+			unit.copy(excludedPressureCapture = owner)
+		})
+		ingress.admit(excluded(capture), pressureCheckpoint(1L, payload, 120L)) shouldBe
+			DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED)
+		assertNoAdmission()
+
+		ingress.admit(excluded(capture.copy(serviceRunId = "another-run")), pressureCheckpoint(1L, payload, 120L))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		val saved = database.sourceEventWalDao().eventsAfter(0L, 10).single()
+		saved.logicalTrackingId shouldBe LOGICAL_TRACKING_ID
+		saved.serviceRunId shouldBe SERVICE_RUN_ID
+	}
+
+	private suspend fun installSharedPressureAuthorization(): SourceAuthorizationEntity {
+		val broker = database.sourceBrokerDao()
+		val capture = broker.activeDemands(SourceKind.PRESSURE.stableCode).single()
+		val background = capture.copy(demandId = "all-day-pressure", consumerId = "all-day:pressure",
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, logicalTrackingId = null, serviceRunId = null,
+			manifestRevision = null, lifecycleLeaseGeneration = null)
+		broker.insertDemands(listOf(background))
+		broker.deleteAllAuthorizations()
+		val rows = SourceBrokerAuthorization.rows(SourceKind.PRESSURE.stableCode, 1L, 1L,
+			listOf(capture, background), BOOT_CLOCK_DOMAIN_ID, 50L, 50L)
+		broker.insertAuthorizations(rows)
+		return rows.single { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
+	}
+
+	private fun pressurePoint(time: Long, sequence: Long, pressure: Float) = pressurePayload().copy(
+		sampleCount = 1, meanHectopascals = pressure.toDouble(), sumSquaredDeviations = 0.0,
+		minimumHectopascals = pressure, maximumHectopascals = pressure,
+		windowStartElapsedRealtimeNanos = time, windowEndElapsedRealtimeNanos = time,
+		firstProviderSequence = sequence, lastProviderSequence = sequence,
+		firstHectopascals = pressure, lastHectopascals = pressure,
+		slopeHectopascalsPerSecond = null, rSquared = null, maximumInterSampleGapNanos = 0L,
+		closureKind = PressureWindowClosureKind.SOURCE_BOUNDARY)
+
+	private fun createIngress(
+		startupGate: TrackingStartupGate = PressureIngressStartupGate(),
+		commands: TrackingLifecycleCommandAuthority? = null,
+	) = RoomDurableSourceIngress(
 		database = database,
 		lifecycleStore = lifecycleStore,
 		payloadCodec = DefaultSourcePayloadCodec(),
 		executableLaneCatalog = PRESSURE_EXECUTABLE_LANE_CATALOG,
 		trackingStartupGateProvider = Provider { startupGate },
+		lifecycleCommandAuthority = commands,
 	)
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `durable End fences Pressure before the Room stop intent is written`() = runTest {
+		val stop = TrackingStopCommand(2L, TrackingStopCandidateReason.EXPLICIT_REQUEST, 105L,
+			BOOT_CLOCK_DOMAIN_ID, 105L)
+		ingress = createIngress(commands = commandsWith(stop))
+		val dao = database.sourceSessionDao()
+		val run = requireNotNull(dao.serviceRun(SERVICE_RUN_ID))
+		dao.updateServiceRun(run.copy(startCommandGeneration = 1L)) shouldBe 1
+		val original = pressurePayload()
+		val later = original.copy(windowStartElapsedRealtimeNanos = 200L, windowEndElapsedRealtimeNanos = 210L,
+			firstProviderSequence = 3L, lastProviderSequence = 4L)
+		for (payload in listOf(original, later)) {
+			val received = payload.windowEndElapsedRealtimeNanos + 10L
+			ingress.admit(pressureDeliveryCandidate(payload = payload, receivedElapsedRealtimeNanos = received),
+				pressureCheckpoint(1L, payload, received)) shouldBe DeliveryAdmissionResult.SessionCutoff(105L)
+			assertNoAdmission()
+		}
+		requireNotNull(dao.session(LOGICAL_TRACKING_ID)).state shouldBe "ACTIVE"
+		requireNotNull(dao.session(LOGICAL_TRACKING_ID)).cutoffElapsedNanos shouldBe null
+	}
+
+	@Test
+	fun `a Stop from another boot does not fence current Pressure`() = runTest {
+		val stop = TrackingStopCommand(2L, TrackingStopCandidateReason.EXPLICIT_REQUEST, 105L,
+			"another-boot", 105L)
+		ingress = createIngress(commands = commandsWith(stop))
+		val payload = pressurePayload()
+
+		ingress.admit(pressureDeliveryCandidate(payload = payload), pressureCheckpoint(1L, payload, 120L))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `a newer Start is not fenced by an older pending Stop`() = runTest {
+		val stop = TrackingStopCommand(2L, TrackingStopCandidateReason.EXPLICIT_REQUEST, 105L,
+			BOOT_CLOCK_DOMAIN_ID, 105L)
+		ingress = createIngress(commands = commandsWith(stop))
+		val dao = database.sourceSessionDao()
+		val run = requireNotNull(dao.serviceRun(SERVICE_RUN_ID))
+		dao.updateServiceRun(run.copy(startCommandGeneration = 3L)) shouldBe 1
+		val payload = pressurePayload()
+
+		ingress.admit(pressureDeliveryCandidate(payload = payload), pressureCheckpoint(1L, payload, 120L))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `durable End separates crossing Pressure and preserves wholly later all-day windows`() = runTest {
+		val stop = TrackingStopCommand(2L, TrackingStopCandidateReason.EXPLICIT_REQUEST, 105L,
+			BOOT_CLOCK_DOMAIN_ID, 105L)
+		ingress = createIngress(commands = commandsWith(stop))
+		val broker = database.sourceBrokerDao()
+		val capture = broker.activeDemands(SourceKind.PRESSURE.stableCode).single()
+		val background = capture.copy(demandId = "all-day-pressure", consumerId = "all-day:pressure",
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, logicalTrackingId = null, serviceRunId = null,
+			manifestRevision = null, lifecycleLeaseGeneration = null)
+		broker.insertDemands(listOf(background))
+		broker.deleteAllAuthorizations()
+		val rows = SourceBrokerAuthorization.rows(SourceKind.PRESSURE.stableCode, 1L, 1L,
+			listOf(capture, background), BOOT_CLOCK_DOMAIN_ID, 50L, 50L)
+		broker.insertAuthorizations(rows)
+		ingress.admit(pressureDeliveryCandidate(payload = pressurePayload(), receivedElapsedRealtimeNanos = 220L,
+			purposeEligibilityMask = rows.first().purposeEligibilityMask,
+			eligibilityFingerprint = rows.first().authorizationFingerprint)) shouldBe
+			DeliveryAdmissionResult.SessionCutoff(105L)
+		assertNoAdmission()
+		val original = pressurePayload().copy(windowStartElapsedRealtimeNanos = 106L,
+			windowEndElapsedRealtimeNanos = 116L)
+		val later = original.copy(windowStartElapsedRealtimeNanos = 200L, windowEndElapsedRealtimeNanos = 210L,
+			firstProviderSequence = 3L, lastProviderSequence = 4L)
+		for (payload in listOf(original, later)) {
+			ingress.admit(pressureDeliveryCandidate(payload = payload, receivedElapsedRealtimeNanos = 220L,
+				purposeEligibilityMask = rows.first().purposeEligibilityMask,
+				eligibilityFingerprint = rows.first().authorizationFingerprint))
+				.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		}
+
+		val saved = database.sourceEventWalDao().eventsAfter(0L, 10)
+		saved.size shouldBe 2
+		saved.forEach { row ->
+			row.logicalTrackingId shouldBe null
+			row.serviceRunId shouldBe null
+			row.sessionManifestRevision shouldBe null
+			row.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_AMBIENT_PRODUCT shouldBe
+				SourceBrokerPurpose.MASK_AMBIENT_PRODUCT
+		}
+		ingress.committedBatch(0L, 10).map { it.evidence.payload } shouldBe listOf(original, later)
+	}
+
+	@Test
+	fun `retired Pressure capture admits its exact-cutoff prefix once through real ingress`() = runTest {
+		val original = retirePressureCapture(105L)
+		val whole = pressurePayload()
+		fun delivery(payload: PressureWindowPayload) = pressureDeliveryCandidate(payload = payload,
+			purposeEligibilityMask = original.purposeEligibilityMask,
+			eligibilityFingerprint = original.authorizationFingerprint)
+		ingress.admit(delivery(whole), pressureCheckpoint(1L, whole, 120L)) shouldBe
+			DeliveryAdmissionResult.SessionCutoff(105L)
+		assertNoAdmission()
+		val prefix = whole.copy(windowEndElapsedRealtimeNanos = 105L, maximumInterSampleGapNanos = 5L,
+			closureKind = PressureWindowClosureKind.SOURCE_BOUNDARY)
+		ingress.admit(delivery(prefix), pressureCheckpoint(1L, prefix, 120L))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		ingress.admit(delivery(prefix), pressureCheckpoint(1L, prefix, 120L))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Duplicate>()
+		val later = whole.copy(windowStartElapsedRealtimeNanos = 106L,
+			firstProviderSequence = 3L, lastProviderSequence = 4L, maximumInterSampleGapNanos = 4L)
+		ingress.admit(delivery(later), pressureCheckpoint(1L, later, 120L)) shouldBe
+			DeliveryAdmissionResult.SessionCutoff(105L)
+		val saved = database.sourceEventWalDao().eventsAfter(0L, 10).single()
+		saved.authorizationRevision shouldBe 1L
+		saved.observedElapsedNanos shouldBe 105L
+		ingress.committedBatch(0L, 10).single().evidence.payload shouldBe prefix
+		database.sourceRegistrationStateDao().get(SourceKind.PRESSURE.stableCode, PRESSURE_OWNER_SCOPE)
+			?.nextSequence shouldBe 1L
+	}
+
+	@Test
+	fun `shared Pressure crossing committed End splits before admission and keeps both purposes without duplicates`() = runTest {
+		val original = retirePressureCapture(105L, includeAmbient = true)
+		val payload = pressurePayload()
+		fun delivery(window: PressureWindowPayload) = pressureDeliveryCandidate(payload = window,
+			purposeEligibilityMask = original.purposeEligibilityMask,
+			eligibilityFingerprint = original.authorizationFingerprint)
+		// The queued aggregate was constructed before End; ingress discovers the durable cutoff atomically.
+		ingress.admit(delivery(payload), pressureCheckpoint(1L, payload, 120L)) shouldBe
+			DeliveryAdmissionResult.SessionCutoff(105L)
+		assertNoAdmission()
+		fun point(time: Long, sequence: Long, pressure: Float) = payload.copy(
+			sampleCount = 1, meanHectopascals = pressure.toDouble(), sumSquaredDeviations = 0.0,
+			minimumHectopascals = pressure, maximumHectopascals = pressure,
+			windowStartElapsedRealtimeNanos = time, windowEndElapsedRealtimeNanos = time,
+			firstProviderSequence = sequence, lastProviderSequence = sequence,
+			firstHectopascals = pressure, lastHectopascals = pressure,
+			slopeHectopascalsPerSecond = null, rSquared = null, maximumInterSampleGapNanos = 0L,
+			closureKind = PressureWindowClosureKind.SOURCE_BOUNDARY)
+		val prefix = point(100L, 1L, 1_000f)
+		val tail = point(110L, 2L, 1_001f)
+		for (piece in listOf(prefix, tail)) {
+			ingress.admit(delivery(piece), pressureCheckpoint(1L, piece, 120L))
+				.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+			ingress.admit(delivery(piece), pressureCheckpoint(1L, piece, 120L))
+				.shouldBeInstanceOf<DeliveryAdmissionResult.Duplicate>()
+		}
+		// A late retry of the earlier piece cannot rewind the checkpoint already committed by its tail.
+		val completedCheckpoint = requireNotNull(database.sourceRuntimeStateDao().get(
+			SourceKind.PRESSURE.stableCode, PRESSURE_OWNER_SCOPE))
+		ingress.admit(delivery(prefix), pressureCheckpoint(1L, prefix, 120L))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Duplicate>()
+		val replayedCheckpoint = requireNotNull(database.sourceRuntimeStateDao().get(
+			SourceKind.PRESSURE.stableCode, PRESSURE_OWNER_SCOPE))
+		replayedCheckpoint.lastProviderSequence shouldBe completedCheckpoint.lastProviderSequence
+		replayedCheckpoint.lastAdmittedSourceSequence shouldBe completedCheckpoint.lastAdmittedSourceSequence
+		replayedCheckpoint.lastAdmissionOrdinal shouldBe completedCheckpoint.lastAdmissionOrdinal
+		replayedCheckpoint.payload.contentEquals(completedCheckpoint.payload) shouldBe true
+		val saved = database.sourceEventWalDao().eventsAfter(0L, 10)
+		saved.size shouldBe 2
+		saved.first().logicalTrackingId shouldBe LOGICAL_TRACKING_ID
+		saved.first().serviceRunId shouldBe SERVICE_RUN_ID
+		saved.last().logicalTrackingId shouldBe null
+		saved.last().serviceRunId shouldBe null
+		saved.last().sessionManifestRevision shouldBe null
+		saved.forEach { it.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_AMBIENT_PRODUCT shouldBe
+			SourceBrokerPurpose.MASK_AMBIENT_PRODUCT }
+		ingress.committedBatch(0L, 10).map { it.evidence.payload } shouldBe listOf(prefix, tail)
+		database.sourceRegistrationStateDao().get(SourceKind.PRESSURE.stableCode, PRESSURE_OWNER_SCOPE)
+			?.nextSequence shouldBe 2L
+		val checkpoint = requireNotNull(database.sourceRuntimeStateDao().get(
+			SourceKind.PRESSURE.stableCode, PRESSURE_OWNER_SCOPE))
+		checkpoint.lastProviderSequence shouldBe 2L
+		checkpoint.lastAdmissionOrdinal shouldBe saved.last().admissionOrdinal
+		val metrics = requireNotNull(decodeSensorRuntimeCheckpoint(checkpoint, PRESSURE_RUNTIME_COMPONENT_VERSION)).metrics
+		metrics.lastDurablyAdmittedSequence shouldBe 2L
+		metrics.failedAdmissionCount shouldBe 0L
+	}
+
+	@Test
+	fun `inclusive Pressure prefix replay cannot revive revoked capture consent`() = runTest {
+		val original = retirePressureCapture(105L)
+		val prefix = pressurePayload().copy(windowEndElapsedRealtimeNanos = 105L,
+			maximumInterSampleGapNanos = 5L, closureKind = PressureWindowClosureKind.SOURCE_BOUNDARY)
+		val delivery = pressureDeliveryCandidate(payload = prefix,
+			purposeEligibilityMask = original.purposeEligibilityMask,
+			eligibilityFingerprint = original.authorizationFingerprint)
+		ingress.admit(delivery, pressureCheckpoint(1L, prefix, 120L))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		val policy = database.sourcePolicyDao()
+		val previous = requireNotNull(policy.policyAtRevision(1L, SourceKind.PRESSURE.stableCode))
+		policy.insertPolicies(listOf(previous.copy(policyRevision = 2L, enabled = false,
+			capturePersistenceEligible = false, captureConsentEpoch = 2L, effectiveElapsedRealtimeNanos = 105L)))
+		policy.compareAndSetAuthority(SourcePolicyAuthorityEntity.STATE_ACTIVE, 1L,
+			SourcePolicyAuthorityEntity.STATE_ACTIVE, 2L, null, 120L) shouldBe 1
+		ingress.admit(delivery, pressureCheckpoint(1L, prefix, 130L)) shouldBe
+			DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_SOURCE_POLICY)
+		database.sourceEventWalDao().countAll() shouldBe 1L
+		database.sourceRegistrationStateDao().get(SourceKind.PRESSURE.stableCode, PRESSURE_OWNER_SCOPE)
+			?.nextSequence shouldBe 1L
+	}
+
+	@Test
+	fun `one Pressure sample exactly at End admits and replays without inventing a window`() = runTest {
+		val original = retirePressureCapture(105L)
+		val point = pressurePayload().copy(sampleCount = 1, meanHectopascals = 1_000.0,
+			sumSquaredDeviations = 0.0, minimumHectopascals = 1_000f, maximumHectopascals = 1_000f,
+			windowStartElapsedRealtimeNanos = 105L, windowEndElapsedRealtimeNanos = 105L,
+			firstProviderSequence = 1L, lastProviderSequence = 1L, firstHectopascals = 1_000f,
+			lastHectopascals = 1_000f, slopeHectopascalsPerSecond = null, rSquared = null,
+			maximumInterSampleGapNanos = 0L, closureKind = PressureWindowClosureKind.SOURCE_BOUNDARY)
+		val delivery = pressureDeliveryCandidate(payload = point,
+			purposeEligibilityMask = original.purposeEligibilityMask,
+			eligibilityFingerprint = original.authorizationFingerprint)
+		ingress.admit(delivery, pressureCheckpoint(1L, point, 120L))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		ingress.admit(delivery, pressureCheckpoint(1L, point, 130L))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Duplicate>()
+		ingress.committedBatch(0L, 10).single().evidence.payload shouldBe point
+		database.sourceEventWalDao().countAll() shouldBe 1L
+		database.sourceRegistrationStateDao().get(SourceKind.PRESSURE.stableCode, PRESSURE_OWNER_SCOPE)
+			?.nextSequence shouldBe 1L
+	}
+
+	private suspend fun retirePressureCapture(cutoff: Long, includeAmbient: Boolean = false): SourceAuthorizationEntity {
+		val broker = database.sourceBrokerDao()
+		val capture = broker.activeDemands(SourceKind.PRESSURE.stableCode).single()
+		val background = capture.copy(demandId = "ambient-pressure", consumerId = "all-day:pressure",
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, logicalTrackingId = null, serviceRunId = null,
+			manifestRevision = null, lifecycleLeaseGeneration = null)
+		val remaining = listOf(background).takeIf { includeAmbient }.orEmpty()
+		broker.insertDemands(remaining)
+		broker.deleteAllAuthorizations()
+		val original = SourceBrokerAuthorization.rows(SourceKind.PRESSURE.stableCode, 1L, 1L,
+			listOf(capture) + remaining, BOOT_CLOCK_DOMAIN_ID, 50L, 50L)
+		broker.insertAuthorizations(original)
+		broker.markConsumerRetiring(capture.consumerId, BOOT_CLOCK_DOMAIN_ID, cutoff, cutoff) shouldBe 1
+		broker.insertAuthorizations(SourceBrokerAuthorization.rows(SourceKind.PRESSURE.stableCode, 1L, 2L,
+			remaining, BOOT_CLOCK_DOMAIN_ID, cutoff, cutoff))
+		val sessions = database.sourceSessionDao()
+		val session = requireNotNull(sessions.session(LOGICAL_TRACKING_ID))
+		val run = requireNotNull(sessions.serviceRun(SERVICE_RUN_ID))
+		sessions.updateSession(session.copy(state = "STOPPING", cutoffAtMs = cutoff,
+			cutoffElapsedNanos = cutoff)) shouldBe 1
+		sessions.updateServiceRun(run.copy(state = "STOPPING")) shouldBe 1
+		installRetiringPressurePolicy(includeAmbient)
+		return original.first()
+	}
+
+	private suspend fun installRetiringPressurePolicy(includeAmbient: Boolean) {
+		val policy = database.sourcePolicyDao()
+		policy.ensureAuthority(SourcePolicyAuthorityEntity(bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			currentPolicyRevision = 1L, legacySettingsFingerprint = null, updatedAtMs = 50L))
+		policy.insertPolicies(listOf(SourcePolicyEntity(policyRevision = 1L, sourceKind = SourceKind.PRESSURE.stableCode,
+			enabled = true, qosCode = 2, locationMinTimeSeconds = null, locationMinDistanceMeters = null,
+			locationRequiredAccuracyMeters = null, capturePersistenceEligible = true, controlPersistenceEligible = false,
+			ambientPersistenceEligible = includeAmbient, captureConsentEpoch = 1L, controlConsentEpoch = null,
+			ambientConsentEpoch = 1L.takeIf { includeAmbient }, effectiveBootId = BOOT_CLOCK_DOMAIN_ID,
+			effectiveElapsedRealtimeNanos = 50L, effectiveWallTimeMs = 50L, changeReason = "TEST")))
+	}
+
+	private fun commandsWith(stop: TrackingStopCommand): TrackingLifecycleCommandAuthority = mockk {
+		every { latestUnhandledStop() } returns stop
+	}
 
 	@Test
 	fun `queued Pressure reaches its saved session cutoff while End is pending`() = runTest {
@@ -253,6 +636,30 @@ class PressureDurableSourceIngressTest {
 		).shouldBeInstanceOf<DeliveryAdmissionResult.PermanentFailure>()
 		replayRejected.code shouldBe AdmissionFailureCode.INVALID_OBSERVED_TIME
 		assertSingleAdmissionUnchanged(payload, causalOrderElapsedRealtimeNanos = 120L)
+	}
+
+	@Test
+	fun `captured Pressure window survives a compatible authorization replacement and exact retry`() = runTest {
+		installPressureAuthorization(1L, 2L, effectiveElapsedRealtimeNanos = 105L)
+		val payload = pressurePayload()
+		val candidate = pressureDeliveryCandidate(payload = payload)
+		val admitted = ingress.admit(candidate, pressureCheckpoint(1L, payload, 120L))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		database.sourceEventWalDao().eventsAfter(0L, 10).single().authorizationRevision shouldBe 1L
+		val duplicate = ingress.admit(candidate, pressureCheckpoint(1L, payload, 130L))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Duplicate>()
+		duplicate.units shouldBe admitted.units
+		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `captured Pressure cannot cross a real permission withdrawal`() = runTest {
+		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(
+			SourceKind.PRESSURE.stableCode, 1L, 2L, emptyList(), BOOT_CLOCK_DOMAIN_ID, 105L, 105L))
+		val payload = pressurePayload()
+		ingress.admit(pressureDeliveryCandidate(payload = payload), pressureCheckpoint(1L, payload, 120L))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.PermanentFailure>()
+		assertNoAdmission()
 	}
 
 	@Test
@@ -477,6 +884,8 @@ class PressureDurableSourceIngressTest {
 		receivedElapsedRealtimeNanos: Long = 120L,
 		payload: PressureWindowPayload,
 		wrapperStartElapsedRealtimeNanos: Long = payload.windowStartElapsedRealtimeNanos,
+		purposeEligibilityMask: Long = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+		eligibilityFingerprint: String = PRESSURE_ELIGIBILITY_FINGERPRINT,
 	): SourceDeliveryCandidate {
 		val evidence = SourceEvidenceCandidate(
 			providerDedupKey = null,
@@ -487,8 +896,8 @@ class PressureDurableSourceIngressTest {
 			registrationGeneration = registrationGeneration,
 			physicalConfigurationFingerprint = physicalConfigurationFingerprint,
 			authorizationRevision = authorizationRevision,
-			registrationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-			registrationEligibilityFingerprint = PRESSURE_ELIGIBILITY_FINGERPRINT,
+			registrationPurposeEligibilityMask = purposeEligibilityMask,
+			registrationEligibilityFingerprint = eligibilityFingerprint,
 			// The atomic Room ingress owns the only source-sequence allocation.
 			sourceSequence = 0L,
 			configRevision = authorizationRevision,

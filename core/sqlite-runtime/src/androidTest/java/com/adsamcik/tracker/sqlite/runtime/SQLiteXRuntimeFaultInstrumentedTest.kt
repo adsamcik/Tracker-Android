@@ -1,6 +1,10 @@
 package com.adsamcik.tracker.sqlite.runtime
 
 import android.content.Context
+import android.content.ContentValues
+import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteConstraintException
+import android.database.sqlite.SQLiteException
 import android.util.Log
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
@@ -10,6 +14,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -94,6 +99,56 @@ class SQLiteXRuntimeFaultInstrumentedTest {
 		} finally {
 			helper.close()
 		}
+	}
+
+	@Test
+	fun constraintFailuresExposeFrameworkTypesForCompiledAndDirectWrites() {
+		createHelper().use { helper ->
+			val database = helper.writableDatabase
+			database.execSQL("INSERT INTO fault_probe(id, value) VALUES (1, 'saved')")
+			val sql = "INSERT INTO fault_probe(id, value) VALUES (1, 'duplicate')"
+			database.compileStatement(sql).use { statement ->
+				for (execute in listOf<() -> Unit>({ statement.execute() }, { statement.executeInsert(); Unit },
+					{ statement.executeUpdateDelete(); Unit })) {
+					assertNativeConstraint(assertThrows(SQLiteConstraintException::class.java) { execute() })
+				}
+			}
+			assertNativeConstraint(assertThrows(SQLiteConstraintException::class.java) { database.execSQL(sql) })
+			val values = ContentValues().apply { put("id", 1); put("value", "duplicate") }
+			assertNativeConstraint(assertThrows(SQLiteConstraintException::class.java) {
+				database.insert("fault_probe", SQLiteDatabase.CONFLICT_ABORT, values)
+			})
+			assertEquals(1L, longValue(database, "SELECT COUNT(*) FROM fault_probe"))
+			database.execSQL("INSERT INTO fault_probe(value) VALUES ('next')")
+			assertEquals(2L, longValue(database, "SELECT COUNT(*) FROM fault_probe"))
+		}
+	}
+
+	@Test
+	fun lazyQueryFailureUsesFrameworkContractAndLeavesDatabaseUsable() {
+		createHelper().use { helper ->
+			val database = helper.writableDatabase
+			for (move in listOf(false, true)) {
+				database.query("SELECT abs(-9223372036854775808)").use { cursor ->
+					val failure = assertThrows(SQLiteException::class.java) {
+						if (move) {
+							cursor.moveToFirst()
+						} else {
+							cursor.count
+						}
+					}
+					assertTrue(requireNotNull(failure.cause).javaClass.name.startsWith("org.sqlite.database."))
+					assertEquals(failure.cause?.message, failure.message)
+				}
+			}
+			database.execSQL("INSERT INTO fault_probe(value) VALUES ('after-query-error')")
+			assertEquals(1L, longValue(database, "SELECT COUNT(*) FROM fault_probe"))
+		}
+	}
+
+	private fun assertNativeConstraint(failure: SQLiteConstraintException) {
+		assertEquals("org.sqlite.database.sqlite.SQLiteConstraintException", failure.cause?.javaClass?.name)
+		assertEquals(failure.cause?.message, failure.message)
 	}
 
 	private fun createHelper(): SupportSQLiteOpenHelper =

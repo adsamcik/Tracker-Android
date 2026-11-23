@@ -3,6 +3,10 @@ package com.adsamcik.tracker.map.ui
 import com.adsamcik.tracker.map.presentation.udf.CameraModel
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -78,6 +82,69 @@ class MapCameraAnimationsTest {
         }
         runCurrent()
         camera.zoom shouldBe 12f
+    }
+
+    @Test
+    fun `a delayed native rotation callback cannot block a new location center`() = runTest {
+        val nativeFinished = CompletableDeferred<Unit>()
+        var camera = CameraModel()
+        val animations = MapCameraAnimations(backgroundScope, { true }) {
+            withContext(NonCancellable) { nativeFinished.await() }
+        }
+        try {
+            animations.rotate(90f)
+            runCurrent()
+            backgroundScope.launch {
+                animations.center(16.0) { zoom ->
+                    camera = camera.copy(lat = 50.0, lng = 14.0, zoom = requireNotNull(zoom).toFloat())
+                }
+            }
+            runCurrent()
+
+            camera shouldBe CameraModel(lat = 50.0, lng = 14.0, zoom = 16f)
+            nativeFinished.isCompleted shouldBe false
+        } finally {
+            nativeFinished.complete(Unit)
+            runCurrent()
+        }
+    }
+
+    @Test
+    fun `an old native callback cannot clear the replacement position or requested zoom`() = runTest {
+        val firstFinished = CompletableDeferred<Unit>()
+        val secondFinished = CompletableDeferred<Unit>()
+        val rotations = mutableListOf<Float>()
+        val animations = MapCameraAnimations(backgroundScope, { true }) { rotations += it }
+        var secondZoom: Double? = null
+        var finalZoom: Double? = null
+        try {
+            animations.center(16.0) { withContext(NonCancellable) { firstFinished.await() } }
+            runCurrent()
+            backgroundScope.launch {
+                animations.center(null) { zoom ->
+                    secondZoom = zoom
+                    withContext(NonCancellable) { secondFinished.await() }
+                }
+            }
+            runCurrent()
+            secondZoom shouldBe 16.0
+
+            firstFinished.complete(Unit)
+            runCurrent()
+            animations.rotate(75f)
+            runCurrent()
+            rotations shouldBe emptyList()
+
+            backgroundScope.launch { animations.center(null) { finalZoom = it } }
+            runCurrent()
+            finalZoom shouldBe 16.0
+            rotations shouldBe listOf(75f)
+            secondFinished.isCompleted shouldBe false
+        } finally {
+            firstFinished.complete(Unit)
+            secondFinished.complete(Unit)
+            runCurrent()
+        }
     }
 
     @Test

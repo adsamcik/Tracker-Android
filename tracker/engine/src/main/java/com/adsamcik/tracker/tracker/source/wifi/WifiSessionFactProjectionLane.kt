@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.tracker.presentation.SessionPresentationLifecycle
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -45,6 +46,7 @@ class WifiSessionFactProjectionLane private constructor(
 ) {
 	private val mutex = Mutex()
 	private val drainSignals = Channel<Unit>(Channel.CONFLATED)
+	private val presentation = SessionPresentationLifecycle(database)
 
 	@Inject
 	internal constructor(
@@ -181,6 +183,12 @@ class WifiSessionFactProjectionLane private constructor(
 								false
 							}
 						}
+					if (terminal != null && terminal.admissionOrdinal == cursor + 1L &&
+						canSettleHistoricalRejection(terminal)) {
+						// Processing is settled, not successful capture. Preserve this exact failure and WAL.
+						advanceCursor(lane, terminal.admissionOrdinal)
+						return@withTransaction WifiProjectionPass.Applied(terminal.admissionOrdinal, 0, 0)
+					}
 					val readThroughOrdinal = when {
 						terminal == null -> targetAdmissionOrdinal
 						canRequalifyRetainedAuthority(terminal) -> terminal.admissionOrdinal
@@ -328,14 +336,40 @@ class WifiSessionFactProjectionLane private constructor(
 	private suspend fun canRequalifyRetainedAuthority(failure: SourceProjectionFailureEntity): Boolean {
 		if (failure.failureCode !in setOf("WIFI_ADAPTER_POLICY_MISMATCH", "WIFI_ADAPTER_CONSENT_MISMATCH",
 			"WIFI_ADAPTER_SESSION_MISMATCH", "WIFI_ADAPTER_MISSING_SEGMENT",
-			"WIFI_WRITE_REVISION_CHAIN_MISMATCH")) {
+			"WIFI_WRITE_REVISION_CHAIN_MISMATCH", "WIFI_ADAPTER_HISTORICAL_PLAN_APPLICATION_UNVERIFIABLE")) {
 			return false
 		}
 		val wal = database.sourceEventWalDao().getByAdmissionOrdinal(failure.admissionOrdinal) ?: return false
 		if (wal.sourceKind != SourceKind.WIFI.stableCode) {
 			return false
 		}
+		if (failure.failureCode == "WIFI_ADAPTER_MISSING_SEGMENT") {
+			presentation.recoverMissingForRetainedEvent(wal.eventId)
+		}
 		return adapter.qualify(SourceEventId(wal.eventId)).toProjectionResult().failureCode == null
+	}
+
+	/** A rejected old plan must not prevent later, independently valid recordings from materializing. */
+	private suspend fun canSettleHistoricalRejection(failure: SourceProjectionFailureEntity): Boolean {
+		val reason = when (failure.failureCode) {
+			"WIFI_ADAPTER_MISSING_HISTORICAL_PLAN" -> WifiWalAdapterRejection.MISSING_HISTORICAL_PLAN
+			"WIFI_ADAPTER_HISTORICAL_PLAN_MISMATCH" -> WifiWalAdapterRejection.HISTORICAL_PLAN_MISMATCH
+			"WIFI_ADAPTER_HISTORICAL_PLAN_APPLICATION_UNVERIFIABLE" ->
+				WifiWalAdapterRejection.HISTORICAL_PLAN_APPLICATION_UNVERIFIABLE
+			"WIFI_ADAPTER_HISTORICAL_DEMAND_CONTRACT_UNVERIFIABLE" ->
+				WifiWalAdapterRejection.HISTORICAL_DEMAND_CONTRACT_UNVERIFIABLE
+			else -> return false
+		}
+		val candidate = database.sourceEventWalDao().sourceProjectionCandidatesAfterThrough(
+			sourceKind = SourceKind.WIFI.stableCode,
+			afterOrdinal = failure.admissionOrdinal - 1L,
+			throughOrdinal = failure.admissionOrdinal,
+			limit = 1,
+		).singleOrNull() ?: return false
+		return candidate.admissionOrdinal == failure.admissionOrdinal &&
+			authenticatePreflightCandidate(candidate) is WifiPreflightAuthentication.Authenticated &&
+			database.hasSettledWifiHistoricalPublication(candidate.eventId, reason) &&
+			adapter.qualify(SourceEventId(candidate.eventId)).hasOnlyRejection(reason)
 	}
 
 	private suspend fun persistFailure(
@@ -685,3 +719,10 @@ private sealed interface WifiProjectionPass {
 }
 
 private class WifiLaneAuthorityChangedException(val reason: String) : IllegalStateException(reason)
+
+private fun WifiWalAdapterResult.hasOnlyRejection(reason: WifiWalAdapterRejection): Boolean = when (this) {
+	is WifiWalAdapterResult.Rejected -> this.reason == reason
+	is WifiWalAdapterResult.Groups -> results.isNotEmpty() &&
+		results.all { it is WifiWalAdapterResult.Rejected && it.reason == reason }
+	is WifiWalAdapterResult.Evaluated -> false
+}

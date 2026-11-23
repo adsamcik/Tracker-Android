@@ -16,6 +16,7 @@ import com.adsamcik.tracker.tracker.source.model.CellPlan
 import com.adsamcik.tracker.tracker.source.model.CellMode
 import com.adsamcik.tracker.tracker.source.model.RetryBackoff
 import android.app.Application
+import android.database.sqlite.SQLiteException
 import com.adsamcik.tracker.testing.fake.FakeLocationSource
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
@@ -37,6 +38,9 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntit
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.process.ProcessIncarnationIdProvider
 import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
@@ -57,6 +61,7 @@ import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.ingress.AdmissionFailureCode
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.ingress.DeliveryAdmissionResult
@@ -326,6 +331,33 @@ class SourceRegistrationRepositoryTest {
 		}
 		database.sourceBrokerDao().maximumRegistrationGeneration(SourceKind.PRESSURE.stableCode) shouldBe 0L
 		database.sourceBrokerDao().maximumAuthorizationRevision(SourceKind.PRESSURE.stableCode) shouldBe 0L
+	}
+
+	@Test
+	fun `Pressure End cutoff requires the exact saved run provider and clock`(): Unit = runTest {
+		enablePressureRegistrationForTest()
+		database.sourceBrokerDao().insertDemands(listOf(pressureCaptureDemand()))
+		val registration = subject.begin(SourceKind.PRESSURE, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		subject.markAccepted(registration, 110L, 110L)
+		val dao = database.sourceSessionDao()
+		val session = LogicalTrackingSessionEntity(logicalTrackingId = "s1", state = "ACTIVE", lifecycleRevision = 1L,
+			desiredPlanRevision = 1L, rolloutRevision = 1L, startOrigin = "MANUAL_FOREGROUND_START",
+			clockDomainId = "boot-7", startedAtMs = 100L, startedElapsedNanos = 100L,
+			cutoffAtMs = null, cutoffElapsedNanos = null, completedAtMs = null, finalAdmissionOrdinal = null,
+			failureCode = null, currentServiceRunId = "run-s1")
+		dao.insertSession(session)
+		dao.insertServiceRun(SourceServiceRunEntity(serviceRunId = "run-s1", logicalTrackingId = "s1", state = "ACTIVE",
+			desiredPlanRevision = 1L, rolloutRevision = 1L, foregroundCapabilityFlags = 0L,
+			startedAtMs = 100L, startedElapsedNanos = 100L, completedAtMs = null, completionReason = null,
+			bootId = "boot-7", leaseGeneration = 1L, startOrigin = "MANUAL_FOREGROUND_START"))
+		subject.endedCaptureCutoffElapsedNanos(registration, "s1", "run-s1") shouldBe null
+		dao.updateSession(session.copy(state = "STOPPING", cutoffAtMs = 200L, cutoffElapsedNanos = 200L)) shouldBe 1
+		subject.endedCaptureCutoffElapsedNanos(registration, "s1", "run-s1") shouldBe 200L
+		subject.endedCaptureCutoffElapsedNanos(registration, "s1", "another-run") shouldBe null
+		subject.endedCaptureCutoffElapsedNanos(registration.copy(state = registration.state.copy(
+			clockDomainId = "another-boot")), "s1", "run-s1") shouldBe null
+		subject.endedCaptureCutoffElapsedNanos(registration.copy(state = registration.state.copy(
+			sourceInstanceId = "another-provider")), "s1", "run-s1") shouldBe null
 	}
 
 	@Test
@@ -1252,6 +1284,108 @@ class SourceRegistrationRepositoryTest {
 		) shouldBe SourceRuntimeStateSaveResult.Saved
 		subject.loadRuntimeState(registration).shouldNotBeNull()
 		database.sourceSessionDao().completenessForServiceRun("s1", "run-s1") shouldBe listOf(completeness)
+	}
+
+	@Test
+	fun `Location retirement saves original captured coverage transactionally after its grant retires`(): Unit = runTest {
+		val fixture = locationSessionRemovalFixture()
+		val registration = fixture.before
+		val claim = SourceRuntimeClaim(SourceKind.LOCATION, "location-start", 1, 1L, "location", "run-location")
+		database.sourceSessionDao().insertServiceRun(SourceServiceRunEntity(
+			serviceRunId = claim.serviceRunId, logicalTrackingId = claim.logicalTrackingId, state = "ACTIVE",
+			desiredPlanRevision = 1L, rolloutRevision = 1L, foregroundCapabilityFlags = 0L,
+			startedAtMs = 100L, startedElapsedNanos = 100L, completedAtMs = null, completionReason = null,
+			bootId = "boot-7", leaseGeneration = 1L, startOrigin = "MANUAL_FOREGROUND_START"))
+		val token = subject.beginRetirement(registration, "RECONFIGURE", 300L, 300L)
+		subject.completeRetirement(token) shouldBe true
+		val ack = SourceStopAck(SourceKind.LOCATION, SourceInstanceId(registration.state.sourceInstanceId),
+			registration.state.registrationGeneration, 1L, 3L, 7L, 20L, 2L, 2L, 3L,
+			RegistrationRemovalOutcome.REMOVED, ProviderFlushOutcome.COMPLETE,
+			ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE, true, SourceStopStatus.COMPLETE,
+			claim.logicalTrackingId, claim.serviceRunId)
+		val sql = database.openHelper.writableDatabase
+		sql.execSQL("CREATE TRIGGER fail_location_completeness BEFORE INSERT ON source_session_completeness " +
+			"BEGIN SELECT RAISE(ABORT, 'test storage failure'); END")
+		shouldThrow<SQLiteException> { subject.saveLocationRetirementCompleteness(registration, claim, ack) }
+		database.sourceSessionDao().completenessForServiceRun(claim.logicalTrackingId, claim.serviceRunId) shouldBe emptyList()
+		sql.execSQL("DROP TRIGGER fail_location_completeness")
+		subject.saveLocationRetirementCompleteness(registration, claim.copy(leaseGeneration = 2L), ack) shouldBe false
+		subject.saveLocationRetirementCompleteness(registration, claim, ack) shouldBe true
+		val saved = database.sourceSessionDao().completenessForServiceRun(claim.logicalTrackingId, claim.serviceRunId).single()
+		saved.lastSourceSequence shouldBe 7L
+		saved.lastAdmissionOrdinal shouldBe 20L
+		saved.unresolvedSequenceStart shouldBe 2L
+		saved.unresolvedSequenceEnd shouldBe 3L
+		saved.stopStatus shouldBe SourceStopStatus.PARTIAL_UNOBSERVABLE.name
+		val countOnlyLoss = ack.copy(unresolvedSequenceStart = null, unresolvedSequenceEndInclusive = null)
+		subject.saveLocationRetirementCompleteness(registration, claim, countOnlyLoss) shouldBe true
+		val countOnlySaved = database.sourceSessionDao()
+			.completenessForServiceRun(claim.logicalTrackingId, claim.serviceRunId).single()
+		countOnlySaved.unresolvedSequenceStart shouldBe null
+		countOnlySaved.stopStatus shouldBe SourceStopStatus.PARTIAL_UNOBSERVABLE.name
+		val flushOnlyLoss = countOnlyLoss.copy(failedAdmissionCount = 0L,
+			providerFlushOutcome = ProviderFlushOutcome.FAILED)
+		subject.saveLocationRetirementCompleteness(registration, claim, flushOnlyLoss) shouldBe true
+		val flushOnlySaved = database.sourceSessionDao()
+			.completenessForServiceRun(claim.logicalTrackingId, claim.serviceRunId).single()
+		flushOnlySaved.stopStatus shouldBe SourceStopStatus.PARTIAL_UNOBSERVABLE.name
+		flushOnlyLoss.copy(source = SourceKind.STEPS).persistedCompletenessStatus() shouldBe SourceStopStatus.COMPLETE
+		countOnlyLoss.copy(failedAdmissionCount = 0L).persistedCompletenessStatus() shouldBe SourceStopStatus.COMPLETE
+		lifecycleStore.beginFullDeletion(400L)
+		subject.saveLocationRetirementCompleteness(registration, claim, ack) shouldBe false
+		database.sourceSessionDao().completenessForServiceRun(claim.logicalTrackingId, claim.serviceRunId)
+			.single() shouldBe flushOnlySaved
+	}
+
+	@Test
+	fun `Pressure retirement atomically retains its exact End receipt and real sparse gap metrics`(): Unit = runTest {
+		enablePressureRegistrationForTest()
+		database.sourceBrokerDao().insertDemands(listOf(pressureCaptureDemand()))
+		val registration = subject.begin(SourceKind.PRESSURE, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		subject.markAccepted(registration, 110L, 110L)
+		val claim = SourceRuntimeClaim(SourceKind.PRESSURE, "pressure-start", 1, 1L, "s1", "run-s1")
+		val dao = database.sourceSessionDao()
+		dao.insertSession(LogicalTrackingSessionEntity(logicalTrackingId = "s1", state = "STOPPING", lifecycleRevision = 1L,
+			desiredPlanRevision = 1L, rolloutRevision = 1L, startOrigin = "MANUAL_FOREGROUND_START",
+			clockDomainId = "boot-7", startedAtMs = 100L, startedElapsedNanos = 100L,
+			cutoffAtMs = 200L, cutoffElapsedNanos = 200L, completedAtMs = null, finalAdmissionOrdinal = null,
+			failureCode = null, currentServiceRunId = "run-s1"))
+		dao.insertServiceRun(SourceServiceRunEntity(serviceRunId = "run-s1", logicalTrackingId = "s1", state = "STOPPING",
+			desiredPlanRevision = 1L, rolloutRevision = 1L, foregroundCapabilityFlags = 0L,
+			startedAtMs = 100L, startedElapsedNanos = 100L, completedAtMs = null, completionReason = null,
+			bootId = "boot-7", leaseGeneration = 2L, startOrigin = "MANUAL_FOREGROUND_START"))
+		dao.insertRunRetirementIntent(SourceRunRetirementEntity("s1", "run-s1", SourceKind.PRESSURE.stableCode,
+			registration.state.sourceInstanceId, registration.state.registrationGeneration, claim.actionId, 1, 1L,
+			200L, 200L, SourceRunRetirementEntity.STATE_REQUESTED, null, null, null, null, null,
+			null, null, null, null, null, null, null, 200L))
+		val token = subject.beginRetirement(registration, "ORDERLY_STOP", 300L, 300L)
+		subject.completeRetirement(token) shouldBe true
+		val ack = SourceStopAck(SourceKind.PRESSURE, SourceInstanceId(registration.state.sourceInstanceId),
+			registration.state.registrationGeneration, 1L, 3_649L, 3_649L, 123L, 5L, 182L, 3_234L,
+			RegistrationRemovalOutcome.REMOVED, ProviderFlushOutcome.NOT_SUPPORTED,
+			ProviderCoverage.CALLBACKS_ENTERED_BEFORE_BARRIER, true, SourceStopStatus.COMPLETE, "s1", "run-s1")
+		val sql = database.openHelper.writableDatabase
+		sql.execSQL("CREATE TRIGGER fail_pressure_ack BEFORE UPDATE ON source_run_retirement " +
+			"BEGIN SELECT RAISE(ABORT, 'test storage failure'); END")
+		shouldThrow<SQLiteException> { subject.savePressureRetirementCompleteness(registration, claim, ack) }
+		dao.completenessForServiceRun("s1", "run-s1") shouldBe emptyList()
+		dao.rawRunRetirement("s1", "run-s1", SourceKind.PRESSURE.stableCode, ack.sourceInstanceId.value,
+			ack.registrationGeneration).single().validatedOrNull()?.state shouldBe SourceRunRetirementEntity.STATE_REQUESTED
+		sql.execSQL("DROP TRIGGER fail_pressure_ack")
+		subject.savePressureRetirementCompleteness(registration, claim.copy(leaseGeneration = 2L), ack) shouldBe false
+		subject.savePressureRetirementCompleteness(registration, claim, ack) shouldBe true
+		subject.savePressureRetirementCompleteness(registration, claim, ack) shouldBe true
+		val saved = dao.rawRunRetirement("s1", "run-s1", SourceKind.PRESSURE.stableCode,
+			ack.sourceInstanceId.value, ack.registrationGeneration).single().validatedOrNull().shouldNotBeNull()
+		saved.state shouldBe SourceRunRetirementEntity.STATE_ACKNOWLEDGED
+		saved.failedAdmissionCount shouldBe 5L
+		saved.lastSourceSequence shouldBe 3_649L
+		saved.lastAdmissionOrdinal shouldBe 123L
+		saved.unresolvedSequenceStart shouldBe 182L
+		saved.unresolvedSequenceEnd shouldBe 3_234L
+		saved.providerFlushOutcome shouldBe ProviderFlushOutcome.NOT_SUPPORTED.name
+		lifecycleStore.beginFullDeletion(400L)
+		subject.savePressureRetirementCompleteness(registration, claim, ack) shouldBe false
 	}
 
 	// Keep the full completeness backlog and failed checkpoint transaction in one Room scenario.
@@ -2442,7 +2576,7 @@ class SourceRegistrationRepositoryTest {
 		}
 		val cellRuntime = if (kind == SourceKind.CELL) {
 			CellSourceRuntime(runtimeScope, subject, cellBackend,
-			devices, wakeups, allowance)
+			devices, wakeups, allowance, TestDispatchersProvider(kotlinx.coroutines.Dispatchers.Unconfined))
 		} else {
 			null
 		}
@@ -2716,7 +2850,7 @@ class SourceRegistrationRepositoryTest {
 		)
 		subject = SourceRegistrationRepository(
 			database,
-			FakeCollectedDataLifecycleStore(CollectedDataLifecycleSnapshot(3L, null)),
+			lifecycleStore,
 			object : BootClockDomainProvider {
 				override fun current(): String = "boot-7"
 			},

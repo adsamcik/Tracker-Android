@@ -62,6 +62,41 @@ import org.robolectric.shadows.ShadowSystemClock
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class WifiSourceRuntimeTest {
+	@Test
+	fun `scheduled scan waits through a full callback lane and still reaches the provider`() = runTest {
+		val fixture = runtimeFixture(this, plan(1L).copy(mode = WifiMode.ACTIVE_ATTEMPTS))
+		var scheduled: (suspend () -> Unit)? = null
+		var scheduledAtMs = 0L
+		coEvery { fixture.wakeups.schedule(any(), any()) } answers {
+			scheduledAtMs = firstArg<com.adsamcik.tracker.tracker.source.coordinator.WakeupRequest>().earliestElapsedRealtimeMs
+			scheduled = secondArg()
+			Unit
+		}
+		every { fixture.backend.requestScan() } returns WifiRequestOutcome.ACCEPTED
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		fixture.start(wifiDeliverySink {
+			if (!entered.isCompleted) { entered.complete(Unit); release.await() }
+			SourceDeliveryAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.INVALID_EVIDENCE)
+		})
+		fixture.emit(resultEvent(receivedNanos = 10_000_000L))
+		runCurrent()
+		assertTrue(entered.isCompleted)
+		repeat(64) { index ->
+			fixture.emit(resultEvent(frequencyMhz = 2_412 + index * 5, receivedNanos = 20_000_000L + index * 1_000_000L))
+		}
+		ShadowSystemClock.advanceBy(Duration.ofMillis((scheduledAtMs - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(0L)))
+		val scan = async { requireNotNull(scheduled)() }
+		runCurrent()
+		try {
+			assertFalse(scan.isCompleted)
+			verify(exactly = 0) { fixture.backend.requestScan() }
+			release.complete(Unit)
+			scan.await()
+			runCurrent()
+			verify(exactly = 1) { fixture.backend.requestScan() }
+		} finally { release.complete(Unit); fixture.runtime.close() }
+	}
 
 	@Test
 	fun `Room-qualified Wifi ambient-only reading cannot satisfy a stricter capture request`() = runTest {

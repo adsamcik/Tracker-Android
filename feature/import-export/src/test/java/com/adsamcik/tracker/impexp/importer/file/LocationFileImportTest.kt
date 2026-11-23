@@ -3,15 +3,22 @@ package com.adsamcik.tracker.impexp.importer.file
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.impexp.importer.FileImportStream
+import com.adsamcik.tracker.impexp.importer.ImportJobRunner
+import com.adsamcik.tracker.impexp.importer.ImportResult
+import com.adsamcik.tracker.impexp.importer.RoomImportReceiptStore
+import com.adsamcik.tracker.impexp.importer.reviewedLocationImportJobId
 import com.adsamcik.tracker.impexp.exporter.LocationFileExporter
 import com.adsamcik.tracker.impexp.portable.LocationFileJsonV1
 import com.adsamcik.tracker.impexp.portable.LocationFilePointV1
 import com.adsamcik.tracker.impexp.portable.LocationFileOrigin
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.deleteAllCollectedDataForTesting
+import com.adsamcik.tracker.shared.preferences.lifecycle.DefaultCollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.lifecycle.resetCollectedDataLifecycleForTests
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -63,6 +70,42 @@ class LocationFileImportTest {
         assertEquals(LocationFileOrigin.UNKNOWN, reexported.single().origin)
     }
 
+    @Test fun `overlapping older files keep richer path metadata and original point identity`() = runBlocking {
+        import(pointFile(500_000_000), "older")
+        val original = requireNotNull(database.locationFileIdentityDao().byPortableId("point-a"))
+        val richer = pointFile(500_000_000).toString(Charsets.UTF_8)
+            .replace("\"timeMs\":1000", "\"pathId\":\"route-a\",\"sequence\":7,\"timeMs\":1000").toByteArray()
+        assertEquals(1, import(richer, "richer").successCount)
+        assertEquals(1, import(richer, "richer-again").skippedCount)
+        assertEquals(1, import(pointFile(500_000_000), "older-again").skippedCount)
+        val identity = requireNotNull(database.locationFileIdentityDao().byPortableId("point-a"))
+        assertEquals(original.sampleId, identity.sampleId)
+        assertEquals("route-a", identity.pathId)
+        assertEquals(7L, identity.pathSequence)
+        assertEquals(1L, database.locationSampleDao().countAll())
+        val saved = database.locationPurposeDao().savedFileSamples(listOf(identity.sampleId)).single()
+        assertEquals("imported-location:route-a", saved.continuityId)
+        assertEquals(7L, saved.continuitySequence)
+        assertEquals(0L, saved.sample.elapsedRealtimeNanos)
+        assertNull(saved.sample.clockDomainId)
+    }
+
+    @Test fun `edited known file continuity uses the existing import-wide conflict choice`() = runBlocking {
+        fun withPath(path: String) = pointFile(500_000_000).toString(Charsets.UTF_8)
+            .replace("\"timeMs\":1000", "\"pathId\":\"${path}\",\"sequence\":7,\"timeMs\":1000").toByteArray()
+        import(withPath("original-path"), "original")
+        val changed = withPath("edited-path")
+        val review = preview(changed)
+        assertEquals(1, review.conflictCount)
+        assertEquals(1, import(changed, "unreviewed").failedCount)
+        assertEquals(1, import(changed, "keep", LocationFileImportReview(review,
+            LocationFileConflictChoice.KEEP_EXISTING)).skippedCount)
+        assertEquals(1, import(changed, "replace", LocationFileImportReview(review,
+            LocationFileConflictChoice.REPLACE_WITH_FILE)).successCount)
+        assertEquals("edited-path", database.locationFileIdentityDao().byPortableId("point-a")?.pathId)
+        assertEquals(1L, database.locationSampleDao().countAll())
+    }
+
     @Test fun `edited point ID without a reviewed choice cannot change an existing point`() = runBlocking {
         import(pointFile(500_000_000), "job-one")
         val result = import(pointFile(500_000_001), "job-two")
@@ -102,6 +145,58 @@ class LocationFileImportTest {
         val retry = import(edited, "repeat")
         assertEquals(1, retry.skippedCount)
         assertEquals(1, database.locationPointCorrectionDao().byIds(listOf(id)).size)
+    }
+
+    @Test fun `Keep then Replace supports A B A B edits while retrying each request once`() = runBlocking {
+        val originalBytes = pointFile(500_000_000).toString(Charsets.UTF_8)
+            .replace("\"timeMs\":1000", "\"pathId\":\"route-a\",\"sequence\":7,\"timeMs\":1000").toByteArray()
+        import(originalBytes, "original")
+        val identity = requireNotNull(database.locationFileIdentityDao().byPortableId("point-a"))
+        val original = database.locationSampleDao().byIds(listOf(identity.sampleId)).single()
+        val before = requireNotNull(database.sourceEvidenceStateDao().get())
+        val edited = originalBytes.toString(Charsets.UTF_8).replace("500000000", "500010000").toByteArray()
+        val checked = preview(edited)
+        assertEquals(1, checked.conflictCount)
+        val keep = LocationFileImportReview(checked, LocationFileConflictChoice.KEEP_EXISTING)
+        assertEquals(1, requireNotNull(importReviewedJob(edited, keep, UUID(0L, 1L))).skippedCount)
+        assertEquals(original, database.locationSampleDao().effectiveByIds(listOf(identity.sampleId)).single())
+        assertEquals(emptyList<Any>(), database.locationPointCorrectionDao().byIds(listOf(identity.sampleId)))
+        assertEquals(before, database.sourceEvidenceStateDao().get())
+
+        val replaceB = keep.copy(choice = LocationFileConflictChoice.REPLACE_WITH_FILE)
+        val firstRequest = UUID(0L, 2L)
+        assertEquals(1, requireNotNull(importReviewedJob(edited, replaceB, firstRequest)).successCount)
+        assertEquals(500_010_000,
+            database.locationSampleDao().effectiveByIds(listOf(identity.sampleId)).single().latE7)
+        assertNull(importReviewedJob(edited, replaceB, firstRequest))
+        val replaceA = LocationFileImportReview(preview(originalBytes), LocationFileConflictChoice.REPLACE_WITH_FILE)
+        assertEquals(1, replaceA.preview.conflictCount)
+        assertEquals(1, requireNotNull(importReviewedJob(originalBytes, replaceA, UUID(0L, 3L))).successCount)
+        assertEquals(original, database.locationSampleDao().effectiveByIds(listOf(identity.sampleId)).single())
+        assertNull(importReviewedJob(originalBytes, replaceA, UUID(0L, 3L)))
+
+        val replaceBAgain = LocationFileImportReview(preview(edited), LocationFileConflictChoice.REPLACE_WITH_FILE)
+        assertEquals(checked.existingStateHash, replaceBAgain.preview.existingStateHash)
+        val finalRequest = UUID(0L, 4L)
+        assertEquals(1, requireNotNull(importReviewedJob(edited, replaceBAgain, finalRequest)).successCount)
+        assertEquals(500_010_000,
+            database.locationSampleDao().effectiveByIds(listOf(identity.sampleId)).single().latE7)
+        val corrections = database.locationPointCorrectionDao().byIds(listOf(identity.sampleId))
+        assertEquals(1, corrections.size)
+        val after = requireNotNull(database.sourceEvidenceStateDao().get())
+        assertEquals(before.collectedDataEpoch, after.collectedDataEpoch)
+        assertEquals(before.revision + 3L, after.revision)
+        assertNull(importReviewedJob(edited, replaceBAgain, finalRequest))
+        val repeated = preview(edited)
+        assertEquals(0, repeated.conflictCount)
+        assertNull(importReviewedJob(edited,
+            LocationFileImportReview(repeated, LocationFileConflictChoice.KEEP_EXISTING), UUID(0L, 5L)))
+        assertEquals(corrections, database.locationPointCorrectionDao().byIds(listOf(identity.sampleId)))
+        assertEquals(after, database.sourceEvidenceStateDao().get())
+        assertEquals(original, database.locationSampleDao().byIds(listOf(identity.sampleId)).single())
+        assertEquals(identity, database.locationFileIdentityDao().byPortableId("point-a"))
+        assertEquals(1L, database.locationSampleDao().countAll())
+        assertEquals(1, database.locationFileIdentityDao().archivePointPage(checked.fileJobId, -1, 256).size)
     }
 
     @Test fun `a failed replacement batch changes neither correction nor original`() = runBlocking {
@@ -188,6 +283,45 @@ class LocationFileImportTest {
         assertNull(dao.archive(identity))
         assertEquals(emptyList<Any>(), dao.archivePointPage(identity, -1, 256))
         assertNull(dao.byPortableId("point-a"))
+    }
+
+    @Test fun `fresh import after clear restores historical IDs and path gaps within real retention`() = runBlocking {
+        resetCollectedDataLifecycleForTests(context)
+        try {
+            val lifecycle = DefaultCollectedDataLifecycleStore(context)
+            val before = lifecycle.advanceRetainedFrom(500L)
+            database.sourceEvidenceStateDao().updateLifecycle(before.epoch, before.retainedFromMs, 500L)
+            val source = pointFile(500_000_000).toString(Charsets.UTF_8).lines()
+            val first = source[1].replace("\"timeMs\":1000",
+                "\"pathId\":\"route-a\",\"sequence\":7,\"timeMs\":1000")
+            val second = first.replace("point-a", "point-b").replace("\"sequence\":7", "\"sequence\":10")
+                .replace("\"timeMs\":1000", "\"timeMs\":2000")
+            val bytes = listOf(source[0], first, second, """{"type":"end","pointCount":2}""")
+                .joinToString("\n", postfix = "\n").toByteArray()
+            assertEquals(2, import(bytes, "before-clear").successCount)
+            val original = exportedPoints(1_000L..2_000L)
+            val cleared = lifecycle.beginFullDeletion("location-transfer-clear", before.epoch + 1L,
+                10_000L, before.retainedFromMs)
+            AppDatabase.deleteAllCollectedDataForTesting(database, "location-transfer-clear",
+                cleared.epoch, cleared.retainedFromMs, 10_000L)
+            assertEquals(500L, cleared.retainedFromMs)
+            val stale = LocationFileImport().import(context, database,
+                FileImportStream(ByteArrayInputStream(bytes), "backup.trackerlocation")
+                    .withImportReceipt("stale-before-clear", 1_000L).withOriginalDataEpoch(before.epoch))
+            assertEquals(1, stale.failedCount)
+            assertEquals(0L, database.locationSampleDao().countAll())
+
+            assertEquals(2, import(bytes, "fresh-after-clear").successCount)
+            val saved = database.locationPurposeDao().savedFileChunk(1_000L, 2_000L, null, null, 10)
+            assertEquals(listOf(7L, 10L), saved.map { it.continuitySequence })
+            assertEquals(listOf("imported-location:route-a", "imported-location:route-a"),
+                saved.map { it.continuityId })
+            assertEquals(original, exportedPoints(1_000L..2_000L))
+            assertEquals(2, import(bytes, "repeat-after-clear").skippedCount)
+            assertEquals(2L, database.locationSampleDao().countAll())
+        } finally {
+            resetCollectedDataLifecycleForTests(context)
+        }
     }
 
     @Test fun `a Location file cannot import without the original job epoch`() {
@@ -293,6 +427,31 @@ class LocationFileImportTest {
         val after = context.cacheDir.listFiles().orEmpty()
             .filter { it.name.startsWith("tracker-location-import-") }.map { it.name }.toSet()
         assertEquals(before, after)
+    }
+
+    private suspend fun exportedPoints(range: LongRange): List<LocationFilePointV1> {
+        val output = ByteArrayOutputStream()
+        LocationFileExporter().exportAfter(context, emptySequence(), output,
+            range, null, null, database, {})
+        return mutableListOf<LocationFilePointV1>().also { points ->
+            LocationFileJsonV1().read(ByteArrayInputStream(output.toByteArray())) { points += it }
+        }
+    }
+
+    private suspend fun importReviewedJob(bytes: ByteArray, review: LocationFileImportReview,
+        workerId: UUID): ImportResult? {
+        val jobId = reviewedLocationImportJobId(preview(bytes).fileJobId, review, workerId)
+        val epoch = requireNotNull(database.sourceEvidenceStateDao().get()).collectedDataEpoch
+        val runner = ImportJobRunner(RoomImportReceiptStore(database), originalDataEpoch = epoch)
+        if (!runner.start(jobId, "backup.trackerlocation", bytes.size.toLong())) {
+            return null
+        }
+        val result = runner.importSingle(jobId,
+            FileImportStream(ByteArrayInputStream(bytes), "backup.trackerlocation").withLocationReview(review),
+            ImportTransactionMode.IMPORTER_MANAGED,
+        ) { stream -> LocationFileImport().import(context, database, stream) }
+        runner.completeIfSuccessful(jobId, result)
+        return result
     }
 
     private suspend fun import(bytes: ByteArray, jobId: String,

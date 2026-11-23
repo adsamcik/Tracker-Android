@@ -38,7 +38,7 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">資料庫備份 (ZIP)</string>
-    <string name="settings_import_summary">從支援的類型 (%1$s) 與封存檔 (%2$s) 匯入資料。資料庫匯入會合併相容的資料列；不會取代現有資料。</string>
+    <string name="settings_import_summary">匯入記錄檔或還原資料備份。</string>
     <string name="settings_import_title">匯入</string>
     <string name="export_radio_sensitivity_title">匯出網路詳細資料？</string>
     <string name="export_wifi_sensitivity_message">此檔案包含已儲存的 Wi-Fi 名稱和存取點 ID。</string>
@@ -58,4 +58,7 @@
     <plurals name="import_location_conflict_count">
         <item quantity="other">此檔案中有 %d 個點與已儲存的副本不同。請選擇要保留的版本。其他點將正常匯入。</item>
     </plurals>
+    <string name="export_sensitivity_portable_title">匯出已記錄的歷史？</string>
+    <string name="export_sensitivity_portable_steps_message">此檔案包含步數、時間區間及記錄範圍資訊。 不含路線座標。僅在信任儲存位置時繼續。</string>
+    <string name="export_sensitivity_portable_activity_message">此檔案包含已記錄的運動區間、時間區間及記錄範圍資訊。 不含路線座標。僅在信任儲存位置時繼續。</string>
 </resources>

@@ -120,15 +120,18 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 				AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
 			)
 		}
-		return discoverSavedDisplayDays(firstEpochDay, lastEpochDayInclusive, sessionCalendarDays, evidence)
+		val calendars = savedCalendars(firstEpochDay, lastEpochDayInclusive, sessionCalendarDays)
+			?: return AmbientStepsDisplayStructuralDayRead.Unavailable(
+				AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
+			)
+		return displayStructuralDaySnapshot(evidence.revision, calendars.zonesByDay, calendars.invalidDays)
 	}
 
-	private suspend fun discoverSavedDisplayDays(
+	private suspend fun savedCalendars(
 		firstEpochDay: Long,
 		lastEpochDayInclusive: Long,
 		sessionCalendarDays: List<AmbientStepsStructuralDay>,
-		evidence: SourceEvidenceState,
-	): AmbientStepsDisplayStructuralDayRead {
+	): SavedAmbientStepsCalendars? {
 		val invalidCalendarDays = linkedSetOf<Long>()
 		val zonesByDay = linkedMapOf<Long, LinkedHashSet<String>>()
 		sessionCalendarDays.forEach { day ->
@@ -146,9 +149,7 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 			limit = MAX_NUMERIC_STRUCTURAL_DAY_CANDIDATES + 1,
 		)
 		if (native.size > MAX_NUMERIC_STRUCTURAL_DAY_CANDIDATES) {
-			return AmbientStepsDisplayStructuralDayRead.Unavailable(
-				AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
-			)
+			return null
 		}
 		native.forEach { row ->
 			val valid = row.hasValidStoredDayBounds()
@@ -172,9 +173,7 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		if (imported.size > MAX_NUMERIC_STRUCTURAL_DAY_CANDIDATES ||
 			fences.size > MAX_NUMERIC_STRUCTURAL_DAY_CANDIDATES
 		) {
-			return AmbientStepsDisplayStructuralDayRead.Unavailable(
-				AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
-			)
+			return null
 		}
 		imported.forEach { row ->
 			zonesByDay.getOrPut(row.structuralEpochDay, ::linkedSetOf).add(row.storedZoneId)
@@ -182,7 +181,7 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		fences.forEach { row ->
 			zonesByDay.getOrPut(row.structuralEpochDay, ::linkedSetOf).add(row.storedZoneId)
 		}
-		return displayStructuralDaySnapshot(evidence.revision, zonesByDay, invalidCalendarDays)
+		return SavedAmbientStepsCalendars(zonesByDay, invalidCalendarDays)
 	}
 
 	private fun displayStructuralDaySnapshot(
@@ -190,9 +189,12 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		zonesByDay: Map<Long, LinkedHashSet<String>>,
 		invalidCalendarDays: Set<Long>,
 	): AmbientStepsDisplayStructuralDayRead.Snapshot {
-		val conflicts = zonesByDay.filterValues { it.size != 1 }.keys.toSet() + invalidCalendarDays
+		val conflicts = zonesByDay.filter { (epochDay, zones) ->
+			val bounds = zones.map { AmbientStepsStructuralDay(epochDay, it).toInternalDayOrNull() }
+			bounds.any { it == null } || bounds.map { it?.startTimeMs to it?.endTimeMs }.distinct().size != 1
+		}.keys.toSet() + invalidCalendarDays
 		val result = zonesByDay.filterKeys { it !in conflicts }.map { (epochDay, zones) ->
-			AmbientStepsStructuralDay(epochDay, zones.single())
+			AmbientStepsStructuralDay(epochDay, zones.first())
 		}.sortedWith(
 			compareBy(AmbientStepsStructuralDay::epochDay)
 				.thenBy(AmbientStepsStructuralDay::storedZoneId),
@@ -227,7 +229,7 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 					?: return@withTransaction AmbientStepsHistoryRead.Unavailable(
 						AmbientStepsHistoryUnavailableReason.SOURCE_EVIDENCE_STATE_MISSING,
 					)
-				readRangeInCurrentTransaction(request, evidence.revision, includeSessions = true)
+				readRangeInCurrentTransaction(request, evidence.revision, AmbientStepsReadMode.HISTORY)
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -252,6 +254,7 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		}
 	}
 
+	/** Original calendar keys are qualified separately before equal UTC day windows share a total. */
 	override suspend fun readNumericRangeInCurrentTransaction(
 		request: AmbientStepsHistoryRangeRequest,
 		expectedSourceEvidenceRevision: Long,
@@ -259,7 +262,7 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		val read = readRangeInCurrentTransaction(
 			request,
 			expectedSourceEvidenceRevision,
-			includeSessions = false,
+			mode = AmbientStepsReadMode.NUMERIC,
 		)
 	) {
 		is AmbientStepsHistoryRead.Snapshot -> AmbientStepsNumericRangeRead.Snapshot(
@@ -282,7 +285,7 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 	): AmbientStepsHistoryRead = readRangeInCurrentTransaction(
 		request,
 		expectedSourceEvidenceRevision,
-		includeSessions = false,
+		mode = AmbientStepsReadMode.SOURCE_ONLY,
 		includeLocal = includeLocal,
 		includeImported = includeImported,
 	)
@@ -315,7 +318,7 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 			currentCoroutineContext().ensureActive()
 			val selected = daysById.filterValues { it in batch }.keys
 			when (val read = readRangeInCurrentTransaction(AmbientStepsHistoryRangeRequest(batch),
-				expectedSourceEvidenceRevision, includeSessions = false, includeLocal = false,
+				expectedSourceEvidenceRevision, mode = AmbientStepsReadMode.SOURCE_ONLY, includeLocal = false,
 				selectedImportedDayIds = selected)) {
 				is AmbientStepsHistoryRead.Snapshot -> read.days
 				is AmbientStepsHistoryRead.DependencyOverflow -> throw AmbientStepsHistorySelectionOverflow()
@@ -329,7 +332,7 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 	private suspend fun readRangeInCurrentTransaction(
 		request: AmbientStepsHistoryRangeRequest,
 		expectedSourceEvidenceRevision: Long,
-		includeSessions: Boolean,
+		mode: AmbientStepsReadMode,
 		includeLocal: Boolean = true,
 		includeImported: Boolean = true,
 		selectedImportedDayIds: Set<String>? = null,
@@ -342,9 +345,25 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		check(evidence.revision == expectedSourceEvidenceRevision) {
 			"Ambient Steps source evidence changed before range composition"
 		}
-		val days = request.days.map { it.toInternalDayOrNull() ?: return AmbientStepsHistoryRead.Unavailable(
-			AmbientStepsHistoryUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
-		) }
+		val requestedDays = request.days.map {
+			it.toInternalDayOrNull() ?: return AmbientStepsHistoryRead.Unavailable(
+				AmbientStepsHistoryUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
+			)
+		}
+		val days = if (mode == AmbientStepsReadMode.NUMERIC) {
+			val calendars = savedCalendars(requestedDays.first().epochDay, requestedDays.last().epochDay,
+				emptyList()) ?: return AmbientStepsHistoryRead.Unavailable(
+					AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
+				)
+			// Each original key set is bounded separately; their valid union can be larger.
+			requestedDays.flatMap { day ->
+				calendars.aliasesFor(day) ?: return AmbientStepsHistoryRead.Unavailable(
+					AmbientStepsHistoryUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
+				)
+			}.distinct()
+		} else {
+			requestedDays
+		}
 		val range = AmbientStepsRequestedRange(days)
 		val native = if (!includeLocal) {
 			NativeAmbientStepsRangeRead.Ready(emptyMap(), emptyMap(), emptySet(), emptySet())
@@ -375,7 +394,7 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 				)
 		}
 		}
-		val sessions = if (includeSessions) {
+		val sessions = if (mode == AmbientStepsReadMode.HISTORY) {
 			when (val read = AmbientStepsSessionRangeReader(database, stepsSelector).read(range, evidence)) {
 				is AmbientStepsSessionRangeRead.Ready -> read.sessions
 				is AmbientStepsSessionRangeRead.DependencyOverflow ->
@@ -405,7 +424,12 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		val compatibilityByOwner = requestOwners.zip(
 			countDomainQuery.compareInProductionChunks(compatibilityRequests),
 		).toMap()
-		val products = days.mapIndexed { dayIndex, day ->
+		val products = if (mode == AmbientStepsReadMode.NUMERIC) {
+			requestedDays.map { day ->
+				composePublicDay(day, native, imported, emptyList(),
+					sourceDays = days.filter { it.hasSameCalendarBounds(day) })
+			}
+		} else days.mapIndexed { dayIndex, day ->
 			val compatibleSessions = sessionsByDay[dayIndex].mapIndexed { sessionIndex, session ->
 				session.withCountDomainCompatibility(
 					facts = factsByDay[dayIndex],
@@ -488,7 +512,7 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 				),
 			),
 			evidence.revision,
-			includeSessions = true,
+			mode = AmbientStepsReadMode.HISTORY,
 		)
 		return when (range) {
 			is AmbientStepsHistoryRead.Snapshot -> {
@@ -696,6 +720,27 @@ internal data class AmbientStepsRequestedRange(
 	}
 }
 
+private data class SavedAmbientStepsCalendars(
+	val zonesByDay: Map<Long, LinkedHashSet<String>>,
+	val invalidDays: Set<Long>,
+) {
+	fun aliasesFor(day: AmbientStepsDayIdentity): List<AmbientStepsDayIdentity>? {
+		if (day.epochDay in invalidDays) {
+			return null
+		}
+		val originals = zonesByDay[day.epochDay].orEmpty().map { zone ->
+			AmbientStepsStructuralDay(day.epochDay, zone).toInternalDayOrNull() ?: return null
+		}
+		return if (originals.any { !it.hasSameCalendarBounds(day) }) {
+			null
+		} else {
+			(originals + day).distinct()
+		}
+	}
+}
+
+private enum class AmbientStepsReadMode { HISTORY, SOURCE_ONLY, NUMERIC }
+
 internal data class AmbientStepsHistoryKey(
 	val epochDay: Long,
 	val storedZoneId: String,
@@ -758,19 +803,22 @@ private fun composePublicDay(
 	native: NativeAmbientStepsRangeRead.Ready,
 	imported: ImportedAmbientStepsRangeRead.Ready,
 	sessions: List<QualifiedSessionStepsWindow>,
+	sourceDays: List<AmbientStepsDayIdentity> = listOf(day),
 ): AmbientStepsHistoryDay {
 	val key = day.historyKey
-	val facts = native.factsByDay[key].orEmpty() + imported.factsByDay[key].orEmpty()
-	val gaps = native.gapsByDay[key].orEmpty() + imported.gapsByDay[key].orEmpty()
+	val keys = sourceDays.map(AmbientStepsDayIdentity::historyKey)
+	val facts = keys.flatMap { native.factsByDay[it].orEmpty() + imported.factsByDay[it].orEmpty() }
+	val gaps = keys.flatMap { native.gapsByDay[it].orEmpty() + imported.gapsByDay[it].orEmpty() }
 	val daySessions = sessions
 	val base = composeAmbientStepsDay(
 		day,
 		facts,
 		gaps,
 		daySessions,
-		imported.causesByDay[key].orEmpty(),
+		keys.flatMapTo(linkedSetOf()) { imported.causesByDay[it].orEmpty() },
+		allowEquivalentCalendars = sourceDays.size > 1,
 	)
-	val product = base.withNativeReadAvailability(native, key)
+	val product = base.withNativeReadAvailability(native, keys)
 	val origins = facts.toPublicFactOrigins()
 	return AmbientStepsHistoryDay(
 		day = AmbientStepsStructuralDay(day.epochDay, day.storedZoneId),
@@ -803,15 +851,15 @@ private fun composePublicDay(
 
 private fun AmbientStepsDayProduct.withNativeReadAvailability(
 	native: NativeAmbientStepsRangeRead.Ready,
-	key: AmbientStepsHistoryKey,
+	keys: List<AmbientStepsHistoryKey>,
 ): AmbientStepsDayProduct = when {
-	key in native.unverifiableDays -> {
+	keys.any { it in native.unverifiableDays } -> {
 		val unavailable = AmbientStepsNumericValue.Unavailable(
 			setOf(AmbientStepsDayCause.AMBIENT_AUTHORITY_UNVERIFIABLE),
 		)
 		copy(total = unavailable, betweenSession = unavailable)
 	}
-	key in native.materializingDays && total == AmbientStepsNumericValue.Unavailable(
+	keys.any { it in native.materializingDays } && total == AmbientStepsNumericValue.Unavailable(
 		setOf(AmbientStepsDayCause.NO_AMBIENT_FACT),
 	) -> {
 		val unavailable = AmbientStepsNumericValue.Unavailable(

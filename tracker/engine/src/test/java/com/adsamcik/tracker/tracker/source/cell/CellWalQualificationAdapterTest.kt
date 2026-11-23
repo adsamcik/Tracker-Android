@@ -3,6 +3,8 @@ package com.adsamcik.tracker.tracker.source.cell
 import com.adsamcik.tracker.tracker.source.coordinator.SourceDrainRetirementClaim
 import com.adsamcik.tracker.tracker.source.coordinator.SourceProductDrainAuthority
 import com.adsamcik.tracker.tracker.source.coordinator.SourceProductDrainPlan
+import com.adsamcik.tracker.tracker.source.coordinator.RoomSourceProductDrainRouter
+import com.adsamcik.tracker.tracker.source.coordinator.SourceProductDrainResult
 import com.adsamcik.tracker.tracker.source.coordinator.SourceProductDrainRequest
 import com.adsamcik.tracker.tracker.source.coordinator.authenticateSourceProductDrainRequest
 import com.adsamcik.tracker.tracker.source.coordinator.buildSourceProductDrainPlan
@@ -59,6 +61,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
@@ -1125,6 +1128,102 @@ class CellWalQualificationAdapterTest {
 		assertEquals(0, result.factsInserted)
 		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
 		assertEquals(0L, database.cellCapturedFactDao().cursorCount())
+	}
+
+	@Test
+	fun `rejected Cell plan never settles after its retained row loses integrity`() = runTest {
+		installValidFixture(candidateWriter = true)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_desired_plan WHERE revision = ? AND source_kind = ?",
+			arrayOf<Any>(PLAN_REVISION, CELL_SOURCE))
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val lane = CellSessionFactProjectionLane(database, subject, writer)
+		val first = assertIs<CellSessionFactDrainResult.Failed>(lane.drainAvailable())
+		assertEquals(true, first.terminal)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET source_sequence = source_sequence + 1 WHERE event_id = ?",
+			arrayOf(EVENT_ID.value))
+
+		val repeated = assertIs<CellSessionFactDrainResult.Failed>(lane.drainAvailable())
+
+		assertEquals(first.failureCode, repeated.failureCode)
+		assertEquals(0L, repeated.lastCompletedOrdinal)
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `stale Cell plan cannot conceal damaged historical authorization`() = runTest {
+		installValidFixture(candidateWriter = true)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_desired_plan WHERE revision = ? AND source_kind = ?",
+			arrayOf<Any>(PLAN_REVISION, CELL_SOURCE))
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val lane = CellSessionFactProjectionLane(database, subject, writer)
+		val originalFailure = assertIs<CellSessionFactDrainResult.Failed>(lane.drainAvailable())
+		assertEquals("CELL_ADAPTER_MISSING_HISTORICAL_PLAN", originalFailure.failureCode)
+		val savedFailure = database.sourceProjectionStateDao().failure(
+			CellSessionFactProjectionLane.WRITER_ID, CellSessionFactProjectionLane.WRITER_VERSION, 1L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET consumer_id = 'foreign-consumer' WHERE demand_id = ?",
+			arrayOf(demand().demandId))
+
+		assertEquals(CellWalAdapterResult.Rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH),
+			subject.qualify(EVENT_ID))
+		val repeated = assertIs<CellSessionFactDrainResult.Failed>(lane.drainAvailable())
+		assertEquals(originalFailure.failureCode, repeated.failureCode)
+		assertEquals(0L, repeated.lastCompletedOrdinal)
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(savedFailure, database.sourceProjectionStateDao().failure(
+			CellSessionFactProjectionLane.WRITER_ID, CellSessionFactProjectionLane.WRITER_VERSION, 1L))
+		assertTrue(database.sourceEventWalDao().getByEventId(EVENT_ID.value) != null)
+	}
+
+	@Test
+	fun `retained rejected Cell plan preserves its original failure while a new run materializes`() = runTest {
+		installValidFixture(candidateWriter = true)
+		insertAdditionalWal(SECOND_EVENT_ID, observations().map { observation ->
+			observation.copy(providerTimestampNanos = requireNotNull(observation.providerTimestampNanos) +
+				SECOND_DELIVERY_SHIFT_NANOS)
+		}, SOURCE_SEQUENCE + 1L)
+		val nextId = SECOND_EVENT_ID
+		bindIndependentCellRun(nextId)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_desired_plan WHERE revision = ? AND source_kind = ?",
+			arrayOf<Any>(PLAN_REVISION, CELL_SOURCE))
+		val reason = CellWalAdapterRejection.MISSING_HISTORICAL_PLAN
+		assertEquals(CellWalAdapterResult.Rejected(reason), subject.qualify(EVENT_ID))
+		assertIs<CellWalAdapterResult.Evaluated>(subject.qualify(nextId))
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val failure = SourceProjectionFailureEntity(
+			CellSessionFactProjectionLane.WRITER_ID, CellSessionFactProjectionLane.WRITER_VERSION,
+			1L, 1, "CELL_ADAPTER_${reason.name}", true, OBSERVED_WALL_MS)
+		database.sourceProjectionStateDao().saveFailure(failure)
+		val originalWal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		val lane = CellSessionFactProjectionLane(database, subject, writer)
+
+		val complete = assertIs<CellSessionFactDrainResult.Complete>(lane.drainAvailable())
+
+		assertEquals(2L, complete.lastCompletedOrdinal)
+		assertEquals(1, complete.factsInserted)
+		assertEquals(1L, database.cellCapturedFactDao().revisionCount())
+		val retained = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		assertTrue(originalWal.payload.contentEquals(retained.payload))
+		assertEquals(originalWal, retained.copy(payload = originalWal.payload))
+		assertEquals(failure, database.sourceProjectionStateDao().failure(
+			CellSessionFactProjectionLane.WRITER_ID, CellSessionFactProjectionLane.WRITER_VERSION, 1L))
+		assertEquals(listOf(failure), database.trackingHistoryReadDao().terminalFailuresForServiceRuns(
+			CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, listOf(RUN_ID), 0L, 2L, 2))
+		assertEquals(emptyList(), database.trackingHistoryReadDao().terminalFailuresForServiceRuns(
+			CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, listOf("healthy-cell-run"), 0L, 2L, 2))
+		assertEquals(0, assertIs<CellSessionFactDrainResult.Complete>(lane.drainAvailable()).factsInserted)
+		val router = RoomSourceProductDrainRouter(database, mockk(), mockk(), mockk(), mockk(), lane, mockk())
+		val rejectedRequest = savedCellDrain(EVENT_ID)
+		assertEquals(null, authenticateSourceProductDrainRequest(database, rejectedRequest))
+		assertEquals(failure.failureCode,
+			assertIs<SourceProductDrainResult.Unavailable>(router.drainThrough(rejectedRequest)).reason)
+		val healthyRequest = savedCellDrain(nextId)
+		assertEquals(null, authenticateSourceProductDrainRequest(database, healthyRequest))
+		assertIs<SourceProductDrainResult.Complete>(router.drainThrough(healthyRequest))
 	}
 
 	@Test
@@ -2735,6 +2834,78 @@ class CellWalQualificationAdapterTest {
 		assertEquals(1L, database.sourceEventWalDao().insertIgnoringDuplicate(wal))
 	}
 
+	private suspend fun savedCellDrain(eventId: SourceEventId): SourceProductDrainRequest {
+		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(eventId.value))
+		val logical = requireNotNull(wal.logicalTrackingId)
+		val runId = requireNotNull(wal.serviceRunId)
+		val dao = database.sourceSessionDao()
+		val session = requireNotNull(dao.session(logical))
+		dao.updateSession(session.copy(state = "STOPPING", currentServiceRunId = runId,
+			completedAtMs = null, finalAdmissionOrdinal = 2L))
+		dao.updateServiceRun(requireNotNull(dao.serviceRun(runId)).copy(state = "STOPPING",
+			completedAtMs = null, completionReason = null, runtimeAcknowledgement = "PENDING"))
+		val receipt = SourceRunRetirementEntity(logical, runId, CELL_SOURCE, wal.sourceInstanceId,
+			wal.registrationGeneration, "drain-$runId", 1, LEASE_GENERATION,
+			SESSION_END_NANOS, SESSION_END_WALL_MS, SourceRunRetirementEntity.STATE_ACKNOWLEDGED, wal.configRevision,
+			wal.sourceSequence, wal.sourceSequence, wal.admissionOrdinal, 0L, null, null,
+			"REMOVED", "NOT_SUPPORTED", "PROVIDER_COMPLETENESS_UNOBSERVABLE", true, "COMPLETE", SESSION_END_WALL_MS)
+		dao.insertRunRetirementIntent(receipt)
+		dao.saveCompleteness(SourceSessionCompletenessEntity(logical, runId, CELL_SOURCE, wal.sourceInstanceId,
+			wal.registrationGeneration, wal.admissionOrdinal, wal.sourceSequence, true,
+			"PROVIDER_COMPLETENESS_UNOBSERVABLE", "COMPLETE", null, null, SESSION_END_WALL_MS))
+		val authority = SourceProductDrainAuthority(
+			captureBindings = mapOf(CELL_SOURCE to dao.manifestSources(logical, MANIFEST_REVISION)),
+			retirementClaims = listOf(SourceDrainRetirementClaim(SourceKind.CELL, wal.sourceInstanceId,
+				wal.registrationGeneration, receipt.actionId, 1, LEASE_GENERATION, cleanupOnly = false)))
+		return assertIs<SourceProductDrainPlan.Ready>(buildSourceProductDrainPlan(database, logical, runId,
+			SESSION_END_NANOS, SESSION_END_WALL_MS, 2L, authority)).requests.single()
+	}
+
+	/** A separate original run/provider/authorization, sharing only the existing source plan. */
+	private suspend fun bindIndependentCellRun(eventId: SourceEventId) {
+		val logical = "healthy-cell-logical"
+		val runId = "healthy-cell-run"
+		val instance = "healthy-cell-instance"
+		val healthyPlanRevision = PLAN_REVISION + 1L
+		insertPlan(cellPlan().copy(revision = healthyPlanRevision))
+		val dao = database.sourceSessionDao()
+		val oldRun = requireNotNull(dao.serviceRun(RUN_ID))
+		val segment = requireNotNull(database.sessionSegmentDao().getById(SEGMENT_ID))
+		val segmentId = database.sessionSegmentDao().insert(segment.copy(
+			id = 0L, logicalTrackingId = logical, serviceRunId = runId))
+		dao.insertSession(requireNotNull(dao.session(LOGICAL_ID)).copy(
+			logicalTrackingId = logical, desiredPlanRevision = healthyPlanRevision, finalAdmissionOrdinal = 2L))
+		dao.insertServiceRun(oldRun.copy(serviceRunId = runId, logicalTrackingId = logical,
+			desiredPlanRevision = healthyPlanRevision, sessionSegmentId = segmentId, startDeliveryToken = "healthy-cell-start"))
+		val bindings = dao.manifestSources(LOGICAL_ID, MANIFEST_REVISION)
+			.map { it.copy(logicalTrackingId = logical) }
+		val manifest = requireNotNull(dao.manifest(LOGICAL_ID, MANIFEST_REVISION)).copy(
+			logicalTrackingId = logical, serviceRunId = runId, acquisitionPlanRevision = healthyPlanRevision,
+			manifestChecksum = "")
+		dao.insertManifest(manifest.copy(manifestChecksum = SessionManifestIntegrity.compute(manifest, bindings)))
+		dao.insertManifestSources(bindings)
+		val demand = demand().copy(demandId = "healthy-cell-demand", consumerId = "session:$logical",
+			logicalTrackingId = logical, serviceRunId = runId)
+		val broker = database.sourceBrokerDao()
+		broker.insertDemands(listOf(demand))
+		broker.insertRegistration(registration(generation = 2L, sourceInstance = instance).copy(
+			captureCallbackBarrierAuthorizationRevision = 2L))
+		val rows = SourceBrokerAuthorization.rows(CELL_SOURCE, 2L, 2L, listOf(demand),
+			BOOT_ID, AUTHORIZATION_START_NANOS, RUN_START_WALL_MS)
+		broker.insertAuthorizations(rows)
+		val original = requireNotNull(database.sourceEventWalDao().getByEventId(eventId.value))
+		val next = original.copy(logicalTrackingId = logical, serviceRunId = runId,
+			sourceInstanceId = instance, registrationGeneration = 2L, authorizationRevision = 2L,
+			authorizationFingerprint = rows.first().authorizationFingerprint, sourceSequence = SOURCE_SEQUENCE,
+			configRevision = healthyPlanRevision)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET logical_tracking_id = ?, service_run_id = ?, source_instance_id = ?, " +
+				"registration_generation = 2, authorization_revision = 2, authorization_fingerprint = ?, " +
+				"source_sequence = ?, config_revision = ?, integrity_identity = ? WHERE event_id = ?",
+			arrayOf<Any?>(logical, runId, instance, next.authorizationFingerprint, SOURCE_SEQUENCE, healthyPlanRevision,
+				next.calculatedIntegrityIdentity(), eventId.value))
+	}
+
 	private suspend fun insertAdditionalWal(
 		eventId: SourceEventId,
 		observations: List<CellObservationEvidence>,
@@ -2748,7 +2919,7 @@ class CellWalQualificationAdapterTest {
 				CellRefreshOutcome.CALLBACK,
 				ZONE_ID,
 			),
-			PAYLOAD_VERSION,
+			original.payloadVersion,
 		)
 		val latestProviderTime = requireNotNull(
 			observations.mapNotNull(CellObservationEvidence::providerTimestampNanos).maxOrNull(),
@@ -2757,7 +2928,7 @@ class CellWalQualificationAdapterTest {
 		val unsigned = original.copy(
 			admissionOrdinal = 0L,
 			eventId = eventId.value,
-			deliveryIdentity = cellProviderDeliveryIdentity(BOOT_ID, observations, PAYLOAD_VERSION).value,
+			deliveryIdentity = cellProviderDeliveryIdentity(BOOT_ID, observations, original.payloadVersion).value,
 			sourceSequence = sourceSequence,
 			observedElapsedNanos = latestProviderTime,
 			observedIntervalStartNanos = requireNotNull(

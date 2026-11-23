@@ -6,12 +6,15 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import java.io.File
+import java.io.IOException
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -110,6 +113,37 @@ class SQLiteXReadOnlySnapshotInstrumentedTest {
             assertEquals(1L, count(database))
         } finally {
             helper.close()
+        }
+    }
+
+    @Test fun existingCopyHandlePreservesRollbackModeAndDoesNotCreateAnAbsentOrEmptyDatabase() {
+        val helper = createHelper()
+        val absent = File(context.cacheDir, "sqlite-copy-absent.db")
+        val empty = File(context.cacheDir, "sqlite-copy-empty.db")
+        absent.delete()
+        empty.writeBytes(byteArrayOf())
+        try {
+            val database = helper.writableDatabase
+            database.query("PRAGMA journal_mode").use { row ->
+                assertTrue(row.moveToFirst())
+                assertEquals("delete", row.getString(0))
+            }
+            SQLiteXSupportSQLite.openExistingReadWrite(context.getDatabasePath(DATABASE_NAME).path).use { copy ->
+                copy.query("PRAGMA journal_mode").use { row ->
+                    assertTrue(row.moveToFirst())
+                    assertEquals("delete", row.getString(0))
+                }
+                copy.execSQL("INSERT INTO snapshot_probe(value) VALUES (1)")
+            }
+            assertEquals(1L, count(database))
+            assertThrows(IOException::class.java) { SQLiteXSupportSQLite.openExistingReadWrite(absent.path) }
+            assertFalse(absent.exists())
+            assertThrows(IOException::class.java) { SQLiteXSupportSQLite.openExistingReadWrite(empty.path) }
+            assertEquals(0L, empty.length())
+        } finally {
+            helper.close()
+            absent.delete()
+            empty.delete()
         }
     }
 

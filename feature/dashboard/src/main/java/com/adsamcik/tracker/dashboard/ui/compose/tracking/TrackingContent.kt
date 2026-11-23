@@ -107,7 +107,7 @@ internal fun TrackingContent(
 					TrackingStatsGrid(
 						sessionData = state.sessionData,
 						collectionSnapshot = state.collectionSnapshot,
-						steps = standardPresentation?.steps,
+						presentation = standardPresentation,
 						savedLocation = state.liveSavedLocation,
 					)
 				}
@@ -157,6 +157,7 @@ internal fun TrackingContent(
 				SensorDetailsCard(
 					collectionSnapshot = state.collectionSnapshot,
 					isTracking = state.isTracking,
+					presentation = standardPresentation,
 					savedFix = (state.liveSavedLocation as? SavedLocationSummaryRead.Snapshot)
 						?.summary?.latestFix,
 				)
@@ -206,6 +207,7 @@ private fun MapHeroCard(
 	val currentSpeed = fix?.speedMetersPerSecond
 
 	val sessionEnd = when {
+		state.stoppingAtMs != null -> state.stoppingAtMs
 		sessionData != null && sessionData.end > sessionData.start -> sessionData.end
 		else -> Time.nowMillis
 	}

@@ -82,7 +82,7 @@ internal class SavedLocationSummaryReader @Inject constructor(
                 val ids = rows.map { it.sample.id }
                 val receipts = database.locationPurposeDao().contextReceiptsForSamples(ids, ids.size + 1)
                     .associateBy { it.sampleId }
-                rows.map { SavedLocationCandidate(requireNotNull(receipts[it.sample.id]), it.sample.timeMs) }
+                rows.map { SavedLocationCandidate(requireNotNull(receipts[it.sample.id]), it.sample.timeMs, it) }
             })
         if (result is SavedLocationSummaryRead.Snapshot &&
             database.sourceEvidenceStateDao().get()?.retainedFromMs?.let { session.startedAtMs < it } == true) {
@@ -153,7 +153,7 @@ internal class SavedLocationSummaryReader @Inject constructor(
             throw InvalidSavedLocationPage()
         }
         val byId = receipts.associateBy { it.sampleId }
-        return rows.map { row -> SavedLocationCandidate(requireNotNull(byId[row.sample.id]), row.sample.timeMs) }
+        return rows.map { row -> SavedLocationCandidate(requireNotNull(byId[row.sample.id]), row.sample.timeMs, row) }
     }
 
     /** Native, imported and older saved data use the same current measured-date window. */
@@ -317,20 +317,14 @@ internal class SavedLocationSummaryReader @Inject constructor(
 
     private fun savedPath(candidate: SavedLocationCandidate, row: QualifiedRetainedLocationSample?):
         LocationPathSampleRow? {
-        val compatibility = candidate.compatibility?.takeIf { candidate.receipt == null }
-        if (row == null && compatibility == null) {
+        val path = candidate.compatibility ?: return null
+        if (candidate.receipt != null && row == null) {
             return null
         }
-        val sample = row?.sample ?: requireNotNull(compatibility).sample
         return if (row == null) {
-            requireNotNull(compatibility)
+            path
         } else {
-            LocationPathSampleRow(sample,
-                if (sample.clockDomainId == null) {
-                    null
-                } else {
-                    row.receipt.sourceInstanceId + ":" + row.receipt.registrationGeneration
-                }, row.receipt.sourceSequence, row.scope is RadioContextScope.Ambient)
+            path.copy(sample = row.sample, ambientOnly = row.scope is RadioContextScope.Ambient)
         }
     }
 

@@ -355,6 +355,9 @@ interface TrackingLifecycleCommandAuthority {
 	/** Acknowledges only the matching user-exit receipt; unsupported implementations return false. */
 	suspend fun resumeCollectionAfterUserExit(expectedExitId: String): Boolean = false
 
+	/** Explicit Resume only: reopen the exact completed Turn off receipt without creating a session. */
+	suspend fun resumeCollectionAfterExplicitTurnOff(expectedExitId: String): Boolean = false
+
 	/** Reserve the exact manual attempt before entering the non-reentrant startup/lifecycle lock. */
 	suspend fun prepareCollectionResumeForManualStart(
 		expectedExitId: String,
@@ -374,6 +377,9 @@ interface TrackingLifecycleCommandAuthority {
 
 	/** Read-only signal from the existing durable terminal STOP receipt. */
 	val handledStopGeneration: Flow<Long> get() = flowOf(0L)
+
+	/** Committed collection latch changes; observers must recheck authority before activating sources. */
+	val collectionResumeRequired: Flow<Boolean> get() = flowOf(pendingCollectionResumeExitId != null)
 
 	/**
 	 * Reserves a delayed user Start only if no START, STOP or user-exit command appeared since

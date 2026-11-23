@@ -48,28 +48,32 @@ interface CollectedDataLifecycleStore {
 		throw UnsupportedOperationException("Data restore is unavailable")
 
 	/**
-	 * Invalidates all work captured before this call and rejects records acquired
-	 * before [deletedAtMs] in the new epoch.
+	 * Invalidates work captured before this call while preserving the existing retention floor.
+	 * [deletedAtMs] identifies the erase operation; a later explicit import may contain older data.
 	 */
 	suspend fun beginFullDeletion(deletedAtMs: Long): CollectedDataLifecycleSnapshot
 
 	/**
 	 * Idempotently advances to the exact epoch reserved by a durable deletion operation.
 	 * Production implementations bind the epoch to [operationId] in the same DataStore edit.
+	 * [retainedFromMs] preserves a durable journal reservation, including older pending clears;
+	 * a newer retention boundary always wins.
 	 */
 	suspend fun beginFullDeletion(
 		operationId: String,
 		targetEpoch: Long,
 		deletedAtMs: Long,
+		retainedFromMs: Long? = null,
 	): CollectedDataLifecycleSnapshot {
 		require(operationId.isNotBlank())
 		val current = snapshot()
 		if (current.epoch == targetEpoch) {
-			return current
+			return retainedFromMs?.let { advanceRetainedFrom(it) } ?: current
 		}
 		check(Math.addExact(current.epoch, 1L) == targetEpoch) {
 			"Collected-data deletion target epoch is not the next lifecycle epoch"
 		}
+		retainedFromMs?.let { advanceRetainedFrom(it) }
 		return beginFullDeletion(deletedAtMs).also { advanced ->
 			check(advanced.epoch == targetEpoch) {
 				"Collected-data deletion advanced to an unexpected lifecycle epoch"
@@ -170,6 +174,7 @@ class DefaultCollectedDataLifecycleStore(
 					operationId = operationId,
 					targetEpoch = null,
 					deletedAtMs = deletedAtMs,
+					retainedFromMs = null,
 				)
 			}
 		}
@@ -179,16 +184,18 @@ class DefaultCollectedDataLifecycleStore(
 		operationId: String,
 		targetEpoch: Long,
 		deletedAtMs: Long,
+		retainedFromMs: Long?,
 	): CollectedDataLifecycleSnapshot {
 		require(operationId.isNotBlank())
 		require(targetEpoch > 0L)
 		require(deletedAtMs >= 0L)
+		require(retainedFromMs == null || retainedFromMs >= 0L)
 		return retentionAuthorityOperationLease.withPermit { permit ->
 			permit.commitDataStoreMutation(
 				retentionAuthorityOperationLease,
 				"full-deletion:$operationId",
 			) {
-				beginFullDeletionUnlocked(operationId, targetEpoch, deletedAtMs)
+				beginFullDeletionUnlocked(operationId, targetEpoch, deletedAtMs, retainedFromMs)
 			}
 		}
 	}
@@ -225,6 +232,7 @@ class DefaultCollectedDataLifecycleStore(
 		operationId: String,
 		targetEpoch: Long?,
 		deletedAtMs: Long,
+		retainedFromMs: Long?,
 	): CollectedDataLifecycleSnapshot {
 		var updated: CollectedDataLifecycleSnapshot? = null
 		dataStore.edit { preferences ->
@@ -232,7 +240,7 @@ class DefaultCollectedDataLifecycleStore(
 			val lastOperationId = preferences[LAST_FULL_DELETION_OPERATION_ID_KEY]
 			val lastTargetEpoch = preferences[LAST_FULL_DELETION_TARGET_EPOCH_KEY]
 			val lastDeletedAtMs = preferences[LAST_FULL_DELETION_DELETED_AT_MS_KEY]
-			val next = if (lastOperationId == operationId) {
+			val nextEpoch = if (lastOperationId == operationId) {
 				check(lastTargetEpoch == current.epoch && lastDeletedAtMs == deletedAtMs) {
 					"Collected-data deletion operation identity was reused with different inputs"
 				}
@@ -241,19 +249,18 @@ class DefaultCollectedDataLifecycleStore(
 						"Collected-data deletion operation acknowledgement has another target epoch"
 					}
 				}
-				current
+				current.epoch
 			} else {
 				val nextEpoch = targetEpoch ?: Math.addExact(current.epoch, 1L)
 				check(Math.addExact(current.epoch, 1L) == nextEpoch) {
 					"Collected-data deletion operation does not own the target lifecycle epoch"
 				}
-				current.copy(
-					epoch = nextEpoch,
-					retainedFromMs = current.retainedFromMs
-						?.let { maxOf(it, deletedAtMs) }
-						?: deletedAtMs,
-				)
+				nextEpoch
 			}
+			val next = current.copy(
+				epoch = nextEpoch,
+				retainedFromMs = listOfNotNull(current.retainedFromMs, retainedFromMs).maxOrNull(),
+			)
 			preferences.writeSnapshot(next)
 			preferences[LAST_FULL_DELETION_OPERATION_ID_KEY] = operationId
 			preferences[LAST_FULL_DELETION_TARGET_EPOCH_KEY] = next.epoch

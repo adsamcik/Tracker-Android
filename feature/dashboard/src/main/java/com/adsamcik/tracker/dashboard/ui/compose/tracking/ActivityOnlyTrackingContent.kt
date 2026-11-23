@@ -2,6 +2,7 @@
 
 package com.adsamcik.tracker.dashboard.ui.compose.tracking
 
+import android.text.format.DateFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,6 +39,7 @@ import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryType
+import java.util.Date
 
 /** Activity-only live surface. It intentionally contains no Location-shaped controls or metrics. */
 @Composable
@@ -82,19 +84,29 @@ internal fun ActivityOnlyTrackingCard(activity: DashboardLiveActivityValue) {
 					?: stringResource(R.string.dashboard_live_value_missing),
 				tag = "dashboard_live_activity_band",
 			)
-			ActivityValueRow(
-				label = stringResource(R.string.dashboard_live_activity_active_time),
-				value = activity.knownActiveDurationNanos?.let { nanos ->
-					(nanos / NANOS_PER_MILLISECOND).formatAsDuration(LocalContext.current)
-				} ?: stringResource(R.string.dashboard_live_value_missing),
-				tag = "dashboard_live_activity_active_time",
-			)
-			Text(
-				text = stringResource(activity.coverage.labelResource),
-				modifier = Modifier.testTag("dashboard_live_activity_coverage"),
-				style = MaterialTheme.typography.bodySmall,
-				color = MaterialTheme.colorScheme.onPrimaryContainer,
-			)
+			activity.latestObservationTimeMs?.let { observedAt ->
+				Text(
+					text = DateFormat.getTimeFormat(LocalContext.current).format(Date(observedAt)),
+					modifier = Modifier.testTag("dashboard_live_activity_observed_time"),
+					style = MaterialTheme.typography.bodySmall,
+					color = MaterialTheme.colorScheme.onPrimaryContainer,
+				)
+			}
+			if (activity.latestObservationTimeMs == null || activity.knownActiveDurationNanos != null) {
+				ActivityValueRow(
+					label = stringResource(R.string.dashboard_live_activity_active_time),
+					value = activity.knownActiveDurationNanos?.let { nanos ->
+						(nanos / NANOS_PER_MILLISECOND).formatAsDuration(LocalContext.current)
+					} ?: stringResource(R.string.dashboard_live_value_missing),
+					tag = "dashboard_live_activity_active_time",
+				)
+				Text(
+					text = stringResource(activity.coverage.labelResource),
+					modifier = Modifier.testTag("dashboard_live_activity_coverage"),
+					style = MaterialTheme.typography.bodySmall,
+					color = MaterialTheme.colorScheme.onPrimaryContainer,
+				)
+			}
 			if (activity.gapCount > 0) {
 				Text(
 					text = stringResource(R.string.dashboard_live_activity_gaps, activity.gapCount),

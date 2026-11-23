@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.summary
 
 import android.app.Application
+import android.database.sqlite.SQLiteException
 import app.cash.turbine.test
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
@@ -18,6 +19,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
@@ -45,14 +47,20 @@ import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.spyk
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.CoroutineContext
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -543,6 +551,115 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 			),
 		)
 	}
+
+	@Test
+	fun `numeric observer skips Pressure ticks and retains Steps lifecycle changes`() = runBlocking<Unit> {
+		val calls = AtomicInteger()
+		val reads = Channel<Int>(Channel.UNLIMITED)
+		val observed = RoomStepsNumericSummaryRepository(database, Dispatchers.IO,
+			FakeAmbientStepsTransactionReader { range, revision ->
+				reads.trySend(calls.incrementAndGet())
+				AmbientStepsNumericRangeRead.Snapshot(revision, range.days.map { day ->
+					AmbientStepsNumericHistoryDay(day, AmbientStepsHistoryValue.Unavailable(
+						setOf(AmbientStepsHistoryCause.NO_EVIDENCE)))
+				})
+			})
+		val registrations = database.sourceRegistrationStateDao()
+		observed.observeDecisionBatch(listOf(request())).test {
+			(awaitItem() as StepsNumericDecisionBatch.Snapshot).sourceEvidenceRevision shouldBe 0L
+			reads.receive() shouldBe 1
+			database.withTransaction {
+				registrations.replace(invalidationRegistration(SourceDestinationOwnerEntity.SOURCE_PRESSURE))
+				database.sourceProjectionStateDao().installProductLane(
+					invalidationLane(SourceDestinationOwnerEntity.SOURCE_PRESSURE))
+				database.sourceEvidenceStateDao().incrementRevision(1L) shouldBe 1
+			}
+			withTimeoutOrNull(250L) { reads.receive() } shouldBe null
+			expectNoEvents()
+			database.withTransaction {
+				registrations.replace(invalidationRegistration(SourceDestinationOwnerEntity.SOURCE_STEPS))
+				database.sourceEvidenceStateDao().incrementRevision(2L) shouldBe 1
+			}
+			(awaitItem() as StepsNumericDecisionBatch.Snapshot).sourceEvidenceRevision shouldBe 2L
+			reads.receive() shouldBe 2
+			database.withTransaction {
+				registrations.incrementSequence(SourceDestinationOwnerEntity.SOURCE_STEPS,
+					"source-broker:3:purposes=4", 3L) shouldBe 1
+				database.sourceEvidenceStateDao().incrementRevision(3L) shouldBe 1
+			}
+			(awaitItem() as StepsNumericDecisionBatch.Snapshot).sourceEvidenceRevision shouldBe 3L
+			reads.receive() shouldBe 3
+			database.withTransaction {
+				database.sourceProjectionStateDao().installProductLane(
+					invalidationLane(SourceDestinationOwnerEntity.SOURCE_STEPS))
+				database.sourceEvidenceStateDao().incrementRevision(4L) shouldBe 1
+			}
+			(awaitItem() as StepsNumericDecisionBatch.Snapshot).sourceEvidenceRevision shouldBe 4L
+			reads.receive() shouldBe 4
+			database.sourceEvidenceStateDao().updateLifecycle(EPOCH + 1L, null, 5L) shouldBe 1
+			(awaitItem() as StepsNumericDecisionBatch.Snapshot).sourceEvidenceRevision shouldBe 5L
+			reads.receive() shouldBe 5
+			database.withTransaction {
+				database.dailySummaryDao().upsert(DAY, 0f, 0, 0L, 0, 0L, 6L, ZONE.id)
+				database.sourceEvidenceStateDao().incrementRevision(6L) shouldBe 1
+			}
+			(awaitItem() as StepsNumericDecisionBatch.Snapshot).sourceEvidenceRevision shouldBe 6L
+			reads.receive() shouldBe 6
+			calls.get() shouldBe 6
+			cancelAndIgnoreRemainingEvents()
+		}
+		reads.close()
+	}
+
+	private fun invalidationRegistration(source: Int) = SourceRegistrationStateEntity(
+		sourceKind = source, ownerScope = "source-broker:$source:purposes=4", sourceInstanceId = "source-$source",
+		clockDomainId = "boot", registrationGeneration = 1L, nextSequence = 1L,
+		appliedRevision = 1L, collectedDataEpoch = EPOCH, updatedAtMs = 1L,
+	)
+
+	@Test
+	fun `metadata read failure falls back to full read and later invalidations recover`() = runBlocking<Unit> {
+		val realDao = database.sourceRegistrationStateDao()
+		val metadataDao = spyk(realDao)
+		val observedDatabase = spyk(database)
+		every { observedDatabase.sourceRegistrationStateDao() } returns metadataDao
+		val attempts = AtomicInteger()
+		coEvery { metadataDao.statesForSourceBounded(any(), any()) } coAnswers {
+			if (attempts.incrementAndGet() == 1) {
+				throw SQLiteException("metadata temporarily unavailable")
+			}
+			realDao.statesForSourceBounded(firstArg(), secondArg())
+		}
+		val calls = AtomicInteger()
+		val observed = RoomStepsNumericSummaryRepository(observedDatabase, Dispatchers.IO,
+			FakeAmbientStepsTransactionReader { range, revision ->
+				calls.incrementAndGet()
+				AmbientStepsNumericRangeRead.Snapshot(revision, range.days.map { day ->
+					AmbientStepsNumericHistoryDay(day, AmbientStepsHistoryValue.Unavailable(
+						setOf(AmbientStepsHistoryCause.NO_EVIDENCE)))
+				})
+			})
+		observed.observeDecisionBatch(listOf(request())).test {
+			(awaitItem() as StepsNumericDecisionBatch.Snapshot).sourceEvidenceRevision shouldBe 0L
+			calls.get() shouldBe 1
+			database.sourceEvidenceStateDao().incrementRevision(1L) shouldBe 1
+			(awaitItem() as StepsNumericDecisionBatch.Snapshot).sourceEvidenceRevision shouldBe 1L
+			calls.get() shouldBe 2
+			database.sourceEvidenceStateDao().updateLifecycle(EPOCH + 1L, null, 2L) shouldBe 1
+			(awaitItem() as StepsNumericDecisionBatch.Snapshot).sourceEvidenceRevision shouldBe 2L
+			calls.get() shouldBe 3
+			attempts.get() shouldBe 3
+			cancelAndIgnoreRemainingEvents()
+		}
+	}
+
+	private fun invalidationLane(source: Int) = SourceProductProjectionLaneEntity(
+		sourceKind = source, bindingGeneration = 1L, projectionId = "invalidation-$source", projectionVersion = 1,
+		captureModeMask = 1L, productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+		activatedRolloutRevision = 1L, activationOrdinal = 1L, contiguousAdmissionOrdinal = 0L,
+		captureAdmissionCutoffOrdinal = null, retentionRequired = true,
+		status = SourceProductProjectionLaneEntity.STATUS_ACTIVE, installedAtMs = 1L, updatedAtMs = 1L,
+	)
 
 	@Test
 	fun `decision batch binds source revision calendar and stable semantic result`() = runBlocking<Unit> {

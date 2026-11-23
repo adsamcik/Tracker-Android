@@ -26,6 +26,11 @@ import com.adsamcik.tracker.shared.base.database.legacy.LEGACY_DATABASE_NAME
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyImportRoomCallback
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyImportStatus
+import com.adsamcik.tracker.shared.base.database.legacy.LegacyV26Importer
+import com.adsamcik.tracker.shared.base.database.SourceEvidenceRetentionBootstrapResult
+import com.adsamcik.tracker.shared.base.database.bootstrapSourceEvidenceForRetention
+import com.adsamcik.tracker.shared.preferences.lifecycle.DefaultCollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityOperationLease
 import com.adsamcik.tracker.shared.base.database.legacy.hasCompletedLegacyImport
 import java.io.File
 import javax.inject.Provider
@@ -66,7 +71,7 @@ class LegacyReleasedDatabaseUpgradeIntegrationTest {
 		val original = sourceSnapshot()
 		val database = buildActive()
 		val repository = LegacyDatabaseRepository(context)
-		val coordinator = LegacyDatabaseUpgradeCoordinator(Provider { database }, repository)
+		val coordinator = coordinator(database, repository)
 
 		assertFalse(coordinator.isReady())
 		assertEquals(LegacyDatabaseStartupResult.Ready, coordinator.ensureReady())
@@ -82,13 +87,13 @@ class LegacyReleasedDatabaseUpgradeIntegrationTest {
 		val original = sourceSnapshot()
 		val first = buildActive()
 		assertEquals(LegacyDatabaseStartupResult.Ready,
-			LegacyDatabaseUpgradeCoordinator(Provider { first }, LegacyDatabaseRepository(context)).ensureReady())
+			coordinator(first, LegacyDatabaseRepository(context)).ensureReady())
 		assertImported(first.openHelper.writableDatabase)
 		first.close()
 
 		val reopened = buildActive()
 		val repository = LegacyDatabaseRepository(context)
-		val coordinator = LegacyDatabaseUpgradeCoordinator(Provider { reopened }, repository)
+		val coordinator = coordinator(reopened, repository)
 		assertFalse(coordinator.isReady())
 		assertEquals(LegacyDatabaseStartupResult.Ready, coordinator.ensureReady())
 		assertEquals(LegacyDatabaseStartupResult.Ready, coordinator.ensureReady())
@@ -103,12 +108,16 @@ class LegacyReleasedDatabaseUpgradeIntegrationTest {
 		val database = buildActive()
 		val helper = database.openHelper
 		val repository = LegacyDatabaseRepository(context)
-		val coordinator = LegacyDatabaseUpgradeCoordinator(Provider { database }, repository)
+		val coordinator = coordinator(database, repository)
 
 		val failure = assertIs<LegacyDatabaseStartupResult.Failed>(coordinator.ensureReady())
 		assertTrue(failure.requiresExplicitRetry)
 		assertFalse(coordinator.isReady())
 		assertEquals(LegacyImportStatus.FAILED, repository.currentState().importStatus)
+		assertEquals(null, database.sourceEvidenceStateDao().get())
+		database.openHelper.writableDatabase.query("SELECT COUNT(*) FROM location_sample").use { row ->
+			assertTrue(row.moveToFirst()); assertEquals(0L, row.getLong(0))
+		}
 		editSource { execSQL("ALTER TABLE location_data_needs_repair RENAME TO location_data") }
 		val repaired = sourceSnapshot()
 		assertTrue(assertIs<LegacyDatabaseStartupResult.Failed>(coordinator.ensureReady()).requiresExplicitRetry)
@@ -121,6 +130,47 @@ class LegacyReleasedDatabaseUpgradeIntegrationTest {
 		assertEquals(repaired, sourceSnapshot())
 	}
 
+	private fun coordinator(database: AppDatabase, repository: LegacyDatabaseRepository): LegacyDatabaseUpgradeCoordinator {
+		val lease = RetentionAuthorityOperationLease()
+		return LegacyDatabaseUpgradeCoordinator(Provider { database }, repository,
+			LegacyV26Importer(context, normalizerOpenHelperFactory = FrameworkSQLiteOpenHelperFactory()),
+			DefaultCollectedDataLifecycleStore(context, lease), lease)
+	}
+
+	@Test fun `released import establishes the exact lifecycle before retained data becomes visible`(): Unit = runBlocking {
+		createReleasedSource()
+		val database = buildActive()
+		val lease = RetentionAuthorityOperationLease()
+		val lifecycle = DefaultCollectedDataLifecycleStore(context, lease)
+		lifecycle.advanceRetainedFrom(100L)
+		lifecycle.beginFullDeletion(200L)
+		val expected = lifecycle.snapshot()
+		val importer = LegacyV26Importer(context, normalizerOpenHelperFactory = FrameworkSQLiteOpenHelperFactory())
+		val startup = LegacyDatabaseUpgradeCoordinator(Provider { database }, LegacyDatabaseRepository(context),
+			importer, lifecycle, lease)
+		assertEquals(LegacyDatabaseStartupResult.Ready, startup.ensureReady())
+		assertImported(database.openHelper.writableDatabase)
+		val guard = checkNotNull(database.sourceEvidenceStateDao().get())
+		assertEquals(expected.epoch, guard.collectedDataEpoch)
+		assertEquals(expected.retainedFromMs, guard.retainedFromMs)
+		assertIs<SourceEvidenceRetentionBootstrapResult.Ready>(database.bootstrapSourceEvidenceForRetention(
+			expected.epoch, expected.retainedFromMs, System.currentTimeMillis()))
+	}
+
+	@Test fun `missing import metadata never adopts existing recorded data`(): Unit = runBlocking {
+		createReleasedSource()
+		val database = buildActive()
+		val raw = database.openHelper.writableDatabase
+		raw.execSQL("INSERT INTO location_sample(time_ms,elapsed_realtime_nanos,lat_e7,lon_e7,provider,quality,created_at) VALUES(5,0,1,2,'legacy','LOW',5)")
+		val result = coordinator(database, LegacyDatabaseRepository(context)).ensureReady()
+		assertIs<LegacyDatabaseStartupResult.Failed>(result)
+		assertEquals(null, database.sourceEvidenceStateDao().get())
+		raw.query("SELECT COUNT(*) FROM location_sample").use { row ->
+			assertTrue(row.moveToFirst()); assertEquals(1L, row.getLong(0))
+		}
+		assertFalse(hasCompletedLegacyImport(raw))
+	}
+
 	private fun buildActive(): AppDatabase = AppDatabase.fileBuilder(context, ACTIVE_DATABASE_NAME)
 		.openHelperFactory(FrameworkSQLiteOpenHelperFactory())
 		.addCallback(LegacyImportRoomCallback(context, arrayOf(
@@ -128,7 +178,7 @@ class LegacyReleasedDatabaseUpgradeIntegrationTest {
 			MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20,
 			MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24,
 			MIGRATION_24_25, MIGRATION_25_26,
-		), FrameworkSQLiteOpenHelperFactory()))
+		), FrameworkSQLiteOpenHelperFactory(), importOnCreate = false))
 		.allowMainThreadQueries()
 		.build()
 		.also(databases::add)
@@ -164,7 +214,7 @@ class LegacyReleasedDatabaseUpgradeIntegrationTest {
 	}
 
 	private fun assertImported(database: SupportSQLiteDatabase) {
-		assertEquals(30, database.version)
+		assertEquals(32, database.version)
 		assertTrue(hasCompletedLegacyImport(database))
 		for (table in listOf("location_sample", "location_observation", "import_job_receipt")) {
 			database.query("SELECT COUNT(*) FROM `$table`").use { row ->

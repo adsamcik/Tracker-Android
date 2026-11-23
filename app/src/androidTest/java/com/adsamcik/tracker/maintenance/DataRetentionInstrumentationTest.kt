@@ -3,39 +3,60 @@ package com.adsamcik.tracker.maintenance
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.work.Configuration
-import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
-import androidx.work.testing.SynchronousExecutor
-import androidx.work.testing.WorkManagerTestInitHelper
+import com.adsamcik.tracker.app.Application
+import com.adsamcik.tracker.app.di.TrackingInfrastructureIntegrationEntryPoint
+import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.RetentionFloorDestructivePlan
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.database.data.RetentionWorkExecutionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigurationApprovalResult
+import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
+/** Modifies retention and deletes expired rows; run only against a disposable debug install. */
 @RunWith(AndroidJUnit4::class)
 class DataRetentionInstrumentationTest {
     private lateinit var context: Context
+    private lateinit var application: Application
+    private lateinit var database: AppDatabase
+    private lateinit var retainedSample: LocationSample
+    private var expiredSampleId: Long = 0L
 
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
-
-        // Enable auto-clean and set 1-year retention via Proto DataStore
+        check(context.packageName == "com.adsamcik.tracker.debug") {
+            "Retention instrumentation requires the disposable Debug app"
+        }
+        application = context.applicationContext as Application
         runBlocking {
-            RetentionConfigStore(context, Dispatchers.IO).update {
-                copy(autoCleanupEnabled = true, dataRetentionYears = 1)
+            assertTrue(
+                "Retention instrumentation requires completed Ready startup",
+                application.awaitStartupReconciliation() is TrackingStartupResult.Ready,
+            )
+            val initial = RetentionConfigStore(context, Dispatchers.IO).config.first()
+            check(!initial.autoCleanupEnabled && !initial.autoPurgeEnabled) {
+                "Seed retention instrumentation in a fresh Debug profile before enabling cleanup"
             }
         }
 
-        // Seed two location rows: one older than 2 years, one now
-        val db = AppDatabase.database(context)
+        // Seed before enabling cleanup, so the first scheduled tick sees both rows.
+        database = AppDatabase.database(context)
         val now = System.currentTimeMillis()
         val old = now - 2L * 365L * 24L * 60L * 60L * 1000L
         val sampleOld = LocationSample(
@@ -56,49 +77,55 @@ class DataRetentionInstrumentationTest {
             bucketId = null,
             createdAt = old,
         )
-        val sampleNew = LocationSample(
+        val sampleNew = sampleOld.copy(
             timeMs = now,
-            elapsedRealtimeNanos = 0L,
             latE7 = (1.0 * 1e7).toInt(),
             lonE7 = (1.0 * 1e7).toInt(),
-            altitudeM = null,
-            rawGpsAltitudeM = null,
-            hAccM = null,
-            vAccM = null,
-            speedMps = null,
-            speedAccuracyMps = null,
-            provider = "gps",
-            quality = SampleQuality.HIGH,
-            motionState = null,
-            policy = null,
-            bucketId = null,
             createdAt = now,
         )
-        runBlocking { db.locationSampleDao().insert(listOf(sampleOld, sampleNew)) }
-
-        // Simulate process death by recreating WorkManager
-        val config = Configuration.Builder()
-            .setMinimumLoggingLevel(android.util.Log.DEBUG)
-            .setExecutor(SynchronousExecutor())
-            .build()
-        WorkManagerTestInitHelper.initializeTestWorkManager(context, config)
+        runBlocking {
+            val ids = database.locationSampleDao().insert(listOf(sampleOld, sampleNew))
+            assertTrue(ids.all { it > 0L })
+            expiredSampleId = ids.first()
+            retainedSample = sampleNew.copy(id = ids.last())
+        }
     }
 
     @Test
-    fun retention_applied_on_next_worker_tick_after_restart() {
+    fun retention_applies_approved_configuration_on_worker_tick() = runBlocking {
         val wm = WorkManager.getInstance(context)
-
-		// Enqueue a one-time work for deterministic execution with SynchronousExecutor
-        val req = OneTimeWorkRequestBuilder<DataRetentionWorker>()
-            .build()
-        wm.enqueue(req).result.get()
-
-        // Run worker synchronously by polling until DB reflects pruning
-        // Since we used SynchronousExecutor, the work should have run
-        val count = runBlocking {
-            AppDatabase.database(context).locationSampleDao().countBetween(0L, Long.MAX_VALUE)
+        val producer = EntryPointAccessors.fromApplication(
+            application,
+            TrackingInfrastructureIntegrationEntryPoint::class.java,
+        ).retentionAuthorityProducer()
+        // Use the same singleton scheduler and WorkManager/Hilt graph as app maintenance.
+        application.dataRetentionSchedulerProvider.get().initialize()
+        val applied = RetentionConfigStore(context, Dispatchers.IO).updateWithApproval(
+            block = { copy(autoCleanupEnabled = true, dataRetentionYears = 1) },
+            prepare = { stage -> producer.preparePendingConfiguration(stage.policy.configurationGeneration) },
+            approve = { stage -> producer.reconcilePendingConfiguration(stage.policy.configurationGeneration) },
+        )
+        assertTrue(
+            "Retention configuration was not approved: ${applied.approval}",
+            applied.approval is RetentionConfigurationApprovalResult.Approved ||
+                applied.approval is RetentionConfigurationApprovalResult.AlreadyApproved,
+        )
+        withTimeout(60_000L) {
+            val request = wm.getWorkInfosForUniqueWorkFlow(RetentionPipelineWorker.WORK_NAME)
+                .first { infos -> infos.any { !it.state.isFinished } }
+                .single { !it.state.isFinished }
+            val receipt = database.invalidationTracker
+                .createFlow("retention_work_execution_receipt", emitInitialState = true)
+                .map { database.retentionWorkExecutionReceiptDao().latest(request.id.toString()) }
+                .first { it?.state == RetentionWorkExecutionReceiptEntity.STATE_FINAL }
+            assertEquals(RetentionFloorDestructivePlan.WORKER_RETENTION_PIPELINE, receipt?.workerKind)
+            // Successful periodic work is enqueued for its next period, rather than SUCCEEDED.
+            wm.getWorkInfoByIdFlow(request.id).first {
+                it?.state == WorkInfo.State.ENQUEUED && it.runAttemptCount == 0
+            }
         }
-        // Old row should be pruned, new should remain
-        assertEquals(1, count)
+        assertTrue(database.locationSampleDao().byIds(listOf(expiredSampleId)).isEmpty())
+        assertEquals(listOf(retainedSample), database.locationSampleDao().byIds(listOf(retainedSample.id)))
+        assertEquals(1, database.locationSampleDao().countBetween(0L, Long.MAX_VALUE))
     }
 }

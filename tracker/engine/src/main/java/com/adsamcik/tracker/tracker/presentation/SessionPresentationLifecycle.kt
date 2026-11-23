@@ -82,7 +82,7 @@ internal class SessionPresentationLifecycle(
 		closed
 	}
 
-	/** A failed initialization may have saved authorized facts before opening its presentation row. */
+	/** A stopped run may have saved authorized facts before opening its presentation row. */
 	@Suppress("ReturnCount", "ComplexCondition", "CyclomaticComplexMethod", "LongMethod")
 	suspend fun recoverMissingForRetainedEvent(eventId: String): Boolean = database.withTransaction {
 		val wal = database.sourceEventWalDao().getByEventId(eventId) ?: return@withTransaction false
@@ -117,24 +117,30 @@ internal class SessionPresentationLifecycle(
 		) {
 			return@withTransaction false
 		}
+		val retainedEnd = retainedRecordingEnd(wal, run, session)
 		run.sessionSegmentId?.let { boundId ->
 			val bound = database.sessionSegmentDao().getById(boundId)
 			val exact = bound != null && bound.logicalTrackingId == logicalId && bound.serviceRunId == runId
-			if (exact && run.isTerminalPendingPresentation() &&
-				failedInitializationEnd(wal, run, session) != null
+			if (exact && run.state in TERMINAL_RUN_STATES && run.completedAtMs != null &&
+				retainedEnd != null && retainedEnd >= run.startedAtMs
 			) {
-				check(acknowledgeQuiescedExact(SessionPresentationBinding(logicalId, runId, boundId),
-					requireNotNull(run.completedAtMs)) == PresentationQuiescenceResult.ACKNOWLEDGED)
+				if (bound?.endTimeMs != retainedEnd) {
+					database.sessionSegmentDao().update(requireNotNull(bound).copy(endTimeMs = retainedEnd))
+				}
+				if (run.isTerminalPendingPresentation()) {
+					check(acknowledgeQuiescedExact(SessionPresentationBinding(logicalId, runId, boundId),
+						System.currentTimeMillis()) == PresentationQuiescenceResult.ACKNOWLEDGED)
+				}
 			}
 			return@withTransaction exact
 		}
-		val recoveringCurrentFailure = isCurrentStoppingRun(session, run)
-		val endTimeMs = if (recoveringCurrentFailure) {
-			failedInitializationEnd(wal, run, session)
+		val recoveringCurrentStop = isCurrentStoppingRun(session, run)
+		val endTimeMs = if (recoveringCurrentStop) {
+			retainedEnd
 		} else {
-			run.completedAtMs
+			retainedEnd ?: run.completedAtMs
 		} ?: return@withTransaction false
-		if ((!recoveringCurrentFailure && (run.state !in TERMINAL_RUN_STATES || session.currentServiceRunId == runId)) ||
+		if ((!recoveringCurrentStop && (run.state !in TERMINAL_RUN_STATES || session.currentServiceRunId == runId)) ||
 			run.presentationAcknowledgement != SourceServiceRunEntity.PRESENTATION_PENDING ||
 			run.startedAtMs < 0L || endTimeMs < run.startedAtMs || manifest.sessionMode !in setOf("MANUAL", "AUTOMATIC")
 		) {
@@ -152,15 +158,15 @@ internal class SessionPresentationLifecycle(
 		))
 		check(segmentId > 0L)
 		check(dao.updateServiceRun(run.copy(sessionSegmentId = segmentId)) == 1)
-		if (!recoveringCurrentFailure) {
-			check(acknowledgeQuiescedExact(SessionPresentationBinding(logicalId, runId, segmentId), endTimeMs) ==
-				PresentationQuiescenceResult.ACKNOWLEDGED)
+		if (!recoveringCurrentStop) {
+			check(acknowledgeQuiescedExact(SessionPresentationBinding(logicalId, runId, segmentId),
+				System.currentTimeMillis()) == PresentationQuiescenceResult.ACKNOWLEDGED)
 		}
 		true
 	}
 
-	/** A failed current initialization may need its closed presentation before its saved facts can drain. */
-	private suspend fun failedInitializationEnd(
+	/** Retained observations need their closed presentation even when End interrupted initialization. */
+	private suspend fun retainedRecordingEnd(
 		wal: SourceEventWalEntity,
 		run: SourceServiceRunEntity,
 		session: LogicalTrackingSessionEntity,
@@ -169,7 +175,7 @@ internal class SessionPresentationLifecycle(
 		val exactClock = cutoff.bootId == run.bootId && cutoff.bootId == wal.clockDomainId &&
 			cutoff.elapsedNanos != null
 		return session.cutoffAtMs.takeIf { exactClock && wal.wasMeasuredWithinRun(run, cutoff.elapsedNanos) &&
-			hasFailedInitializationStop(session, run) && hasCapturedAuthorization(wal) }
+			hasCapturedStop(session, run) && hasCapturedAuthorization(wal) }
 	}
 
 	private fun isCurrentStoppingRun(session: LogicalTrackingSessionEntity, run: SourceServiceRunEntity): Boolean =
@@ -183,14 +189,14 @@ internal class SessionPresentationLifecycle(
 			observedElapsedNanos < cutoff && receivedElapsedNanos >= observedElapsedNanos
 	}
 
-	private suspend fun hasFailedInitializationStop(
+	private suspend fun hasCapturedStop(
 		session: LogicalTrackingSessionEntity,
 		run: SourceServiceRunEntity,
 	): Boolean {
 		val dao = database.sourceSessionDao()
 		val stop = dao.firstStopIntent(session.logicalTrackingId) ?: return false
 		val manifest = dao.manifest(session.logicalTrackingId, stop.manifestRevision) ?: return false
-		return stop.stopReason == "INITIALIZATION_FAILURE" && manifest.serviceRunId == run.serviceRunId &&
+		return manifest.serviceRunId == run.serviceRunId &&
 			stop.requestedElapsedRealtimeNanos >= run.startedElapsedNanos &&
 			SessionManifestIntegrity.verify(manifest,
 				dao.manifestSources(session.logicalTrackingId, stop.manifestRevision))
@@ -224,7 +230,7 @@ internal class SessionPresentationLifecycle(
 			segment.endTimeMs == session.cutoffAtMs
 		val terminal = run.isTerminalPendingPresentation() && run.logicalTrackingId == session.logicalTrackingId &&
 			session.currentServiceRunId != run.serviceRunId
-		return cutoff.bootId == run.bootId && closed && terminal && hasFailedInitializationStop(session, run)
+		return cutoff.bootId == run.bootId && closed && terminal && hasCapturedStop(session, run)
 	}
 
 	private suspend fun hasCapturedAuthorization(wal: SourceEventWalEntity): Boolean {

@@ -9,6 +9,8 @@ import com.adsamcik.tracker.impexp.portable.LocationFileJsonV1
 import com.adsamcik.tracker.impexp.portable.LocationFileMeasurementV1
 import com.adsamcik.tracker.impexp.portable.LocationFilePointV1
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.LocationFileContinuity
+import com.adsamcik.tracker.shared.base.database.dao.LocationFileIdentityDao
 import com.adsamcik.tracker.shared.base.database.data.LocationFileIdentityEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationFileArchiveEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationFileArchivePointEntity
@@ -233,23 +235,34 @@ private suspend fun AppDatabase.restoreLocationPoint(
     choice: LocationFileConflictChoice,
     evidence: SourceEvidenceState,
 ): Pair<Long, Boolean> {
-    val now = sample?.let { LocationFileMeasurementV1.from(it.toModel()) }
-    val before = expected ?: throw LocationImportChangedDuringWrite()
-    if (before.first != (identity != null) ||
-        before.second != now?.toString() || (identity != null && sample == null)) {
-        throw LocationImportChangedDuringWrite()
-    }
+    val now = requireUnchangedLocationPoint(expected, identity, sample)
     return if (identity == null) {
         insertImportedLocationPoint(point) to true
-    } else if (now == point.measurement || choice == LocationFileConflictChoice.KEEP_EXISTING) {
+    } else if (now == point.measurement && identity.matchesFilePath(point)) {
+        identity.sampleId to locationFileIdentityDao().enrichImportedPath(identity, point)
+    } else if (choice == LocationFileConflictChoice.KEEP_EXISTING) {
         identity.sampleId to false
     } else {
+        replaceLocationPath(point, identity)
         val value = point.toImportedSample(System.currentTimeMillis())
         val nextRevision = Math.addExact(evidence.revision, 1L)
         locationPointCorrectionDao().replace(LocationPointCorrection.from(
             identity.sampleId, evidence.collectedDataEpoch, nextRevision, value))
         identity.sampleId to true
     }
+}
+
+/** The review binds the current saved values and path metadata before any point is changed. */
+private fun requireUnchangedLocationPoint(expected: Pair<Boolean, String?>?,
+    identity: LocationFileIdentityEntity?, sample: LocationSample?): LocationFileMeasurementV1? {
+    val now = sample?.let { LocationFileMeasurementV1.from(it.toModel()) }
+    val before = expected ?: throw LocationImportChangedDuringWrite()
+    val currentState = identity?.let { now?.savedState(it) }
+    if (before.first != (identity != null) ||
+        before.second != currentState || (identity != null && sample == null)) {
+        throw LocationImportChangedDuringWrite()
+    }
+    return now
 }
 
 private suspend fun AppDatabase.insertImportedLocationPoint(point: LocationFilePointV1): Long {
@@ -259,7 +272,7 @@ private suspend fun AppDatabase.insertImportedLocationPoint(point: LocationFileP
     }
     val identityId = locationFileIdentityDao().insertIfAbsent(
         LocationFileIdentityEntity(point.pointId, savedId, imported = true,
-            reportedOrigin = point.origin.name.lowercase()),
+            reportedOrigin = point.origin.name.lowercase(), pathId = point.pathId, pathSequence = point.sequence),
     )
     if (identityId <= 0L) {
         throw LocationImportChangedDuringWrite()
@@ -270,3 +283,19 @@ private suspend fun AppDatabase.insertImportedLocationPoint(point: LocationFileP
 private class LocationImportChangedDuringWrite : IOException()
 
 private const val LOCATION_IMPORT_BATCH_SIZE = 256
+
+/** Older point files omit path fields; keep existing known route continuity when replacing values. */
+private suspend fun AppDatabase.replaceLocationPath(point: LocationFilePointV1, identity: LocationFileIdentityEntity) {
+    val existing = locationPurposeDao().savedFileSamples(listOf(identity.sampleId)).singleOrNull()
+    val knownId = existing?.continuityId?.let { LocationFileContinuity.filePathId(it, existing.sample.clockDomainId) }
+    val pathId = point.pathId ?: identity.pathId ?: knownId
+    val sequence = point.sequence ?: identity.pathSequence ?: existing?.continuitySequence
+    check(locationFileIdentityDao().markReplaced(point.pointId, point.origin.name.lowercase(),
+        pathId.takeIf { sequence != null }, sequence.takeIf { pathId != null }) == 1)
+}
+
+private suspend fun LocationFileIdentityDao.enrichImportedPath(identity: LocationFileIdentityEntity,
+    point: LocationFilePointV1): Boolean {
+    val pathId = point.pathId ?: return false
+    return identity.imported && fillPathIfUnknown(identity.portableId, pathId, requireNotNull(point.sequence)) > 0
+}

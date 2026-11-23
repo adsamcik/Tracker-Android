@@ -15,6 +15,10 @@ enum class LiveSessionHistoryDetail { FULL, COMPACT }
 // Keep the shared read-only history contract together for session and daily consumers.
 @Suppress("TooManyFunctions")
 interface TrackingHistoryRepository {
+	/** One bounded qualified recent page shared by product surfaces, including physical metadata. */
+	fun observeRecentHistoryPage(limit: Int): Flow<SourceAwareHistoryPageQuery> =
+		observeRecentSourceAwarePage(emptyList(), limit)
+
 	/** Resolve exact saved members in one snapshot; no source is activated. */
 	suspend fun readCapturedSourceMembers(segmentIds: List<Long>): List<LiveSessionHistorySnapshot> = emptyList()
     /**
@@ -356,11 +360,13 @@ data class SessionHistory(
 	}
 }
 
-/** Five-source products resolved against one selected physical segment. */
+/** Requested source products resolved against one selected physical segment. */
 data class SessionHistoryProducts(
 	val segmentId: Long,
-	val wifi: WifiHistoryQuery,
-	val cell: CellHistoryQuery,
+	/** Null means this read did not request Wi-Fi history. */
+	val wifi: WifiHistoryQuery?,
+	/** Null means this read did not request Cell history. */
+	val cell: CellHistoryQuery?,
 	val activity: ActivityHistoryQuery,
 	val pressure: PressureSessionHistoryQuery,
 ) {
@@ -779,6 +785,8 @@ sealed interface SourceAwareHistoryPageQuery {
 	data class Content(
 		val entries: List<SourceAwareHistoryPageEntry>,
 		val readSnapshot: TrackingHistoryReadSnapshot? = null,
+		val problems: Set<SourceAwareHistoryPageProblem> = emptySet(),
+		val physicalTrips: Map<Long, com.adsamcik.tracker.shared.model.Trip> = emptyMap(),
 	) : SourceAwareHistoryPageQuery
 
 	/** Exact source-only replacement could not be decided truthfully within one bounded read. */
@@ -798,6 +806,12 @@ sealed interface SourceAwareHistoryPageQuery {
 		}
 	}
 }
+
+/** A source-local failure does not invalidate independently qualified sibling rows. */
+data class SourceAwareHistoryPageProblem(
+	val source: HistorySource?,
+	val reason: SourceAwareHistoryPageUnavailableReason,
+)
 
 /**
  * Reason the shared source-aware History page cannot be read safely.

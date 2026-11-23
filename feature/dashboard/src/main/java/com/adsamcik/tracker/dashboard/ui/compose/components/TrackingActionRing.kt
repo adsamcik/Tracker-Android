@@ -75,11 +75,12 @@ internal fun TrackingActionRing(
 	onToggleTracking: () -> Unit,
 	onRequestPermission: () -> Unit,
 	isStarting: Boolean = false,
+	isStopping: Boolean = false,
 	compact: Boolean = false,
 	modifier: Modifier = Modifier,
 ) {
-	if (isStarting) {
-		StartingTrackingAction(compact, modifier)
+	if (isStarting || isStopping) {
+		PendingTrackingAction(compact, isStopping, modifier)
 		return
 	}
 	val showRings = goalProgress.gamificationEnabled &&
@@ -148,9 +149,10 @@ internal fun TrackingActionRing(
 }
 
 @Composable
-private fun StartingTrackingAction(compact: Boolean, modifier: Modifier) {
+private fun PendingTrackingAction(compact: Boolean, isStopping: Boolean, modifier: Modifier) {
 	val sizing = if (compact) TrackingActionRingSizing.Compact else TrackingActionRingSizing.Default
-	val label = stringResource(com.adsamcik.tracker.tracker.R.string.notification_tracking_restoring_title)
+	val label = if (isStopping) stringResource(R.string.dashboard_finishing_session)
+		else stringResource(com.adsamcik.tracker.tracker.R.string.notification_tracking_restoring_title)
 	Column(
 		modifier = modifier.testTag("tracking_action_ring").semantics {
 			contentDescription = label
@@ -159,7 +161,11 @@ private fun StartingTrackingAction(compact: Boolean, modifier: Modifier) {
 		horizontalAlignment = Alignment.CenterHorizontally,
 	) {
 		Box(Modifier.size(sizing.outerSize), contentAlignment = Alignment.Center) {
-			CircularProgressIndicator(Modifier.size(sizing.iconSize), strokeWidth = 2.dp)
+			if (isStopping) {
+				Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(sizing.iconSize))
+			} else {
+				CircularProgressIndicator(Modifier.size(sizing.iconSize), strokeWidth = 2.dp)
+			}
 		}
 		Text(label, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
 	}

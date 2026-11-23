@@ -29,6 +29,9 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -910,9 +913,116 @@ class AuthoritativeTrackingParamsBootstrapTest {
 
 }
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+class SourcePolicyReconciliationCommandGateTest {
+	private lateinit var database: AppDatabase
+	private lateinit var legacy: FakeTrackingParamsRepository
+	private lateinit var policy: RoomSourcePolicyRepository
+	private lateinit var repository: AuthoritativeTrackingParamsRepository
+	private lateinit var retention: RecordingRetentionAuthorityProducer
+	private lateinit var ambientSteps: RecordingAmbientStepsPolicyRevisionReconciler
+	private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+
+	@Before
+	fun setUp() {
+		database = AppDatabase.inMemoryBuilder(ApplicationProvider.getApplicationContext<Application>())
+			.allowMainThreadQueries().build()
+		legacy = FakeTrackingParamsRepository(TrackingParamsState(legacySettingsMigrationCompleted = true))
+		policy = RoomSourcePolicyRepository(database) {
+			SourcePolicyEffectiveTime("test-boot", 10L, 20L)
+		}
+		retention = RecordingRetentionAuthorityProducer {
+			val active = policy.currentState() as SourcePolicyAuthorityState.Active
+			active.snapshot[TrackingSourceComponent.STEPS].let { steps ->
+				steps.ambientConsentEpoch != null && steps.ambientPersistenceEligible
+			}
+		}
+		ambientSteps = RecordingAmbientStepsPolicyRevisionReconciler()
+		repository = AuthoritativeTrackingParamsRepository(
+			legacy, policy, applicationScope, MutableGenerationStartupGate(), retention, ambientSteps,
+		)
+	}
+
+	@After
+	fun tearDown() {
+		database.close()
+		applicationScope.cancel()
+	}
+
+	@Test
+	fun `retention preparation leaves Start and Stop reservations free and rejects the stopped generation`() = runTest {
+		repository.data.first { it.sourcePolicyRevision == 1L }
+		val gate = MutableGenerationStartupGate()
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		val waitingRetention = object : RetentionAuthorityProducer by retention {
+			override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> {
+				entered.complete(Unit)
+				release.await()
+				return retention.reconcileCurrentSettings()
+			}
+		}
+		val isolated = repositoryWithoutObserver(gate, retentionProducer = waitingRetention)
+		val reconciliation = async { isolated.reconcileCurrentPolicyRevision() }
+		entered.await()
+		withTimeout(1_000L) {
+			gate.reserveStart()
+			gate.reserveStop()
+		}
+		gate.reservedCommands shouldBe 2
+		reconciliation.isCompleted.shouldBeFalse()
+		release.complete(Unit)
+		reconciliation.await().shouldBeInstanceOf<SourcePolicyRevisionReconciliationResult.Retryable>()
+			.debt.failures.single() shouldBe
+			SourcePolicyRevisionReconciliationFailure.StartupGenerationUnavailable(1L)
+		isolated.reconciliationState.value.shouldBeInstanceOf<SourcePolicyRevisionReconciliationState.Debt>()
+	}
+
+	@Test
+	fun `Steps callback leaves Stop reservation free and cannot publish completion after that Stop`() = runTest {
+		repository.data.first { it.sourcePolicyRevision == 1L }
+		val gate = MutableGenerationStartupGate()
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		val waitingSteps = object : AmbientStepsPolicyRevisionReconciler by ambientSteps {
+			override suspend fun reconcileAfterRetentionReissue(): AmbientStepsPolicyRevisionReconciliation {
+				entered.complete(Unit)
+				release.await()
+				return AmbientStepsPolicyRevisionReconciliation.Complete
+			}
+		}
+		val isolated = repositoryWithoutObserver(gate, stepsReconciler = waitingSteps)
+		val reconciliation = async { isolated.reconcileCurrentPolicyRevision() }
+		entered.await()
+		withTimeout(1_000L) { gate.reserveStop() }
+		gate.reservedCommands shouldBe 1
+		reconciliation.isCompleted.shouldBeFalse()
+		release.complete(Unit)
+		reconciliation.await().shouldBeInstanceOf<SourcePolicyRevisionReconciliationResult.Retryable>()
+			.debt.failures.single() shouldBe
+			SourcePolicyRevisionReconciliationFailure.StartupGenerationUnavailable(1L)
+		isolated.reconciliationState.value.shouldBeInstanceOf<SourcePolicyRevisionReconciliationState.Debt>()
+	}
+
+	private fun repositoryWithoutObserver(
+		gate: TrackingStartupGate,
+		retentionProducer: RetentionAuthorityProducer = retention,
+		stepsReconciler: AmbientStepsPolicyRevisionReconciler = ambientSteps,
+	) = AuthoritativeTrackingParamsRepository(
+		legacy, policy, CoroutineScope(SupervisorJob().apply { cancel() }), gate,
+		retentionProducer, stepsReconciler,
+	)
+
+}
+
 private class MutableGenerationStartupGate : TrackingStartupGate {
 	private var ready = true
 	private var generation = 1L
+	private val commandGate = Mutex()
+	var reservedCommands = 0
+		private set
 
 	override val isReady: Boolean
 		get() = ready
@@ -929,6 +1039,33 @@ private class MutableGenerationStartupGate : TrackingStartupGate {
 				"COLLECTED_DATA_DELETION_PENDING",
 			)
 		}
+
+	override suspend fun <T> withReadyGenerationOperation(
+		expectedGeneration: Long, operation: suspend () -> T,
+	): T? = commandGate.withLock {
+		if (isReadyGeneration(expectedGeneration)) {
+			operation()
+		} else {
+			null
+		}
+	}
+
+	override suspend fun <T> withReadyGenerationWork(
+		expectedGeneration: Long, operation: suspend () -> T,
+	): T? {
+		if (!isReadyGeneration(expectedGeneration)) {
+			return null
+		}
+		val result = operation()
+		return result.takeIf { isReadyGeneration(expectedGeneration) }
+	}
+
+	suspend fun reserveStart() = commandGate.withLock { reservedCommands += 1 }
+
+	suspend fun reserveStop() = commandGate.withLock {
+		reservedCommands += 1
+		closeForNextGeneration()
+	}
 
 	fun closeForNextGeneration() {
 		generation += 1L

@@ -49,6 +49,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.shared.base.extension.formatReadable
@@ -75,6 +76,7 @@ internal fun DashboardTopBar(
 	onCustomizeClick: (() -> Unit)? = null,
 	onTurnOffTracking: (() -> Unit)? = null,
 	onPauseAutomaticTracking: (() -> Unit)? = null,
+	isStopping: Boolean = false,
 	modifier: Modifier = Modifier,
 ){
 	val context = LocalContext.current
@@ -88,24 +90,28 @@ internal fun DashboardTopBar(
 						verticalAlignment = Alignment.CenterVertically,
 						horizontalArrangement = Arrangement.spacedBy(12.dp),
 					) {
-						BadgedBox(badge = {
+						BadgedBox(modifier = Modifier.weight(1f, fill = false), badge = {
 							if (isLocked) {
 								Badge { Text(stringResource(R.string.dashboard_cd_locked_badge)) }
 							}
 						}) {
 							Text(
-								text = if (isTracking) {
+								text = if (isStopping) {
+									stringResource(R.string.dashboard_finishing_session)
+								} else if (isTracking) {
 									stringResource(R.string.dashboard_tracking_title)
 								} else {
 									stringResource(R.string.dashboard_title)
 								},
 								style = MaterialTheme.typography.titleLarge,
+								maxLines = 1,
+								overflow = TextOverflow.Ellipsis,
 							)
 						}
 
 						// Recording indicator when tracking
 						AnimatedVisibility(
-							visible = isTracking,
+							visible = isTracking && !isStopping,
 							enter = fadeIn() + expandVertically(),
 							exit = fadeOut() + shrinkVertically(),
 						) {
@@ -192,7 +198,7 @@ internal fun DashboardTopBar(
 
 			// Linear progress when tracking
 			AnimatedVisibility(
-				visible = isTracking,
+				visible = isTracking && !isStopping,
 				enter = expandVertically(),
 				exit = shrinkVertically(),
 			) {
@@ -211,6 +217,7 @@ internal fun DashboardTopBar(
  */
 @Composable
 private fun RecordingIndicator(modifier: Modifier = Modifier) {
+	val description = stringResource(R.string.dashboard_recording)
 	val reducedMotion = LocalReducedMotion.current
 	val alpha = if (reducedMotion) {
 		1f
@@ -228,26 +235,13 @@ private fun RecordingIndicator(modifier: Modifier = Modifier) {
 		animatedAlpha
 	}
 
-	Row(
-		verticalAlignment = Alignment.CenterVertically,
-		horizontalArrangement = Arrangement.spacedBy(6.dp),
-		modifier = modifier,
-	) {
-		Box(
-			modifier = Modifier
-				.size(8.dp)
-				.alpha(alpha)
-				.background(
-					color = MaterialTheme.colorScheme.error,
-					shape = CircleShape,
-				),
-		)
-		Text(
-			text = stringResource(R.string.dashboard_recording),
-			style = MaterialTheme.typography.labelSmall,
-			color = MaterialTheme.colorScheme.error,
-		)
-	}
+	Box(
+		modifier = modifier
+			.size(8.dp)
+			.alpha(alpha)
+			.background(color = MaterialTheme.colorScheme.error, shape = CircleShape)
+			.semantics { contentDescription = description },
+	)
 }
 
 /**

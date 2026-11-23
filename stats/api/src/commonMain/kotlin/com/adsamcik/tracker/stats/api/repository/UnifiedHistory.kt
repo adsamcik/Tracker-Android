@@ -377,3 +377,14 @@ sealed interface HistoryPagingItem {
 private const val MAX_VIEW_ZONE_ID_LENGTH = 128
 
 private const val MAX_HISTORY_PAGE_SIZE = 100
+
+/** Date presence carries no invented observation or source action authority. */
+sealed interface CalendarHistoryPresenceRead {
+    /** A month refresh is pending; the snapshot identifies whether previous dots may remain visible. */
+    data class Loading(val readSnapshot: TrackingHistoryReadSnapshot?) : CalendarHistoryPresenceRead
+    /** Qualified measured dates and source-local problems from one retained-data snapshot. */
+    data class Snapshot(val epochDays: Set<Long>, val readSnapshot: TrackingHistoryReadSnapshot,
+        val problems: Set<HistoryProblem> = emptySet()) : CalendarHistoryPresenceRead
+    /** The shared month read could not establish date presence. */
+    data class Unavailable(val reason: HistoryProblemReason) : CalendarHistoryPresenceRead
+}

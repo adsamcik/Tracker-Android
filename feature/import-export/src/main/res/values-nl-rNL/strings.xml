@@ -38,7 +38,7 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">Databaseback-up (ZIP)</string>
-    <string name="settings_import_summary">Importeer gegevens uit ondersteunde typen (%1$s) en archieven (%2$s). Database-imports voegen compatibele rijen samen; bestaande gegevens worden niet vervangen.</string>
+    <string name="settings_import_summary">Importeer een trackingbestand of herstel een gegevensback-up.</string>
     <string name="settings_import_title">Importeren</string>
     <string name="export_radio_sensitivity_title">Netwerkdetails exporteren?</string>
     <string name="export_wifi_sensitivity_message">Dit bestand bevat opgeslagen Wi-Fi-namen en toegangspunt-ID\'s.</string>
@@ -59,4 +59,7 @@
         <item quantity="one">%d punt in dit bestand verschilt van de opgeslagen kopie. Kies welk punt je wilt behouden. Andere punten worden normaal geïmporteerd.</item>
         <item quantity="other">%d punten in dit bestand verschillen van hun opgeslagen kopieën. Kies welke je wilt behouden. Andere punten worden normaal geïmporteerd.</item>
     </plurals>
+    <string name="export_sensitivity_portable_title">Opgenomen historie exporteren?</string>
+    <string name="export_sensitivity_portable_steps_message">Dit bestand bevat stappenaantallen, tijdsintervallen en informatie over de dekking. Het bevat geen routecoördinaten. Ga alleen verder als je de bestemming vertrouwt.</string>
+    <string name="export_sensitivity_portable_activity_message">Dit bestand bevat opgenomen bewegingsintervallen, tijdsintervallen en informatie over de dekking. Het bevat geen routecoördinaten. Ga alleen verder als je de bestemming vertrouwt.</string>
 </resources>

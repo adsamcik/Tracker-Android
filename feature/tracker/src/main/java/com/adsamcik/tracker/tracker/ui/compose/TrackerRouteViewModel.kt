@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.stateIn
 
 @HiltViewModel
 class TrackerRouteViewModel @Inject constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: android.content.Context,
     val trackerController: TrackerStateReader,
     val lockManager: LockManager,
     val dailySummaryProvider: DailySummaryProvider,
@@ -29,6 +30,9 @@ class TrackerRouteViewModel @Inject constructor(
     stepsNumericSummaryRepository: StepsNumericSummaryRepository,
     clock: Clock,
 ) : ViewModel() {
+    val manualStart = com.adsamcik.tracker.tracker.api.RetainedManualTrackingStart(viewModelScope) { generation ->
+        com.adsamcik.tracker.tracker.api.TrackerServiceApi.requestManualTrackingStart(appContext, generation)
+    }
     private val todayStepsDisplay = TodayStepsDisplay(stepsNumericSummaryRepository, clock)
     val stepsToday = todayStepsDisplay.observe()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0L, 0L), StepsDailyDisplay.Materializing)

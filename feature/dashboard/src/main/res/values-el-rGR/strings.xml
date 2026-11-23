@@ -47,6 +47,7 @@
     <string name="dashboard_milestone_time">λεπτά καταγραφής!</string>
     <string name="dashboard_today_title">Σήμερα</string>
     <string name="dashboard_today_no_activity">Δεν υπάρχει ακόμη δραστηριότητα σήμερα</string>
+    <string name="dashboard_saved_data_history">Τα αποθηκευμένα δεδομένα είναι διαθέσιμα στο Ιστορικό.</string>
     <string name="dashboard_today_distance">Απόσταση</string>
     <string name="dashboard_today_duration">Διάρκεια</string>
     <string name="dashboard_today_steps">Βήματα</string>
@@ -195,4 +196,5 @@
     <string name="dashboard_activity_on_foot">Με τα πόδια</string>
     <string name="dashboard_activity_tilting">Κλίση</string>
     <string name="dashboard_activity_unknown">Άγνωστη δραστηριότητα</string>
+    <string name="dashboard_finishing_session">Ολοκλήρωση συνεδρίας…</string>
 </resources>

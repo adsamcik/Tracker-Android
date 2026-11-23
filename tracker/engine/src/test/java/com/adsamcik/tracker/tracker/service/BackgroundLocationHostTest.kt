@@ -104,16 +104,24 @@ class BackgroundLocationHostTest {
 			val pending = async { host.acquire(first) }
 			val firstIntent = delivered.receive()
 			host.active.value shouldBe null
+			host.hasPendingForegroundWork shouldBe true
 			val scope = LocationMotionScope("scope", "boot", 1L, "host", setOf(LocationMotionPurpose.BACKGROUND))
 			host.acceptDelivery(requireNotNull(firstIntent.getStringExtra(TrackerServiceContract.ARG_BACKGROUND_LOCATION_HOST_TICKET)),
 				owner, scope) { true } shouldBe true
 			pending.await() shouldBe BackgroundLocationHostResult.Active(first, scope)
+			host.hasPendingForegroundWork shouldBe false
 			val successor = identity("successor")
 			val next = async { host.acquire(successor) }
 			val nextIntent = delivered.receive()
 			host.acceptDelivery(requireNotNull(nextIntent.getStringExtra(TrackerServiceContract.ARG_BACKGROUND_LOCATION_HOST_TICKET)),
 				owner, scope) { true } shouldBe true
 			next.await() shouldBe BackgroundLocationHostResult.Active(successor, scope)
+			coEvery { lifecycle.snapshot() } returns CollectedDataLifecycleSnapshot(1L, null)
+			host.invalidLeaseIdentities() shouldBe listOf(successor)
+			host.active.value?.identity shouldBe successor
+			released shouldBe 0
+			coEvery { lifecycle.snapshot() } returns CollectedDataLifecycleSnapshot(0L, null)
+			host.invalidLeaseIdentities() shouldBe emptyList()
 			host.release(first) shouldBe false
 			host.active.value?.identity shouldBe successor
 			host.release(successor) shouldBe true
@@ -132,6 +140,18 @@ class BackgroundLocationHostTest {
 			host.acceptDelivery(requireNotNull(abandonedIntent.getStringExtra(TrackerServiceContract.ARG_BACKGROUND_LOCATION_HOST_TICKET)),
 				owner, scope) { error("Abandoned ticket must not promote") } shouldBe false
 			host.release(sharedIdentity) shouldBe true
+			val promotedAcquire = async { host.acquire(identity("promoted-slow-authority")) }
+			val promotedIntent = delivered.receive()
+			val promotedTicket = requireNotNull(promotedIntent.getStringExtra(
+				TrackerServiceContract.ARG_BACKGROUND_LOCATION_HOST_TICKET))
+			coEvery { lifecycle.snapshot() } coAnswers {
+				delay(PRE_FOREGROUND_START_BUDGET_MILLIS + 1_000L)
+				CollectedDataLifecycleSnapshot(0L, null)
+			}
+			host.acceptDelivery(promotedTicket, owner, scope, foregroundAcknowledged = true) { true } shouldBe true
+			(promotedAcquire.await() is BackgroundLocationHostResult.Active) shouldBe true
+			host.release(identity("promoted-slow-authority")) shouldBe true
+			coEvery { lifecycle.snapshot() } returns CollectedDataLifecycleSnapshot(0L, null)
 			val slowAcquire = async { host.acquire(identity("slow-authority")) }
 			val slowIntent = delivered.receive()
 			coEvery { lifecycle.snapshot() } coAnswers {
@@ -231,7 +251,7 @@ class BackgroundLocationHostTest {
 			host.leases.value[AmbientTrackingSource.CELL]?.identity shouldBe cell
 			host.releaseRadio(successor) shouldBe true
 			host.hostedSources shouldBe setOf(SourceKind.CELL)
-			host.isCurrentLeaseValid() shouldBe true
+			host.invalidLeaseIdentities() shouldBe emptyList()
 			host.detachAll(owner) shouldBe listOf(cell)
 			host.hasActiveSources shouldBe false
 			status.availability.value.ambientSources.getValue(AmbientTrackingSource.CELL).state shouldBe AmbientSourceOperationalState.DEGRADED

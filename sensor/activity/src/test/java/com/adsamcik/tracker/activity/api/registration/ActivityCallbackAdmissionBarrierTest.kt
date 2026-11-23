@@ -85,6 +85,31 @@ class ActivityCallbackAdmissionBarrierTest {
 		checkNotNull(barrier.tryEnter(identity(generation = 5L))).complete()
 	}
 
+	@Test
+	fun `known lost capture drains and later sibling or new capture losses stay isolated`() = runTest {
+		val barrier = ActivityCallbackAdmissionBarrier()
+		val identity = identity(generation = 6L)
+		barrier.beginCapture(identity, "session-1", "run-1")
+		val lost = checkNotNull(barrier.tryEnter(identity))
+		barrier.beginCapture(identity, "session-1", "run-1") // Quality preserves this join.
+		lost.complete(terminalGap = true)
+		lost.complete(terminalGap = true)
+		barrier.fenceAndAwait(identity)
+		barrier.captureFailureCount(identity) shouldBe 1L
+		barrier.finishCapture(identity)
+		barrier.reopen(identity) shouldBe true
+		checkNotNull(barrier.tryEnter(identity)).complete(terminalGap = true)
+		barrier.fenceAndAwait(identity)
+		barrier.captureFailureCount(identity) shouldBe 0L
+		barrier.reopen(identity) shouldBe true
+		val oldSibling = checkNotNull(barrier.tryEnter(identity))
+		barrier.beginCapture(identity, "session-2", "run-2")
+		oldSibling.complete(terminalGap = true)
+		checkNotNull(barrier.tryEnter(identity)).complete()
+		barrier.fenceAndAwait(identity)
+		barrier.captureFailureCount(identity) shouldBe 0L
+	}
+
 	private fun identity(generation: Long) = ActivityRegistrationIdentity(
 		sourceInstanceId = "activity-source",
 		registrationGeneration = generation,

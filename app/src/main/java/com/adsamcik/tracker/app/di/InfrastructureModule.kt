@@ -28,6 +28,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupStore
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository
+import com.adsamcik.tracker.shared.base.database.legacy.LegacyV26Importer
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
@@ -191,6 +192,12 @@ object InfrastructureModule {
     fun provideLegacyDatabaseRepository(
         @ApplicationContext context: Context,
     ): LegacyDatabaseRepository = LegacyDatabaseRepository(context)
+
+    /** Uses the same released-data normalizer and importer as staged database-file imports. */
+    @Provides
+    @Singleton
+    fun provideLegacyV26Importer(@ApplicationContext context: Context): LegacyV26Importer =
+        LegacyV26Importer(context)
 
     @Provides
     @Singleton

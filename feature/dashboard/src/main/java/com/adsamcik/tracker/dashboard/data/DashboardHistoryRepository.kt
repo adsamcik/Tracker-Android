@@ -5,9 +5,7 @@ import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
-import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
-import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
@@ -18,6 +16,7 @@ import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.CellHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageProblem
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
@@ -25,18 +24,17 @@ import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntry
 import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetailSelection
-import java.util.Calendar
+import java.time.Instant
+import java.time.ZoneId
+import com.adsamcik.tracker.shared.base.time.Clock
+import com.adsamcik.tracker.shared.base.time.SystemClock
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.withContext
 
 data class DashboardHistory(
@@ -124,6 +122,9 @@ sealed interface DashboardRecentHistoryState {
 	/** One successfully coordinated recent page, including an explicitly empty page. */
 	data class Content(
 		val entries: List<DashboardRecentHistoryEntry>,
+		val problems: Set<SourceAwareHistoryPageProblem> = emptySet(),
+		/** Saved sessionless observations exist; no session or numeric summary is implied. */
+		val hasSavedBackgroundData: Boolean = false,
 	) : DashboardRecentHistoryState
 
 	/** The coordinated page failed; raw physical candidates must not replace it. */
@@ -171,47 +172,42 @@ interface DashboardHistoryRepository {
 	/** Observe one coordinated, bounded physical/Steps/Activity/Pressure-aware recent page. */
 	fun observeRecentHistory(): Flow<List<DashboardRecentHistoryEntry>>
 
+	/** State stays observable while one source is unavailable. */
+	fun observeRecentHistoryState(): Flow<DashboardRecentHistoryState> =
+		observeRecentHistory().map { DashboardRecentHistoryState.Content(it) }
+
 	/** Load optional historical cards independently from the recent-history product. */
 	suspend fun load(): DashboardHistory
 }
 
 @Singleton
 internal class RoomDashboardHistoryRepository @Inject constructor(
-	private val tripDao: TripDao,
 	private val trackingHistoryRepository: TrackingHistoryRepository,
 	private val explorationCellDao: ExplorationCellDao,
 	private val explorationStreakDao: ExplorationStreakDao,
 	private val dailySummaryDao: DailySummaryDao,
 	private val achievementProgressDao: AchievementProgressDao,
 	private val dispatchers: DispatchersProvider,
+	private val clock: Clock = SystemClock,
 ) : DashboardHistoryRepository {
-	@OptIn(ExperimentalCoroutinesApi::class)
 	override fun observeRecentHistory(): Flow<List<DashboardRecentHistoryEntry>> =
-		tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_BUDGET + 1)
-			.distinctUntilChanged()
-			.map { rows ->
-				DashboardPhysicalCandidateGeneration(rows.map { row -> row.toModel() })
+		observeRecentHistoryState().mapNotNull { state ->
+			when (state) {
+				is DashboardRecentHistoryState.Content -> state.entries
+				is DashboardRecentHistoryState.Unavailable -> throw DashboardHistoryPageUnavailable(
+					requireNotNull(state.reason), state.source)
+				DashboardRecentHistoryState.Loading -> null
 			}
-			.flatMapLatest { generation ->
-				combine(trackingHistoryRepository.observeRecentSourceAwarePage(
-					candidateSegmentIds = generation.candidateIds,
-					limit = RECENT_HISTORY_LIMIT,
-				), trackingHistoryRepository.observeSessionRewardChanges().onStart { emit(Unit) }) { query, _ ->
-					generation.mapPage(query).map { entry -> measuredEntry(entry) }
-				}.distinctUntilChanged()
-			}
-			.flowOn(dispatchers.io)
+		}
 
-	private suspend fun measuredEntry(entry: DashboardRecentHistoryEntry): DashboardRecentHistoryEntry {
-		if (entry !is DashboardRecentHistoryEntry.Physical) return entry
-		val read = try { trackingHistoryRepository.readSavedLocationSummary(
-			com.adsamcik.tracker.stats.api.repository.SavedLocationSummarySelection.Session(entry.trip.id)) }
-		catch (cancelled: CancellationException) { throw cancelled }
-		catch (_: Exception) { null }
-		val summary = (read as? com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead.Snapshot)?.summary
-		return entry.copy(trip = entry.trip.copy(distanceM = (summary?.distanceMeters ?: 0.0).toFloat(),
-			hasMeasuredDistance = summary?.distanceMeters != null, distanceIsPartial = summary == null || summary.partial))
-	}
+	override fun observeRecentHistoryState(): Flow<DashboardRecentHistoryState> =
+		trackingHistoryRepository.observeRecentHistoryPage(RECENT_HISTORY_LIMIT).map { query ->
+			when (query) {
+				is SourceAwareHistoryPageQuery.Unavailable -> DashboardRecentHistoryState.Unavailable(query.reason, query.source)
+				is SourceAwareHistoryPageQuery.Content -> DashboardRecentHistoryState.Content(
+					query.toDashboardEntries(), query.problems)
+			}
+		}.flowOn(dispatchers.io)
 
 	override suspend fun load(): DashboardHistory =
 		withContext(dispatchers.io) {
@@ -257,7 +253,8 @@ internal class RoomDashboardHistoryRepository @Inject constructor(
 
 	private suspend fun loadStreak(): DashboardStreakHistory {
 		val streak = explorationStreakDao.getByType(DOMAIN_DAILY_DISCOVERY)
-		val todayEpochDay = startOfTodayMs() / MILLIS_PER_DAY
+		val todayEpochDay = Instant.ofEpochMilli(clock.currentTimeMillis())
+			.atZone(ZoneId.systemDefault()).toLocalDate().toEpochDay()
 		val startEpochDay = todayEpochDay - (DASHBOARD_DAY_COUNT - 1)
 		val summariesByDay = dailySummaryDao
 			.getBetween(startEpochDay, todayEpochDay)
@@ -309,62 +306,33 @@ internal class RoomDashboardHistoryRepository @Inject constructor(
 		}.maxByOrNull(DashboardAchievementHistory::unlockedAt)
 	}
 
-	private fun startOfTodayMs(): Long = Calendar.getInstance().apply {
-		set(Calendar.HOUR_OF_DAY, 0)
-		set(Calendar.MINUTE, 0)
-		set(Calendar.SECOND, 0)
-		set(Calendar.MILLISECOND, 0)
-	}.timeInMillis
+	private fun startOfTodayMs(): Long = Instant.ofEpochMilli(clock.currentTimeMillis())
+		.atZone(ZoneId.systemDefault()).toLocalDate().atStartOfDay(ZoneId.systemDefault())
+		.toInstant().toEpochMilli()
 
 	private companion object {
 		const val DOMAIN_DAILY_DISCOVERY = "DAILY_DISCOVERY"
 		const val EXPLORATION_LEVEL = 14
-		const val PHYSICAL_CANDIDATE_BUDGET = 64
 		const val RECENT_HISTORY_LIMIT = 5
 		const val DASHBOARD_DAY_COUNT = 7
 		const val RECENT_TREND_DAY_COUNT = 3
-		const val MILLIS_PER_DAY = 86_400_000L
 		const val TREND_THRESHOLD = 1.1f
 		const val DOWN_TREND_THRESHOLD = 0.9f
 	}
 }
 
-/** Immutable physical snapshot used for one Stats page generation. */
-private class DashboardPhysicalCandidateGeneration(
-	candidateProbe: List<Trip>,
-) {
-	private val candidateBudgetExceeded = candidateProbe.size > PHYSICAL_CANDIDATE_BUDGET
-	private val candidates = candidateProbe.take(PHYSICAL_CANDIDATE_BUDGET)
-	private val candidatesById = candidates.associateBy(Trip::id)
-	val candidateIds: List<Long> = candidates.map(Trip::id)
+/** Preserve the ordering and measurements already resolved by the shared Stats snapshot. */
+private fun SourceAwareHistoryPageQuery.Content.toDashboardEntries(): List<DashboardRecentHistoryEntry> =
+	entries.map { entry -> mapDashboardEntry(entry, this) }
 
-	fun mapPage(query: SourceAwareHistoryPageQuery): List<DashboardRecentHistoryEntry> {
-		val content = when (query) {
-			is SourceAwareHistoryPageQuery.Content -> query
-			is SourceAwareHistoryPageQuery.Unavailable -> throw DashboardHistoryPageUnavailable(
-				reason = query.reason,
-				source = query.source,
-			)
-		}
-		val mapped = content.entries.map { entry -> mapEntry(entry, content) }
-
-		if (candidateBudgetExceeded && mapped.size < RECENT_HISTORY_LIMIT) {
-			throw DashboardHistoryPageUnavailable(
-				reason = SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
-				source = null,
-			)
-		}
-		return mapped
-	}
-
-	private fun mapEntry(
+private fun mapDashboardEntry(
 		entry: SourceAwareHistoryPageEntry,
 		content: SourceAwareHistoryPageQuery.Content,
 	): DashboardRecentHistoryEntry =
 		when (entry) {
 			is SourceAwareHistoryPageEntry.Physical -> DashboardRecentHistoryEntry.Physical(
-				checkNotNull(candidatesById[entry.segmentId]) {
-					"Stats returned a physical row outside this Dashboard candidate generation"
+				checkNotNull(content.physicalTrips[entry.segmentId]) {
+					"Stats returned a physical row without its saved measurements"
 				},
 			)
 			is SourceAwareHistoryPageEntry.StepsOnly -> DashboardRecentHistoryEntry.StepsOnly(
@@ -403,12 +371,6 @@ private class DashboardPhysicalCandidateGeneration(
 				),
 			)
 		}
-
-	private companion object {
-		const val PHYSICAL_CANDIDATE_BUDGET = 64
-		const val RECENT_HISTORY_LIMIT = 5
-	}
-}
 
 internal class DashboardHistoryPageUnavailable(
 	val reason: SourceAwareHistoryPageUnavailableReason,

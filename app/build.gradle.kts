@@ -276,4 +276,5 @@ dependencies {
     androidTestImplementation(project(":core:testing"))
     androidTestImplementation(project(":core:sqlite-runtime"))
     testImplementation(project(":core:testing"))
+    testImplementation(project(":core:sqlite-runtime"))
 }

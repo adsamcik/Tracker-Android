@@ -51,6 +51,7 @@ import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrN
 import com.adsamcik.tracker.shared.base.process.ProcessIncarnationIdProvider
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
+import com.adsamcik.tracker.tracker.source.coordinator.withRetirementAcknowledgement
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import javax.inject.Inject
@@ -1802,6 +1803,109 @@ class SourceRegistrationRepository @Inject constructor(
 			"Runtime checkpoint was superseded by an incompatible registration"
 		}
 		dao.save(stored)
+	}
+
+	/** Reads existing End authority without waiting for the physical runtime's lifecycle mutex. */
+	internal suspend fun endedCaptureCutoffElapsedNanos(
+		registration: SourceRegistration,
+		logicalTrackingId: String,
+		serviceRunId: String,
+	): Long? = database.sourceSessionDao().endedCaptureCutoffElapsedNanos(
+		logicalTrackingId, serviceRunId, registration.state.sourceKind, registration.state.sourceInstanceId,
+		registration.state.registrationGeneration, registration.state.clockDomainId, registration.state.collectedDataEpoch,
+	)
+
+	/** Keeps a captured Location predecessor's actual drain before another consumer replaces it. */
+	internal suspend fun saveLocationRetirementCompleteness(
+		registration: SourceRegistration,
+		claim: SourceRuntimeClaim,
+		ack: SourceStopAck,
+	): Boolean = saveCapturedRetirementCompleteness(registration, claim, ack)
+
+	internal suspend fun savePressureRetirementCompleteness(
+		registration: SourceRegistration,
+		claim: SourceRuntimeClaim,
+		ack: SourceStopAck,
+	): Boolean = saveCapturedRetirementCompleteness(registration, claim, ack)
+
+	private suspend fun saveCapturedRetirementCompleteness(
+		registration: SourceRegistration,
+		claim: SourceRuntimeClaim,
+		ack: SourceStopAck,
+	): Boolean {
+		val epoch = registration.state.collectedDataEpoch
+		if (!registration.hasCapturedRetirementClaim(claim, ack) || lifecycleStore.snapshot().epoch != epoch) {
+			return false
+		}
+		return database.withTransaction {
+			if (!hasCurrentRetiredCaptureOwner(registration, claim)) {
+				return@withTransaction false
+			}
+			if (ack.source == SourceKind.PRESSURE && !savePressureRunRetirement(claim, ack)) {
+				return@withTransaction false
+			}
+			val candidate = SourceSessionCompletenessEntity(
+				claim.logicalTrackingId, claim.serviceRunId, ack.source.stableCode, ack.sourceInstanceId.value,
+				ack.registrationGeneration, ack.lastAdmissionOrdinal, ack.lastDurablyAdmittedSequence,
+				ack.appDrainComplete, ack.providerCoverage.name, ack.persistedCompletenessStatus().name,
+				ack.unresolvedSequenceStart,
+				ack.unresolvedSequenceEndInclusive, System.currentTimeMillis(),
+			)
+			saveTerminalRuntimeCompleteness(registration, candidate, null)
+			true
+		}
+	}
+
+	private suspend fun hasCurrentRetiredCaptureOwner(
+		registration: SourceRegistration,
+		claim: SourceRuntimeClaim,
+	): Boolean {
+		val physical = database.sourceBrokerDao().registration(registration.state.sourceKind,
+			registration.state.registrationGeneration) ?: return false
+		val run = database.sourceSessionDao().serviceRun(claim.serviceRunId) ?: return false
+		return run.logicalTrackingId == claim.logicalTrackingId && run.bootId == registration.state.clockDomainId &&
+			physical.matchesCapturedRetirement(registration) &&
+			database.sourceEvidenceStateDao().get()?.collectedDataEpoch == registration.state.collectedDataEpoch
+	}
+
+	/** The End intent already owns these full metrics; retain them before a replacement starts. */
+	private suspend fun savePressureRunRetirement(claim: SourceRuntimeClaim, ack: SourceStopAck): Boolean {
+		val dao = database.sourceSessionDao()
+		val rows = dao.rawRunRetirement(claim.logicalTrackingId, claim.serviceRunId,
+			ack.source.stableCode, ack.sourceInstanceId.value, ack.registrationGeneration)
+		if (rows.isEmpty()) return true // A provider reconfiguration may precede any End intent.
+		val current = rows.singleOrNull()?.validatedOrNull() ?: return false
+		val session = dao.session(claim.logicalTrackingId) ?: return false
+		val exactClaim = current.actionId == claim.actionId && current.attemptCount == claim.attemptCount &&
+			current.leaseGeneration == claim.leaseGeneration
+		val exactEnd = current.cutoffElapsedRealtimeNanos == session.cutoffElapsedNanos &&
+			current.cutoffWallTimeMs == session.cutoffAtMs
+		return exactClaim && exactEnd &&
+			dao.updateRunRetirement(current.withRetirementAcknowledgement(ack, System.currentTimeMillis())) == 1
+	}
+
+	private fun SourceRegistration.hasCapturedRetirementClaim(claim: SourceRuntimeClaim, ack: SourceStopAck): Boolean {
+		val sameProvider = ack.source in setOf(SourceKind.LOCATION, SourceKind.PRESSURE) &&
+			state.sourceKind == ack.source.stableCode && ack.sourceInstanceId.value == state.sourceInstanceId &&
+			ack.registrationGeneration == state.registrationGeneration
+		val sameCapture = claim.source == ack.source && ack.logicalTrackingId == claim.logicalTrackingId &&
+			ack.serviceRunId == claim.serviceRunId
+		return sameProvider && sameCapture &&
+			authorization.authorizedMembers.any { it.matchesCapturedRetirementClaim(claim) }
+	}
+
+	private fun SourceAuthorizationEntity.matchesCapturedRetirementClaim(claim: SourceRuntimeClaim): Boolean {
+		val sameSession = logicalTrackingId == claim.logicalTrackingId && serviceRunId == claim.serviceRunId &&
+			lifecycleLeaseGeneration == claim.leaseGeneration
+		return sameSession && purpose == SourceBrokerPurpose.SESSION_CAPTURE && persistenceEligible
+	}
+
+	private fun ProviderRegistrationGenerationEntity.matchesCapturedRetirement(registration: SourceRegistration): Boolean {
+		val sameProvider = sourceInstanceId == registration.state.sourceInstanceId &&
+			clockDomainId == registration.state.clockDomainId && collectedDataEpoch == registration.state.collectedDataEpoch
+		return sameProvider && ownerScope == registration.ownerScope &&
+			physicalConfigurationFingerprint == registration.physicalConfigurationFingerprint &&
+			status == ProviderRegistrationGenerationEntity.STATUS_RETIRED
 	}
 
 	/** Saves terminal source completeness in the same transaction as its runtime checkpoint. */

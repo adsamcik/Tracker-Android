@@ -3,9 +3,12 @@ package com.adsamcik.tracker.sqlite.runtime
 import android.content.Context
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
+import java.io.DataInputStream
+import java.io.EOFException
 import java.io.File
 import org.sqlite.database.DatabaseErrorHandler
 import org.sqlite.database.sqlite.SQLiteDatabase as VendorSQLiteDatabase
+import org.sqlite.database.sqlite.SQLiteDatabaseCorruptException as VendorSQLiteDatabaseCorruptException
 import org.sqlite.database.sqlite.SQLiteException as VendorSQLiteException
 import org.sqlite.database.sqlite.SQLiteOpenHelper as VendorSQLiteOpenHelper
 
@@ -111,6 +114,10 @@ constructor(
 		fun getSupportDatabase(writable: Boolean): SupportSQLiteDatabase {
 			SQLiteXRuntime.ensureLoaded()
 			ensureParentDirectory()
+			if (preserveDatabaseFilesOnCorruption && dbRef.database == null &&
+				name != null && !name.startsWith(FILE_URI_PREFIX)) {
+				requireExistingSQLiteHeader(databaseFile())
+			}
 			migrated = false
 			val database = getDatabaseWithRecovery(writable)
 			if (migrated) {
@@ -148,6 +155,7 @@ constructor(
 		private fun recoverOrThrow(failure: Throwable, writable: Boolean): VendorSQLiteDatabase {
 			val callbackFailure = failure as? CallbackException
 			val originalFailure = callbackFailure?.cause ?: failure
+			val nativeFailure = nativeSQLiteFailure(originalFailure)
 			if (
 				callbackFailure != null &&
 				callbackFailure.stage != CallbackStage.ON_OPEN
@@ -156,7 +164,7 @@ constructor(
 			}
 			if (
 				preserveDatabaseFilesOnCorruption ||
-				originalFailure !is VendorSQLiteException ||
+				nativeFailure == null ||
 				name == null ||
 				!allowDataLossOnRecovery
 			) {
@@ -175,6 +183,10 @@ constructor(
 				throw callbackError.cause
 			}
 		}
+
+		private fun nativeSQLiteFailure(failure: Throwable): VendorSQLiteException? =
+			failure as? VendorSQLiteException
+				?: (failure as? android.database.sqlite.SQLiteException)?.cause as? VendorSQLiteException
 
 		private fun openDatabase(writable: Boolean): VendorSQLiteDatabase =
 			if (writable) super.getWritableDatabase() else super.getReadableDatabase()
@@ -315,3 +327,24 @@ constructor(
 		}
 	}
 }
+
+/** Reject malformed files before native opening can clean their recovery sidecars. */
+private fun requireExistingSQLiteHeader(file: File) {
+	if (!file.isFile || file.length() == 0L) {
+		return
+	}
+	val matches = try {
+		DataInputStream(file.inputStream()).use { input ->
+			val header = ByteArray(SQLITE_FILE_HEADER.size)
+			input.readFully(header)
+			header.contentEquals(SQLITE_FILE_HEADER)
+		}
+	} catch (_: EOFException) {
+		false
+	}
+	if (!matches) {
+		throw VendorSQLiteDatabaseCorruptException("File is not a database: invalid SQLite header")
+	}
+}
+
+private val SQLITE_FILE_HEADER = "SQLite format 3\u0000".toByteArray(Charsets.US_ASCII)

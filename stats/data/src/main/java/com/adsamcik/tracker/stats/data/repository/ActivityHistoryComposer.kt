@@ -10,12 +10,15 @@ import com.adsamcik.tracker.shared.base.database.ProviderRegistrationFactWindow
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedPlanIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ActivityWalCarrierAuthenticator
+import com.adsamcik.tracker.shared.base.database.data.ActivityWalCarrierAuthentication
+import com.adsamcik.tracker.shared.base.database.data.ActivityWalPayload
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.hasActivityCallbackLossFor
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -29,6 +32,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
@@ -43,6 +47,7 @@ import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryFragment
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryGapReason
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryMechanism
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryObservation
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryType
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryWallTimeContinuity
@@ -121,8 +126,161 @@ internal object ActivityHistoryComposer {
 			return failed(logicalId, members(logicalId, snapshot),
 				ActivityHistoryCause.WRITER_PROVENANCE_INVALID, composed.capturesOnlyActivity)
 		}
-		return composed.copy(startTime = EpochMs(start), endTime = EpochMs(end))
+		return composed.copy(
+			startTime = EpochMs(start), endTime = EpochMs(end),
+			latestObservation = latestLiveObservation(session, snapshot, composed.state),
+		)
 	}
+
+	// The logical entry has already passed its shared manifest, writer, deletion and lane checks.
+	private fun latestLiveObservation(
+		session: LogicalTrackingSessionEntity,
+		snapshot: ActivityHistorySnapshot,
+		state: ActivityHistoryProductState,
+	): ActivityHistoryObservation? {
+		if (state == ActivityHistoryProductState.UNAVAILABLE) {
+			return null
+		}
+		return snapshot.liveObservations.asSequence()
+			.filter { it.logicalTrackingId == session.logicalTrackingId }
+			.sortedWith(compareByDescending(SourceEventWalEntity::observedElapsedNanos)
+				.thenByDescending(SourceEventWalEntity::admissionOrdinal))
+			.mapNotNull { liveObservation(it, session, snapshot) }.firstOrNull()
+	}
+
+	private fun liveObservation(
+		wal: SourceEventWalEntity,
+		session: LogicalTrackingSessionEntity,
+		snapshot: ActivityHistorySnapshot,
+	): ActivityHistoryObservation? {
+		val carrier = ActivityWalCarrierAuthenticator.authenticate(wal) as?
+			ActivityWalCarrierAuthentication.Authenticated
+		val plan = snapshot.registrationPlans[wal.sourceInstanceId to wal.registrationGeneration]
+		val desired = snapshot.desiredPlans[wal.configRevision]
+		val provider = snapshot.providerRegistrations[wal.registrationGeneration]
+		if (carrier == null || plan == null || desired == null || provider == null) {
+			return null
+		}
+		if (!observationMatchesCapture(wal, session, snapshot) ||
+			!plan.matchesDesiredPlan(desired, wal.configRevision, wal.physicalConfigurationFingerprint,
+				wal.observedElapsedNanos) || !observationHasRecordedGrant(wal, snapshot) ||
+			ProviderRegistrationIntervalAuthenticator.authenticate(
+				provider, ACTIVITY_SOURCE, wal.registrationGeneration, wal.sourceInstanceId, wal.clockDomainId,
+				requireNotNull(wal.physicalConfigurationFingerprint), wal.capturedCollectedDataEpoch,
+				ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+				wal.observedElapsedNanos, wal.observedElapsedNanos, requireNotNull(wal.wallTimeMs),
+				snapshot.currentClockDomainId, snapshot.currentProviderRegistrations,
+			) !is ProviderRegistrationIntervalAuthentication.Authenticated
+		) {
+			return null
+		}
+		val payload = carrier.carrier.payload
+		return ActivityHistoryObservation(
+			observedTime = EpochMs(requireNotNull(wal.wallTimeMs)), activity = payload.activityType.historyType,
+			confidencePercent = (payload as? ActivityWalPayload.Recognition)?.confidencePercent,
+			transitionType = (payload as? ActivityWalPayload.Transition)?.transitionType,
+		)
+	}
+
+	private fun observationMatchesCapture(
+		wal: SourceEventWalEntity,
+		session: LogicalTrackingSessionEntity,
+		snapshot: ActivityHistorySnapshot,
+	): Boolean {
+		val run = snapshot.runs[wal.serviceRunId]
+		val manifest = snapshot.manifestsByRun[wal.serviceRunId].orEmpty()
+			.singleOrNull { it.manifestRevision == wal.sessionManifestRevision }
+		if (run == null || manifest == null || wal.logicalTrackingId != session.logicalTrackingId) {
+			return false
+		}
+		val binding = snapshot.sourcesByManifest[ActivityManifestKey(session.logicalTrackingId,
+			manifest.manifestRevision)].orEmpty().singleOrNull(::isActivityCaptureMembership) ?: return false
+		return wal.matchesCapturedManifest(manifest, binding, run, snapshot) &&
+			observationFitsCaptureBounds(wal, session, run, manifest, snapshot) &&
+			observationIsRetained(wal, snapshot) && observationFitsLane(wal, binding, snapshot)
+	}
+
+	private fun SourceEventWalEntity.matchesCapturedManifest(
+		manifest: SessionManifestVersionEntity,
+		binding: SessionManifestSourceEntity,
+		run: SourceServiceRunEntity,
+		snapshot: ActivityHistorySnapshot,
+	): Boolean {
+		val exactRun = logicalTrackingId == run.logicalTrackingId && serviceRunId == manifest.serviceRunId &&
+			clockDomainId == manifest.effectiveBootId && isNonTerminalRun(run) &&
+			SessionManifestIntegrity.hasRetainedLeaseGeneration(run, requireNotNull(lifecycleLeaseGeneration))
+		val plan = snapshot.registrationPlans[sourceInstanceId to registrationGeneration]
+		val exactPlan = plan != null && snapshot.matchesActivityManifestPlan(manifest, plan, authorizationRevision) &&
+			sourcePolicyRevision == manifest.sourcePolicyRevision && captureConsentEpoch == binding.consentEpoch
+		return exactRun && exactPlan
+	}
+
+	private fun observationFitsCaptureBounds(
+		wal: SourceEventWalEntity,
+		session: LogicalTrackingSessionEntity,
+		run: SourceServiceRunEntity,
+		manifest: SessionManifestVersionEntity,
+		snapshot: ActivityHistorySnapshot,
+	): Boolean {
+		val nextManifest = snapshot.manifestsByRun[run.serviceRunId].orEmpty()
+			.singleOrNull { it.manifestRevision == manifest.manifestRevision + 1L }
+		val end = (snapshot.savedSessionCutoffs[session.logicalTrackingId]
+			?: SavedSessionCutoff(session.lifecycleBootId, session.cutoffElapsedNanos)).endForBoot(wal.clockDomainId)
+		return wal.observedElapsedNanos >= run.startedElapsedNanos &&
+			wal.observedElapsedNanos >= manifest.effectiveElapsedRealtimeNanos &&
+			wal.observedElapsedNanos < (nextManifest?.effectiveElapsedRealtimeNanos ?: Long.MAX_VALUE) &&
+			wal.observedElapsedNanos < end
+	}
+
+	private fun observationIsRetained(wal: SourceEventWalEntity, snapshot: ActivityHistorySnapshot): Boolean {
+		val state = snapshot.evidenceState ?: return false
+		val wall = wal.wallTimeMs ?: return false
+		val uncertainty = wal.wallTimeUncertaintyMs ?: return false
+		return state.acceptsRetainedEpoch(wal.capturedCollectedDataEpoch) &&
+			(state.retainedFromMs?.let { (wall - uncertainty).coerceAtLeast(0L) >= it } != false)
+	}
+
+	private fun observationFitsLane(
+		wal: SourceEventWalEntity,
+		binding: SessionManifestSourceEntity,
+		snapshot: ActivityHistorySnapshot,
+	): Boolean {
+		val lane = snapshot.lanes.singleOrNull {
+			isActivityLane(it) && it.bindingGeneration == binding.writerBindingGeneration
+		} ?: return false
+		return wal.admissionOrdinal >= lane.activationOrdinal &&
+			(lane.captureAdmissionCutoffOrdinal?.let { wal.admissionOrdinal <= it } != false)
+	}
+
+	private fun observationHasRecordedGrant(wal: SourceEventWalEntity, snapshot: ActivityHistorySnapshot): Boolean {
+		val rows = snapshot.authorizationsByRegistration[wal.registrationGeneration].orEmpty()
+		val observed = rows.asSequence().filter {
+			it.effectiveBootId == wal.clockDomainId && it.effectiveElapsedRealtimeNanos <= wal.observedElapsedNanos
+		}.maxWithOrNull(compareBy(SourceAuthorizationEntity::effectiveElapsedRealtimeNanos,
+			SourceAuthorizationEntity::authorizationRevision)) ?: return false
+		if (observed.authorizationRevision != wal.authorizationRevision ||
+			observed.authorizationFingerprint != wal.authorizationFingerprint ||
+			observed.purposeEligibilityMask != wal.authorizationPurposeEligibilityMask
+		) {
+			return false
+		}
+		val exact = rows.filter { it.authorizationRevision == observed.authorizationRevision }
+		val consistentStamp = exact.all { it.matchesObservationStamp(wal, observed.effectiveElapsedRealtimeNanos) }
+		return consistentStamp && exact.any { row ->
+			row.grantsCapturedScope(requireNotNull(wal.logicalTrackingId), requireNotNull(wal.serviceRunId),
+				requireNotNull(wal.sessionManifestRevision), requireNotNull(wal.lifecycleLeaseGeneration)) &&
+				row.sourcePolicyRevision == wal.sourcePolicyRevision && row.consentEpoch == wal.captureConsentEpoch
+		}
+	}
+
+	private fun SourceAuthorizationEntity.matchesObservationStamp(
+		wal: SourceEventWalEntity,
+		effectStartNanos: Long,
+	): Boolean =
+		sourceKind == wal.sourceKind && registrationGeneration == wal.registrationGeneration &&
+			authorizationFingerprint == wal.authorizationFingerprint && purposeEligibilityMask ==
+			wal.authorizationPurposeEligibilityMask && effectiveBootId == wal.clockDomainId &&
+			effectiveElapsedRealtimeNanos == effectStartNanos
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private fun composeGroupEvidence(
@@ -244,14 +402,20 @@ internal object ActivityHistoryComposer {
 		if (!hasValidCompletenessAuthority(completeness, snapshot)) {
 			return failedWithIntent(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
 		}
-		if (!active && completeness.mapTo(hashSetOf(), SourceSessionCompletenessEntity::serviceRunId) !=
-			runIds.toSet()
-		) {
-			return failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+		val runsWithCompleteness = completeness.mapTo(hashSetOf(), SourceSessionCompletenessEntity::serviceRunId)
+		val targetByRun = runs.associate { run ->
+			val rows = completeness.filter { it.serviceRunId == run.serviceRunId }
+			val savedTarget = rows.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull()
+			// Each lineage is still authenticated below; final Stop coverage is independent of saved evidence.
+			val evidenceTarget = if (isNonTerminalRun(run) || rows.isEmpty()) {
+				allRevisions.filter { it.serviceRunId == run.serviceRunId }.flatMap { revision ->
+					snapshot.evidenceByRevision[revisionKey(revision)].orEmpty()
+				}.maxOfOrNull { it.sourceAdmissionOrdinal }
+			} else {
+				null
+			}
+			run.serviceRunId to listOfNotNull(savedTarget, evidenceTarget).maxOrNull()
 		}
-		val targetByRun = completeness.groupBy(SourceSessionCompletenessEntity::serviceRunId)
-			.mapValues { (_, rows) ->
-                rows.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull() }
 		val laneTarget = targetByRun.values.filterNotNull().maxOrNull()
 		if (!hasValidLogicalSessionSettlement(session, runs, manifestsByRun, laneTarget, savedCutoff, measuredOnly) ||
 			laneTarget?.let { it < lane.activationOrdinal ||
@@ -381,7 +545,14 @@ internal object ActivityHistoryComposer {
 		if (bindings.size != manifests.size) {
 			causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
 		}
-		if (completeness.isEmpty() || completeness.any { !it.appDrainComplete || it.stopStatus != COMPLETE_STOP }) {
+		if (runsWithCompleteness != runIds.toSet() ||
+			completeness.any { !it.appDrainComplete || it.stopStatus != COMPLETE_STOP }) {
+			causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
+		}
+		if (snapshot.providerRegistrations.values.any { registration ->
+				runIds.any { runId -> registration.hasActivityCallbackLossFor(logicalId, runId,
+					snapshot.authorizationsByRegistration[registration.registrationGeneration].orEmpty()) }
+			}) {
 			causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
 		}
 		if (timeline.hasPendingUnboundedCaptureInterval) {
@@ -589,13 +760,13 @@ internal object ActivityHistoryComposer {
 			policy.policyRevision == manifest.sourcePolicyRevision && policy.sourceKind == ACTIVITY_SOURCE &&
 			policy.enabled && policy.capturePersistenceEligible && policy.qosCode == binding.qosCode &&
 			policy.captureConsentLiteral() == binding.consentEpoch &&
-			policy.effectiveBootId == manifest.effectiveBootId &&
-			policy.effectiveElapsedRealtimeNanos <= manifest.effectiveElapsedRealtimeNanos &&
+			(policy.effectiveBootId != manifest.effectiveBootId ||
+				policy.effectiveElapsedRealtimeNanos <= manifest.effectiveElapsedRealtimeNanos) &&
 			consent.sourceKind == ACTIVITY_SOURCE && consent.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
 			consent.epoch == binding.consentEpoch && consent.policyRevision <= policy.policyRevision &&
 			consent.eligible && consent.persistenceEligible &&
-			consent.effectiveBootId == manifest.effectiveBootId &&
-			consent.effectiveElapsedRealtimeNanos <= manifest.effectiveElapsedRealtimeNanos
+			(consent.effectiveBootId != manifest.effectiveBootId ||
+				consent.effectiveElapsedRealtimeNanos <= manifest.effectiveElapsedRealtimeNanos)
 	}
 
 	private fun hasExactActivityOnlyCaptureIntent(
@@ -707,7 +878,7 @@ internal object ActivityHistoryComposer {
 			!fact.matchesCapturedWindow(manifest, nextManifest, run, expectedSessionRunEndNanos)) {
 			return false
 		}
-		return fact.matchesRegistrationPlan(manifest, plan, desiredPlan) &&
+		return fact.matchesRegistrationPlan(manifest, plan, desiredPlan, snapshot) &&
 			fact.matchesProviderInterval(provider, providerAuthentication) &&
 			hasExactAuthorization(fact, authorizations) && isActivityWriter(binding)
 	}
@@ -756,20 +927,44 @@ internal object ActivityHistoryComposer {
 		manifest: SessionManifestVersionEntity,
 		plan: ActivityCapturedRegistrationPlanEntity,
 		desiredPlan: SourceDesiredPlanEntity,
+		snapshot: ActivityHistorySnapshot,
 	): Boolean {
-		if (sourceInstanceId != plan.sourceInstanceId || registrationGeneration != plan.registrationGeneration ||
-			configurationRevision != plan.configurationRevision ||
-			plan.configurationRevision != manifest.acquisitionPlanRevision) {
-			return false
-		}
-		if (plan.desiredPlanPayloadVersion != desiredPlan.payloadVersion ||
-			plan.desiredPlanPayloadChecksum != desiredPlan.payloadChecksum ||
-			physicalConfigurationFingerprint != plan.physicalConfigurationFingerprint) {
-			return false
-		}
-		return ActivityCapturedPlanIntegrity.decode(desiredPlan)?.physicalConfigurationFingerprint ==
-			plan.physicalConfigurationFingerprint && plan.appliedAtElapsedRealtimeNanos <= windowStartElapsedRealtimeNanos
+		return sourceInstanceId == plan.sourceInstanceId && registrationGeneration == plan.registrationGeneration &&
+			snapshot.matchesActivityManifestPlan(manifest, plan, authorizationRevision) && plan.matchesDesiredPlan(
+				desiredPlan, configurationRevision, physicalConfigurationFingerprint, windowStartElapsedRealtimeNanos,
+			)
 	}
+
+	private fun ActivityHistorySnapshot.matchesActivityManifestPlan(
+		manifest: SessionManifestVersionEntity,
+		plan: ActivityCapturedRegistrationPlanEntity,
+		authorizationRevision: Long?,
+	): Boolean {
+		if (manifest.acquisitionPlanRevision == plan.configurationRevision) {
+			return true
+		}
+		val manifests = manifestsByRun[manifest.serviceRunId].orEmpty().associateBy { it.manifestRevision }
+		val grants = authorizationsByRegistration[plan.registrationGeneration].orEmpty().filter {
+			it.purpose == SourceBrokerPurpose.SESSION_CAPTURE && it.persistenceEligible
+		}
+		val current = grants.singleOrNull { it.authorizationRevision == authorizationRevision }
+		val original = grants.filter { grant ->
+			grant.authorizationRevision < (authorizationRevision ?: 0L) &&
+				manifests[grant.manifestRevision]?.acquisitionPlanRevision == plan.configurationRevision
+		}.maxByOrNull { it.authorizationRevision }
+		return ActivityCapturedPlanIntegrity.hasCompatibleManifestPlan(plan, manifest,
+			desiredPlans[manifest.acquisitionPlanRevision], current, manifests[original?.manifestRevision], original)
+	}
+
+	private fun ActivityCapturedRegistrationPlanEntity.matchesDesiredPlan(
+		desired: SourceDesiredPlanEntity,
+		configuration: Long?,
+		fingerprint: String?,
+		observedStart: Long,
+	): Boolean = configurationRevision == configuration && desired.revision == configuration &&
+		desiredPlanPayloadVersion == desired.payloadVersion && desiredPlanPayloadChecksum == desired.payloadChecksum &&
+		physicalConfigurationFingerprint == fingerprint && appliedAtElapsedRealtimeNanos <= observedStart &&
+		ActivityCapturedPlanIntegrity.decode(desired)?.physicalConfigurationFingerprint == fingerprint
 
 	private fun ActivityCapturedWindowRevisionEntity.matchesProviderInterval(
 		provider: ProviderRegistrationGenerationEntity,
@@ -820,11 +1015,30 @@ internal object ActivityHistoryComposer {
 	private fun authorizationGrantsCapturedFact(
 		row: SourceAuthorizationEntity,
 		fact: ActivityCapturedWindowRevisionEntity,
-	): Boolean = !row.isDenyAll && row.purpose == SourceBrokerPurpose.SESSION_CAPTURE && row.persistenceEligible &&
-		row.logicalTrackingId == fact.logicalTrackingId && row.serviceRunId == fact.serviceRunId &&
-		row.manifestRevision == fact.manifestRevision &&
-		row.lifecycleLeaseGeneration == fact.lifecycleLeaseGeneration &&
+	): Boolean = row.grantsCapturedScope(fact.logicalTrackingId, fact.serviceRunId,
+		fact.manifestRevision, fact.lifecycleLeaseGeneration) &&
 		row.sourcePolicyRevision == fact.sourcePolicyRevision && row.consentEpoch == fact.captureConsentEpoch
+
+	private fun SourceAuthorizationEntity.grantsCapturedScope(
+		logicalId: String,
+		runId: String,
+		manifest: Long,
+		lease: Long,
+	): Boolean = !isDenyAll && purpose == SourceBrokerPurpose.SESSION_CAPTURE && persistenceEligible &&
+		logicalTrackingId == logicalId && serviceRunId == runId && manifestRevision == manifest &&
+		lifecycleLeaseGeneration == lease
+
+	private val Int.historyType: ActivityHistoryType
+		get() = when (this) {
+			0 -> ActivityHistoryType.STILL
+			1 -> ActivityHistoryType.WALKING
+			2 -> ActivityHistoryType.RUNNING
+			3 -> ActivityHistoryType.ON_BICYCLE
+			4 -> ActivityHistoryType.IN_VEHICLE
+			5 -> ActivityHistoryType.ON_FOOT
+			6 -> ActivityHistoryType.TILTING
+			else -> ActivityHistoryType.UNKNOWN
+		}
 
 	private fun hasValidCompleteness(
 		rows: List<SourceSessionCompletenessEntity>,

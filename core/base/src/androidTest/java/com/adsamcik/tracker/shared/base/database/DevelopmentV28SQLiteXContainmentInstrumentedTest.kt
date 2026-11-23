@@ -36,9 +36,74 @@ class DevelopmentV28SQLiteXContainmentInstrumentedTest {
 
 	@Test
 	fun admittedDelegateCorruptionPreservesFilesAndBypassesRoomDeletionCallback() {
+		assertBlockedFileFamilyUnchanged()
+	}
+
+	@Test
+	fun truncatedHeaderPreservesFilesAndBypassesRoomDeletionCallback() {
+		databaseFile.writeBytes("SQLite".toByteArray(Charsets.US_ASCII))
+		assertBlockedFileFamilyUnchanged()
+	}
+
+	@Test
+	fun preservationAllowsNewAndEmptyDatabases() {
+		for (existingEmptyFile in listOf(false, true)) {
+			deleteFileFamily()
+			if (existingEmptyFile) {
+				databaseFile.parentFile?.mkdirs()
+				databaseFile.writeBytes(byteArrayOf())
+			}
+			preservedHelper().use { helper ->
+				assertEquals(CURRENT_DATABASE_VERSION, helper.writableDatabase.version)
+			}
+			assertTrue(databaseFile.isFile)
+		}
+	}
+
+	@Test
+	fun preservationAllowsValidSavedDataToReopen() {
+		deleteFileFamily()
+		preservedHelper().use { helper ->
+			helper.writableDatabase.execSQL("CREATE TABLE retained(id INTEGER PRIMARY KEY, value TEXT NOT NULL)")
+			helper.writableDatabase.execSQL("INSERT INTO retained(id, value) VALUES (1, 'saved')")
+		}
+		preservedHelper().use { helper ->
+			helper.writableDatabase.query("SELECT value FROM retained WHERE id = 1").use { row ->
+				assertTrue(row.moveToFirst())
+				assertEquals("saved", row.getString(0))
+			}
+		}
+	}
+
+	private fun assertBlockedFileFamilyUnchanged() {
 		val before = fileFamily().associateWith(::sha256)
 		var roomCorruptionCallbackCalled = false
-		val helper = DevelopmentV28ContainmentOpenHelperFactory(
+		val helper = preservedHelper { roomCorruptionCallbackCalled = true }
+		try {
+			val failure = runCatching { helper.writableDatabase }.exceptionOrNull()
+			val failureDescription = failure?.let { "${it.javaClass.name}: ${it.message}" }
+				?: "database opened successfully"
+
+			assertTrue(
+				"Expected blocked corruption; actual: $failureDescription",
+				failure is ActiveDatabaseOpenBlockedException,
+			)
+			assertEquals(
+				ActiveDatabaseBlockReason.UNREADABLE_DATABASE,
+				(failure as ActiveDatabaseOpenBlockedException).reason,
+			)
+			assertFalse(roomCorruptionCallbackCalled)
+			before.forEach { (file, hash) ->
+				assertTrue("Missing preserved database file: ${file.name}", file.exists())
+				assertEquals("Changed preserved database file: ${file.name}", hash, sha256(file))
+			}
+		} finally {
+			helper.close()
+		}
+	}
+
+	private fun preservedHelper(onCorruptionDetected: () -> Unit = {}): SupportSQLiteOpenHelper =
+		DevelopmentV28ContainmentOpenHelperFactory(
 			delegate = SQLiteXSupportSQLiteOpenHelperFactory(
 				preserveDatabaseFilesOnCorruption = true,
 			),
@@ -56,27 +121,12 @@ class DevelopmentV28SQLiteXContainmentInstrumentedTest {
 					) = Unit
 
 					override fun onCorruption(db: SupportSQLiteDatabase) {
-						roomCorruptionCallbackCalled = true
+						onCorruptionDetected()
 						super.onCorruption(db)
 					}
 				})
 				.build(),
 		)
-
-		val failure = runCatching { helper.writableDatabase }.exceptionOrNull()
-
-		assertTrue(failure is ActiveDatabaseOpenBlockedException)
-		assertEquals(
-			ActiveDatabaseBlockReason.UNREADABLE_DATABASE,
-			(failure as ActiveDatabaseOpenBlockedException).reason,
-		)
-		assertFalse(roomCorruptionCallbackCalled)
-		before.forEach { (file, hash) ->
-			assertTrue(file.exists())
-			assertEquals(hash, sha256(file))
-		}
-		helper.close()
-	}
 
 	private fun createCorruptFileFamily() {
 		databaseFile.parentFile?.mkdirs()

@@ -47,6 +47,7 @@
     <string name="dashboard_milestone_time">分を記録！</string>
     <string name="dashboard_today_title">今日</string>
     <string name="dashboard_today_no_activity">今日はまだアクティビティがありません</string>
+    <string name="dashboard_saved_data_history">保存したデータは履歴で確認できます。</string>
     <string name="dashboard_today_distance">距離</string>
     <string name="dashboard_today_duration">時間</string>
     <string name="dashboard_today_steps">歩数</string>
@@ -195,4 +196,5 @@
     <string name="dashboard_activity_on_foot">徒歩</string>
     <string name="dashboard_activity_tilting">傾き</string>
     <string name="dashboard_activity_unknown">不明なアクティビティ</string>
+    <string name="dashboard_finishing_session">セッションを終了しています…</string>
 </resources>

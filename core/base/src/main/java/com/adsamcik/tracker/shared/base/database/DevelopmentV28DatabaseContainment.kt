@@ -142,8 +142,7 @@ class ActiveDatabasePreflight internal constructor(
 
 	private fun classifyVersion(database: SQLiteDatabase, version: Int): ActiveDatabasePreflightResult = when {
 		version == 0 && !database.hasApplicationTables() -> ActiveDatabasePreflightResult.Fresh
-		version != INITIAL_ACTIVE_DATABASE_VERSION && version != DEVELOPMENT_DATABASE_VERSION_V28 &&
-			version != DEVELOPMENT_DATABASE_VERSION_V29 && version != CURRENT_DATABASE_VERSION ->
+		version !in SUPPORTED_ACTIVE_DATABASE_VERSIONS ->
 			ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.UNSUPPORTED_DATABASE_VERSION)
 		!BASELINE_TABLES.all(database::hasTable) ->
 			ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.UNRECOGNIZED_DATABASE_SCHEMA)
@@ -281,7 +280,9 @@ private fun hasFinalSchemaStepsCountDomain(database: SQLiteDatabase): Boolean =
 		FINAL_V28_STEPS_TRIGGERS.all(database::hasTrigger) && database.hasExactStepsCountDomainMarker()
 
 private const val DEVELOPMENT_DATABASE_VERSION_V28 = 28
-private const val DEVELOPMENT_DATABASE_VERSION_V29 = 29
+// Admission must retain every registered upgrade input when the current schema advances.
+private val SUPPORTED_ACTIVE_DATABASE_VERSIONS: Set<Int>
+	get() = AppDatabase.activeMigrations.flatMap { listOf(it.startVersion, it.endVersion) }.toSet()
 
 internal class DevelopmentV28ContainmentOpenHelperFactory(
 	private val delegate: SupportSQLiteOpenHelper.Factory,

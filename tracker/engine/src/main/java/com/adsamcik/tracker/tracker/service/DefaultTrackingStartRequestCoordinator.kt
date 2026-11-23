@@ -180,6 +180,33 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		return manualRequest && request.recoveryDescriptor == null && request.providerStepsContinuation == null
 	}
 
+	/** Restores selected all-day owners after Android recreates the shared foreground host. */
+	internal suspend fun reconcileBackgroundCollectionAfterRestart(): Boolean {
+		val completed = try {
+			withTimeoutOrNull(BACKGROUND_HOST_RECOVERY_TIMEOUT_MILLIS) {
+				if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready || !backgroundRecoveryAllowed()) {
+					return@withTimeoutOrNull false
+				}
+				trackingStartupGate.withReadyGenerationWork(trackingStartupGate.currentGeneration) {
+					if (!backgroundRecoveryAllowed()) return@withReadyGenerationWork false
+					chosenSourceWriterSetup.ensureCurrentChosenSources()
+					if (!backgroundRecoveryAllowed()) return@withReadyGenerationWork false
+					reconcilePurposeOwners()
+					backgroundRecoveryAllowed()
+				} ?: false
+			}
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			null
+		}
+		if (completed == null) schedulePurposeOwnerRetry()
+		return completed == true
+	}
+
+	private fun backgroundRecoveryAllowed(): Boolean = trackingStartupGate.permitsNewCollection &&
+		trackingLifecycleCommandAuthority.latestUnhandledStop() == null
+
 	/** Queues independent owner repair after durable acceptance; it never delays initial capture. */
 	suspend fun reconcileAcceptedManualStart(command: TrackingStartCommand) {
 		if (!isCurrentAcceptedStart(command)) return
@@ -485,6 +512,8 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 				startupGeneration = startupGeneration,
 				preparedSourceMaskHint = sourceMask(acceptedSources),
 				preparedStartIsUserInitiatedHint = resolved.descriptor.isUserInitiated,
+				preparedManualCompletionWaitHint = isFreshManualStart(request) &&
+					resolved.origin == SessionStartOrigin.MANUAL_FOREGROUND_START,
 			)
 		} catch (cancelled: CancellationException) {
 			if (roomPrepared) {
@@ -818,11 +847,18 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			System.currentTimeMillis(),
 		)) {
 			is PreparedSessionClaimResult.Claimed -> result.start
-			is PreparedSessionClaimResult.Rejected ->
+			is PreparedSessionClaimResult.Rejected -> {
+				if (result.failureCode == "PREPARED_START_LEASE_UNAVAILABLE") {
+					// Startup writer recovery can briefly own the same lease. Retry this exact
+					// claim within the service's existing deadline without cancelling its Start.
+					delay(START_RETRY_DELAY_MILLIS)
+					return TrackingServicePreparedStartClaim.Deferred
+				}
 				return TrackingServicePreparedStartClaim.Rejected(
 					result.failureCode,
 					result.compensatePreparedState,
 				)
+			}
 		}
 		if (trackingLifecycleCommandAuthority.pendingCollectionResumeExitId != null &&
 			(claim.startOrigin != SessionStartOrigin.MANUAL_FOREGROUND_START || !claim.isUserInitiated ||
@@ -1053,7 +1089,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			) {
 				return result
 			}
-			delay(CATALOG_START_RETRY_DELAY_MILLIS)
+			delay(START_RETRY_DELAY_MILLIS)
 		}
 	}
 
@@ -1350,7 +1386,7 @@ internal suspend fun runBoundedStartPreparationCancellationCleanup(
 private const val START_CLEANUP_NANOS_PER_MILLISECOND = 1_000_000L
 private const val MANUAL_PURPOSE_RECONCILIATION_TIMEOUT_MILLIS = 30_000L
 private const val DEFAULT_START_PREPARATION_CLEANUP_TIMEOUT_MS = 250L
-private const val CATALOG_START_RETRY_DELAY_MILLIS = 250L
+private const val START_RETRY_DELAY_MILLIS = 250L
 
 private fun retryableStartRejection(failureCode: String) =
 	TrackingStartPreparationResult.Rejected(
@@ -1478,3 +1514,5 @@ private fun ActiveTrackingSessionStoreResult.Failure.toDescriptorFailure(): Trac
 			TrackingStartFailureDisposition.TERMINAL
 		},
 	)
+
+private const val BACKGROUND_HOST_RECOVERY_TIMEOUT_MILLIS = 30_000L

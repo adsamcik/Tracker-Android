@@ -49,6 +49,25 @@ class DefaultTrackerServiceControllerTest {
 
 	private lateinit var controller: DefaultTrackerServiceController
 
+	@Test
+	fun `accepted End keeps session visible with a stable cutoff until saved work finishes`() {
+		val recording = TrackerSessionInfo(true)
+		controller.updateServiceRunning(true)
+		controller.updateSessionInfo(recording)
+		controller.updateSessionInfo(recording.copy(stoppingAtMs = 123_456L))
+		controller.hasLiveCapture shouldBe true
+		controller.sessionInfoFlow.value?.stoppingAtMs shouldBe 123_456L
+		// A superseding Start can withdraw the candidate without losing the session.
+		controller.updateSessionInfo(recording)
+		controller.sessionInfoFlow.value?.stoppingAtMs.shouldBeNull()
+		controller.updateSessionInfo(recording.copy(stoppingAtMs = 234_567L))
+		controller.updateSessionInfo(null)
+		controller.hasLiveCapture shouldBe false
+		controller.hasCollectionHost shouldBe true
+		controller.updateSessionInfo(TrackerSessionInfo(false))
+		controller.sessionInfoFlow.value?.stoppingAtMs.shouldBeNull()
+	}
+
 	@BeforeEach
 	fun setup() {
 		controller = DefaultTrackerServiceController()

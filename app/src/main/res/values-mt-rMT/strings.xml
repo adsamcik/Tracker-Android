@@ -15,7 +15,7 @@
     <string name="settings_data_management_section">Ġestjoni tad-dejta</string>
     <string name="settings_data_danger_zone_section">Żona ta’ periklu</string>
     <string name="settings_incremental_backups_title">Kopji ta’ riżerva inkrementali</string>
-    <string name="settings_incremental_backups_summary">Esporta biss dejta ġdida mill-aħħar kopja ta’ riżerva. Inaqqas il-ħin tal-esportazzjoni u d-daqs tal-fajl.</string>
+    <string name="settings_incremental_backups_summary">Esporta biss dejta ġdida f’fajls GPX u KML skedati.</string>
     <string name="settings_reset_export_watermarks_title">Forza esportazzjoni sħiħa</string>
     <string name="settings_reset_export_watermarks_summary">Il-kopja ta’ riżerva awtomatizzata li jmiss tinkludi d-dejta kollha minflok il-bidliet biss</string>
     <string name="settings_reset_export_watermarks_done">Il-markaturi tal-esportazzjoni ġew irrisettjati — il-kopja ta’ riżerva li jmiss tkun esportazzjoni sħiħa</string>
@@ -163,7 +163,7 @@
     <string name="export_sensitivity_db_message">Din il-kopja ta’ riżerva fiha d-dejta tat-traċċar maħżuna tiegħek, li tista’ tinkludi postijiet u dettalji tan-netwerks. L-issettjar mhux inkluż.</string>
     <string name="export_sensitivity_confirm">Kompli l-esportazzjoni</string>
     <string name="settings_export_title">Esportazzjoni</string>
-    <string name="settings_import_summary">Importa dejta minn tipi appoġġati (%1$s) u arkivji (%2$s). L-importazzjonijiet tal-bażi tad-dejta jgħaqqdu ringieli kompatibbli; ma jissostitwixxux id-dejta eżistenti.</string>
+    <string name="settings_import_summary">Importa fajl tat-traċċar jew irrestawra kopja ta’ riżerva tad-dejta.</string>
     <string name="settings_import_title">Importazzjoni</string>
     <string name="got_it">Mifhum</string>
     <string name="battery_impact_low">Impatt baxx</string>
@@ -278,7 +278,7 @@
     <string name="setup_perm_location_bg_why">Biex tkompli tirreġistra r-rotta tiegħek meta tibdel l-applikazzjonijiet jew jintefa l-iskrin, Tracker jeħtieġ jaċċessa l-post tiegħek fl-isfond. Il-post irreġistrat jibqa’ fuq dan it-tagħmir — xejn ma jintbagħat lil server. Fit-talba tas-sistema li jmiss agħżel “Ħalli l-ħin kollu” biex tattiva t-traċċar awtomatiku; “Waqt li tuża l-applikazzjoni” iżomm lil Tracker jaħdem biss meta l-iskrin tiegħu jkun miftuħ.</string>
     <string name="setup_perm_activity_why">Jħalli lil Tracker jinduna x’qed tagħmel (mixi, ċikliżmu, sewqan, wieqaf) sabiex it-traċċar awtomatiku jkun jista’ jieqaf meta ma tkunx miexi u jiffranka l-batterija. Id-dejta tal-attività tibqa’ fuq dan it-tagħmir — xejn ma jintbagħat lil server.</string>
     <string name="setup_perm_notification_why">Tracker juri notifika żgħira tal-istatus waqt li jkun qed jirreġistra sabiex tara f’daqqa t’għajn li t-traċċar mixgħul u twaqqfu b’tektek waħda. Ebda notifiki ta’ marketing jew promozzjonali.</string>
-    <string name="setup_perm_wifi_why">Tracker jista’ jirreġistra punti ta’ aċċess Wi-Fi li t-telefon tiegħek jara matul vjaġġ biex itejjeb il-preċiżjoni tal-post fejn il-GPS hu dgħajjef (ġewwa, taħt l-art). Id-dejta tar-radju tibqa’ fuq dan it-tagħmir — xejn ma jintbagħat lil server. Agħti l-permess biss jekk trid dan.</string>
+    <string name="setup_perm_wifi_why">Android jeħtieġ aċċess għall-post biex jiskennja n-netwerks Wi-Fi. Tista’ tirreġistra d-dejta tal-Wi-Fi mingħajr ma tirreġistra l-post tiegħek.</string>
     <string name="setup_perm_cell_why">Tracker jista’ jirreġistra IDs tat-torrijiet taċ-ċelloli tul ir-rotta tiegħek sabiex il-post ikun jista’ jiġi dedott meta l-GPS ma jkunx disponibbli. Id-dejta tar-radju tibqa’ fuq dan it-tagħmir — xejn ma jintbagħat lil server. Agħti l-istat tat-telefon u l-post preċiż biss jekk trid dan.</string>
     <string name="setup_perm_grant">Agħti</string>
     <string name="setup_perm_grant_location_content_description">Agħti l-permess tal-post</string>

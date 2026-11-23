@@ -21,6 +21,7 @@ class TrackerServiceRestartIntentTest {
 			startupGeneration = 3L,
 			preparedSourceMaskHint = 5L,
 			preparedStartIsUserInitiatedHint = true,
+			preparedManualCompletionWaitHint = true,
 		)
 		val intent = TrackerServiceApi.createPreparedStartIntent(
 			context,
@@ -35,6 +36,7 @@ class TrackerServiceRestartIntentTest {
 			TrackerServiceContract.ARG_LIFECYCLE_COMMAND_GENERATION,
 			TrackerServiceContract.ARG_PREPARED_SOURCE_MASK_HINT,
 			TrackerServiceContract.ARG_PREPARED_USER_INITIATED_HINT,
+			TrackerServiceContract.ARG_PREPARED_MANUAL_COMPLETION_WAIT_HINT,
 		)
 		intent.getStringExtra(TrackerServiceContract.ARG_PREPARED_START_TOKEN) shouldBe token.value
 		intent.getLongExtra(TrackerServiceContract.ARG_LIFECYCLE_COMMAND_GENERATION, -1L) shouldBe 42L
@@ -43,7 +45,18 @@ class TrackerServiceRestartIntentTest {
 			TrackerServiceContract.ARG_PREPARED_USER_INITIATED_HINT,
 			false,
 		) shouldBe true
+		intent.getBooleanExtra(TrackerServiceContract.ARG_PREPARED_MANUAL_COMPLETION_WAIT_HINT, false) shouldBe true
 		Intent(intent).action shouldBe TrackerServiceContract.ACTION_PREPARED_START
+	}
+
+	@Test
+	fun `a user initiated recovery does not inherit manual completion patience`() {
+		val prepared = TrackingStartPreparationResult.Prepared(PreparedTrackingStartToken("manual-recovery"),
+			preparedSourceMaskHint = 1L, preparedStartIsUserInitiatedHint = true)
+		val intent = TrackerServiceApi.createPreparedStartIntent(ApplicationProvider.getApplicationContext(), prepared, 1L)
+
+		intent.getBooleanExtra(TrackerServiceContract.ARG_PREPARED_USER_INITIATED_HINT, false) shouldBe true
+		intent.getBooleanExtra(TrackerServiceContract.ARG_PREPARED_MANUAL_COMPLETION_WAIT_HINT, true) shouldBe false
 	}
 
 	@Test(expected = IllegalArgumentException::class)

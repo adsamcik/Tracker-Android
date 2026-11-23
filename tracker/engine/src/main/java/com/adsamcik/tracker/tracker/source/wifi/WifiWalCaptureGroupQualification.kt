@@ -212,36 +212,6 @@ internal suspend fun qualifyWifiWalCaptureGroup(
 	}
 	val manifest = manifests[manifestIndex]
 	val configurationRevision = manifest.acquisitionPlanRevision
-	if (configurationRevision <= 0L ||
-		!perReading && wal.configRevision?.let { it != configurationRevision } == true
-	) {
-		return rejectWifiWal(WifiWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
-	}
-
-	val planDao = database.sourcePlanStateDao()
-	val planHeader = planDao.revision(configurationRevision)
-	val desiredPlan = planDao.desiredPlan(configurationRevision, WIFI_QUAL_SOURCE)
-	if (planHeader == null || desiredPlan == null) {
-		return rejectWifiWal(WifiWalAdapterRejection.MISSING_HISTORICAL_PLAN)
-	}
-	if (desiredPlan.payload.size > WIFI_QUAL_MAX_PLAN_BYTES) {
-		return rejectWifiWal(WifiWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
-	}
-	val plan = runCatching { planCodec.decode(desiredPlan.payload) as? WifiPlan }.getOrNull()
-	val reencodedPlan = plan?.let { runCatching { planCodec.encode(it) }.getOrNull() }
-	if (desiredPlan.payloadVersion != WIFI_QUAL_PLAN_VERSION ||
-		desiredPlan.revision != configurationRevision || desiredPlan.sourceKind != WIFI_QUAL_SOURCE ||
-		plan == null) {
-		return rejectWifiWal(WifiWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
-	}
-	if (!plan.hasSupportedWifiWalHistoricalShape() || plan.revision != configurationRevision ||
-		reencodedPlan == null || !reencodedPlan.bytes.contentEquals(desiredPlan.payload)) {
-		return rejectWifiWal(WifiWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
-	}
-	if (reencodedPlan.checksum != desiredPlan.payloadChecksum ||
-		plan.physicalConfigurationFingerprint() != physicalFingerprint || planHeader.sourcePolicyRevision != policyRevision) {
-		return rejectWifiWal(WifiWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
-	}
 	val brokerDao = database.sourceBrokerDao()
 	val providerTimes = if (perReading) {
 		val saved = brokerDao.registration(WIFI_QUAL_SOURCE, wal.registrationGeneration)
@@ -393,17 +363,6 @@ internal suspend fun qualifyWifiWalCaptureGroup(
 	if (!database.hasRetainedWifiInterruptedTail(wal, session, run, qualifiedEnd)) {
 		return rejectWifiWal(WifiWalAdapterRejection.SESSION_MISMATCH)
 	}
-	val demandContracts = demands.map { demand ->
-		runCatching { demand.toSourceDemandContract() }.getOrNull()
-			?: return rejectWifiWal(
-				WifiWalAdapterRejection.HISTORICAL_DEMAND_CONTRACT_UNVERIFIABLE,
-			)
-	}
-	if (demandContracts.any { contract -> !plan.satisfiesExactWifiWalContract(contract) }) {
-		return rejectWifiWal(
-			WifiWalAdapterRejection.HISTORICAL_DEMAND_CONTRACT_UNVERIFIABLE,
-		)
-	}
 	val nextAuthorizationRows = brokerDao.nextAuthorizationRevisionBounded(
 		WIFI_QUAL_SOURCE,
 		wal.registrationGeneration,
@@ -427,41 +386,6 @@ internal suspend fun qualifyWifiWalCaptureGroup(
 			return rejectWifiWal(WifiWalAdapterRejection.AUTHORIZATION_MISMATCH)
 		else -> minOf(registrationEnd, nextAuthorization.effectiveElapsedRealtimeNanos)
 	}
-	val startActions = sessionDao.sourceStartActionsForManifestBounded(
-		logicalTrackingId = logicalTrackingId,
-		serviceRunId = serviceRunId,
-		manifestRevision = manifestRevision,
-		sourceKind = WIFI_QUAL_SOURCE,
-		limit = WIFI_QUAL_MAX_PLAN_ACTIONS + 1,
-	)
-	if (startActions.size > WIFI_QUAL_MAX_PLAN_ACTIONS) {
-		return rejectWifiWal(
-			WifiWalAdapterRejection.HISTORICAL_PLAN_APPLICATION_UNVERIFIABLE,
-		)
-	}
-	val planApplication = startActions.singleOrNull()
-	val appliedAtElapsedNanos = maxOf(
-		registrationStart,
-		if (perReading) {
-			manifest.effectiveElapsedRealtimeNanos
-		} else {
-			authorization.effectiveElapsedRealtimeNanos
-		},
-	)
-	if (planApplication == null || !planApplication.authenticatesWifiWalPlanApplication(
-		wal = wal,
-		run = run,
-		manifest = manifest,
-		configurationRevision = configurationRevision,
-		appliedAtElapsedNanos = appliedAtElapsedNanos,
-		firstQualifiedNanos = qualifiedStart,
-		purposeMember = captureMember,
-	)) {
-		return rejectWifiWal(
-			WifiWalAdapterRejection.HISTORICAL_PLAN_APPLICATION_UNVERIFIABLE,
-		)
-	}
-
 	val policyDao = database.sourcePolicyDao()
 	val policy = policyDao.policyAtRevision(policyRevision, WIFI_QUAL_SOURCE)
 		?: return rejectWifiWal(WifiWalAdapterRejection.MISSING_POLICY)
@@ -605,6 +529,83 @@ internal suspend fun qualifyWifiWalCaptureGroup(
 			WifiWalAdapterRejection.TEMPORAL_AUTHORITY_UNVERIFIABLE,
 		)
 	}
+	// Historical-plan rejection is terminal only after independent provider and capture ownership pass.
+	if (configurationRevision <= 0L ||
+		!perReading && wal.configRevision?.let { it != configurationRevision } == true
+	) {
+		return rejectWifiWal(WifiWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
+	}
+
+	val planDao = database.sourcePlanStateDao()
+	val planHeader = planDao.revision(configurationRevision)
+	val desiredPlan = planDao.desiredPlan(configurationRevision, WIFI_QUAL_SOURCE)
+	if (planHeader == null || desiredPlan == null) {
+		return rejectWifiWal(WifiWalAdapterRejection.MISSING_HISTORICAL_PLAN)
+	}
+	if (desiredPlan.payload.size > WIFI_QUAL_MAX_PLAN_BYTES) {
+		return rejectWifiWal(WifiWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
+	}
+	val plan = runCatching { planCodec.decode(desiredPlan.payload) as? WifiPlan }.getOrNull()
+	val reencodedPlan = plan?.let { runCatching { planCodec.encode(it) }.getOrNull() }
+	if (desiredPlan.payloadVersion != WIFI_QUAL_PLAN_VERSION ||
+		desiredPlan.revision != configurationRevision || desiredPlan.sourceKind != WIFI_QUAL_SOURCE ||
+		plan == null) {
+		return rejectWifiWal(WifiWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
+	}
+	if (!plan.hasSupportedWifiWalHistoricalShape() || plan.revision != configurationRevision ||
+		reencodedPlan == null || !reencodedPlan.bytes.contentEquals(desiredPlan.payload)) {
+		return rejectWifiWal(WifiWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
+	}
+	if (reencodedPlan.checksum != desiredPlan.payloadChecksum ||
+		plan.physicalConfigurationFingerprint() != physicalFingerprint || planHeader.sourcePolicyRevision != policyRevision) {
+		return rejectWifiWal(WifiWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
+	}
+	val demandContracts = demands.map { demand ->
+		runCatching { demand.toSourceDemandContract() }.getOrNull()
+			?: return rejectWifiWal(
+				WifiWalAdapterRejection.HISTORICAL_DEMAND_CONTRACT_UNVERIFIABLE,
+			)
+	}
+	if (demandContracts.any { contract -> !plan.satisfiesExactWifiWalContract(contract) }) {
+		return rejectWifiWal(
+			WifiWalAdapterRejection.HISTORICAL_DEMAND_CONTRACT_UNVERIFIABLE,
+		)
+	}
+	val startActions = sessionDao.sourceStartActionsForManifestBounded(
+		logicalTrackingId = logicalTrackingId,
+		serviceRunId = serviceRunId,
+		manifestRevision = manifestRevision,
+		sourceKind = WIFI_QUAL_SOURCE,
+		limit = WIFI_QUAL_MAX_PLAN_ACTIONS + 1,
+	)
+	if (startActions.size > WIFI_QUAL_MAX_PLAN_ACTIONS) {
+		return rejectWifiWal(
+			WifiWalAdapterRejection.HISTORICAL_PLAN_APPLICATION_UNVERIFIABLE,
+		)
+	}
+	val planApplication = startActions.singleOrNull()
+	val appliedAtElapsedNanos = maxOf(
+		registrationStart,
+		if (perReading) {
+			manifest.effectiveElapsedRealtimeNanos
+		} else {
+			authorization.effectiveElapsedRealtimeNanos
+		},
+	)
+	if (planApplication == null || !planApplication.authenticatesWifiWalPlanApplication(
+		wal = wal,
+		run = run,
+		manifest = manifest,
+		configurationRevision = configurationRevision,
+		appliedAtElapsedNanos = appliedAtElapsedNanos,
+		firstQualifiedNanos = qualifiedStart,
+		purposeMember = captureMember,
+	)) {
+		return rejectWifiWal(
+			WifiWalAdapterRejection.HISTORICAL_PLAN_APPLICATION_UNVERIFIABLE,
+		)
+	}
+
 	val maximumWifiWalObservationAgeNanos = plan.maximumWifiWalObservationAgeNanos()
 	val authority = runCatching {
 		WifiCaptureAuthority(

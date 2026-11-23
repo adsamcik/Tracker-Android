@@ -111,11 +111,13 @@ interface AmbientStepsImportStateDao {
 	 * Monotonic compare-and-set used inside the eventual provider-read/fact transaction.
 	 * A repeated correction read may retain the same time high-water, but it must advance both the
 	 * observation timestamp and cursor revision. A stale importer cannot change the row.
+	 * The caller supplies the qualified window's calendar label when beginning an equivalent new day.
 	 */
 	@Query(
 		"UPDATE ambient_steps_import_cursor SET " +
 			"imported_through_time_ms = :newImportedThroughTimeMs, " +
 			"last_observed_at_ms = :newObservedAtMs, cursor_revision = :newCursorRevision, " +
+			"last_observed_zone_id = :newZoneId, " +
 			"updated_at_ms = :updatedAtMs " +
 			"WHERE registration_generation = :registrationGeneration " +
 			"AND status = '${AmbientStepsImportCursorEntity.STATUS_ACTIVE}' " +
@@ -151,6 +153,7 @@ interface AmbientStepsImportStateDao {
 		newObservedAtMs: Long,
 		newCursorRevision: Long,
 		updatedAtMs: Long,
+		newZoneId: String = expectedZoneId,
 	): Int
 
 	/**

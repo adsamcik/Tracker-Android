@@ -89,6 +89,7 @@ internal fun DashboardScreen(
 	onGameClick: (() -> Unit)?,
 	onSessionDetailClick: ((Long) -> Unit)?,
 	onSourceHistoryDetailClick: ((SourceHistoryDetailSelection) -> Unit)? = null,
+	onRetryRecentHistory: () -> Unit = {},
 	onCustomizeClick: () -> Unit = {},
 	onReorderWidgets: (List<String>) -> Unit = {},
 	onToggleWidgetVisibility: (String) -> Unit = {},
@@ -125,7 +126,7 @@ internal fun DashboardScreen(
 
 	// Haptic-wrapped callbacks
 	val wrappedToggle: () -> Unit = toggle@ {
-		if (state.isStarting) {
+		if (state.isStarting || state.stoppingAtMs != null) {
 			return@toggle
 		}
 		if (state.isTracking) {
@@ -141,7 +142,7 @@ internal fun DashboardScreen(
 	}
 
 	val wrappedPermission: () -> Unit = permission@ {
-		if (state.isStarting) {
+		if (state.isStarting || state.stoppingAtMs != null) {
 			return@permission
 		}
 		haptics.performHapticFeedback(
@@ -208,6 +209,7 @@ internal fun DashboardScreen(
 					onCustomizeClick = if (state.dashboardMode == DashboardMode.IDLE) onCustomizeClick else null,
 					onTurnOffTracking = onTurnOffTracking,
 					onPauseAutomaticTracking = onPauseAutomaticTracking,
+					isStopping = state.stoppingAtMs != null,
 				)
 			},
 		) { paddingValues ->
@@ -237,6 +239,7 @@ internal fun DashboardScreen(
 						onGameClick = onGameClick,
 						onSessionDetailClick = onSessionDetailClick,
 						onSourceHistoryDetailClick = onSourceHistoryDetailClick,
+				onRetryRecentHistory = onRetryRecentHistory,
 						onToggleTracking = wrappedToggle,
 						onRequestPermission = wrappedPermission,
 					)
@@ -390,6 +393,7 @@ internal fun DashboardScreen(
 				visible = showPill,
 				isTracking = state.isTracking,
 				isStarting = state.isStarting,
+				isStopping = state.stoppingAtMs != null,
 				hasPermission = state.hasLocationPermission,
 				sessionData = state.sessionData,
 				onToggleTracking = wrappedToggle,

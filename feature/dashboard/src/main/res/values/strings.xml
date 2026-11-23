@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
+	<string name="dashboard_finishing_session">Finishing session…</string>
     <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · partial</string>
     <string name="dashboard_title">Dashboard</string>
     <string name="dashboard_tracking_title">Tracking</string>
@@ -62,6 +63,7 @@
     <!-- Idle state -->
     <string name="dashboard_today_title">Today</string>
     <string name="dashboard_today_no_activity">No activity yet today</string>
+    <string name="dashboard_saved_data_history">Saved data is available in History.</string>
     <string name="dashboard_today_distance">Distance</string>
     <string name="dashboard_today_duration">Duration</string>
     <string name="dashboard_today_steps">Steps</string>

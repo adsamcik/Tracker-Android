@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedPlanIntegr
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.hasOnlyActivityCallbackLoss
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
@@ -163,7 +164,8 @@ private fun ProviderRegistrationGenerationEntity.hasValidPortableChronology(
 	}
 	return when (status) {
 		ProviderRegistrationGenerationEntity.STATUS_ACTIVE ->
-			retiredAtMs == null && retiredElapsedRealtimeNanos == null && failureCode == null
+			retiredAtMs == null && retiredElapsedRealtimeNanos == null &&
+				(failureCode == null || hasOnlyActivityCallbackLoss())
 		ProviderRegistrationGenerationEntity.STATUS_RETIRING,
 		ProviderRegistrationGenerationEntity.STATUS_RETIRED,
 		-> retiredAtMs?.let { retiredWall -> retiredWall >= acceptedWall } == true &&
@@ -234,7 +236,7 @@ private fun validatePortableAcceptedAction(
 
 // One saved authorization binding, including its exact accepted-action match; no timeline reconstruction.
 @Suppress("ComplexCondition", "CyclomaticComplexMethod")
-private fun validatePortableCaptureAuthorization(
+private suspend fun AppDatabase.validatePortableCaptureAuthorization(
 	authorization: SourceAuthorizationEntity,
 	run: SourceServiceRunEntity,
 	manifests: List<SessionManifestVersionEntity>,
@@ -250,6 +252,14 @@ private fun validatePortableCaptureAuthorization(
 		?: abortPortableActivitySnapshot(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 	val acceptedElapsed = requireNotNull(provider.acceptedElapsedRealtimeNanos)
 	val acceptedWall = requireNotNull(provider.acceptedAtMs)
+	val acceptedCapture = acceptedActions.any { action ->
+		action.manifestRevision == manifest.manifestRevision &&
+			action.leaseGeneration == authorization.lifecycleLeaseGeneration && action.bootId == authorization.effectiveBootId
+	} || acceptedActions.any { action ->
+		action.desiredPlanRevision != manifest.acquisitionPlanRevision &&
+			hasCompatibleCapturedActivityAcquisition(manifest, action.desiredPlanRevision,
+			provider.sourceInstanceId, provider.registrationGeneration, authorization.authorizationRevision)
+	}
 	if (authorization.isDenyAll || authorization.memberId.isBlank() ||
 		authorization.authorizationRevision <= 0L ||
 		authorization.authorizationFingerprint.isBlank() ||
@@ -273,11 +283,7 @@ private fun validatePortableCaptureAuthorization(
 			authorization.effectiveElapsedRealtimeNanos > retired
 		} == true || provider.retiredAtMs?.let { retired ->
 			authorization.effectiveWallTimeMs > retired
-		} == true || acceptedActions.none { action ->
-			action.manifestRevision == manifest.manifestRevision &&
-				action.leaseGeneration == authorization.lifecycleLeaseGeneration &&
-				action.bootId == authorization.effectiveBootId
-		}
+		} == true || !acceptedCapture
 	) {
 		abortPortableActivitySnapshot(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 	}

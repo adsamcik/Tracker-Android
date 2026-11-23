@@ -11,6 +11,25 @@ import org.junit.Test
 
 class PressureRuntimeRecoveryTest {
 	@Test
+	fun `fresh registration does not inherit a predecessor runtime gap`() {
+		val checkpoint = SensorRuntimeCheckpoint(
+			RuntimeCheckpointLifecycle.ACTIVE,
+			RuntimeAdmissionSnapshot(20L, 91L, 1L, 1L, 1L, setOf(RuntimeGapClassification.PROCESS_RESTARTED)),
+			PRESSURE_RUNTIME_COMPONENT_VERSION, ByteArray(0),
+		)
+		val recovery = recoverPressureRuntimeState(runtimeState(6L, 20L, checkpoint), 7L, false)
+		val fresh = assertNotNull(recovery.metrics)
+		assertNull(fresh.lastDurablyAdmittedSequence)
+		assertNull(fresh.lastAdmissionOrdinal)
+		assertEquals(0L, fresh.failedAdmissionCount)
+		assertNull(fresh.unresolvedSequenceStart)
+		assertNull(fresh.unresolvedSequenceEndInclusive)
+		assertEquals(emptySet(), fresh.gapClassifications)
+		assertEquals(0L, recovery.callbackEntrySequence)
+		assertTrue(recovery.requiresPreAcquisitionCheckpoint)
+	}
+
+	@Test
 	fun `restart reserves after unresolved high-water rather than stale row sequence`() {
 		val checkpoint = SensorRuntimeCheckpoint(
 			lifecycle = RuntimeCheckpointLifecycle.ACTIVE,

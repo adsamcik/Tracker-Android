@@ -15,7 +15,7 @@
     <string name="settings_data_management_section">Datu pārvaldība</string>
     <string name="settings_data_danger_zone_section">Bīstamā zona</string>
     <string name="settings_incremental_backups_title">Pakāpeniskas dublējumkopijas</string>
-    <string name="settings_incremental_backups_summary">Eksportējiet tikai jaunus datus kopš pēdējās dublējumkopijas. Tas samazina eksporta laiku un faila lielumu.</string>
+    <string name="settings_incremental_backups_summary">Plānotajos GPX un KML eksportos iekļaujiet tikai jaunos datus.</string>
     <string name="settings_reset_export_watermarks_title">Piespiedu pilnais eksports</string>
     <string name="settings_reset_export_watermarks_summary">Nākamajā automātiskajā dublējumkopijā tiks iekļauti visi dati, nevis tikai izmaiņas</string>
     <string name="settings_reset_export_watermarks_done">Eksporta atzīmes ir atiestatītas — nākamā dublējumkopija būs pilns eksports</string>
@@ -163,7 +163,7 @@
     <string name="export_sensitivity_db_message">Šajā dublējumkopijā ir saglabātie izsekošanas dati, kas var ietvert atrašanās vietas un tīklu informāciju. Iestatījumi nav iekļauti.</string>
     <string name="export_sensitivity_confirm">Turpināt eksportēšanu</string>
     <string name="settings_export_title">Eksportēšana</string>
-    <string name="settings_import_summary">Importējiet datus no atbalstītajiem tipiem (%1$s) un arhīviem (%2$s). Datu bāzes imports apvieno saderīgās rindas; tas neaizstāj esošos datus.</string>
+    <string name="settings_import_summary">Importējiet izsekošanas failu vai atjaunojiet datu dublējumu.</string>
     <string name="settings_import_title">Importēšana</string>
     <string name="got_it">Sapratu</string>
     <string name="battery_impact_low">Neliela ietekme</string>
@@ -278,7 +278,7 @@
     <string name="setup_perm_location_bg_why">Lai turpinātu ierakstīt maršrutu, kad pārslēdzaties uz citu lietotni vai ekrāns izslēdzas, Tracker fonā nepieciešama piekļuve atrašanās vietai. Ierakstītā atrašanās vieta paliek šajā ierīcē — nekas netiek nosūtīts uz serveri. Nākamajā sistēmas uzvednē izvēlieties "Atļaut vienmēr", lai iespējotu automātisku izsekošanu; opcija "Lietojot lietotni" ļauj Tracker darboties tikai tad, kad tā ekrāns ir atvērts.</string>
     <string name="setup_perm_activity_why">Ļauj Tracker noteikt, ko jūs darāt (ejat, braucat ar velosipēdu, vadāt auto, nekustaties), lai automātiskā izsekošana varētu apstāties, kad nekustaties, un taupīt akumulatoru. Aktivitāšu dati paliek šajā ierīcē — nekas netiek nosūtīts uz serveri.</string>
     <string name="setup_perm_notification_why">Tracker, kamēr tas ieraksta, rāda nelielu statusa paziņojumu, lai uzreiz redzētu, ka izsekošana ir ieslēgta, un to apturētu ar vienu pieskārienu. Nav mārketinga vai reklāmas paziņojumu.</string>
-    <string name="setup_perm_wifi_why">Tracker var ierakstīt Wi-Fi piekļuves punktus, ko tālrunis redz ceļojuma laikā, lai uzlabotu atrašanās vietas precizitāti vietās, kur GPS ir vājš (telpās, pazemē). Radio dati paliek šajā ierīcē — nekas netiek nosūtīts uz serveri. Piešķiriet atļauju tikai tad, ja to vēlaties.</string>
+    <string name="setup_perm_wifi_why">Android ir nepieciešama piekļuve atrašanās vietai, lai meklētu Wi-Fi tīklus. Varat ierakstīt Wi-Fi datus, neierakstot savu atrašanās vietu.</string>
     <string name="setup_perm_cell_why">Tracker var reģistrēt mobilo sakaru torņu ID jūsu maršrutā, lai atrašanās vietu varētu noteikt, kad GPS nav pieejams. Radio dati paliek šajā ierīcē — nekas netiek nosūtīts uz serveri. Piešķiriet tālruņa stāvokļa un precīzas atrašanās vietas atļauju tikai tad, ja to vēlaties.</string>
     <string name="setup_perm_grant">Piešķirt</string>
     <string name="setup_perm_grant_location_content_description">Piešķirt atrašanās vietas atļauju</string>

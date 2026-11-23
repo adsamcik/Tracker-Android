@@ -47,6 +47,7 @@
     <string name="dashboard_milestone_time">min spårat!</string>
     <string name="dashboard_today_title">I dag</string>
     <string name="dashboard_today_no_activity">Ingen aktivitet ännu i dag</string>
+    <string name="dashboard_saved_data_history">Sparade data finns i Historik.</string>
     <string name="dashboard_today_distance">Avstånd</string>
     <string name="dashboard_today_duration">Varaktighet</string>
     <string name="dashboard_today_steps">Steg</string>
@@ -195,4 +196,5 @@
     <string name="dashboard_activity_on_foot">Till fots</string>
     <string name="dashboard_activity_tilting">Lutande</string>
     <string name="dashboard_activity_unknown">Okänd aktivitet</string>
+    <string name="dashboard_finishing_session">Avslutar sessionen…</string>
 </resources>

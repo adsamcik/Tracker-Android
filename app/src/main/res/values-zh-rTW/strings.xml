@@ -15,7 +15,7 @@
     <string name="settings_data_management_section">資料管理</string>
     <string name="settings_data_danger_zone_section">危險區</string>
     <string name="settings_incremental_backups_title">漸進式備份</string>
-    <string name="settings_incremental_backups_summary">僅匯出自上次備份後的新資料。可減少匯出時間與檔案大小。</string>
+    <string name="settings_incremental_backups_summary">排程匯出 GPX 和 KML 時僅包含新資料。</string>
     <string name="settings_reset_export_watermarks_title">強制完整匯出</string>
     <string name="settings_reset_export_watermarks_summary">下一次自動備份會包含所有資料，而非僅限變更</string>
     <string name="settings_reset_export_watermarks_done">已重設匯出水位標記 — 下一次備份將為完整匯出</string>
@@ -163,7 +163,7 @@
     <string name="export_sensitivity_db_message">此備份包含已儲存的追蹤資料，其中可能包括位置和網路詳情。不含設定。</string>
     <string name="export_sensitivity_confirm">繼續匯出</string>
     <string name="settings_export_title">匯出</string>
-    <string name="settings_import_summary">從支援的類型 (%1$s) 與封存檔 (%2$s) 匯入資料。資料庫匯入會合併相容的資料列；不會取代現有資料。</string>
+    <string name="settings_import_summary">匯入記錄檔或還原資料備份。</string>
     <string name="settings_import_title">匯入</string>
     <string name="got_it">知道了</string>
     <string name="battery_impact_low">影響低</string>
@@ -278,7 +278,7 @@
     <string name="setup_perm_location_bg_why">切換應用程式或螢幕關閉時，要持續記錄您的路線，Tracker 需要在背景存取您的位置。記錄的位置會留在此裝置上 — 不會傳送至伺服器。在下一個系統提示中，請選擇「一律允許」以啟用自動追蹤；選擇「僅在使用應用程式期間」時，Tracker 僅會在畫面開啟時運作。</string>
     <string name="setup_perm_activity_why">讓 Tracker 偵測您的活動（步行、騎自行車、開車、靜止），以便在未移動時暫停自動追蹤並節省電量。活動資料會留在此裝置上 — 不會傳送至伺服器。</string>
     <string name="setup_perm_notification_why">Tracker 在記錄期間會顯示小型狀態通知，讓您一眼知道追蹤已啟用，並可輕觸一次停止。沒有行銷或促銷通知。</string>
-    <string name="setup_perm_wifi_why">Tracker 可記錄手機在旅程中偵測到的 Wi-Fi 存取點，以改善 GPS 訊號微弱地點（室內、地下）的定位準確度。無線電資料會留在此裝置上 — 不會傳送至伺服器。僅在需要時授予此權限。</string>
+    <string name="setup_perm_wifi_why">Android 需要位置存取權限才能掃描 Wi-Fi。您可以記錄 Wi-Fi，而不記錄自己的位置。</string>
     <string name="setup_perm_cell_why">Tracker 可沿路線記錄基地台 ID，以便在 GPS 不可用時推斷位置。無線電資料會留在此裝置上 — 不會傳送至伺服器。僅在需要時授予電話狀態與精確位置權限。</string>
     <string name="setup_perm_grant">授予</string>
     <string name="setup_perm_grant_location_content_description">授予位置權限</string>

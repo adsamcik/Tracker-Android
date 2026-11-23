@@ -24,6 +24,8 @@ class LegacyPreservedMigration28To29Test {
 
 	@Test fun migrationKeepsCanonicalValuesAndLeavesUnavailableOriginalsNullAcrossRoomReopen() {
 		helper.createDatabase(DATABASE, 28).use { database ->
+			// Room's JSON fixture needs the same custom schema completion as a fresh production database.
+			FinalV28SchemaAssemblyRoomCallback.onCreate(database)
 			database.execSQL("INSERT INTO location_sample(id, time_ms, elapsed_realtime_nanos, lat_e7, lon_e7, provider, quality, created_at) VALUES (101, 1000, 0, 501234567, 142345678, 'gps', 'HIGH', 1000)")
 		}
 		helper.runMigrationsAndValidate(DATABASE, 29, true, MIGRATION_28_29).use { database ->

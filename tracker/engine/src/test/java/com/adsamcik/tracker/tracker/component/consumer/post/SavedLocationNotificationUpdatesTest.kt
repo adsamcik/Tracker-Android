@@ -36,6 +36,26 @@ import kotlin.test.*
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SavedLocationNotificationUpdatesTest {
+    @Test fun `accepted session intent initializes notification before UI session publication`() {
+        for (userInitiated in listOf(true, false)) {
+            fixtureTest {
+                reader.updateServiceRunning(false)
+                reader.updateSessionInfo(null)
+                component.onEnable(context, userInitiated)
+                updates = component.startSavedLocationUpdates(context, reader, params, scope)
+                reader.setSavedLocationSummary(saved(distance = 123.0))
+                yield()
+                assertNull(reader.sessionInfoFlow.value)
+                assertNull(notification())
+
+                reader.updateSessionInfo(TrackerSessionInfo(userInitiated))
+                reader.updateServiceRunning(true)
+                reader.setSavedLocationSummary(saved(distance = 123.0))
+                awaitTitle(context.getString(R.string.distance_value, formatted(123.0)))
+            }
+        }
+    }
+
     @Test fun `saved summary updates the actual notification without a raw tracking cycle`() = fixtureTest {
         enable()
         reader.setSavedLocationSummary(saved(distance = 123.0))

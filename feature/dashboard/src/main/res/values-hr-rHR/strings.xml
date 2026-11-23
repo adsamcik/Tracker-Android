@@ -48,6 +48,7 @@
     <string name="dashboard_milestone_time">min praćeno!</string>
     <string name="dashboard_today_title">Danas</string>
     <string name="dashboard_today_no_activity">Danas još nema aktivnosti</string>
+    <string name="dashboard_saved_data_history">Spremljeni podaci dostupni su u Povijesti.</string>
     <string name="dashboard_today_distance">Udaljenost</string>
     <string name="dashboard_today_duration">Trajanje</string>
     <string name="dashboard_today_steps">Koraci</string>
@@ -196,4 +197,5 @@
     <string name="dashboard_activity_on_foot">Pješice</string>
     <string name="dashboard_activity_tilting">Naginjanje</string>
     <string name="dashboard_activity_unknown">Nepoznata aktivnost</string>
+    <string name="dashboard_finishing_session">Dovršavanje sesije…</string>
 </resources>

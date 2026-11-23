@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryState
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
@@ -27,7 +28,8 @@ class TodayProgressCardTest {
 
 	@Test
 	fun withNoSummary_showsNoActivityState() {
-		setCardContent(DashboardUiState(dashboardMode = DashboardMode.IDLE, todaySummary = null))
+		setCardContent(DashboardUiState(dashboardMode = DashboardMode.IDLE, todaySummary = null,
+			recentHistory = DashboardRecentHistoryState.Content(emptyList())))
 
 		composeRule.onNodeWithText("Today").assertIsDisplayed()
 		composeRule.onNodeWithText("No activity yet today").assertIsDisplayed()
@@ -120,6 +122,7 @@ class TodayProgressCardTest {
 		setCardContent(
 			DashboardUiState(
 				dashboardMode = DashboardMode.IDLE,
+				recentHistory = DashboardRecentHistoryState.Content(emptyList()),
 				goalProgress = GoalProgressState(
 					dailySteps = QualifiedStepCount.Unavailable(
 						QualifiedStepCountUnavailableReason.SOURCE_EVIDENCE_UNAVAILABLE,

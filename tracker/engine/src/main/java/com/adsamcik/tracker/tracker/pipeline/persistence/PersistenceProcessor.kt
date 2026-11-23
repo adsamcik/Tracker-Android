@@ -922,10 +922,10 @@ class PersistenceProcessor @Inject internal constructor(
 		lastPersistenceFailure = null
 
 		try {
-			withTimeout(PERSISTENCE_TRANSACTION_TIMEOUT_MILLIS) {
-				withDatabaseRetry {
-					persistBufferedAttempt(ackIds, claimToken, verifyCollectedDataAccess)
-				}
+			// Slow storage must be allowed to commit this finite batch. An aggregate deadline
+			// can cancel the same transaction on every retry and permanently stall End.
+			withDatabaseRetry {
+				persistBufferedAttempt(ackIds, claimToken, verifyCollectedDataAccess)
 			}
 			verifyCollectedDataAccess()
 			withContext(NonCancellable) {
@@ -1840,7 +1840,6 @@ class PersistenceProcessor @Inject internal constructor(
 		internal const val PROCESSOR_ID = "persistence"
 		internal const val FLUSH_INTERVAL_MS = 5000L
 		internal const val PRIORITY = 0
-		private const val PERSISTENCE_TRANSACTION_TIMEOUT_MILLIS = 3_000L
 		private const val PERSISTENCE_RECONCILIATION_TIMEOUT_MILLIS = 2_000L
 		private const val PERMANENT_DESTINATION_FAILURE = "permanent_destination_failure"
 		internal const val STEPS_WRITER_PROVENANCE_INVALID = "STEPS_WRITER_PROVENANCE_INVALID"

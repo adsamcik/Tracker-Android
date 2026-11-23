@@ -58,6 +58,7 @@ import com.adsamcik.tracker.tracker.api.ManualTrackingStartRepairNavigation
 import com.adsamcik.tracker.tracker.api.ManualTrackingStartResult
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
@@ -110,17 +111,17 @@ fun DashboardRoute(
 	var pendingLocationServicesRepair by remember { mutableStateOf(false) }
 	var pendingManualStartGeneration by rememberSaveable { mutableStateOf<Long?>(null) }
 	var pendingManualStartSetup by remember { mutableStateOf(false) }
-	var manualStartInFlight by remember { mutableStateOf(false) }
+	val manualStartInFlight by viewModel.manualStart.running.collectAsStateWithLifecycle()
 	val restoredManualStartGeneration = remember { pendingManualStartGeneration }
 	var manualStartRequestVersion by remember { mutableStateOf(0L) }
-	val manualStartRequests = remember { mutableSetOf<Job>() }
+
 
 	fun cancelPendingManualStart(generation: Long? = pendingManualStartGeneration) {
 		if (pendingManualStartGeneration == generation) {
 			manualStartRequestVersion++
 			pendingManualStartGeneration = null
 			pendingManualStartSetup = false
-			manualStartInFlight = false
+			viewModel.manualStart.cancel()
 		}
 		if (generation != null) coroutineScope.launch {
 			TrackerServiceApi.cancelManualTrackingStart(context, generation)
@@ -132,7 +133,7 @@ fun DashboardRoute(
 		manualStartRequestVersion++
 		manualStartPermissionRequest = null
 		pendingLocationServicesRepair = false
-		manualStartRequests.toList().forEach { it.cancel() }
+		viewModel.manualStart.cancel()
 		cancelPendingManualStart()
 	}
 	fun endTracking() {
@@ -233,48 +234,53 @@ fun DashboardRoute(
 	}
 
 	fun requestManualStart(continuationGeneration: Long? = null): Job {
-		if (manualStartInFlight) {
-			manualStartRequests.lastOrNull { it.isActive }?.let { return it }
-		}
-		val requestVersion = ++manualStartRequestVersion
-		manualStartInFlight = true
-		val request = coroutineScope.launch {
-			val result = try {
-				TrackerServiceApi.requestManualTrackingStart(context, continuationGeneration)
-			} finally {
-				if (requestVersion == manualStartRequestVersion) manualStartInFlight = false
+		manualStartRequestVersion++
+		return viewModel.manualStart.start(continuationGeneration)
+	}
+
+	LaunchedEffect(viewModel.manualStart, lifecycle) {
+		lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+			// Revalidate an off-screen repair against current Stop and source-selection authority.
+			val retained = viewModel.manualStart.result.value?.second
+			val generation = when (retained) {
+			    is ManualTrackingStartResult.RepairRequired -> retained.continuationGeneration
+			    is ManualTrackingStartResult.SetupPending -> retained.continuationGeneration
+			    else -> null
 			}
-			if (requestVersion != manualStartRequestVersion) return@launch
-			pendingManualStartSetup = false
-			when (result) {
-				ManualTrackingStartResult.ENQUEUED -> pendingManualStartGeneration = null
-				is ManualTrackingStartResult.SetupPending -> {
-					pendingManualStartGeneration = result.continuationGeneration
-					pendingManualStartSetup = true
+			if (generation != null) viewModel.manualStart.start(generation)
+			viewModel.manualStart.result.collectLatest { completed ->
+				if (completed == null) return@collectLatest
+				val (attempt, result) = completed
+				val requestVersion = manualStartRequestVersion
+				pendingManualStartSetup = false
+				when (result) {
+					ManualTrackingStartResult.ENQUEUED -> pendingManualStartGeneration = null
+					is ManualTrackingStartResult.SetupPending -> {
+						pendingManualStartGeneration = result.continuationGeneration
+						pendingManualStartSetup = true
+					}
+					is ManualTrackingStartResult.RepairRequired -> offerManualStartRepair(result, requestVersion)
+					ManualTrackingStartResult.TRACKING_UNAVAILABLE -> {
+						pendingManualStartGeneration = null
+						showTrackingUnavailable()
+					}
+					ManualTrackingStartResult.NO_AVAILABLE_CAPTURE_SOURCE -> {
+						pendingManualStartGeneration = null
+						showNoAvailableCaptureSource()
+					}
 				}
-				is ManualTrackingStartResult.RepairRequired -> offerManualStartRepair(result, requestVersion)
-				ManualTrackingStartResult.TRACKING_UNAVAILABLE -> {
-					pendingManualStartGeneration = null
-					showTrackingUnavailable()
-				}
-				ManualTrackingStartResult.NO_AVAILABLE_CAPTURE_SOURCE -> {
-					pendingManualStartGeneration = null
-					showNoAvailableCaptureSource()
+				if (result !is ManualTrackingStartResult.RepairRequired && result !is ManualTrackingStartResult.SetupPending) {
+					viewModel.manualStart.consume(attempt)
 				}
 			}
-			if (requestVersion != manualStartRequestVersion) return@launch
-			manualStartReadiness = TrackerServiceApi.readManualTrackingStartReadiness(context)
 		}
-		manualStartRequests += request
-		request.invokeOnCompletion { manualStartRequests -= request }
-		return request
 	}
 
 	DashboardManualStartSetupEffect(
 		context = context,
 		pendingSetup = pendingManualStartSetup,
 		pendingGeneration = pendingManualStartGeneration,
-		awaitRequests = { manualStartRequests.toList().forEach { it.join() } },
+		awaitRequests = { viewModel.manualStart.awaitCurrent() },
 		onContinue = { requestManualStart(it) },
 	)
 	DashboardManualStartFeedbackEffect(
@@ -302,14 +308,14 @@ fun DashboardRoute(
 			pendingLocationServicesRepair = false
 			cancelPendingManualStart()
 		},
-		onStartContinuation = { requestManualStart(it) },
+		onStartContinuation = { viewModel.manualStart.restore(it) },
 	)
 
 	LaunchedEffect(context) {
 		val intent = (context as? Activity)?.intent
 		val generation = ManualTrackingStartRepairNavigation.consumeDashboardStartContinuation(intent)
 			?: restoredManualStartGeneration
-		if (generation != null) requestManualStart(generation)
+		if (generation != null) viewModel.manualStart.restore(generation)
 	}
 
 	// Observe daily/gamification state
@@ -333,7 +339,10 @@ fun DashboardRoute(
 
 	// Historical data from ViewModel
 	val todaySummary by viewModel.todaySummary.collectAsState()
-	val recentHistory by viewModel.recentHistory.collectAsStateWithLifecycle()
+	// Preflight precedes the shared Start generation; idle history yields from the first tap.
+	val recentHistory = if (isStarting) DashboardRecentHistoryState.Loading else {
+		viewModel.recentHistory.collectAsStateWithLifecycle().value
+	}
 	val explorationState by viewModel.explorationState.collectAsState()
 	val streakState by viewModel.streakState.collectAsState()
 	val sessionInsights by viewModel.sessionInsights.collectAsState()
@@ -432,6 +441,7 @@ fun DashboardRoute(
 		dashboardMode = dashboardMode,
 		isTracking = isTracking,
 		isStarting = isStarting,
+		stoppingAtMs = sessionInfo?.stoppingAtMs,
 		isLocked = isLocked,
 		hasLocationPermission = manualStartPermissionSatisfied,
 		policyTier = policyTier,
@@ -549,6 +559,7 @@ fun DashboardRoute(
 		onGameClick = onOpenGame,
 		onSessionDetailClick = onSessionDetailClick,
 		onSourceHistoryDetailClick = onSourceHistoryDetailClick,
+		onRetryRecentHistory = viewModel::retryRecentHistory,
 		onCustomizeClick = { showCustomizeSheet = true },
 		onReorderWidgets = { viewModel.reorderWidgets(it) },
 		onToggleWidgetVisibility = { viewModel.toggleWidgetVisibility(it) },
@@ -780,7 +791,7 @@ internal suspend fun runDashboardConsistencyChecksWhenResumed(
 
 /**
  * Resolves idle Last Session only from the leading composed history row. Controller snapshots may
- * refresh that physical row, but may not introduce a different or Steps-only action identity.
+ * refresh non-measurement fields, while distance qualification stays with saved history.
  */
 internal fun resolveIdleDisplaySession(
 	recentHistory: DashboardRecentHistoryState,
@@ -792,10 +803,15 @@ internal fun resolveIdleDisplaySession(
 		?.firstOrNull() as? DashboardRecentHistoryEntry.Physical
 		?: return null
 	val trip = topPhysical.trip
-	return sequenceOf(currentSession, lastSession)
+	val session = sequenceOf(currentSession, lastSession)
 		.filterNotNull()
 		.firstOrNull { it.id == trip.id }
 		?: trip.toTrackerSessionSnapshot()
+	return session.copy(
+		distanceInM = trip.distanceM,
+		hasMeasuredDistance = trip.hasMeasuredDistance,
+		distanceIsPartial = trip.distanceIsPartial,
+	)
 }
 
 /** Loading and unavailable history remain visible idle product states, not first-use emptiness. */
@@ -807,12 +823,13 @@ internal fun resolveDashboardMode(
 ): DashboardMode = when {
 	isTracking -> DashboardMode.TRACKING
 	hasTodaySummary || displaySession != null -> DashboardMode.IDLE
-	recentHistory is DashboardRecentHistoryState.Loading -> DashboardMode.IDLE
-	recentHistory is DashboardRecentHistoryState.Unavailable -> DashboardMode.IDLE
-	recentHistory is DashboardRecentHistoryState.Content && recentHistory.entries.isNotEmpty() ->
-		DashboardMode.IDLE
-	else -> DashboardMode.EMPTY
+	recentHistory.isConfirmedEmpty() -> DashboardMode.EMPTY
+	else -> DashboardMode.IDLE
 }
+
+private fun DashboardRecentHistoryState.isConfirmedEmpty(): Boolean =
+	this is DashboardRecentHistoryState.Content && entries.isEmpty() && problems.isEmpty() &&
+		!hasSavedBackgroundData
 
 private fun Trip.toTrackerSessionSnapshot() = TrackerSessionSnapshot(
 	id = id,

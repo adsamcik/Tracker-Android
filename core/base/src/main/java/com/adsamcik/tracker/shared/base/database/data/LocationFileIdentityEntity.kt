@@ -24,4 +24,7 @@ data class LocationFileIdentityEntity(
 	@ColumnInfo(name = "imported") val imported: Boolean,
 	/** Descriptive label from the file; it never grants recording or consent authority. */
 	@ColumnInfo(name = "reported_origin") val reportedOrigin: String,
+	/** Descriptive route continuity from a file; never provider identity or recording authority. */
+	@ColumnInfo(name = "path_id") val pathId: String? = null,
+	@ColumnInfo(name = "path_sequence") val pathSequence: Long? = null,
 )

@@ -15,7 +15,7 @@
     <string name="settings_data_management_section">Gestione dati</string>
     <string name="settings_data_danger_zone_section">Zona pericolosa</string>
     <string name="settings_incremental_backups_title">Backup incrementali</string>
-    <string name="settings_incremental_backups_summary">Esporta solo i nuovi dati dall\'ultimo backup. Riduce il tempo di esportazione e le dimensioni del file.</string>
+    <string name="settings_incremental_backups_summary">Esporta solo i nuovi dati nelle esportazioni GPX e KML pianificate.</string>
     <string name="settings_reset_export_watermarks_title">Forza esportazione completa</string>
     <string name="settings_reset_export_watermarks_summary">Il prossimo backup automatico includerà tutti i dati anziché solo le modifiche</string>
     <string name="settings_reset_export_watermarks_done">Indicatori di esportazione reimpostati — il prossimo backup sarà un\'esportazione completa</string>
@@ -163,7 +163,7 @@
     <string name="export_sensitivity_db_message">Questo backup contiene i dati di tracciamento salvati, che possono includere posizioni e dettagli delle reti. Le impostazioni sono escluse.</string>
     <string name="export_sensitivity_confirm">Continua esportazione</string>
     <string name="settings_export_title">Esporta</string>
-    <string name="settings_import_summary">Importa dati da tipi supportati (%1$s) e archivi (%2$s). Le importazioni di database uniscono le righe compatibili; non sostituiscono i dati esistenti.</string>
+    <string name="settings_import_summary">Importa un file di tracciamento o ripristina un backup dei dati.</string>
     <string name="settings_import_title">Importa</string>
     <string name="got_it">Ho capito</string>
     <string name="battery_impact_low">Impatto basso</string>
@@ -278,7 +278,7 @@
     <string name="setup_perm_location_bg_why">Per continuare a registrare il percorso quando cambi app o lo schermo si spegne, Tracker deve accedere alla tua posizione in background. La posizione registrata resta su questo dispositivo — non viene inviata a un server. Alla prossima richiesta di sistema scegli "Consenti sempre" per abilitare il tracciamento automatico; "Solo durante l\'uso dell\'app" fa funzionare Tracker solo quando la sua schermata è aperta.</string>
     <string name="setup_perm_activity_why">Permette a Tracker di rilevare cosa stai facendo (cammini, vai in bicicletta, guidi, sei fermo), così il tracciamento automatico può sospendersi quando non ti muovi e risparmiare batteria. I dati delle attività restano su questo dispositivo — non vengono inviati a un server.</string>
     <string name="setup_perm_notification_why">Tracker mostra una piccola notifica di stato durante la registrazione, così puoi vedere subito che il tracciamento è attivo e interromperlo con un tocco. Nessuna notifica commerciale o promozionale.</string>
-    <string name="setup_perm_wifi_why">Tracker può registrare gli access point Wi-Fi che il telefono rileva durante un viaggio per migliorare la precisione della posizione dove il GPS è debole (al chiuso, sottoterra). I dati radio restano su questo dispositivo — non vengono inviati a un server. Concedi l\'autorizzazione solo se lo desideri.</string>
+    <string name="setup_perm_wifi_why">Android richiede l\'accesso alla posizione per cercare reti Wi-Fi. Puoi registrare i dati Wi-Fi senza registrare la tua posizione.</string>
     <string name="setup_perm_cell_why">Tracker può registrare gli ID delle celle lungo il percorso, così la posizione può essere stimata quando il GPS non è disponibile. I dati radio restano su questo dispositivo — non vengono inviati a un server. Concedi stato del telefono e posizione precisa solo se lo desideri.</string>
     <string name="setup_perm_grant">Concedi</string>
     <string name="setup_perm_grant_location_content_description">Concedi autorizzazione alla posizione</string>

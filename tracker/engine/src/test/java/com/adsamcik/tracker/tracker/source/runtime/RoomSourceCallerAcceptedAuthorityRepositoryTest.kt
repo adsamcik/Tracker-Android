@@ -141,6 +141,8 @@ class RoomSourceCallerAcceptedAuthorityRepositoryTest {
 	@Test
 	fun `concurrent retention Room reconciliation is not blocked by Ambient Steps caller sampling`() =
 		runTest {
+			// Exercise contention after schema creation, not the host cost of opening an empty Room database.
+			database.sourceEvidenceStateDao().ensure()
 			val identity = AmbientReconciliationIdentity(
 				source = AmbientTrackingSource.STEPS,
 				policyRevision = 11L,
@@ -264,10 +266,12 @@ class RoomSourceCallerAcceptedAuthorityRepositoryTest {
 			}
 			authorityReadStarted.await()
 			withContext(Dispatchers.IO) {
-				withTimeout(1_000L) {
+				withTimeout(10_000L) {
 					database.withTransaction { database.sourceEvidenceStateDao().get() }
 				}
 			}
+			// Retention completed while caller sampling was still deliberately held.
+			dispatch.isCompleted shouldBe false
 			allowAuthorityRead.complete(Unit)
 
 			dispatch.await() shouldBe GuardedPurposeDemandResult.Applied(

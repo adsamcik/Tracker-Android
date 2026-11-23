@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -74,17 +75,20 @@ class DefaultTrackerServiceController : TrackerServiceController {
         return applicationScope.launch {
             kotlinx.coroutines.flow.combine(isServiceRunningFlow, sessionInfoFlow,
                 sessionFlow) { hosted, info, session ->
-                session?.id?.takeIf { hosted && info != null && it > 0L }
-            }.distinctUntilChanged().flatMapLatest { segmentId ->
-                if (segmentId == null) kotlinx.coroutines.flow.flowOf(null to
-                    SavedLocationSummaryRead.NotFound)
-                else history.observeLiveSavedLocationSummary(segmentId)
-                    .onStart { emit(SavedLocationSummaryRead.NotFound) }
-                    .catch { failure ->
-                        if (failure is CancellationException) throw failure
-                        emit(SavedLocationSummaryRead.Unavailable(
-                            HistoryProblemReason.STORAGE_UNAVAILABLE))
-                    }.map { segmentId to it }
+                session?.id?.takeIf { hosted && info != null && it > 0L } to (info?.stoppingAtMs != null)
+            }.distinctUntilChanged().flatMapLatest { (segmentId, stopping) ->
+                when {
+                    segmentId == null -> kotlinx.coroutines.flow.flowOf(null to SavedLocationSummaryRead.NotFound)
+                    // Finalization owns the remaining writes; every live surface keeps its last saved display.
+                    stopping -> emptyFlow()
+                    else -> history.observeLiveSavedLocationSummary(segmentId)
+                        .onStart { emit(SavedLocationSummaryRead.NotFound) }
+                        .catch { failure ->
+                            if (failure is CancellationException) throw failure
+                            emit(SavedLocationSummaryRead.Unavailable(
+                                HistoryProblemReason.STORAGE_UNAVAILABLE))
+                        }.map { segmentId to it }
+                }
             }.collect { (segmentId, read) -> publishSavedLocation(segmentId, read) }
         }.also { savedLocationObservation = it }
     }
@@ -95,6 +99,9 @@ class DefaultTrackerServiceController : TrackerServiceController {
         if (segmentId == null || current != segmentId ||
             !_isServiceRunning.value || _sessionInfoFlow.value == null) {
             _savedLocationSummary.value = SavedLocationSummaryRead.NotFound
+            return
+        }
+        if (_sessionInfoFlow.value?.stoppingAtMs != null) {
             return
         }
         _savedLocationSummary.value = if (read !is SavedLocationSummaryRead.Snapshot ||

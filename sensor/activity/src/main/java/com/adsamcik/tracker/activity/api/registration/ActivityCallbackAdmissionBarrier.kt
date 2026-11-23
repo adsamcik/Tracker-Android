@@ -30,8 +30,34 @@ class ActivityCallbackAdmissionBarrier @Inject constructor() {
 			}
 			if (generation.phase != Phase.OPEN) return@synchronized null
 			generation.inFlight += 1
-			ActivityCallbackAdmissionPermit { complete(identity) }
+			val capture = generation.capture
+			ActivityCallbackAdmissionPermit { terminalGap -> complete(identity, capture, terminalGap) }
 		}
+
+	/** A new session starts a fresh loss domain without restarting the shared provider. */
+	internal fun beginCapture(identity: ActivityRegistrationIdentity, logicalId: String, runId: String) =
+		synchronized(monitor) {
+			val state = generations.getOrPut(identity) { GenerationState(Phase.OPEN) }
+			val capture = logicalId to runId
+			if (state.capture != capture) {
+				state.capture = capture
+				state.failedCaptureCallbacks = 0L
+			}
+		}
+
+	/** Called only after the exact capture fence drained; sibling callbacks cannot alter it. */
+	internal fun captureFailureCount(identity: ActivityRegistrationIdentity): Long = synchronized(monitor) {
+		val state = generations[identity] ?: return@synchronized 0L
+		check(state.phase != Phase.OPEN && state.inFlight == 0)
+		state.failedCaptureCallbacks
+	}
+
+	internal fun finishCapture(identity: ActivityRegistrationIdentity) = synchronized(monitor) {
+		generations[identity]?.let { state ->
+			state.capture = null
+			state.failedCaptureCallbacks = 0L
+		}
+	}
 
 	/** Closes this identity to later entries and waits for all pre-fence permits to complete. */
 	internal suspend fun fenceAndAwait(identity: ActivityRegistrationIdentity) {
@@ -80,10 +106,18 @@ class ActivityCallbackAdmissionBarrier @Inject constructor() {
 		drained?.await()
 	}
 
-	private fun complete(identity: ActivityRegistrationIdentity) {
+	private fun complete(
+		identity: ActivityRegistrationIdentity,
+		capture: Pair<String, String>?,
+		terminalGap: Boolean,
+	) {
 		val drained = synchronized(monitor) {
 			val generation = checkNotNull(generations[identity])
 			check(generation.inFlight > 0) { "Activity callback permit count underflow" }
+			if (terminalGap && capture != null && generation.capture == capture &&
+				generation.failedCaptureCallbacks < Long.MAX_VALUE) {
+				generation.failedCaptureCallbacks += 1L
+			}
 			generation.inFlight -= 1
 			if (generation.inFlight == 0 && generation.phase != Phase.OPEN) {
 				generation.drained
@@ -97,6 +131,8 @@ class ActivityCallbackAdmissionBarrier @Inject constructor() {
 	private data class GenerationState(
 		var phase: Phase,
 		var inFlight: Int = 0,
+		var capture: Pair<String, String>? = null,
+		var failedCaptureCallbacks: Long = 0L,
 		var drained: CompletableDeferred<Unit>? = null,
 	)
 
@@ -109,11 +145,11 @@ class ActivityCallbackAdmissionBarrier @Inject constructor() {
 
 /** One explicitly completed callback admission. Completion is safe to repeat. */
 internal class ActivityCallbackAdmissionPermit(
-	private val onComplete: () -> Unit,
+	private val onComplete: (terminalGap: Boolean) -> Unit,
 ) {
 	private val completed = AtomicBoolean(false)
 
-	fun complete() {
-		if (completed.compareAndSet(false, true)) onComplete()
+	fun complete(terminalGap: Boolean = false) {
+		if (completed.compareAndSet(false, true)) onComplete(terminalGap)
 	}
 }

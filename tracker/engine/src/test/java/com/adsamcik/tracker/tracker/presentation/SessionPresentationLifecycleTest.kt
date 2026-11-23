@@ -296,20 +296,71 @@ class SessionPresentationLifecycleTest {
 		lifecycle.recoveredInitializationBinding(LOGICAL_ID, RUN_ONE) shouldBe
 			SessionPresentationBinding(LOGICAL_ID, RUN_ONE, segmentId)
 		lifecycle.recoveredInitializationBinding("another-logical", RUN_ONE) shouldBe null
+		val beforeRecovery = System.currentTimeMillis()
 		lifecycle.recoverMissingForRetainedEvent(wal.eventId) shouldBe true
+		val afterRecovery = System.currentTimeMillis()
 		lifecycle.recoverMissingForRetainedEvent(wal.eventId) shouldBe true
 		val quiesced = requireNotNull(dao.serviceRun(RUN_ONE))
 		quiesced.sessionSegmentId shouldBe segmentId
 		quiesced.presentationAcknowledgement shouldBe SourceServiceRunEntity.PRESENTATION_QUIESCED
-		quiesced.presentationAcknowledgedAtMs shouldBe 2_100L
+		(requireNotNull(quiesced.presentationAcknowledgedAtMs) in beforeRecovery..afterRecovery) shouldBe true
 		database.sessionSegmentDao().getById(segmentId) shouldBe closed
 	}
 
 	@Test
-	fun `ordinary current Stop cannot use failed initialization recovery`() = runTest {
+	fun `terminal recovery keeps original End separate from late presentation acknowledgement`() = runTest {
+		val wal = insertFailedInitialization(stopReason = "INTERNAL_FAILURE")
+		val dao = database.sourceSessionDao()
+		val run = requireNotNull(dao.serviceRun(RUN_ONE))
+		dao.updateServiceRun(run.copy(state = SessionLifecycleState.FINALIZED.name, completedAtMs = 9_000L))
+		val session = requireNotNull(dao.session(LOGICAL_ID))
+		dao.updateSession(session.copy(state = SessionLifecycleState.FINALIZED.name,
+			currentServiceRunId = null, completedAtMs = 9_000L))
+
+		val beforeRecovery = System.currentTimeMillis()
+		lifecycle.recoverMissingForRetainedEvent(wal.eventId) shouldBe true
+		val afterRecovery = System.currentTimeMillis()
+		val quiesced = requireNotNull(dao.serviceRun(RUN_ONE))
+		val segmentId = requireNotNull(quiesced.sessionSegmentId)
+		val closed = requireNotNull(database.sessionSegmentDao().getById(segmentId))
+		closed.startTimeMs shouldBe 1_000L
+		closed.endTimeMs shouldBe 2_000L
+		quiesced.presentationAcknowledgement shouldBe SourceServiceRunEntity.PRESENTATION_QUIESCED
+		(requireNotNull(quiesced.presentationAcknowledgedAtMs) in beforeRecovery..afterRecovery) shouldBe true
+		quiesced.completedAtMs shouldBe 9_000L
+
+		database.sessionSegmentDao().update(closed.copy(endTimeMs = 9_000L, sampleCount = 5))
+		lifecycle.recoverMissingForRetainedEvent(wal.eventId) shouldBe true
+		database.sessionSegmentDao().getById(segmentId) shouldBe closed.copy(sampleCount = 5)
+		dao.serviceRun(RUN_ONE) shouldBe quiesced
+		database.sessionSegmentDao().countTotal() shouldBe 1L
+		database.sourceEventWalDao().getByEventId(wal.eventId)?.integrityIdentity shouldBe wal.integrityIdentity
+	}
+
+	@Test
+	fun `user End before presentation preserves its authorized retained recording`() = runTest {
 		val wal = insertFailedInitialization(stopReason = "USER_STOP")
-		lifecycle.recoverMissingForRetainedEvent(wal.eventId) shouldBe false
-		database.sessionSegmentDao().countTotal() shouldBe 0L
+		lifecycle.recoverMissingForRetainedEvent(wal.eventId) shouldBe true
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ONE))
+		val segment = requireNotNull(database.sessionSegmentDao().getById(requireNotNull(run.sessionSegmentId)))
+		segment.startTimeMs shouldBe 1_000L
+		segment.endTimeMs shouldBe 2_000L
+		segment.sampleCount shouldBe 0
+		segment.distanceM shouldBe 0f
+		run.presentationAcknowledgement shouldBe SourceServiceRunEntity.PRESENTATION_PENDING
+	}
+
+	@Test
+	fun `internal failure before presentation preserves the original Stop and captured data`() = runTest {
+		val wal = insertFailedInitialization(stopReason = "INTERNAL_FAILURE")
+		lifecycle.recoverMissingForRetainedEvent(wal.eventId) shouldBe true
+		lifecycle.recoverMissingForRetainedEvent(wal.eventId) shouldBe true
+		database.sessionSegmentDao().countTotal() shouldBe 1L
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ONE))
+		val segment = requireNotNull(database.sessionSegmentDao().getById(requireNotNull(run.sessionSegmentId)))
+		segment.startTimeMs shouldBe 1_000L
+		segment.endTimeMs shouldBe 2_000L
+		database.sourceEventWalDao().getByEventId(wal.eventId)?.integrityIdentity shouldBe wal.integrityIdentity
 	}
 
 	@Test

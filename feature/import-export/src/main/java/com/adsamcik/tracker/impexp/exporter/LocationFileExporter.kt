@@ -12,6 +12,7 @@ import com.adsamcik.tracker.impexp.portable.LocationFilePointV1
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.LocationFileContinuity
 import com.adsamcik.tracker.shared.base.database.dao.LocationPurposeDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationFileIdentityDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
@@ -189,8 +190,7 @@ internal class LocationFileExporter @JvmOverloads @Inject constructor(
 			} else {
 				row.fileOrigin()
 			}
-			writer.point(LocationFilePointV1(identity.portableId, origin,
-				LocationFileMeasurementV1.from(row.sample.toModel())))
+			writePortablePoint(row, identity.portableId, origin, identities, writer)
 			count++
 			if (row.sample.timeMs > maxTime || row.sample.timeMs == maxTime && row.sample.id > maxId) {
 				maxTime = row.sample.timeMs; maxId = row.sample.id
@@ -293,11 +293,7 @@ internal class LocationFileExporter @JvmOverloads @Inject constructor(
 		} else {
 			row.fileOrigin()
 		}
-		writer.point(LocationFilePointV1(
-			pointId = identity.portableId,
-			origin = origin,
-			measurement = LocationFileMeasurementV1.from(row.sample.toModel()),
-		))
+		writePortablePoint(row, identity.portableId, origin, dao, writer)
 	}
 
 	internal companion object { const val PAGE_SIZE = 256 }
@@ -308,4 +304,22 @@ internal fun LocationPathSampleRow.fileOrigin(): LocationFileOrigin = when {
 	hasSessionPurpose -> LocationFileOrigin.SESSION
 	hasVisibleBackgroundPurpose -> LocationFileOrigin.BACKGROUND
 	else -> LocationFileOrigin.UNKNOWN
+}
+
+/** Original path/sequence survives range boundaries; no new break is invented at a file's first point. */
+private fun LocationPathSampleRow.toFilePoint(pointId: String, origin: LocationFileOrigin): LocationFilePointV1 {
+    val key = continuityId
+    val sequence = continuitySequence
+    val path = key?.takeIf { sequence != null }?.let {
+        LocationFileContinuity.filePathId(it, sample.clockDomainId)
+    }
+    return LocationFilePointV1(pointId, origin, LocationFileMeasurementV1.from(sample.toModel()),
+        pathId = path, sequence = sequence.takeIf { path != null })
+}
+
+private suspend fun writePortablePoint(row: LocationPathSampleRow, pointId: String, origin: LocationFileOrigin,
+    identities: LocationFileIdentityDao, writer: LocationFileJsonV1.Writer) {
+    val point = row.toFilePoint(pointId, origin)
+    point.pathId?.let { identities.fillPathIfUnknown(pointId, it, requireNotNull(point.sequence)) }
+    writer.point(point)
 }

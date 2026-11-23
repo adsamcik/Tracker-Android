@@ -25,6 +25,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLan
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionJoinStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.authenticatedProtectedLocationCanonicalCurationState
 import com.adsamcik.tracker.shared.base.database.data.protectedLocationCanonicalProductIdentity
 import com.adsamcik.tracker.shared.base.database.data.protectedLocationCanonicalReceiptBytes
@@ -61,8 +63,11 @@ import java.security.MessageDigest
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -215,9 +220,12 @@ internal class ProtectedLocationCanonicalHandoff(
 		applicationScope?.launch {
 			for (ignored in drainSignals) {
 				try {
-					drainHighWater()
+					drainHighWater(maximumOrdinals = BACKGROUND_PASS_ORDINALS)
+					yield()
 				} catch (cancelled: CancellationException) {
-					throw cancelled
+					// A retired writer may cancel its own operation. Keep the application actor
+					// available for the next durable hint; application cancellation still stops it.
+					currentCoroutineContext().ensureActive()
 				} catch (_: Exception) {
 					// Durable WAL, failure state, and the exact lane cursor own the next retry.
 				}
@@ -230,46 +238,61 @@ internal class ProtectedLocationCanonicalHandoff(
 		drainSignals.trySend(Unit)
 	}
 
-	/** Drains one finite global WAL/deletion high-water snapshot. */
-	suspend fun drainHighWater(): ProtectedLocationCanonicalDrainResult = mutex.withLock {
-		val resolution = database.withTransaction { resolveLane() }
-		retryPendingCleanup(resolution)?.let { return@withLock it }
-		val lane = when (resolution) {
-			is ProtectedLocationLaneResolution.Active -> resolution.lane
-			is ProtectedLocationLaneResolution.Inactive -> {
-				return@withLock ProtectedLocationCanonicalDrainResult.Inactive(
-					lastCommittedOrdinal = resolution.lastCommittedOrdinal,
-					reason = resolution.reason,
+	/** A background pass yields the physical writer to an exact End request between bounded chunks. */
+	suspend fun drainHighWater(maximumOrdinals: Long = Long.MAX_VALUE): ProtectedLocationCanonicalDrainResult =
+		mutex.withLock {
+			require(maximumOrdinals > 0L)
+			val resolution = database.withTransaction { resolveLane() }
+			retryPendingCleanup(resolution)?.let { return@withLock it }
+			val lane = when (resolution) {
+				is ProtectedLocationLaneResolution.Active -> resolution.lane
+				is ProtectedLocationLaneResolution.Inactive -> {
+					return@withLock ProtectedLocationCanonicalDrainResult.Inactive(
+						lastCommittedOrdinal = resolution.lastCommittedOrdinal,
+						reason = resolution.reason,
+					)
+				}
+			}
+			val fullSnapshot = try {
+				globalDrainSnapshot(lane)
+			} catch (changed: ProtectedLocationAuthorityChangedException) {
+				return@withLock ProtectedLocationCanonicalDrainResult.AuthorityChanged(
+					lane.contiguousAdmissionOrdinal,
+					changed.reason,
 				)
 			}
-		}
-		val snapshot = try {
-			globalDrainSnapshot(lane)
-		} catch (changed: ProtectedLocationAuthorityChangedException) {
-			return@withLock ProtectedLocationCanonicalDrainResult.AuthorityChanged(
-				lane.contiguousAdmissionOrdinal,
-				changed.reason,
+			val passTarget = lane.contiguousAdmissionOrdinal +
+				minOf(maximumOrdinals, Long.MAX_VALUE - lane.contiguousAdmissionOrdinal)
+			val target = minOf(fullSnapshot.targetAdmissionOrdinal, passTarget)
+			val snapshot = fullSnapshot.copy(targetAdmissionOrdinal = target,
+				firstTerminalFailureOrdinal = fullSnapshot.firstTerminalFailureOrdinal?.takeIf { it <= target })
+			val continuity = database.withTransaction {
+				verifyGlobalLocationContinuity(
+					afterOrdinal = lane.contiguousAdmissionOrdinal,
+					throughOrdinal = snapshot.targetAdmissionOrdinal,
+					deletedSourceEventHighWaterOrdinal =
+						snapshot.deletedSourceEventHighWaterOrdinal,
+					firstTerminalFailureOrdinal = snapshot.firstTerminalFailureOrdinal,
+				)
+			}
+			continuity.failure?.let { return@withLock it }
+			val provenTarget = continuity.classifiedThroughOrdinal
+			val result = drainLocked(
+				lane,
+				provenTarget,
+				expectedLogicalTrackingId = null,
+				expectedServiceRunId = null,
 			)
+			finishBackgroundPass(result, provenTarget, snapshot.targetAdmissionOrdinal, fullSnapshot.targetAdmissionOrdinal)
 		}
-		val continuity = database.withTransaction {
-			verifyGlobalLocationContinuity(
-				afterOrdinal = lane.contiguousAdmissionOrdinal,
-				throughOrdinal = snapshot.targetAdmissionOrdinal,
-				deletedSourceEventHighWaterOrdinal =
-					snapshot.deletedSourceEventHighWaterOrdinal,
-				firstTerminalFailureOrdinal = snapshot.firstTerminalFailureOrdinal,
-			)
-		}
-		continuity.failure?.let { return@withLock it }
-		val provenTarget = continuity.classifiedThroughOrdinal
-		val result = drainLocked(
-			lane,
-			provenTarget,
-			expectedLogicalTrackingId = null,
-			expectedServiceRunId = null,
-		)
-		if (result is ProtectedLocationCanonicalDrainResult.Complete &&
-			provenTarget < snapshot.targetAdmissionOrdinal
+
+	private fun finishBackgroundPass(
+		result: ProtectedLocationCanonicalDrainResult,
+		provenTarget: Long,
+		passTarget: Long,
+		fullTarget: Long,
+	): ProtectedLocationCanonicalDrainResult =
+		if (result is ProtectedLocationCanonicalDrainResult.Complete && provenTarget < passTarget
 		) {
 			ProtectedLocationCanonicalDrainResult.Deferred(
 				lastCommittedOrdinal = result.lastCommittedOrdinal,
@@ -278,10 +301,17 @@ internal class ProtectedLocationCanonicalHandoff(
 				}.getOrNull(),
 				reason = "LOCATION_DRAIN_TRAILING_RANGE_UNPROVEN",
 			)
+		} else if (result is ProtectedLocationCanonicalDrainResult.Complete &&
+			passTarget < fullTarget
+		) {
+			// Requeue only after actual finite progress; poison/authority failures never spin.
+			requestDrain()
+			ProtectedLocationCanonicalDrainResult.Deferred(
+				result.lastCommittedOrdinal, null, "LOCATION_BACKGROUND_PASS_YIELDED",
+			)
 		} else {
 			result
 		}
-	}
 
 	private suspend fun globalDrainSnapshot(
 		lane: SourceProductProjectionLaneEntity,
@@ -937,6 +967,11 @@ internal class ProtectedLocationCanonicalHandoff(
 		adapted: LocationWalAdapterResult.Rejected,
 		ambient: LocationAmbientQualification,
 	): ProtectedLocationCandidateEffect {
+		if (adapted.reason == LocationWalAdapterRejection.MISSING_SEGMENT &&
+			awaitsCurrentSessionPresentation(candidate.eventId)
+		) {
+			return ProtectedLocationCandidateEffect.Deferred("LOCATION_SESSION_PRESENTATION_PENDING")
+		}
 		if (ambient is LocationAmbientQualification.Qualified) {
 			return processAmbientCandidate(initialLane, expectedCursor, candidate, ambient.command)
 		}
@@ -946,6 +981,24 @@ internal class ProtectedLocationCanonicalHandoff(
 			return ProtectedLocationCandidateEffect.LifecycleSettled(candidate.admissionOrdinal)
 		}
 		return failCandidate(initialLane, expectedCursor, candidate, "LOCATION_ADAPTER_${adapted.reason.name}")
+	}
+
+	private suspend fun awaitsCurrentSessionPresentation(eventId: String): Boolean = database.withTransaction {
+		val wal = database.sourceEventWalDao().getByEventId(eventId)
+		val dao = database.sourceSessionDao()
+		val session = wal?.logicalTrackingId?.let { dao.session(it) }
+		val run = wal?.serviceRunId?.let { dao.serviceRun(it) }
+		if (wal == null || session == null || run == null) {
+			return@withTransaction false
+		}
+		run.awaitsPresentationBinding(session)
+	}
+
+	private fun SourceServiceRunEntity.awaitsPresentationBinding(session: LogicalTrackingSessionEntity): Boolean {
+		val currentRun = session.currentServiceRunId == serviceRunId && logicalTrackingId == session.logicalTrackingId
+		val awaitingBinding = sessionSegmentId == null && completedAtMs == null && session.cutoffAtMs == null
+		val initializingStates = setOf("STARTING", "ACTIVE", "RECONFIGURING")
+		return currentRun && awaitingBinding && session.state in initializingStates && state in initializingStates
 	}
 
 	// The complete existing candidate context plus the two optional expected-run identifiers.
@@ -1460,6 +1513,7 @@ internal class ProtectedLocationCanonicalHandoff(
 		const val MANUAL_CAPTURE_MODE_MASK = 1L
 		private const val SOURCE_LOCATION = SourceDestinationOwnerEntity.SOURCE_LOCATION
 		private const val CONTINUITY_PAGE_SIZE = 256
+		private const val BACKGROUND_PASS_ORDINALS = 128L
 	}
 }
 

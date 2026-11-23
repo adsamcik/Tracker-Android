@@ -38,7 +38,7 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">Tietokannan varmuuskopio (ZIP)</string>
-    <string name="settings_import_summary">Tuo tietoja tuetuista tyypeistä (%1$s) ja arkistoista (%2$s). Tietokantatuonnit yhdistävät yhteensopivat rivit eivätkä korvaa olemassa olevia tietoja.</string>
+    <string name="settings_import_summary">Tuo seurantatiedosto tai palauta tietojen varmuuskopio.</string>
     <string name="settings_import_title">Tuonti</string>
     <string name="export_radio_sensitivity_title">Viedäänkö verkon tiedot?</string>
     <string name="export_wifi_sensitivity_message">Tämä tiedosto sisältää tallennetut Wi-Fi-nimet ja tukiasemien tunnisteet.</string>
@@ -59,4 +59,7 @@
         <item quantity="one">%d tämän tiedoston piste poikkeaa tallennetusta kopiosta. Valitse, kumman säilytät. Muut pisteet tuodaan normaalisti.</item>
         <item quantity="other">%d tämän tiedoston pistettä poikkeaa tallennetuista kopioista. Valitse, mitkä säilytät. Muut pisteet tuodaan normaalisti.</item>
     </plurals>
+    <string name="export_sensitivity_portable_title">Viedäänkö tallennettu historia?</string>
+    <string name="export_sensitivity_portable_steps_message">Tämä tiedosto sisältää askelmäärät, aikavälit ja kattavuustiedot. Se ei sisällä reittikoordinaatteja. Jatka vain, jos luotat kohteeseen.</string>
+    <string name="export_sensitivity_portable_activity_message">Tämä tiedosto sisältää tallennetut liikejaksot, aikavälit ja kattavuustiedot. Se ei sisällä reittikoordinaatteja. Jatka vain, jos luotat kohteeseen.</string>
 </resources>

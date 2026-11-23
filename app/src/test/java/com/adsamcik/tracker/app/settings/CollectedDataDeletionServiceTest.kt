@@ -130,11 +130,11 @@ class CollectedDataDeletionServiceTest {
 			PostDeletionRecoveryScheduleResult.Enqueued
 		coEvery { collectedDataLifecycleStore.snapshot() } answers { lifecycleSnapshot }
 		coEvery {
-			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any(), any())
 		} answers {
 			lifecycleSnapshot = CollectedDataLifecycleSnapshot(
 				epoch = secondArg(),
-				retainedFromMs = thirdArg(),
+				retainedFromMs = listOfNotNull(lifecycleSnapshot.retainedFromMs, arg<Long?>(3)).maxOrNull(),
 			)
 			lifecycleSnapshot
 		}
@@ -170,24 +170,106 @@ class CollectedDataDeletionServiceTest {
 		coVerify(exactly = 1) { exportPlanStore.resetAllWatermarks() }
 		coVerify(exactly = 2) { writerQuiescer.quiesce() }
 		coVerify(exactly = 1) {
-			collectedDataLifecycleStore.beginFullDeletion(any(), 1L, 1L)
+			collectedDataLifecycleStore.beginFullDeletion(any(), 1L, 1L, null)
 		}
 		coVerifyOrder {
 			writerQuiescer.quiesce()
 			writerQuiescer.quiesce()
-			collectedDataLifecycleStore.beginFullDeletion(any(), 1L, 1L)
+			collectedDataLifecycleStore.beginFullDeletion(any(), 1L, 1L, null)
 		}
 		verify(exactly = 0) { writerQuiescer.resume() }
 		coVerify(exactly = 1) { automaticControlRestorer.schedule(1L) }
 		appDeletionCount shouldBe 1
 		capturedEpoch shouldBe 1L
-		capturedRetainedFromMs shouldBe 1L
+		capturedRetainedFromMs shouldBe null
 		markerFile.exists() shouldBe false
 		Preferences(context).fetchLong("SunSetLatitude", Long.MIN_VALUE) shouldBe Long.MIN_VALUE
 		Preferences(context).fetchLong("SunSetLongitude", Long.MIN_VALUE) shouldBe Long.MIN_VALUE
 		RETIRED_DATABASE_NAMES.forEach {
 			context.getDatabasePath(it).exists() shouldBe false
 		}
+	}
+
+	@Test
+	fun `clear preserves the prior retention floor instead of replacing it with erase time`() = runTest {
+		lifecycleSnapshot = CollectedDataLifecycleSnapshot(0L, 500L)
+		val service = createService(currentTimeMillis = { 1_000L }) { _, epoch, floor, erasedAt ->
+			epoch shouldBe 1L
+			floor shouldBe 500L
+			erasedAt shouldBe 1_000L
+		}
+
+		service.deleteAll() shouldBe CollectedDataDeletionCompletion.Complete
+		lifecycleSnapshot shouldBe CollectedDataLifecycleSnapshot(1L, 500L)
+	}
+
+	@Test
+	fun `retention advanced during quiescence is durably settled before Room clear`() = runTest {
+		lifecycleSnapshot = CollectedDataLifecycleSnapshot(0L, 500L)
+		coEvery { writerQuiescer.quiesce() } answers {
+			lifecycleSnapshot = lifecycleSnapshot.copy(retainedFromMs = 600L)
+		}
+		var clears = 0
+		val service = createService(currentTimeMillis = { 1_000L }) { _, epoch, floor, _ ->
+			clears++
+			epoch shouldBe 1L
+			floor shouldBe 600L
+			markerFile.readLines()[3] shouldBe "600"
+		}
+
+		service.deleteAll() shouldBe CollectedDataDeletionCompletion.Complete
+		lifecycleSnapshot shouldBe CollectedDataLifecycleSnapshot(1L, 600L)
+		clears shouldBe 1
+	}
+
+	@Test
+	fun `an older prepared clear retains its reserved floor through interrupted execution`() = runTest {
+		lifecycleSnapshot = CollectedDataLifecycleSnapshot(0L, 500L)
+		val operationId = java.util.UUID.randomUUID().toString()
+		preparedMarkerFile.writeText(listOf("TRACKER_COLLECTED_DATA_DELETION_V2", operationId,
+			"1", "1000", "1000").joinToString("\n", postfix = "\n"))
+		val interrupted = createService { _, _, _, _ -> throw SQLiteException("before Room commit") }
+		interrupted.reconcilePendingDeletion().shouldBeInstanceOf<CollectedDataDeletionCompletion.Retryable>()
+		lifecycleSnapshot shouldBe CollectedDataLifecycleSnapshot(1L, 1_000L)
+		markerFile.readLines()[1] shouldBe operationId
+		val recovered = createService { _, epoch, floor, erasedAt ->
+			epoch shouldBe 1L
+			floor shouldBe 1_000L
+			erasedAt shouldBe 1_000L
+			markerFile.readLines()[1] shouldBe operationId
+		}
+
+		recovered.reconcilePendingDeletion() shouldBe CollectedDataDeletionCompletion.Complete
+		lifecycleSnapshot shouldBe CollectedDataLifecycleSnapshot(1L, 1_000L)
+		markerFile.exists() shouldBe false
+	}
+
+	@Test
+	fun `a boundary journal failure retries the acknowledged epoch without losing newer retention`() = runTest {
+		lifecycleSnapshot = CollectedDataLifecycleSnapshot(0L, 500L)
+		coEvery { writerQuiescer.quiesce() } answers {
+			lifecycleSnapshot = lifecycleSnapshot.copy(retainedFromMs = 600L)
+		}
+		var syncs = 0
+		val interrupted = createService(directorySync = {
+			syncs++
+			if (syncs == 3) error("boundary journal not yet durable")
+		}) { _, _, _, _ -> error("Room must wait for the exact durable boundary") }
+		interrupted.deleteAll().shouldBeInstanceOf<CollectedDataDeletionCompletion.Unverifiable>()
+		lifecycleSnapshot shouldBe CollectedDataLifecycleSnapshot(1L, 600L)
+		markerFile.readLines()[3] shouldBe "500"
+		preparedMarkerFile.exists() shouldBe true
+		var clears = 0
+		val recovered = createService { _, epoch, floor, _ ->
+			clears++
+			epoch shouldBe 1L
+			floor shouldBe 600L
+			markerFile.readLines()[3] shouldBe "600"
+		}
+
+		recovered.reconcilePendingDeletion() shouldBe CollectedDataDeletionCompletion.Complete
+		lifecycleSnapshot shouldBe CollectedDataLifecycleSnapshot(1L, 600L)
+		clears shouldBe 1
 	}
 
 	@Test
@@ -212,7 +294,7 @@ class CollectedDataDeletionServiceTest {
 		verify(exactly = 2) { pointsAwardedDao.deleteAll() }
 		coVerify(exactly = 4) { writerQuiescer.quiesce() }
 		coVerify(exactly = 2) {
-			collectedDataLifecycleStore.beginFullDeletion(any(), 1L, 1L)
+			collectedDataLifecycleStore.beginFullDeletion(any(), 1L, 1L, null)
 		}
 		verify(exactly = 0) { writerQuiescer.resume() }
 		coVerify(exactly = 1) { automaticControlRestorer.schedule(1L) }
@@ -255,7 +337,7 @@ class CollectedDataDeletionServiceTest {
 		runTest {
 			var lifecycleAttempts = 0
 			coEvery {
-				collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+				collectedDataLifecycleStore.beginFullDeletion(any(), any(), any(), any())
 			} answers {
 				lifecycleAttempts += 1
 				if (lifecycleAttempts == 1) {
@@ -265,7 +347,7 @@ class CollectedDataDeletionServiceTest {
 				}
 				lifecycleSnapshot = CollectedDataLifecycleSnapshot(
 					epoch = secondArg(),
-					retainedFromMs = thirdArg(),
+					retainedFromMs = listOfNotNull(lifecycleSnapshot.retainedFromMs, arg<Long?>(3)).maxOrNull(),
 				)
 				lifecycleSnapshot
 			}
@@ -653,7 +735,7 @@ class CollectedDataDeletionServiceTest {
 		physicalClearCount shouldBe 2
 		lifecycleSnapshot.epoch shouldBe 2L
 		coVerify(exactly = 2) {
-			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any(), any())
 		}
 	}
 
@@ -715,7 +797,7 @@ class CollectedDataDeletionServiceTest {
 		}
 		physicalClearCount shouldBe 1
 		coVerify(exactly = 1) {
-			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any(), any())
 		}
 	}
 
@@ -1168,7 +1250,7 @@ class CollectedDataDeletionServiceTest {
 		preparedMarkerFile.exists() shouldBe true
 		startupDeletionBarrier.isClosed shouldBe true
 		coVerify(exactly = 0) {
-			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any(), any())
 		}
 		coVerify(exactly = 2) { writerQuiescer.quiesce() }
 	}
@@ -1195,7 +1277,7 @@ class CollectedDataDeletionServiceTest {
 			markerFile.exists() shouldBe true
 			startupDeletionBarrier.isClosed shouldBe true
 			coVerify(exactly = 0) {
-				collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+				collectedDataLifecycleStore.beginFullDeletion(any(), any(), any(), any())
 			}
 			coVerify(exactly = 2) { ambientSteps.closeForCollectedDataDeletion() }
 			coVerify(exactly = 2) { writerQuiescer.quiesce() }
@@ -1263,7 +1345,7 @@ class CollectedDataDeletionServiceTest {
 		coVerify(exactly = 5) { ambientSteps.closeForCollectedDataDeletion() }
 		coVerify(exactly = 4) { writerQuiescer.quiesce() }
 		coVerify(exactly = 1) {
-			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any(), any())
 		}
 		coVerify(exactly = 1) { automaticControlRestorer.schedule(1L) }
 	}
@@ -1301,7 +1383,7 @@ class CollectedDataDeletionServiceTest {
 		coVerify(exactly = 5) { ambientSteps.closeForCollectedDataDeletion() }
 		coVerify(exactly = 4) { writerQuiescer.quiesce() }
 		coVerify(exactly = 1) {
-			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any(), any())
 		}
 		coVerify(exactly = 1) { automaticControlRestorer.schedule(1L) }
 	}
@@ -1462,7 +1544,7 @@ class CollectedDataDeletionServiceTest {
 			physicalClearCount shouldBe 1
 			lifecycleSnapshot.epoch shouldBe 1L
 			coVerify(exactly = 1) {
-				collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+				collectedDataLifecycleStore.beginFullDeletion(any(), any(), any(), any())
 			}
 		}
 
@@ -1537,7 +1619,7 @@ class CollectedDataDeletionServiceTest {
 		)
 		rearmGeneration shouldBe 1
 		coVerify(exactly = 1) {
-			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any())
+			collectedDataLifecycleStore.beginFullDeletion(any(), any(), any(), any())
 		}
 		markerFile.exists() shouldBe false
 		startupDeletionBarrier.isClosed shouldBe false
@@ -1589,6 +1671,7 @@ class CollectedDataDeletionServiceTest {
 		directorySync: (File) -> Unit = {},
 		markerDelete: (File) -> Boolean = File::delete,
 		providerFenceTimeoutMs: Long = 30_000L,
+		currentTimeMillis: () -> Long = { 1L },
 		providerFenceScope: CoroutineScope =
 			CoroutineScope(SupervisorJob() + Dispatchers.Default),
 		appDatabaseDeletionOperation: (suspend (
@@ -1663,7 +1746,7 @@ class CollectedDataDeletionServiceTest {
 		markerFile = markerFile,
 		directorySync = directorySync,
 		markerDelete = markerDelete,
-		currentTimeMillis = { 1L },
+		currentTimeMillis = currentTimeMillis,
 		providerFenceTimeoutMs = providerFenceTimeoutMs,
 		providerFenceScope = providerFenceScope,
 	)
@@ -1806,7 +1889,6 @@ class CollectedDataDeletionServiceTest {
 			deletedAtMs: Long,
 		): CollectedDataLifecycleSnapshot = state.value.copy(
 			epoch = state.value.epoch + 1L,
-			retainedFromMs = deletedAtMs,
 		).also { state.value = it }
 
 		override suspend fun advanceRetainedFrom(

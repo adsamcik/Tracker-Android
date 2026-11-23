@@ -20,6 +20,7 @@ class PressureWindowLaneTest {
 		val latch = PressureAuthorizationRefreshLatch(
 			effectiveElapsedRealtimeNanos = 300L,
 			maximumBufferedSamples = 2,
+			minimumWindowNanos = 5_000L,
 		)
 		assertFalse(latch.shouldBuffer(299L))
 		assertTrue(latch.shouldBuffer(300L))
@@ -30,6 +31,35 @@ class PressureWindowLaneTest {
 		assertEquals(PressureRefreshLatchOffer.OVERFLOW, latch.offer(pendingSample(302L, 4L), 2))
 		assertEquals(listOf(2L, 3L), latch.drainBufferedSamples().map { it.reception.providerSequence })
 		assertEquals(0, latch.bufferedSampleCount)
+	}
+
+	@Test
+	fun `refresh buffer budgets dense samples as windows and retains FIFO`() {
+		val latch = PressureAuthorizationRefreshLatch(1L, 1_024, 5_000_000_000L)
+		repeat(400) { index ->
+			assertEquals(PressureRefreshLatchOffer.BUFFERED,
+				latch.offer(pendingSample(1L + index * 100_000_000L, index + 1L), 8))
+		}
+		assertEquals(PressureRefreshLatchOffer.OVERFLOW,
+			latch.offer(pendingSample(40_000_000_001L, 401L), 8))
+		assertEquals((1L..400L).toList(), latch.drainBufferedSamples().map { it.reception.providerSequence })
+	}
+
+	@Test
+	fun `refresh buffer rejects sparse windows and independently caps dense raw samples`() {
+		val sparse = PressureAuthorizationRefreshLatch(1L, 1_024, 1_000L)
+		assertEquals(PressureRefreshLatchOffer.BUFFERED, sparse.offer(pendingSample(1L, 1L), 2))
+		assertEquals(PressureRefreshLatchOffer.BUFFERED, sparse.offer(pendingSample(10_001L, 2L), 2))
+		assertEquals(PressureRefreshLatchOffer.OVERFLOW, sparse.offer(pendingSample(20_001L, 3L), 2))
+		assertEquals(listOf(1L, 2L), sparse.drainBufferedSamples().map { it.reception.providerSequence })
+		val dense = PressureAuthorizationRefreshLatch(1L, 1_024, 5_000_000_000L)
+		repeat(1_024) { index ->
+			assertEquals(PressureRefreshLatchOffer.BUFFERED, dense.offer(pendingSample(index + 1L, index + 1L), 1))
+		}
+		assertEquals(PressureRefreshLatchOffer.OVERFLOW, dense.offer(pendingSample(1_025L, 1_025L), 1))
+		assertEquals(1_024, dense.bufferedSampleCount)
+		assertEquals(PressureRefreshLatchOffer.OVERFLOW,
+			PressureAuthorizationRefreshLatch(1L, 1_024, 1_000L).offer(pendingSample(1L, 1L), 0))
 	}
 
 	@Test
@@ -172,8 +202,8 @@ class PressureWindowLaneTest {
 				assertSame(prepared, it)
 				if (++admissions == 1) {
 					now = 2L
-					SourceAdmissionHandoff.RetryableFailure(SourceAdmissionFailureCode.STORAGE_UNAVAILABLE)
-				} else SourceAdmissionHandoff.Durable(91L)
+					SourceDeliveryAdmissionHandoff.RetryableFailure(SourceAdmissionFailureCode.STORAGE_UNAVAILABLE)
+				} else SourceDeliveryAdmissionHandoff.Durable(listOf(91L))
 			},
 			onAdmissionResolved = { _, _ -> },
 			persistTerminalOutcome = { error("Atomic success needs no terminal checkpoint") },
@@ -203,9 +233,9 @@ class PressureWindowLaneTest {
 			admit = {
 				admissionAttempts++
 				if (admissionAttempts <= 4) {
-					SourceAdmissionHandoff.RetryableFailure(SourceAdmissionFailureCode.STORAGE_UNAVAILABLE)
+					SourceDeliveryAdmissionHandoff.RetryableFailure(SourceAdmissionFailureCode.STORAGE_UNAVAILABLE)
 				} else {
-					SourceAdmissionHandoff.Durable(91L)
+					SourceDeliveryAdmissionHandoff.Durable(listOf(91L))
 				}
 			},
 			onAdmissionResolved = { _, handoff -> resolved += handoff },
@@ -236,7 +266,7 @@ class PressureWindowLaneTest {
 				prepareAttempts++
 				if (prepareAttempts <= 4) null else "allocated-sequence"
 			},
-			admit = { admissionAttempts++; SourceAdmissionHandoff.Durable(92L) },
+			admit = { admissionAttempts++; SourceDeliveryAdmissionHandoff.Durable(listOf(92L)) },
 			onAdmissionResolved = { _, _ -> },
 			persistTerminalOutcome = { checkpointAttempts++; true },
 			waitBeforeRetry = {},
@@ -251,6 +281,7 @@ class PressureWindowLaneTest {
 	@Test
 	fun `atomic checkpoint unsupported retains exact head and never falls back to legacy admit`() = runTest {
 		val prepared = PreparedPressureAdmission(
+			window = mockk(),
 			delivery = mockk(),
 			checkpoint = mockk(),
 			checkpointedCapacityGapSequence = null,
@@ -291,7 +322,7 @@ class PressureWindowLaneTest {
 			nowElapsedRealtimeNanos = { 0L },
 			prepare = { prepared },
 			admit = { exact ->
-				sink.admit(exact.delivery, exact.checkpoint).toPressureWindowHandoff()
+				sink.admit(exact.delivery, exact.checkpoint)
 			},
 			onAdmissionResolved = { exact, handoff ->
 				assertSame(prepared, exact)
@@ -311,7 +342,7 @@ class PressureWindowLaneTest {
 	}
 
 	@Test
-	fun `durable session cutoff fails closed without reinterpreting an atomic pressure window`() {
+	fun `a cutoff without rebuilt originals remains a terminal no-fact result`() {
 		val mapped = SourceDeliveryAdmissionHandoff.SessionCutoff(
 			cutoffElapsedRealtimeNanos = 123L,
 		).toPressureWindowHandoff()
@@ -320,6 +351,68 @@ class PressureWindowLaneTest {
 			SourceAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.SOURCE_POLICY_STALE),
 			mapped,
 		)
+	}
+
+	@Test
+	fun `cutoff rebuild happens once and its stable prefix settles the discarded tail without re-admission`() = runTest {
+		var rebuilds = 0
+		var prefixAttempts = 0
+		var checkpointAttempts = 0
+		val seen = mutableListOf<String>()
+		val resolved = mutableListOf<SourceAdmissionHandoff>()
+		val result = processPressureWindowHead(
+			deadlineElapsedRealtimeNanos = { null }, nowElapsedRealtimeNanos = { 0L },
+			prepare = { "whole-window" },
+			admit = { head ->
+				seen += head
+				when {
+					head == "whole-window" -> SourceDeliveryAdmissionHandoff.SessionCutoff(10L)
+					++prefixAttempts == 1 -> SourceDeliveryAdmissionHandoff.RetryableFailure(
+						SourceAdmissionFailureCode.STORAGE_UNAVAILABLE)
+					else -> SourceDeliveryAdmissionHandoff.Duplicate(listOf(88L))
+				}
+			},
+			rebuildAfterRejection = { original, rejection ->
+				assertEquals("whole-window", original)
+				assertEquals(SourceDeliveryAdmissionHandoff.SessionCutoff(10L), rejection)
+				rebuilds++
+				"accepted-prefix" to 10L
+			},
+			requiresTerminalCheckpoint = { it == "accepted-prefix" },
+			onAdmissionResolved = { _, handoff -> resolved += handoff },
+			persistTerminalOutcome = { ++checkpointAttempts == 3 },
+			waitBeforeRetry = {},
+		)
+		assertEquals(PressureWindowHeadResolution.SETTLED, result)
+		assertEquals(listOf("whole-window", "accepted-prefix", "accepted-prefix"), seen)
+		assertEquals(1, rebuilds)
+		assertEquals(listOf<SourceAdmissionHandoff>(SourceAdmissionHandoff.Duplicate(88L)), resolved)
+		assertEquals(3, checkpointAttempts)
+	}
+
+	@Test
+	fun `a second cutoff terminates the head instead of endlessly rebuilding its prefix`() = runTest {
+		var admissions = 0
+		var rebuilds = 0
+		var terminalRecords = 0
+		var checkpoints = 0
+		val result = processPressureWindowHead(
+			deadlineElapsedRealtimeNanos = { null }, nowElapsedRealtimeNanos = { 0L },
+			prepare = { "whole-window" },
+			admit = { admissions++; SourceDeliveryAdmissionHandoff.SessionCutoff(10L) },
+			rebuildAfterRejection = { _, _ -> rebuilds++; "prefix" to 10L },
+			onAdmissionResolved = { _, handoff ->
+				assertEquals<SourceAdmissionHandoff>(SourceAdmissionHandoff.TerminalFailure(
+					SourceAdmissionFailureCode.SOURCE_POLICY_STALE), handoff)
+				terminalRecords++
+			},
+			persistTerminalOutcome = { checkpoints++; true },
+		)
+		assertEquals(PressureWindowHeadResolution.SETTLED, result)
+		assertEquals(2, admissions)
+		assertEquals(1, rebuilds)
+		assertEquals(1, terminalRecords)
+		assertEquals(1, checkpoints)
 	}
 
 	@Test
@@ -334,7 +427,7 @@ class PressureWindowLaneTest {
 			prepare = { "exact-head" },
 			admit = {
 				admissions++
-				SourceAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.INVALID_EVIDENCE)
+				SourceDeliveryAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.INVALID_EVIDENCE)
 			},
 			onAdmissionResolved = { _, _ -> terminalRecords++ },
 			persistTerminalOutcome = { ++checkpointAttempts >= 5 },
@@ -359,9 +452,9 @@ class PressureWindowLaneTest {
 			admit = {
 				admissions++
 				if (admissions < 7) {
-					SourceAdmissionHandoff.RetryableFailure(SourceAdmissionFailureCode.STORAGE_UNAVAILABLE)
+					SourceDeliveryAdmissionHandoff.RetryableFailure(SourceAdmissionFailureCode.STORAGE_UNAVAILABLE)
 				} else {
-					SourceAdmissionHandoff.Durable(74L)
+					SourceDeliveryAdmissionHandoff.Durable(listOf(74L))
 				}
 			},
 			onAdmissionResolved = { _, _ -> },
@@ -401,7 +494,7 @@ class PressureWindowLaneTest {
 				prepare = { "prepared-head" },
 				admit = {
 					admissionAttempts++
-					SourceAdmissionHandoff.RetryableFailure(SourceAdmissionFailureCode.STORAGE_UNAVAILABLE)
+					SourceDeliveryAdmissionHandoff.RetryableFailure(SourceAdmissionFailureCode.STORAGE_UNAVAILABLE)
 				},
 				onAdmissionResolved = { _, _ -> error("A retryable head must not resolve") },
 				persistTerminalOutcome = { checkpointAdvances++; true },

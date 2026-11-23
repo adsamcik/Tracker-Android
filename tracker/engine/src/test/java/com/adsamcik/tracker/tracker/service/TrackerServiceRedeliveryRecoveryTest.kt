@@ -29,6 +29,14 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrackerServiceRedeliveryRecoveryTest {
 	@Test
+	fun `shared foreground host remains sticky without downgrading a manual session delivery`() {
+		sharedCollectionServiceRestartMode(false, true) shouldBe Service.START_STICKY
+		sharedCollectionServiceRestartMode(true, true) shouldBe Service.START_REDELIVER_INTENT
+		sharedCollectionServiceRestartMode(true, false) shouldBe Service.START_REDELIVER_INTENT
+		sharedCollectionServiceRestartMode(false, false) shouldBe Service.START_NOT_STICKY
+	}
+
+	@Test
 	fun `Android redelivery and retry flags both require passive exact-token recovery`() {
 		isPassivePreparedStartDelivery(0) shouldBe false
 		isPassivePreparedStartDelivery(Service.START_FLAG_REDELIVERY) shouldBe true

@@ -152,6 +152,7 @@ class SavedLocationMetricsReader @Inject constructor(
     private companion object {
         val SAVED_LOCATION_TABLES = arrayOf("location_sample", "location_point_correction", "session_segment",
             "source_evidence_state", "source_deletion_fence", "location_file_archive", "location_file_archive_point",
+            "location_file_identity",
             "location_sample_purpose_authority", "collected_data_deletion_operation", "location_accepted_receipt",
             "source_policy", "source_consent_epoch", "source_service_run", "session_manifest_version",
             "session_manifest_source", "ambient_location_retention_authority")

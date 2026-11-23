@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.dashboard.data
 
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
-import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
@@ -34,10 +33,7 @@ import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DashboardHistorySourceDetailTest {
-	private val tripDao = mockk<TripDao>()
-	private val trackingHistoryRepository = mockk<TrackingHistoryRepository> {
-		every { observeSessionRewardChanges() } returns flowOf(Unit)
-	}
+	private val trackingHistoryRepository = mockk<TrackingHistoryRepository>()
 
 	@Test
 	fun `Steps and native Pressure retain exact source members and their common snapshot`() = runTest {
@@ -46,8 +42,7 @@ class DashboardHistorySourceDetailTest {
 		val entries = listOf(SourceAwareHistoryPageEntry.StepsOnly(steps),
 			SourceAwareHistoryPageEntry.PressureOnly(pressure))
 		val snapshot = TrackingHistoryReadSnapshot(7L, 11L)
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(emptyList())
-		every { trackingHistoryRepository.observeRecentSourceAwarePage(emptyList(), RECENT_HISTORY_LIMIT) } returns
+		every { trackingHistoryRepository.observeRecentHistoryPage(RECENT_HISTORY_LIMIT) } returns
 			flowOf(SourceAwareHistoryPageQuery.Content(entries, readSnapshot = snapshot))
 
 		val page = repository(testScheduler).observeRecentHistory().first()
@@ -70,8 +65,7 @@ class DashboardHistorySourceDetailTest {
 			origin = PressureHistoryOrigin.Imported(identity), importRevision = 3L)
 		val entry = SourceAwareHistoryPageEntry.PressureOnly(pressure)
 		val snapshot = TrackingHistoryReadSnapshot(7L, 12L)
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(emptyList())
-		every { trackingHistoryRepository.observeRecentSourceAwarePage(emptyList(), RECENT_HISTORY_LIMIT) } returns
+		every { trackingHistoryRepository.observeRecentHistoryPage(RECENT_HISTORY_LIMIT) } returns
 			flowOf(SourceAwareHistoryPageQuery.Content(listOf(entry), readSnapshot = snapshot))
 
 		val mapped = repository(testScheduler).observeRecentHistory().first().single() as
@@ -85,7 +79,6 @@ class DashboardHistorySourceDetailTest {
 
 	private fun repository(testScheduler: TestCoroutineScheduler) =
 		RoomDashboardHistoryRepository(
-			tripDao = tripDao,
 			trackingHistoryRepository = trackingHistoryRepository,
 			explorationCellDao = mockk(),
 			explorationStreakDao = mockk(),
@@ -95,7 +88,6 @@ class DashboardHistorySourceDetailTest {
 		)
 
 	private companion object {
-		const val PHYSICAL_CANDIDATE_PROBE = 65
 		const val RECENT_HISTORY_LIMIT = 5
 	}
 }

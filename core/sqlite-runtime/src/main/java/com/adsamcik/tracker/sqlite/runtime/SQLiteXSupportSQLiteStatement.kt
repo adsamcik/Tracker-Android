@@ -9,14 +9,14 @@ internal class SQLiteXSupportSQLiteStatement(
 ) : SQLiteXSupportSQLiteProgram(delegate), SupportSQLiteStatement {
 
 	override fun execute() {
-		delegate.execute()
+		sqliteXCall { delegate.execute() }
 	}
 
-	override fun executeUpdateDelete(): Int = delegate.executeUpdateDelete()
+	override fun executeUpdateDelete(): Int = sqliteXCall { delegate.executeUpdateDelete() }
 
-	override fun executeInsert(): Long = delegate.executeInsert()
+	override fun executeInsert(): Long = sqliteXCall { delegate.executeInsert() }
 
-	override fun simpleQueryForLong(): Long = delegate.simpleQueryForLong()
+	override fun simpleQueryForLong(): Long = sqliteXCall { delegate.simpleQueryForLong() }
 
-	override fun simpleQueryForString(): String? = delegate.simpleQueryForString()
+	override fun simpleQueryForString(): String? = sqliteXCall { delegate.simpleQueryForString() }
 }

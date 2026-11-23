@@ -78,8 +78,7 @@ class TrackerModuleInitializer @Inject constructor(
 		if (!initializationGate.tryStart()) return
 
 		applicationScope.launch {
-			// Register independently of another source's repair debt. The worker checks startup,
-			// user-stop and Steps authority before any provider access.
+			// Foreground repair checks its own startup, user-stop and provider authority.
 			registerForegroundTrackingWork()
 			while (true) {
 				try {
@@ -95,15 +94,13 @@ class TrackerModuleInitializer @Inject constructor(
 							trackingStartupGuard.awaitAutoRecoveryAuthorizationAfterStartupReady(context)
 						},
 						awaitNextReady = trackingStartupGate::awaitReady,
-						withReadyGenerationOperation = { generation, operation ->
-							trackingStartupGate.withReadyGenerationOperation(generation, operation)
-						},
+						withReadyGenerationOperation = trackingStartupGate::withReadyGenerationOperation,
+						withReadyGenerationWork = trackingStartupGate::withReadyGenerationWork,
 						releaseForReadyGeneration = {
 							trackingStartupGuard.releaseAutoRecoveryForReadyGeneration(context)
 						},
-						handoff = { handoffAuthorization ->
-							initializeAuthorizedTracking(handoffAuthorization)
-						},
+						prepareHandoff = { prepareAuthorizedTracking() },
+						handoff = ::installAuthorizedTracking,
 						awaitSettingsPublication = { trackingParamsRepository.data.first() },
 					) ?: return@launch
 					break
@@ -135,7 +132,7 @@ class TrackerModuleInitializer @Inject constructor(
 				drain = sourcePipelineRecovery::drainActivityAutomationEffects,
 			)
 		}
-	}
+	}
 	private suspend fun registerForegroundTrackingWork() {
 		withContext(dispatchers.main) {
 			registerTrackingForegroundWork(
@@ -145,14 +142,11 @@ class TrackerModuleInitializer @Inject constructor(
 		}
 	}
 
-	private suspend fun initializeAuthorizedTracking(authorization: TrackingAutoRecoveryAuthorization) {
-		val readyGeneration = trackingStartupGate.currentGeneration
+	private suspend fun prepareAuthorizedTracking() {
 		val authority = reconcileTrackerStartupAuthority(
 			reconcileSourcePolicy = {
 				sourcePolicyRevisionReconciliationCoordinator
-					.reconcileCurrentPolicyRevisionWithinReadyOperation(
-						readyGeneration,
-					)
+					.reconcileCurrentPolicyRevision()
 			},
 			reconcilePurposes = {
 				// Source-local setup debt never blocks a healthy purpose or saved-data readiness.
@@ -164,12 +158,13 @@ class TrackerModuleInitializer @Inject constructor(
 			throw TrackerStartupAuthorityPendingException(authority)
 		}
 		lockManager.initializeFromPersistence(context)
-		activityAutomationEpochAuthority
-			.startRuntimeBoundaryMonitoring(applicationScope)
-		initializeTrackerAutomaticControlAfterAuthorization(
-			authorization = authorization,
-			initialize = { BackgroundTrackingApi.initialize(context) },
-		)
+	}
+
+	private fun installAuthorizedTracking(authorization: TrackingAutoRecoveryAuthorization) {
+		activityAutomationEpochAuthority.startRuntimeBoundaryMonitoring(applicationScope)
+		initializeTrackerAutomaticControlAfterAuthorization(authorization) {
+			BackgroundTrackingApi.initialize(context)
+		}
 	}
 }
 
@@ -332,8 +327,9 @@ internal suspend fun runAmbientStepsStartupReconciliation(
 /**
  * Opens no provider while a confirmed force-stop has only a background process origin. The exact
  * Ready generation established after stale-session recovery is captured before foreground intent
- * is consumed. Initialization and suppression release are then one deletion-excluding operation;
- * a deletion or STOP race rejects the handoff and requires the next Ready generation.
+ * is consumed. Slow source preparation stays outside the lifecycle command gate; final installation
+ * and suppression release share one short deletion-excluding operation. A deletion or STOP race
+ * rejects the handoff and requires the next Ready generation.
  */
 internal suspend fun handoffTrackerInitializationAfterAuthorization(
 	reconcileStartup: suspend () -> TrackingStartupResult,
@@ -344,8 +340,13 @@ internal suspend fun handoffTrackerInitializationAfterAuthorization(
 		expectedGeneration: Long,
 		operation: suspend () -> Unit,
 	) -> Unit?,
+	withReadyGenerationWork: suspend (
+		expectedGeneration: Long,
+		operation: suspend () -> Unit,
+	) -> Unit?,
 	releaseForReadyGeneration: () -> Boolean,
 	handoff: suspend (TrackingAutoRecoveryAuthorization) -> Unit,
+	prepareHandoff: suspend () -> Unit = {},
 	awaitSettingsPublication: suspend () -> Unit = {},
 ): TrackingAutoRecoveryAuthorization? {
 	if (reconcileStartup() !is TrackingStartupResult.Ready) {
@@ -356,20 +357,24 @@ internal suspend fun handoffTrackerInitializationAfterAuthorization(
 	var readyGeneration = currentReadyGeneration()
 	val authorization = awaitAuthorizationAfterReady()
 	// Its independent producer reconciles through the same startup boundary. Let it publish
-	// before taking that boundary for owner setup; exact generation/Stop checks remain below.
+	// before preparing owners; exact generation/Stop checks remain below.
 	awaitSettingsPublication()
 	while (true) {
-		val completed = withReadyGenerationOperation(readyGeneration) {
-			// Keep release last. BackgroundTrackingApi's Room/params flows do not filter on this
-			// process guard, so their current eligible state is still delivered whether launchIn runs
-			// immediately or after this block. Releasing first would let foreground permission repair
-			// race a failed/partial singleton installation and would leave suppression open on failure.
-			handoff(authorization)
-			if (authorization ==
-				TrackingAutoRecoveryAuthorization.EXPLICIT_FOREGROUND_AFTER_FORCE_STOP
-			) {
-				check(releaseForReadyGeneration()) {
-					"Explicit foreground recovery was not authorized for Ready-generation release"
+		val prepared = withReadyGenerationWork(readyGeneration, prepareHandoff)
+		val completed = if (prepared == null) {
+			null
+		} else {
+			withReadyGenerationOperation(readyGeneration) {
+				// Keep release last. BackgroundTrackingApi's Room/params flows do not filter on this
+				// process guard, so their eligible state is delivered whether launchIn runs immediately
+				// or after this block. Release first could leave suppression open on install failure.
+				handoff(authorization)
+				if (authorization ==
+					TrackingAutoRecoveryAuthorization.EXPLICIT_FOREGROUND_AFTER_FORCE_STOP
+				) {
+					check(releaseForReadyGeneration()) {
+						"Explicit foreground recovery was not authorized for Ready-generation release"
+					}
 				}
 			}
 		}

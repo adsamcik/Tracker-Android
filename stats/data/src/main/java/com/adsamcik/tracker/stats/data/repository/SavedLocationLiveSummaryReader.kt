@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
 import com.adsamcik.tracker.shared.base.database.dao.LocationPurposeDao
 import com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -245,6 +244,7 @@ internal class SavedLocationLiveSummaryReader(
     ): Pair<Long, SavedLocationFix?> {
         var count = initialCount
         var latestFix = initialFix
+        val paths = purpose.savedFileSamples(ordered.map { it.sampleId }).associateBy { it.sample.id }
         for (receipt in ordered) {
             currentCoroutineContext().ensureActive()
             val row = qualified.samples[receipt.sampleId]
@@ -253,9 +253,8 @@ internal class SavedLocationLiveSummaryReader(
                 continue
             }
             val fix = row.toSavedFix()
-            distance.add(LocationPathSampleRow(row.sample,
-                row.receipt.sourceInstanceId + ":" + row.receipt.registrationGeneration,
-                row.receipt.sourceSequence, false), fix)
+            val path = paths[receipt.sampleId] ?: throw InvalidContinuation()
+            distance.add(path.copy(sample = row.sample), fix)
             if (fix != null) {
                 count = Math.addExact(count, 1L)
                 latestFix = fix

@@ -53,6 +53,7 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import java.io.IOException
 import java.time.ZoneId
 import java.util.Base64
@@ -86,6 +87,7 @@ class TrackerServiceSourceSessionTest {
 		val application: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(application)
 		lifecycle = mockk()
+		every { lifecycle.fencePressureSessionCutoff(any(), any(), any()) } answers { thirdArg<SourceSessionStopCutoff>() }
 		startupGate = FakeTrackingStartupGate()
 		rolloutStore = RoomTrackingRolloutStateStore(
 			database,
@@ -2528,6 +2530,35 @@ class TrackerServiceSourceSessionTest {
 	}
 
 	@Test
+	fun `only settled projection lease contention exposes a prompt final stop retry`() = runTest {
+		startActiveSession()
+		var stopResult = SessionStopResult.DrainPending("logical", 7L,
+			reason = SOURCE_STOP_PROJECTION_LEASE_BUSY)
+		coEvery { lifecycle.stop(any()) } coAnswers { stopResult }
+
+		subject.stop("EXPLICIT_REQUEST", preserveLogicalSession = false) shouldBe
+			SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.PROJECTION_BUSY)
+		stopResult = stopResult.copy(source = SourceKind.LOCATION)
+		subject.stop("EXPLICIT_REQUEST", preserveLogicalSession = false) shouldBe
+			SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.DRAIN_PENDING)
+		stopResult = stopResult.copy(source = null, reason = "LOCATION_CANONICAL_PENDING_COMMIT")
+		subject.stop("EXPLICIT_REQUEST", preserveLogicalSession = false) shouldBe
+			SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.DRAIN_PENDING)
+		coEvery { lifecycle.stop(any()) } returns SessionStopResult.NoActiveSession
+		subject.stop("EXPLICIT_REQUEST", preserveLogicalSession = false) shouldBe SourceSessionStopOutcome.Stopped
+	}
+
+	@Test
+	fun `restart suspension preserves the guarded projection lease wait`() = runTest {
+		startActiveSession()
+		coEvery { lifecycle.suspendForRestart(any()) } returns SessionSuspendResult.DrainPending(
+			"logical", 7L, reason = SOURCE_STOP_PROJECTION_LEASE_BUSY)
+
+		subject.stop("PROCESS_RESTART", preserveLogicalSession = true) shouldBe
+			SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.PROJECTION_BUSY)
+	}
+
+	@Test
 	fun `restart suspension exposes busy drain and cleanup contention without losing ownership`() = runTest {
 		startActiveSession()
 		var suspendResult: SessionSuspendResult = SessionSuspendResult.Busy
@@ -2618,6 +2649,8 @@ class TrackerServiceSourceSessionTest {
 			),
 		)
 
+		verify(exactly = 1) { lifecycle.fencePressureSessionCutoff("logical", "run",
+			SourceSessionStopCutoff(2_500L, 2_500_000L, "boot-1")) }
 		capturedStop.captured.wallTimeMs shouldBe 2_500L
 		capturedStop.captured.elapsedRealtimeNanos shouldBe 2_500_000L
 		capturedStop.captured.clockDomainId shouldBe "boot-1"

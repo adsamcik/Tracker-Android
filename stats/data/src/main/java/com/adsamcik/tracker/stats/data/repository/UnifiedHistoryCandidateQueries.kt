@@ -228,3 +228,16 @@ internal object UnifiedHistoryCandidateQueries {
             $seek ORDER BY startTimeMs DESC, identity ASC LIMIT 101""", bindings.toTypedArray())
     }
 }
+
+/** Examines one index-ordered physical window before source-specific qualification. */
+internal fun recentPhysicalSegments(limit: Int): SimpleSQLiteQuery {
+    require(limit > 0)
+    return SimpleSQLiteQuery("""SELECT CASE WHEN segment.sample_count > 0
+                THEN 'sampled' ELSE 'unmeasured' END AS category,
+            'segment:' || segment.id AS identity, segment.start_time_ms AS startTimeMs,
+            segment.end_time_ms AS endTimeMs, NULL AS zoneId, NULL AS epochDay,
+            segment.id AS segmentId, 0 AS candidateConflict, 0 AS temporalUncertain
+            FROM session_segment segment INDEXED BY idx_session_segment_time_range
+            ORDER BY segment.start_time_ms DESC, segment.end_time_ms DESC, segment.id DESC
+            LIMIT ?""", arrayOf(limit))
+}

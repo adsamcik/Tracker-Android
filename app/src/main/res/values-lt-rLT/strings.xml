@@ -15,7 +15,7 @@
     <string name="settings_data_management_section">Duomenų tvarkymas</string>
     <string name="settings_data_danger_zone_section">Pavojinga zona</string>
     <string name="settings_incremental_backups_title">Laipsniškos atsarginės kopijos</string>
-    <string name="settings_incremental_backups_summary">Eksportuoti tik naujus duomenis nuo paskutinės atsarginės kopijos. Taip sutrumpėja eksportavimo laikas ir sumažėja failo dydis.</string>
+    <string name="settings_incremental_backups_summary">Suplanuotuose GPX ir KML eksportuose eksportuokite tik naujus duomenis.</string>
     <string name="settings_reset_export_watermarks_title">Priverstinai eksportuoti visus duomenis</string>
     <string name="settings_reset_export_watermarks_summary">Į kitą automatinę atsarginę kopiją bus įtraukti visi duomenys, o ne tik pakeitimai</string>
     <string name="settings_reset_export_watermarks_done">Eksportavimo žymės atstatytos – kita atsarginė kopija bus visiškas eksportas</string>
@@ -165,7 +165,7 @@
     <string name="export_sensitivity_db_message">Šioje atsarginėje kopijoje yra išsaugoti stebėjimo duomenys, įskaitant galimas vietas ir tinklų informaciją. Nustatymai neįtraukiami.</string>
     <string name="export_sensitivity_confirm">Tęsti eksportavimą</string>
     <string name="settings_export_title">Eksportavimas</string>
-    <string name="settings_import_summary">Importuokite duomenis iš palaikomų tipų (%1$s) ir archyvų (%2$s). Duomenų bazės importavimas sujungia suderinamas eilutes; esami duomenys nepakeičiami.</string>
+    <string name="settings_import_summary">Importuokite stebėjimo failą arba atkurkite duomenų atsarginę kopiją.</string>
     <string name="settings_import_title">Importavimas</string>
     <string name="got_it">Supratau</string>
     <string name="battery_impact_low">Mažas poveikis</string>
@@ -282,7 +282,7 @@
     <string name="setup_perm_location_bg_why">Kad maršrutas būtų įrašomas, kai perjungiate programas arba ekranas išsijungia, „Tracker“ reikia prieigos prie jūsų vietos fone. Įrašyta vieta lieka šiame įrenginyje – niekas nesiunčiama į serverį. Kitame sistemos lange pasirinkite „Leisti visada“, kad įjungtumėte automatinį sekimą; pasirinkus „Leisti naudojant programą“, „Tracker“ veiks tik tada, kai jo ekranas atidarytas.</string>
     <string name="setup_perm_activity_why">Leidžia „Tracker“ nustatyti, ką veikiate (einate, važiuojate dviračiu, vairuojate, nejudate), todėl automatinis sekimas gali būti pristabdytas, kai nejudate, ir taupyti akumuliatoriaus energiją. Veiklos duomenys lieka šiame įrenginyje – niekas nesiunčiama į serverį.</string>
     <string name="setup_perm_notification_why">Kol „Tracker“ įrašo, jis rodo mažą būsenos pranešimą, todėl vienu žvilgsniu matote, kad sekimas įjungtas, ir galite jį sustabdyti vienu palietimu. Jokių rinkodaros ar reklaminių pranešimų.</string>
-    <string name="setup_perm_wifi_why">„Tracker“ gali įrašyti Wi‑Fi prieigos taškus, kuriuos telefonas mato kelionės metu, kad pagerintų vietos tikslumą vietose, kur GPS silpnas (patalpose, po žeme). Radijo duomenys lieka šiame įrenginyje – niekas nesiunčiama į serverį. Suteikite tik jei to norite.</string>
+    <string name="setup_perm_wifi_why">„Android“ sistemai reikia prieigos prie vietovės, kad galėtų ieškoti „Wi-Fi“ tinklų. „Wi-Fi“ duomenis galite įrašyti neįrašydami savo vietovės.</string>
     <string name="setup_perm_cell_why">„Tracker“ gali registruoti ryšio bokštų ID jūsų maršrute, kad vietą būtų galima nustatyti, kai GPS nepasiekiamas. Radijo duomenys lieka šiame įrenginyje – niekas nesiunčiama į serverį. Suteikite telefono būsenos ir tikslios vietos leidimus tik jei to norite.</string>
     <string name="setup_perm_grant">Leisti</string>
     <string name="setup_perm_grant_location_content_description">Suteikti vietos leidimą</string>

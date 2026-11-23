@@ -40,6 +40,7 @@ import com.adsamcik.tracker.tracker.service.DefaultTrackingTurnOffController
 import com.adsamcik.tracker.testing.fake.FakeLocationSource
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -1494,6 +1495,80 @@ class LocationSourceRuntimeTest {
 	}
 
 	@Test
+	fun `My location elevation and release save captured predecessors before starting replacements`() = runTest {
+		val fixture = locationRuntimeFixture(backgroundScope)
+		val claim = runtimeClaim(SourceKind.LOCATION, "session-owner")
+		val broker = mockk<SourceBroker>()
+		val demand = mockk<SourceDemandEntity>(relaxed = true)
+		every { demand.purpose } returns SourceBrokerPurpose.SESSION_CAPTURE
+		every { demand.persistenceEligible } returns true
+		every { demand.logicalTrackingId } returns claim.logicalTrackingId
+		every { demand.serviceRunId } returns claim.serviceRunId
+		every { demand.lifecycleLeaseGeneration } returns claim.leaseGeneration
+		every { demand.maximumAgeMs } returns 60_000L
+		coEvery { broker.authorizationDemands(SourceKind.LOCATION) } returns listOf(demand)
+		val factory = mockk<DurableSourceEventSinkFactory>()
+		every { factory.unbound } returns fixture.sink
+		val shared = SharedLocationSourceController(fixture.runtime, broker, factory)
+		var generation = 8L
+		coEvery { fixture.registrations.begin(any(), any(), any(), any(), any()) } answers {
+			registration(fixture.plan, 1L, generation = ++generation)
+				.copy(physicalConfigurationFingerprint = thirdArg())
+		}
+		assertIs<SourceStartResult.Started>(shared.start(claim, fixture.plan, fixture.sink))
+		val lease = requireNotNull(shared.acquireUiLease(UiLocationRequest("my-location", 1_000L, 250L,
+			highAccuracy = true, maximumAgeMillis = 10_000L)))
+		shared.releaseUiLease(lease)
+		coVerifyOrder {
+			fixture.registrations.saveLocationRetirementCompleteness(match { it.state.registrationGeneration == 9L },
+				claim, match { it.registrationGeneration == 9L && it.status == SourceStopStatus.COMPLETE })
+			fixture.registrations.begin(any(), any(), any(), any(), any())
+			fixture.registrations.saveLocationRetirementCompleteness(match { it.state.registrationGeneration == 10L },
+				claim, match { it.registrationGeneration == 10L && it.status == SourceStopStatus.COMPLETE })
+			fixture.registrations.begin(any(), any(), any(), any(), any())
+		}
+		coVerify(exactly = 1) { fixture.fusedBackend.start(match {
+			it.mode == LocationMode.HIGH_ACCURACY && it.requestedIntervalMs == 1_000L
+		}, any()) }
+		coVerify(exactly = 3) { fixture.fusedBackend.start(any(), any()) }
+	}
+
+	@Test
+	fun `failed Location coverage save blocks replacement and retries the original real loss`() = runTest {
+		val sink = RecordingLocationSink { _, _ ->
+			SourceDeliveryAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.INVALID_EVIDENCE)
+		}
+		val fixture = locationRuntimeFixture(backgroundScope, sink = sink)
+		coEvery { fixture.fusedBackend.flush() } returns ProviderFlushOutcome.TIMED_OUT
+		val claim = runtimeClaim(SourceKind.LOCATION, "old-session-owner")
+		val nextClaim = runtimeClaim(SourceKind.LOCATION, "new-session-owner")
+		val saved = mutableListOf<SourceStopAck>()
+		coEvery { fixture.registrations.saveLocationRetirementCompleteness(any(), any(), any()) } answers {
+			saved += thirdArg<SourceStopAck>()
+			saved.size > 1
+		}
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(claim, fixture.plan, sink))
+		fixture.providerCallback()(listOf(location(50.0, SystemClock.elapsedRealtimeNanos())))
+		runCurrent()
+		val replacement = fixture.plan.copy(revision = 2L, requestedIntervalMs = 1_000L,
+			minimumUpdateIntervalMs = 250L)
+		val failed = assertIs<SourceApplyResult.Failed>(fixture.runtime.reconfigure(nextClaim, replacement, sink))
+		assertTrue(failed.retryable)
+		assertEquals(1L, failed.stopAck?.failedAdmissionCount)
+		coVerify(exactly = 1) { fixture.registrations.begin(any(), any(), any(), any(), any()) }
+		val retried = assertIs<SourceApplyResult.Applied>(fixture.runtime.reconfigure(nextClaim, replacement, sink))
+		assertEquals(2, saved.size)
+		assertEquals(saved.first(), saved.last())
+		assertEquals(saved.last(), retried.stopAck)
+		assertEquals(1L, saved.last().failedAdmissionCount)
+		assertEquals(ProviderFlushOutcome.TIMED_OUT, saved.last().providerFlushOutcome)
+		assertEquals(1L, saved.last().unresolvedSequenceStart)
+		assertEquals(1L, saved.last().unresolvedSequenceEndInclusive)
+		coVerify(exactly = 2) { fixture.fusedBackend.start(any(), any()) }
+		coVerify(exactly = 1) { fixture.fusedBackend.flush() }
+	}
+
+	@Test
 	fun `failed provider publication retains only its exact claim for cleanup`() = runTest {
 		val fixture = failingStartFixture(
 			backgroundScope,
@@ -2286,6 +2361,7 @@ class LocationSourceRuntimeTest {
 	}
 
 	private fun stubRetirementRepository(registrations: SourceRegistrationRepository) {
+		coEvery { registrations.saveLocationRetirementCompleteness(any(), any(), any()) } returns true
 		coEvery { registrations.pendingRetirements(SourceKind.LOCATION) } returns emptyList()
 		coEvery { registrations.systemLocationRegistrations() } returns emptyList()
 		coEvery {

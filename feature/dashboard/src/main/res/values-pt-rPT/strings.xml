@@ -47,6 +47,7 @@
     <string name="dashboard_milestone_time">min monitorizados!</string>
     <string name="dashboard_today_title">Hoje</string>
     <string name="dashboard_today_no_activity">Ainda sem atividade hoje</string>
+    <string name="dashboard_saved_data_history">Os dados guardados estão disponíveis no Histórico.</string>
     <string name="dashboard_today_distance">Distância</string>
     <string name="dashboard_today_duration">Duração</string>
     <string name="dashboard_today_steps">Passos</string>
@@ -195,4 +196,5 @@
     <string name="dashboard_activity_on_foot">A pé</string>
     <string name="dashboard_activity_tilting">Inclinado</string>
     <string name="dashboard_activity_unknown">Atividade desconhecida</string>
+    <string name="dashboard_finishing_session">A concluir sessão…</string>
 </resources>

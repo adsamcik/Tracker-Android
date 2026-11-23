@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.runtime
 import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
@@ -16,9 +17,13 @@ import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFai
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /** One Pressure listener shared by all-day recording and a session's temporary quality preference. */
 @Singleton
@@ -29,6 +34,7 @@ class SharedPressureSourceController @Inject constructor(
 	sinkFactory: DurableSourceEventSinkFactory,
 	private val reporter: TrackingPurposeAvailabilityReporter,
 	private val retries: TrackingPurposeReconciliationRetryScheduler,
+	@ApplicationScope private val applicationScope: CoroutineScope,
 ) : ClaimedSourceRuntime<PressurePlan> {
 	override val source = SourceKind.PRESSURE
 	override val capabilities: StateFlow<SourceCapabilities> = physicalRuntime.capabilities
@@ -41,6 +47,19 @@ class SharedPressureSourceController @Inject constructor(
 	/** A null plan releases only all-day recording; durable authority still decides every callback. */
 	internal suspend fun reconcileAmbient(plan: PressurePlan?): SourceApplyResult = mutex.withLock {
 		ambientPlan = plan?.takeIf(PressurePlan::enabled)
+		val ownedSessionPlan = sessionPlan
+		if (ownedSessionPlan != null && sessionClaim != null) {
+			// Only the session owner may replace or release its listener. Its durable demand can
+			// advance first during reconfiguration or disappear before End reaches this owner.
+			val refreshed = if (hasSessionDemand(sessionClaim)) {
+				physicalRuntime.refreshCompatible(ownedSessionPlan, sink)
+			} else {
+				null
+			}
+			return@withLock refreshed
+				?: SourceApplyResult.Failed(appliedState(source, ownedSessionPlan.revision, null,
+					SourceApplyStatus.BLOCKED, SystemClock.elapsedRealtimeNanos()), retryable = true)
+		}
 		applyEffective(plan?.revision ?: sessionPlan?.revision ?: 0L)
 	}
 
@@ -92,7 +111,9 @@ class SharedPressureSourceController @Inject constructor(
 		sessionClaim = claim.takeIf { plan.enabled }
 		var accepted = false
 		return try {
-			applyEffective(plan.revision).also { accepted = it.accepted() }
+			val result = applyEffective(plan.revision)
+			accepted = result.accepted()
+			result.withoutRetiredAmbientPredecessor(sessionClaim, previousClaim)
 		} finally {
 			if (!accepted) {
 				sessionPlan = previousPlan
@@ -101,9 +122,38 @@ class SharedPressureSourceController @Inject constructor(
 		}
 	}
 
+	/** A completed all-day provider is not retirement evidence for the newly joined session. */
+	private fun SourceApplyResult.withoutRetiredAmbientPredecessor(
+		joiningClaim: SourceRuntimeClaim?,
+		previousClaim: SourceRuntimeClaim?,
+	): SourceApplyResult {
+		if (joiningClaim == null || previousClaim != null) {
+			return this
+		}
+		return when (this) {
+			is SourceApplyResult.Applied -> copy(stopAck = stopAck?.takeUnless { it.isRetiredAmbientProvider() })
+			is SourceApplyResult.Degraded -> copy(stopAck = stopAck?.takeUnless { it.isRetiredAmbientProvider() })
+			else -> this
+		}
+	}
+
+	private fun SourceStopAck.isRetiredAmbientProvider(): Boolean {
+		val sessionless = logicalTrackingId == null && serviceRunId == null
+		val retiredPhysicalProvider = source == SourceKind.PRESSURE && registrationGeneration > 0L &&
+			registrationRemovalOutcome == RegistrationRemovalOutcome.REMOVED && hasCompleteTerminalRetirement()
+		return sessionless && retiredPhysicalProvider
+	}
+
+	/** Does not acquire the lifecycle mutex or interrupt independently allowed all-day collection. */
+	internal fun fenceSessionCutoff(
+		cutoff: SessionCutoff,
+		serviceRunId: String,
+		clockDomainId: String,
+	): SessionCutoff? = physicalRuntime.fenceSessionCutoff(cutoff, serviceRunId, clockDomainId)
+
 	override suspend fun quiesce(cutoff: SessionCutoff): SourceStopAck = mutex.withLock { endSession(cutoff) }
 
-	private suspend fun endSession(cutoff: SessionCutoff): SourceStopAck {
+	private suspend fun endSession(cutoff: SessionCutoff): SourceStopAck = withContext(NonCancellable) {
 		val claim = sessionClaim
 		require(claim == null || claim.logicalTrackingId == cutoff.logicalTrackingId)
 		// Complete the existing flush and acknowledged removal before the lower-quality owner resumes.
@@ -116,9 +166,9 @@ class SharedPressureSourceController @Inject constructor(
 		if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) {
 			sessionPlan = null
 			sessionClaim = null
-			resumeAmbientAfterEnd()
+			scheduleAmbientResumeAfterEnd()
 		}
-		return sessionAcknowledgement
+		sessionAcknowledgement
 	}
 
 	override suspend fun shutdownIfOwned(claim: SourceRuntimeClaim, cutoff: SessionCutoff): OwnedSourceShutdown =
@@ -129,24 +179,25 @@ class SharedPressureSourceController @Inject constructor(
 			} else {
 				physicalRuntime.shutdownIfOwned(claim, cutoff).also { shutdown ->
 					if (shutdown is OwnedSourceShutdown.Released) {
-						resumeAmbientAfterEnd()
+						scheduleAmbientResumeAfterEnd()
 					}
 				}
 			}
 		}
 
-	private suspend fun resumeAmbientAfterEnd() {
-		val plan = ambientPlan ?: return
-		val accepted = runCatchingNonCancellation {
-			!hasAmbientDemand() || physicalRuntime.reconfigure(plan, sink).accepted()
-		}.getOrDefault(false)
-		if (!accepted) {
-			reporter.invalidateAmbient(AmbientTrackingSource.PRESSURE)
-			// End already completed its removal. Retry a failed background join independently.
+	private fun scheduleAmbientResumeAfterEnd() {
+		if (ambientPlan == null) {
+			return
+		}
+		reporter.invalidateAmbient(AmbientTrackingSource.PRESSURE)
+		// The captured provider has already stopped. Its acknowledgement must not wait for another purpose's start.
+		applicationScope.launch {
 			runCatchingNonCancellation {
-				retries.schedule(TrackingPurposeSettingsReconciliationDebt(listOf(
-					TrackingPurposeSettingsReconciliationFailure(AmbientTrackingSource.PRESSURE,
-						TrackingPurposeSettingsReconciliationFailureReason.OWNER_RECONCILIATION_FAILED))))
+				if (hasAmbientDemand()) {
+					retries.schedule(TrackingPurposeSettingsReconciliationDebt(listOf(
+						TrackingPurposeSettingsReconciliationFailure(AmbientTrackingSource.PRESSURE,
+							TrackingPurposeSettingsReconciliationFailureReason.OWNER_RECONCILIATION_FAILED))))
+				}
 			}
 		}
 	}

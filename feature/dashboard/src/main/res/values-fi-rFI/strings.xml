@@ -47,6 +47,7 @@
     <string name="dashboard_milestone_time">min seurattu!</string>
     <string name="dashboard_today_title">Tänään</string>
     <string name="dashboard_today_no_activity">Ei aktiviteettia vielä tänään</string>
+    <string name="dashboard_saved_data_history">Tallennetut tiedot ovat Historiassa.</string>
     <string name="dashboard_today_distance">Matka</string>
     <string name="dashboard_today_duration">Kesto</string>
     <string name="dashboard_today_steps">Askeleet</string>
@@ -195,4 +196,5 @@
     <string name="dashboard_activity_on_foot">Jalan</string>
     <string name="dashboard_activity_tilting">Kallistuminen</string>
     <string name="dashboard_activity_unknown">Tuntematon aktiivisuus</string>
+    <string name="dashboard_finishing_session">Viimeistellään istuntoa…</string>
 </resources>

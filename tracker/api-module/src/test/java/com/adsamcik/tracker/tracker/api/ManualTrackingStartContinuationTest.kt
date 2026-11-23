@@ -9,6 +9,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
@@ -64,6 +65,128 @@ internal suspend fun testManualStartEnqueue(
 class ManualTrackingStartContinuationTest {
 	private val repair = ManualTrackingStartReadiness.RepairRequired(ManualTrackingStartPrerequisite.READ_PHONE_STATE_PERMISSION)
 	private val ready = ManualTrackingStartReadiness.Ready(1L)
+
+	@Test
+	fun `retained Start survives screen disposal and consumes its result once after return`() = runTest {
+		val authority = ManualStartTestAuthority()
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		var deliveries = 0
+		val owner = RetainedManualTrackingStart(backgroundScope) { generation ->
+			executeManualTrackingStartContinuation(generation, authority, {
+				entered.complete(Unit)
+				release.await()
+				testManualStartPreflight(ready)
+			}) { deliveries++; testManualStartEnqueue(authority, it) }
+		}
+		val first = owner.start()
+		entered.await()
+		owner.start() shouldBe first
+		val screen = async { owner.result.first { it != null } }
+		screen.cancelAndJoin()
+		owner.running.value shouldBe true
+		authority.reservations shouldBe 0
+		release.complete(Unit)
+		first.join()
+		val returned = requireNotNull(owner.result.first { it != null })
+		returned.second shouldBe ManualTrackingStartResult.ENQUEUED
+		deliveries shouldBe 1
+		authority.reservations shouldBe 1
+		owner.running.value shouldBe false
+		owner.consume(returned.first)
+		owner.result.value shouldBe null
+	}
+
+	@Test
+	fun `restoration cannot replay offscreen continuation success after consumption but accepts a new generation`() = runTest {
+		val authority = ManualStartTestAuthority()
+		val attempts = mutableListOf<Long?>()
+		val owner = RetainedManualTrackingStart(backgroundScope) { generation ->
+			attempts += generation
+			executeManualTrackingStartContinuation(generation, authority, { testManualStartPreflight(ready) }) {
+				testManualStartEnqueue(authority, it)
+			}
+		}
+		executeManualTrackingStartContinuation(null, authority, { testManualStartPreflight(repair) }) {
+			error("Repair cannot dispatch")
+		}
+		val firstGeneration = requireNotNull(authority.pendingManualStart).command.generation
+		owner.start(firstGeneration).join()
+		val completed = requireNotNull(owner.result.value)
+		completed.second shouldBe ManualTrackingStartResult.ENQUEUED
+		owner.consume(completed.first)
+		owner.restore(firstGeneration) shouldBe null
+		owner.result.value shouldBe null
+		attempts shouldBe listOf(firstGeneration)
+		executeManualTrackingStartContinuation(null, authority, { testManualStartPreflight(repair) }) {
+			error("Repair cannot dispatch")
+		}
+		val nextGeneration = requireNotNull(authority.pendingManualStart).command.generation
+		requireNotNull(owner.restore(nextGeneration)).join()
+		owner.result.value?.second shouldBe ManualTrackingStartResult.ENQUEUED
+		attempts shouldBe listOf(firstGeneration, nextGeneration)
+	}
+
+	@Test
+	fun `older saved continuation cannot cancel a newer active handoff and a newer command remains accepted`() = runTest {
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		val attempts = mutableListOf<Long?>()
+		val owner = RetainedManualTrackingStart(backgroundScope) { generation ->
+			attempts += generation
+			if (generation == 2L) {
+				entered.complete(Unit)
+				release.await()
+			}
+			ManualTrackingStartResult.ENQUEUED
+		}
+		val active = requireNotNull(owner.restore(2L))
+		entered.await()
+		owner.restore(1L) shouldBe null
+		active.isActive shouldBe true
+		owner.running.value shouldBe true
+		attempts shouldBe listOf(2L)
+		release.complete(Unit)
+		active.join()
+		owner.result.value?.second shouldBe ManualTrackingStartResult.ENQUEUED
+		requireNotNull(owner.restore(3L)).join()
+		attempts shouldBe listOf(2L, 3L)
+	}
+
+	@Test
+	fun `explicit cancel before preflight completes prevents reservation and stale result`() = runTest {
+		val authority = ManualStartTestAuthority()
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		val owner = RetainedManualTrackingStart(backgroundScope) { generation ->
+			executeManualTrackingStartContinuation(generation, authority, {
+				entered.complete(Unit)
+				release.await()
+				testManualStartPreflight(ready)
+			}) { error("Cancelled Start must not dispatch") }
+		}
+		val request = owner.start()
+		entered.await()
+		owner.cancel()
+		authority.state = authority.state.issueStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 2L).first
+		release.complete(Unit)
+		request.join()
+		authority.reservations shouldBe 0
+		owner.result.value shouldBe null
+		owner.running.value shouldBe false
+	}
+
+	@Test
+	fun `retained repair result is cleared by explicit cancellation without a new request`() = runTest {
+		val owner = RetainedManualTrackingStart(backgroundScope) {
+			ManualTrackingStartResult.RepairRequired(ManualTrackingStartPrerequisite.READ_PHONE_STATE_PERMISSION, 1L)
+		}
+		owner.start().join()
+		owner.result.value?.second shouldBe ManualTrackingStartResult.RepairRequired(
+			ManualTrackingStartPrerequisite.READ_PHONE_STATE_PERMISSION, 1L)
+		owner.cancel()
+		owner.result.value shouldBe null
+	}
 
 	@Test
 	fun `approximate Location can complete the same Start while selected Wi-Fi still needs precise permission`() = runTest {

@@ -248,6 +248,74 @@ class ActivityCallbackRetryWorkerTest {
 	}
 
 	@Test
+	fun `later payload loss keeps original receipt across a failed qualification and process restart`() = runTest {
+		val batch = callbackBatch()
+		val id = owner.retain(batch)
+		val file = File(directory, "activity-callback-$id.bin")
+		file.writeBytes(file.readBytes().also { it[it.lastIndex] = (it.last().toInt() xor 1).toByte() })
+		var attempts = 0
+		runActivityCallbackRetryWork(owner, ingress, recordRetainedGap = { receipt ->
+			receipt.originalMetadata shouldBe ActivityCallbackRetryMetadata.from(batch)
+			attempts += 1
+			error("Room temporarily unavailable")
+		}) shouldBe ActivityCallbackRetryWorkOutcome.RETRY
+		owner.pendingIds() shouldBe emptyList()
+		val restarted = ActivityCallbackRetryOwner(store, scheduler)
+		restarted.ensurePendingWorkScheduled()
+		runActivityCallbackRetryWork(restarted, ingress, recordRetainedGap = { receipt ->
+			receipt.originalMetadata shouldBe ActivityCallbackRetryMetadata.from(batch)
+			attempts += 1
+		}) shouldBe ActivityCallbackRetryWorkOutcome.COMPLETE
+		attempts shouldBe 2
+		coVerify(exactly = 0) { ingress.admit(any()) }
+	}
+
+	@Test
+	fun `unverified gap write retains original retries without starving healthy callbacks and recovers scope`() = runTest {
+		var failSync = false
+		val failingStore = ActivityCallbackRetryStore(directory, { "boot-7" }, { 1_000L },
+			syncDirectory = { if (failSync) error("storage temporarily unavailable") })
+		val failingOwner = ActivityCallbackRetryOwner(failingStore, scheduler)
+		repeat(33) { failingOwner.retain(callbackBatch(receivedWallTimeMs = 1_000L + it)) }
+		val ids = failingOwner.pendingIds()
+		val corruptIds = ids.dropLast(1)
+		for (id in corruptIds) {
+			val file = File(directory, "activity-callback-$id.bin")
+			file.writeBytes(file.readBytes().also { it[it.lastIndex] = (it.last().toInt() xor 1).toByte() })
+		}
+		coEvery { ingress.admit(any()) } returns ActivityIngressResult.durable(
+			1, 0, ActivityDurableSelection(transitionIndexes = setOf(0)))
+		failSync = true
+		runActivityCallbackRetryWork(failingOwner, ingress, recordRetainedGap = {
+			error("Room temporarily unavailable")
+		}) shouldBe ActivityCallbackRetryWorkOutcome.RETRY
+		failingOwner.pendingIds() shouldBe corruptIds
+		coVerify(exactly = 1) { ingress.admit(any()) }
+
+		failSync = false
+		val marked = mutableSetOf<String>()
+		runActivityCallbackRetryWork(failingOwner, ingress, recordRetainedGap = { receipt ->
+			receipt.originalMetadata?.registrationIdentity shouldBe callbackBatch().registrationIdentity
+			marked += receipt.callbackId
+		}) shouldBe ActivityCallbackRetryWorkOutcome.COMPLETE
+		failingOwner.pendingIds() shouldBe emptyList()
+		marked shouldBe corruptIds.toSet()
+		coVerify(exactly = 1) { ingress.admit(any()) }
+	}
+
+	@Test
+	fun `collected-data deletion removes retained gap scope before an old worker can replay it`() = runTest {
+		owner.recordGap(callbackBatch(), ActivityCallbackGapCode.RETRY_RECORD_EXPIRED) shouldBe true
+		owner.fenceAndPurgeForCollectedDataDeletion()
+		owner.resumeAfterCollectedDataDeletion()
+		var marked = false
+		runActivityCallbackRetryWork(owner, ingress, recordRetainedGap = { marked = true }) shouldBe
+			ActivityCallbackRetryWorkOutcome.COMPLETE
+		marked shouldBe false
+		owner.gapReceipts() shouldBe emptyList()
+	}
+
+	@Test
 	fun `collected-data deletion waits replay claim then purges and fences old work`() = runTest {
 		val id = owner.retain(callbackBatch())
 		val claim = requireNotNull(owner.claim(id))

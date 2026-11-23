@@ -48,6 +48,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.test.runTest
@@ -67,12 +68,15 @@ class SourceEventRetentionProofLifecycleTest {
 	private lateinit var database: AppDatabase
 	private lateinit var factory: DefaultSourceLifecycleProofAdapterFactory
 	private lateinit var cellQualifier: CellWalQualificationAdapter
+	private lateinit var materializationAdapters: Map<TrackingSource, SourceLifecycleProofAdapter>
 
 	@Before
-	fun setUp() = runTest {
+	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
-		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 7L))
+		runBlocking {
+			database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 7L))
+		}
 		cellQualifier = mockk()
 		coEvery { cellQualifier.qualify(any()) } returns CellWalAdapterResult.Rejected(CellWalAdapterRejection.MISSING_EVENT)
 		val wifiQualifier = mockk<WifiWalQualificationAdapter>()
@@ -87,6 +91,7 @@ class SourceEventRetentionProofLifecycleTest {
 			cellQualifier = cellQualifier,
 			bootClockDomainProvider = BootClockDomainProvider { "boot-current" },
 		)
+		materializationAdapters = TrackingSource.entries.associateWith(factory::create)
 	}
 
 	@Test
@@ -190,7 +195,7 @@ class SourceEventRetentionProofLifecycleTest {
 
 	@Test
 	fun `all source materialization fallbacks honor an exact run deletion fence`() = runTest {
-		TrackingSource.entries.forEach { source ->
+		materializationAdapters.forEach { (source, adapter) ->
 			database.sourceDeletionFenceDao().insertIfAbsent(
 				SourceDeletionFenceEntity.createLogicalServiceRun(
 					sourceKind = source.stableCode(),
@@ -203,7 +208,7 @@ class SourceEventRetentionProofLifecycleTest {
 				),
 			)
 
-			factory.create(source).materialized(key(source), recording()) shouldBe
+			adapter.materialized(key(source), recording()) shouldBe
 				SourceProofResult.Deleted(
 					SourceProofStage.MATERIALIZED,
 					SourceProofReason.DELETED,

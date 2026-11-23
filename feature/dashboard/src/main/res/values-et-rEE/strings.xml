@@ -47,6 +47,7 @@
     <string name="dashboard_milestone_time">min jälgitud!</string>
     <string name="dashboard_today_title">Täna</string>
     <string name="dashboard_today_no_activity">Täna pole veel tegevust</string>
+    <string name="dashboard_saved_data_history">Salvestatud andmed leiate jaotisest Ajalugu.</string>
     <string name="dashboard_today_distance">Vahemaa</string>
     <string name="dashboard_today_duration">Kestus</string>
     <string name="dashboard_today_steps">Sammud</string>
@@ -195,4 +196,5 @@
     <string name="dashboard_activity_on_foot">Jalgsi</string>
     <string name="dashboard_activity_tilting">Kallutamine</string>
     <string name="dashboard_activity_unknown">Tundmatu tegevus</string>
+    <string name="dashboard_finishing_session">Seansi lõpetamine…</string>
 </resources>

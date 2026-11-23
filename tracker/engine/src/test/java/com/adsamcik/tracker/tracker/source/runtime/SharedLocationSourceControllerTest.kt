@@ -371,6 +371,95 @@ class SharedLocationSourceControllerTest {
 	}
 
 	@Test
+	fun `ambient refresh cannot replace a session while its durable lease advances`() = runTest {
+		val subject = subject()
+		demands = listOf(demand(false))
+		assertIs<AmbientLocationRuntimeJoinResult.Active>(subject.reconcileAmbientJoin(baseline, 2L))
+		demands += demand(true)
+		assertIs<SourceStartResult.Started>(subject.start(claim, focus, mockk()))
+		assertIs<AmbientLocationRuntimeJoinResult.Active>(subject.reconcileAmbientJoin(baseline, 2L))
+		demands = listOf(demand(false), demand(true).copy(lifecycleLeaseGeneration = 2L))
+
+		val pending = assertIs<AmbientLocationRuntimeJoinResult.Unavailable>(
+			subject.reconcileAmbientJoin(baseline, 2L))
+
+		assertTrue(pending.retryable)
+		coVerify(exactly = 0) { physical.refreshShared(baseline, sink, claim, any()) }
+		coVerify(exactly = 2) { physical.refreshShared(focus, sink, claim, any()) }
+		coVerify(exactly = 0) { physical.reconfigureShared(any(), any(), any(), any()) }
+		coVerify(exactly = 0) { physical.closeShared() }
+		val successor = claim.copy(actionId = "next-action", leaseGeneration = 2L)
+		assertIs<SourceApplyResult.Applied>(subject.reconfigure(successor, focus, mockk()))
+		coVerify(exactly = 1) { physical.refreshShared(focus, sink, successor, any()) }
+	}
+
+	@Test
+	fun `ambient quality change cannot consume an attached session retirement receipt`() = runTest {
+		val subject = subject()
+		demands = listOf(demand(false))
+		subject.reconcileAmbientJoin(baseline, 2L)
+		demands += demand(true)
+		assertIs<SourceStartResult.Started>(subject.start(claim, focus, mockk()))
+		val strongerBackground = focus.copy(requestedIntervalMs = 1_000L, minimumUpdateIntervalMs = 500L)
+		coEvery { physical.refreshShared(any(), sink, claim, any()) } returns null
+
+		assertTrue(assertIs<AmbientLocationRuntimeJoinResult.Unavailable>(
+			subject.reconcileAmbientJoin(strongerBackground, 2L)).retryable)
+
+		coVerify(exactly = 0) { physical.reconfigureShared(any(), any(), any(), any()) }
+		coVerify(exactly = 0) { physical.quiesce(any()) }
+		coVerify(exactly = 0) { physical.closeShared() }
+		demands = listOf(demand(false))
+		coEvery { physical.refreshShared(any(), sink, null, any()) } returns null
+		coEvery { physical.quiesce(cutoff) } returns completeAck()
+		assertIs<OwnedSourceShutdown.Released>(subject.shutdownIfOwned(claim, cutoff))
+		coVerify(exactly = 1) { physical.quiesce(cutoff) }
+	}
+
+	@Test
+	fun `ambient withdrawal leaves an attached session for its exact End owner`() = runTest {
+		val subject = subject()
+		demands = listOf(demand(false))
+		subject.reconcileAmbientJoin(baseline, 2L)
+		demands += demand(true)
+		subject.start(claim, focus, mockk())
+		demands = emptyList()
+
+		assertTrue(assertIs<AmbientLocationRuntimeJoinResult.Unavailable>(
+			subject.reconcileAmbientJoin(null, 2L)).retryable)
+
+		coVerify(exactly = 0) { physical.closeShared() }
+		coVerify(exactly = 0) { physical.reconfigureShared(any(), any(), any(), any()) }
+		coEvery { physical.quiesce(cutoff) } returns completeAck()
+		assertIs<OwnedSourceShutdown.Released>(subject.shutdownIfOwned(claim, cutoff))
+		coVerify(exactly = 1) { physical.quiesce(cutoff) }
+	}
+
+	@Test
+	fun `explicit My location can still raise an attached session update rate`() = runTest {
+		val subject = subject()
+		demands = listOf(demand(false))
+		subject.reconcileAmbientJoin(baseline, 2L)
+		demands += demand(true)
+		subject.start(claim, focus, mockk())
+		coEvery { physical.refreshShared(match { it.requestedIntervalMs == 1_000L }, sink, claim, any()) } returns null
+		coEvery { physical.reconfigureShared(any(), sink, claim, any()) } answers {
+			SourceApplyResult.Applied(appliedState(SourceKind.LOCATION, firstArg<LocationPlan>().revision,
+				null, SourceApplyStatus.APPLIED, 1L))
+		}
+
+		val lease = requireNotNull(subject.acquireUiLease(UiLocationRequest("my-location", 1_000L, 250L,
+			highAccuracy = true, maximumAgeMillis = 5_000L)))
+
+		coVerify(exactly = 1) { physical.reconfigureShared(match {
+			it.mode == LocationMode.HIGH_ACCURACY && it.requestedIntervalMs == 1_000L &&
+				it.minimumUpdateIntervalMs == 250L && it.maximumBatchDelayMs == 0L
+		}, sink, claim, any()) }
+		subject.releaseUiLease(lease)
+		coVerify(exactly = 2) { physical.refreshShared(focus, sink, claim, any()) }
+	}
+
+	@Test
 	fun `stale claim cannot join another session authority`() = runTest {
 		val subject = subject()
 		demands = listOf(demand(true).copy(serviceRunId = "replacement"))

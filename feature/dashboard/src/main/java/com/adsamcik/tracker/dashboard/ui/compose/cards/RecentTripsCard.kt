@@ -26,6 +26,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
@@ -76,6 +77,7 @@ internal fun RecentTripsCard(
 	recentHistory: DashboardRecentHistoryState,
 	onTripClick: ((Long) -> Unit)?,
 	onSourceHistoryClick: ((SourceHistoryDetailSelection) -> Unit)? = null,
+	onRetry: (() -> Unit)? = null,
 	modifier: Modifier = Modifier,
 ) {
 	Card(
@@ -98,6 +100,16 @@ internal fun RecentTripsCard(
 			)
 
 			RecentHistoryRows(recentHistory, onTripClick, onSourceHistoryClick)
+			val problems = (recentHistory as? DashboardRecentHistoryState.Content)?.problems.orEmpty()
+			problems.forEach { problem ->
+				val failure = DashboardRecentHistoryState.Unavailable(problem.reason, problem.source)
+				RecentHistoryMessage(failure.unavailableMessage())
+			}
+			if (onRetry != null && (recentHistory is DashboardRecentHistoryState.Unavailable || problems.isNotEmpty())) {
+				TextButton(onClick = onRetry) {
+					Text(stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_retry))
+				}
+			}
 		}
 	}
 }
@@ -121,7 +133,9 @@ private fun RecentHistoryRows(
 			text = recentHistory.unavailableMessage(),
 		)
 		is DashboardRecentHistoryState.Content -> if (recentHistory.entries.isEmpty()) {
-			RecentHistoryMessage(text = stringResource(R.string.dashboard_recent_trips_empty))
+			if (recentHistory.problems.isEmpty()) {
+				RecentHistoryMessage(text = stringResource(R.string.dashboard_recent_trips_empty))
+			}
 		} else {
 			recentHistory.entries.forEach { entry ->
 				when (entry) {
@@ -143,7 +157,7 @@ private fun RecentHistoryRows(
 							} }
 							},
 							durationText = trip.durationMs.formatAsDuration(context),
-							timeText = relativeTime(trip.startTimeMs),
+							timeText = recordedDateTime(trip.startTimeMs),
 							onClick = onTripClick?.let { click -> { click(trip.id) } },
 						)
 					}
@@ -241,7 +255,7 @@ private fun RecentPressureOnlyRow(
 			)
 		}
 		Text(
-			text = relativeTime(history.startTime.raw),
+			text = recordedDateTime(history.startTime.raw),
 			style = MaterialTheme.typography.labelSmall,
 			color = MaterialTheme.colorScheme.onSurface,
 		)
@@ -316,7 +330,7 @@ private fun RecentActivityOnlyRow(
 			)
 		}
 		Text(
-			text = relativeTime(history.startTime.raw),
+			text = recordedDateTime(history.startTime.raw),
 			style = MaterialTheme.typography.labelSmall,
 			color = MaterialTheme.colorScheme.onSurface,
 		)
@@ -364,7 +378,7 @@ private fun RecentRadioOnlyRow(
 			DashboardRadioHistoryFacts(value)
 		}
 		Text(
-			text = relativeTime(startTimeMs),
+			text = recordedDateTime(startTimeMs),
 			style = MaterialTheme.typography.labelSmall,
 			color = MaterialTheme.colorScheme.onSurface,
 		)
@@ -410,7 +424,7 @@ private fun DashboardRecentHistoryState.Unavailable.unavailableMessage(): String
 				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
 				-> R.string.dashboard_live_history_integrity_unavailable
 				SourceAwareHistoryPageUnavailableReason.SOURCE_EVIDENCE_STATE_UNAVAILABLE ->
-					R.string.dashboard_live_history_evidence_unavailable
+					R.string.dashboard_recent_history_unavailable
 				SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE ->
 					R.string.dashboard_recent_history_recency_unavailable
 			},
@@ -534,7 +548,7 @@ private fun RecentStepsOnlyRow(
 			)
 		}
 		Text(
-			text = relativeTime(history.startTime.raw),
+			text = recordedDateTime(history.startTime.raw),
 			style = MaterialTheme.typography.labelSmall,
 			color = MaterialTheme.colorScheme.onSurface,
 		)
@@ -551,13 +565,14 @@ private val StepsOnlyHistoryListState.labelResource: Int
 		StepsOnlyHistoryListState.PARTIAL -> R.string.dashboard_recent_steps_partial
 	}
 
-/** Shared display-only recency; it does not establish capture or interval ownership. */
-internal fun relativeTime(startTimeMs: Long): String = DateUtils.getRelativeTimeSpanString(
+/** Local recording time shared by Dashboard history cards. */
+@Composable
+internal fun recordedDateTime(startTimeMs: Long): String = DateUtils.formatDateTime(
+	LocalContext.current,
 	startTimeMs,
-	System.currentTimeMillis(),
-	DateUtils.MINUTE_IN_MILLIS,
-	DateUtils.FORMAT_ABBREV_RELATIVE,
-).toString()
+	DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or
+		DateUtils.FORMAT_ABBREV_MONTH or DateUtils.FORMAT_SHOW_YEAR,
+)
 
 private const val NANOS_PER_MILLISECOND = 1_000_000L
 

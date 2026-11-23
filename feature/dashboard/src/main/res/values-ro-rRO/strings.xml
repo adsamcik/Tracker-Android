@@ -48,6 +48,7 @@
     <string name="dashboard_milestone_time">min urmărite!</string>
     <string name="dashboard_today_title">Astăzi</string>
     <string name="dashboard_today_no_activity">Nicio activitate astăzi încă</string>
+    <string name="dashboard_saved_data_history">Datele salvate sunt disponibile în Istoric.</string>
     <string name="dashboard_today_distance">Distanță</string>
     <string name="dashboard_today_duration">Durată</string>
     <string name="dashboard_today_steps">Pași</string>
@@ -196,4 +197,5 @@
     <string name="dashboard_activity_on_foot">Pe jos</string>
     <string name="dashboard_activity_tilting">Înclinare</string>
     <string name="dashboard_activity_unknown">Activitate necunoscută</string>
+    <string name="dashboard_finishing_session">Încheierea sesiunii…</string>
 </resources>

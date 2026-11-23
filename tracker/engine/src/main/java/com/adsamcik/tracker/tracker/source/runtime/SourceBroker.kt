@@ -34,6 +34,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.hasReachedRetentionPhase
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
@@ -1009,13 +1010,103 @@ class SourceBroker @Inject internal constructor(
 		return if (expectedSupersededReference !in superseded) {
 			callerAuthorityRetirement.unreferencedSupersededOutcome(expectedSupersededReference)
 		} else {
-			callerAuthorityRetirement.historicalAuthorityConflict(superseded, expectedSupersededReference,
-				retainedStepsReference) ?: if (expectedSupersededReference == retainedStepsReference) {
+			val conflict = callerAuthorityRetirement.historicalAuthorityConflict(
+				superseded, expectedSupersededReference, retainedStepsReference)
+			if (conflict == SourceCallerAuthorityRetirementOutcome.TerminalAmbiguous) {
+				retireManifestedSessionPredecessors(logicalTrackingId, currentReference,
+					superseded - setOfNotNull(retainedStepsReference), wallTimeMs)
+			} else {
+				conflict
+			} ?: if (expectedSupersededReference == retainedStepsReference) {
 				SourceCallerAuthorityRetirementOutcome.RetainedForSteps
 			} else {
 				callerAuthorityRetirement.retireExact(expectedSupersededReference, "SESSION_AUTHORITY_SUPERSEDED", wallTimeMs)
 			}
 		}
+	}
+
+	/** Recover only authenticated older manifests of the same run, before retiring any of them. */
+	private suspend fun retireManifestedSessionPredecessors(
+		logicalTrackingId: String,
+		currentReference: SourceCallerReplayReference,
+		references: Set<SourceCallerReplayReference>,
+		wallTimeMs: Long,
+	): SourceCallerAuthorityRetirementOutcome? {
+		val current = currentCallerManifestForRetirement(logicalTrackingId, currentReference)
+			?: return SourceCallerAuthorityRetirementOutcome.TerminalAmbiguous
+		val loaded = references.associateWith { sourceCallerAuthorityRepository.load(it) }
+		if (loaded.values.any { it == StoredSourceCallerAuthorityLoadResult.Corrupt }) {
+			return SourceCallerAuthorityRetirementOutcome.TerminalCorrupt
+		}
+		val active = loaded.filterValues { it is StoredSourceCallerAuthorityLoadResult.Available }.keys
+		val currentEpochs = (sourceCallerAuthorityRepository.load(currentReference) as?
+			StoredSourceCallerAuthorityLoadResult.Available)?.authority?.permittedDemandIdentities
+			?.map { it.purposeLeaseIdentity.collectedDataEpoch }?.toSet()
+		val sameEpoch = loaded.values.filterIsInstance<StoredSourceCallerAuthorityLoadResult.Available>().all {
+			it.authority.permittedDemandIdentities.map { demand -> demand.purposeLeaseIdentity.collectedDataEpoch }
+				.toSet() == currentEpochs
+		}
+		val manifests = active.map { authenticatedCallerManifest(logicalTrackingId, it) }
+		val proven = sameEpoch && manifests.all { it?.isEarlierManifestInRun(current) == true }
+		if (!proven) {
+			return SourceCallerAuthorityRetirementOutcome.TerminalAmbiguous
+		}
+		return active.firstNotNullOfOrNull { reference ->
+			val outcome = callerAuthorityRetirement.retireExact(reference, "SESSION_AUTHORITY_SUPERSEDED", wallTimeMs)
+			outcome.takeUnless { it == SourceCallerAuthorityRetirementOutcome.Completed }
+		}
+	}
+
+	private fun SessionManifestVersionEntity.isEarlierManifestInRun(current: SessionManifestVersionEntity): Boolean {
+		val sameRun = serviceRunId == current.serviceRunId && effectiveBootId == current.effectiveBootId &&
+			automationEpoch == current.automationEpoch
+		val earlier = manifestRevision < current.manifestRevision &&
+			effectiveElapsedRealtimeNanos <= current.effectiveElapsedRealtimeNanos
+		return sameRun && earlier
+	}
+
+	private suspend fun currentCallerManifestForRetirement(
+		logicalTrackingId: String,
+		reference: SourceCallerReplayReference,
+	): SessionManifestVersionEntity? {
+		val session = database.sourceSessionDao().session(logicalTrackingId) ?: return null
+		return authenticatedCallerManifest(logicalTrackingId, reference)?.takeIf { current ->
+			current.serviceRunId == session.currentServiceRunId &&
+				current.manifestRevision == session.currentManifestRevision
+		}
+	}
+
+	private suspend fun authenticatedCallerManifest(
+		logicalTrackingId: String,
+		reference: SourceCallerReplayReference,
+	): SessionManifestVersionEntity? {
+		val accepted = sourceCallerAuthorityRepository.load(reference) as?
+			StoredSourceCallerAuthorityLoadResult.Available ?: return null
+		val identities = accepted.authority.permittedDemandIdentities
+		val identity = identities.map { it.manifestIdentity }.distinct().singleOrNull() ?: return null
+		val dao = database.sourceSessionDao()
+		val manifest = dao.manifest(logicalTrackingId, identity.manifestRevision)
+			?.takeIf { identity.logicalTrackingId == logicalTrackingId } ?: return null
+		val bindings = dao.manifestSources(logicalTrackingId, identity.manifestRevision)
+		val referenced = dao.lifecycleIntents(logicalTrackingId).any { intent ->
+			intent.sourceCallerAuthorityReference == reference.value &&
+				intent.manifestRevision == manifest.manifestRevision && intent.desiredState == "ACTIVE"
+		}
+		val exactBindings = identities.all { demand -> demand.matchesRetirementManifest(manifest, bindings) }
+		return manifest.takeIf { referenced && exactBindings && SessionManifestIntegrity.verify(it, bindings) }
+	}
+
+	private fun SourceCallerDemandIdentity.matchesRetirementManifest(
+		manifest: SessionManifestVersionEntity,
+		bindings: List<SessionManifestSourceEntity>,
+	): Boolean = purposeLeaseIdentity.let { lease ->
+		val samePolicy = lease.policyRevision == manifest.sourcePolicyRevision &&
+			lease.rolloutRevision == manifest.rolloutRevision
+		val captured = bindings.any { binding ->
+				binding.sourceKind == lease.source.stableCode && binding.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+					binding.persistenceEligible && binding.consentEpoch == lease.consentEpoch
+		}
+		samePolicy && lease.purpose == TrackingPurpose.SESSION_CAPTURE && captured
 	}
 
 	private suspend fun retireDemandAuthority(
@@ -3763,7 +3854,7 @@ private data class SourceDemandMutationBoundary(
 	val elapsedRealtimeNanos: Long,
 	val wallTimeMs: Long,
 )
-
+
 // Build the complete saved Location demand from its accepted purpose and acquisition contract.
 private fun SourceDemandContract.ambientSourceDemand(
 	source: SourceKind,

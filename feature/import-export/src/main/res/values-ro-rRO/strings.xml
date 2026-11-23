@@ -39,7 +39,7 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">Copie de siguranță a bazei de date (ZIP)</string>
-    <string name="settings_import_summary">Importă date din tipurile acceptate (%1$s) și arhive (%2$s). Importurile bazei de date combină rândurile compatibile; nu înlocuiesc datele existente.</string>
+    <string name="settings_import_summary">Importă un fișier de urmărire sau restaurează o copie de siguranță a datelor.</string>
     <string name="settings_import_title">Importă</string>
     <string name="export_radio_sensitivity_title">Exportați detaliile rețelelor?</string>
     <string name="export_wifi_sensitivity_message">Acest fișier include nume Wi-Fi și ID-uri ale punctelor de acces salvate.</string>
@@ -61,4 +61,7 @@
         <item quantity="few">%d puncte din acest fișier diferă de copiile salvate. Alegeți pe care să le păstrați. Celelalte puncte vor fi importate normal.</item>
         <item quantity="other">%d de puncte din acest fișier diferă de copiile salvate. Alegeți pe care să le păstrați. Celelalte puncte vor fi importate normal.</item>
     </plurals>
+    <string name="export_sensitivity_portable_title">Exportați istoricul înregistrat?</string>
+    <string name="export_sensitivity_portable_steps_message">Acest fișier conține numărul de pași, intervale de timp și informații despre acoperire. Nu conține coordonatele traseului. Continuați numai dacă aveți încredere în destinație.</string>
+    <string name="export_sensitivity_portable_activity_message">Acest fișier conține intervale de mișcare înregistrate, intervale de timp și informații despre acoperire. Nu conține coordonatele traseului. Continuați numai dacă aveți încredere în destinație.</string>
 </resources>

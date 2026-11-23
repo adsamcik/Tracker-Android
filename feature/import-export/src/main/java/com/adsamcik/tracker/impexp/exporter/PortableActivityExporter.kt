@@ -50,6 +50,8 @@ internal class PortableActivityExporter(
 ) : Exporter {
 	override val requiresLocationData: Boolean = false
 	override val containsSensitiveLocationData: Boolean = false
+	override val sensitivityTitleRes: Int = R.string.export_sensitivity_portable_title
+	override val sensitivityMessageRes: Int = R.string.export_sensitivity_portable_activity_message
 	override val canSelectDateRange: Boolean = true
 	override val mimeType: String = ActivityCapturedPortableFormatV1.MIME_TYPE
 	override val extension: String = ActivityCapturedPortableFormatV1.FILE_EXTENSION

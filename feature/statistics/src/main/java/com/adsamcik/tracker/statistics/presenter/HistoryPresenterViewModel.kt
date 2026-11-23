@@ -11,13 +11,10 @@ import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.repository.ExplorationRepository
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.stats.api.repository.PagedTrackingHistoryRepository
+import com.adsamcik.tracker.stats.api.repository.CalendarHistoryPresenceRead
 import com.adsamcik.tracker.stats.api.repository.HistoryRange
-import com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest
-import com.adsamcik.tracker.stats.api.repository.HistoryRangeRead
-import com.adsamcik.tracker.stats.api.repository.HistoryContinuation
 import com.adsamcik.tracker.stats.api.repository.HistoryProblem
 import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
-import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
 import com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode
 import com.adsamcik.tracker.stats.api.repository.HistoryPagingItem
 import com.adsamcik.tracker.statistics.viewmodel.CalendarDayData
@@ -27,9 +24,6 @@ import com.adsamcik.tracker.statistics.viewmodel.HistoryTab
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.yield
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
@@ -41,6 +35,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -227,7 +222,7 @@ class HistoryPresenterViewModel @Inject constructor(
 		)
 	}
 
-    /** One existing qualified month observation supplies Room invalidation and deletion/epoch signals. */
+    /** The shared reader owns one bounded month snapshot and skips unoccupied dates. */
     private suspend fun observeCalendarMonth(month: YearMonth, zone: ZoneId) {
         updateCalendarMonth(month, zone, emptyMap(), emptySet(), true)
         val from = month.atDay(1).atStartOfDay(zone).toInstant().toEpochMilli().coerceAtLeast(0L)
@@ -237,15 +232,27 @@ class HistoryPresenterViewModel @Inject constructor(
             return
         }
         val range = HistoryRange(from, to, zone.id, mode = HistoryBrowseMode.OBSERVATIONS)
+        var previous: CalendarHistoryPresenceRead.Snapshot? = null
         try {
-            trackingHistoryRepository.observeRange(HistoryRangeRequest(range, limit = 1)).collectLatest { first ->
-                updateCalendarMonth(month, zone, emptyMap(), emptySet(), true)
-                if (first is HistoryRangeRead.Page) {
-                    readCalendarMonthDays(month, zone, first.snapshot)
-                }
-                else {
-                    updateCalendarMonth(month, zone, emptyMap(), setOf(HistoryProblem(null,
-                    (first as HistoryRangeRead.Unavailable).reason)), false)
+            trackingHistoryRepository.observeCalendarPresence(range).collect { read ->
+                when (read) {
+                    is CalendarHistoryPresenceRead.Loading -> {
+                        val retained = previous?.takeIf {
+                            it.readSnapshot.collectedDataEpoch == read.readSnapshot?.collectedDataEpoch }
+                        updateCalendarMonth(month, zone, retained?.epochDays.orEmpty().associate {
+                            LocalDate.ofEpochDay(it).let { date -> date to CalendarDayData(date) } },
+                            retained?.problems.orEmpty(), true)
+                    }
+                    is CalendarHistoryPresenceRead.Snapshot -> {
+                        previous = read
+                        updateCalendarMonth(month, zone, read.epochDays.associate {
+                            LocalDate.ofEpochDay(it).let { date -> date to CalendarDayData(date) } },
+                            read.problems, false)
+                    }
+                    is CalendarHistoryPresenceRead.Unavailable -> {
+                        previous = null
+                        updateCalendarMonth(month, zone, emptyMap(), setOf(HistoryProblem(null, read.reason)), false)
+                    }
                 }
             }
         } catch (cancelled: CancellationException) { throw cancelled }
@@ -254,46 +261,6 @@ class HistoryPresenterViewModel @Inject constructor(
                 HistoryProblemReason.STORAGE_UNAVAILABLE)), false)
         }
     }
-
-    /** Each round reads at most one existing 100-key page per day and retains only day presence/frontiers. */
-    private suspend fun readCalendarMonthDays(month: YearMonth, zone: ZoneId, snapshot: TrackingHistoryReadSnapshot) {
-        val days = linkedMapOf<LocalDate, CalendarDayData>()
-        val problems = linkedSetOf<HistoryProblem>()
-        val pending = linkedMapOf<LocalDate, HistoryContinuation?>()
-        for (number in month.lengthOfMonth() downTo 1) {
-            val day = month.atDay(number)
-            if (measuredDayRange(day, zone) != null) {
-                pending[day] = null
-            }
-        }
-        while (pending.isNotEmpty()) {
-            for (day in pending.keys.toList()) {
-                currentCoroutineContext().ensureActive()
-                val range = requireNotNull(measuredDayRange(day, zone))
-                val after = pending[day]
-                val read = trackingHistoryRepository.readCalendarDay(range, after)
-                when (read) {
-                    is HistoryRangeRead.Unavailable -> {
-                        problems += HistoryProblem(null, read.reason)
-                        pending.remove(day)
-                    }
-                    is HistoryRangeRead.Page -> {
-                        if (read.snapshot != snapshot) {
-                            updateCalendarMonth(month, zone, emptyMap(), setOf(HistoryProblem(null,
-                                HistoryProblemReason.INTEGRITY_UNAVAILABLE)), false)
-                            return
-                        }
-                        problems += read.problems
-                        advanceCalendarDay(day, range, after, read, days, pending)?.let { problems += it }
-                    }
-                }
-                updateCalendarMonth(month, zone, days.toMap(), problems.toSet(), pending.isNotEmpty())
-                yield()
-            }
-        }
-        updateCalendarMonth(month, zone, days.toMap(), problems.toSet(), false)
-    }
-
 
     private fun updateCalendarMonth(month: YearMonth, zone: ZoneId, days: Map<LocalDate, CalendarDayData>,
         problems: Set<HistoryProblem>, loading: Boolean) {
@@ -408,41 +375,6 @@ private data class CalendarRequest(
 	val month: YearMonth,
 	val selectedDay: LocalDate?,
 )
-
-
-private suspend fun PagedTrackingHistoryRepository.readCalendarDay(
-    range: HistoryRange, after: HistoryContinuation?,
-): HistoryRangeRead = try {
-    readRange(HistoryRangeRequest(range,
-        limit = if (after == null) { 1 } else { 100 }, after = after))
-} catch (cancelled: CancellationException) {
-    throw cancelled
-} catch (_: Exception) {
-    HistoryRangeRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
-}
-
-private fun advanceCalendarDay(
-    day: LocalDate,
-    range: HistoryRange,
-    after: HistoryContinuation?,
-    read: HistoryRangeRead.Page,
-    days: MutableMap<LocalDate, CalendarDayData>,
-    pending: MutableMap<LocalDate, HistoryContinuation?>,
-): HistoryProblem? {
-    val next = read.next
-    if (read.rows.any { it.measurement != null }) {
-        days[day] = CalendarDayData(day)
-        pending.remove(day)
-    } else if (next == null) {
-        pending.remove(day)
-    } else if (next.range != range || next == after) {
-        pending.remove(day)
-        return HistoryProblem(null, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
-    } else {
-        pending[day] = next
-    }
-    return null
-}
 
 
 /** A day before the supported UTC epoch contains no saved observation. */

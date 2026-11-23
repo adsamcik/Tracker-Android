@@ -15,7 +15,7 @@
     <string name="settings_data_management_section">Andmehaldus</string>
     <string name="settings_data_danger_zone_section">Ohtlik tsoon</string>
     <string name="settings_incremental_backups_title">Järkjärgulised varukoopiad</string>
-    <string name="settings_incremental_backups_summary">Ekspordi ainult pärast viimast varukoopiat lisandunud andmed. Vähendab ekspordiaega ja failisuurust.</string>
+    <string name="settings_incremental_backups_summary">Ekspordi ajastatud GPX- ja KML-failidesse ainult uued andmed.</string>
     <string name="settings_reset_export_watermarks_title">Sunni täielik eksport</string>
     <string name="settings_reset_export_watermarks_summary">Järgmine automaatne varukoopia sisaldab muudatuste asemel kõiki andmeid</string>
     <string name="settings_reset_export_watermarks_done">Ekspordi veemärgid lähtestati — järgmine varukoopia on täielik eksport</string>
@@ -163,7 +163,7 @@
     <string name="export_sensitivity_db_message">See varukoopia sisaldab salvestatud jälgimisandmeid, sealhulgas võimalikke asukohti ja võrguandmeid. Seadeid ei kaasata.</string>
     <string name="export_sensitivity_confirm">Jätka eksportimist</string>
     <string name="settings_export_title">Ekspordi</string>
-    <string name="settings_import_summary">Impordi andmeid toetatud tüüpidest (%1$s) ja arhiividest (%2$s). Andmebaasi import ühendab ühilduvad read ega asenda olemasolevaid andmeid.</string>
+    <string name="settings_import_summary">Impordi jälgimisfail või taasta andmete varukoopia.</string>
     <string name="settings_import_title">Impordi</string>
     <string name="got_it">Selge</string>
     <string name="battery_impact_low">Väike mõju</string>
@@ -278,7 +278,7 @@
     <string name="setup_perm_location_bg_why">Marsruudi salvestamise jätkamiseks, kui vahetate rakendust või ekraan lülitub välja, vajab Tracker juurdepääsu teie asukohale taustal. Salvestatud asukoht jääb sellele seadmele — serverisse ei saadeta midagi. Automaatse jälgimise lubamiseks valige järgmisel süsteemi viipal „Luba alati”; „Rakenduse kasutamise ajal” hoiab Trackeri töös ainult siis, kui selle ekraan on avatud.</string>
     <string name="setup_perm_activity_why">Võimaldab Trackeril tuvastada, mida teete (kõnnite, sõidate jalgrattaga, juhite autot või seisate paigal), et automaatne jälgimine saaks peatuda, kui te ei liigu, ja säästa akut. Tegevusandmed jäävad sellele seadmele — serverisse ei saadeta midagi.</string>
     <string name="setup_perm_notification_why">Tracker kuvab salvestamise ajal väikest olekumärguannet, et näeksite ühe pilguga, et jälgimine on sisse lülitatud, ja saaksite selle ühe puudutusega peatada. Turundus- ega reklaammärguandeid ei saadeta.</string>
-    <string name="setup_perm_wifi_why">Tracker saab asukoha täpsuse parandamiseks salvestada Wi‑Fi pääsupunkte, mida telefon reisi ajal näeb kohtades, kus GPS on nõrk (siseruumides, maa all). Raadioandmed jäävad sellele seadmele — serverisse ei saadeta midagi. Andke luba ainult siis, kui seda soovite.</string>
+    <string name="setup_perm_wifi_why">Android vajab Wi-Fi-võrkude otsimiseks juurdepääsu asukohale. Saate salvestada Wi-Fi andmeid ilma oma asukohta salvestamata.</string>
     <string name="setup_perm_cell_why">Tracker saab salvestada mobiilimastide ID-d teie marsruudil, et asukohta saaks tuletada, kui GPS pole saadaval. Raadioandmed jäävad sellele seadmele — serverisse ei saadeta midagi. Andke telefoni oleku ja täpse asukoha luba ainult siis, kui seda soovite.</string>
     <string name="setup_perm_grant">Anna luba</string>
     <string name="setup_perm_grant_location_content_description">Anna asukohaluba</string>

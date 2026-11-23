@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base.database.dao
 import androidx.room.Dao
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
+import com.adsamcik.tracker.shared.base.database.data.AllDaySensorRetention
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -20,13 +21,19 @@ interface PressureSampleDao : BaseDao<PressureSample> {
     suspend fun allDayBetween(fromMs: Long, toMs: Long, limit: Int): List<PressureSample>
 
     /** Reads on-device all-day observations, excluding imported copies before applying the row limit. */
-    @Query("""
-        SELECT * FROM pressure_sample
-        WHERE source_signal_id LIKE 'all-day:pressure:%' AND time_ms >= :fromMs AND time_ms < :toMs
-          AND instr(',' || COALESCE(capability_flags, '') || ',', ',PORTABLE_IMPORT,') = 0
-        ORDER BY time_ms, source_signal_id LIMIT :limit
-    """)
-    suspend fun nativeAllDayBetween(fromMs: Long, toMs: Long, limit: Int): List<PressureSample>
+    @Query(
+        "SELECT * FROM pressure_sample " +
+        "WHERE source_signal_id LIKE 'all-day:pressure:%' AND time_ms >= :fromMs AND time_ms < :toMs " +
+        "AND instr(',' || COALESCE(capability_flags, '') || ',', ',PORTABLE_IMPORT,') = 0 " +
+        "AND (:retainedFromMs IS NULL OR (" + AllDaySensorRetention.PRESSURE_LOWER_BOUND_SQL +
+        ") >= :retainedFromMs) ORDER BY time_ms, source_signal_id LIMIT :limit",
+    )
+    suspend fun nativeAllDayBetween(
+        fromMs: Long,
+        toMs: Long,
+        limit: Int,
+        retainedFromMs: Long? = null,
+    ): List<PressureSample>
 
     /** Pages all-day observations and imported copies by stable row ID within the measured window. */
     @Query(
@@ -59,8 +66,10 @@ interface PressureSampleDao : BaseDao<PressureSample> {
     @Query("DELETE FROM pressure_sample")
     fun deleteAll()
 
-    /** Delete samples older than given timestamp. */
-    @Query("DELETE FROM pressure_sample WHERE time_ms < :beforeMs")
+    /** Deletes expired samples; an all-day aggregate must retain its whole uncertainty-adjusted window. */
+    @Query("DELETE FROM pressure_sample WHERE time_ms < :beforeMs OR " +
+        "(source_signal_id LIKE 'all-day:pressure:%' AND ((" + AllDaySensorRetention.PRESSURE_LOWER_BOUND_SQL +
+        ") IS NULL OR (" + AllDaySensorRetention.PRESSURE_LOWER_BOUND_SQL + ") < :beforeMs))")
     suspend fun deleteOlderThan(beforeMs: Long): Int
 
     /** Exact saved leaves selected by the bounded measured-history key page. */

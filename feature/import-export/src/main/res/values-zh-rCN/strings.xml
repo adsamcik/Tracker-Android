@@ -38,7 +38,7 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">数据库备份（ZIP）</string>
-    <string name="settings_import_summary">从支持的类型（%1$s）和归档文件（%2$s）导入数据。数据库导入会合并兼容行，不会替换现有数据。</string>
+    <string name="settings_import_summary">导入记录文件或恢复数据备份。</string>
     <string name="settings_import_title">导入</string>
     <string name="export_radio_sensitivity_title">导出网络详情？</string>
     <string name="export_wifi_sensitivity_message">此文件包含已保存的 Wi-Fi 名称和接入点 ID。</string>
@@ -58,4 +58,7 @@
     <plurals name="import_location_conflict_count">
         <item quantity="other">此文件中有 %d 个点与已保存的副本不同。请选择要保留的版本。其他点将正常导入。</item>
     </plurals>
+    <string name="export_sensitivity_portable_title">导出已记录的历史？</string>
+    <string name="export_sensitivity_portable_steps_message">此文件包含步数、时间区间和记录范围信息。 不含路线坐标。仅在信任保存位置时继续。</string>
+    <string name="export_sensitivity_portable_activity_message">此文件包含已记录的运动区间、时间区间和记录范围信息。 不含路线坐标。仅在信任保存位置时继续。</string>
 </resources>

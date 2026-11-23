@@ -34,7 +34,7 @@ internal fun RecentImportedStepsRow(
 			style = MaterialTheme.typography.bodyMedium,
 		)
 		Text(
-			text = relativeTime(history.physicalMembers.maxOf { it.startTime.raw }),
+			text = recordedDateTime(history.physicalMembers.maxOf { it.startTime.raw }),
 			style = MaterialTheme.typography.bodySmall,
 			color = MaterialTheme.colorScheme.onSurfaceVariant,
 		)

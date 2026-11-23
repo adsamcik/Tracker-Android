@@ -47,6 +47,7 @@
     <string name="dashboard_milestone_time">min bijgehouden!</string>
     <string name="dashboard_today_title">Vandaag</string>
     <string name="dashboard_today_no_activity">Nog geen activiteit vandaag</string>
+    <string name="dashboard_saved_data_history">Opgeslagen gegevens zijn beschikbaar in Geschiedenis.</string>
     <string name="dashboard_today_distance">Afstand</string>
     <string name="dashboard_today_duration">Duur</string>
     <string name="dashboard_today_steps">Stappen</string>
@@ -195,4 +196,5 @@
     <string name="dashboard_activity_on_foot">Te voet</string>
     <string name="dashboard_activity_tilting">Kantelen</string>
     <string name="dashboard_activity_unknown">Onbekende activiteit</string>
+    <string name="dashboard_finishing_session">Sessie afronden…</string>
 </resources>

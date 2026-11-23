@@ -990,7 +990,8 @@ class CellDurableSourceIngressTest {
 		val stateProvider = mockk<AndroidConnectivityDeviceStateProvider>()
 		every { stateProvider.cell() } returns CellDeviceState(true, true, true, true)
 		val runtime = CellSourceRuntime(scope, registrations, backend, stateProvider,
-			mockk<CoalescingSourceWakeupScheduler>(relaxed = true), testRadioActiveRequestAllowance())
+			mockk<CoalescingSourceWakeupScheduler>(relaxed = true), testRadioActiveRequestAllowance(),
+			com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider(Dispatchers.Unconfined))
 		return runtime to { requireNotNull(callback) }
 	}
 

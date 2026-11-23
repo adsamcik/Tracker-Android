@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.impexp.exporter.DatabaseBackupArchive
 import com.adsamcik.tracker.impexp.exporter.DatabaseBackupScope
 import com.adsamcik.tracker.impexp.exporter.SQLiteDatabaseCopyLockProvider
+import com.adsamcik.tracker.impexp.exporter.openFrameworkBackupDatabase
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.legacy.ACTIVE_DATABASE_NAME
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -43,7 +44,7 @@ class DataBackupArchiveRoundTripTest {
             val sources = DatabaseBackupScope.discover(context)
             sources.any { it.file == settings } shouldBe false
             archive.outputStream().use {
-                DatabaseBackupArchive.writeData(sources, it, SQLiteDatabaseCopyLockProvider)
+                DatabaseBackupArchive.writeData(sources, it, SQLiteDatabaseCopyLockProvider(::openFrameworkBackupDatabase))
             }
             val reader = DataBackupArchiveReader(context)
             val preview = reader.inspect(Uri.fromFile(archive)).shouldBeInstanceOf<DataBackupInspection.Ready>().preview

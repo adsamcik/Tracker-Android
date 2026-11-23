@@ -48,6 +48,7 @@
     <string name="dashboard_milestone_time">min. sekimo!</string>
     <string name="dashboard_today_title">Šiandien</string>
     <string name="dashboard_today_no_activity">Šiandien dar nėra veiklos</string>
+    <string name="dashboard_saved_data_history">Išsaugoti duomenys pasiekiami Istorijoje.</string>
     <string name="dashboard_today_distance">Atstumas</string>
     <string name="dashboard_today_duration">Trukmė</string>
     <string name="dashboard_today_steps">Žingsniai</string>
@@ -196,4 +197,5 @@
     <string name="dashboard_activity_on_foot">Pėsčiomis</string>
     <string name="dashboard_activity_tilting">Pakreipta</string>
     <string name="dashboard_activity_unknown">Nežinoma veikla</string>
+    <string name="dashboard_finishing_session">Seansas baigiamas…</string>
 </resources>

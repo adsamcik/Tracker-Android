@@ -9,10 +9,15 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidence
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
 import com.adsamcik.tracker.activity.api.ingress.ActivityTransitionEvidence
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationCleanupStoreTest
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import java.io.File
+import java.io.ByteArrayInputStream
+import java.io.DataInputStream
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
 import java.security.MessageDigest
 import org.junit.After
 import org.junit.Before
@@ -22,7 +27,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [34], shadows = [ActivityRegistrationCleanupStoreTest.HostAtomicFile::class])
 class ActivityCallbackRetryStoreTest {
 	private lateinit var directory: File
 	private lateinit var store: ActivityCallbackRetryStore
@@ -228,13 +233,100 @@ class ActivityCallbackRetryStoreTest {
 		val id = store.retain(callbackBatch(receivedElapsedRealtimeNanos = 500L))
 		nowElapsedRealtimeNanos = 499L
 
-		shouldThrow<ActivityCallbackRetryStoreException> { store.load(id) }.code shouldBe
-			ActivityCallbackGapCode.RETRY_RECORD_EXPIRED
+		val expired = shouldThrow<ActivityCallbackRetryStoreException> { store.load(id) }
+		expired.code shouldBe ActivityCallbackGapCode.RETRY_RECORD_EXPIRED
+		expired.originalMetadata shouldBe ActivityCallbackRetryMetadata.from(callbackBatch())
 
 		nowElapsedRealtimeNanos = 501L
 		currentClockDomainId = "boot-8"
-		shouldThrow<ActivityCallbackRetryStoreException> { store.load(id) }.code shouldBe
-			ActivityCallbackGapCode.RETRY_CLOCK_DOMAIN_CHANGED
+		val oldBoot = shouldThrow<ActivityCallbackRetryStoreException> { store.load(id) }
+		oldBoot.code shouldBe ActivityCallbackGapCode.RETRY_CLOCK_DOMAIN_CHANGED
+		oldBoot.originalMetadata shouldBe expired.originalMetadata
+	}
+
+	@Test
+	fun `damaged payload keeps original checked scope but damaged header stays unknown`() {
+		val batch = callbackBatch()
+		val id = store.retain(batch)
+		val file = File(directory, "activity-callback-$id.bin")
+		val original = file.readBytes()
+		file.writeBytes(original.copyOf().also { it[it.lastIndex] = (it.last().toInt() xor 1).toByte() })
+
+		val payloadFailure = shouldThrow<ActivityCallbackRetryStoreException> { store.load(id) }
+		payloadFailure.code shouldBe ActivityCallbackGapCode.RETRY_RECORD_CORRUPT
+		payloadFailure.originalMetadata shouldBe ActivityCallbackRetryMetadata.from(batch)
+		store.recordGap(id, payloadFailure.code, originalMetadata = payloadFailure.originalMetadata) shouldBe true
+		store.gapReceipts().single().originalMetadata shouldBe payloadFailure.originalMetadata
+
+		file.writeBytes(original.copyOf().also { it[14] = (it[14].toInt() xor 1).toByte() })
+		shouldThrow<ActivityCallbackRetryStoreException> { store.load(id) }.originalMetadata shouldBe null
+	}
+
+	@Test
+	fun `checked retry scope keeps every distinct original observation including middle timestamps`() {
+		val batch = callbackBatch().let { original -> original.copy(transitions = listOf(200L, 150L, 100L, 150L)
+			.map { original.transitions.single().copy(providerElapsedRealtimeNanos = it) }) }
+		val id = store.retain(batch)
+		currentClockDomainId = "new-boot"
+		val metadata = shouldThrow<ActivityCallbackRetryStoreException> { store.load(id) }.originalMetadata
+		metadata?.observedElapsedRealtimeNanos shouldBe listOf(100L, 150L, 200L)
+	}
+
+	@Test
+	fun `legacy complete V2 record retains its ID and original scope when it later expires`() {
+		val batch = callbackBatch()
+		val id = store.retain(batch)
+		val file = File(directory, "activity-callback-$id.bin")
+		val legacy = DataInputStream(ByteArrayInputStream(file.readBytes())).use { input ->
+			input.readInt()
+			input.readInt() shouldBe 3
+			ActivityCallbackRetryMetadataCodec.read(input, id)
+			input.readBytes()
+		}
+		file.writeBytes(legacy)
+		store.load(id) shouldBe batch
+		nowElapsedRealtimeNanos += 7L * 60L * 60L * 1_000_000_000L
+		val failure = shouldThrow<ActivityCallbackRetryStoreException> { store.load(id) }
+		failure.code shouldBe ActivityCallbackGapCode.RETRY_RECORD_EXPIRED
+		failure.originalMetadata shouldBe ActivityCallbackRetryMetadata.from(batch)
+	}
+
+	@Test
+	fun `legacy gap receipt remains readable without invented original registration metadata`() {
+		val id = "0".repeat(64)
+		directory.mkdirs()
+		val bytes = ByteArrayOutputStream().also { buffer -> DataOutputStream(buffer).use { output ->
+			output.writeInt(0x41434750)
+			output.writeInt(1)
+			output.writeUTF(id)
+			output.writeInt(ActivityCallbackGapCode.RETRY_RECORD_EXPIRED.wireCode)
+			output.writeLong(500L)
+			output.writeLong(7L)
+			output.writeLong(11L)
+			output.writeLong(1_000L)
+		} }.toByteArray()
+		File(directory, "activity-gap-$id-8.bin").writeBytes(bytes)
+
+		val receipt = store.gapReceipts().single()
+		receipt.registrationGeneration shouldBe 7L
+		receipt.originalMetadata shouldBe null
+	}
+
+	@Test
+	fun `corrupt existing gap receipt is repaired before it can replace retry ownership`() {
+		val batch = callbackBatch()
+		val id = store.retain(batch)
+		val code = ActivityCallbackGapCode.RETRY_RECORD_EXPIRED
+		store.recordGap(id, code, batch) shouldBe true
+		val receiptFile = File(directory, "activity-gap-$id-${code.wireCode}.bin")
+		receiptFile.writeBytes(byteArrayOf(1, 2, 3))
+
+		store.recordGap(id, code, batch) shouldBe true
+		val repaired = store.gapReceipts().single()
+		repaired.originalMetadata shouldBe ActivityCallbackRetryMetadata.from(batch)
+		nowWallTimeMs += 1_000L
+		store.recordGap(id, code, batch) shouldBe true
+		store.gapReceipts().single() shouldBe repaired
 	}
 
 	@Test

@@ -154,7 +154,16 @@ class FormatRegistryTest {
 		}
 
 		@Test
-		fun `Pressure privacy confirmation does not claim exported route coordinates`() {
+		fun `source history confirmation describes its data without claiming route coordinates`() {
+			listOf(
+				"portable-steps-v1" to R.string.export_sensitivity_portable_steps_message,
+				"portable-activity-v1" to R.string.export_sensitivity_portable_activity_message,
+			).forEach { (id, message) ->
+				val exporter = FormatRegistry.exporterFor(id).shouldNotBeNull()
+				exporter.containsSensitiveLocationData shouldBe false
+				exporter.sensitivityTitleRes shouldBe R.string.export_sensitivity_portable_title
+				exporter.sensitivityMessageRes shouldBe message
+			}
 			val pressure = FormatRegistry.exporterFor("portable-pressure-v1").shouldNotBeNull()
 			pressure.containsSensitiveLocationData shouldBe true
 			pressure.sensitivityTitleRes shouldBe R.string.export_pressure_sensitivity_title

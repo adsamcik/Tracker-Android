@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.activity
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
+import com.adsamcik.tracker.shared.base.database.hasCompatibleCapturedActivityAcquisition
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedEvidenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedPlanIntegrity
@@ -182,7 +183,8 @@ internal class ActivityCapturedFactWriter(
 		val sources = checkNotNull(manifestSourcesByRevision[authority.sessionManifestRevision])
 		if (manifest.logicalTrackingId != logicalTrackingId ||
 			manifest.sourcePolicyRevision != authority.sourcePolicyRevision ||
-			manifest.acquisitionPlanRevision != authority.configurationRevision ||
+			!database.hasCompatibleCapturedActivityAcquisition(manifest, authority.configurationRevision,
+				authority.sourceInstanceId.value, authority.registrationGeneration, authority.authorizationRevision) ||
 			manifest.effectiveBootId != authority.clockDomainId) {
 			reject(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
 		}

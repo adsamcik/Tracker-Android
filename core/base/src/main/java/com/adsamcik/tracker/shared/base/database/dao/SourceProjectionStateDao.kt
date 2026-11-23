@@ -35,6 +35,11 @@ interface SourceProjectionStateDao {
 	)
 	suspend fun activeProductLane(sourceKind: Int): SourceProductProjectionLaneEntity?
 
+	/** Includes historical lanes because retained source facts still depend on their saved bounds. */
+	@Query("SELECT * FROM source_product_projection_lane WHERE source_kind = :sourceKind " +
+		"ORDER BY binding_generation, projection_id, projection_version LIMIT :limit")
+	suspend fun productLanesForSourceBounded(sourceKind: Int, limit: Int): List<SourceProductProjectionLaneEntity>
+
 	@Query(
 		"SELECT * FROM source_product_projection_lane WHERE source_kind = :sourceKind " +
 			"ORDER BY binding_generation DESC LIMIT 1",
@@ -343,6 +348,28 @@ interface SourceProjectionStateDao {
 		afterOrdinal: Long,
 		throughOrdinal: Long,
 	): SourceProjectionFailureEntity?
+
+	/** Earliest missing-presentation input per stopped Activity run, including already-settled cursors. */
+	@Query(
+		"SELECT failure.* FROM source_projection_failure failure " +
+			"JOIN source_event_wal wal ON wal.admission_ordinal = failure.admission_ordinal " +
+			"JOIN source_service_run run ON run.service_run_id = wal.service_run_id " +
+			"AND run.logical_tracking_id = wal.logical_tracking_id " +
+			"WHERE failure.projection_id = :projectionId AND failure.projection_version = :projectionVersion " +
+			"AND failure.terminal = 1 AND failure.failure_code = 'ACTIVITY_WAL_SEGMENT_MISMATCH' " +
+			"AND failure.admission_ordinal <= :throughOrdinal AND wal.source_kind = :sourceKind " +
+			"AND run.state IN ('STOPPING', 'FINALIZED', 'SUSPENDED') " +
+			"GROUP BY wal.logical_tracking_id, wal.service_run_id " +
+			"HAVING failure.admission_ordinal = MIN(failure.admission_ordinal) " +
+			"ORDER BY failure.admission_ordinal DESC LIMIT :limit",
+	)
+	suspend fun settledActivityPresentationFailures(
+		projectionId: String,
+		projectionVersion: Int,
+		sourceKind: Int,
+		throughOrdinal: Long,
+		limit: Int,
+	): List<SourceProjectionFailureEntity>
 
 	@Query(
 		"DELETE FROM source_projection_failure WHERE projection_id = :projectionId " +
