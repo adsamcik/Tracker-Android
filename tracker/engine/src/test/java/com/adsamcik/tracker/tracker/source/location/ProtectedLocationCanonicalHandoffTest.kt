@@ -134,6 +134,66 @@ class ProtectedLocationCanonicalHandoffTest {
 		assertTrue(database.locationPurposeDao().receiptByEvent("location-next-pass") != null)
 	}
 
+	@Test
+	fun `exact End settles accepted and rejected points once through its queue`() = runTest {
+		val accepted = command()
+		val rejectedEventId = "location-rejected-at-end"
+		val endOrdinal = ADMISSION_ORDINAL + 1L
+		val rejected = command(
+			eventId = rejectedEventId,
+			admissionOrdinal = endOrdinal,
+			wallTimeMs = WALL_TIME_MS + 1_000L,
+			observedNanos = OBSERVED_NANOS + 1_000_000_000L,
+			receivedNanos = RECEIVED_NANOS + 1_000_000_000L,
+			sourceSequence = 1L,
+		)
+		insertWal(accepted)
+		insertWal(rejected)
+		updateDrainCompleteness(endOrdinal, 1L)
+
+		val commands = mapOf(EVENT_ID to accepted, rejectedEventId to rejected)
+		val acceptedWriter = ReceiptWriter(database, accepted = true)
+		val rejectedWriter = ReceiptWriter(database, accepted = false)
+		val hints = mutableListOf<Long>()
+		val handoff = ProtectedLocationCanonicalHandoff(
+			database = database,
+			qualifier = ProtectedLocationWalQualifier { event ->
+				LocationWalAdapterResult.Evaluated(
+					LocationObservationQualification.Qualified(commands.getValue(event.value)),
+					TEST_ACQUISITION_METADATA,
+				)
+			},
+			canonicalWriter = ProtectedLocationCanonicalWriter { command, metadata ->
+				val writer = if (command == accepted) acceptedWriter else rejectedWriter
+				writer.write(command, metadata)
+			},
+			onSavedPointCommitted = hints::add,
+		)
+
+		val result = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+			handoff.drainThrough(LOGICAL_ID, RUN_ID, endOrdinal),
+		)
+		assertEquals(endOrdinal, result.lastCommittedOrdinal)
+		assertEquals(1, result.acceptedSamplesCommitted)
+		assertEquals(1, result.rejectedObservationsCommitted)
+		val savedPoint = requireNotNull(database.locationPurposeDao().receiptByEvent(EVENT_ID))
+		assertEquals(listOf(savedPoint.sampleId), hints)
+		assertNull(database.locationPurposeDao().receiptByEvent(rejectedEventId))
+		assertEquals(
+			LocationObservationDecision.REJECTED,
+			database.locationObservationDecisionDao().getBySourceEventId(rejectedEventId)?.decision,
+		)
+
+		val repeated = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+			handoff.drainThrough(LOGICAL_ID, RUN_ID, endOrdinal),
+		)
+		assertEquals(endOrdinal, repeated.lastCommittedOrdinal)
+		assertEquals(0, repeated.observationsCommitted)
+		assertEquals(1, acceptedWriter.writeCount)
+		assertEquals(1, rejectedWriter.writeCount)
+		assertEquals(listOf(savedPoint.sampleId), hints)
+	}
+
     @Test
     fun `saved presentation hint follows the actual Room purpose and cursor commit`() = runTest {
         val command = command()

@@ -1093,7 +1093,7 @@ internal class ProtectedLocationCanonicalHandoff(
 			return ProtectedLocationCandidateEffect.Deferred("HISTORICAL_LOCATION_CANONICAL_SESSION_NOT_ACTIVE")
 		}
 		writeQualifiedCandidate(initialLane, expectedCursor, candidate, qualified)?.let { return it }
-		return readCaptureAfterWrite(initialLane, expectedCursor, candidate, qualified, ambient)
+		return settleCaptureAfterWrite(initialLane, expectedCursor, candidate, qualified, ambient)
 	}
 
 	private suspend fun settleExistingCaptureReceipt(
@@ -1142,21 +1142,46 @@ internal class ProtectedLocationCanonicalHandoff(
 			}
 		}
 
-	private suspend fun readCaptureAfterWrite(
+	private suspend fun settleCaptureAfterWrite(
 		initialLane: SourceProductProjectionLaneEntity,
 		expectedCursor: Long,
 		candidate: ProtectedLocationNext.Candidate,
 		qualified: ProtectedLocationQualifiedCandidate,
 		ambient: LocationAmbientQualification,
-	): ProtectedLocationCandidateEffect = when (val receipt = database.withTransaction {
-		requireExactLane(initialLane, expectedCursor)
-		database.readProtectedLocationCanonicalReceipt(qualified.command, qualified.acquisitionMetadata)
-	}) {
-		is ProtectedLocationCanonicalReceipt.Complete ->
-			completeCaptureCandidate(initialLane, expectedCursor, candidate, qualified, receipt, ambient)
-		is ProtectedLocationCanonicalReceipt.Incomplete -> ProtectedLocationCandidateEffect.Deferred(receipt.reason)
-		is ProtectedLocationCanonicalReceipt.Invalid -> failCandidate(initialLane, expectedCursor, candidate, receipt.reason)
+	): ProtectedLocationCandidateEffect {
+		val (receipt, savedSampleId) = database.withTransaction {
+			requireExactLane(initialLane, expectedCursor)
+			val receipt = database.readProtectedLocationCanonicalReceipt(
+				qualified.command,
+				qualified.acquisitionMetadata,
+			)
+			val savedSampleId = if (receipt is ProtectedLocationCanonicalReceipt.Complete &&
+				receipt.ambientSiblingToWrite(ambient) == null
+			) {
+				commitCaptureReceipt(initialLane, expectedCursor, candidate.admissionOrdinal, qualified.command, receipt)
+			} else {
+				null
+			}
+			receipt to savedSampleId
+		}
+		savedSampleId?.let(onSavedPointCommitted)
+		return when (receipt) {
+			is ProtectedLocationCanonicalReceipt.Complete -> {
+				if (receipt.ambientSiblingToWrite(ambient) != null) {
+					completeCaptureCandidate(initialLane, expectedCursor, candidate, qualified, receipt, ambient)
+				} else {
+					ProtectedLocationCandidateEffect.Applied(candidate.admissionOrdinal, receipt.acceptedSample != null)
+				}
+			}
+			is ProtectedLocationCanonicalReceipt.Incomplete -> ProtectedLocationCandidateEffect.Deferred(receipt.reason)
+			is ProtectedLocationCanonicalReceipt.Invalid -> failCandidate(initialLane, expectedCursor, candidate, receipt.reason)
+		}
 	}
+
+	private fun ProtectedLocationCanonicalReceipt.Complete.ambientSiblingToWrite(
+		ambient: LocationAmbientQualification,
+	): LocationAmbientFactCommand? =
+		(ambient as? LocationAmbientQualification.Qualified)?.command?.takeIf { acceptedSample == null }
 
 	private suspend fun failCandidate(
 		initialLane: SourceProductProjectionLaneEntity,
@@ -1177,11 +1202,8 @@ internal class ProtectedLocationCanonicalHandoff(
 		receipt: ProtectedLocationCanonicalReceipt.Complete,
 		ambient: LocationAmbientQualification,
 	): ProtectedLocationCandidateEffect {
-		if (receipt.acceptedSample == null && ambient is LocationAmbientQualification.Qualified) {
-			val sibling = writeAmbientSibling(ambient.command)
-			if (sibling != null) {
-				return sibling
-			}
+		receipt.ambientSiblingToWrite(ambient)?.let { command ->
+			writeAmbientSibling(command)?.let { return it }
 		}
 		advanceAfterReceipt(
 			initialLane,
@@ -1292,41 +1314,44 @@ internal class ProtectedLocationCanonicalHandoff(
 			check(canonicalReceipt is ProtectedLocationCanonicalReceipt.Complete) {
 				"Protected Location canonical receipt disappeared before cursor commit"
 			}
-			database.recordLocationCapturePurposeInCurrentTransaction(command, canonicalReceipt)
-			val ambient = qualifier.qualifyAmbient(command.mutation.identity.sourceEventId)
-			if (ambient is LocationAmbientQualification.Qualified && canonicalReceipt.acceptedSample != null) {
-				database.recordLocationAmbientPurpose(ambient.command, canonicalReceipt.acceptedSample)
+			commitCaptureReceipt(initialLane, expectedCursor, throughOrdinal, command, canonicalReceipt)
+		}.let { sampleId -> sampleId?.let(onSavedPointCommitted) }
+	}
+
+	/** Records purpose and cursor progress in the transaction that verified the exact lane and receipt. */
+	private suspend fun commitCaptureReceipt(
+		initialLane: SourceProductProjectionLaneEntity,
+		expectedCursor: Long,
+		throughOrdinal: Long,
+		command: LocationCapturedFactCommand,
+		canonicalReceipt: ProtectedLocationCanonicalReceipt.Complete,
+	): Long? {
+		database.recordLocationCapturePurposeInCurrentTransaction(command, canonicalReceipt)
+		val ambient = qualifier.qualifyAmbient(command.mutation.identity.sourceEventId)
+		if (ambient is LocationAmbientQualification.Qualified && canonicalReceipt.acceptedSample != null) {
+			database.recordLocationAmbientPurpose(ambient.command, canonicalReceipt.acceptedSample)
+		}
+		val stateDao = database.sourceProjectionStateDao()
+		stateDao.deleteFailure(WRITER_ID, WRITER_VERSION, throughOrdinal)
+		database.saveLocationContinuityAnchor(command = command)
+		advanceCursor(initialLane, expectedCursor, throughOrdinal)
+		val eventId = command.mutation.identity.sourceEventId.value
+		val receipt = requireNotNull(stateDao.joinState(
+			WRITER_ID,
+			WRITER_VERSION,
+			protectedLocationCanonicalReceiptStateKey(eventId),
+		))
+		stateDao.saveJoinState(receipt.copy(
+			minimumRequiredOrdinal = Long.MAX_VALUE,
+			updatedAtMs = nowMs(),
+		))
+		return canonicalReceipt.acceptedSample?.id
+			?: if (database.hasAcceptedAmbientSibling(ambient)) {
+				database.locationPurposeDao().receiptByEvent(eventId)?.sampleId
+			} else {
+				null
 			}
-			database.sourceProjectionStateDao().deleteFailure(
-				WRITER_ID,
-				WRITER_VERSION,
-				throughOrdinal,
-			)
-			database.saveLocationContinuityAnchor(
-				command = command,
-			)
-			advanceCursor(initialLane, expectedCursor, throughOrdinal)
-			val receiptKey = protectedLocationCanonicalReceiptStateKey(
-				command.mutation.identity.sourceEventId.value,
-			)
-			val receipt = requireNotNull(database.sourceProjectionStateDao().joinState(
-				WRITER_ID,
-				WRITER_VERSION,
-				receiptKey,
-			))
-			database.sourceProjectionStateDao().saveJoinState(
-				receipt.copy(
-					minimumRequiredOrdinal = Long.MAX_VALUE,
-					updatedAtMs = nowMs(),
-				),
-			)
-            canonicalReceipt.acceptedSample?.id ?: if (database.hasAcceptedAmbientSibling(ambient)) {
-                database.locationPurposeDao().receiptByEvent(command.mutation.identity.sourceEventId.value)?.sampleId
-            } else {
-                null
-            }
-        }.let { sampleId -> sampleId?.let(onSavedPointCommitted) }
-    }
+	}
 
 	// Keep requalification, failure disposition and cursor advance in one transaction.
 	@Suppress("CyclomaticComplexMethod")
